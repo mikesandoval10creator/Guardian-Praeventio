@@ -3428,6 +3428,46 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
     // path used by ProjectContext + every other Sprint K endpoint.
     let companyName = 'Empresa';
     let expectedAttendees: string[] = [];
+
+    // Codex P2 PR #317 round 2: source-of-truth para asistentes es
+    // `cphs_committees` (escrito por `services/cphs/cphsService.ts`
+    // cuando el prevencionista constituye el comité). El project doc
+    // sólo guarda overrides ad-hoc (proyectos sin módulo CPHS formal).
+    // Estrategia: primero pedimos el comité ACTIVO del proyecto y
+    // mapeamos `members[].fullName`; si no existe, caemos al lookup
+    // legacy en el doc del proyecto (cphsAttendees / cphsMembers).
+    try {
+      const committeesSnap = await db
+        .collection('cphs_committees')
+        .where('projectId', '==', projectId)
+        .where('status', '==', 'active')
+        .limit(5)
+        .get();
+      if (!committeesSnap.empty) {
+        // Concat members[].fullName from every active committee del proyecto.
+        // Normal es 1, pero defensivo por si quedan duplicados de migraciones.
+        const seen = new Set<string>();
+        const collected: string[] = [];
+        for (const doc of committeesSnap.docs) {
+          const data = doc.data() as { members?: unknown };
+          if (!Array.isArray(data.members)) continue;
+          for (const m of data.members) {
+            if (!m || typeof m !== 'object') continue;
+            const full = (m as { fullName?: unknown }).fullName;
+            if (typeof full === 'string' && full.length > 0 && !seen.has(full)) {
+              seen.add(full);
+              collected.push(full);
+            }
+          }
+        }
+        if (collected.length > 0) {
+          expectedAttendees = collected;
+        }
+      }
+    } catch (err) {
+      logger.warn?.('sprintK.cphs.committees.fetch_failed', err);
+      // No-op: caemos al lookup legacy en el doc del proyecto abajo.
+    }
     // Codex P2 PR #317: el draft anterior hard-codeaba
     // complianceTrafficLightScore=0 — eso pintaba 🔴 0/100 en todos
     // los borradores y disparaba un "Plan de mejora cumplimiento" falso
@@ -3453,24 +3493,32 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
         ) {
           companyName = projData.name;
         }
-        // Optional roster of CPHS reps. Either shape is accepted:
+        // Legacy fallback (Codex P2 PR #317 round 2): SOLO si el
+        // lookup anterior a `cphs_committees` no devolvió miembros.
+        // Aceptamos shapes ad-hoc del project doc:
         //   - `cphsAttendees: string[]` (display names)
-        //   - `cphsMembers:   Array<{ displayName: string }>`
-        // If absent, we leave the array empty and the draft's
+        //   - `cphsMembers:   Array<{ displayName?: string; fullName?: string }>`
+        // Si absent, we leave the array empty and the draft's
         // completeness score will flag it.
-        if (Array.isArray(projData.cphsAttendees)) {
-          expectedAttendees = projData.cphsAttendees.filter(
-            (v: unknown): v is string =>
-              typeof v === 'string' && v.length > 0,
-          );
-        } else if (Array.isArray(projData.cphsMembers)) {
-          expectedAttendees = projData.cphsMembers
-            .map((m: unknown) =>
-              m && typeof m === 'object' && 'displayName' in m
-                ? String((m as { displayName?: unknown }).displayName ?? '')
-                : '',
-            )
-            .filter((s: string) => s.length > 0);
+        if (expectedAttendees.length === 0) {
+          if (Array.isArray(projData.cphsAttendees)) {
+            expectedAttendees = projData.cphsAttendees.filter(
+              (v: unknown): v is string =>
+                typeof v === 'string' && v.length > 0,
+            );
+          } else if (Array.isArray(projData.cphsMembers)) {
+            expectedAttendees = projData.cphsMembers
+              .map((m: unknown) => {
+                if (!m || typeof m !== 'object') return '';
+                // Aceptamos `fullName` (shape canónico del módulo CPHS)
+                // o `displayName` (legacy del project doc).
+                const candidate =
+                  (m as { fullName?: unknown }).fullName ??
+                  (m as { displayName?: unknown }).displayName;
+                return typeof candidate === 'string' ? candidate : '';
+              })
+              .filter((s: string) => s.length > 0);
+          }
         }
         // Best-effort compliance score lookup. Aceptamos formato número
         // (0-100) o objeto cache `{ score, computedAt }`. Cualquier
@@ -3504,6 +3552,22 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
     // los recientes (el mes que el CPHS necesita). Pedimos ordenado
     // por `occurredAt desc` para que la "tail" más reciente caiga
     // siempre dentro de los 500 — luego filtramos al mes objetivo.
+    //
+    // Codex P2 PR #317 round 2:
+    //   1. `orderBy('occurredAt')` filtra a documentos que tengan ese
+    //      campo, y los incidentes legacy / capturados vía SafetyFeed
+    //      sólo tienen `createdAt`. Si el query ordenado vuelve vacío
+    //      (caso típico: proyecto con sólo registros createdAt-only),
+    //      caemos al query sin orden — el catch original sólo cubría
+    //      FAILED_PRECONDITION, no el "0 docs porque el campo no existe".
+    //   2. El writer canónico de la app (SafetyFeed + Telemetry) crea
+    //      `NodeType.INCIDENT` en la colección `nodes`, no en
+    //      `/incidents`. Leemos ambas colecciones y deduplicamos por id
+    //      para que el draft refleje todos los incidentes que el resto
+    //      del sistema considera reales. La normalización del shape
+    //      (severity / description / rootCause) maneja la diferencia
+    //      entre `nodes` (severity en metadata.criticidad) e `incidents`
+    //      (severity al top-level).
     // Si Firestore lanza FAILED_PRECONDITION (índice (projectId,
     // occurredAt) no creado en este despliegue), caemos al query
     // sin orderBy + filtro client-side. El catch del safeRead no nos
@@ -3514,15 +3578,30 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
     const incidents = await safeRead<Record<string, unknown>>(
       'incidents',
       async () => {
-        const baseQuery = db
+        const startMs = monthStart.getTime();
+        const endMs = monthEnd.getTime();
+
+        // (a) Read /incidents (legacy / API writer).
+        const baseIncidentsQuery = db
           .collection('incidents')
           .where('projectId', '==', projectId);
-        let snap: FirebaseFirestore.QuerySnapshot;
+        let incidentsSnap: FirebaseFirestore.QuerySnapshot;
         try {
-          snap = await baseQuery
+          const orderedSnap = await baseIncidentsQuery
             .orderBy('occurredAt', 'desc')
             .limit(500)
             .get();
+          // Si el ordered devuelve vacío puede ser porque la colección
+          // legacy guarda sólo `createdAt`. Sin un segundo query no
+          // distinguimos "0 incidentes reales" de "0 con campo
+          // occurredAt"; el costo de un read extra a una collection
+          // ya consultada es despreciable y nos asegura no perder
+          // documentos createdAt-only.
+          if (orderedSnap.empty) {
+            incidentsSnap = await baseIncidentsQuery.limit(500).get();
+          } else {
+            incidentsSnap = orderedSnap;
+          }
         } catch (orderErr) {
           // Índice compuesto faltante: degradamos a query sin orderBy
           // (mismo comportamiento que tenía esta ruta antes del fix).
@@ -3532,15 +3611,84 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
             'sprintK.cphs.incidents.orderBy_failed_fallback_unordered',
             orderErr,
           );
-          snap = await baseQuery.limit(500).get();
+          incidentsSnap = await baseIncidentsQuery.limit(500).get();
         }
-        const startMs = monthStart.getTime();
-        const endMs = monthEnd.getTime();
-        const all: Record<string, unknown>[] = snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Record<string, unknown>),
-        }));
-        return all.filter((doc) => {
+
+        // (b) Read /nodes filtered to NodeType.INCIDENT — fuente real
+        //     del SafetyFeed/Telemetry/CPHS alert trigger. El enum
+        //     `NodeType.INCIDENT` se persiste literal como 'Incidente'
+        //     en `nodes[].type` (ver src/types/index.ts).
+        let nodeIncidentsSnap: FirebaseFirestore.QuerySnapshot;
+        try {
+          nodeIncidentsSnap = await db
+            .collection('nodes')
+            .where('projectId', '==', projectId)
+            .where('type', '==', 'Incidente')
+            .limit(500)
+            .get();
+        } catch (nodesErr) {
+          logger.warn?.(
+            'sprintK.cphs.incidents.nodes_query_failed',
+            nodesErr,
+          );
+          nodeIncidentsSnap = {
+            docs: [],
+          } as unknown as FirebaseFirestore.QuerySnapshot;
+        }
+
+        // Normalize node-shape to incident-shape: la severidad vive
+        // en `metadata.criticidad` ('Baja'|'Media'|'Alta'|'Crítica');
+        // la fecha del evento es `createdAt` (string ISO) — el nodo
+        // no expone `occurredAt`. Esto pasa por `normSeverity` abajo
+        // que ya tolera tanto las claves español como inglés.
+        const nodeIncidents: Record<string, unknown>[] =
+          nodeIncidentsSnap.docs.map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            const metadata =
+              (data.metadata as Record<string, unknown> | undefined) ?? {};
+            const criticidad =
+              typeof metadata.criticidad === 'string'
+                ? metadata.criticidad
+                : typeof data.severity === 'string'
+                  ? data.severity
+                  : undefined;
+            return {
+              id: d.id,
+              ...data,
+              severity: criticidad ?? data.severity,
+              // El motor usa `description` como label; nodes lo
+              // tienen al top-level, pero algunos legacy sólo en
+              // metadata.context — fallback defensivo.
+              description:
+                typeof data.description === 'string'
+                  ? data.description
+                  : typeof (metadata.context as unknown) === 'string'
+                    ? (metadata.context as string)
+                    : typeof data.title === 'string'
+                      ? data.title
+                      : 'Sin descripción',
+            };
+          });
+
+        const incidentDocs: Record<string, unknown>[] = incidentsSnap.docs.map(
+          (d) => ({
+            id: d.id,
+            ...(d.data() as Record<string, unknown>),
+          }),
+        );
+
+        // Dedupe by id — un proyecto puede tener ambos shapes (writer
+        // legacy + writer nuevo) durante la transición; preferimos el
+        // shape canónico de `incidents` cuando hay colisión.
+        const byId = new Map<string, Record<string, unknown>>();
+        for (const n of nodeIncidents) byId.set(String(n.id), n);
+        for (const i of incidentDocs) byId.set(String(i.id), i);
+        const combined = Array.from(byId.values());
+
+        return combined.filter((doc) => {
+          // Aceptamos `occurredAt` (writer canónico /incidents) o
+          // `createdAt` (legacy + nodes). NO descartamos por falta de
+          // `occurredAt` — esa era la regresión que Codex flagged.
           const ts =
             (typeof doc.occurredAt === 'string' ? doc.occurredAt : null) ??
             (typeof doc.createdAt === 'string' ? doc.createdAt : null);
@@ -3617,14 +3765,46 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
     // Y por `date` dentro de la ventana mensual (mismo periodo que
     // los incidentes), para evitar inflar el indicador con
     // capacitaciones legacy de meses anteriores.
+    //
+    // Codex P2 PR #317 round 2:
+    //   1. El `.limit(500)` sin orderBy podía devolver una "ventana"
+    //      document-id-ordered y omitir las sesiones recientes — el
+    //      mismo problema que vimos en incidents. Pedimos
+    //      `orderBy('date', 'desc')` para que la cola más reciente
+    //      siempre caiga adentro, y degradamos a query sin orden si
+    //      falta el índice compuesto.
+    //   2. Filtramos por `completedAt` cuando existe (writer nuevo),
+    //      y caemos a `date` SÓLO como compat — pero exigimos que la
+    //      fecha de schedule también caiga en la ventana del mes, para
+    //      no contar sesiones agendadas previo al mes que se
+    //      completaron en otro periodo. Es la mejor heurística sin
+    //      backfill: el sub-PR siguiente actualiza Training.tsx para
+    //      escribir `completedAt: serverTimestamp()` al cerrar (ver
+    //      handleCompleteVideo) y a partir de ahí el draft preferirá
+    //      ese timestamp.
     const trainings = await safeRead<Record<string, unknown>>(
       'trainings',
       async () => {
-        const snap = await db
+        const baseQuery = db
           .collection('training')
-          .where('projectId', '==', projectId)
-          .limit(500)
-          .get();
+          .where('projectId', '==', projectId);
+        let snap: FirebaseFirestore.QuerySnapshot;
+        try {
+          snap = await baseQuery
+            .orderBy('date', 'desc')
+            .limit(500)
+            .get();
+        } catch (orderErr) {
+          // Índice compuesto faltante: degradamos a query sin orderBy
+          // (mismo comportamiento previo). Para proyectos con <500
+          // trainings totales esto sigue siendo correcto; el riesgo
+          // sólo aparece con backlogs masivos sin índice.
+          logger.warn?.(
+            'sprintK.cphs.trainings.orderBy_failed_fallback_unordered',
+            orderErr,
+          );
+          snap = await baseQuery.limit(500).get();
+        }
         const startMs = monthStart.getTime();
         const endMs = monthEnd.getTime();
         const all: Record<string, unknown>[] = snap.docs.map((d) => ({
@@ -3633,9 +3813,11 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
         }));
         return all.filter((doc) => {
           if (doc.status !== 'completed') return false;
-          // `date` es la fecha de la sesión (creada al schedule y
-          // conservada al completar). Aceptamos también `completedAt`
-          // si existe (forward-compat).
+          // Preferimos `completedAt` (writer nuevo) — ese es el
+          // timestamp REAL de cuándo se impartió. Si no existe,
+          // caemos a `date` (writer legacy: fecha de schedule).
+          // Sólo contamos el training si el timestamp resultante
+          // cae en la ventana del mes objetivo.
           const ts =
             (typeof doc.completedAt === 'string'
               ? doc.completedAt
@@ -3648,22 +3830,149 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
       },
     );
 
-    // ── Inspections realizadas (`audits` collection si existe).
-    //    Reusamos la colección legacy `audits` filtrada por projectId.
-    //    Si la colección no está poblada en este despliegue, el conteo
-    //    queda en 0 (el draft refleja honestamente). ──
+    // ── Inspections realizadas. ──
+    //
+    // Codex P2 PR #317 round 2: el writer canónico de la app
+    // (`SafetyInspection.tsx` + `AddAuditModal.tsx`) crea
+    // `NodeType.AUDIT` en la colección `nodes` (no en `/audits`).
+    // Antes la ruta sólo leía `/audits`, así que proyectos con flujo
+    // estándar obtenían `inspectionsCompleted: 0` aunque el dashboard
+    // mostraba inspecciones reales. Además, cualquier audit histórico
+    // o futuro inflaba el contador porque no había filtro por estado
+    // ni por ventana mensual.
+    //
+    // Cambios:
+    //   1. Leemos AMBAS colecciones: `nodes` (type='Auditoría' literal
+    //      del enum, ver src/types/index.ts) y `/audits` (legacy).
+    //   2. Filtramos al mismo `[monthStart, monthEnd)` que incidentes
+    //      y trainings — sólo cuentan inspecciones EJECUTADAS en el
+    //      período del borrador, no programadas para más tarde.
+    //   3. Filtramos por estado: 'Completado' (writer SafetyInspection)
+    //      o equivalentes ('completed', 'ejecutada'). El writer
+    //      AddAuditModal escribe `metadata.status: 'Planificada'`
+    //      cuando se agenda; ese estado NO debe contar.
+    //   4. Dedupe por id para tolerar despliegues mixtos.
     const inspections = await safeRead<Record<string, unknown>>(
       'inspections',
       async () => {
-        const snap = await db
-          .collection('audits')
-          .where('projectId', '==', projectId)
-          .limit(500)
-          .get();
-        return snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Record<string, unknown>),
-        }));
+        const startMs = monthStart.getTime();
+        const endMs = monthEnd.getTime();
+
+        // (a) Read /nodes filtered to NodeType.AUDIT (canonical writer).
+        let nodesSnap: FirebaseFirestore.QuerySnapshot;
+        try {
+          nodesSnap = await db
+            .collection('nodes')
+            .where('projectId', '==', projectId)
+            .where('type', '==', 'Auditoría')
+            .limit(500)
+            .get();
+        } catch (nodesErr) {
+          logger.warn?.(
+            'sprintK.cphs.inspections.nodes_query_failed',
+            nodesErr,
+          );
+          nodesSnap = {
+            docs: [],
+          } as unknown as FirebaseFirestore.QuerySnapshot;
+        }
+
+        // (b) Read /audits (legacy collection).
+        let auditsSnap: FirebaseFirestore.QuerySnapshot;
+        try {
+          auditsSnap = await db
+            .collection('audits')
+            .where('projectId', '==', projectId)
+            .limit(500)
+            .get();
+        } catch (auditsErr) {
+          logger.warn?.(
+            'sprintK.cphs.inspections.audits_query_failed',
+            auditsErr,
+          );
+          auditsSnap = {
+            docs: [],
+          } as unknown as FirebaseFirestore.QuerySnapshot;
+        }
+
+        const isCompletedStatus = (raw: unknown): boolean => {
+          if (typeof raw !== 'string') return false;
+          const s = raw.toLowerCase();
+          return (
+            s === 'completado' ||
+            s === 'completada' ||
+            s === 'completed' ||
+            s === 'ejecutada' ||
+            s === 'ejecutado'
+          );
+        };
+
+        const isInPeriod = (raw: unknown): boolean => {
+          if (typeof raw !== 'string') return false;
+          const t = Date.parse(raw);
+          return Number.isFinite(t) && t >= startMs && t < endMs;
+        };
+
+        // Normalize node-shape to inspection-shape: estado / fecha
+        // viven en `metadata.status` y `metadata.date` (writers
+        // SafetyInspection/AddAuditModal), y la fecha de creación
+        // del documento es `createdAt` (string ISO escrito por
+        // useRiskEngine o un serverTimestamp).
+        const fromNodes: Record<string, unknown>[] = nodesSnap.docs
+          .map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            const metadata =
+              (data.metadata as Record<string, unknown> | undefined) ?? {};
+            const status =
+              (metadata.status as unknown) ?? (data.status as unknown);
+            const dateField =
+              (metadata.date as unknown) ??
+              (data.completedAt as unknown) ??
+              (data.createdAt as unknown);
+            return {
+              id: d.id,
+              status,
+              date: dateField,
+              raw: data,
+            };
+          })
+          .filter(
+            (doc) =>
+              isCompletedStatus(doc.status) && isInPeriod(doc.date),
+          );
+
+        const fromAudits: Record<string, unknown>[] = auditsSnap.docs
+          .map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            const status =
+              (data.status as unknown) ??
+              ((data.metadata as Record<string, unknown> | undefined)
+                ?.status as unknown);
+            const dateField =
+              (data.completedAt as unknown) ??
+              (data.date as unknown) ??
+              (data.createdAt as unknown) ??
+              ((data.metadata as Record<string, unknown> | undefined)
+                ?.date as unknown);
+            return {
+              id: d.id,
+              status,
+              date: dateField,
+              raw: data,
+            };
+          })
+          .filter(
+            (doc) =>
+              isCompletedStatus(doc.status) && isInPeriod(doc.date),
+          );
+
+        // Dedupe by id — un proyecto puede tener ambos shapes durante
+        // la transición; preferimos el shape canónico de `audits`
+        // cuando hay colisión.
+        const byId = new Map<string, Record<string, unknown>>();
+        for (const n of fromNodes) byId.set(String(n.id), n);
+        for (const a of fromAudits) byId.set(String(a.id), a);
+        return Array.from(byId.values());
       },
     );
 
