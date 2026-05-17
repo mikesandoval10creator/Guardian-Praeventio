@@ -326,6 +326,94 @@ describe('<EngineeringControls /> page wrapper (§42-44)', () => {
     ).toBeInTheDocument();
   });
 
+  it('registra una verificación con result=fail + evidencia desde la UI', async () => {
+    // Codex P2 (PR #319, round 2): the verify UI now exposes
+    // observation/fail outcomes — not just OK — so an inspector who
+    // finds a defective control can record the truth (with optional
+    // evidence) instead of having to skip the check or submit a false
+    // OK that would advance `lastVerifiedAt` and corrupt the audit
+    // trail. This test exercises the full flow: open the fail panel,
+    // type evidence, submit, assert the payload + refetch.
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockResp = {
+      data: {
+        controls: [makeControl({ id: 'ec_f', level: 'engineering', name: 'Resguardo' })],
+      },
+      loading: false,
+      error: null,
+      refetch: mockRefetch,
+    };
+    mockVerifyControl.mockResolvedValue({
+      ok: true,
+      entry: {
+        verifierUid: 'caller_uid',
+        verifiedAt: new Date().toISOString(),
+        result: 'fail',
+        evidence: 'Tornillo suelto en la guarda derecha',
+      },
+    });
+    render(<EngineeringControls />);
+    // Open the fail panel.
+    fireEvent.click(screen.getByTestId('engineering-controls-fail-ec_f'));
+    // Type evidence.
+    fireEvent.change(screen.getByTestId('engineering-controls-evidence-input-ec_f'), {
+      target: { value: 'Tornillo suelto en la guarda derecha' },
+    });
+    // Submit.
+    fireEvent.click(screen.getByTestId('engineering-controls-evidence-submit-ec_f'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockVerifyControl).toHaveBeenCalledWith(
+      'p-1',
+      'ec_f',
+      expect.objectContaining({
+        result: 'fail',
+        evidence: 'Tornillo suelto en la guarda derecha',
+      }),
+    );
+    // The client-side guard against an empty trimmed evidence value
+    // must never emit `verifierUid` on the wire (Codex P1 round 1).
+    const args = mockVerifyControl.mock.calls[0]?.[2] as Record<string, unknown> | undefined;
+    expect(args).toBeDefined();
+    expect(args).not.toHaveProperty('verifierUid');
+    expect(mockRefetch).toHaveBeenCalled();
+  });
+
+  it('registra una observación sin evidencia (campo vacío no llega como string vacío)', async () => {
+    // Codex P2 (PR #319, round 2): the evidence field is optional. If
+    // the user submits with the textarea empty (or whitespace), we must
+    // NOT send `evidence: ''` — the server validator allows it but it
+    // pollutes the audit trail with empty notes. The handler trims and
+    // drops the field entirely when empty.
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockResp = {
+      data: {
+        controls: [makeControl({ id: 'ec_o', level: 'engineering', name: 'Aspirador' })],
+      },
+      loading: false,
+      error: null,
+      refetch: mockRefetch,
+    };
+    mockVerifyControl.mockResolvedValue({
+      ok: true,
+      entry: {
+        verifierUid: 'caller_uid',
+        verifiedAt: new Date().toISOString(),
+        result: 'observation',
+      },
+    });
+    render(<EngineeringControls />);
+    fireEvent.click(screen.getByTestId('engineering-controls-observation-ec_o'));
+    // Leave evidence blank; submit.
+    fireEvent.click(screen.getByTestId('engineering-controls-evidence-submit-ec_o'));
+    await Promise.resolve();
+    await Promise.resolve();
+    const args = mockVerifyControl.mock.calls[0]?.[2] as Record<string, unknown> | undefined;
+    expect(args).toBeDefined();
+    expect(args).toEqual(expect.objectContaining({ result: 'observation' }));
+    expect(args).not.toHaveProperty('evidence');
+  });
+
   it('muestra banner de lectura parcial cuando el servidor reporta partial_read_failure', () => {
     // Codex P2 (PR #319): degraded-data banner must appear when the
     // server returns `warning: 'partial_read_failure'`. Without it the

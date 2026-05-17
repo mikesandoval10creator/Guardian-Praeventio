@@ -19,12 +19,14 @@
 //   - "Nuevo control" abre un form inline con selector de nivel +
 //     explicador de la jerarquía para que el usuario entienda por qué
 //     un control de eliminación es preferible a EPP.
-//   - "Verificar" registra una verificación con verifierUid + result
-//     (pass/observation/fail) + evidencia opcional.
+//   - La fila de verificación expone los tres resultados que acepta
+//     el endpoint — pass (OK), observation, fail — más un panel inline
+//     de evidencia opcional (≤4000 chars). El verifierUid lo deriva el
+//     servidor del caller autenticado, así que la UI nunca lo manda.
 
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Layers, WifiOff, Plus, X, CheckCircle2 } from 'lucide-react';
+import { Layers, WifiOff, Plus, X, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { auth } from '../services/firebase';
@@ -189,6 +191,15 @@ export function EngineeringControls() {
   const [formFreq, setFormFreq] = useState(30);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // Codex P2 (PR #319, round 2): per-control verification panel state.
+  // `verifyPanelOpen` is the id of the control whose evidence input is
+  // expanded; `verifyEvidence` is the in-progress text. We keep these
+  // scoped to the page (not per-card) because only one verification
+  // panel can be open at a time, which avoids leaking stale evidence
+  // text between unrelated controls.
+  const [verifyPanelOpen, setVerifyPanelOpen] = useState<string | null>(null);
+  const [verifyEvidence, setVerifyEvidence] = useState('');
+  const [verifySubmitting, setVerifySubmitting] = useState<string | null>(null);
 
   const resp = useEngineeringControls(projectId, {
     level: levelFilter,
@@ -316,6 +327,7 @@ export function EngineeringControls() {
   const handleVerify = async (
     control: EngineeringControlAPI,
     result: 'pass' | 'observation' | 'fail' = 'pass',
+    evidence?: string,
   ) => {
     if (!projectId) return;
     // Codex P1 (PR #319): the server now derives the verifier identity
@@ -327,12 +339,30 @@ export function EngineeringControls() {
       logger.warn('engineeringControls.verify.noUser', { id: control.id });
       return;
     }
+    setVerifySubmitting(control.id);
     try {
-      await verifyControl(projectId, control.id, { result });
-      logger.info('engineeringControls.verified', { id: control.id, result });
+      // Codex P2 (PR #319, round 2): forward `evidence` so non-OK
+      // outcomes (observation/fail) carry the inspector's note. The
+      // server schema accepts an optional `evidence` string up to 4000
+      // chars; we trim and drop empty strings so we never send `""`.
+      const trimmed = evidence?.trim();
+      await verifyControl(projectId, control.id, {
+        result,
+        ...(trimmed ? { evidence: trimmed } : {}),
+      });
+      logger.info('engineeringControls.verified', {
+        id: control.id,
+        result,
+        hasEvidence: Boolean(trimmed),
+      });
+      // Close the expanded panel + clear the staging text on success.
+      setVerifyPanelOpen(null);
+      setVerifyEvidence('');
       resp.refetch?.();
     } catch (err) {
       logger.error('engineeringControls.verify.failed', err);
+    } finally {
+      setVerifySubmitting(null);
     }
   };
 
@@ -761,16 +791,121 @@ export function EngineeringControls() {
                     {t('engCtrl.card.freq', 'Cada {{n}} días', { n: c.verificationFrequencyDays })}
                   </span>
                 </div>
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleVerify(c, 'pass')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition"
-                    data-testid={`engineering-controls-verify-${c.id}`}
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                    {t('engCtrl.card.verify', 'Verificar (OK)')}
-                  </button>
+                {/* Codex P2 (PR #319, round 2): the verification UI now
+                    exposes all three outcomes the endpoint accepts —
+                    `pass`, `observation`, `fail` — plus an optional
+                    evidence note. Previously only `pass` was wired, so
+                    an inspector who found a defective control could
+                    either skip recording the check (losing the audit
+                    trail) or submit a false OK (corrupting history and
+                    advancing `lastVerifiedAt` for a failed control).
+                    Now: tap "Observación" or "Falla" to open the
+                    evidence panel inline; both record the result with
+                    the optional note. Only `pass` advances
+                    `lastVerifiedAt` server-side (see sprintK.ts), so a
+                    fail does NOT make the control appear "Vigente". */}
+                <div className="space-y-2">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleVerify(c, 'pass')}
+                      disabled={verifySubmitting === c.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 transition"
+                      data-testid={`engineering-controls-verify-${c.id}`}
+                      aria-label={
+                        t('engCtrl.card.verifyAria', 'Registrar verificación OK') as string
+                      }
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      {t('engCtrl.card.verify', 'Verificar (OK)')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVerifyPanelOpen((cur) =>
+                          cur === `${c.id}::observation` ? null : `${c.id}::observation`,
+                        )
+                      }
+                      disabled={verifySubmitting === c.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 hover:bg-amber-500/25 disabled:opacity-50 transition"
+                      data-testid={`engineering-controls-observation-${c.id}`}
+                      aria-expanded={verifyPanelOpen === `${c.id}::observation`}
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
+                      {t('engCtrl.card.observation', 'Observación')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVerifyPanelOpen((cur) =>
+                          cur === `${c.id}::fail` ? null : `${c.id}::fail`,
+                        )
+                      }
+                      disabled={verifySubmitting === c.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/40 hover:bg-rose-500/25 disabled:opacity-50 transition"
+                      data-testid={`engineering-controls-fail-${c.id}`}
+                      aria-expanded={verifyPanelOpen === `${c.id}::fail`}
+                    >
+                      <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                      {t('engCtrl.card.fail', 'Falla')}
+                    </button>
+                  </div>
+                  {(verifyPanelOpen === `${c.id}::observation` ||
+                    verifyPanelOpen === `${c.id}::fail`) && (
+                    <div
+                      className="rounded-lg border border-default-token bg-surface-elevated p-3 space-y-2"
+                      data-testid={`engineering-controls-evidence-panel-${c.id}`}
+                    >
+                      <label className="block text-[11px] font-bold text-secondary-token uppercase tracking-wide">
+                        {t('engCtrl.card.evidenceLabel', 'Evidencia (opcional)')}
+                        <textarea
+                          value={verifyEvidence}
+                          onChange={(e) => setVerifyEvidence(e.target.value)}
+                          rows={2}
+                          maxLength={4000}
+                          placeholder={
+                            t(
+                              'engCtrl.card.evidencePh',
+                              'Describe el hallazgo o adjunta una referencia.',
+                            ) as string
+                          }
+                          className="mt-1 block w-full rounded-lg border border-default-token bg-surface px-3 py-2 text-xs text-primary-token normal-case font-normal"
+                          data-testid={`engineering-controls-evidence-input-${c.id}`}
+                        />
+                      </label>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVerifyPanelOpen(null);
+                            setVerifyEvidence('');
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold border border-default-token text-secondary-token hover:bg-surface transition"
+                        >
+                          {t('common.cancel', 'Cancelar')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const result =
+                              verifyPanelOpen === `${c.id}::fail` ? 'fail' : 'observation';
+                            void handleVerify(c, result, verifyEvidence);
+                          }}
+                          disabled={verifySubmitting === c.id}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white disabled:opacity-50 transition ${
+                            verifyPanelOpen === `${c.id}::fail`
+                              ? 'bg-rose-500 hover:bg-rose-600'
+                              : 'bg-amber-500 hover:bg-amber-600'
+                          }`}
+                          data-testid={`engineering-controls-evidence-submit-${c.id}`}
+                        >
+                          {verifySubmitting === c.id
+                            ? t('common.saving', 'Guardando…')
+                            : t('engCtrl.card.recordCheck', 'Registrar verificación')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </li>
             );

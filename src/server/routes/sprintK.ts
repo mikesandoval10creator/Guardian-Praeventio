@@ -6344,9 +6344,24 @@ router.get(
         }));
       });
 
+      // Codex P2 (PR #319, round 2): include `general` (cross-cutting)
+      // controls in risk-filtered results. The page contract — and the
+      // client-side post-filter in EngineeringControls.tsx — treats
+      // `general` controls as applicable to every risk (site-wide
+      // signage, housekeeping, etc.). An exact-match server filter would
+      // strip them out before the client could keep them, leaving the
+      // user with an incomplete inventory under any specific risk chip.
+      // Match if the control's category equals the requested one *or*
+      // the control is tagged `general`. The level filter still applies
+      // unchanged.
       const filtered = controls.filter((c) => {
         if (levelParam !== 'all' && c.level !== levelParam) return false;
-        if (riskCategory && c.riskCategory !== riskCategory) return false;
+        if (
+          riskCategory &&
+          c.riskCategory !== riskCategory &&
+          c.riskCategory !== 'general'
+        )
+          return false;
         return true;
       });
 
