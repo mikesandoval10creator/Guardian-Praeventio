@@ -312,6 +312,11 @@ export function DrillsManager() {
     benchmarkSeconds?: number;
   }) => {
     if (!projectId) return;
+    // Codex PR #316 R2 P2 (line 323): re-lanzamos el error si el plan
+    // falla (offline / unauthorized / Firestore down). Antes el catch
+    // solo logueaba y resolvía OK al modal, que cerraba sin avisar y el
+    // planner creía que el simulacro estaba guardado. Ahora propaga
+    // para que `NewDrillModal` muestre el banner inline y reintente.
     try {
       const id = `drill_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       await planDrill(projectId, { id, ...payload });
@@ -320,6 +325,7 @@ export function DrillsManager() {
       refetchAll();
     } catch (err) {
       logger.error('drills.plan.failed', err);
+      throw err;
     }
   };
 
@@ -518,39 +524,10 @@ export function DrillsManager() {
         </div>
       )}
 
-      {executeError && (
-        <div
-          className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-600 dark:text-rose-400 flex items-start gap-3"
-          data-testid="drills-manager-execute-error"
-          role="alert"
-        >
-          <ShieldAlert
-            className="w-4 h-4 mt-0.5 shrink-0"
-            aria-hidden="true"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="font-bold uppercase tracking-widest text-[10px]">
-              {t('drills.page.executeErrorTitle', 'No se registró la ejecución')}
-            </p>
-            <p className="mt-1">
-              {t(
-                'drills.page.executeError',
-                'El simulacro no se guardó: {{msg}}. Tus datos siguen en el formulario — corrige y reintenta.',
-                { msg: executeError },
-              )}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setExecuteError(null)}
-            className="text-rose-600 dark:text-rose-400 hover:text-rose-700 shrink-0"
-            aria-label={t('common.close', 'Cerrar')}
-            data-testid="drills-manager-execute-error-dismiss"
-          >
-            <X className="w-4 h-4" aria-hidden="true" />
-          </button>
-        </div>
-      )}
+      {/* Codex PR #316 R2 P2 (line 525): el banner de error de ejecución
+          se renderiza ahora DENTRO de `DrillDetailModal` para que sea
+          visible sobre el backdrop `z-50`. Antes vivía aquí en el page
+          content y quedaba oculto detrás del modal. */}
 
       {!loading && !error && drills.length === 0 && (
         <div
@@ -659,6 +636,8 @@ export function DrillsManager() {
       {selectedDrill && (
         <DrillDetailModal
           drill={selectedDrill}
+          executeError={executeError}
+          onDismissExecuteError={() => setExecuteError(null)}
           onClose={() => {
             setExecuteError(null);
             setSelectedDrillId(null);
@@ -667,7 +646,8 @@ export function DrillsManager() {
             // Codex PR #316 P2 (line 330): `handleExecute` ahora re-lanza
             // en fallo. Dejamos que la excepción propague para que el
             // modal NO se cierre (la línea `setSelectedDrillId(null)` no
-            // se ejecuta) y el banner del page surfacée el error.
+            // se ejecuta) y el banner DENTRO del modal (Codex PR #316 R2
+            // P2, line 525) surfacée el error sobre el backdrop.
             await handleExecute(selectedDrill.id, payload);
             setSelectedDrillId(null);
           }}
@@ -690,6 +670,15 @@ export function DrillsManager() {
 
 function DrillDetailModal(props: {
   drill: DrillRecord;
+  /**
+   * Codex PR #316 R2 P2 (line 525): el banner del page-level vivía detrás
+   * del backdrop `z-50` del modal, así que el usuario nunca lo veía. Lo
+   * recibimos como prop y lo renderizamos DENTRO del modal, sobre el
+   * formulario, para que el feedback sea visible cuando `onExecute`
+   * rechaza.
+   */
+  executeError: string | null;
+  onDismissExecuteError: () => void;
   onClose: () => void;
   onExecute: (payload: {
     executedAt: string;
@@ -700,7 +689,7 @@ function DrillDetailModal(props: {
     notes?: string;
   }) => Promise<void>;
 }) {
-  const { drill, onClose, onExecute } = props;
+  const { drill, executeError, onDismissExecuteError, onClose, onExecute } = props;
   const { t } = useTranslation();
   const meta = KIND_META[drill.kind];
   const Icon = meta.icon;
@@ -863,6 +852,43 @@ function DrillDetailModal(props: {
             </div>
           )}
 
+          {canExecute && executeError && (
+            // Codex PR #316 R2 P2 (line 525): banner dentro del modal,
+            // sobre el formulario. Reemplaza el banner page-level (queda
+            // detrás del backdrop z-50 y nunca era visible).
+            <div
+              className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400 flex items-start gap-2"
+              data-testid="drills-detail-execute-error"
+              role="alert"
+            >
+              <ShieldAlert
+                className="w-4 h-4 mt-0.5 shrink-0"
+                aria-hidden="true"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold uppercase tracking-widest text-[10px]">
+                  {t('drills.page.executeErrorTitle', 'No se registró la ejecución')}
+                </p>
+                <p className="mt-1">
+                  {t(
+                    'drills.page.executeError',
+                    'El simulacro no se guardó: {{msg}}. Tus datos siguen en el formulario — corrige y reintenta.',
+                    { msg: executeError },
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onDismissExecuteError}
+                className="text-rose-600 dark:text-rose-400 hover:text-rose-700 shrink-0"
+                aria-label={t('common.close', 'Cerrar')}
+                data-testid="drills-detail-execute-error-dismiss"
+              >
+                <X className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+          )}
+
           {canExecute && (
             <div className="rounded-xl border border-default-token p-3 space-y-2">
               <p className="text-[10px] font-bold uppercase tracking-widest text-secondary-token">
@@ -974,6 +1000,11 @@ function NewDrillModal(props: {
   const [expectedCount, setExpectedCount] = useState<string>('');
   const [benchmarkSeconds, setBenchmarkSeconds] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  // Codex PR #316 R2 P2 (line 323): estado de error inline para que el
+  // planner vea cuando `onPlan` rechaza (offline / unauthorized /
+  // Firestore down) en vez de creer que el simulacro se guardó. El
+  // formulario sigue lleno para reintentar.
+  const [planError, setPlanError] = useState<string | null>(null);
 
   const canSubmit =
     kind && scheduledAt.length > 0 && responsibleUid.trim().length > 0;
@@ -981,6 +1012,7 @@ function NewDrillModal(props: {
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
+    setPlanError(null);
     try {
       const ec = expectedCount.trim()
         ? Number.parseInt(expectedCount, 10)
@@ -997,6 +1029,15 @@ function NewDrillModal(props: {
         expectedCount: ec !== undefined && !Number.isNaN(ec) ? ec : undefined,
         benchmarkSeconds: bm !== undefined && !Number.isNaN(bm) ? bm : undefined,
       });
+    } catch (err) {
+      // Codex PR #316 R2 P2 (line 323): el page-level `handlePlan` ahora
+      // re-lanza. Capturamos acá para mostrar el banner inline sin
+      // disparar unhandled rejection y dejar el form intacto.
+      const msg =
+        err instanceof Error
+          ? err.message
+          : t('drills.new.errorFallback', 'No se pudo guardar el simulacro.');
+      setPlanError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -1108,6 +1149,43 @@ function NewDrillModal(props: {
               />
             </label>
           </div>
+          {planError && (
+            // Codex PR #316 R2 P2 (line 323): banner inline cuando
+            // `onPlan` rechaza (offline / unauthorized / Firestore
+            // down). Antes el modal se cerraba en silencio y el planner
+            // creía que el simulacro estaba guardado.
+            <div
+              className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400 flex items-start gap-2"
+              data-testid="drills-new-plan-error"
+              role="alert"
+            >
+              <ShieldAlert
+                className="w-4 h-4 mt-0.5 shrink-0"
+                aria-hidden="true"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold uppercase tracking-widest text-[10px]">
+                  {t('drills.new.planErrorTitle', 'No se planificó el simulacro')}
+                </p>
+                <p className="mt-1">
+                  {t(
+                    'drills.new.planError',
+                    'El simulacro no se guardó: {{msg}}. Tus datos siguen en el formulario — corrige y reintenta.',
+                    { msg: planError },
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPlanError(null)}
+                className="text-rose-600 dark:text-rose-400 hover:text-rose-700 shrink-0"
+                aria-label={t('common.close', 'Cerrar')}
+                data-testid="drills-new-plan-error-dismiss"
+              >
+                <X className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+          )}
           <button
             type="button"
             onClick={handleSubmit}

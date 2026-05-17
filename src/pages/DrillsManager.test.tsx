@@ -247,9 +247,13 @@ describe('<DrillsManager /> page wrapper (Fase F.20)', () => {
 
   // Codex PR #316 P2 (DrillsManager.tsx line 330): si `executeDrill`
   // falla, el catch ya no se debe tragar el error. El modal queda
-  // abierto (no se cierra) y aparece un banner page-level con el
-  // mensaje real para que el usuario no pierda lo escrito.
-  it('cuando executeDrill rechaza, el modal queda abierto y muestra banner de error', async () => {
+  // abierto (no se cierra) y aparece un banner con el mensaje real
+  // para que el usuario no pierda lo escrito.
+  //
+  // Codex PR #316 R2 P2 (line 525): el banner ahora vive DENTRO del
+  // modal (testid `drills-detail-execute-error`). Antes era page-level
+  // pero quedaba detrás del backdrop `z-50` y nunca era visible.
+  it('cuando executeDrill rechaza, el modal queda abierto y muestra banner de error dentro del modal', async () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena' };
     const planned = plannedDrill({
       id: 'drill_p1',
@@ -289,14 +293,56 @@ describe('<DrillsManager /> page wrapper (Fase F.20)', () => {
 
     fireEvent.click(screen.getByTestId('drills-detail-execute-button'));
 
-    // Banner page-level visible con el mensaje real.
+    // Banner visible DENTRO del modal con el mensaje real (Codex R2 P2).
     await waitFor(() => {
       expect(
-        screen.getByTestId('drills-manager-execute-error'),
+        screen.getByTestId('drills-detail-execute-error'),
       ).toBeInTheDocument();
     });
     expect(screen.getByText(/Network down/i)).toBeInTheDocument();
     // Modal sigue abierto — el usuario no perdió lo que escribió.
     expect(screen.getByTestId('drills-detail-modal')).toBeInTheDocument();
+  });
+
+  // Codex PR #316 R2 P2 (line 323): si `planDrill` rechaza
+  // (offline / unauthorized / Firestore down), `NewDrillModal` debe
+  // mostrar un banner inline en vez de cerrarse en silencio y dejar
+  // al planner creyendo que el simulacro se guardó.
+  it('cuando planDrill rechaza, NewDrillModal queda abierto y muestra banner inline', async () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena' };
+    mockPlanned = {
+      data: { drills: [] },
+      loading: false,
+      error: null,
+    };
+    const planMock = vi.mocked(sprintKHooks.planDrill);
+    planMock.mockRejectedValueOnce(
+      new Error('Unauthorized (no role for project)'),
+    );
+
+    render(<DrillsManager />);
+    // Abrir el modal "Nuevo Simulacro" desde el header CTA (hay 2 CTAs
+    // con el mismo label, header y empty-state — usamos el testid del
+    // header para que el selector sea único).
+    fireEvent.click(screen.getByTestId('drills-manager-new-button'));
+    expect(screen.getByTestId('drills-new-modal')).toBeInTheDocument();
+
+    // Rellenar el campo obligatorio: UID responsable.
+    const responsible = screen.getByPlaceholderText(
+      'uid_responsable',
+    ) as HTMLInputElement;
+    fireEvent.change(responsible, { target: { value: 'uid_resp_test' } });
+
+    fireEvent.click(screen.getByTestId('drills-new-submit-button'));
+
+    // Banner inline en el modal con el mensaje real.
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('drills-new-plan-error'),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Unauthorized/i)).toBeInTheDocument();
+    // Modal sigue abierto — no se cerró en silencio.
+    expect(screen.getByTestId('drills-new-modal')).toBeInTheDocument();
   });
 });
