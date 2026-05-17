@@ -246,3 +246,113 @@ describe('toInboxAlerts', () => {
     expect(workerAlert?.lastSeenAt).toBe('2026-05-10T10:00:00Z');
   });
 });
+
+describe('Codex P2 PR #312 round 2 fixes', () => {
+  // P2 #2 — Avoid counting missing kinds as incident types.
+  it('detectSameZoneMultipleKinds: legacy doc con kind="" NO infla la diversidad', () => {
+    // Zona A con 2 incidentes "caída" + 1 legacy sin kind. Antes el
+    // Set incluía '' como segundo "tipo" → falso patrón multi-kind.
+    // Después: kinds={caída} → size=1 → no se reporta.
+    const incidents = [
+      inc({ id: '1', kind: 'caída', zoneId: 'A' }),
+      inc({ id: '2', kind: 'caída', zoneId: 'A' }),
+      inc({ id: '3', kind: '', zoneId: 'A' }),
+    ];
+    const r = buildRepeatingRiskRadar(incidents, {
+      minOccurrences: 3,
+      windowDays: 90,
+      now: NOW,
+    });
+    expect(
+      r.patterns.find((p) => p.kind === 'same_zone_multiple_kinds'),
+    ).toBeUndefined();
+  });
+
+  it('detectSameZoneMultipleKinds: docs con kind real distintos SÍ reportan', () => {
+    const incidents = [
+      inc({ id: '1', kind: 'caída', zoneId: 'A' }),
+      inc({ id: '2', kind: 'golpe', zoneId: 'A' }),
+      inc({ id: '3', kind: '', zoneId: 'A' }),
+    ];
+    const r = buildRepeatingRiskRadar(incidents, {
+      minOccurrences: 3,
+      windowDays: 90,
+      now: NOW,
+    });
+    const p = r.patterns.find((x) => x.kind === 'same_zone_multiple_kinds');
+    expect(p).toBeDefined();
+    // size=2 (caída + golpe), no =3 (con el '' contado).
+    expect(p?.label).toMatch(/2 tipos de incidente/);
+  });
+
+  // P2 #4 — Avoid counting missing zones as real zones.
+  it('detectSameKindAcrossZones: legacy doc con zoneId="" NO infla la diversidad', () => {
+    // 2 caídas en zona A + 1 caída legacy sin zona. Antes Set incluía
+    // '' como segunda "zona" → falso patrón cross-zone. Después: solo
+    // zona A → size=1 → no se reporta.
+    const incidents = [
+      inc({ id: '1', kind: 'caída', zoneId: 'A' }),
+      inc({ id: '2', kind: 'caída', zoneId: 'A' }),
+      inc({ id: '3', kind: 'caída', zoneId: '' }),
+    ];
+    const r = buildRepeatingRiskRadar(incidents, {
+      minOccurrences: 3,
+      windowDays: 90,
+      now: NOW,
+    });
+    expect(
+      r.patterns.find((p) => p.kind === 'same_kind_across_zones'),
+    ).toBeUndefined();
+  });
+
+  it('detectSameKindAcrossZones: zonas reales distintas SÍ reportan', () => {
+    const incidents = [
+      inc({ id: '1', kind: 'caída', zoneId: 'A' }),
+      inc({ id: '2', kind: 'caída', zoneId: 'B' }),
+      inc({ id: '3', kind: 'caída', zoneId: '' }),
+    ];
+    const r = buildRepeatingRiskRadar(incidents, {
+      minOccurrences: 3,
+      windowDays: 90,
+      now: NOW,
+    });
+    const p = r.patterns.find((x) => x.kind === 'same_kind_across_zones');
+    expect(p).toBeDefined();
+    // size=2 (A + B), no =3 con '' contado.
+    expect(p?.label).toMatch(/2 zonas distintas/);
+  });
+
+  // P2 #2 + P2 #4 combinado — kind y zoneId vacíos no forman grupo.
+  it('detectores kind/zone: doc con kind="" no crea grupo bogus', () => {
+    // 3 docs todos sin kind → groupBy no crea grupo "" → 0 patterns
+    const incidents = [
+      inc({ id: '1', kind: '', zoneId: 'A' }),
+      inc({ id: '2', kind: '', zoneId: 'B' }),
+      inc({ id: '3', kind: '', zoneId: 'C' }),
+    ];
+    const r = buildRepeatingRiskRadar(incidents, {
+      minOccurrences: 3,
+      windowDays: 90,
+      now: NOW,
+    });
+    expect(
+      r.patterns.find((p) => p.kind === 'same_kind_across_zones'),
+    ).toBeUndefined();
+  });
+
+  it('detectores kind/zone: doc con zoneId="" no crea grupo bogus', () => {
+    const incidents = [
+      inc({ id: '1', kind: 'a', zoneId: '' }),
+      inc({ id: '2', kind: 'b', zoneId: '' }),
+      inc({ id: '3', kind: 'c', zoneId: '' }),
+    ];
+    const r = buildRepeatingRiskRadar(incidents, {
+      minOccurrences: 3,
+      windowDays: 90,
+      now: NOW,
+    });
+    expect(
+      r.patterns.find((p) => p.kind === 'same_zone_multiple_kinds'),
+    ).toBeUndefined();
+  });
+});

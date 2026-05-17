@@ -2424,6 +2424,307 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.13 — Radar de Riesgos Repetidos
+// ─────────────────────────────────────────────────────────────────────
+//
+// Lee los `incidents` recientes del proyecto (top-level collection,
+// usada por backgroundTriggers) y los normaliza al shape
+// `IncidentSample` que consume el servicio determinístico
+// `buildRepeatingRiskRadar`. El resultado (`RadarReport`) viaja crudo al
+// frontend para que `<RepeatingRiskRadarCard>` lo renderice.
+//
+// 100% determinístico, sin ML — agregaciones simples sobre los nodos
+// por zona/tipo/tiempo. Si la lectura de incidents falla, devolvemos un
+// reporte vacío en lugar de 500 para no bloquear el dashboard.
+
+router.get('/:projectId/repeating-risks', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { buildRepeatingRiskRadar } = await import(
+      '../../services/riskRadar/repeatingRiskRadar.js'
+    );
+    const db = admin.firestore();
+
+    // Ventana: últimos 90 días — suficiente para detectar patrones según
+    // F.13. Filtramos en memoria por occurredAt para tolerar docs con
+    // timestamps inconsistentes (la fn `filterRecent` del servicio
+    // también descarta futuros + invalid).
+    const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+
+    const safeIncidents = async (): Promise<Array<Record<string, unknown> & { id: string }>> => {
+      // Codex P2 PR #312 — Order BEFORE applying the cap. Firestore's
+      // `.limit(N)` without an explicit `orderBy` returns an arbitrary
+      // subset (typically document-id order); for projects with >500
+      // incidents that drops the most recent ones, which are exactly the
+      // signal the 90-day radar window cares about. Sort by `reportedAt`
+      // desc so the cap keeps the freshest documents.
+      //
+      // Codex P1 PR #312 round 2 — The ordered query requires composite
+      // index `incidents(projectId, reportedAt desc)`. If the index is
+      // not yet deployed (FAILED_PRECONDITION) we MUST NOT silently
+      // return [] (radar would falsely report "no patterns" for every
+      // project until the index propagates). Fall back to the unordered
+      // query, sort+cap in JS, and warn so deploy hooks notice.
+      // TODO(PR #312): once `firestore.indexes.json` deploy confirmed in
+      // prod, this fallback becomes dead code — remove after a release.
+      //
+      // Codex P2 PR #312 round 2 — Legacy/imported incident docs may
+      // carry `occurredAt` but no `reportedAt`. An `orderBy('reportedAt')`
+      // silently excludes those docs from the result set (Firestore
+      // skips docs missing the order field). Fetch a second pass ordered
+      // by `occurredAt` and merge by id — covers both shapes without
+      // forcing a backfill migration.
+      const fetchOrdered = async (
+        field: 'reportedAt' | 'occurredAt',
+      ): Promise<Array<Record<string, unknown> & { id: string }>> => {
+        try {
+          const snap = await db
+            .collection('incidents')
+            .where('projectId', '==', projectId)
+            .orderBy(field, 'desc')
+            .limit(500)
+            .get();
+          return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        } catch (err) {
+          const code = (err as { code?: string | number } | null)?.code;
+          // gRPC FAILED_PRECONDITION = 9; Firestore SDK also surfaces it
+          // as the string 'failed-precondition'.
+          const isMissingIndex =
+            code === 9 ||
+            code === 'failed-precondition' ||
+            /index/i.test(String((err as Error | null)?.message ?? ''));
+          if (!isMissingIndex) throw err;
+          logger.warn?.('sprintK.riskRadar.incidents.missing_index_fallback', {
+            field,
+            err,
+          });
+          try {
+            const snap = await db
+              .collection('incidents')
+              .where('projectId', '==', projectId)
+              .get();
+            const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            // JS sort by `field` desc; tolerate Firestore Timestamp,
+            // Date, number, or ISO string. Cap to 500 (same as ordered
+            // query) so the rest of the pipeline keeps its memory bound.
+            const tsOf = (raw: unknown): number => {
+              if (!raw) return -Infinity;
+              if (raw instanceof Date) {
+                const t = raw.getTime();
+                return Number.isFinite(t) ? t : -Infinity;
+              }
+              if (typeof raw === 'string') {
+                const t = Date.parse(raw);
+                return Number.isFinite(t) ? t : -Infinity;
+              }
+              if (typeof raw === 'number') {
+                return Number.isFinite(raw) ? raw : -Infinity;
+              }
+              if (typeof raw === 'object') {
+                const ts = raw as { toMillis?: () => number; toDate?: () => Date };
+                if (typeof ts.toMillis === 'function') {
+                  const ms = ts.toMillis();
+                  return Number.isFinite(ms) ? ms : -Infinity;
+                }
+                if (typeof ts.toDate === 'function') {
+                  const d = ts.toDate();
+                  if (d instanceof Date && Number.isFinite(d.getTime())) {
+                    return d.getTime();
+                  }
+                }
+              }
+              return -Infinity;
+            };
+            docs.sort((a, b) => tsOf(b[field]) - tsOf(a[field]));
+            return docs.slice(0, 500);
+          } catch (fallbackErr) {
+            logger.warn?.(
+              'sprintK.riskRadar.incidents.fallback_failed',
+              fallbackErr,
+            );
+            return [];
+          }
+        }
+      };
+
+      try {
+        const [byReported, byOccurred] = await Promise.all([
+          fetchOrdered('reportedAt'),
+          fetchOrdered('occurredAt'),
+        ]);
+        // Merge by id: same doc may appear in both pages.
+        const seen = new Map<string, Record<string, unknown> & { id: string }>();
+        for (const d of byReported) seen.set(d.id, d);
+        for (const d of byOccurred) if (!seen.has(d.id)) seen.set(d.id, d);
+        return Array.from(seen.values());
+      } catch (err) {
+        logger.warn?.('sprintK.riskRadar.incidents.fetch_failed', err);
+        return [];
+      }
+    };
+
+    const rawIncidents = await safeIncidents();
+
+    // Codex P2 PR #312 — Normalize `occurredAt` to a Date BEFORE filtering
+    // the radar window. Imported / legacy Firestore docs may store this as
+    // a Firestore `Timestamp` (with `.toDate()`/`.toMillis()`), a JS Date,
+    // a numeric epoch, or an ISO string with an offset. Lexicographic
+    // string compare against a UTC ISO cutoff drops timestamps that are
+    // actually inside the window (e.g. `2026-05-10T23:30:00-03:00` parses
+    // later than `2026-05-11T00:15:00Z` but sorts earlier as a string).
+    const cutoffMs = Date.now() - NINETY_DAYS_MS;
+    type MaybeTimestamp = { toDate?: () => Date; toMillis?: () => number };
+    const toDate = (raw: unknown): Date | null => {
+      if (!raw) return null;
+      if (raw instanceof Date) return Number.isFinite(raw.getTime()) ? raw : null;
+      if (typeof raw === 'string') {
+        const ms = Date.parse(raw);
+        return Number.isFinite(ms) ? new Date(ms) : null;
+      }
+      if (typeof raw === 'number') {
+        return Number.isFinite(raw) ? new Date(raw) : null;
+      }
+      if (typeof raw === 'object') {
+        const ts = raw as MaybeTimestamp;
+        if (typeof ts.toMillis === 'function') {
+          const ms = ts.toMillis();
+          return Number.isFinite(ms) ? new Date(ms) : null;
+        }
+        if (typeof ts.toDate === 'function') {
+          const d = ts.toDate();
+          return d instanceof Date && Number.isFinite(d.getTime()) ? d : null;
+        }
+      }
+      return null;
+    };
+
+    // Normaliza al shape `IncidentSample`. Conservamos cualquier doc cuyo
+    // `occurredAt` esté dentro de la ventana de 90 días y que tenga AL
+    // MENOS uno entre `kind` o `zoneId` derivable — los detectores
+    // worker/task/shift/time-cluster del servicio no requieren ambos.
+    // - `kind` ← `kind | type | category`
+    // - `zoneId` ← `zoneId | zone | location | area`
+    // - `taskId` ← `taskId | task`
+    // - `shift` ← solo si está en el enum válido del servicio.
+    type Shift = 'day' | 'evening' | 'night';
+    const VALID_SHIFTS: ReadonlySet<Shift> = new Set(['day', 'evening', 'night']);
+    type Severity = 'low' | 'medium' | 'high' | 'critical';
+
+    // Codex P2 PR #312 — Normalize legacy Spanish severities at the
+    // boundary. The existing incident-bundle alias map covers
+    // baja/media/alta/critica/crítica (Codex P2 PR #122); the radar bundle
+    // sees additional legacy labels (leve/moderado/grave/fatal) and the EN
+    // `fatality` outcome term. Map everything to the canonical 4-value
+    // radar enum (`sif` collapses to `critical`).
+    const SEVERITY_ALIASES: Record<string, Severity> = {
+      // EN canonical
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      critical: 'critical',
+      // EN legacy / outcome
+      fatality: 'critical',
+      sif: 'critical',
+      // ES canonical (incident-bundle aliases)
+      baja: 'low',
+      media: 'medium',
+      alta: 'high',
+      critica: 'critical',
+      'crítica': 'critical',
+      // ES legacy (PR #312)
+      leve: 'low',
+      moderado: 'medium',
+      moderada: 'medium',
+      grave: 'high',
+      fatal: 'critical',
+    };
+    const normalizeRadarSeverity = (raw: unknown): Severity | undefined => {
+      if (typeof raw !== 'string') return undefined;
+      const key = raw.trim().toLowerCase();
+      return SEVERITY_ALIASES[key];
+    };
+
+    const samples = rawIncidents
+      .map((d) => {
+        const occurredAtDate = toDate(d.occurredAt);
+        if (!occurredAtDate) return null;
+        if (occurredAtDate.getTime() < cutoffMs) return null;
+        const kind =
+          (typeof d.kind === 'string' && d.kind) ||
+          (typeof d.type === 'string' && (d.type as string)) ||
+          (typeof d.category === 'string' && (d.category as string)) ||
+          '';
+        const zoneId =
+          (typeof d.zoneId === 'string' && d.zoneId) ||
+          (typeof d.zone === 'string' && (d.zone as string)) ||
+          (typeof d.location === 'string' && (d.location as string)) ||
+          (typeof d.area === 'string' && (d.area as string)) ||
+          '';
+        const taskId =
+          (typeof d.taskId === 'string' && d.taskId) ||
+          (typeof d.task === 'string' && (d.task as string)) ||
+          undefined;
+        const workerUid =
+          typeof d.workerUid === 'string' ? (d.workerUid as string) : undefined;
+        const rawShift = typeof d.shift === 'string' ? (d.shift as string) : '';
+        const shift = VALID_SHIFTS.has(rawShift as Shift)
+          ? (rawShift as Shift)
+          : undefined;
+        const severity = normalizeRadarSeverity(d.severity);
+        return {
+          id: d.id,
+          occurredAt: occurredAtDate.toISOString(),
+          kind,
+          zoneId,
+          taskId,
+          workerUid,
+          shift,
+          severity,
+        };
+      })
+      // Codex P2 PR #312 — Keep samples usable for non-zone detectors.
+      // `detectSameWorkerRepeated`, `detectSameTaskRepeated`,
+      // `detectSameShiftPattern` and `detectTimeCluster` group on
+      // worker/task/shift/time, not on kind+zone. A doc missing kind+zone
+      // but carrying workerUid (or taskId, or shift) is still valid
+      // signal for that detector.
+      //
+      // Codex P2 PR #312 round 2 — Round 1 only kept docs with kind or
+      // zoneId; that dropped imports where workers/tasks/shifts are
+      // populated independently. Accept any doc that carries at least
+      // ONE of the 5 grouping facets — kind | zoneId | workerUid |
+      // taskId | shift — plus an occurredAt timestamp (already validated
+      // above). The time-cluster detector groups on timestamp alone, so
+      // even docs without any facet but with a valid timestamp could be
+      // useful — we still gate on at least one facet here to avoid
+      // feeding pure noise into the cluster detector.
+      .filter(
+        (s): s is NonNullable<typeof s> =>
+          s !== null &&
+          (s.kind.length > 0 ||
+            s.zoneId.length > 0 ||
+            (typeof s.workerUid === 'string' && s.workerUid.length > 0) ||
+            (typeof s.taskId === 'string' && s.taskId.length > 0) ||
+            typeof s.shift === 'string'),
+      );
+
+    const report = buildRepeatingRiskRadar(samples, {
+      minOccurrences: 3,
+      windowDays: 90,
+    });
+
+    return res.json({ report });
+  } catch (err) {
+    logger.error?.('sprintK.riskRadar.error', err);
+    captureRouteError(err, 'sprintK.riskRadar');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 
 const checklistItemSchema = z.object({
   id: z.string().min(1),

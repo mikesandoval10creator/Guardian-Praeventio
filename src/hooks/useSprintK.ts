@@ -738,3 +738,19 @@ export async function closeWorkPermit(
   }
   return (await res.json()) as { permit: WorkPermit };
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Fase F.13 — Radar de Riesgos Repetidos
+// ────────────────────────────────────────────────────────────────────────
+
+import type { RadarReport } from '../services/riskRadar/repeatingRiskRadar';
+
+export interface RepeatingRisksResponse {
+  report: RadarReport;
+}
+
+export function useRepeatingRisks(projectId: string | null) {
+  return useEndpoint<RepeatingRisksResponse>(
+    projectId ? `/api/sprint-k/${projectId}/repeating-risks` : null,
+  );
+}

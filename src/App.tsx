@@ -75,6 +75,10 @@ const WorkPermits = lazy(() => import('./pages/WorkPermits').then(module => ({ d
 // Service + adapter + endpoint + hook ya existían; este lazy import
 // cierra el último eslabón haciéndola navegable.
 const LessonsLearned = lazy(() => import('./pages/LessonsLearned').then(module => ({ default: module.LessonsLearned })));
+// Sprint 40 Fase F.13 — Radar de Riesgos Repetidos (patrones determinísticos
+// sobre incidentes, sin ML). Lazy para que el chunk solo se descargue al
+// entrar a /repeating-risks.
+const RepeatingRisks = lazy(() => import('./pages/RepeatingRisks').then(module => ({ default: module.RepeatingRisks })));
 const Inbox = lazy(() => import('./pages/Inbox').then(module => ({ default: module.Inbox })));
 const IncidentBundle = lazy(() => import('./pages/IncidentBundle').then(module => ({ default: module.IncidentBundle })));
 // Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno). Visible
@@ -152,6 +156,7 @@ function AppRoutes() {
               <Route path="maturity-index" element={<MaturityIndicator />} />
               <Route path="work-permits" element={<WorkPermits />} />
               <Route path="lessons" element={<LessonsLearned />} />
+              <Route path="repeating-risks" element={<RepeatingRisks />} />
               <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
@@ -283,6 +288,7 @@ function AppRoutes() {
                     <Route path="maturity-index" element={<MaturityIndicator />} />
                     <Route path="work-permits" element={<WorkPermits />} />
                     <Route path="lessons" element={<LessonsLearned />} />
+                    <Route path="repeating-risks" element={<RepeatingRisks />} />
                     <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
