@@ -146,11 +146,21 @@ function detectSameKindAcrossZones(
   incidents: IncidentSample[],
   minOccurrences: number,
 ): RepeatingPattern[] {
-  const byKind = groupBy(incidents, (i) => i.kind);
+  // Codex P2 PR #312 round 2 — Skip incidents without a derivable kind
+  // here. groupBy already returns Map<key, …> keyed on truthy strings
+  // (the keyFn returning a falsy value is skipped), so passing `i.kind`
+  // directly is safe: incidents with `kind === ''` (route default for
+  // legacy docs missing kind) won't form a bogus "" group. Same idea
+  // for the zones Set below: filter empty zoneIds so a legacy zoneless
+  // incident does not inflate the "distinct zones" count to fake a
+  // cross-zone pattern.
+  const byKind = groupBy(incidents, (i) => (i.kind ? i.kind : undefined));
   const out: RepeatingPattern[] = [];
   for (const [kind, list] of byKind) {
     if (list.length < minOccurrences) continue;
-    const zones = new Set(list.map((i) => i.zoneId));
+    const zones = new Set(
+      list.map((i) => i.zoneId).filter((z): z is string => !!z),
+    );
     if (zones.size < 2) continue; // solo 1 zona = patrón de lugar, no de proceso
     out.push({
       id: `same_kind:${kind}`,
@@ -170,11 +180,17 @@ function detectSameZoneMultipleKinds(
   incidents: IncidentSample[],
   minOccurrences: number,
 ): RepeatingPattern[] {
-  const byZone = groupBy(incidents, (i) => i.zoneId);
+  // Codex P2 PR #312 round 2 — Skip empty zoneId in the grouping
+  // (route stores '' for legacy docs with no derivable zone) and skip
+  // empty kinds in the diversity Set, so an incident with no kind does
+  // not inflate the "multiple kinds" count to fake a multi-kind zone.
+  const byZone = groupBy(incidents, (i) => (i.zoneId ? i.zoneId : undefined));
   const out: RepeatingPattern[] = [];
   for (const [zone, list] of byZone) {
     if (list.length < minOccurrences) continue;
-    const kinds = new Set(list.map((i) => i.kind));
+    const kinds = new Set(
+      list.map((i) => i.kind).filter((k): k is string => !!k),
+    );
     if (kinds.size < 2) continue; // 1 sólo kind = caso del otro detector
     out.push({
       id: `same_zone:${zone}`,
