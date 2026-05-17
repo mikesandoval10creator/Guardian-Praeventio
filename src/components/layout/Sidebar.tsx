@@ -248,6 +248,11 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // de hasta 4 proyectos seleccionables. Asiste con datos sin
         // recomendar cierre (directiva 2).
         { title: t("nav.projects_compare", "Comparar Proyectos"), icon: BarChart3, path: "/projects-compare", color: "text-blue-500" },
+        // F.29 — Tendencia de Incidentes + Leading Indicators (near-miss
+        // ratio, closure rate, días promedio abierto). Read-only sobre la
+        // colección de incidents. Acompaña Repeating Risks: el radar
+        // detecta patrones, esta página muestra la dirección agregada.
+        { title: t("nav.incident_trends", "Tendencia Incidentes"), icon: BarChart3, path: "/incident-trends", color: "text-amber-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },

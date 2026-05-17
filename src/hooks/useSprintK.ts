@@ -2789,6 +2789,52 @@ export interface DrivingRankingResponse {
 export function useDrivingRoutes(
   projectId: string | null,
   opts: { status?: DrivingRoutesStatus } = {},
+// F.29 — Indicadores de Tendencia de Incidentes
+// ────────────────────────────────────────────────────────────────────────
+//
+// Time series + leading indicators. Hook puro fetch — el endpoint
+// agrega y normaliza, el cliente solo presenta.
+
+export type IncidentTrendWindow = '3m' | '6m' | '12m';
+export type IncidentTrendGroup = 'month' | 'week';
+export type IncidentTrendDirection = 'improving' | 'stable' | 'worsening';
+
+export interface IncidentTrendBucket {
+  label: string;
+  count: number;
+  severityWeighted: number;
+  byKind: Record<string, number>;
+}
+
+export interface IncidentTrendLeading {
+  /** 0..1 — fracción de near-miss sobre total. */
+  nearMissRatio: number;
+  /** 0..1 — fracción cerrados / total. */
+  closureRate: number;
+  /** Promedio en días entre occurredAt y closedAt (solo cerrados). */
+  averageDaysOpen: number;
+}
+
+export interface IncidentTrendsResponse {
+  window: IncidentTrendWindow;
+  group: IncidentTrendGroup;
+  totalIncidents: number;
+  buckets: IncidentTrendBucket[];
+  leading: IncidentTrendLeading;
+  trend: IncidentTrendDirection;
+  /** 0..1 — confianza R² de la regresión lineal sobre severityWeighted. */
+  trendConfidence: number;
+  generatedAt: string;
+}
+
+export interface UseIncidentTrendsOptions {
+  window?: IncidentTrendWindow;
+  group?: IncidentTrendGroup;
+}
+
+export function useIncidentTrends(
+  projectId: string | null,
+  opts: UseIncidentTrendsOptions = {},
 ) {
   let path: string | null = null;
   if (projectId) {
@@ -3116,4 +3162,10 @@ export async function closeReport(
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `http_${res.status}`);
   }
+    if (opts.window) qs.set('window', opts.window);
+    if (opts.group) qs.set('group', opts.group);
+    const query = qs.toString();
+    path = `/api/sprint-k/${projectId}/incidents/trends${query ? `?${query}` : ''}`;
+  }
+  return useEndpoint<IncidentTrendsResponse>(path);
 }
