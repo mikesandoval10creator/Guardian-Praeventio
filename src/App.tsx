@@ -156,6 +156,10 @@ const IncidentTrends = lazy(() => import('./pages/IncidentTrends').then(module =
 // no estaba accesible desde la navegación. NO bloquea operación; solo
 // trazea el avance del aprendiz hacia autonomía y alerta sobreexposición.
 const Apprenticeship = lazy(() => import('./pages/Apprenticeship').then(module => ({ default: module.Apprenticeship })));
+// Sprint 42 Fase F.18 — Historial Profesional Portátil del Trabajador
+// (Ley 19.628). El trabajador es dueño absoluto de su cartera y decide
+// qué exportar y cuándo. Praeventio NO push-a a organismos externos.
+const WorkerPortableHistory = lazy(() => import('./pages/WorkerPortableHistory').then(module => ({ default: module.WorkerPortableHistory })));
 // Sprint K §90-91 — Calidad de Proveedores + Ranking de Riesgo.
 // Motor determinístico (supplierScoring 4-dim) ya vivía; este lazy
 // expone el ranking para decisiones de adjudicación.
@@ -280,6 +284,7 @@ function AppRoutes() {
               <Route path="confidential-reports" element={<ConfidentialReports />} />
               <Route path="incident-trends" element={<IncidentTrends />} />
               <Route path="apprenticeship" element={<Apprenticeship />} />
+              <Route path="portable-history" element={<WorkerPortableHistory />} />
               <Route path="suppliers" element={<SupplierQuality />} />
               <Route path="knowledge-base" element={<KnowledgeBase />} />
               <Route path="visitors" element={<Visitors />} />
@@ -438,6 +443,7 @@ function AppRoutes() {
                     <Route path="confidential-reports" element={<ConfidentialReports />} />
                     <Route path="incident-trends" element={<IncidentTrends />} />
                     <Route path="apprenticeship" element={<Apprenticeship />} />
+                    <Route path="portable-history" element={<WorkerPortableHistory />} />
                     <Route path="suppliers" element={<SupplierQuality />} />
                     <Route path="knowledge-base" element={<KnowledgeBase />} />
                     <Route path="visitors" element={<Visitors />} />

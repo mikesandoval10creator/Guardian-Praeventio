@@ -11463,6 +11463,640 @@ router.get(
     } catch (err) {
       logger.error?.('sprintK.mentors.availability.error', err);
       captureRouteError(err, 'sprintK.mentors.availability');
+// Sprint 42 Fase F.18 — Historial Profesional Portátil del Trabajador
+// ─────────────────────────────────────────────────────────────────────
+//
+// Cierra Plan F.18 "Historial Profesional Portátil (Ley 19.628)".
+//
+// 3 endpoints sobre el subgrafo profesional del trabajador:
+//
+//   GET  /:projectId/workers/:workerUid/portable-history
+//        → snapshot del subgrafo (identidad / capacitaciones / EPP /
+//          aptitudes / roles críticos / firmas / incidentes opc).
+//
+//   POST /:projectId/workers/:workerUid/portable-history/consent
+//        → trabajador (o admin) actualiza consent flags.
+//
+//   GET  /:projectId/workers/:workerUid/portable-history/export?format=
+//        → genera export materializado (JSON canónico siempre, PDF
+//          opcional si pdfkit está instalado).
+//
+// PRIVACY-CRITICAL (Ley 19.628 art. 4° / 9°):
+//   - Default consent = FALSE en todos los flags.
+//   - El bundle se RE-REDACTA en cada lectura según el consent vigente:
+//     identity.fullName + rut son `[REDACTED]` cuando
+//     consent.allowsPortableExport=false.
+//   - Solo el trabajador mismo (callerUid === workerUid) o un admin
+//     (req.user!.admin === true) pueden ver/exportar. Cualquier otro
+//     miembro del proyecto → 403.
+//   - Si consent.includesIncidents=false los incidentes salen como
+//     `[]` (NO se incluyen — minimización art. 9°).
+//   - El consent doc vive en
+//     `tenants/{tid}/projects/{pid}/portable_history_consents/{workerUid}`.
+//   - Todo está cableado con `safeRead` para que un feed roto NO tumbe
+//     el endpoint (degradación graceful — el bundle viene parcial,
+//     marcado, no vacío silente).
+
+interface PortableHistoryConsent {
+  allowsPortableExport: boolean;
+  includesIncidents: boolean;
+  updatedAt: string;
+  updatedByUid: string;
+}
+
+interface PortableHistoryTraining {
+  id: string;
+  trainingCode?: string;
+  trainingName?: string;
+  obtainedAt?: string;
+  expiresAt?: string | null;
+  issuer?: string;
+  hours?: number;
+  projectId?: string;
+}
+
+interface PortableHistoryEppDelivery {
+  id: string;
+  eppCategory?: string;
+  eppModel?: string;
+  deliveredAt?: string;
+  nextReplacementAt?: string | null;
+}
+
+interface PortableHistoryAptitude {
+  id: string;
+  category?: string;
+  status?: string;
+  recordedAt?: string;
+  expiresAt?: string | null;
+  source?: string;
+}
+
+interface PortableHistoryCriticalRole {
+  id: string;
+  roleCode?: string;
+  roleName?: string;
+  startedAt?: string;
+  endedAt?: string | null;
+  projectId?: string;
+}
+
+interface PortableHistoryIncident {
+  id: string;
+  occurredAt?: string;
+  severity?: string;
+  category?: string;
+}
+
+interface PortableHistorySignature {
+  id: string;
+  documentKind?: string;
+  signedAt?: string;
+  documentTitle?: string;
+}
+
+interface PortableHistoryBundle {
+  schemaVersion: '1.0.0';
+  generatedAt: string;
+  workerUid: string;
+  consent: PortableHistoryConsent;
+  identity: {
+    fullName: string;
+    rut: string;
+    email?: string | null;
+  };
+  trainings: PortableHistoryTraining[];
+  eppDeliveries: PortableHistoryEppDelivery[];
+  aptitudes: PortableHistoryAptitude[];
+  criticalRoles: PortableHistoryCriticalRole[];
+  signatures: PortableHistorySignature[];
+  incidents: PortableHistoryIncident[];
+  disclaimer: string;
+}
+
+const PORTABLE_HISTORY_DISCLAIMER =
+  'Praeventio nunca diagnostica. Este documento es la cartera profesional ' +
+  'portable del trabajador (Ley 19.628 — datos personales). El trabajador ' +
+  'es dueño absoluto y decide qué nivel de detalle compartir. La información ' +
+  'médica (cuando exista) se organiza para compartirse con el médico tratante. ' +
+  'Praeventio NO empuja este documento a ningún organismo externo ' +
+  '(SUSESO/SII/MINSAL/OSHA). El trabajador o la empresa lo entregan ' +
+  'manualmente al destinatario autorizado.';
+
+function emptyConsent(): PortableHistoryConsent {
+  return {
+    allowsPortableExport: false,
+    includesIncidents: false,
+    updatedAt: new Date(0).toISOString(),
+    updatedByUid: '',
+  };
+}
+
+async function loadPortableHistoryConsent(
+  db: admin.firestore.Firestore,
+  tenantId: string,
+  projectId: string,
+  workerUid: string,
+): Promise<PortableHistoryConsent> {
+  try {
+    const snap = await db
+      .collection(
+        `tenants/${tenantId}/projects/${projectId}/portable_history_consents`,
+      )
+      .doc(workerUid)
+      .get();
+    if (!snap.exists) return emptyConsent();
+    const data = snap.data() as Partial<PortableHistoryConsent> | undefined;
+    return {
+      allowsPortableExport: Boolean(data?.allowsPortableExport),
+      includesIncidents: Boolean(data?.includesIncidents),
+      updatedAt: typeof data?.updatedAt === 'string' ? data.updatedAt : new Date(0).toISOString(),
+      updatedByUid: typeof data?.updatedByUid === 'string' ? data.updatedByUid : '',
+    };
+  } catch {
+    return emptyConsent();
+  }
+}
+
+/**
+ * Owner-or-admin gate. The portable history is the worker's own data —
+ * Ley 19.628 says only the data subject (or an authorized admin) may
+ * request it. Other members of the project, even supervisors, do NOT
+ * get to see another worker's full RUT + medical-context cartera unless
+ * the worker explicitly consented (caught by the redaction layer downstream).
+ */
+function isOwnerOrAdmin(callerUid: string, workerUid: string, isAdmin: boolean): boolean {
+  return callerUid === workerUid || isAdmin === true;
+}
+
+async function buildPortableHistoryBundle(
+  db: admin.firestore.Firestore,
+  tenantId: string,
+  projectId: string,
+  workerUid: string,
+): Promise<PortableHistoryBundle | null> {
+  const consent = await loadPortableHistoryConsent(db, tenantId, projectId, workerUid);
+
+  const safeRead = async <T,>(
+    label: string,
+    fn: () => Promise<T>,
+    fallback: T,
+  ): Promise<T> => {
+    try {
+      return await fn();
+    } catch (err) {
+      logger.warn?.(`sprintK.portableHistory.read.${label}.failed`, err);
+      return fallback;
+    }
+  };
+
+  // Worker doc — `projects/{pid}/workers/{workerUid}` per worker-readiness
+  // endpoint contract. Optional fallback to the top-level `users` collection
+  // when the project hasn't yet propagated the worker doc (legacy invites).
+  const workerDocPromise = safeRead(
+    'worker',
+    async () => {
+      const snap = await db
+        .collection('projects')
+        .doc(projectId)
+        .collection('workers')
+        .doc(workerUid)
+        .get();
+      if (snap.exists) return snap.data() as Record<string, unknown>;
+      const userSnap = await db.collection('users').doc(workerUid).get();
+      return userSnap.exists ? (userSnap.data() as Record<string, unknown>) : null;
+    },
+    null as Record<string, unknown> | null,
+  );
+
+  // Trainings — read all 4 known shapes (mirrors worker-readiness logic
+  // but without the `status: completed` filter so the cartera reflects
+  // EVERYTHING the worker has ever taken, including pending recertifications).
+  const trainingsPromise = safeRead(
+    'trainings',
+    async () => {
+      const [nestedByUid, projTrainingsByUid, projTrainingsByWorkerId, topByAttendees] =
+        await Promise.all([
+          db
+            .collection('projects')
+            .doc(projectId)
+            .collection('training_assignments')
+            .where('workerUid', '==', workerUid)
+            .get()
+            .catch(() => null),
+          db
+            .collection('projects')
+            .doc(projectId)
+            .collection('trainings')
+            .where('workerUid', '==', workerUid)
+            .get()
+            .catch(() => null),
+          db
+            .collection('projects')
+            .doc(projectId)
+            .collection('trainings')
+            .where('workerId', '==', workerUid)
+            .get()
+            .catch(() => null),
+          db
+            .collection('training')
+            .where('projectId', '==', projectId)
+            .where('attendees', 'array-contains', workerUid)
+            .get()
+            .catch(() => null),
+        ]);
+      const all = new Map<string, PortableHistoryTraining>();
+      const merge = (snap: FirebaseFirestore.QuerySnapshot | null) => {
+        if (!snap) return;
+        for (const d of snap.docs) {
+          if (all.has(d.id)) continue;
+          const data = d.data() as Record<string, unknown>;
+          all.set(d.id, {
+            id: d.id,
+            trainingCode: typeof data.trainingCode === 'string' ? data.trainingCode : undefined,
+            trainingName:
+              typeof data.trainingName === 'string'
+                ? data.trainingName
+                : typeof data.title === 'string'
+                  ? data.title
+                  : undefined,
+            obtainedAt:
+              typeof data.obtainedAt === 'string'
+                ? data.obtainedAt
+                : typeof data.completedAt === 'string'
+                  ? data.completedAt
+                  : undefined,
+            expiresAt:
+              typeof data.expiresAt === 'string'
+                ? data.expiresAt
+                : data.expiresAt === null
+                  ? null
+                  : undefined,
+            issuer: typeof data.issuer === 'string' ? data.issuer : undefined,
+            hours: typeof data.hours === 'number' ? data.hours : undefined,
+            projectId: typeof data.projectId === 'string' ? data.projectId : projectId,
+          });
+        }
+      };
+      merge(nestedByUid);
+      merge(projTrainingsByUid);
+      merge(projTrainingsByWorkerId);
+      merge(topByAttendees);
+      return Array.from(all.values());
+    },
+    [] as PortableHistoryTraining[],
+  );
+
+  // EPP deliveries — same dual-shape pattern as worker-readiness.
+  const eppPromise = safeRead(
+    'epp',
+    async () => {
+      const [nestedByWorkerId, nestedByWorkerUid, topByUid, topByAssignedTo] =
+        await Promise.all([
+          db
+            .collection('projects')
+            .doc(projectId)
+            .collection('epp_assignments')
+            .where('workerId', '==', workerUid)
+            .get()
+            .catch(() => null),
+          db
+            .collection('projects')
+            .doc(projectId)
+            .collection('epp_assignments')
+            .where('workerUid', '==', workerUid)
+            .get()
+            .catch(() => null),
+          db
+            .collection('epp_assignments')
+            .where('projectId', '==', projectId)
+            .where('workerUid', '==', workerUid)
+            .get()
+            .catch(() => null),
+          db
+            .collection('epp_assignments')
+            .where('projectId', '==', projectId)
+            .where('assignedTo', '==', workerUid)
+            .get()
+            .catch(() => null),
+        ]);
+      const all = new Map<string, PortableHistoryEppDelivery>();
+      const merge = (snap: FirebaseFirestore.QuerySnapshot | null) => {
+        if (!snap) return;
+        for (const d of snap.docs) {
+          if (all.has(d.id)) continue;
+          const data = d.data() as Record<string, unknown>;
+          all.set(d.id, {
+            id: d.id,
+            eppCategory: typeof data.eppCategory === 'string' ? data.eppCategory : undefined,
+            eppModel:
+              typeof data.eppModel === 'string'
+                ? data.eppModel
+                : typeof data.model === 'string'
+                  ? data.model
+                  : undefined,
+            deliveredAt:
+              typeof data.deliveredAt === 'string'
+                ? data.deliveredAt
+                : typeof data.assignedAt === 'string'
+                  ? data.assignedAt
+                  : undefined,
+            nextReplacementAt:
+              typeof data.nextReplacementAt === 'string'
+                ? data.nextReplacementAt
+                : data.nextReplacementAt === null
+                  ? null
+                  : undefined,
+          });
+        }
+      };
+      merge(nestedByWorkerId);
+      merge(nestedByWorkerUid);
+      merge(topByUid);
+      merge(topByAssignedTo);
+      return Array.from(all.values());
+    },
+    [] as PortableHistoryEppDelivery[],
+  );
+
+  // Medical aptitudes / clearances. Lives in `projects/{pid}/medical_aptitudes`
+  // by `workerUid`; legacy may carry `userUid`.
+  const aptitudesPromise = safeRead(
+    'aptitudes',
+    async () => {
+      const [byWorkerUid, byUserUid] = await Promise.all([
+        db
+          .collection('projects')
+          .doc(projectId)
+          .collection('medical_aptitudes')
+          .where('workerUid', '==', workerUid)
+          .get()
+          .catch(() => null),
+        db
+          .collection('projects')
+          .doc(projectId)
+          .collection('medical_aptitudes')
+          .where('userUid', '==', workerUid)
+          .get()
+          .catch(() => null),
+      ]);
+      const all = new Map<string, PortableHistoryAptitude>();
+      const merge = (snap: FirebaseFirestore.QuerySnapshot | null) => {
+        if (!snap) return;
+        for (const d of snap.docs) {
+          if (all.has(d.id)) continue;
+          const data = d.data() as Record<string, unknown>;
+          all.set(d.id, {
+            id: d.id,
+            category: typeof data.category === 'string' ? data.category : undefined,
+            status: typeof data.status === 'string' ? data.status : undefined,
+            recordedAt:
+              typeof data.recordedAt === 'string'
+                ? data.recordedAt
+                : typeof data.evaluatedAt === 'string'
+                  ? data.evaluatedAt
+                  : undefined,
+            expiresAt:
+              typeof data.expiresAt === 'string'
+                ? data.expiresAt
+                : data.expiresAt === null
+                  ? null
+                  : undefined,
+            source: typeof data.source === 'string' ? data.source : undefined,
+          });
+        }
+      };
+      merge(byWorkerUid);
+      merge(byUserUid);
+      return Array.from(all.values());
+    },
+    [] as PortableHistoryAptitude[],
+  );
+
+  // Critical roles held — `projects/{pid}/critical_role_assignments` by
+  // `workerUid`. Each doc is a span (startedAt/endedAt).
+  const criticalRolesPromise = safeRead(
+    'criticalRoles',
+    async () => {
+      const snap = await db
+        .collection('projects')
+        .doc(projectId)
+        .collection('critical_role_assignments')
+        .where('workerUid', '==', workerUid)
+        .get();
+      return snap.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>;
+        return {
+          id: d.id,
+          roleCode: typeof data.roleCode === 'string' ? data.roleCode : undefined,
+          roleName: typeof data.roleName === 'string' ? data.roleName : undefined,
+          startedAt: typeof data.startedAt === 'string' ? data.startedAt : undefined,
+          endedAt:
+            typeof data.endedAt === 'string'
+              ? data.endedAt
+              : data.endedAt === null
+                ? null
+                : undefined,
+          projectId: typeof data.projectId === 'string' ? data.projectId : projectId,
+        } as PortableHistoryCriticalRole;
+      });
+    },
+    [] as PortableHistoryCriticalRole[],
+  );
+
+  // DDR / ODI / RIOHS signatures — qr_acknowledgements + qr_signatures
+  // by workerUid. Light projection (no challenge details — only the
+  // fact-of-signature with timestamp).
+  const signaturesPromise = safeRead(
+    'signatures',
+    async () => {
+      const [ackSnap, sigSnap] = await Promise.all([
+        db
+          .collection(`tenants/${tenantId}/projects/${projectId}/qr_acknowledgements`)
+          .where('workerUid', '==', workerUid)
+          .get()
+          .catch(() => null),
+        db
+          .collection(`tenants/${tenantId}/projects/${projectId}/qr_signatures`)
+          .where('workerUid', '==', workerUid)
+          .get()
+          .catch(() => null),
+      ]);
+      const all = new Map<string, PortableHistorySignature>();
+      const merge = (snap: FirebaseFirestore.QuerySnapshot | null) => {
+        if (!snap) return;
+        for (const d of snap.docs) {
+          if (all.has(d.id)) continue;
+          const data = d.data() as Record<string, unknown>;
+          all.set(d.id, {
+            id: d.id,
+            documentKind:
+              typeof data.documentKind === 'string'
+                ? data.documentKind
+                : typeof data.kind === 'string'
+                  ? data.kind
+                  : undefined,
+            signedAt:
+              typeof data.signedAt === 'string'
+                ? data.signedAt
+                : typeof data.acknowledgedAt === 'string'
+                  ? data.acknowledgedAt
+                  : undefined,
+            documentTitle:
+              typeof data.documentTitle === 'string'
+                ? data.documentTitle
+                : typeof data.title === 'string'
+                  ? data.title
+                  : undefined,
+          });
+        }
+      };
+      merge(ackSnap);
+      merge(sigSnap);
+      return Array.from(all.values());
+    },
+    [] as PortableHistorySignature[],
+  );
+
+  // Incidents involved — only loaded if `consent.includesIncidents===true`.
+  // Minimization (Ley 19.628 art. 9°): we don't even READ the data when the
+  // worker hasn't opted in. The bundle ships `[]` and the consent flag is
+  // surfaced so the UI can explain why.
+  const incidentsPromise: Promise<PortableHistoryIncident[]> = consent.includesIncidents
+    ? safeRead(
+        'incidents',
+        async () => {
+          const baseQuery = db
+            .collection('incidents')
+            .where('projectId', '==', projectId);
+          const [byWorkerUid, byAffectedWorkerUid, byInvolvedWorkers] = await Promise.all([
+            baseQuery
+              .where('workerUid', '==', workerUid)
+              .limit(200)
+              .get()
+              .catch(() => null),
+            baseQuery
+              .where('affectedWorkerUid', '==', workerUid)
+              .limit(200)
+              .get()
+              .catch(() => null),
+            baseQuery
+              .where('involvedWorkers', 'array-contains', workerUid)
+              .limit(200)
+              .get()
+              .catch(() => null),
+          ]);
+          const all = new Map<string, PortableHistoryIncident>();
+          const merge = (snap: FirebaseFirestore.QuerySnapshot | null) => {
+            if (!snap) return;
+            for (const d of snap.docs) {
+              if (all.has(d.id)) continue;
+              const data = d.data() as Record<string, unknown>;
+              all.set(d.id, {
+                id: d.id,
+                occurredAt:
+                  typeof data.occurredAt === 'string' ? data.occurredAt : undefined,
+                severity: typeof data.severity === 'string' ? data.severity : undefined,
+                category:
+                  typeof data.category === 'string'
+                    ? data.category
+                    : typeof data.kind === 'string'
+                      ? data.kind
+                      : undefined,
+              });
+            }
+          };
+          merge(byWorkerUid);
+          merge(byAffectedWorkerUid);
+          merge(byInvolvedWorkers);
+          return Array.from(all.values());
+        },
+        [] as PortableHistoryIncident[],
+      )
+    : Promise.resolve([] as PortableHistoryIncident[]);
+
+  const [worker, trainings, epp, aptitudes, criticalRoles, signatures, incidents] =
+    await Promise.all([
+      workerDocPromise,
+      trainingsPromise,
+      eppPromise,
+      aptitudesPromise,
+      criticalRolesPromise,
+      signaturesPromise,
+      incidentsPromise,
+    ]);
+
+  if (!worker) return null;
+
+  // Apply the redaction contract (Ley 19.628 art. 4°): identity fields
+  // are ONLY revealed when the worker has explicitly opted in via
+  // `consent.allowsPortableExport === true`. Default = '[REDACTED]'.
+  const fullName =
+    typeof worker.name === 'string'
+      ? worker.name
+      : typeof worker.displayName === 'string'
+        ? worker.displayName
+        : typeof worker.fullName === 'string'
+          ? worker.fullName
+          : '';
+  const rut =
+    typeof worker.rut === 'string'
+      ? worker.rut
+      : typeof worker.identityDocument === 'string'
+        ? worker.identityDocument
+        : '';
+  const email =
+    typeof worker.email === 'string' ? worker.email : null;
+
+  const identity: PortableHistoryBundle['identity'] = consent.allowsPortableExport
+    ? { fullName, rut, email }
+    : { fullName: '[REDACTED]', rut: '[REDACTED]', email: null };
+
+  return {
+    schemaVersion: '1.0.0',
+    generatedAt: new Date().toISOString(),
+    workerUid,
+    consent,
+    identity,
+    trainings,
+    eppDeliveries: epp,
+    aptitudes,
+    criticalRoles,
+    signatures,
+    incidents,
+    disclaimer: PORTABLE_HISTORY_DISCLAIMER,
+  };
+}
+
+router.get(
+  '/:projectId/workers/:workerUid/portable-history',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const isAdmin = Boolean((req.user as { admin?: boolean }).admin);
+    const { projectId, workerUid } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    if (!isOwnerOrAdmin(callerUid, workerUid, isAdmin)) {
+      return res
+        .status(403)
+        .json({ error: 'forbidden_not_owner_or_admin' });
+    }
+    try {
+      const db = admin.firestore();
+      const bundle = await buildPortableHistoryBundle(
+        db,
+        g.tenantId,
+        projectId,
+        workerUid,
+      );
+      if (!bundle) {
+        return res.status(404).json({ error: 'worker_not_found' });
+      }
+      return res.json({ bundle });
+    } catch (err) {
+      logger.error?.('sprintK.portableHistory.get.error', err);
+      captureRouteError(err, 'sprintK.portableHistory.get');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
@@ -11620,8 +12254,185 @@ router.get(
     return res.status(500).json({ error: 'internal_error' });
   }
 });
-
-=======
 >>>>>>> ca8e4b8b (feat(apprentices): §244-250 Aprendices + Mentoría + Autorización Progresiva — endpoint + hook + page wired)
+=======
+
+const portableHistoryConsentSchema = z.object({
+  allowsPortableExport: z.boolean(),
+  includesIncidents: z.boolean(),
+});
+
+router.post(
+  '/:projectId/workers/:workerUid/portable-history/consent',
+  verifyAuth,
+  validate(portableHistoryConsentSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const isAdmin = Boolean((req.user as { admin?: boolean }).admin);
+    const { projectId, workerUid } = req.params;
+    const body = req.body as z.infer<typeof portableHistoryConsentSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    if (!isOwnerOrAdmin(callerUid, workerUid, isAdmin)) {
+      return res
+        .status(403)
+        .json({ error: 'forbidden_not_owner_or_admin' });
+    }
+    try {
+      const db = admin.firestore();
+      const consent: PortableHistoryConsent = {
+        allowsPortableExport: body.allowsPortableExport,
+        includesIncidents: body.includesIncidents,
+        updatedAt: new Date().toISOString(),
+        updatedByUid: callerUid,
+      };
+      await db
+        .collection(
+          `tenants/${g.tenantId}/projects/${projectId}/portable_history_consents`,
+        )
+        .doc(workerUid)
+        .set(consent, { merge: false });
+      return res.status(200).json({ ok: true, consent });
+    } catch (err) {
+      logger.error?.('sprintK.portableHistory.consent.error', err);
+      captureRouteError(err, 'sprintK.portableHistory.consent');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+function bundleToCanonicalJson(bundle: PortableHistoryBundle): string {
+  const stringify = (value: unknown): string => {
+    if (value === null || value === undefined) return JSON.stringify(value ?? null);
+    if (typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) return `[${value.map(stringify).join(',')}]`;
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj).sort();
+    return `{${keys
+      .map((k) => `${JSON.stringify(k)}:${stringify(obj[k])}`)
+      .join(',')}}`;
+  };
+  return stringify(bundle);
+}
+
+router.get(
+  '/:projectId/workers/:workerUid/portable-history/export',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const isAdmin = Boolean((req.user as { admin?: boolean }).admin);
+    const { projectId, workerUid } = req.params;
+    const format = typeof req.query.format === 'string' ? req.query.format : 'json';
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    if (!isOwnerOrAdmin(callerUid, workerUid, isAdmin)) {
+      return res
+        .status(403)
+        .json({ error: 'forbidden_not_owner_or_admin' });
+    }
+    try {
+      const db = admin.firestore();
+      const bundle = await buildPortableHistoryBundle(
+        db,
+        g.tenantId,
+        projectId,
+        workerUid,
+      );
+      if (!bundle) {
+        return res.status(404).json({ error: 'worker_not_found' });
+      }
+      // Hard gate on the export action — the GET above redacts but still
+      // returns the bundle so the UI can render the consent toggles. The
+      // EXPORT endpoint refuses entirely without consent (Ley 19.628 art. 4°
+      // — finalidad y consentimiento explícito para la disposición externa).
+      if (!bundle.consent.allowsPortableExport) {
+        return res
+          .status(403)
+          .json({ error: 'consent_required_for_export' });
+      }
+      const canonical = bundle ? bundleToCanonicalJson(bundle) : '';
+      const checksum = createHash('sha256').update(canonical).digest('hex');
+
+      if (format === 'pdf') {
+        try {
+          // pdfkit is an optional runtime dependency (declared in
+          // package.json devDependencies). Wrap in dynamic import so a
+          // missing dep degrades to a friendly 503 rather than crashing
+          // the server.
+          const pdfkitMod = (await import('pdfkit').catch(() => null)) as
+            | { default: new (opts?: { size?: string; margin?: number }) => unknown }
+            | null;
+          if (!pdfkitMod) {
+            return res
+              .status(503)
+              .json({ error: 'pdf_unavailable', detail: 'pdfkit_not_installed' });
+          }
+          const PDFDocument = pdfkitMod.default;
+          const doc = new PDFDocument({ size: 'A4', margin: 50 }) as unknown as {
+            on: (ev: string, cb: (chunk?: Buffer) => void) => void;
+            end: () => void;
+            fontSize: (n: number) => unknown;
+            text: (s: string, opts?: Record<string, unknown>) => unknown;
+            moveDown: (n?: number) => unknown;
+          };
+          const chunks: Buffer[] = [];
+          doc.on('data', (chunk?: Buffer) => {
+            if (chunk) chunks.push(chunk);
+          });
+          const finished = new Promise<Buffer>((resolve, reject) => {
+            doc.on('end', () => resolve(Buffer.concat(chunks)));
+            doc.on('error', (err?: Buffer) => reject(err));
+          });
+          doc.fontSize(18);
+          doc.text('Historial Profesional Portátil', { align: 'center' });
+          doc.moveDown(0.5);
+          doc.fontSize(9);
+          doc.text(bundle.disclaimer, { align: 'justify' });
+          doc.moveDown(1);
+          doc.fontSize(11);
+          doc.text(`Trabajador: ${bundle.identity.fullName}`);
+          doc.text(`RUT: ${bundle.identity.rut}`);
+          if (bundle.identity.email) doc.text(`Email: ${bundle.identity.email}`);
+          doc.text(`Generado: ${bundle.generatedAt}`);
+          doc.text(`Checksum SHA-256: ${checksum}`);
+          doc.moveDown(0.5);
+          doc.text(`Capacitaciones: ${bundle.trainings.length}`);
+          doc.text(`Entregas de EPP: ${bundle.eppDeliveries.length}`);
+          doc.text(`Aptitudes médicas: ${bundle.aptitudes.length}`);
+          doc.text(`Roles críticos: ${bundle.criticalRoles.length}`);
+          doc.text(`Firmas DDR/ODI/RIOHS: ${bundle.signatures.length}`);
+          doc.text(`Incidentes: ${bundle.consent.includesIncidents ? bundle.incidents.length : 'REDACTED'}`);
+          doc.end();
+          const pdfBuf = await finished;
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="portable-history-${workerUid}.pdf"`,
+          );
+          res.setHeader('X-Portable-History-Checksum', checksum);
+          return res.status(200).send(pdfBuf);
+        } catch (pdfErr) {
+          logger.warn?.('sprintK.portableHistory.export.pdf_failed', pdfErr);
+          return res
+            .status(503)
+            .json({ error: 'pdf_unavailable', detail: 'pdf_generation_failed' });
+        }
+      }
+
+      // JSON (default): canonical body + checksum header for verification.
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="portable-history-${workerUid}.json"`,
+      );
+      res.setHeader('X-Portable-History-Checksum', checksum);
+      return res.status(200).send(canonical);
+    } catch (err) {
+      logger.error?.('sprintK.portableHistory.export.error', err);
+      captureRouteError(err, 'sprintK.portableHistory.export');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
 
 export default router;
