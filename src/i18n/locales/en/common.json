@@ -2267,5 +2267,53 @@
     "actions": {
       "exportCsv": "Export CSV"
     }
+  },
+  "incident_report": {
+    "back_emergency": "Emergency",
+    "badge": "Report",
+    "title": "Report near-miss",
+    "subtitle": "Your observation matters. Reporting near-misses saves lives — and earns XP for your crew. Zero penalty: the POSITIVE culture only reinforces.",
+    "select_project": "Select an active project before reporting.",
+    "registered": "Report registered",
+    "folio": "Reference",
+    "xp_thanks": "XP — thanks for reporting.",
+    "label_type": "Type",
+    "type_near_miss_label": "Near-miss",
+    "type_near_miss_hint": "Something almost happened — early observation.",
+    "type_incident_label": "Incident",
+    "type_incident_hint": "Occurred, no serious injury.",
+    "type_post_mortem_label": "Post-mortem",
+    "type_post_mortem_hint": "Root-cause analysis after a major event.",
+    "label_severity": "Declared severity",
+    "sev_low": "Low",
+    "sev_med": "Medium",
+    "sev_high": "High",
+    "sev_critical": "Critical",
+    "label_what_happened": "What happened?",
+    "what_placeholder": "Briefly describe: place, what you saw, possible cause.",
+    "label_location": "Location (optional)",
+    "location_placeholder": "Front 2 — Floor 3 — South scaffold",
+    "label_witnesses": "Witnesses (optional, comma-separated)",
+    "witnesses_placeholder": "John Smith, Jane Doe",
+    "submit": "Submit",
+    "submitting": "Sending…",
+    "err_must_login": "You must sign in to report.",
+    "err_generic": "Could not report. Please try again."
+  },
+  "lone_worker": {
+    "title": "Lone worker",
+    "fgs_active": "Foreground service active",
+    "fgs_stopped": "Foreground service stopped",
+    "fgs_starting": "Starting…",
+    "platform_android": "Native Android",
+    "platform_web": "Web / iOS (no-op)",
+    "platform_label": "Platform",
+    "btn_start": "Start",
+    "btn_stop": "Stop",
+    "fgs_stopped_msg": "FGS stopped.",
+    "fgs_not_running": "FGS was not running.",
+    "fgs_not_native": "Web platform — foreground service does not apply.",
+    "fgs_no_plugin": "Plugin not available in this build.",
+    "fgs_error_unknown": "unknown"
   }
 }

@@ -137,7 +137,8 @@ export function createShareToken(opts: {
   // QR payload: URL-safe deeplink que el médico abre en su navegador.
   // El secret va en el path para que el clipboard del médico no quede
   // pegajoso con datos sensibles.
-  const qrPayload = `https://praeventio.app/vault/share/${id}/${secret}`;
+  const baseUrl = process.env.APP_BASE_URL ?? 'https://praeventio.app';
+  const qrPayload = `${baseUrl}/vault/share/${id}/${secret}`;
 
   return { record, secret, qrPayload };
 }

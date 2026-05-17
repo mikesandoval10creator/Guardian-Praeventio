@@ -2280,5 +2280,53 @@
     "actions": {
       "exportCsv": "Exportar CSV"
     }
+  },
+  "incident_report": {
+    "back_emergency": "Emergencia",
+    "badge": "Reportar",
+    "title": "Reportar near-miss",
+    "subtitle": "Tu observación cuenta. Reportar near-miss salva vidas — y suma XP a tu cuadrilla. Cero penalización: la cultura POSITIVA solo refuerza.",
+    "select_project": "Selecciona un proyecto activo antes de reportar.",
+    "registered": "Reporte registrado",
+    "folio": "Folio",
+    "xp_thanks": "XP — gracias por reportar.",
+    "label_type": "Tipo",
+    "type_near_miss_label": "Near-miss",
+    "type_near_miss_hint": "Casi pasó algo — observación temprana.",
+    "type_incident_label": "Incidente",
+    "type_incident_hint": "Ocurrió, sin lesión grave.",
+    "type_post_mortem_label": "Post-mortem",
+    "type_post_mortem_hint": "Análisis de causa raíz tras un evento mayor.",
+    "label_severity": "Severidad declarada",
+    "sev_low": "Baja",
+    "sev_med": "Media",
+    "sev_high": "Alta",
+    "sev_critical": "Crítica",
+    "label_what_happened": "¿Qué pasó?",
+    "what_placeholder": "Describe brevemente: lugar, qué viste, posible causa.",
+    "label_location": "Ubicación (opcional)",
+    "location_placeholder": "Frente 2 — Piso 3 — Andamio sur",
+    "label_witnesses": "Testigos (opcional, separados por coma)",
+    "witnesses_placeholder": "Juan Pérez, María Soto",
+    "submit": "Reportar",
+    "submitting": "Enviando…",
+    "err_must_login": "Debes iniciar sesión para reportar.",
+    "err_generic": "No fue posible reportar. Intenta nuevamente."
+  },
+  "lone_worker": {
+    "title": "Trabajador solitario",
+    "fgs_active": "Foreground service activo",
+    "fgs_stopped": "Foreground service detenido",
+    "fgs_starting": "Iniciando…",
+    "platform_android": "Android nativo",
+    "platform_web": "Web / iOS (no-op)",
+    "platform_label": "Plataforma",
+    "btn_start": "Iniciar",
+    "btn_stop": "Detener",
+    "fgs_stopped_msg": "FGS detenido.",
+    "fgs_not_running": "FGS no estaba corriendo.",
+    "fgs_not_native": "Plataforma web — foreground service no aplica.",
+    "fgs_no_plugin": "Plugin no disponible en este build.",
+    "fgs_error_unknown": "desconocido"
   }
 }

@@ -115,7 +115,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: github.event_name == 'pull_request'
         with:
-          node-version: '22'
+          node-version: '20'
           cache: 'npm'
       - name: Install JS deps (PR only)
         if: github.event_name == 'pull_request'
