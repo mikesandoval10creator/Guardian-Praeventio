@@ -256,7 +256,7 @@ export function Dashboard() {
 
       {/* Boletín Climático + Cumplimiento */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 sm:gap-4">
-        <WeatherBulletin weather={weather} loading={loadingWeather} />
+        <WeatherBulletin weather={weather ?? undefined} loading={loadingWeather} />
         <ComplianceCard
           percentage={complianceData.percentage}
           label={complianceData.label}

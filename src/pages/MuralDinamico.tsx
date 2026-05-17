@@ -76,7 +76,7 @@ export function MuralDinamico() {
 
     const moderation = moderatePostContent(newPostContent);
     if (!moderation.ok) {
-      setModerationError(moderation.reason);
+      setModerationError(moderation.reason ?? null);
       return;
     }
     setModerationError(null);

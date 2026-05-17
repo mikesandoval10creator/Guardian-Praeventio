@@ -215,7 +215,7 @@ export function Training() {
     if (!activeVideoSession || !isOnline) return;
     setIsGeneratingQuiz(true);
     try {
-      const questions = await generateTrainingQuiz(activeVideoSession.title, activeVideoSession.description);
+      const questions = await generateTrainingQuiz(activeVideoSession.title, activeVideoSession.description ?? '');
       setQuizQuestions(questions);
       setIsQuizActive(true);
       setCurrentQuestionIndex(0);

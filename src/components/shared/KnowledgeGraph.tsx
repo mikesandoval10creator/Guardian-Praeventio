@@ -701,7 +701,12 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
         </Suspense>
       ) : (
         <ForceGraph2D
-          ref={graphRef}
+          // ForceGraph2D wants a MutableRefObject over its widened
+          // NodeObject<T> shape; our local RefObject<ForceGraphMethods<RiskNode>>
+          // is structurally compatible at runtime. Cast through `any`
+          // to bridge the React 19 RefObject<T | null> → MutableRefObject<T | undefined>
+          // mismatch that strictNullChecks exposes.
+          ref={graphRef as any}
           graphData={renderedGraphData}
           nodeLabel="title"
           nodeColor={node => getNodeColorWithCritical((node as RFGNode).type, node as RiskNode)}

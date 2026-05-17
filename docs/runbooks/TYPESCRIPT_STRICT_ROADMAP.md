@@ -17,6 +17,7 @@
 | `strictFunctionTypes` | ✅ activado (Wave 1) | 7 fixed |
 | `noUnusedParameters` | ✅ activado (Wave 2) | 33 fixed |
 | `noImplicitReturns` | ✅ activado (Wave 3) | 240 fixed |
+| `strictNullChecks` | ✅ activado (Wave 4) | 336 fixed |
 
 ## Siguientes ondas (recomendación priorizada)
 
@@ -194,7 +195,7 @@ Items abiertos:
 - [x] Onda 1: `strictFunctionTypes` (7 errores) — COMPLETADA
 - [x] Onda 2: `noUnusedParameters` (33 errores) — COMPLETADA
 - [x] Onda 3: `noImplicitReturns` (240 errores) — COMPLETADA
-- [ ] Onda 4: `strictNullChecks` (337 errores, multi-PR por domain)
+- [x] Onda 4: `strictNullChecks` (336 errores, 15 sub-PRs) — COMPLETADA
 - [ ] Onda 5: `noUnusedLocals` (684 errores) — opcional
 - [ ] Onda 6: `noPropertyAccessFromIndexSignature` (1832) — **NO recomendado**
 

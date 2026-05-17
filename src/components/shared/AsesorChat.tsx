@@ -119,8 +119,10 @@ export function AsesorChat() {
           capturedAt: new Date().toISOString()
         }
       });
-      setSavedNodeId(newNode.id);
-      setTimeout(() => setSavedNodeId(null), 3000);
+      if (newNode) {
+        setSavedNodeId(newNode.id);
+        setTimeout(() => setSavedNodeId(null), 3000);
+      }
     } catch (error) {
       logger.error('Error saving to Risk Network:', error);
     }
@@ -228,7 +230,7 @@ export function AsesorChat() {
       const seismic = seismicData.status === 'fulfilled' ? seismicData.value : null;
 
       const environmentContext = [
-        weather ? `Clima actual: ${weather.temp}Â°C, ${weather.condition}, Viento: ${Math.round(weather.windSpeed)} km/h, Humedad: ${weather.humidity}%, Calidad del aire: ${weather.airQuality}.` : '',
+        weather ? `Clima actual: ${weather.temp}Â°C, ${weather.condition}, Viento: ${Math.round(weather.windSpeed ?? 0)} km/h, Humedad: ${weather.humidity}%, Calidad del aire: ${weather.airQuality}.` : '',
         seismic ? `Sismo reciente: Magnitud ${seismic.magnitude} â€” Nivel de alerta: ${seismic.alertLevel}.` : '',
       ].filter(Boolean).join(' ');
 

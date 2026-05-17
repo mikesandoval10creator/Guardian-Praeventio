@@ -58,9 +58,10 @@ function buildStore(opts?: { ghostWriteOnFirstRead?: boolean }): {
             ghostUsed = true;
             // Inject a competing write that lands BEFORE our commit.
             // TS narrowing of `pendingWrite` (declared `let`) is lost
-            // across the next statement under strictNullChecks; capture
-            // in a const to preserve the non-null narrowing.
-            const ghostTarget = pendingWrite;
+            // across the closure-mutation boundary under strictNullChecks
+            // — the closure inside `tx.set` writes to `pendingWrite` but
+            // TS doesn't track that. Cast back to the known shape.
+            const ghostTarget = pendingWrite as { path: string; value: { lastSeq: number } };
             const cur = data.get(ghostTarget.path)?.lastSeq ?? 0;
             data.set(ghostTarget.path, { lastSeq: cur + 1 });
             collided = true;

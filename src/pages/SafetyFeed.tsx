@@ -82,7 +82,7 @@ export function SafetyFeed() {
       // 1. Analyze post with Gemini to see if it belongs to the Risk Network
       const analysis = await analyzeFeedPostForRiskNetwork(newPost.content, newPost.imageBase64, user.displayName || 'Usuario');
       
-      let riskNodeId = null;
+      let riskNodeId: string | null = null;
 
       if (analysis.isRelevant) {
         // 2. Create Risk Node
@@ -104,10 +104,10 @@ export function SafetyFeed() {
             author: user.displayName
           }
         });
-        riskNodeId = node?.id;
+        riskNodeId = node?.id ?? null;
       }
 
-      let imageUrl = null;
+      let imageUrl: string | null = null;
       if (newPost.imageBase64) {
         // Convert base64 to blob
         const response = await fetch(newPost.imageBase64);

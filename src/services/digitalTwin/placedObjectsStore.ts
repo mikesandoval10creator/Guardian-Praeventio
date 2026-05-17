@@ -130,5 +130,7 @@ export async function updatePlacedObject(
   }
   cleaned.updatedAt = Date.now();
   const ref = doc(db, placedObjectsCollectionPath(projectId), id);
-  await updateDoc(ref, cleaned);
+  // Same Firestore web SDK cast pattern as OfflineSyncManager.tsx — our
+  // `cleaned` Record is structurally compatible with `UpdateData` at runtime.
+  await updateDoc(ref, cleaned as { [k: string]: any });
 }

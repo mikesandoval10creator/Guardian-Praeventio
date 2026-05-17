@@ -105,11 +105,13 @@ export function SiteMap() {
 
   // Cross-Interference Radar (System 2)
   useEffect(() => {
-    const interferences = [];
+    type Interference = { nodeA: RiskNode; nodeB: RiskNode; reason: string };
+    const interferences: Interference[] = [];
     for (let i = 0; i < hotspots.length; i++) {
       for (let j = i + 1; j < hotspots.length; j++) {
         const nodeA = hotspots[i];
         const nodeB = hotspots[j];
+        if (!nodeA || !nodeB) continue;
         
         // Simple distance check (approximate)
         const latDiff = Math.abs(nodeA.metadata.lat - nodeB.metadata.lat);
