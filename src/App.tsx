@@ -194,6 +194,22 @@ const HealthVaultShare = lazy(() => import('./pages/HealthVaultShare').then(modu
 const HealthVaultViewer = lazy(() => import('./pages/HealthVaultViewer').then(module => ({ default: module.HealthVaultViewer })));
 // Sprint 30 Bucket LL — public Day-1 demo page (no auth wall).
 const PublicDemo = lazy(() => import('./pages/PublicDemo').then(module => ({ default: module.PublicDemo })));
+// Sprint 55 Fase F.14 — Mapa de Calor de Hallazgos. Service
+// `heatMap/findingsHeatmapBuilder` ya existía; este page hace navegable la
+// distribución espacial de findings por celda + período + severidad.
+const FindingsHeatMap = lazy(() => import('./pages/FindingsHeatMap').then(module => ({ default: module.FindingsHeatMap })));
+// Sprint 55 Fase F.17 — Centro de Bloqueos Soft. Service
+// `softBlocking/requirementGate` ya existía; esta page lista los gates con
+// requisitos faltantes y permite override con audit log obligatorio.
+const SoftBlocks = lazy(() => import('./pages/SoftBlocks').then(module => ({ default: module.SoftBlocks })));
+// Sprint 55 Fase F.24 — Cadena de Custodia UI. Service
+// `evidenceChain/custodyChainService` (hash SHA-256 + audit log inmutable) ya
+// existía; esta page lo expone como timeline navegable por artifact.
+const CustodyChain = lazy(() => import('./pages/CustodyChain').then(module => ({ default: module.CustodyChain })));
+// Sprint 55 Fase F.27 — Comparador de Proyectos. Service nuevo
+// `projectComparator/projectComparator` computa KPIs side-by-side
+// normalizados de hasta 4 proyectos seleccionables.
+const ProjectsCompare = lazy(() => import('./pages/ProjectsCompare').then(module => ({ default: module.ProjectsCompare })));
 
 // Sprint 24 Bucket KK.4 — onboarded-flag hook (self-contained, does not
 // touch FirebaseContext to keep that file's surface area small).
@@ -256,6 +272,11 @@ function AppRoutes() {
               <Route path="knowledge-base" element={<KnowledgeBase />} />
               <Route path="visitors" element={<Visitors />} />
               <Route path="import-data" element={<ImportData />} />
+              {/* Sprint 55 — F.14/F.17/F.24/F.27 wire UI. */}
+              <Route path="findings-heatmap" element={<FindingsHeatMap />} />
+              <Route path="soft-blocks" element={<SoftBlocks />} />
+              <Route path="custody-chain" element={<CustodyChain />} />
+              <Route path="projects-compare" element={<ProjectsCompare />} />
               <Route path="*" element={<Dashboard />} />
             </Route>
           </Routes>
@@ -407,6 +428,11 @@ function AppRoutes() {
                     <Route path="knowledge-base" element={<KnowledgeBase />} />
                     <Route path="visitors" element={<Visitors />} />
                     <Route path="import-data" element={<ImportData />} />
+                    {/* Sprint 55 — F.14/F.17/F.24/F.27 wire UI. */}
+                    <Route path="findings-heatmap" element={<FindingsHeatMap />} />
+                    <Route path="soft-blocks" element={<SoftBlocks />} />
+                    <Route path="custody-chain" element={<CustodyChain />} />
+                    <Route path="projects-compare" element={<ProjectsCompare />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
                     <Route path="admin/b2d" element={<B2dAdminPanel />} />
                     <Route path="my-data" element={<MyData />} />
