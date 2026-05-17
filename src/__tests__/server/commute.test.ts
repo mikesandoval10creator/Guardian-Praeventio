@@ -58,7 +58,7 @@ function build(): Handle {
   }
 
   app.post('/api/commute/start', verifyAuth, async (req, res) => {
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     const { type, projectId } = req.body ?? {};
     if (typeof projectId !== 'string' || projectId.length === 0 || projectId.length > 128) {
       return res.status(400).json({ error: 'Invalid projectId' });
@@ -112,7 +112,7 @@ function build(): Handle {
   }
 
   app.post('/api/commute/sample', verifyAuth, async (req, res) => {
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     const { sessionId, lat, lng, speedKmh, accuracyM, timestamp } = req.body ?? {};
     if (typeof sessionId !== 'string' || !SESSION_ID_REGEX.test(sessionId)) {
       return res.status(400).json({ error: 'Invalid sessionId' });
@@ -145,7 +145,7 @@ function build(): Handle {
   });
 
   app.post('/api/commute/end', verifyAuth, async (req, res) => {
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     const { sessionId } = req.body ?? {};
     if (typeof sessionId !== 'string' || !SESSION_ID_REGEX.test(sessionId)) {
       return res.status(400).json({ error: 'Invalid sessionId' });

@@ -1043,7 +1043,7 @@ describe('POST /api/auth/webauthn/verify â€” R19 R6 per-uid rate limiter', 
    * isolates the rate-limit behavior, not consume semantics.
    */
   async function buildBodies(uid: string, n: number) {
-    const bodies = [];
+    const bodies: { challengeId: string; clientDataJSON: string; authenticatorData: string; signature: string }[] = [];
     for (let i = 0; i < n; i++) {
       const issued = await issueChallenge(fs, uid);
       bodies.push({

@@ -59,6 +59,7 @@ export function IncidentInvestigation() {
           timestamp: new Date().toISOString()
         }
       });
+      if (!investigationNode) return;
 
       // Create TASK nodes for each corrective action
       for (const action of analysis.correctiveActions) {

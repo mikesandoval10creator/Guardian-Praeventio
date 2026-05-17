@@ -160,7 +160,7 @@ function buildApp(deps: Deps): Express {
 
   // â”€â”€â”€ /api/admin/iot/rotate-secret â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/admin/iot/rotate-secret', verifyAuth, async (req, res) => {
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     const { tenantId } = req.body ?? {};
     if (typeof tenantId !== 'string' || tenantId.length === 0 || tenantId.length > 128) {
       return res.status(400).json({ error: 'Invalid tenantId' });

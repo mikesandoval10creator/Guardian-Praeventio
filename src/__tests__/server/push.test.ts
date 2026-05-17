@@ -63,8 +63,8 @@ function buildPushApp(deps: PushTestDeps): Express {
   const router = Router();
 
   router.post('/register-token', verifyAuth, async (req, res) => {
-    const callerUid = req.user.uid;
-    const callerEmail: string | null = req.user.email ?? null;
+    const callerUid = req.user!.uid;
+    const callerEmail: string | null = req.user!.email ?? null;
     const { token, platform } = req.body ?? {};
 
     if (typeof token !== 'string' || token.length === 0 || token.length > 512) {

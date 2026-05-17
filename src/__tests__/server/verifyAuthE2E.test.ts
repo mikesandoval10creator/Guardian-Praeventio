@@ -37,7 +37,7 @@ describe('verifyAuth â€” E2E_MODE guard', () => {
 
     const app = express();
     app.get('/protected', verifyAuth, (req, res) => {
-      res.json({ uid: req.user.uid, email: req.user.email });
+      res.json({ uid: req.user!.uid, email: req.user!.email });
     });
 
     const res = await request(app)
