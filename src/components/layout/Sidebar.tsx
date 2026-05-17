@@ -259,6 +259,12 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // carga del mentor (max 3 simultáneos §245), y alerta sobreexposición
         // a tareas repetitivas (riesgo músculo-esquelético §246-247).
         { title: t("nav.apprenticeship", "Aprendices y Mentores"), icon: UserCheck, path: "/apprenticeship", color: "text-teal-500" },
+        // Sprint 42 Fase F.18 — Historial Profesional Portátil del Trabajador
+        // (Ley 19.628). El trabajador es dueño absoluto de su cartera
+        // profesional y decide qué se exporta. Praeventio NO push-a a
+        // organismos externos: el trabajador (o admin) descarga JSON/PDF
+        // y lo entrega manualmente.
+        { title: t("nav.portable_history", "Historial Portátil"), icon: User, path: "/portable-history", color: "text-blue-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },

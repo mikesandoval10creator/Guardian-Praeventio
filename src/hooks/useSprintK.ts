@@ -3297,6 +3297,120 @@ export async function recordExposure(
   const token = user ? await user.getIdToken() : null;
   const res = await fetch(
     `/api/sprint-k/${projectId}/apprentices/${uid}/expose`,
+// Sprint 42 Fase F.18 — Historial Profesional Portátil del Trabajador
+// ────────────────────────────────────────────────────────────────────────
+//
+// Ley 19.628 (Chile) — datos personales del trabajador. El consent vive
+// con el worker (no con la cuadrilla) y se respeta en cada lectura.
+//
+// 3 wrappers:
+//   - useWorkerPortableHistory(projectId, workerUid) → bundle reactivo
+//   - updatePortableConsent(projectId, workerUid, flags) → POST consent
+//   - exportPortableHistory(projectId, workerUid, format) → blob descarga
+
+export interface PortableHistoryConsent {
+  allowsPortableExport: boolean;
+  includesIncidents: boolean;
+  updatedAt: string;
+  updatedByUid: string;
+}
+
+export interface PortableHistoryTraining {
+  id: string;
+  trainingCode?: string;
+  trainingName?: string;
+  obtainedAt?: string;
+  expiresAt?: string | null;
+  issuer?: string;
+  hours?: number;
+  projectId?: string;
+}
+
+export interface PortableHistoryEppDelivery {
+  id: string;
+  eppCategory?: string;
+  eppModel?: string;
+  deliveredAt?: string;
+  nextReplacementAt?: string | null;
+}
+
+export interface PortableHistoryAptitude {
+  id: string;
+  category?: string;
+  status?: string;
+  recordedAt?: string;
+  expiresAt?: string | null;
+  source?: string;
+}
+
+export interface PortableHistoryCriticalRole {
+  id: string;
+  roleCode?: string;
+  roleName?: string;
+  startedAt?: string;
+  endedAt?: string | null;
+  projectId?: string;
+}
+
+export interface PortableHistoryIncident {
+  id: string;
+  occurredAt?: string;
+  severity?: string;
+  category?: string;
+}
+
+export interface PortableHistorySignature {
+  id: string;
+  documentKind?: string;
+  signedAt?: string;
+  documentTitle?: string;
+}
+
+export interface PortableHistoryBundle {
+  schemaVersion: '1.0.0';
+  generatedAt: string;
+  workerUid: string;
+  consent: PortableHistoryConsent;
+  identity: {
+    fullName: string;
+    rut: string;
+    email?: string | null;
+  };
+  trainings: PortableHistoryTraining[];
+  eppDeliveries: PortableHistoryEppDelivery[];
+  aptitudes: PortableHistoryAptitude[];
+  criticalRoles: PortableHistoryCriticalRole[];
+  signatures: PortableHistorySignature[];
+  incidents: PortableHistoryIncident[];
+  disclaimer: string;
+}
+
+export interface PortableHistoryResponse {
+  bundle: PortableHistoryBundle;
+}
+
+export type PortableHistoryFormat = 'json' | 'pdf';
+
+export function useWorkerPortableHistory(
+  projectId: string | null,
+  workerUid: string | null,
+) {
+  return useEndpoint<PortableHistoryResponse>(
+    projectId && workerUid
+      ? `/api/sprint-k/${projectId}/workers/${workerUid}/portable-history`
+      : null,
+  );
+}
+
+export async function updatePortableConsent(
+  projectId: string,
+  workerUid: string,
+  flags: { allowsPortableExport: boolean; includesIncidents: boolean },
+): Promise<PortableHistoryConsent> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/workers/${workerUid}/portable-history/consent`,
     {
       method: 'POST',
       headers: {
@@ -3305,6 +3419,7 @@ export async function recordExposure(
       },
       body: JSON.stringify({ message }),
       body: JSON.stringify(payload),
+      body: JSON.stringify(flags),
     },
   );
   if (!res.ok) {
@@ -3330,6 +3445,24 @@ export async function closeReport(
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ resolution, outcome }),
+  const json = (await res.json()) as { ok: true; consent: PortableHistoryConsent };
+  return json.consent;
+}
+
+export async function exportPortableHistory(
+  projectId: string,
+  workerUid: string,
+  format: PortableHistoryFormat = 'json',
+): Promise<{ blob: Blob; filename: string; checksum: string | null }> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/workers/${workerUid}/portable-history/export?format=${encodeURIComponent(
+      format,
+    )}`,
+    {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     },
   );
   if (!res.ok) {
@@ -3343,4 +3476,9 @@ export async function closeReport(
   }
   return useEndpoint<IncidentTrendsResponse>(path);
   return (await res.json()) as RecordExposureResult;
+  const blob = await res.blob();
+  const ext = format === 'pdf' ? 'pdf' : 'json';
+  const filename = `portable-history-${workerUid}.${ext}`;
+  const checksum = res.headers.get('X-Portable-History-Checksum');
+  return { blob, filename, checksum };
 }
