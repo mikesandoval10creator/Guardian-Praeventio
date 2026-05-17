@@ -150,6 +150,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Sprint 42 Fase F.15 — Centro de Permisos de Trabajo.
         // LOTO / altura / caliente / confinado / excavación / izaje — DS 594, DS 132, DS 109.
         { title: t("nav.work_permits", "Permisos de Trabajo"), icon: ShieldCheck, path: "/work-permits", color: "text-amber-500" },
+        // Sprint 40 Fase F.12 — Biblioteca de Lecciones Aprendidas.
+        // Conocimiento reutilizable derivado de incidentes cerrados;
+        // hace navegable lo que ya vivía como nodos LESSON en el grafo.
+        { title: t("nav.lessons_learned", "Lecciones Aprendidas"), icon: BookOpen, path: "/lessons", color: "text-amber-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },
