@@ -2454,13 +2454,19 @@ router.get('/:projectId/repeating-risks', verifyAuth, async (req, res) => {
     // timestamps inconsistentes (la fn `filterRecent` del servicio
     // también descarta futuros + invalid).
     const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
-    const cutoffIso = new Date(Date.now() - NINETY_DAYS_MS).toISOString();
 
     const safeIncidents = async (): Promise<Array<Record<string, unknown> & { id: string }>> => {
       try {
+        // Codex P2 PR #312 — Order BEFORE applying the cap. Firestore's
+        // `.limit(N)` without an explicit `orderBy` returns an arbitrary
+        // subset (typically document-id order); for projects with >500
+        // incidents that drops the most recent ones, which are exactly the
+        // signal the 90-day radar window cares about. Sort by `reportedAt`
+        // desc so the cap keeps the freshest documents.
         const snap = await db
           .collection('incidents')
           .where('projectId', '==', projectId)
+          .orderBy('reportedAt', 'desc')
           .limit(500)
           .get();
         return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -2472,8 +2478,43 @@ router.get('/:projectId/repeating-risks', verifyAuth, async (req, res) => {
 
     const rawIncidents = await safeIncidents();
 
-    // Normaliza al shape `IncidentSample`. Solo conservamos los docs que
-    // tengan al menos `occurredAt` + `kind` + `zoneId` derivables.
+    // Codex P2 PR #312 — Normalize `occurredAt` to a Date BEFORE filtering
+    // the radar window. Imported / legacy Firestore docs may store this as
+    // a Firestore `Timestamp` (with `.toDate()`/`.toMillis()`), a JS Date,
+    // a numeric epoch, or an ISO string with an offset. Lexicographic
+    // string compare against a UTC ISO cutoff drops timestamps that are
+    // actually inside the window (e.g. `2026-05-10T23:30:00-03:00` parses
+    // later than `2026-05-11T00:15:00Z` but sorts earlier as a string).
+    const cutoffMs = Date.now() - NINETY_DAYS_MS;
+    type MaybeTimestamp = { toDate?: () => Date; toMillis?: () => number };
+    const toDate = (raw: unknown): Date | null => {
+      if (!raw) return null;
+      if (raw instanceof Date) return Number.isFinite(raw.getTime()) ? raw : null;
+      if (typeof raw === 'string') {
+        const ms = Date.parse(raw);
+        return Number.isFinite(ms) ? new Date(ms) : null;
+      }
+      if (typeof raw === 'number') {
+        return Number.isFinite(raw) ? new Date(raw) : null;
+      }
+      if (typeof raw === 'object') {
+        const ts = raw as MaybeTimestamp;
+        if (typeof ts.toMillis === 'function') {
+          const ms = ts.toMillis();
+          return Number.isFinite(ms) ? new Date(ms) : null;
+        }
+        if (typeof ts.toDate === 'function') {
+          const d = ts.toDate();
+          return d instanceof Date && Number.isFinite(d.getTime()) ? d : null;
+        }
+      }
+      return null;
+    };
+
+    // Normaliza al shape `IncidentSample`. Conservamos cualquier doc cuyo
+    // `occurredAt` esté dentro de la ventana de 90 días y que tenga AL
+    // MENOS uno entre `kind` o `zoneId` derivable — los detectores
+    // worker/task/shift/time-cluster del servicio no requieren ambos.
     // - `kind` ← `kind | type | category`
     // - `zoneId` ← `zoneId | zone | location | area`
     // - `taskId` ← `taskId | task`
@@ -2481,16 +2522,46 @@ router.get('/:projectId/repeating-risks', verifyAuth, async (req, res) => {
     type Shift = 'day' | 'evening' | 'night';
     const VALID_SHIFTS: ReadonlySet<Shift> = new Set(['day', 'evening', 'night']);
     type Severity = 'low' | 'medium' | 'high' | 'critical';
-    const VALID_SEVERITIES: ReadonlySet<Severity> = new Set([
-      'low',
-      'medium',
-      'high',
-      'critical',
-    ]);
+
+    // Codex P2 PR #312 — Normalize legacy Spanish severities at the
+    // boundary. The existing incident-bundle alias map covers
+    // baja/media/alta/critica/crítica (Codex P2 PR #122); the radar bundle
+    // sees additional legacy labels (leve/moderado/grave/fatal) and the EN
+    // `fatality` outcome term. Map everything to the canonical 4-value
+    // radar enum (`sif` collapses to `critical`).
+    const SEVERITY_ALIASES: Record<string, Severity> = {
+      // EN canonical
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      critical: 'critical',
+      // EN legacy / outcome
+      fatality: 'critical',
+      sif: 'critical',
+      // ES canonical (incident-bundle aliases)
+      baja: 'low',
+      media: 'medium',
+      alta: 'high',
+      critica: 'critical',
+      'crítica': 'critical',
+      // ES legacy (PR #312)
+      leve: 'low',
+      moderado: 'medium',
+      moderada: 'medium',
+      grave: 'high',
+      fatal: 'critical',
+    };
+    const normalizeRadarSeverity = (raw: unknown): Severity | undefined => {
+      if (typeof raw !== 'string') return undefined;
+      const key = raw.trim().toLowerCase();
+      return SEVERITY_ALIASES[key];
+    };
 
     const samples = rawIncidents
-      .filter((d) => typeof d.occurredAt === 'string' && (d.occurredAt as string) >= cutoffIso)
       .map((d) => {
+        const occurredAtDate = toDate(d.occurredAt);
+        if (!occurredAtDate) return null;
+        if (occurredAtDate.getTime() < cutoffMs) return null;
         const kind =
           (typeof d.kind === 'string' && d.kind) ||
           (typeof d.type === 'string' && (d.type as string)) ||
@@ -2512,13 +2583,10 @@ router.get('/:projectId/repeating-risks', verifyAuth, async (req, res) => {
         const shift = VALID_SHIFTS.has(rawShift as Shift)
           ? (rawShift as Shift)
           : undefined;
-        const rawSev = typeof d.severity === 'string' ? (d.severity as string) : '';
-        const severity = VALID_SEVERITIES.has(rawSev as Severity)
-          ? (rawSev as Severity)
-          : undefined;
+        const severity = normalizeRadarSeverity(d.severity);
         return {
           id: d.id,
-          occurredAt: d.occurredAt as string,
+          occurredAt: occurredAtDate.toISOString(),
           kind,
           zoneId,
           taskId,
@@ -2527,9 +2595,19 @@ router.get('/:projectId/repeating-risks', verifyAuth, async (req, res) => {
           severity,
         };
       })
-      // Drop incompletos: el servicio omite por keyFn, pero filtrar acá
-      // mantiene `consideredIncidents` realista en el reporte.
-      .filter((s) => s.kind.length > 0 && s.zoneId.length > 0);
+      // Codex P2 PR #312 — Keep samples usable for non-zone detectors.
+      // `detectSameWorkerRepeated`, `detectSameTaskRepeated`,
+      // `detectSameShiftPattern` and `detectTimeCluster` group on
+      // worker/task/shift/time, not on kind+zone. A doc missing zoneId but
+      // carrying kind+worker is still valid signal for the worker
+      // detector; only drop docs that lack BOTH kind AND zoneId (these
+      // can't contribute to any kind- or zone-grouped pattern, but the
+      // worker/task/shift/cluster detectors still work via keyFn skipping
+      // empty groups).
+      .filter(
+        (s): s is NonNullable<typeof s> =>
+          s !== null && (s.kind.length > 0 || s.zoneId.length > 0),
+      );
 
     const report = buildRepeatingRiskRadar(samples, {
       minOccurrences: 3,
