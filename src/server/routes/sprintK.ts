@@ -10830,7 +10830,7 @@ router.get(
         }
       }
       // Critical first.
-      alerts.sort((x, y) => (x.severity === 'critical' ? -1 : 1));
+      alerts.sort((x, _y) => (x.severity === 'critical' ? -1 : 1));
       return res.json({ alerts, windowDays: 90 });
     } catch (err) {
       logger.error?.('sprintK.confidential.retaliation.error', err);

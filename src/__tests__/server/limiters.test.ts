@@ -68,6 +68,7 @@ import {
   zettelkastenWriteLimiter,
   erpSyncLimiter,
   geminiGlobalDailyLimiter,
+  susesoVerifyLimiter,
 } from '../../server/middleware/limiters.js';
 
 function buildAppWithLimiter(limiter: express.RequestHandler): Express {
@@ -666,5 +667,78 @@ describe('limiters constants â€” 18th wave Bucket A: numeric literal pins',
     expect(LIMITER_TABLE.find((c) => c.name === 'erpSyncLimiter')!.max).toBe(
       30,
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Sprint E backend debt (2026-05-16) — `susesoVerifyLimiter` smoke.
+//
+// The public SUSESO folio-verify endpoint (`GET /api/suseso/verify/:folio`)
+// is intentionally unauthenticated (public verifiability of the WebAuthn-
+// signed DIAT/DIEP PDF). The limiter is keyed on IP, windowMs = 60_000,
+// max = 30. We verify:
+//   1. 30 hits succeed within the window from one IP.
+//   2. The 31st hit from the same IP is throttled (429).
+//   3. The throttled response surfaces { valid: false, reason:
+//      'verify_rate_limited' } — clients keying on `reason` continue to
+//      work. (The shape is different from the other limiters which use
+//      `error: '...'` — public callers parse `reason` per the verify
+//      contract.)
+//   4. A second IP is unaffected — bucket is per-IP.
+// ─────────────────────────────────────────────────────────────────────
+describe('susesoVerifyLimiter — Sprint E backend debt', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ now: FAKE_NOW, toFake: ['Date', 'performance', 'hrtime'] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('allows 30 hits / minute / IP and throttles the 31st with reason=verify_rate_limited', async () => {
+    const ip = '203.0.113.50';
+    const ipKey = uidOrIpKey(undefined, ip);
+    susesoVerifyLimiter.resetKey(ipKey);
+
+    const app = buildLimiterApp(susesoVerifyLimiter, { ip });
+
+    const successes = await drain(app, 30);
+    expect(successes).toEqual(Array(30).fill(200));
+
+    const blocked = await request(app).get('/probe');
+    expect(blocked.status).toBe(429);
+    // Shape pin — public callers parse `reason`, NOT `error`. Mutating
+    // the message body to `{}` would make polite clients crash on
+    // `data.reason.startsWith(...)`.
+    expect(blocked.body).toEqual(
+      expect.objectContaining({ valid: false, reason: 'verify_rate_limited' }),
+    );
+
+    susesoVerifyLimiter.resetKey(ipKey);
+  });
+
+  it('isolates buckets per IP — a fresh IP still gets its own 30-req budget', async () => {
+    const ipA = '203.0.113.60';
+    const ipB = '203.0.113.61';
+    const keyA = uidOrIpKey(undefined, ipA);
+    const keyB = uidOrIpKey(undefined, ipB);
+    susesoVerifyLimiter.resetKey(keyA);
+    susesoVerifyLimiter.resetKey(keyB);
+
+    const appA = buildLimiterApp(susesoVerifyLimiter, { ip: ipA });
+    const appB = buildLimiterApp(susesoVerifyLimiter, { ip: ipB });
+
+    // Drain ipA's budget.
+    const drainedA = await drain(appA, 30);
+    expect(drainedA).toEqual(Array(30).fill(200));
+    const blockedA = await request(appA).get('/probe');
+    expect(blockedA.status).toBe(429);
+
+    // ipB is fresh — its first request still succeeds.
+    const firstB = await request(appB).get('/probe');
+    expect(firstB.status).toBe(200);
+
+    susesoVerifyLimiter.resetKey(keyA);
+    susesoVerifyLimiter.resetKey(keyB);
   });
 });

@@ -355,6 +355,45 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   };
 
+  // Sprint E backend debt (2026-05-16) â€” minimal in-memory mirror of the
+  // production `idempotencyKey()` middleware (see
+  // `src/server/middleware/idempotencyKey.ts`). The full Firestore-backed
+  // implementation is unit-tested in `middleware/idempotencyKey.test.ts`;
+  // here we just need enough behavior so the route smoke test can verify
+  // double-call is suppressed when the client sends the same
+  // `Idempotency-Key` header. Behavior contract preserved:
+  //   â€¢ no header â†’ pass-through (handler runs every time)
+  //   â€¢ first call â†’ handler runs, response cached keyed on `uid|key`
+  //   â€¢ second call w/ same key â†’ cached response replayed, handler runs ZERO times
+  //   â€¢ only 2xx responses cached
+  // Mirror complexity is intentionally low â€” no fingerprint mismatch, no
+  // TTL, no header allowlist. The richer cases are covered upstream.
+  const idemCache = new Map<string, { status: number; body: unknown }>();
+  const idempotencyKey = () => async (req: Request, res: Response, next: NextFunction) => {
+    const rawKey = req.headers['idempotency-key'];
+    if (!rawKey || typeof rawKey !== 'string' || rawKey.trim().length === 0) {
+      return next();
+    }
+    const uid = req.user?.uid;
+    if (!uid) {
+      return res.status(401).json({ error: 'idempotency_key_requires_auth' });
+    }
+    const cacheKey = `${uid}|${rawKey}`;
+    const cached = idemCache.get(cacheKey);
+    if (cached) {
+      res.setHeader('Idempotent-Replayed', 'true');
+      return res.status(cached.status).send(cached.body);
+    }
+    const originalJson = res.json.bind(res);
+    (res as any).json = (body: unknown) => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        idemCache.set(cacheKey, { status: res.statusCode, body });
+      }
+      return originalJson(body);
+    };
+    return next();
+  };
+
   // â”€â”€â”€ /api/health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get('/api/health', async (_req, res) => {
     const checks: Record<string, 'ok' | 'fail'> = {};
@@ -489,7 +528,10 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/billing/verify â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  app.post('/api/billing/verify', verifyAuth, async (req, res) => {
+  // Sprint E backend debt (2026-05-16): `idempotencyKey()` opt-in to
+  // suppress double-call from flaky mobile networks â€” mirrors production
+  // wiring in `src/server/routes/billing.ts:241`. Header absent â†’ no-op.
+  app.post('/api/billing/verify', verifyAuth, idempotencyKey(), async (req, res) => {
     const { purchaseToken, productId, type } = req.body ?? {};
     const uid = req.user!.uid;
     if (!deps.playVerify) {

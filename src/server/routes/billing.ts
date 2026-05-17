@@ -238,7 +238,17 @@ export const billingWebpayRouter = Router();
 // POST /api/billing/verify â€” Google Play one-shot verify (subscription or
 // in-app product). On success we mirror the order into `transactions` and
 // update the user's `subscription` block.
-billingApiRouter.post('/verify', verifyAuth, async (req, res) => {
+//
+// Sprint E backend debt (2026-05-16): `idempotencyKey()` middleware added
+// to protect against double-call on flaky mobile networks. Same pattern as
+// `/checkout` (line ~462 below): if the client retries with the same
+// `Idempotency-Key` header, the first cached 2xx response is replayed and
+// the handler runs ZERO times â€” preventing duplicate `transactions/*`
+// rows and duplicate `users/{uid}.subscription.*` writes. The middleware
+// is OPT-IN (no header â†’ falls through to the handler normally), so
+// existing clients that don't send the header keep working exactly as
+// before.
+billingApiRouter.post('/verify', verifyAuth, idempotencyKey(), async (req, res) => {
   const { purchaseToken, productId, type } = req.body;
   const uid = req.user!.uid;
   const packageName = process.env.GOOGLE_PLAY_PACKAGE_NAME;
