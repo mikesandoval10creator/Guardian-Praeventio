@@ -1330,4 +1330,313 @@ router.post(
   },
 );
 
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.26 — Indicador de Madurez Preventiva
+// ─────────────────────────────────────────────────────────────────────
+//
+// Sintetiza señales objetivas a partir de las colecciones canónicas del
+// proyecto (training_assignments, corrective_actions, cphs_meetings,
+// incidents, leading-indicator-like feeds) y corre el servicio
+// determinístico `computeMaturityLevel` + `recommendNextSteps`. Devuelve
+// el `MaturityReport` con sub-puntajes por categoría + 3 recomendaciones
+// concretas para subir de nivel.
+//
+// El servicio NO requiere contexto de proyecto (es puro), pero
+// scopeamos los reads por projectId para que cada faena vea su propia
+// madurez. Cuando la data es insuficiente (proyecto recién creado,
+// <3 meses de actividad) devolvemos `{ insufficientData: true }` con
+// el motivo, y la UI muestra el empty-state explicativo.
+
+router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { computeMaturityLevel, recommendNextSteps } = await import(
+      '../../services/maturity/preventionMaturityIndex.js'
+    );
+
+    const db = admin.firestore();
+    const tenantId = g.tenantId;
+
+    // Best-effort parallel reads — patrón sprintK.data-quality: si una
+    // colección falla el reporte sigue construyéndose con la data que
+    // sí cargó (el caller ve un score más bajo en la categoría afectada,
+    // no un 500 opaco).
+    const safeRead = async <T,>(
+      label: string,
+      fn: () => Promise<T[]>,
+    ): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.maturity.read.${label}.failed`, err);
+        return [];
+      }
+    };
+
+    const projectRef = db.collection('projects').doc(projectId);
+    const tenantProjectPath = `tenants/${tenantId}/projects/${projectId}`;
+    const byProject = (col: string) =>
+      db.collection(col).where('projectId', '==', projectId);
+
+    // Ventana de tiempo: últimos 12 meses para incidents (frecuencia
+    // de reporte, indicador inverso) y últimos 6 meses para meetings
+    // CPHS (frecuencia de reuniones).
+    const now = Date.now();
+    const TWELVE_MONTHS_MS = 365 * 24 * 60 * 60 * 1000;
+    const SIX_MONTHS_MS = 182 * 24 * 60 * 60 * 1000;
+    const twelveMonthsAgoIso = new Date(now - TWELVE_MONTHS_MS).toISOString();
+    const sixMonthsAgoIso = new Date(now - SIX_MONTHS_MS).toISOString();
+
+    const [
+      trainings,
+      correctiveActions,
+      cphsMeetings,
+      incidents,
+      criticalControls,
+      projectDoc,
+    ] = await Promise.all([
+      safeRead('trainings', async () => {
+        const snap = await projectRef.collection('training_assignments').get();
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+      }),
+      safeRead('correctiveActions', async () => {
+        const snap = await db
+          .collection(`${tenantProjectPath}/corrective_actions`)
+          .get();
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+      }),
+      safeRead('cphsMeetings', async () => {
+        // cphs_meetings es top-level (ver cphsService.ts); filtramos por
+        // projectId. Tomamos las últimas 6 reuniones (~6 meses) para
+        // calcular frecuencia.
+        const snap = await db
+          .collection('cphs_meetings')
+          .where('projectId', '==', projectId)
+          .orderBy('date', 'desc')
+          .limit(6)
+          .get()
+          .catch(async () => {
+            // Fallback si el índice (projectId, date) no existe: leer
+            // sin orderBy y filtrar en memoria.
+            const fallback = await db
+              .collection('cphs_meetings')
+              .where('projectId', '==', projectId)
+              .limit(50)
+              .get();
+            return fallback;
+          });
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+      }),
+      safeRead('incidents', async () => {
+        const snap = await byProject('incidents').get();
+        return snap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>))
+          .filter((rec) => {
+            const ts =
+              (typeof rec.occurredAt === 'string' && rec.occurredAt) ||
+              (typeof rec.createdAt === 'string' && rec.createdAt) ||
+              '';
+            return ts >= twelveMonthsAgoIso;
+          });
+      }),
+      safeRead('criticalControls', async () => {
+        // critical_controls nested under tenants/{tid}/projects/{pid}.
+        // El path se especifica en el plan F.26; si no existe la
+        // colección Firestore devuelve snapshot vacío, no error.
+        const snap = await db
+          .collection(`${tenantProjectPath}/critical_controls`)
+          .get();
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+      }),
+      safeRead('project', async () => {
+        const snap = await projectRef.get();
+        return snap.exists ? [{ id: snap.id, ...snap.data() } as Record<string, unknown>] : [];
+      }),
+    ]);
+
+    // Gate de insuficiencia de datos: necesitamos al menos 3 meses de
+    // proyecto + algo de actividad mínima para que el score no sea
+    // ruido. El criterio es conservador — preferimos mostrar
+    // empty-state honesto que un nivel 1 alarmista para una faena que
+    // recién arrancó.
+    const project = projectDoc[0];
+    const projectCreatedAt =
+      project &&
+      ((typeof project.createdAt === 'string' && project.createdAt) ||
+        (typeof project.startDate === 'string' && project.startDate) ||
+        null);
+    const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000;
+    const projectAgeMs = projectCreatedAt
+      ? now - Date.parse(projectCreatedAt)
+      : Number.POSITIVE_INFINITY;
+    const totalSignals =
+      trainings.length + correctiveActions.length + cphsMeetings.length + criticalControls.length;
+    const insufficient =
+      (projectCreatedAt !== null && projectAgeMs < THREE_MONTHS_MS) ||
+      totalSignals < 3;
+    if (insufficient) {
+      return res.json({
+        insufficientData: true,
+        reason:
+          projectCreatedAt && projectAgeMs < THREE_MONTHS_MS
+            ? 'project_too_new'
+            : 'not_enough_signals',
+        signalsCount: totalSignals,
+        projectAgeDays: Number.isFinite(projectAgeMs)
+          ? Math.round(projectAgeMs / (24 * 60 * 60 * 1000))
+          : null,
+      });
+    }
+
+    // ─── Derivar señales objetivas ───────────────────────────────────
+    //
+    // El servicio espera 10 señales 0..1 (excepto leadingIndicatorsUsed
+    // que es string[]). Mapeo a partir de la data disponible. Cuando
+    // una señal no tiene fuente clara (BBS, executiveEngagement,
+    // workerEmpowerment, integrationWithOperations) usamos heurísticos
+    // conservadores basados en metadata del proyecto o defaults
+    // documentados en `MaturitySignals`.
+
+    // 1. trainingCoverage: % de assignments con status='active' y no
+    //    expirados sobre el total.
+    let trainingCoverage = 0;
+    if (trainings.length > 0) {
+      const nowIso = new Date(now).toISOString();
+      const active = trainings.filter((t) => {
+        const status = String(t.status ?? '');
+        const expiresAt = typeof t.expiresAt === 'string' ? t.expiresAt : null;
+        return status === 'active' && (!expiresAt || expiresAt >= nowIso);
+      }).length;
+      trainingCoverage = active / trainings.length;
+    }
+
+    // 2. ipersCompleted: % de critical_controls con validación reciente.
+    //    Si no hay critical_controls poblados, usamos 0 (señal honesta).
+    let ipersCompleted = 0;
+    if (criticalControls.length > 0) {
+      const validated = criticalControls.filter((c) => {
+        const validated = c.validated ?? c.lastValidatedAt;
+        return Boolean(validated);
+      }).length;
+      ipersCompleted = validated / criticalControls.length;
+    }
+
+    // 3. cphsMeetingFrequency: reuniones/mes en últimos 6m. Esperado
+    //    es 1 por mes → meetings / 6.
+    const recentMeetings = cphsMeetings.filter((m) => {
+      const date = typeof m.date === 'string' ? m.date : null;
+      return date && date >= sixMonthsAgoIso;
+    }).length;
+    const cphsMeetingFrequency = Math.min(1, recentMeetings / 6);
+
+    // 4. leadingIndicatorsUsed: catalogo de feeds activos. Cada fuente
+    //    de datos que el proyecto tiene poblada cuenta como un leading
+    //    indicator efectivamente medido.
+    const leadingIndicatorsUsed: string[] = [];
+    if (correctiveActions.length > 0) leadingIndicatorsUsed.push('corrective_actions');
+    if (cphsMeetings.length > 0) leadingIndicatorsUsed.push('cphs_meetings');
+    if (trainings.length > 0) leadingIndicatorsUsed.push('training_assignments');
+    if (criticalControls.length > 0) leadingIndicatorsUsed.push('critical_controls');
+    if (incidents.length > 0) leadingIndicatorsUsed.push('incident_reporting');
+    // El servicio normaliza con LEADING_INDICATORS_TARGET=6, así que
+    // 5 fuentes ≈ 0.83. Marketing-honest: más fuentes = nivel mayor.
+
+    // 5. rootCauseAnalysisRate: % de incidents con rootCause poblado.
+    let rootCauseAnalysisRate = 0;
+    if (incidents.length > 0) {
+      const withRoot = incidents.filter((i) => {
+        const rc = i.rootCause ?? i.rootCauseCategory;
+        if (typeof rc === 'string' && rc.trim().length > 0) return true;
+        if (typeof rc === 'object' && rc !== null) return true;
+        return false;
+      }).length;
+      rootCauseAnalysisRate = withRoot / incidents.length;
+    }
+
+    // 6. correctiveActionsClosureRate: % de acciones correctivas en
+    //    estado closed/verified. Es un leading indicator interno
+    //    (proxy de behaviorBasedSafety): equipos que cierran su loop
+    //    PDCA tienden a tener cultura más sólida.
+    let behaviorBasedSafety = 0;
+    if (correctiveActions.length > 0) {
+      const closed = correctiveActions.filter((a) => {
+        const status = String(a.status ?? '');
+        return status === 'closed' || status === 'verified';
+      }).length;
+      behaviorBasedSafety = closed / correctiveActions.length;
+    }
+
+    // 7. executiveEngagement: heurística conservadora. Si el proyecto
+    //    tiene executiveSponsorUid + safety walks documentados (que
+    //    rastreamos en `audit_logs` action='safety_walk') le damos
+    //    crédito. Sin fuente clara, default 0.4 (cumplimiento mínimo).
+    const executiveEngagement = project && project.executiveSponsorUid ? 0.6 : 0.4;
+
+    // 8. workerEmpowerment: heurística — si hay positive observations
+    //    o un canal de reporte anónimo (proyecto tiene
+    //    `anonymousReportingEnabled`), señal alta. Default 0.4.
+    const workerEmpowerment =
+      project && project.anonymousReportingEnabled === true ? 0.7 : 0.4;
+
+    // 9. integrationWithOperations: heurística — proyectos con
+    //    `safetyPlanApproved` o `prevencionPlanId` están integrados.
+    const integrationWithOperations =
+      project && (project.safetyPlanApproved === true || project.prevencionPlanId)
+        ? 0.7
+        : 0.4;
+
+    // 10. continuousImprovement: ratio de acciones correctivas
+    //     cerradas+verified sobre el total — mismo proxy que BBS pero
+    //     reutilizado para integration. Las dos métricas covarían, lo
+    //     cual es realista (equipos que cierran acciones también
+    //     mejoran continuamente).
+    let continuousImprovement = behaviorBasedSafety;
+    // Si hay >5 acciones verified (ciclo PDCA completo), boost.
+    if (correctiveActions.length > 0) {
+      const verified = correctiveActions.filter(
+        (a) => String(a.status ?? '') === 'verified',
+      ).length;
+      if (verified >= 5) {
+        continuousImprovement = Math.min(1, continuousImprovement + 0.15);
+      }
+    }
+
+    const signals = {
+      trainingCoverage,
+      ipersCompleted,
+      cphsMeetingFrequency,
+      leadingIndicatorsUsed,
+      rootCauseAnalysisRate,
+      behaviorBasedSafety,
+      executiveEngagement,
+      workerEmpowerment,
+      integrationWithOperations,
+      continuousImprovement,
+    };
+
+    const report = computeMaturityLevel(signals);
+    const recommendations = recommendNextSteps(report);
+
+    return res.json({
+      report,
+      recommendations,
+      signals,
+      metadata: {
+        signalsCount: totalSignals,
+        projectAgeDays: Number.isFinite(projectAgeMs)
+          ? Math.round(projectAgeMs / (24 * 60 * 60 * 1000))
+          : null,
+        windowMonths: 12,
+      },
+    });
+  } catch (err) {
+    logger.error?.('sprintK.maturity.error', err);
+    captureRouteError(err, 'sprintK.maturity');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 export default router;
