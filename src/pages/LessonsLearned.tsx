@@ -20,6 +20,7 @@
 // product, no sólo como dato interno del grafo.
 
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { BookOpen, WifiOff, Tag, Layers, Calendar, FileText } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -27,9 +28,16 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useLessons } from '../hooks/useSprintK';
 import type { Lesson, LessonScope } from '../services/lessonsLearned/lessonsLibrary';
 
-// Categorías canónicas alineadas con riskCategories que produce el
-// pipeline de lecciones (height/electrical/chemical/confined/hot). Los
-// labels son ES porque la sidebar y el resto de la app están en ES.
+// Codex P2 (PR #310): claves canónicas alineadas con las que el resto
+// del dominio ya persiste en Firestore. Las fixtures del adapter
+// (`lessonsFirestoreAdapter.test.ts`) y los services hermanos
+// (`zones/restrictedZonesEngine`, `services/ar/posterCatalog`, work
+// permits `kind`, `BarrierAnalysisCard`, etc.) usan los términos en
+// español: `altura`, `electric`, `quimico`, `confinado`, `caliente`.
+// Antes mandábamos claves en inglés (`height`, `electrical`, …) que
+// chocaban con el filtro `array-contains` del adapter y dejaban la
+// página vacía aunque hubiera lecciones guardadas. Los labels siguen en
+// ES (sidebar/UI completos en ES); sólo las KEYs se realinearon.
 // Importante: las clases Tailwind aparecen como strings literales (no
 // concatenados con `${color}`) para que el purger no las pierda en
 // build de producción.
@@ -39,27 +47,27 @@ const RISK_CATEGORIES: ReadonlyArray<{
   activeClasses: string;
 }> = [
   {
-    key: 'height',
+    key: 'altura',
     label: 'Altura',
     activeClasses: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
   },
   {
-    key: 'electrical',
+    key: 'electric',
     label: 'Eléctrico',
     activeClasses: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
   },
   {
-    key: 'chemical',
+    key: 'quimico',
     label: 'Químico',
     activeClasses: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20',
   },
   {
-    key: 'confined',
+    key: 'confinado',
     label: 'Confinado',
     activeClasses: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
   },
   {
-    key: 'hot',
+    key: 'caliente',
     label: 'Caliente',
     activeClasses: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
   },
@@ -318,16 +326,32 @@ export function LessonsLearned() {
                   <Calendar className="w-3 h-3" aria-hidden="true" />
                   {formatPublishedAt(lesson.publishedAt, t as TLite)}
                 </span>
-                {lesson.derivedFromIncidentId && (
-                  <a
-                    href={`/incidents/${lesson.derivedFromIncidentId}/bundle`}
-                    className="inline-flex items-center gap-1 text-teal-500 hover:underline"
-                    data-testid={`lesson-source-link-${lesson.id}`}
-                  >
-                    <FileText className="w-3 h-3" aria-hidden="true" />
-                    {t('lessons.card.sourceIncident', 'Incidente origen')}
-                  </a>
-                )}
+                {/* Codex P2 (PR #310): link al incidente origen.
+                    - Usa <Link>, no <a href>, para preservar la
+                      selección de proyecto del ProjectContext (un full
+                      reload re-selecciona el primer proyecto y haría
+                      que IncidentBundle pegue al endpoint con el
+                      projectId equivocado → cross_project_forbidden).
+                    - Sólo se renderiza cuando la lección está scoped
+                      al proyecto/cuadrilla actual. Las lecciones
+                      'global'/'industry' son tenant-wide y pueden
+                      provenir de OTRO proyecto del tenant; sin un
+                      campo `sourceProjectId` en `Lesson` no podemos
+                      construir un href seguro que pase el guard de
+                      `incidentData.projectId !== projectId`. Lo
+                      honesto es suprimir el link en ese caso (el
+                      summary + acción preventiva siguen visibles). */}
+                {lesson.derivedFromIncidentId &&
+                  (lesson.scope === 'project' || lesson.scope === 'crew') && (
+                    <Link
+                      to={`/incidents/${lesson.derivedFromIncidentId}/bundle`}
+                      className="inline-flex items-center gap-1 text-teal-500 hover:underline"
+                      data-testid={`lesson-source-link-${lesson.id}`}
+                    >
+                      <FileText className="w-3 h-3" aria-hidden="true" />
+                      {t('lessons.card.sourceIncident', 'Incidente origen')}
+                    </Link>
+                  )}
                 <span className="ml-auto text-[10px] uppercase tracking-widest">
                   {t('lessons.card.adoption', 'Adopciones: {{count}}', {
                     count: lesson.adoptionCount,

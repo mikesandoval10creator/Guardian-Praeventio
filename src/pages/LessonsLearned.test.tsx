@@ -22,6 +22,23 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { LessonsLearned } from './LessonsLearned';
 import type { Lesson } from '../services/lessonsLearned/lessonsLibrary';
 
+// Codex P2 (PR #310): la página ahora usa <Link> de react-router-dom
+// (no <a href>) para preservar la selección de proyecto. Mock mínimo:
+// el Link sólo necesita renderizar un <a> con el `to` como `href` para
+// que el test siga validando el destino. Importamos React inline para
+// evitar tocar las dependencias del bundle de tests.
+vi.mock('react-router-dom', async () => {
+  const React = await import('react');
+  type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    to: string;
+    children?: React.ReactNode;
+  };
+  return {
+    Link: ({ to, children, ...rest }: LinkProps) =>
+      React.createElement('a', { ...rest, href: to }, children),
+  };
+});
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (
@@ -87,11 +104,16 @@ beforeEach(() => {
   };
 });
 
+// Codex P2 (PR #310): canonical risk category key is the Spanish
+// `altura` (matches the adapter/fixtures/work-permit kinds). Scope
+// stays 'project' so the source-incident link is rendered (the page
+// now suppresses the link for tenant-wide global/industry scopes
+// because the lesson may originate in a different project).
 const sampleLesson: Lesson = {
   id: 'lesson_xyz_1',
   summary: 'Verificar arnés antes de subir andamio.',
   preventiveAction: 'Checklist diario de EPP con firma del supervisor.',
-  riskCategories: ['height'],
+  riskCategories: ['altura'],
   tags: ['arnes', 'andamio', 'epp'],
   scope: 'project',
   derivedFromIncidentId: 'inc_abc_42',
@@ -174,11 +196,14 @@ describe('<LessonsLearned /> page wrapper (Fase F.12)', () => {
     render(<LessonsLearned />);
     // Estado inicial: sin filtro (el hook recibe `{}`).
     expect(lastHookOpts).toEqual({});
-    // Click en chip "Altura" (key='height').
-    fireEvent.click(screen.getByTestId('lessons-filter-height'));
+    // Codex P2 (PR #310): click en chip "Altura" — la clave canónica
+    // alineada con el adapter es `altura` (no `height`), así el
+    // filtro `array-contains` del adapter realmente encuentra las
+    // lecciones almacenadas.
+    fireEvent.click(screen.getByTestId('lessons-filter-altura'));
     // Después del click el componente re-renderiza con riskCategory.
-    expect(lastHookOpts).toEqual({ riskCategory: 'height' });
-    expect(screen.getByTestId('lessons-filter-height')).toHaveAttribute(
+    expect(lastHookOpts).toEqual({ riskCategory: 'altura' });
+    expect(screen.getByTestId('lessons-filter-altura')).toHaveAttribute(
       'aria-pressed',
       'true',
     );
