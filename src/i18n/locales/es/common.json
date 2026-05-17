@@ -2199,5 +2199,86 @@
       "description": "Muestra avisos amigables cuando la red es lenta o intermitente y favorece la carga offline.",
       "previewBody": "En vez de spinners, verás placeholders esqueléticos y mensajes claros sobre el estado de la red."
     }
+  },
+  "pricingCalc": {
+    "header": {
+      "title": "Calculadora de Precios y ROI",
+      "subtitle": "Estima tu plan recomendado, costo mensual, retorno y presupuesto EPP en un solo lugar."
+    },
+    "inputs": {
+      "workers": "Trabajadores",
+      "projects": "Proyectos activos",
+      "industry": "Industria",
+      "currentTier": "Tier actual"
+    },
+    "recommendation": {
+      "title": "Plan recomendado",
+      "coverage": "Cubre hasta {{w}} trabajadores y {{p}} proyectos.",
+      "plan": "Suscripción",
+      "perMonth": "mes",
+      "upgradeHint": "Sugerimos upgrade a {{tier}} — más barato que pagar overage."
+    },
+    "current": {
+      "title": "Costo mensual estimado (tier actual)",
+      "overCapacity": "Tier actual excede capacidad — upgrade obligatorio.",
+      "note": "Incluye overage de trabajadores/proyectos si aplica."
+    },
+    "compare": {
+      "title": "Costo mensual por tier",
+      "tier": "Tier",
+      "workers": "Tope trabajadores",
+      "projects": "Tope proyectos",
+      "cost": "Costo / mes",
+      "overCapacity": "— excede"
+    },
+    "roi": {
+      "title": "Simulador ROI — Incidentes evitados",
+      "baseline": "Incidentes / año (baseline)",
+      "current": "Incidentes / año (con programa)",
+      "avgCost": "Costo promedio / incidente (CLP)",
+      "avoided": "Incidentes evitados / año",
+      "totalSavings": "Ahorro total / año",
+      "roi": "ROI",
+      "payback": "Payback",
+      "months": "meses",
+      "notRecoverable": "No recuperable"
+    },
+    "epp": {
+      "title": "Presupuesto EPP estimado",
+      "monthly": "Mensual ({{n}} trabajadores)",
+      "annual": "Anualizado",
+      "perWorker": "Por trabajador / mes",
+      "disclaimer": "Catálogo y precios indicativos por DS 594. Para cotización real consulta proveedor.",
+      "viewOc": "Ver OC sugerida con detalle por ítem"
+    },
+    "actions": {
+      "generateOc": "Generar Orden de Compra (.pdf)",
+      "todoNote": "Por ahora descarga JSON · PDF formal pendiente Sprint K §177."
+    }
+  },
+  "oc": {
+    "header": {
+      "title": "Orden de Compra Sugerida",
+      "subtitle": "EPP recomendado por industria con cantidad y costo total CLP.",
+      "backToCalc": "Volver a la calculadora"
+    },
+    "inputs": {
+      "industry": "Industria",
+      "workers": "Trabajadores"
+    },
+    "lines": {
+      "title": "Items recomendados — {{industry}}",
+      "col_item": "Item",
+      "col_per_worker": "Qty / trabajador",
+      "col_unit_cost": "Costo unitario",
+      "col_life": "Vida útil (m)",
+      "col_qty": "Qty total",
+      "col_total": "Costo total",
+      "total": "Total CLP estimado",
+      "note": "Cobertura inicial. Presupuesto mensual prorrateado (reposición): {{m}}."
+    },
+    "actions": {
+      "exportCsv": "Exportar CSV"
+    }
   }
 }
