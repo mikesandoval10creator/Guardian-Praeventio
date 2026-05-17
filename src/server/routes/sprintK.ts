@@ -5606,6 +5606,12 @@ function parsePeriod(raw: unknown): ObservationPeriod {
   return '30d';
 }
 
+// Codex P2 PR #320 (line 5142): cap unbounded reads on the global
+// listing. Without a limit, opening this page on a busy project would
+// download every observation since the project's start (potentially
+// thousands of docs). We page in fixed chunks ordered newest-first.
+const POSITIVE_OBSERVATIONS_PAGE_LIMIT = 500;
+
 router.get(
   '/:projectId/positive-observations',
   verifyAuth,
@@ -5615,6 +5621,11 @@ router.get(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     const period = parsePeriod(req.query.period);
+    const rawStartAfter = req.query.startAfter;
+    const startAfterId =
+      typeof rawStartAfter === 'string' && rawStartAfter.trim().length > 0
+        ? rawStartAfter.trim()
+        : null;
     try {
       const db = admin.firestore();
       const path = `tenants/${g.tenantId}/projects/${projectId}/positive_observations`;
@@ -5634,13 +5645,50 @@ router.get(
       };
       const sinceIso = periodToSinceIso(period);
       const observations = await safeRead('positive_observations', async () => {
-        const query = sinceIso
+        let query: FirebaseFirestore.Query = sinceIso
           ? db.collection(path).where('observedAt', '>=', sinceIso)
           : db.collection(path);
-        const snap = await query.get();
-        return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        // Order newest-first so users see the most recent observations
+        // when the page is bounded. orderBy on the same field as the
+        // range filter is required/supported by Firestore semantics.
+        query = query.orderBy('observedAt', 'desc');
+        if (startAfterId) {
+          const cursorSnap = await db.collection(path).doc(startAfterId).get();
+          if (cursorSnap.exists) {
+            query = query.startAfter(cursorSnap);
+          } else {
+            logger.warn?.('sprintK.positive.list.startAfter.notFound', { startAfterId });
+          }
+        }
+        // +1 to detect whether more docs exist beyond the page.
+        const snap = await query.limit(POSITIVE_OBSERVATIONS_PAGE_LIMIT + 1).get();
+        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as object) }));
       });
-      return res.json({ observations, period });
+      const hasMore = observations.length > POSITIVE_OBSERVATIONS_PAGE_LIMIT;
+      const pageItems = hasMore
+        ? observations.slice(0, POSITIVE_OBSERVATIONS_PAGE_LIMIT)
+        : observations;
+      const nextStartAfter = hasMore
+        ? (pageItems[pageItems.length - 1] as { id?: string } | undefined)?.id ?? null
+        : null;
+      if (hasMore) {
+        // Surface in logs so we can detect projects that routinely hit the
+        // cap and budget for richer pagination UX.
+        logger.warn?.('sprintK.positive.list.pageCapped', {
+          projectId,
+          period,
+          limit: POSITIVE_OBSERVATIONS_PAGE_LIMIT,
+        });
+      }
+      return res.json({
+        observations: pageItems,
+        period,
+        pagination: {
+          limit: POSITIVE_OBSERVATIONS_PAGE_LIMIT,
+          hasMore,
+          nextStartAfter,
+        },
+      });
     } catch (err) {
       logger.error?.('sprintK.positive.list.error', err);
       captureRouteError(err, 'sprintK.positive.list');
@@ -5675,26 +5723,34 @@ router.get(
         }
       };
 
+      // Codex P2 PR #320 (line 5188): use Firestore count() aggregate
+      // instead of downloading every doc just to compute snap.docs.length.
+      // On large projects the previous .get() materialized the whole
+      // collection per balance refresh — the count() aggregate is a
+      // single billed read regardless of cardinality.
       const [positiveCount, correctiveCount] = await Promise.all([
         safeCount('positive', async () => {
-          const query = sinceIso
-            ? db
-                .collection(`${tenantProjectPath}/positive_observations`)
-                .where('observedAt', '>=', sinceIso)
-            : db.collection(`${tenantProjectPath}/positive_observations`);
-          const snap = await query.get();
-          return snap.docs.length;
+          const base = db.collection(`${tenantProjectPath}/positive_observations`);
+          const query = sinceIso ? base.where('observedAt', '>=', sinceIso) : base;
+          const snap = await query.count().get();
+          return Number(snap.data().count ?? 0);
         }),
         safeCount('corrective', async () => {
-          // CorrectiveAction shape (weakActionDetector.ts) doesn't carry a
-          // timestamp field, so we can't server-side filter by period. We
-          // count the whole collection and let the UI display the period
-          // label honestly. Counting docs (not filtering) keeps the cost
-          // bounded and the ratio interpretable.
+          // Codex P2 PR #320 (line 5198): the legacy CorrectiveAction
+          // shape (weakActionDetector.ts) and the F.4 record shape
+          // (correctiveActionsCenter.ts) don't carry a `createdAt`
+          // timestamp — only `dueDate` and (when closed) `closedAt`.
+          // Filtering by dueDate would skew toward newer due-dates,
+          // not newer creations, so we cannot honestly match the
+          // positive-observations window. Instead we count the whole
+          // collection and surface the asymmetry in the response so
+          // the UI can label the imbalance correctly rather than
+          // implying it's period-specific.
           const snap = await db
             .collection(`${tenantProjectPath}/corrective_actions`)
+            .count()
             .get();
-          return snap.docs.length;
+          return Number(snap.data().count ?? 0);
         }),
       ]);
 
@@ -5705,6 +5761,12 @@ router.get(
         corrective: correctiveCount,
         ratio,
         period,
+        // Codex P2 PR #320 (line 5198): be explicit about which window
+        // each count covers so the UI doesn't render a false
+        // "punitive" verdict from comparing recent positives against
+        // all-time correctives.
+        positivePeriod: period,
+        correctivePeriod: 'all' as const,
         balance,
       });
     } catch (err) {

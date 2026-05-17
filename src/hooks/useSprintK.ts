@@ -1124,9 +1124,20 @@ import type { BalanceReport } from '../services/positiveObservations/positiveObs
 
 export type PositiveObservationPeriod = '30d' | '90d' | 'all';
 
+export interface PositiveObservationsPageInfo {
+  /** Page size cap applied server-side. */
+  limit: number;
+  /** True when more docs exist past `nextStartAfter`. */
+  hasMore: boolean;
+  /** Cursor doc id to pass back as `?startAfter=…` for the next page. */
+  nextStartAfter: string | null;
+}
+
 export interface PositiveObservationsListResponse {
   observations: PositiveObservation[];
   period: PositiveObservationPeriod;
+  /** Codex P2 PR #320 (line 5142): pagination metadata for bounded reads. */
+  pagination?: PositiveObservationsPageInfo;
 }
 
 export interface PositiveObservationBalanceResponse {
@@ -1135,16 +1146,25 @@ export interface PositiveObservationBalanceResponse {
   ratio: number;
   period: PositiveObservationPeriod;
   balance: BalanceReport;
+  /**
+   * Codex P2 PR #320 (line 5198): explicit window per side so the UI
+   * can label the asymmetry honestly. Currently the legacy
+   * CorrectiveAction shape has no `createdAt`, so `correctivePeriod`
+   * is always `'all'` regardless of the requested `period`.
+   */
+  positivePeriod?: PositiveObservationPeriod;
+  correctivePeriod?: 'all';
 }
 
 export function usePositiveObservations(
   projectId: string | null,
-  opts: { period?: PositiveObservationPeriod } = {},
+  opts: { period?: PositiveObservationPeriod; startAfter?: string } = {},
 ) {
   let path: string | null = null;
   if (projectId) {
     const qs = new URLSearchParams();
     if (opts.period) qs.set('period', opts.period);
+    if (opts.startAfter) qs.set('startAfter', opts.startAfter);
     const query = qs.toString();
     path = `/api/sprint-k/${projectId}/positive-observations${query ? `?${query}` : ''}`;
   }
