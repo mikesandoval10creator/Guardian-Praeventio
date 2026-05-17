@@ -45,6 +45,7 @@ import {
   useEmergencyBrigade,
   addBrigadeMember,
   addBrigadeResource,
+  inspectResource,
 } from '../hooks/useSprintK';
 import type {
   BrigadeRole,
@@ -391,6 +392,176 @@ function AddResourceModal({ onClose, onSubmit }: AddResourceModalProps) {
   );
 }
 
+// Codex P2 round 2 #10 (PR #321, line 48): inspection modal for an
+// existing resource. The page previously imported the `addResource`
+// mutation but never wired the new `inspectResource` hook, so once a
+// resource was expired / near expiration / marked out of service it
+// stayed in `resourceReadiness.needingAttention` forever — users could
+// not clear the readiness gap from the UI and needed a manual API/DB
+// patch. This modal lets the user record an inspection (operational
+// boolean + optional nextExpirationAt + optional notes), which the
+// server backend writes to both the resource document and an audit
+// inspection record. The "Inspeccionar" CTA is exposed on every
+// resource card whose status is critical or warning.
+interface InspectResourceModalProps {
+  resource: EmergencyResource;
+  onClose: () => void;
+  onSubmit: (input: {
+    inspectedAt: string;
+    operational: boolean;
+    nextExpirationAt?: string;
+    notes?: string;
+  }) => Promise<void>;
+}
+
+function InspectResourceModal({
+  resource,
+  onClose,
+  onSubmit,
+}: InspectResourceModalProps) {
+  const { t } = useTranslation();
+  const today = new Date().toISOString().slice(0, 10);
+  const inOneYear = new Date(Date.now() + 365 * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const [inspectedAt, setInspectedAt] = useState(today);
+  const [operational, setOperational] = useState(true);
+  const [nextExpirationAt, setNextExpirationAt] = useState(inOneYear);
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        inspectedAt,
+        operational,
+        nextExpirationAt: nextExpirationAt || undefined,
+        notes: notes.trim() || undefined,
+      });
+      onClose();
+    } catch (err) {
+      logger.error('brigade.inspectResource.failed', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      data-testid="brigade-inspect-resource-modal"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface rounded-2xl border border-default-token shadow-xl w-full max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 p-4 border-b border-default-token">
+          <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center border border-sky-500/20">
+            <Wrench className="w-5 h-5" aria-hidden="true" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-black text-primary-token uppercase tracking-tight">
+              {t('brigade.inspectResource.title', 'Registrar inspección')}
+            </h2>
+            <p className="text-[11px] text-secondary-token truncate">
+              {RESOURCE_LABEL[resource.kind]} · {resource.location}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-secondary-token"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-4 space-y-3 text-sm">
+          <label className="block">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-secondary-token">
+              {t('brigade.inspectResource.inspectedAt', 'Fecha de inspección')}
+            </span>
+            <input
+              type="date"
+              value={inspectedAt}
+              onChange={(e) => setInspectedAt(e.target.value)}
+              required
+              data-testid="brigade-inspect-resource-date"
+              className="mt-1 w-full px-3 py-2 rounded-xl border border-default-token bg-surface-elevated text-primary-token"
+            />
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={operational}
+              onChange={(e) => setOperational(e.target.checked)}
+              data-testid="brigade-inspect-resource-operational"
+              className="w-4 h-4"
+            />
+            <span className="text-xs text-primary-token font-bold">
+              {t(
+                'brigade.inspectResource.operational',
+                'Recurso operativo tras la inspección',
+              )}
+            </span>
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-secondary-token">
+              {t(
+                'brigade.inspectResource.nextExpirationAt',
+                'Próximo vencimiento (opcional)',
+              )}
+            </span>
+            <input
+              type="date"
+              value={nextExpirationAt}
+              onChange={(e) => setNextExpirationAt(e.target.value)}
+              className="mt-1 w-full px-3 py-2 rounded-xl border border-default-token bg-surface-elevated text-primary-token"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-secondary-token">
+              {t('brigade.inspectResource.notes', 'Notas (opcional)')}
+            </span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              data-testid="brigade-inspect-resource-notes"
+              rows={3}
+              maxLength={2000}
+              className="mt-1 w-full px-3 py-2 rounded-xl border border-default-token bg-surface-elevated text-primary-token"
+            />
+          </label>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-2 text-xs font-bold text-secondary-token rounded-xl hover:bg-white/10"
+            >
+              {t('common.cancel', 'Cancelar')}
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              data-testid="brigade-inspect-resource-submit"
+              className="px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-xl bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 disabled:opacity-50"
+            >
+              {submitting
+                ? t('common.saving', 'Guardando…')
+                : t('brigade.inspectResource.submit', 'Registrar')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function EmergencyBrigade() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
@@ -399,6 +570,10 @@ export function EmergencyBrigade() {
   const { data, loading, error, refetch } = useEmergencyBrigade(projectId);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showAddResource, setShowAddResource] = useState(false);
+  // Codex P2 round 2 #10 (PR #321): resource currently selected for
+  // inspection — `null` when the modal is closed.
+  const [inspectingResource, setInspectingResource] =
+    useState<EmergencyResource | null>(null);
 
   // Group members by role for the side-by-side cards.
   //
@@ -459,6 +634,25 @@ export function EmergencyBrigade() {
       lastInspectedAt: input.lastInspectedAt,
       nextExpirationAt: input.nextExpirationAt,
     });
+    refetch?.();
+  };
+
+  // Codex P2 round 2 #10 (PR #321): wires the new inspection endpoint
+  // to the page. After persisting the inspection the snapshot is
+  // refetched so the readiness banner / `needingAttention` list update
+  // immediately — the user sees their action clear the gap without a
+  // manual page reload.
+  const handleInspectResource = async (
+    resourceId: string,
+    input: {
+      inspectedAt: string;
+      operational: boolean;
+      nextExpirationAt?: string;
+      notes?: string;
+    },
+  ) => {
+    if (!projectId) return;
+    await inspectResource(projectId, resourceId, input);
     refetch?.();
   };
 
@@ -670,6 +864,22 @@ export function EmergencyBrigade() {
                     const Icon = ROLE_ICON[role];
                     const color = ROLE_COLOR[role];
                     const list = membersByRole[role];
+                    // Codex P2 round 2 #8 (PR #321, line 702): the
+                    // "Brecha" chip used to fire on `list.length === 0`
+                    // for every role, including optional ones
+                    // (`evacuation_coordinator`, `communications`). For
+                    // a brigade with the three minimum roles covered,
+                    // the server returns `meetsMinimum: true` / empty
+                    // `uncoveredRoles` and the banner is green — but
+                    // the optional role cards still showed red "Brecha"
+                    // chips, contradicting the banner. Drive the chip
+                    // from the server's `uncoveredRoles` (which already
+                    // honors the MINIMUM_REQUIRED contract from
+                    // `emergencyBrigadeService`) so optional roles
+                    // without coverage are simply labeled "Sin
+                    // cobertura" without flagging a gap.
+                    const isUncoveredRequired =
+                      data?.brigade.uncoveredRoles.includes(role) ?? false;
                     return (
                       <li
                         key={role}
@@ -695,7 +905,7 @@ export function EmergencyBrigade() {
                                   })}
                             </p>
                           </div>
-                          {list.length === 0 && (
+                          {isUncoveredRequired && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/15 text-rose-700 dark:text-rose-300">
                               {t('brigade.member.gap', 'Brecha')}
                             </span>
@@ -764,6 +974,12 @@ export function EmergencyBrigade() {
                       const days = daysUntil(r.nextExpirationAt);
                       const isCritical = !r.operational || days < 0;
                       const isWarning = days >= 0 && days <= 30;
+                      // Codex P2 round 2 #10 (PR #321, line 48): expose
+                      // the inspect CTA whenever the resource is in
+                      // critical or warning state — that matches the
+                      // server's `needingAttention` predicate
+                      // (operational === false OR daysToExpiry <= 30).
+                      const needsInspection = isCritical || isWarning;
                       return (
                         <li
                           key={r.id}
@@ -814,6 +1030,22 @@ export function EmergencyBrigade() {
                                   })}
                             </span>
                           </div>
+                          {needsInspection && (
+                            <div className="mt-2 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setInspectingResource(r)}
+                                data-testid={`emergency-brigade-resource-inspect-${r.id}`}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-widest rounded-lg bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 hover:bg-sky-500/25"
+                              >
+                                <Wrench className="w-3 h-3" aria-hidden="true" />
+                                {t(
+                                  'brigade.resource.inspect',
+                                  'Inspeccionar',
+                                )}
+                              </button>
+                            </div>
+                          )}
                         </li>
                       );
                     })}
@@ -835,6 +1067,15 @@ export function EmergencyBrigade() {
         <AddResourceModal
           onClose={() => setShowAddResource(false)}
           onSubmit={handleAddResource}
+        />
+      )}
+      {inspectingResource && (
+        <InspectResourceModal
+          resource={inspectingResource}
+          onClose={() => setInspectingResource(null)}
+          onSubmit={(input) =>
+            handleInspectResource(inspectingResource.id, input)
+          }
         />
       )}
     </div>

@@ -5161,9 +5161,20 @@ const isoDate = z
 // are also project members — must not be able to add brigadists or flip
 // a resource to "operational", which would directly move the readiness
 // banner.
+//
+// Codex P2 round 2 #6 (PR #321, line 5168): include `supervisor` —
+// the F.5 QR challenge role gate (`QR_SIG_CHALLENGE_ROLES`) already
+// includes supervisors, and the inline comment claimed parity with
+// that gate. Field supervisors must be able to add brigadists /
+// register resources / mark inspections from the new page; without
+// `supervisor` here every UI write action returned 403 even though the
+// page allowed them through. The original gate already includes
+// `brigade_chief` (the role that operates the brigade itself), so the
+// union is { admin, prevencionista, supervisor, brigade_chief }.
 const BRIGADE_WRITE_ROLES = new Set([
   'admin',
   'prevencionista',
+  'supervisor',
   'brigade_chief',
 ]);
 
@@ -5189,33 +5200,60 @@ function callerCanWriteBrigade(req: import('express').Request): boolean {
 // Codex P2 #3 (PR #321, line 5261): when adding a brigadist by uid,
 // confirm the uid is an actual project member before persisting. A typo
 // or fabricated uid would otherwise satisfy required role coverage with
-// a nonexistent worker. Reads the same `projects/{projectId}.members[]`
-// array used by `assertProjectMember` so the check is consistent with
-// the rest of the auth surface.
+// a nonexistent worker.
+//
+// Codex P2 round 2 #7 (PR #321, line 5204): the previous revision only
+// checked the legacy `projects/{projectId}.members[]` top-level array
+// plus `createdBy`. But other production code paths
+// (`src/server/routes/emergency.ts` → `sendToProjectSupervisors`)
+// already treat `projects/{projectId}/members/{uid}` (subcollection) as
+// the canonical member source — many tenants keep memberships there
+// rather than duplicating every uid into the array. Without the
+// subcollection check, legitimate workers were rejected with
+// `worker_not_in_project`. Check BOTH sources before returning false so
+// the canonical (subcollection) AND legacy (array) shapes are honored.
 async function workerIsProjectMember(
   workerUid: string,
   projectId: string,
 ): Promise<boolean> {
+  const db = admin.firestore();
+  // Source 1: legacy top-level array + createdBy (matches
+  // assertProjectMember semantics).
   try {
-    const snap = await admin
-      .firestore()
-      .collection('projects')
-      .doc(projectId)
-      .get();
-    if (!snap.exists) return false;
-    const data = (snap.data() ?? {}) as Record<string, unknown>;
-    const members = data.members;
-    const createdBy = data.createdBy;
-    if (Array.isArray(members) && members.includes(workerUid)) return true;
-    if (typeof createdBy === 'string' && createdBy === workerUid) return true;
-    return false;
+    const snap = await db.collection('projects').doc(projectId).get();
+    if (snap.exists) {
+      const data = (snap.data() ?? {}) as Record<string, unknown>;
+      const members = data.members;
+      const createdBy = data.createdBy;
+      if (Array.isArray(members) && members.includes(workerUid)) return true;
+      if (typeof createdBy === 'string' && createdBy === workerUid) return true;
+    }
   } catch (err) {
     logger.warn?.(
-      'sprintK.emergencyBrigade.workerIsProjectMember.failed',
+      'sprintK.emergencyBrigade.workerIsProjectMember.legacyArray.failed',
       err,
     );
-    return false;
+    // Fall through to the subcollection check — a partial failure on
+    // one source shouldn't deny legitimate workers in the other.
   }
+  // Source 2: canonical `projects/{projectId}/members/{uid}`
+  // subcollection. Used by emergency.ts and other notification
+  // surfaces; many tenants only populate this shape.
+  try {
+    const memberDoc = await db
+      .collection('projects')
+      .doc(projectId)
+      .collection('members')
+      .doc(workerUid)
+      .get();
+    if (memberDoc.exists) return true;
+  } catch (err) {
+    logger.warn?.(
+      'sprintK.emergencyBrigade.workerIsProjectMember.subcollection.failed',
+      err,
+    );
+  }
+  return false;
 }
 
 router.get(
@@ -5375,8 +5413,27 @@ router.post(
       const baseRef = db.collection(
         `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
       );
-      const doc = baseRef.doc();
-      const id = doc.id;
+      // Codex P2 round 2 #9 (PR #321, line 5382): the previous revision
+      // called `baseRef.doc()` which mints a fresh random id every
+      // submission. Adding the same worker twice (or once per required
+      // role) produced N distinct member documents, and
+      // `buildBrigadeCoverageReport` counted them as separate active
+      // members — so a single real person could inflate the byRole
+      // counter to satisfy the three-member minimum. Fix: derive a
+      // deterministic id keyed on `worker:role`, and reject with 409
+      // if a member document for that (workerUid, role) pair already
+      // exists. The deterministic id also makes the audit trail easier
+      // (one worker = one member doc per role across re-trainings).
+      const safeUid = body.workerUid.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const id = `member-${safeUid}-${body.role}`;
+      const doc = baseRef.doc(id);
+      const existing = await doc.get();
+      if (existing.exists) {
+        return res.status(409).json({
+          error: 'worker_already_in_role',
+          existingId: id,
+        });
+      }
       await doc.set({
         docType: 'member',
         workerUid: body.workerUid,
