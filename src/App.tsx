@@ -146,6 +146,10 @@ const DrivingSafety = lazy(() => import('./pages/DrivingSafety').then(module => 
 // anónimo por defecto, hash one-way del reporter para retaliation
 // detection que jamás de-anonimiza.
 const ConfidentialReports = lazy(() => import('./pages/ConfidentialReports').then(module => ({ default: module.ConfidentialReports })));
+// F.29 — Indicadores de Tendencia de Incidentes + Leading Indicators.
+// Time series + near-miss ratio / closure rate / días promedio abierto.
+// Read-only sobre `incidents` filtrados por proyecto; no escribe nada.
+const IncidentTrends = lazy(() => import('./pages/IncidentTrends').then(module => ({ default: module.IncidentTrends })));
 // Sprint K §90-91 — Calidad de Proveedores + Ranking de Riesgo.
 // Motor determinístico (supplierScoring 4-dim) ya vivía; este lazy
 // expone el ranking para decisiones de adjudicación.
@@ -268,6 +272,7 @@ function AppRoutes() {
               <Route path="leadership-decisions" element={<LeadershipDecisions />} />
               <Route path="driving-safety" element={<DrivingSafety />} />
               <Route path="confidential-reports" element={<ConfidentialReports />} />
+              <Route path="incident-trends" element={<IncidentTrends />} />
               <Route path="suppliers" element={<SupplierQuality />} />
               <Route path="knowledge-base" element={<KnowledgeBase />} />
               <Route path="visitors" element={<Visitors />} />
@@ -424,6 +429,7 @@ function AppRoutes() {
                     <Route path="leadership-decisions" element={<LeadershipDecisions />} />
                     <Route path="driving-safety" element={<DrivingSafety />} />
                     <Route path="confidential-reports" element={<ConfidentialReports />} />
+                    <Route path="incident-trends" element={<IncidentTrends />} />
                     <Route path="suppliers" element={<SupplierQuality />} />
                     <Route path="knowledge-base" element={<KnowledgeBase />} />
                     <Route path="visitors" element={<Visitors />} />
