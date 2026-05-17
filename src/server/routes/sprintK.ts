@@ -6229,4 +6229,229 @@ router.post(
   },
 );
 
+// ────────────────────────────────────────────────────────────────────────
+// §42-44 — Inventario Controles de Ingeniería + Jerarquía ISO 31000
+// ────────────────────────────────────────────────────────────────────────
+//
+// Inventario de controles aplicados según la jerarquía ISO 31000 /
+// 45001:
+//   elimination > substitution > engineering > administrative > epp
+//
+// Persistido en
+//   tenants/{tid}/projects/{pid}/engineering_controls/{id}
+//
+// Cada control declara:
+//   - level (en la jerarquía)
+//   - riskCategory que mitiga
+//   - descripción + responsable + frecuencia de verificación (días)
+//   - lista de verificaciones realizadas (verifierUid + result + evidence)
+//
+// La página deriva el estado de vigencia (verde/ámbar/rojo) a partir
+// del `lastVerifiedAt + verificationFrequencyDays`. Esta lógica es
+// determinística: el motor `engineeringControlsInventory` (servicio
+// existente, intacto) calcula la cobertura de riesgos y la auditoría
+// de jerarquía a partir del inventario.
+
+type EngControlHierarchyLevel =
+  | 'elimination'
+  | 'substitution'
+  | 'engineering'
+  | 'administrative'
+  | 'epp';
+
+const ENG_CTRL_LEVELS: ReadonlySet<EngControlHierarchyLevel> = new Set([
+  'elimination',
+  'substitution',
+  'engineering',
+  'administrative',
+  'epp',
+]);
+
+interface StoredEngineeringControl {
+  id: string;
+  level: EngControlHierarchyLevel;
+  riskCategory: string;
+  name: string;
+  description: string;
+  responsibleUid: string;
+  verificationFrequencyDays: number;
+  createdAt: string;
+  createdBy: string;
+  lastVerifiedAt: string | null;
+  verifications: Array<{
+    verifierUid: string;
+    verifiedAt: string;
+    result: 'pass' | 'observation' | 'fail';
+    evidence?: string;
+  }>;
+}
+
+router.get(
+  '/:projectId/engineering-controls',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      // Best-effort read. If the collection is empty (new project) we
+      // return an empty list, not a 500. `safeRead` mirrors the helper
+      // used elsewhere in this file (data-quality / maturity) so a
+      // missing collection doesn't blank the UI.
+      const safeRead = async <T,>(
+        label: string,
+        fn: () => Promise<T[]>,
+      ): Promise<T[]> => {
+        try {
+          return await fn();
+        } catch (err) {
+          logger.warn?.(`sprintK.engineeringControls.read.${label}.failed`, err);
+          return [];
+        }
+      };
+
+      const db = admin.firestore();
+      const colRef = db.collection(
+        `tenants/${g.tenantId}/projects/${projectId}/engineering_controls`,
+      );
+
+      const rawLevel = typeof req.query.level === 'string' ? req.query.level : 'all';
+      // 'admin' is the shorthand used on the frontend; map to 'administrative'.
+      const levelParam: 'all' | EngControlHierarchyLevel =
+        rawLevel === 'all'
+          ? 'all'
+          : rawLevel === 'admin'
+            ? 'administrative'
+            : (ENG_CTRL_LEVELS.has(rawLevel as EngControlHierarchyLevel)
+                ? (rawLevel as EngControlHierarchyLevel)
+                : 'all');
+      const riskCategory =
+        typeof req.query.riskCategory === 'string' ? req.query.riskCategory : null;
+
+      const controls = await safeRead('list', async () => {
+        const snap = await colRef.get();
+        return snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<StoredEngineeringControl, 'id'>),
+        }));
+      });
+
+      const filtered = controls.filter((c) => {
+        if (levelParam !== 'all' && c.level !== levelParam) return false;
+        if (riskCategory && c.riskCategory !== riskCategory) return false;
+        return true;
+      });
+
+      return res.json({ controls: filtered });
+    } catch (err) {
+      logger.error?.('sprintK.engineeringControls.list.error', err);
+      captureRouteError(err, 'sprintK.engineeringControls.list');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const engineeringControlCreateSchema = z.object({
+  id: z.string().min(1),
+  level: z.enum(['elimination', 'substitution', 'engineering', 'administrative', 'epp']),
+  riskCategory: z.string().min(1).max(200),
+  name: z.string().min(3).max(300),
+  description: z.string().min(3).max(4000),
+  responsibleUid: z.string().min(1),
+  verificationFrequencyDays: z.number().int().positive().max(3650),
+});
+
+router.post(
+  '/:projectId/engineering-controls',
+  verifyAuth,
+  validate(engineeringControlCreateSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof engineeringControlCreateSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const doc: StoredEngineeringControl = {
+        id: body.id,
+        level: body.level,
+        riskCategory: body.riskCategory,
+        name: body.name,
+        description: body.description,
+        responsibleUid: body.responsibleUid,
+        verificationFrequencyDays: body.verificationFrequencyDays,
+        createdAt: new Date().toISOString(),
+        createdBy: callerUid,
+        lastVerifiedAt: null,
+        verifications: [],
+      };
+      await admin
+        .firestore()
+        .collection(
+          `tenants/${g.tenantId}/projects/${projectId}/engineering_controls`,
+        )
+        .doc(body.id)
+        .set(doc);
+      return res.status(201).json({ ok: true, control: doc });
+    } catch (err) {
+      logger.error?.('sprintK.engineeringControls.create.error', err);
+      captureRouteError(err, 'sprintK.engineeringControls.create');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const engineeringControlVerifySchema = z.object({
+  verifierUid: z.string().min(1),
+  result: z.enum(['pass', 'observation', 'fail']),
+  evidence: z.string().max(4000).optional(),
+});
+
+router.post(
+  '/:projectId/engineering-controls/:id/verify',
+  verifyAuth,
+  validate(engineeringControlVerifySchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, id } = req.params;
+    const body = req.body as z.infer<typeof engineeringControlVerifySchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const ref = admin
+        .firestore()
+        .collection(
+          `tenants/${g.tenantId}/projects/${projectId}/engineering_controls`,
+        )
+        .doc(id);
+
+      const snap = await ref.get();
+      if (!snap.exists) {
+        return res.status(404).json({ error: 'control_not_found' });
+      }
+      const now = new Date().toISOString();
+      const entry = {
+        verifierUid: body.verifierUid,
+        verifiedAt: now,
+        result: body.result,
+        ...(body.evidence ? { evidence: body.evidence } : {}),
+      };
+      // FieldValue.arrayUnion keeps history additive — never silently
+      // overwrites prior verifications. `lastVerifiedAt` is the canonical
+      // timestamp the UI uses to compute vigencia (verde/ámbar/rojo)
+      // against `verificationFrequencyDays`.
+      await ref.update({
+        verifications: admin.firestore.FieldValue.arrayUnion(entry),
+        lastVerifiedAt: now,
+      });
+      return res.status(200).json({ ok: true, entry });
+    } catch (err) {
+      logger.error?.('sprintK.engineeringControls.verify.error', err);
+      captureRouteError(err, 'sprintK.engineeringControls.verify');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 export default router;

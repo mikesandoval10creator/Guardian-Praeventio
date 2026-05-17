@@ -155,6 +155,11 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Offline-first daily ops: inspector captura hallazgos en
         // terreno sin conexión, sync diferido cuando vuelve la red.
         { title: t("nav.inspections", "Inspecciones"), icon: ClipboardCheck, path: "/inspections", color: "text-blue-500" },
+        // §42-44 — Inventario Controles de Ingeniería + Jerarquía ISO 31000.
+        // Audita la jerarquía de controles aplicados (elimination >
+        // substitution > engineering > administrative > epp) y la
+        // vigencia de cada verificación (verde/ámbar/rojo).
+        { title: t("nav.engineering_controls", "Controles de Ingeniería"), icon: Layers, path: "/engineering-controls", color: "text-violet-500" },
         // Sprint 40 Fase F.5 — Firma QR de Recepción (EPP, charlas, docs).
         // Genera challenge HMAC + TTL corto; firma del trabajador queda
         // como comprobante interno (no se empuja a SUSESO/SII/MINSAL).
