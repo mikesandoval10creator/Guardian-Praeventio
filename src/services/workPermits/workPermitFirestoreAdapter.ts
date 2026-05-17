@@ -59,11 +59,35 @@ export interface WorkPermitAdapterDeps {
   projectId: string;
 }
 
+/**
+ * Thrown by `WorkPermitAdapter.create` when the document already exists.
+ * Maps to HTTP 409 at the route layer (`permit_id_duplicate`).
+ */
+export class WorkPermitDuplicateError extends Error {
+  constructor(public readonly permitId: string) {
+    super(`Work permit '${permitId}' already exists`);
+    this.name = 'WorkPermitDuplicateError';
+  }
+}
+
 export class WorkPermitAdapter {
   constructor(private readonly deps: WorkPermitAdapterDeps) {}
 
   async save(permit: WorkPermit): Promise<void> {
     const ref = this.deps.db.collection(PATH(this.deps.tenantId, this.deps.projectId)).doc(permit.id);
+    await ref.set(serialize(permit));
+  }
+
+  /**
+   * Creates a permit doc, but FAILS if the id already exists. Codex P2 #4:
+   * `save()` blindly overwrites — a malicious client (or a careless one)
+   * can erase a fulfilled/cancelled permit by reusing its id. The create
+   * path MUST use this method.
+   */
+  async create(permit: WorkPermit): Promise<void> {
+    const ref = this.deps.db.collection(PATH(this.deps.tenantId, this.deps.projectId)).doc(permit.id);
+    const snap = await ref.get();
+    if (snap.exists) throw new WorkPermitDuplicateError(permit.id);
     await ref.set(serialize(permit));
   }
 
@@ -98,6 +122,51 @@ export class WorkPermitAdapter {
       .where('validUntil', '>=', now.toISOString())
       .orderBy('validUntil', 'asc')
       .limit(200);
+    const snap = await q.get();
+    return snap.docs.map((d) => deserialize(d.data()));
+  }
+
+  /**
+   * Lists permits filtered by persisted status. Codex P2 #1: the previous
+   * route fed every non-active tab from listActive(), which by construction
+   * excludes cancelled/fulfilled/expired docs. Querying Firestore by the
+   * requested status directly is correct and uses the same composite index
+   * as listActive().
+   *
+   * Note: expired permits are stored as status='active' until a cron
+   * materializes the expiry — to surface those, the route must call
+   * `deriveStatus(...)` on the result. This method returns the raw
+   * persisted set; callers refine.
+   */
+  async listByStatus(status: WorkPermitStatus): Promise<WorkPermit[]> {
+    const q = this.deps.db
+      .collection(PATH(this.deps.tenantId, this.deps.projectId))
+      .where('status', '==', status)
+      .orderBy('validFrom', 'desc')
+      .limit(200);
+    const snap = await q.get();
+    return snap.docs.map((d) => deserialize(d.data()));
+  }
+
+  /**
+   * Lists permits filtered by both kind and persisted status. Codex P2 #2:
+   * a kind chip on the active tab must not surface fulfilled/cancelled
+   * permits — those filters had to be combined in Firestore, not split
+   * across the query and a JS post-filter.
+   *
+   * Requires the composite index `kind+status+validFrom desc` in
+   * firestore.indexes.json.
+   */
+  async listByKindAndStatus(
+    kind: WorkPermitKind,
+    status: WorkPermitStatus,
+  ): Promise<WorkPermit[]> {
+    const q = this.deps.db
+      .collection(PATH(this.deps.tenantId, this.deps.projectId))
+      .where('kind', '==', kind)
+      .where('status', '==', status)
+      .orderBy('validFrom', 'desc')
+      .limit(100);
     const snap = await q.get();
     return snap.docs.map((d) => deserialize(d.data()));
   }

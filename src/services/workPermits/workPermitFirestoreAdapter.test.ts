@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   WorkPermitAdapter,
+  WorkPermitDuplicateError,
   type WorkPermitFirestoreDb,
 } from './workPermitFirestoreAdapter.js';
 import { issuePermit, REQUIRED_CHECKLIST_BY_KIND } from './workPermitEngine.js';
@@ -175,5 +176,60 @@ describe('WorkPermitAdapter — listForWorker', () => {
     const list = await adapter.listForWorker('w1');
     expect(list).toHaveLength(1);
     expect(list[0].workerUid).toBe('w1');
+  });
+});
+
+describe('WorkPermitAdapter — create (Codex P2 #4, reject duplicates)', () => {
+  it('persiste un permit nuevo', async () => {
+    const db = buildFakeDb();
+    const adapter = new WorkPermitAdapter({ db, tenantId: TENANT, projectId: PROJECT });
+    await adapter.create(makePermit({ id: 'new-1' }));
+    const got = await adapter.getById('new-1');
+    expect(got?.id).toBe('new-1');
+  });
+
+  it('rechaza con WorkPermitDuplicateError si el id ya existe', async () => {
+    const db = buildFakeDb();
+    const adapter = new WorkPermitAdapter({ db, tenantId: TENANT, projectId: PROJECT });
+    await adapter.create(makePermit({ id: 'dup-1' }));
+    await expect(adapter.create(makePermit({ id: 'dup-1' }))).rejects.toBeInstanceOf(
+      WorkPermitDuplicateError,
+    );
+  });
+});
+
+describe('WorkPermitAdapter — listByStatus (Codex P2 #1, query persisted status directly)', () => {
+  it('devuelve permisos cancelled cuando se piden cancelled', async () => {
+    const db = buildFakeDb();
+    const adapter = new WorkPermitAdapter({ db, tenantId: TENANT, projectId: PROJECT });
+    const p1 = makePermit({ id: 'a' });
+    const p2 = makePermit({ id: 'b' });
+    await adapter.save(p1);
+    await adapter.save({ ...p2, status: 'cancelled', cancelledAt: '2026-05-11T10:00:00Z' });
+    const cancelled = await adapter.listByStatus('cancelled');
+    expect(cancelled.map((p) => p.id)).toEqual(['b']);
+    expect(cancelled[0].status).toBe('cancelled');
+  });
+
+  it('devuelve permisos fulfilled cuando se piden fulfilled', async () => {
+    const db = buildFakeDb();
+    const adapter = new WorkPermitAdapter({ db, tenantId: TENANT, projectId: PROJECT });
+    const p1 = makePermit({ id: 'f1' });
+    await adapter.save({ ...p1, status: 'fulfilled', fulfilledAt: '2026-05-11T10:00:00Z' });
+    const fulfilled = await adapter.listByStatus('fulfilled');
+    expect(fulfilled).toHaveLength(1);
+    expect(fulfilled[0].status).toBe('fulfilled');
+  });
+});
+
+describe('WorkPermitAdapter — listByKindAndStatus (Codex P2 #2, combine filters)', () => {
+  it('solo devuelve permisos que coinciden con kind Y status', async () => {
+    const db = buildFakeDb();
+    const adapter = new WorkPermitAdapter({ db, tenantId: TENANT, projectId: PROJECT });
+    await adapter.save(makePermit({ id: 'altura-active', kind: 'altura' }));
+    const f = makePermit({ id: 'altura-fulfilled', kind: 'altura' });
+    await adapter.save({ ...f, status: 'fulfilled', fulfilledAt: '2026-05-11T10:00:00Z' });
+    const list = await adapter.listByKindAndStatus('altura', 'active');
+    expect(list.map((p) => p.id)).toEqual(['altura-active']);
   });
 });

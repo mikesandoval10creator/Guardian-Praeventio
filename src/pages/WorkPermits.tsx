@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { ShieldCheck, WifiOff, Plus, X } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { auth } from '../services/firebase';
 import {
   useWorkPermits,
   createWorkPermit,
@@ -37,7 +38,6 @@ import {
   type WorkPermitKind,
   type WorkPermitStatus,
 } from '../services/workPermits/workPermitEngine';
-import { checklistForPermitKind } from '../services/workPermits/permitLifecycleAdvisor';
 import { logger } from '../utils/logger';
 
 const KIND_OPTIONS: ReadonlyArray<{ kind: WorkPermitKind; labelKey: string; labelFallback: string }> = [
@@ -93,37 +93,38 @@ export function WorkPermits() {
       );
       return;
     }
+    // Codex P2 #3: do not fabricate UIDs. The form requests the permit
+    // for the currently authenticated user; the server replaces approver
+    // identity with its own derivation (P1 #2) and uses workerUid as a
+    // self-assignment hint. A proper worker autocomplete + admin selector
+    // will replace this minimal V1 in a follow-up.
+    const currentUid = auth.currentUser?.uid ?? null;
+    if (!currentUid) {
+      setFormError(
+        t(
+          'permits.form.errorAuth',
+          'Inicia sesión para solicitar un permiso.',
+        ) as string,
+      );
+      return;
+    }
     setFormSubmitting(true);
     setFormError(null);
     try {
       const id = `wp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-      // Build a minimum-viable preconditions object so the engine
-      // doesn't reject the create call. The supervisor will refine on
-      // the actual checklist UX before signing.
-      const checklist = {
-        items: checklistForPermitKind(formKind).map((it) => ({
-          ...it,
-          checked: true,
-        })),
-      };
+      // Codex P1 #1: do NOT send a pre-attested checklist. The server
+      // ignores the body's checklist and seeds the canonical unchecked
+      // template; we omit the field entirely so the contract is obvious.
+      // Preconditions are likewise omitted — the supervisor attests them
+      // in the dedicated sign step.
       await createWorkPermit(projectId, {
         id,
         kind: formKind,
-        // Caller is the requester — they may be the worker on small
-        // crews and someone else on larger ones. The supervisor reassigns
-        // on sign.
-        workerUid: 'self',
-        approverUid: 'self',
-        approverRole: 'supervisor',
+        // P2 #3: real authenticated worker uid (self-assignment for V1).
+        workerUid: currentUid,
         zoneId: formZone.trim() || undefined,
         taskDescription: formTask.trim(),
         durationHours: 8,
-        preconditions: {
-          workerHasTraining: true,
-          workerHasEpp: true,
-          workerMedicallyFit: true,
-          checklist,
-        },
       });
       logger.info('workPermits.created', { id, kind: formKind });
       setShowCreateForm(false);
@@ -152,21 +153,46 @@ export function WorkPermits() {
     }
   };
 
-  const handleClose = async (permit: WorkPermit) => {
+  // Codex P2 #5: WorkPermitCard exposes both "fulfill" and "cancel"
+  // buttons but both used to call the same handler with outcome='fulfill',
+  // so a user clicking "Cancelar" actually marked the permit as
+  // fulfilled. The page now wires fulfill/cancel to distinct callbacks
+  // that pass the real outcome to the engine.
+  const promptCloseReason = (kind: 'fulfill' | 'cancel'): string | null => {
+    const promptKey =
+      kind === 'cancel' ? 'permits.cancelPrompt' : 'permits.fulfillPrompt';
+    const fallback =
+      kind === 'cancel'
+        ? 'Razón de anulación (mínimo 10 caracteres):'
+        : 'Comentario de cierre (mínimo 10 caracteres):';
+    const reason = window.prompt(t(promptKey, fallback) as string);
+    if (!reason || reason.trim().length < 10) return null;
+    return reason.trim();
+  };
+
+  const handleFulfill = async (permit: WorkPermit) => {
     if (!projectId) return;
-    const reason = window.prompt(
-      t(
-        'permits.closePrompt',
-        'Razón de cierre (mínimo 10 caracteres):',
-      ) as string,
-    );
-    if (!reason || reason.trim().length < 10) return;
+    const reason = promptCloseReason('fulfill');
+    if (!reason) return;
     try {
-      await closeWorkPermit(projectId, permit.id, reason.trim(), 'fulfill');
-      logger.info('workPermits.closed', { id: permit.id });
+      await closeWorkPermit(projectId, permit.id, reason, 'fulfill');
+      logger.info('workPermits.fulfilled', { id: permit.id });
       resp.refetch?.();
     } catch (err) {
-      logger.error('workPermits.close.failed', err);
+      logger.error('workPermits.fulfill.failed', err);
+    }
+  };
+
+  const handleCancel = async (permit: WorkPermit) => {
+    if (!projectId) return;
+    const reason = promptCloseReason('cancel');
+    if (!reason) return;
+    try {
+      await closeWorkPermit(projectId, permit.id, reason, 'cancel');
+      logger.info('workPermits.cancelled', { id: permit.id });
+      resp.refetch?.();
+    } catch (err) {
+      logger.error('workPermits.cancel.failed', err);
     }
   };
 
@@ -416,8 +442,8 @@ export function WorkPermits() {
               <div key={permit.id} data-testid={`work-permits-item.${permit.id}`}>
                 <WorkPermitCard
                   permit={permit}
-                  onFulfill={status === 'active' ? handleClose : undefined}
-                  onCancel={status === 'active' ? handleClose : undefined}
+                  onFulfill={status === 'active' ? handleFulfill : undefined}
+                  onCancel={status === 'active' ? handleCancel : undefined}
                 />
                 {status === 'active' && (
                   <div className="mt-2 flex justify-end">

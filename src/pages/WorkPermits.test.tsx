@@ -21,6 +21,10 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { WorkPermits } from './WorkPermits';
 import type { WorkPermit } from '../services/workPermits/workPermitEngine';
 
+vi.mock('../services/firebase', () => ({
+  auth: { currentUser: { uid: 'auth-user-123' } },
+}));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (
@@ -284,5 +288,59 @@ describe('<WorkPermits /> page wrapper (Fase F.15)', () => {
     expect(args[2]).toBe('Trabajo finalizado conforme protocolo.');
     expect(args[3]).toBe('fulfill');
     promptSpy.mockRestore();
+  });
+
+  it('preserves the cancel outcome — clicking Cancelar sends outcome=cancel (Codex P2 #5)', async () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    const permit = makePermit();
+    mockResp = {
+      data: { permits: [permit] },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    const promptSpy = vi
+      .spyOn(window, 'prompt')
+      .mockReturnValue('Cambio de plan por condición climática severa.');
+    render(<WorkPermits />);
+    const cancelBtn = screen.getByTestId(`permit-cancel-${permit.id}`);
+    fireEvent.click(cancelBtn);
+    await Promise.resolve();
+    expect(mockCloseWorkPermit).toHaveBeenCalledTimes(1);
+    const args = mockCloseWorkPermit.mock.calls[0];
+    expect(args[0]).toBe('p-1');
+    expect(args[1]).toBe(permit.id);
+    expect(args[2]).toBe('Cambio de plan por condición climática severa.');
+    expect(args[3]).toBe('cancel');
+    promptSpy.mockRestore();
+  });
+
+  it('builds the create payload without auto-attesting checklist (Codex P1 #1 + P1 #2 + P2 #3)', async () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockResp = {
+      data: { permits: [] },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    render(<WorkPermits />);
+    // Open the form.
+    fireEvent.click(screen.getByTestId('work-permits-new-button'));
+    fireEvent.change(screen.getByTestId('work-permits-form.task'), {
+      target: { value: 'Cambio de luminaria en plataforma N3 esta noche.' },
+    });
+    fireEvent.click(screen.getByTestId('work-permits-form.submit'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockCreateWorkPermit).toHaveBeenCalledTimes(1);
+    const [pid, payload] = mockCreateWorkPermit.mock.calls[0] as [string, Record<string, unknown>];
+    expect(pid).toBe('p-1');
+    // No fabricated 'self' uids.
+    expect(payload.workerUid).toBe('auth-user-123');
+    // No issuer authority leak.
+    expect(payload).not.toHaveProperty('approverUid');
+    expect(payload).not.toHaveProperty('approverRole');
+    // No pre-attested checklist or preconditions.
+    expect(payload).not.toHaveProperty('preconditions');
   });
 });

@@ -601,21 +601,29 @@ export interface WorkPermitChecklistItemPayload {
   verifiedAt?: string;
 }
 
+/**
+ * Codex P1 #1 + P1 #2 + P2 #3: client-facing payload is intentionally
+ * minimal. The server takes the issuer/approver identity from `req.user`
+ * (NOT from the body) and seeds the canonical unchecked checklist for
+ * the kind — supervisors attest in the dedicated /sign step. The
+ * optional `workerUid` is a self-assignment hint; defaults to the
+ * caller's uid server-side.
+ */
 export interface WorkPermitCreatePayload {
   id: string;
   kind: WorkPermitKind;
-  workerUid: string;
-  approverUid: string;
-  approverRole: 'supervisor' | 'prevencionista' | 'gerente' | 'admin';
+  workerUid?: string;
   zoneId?: string;
   taskDescription: string;
   durationHours: number;
-  preconditions: {
-    workerHasTraining: boolean;
-    workerHasEpp: boolean;
-    workerMedicallyFit: boolean;
-    checklist: { items: WorkPermitChecklistItemPayload[] };
-  };
+}
+
+/** Optional attestation payload for `signWorkPermit`. */
+export interface WorkPermitSignPayload {
+  workerHasTraining?: boolean;
+  workerHasEpp?: boolean;
+  workerMedicallyFit?: boolean;
+  checkedLabels?: string[];
 }
 
 export async function createWorkPermit(
@@ -642,6 +650,7 @@ export async function createWorkPermit(
 export async function signWorkPermit(
   projectId: string,
   permitId: string,
+  attestation?: WorkPermitSignPayload,
 ): Promise<{ permit: WorkPermit }> {
   const user = auth.currentUser;
   const token = user ? await user.getIdToken() : null;
@@ -653,7 +662,7 @@ export async function signWorkPermit(
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({}),
+      body: JSON.stringify(attestation ?? {}),
     },
   );
   if (!res.ok) {
