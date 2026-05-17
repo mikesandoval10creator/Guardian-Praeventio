@@ -2099,5 +2099,33 @@
     "registerTraining": "Register training",
     "saving": "Saving…",
     "trainingRegistered": "Training registered"
+  },
+  "focusAgenda": {
+    "title": "Focus block agenda",
+    "subtitle": "Protected time for inspections, training, audits or critical admin tasks.",
+    "newBlockButton": "New block",
+    "weekCount": "{{count}} this week",
+    "signInPrompt": "Sign in to manage your focus blocks.",
+    "loading": "Loading agenda…",
+    "weekViewAria": "Weekly view",
+    "emptyDay": "No blocks",
+    "emptyWeek": "You have no focus blocks this week. Create one with the \"New block\" button.",
+    "kind": {
+      "inspection": "Inspection",
+      "training": "Training",
+      "audit": "Audit",
+      "admin": "Administrative"
+    },
+    "newBlock": {
+      "title": "New focus block",
+      "close": "Close",
+      "kind": "Block type",
+      "startsAt": "Starts at (UTC)",
+      "endsAt": "Ends at (UTC)",
+      "note": "Note (optional)",
+      "notePlaceholder": "E.g.: Zone A inspection, critical lifting",
+      "cancel": "Cancel",
+      "save": "Create block"
+    }
   }
 }

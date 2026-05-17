@@ -25,6 +25,11 @@ const DevPosterSeeder = lazy(() => import('../pages/DevPosterSeeder').then(modul
 // Foreground Service to keep the check-in alive when the WebView is
 // backgrounded; no-op on web/iOS.
 const LoneWorker = lazy(() => import('../pages/LoneWorker').then(module => ({ default: module.LoneWorker })));
+// §201-210 — Agenda con Bloques de Foco. Tiempo protegido (inspección,
+// capacitación, auditoría, admin) que el prevencionista reserva para no
+// ser interrumpido. Core wave: vista semanal + form de creación; las
+// futuras añaden recurrencia y drag-resize.
+const FocusAgenda = lazy(() => import('../pages/FocusAgenda').then(module => ({ default: module.FocusAgenda })));
 
 export const OperationsRoutes = [
   <Route key="projects" path="projects" element={<Projects />} />,
@@ -45,4 +50,5 @@ export const OperationsRoutes = [
   <Route key="digital-twin-ar" path="digital-twin/ar" element={<DigitalTwinAR />} />,
   <Route key="dev-poster-seeder" path="dev/poster-seeder" element={<DevPosterSeeder />} />,
   <Route key="lone-worker" path="lone-worker" element={<LoneWorker />} />,
+  <Route key="focus-agenda" path="focus-agenda" element={<FocusAgenda />} />,
 ];
