@@ -212,6 +212,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // + extintores / AED / lavaojos / botiquines con QR + countdown
         // de inspección. Determinístico, sin push a SUSESO/MINSAL.
         { title: t("nav.emergency_brigade", "Brigada Emergencia"), icon: ShieldAlert, path: "/emergency-brigade", color: "text-amber-500" },
+        // Sprint K §276-277 — Bitácora de Decisiones de Supervisión + Ranking
+        // de Impacto. Liderazgo preventivo trazable (NO castiga, mide qué
+        // decisiones evitan más riesgo). Auditoría real para el SGSST.
+        { title: t("nav.leadership_decisions", "Decisiones Supervisión"), icon: User, path: "/leadership-decisions", color: "text-blue-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },
