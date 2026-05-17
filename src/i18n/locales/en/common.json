@@ -2186,5 +2186,86 @@
       "description": "Shows friendly hints when the network is slow or flaky and favours offline-first loading.",
       "previewBody": "Instead of spinners you will see skeleton placeholders and clear messages about the network state."
     }
+  },
+  "pricingCalc": {
+    "header": {
+      "title": "Pricing & ROI Calculator",
+      "subtitle": "Estimate your recommended plan, monthly cost, return and PPE budget in one place."
+    },
+    "inputs": {
+      "workers": "Workers",
+      "projects": "Active projects",
+      "industry": "Industry",
+      "currentTier": "Current tier"
+    },
+    "recommendation": {
+      "title": "Recommended plan",
+      "coverage": "Covers up to {{w}} workers and {{p}} projects.",
+      "plan": "Subscription",
+      "perMonth": "month",
+      "upgradeHint": "We suggest upgrading to {{tier}} — cheaper than paying overage."
+    },
+    "current": {
+      "title": "Estimated monthly cost (current tier)",
+      "overCapacity": "Current tier exceeds capacity — upgrade required.",
+      "note": "Includes worker/project overage if applicable."
+    },
+    "compare": {
+      "title": "Monthly cost per tier",
+      "tier": "Tier",
+      "workers": "Worker cap",
+      "projects": "Project cap",
+      "cost": "Cost / month",
+      "overCapacity": "— exceeds"
+    },
+    "roi": {
+      "title": "ROI Simulator — Incidents avoided",
+      "baseline": "Incidents / year (baseline)",
+      "current": "Incidents / year (with program)",
+      "avgCost": "Avg cost / incident (CLP)",
+      "avoided": "Incidents avoided / year",
+      "totalSavings": "Total savings / year",
+      "roi": "ROI",
+      "payback": "Payback",
+      "months": "months",
+      "notRecoverable": "Not recoverable"
+    },
+    "epp": {
+      "title": "Estimated PPE budget",
+      "monthly": "Monthly ({{n}} workers)",
+      "annual": "Annualised",
+      "perWorker": "Per worker / month",
+      "disclaimer": "Catalog and prices indicative per DS 594. For a real quote consult your supplier.",
+      "viewOc": "View suggested PO with item detail"
+    },
+    "actions": {
+      "generateOc": "Generate Purchase Order (.pdf)",
+      "todoNote": "For now downloads JSON · formal PDF pending Sprint K §177."
+    }
+  },
+  "oc": {
+    "header": {
+      "title": "Suggested Purchase Order",
+      "subtitle": "Recommended PPE by industry with quantity and total CLP cost.",
+      "backToCalc": "Back to calculator"
+    },
+    "inputs": {
+      "industry": "Industry",
+      "workers": "Workers"
+    },
+    "lines": {
+      "title": "Recommended items — {{industry}}",
+      "col_item": "Item",
+      "col_per_worker": "Qty / worker",
+      "col_unit_cost": "Unit cost",
+      "col_life": "Life (months)",
+      "col_qty": "Total qty",
+      "col_total": "Total cost",
+      "total": "Estimated total CLP",
+      "note": "Initial coverage. Prorated monthly budget (replacement): {{m}}."
+    },
+    "actions": {
+      "exportCsv": "Export CSV"
+    }
   }
 }

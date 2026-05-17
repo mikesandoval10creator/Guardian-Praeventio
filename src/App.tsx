@@ -188,6 +188,12 @@ const IoTEdgeFiltering = lazy(() => import('./pages/IoTEdgeFiltering').then(modu
 const SSOConfig = lazy(() => import('./pages/SSOConfig').then(module => ({ default: module.SSOConfig })));
 const CQRSArchitecture = lazy(() => import('./pages/CQRSArchitecture').then(module => ({ default: module.CQRSArchitecture })));
 const Pricing = lazy(() => import('./pages/Pricing').then(module => ({ default: module.Pricing })));
+// Sprint K §171-179 — Pricing Calculator + ROI + OC sugerida.
+// Combina subscriptionPlan + roiCalculator + eppIndustryCatalog en una
+// página interactiva. La sub-page `oc-sugerida` expone la lista de EPP
+// recomendado con export CSV.
+const PricingCalculator = lazy(() => import('./pages/PricingCalculator').then(module => ({ default: module.PricingCalculator })));
+const OcSugerida = lazy(() => import('./pages/OcSugerida').then(module => ({ default: module.OcSugerida })));
 const Transparencia = lazy(() => import('./pages/Transparencia').then(module => ({ default: module.Transparencia })));
 const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: module.default })));
 const SafeDrivingMode = lazy(() => import('./pages/SafeDrivingMode').then(module => ({ default: module.SafeDrivingMode })));
@@ -414,6 +420,9 @@ function AppRoutes() {
                     <Route path="pricing/success" element={<Pricing />} />
                     <Route path="pricing/failed" element={<Pricing />} />
                     <Route path="pricing/retry" element={<Pricing />} />
+                    {/* Sprint K §171-179 — Pricing Calculator + OC sugerida (lazy). */}
+                    <Route path="pricing-calculator" element={<PricingCalculator />} />
+                    <Route path="oc-sugerida" element={<OcSugerida />} />
                     <Route path="transparencia" element={<Transparencia />} />
                     <Route path="google-drive" element={<GoogleDriveIntegrationManager />} />
                     <Route path="immutable-render" element={<ImmutableRender />} />
