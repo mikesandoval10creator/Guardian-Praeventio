@@ -1875,6 +1875,285 @@ router.get('/:projectId/work-permits', verifyAuth, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.21 — Panel de Riesgo por Turno (pre-turno)
+// ─────────────────────────────────────────────────────────────────────
+//
+// El supervisor abre este panel ANTES de iniciar el turno y el sistema
+// le dice "hoy tu turno arranca con riesgo X por estas razones". Cruza
+// 7 fuentes determinísticas (clima, fatiga, novatos, tareas críticas,
+// mantenimiento, incidentes recientes, brigada de emergencia) usando
+// `composeShiftRiskPanel` del Sprint 40 Fase F.21.
+//
+// El servicio (preShiftRiskComposer.ts) es 100% determinístico — sin
+// IA — y cada factor tiene peso conocido y trazable. Acá solo
+// cosechamos las colecciones canónicas del proyecto y mapeamos al
+// shape `ShiftRiskInputs` que el composer espera.
+
+router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { composeShiftRiskPanel } = await import(
+      '../../services/shiftRiskPanel/preShiftRiskComposer.js'
+    );
+    const db = admin.firestore();
+
+    // Best-effort parallel reads. Each query wrapped so one failure
+    // doesn't blank the whole panel — supervisor sees partial data
+    // and can still call the shift.
+    const safeRead = async <T,>(
+      label: string,
+      fn: () => Promise<T[]>,
+    ): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.preShiftRisk.${label}.fetch_failed`, err);
+        return [];
+      }
+    };
+
+    const projectRef = db.collection('projects').doc(projectId);
+    const byProject = (col: string) =>
+      db.collection(col).where('projectId', '==', projectId);
+
+    // 7d window for recent incidents; midnight today for planned tasks.
+    const sevenDaysAgo = new Date(
+      Date.now() - 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const todayStartIso = todayStart.toISOString();
+
+    // Resolve optional `shift` + `date` query params; default to
+    // `day` + today (YYYY-MM-DD). The composer only handles those
+    // three periods.
+    const shiftParam =
+      typeof req.query.shift === 'string' &&
+      ['day', 'evening', 'night'].includes(req.query.shift)
+        ? (req.query.shift as 'day' | 'evening' | 'night')
+        : 'day';
+    const dateParam =
+      typeof req.query.date === 'string' &&
+      /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
+        ? req.query.date
+        : todayStartIso.slice(0, 10);
+
+    const [
+      workers,
+      recentIncidents,
+      criticalTasks,
+      equipment,
+      environment,
+      activePermits,
+      projectDoc,
+    ] = await Promise.all([
+      safeRead('workers', async () => {
+        const snap = await projectRef.collection('workers').get();
+        return snap.docs.map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          // Map Firestore shape to ShiftRiskInputs.workers[]. Workers
+          // collection commonly has: name/fullName, hireDate or
+          // createdAt, optional fatigueRisk + nightShiftHistory.
+          const hireRaw =
+            typeof data.hireDate === 'string'
+              ? data.hireDate
+              : typeof data.createdAt === 'string'
+                ? data.createdAt
+                : null;
+          const hireDate = hireRaw ? new Date(hireRaw) : null;
+          const daysSinceHire = hireDate
+            ? Math.max(
+                0,
+                Math.floor(
+                  (Date.now() - hireDate.getTime()) /
+                    (1000 * 60 * 60 * 24),
+                ),
+              )
+            : 999; // unknown → assume veteran (don't false-flag as new)
+          return {
+            uid: d.id,
+            fullName: String(
+              data.fullName ?? data.name ?? data.displayName ?? d.id,
+            ),
+            fatigueRisk:
+              typeof data.fatigueRisk === 'string' &&
+              ['low', 'moderate', 'high', 'critical'].includes(
+                data.fatigueRisk,
+              )
+                ? (data.fatigueRisk as 'low' | 'moderate' | 'high' | 'critical')
+                : 'low',
+            daysSinceHire,
+            hasNightShiftHistory:
+              typeof data.hasNightShiftHistory === 'boolean'
+                ? data.hasNightShiftHistory
+                : undefined,
+          };
+        });
+      }),
+      safeRead('incidents', async () => {
+        const snap = await byProject('incidents')
+          .where('occurredAt', '>=', sevenDaysAgo)
+          .limit(50)
+          .get();
+        return snap.docs.map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          const sev = typeof data.severity === 'string' ? data.severity : 'medium';
+          return {
+            id: d.id,
+            severity: (['low', 'medium', 'high', 'critical'].includes(sev)
+              ? sev
+              : 'medium') as 'low' | 'medium' | 'high' | 'critical',
+            occurredAt: String(
+              data.occurredAt ?? data.createdAt ?? new Date().toISOString(),
+            ),
+          };
+        });
+      }),
+      safeRead('tasks', async () => {
+        // Tasks may have `plannedDate` / `scheduledFor` and a
+        // `criticality` or boolean `isCriticalTask` flag. Read both
+        // conservatively. The composer only needs id + category +
+        // isCriticalTask + requiresPermit.
+        const snap = await byProject('tasks').limit(100).get();
+        return snap.docs
+          .map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            const planned =
+              typeof data.plannedDate === 'string'
+                ? data.plannedDate
+                : typeof data.scheduledFor === 'string'
+                  ? data.scheduledFor
+                  : null;
+            // Filter in JS so we don't need a Firestore composite index
+            // for plannedDate + criticality.
+            if (planned && planned < todayStartIso) return null;
+            const criticality =
+              typeof data.criticality === 'string'
+                ? data.criticality
+                : null;
+            const isCritical =
+              criticality === 'high' ||
+              criticality === 'critical' ||
+              data.isCriticalTask === true;
+            return {
+              id: d.id,
+              category: String(data.category ?? data.kind ?? 'general'),
+              isCriticalTask: isCritical,
+              requiresPermit:
+                typeof data.requiresPermit === 'boolean'
+                  ? data.requiresPermit
+                  : undefined,
+            };
+          })
+          .filter((t): t is NonNullable<typeof t> => t !== null);
+      }),
+      safeRead('equipment', async () => {
+        const snap = await byProject('assets').get();
+        return snap.docs.map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          const nextMaintRaw =
+            typeof data.nextMaintenanceAt === 'string'
+              ? data.nextMaintenanceAt
+              : typeof data.nextMaintenance === 'string'
+                ? data.nextMaintenance
+                : null;
+          const overdue = nextMaintRaw
+            ? new Date(nextMaintRaw).getTime() < Date.now()
+            : false;
+          return {
+            id: d.id,
+            code: String(data.code ?? data.name ?? d.id),
+            overdueMaintenance: overdue,
+          };
+        });
+      }),
+      safeRead('environment', async () => {
+        const snap = await db
+          .collection('global_context')
+          .doc('environment')
+          .get();
+        return snap.exists ? [{ id: snap.id, ...snap.data() }] : [];
+      }),
+      safeRead('permits', async () => {
+        // Active permits used as the `activePermitsCount` signal. The
+        // collection may live as `work_permits` (top-level) — best
+        // effort.
+        const snap = await byProject('work_permits')
+          .where('status', '==', 'active')
+          .get();
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      }),
+      safeRead('project', async () => {
+        const snap = await projectRef.get();
+        return snap.exists ? [{ id: snap.id, ...snap.data() }] : [];
+      }),
+    ]);
+
+    // Map environment doc (NASA POWER / Open-Meteo cached blob) to
+    // ShiftRiskInputs.weather. Use conservative defaults when fields
+    // are missing so the composer always returns a valid score.
+    const envDoc = environment[0] ?? {};
+    const env = envDoc as Record<string, unknown>;
+    const weather = {
+      rainProbability:
+        typeof env.rainProbability === 'number'
+          ? env.rainProbability
+          : 0,
+      windSpeedMs:
+        typeof env.windSpeedMs === 'number'
+          ? env.windSpeedMs
+          : typeof env.windSpeed === 'number'
+            ? (env.windSpeed as number)
+            : 0,
+      uvIndex: typeof env.uvIndex === 'number' ? env.uvIndex : 0,
+      temperatureC:
+        typeof env.temperatureC === 'number'
+          ? env.temperatureC
+          : typeof env.temperature === 'number'
+            ? (env.temperature as number)
+            : 20,
+      lightningRiskWithinHours:
+        typeof env.lightningRiskWithinHours === 'number'
+          ? env.lightningRiskWithinHours
+          : undefined,
+      visibilityKm:
+        typeof env.visibilityKm === 'number' ? env.visibilityKm : 10,
+    };
+
+    // Brigade readiness flag lives in the project doc (project-level
+    // configuration). Default to false (the composer flags this with
+    // a +15 factor) so missing config is visible, not hidden.
+    const projectData = (projectDoc[0] as Record<string, unknown>) ?? {};
+    const emergencyBrigadeReady =
+      typeof projectData.emergencyBrigadeReady === 'boolean'
+        ? projectData.emergencyBrigadeReady
+        : false;
+
+    const panel = composeShiftRiskPanel({
+      projectId,
+      shift: shiftParam,
+      date: dateParam,
+      weather,
+      workers,
+      plannedTasks: criticalTasks,
+      equipment,
+      recentIncidents,
+      activePermitsCount: activePermits.length,
+      emergencyBrigadeReady,
+    });
+
+    return res.json({ panel });
+  } catch (err) {
+    logger.error?.('sprintK.preShiftRisk.error', err);
+    captureRouteError(err, 'sprintK.preShiftRisk');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 
 const checklistItemSchema = z.object({
   id: z.string().min(1),

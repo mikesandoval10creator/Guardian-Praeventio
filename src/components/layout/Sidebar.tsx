@@ -154,6 +154,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Conocimiento reutilizable derivado de incidentes cerrados;
         // hace navegable lo que ya vivía como nodos LESSON en el grafo.
         { title: t("nav.lessons_learned", "Lecciones Aprendidas"), icon: BookOpen, path: "/lessons", color: "text-amber-500" },
+        // Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno).
+        // Supervisor lo abre ANTES de iniciar el turno para ver score
+        // global + factores trazables + top recomendaciones.
+        { title: t("nav.pre_shift_risk", "Pre-turno"), icon: Sun, path: "/pre-shift-risk", color: "text-amber-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },
