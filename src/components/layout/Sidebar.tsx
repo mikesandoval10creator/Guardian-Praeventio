@@ -226,6 +226,12 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // rutas con hazards + alertas en tiempo real (icy/fog/debris). No
         // bloquea operación, asiste al supervisor con criterio.
         { title: t("nav.driving_safety", "Conducción Segura"), icon: Car, path: "/driving-safety", color: "text-blue-500" },
+        // Sprint K §211-213 — Reportes Confidenciales (Ley Karin 21.643) +
+        // Canal de Denuncias + Detector de Represalias. Privacy-by-design:
+        // anónimo por defecto, hash one-way del autor que detecta patrones
+        // de represalia sin de-anonimizar. Color rose-500 = sensibilidad
+        // legal (consistente con Riesgo Residual y Patrones de Riesgo).
+        { title: t("nav.confidential_reports", "Reportes Confidenciales"), icon: ShieldAlert, path: "/confidential-reports", color: "text-rose-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },

@@ -2928,3 +2928,192 @@ export async function recordJourney(
   const json = (await res.json()) as { ok: true; journey: DrivingJourney };
   return json.journey;
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Sprint K §211-213 — Reportes Confidenciales (Ley Karin 21.643) +
+// Canal Denuncias + Detector Represalias
+// ────────────────────────────────────────────────────────────────────────
+
+export type ConfidentialReportKindApi =
+  | 'harassment'
+  | 'safety'
+  | 'discrimination'
+  | 'violence'
+  | 'conflict_of_interest'
+  | 'other';
+
+export type ConfidentialReportSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export type ConfidentialReportStatusApi = 'open' | 'investigating' | 'resolved';
+
+export interface ConfidentialReportApi {
+  id: string;
+  projectId: string;
+  kind: ConfidentialReportKindApi;
+  severity: ConfidentialReportSeverity;
+  narrative: string;
+  evidence?: string;
+  allowsIdentity: boolean;
+  /** Solo presente si allowsIdentity=true. NUNCA expuesto a no-autorizados. */
+  reporterUid?: string;
+  /** Pseudónimo one-way. */
+  reporterAnonHash: string;
+  status: ConfidentialReportStatusApi;
+  submittedAt: string;
+  firstResponseDueAt: string;
+  resolveDueAt: string;
+  handlerUid?: string;
+  firstResponseAt?: string;
+  resolvedAt?: string;
+  resolution?: string;
+}
+
+export interface ConfidentialReportsListResponse {
+  reports: ConfidentialReportApi[];
+  /** 'investigator' = ve todos. 'reporter' = solo los suyos. */
+  role: 'investigator' | 'reporter';
+}
+
+export interface RetaliationAlertApi {
+  reportId: string;
+  reporterAnonHash: string;
+  reportSubmittedAt: string;
+  actionAt: string;
+  actionKind:
+    | 'termination'
+    | 'shift_change'
+    | 'role_demotion'
+    | 'salary_decrease'
+    | 'transfer';
+  daysFromReport: number;
+  severity: 'high' | 'critical';
+}
+
+export interface RetaliationAlertsResponse {
+  alerts: RetaliationAlertApi[];
+  windowDays: number;
+}
+
+export interface ConfidentialReportFilter {
+  status?: ConfidentialReportStatusApi;
+  category?: ConfidentialReportKindApi;
+}
+
+export function useConfidentialReports(
+  projectId: string | null,
+  opts: ConfidentialReportFilter = {},
+) {
+  let path: string | null = null;
+  if (projectId) {
+    const qs = new URLSearchParams();
+    if (opts.status) qs.set('status', opts.status);
+    if (opts.category) qs.set('category', opts.category);
+    const query = qs.toString();
+    path = `/api/sprint-k/${projectId}/confidential-reports${query ? `?${query}` : ''}`;
+  }
+  return useEndpoint<ConfidentialReportsListResponse>(path);
+}
+
+export function useRetaliationAlerts(projectId: string | null) {
+  return useEndpoint<RetaliationAlertsResponse>(
+    projectId ? `/api/sprint-k/${projectId}/confidential-reports/retaliation-alerts` : null,
+  );
+}
+
+export interface SubmitConfidentialReportPayload {
+  kind: ConfidentialReportKindApi;
+  severity: ConfidentialReportSeverity;
+  narrative: string;
+  evidence?: string;
+  allowsIdentity: boolean;
+  /**
+   * Solo el server respeta este campo cuando allowsIdentity=true. Si
+   * allowsIdentity=false, el server JAMÁS lo persiste — pasamos el
+   * uid igual aquí únicamente porque el flujo identificado lo necesita.
+   */
+  reporterUid?: string;
+}
+
+export async function submitConfidentialReport(
+  projectId: string,
+  payload: SubmitConfidentialReportPayload,
+): Promise<{
+  ok: true;
+  report: ConfidentialReportApi;
+  sla: { firstResponseDueAt: string; resolveDueAt: string; legalReference: string };
+}> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  // Defensa cliente: si allowsIdentity=false NO mandamos reporterUid.
+  // El server tiene la misma defensa pero el principio de mínima
+  // exposición pide no transmitirlo nunca en ese caso.
+  const sanitized: SubmitConfidentialReportPayload = payload.allowsIdentity
+    ? payload
+    : { ...payload, reporterUid: undefined };
+  const res = await fetch(`/api/sprint-k/${projectId}/confidential-reports`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(sanitized),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  return (await res.json()) as {
+    ok: true;
+    report: ConfidentialReportApi;
+    sla: { firstResponseDueAt: string; resolveDueAt: string; legalReference: string };
+  };
+}
+
+export async function respondToReport(
+  projectId: string,
+  reportId: string,
+  message: string,
+): Promise<void> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/confidential-reports/${reportId}/respond`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message }),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+}
+
+export async function closeReport(
+  projectId: string,
+  reportId: string,
+  resolution: string,
+  outcome: 'substantiated' | 'unsubstantiated' | 'transferred' = 'substantiated',
+): Promise<void> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/confidential-reports/${reportId}/close`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ resolution, outcome }),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+}

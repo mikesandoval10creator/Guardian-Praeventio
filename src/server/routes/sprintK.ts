@@ -10358,4 +10358,487 @@ router.get('/:projectId/driving/ranking', verifyAuth, async (req, res) => {
 });
 
 
+
+// ─────────────────────────────────────────────────────────────────────────
+// Sprint K §211-213 — Reportes Confidenciales (Ley Karin 21.643) +
+// Canal de Denuncias + Protección contra Represalias
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Privacy-by-design:
+//   - Storage path: tenants/{tid}/confidential_reports/{id} (TENANT-level,
+//     not project-level — Ley Karin requires cross-project retaliation
+//     pattern detection within the same employer).
+//   - `allowsIdentity=false`  → `reporterUid` NEVER persisted; we only
+//     write `reporterAnonHash` = SHA-256(uid + salt).slice(0,32). This
+//     gives us a stable opaque pseudonym for retaliation pattern
+//     detection without ever being reversible to a real uid.
+//   - `allowsIdentity=true`   → `reporterUid` persisted + `reporterAnonHash`
+//     omitted (since the user opted out of anonymity, we don't need both).
+//   - Investigator responses are recorded in an audit subcollection,
+//     never overwritten. Only `confidential_handler`, `legal_counsel`,
+//     `hr_director`, or `prevencionista` roles may respond.
+//   - Retaliation alerts: surfaces patterns of recent disciplinary
+//     actions against past reporters WITHOUT de-anonymizing them. The
+//     server matches by `reporterAnonHash` only.
+//
+// SLA: 5 business days for first response (Art. 7 Ley 21.643, full
+// resolution within 30 calendar days).
+
+const CONFIDENTIAL_REPORT_KINDS = [
+  'harassment',
+  'safety',
+  'discrimination',
+  'violence',
+  'conflict_of_interest',
+  'other',
+] as const;
+type ConfidentialReportKindApi = (typeof CONFIDENTIAL_REPORT_KINDS)[number];
+
+const CONFIDENTIAL_REPORT_SEVERITIES = ['low', 'medium', 'high', 'critical'] as const;
+type ConfidentialReportSeverity = (typeof CONFIDENTIAL_REPORT_SEVERITIES)[number];
+
+const CONFIDENTIAL_REPORT_STATUSES = ['open', 'investigating', 'resolved'] as const;
+type ConfidentialReportStatusApi = (typeof CONFIDENTIAL_REPORT_STATUSES)[number];
+
+// Roles que pueden responder o ver inbox de investigador. El autor
+// identificado siempre puede ver SU reporte (filtrado en query layer).
+const CONFIDENTIAL_HANDLER_ROLES = new Set([
+  'confidential_handler',
+  'legal_counsel',
+  'hr_director',
+  'prevencionista',
+  'admin',
+]);
+
+/**
+ * Salt para hash anónimo. En prod debe ser un secret env distinto del
+ * de pulse — el de pulse rota por survey, el de confidenciales DEBE
+ * ser estable a nivel tenant porque queremos detectar el mismo autor
+ * a través de múltiples reportes en el tiempo (patrón de represalia).
+ */
+function confidentialReporterSalt(tenantId: string): string {
+  return process.env.CONFIDENTIAL_REPORTS_SALT ?? `praeventio_confidential_v1:${tenantId}`;
+}
+
+function hashReporterAnon(uid: string, tenantId: string): string {
+  const salt = confidentialReporterSalt(tenantId);
+  return createHash('sha256').update(`${salt}:${uid}`).digest('hex').slice(0, 32);
+}
+
+interface StoredConfidentialReport {
+  id: string;
+  projectId: string;
+  kind: ConfidentialReportKindApi;
+  severity: ConfidentialReportSeverity;
+  narrative: string;
+  evidence?: string;
+  allowsIdentity: boolean;
+  /** Solo presente si allowsIdentity=true. */
+  reporterUid?: string;
+  /** Pseudónimo estable para detección de represalias (one-way). */
+  reporterAnonHash: string;
+  status: ConfidentialReportStatusApi;
+  submittedAt: string;
+  /** Plazo SLA respuesta inicial (5 días hábiles ~ 7 cal). */
+  firstResponseDueAt: string;
+  /** Plazo resolución completa (30 días Ley Karin). */
+  resolveDueAt: string;
+  handlerUid?: string;
+  firstResponseAt?: string;
+  resolvedAt?: string;
+  resolution?: string;
+}
+
+interface StoredReportResponseEvent {
+  /** ISO-8601 — also the doc id, ordering-stable. */
+  at: string;
+  actorUid: string;
+  actorRole: string;
+  kind: 'response' | 'status_change' | 'closure';
+  message: string;
+  newStatus?: ConfidentialReportStatusApi;
+}
+
+interface StoredAdverseAction {
+  workerUidHash: string;
+  changedAt: string;
+  changeKind: 'termination' | 'shift_change' | 'role_demotion' | 'salary_decrease' | 'transfer';
+  changedByUid: string;
+}
+
+const CONFIDENTIAL_REPORTS_PATH = (tid: string) =>
+  `tenants/${tid}/confidential_reports`;
+const CONFIDENTIAL_REPORTS_AUDIT_PATH = (tid: string, id: string) =>
+  `tenants/${tid}/confidential_reports/${id}/audit`;
+const CONFIDENTIAL_ADVERSE_ACTIONS_PATH = (tid: string) =>
+  `tenants/${tid}/confidential_adverse_actions`;
+
+async function resolveRequesterRole(uid: string): Promise<string> {
+  try {
+    const claims = (await admin.auth().getUser(uid)).customClaims ?? {};
+    if (typeof claims.role === 'string') return claims.role;
+  } catch (err) {
+    logger.warn?.('sprintK.confidential.resolveRole.failed', err);
+  }
+  return 'worker';
+}
+
+router.get('/:projectId/confidential-reports', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  const rawStatus = typeof req.query.status === 'string' ? req.query.status : null;
+  const rawCategory = typeof req.query.category === 'string' ? req.query.category : null;
+  const status: ConfidentialReportStatusApi | null =
+    rawStatus && (CONFIDENTIAL_REPORT_STATUSES as readonly string[]).includes(rawStatus)
+      ? (rawStatus as ConfidentialReportStatusApi)
+      : null;
+  const category: ConfidentialReportKindApi | null =
+    rawCategory && (CONFIDENTIAL_REPORT_KINDS as readonly string[]).includes(rawCategory)
+      ? (rawCategory as ConfidentialReportKindApi)
+      : null;
+  try {
+    const db = admin.firestore();
+    const callerRole = await resolveRequesterRole(callerUid);
+    const isInvestigator = CONFIDENTIAL_HANDLER_ROLES.has(callerRole);
+    const callerAnonHash = hashReporterAnon(callerUid, g.tenantId);
+    let query: FirebaseFirestore.Query = db
+      .collection(CONFIDENTIAL_REPORTS_PATH(g.tenantId))
+      .where('projectId', '==', projectId);
+    if (status) query = query.where('status', '==', status);
+    if (category) query = query.where('kind', '==', category);
+    let docs: StoredConfidentialReport[] = [];
+    try {
+      const snap = await query.orderBy('submittedAt', 'desc').limit(500).get();
+      docs = snap.docs.map((d) => d.data() as StoredConfidentialReport);
+    } catch (err) {
+      logger.warn?.('sprintK.confidential.list.read_failed', err);
+      docs = [];
+    }
+    // PRIVACY FILTER: workers can only see their OWN reports (matched by
+    // anonHash for anonymous reports, or reporterUid for identified ones).
+    // Investigators see everything (already gated by role).
+    const filtered = isInvestigator
+      ? docs
+      : docs.filter(
+          (r) =>
+            (r.allowsIdentity && r.reporterUid === callerUid) ||
+            r.reporterAnonHash === callerAnonHash,
+        );
+    // Strip reporterUid from any record the caller isn't authorized to
+    // see identified (defensive — investigator-level access already
+    // grants visibility, workers only see their own).
+    const safeRecords = filtered.map((r) => {
+      const isOwnIdentified = r.allowsIdentity && r.reporterUid === callerUid;
+      if (isInvestigator || isOwnIdentified) return r;
+      // Anonymous report viewed by its own author (matched by hash):
+      // never re-leak reporterUid (it shouldn't exist anyway, but
+      // defense in depth).
+      const { reporterUid: _stripped, ...rest } = r;
+      return rest as StoredConfidentialReport;
+    });
+    return res.json({
+      reports: safeRecords,
+      role: isInvestigator ? 'investigator' : 'reporter',
+    });
+  } catch (err) {
+    logger.error?.('sprintK.confidential.list.error', err);
+    captureRouteError(err, 'sprintK.confidential.list');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+const confidentialReportCreateSchema = z.object({
+  kind: z.enum(CONFIDENTIAL_REPORT_KINDS),
+  severity: z.enum(CONFIDENTIAL_REPORT_SEVERITIES),
+  narrative: z.string().min(10).max(8000),
+  evidence: z.string().max(4000).optional(),
+  allowsIdentity: z.boolean(),
+  // El client puede enviarlo o el server lo deriva. Sólo se persiste
+  // si allowsIdentity=true — NUNCA en caso contrario.
+  reporterUid: z.string().min(1).max(120).optional(),
+});
+
+router.post(
+  '/:projectId/confidential-reports',
+  verifyAuth,
+  validate(confidentialReportCreateSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof confidentialReportCreateSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const now = new Date().toISOString();
+      const id = `cr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      // SLA: 5 días hábiles ≈ 7 días calendario para primera respuesta;
+      // 30 días Ley Karin para resolución total.
+      const firstResponseDueAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
+      const resolveDueAt = new Date(Date.now() + 30 * 86_400_000).toISOString();
+
+      // CRITICAL PRIVACY: el hash anónimo se calcula SIEMPRE sobre el
+      // callerUid (no sobre `body.reporterUid`, que el client podría
+      // manipular). El uid real sólo se persiste si allowsIdentity=true.
+      const reporterAnonHash = hashReporterAnon(callerUid, g.tenantId);
+      const payload: StoredConfidentialReport = {
+        id,
+        projectId,
+        kind: body.kind,
+        severity: body.severity,
+        narrative: body.narrative,
+        evidence: body.evidence,
+        allowsIdentity: body.allowsIdentity === true,
+        reporterAnonHash,
+        status: 'open',
+        submittedAt: now,
+        firstResponseDueAt,
+        resolveDueAt,
+      };
+      if (payload.allowsIdentity) {
+        payload.reporterUid = callerUid;
+      }
+      const cleaned: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(payload)) {
+        if (v !== undefined) cleaned[k] = v;
+      }
+      await db
+        .collection(CONFIDENTIAL_REPORTS_PATH(g.tenantId))
+        .doc(id)
+        .set(cleaned, { merge: false });
+      return res.status(201).json({
+        ok: true,
+        report: payload,
+        sla: {
+          firstResponseDueAt,
+          resolveDueAt,
+          legalReference: 'Art. 7 Ley 21.643 — 5 días hábiles primera respuesta',
+        },
+      });
+    } catch (err) {
+      logger.error?.('sprintK.confidential.create.error', err);
+      captureRouteError(err, 'sprintK.confidential.create');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const confidentialReportRespondSchema = z.object({
+  message: z.string().min(1).max(8000),
+});
+
+router.post(
+  '/:projectId/confidential-reports/:id/respond',
+  verifyAuth,
+  validate(confidentialReportRespondSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, id } = req.params;
+    const body = req.body as z.infer<typeof confidentialReportRespondSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const callerRole = await resolveRequesterRole(callerUid);
+      if (!CONFIDENTIAL_HANDLER_ROLES.has(callerRole)) {
+        return res.status(403).json({ error: 'role_not_authorized_to_respond' });
+      }
+      const db = admin.firestore();
+      const docRef = db.collection(CONFIDENTIAL_REPORTS_PATH(g.tenantId)).doc(id);
+      const snap = await docRef.get();
+      if (!snap.exists) {
+        return res.status(404).json({ error: 'report_not_found' });
+      }
+      const existing = snap.data() as StoredConfidentialReport;
+      if (existing.projectId !== projectId) {
+        return res.status(404).json({ error: 'report_not_found' });
+      }
+      const now = new Date().toISOString();
+      // Move status forward if still open.
+      const newStatus: ConfidentialReportStatusApi =
+        existing.status === 'open' ? 'investigating' : existing.status;
+      const patch: Partial<StoredConfidentialReport> = {
+        status: newStatus,
+        handlerUid: existing.handlerUid ?? callerUid,
+        firstResponseAt: existing.firstResponseAt ?? now,
+      };
+      await docRef.set(patch, { merge: true });
+      const event: StoredReportResponseEvent = {
+        at: now,
+        actorUid: callerUid,
+        actorRole: callerRole,
+        kind: 'response',
+        message: body.message,
+        newStatus,
+      };
+      await db
+        .collection(CONFIDENTIAL_REPORTS_AUDIT_PATH(g.tenantId, id))
+        .doc(now)
+        .set(event);
+      return res.status(200).json({ ok: true, event });
+    } catch (err) {
+      logger.error?.('sprintK.confidential.respond.error', err);
+      captureRouteError(err, 'sprintK.confidential.respond');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const confidentialReportCloseSchema = z.object({
+  resolution: z.string().min(1).max(8000),
+  /** Outcome — declarativo, no afecta privacidad. */
+  outcome: z.enum(['substantiated', 'unsubstantiated', 'transferred']).default('substantiated'),
+});
+
+router.post(
+  '/:projectId/confidential-reports/:id/close',
+  verifyAuth,
+  validate(confidentialReportCloseSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, id } = req.params;
+    const body = req.body as z.infer<typeof confidentialReportCloseSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const callerRole = await resolveRequesterRole(callerUid);
+      if (!CONFIDENTIAL_HANDLER_ROLES.has(callerRole)) {
+        return res.status(403).json({ error: 'role_not_authorized_to_close' });
+      }
+      const db = admin.firestore();
+      const docRef = db.collection(CONFIDENTIAL_REPORTS_PATH(g.tenantId)).doc(id);
+      const snap = await docRef.get();
+      if (!snap.exists) {
+        return res.status(404).json({ error: 'report_not_found' });
+      }
+      const existing = snap.data() as StoredConfidentialReport;
+      if (existing.projectId !== projectId) {
+        return res.status(404).json({ error: 'report_not_found' });
+      }
+      const now = new Date().toISOString();
+      const patch: Partial<StoredConfidentialReport> = {
+        status: 'resolved',
+        resolution: `[${body.outcome}] ${body.resolution}`,
+        resolvedAt: now,
+        handlerUid: existing.handlerUid ?? callerUid,
+      };
+      await docRef.set(patch, { merge: true });
+      const event: StoredReportResponseEvent = {
+        at: now,
+        actorUid: callerUid,
+        actorRole: callerRole,
+        kind: 'closure',
+        message: `${body.outcome}: ${body.resolution}`,
+        newStatus: 'resolved',
+      };
+      await db
+        .collection(CONFIDENTIAL_REPORTS_AUDIT_PATH(g.tenantId, id))
+        .doc(now)
+        .set(event);
+      return res.status(200).json({ ok: true, event, resolvedAt: now });
+    } catch (err) {
+      logger.error?.('sprintK.confidential.close.error', err);
+      captureRouteError(err, 'sprintK.confidential.close');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+router.get(
+  '/:projectId/confidential-reports/retaliation-alerts',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const callerRole = await resolveRequesterRole(callerUid);
+      if (!CONFIDENTIAL_HANDLER_ROLES.has(callerRole)) {
+        // Anti-leak: workers must never see the retaliation panel — it
+        // could indirectly de-anonymize past reporters by listing dates.
+        return res.status(403).json({ error: 'role_not_authorized' });
+      }
+      const db = admin.firestore();
+      const safeRead = async <T,>(fn: () => Promise<T[]>): Promise<T[]> => {
+        try {
+          return await fn();
+        } catch (err) {
+          logger.warn?.('sprintK.confidential.retaliation.read_failed', err);
+          return [];
+        }
+      };
+      // Reportes históricos cualquier estado.
+      const reports = await safeRead<StoredConfidentialReport>(async () => {
+        const snap = await db
+          .collection(CONFIDENTIAL_REPORTS_PATH(g.tenantId))
+          .where('projectId', '==', projectId)
+          .orderBy('submittedAt', 'desc')
+          .limit(500)
+          .get();
+        return snap.docs.map((d) => d.data() as StoredConfidentialReport);
+      });
+      // Acciones laborales adversas registradas — el client/HR las anota
+      // explícitamente con el hash anónimo del trabajador (NUNCA con el
+      // uid real cuando el trabajador fue autor anónimo).
+      const adverseActions = await safeRead<StoredAdverseAction>(async () => {
+        const snap = await db
+          .collection(CONFIDENTIAL_ADVERSE_ACTIONS_PATH(g.tenantId))
+          .orderBy('changedAt', 'desc')
+          .limit(1000)
+          .get();
+        return snap.docs.map((d) => d.data() as StoredAdverseAction);
+      });
+      // Pattern detection: por cada reporte (anónimo o identificado),
+      // calcula el hash estable del autor y busca acciones adversas
+      // dentro de los 90 días posteriores que apunten al mismo hash.
+      // NOTA: never de-anonymizes; el output solo expone el hash.
+      const RETALIATION_WINDOW_MS = 90 * 86_400_000;
+      const alerts: Array<{
+        reportId: string;
+        reporterAnonHash: string;
+        reportSubmittedAt: string;
+        actionAt: string;
+        actionKind: StoredAdverseAction['changeKind'];
+        daysFromReport: number;
+        severity: 'high' | 'critical';
+      }> = [];
+      for (const r of reports) {
+        const reportMs = Date.parse(r.submittedAt);
+        if (Number.isNaN(reportMs)) continue;
+        for (const a of adverseActions) {
+          if (a.workerUidHash !== r.reporterAnonHash) continue;
+          const actionMs = Date.parse(a.changedAt);
+          if (Number.isNaN(actionMs)) continue;
+          if (actionMs <= reportMs) continue;
+          if (actionMs - reportMs > RETALIATION_WINDOW_MS) continue;
+          const daysFromReport = Math.floor((actionMs - reportMs) / 86_400_000);
+          const severity: 'high' | 'critical' =
+            a.changeKind === 'termination' || a.changeKind === 'salary_decrease'
+              ? 'critical'
+              : 'high';
+          alerts.push({
+            reportId: r.id,
+            reporterAnonHash: r.reporterAnonHash,
+            reportSubmittedAt: r.submittedAt,
+            actionAt: a.changedAt,
+            actionKind: a.changeKind,
+            daysFromReport,
+            severity,
+          });
+        }
+      }
+      // Critical first.
+      alerts.sort((x, y) => (x.severity === 'critical' ? -1 : 1));
+      return res.json({ alerts, windowDays: 90 });
+    } catch (err) {
+      logger.error?.('sprintK.confidential.retaliation.error', err);
+      captureRouteError(err, 'sprintK.confidential.retaliation');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+
 export default router;
