@@ -2059,36 +2059,70 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
         });
       }),
       safeRead('incidents', async () => {
-        const snap = await byProject('incidents')
-          .where('occurredAt', '>=', sevenDaysAgo)
-          .limit(50)
-          .get();
-        return snap.docs.map((d) => {
-          const data = d.data() as Record<string, unknown>;
-          // Codex P2 (PR #311): incident records carry either the EN
-          // canonical enum ('low'/'medium'/'high'/'critical') OR ES
-          // legacy labels ('Baja'/'Media'/'Alta'/'Crítica' — and
-          // 'leve'/'moderado'/'grave' via the incidentBundle alias
-          // table). Use the canonical normalizer so high/critical
-          // Spanish-labeled incidents aren't silently downgraded to
-          // 'medium' and don't fail to push the panel past the
-          // amber/red threshold. SUSESO `sif` folds back to
-          // 'critical' since the composer's weight table tops out
-          // there.
-          const sevRaw = typeof data.severity === 'string' ? data.severity : '';
-          const normalized = sevRaw ? normalizeSeverity(sevRaw) : null;
-          const severity: 'low' | 'medium' | 'high' | 'critical' =
-            normalized === 'sif'
-              ? 'critical'
-              : normalized ?? 'medium';
-          return {
-            id: d.id,
-            severity,
-            occurredAt: String(
-              data.occurredAt ?? data.createdAt ?? new Date().toISOString(),
-            ),
-          };
-        });
+        // Codex P2 round-2 (PR #311): the previous
+        // `.where('occurredAt', '>=', sevenDaysAgo)` Firestore filter
+        // dropped any incident record that carries only `createdAt`
+        // (legacy imports, plus the canonical incidentBundle path
+        // which already accepts `createdAt` as the timestamp
+        // fallback). When the project's only recent high/critical
+        // incident lives on that shape, the entire
+        // `recent-incidents` factor disappears and the pre-shift
+        // panel under-reports the shift risk.
+        //
+        // Read a bounded set ordered by `createdAt` (the field
+        // every legacy + canonical write path sets) and apply the
+        // same `occurredAt ?? createdAt` fallback BEFORE the 7-day
+        // window check, in JS, so both timestamp shapes are
+        // honored. Bounded at 200 docs to keep one project's noisy
+        // history from blowing up read costs.
+        //
+        // TODO(firestore-index): once a composite index exists on
+        //   `projectId + createdAt desc` we can promote the order
+        //   back into Firestore (`.orderBy('createdAt', 'desc')`)
+        //   and drop the JS slice. Until then the JS filter is the
+        //   correct fallback (Firestore would throw
+        //   FAILED_PRECONDITION without the index).
+        const snap = await byProject('incidents').limit(200).get();
+        const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        return snap.docs
+          .map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            // Canonical timestamp resolution: prefer `occurredAt`
+            // (when set by the canonical incidentBundle write
+            // path), fall back to `createdAt` (legacy + imported
+            // records). The same coercion chain handles
+            // ISO strings, Firestore Timestamps, epoch numbers, and
+            // bare YYYY-MM-DD.
+            const tsDate =
+              coerceToDate(data.occurredAt) ??
+              coerceToDate(data.createdAt);
+            if (!tsDate || tsDate.getTime() < sevenDaysAgoMs) {
+              return null;
+            }
+            // Codex P2 (PR #311): incident records carry either the EN
+            // canonical enum ('low'/'medium'/'high'/'critical') OR ES
+            // legacy labels ('Baja'/'Media'/'Alta'/'Crítica' — and
+            // 'leve'/'moderado'/'grave' via the incidentBundle alias
+            // table). Use the canonical normalizer so high/critical
+            // Spanish-labeled incidents aren't silently downgraded to
+            // 'medium' and don't fail to push the panel past the
+            // amber/red threshold. SUSESO `sif` folds back to
+            // 'critical' since the composer's weight table tops out
+            // there.
+            const sevRaw = typeof data.severity === 'string' ? data.severity : '';
+            const normalized = sevRaw ? normalizeSeverity(sevRaw) : null;
+            const severity: 'low' | 'medium' | 'high' | 'critical' =
+              normalized === 'sif'
+                ? 'critical'
+                : normalized ?? 'medium';
+            return {
+              id: d.id,
+              severity,
+              occurredAt: tsDate.toISOString(),
+            };
+          })
+          .filter((i): i is NonNullable<typeof i> => i !== null)
+          .slice(0, 50);
       }),
       safeRead('tasks', async () => {
         // Tasks may have `plannedDate` / `scheduledFor` and a
@@ -2129,10 +2163,23 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
         return snap.docs
           .map((d) => {
             const data = d.data() as Record<string, unknown>;
+            // Codex P2 round-2 (PR #311): the canonical organic-task
+            // endpoint (`POST /api/processes/:id/tasks` in
+            // `src/server/routes/organic.ts`) writes the planned day
+            // into top-level `date` (validated as `YYYY-MM-DD`). The
+            // mapper used to check only `plannedDate` /
+            // `scheduledFor` / `dueDate`, so canonical-schema tasks
+            // had no date and slipped past the day filter — a
+            // critical task dated next week was counted in today's
+            // pre-shift score. Include `data.date` (and `data.day`
+            // for the legacy alias seen in some importers) in the
+            // same coercion chain.
             const plannedDate =
               coerceToDate(data.plannedDate) ??
               coerceToDate(data.scheduledFor) ??
-              coerceToDate(data.dueDate);
+              coerceToDate(data.dueDate) ??
+              coerceToDate(data.date) ??
+              coerceToDate(data.day);
             // If we can't pin down a date, keep the task — the
             // composer will weight it as best-effort. The previous
             // behavior of silently dropping it also dropped tasks
@@ -2164,8 +2211,22 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
           .filter((t): t is NonNullable<typeof t> => t !== null);
       }),
       safeRead('equipment', async () => {
-        const snap = await byProject('assets').get();
-        return snap.docs.map((d) => {
+        // Codex P2 round-2 (PR #311): the Sprint K equipment API
+        // (`GET /:projectId/equipment` above) writes via
+        // `EquipmentAdapter` into the CANONICAL store
+        // `tenants/{tenantId}/projects/{projectId}/equipment`, with
+        // master records carrying `nextMaintenanceAt`. The old
+        // reader scanned only the legacy top-level `assets`
+        // collection, so any equipment maintained through the QR /
+        // equipment module was invisible here — overdue maintenance
+        // there couldn't raise the shift-risk factor or block
+        // recommendations.
+        //
+        // Read BOTH stores in parallel and merge them, deduping by
+        // (code → id) so a record present in both shapes is counted
+        // once. The canonical record wins on overlap because it's
+        // the active write path.
+        const mapDoc = (d: { id: string; data(): unknown }) => {
           const data = d.data() as Record<string, unknown>;
           // Codex P2 (PR #311): MaquinariaManager writes
           // `nextMaintenance` from `<input type="date">`, which
@@ -2188,7 +2249,42 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
             code: String(data.code ?? data.name ?? d.id),
             overdueMaintenance: overdue,
           };
-        });
+        };
+
+        const legacyPromise = byProject('assets')
+          .get()
+          .then((s: { docs: Array<{ id: string; data(): unknown }> }) =>
+            s.docs.map(mapDoc),
+          )
+          .catch(() => [] as ReturnType<typeof mapDoc>[]);
+
+        const canonicalPromise: Promise<ReturnType<typeof mapDoc>[]> = (async () => {
+          try {
+            const canonSnap = await db
+              .collection(
+                `tenants/${g.tenantId}/projects/${projectId}/equipment`,
+              )
+              .limit(500)
+              .get();
+            return canonSnap.docs.map(mapDoc);
+          } catch {
+            return [];
+          }
+        })();
+
+        const [legacy, canonical] = await Promise.all([
+          legacyPromise,
+          canonicalPromise,
+        ]);
+
+        // Dedupe by code (preferred) → id, with canonical taking
+        // precedence on overlap (active write path).
+        const dedupKey = (e: { id: string; code: string }) =>
+          e.code && e.code !== e.id ? `code:${e.code}` : `id:${e.id}`;
+        const merged = new Map<string, ReturnType<typeof mapDoc>>();
+        for (const e of legacy) merged.set(dedupKey(e), e);
+        for (const e of canonical) merged.set(dedupKey(e), e);
+        return Array.from(merged.values());
       }),
       safeRead('environment', async () => {
         const snap = await db
@@ -2271,6 +2367,23 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
       (typeof windKmh === 'number' ? windKmh / 3.6 : undefined) ??
       (typeof windFallbackKmh === 'number' ? windFallbackKmh / 3.6 : 0);
 
+    // Codex P2 round-2 (PR #311): OpenWeather-shaped cached payloads
+    // report bare `visibility` in METERS (their `current.visibility`
+    // field is documented as "Visibility, meter. Maximum value 10000").
+    // Aliasing that straight onto `visibilityKm` made fog at 500 m read
+    // as 500 km, which trivially passes the composer's `< 1 km`
+    // low-visibility check and suppresses the factor. Treat the bare
+    // `visibility` field as meters (the OpenWeather convention) and
+    // back-convert; treat the explicit `visibilityKm` field as km.
+    const visibilityKmExplicit = readNumber('visibilityKm');
+    const visibilityMeters = readNumber('visibility');
+    const visibilityKm =
+      visibilityKmExplicit ??
+      (typeof visibilityMeters === 'number'
+        ? visibilityMeters / 1000
+        : undefined) ??
+      10;
+
     const weather = {
       rainProbability,
       windSpeedMs,
@@ -2278,8 +2391,7 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
       temperatureC:
         readNumber('temperatureC', 'temp', 'temperature') ?? 20,
       lightningRiskWithinHours: readNumber('lightningRiskWithinHours'),
-      visibilityKm:
-        readNumber('visibilityKm', 'visibility') ?? 10,
+      visibilityKm,
     };
 
     // Brigade readiness flag lives in the project doc (project-level
