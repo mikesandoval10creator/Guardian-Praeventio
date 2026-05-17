@@ -5578,5 +5578,234 @@ router.post(
   },
 );
 
+// ────────────────────────────────────────────────────────────────────────
+// Sprint K §214-215 — Observaciones Positivas (listing + balance)
+// ────────────────────────────────────────────────────────────────────────
+//
+// Endpoints adicionales sobre el motor positiveObservations que ya
+// expone /worker/:workerUid (más arriba). Aquí cerramos:
+//   - GET /positive-observations?period=30d|90d|all   (listing global)
+//   - POST /positive-observations                     (alias create — el
+//      handler genérico sigue validando observerUid via verifyAuth)
+//   - GET /positive-observations/balance              (Balance §215:
+//      ratio positivas vs correctivas del mismo período)
+//
+// La filosofía detrás de §214-215 (cultura preventiva sana NO solo
+// registra lo malo): documento usuario "§214-215".
+
+type ObservationPeriod = '30d' | '90d' | 'all';
+
+function periodToSinceIso(period: ObservationPeriod): string | null {
+  if (period === 'all') return null;
+  const ms = period === '30d' ? 30 * 24 * 60 * 60 * 1000 : 90 * 24 * 60 * 60 * 1000;
+  return new Date(Date.now() - ms).toISOString();
+}
+
+function parsePeriod(raw: unknown): ObservationPeriod {
+  if (raw === '30d' || raw === '90d' || raw === 'all') return raw;
+  return '30d';
+}
+
+// Codex P2 PR #320 (line 5142): cap unbounded reads on the global
+// listing. Without a limit, opening this page on a busy project would
+// download every observation since the project's start (potentially
+// thousands of docs). We page in fixed chunks ordered newest-first.
+const POSITIVE_OBSERVATIONS_PAGE_LIMIT = 500;
+
+router.get(
+  '/:projectId/positive-observations',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    const period = parsePeriod(req.query.period);
+    const rawStartAfter = req.query.startAfter;
+    const startAfterId =
+      typeof rawStartAfter === 'string' && rawStartAfter.trim().length > 0
+        ? rawStartAfter.trim()
+        : null;
+    try {
+      const db = admin.firestore();
+      const path = `tenants/${g.tenantId}/projects/${projectId}/positive_observations`;
+      // safeRead pattern: per-query try/catch so a missing/empty collection
+      // returns [] instead of 500. Aligns with the existing
+      // dataQuality/maturity endpoints in this file.
+      const safeRead = async <T,>(
+        label: string,
+        fn: () => Promise<T[]>,
+      ): Promise<T[]> => {
+        try {
+          return await fn();
+        } catch (err) {
+          logger.warn?.(`sprintK.positive.list.${label}.failed`, err);
+          return [];
+        }
+      };
+      const sinceIso = periodToSinceIso(period);
+      const observations = await safeRead('positive_observations', async () => {
+        let query: FirebaseFirestore.Query = sinceIso
+          ? db.collection(path).where('observedAt', '>=', sinceIso)
+          : db.collection(path);
+        // Order newest-first so users see the most recent observations
+        // when the page is bounded. orderBy on the same field as the
+        // range filter is required/supported by Firestore semantics.
+        query = query.orderBy('observedAt', 'desc');
+        if (startAfterId) {
+          const cursorSnap = await db.collection(path).doc(startAfterId).get();
+          if (cursorSnap.exists) {
+            query = query.startAfter(cursorSnap);
+          } else {
+            logger.warn?.('sprintK.positive.list.startAfter.notFound', { startAfterId });
+          }
+        }
+        // +1 to detect whether more docs exist beyond the page.
+        const snap = await query.limit(POSITIVE_OBSERVATIONS_PAGE_LIMIT + 1).get();
+        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as object) }));
+      });
+      const hasMore = observations.length > POSITIVE_OBSERVATIONS_PAGE_LIMIT;
+      const pageItems = hasMore
+        ? observations.slice(0, POSITIVE_OBSERVATIONS_PAGE_LIMIT)
+        : observations;
+      const nextStartAfter = hasMore
+        ? (pageItems[pageItems.length - 1] as { id?: string } | undefined)?.id ?? null
+        : null;
+      if (hasMore) {
+        // Surface in logs so we can detect projects that routinely hit the
+        // cap and budget for richer pagination UX.
+        logger.warn?.('sprintK.positive.list.pageCapped', {
+          projectId,
+          period,
+          limit: POSITIVE_OBSERVATIONS_PAGE_LIMIT,
+        });
+      }
+      return res.json({
+        observations: pageItems,
+        period,
+        pagination: {
+          limit: POSITIVE_OBSERVATIONS_PAGE_LIMIT,
+          hasMore,
+          nextStartAfter,
+        },
+      });
+    } catch (err) {
+      logger.error?.('sprintK.positive.list.error', err);
+      captureRouteError(err, 'sprintK.positive.list');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+router.get(
+  '/:projectId/positive-observations/balance',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    const period = parsePeriod(req.query.period);
+    try {
+      const { computeBalance } = await import(
+        '../../services/positiveObservations/positiveObservationsService.js'
+      );
+      const db = admin.firestore();
+      const tenantProjectPath = `tenants/${g.tenantId}/projects/${projectId}`;
+      const sinceIso = periodToSinceIso(period);
+
+      const safeCount = async (label: string, fn: () => Promise<number>): Promise<number> => {
+        try {
+          return await fn();
+        } catch (err) {
+          logger.warn?.(`sprintK.positive.balance.${label}.failed`, err);
+          return 0;
+        }
+      };
+
+      // Codex P2 PR #320 (line 5188): use Firestore count() aggregate
+      // instead of downloading every doc just to compute snap.docs.length.
+      // On large projects the previous .get() materialized the whole
+      // collection per balance refresh — the count() aggregate is a
+      // single billed read regardless of cardinality.
+      //
+      // Codex P2 round 2 PR #320 (line 5254): keep the corrective count
+      // in the same window as the positive count when a finite period
+      // is requested. The legacy CorrectiveAction shape from
+      // weakActionDetector.ts has no creation timestamp, but the F.4
+      // record shape (`CorrectiveActionRecord` in correctiveActionsCenter.ts)
+      // does carry `dueDate` — which is required at creation and is the
+      // most stable proxy we have for "actionable in this window".
+      // We range-filter by `dueDate >= sinceIso` and surface the basis
+      // used so the UI can be transparent ("30 días · dueDate").
+      // If the filtered query fails (e.g. missing composite index), we
+      // fall back to the all-time count and surface that fallback in
+      // `correctivePeriodBasis` so the UI labels it honestly instead of
+      // implying a period match that didn't happen.
+      const correctivesPath = `${tenantProjectPath}/corrective_actions`;
+      let correctivePeriodBasis: 'dueDate' | 'all' = sinceIso ? 'dueDate' : 'all';
+      const [positiveCount, correctiveCount] = await Promise.all([
+        safeCount('positive', async () => {
+          const base = db.collection(`${tenantProjectPath}/positive_observations`);
+          const query = sinceIso ? base.where('observedAt', '>=', sinceIso) : base;
+          const snap = await query.count().get();
+          return Number(snap.data().count ?? 0);
+        }),
+        safeCount('corrective', async () => {
+          const base = db.collection(correctivesPath);
+          if (!sinceIso) {
+            const snap = await base.count().get();
+            return Number(snap.data().count ?? 0);
+          }
+          try {
+            const snap = await base
+              .where('dueDate', '>=', sinceIso)
+              .count()
+              .get();
+            return Number(snap.data().count ?? 0);
+          } catch (err) {
+            // Range filter failed (likely missing index, or pre-F.4
+            // docs without `dueDate`). Fall back to all-time so the
+            // widget still renders, but record the fallback so the UI
+            // labels the asymmetry instead of lying.
+            logger.warn?.('sprintK.positive.balance.corrective.dueDateFilter.failed', err);
+            correctivePeriodBasis = 'all';
+            const snap = await base.count().get();
+            return Number(snap.data().count ?? 0);
+          }
+        }),
+      ]);
+
+      const balance = computeBalance({ positiveCount, correctiveCount });
+      const ratio = correctiveCount > 0 ? positiveCount / correctiveCount : positiveCount;
+      // Codex P2 round 2 PR #320 (line 5254): align `correctivePeriod`
+      // with the actual filter we applied. When `correctivePeriodBasis`
+      // is `'dueDate'`, the count covers the same window as the
+      // positive side; when it's `'all'` (no period requested, or
+      // fallback), the UI needs to know to render the asymmetry chip.
+      const correctivePeriod: ObservationPeriod =
+        correctivePeriodBasis === 'dueDate' ? period : 'all';
+      return res.json({
+        positive: positiveCount,
+        corrective: correctiveCount,
+        ratio,
+        period,
+        // Codex P2 PR #320 (line 5198) + round 2: be explicit about
+        // which window each count covers so the UI can render an
+        // honest "vs" label and avoid a false "punitive" verdict from
+        // mixed-window comparisons.
+        positivePeriod: period,
+        correctivePeriod,
+        correctivePeriodBasis,
+        balance,
+      });
+    } catch (err) {
+      logger.error?.('sprintK.positive.balance.error', err);
+      captureRouteError(err, 'sprintK.positive.balance');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 
 export default router;

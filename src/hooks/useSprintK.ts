@@ -1107,3 +1107,82 @@ export async function inspectResource(
   }
   return (await res.json()) as { ok: true; inspectionId: string };
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Sprint K §214-215 — Observaciones Positivas + Balance
+// ────────────────────────────────────────────────────────────────────────
+//
+// Hooks adicionales sobre el motor positiveObservations. El hook
+// `usePositiveObservationsForWorker` ya existe arriba para listas por
+// trabajador. Aquí se agrega:
+//   - usePositiveObservations(projectId, { period })  → listado global
+//   - usePositiveObservationBalance(projectId, period) → ratio §215
+//
+// El mutator `createPositiveObservation` ya existe arriba.
+
+import type { BalanceReport } from '../services/positiveObservations/positiveObservationsService';
+
+export type PositiveObservationPeriod = '30d' | '90d' | 'all';
+
+export interface PositiveObservationsPageInfo {
+  /** Page size cap applied server-side. */
+  limit: number;
+  /** True when more docs exist past `nextStartAfter`. */
+  hasMore: boolean;
+  /** Cursor doc id to pass back as `?startAfter=…` for the next page. */
+  nextStartAfter: string | null;
+}
+
+export interface PositiveObservationsListResponse {
+  observations: PositiveObservation[];
+  period: PositiveObservationPeriod;
+  /** Codex P2 PR #320 (line 5142): pagination metadata for bounded reads. */
+  pagination?: PositiveObservationsPageInfo;
+}
+
+export interface PositiveObservationBalanceResponse {
+  positive: number;
+  corrective: number;
+  ratio: number;
+  period: PositiveObservationPeriod;
+  balance: BalanceReport;
+  /**
+   * Codex P2 PR #320 (line 5198) + round 2: explicit window per side
+   * so the UI can label the asymmetry honestly. The server now applies
+   * a `dueDate >=` filter to correctives when a finite period is
+   * requested (since the F.4 `CorrectiveActionRecord` carries `dueDate`
+   * at creation), and falls back to `'all'` when the filter fails
+   * (e.g. missing index, pre-F.4 docs). `correctivePeriodBasis` tells
+   * the client which path was taken so it can render either a
+   * symmetric "vs 30 días · dueDate" subtitle or an explicit asymmetry
+   * chip when the basis falls back to `'all'`.
+   */
+  positivePeriod?: PositiveObservationPeriod;
+  correctivePeriod?: PositiveObservationPeriod;
+  correctivePeriodBasis?: 'dueDate' | 'all';
+}
+
+export function usePositiveObservations(
+  projectId: string | null,
+  opts: { period?: PositiveObservationPeriod; startAfter?: string } = {},
+) {
+  let path: string | null = null;
+  if (projectId) {
+    const qs = new URLSearchParams();
+    if (opts.period) qs.set('period', opts.period);
+    if (opts.startAfter) qs.set('startAfter', opts.startAfter);
+    const query = qs.toString();
+    path = `/api/sprint-k/${projectId}/positive-observations${query ? `?${query}` : ''}`;
+  }
+  return useEndpoint<PositiveObservationsListResponse>(path);
+}
+
+export function usePositiveObservationBalance(
+  projectId: string | null,
+  period: PositiveObservationPeriod = '30d',
+) {
+  const path = projectId
+    ? `/api/sprint-k/${projectId}/positive-observations/balance?period=${period}`
+    : null;
+  return useEndpoint<PositiveObservationBalanceResponse>(path);
+}
