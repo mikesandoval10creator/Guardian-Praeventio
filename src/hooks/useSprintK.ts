@@ -1147,13 +1147,19 @@ export interface PositiveObservationBalanceResponse {
   period: PositiveObservationPeriod;
   balance: BalanceReport;
   /**
-   * Codex P2 PR #320 (line 5198): explicit window per side so the UI
-   * can label the asymmetry honestly. Currently the legacy
-   * CorrectiveAction shape has no `createdAt`, so `correctivePeriod`
-   * is always `'all'` regardless of the requested `period`.
+   * Codex P2 PR #320 (line 5198) + round 2: explicit window per side
+   * so the UI can label the asymmetry honestly. The server now applies
+   * a `dueDate >=` filter to correctives when a finite period is
+   * requested (since the F.4 `CorrectiveActionRecord` carries `dueDate`
+   * at creation), and falls back to `'all'` when the filter fails
+   * (e.g. missing index, pre-F.4 docs). `correctivePeriodBasis` tells
+   * the client which path was taken so it can render either a
+   * symmetric "vs 30 días · dueDate" subtitle or an explicit asymmetry
+   * chip when the basis falls back to `'all'`.
    */
   positivePeriod?: PositiveObservationPeriod;
-  correctivePeriod?: 'all';
+  correctivePeriod?: PositiveObservationPeriod;
+  correctivePeriodBasis?: 'dueDate' | 'all';
 }
 
 export function usePositiveObservations(

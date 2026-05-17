@@ -53,7 +53,15 @@ let mockSelectedProject: { id: string; name: string } | null = null;
 let mockIsOnline = true;
 
 type ListState = {
-  data: { observations: PositiveObservation[]; period: '30d' | '90d' | 'all' } | null;
+  data: {
+    observations: PositiveObservation[];
+    period: '30d' | '90d' | 'all';
+    pagination?: {
+      limit: number;
+      hasMore: boolean;
+      nextStartAfter: string | null;
+    };
+  } | null;
   loading: boolean;
   error: Error | null;
   refetch: () => void;
@@ -66,6 +74,9 @@ type BalanceState = {
         ratio: number;
         period: '30d' | '90d' | 'all';
         balance: BalanceReport;
+        positivePeriod?: '30d' | '90d' | 'all';
+        correctivePeriod?: '30d' | '90d' | 'all';
+        correctivePeriodBasis?: 'dueDate' | 'all';
       }
     | null;
   loading: boolean;
@@ -78,6 +89,13 @@ let mockBalance: BalanceState;
 const listRefetchSpy = vi.fn();
 const balanceRefetchSpy = vi.fn();
 const createSpy = vi.fn().mockResolvedValue(undefined);
+// Codex P2 round 2 PR #320 (line 250): the form now picks a real
+// `Worker.id` from `projects/{pid}/workers`. Tests provide a default
+// roster so the form has something to autocomplete + select.
+let mockWorkers: Array<{ id: string; name: string; email: string; role: string }> = [];
+// Capture how `usePositiveObservations` is invoked so we can assert
+// the page passes the cursor on Load More.
+const positiveObsCallSpy = vi.fn();
 
 vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: mockSelectedProject }),
@@ -85,8 +103,17 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
+vi.mock('../hooks/useFirestoreCollection', () => ({
+  useFirestoreCollection: () => ({ data: mockWorkers, loading: false, error: null }),
+}));
 vi.mock('../hooks/useSprintK', () => ({
-  usePositiveObservations: () => mockList,
+  usePositiveObservations: (
+    pid: string | null,
+    opts: { period?: string; startAfter?: string } = {},
+  ) => {
+    positiveObsCallSpy(pid, opts);
+    return mockList;
+  },
   usePositiveObservationBalance: () => mockBalance,
   createPositiveObservation: (
     pid: string,
@@ -101,6 +128,11 @@ beforeEach(() => {
   balanceRefetchSpy.mockReset();
   createSpy.mockClear();
   createSpy.mockResolvedValue(undefined);
+  positiveObsCallSpy.mockReset();
+  mockWorkers = [
+    { id: 'uid_juan', name: 'Juan Pérez', email: 'juan@p.cl', role: 'soldador' },
+    { id: 'uid_maria', name: 'María Soto', email: 'maria@p.cl', role: 'supervisora' },
+  ];
   mockList = {
     data: { observations: [], period: '30d' },
     loading: false,
@@ -241,8 +273,11 @@ describe('<PositiveObservations /> page wrapper (Sprint K §214-215)', () => {
     fireEvent.click(newBtn);
     expect(screen.getByTestId('positive-obs-form')).toBeInTheDocument();
 
-    // Rellenar.
-    fireEvent.change(screen.getByTestId('positive-obs-worker-input'), {
+    // Codex P2 round 2 PR #320 (line 250): the form now requires
+    // selecting a worker from the picker rather than free-text. Pick
+    // Juan from the dropdown so `observedWorkerUid` is guaranteed to
+    // be a real `Worker.id`.
+    fireEvent.change(screen.getByTestId('positive-obs-worker-select'), {
       target: { value: 'uid_juan' },
     });
     fireEvent.change(screen.getByTestId('positive-obs-location-input'), {
@@ -273,5 +308,137 @@ describe('<PositiveObservations /> page wrapper (Sprint K §214-215)', () => {
       expect(listRefetchSpy).toHaveBeenCalled();
       expect(balanceRefetchSpy).toHaveBeenCalled();
     });
+  });
+
+  // Codex P2 round 2 PR #320 (line 250): typing a free-text name that
+  // doesn't match the roster must not satisfy the form — submit stays
+  // disabled until a real `Worker.id` is picked.
+  it('bloquea submit si el usuario sólo escribe texto sin seleccionar trabajador', () => {
+    render(<PositiveObservations />);
+    fireEvent.click(screen.getByTestId('positive-obs-new-button'));
+    // Query that doesn't match any roster member so the picker stays
+    // empty (no auto-pick on single hit) and the user can't accidentally
+    // submit a name string as a UID.
+    fireEvent.change(screen.getByTestId('positive-obs-worker-input'), {
+      target: { value: 'zzznoroster' },
+    });
+    fireEvent.change(screen.getByTestId('positive-obs-location-input'), {
+      target: { value: 'Frente sur' },
+    });
+    fireEvent.change(screen.getByTestId('positive-obs-description-input'), {
+      target: { value: 'Verificó arnés correctamente.' },
+    });
+    const submit = screen.getByTestId(
+      'positive-obs-form-submit',
+    ) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+  });
+
+  // Codex P2 round 2 PR #320 (line 487): the widget must reflect the
+  // server's explicit per-side windows. When the corrective count
+  // falls back to all-time (legacy docs without `dueDate`), an
+  // asymmetry chip surfaces so users don't read the ratio as
+  // period-specific.
+  it('renderiza chip de asimetría cuando correctivePeriod difiere del positivePeriod', () => {
+    mockBalance = {
+      data: {
+        positive: 3,
+        corrective: 7,
+        ratio: 0.43,
+        period: '30d',
+        positivePeriod: '30d',
+        correctivePeriod: 'all',
+        correctivePeriodBasis: 'all',
+        balance: {
+          positiveCount: 3,
+          correctiveCount: 7,
+          total: 10,
+          positiveRatio: 0.3,
+          level: 'imbalanced',
+          message: 'Solo 30% positivas. Promover registro de comportamientos seguros.',
+        },
+      },
+      loading: false,
+      error: null,
+      refetch: balanceRefetchSpy,
+    };
+    render(<PositiveObservations />);
+    expect(screen.getByTestId('balance-asymmetry-chip')).toBeInTheDocument();
+    expect(screen.queryByTestId('balance-period-chip')).not.toBeInTheDocument();
+  });
+
+  // Codex P2 round 2 PR #320 (line 487): symmetric window renders the
+  // standard chip with the dueDate basis appended when applicable.
+  it('renderiza chip simétrico con basis dueDate cuando el server filtró ambos lados', () => {
+    mockBalance = {
+      data: {
+        positive: 5,
+        corrective: 2,
+        ratio: 2.5,
+        period: '30d',
+        positivePeriod: '30d',
+        correctivePeriod: '30d',
+        correctivePeriodBasis: 'dueDate',
+        balance: {
+          positiveCount: 5,
+          correctiveCount: 2,
+          total: 7,
+          positiveRatio: 5 / 7,
+          level: 'balanced',
+          message: 'Balance saludable de feedback positivo y correctivo.',
+        },
+      },
+      loading: false,
+      error: null,
+      refetch: balanceRefetchSpy,
+    };
+    render(<PositiveObservations />);
+    const chip = screen.getByTestId('balance-period-chip');
+    expect(chip).toBeInTheDocument();
+    expect(chip).toHaveTextContent(/30 días/);
+    expect(chip).toHaveTextContent(/dueDate/);
+  });
+
+  // Codex P2 round 2 PR #320 (line 550): the page must expose the
+  // `nextStartAfter` cursor when the server reports more pages. Click
+  // Load More → hook is re-invoked with the cursor.
+  it('expone botón "Cargar más" y pasa nextStartAfter cuando hasMore=true', async () => {
+    mockList = {
+      data: {
+        observations: [obs({ id: 'o1' }), obs({ id: 'o2' })],
+        period: '30d',
+        pagination: { limit: 500, hasMore: true, nextStartAfter: 'o2' },
+      },
+      loading: false,
+      error: null,
+      refetch: listRefetchSpy,
+    };
+    render(<PositiveObservations />);
+    const loadMore = screen.getByTestId('positive-obs-load-more');
+    expect(loadMore).toBeInTheDocument();
+    fireEvent.click(loadMore);
+    await waitFor(() => {
+      const lastCall = positiveObsCallSpy.mock.calls.at(-1) as [
+        string,
+        { period?: string; startAfter?: string },
+      ];
+      expect(lastCall?.[1]?.startAfter).toBe('o2');
+    });
+  });
+
+  // Without `pagination.hasMore`, no Load More button is rendered.
+  it('oculta "Cargar más" cuando no hay más páginas', () => {
+    mockList = {
+      data: {
+        observations: [obs({ id: 'o1' })],
+        period: '30d',
+        pagination: { limit: 500, hasMore: false, nextStartAfter: null },
+      },
+      loading: false,
+      error: null,
+      refetch: listRefetchSpy,
+    };
+    render(<PositiveObservations />);
+    expect(screen.queryByTestId('positive-obs-load-more')).not.toBeInTheDocument();
   });
 });

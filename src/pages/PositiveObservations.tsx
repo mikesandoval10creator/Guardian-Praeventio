@@ -17,11 +17,12 @@
 // Determinístico. No-bloqueante. NUNCA un trabajador queda atado a una
 // observación negativa sin oportunidad de reconocimiento.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Award, WifiOff, Sparkles, PlusCircle } from 'lucide-react';
+import { Award, WifiOff, Sparkles, PlusCircle, MoreHorizontal } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import {
   usePositiveObservations,
   usePositiveObservationBalance,
@@ -32,6 +33,7 @@ import type {
   PositiveObservation,
   PositiveObservationKind,
 } from '../services/positiveObservations/positiveObservationsService';
+import type { Worker } from '../types';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────
@@ -61,6 +63,21 @@ interface BalanceWidgetProps {
   level: 'punitive' | 'imbalanced' | 'balanced' | 'positive_skew';
   message: string;
   period: PositiveObservationPeriod;
+  /**
+   * Codex P2 round 2 PR #320 (line 487): the server returns explicit
+   * windows per side. When `correctivePeriod` matches `positivePeriod`
+   * the widget renders a symmetric "30 días vs 30 días" subtitle;
+   * when they differ (legacy fallback to all-time correctives) the
+   * widget renders an explicit asymmetry chip so users don't read
+   * a mixed-window ratio as a period-specific verdict.
+   */
+  positivePeriod?: PositiveObservationPeriod;
+  correctivePeriod?: PositiveObservationPeriod;
+  correctivePeriodBasis?: 'dueDate' | 'all';
+}
+
+function periodLabelFor(p: PositiveObservationPeriod): string {
+  return p === '30d' ? '30 días' : p === '90d' ? '90 días' : 'Todas';
 }
 
 function BalanceWidget({
@@ -70,6 +87,9 @@ function BalanceWidget({
   level,
   message,
   period,
+  positivePeriod,
+  correctivePeriod,
+  correctivePeriodBasis,
 }: BalanceWidgetProps) {
   const ringClass = (() => {
     if (level === 'punitive') return 'ring-rose-500/40 text-rose-600 dark:text-rose-400';
@@ -78,7 +98,21 @@ function BalanceWidget({
     return 'ring-teal-500/40 text-teal-600 dark:text-teal-400';
   })();
 
-  const periodLabel = period === '30d' ? '30 días' : period === '90d' ? '90 días' : 'Todas';
+  // Codex P2 round 2 PR #320 (line 487): the legacy widget labelled
+  // the comparison with a single `period` string even when the server
+  // reported `correctivePeriod === 'all'` (asymmetric mixed-window
+  // ratio). Honour the per-side windows the server now returns:
+  //   - if positive and corrective windows match → symmetric chip
+  //   - if they differ → explicit "vs todas" asymmetry chip
+  // Defaults preserve the legacy single-period rendering when the
+  // server omits the new fields (offline cache, older deployments).
+  const posPeriod = positivePeriod ?? period;
+  const corPeriod = correctivePeriod ?? period;
+  const symmetric = posPeriod === corPeriod;
+  const periodLabel = periodLabelFor(posPeriod);
+  const asymmetryLabel = symmetric
+    ? null
+    : `${periodLabelFor(posPeriod)} positivas vs ${periodLabelFor(corPeriod)} correctivas`;
 
   return (
     <div
@@ -100,9 +134,23 @@ function BalanceWidget({
             <h2 className="text-sm font-black uppercase tracking-tight text-primary-token">
               Balance positivo / correctivo
             </h2>
-            <span className="text-[10px] uppercase tracking-widest text-secondary-token">
-              {periodLabel}
-            </span>
+            {symmetric ? (
+              <span
+                className="text-[10px] uppercase tracking-widest text-secondary-token"
+                data-testid="balance-period-chip"
+              >
+                {periodLabel}
+                {correctivePeriodBasis === 'dueDate' && posPeriod !== 'all' ? ' · dueDate' : ''}
+              </span>
+            ) : (
+              <span
+                className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400"
+                data-testid="balance-asymmetry-chip"
+                title="El conteo de correctivas no pudo filtrarse por el mismo período (fallback a todas)."
+              >
+                {asymmetryLabel}
+              </span>
+            )}
           </div>
           <p
             className="mt-1.5 text-xs sm:text-sm text-secondary-token"
@@ -192,21 +240,56 @@ interface NewObservationFormProps {
 }
 
 function NewObservationForm({ projectId, onClose, onSaved }: NewObservationFormProps) {
-  const [workerUid, setWorkerUid] = useState('');
+  // Codex P2 round 2 PR #320 (line 250): the legacy form accepted a
+  // free-text "UID o nombre" and stored whatever string the user typed
+  // directly into `observedWorkerUid`. Because `listForWorker(workerUid)`
+  // and `buildRecognitionStats` group/filter by the exact stored value,
+  // a supervisor following the label and typing "Juan Pérez" would
+  // create an observation that never appears in Juan's recognition
+  // history. We now read live from the same `projects/{pid}/workers`
+  // collection the Workers/Readiness pages use, expose an autocomplete
+  // text input for search, and force the submitted value to be a real
+  // `Worker.id`. Free-text fallback is disallowed at submit time.
+  const { data: workers } = useFirestoreCollection<Worker>(
+    projectId ? `projects/${projectId}/workers` : null,
+  );
+  const [workerQuery, setWorkerQuery] = useState('');
+  const [selectedWorkerUid, setSelectedWorkerUid] = useState<string | null>(null);
   const [kind, setKind] = useState<PositiveObservationKind>('safe_behavior');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const filteredWorkers = useMemo(() => {
+    const q = workerQuery.trim().toLowerCase();
+    if (!q) return workers.slice(0, 15);
+    return workers
+      .filter((w) =>
+        ((w.name ?? '') + ' ' + (w.email ?? '') + ' ' + (w.role ?? '') + ' ' + (w.id ?? ''))
+          .toLowerCase()
+          .includes(q),
+      )
+      .slice(0, 15);
+  }, [workers, workerQuery]);
+
+  // If the search narrows down to a single hit and nothing is selected,
+  // auto-pick it to keep the flow short — supervisors typing on mobile
+  // shouldn't have to tap a dropdown when there's a unique match.
+  useEffect(() => {
+    if (!selectedWorkerUid && filteredWorkers.length === 1) {
+      setSelectedWorkerUid(filteredWorkers[0]!.id);
+    }
+  }, [filteredWorkers, selectedWorkerUid]);
+
   const valid =
-    workerUid.trim().length > 0 &&
+    !!selectedWorkerUid &&
     description.trim().length >= 5 &&
     location.trim().length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!valid || submitting) return;
+    if (!valid || submitting || !selectedWorkerUid) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -215,7 +298,10 @@ function NewObservationForm({ projectId, onClose, onSaved }: NewObservationFormP
           typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
             ? crypto.randomUUID()
             : `po_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-        observedWorkerUid: workerUid.trim(),
+        // Codex P2 round 2 PR #320 (line 250): always a real Worker.id
+        // (UID), never the search query string. The picker above gates
+        // submission via `valid` until a worker is actually selected.
+        observedWorkerUid: selectedWorkerUid,
         kind,
         description: description.trim(),
         observedAt: new Date().toISOString(),
@@ -245,18 +331,48 @@ function NewObservationForm({ projectId, onClose, onSaved }: NewObservationFormP
           Nueva observación positiva
         </h3>
       </div>
-      <div>
-        <label className="block text-[11px] font-bold uppercase tracking-widest text-secondary-token mb-1">
-          Trabajador observado (UID o nombre)
+      <div className="space-y-1.5">
+        <label className="block text-[11px] font-bold uppercase tracking-widest text-secondary-token">
+          Trabajador observado
         </label>
         <input
           type="text"
-          value={workerUid}
-          onChange={(e) => setWorkerUid(e.target.value)}
-          placeholder="ej. uid_abc123"
+          value={workerQuery}
+          onChange={(e) => {
+            setWorkerQuery(e.target.value);
+            // Typing again invalidates the previous selection so users
+            // can't accidentally submit a stale UID after editing the
+            // query.
+            setSelectedWorkerUid(null);
+          }}
+          placeholder="Buscar por nombre, email, rol o UID…"
           className="w-full px-3 py-2 rounded-xl border border-default-token bg-surface text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-teal-500/30"
           data-testid="positive-obs-worker-input"
+          aria-label="Buscar trabajador"
         />
+        <select
+          value={selectedWorkerUid ?? ''}
+          onChange={(e) => setSelectedWorkerUid(e.target.value || null)}
+          className="w-full px-3 py-2 rounded-xl border border-default-token bg-surface text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+          data-testid="positive-obs-worker-select"
+          aria-label="Seleccionar trabajador"
+        >
+          <option value="">— Selecciona un trabajador —</option>
+          {filteredWorkers.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name || w.email || w.id}
+              {w.role ? ` · ${w.role}` : ''}
+            </option>
+          ))}
+        </select>
+        {workers.length === 0 && (
+          <p
+            className="text-[11px] text-amber-600 dark:text-amber-400"
+            data-testid="positive-obs-worker-empty-hint"
+          >
+            Aún no hay trabajadores cargados en este proyecto.
+          </p>
+        )}
       </div>
       <div>
         <label className="block text-[11px] font-bold uppercase tracking-widest text-secondary-token mb-1">
@@ -392,16 +508,80 @@ export function PositiveObservations() {
   const [period, setPeriod] = useState<PositiveObservationPeriod>('30d');
   const [formOpen, setFormOpen] = useState(false);
 
-  const listResp = usePositiveObservations(projectId, { period });
+  // Codex P2 round 2 PR #320 (line 550): the server caps each response
+  // at POSITIVE_OBSERVATIONS_PAGE_LIMIT (500) and returns a cursor in
+  // `pagination.nextStartAfter` when more docs exist. The legacy page
+  // ignored the cursor entirely, so on busy projects the older
+  // observations were silently inaccessible. We now:
+  //   1. Track the cursor in state; the hook re-fetches whenever the
+  //      path changes (its dependency).
+  //   2. Accumulate previously-fetched pages so the rendered list
+  //      keeps growing as the user clicks "Cargar más".
+  //   3. Reset both on period change and on `refetch` after a new
+  //      observation is saved (the new doc may not match the existing
+  //      cursor window).
+  const [cursor, setCursor] = useState<string | undefined>(undefined);
+  const [accumulated, setAccumulated] = useState<PositiveObservation[]>([]);
+
+  const listResp = usePositiveObservations(
+    projectId,
+    cursor ? { period, startAfter: cursor } : { period },
+  );
   const balanceResp = usePositiveObservationBalance(projectId, period);
 
   const loading = listResp.loading || balanceResp.loading;
   const error = listResp.error || balanceResp.error;
 
-  const observations = useMemo(() => listResp.data?.observations ?? [], [listResp.data]);
+  // Reset accumulator + cursor when the period changes; the previous
+  // pages are not part of the new window.
+  useEffect(() => {
+    setCursor(undefined);
+    setAccumulated([]);
+  }, [period, projectId]);
+
+  // Append each resolved page to the accumulator. Dedupe by id so a
+  // stale re-render (e.g. project switch, then back) doesn't double
+  // up cards.
+  useEffect(() => {
+    const page = listResp.data?.observations;
+    if (!page || page.length === 0) return;
+    setAccumulated((prev) => {
+      const seen = new Set(prev.map((o) => o.id));
+      const additions = page.filter((o) => !seen.has(o.id));
+      return additions.length === 0 ? prev : [...prev, ...additions];
+    });
+  }, [listResp.data]);
+
+  // The page-1 set is whatever the hook resolved most recently when
+  // no cursor is active; accumulated covers the multi-page case.
+  const observations = useMemo(
+    () => (cursor ? accumulated : listResp.data?.observations ?? []),
+    [cursor, accumulated, listResp.data],
+  );
+
+  const pagination = listResp.data?.pagination;
+  const canLoadMore =
+    Boolean(pagination?.hasMore) &&
+    Boolean(pagination?.nextStartAfter) &&
+    !listResp.loading;
+
+  const handleLoadMore = () => {
+    if (!pagination?.nextStartAfter) return;
+    // Page 1 hasn't been merged yet — seed the accumulator with it so
+    // the user keeps seeing those cards once we switch to the cursor
+    // path.
+    if (!cursor) {
+      setAccumulated(listResp.data?.observations ?? []);
+    }
+    setCursor(pagination.nextStartAfter);
+  };
 
   const handleSaved = () => {
     setFormOpen(false);
+    // Reset pagination so the freshly-created observation is visible
+    // at the top of the list (server orders by `observedAt desc`).
+    setCursor(undefined);
+    setAccumulated([]);
     listResp.refetch?.();
     balanceResp.refetch?.();
   };
@@ -485,6 +665,9 @@ export function PositiveObservations() {
           level={balanceResp.data.balance.level}
           message={balanceResp.data.balance.message}
           period={balanceResp.data.period}
+          positivePeriod={balanceResp.data.positivePeriod}
+          correctivePeriod={balanceResp.data.correctivePeriod}
+          correctivePeriodBasis={balanceResp.data.correctivePeriodBasis}
         />
       )}
 
@@ -548,6 +731,27 @@ export function PositiveObservations() {
           {observations.map((o) => (
             <ObservationCard key={o.id} obs={o} />
           ))}
+        </div>
+      )}
+
+      {/*
+        Codex P2 round 2 PR #320 (line 550): expose pagination when the
+        server reports there are more pages. Without this, projects
+        with > POSITIVE_OBSERVATIONS_PAGE_LIMIT observations leave
+        older records silently inaccessible from this view.
+      */}
+      {!error && canLoadMore && (
+        <div className="flex justify-center pt-1">
+          <button
+            type="button"
+            onClick={handleLoadMore}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border border-default-token bg-surface text-primary-token hover:border-teal-500/40 hover:text-teal-600 dark:hover:text-teal-300 transition-colors disabled:opacity-50"
+            data-testid="positive-obs-load-more"
+            disabled={listResp.loading}
+          >
+            <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
+            {t('positiveObs.page.loadMore', 'Cargar más observaciones')}
+          </button>
         </div>
       )}
     </div>

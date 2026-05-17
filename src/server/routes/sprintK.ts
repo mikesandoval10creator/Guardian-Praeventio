@@ -5728,6 +5728,22 @@ router.get(
       // On large projects the previous .get() materialized the whole
       // collection per balance refresh — the count() aggregate is a
       // single billed read regardless of cardinality.
+      //
+      // Codex P2 round 2 PR #320 (line 5254): keep the corrective count
+      // in the same window as the positive count when a finite period
+      // is requested. The legacy CorrectiveAction shape from
+      // weakActionDetector.ts has no creation timestamp, but the F.4
+      // record shape (`CorrectiveActionRecord` in correctiveActionsCenter.ts)
+      // does carry `dueDate` — which is required at creation and is the
+      // most stable proxy we have for "actionable in this window".
+      // We range-filter by `dueDate >= sinceIso` and surface the basis
+      // used so the UI can be transparent ("30 días · dueDate").
+      // If the filtered query fails (e.g. missing composite index), we
+      // fall back to the all-time count and surface that fallback in
+      // `correctivePeriodBasis` so the UI labels it honestly instead of
+      // implying a period match that didn't happen.
+      const correctivesPath = `${tenantProjectPath}/corrective_actions`;
+      let correctivePeriodBasis: 'dueDate' | 'all' = sinceIso ? 'dueDate' : 'all';
       const [positiveCount, correctiveCount] = await Promise.all([
         safeCount('positive', async () => {
           const base = db.collection(`${tenantProjectPath}/positive_observations`);
@@ -5736,37 +5752,51 @@ router.get(
           return Number(snap.data().count ?? 0);
         }),
         safeCount('corrective', async () => {
-          // Codex P2 PR #320 (line 5198): the legacy CorrectiveAction
-          // shape (weakActionDetector.ts) and the F.4 record shape
-          // (correctiveActionsCenter.ts) don't carry a `createdAt`
-          // timestamp — only `dueDate` and (when closed) `closedAt`.
-          // Filtering by dueDate would skew toward newer due-dates,
-          // not newer creations, so we cannot honestly match the
-          // positive-observations window. Instead we count the whole
-          // collection and surface the asymmetry in the response so
-          // the UI can label the imbalance correctly rather than
-          // implying it's period-specific.
-          const snap = await db
-            .collection(`${tenantProjectPath}/corrective_actions`)
-            .count()
-            .get();
-          return Number(snap.data().count ?? 0);
+          const base = db.collection(correctivesPath);
+          if (!sinceIso) {
+            const snap = await base.count().get();
+            return Number(snap.data().count ?? 0);
+          }
+          try {
+            const snap = await base
+              .where('dueDate', '>=', sinceIso)
+              .count()
+              .get();
+            return Number(snap.data().count ?? 0);
+          } catch (err) {
+            // Range filter failed (likely missing index, or pre-F.4
+            // docs without `dueDate`). Fall back to all-time so the
+            // widget still renders, but record the fallback so the UI
+            // labels the asymmetry instead of lying.
+            logger.warn?.('sprintK.positive.balance.corrective.dueDateFilter.failed', err);
+            correctivePeriodBasis = 'all';
+            const snap = await base.count().get();
+            return Number(snap.data().count ?? 0);
+          }
         }),
       ]);
 
       const balance = computeBalance({ positiveCount, correctiveCount });
       const ratio = correctiveCount > 0 ? positiveCount / correctiveCount : positiveCount;
+      // Codex P2 round 2 PR #320 (line 5254): align `correctivePeriod`
+      // with the actual filter we applied. When `correctivePeriodBasis`
+      // is `'dueDate'`, the count covers the same window as the
+      // positive side; when it's `'all'` (no period requested, or
+      // fallback), the UI needs to know to render the asymmetry chip.
+      const correctivePeriod: ObservationPeriod =
+        correctivePeriodBasis === 'dueDate' ? period : 'all';
       return res.json({
         positive: positiveCount,
         corrective: correctiveCount,
         ratio,
         period,
-        // Codex P2 PR #320 (line 5198): be explicit about which window
-        // each count covers so the UI doesn't render a false
-        // "punitive" verdict from comparing recent positives against
-        // all-time correctives.
+        // Codex P2 PR #320 (line 5198) + round 2: be explicit about
+        // which window each count covers so the UI can render an
+        // honest "vs" label and avoid a false "punitive" verdict from
+        // mixed-window comparisons.
         positivePeriod: period,
-        correctivePeriod: 'all' as const,
+        correctivePeriod,
+        correctivePeriodBasis,
         balance,
       });
     } catch (err) {
