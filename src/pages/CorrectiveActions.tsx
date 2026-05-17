@@ -23,7 +23,10 @@ import { useTranslation } from 'react-i18next';
 import { ListChecks, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { useCorrectiveActions } from '../hooks/useSprintK';
+import {
+  useCorrectiveActions,
+  scheduleCorrectiveActionEffectivenessReview,
+} from '../hooks/useSprintK';
 import { CorrectiveActionsCenterPanel } from '../components/correctiveActions/CorrectiveActionsCenterPanel';
 import type { CorrectiveAction } from '../services/correctiveActions/weakActionDetector';
 import type {
@@ -131,16 +134,29 @@ export function CorrectiveActions() {
     );
   }, [openResp.data, inProgressResp.data, closedResp.data, verifiedResp.data, reopenedResp.data]);
 
-  const handleScheduleReview = (entry: EffectivenessReviewEntry) => {
-    // Wire to a Cloud Function in a follow-up; for now we just log so
-    // the prevencionista sees the trigger fired (the F.11 cron picks
-    // it up from the action record once the closedAt + effectivenessReviewAt
-    // fields propagate from the close mutation, which is a separate
-    // PR — F.4 here is the read-only dashboard slice).
-    logger.info('caCenter.scheduleReview', {
-      actionId: entry.actionId,
-      reviewAt: entry.reviewAt,
-    });
+  const handleScheduleReview = async (entry: EffectivenessReviewEntry) => {
+    // Codex P2 round 4 (PR #309): persist via server mutation so the
+    // F.11 review cron actually has something to fire on. Earlier the
+    // handler only logged — clicking "Programar review" had no
+    // observable effect.
+    if (!projectId) return;
+    try {
+      await scheduleCorrectiveActionEffectivenessReview(
+        projectId,
+        entry.actionId,
+        entry.reviewAt,
+      );
+      logger.info('caCenter.scheduleReview.persisted', {
+        actionId: entry.actionId,
+        reviewAt: entry.reviewAt,
+      });
+      // Trigger re-fetch so the new effectivenessReviewAt appears.
+      openResp.refetch?.();
+      closedResp.refetch?.();
+      verifiedResp.refetch?.();
+    } catch (err) {
+      logger.error('caCenter.scheduleReview.failed', err);
+    }
   };
 
   if (!selectedProject) {

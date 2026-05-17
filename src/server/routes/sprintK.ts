@@ -385,6 +385,58 @@ router.get('/:projectId/corrective-actions', verifyAuth, async (req, res) => {
   }
 });
 
+// Codex P2 round 4 (PR #309): persist scheduled effectiveness review.
+// Otherwise the F.4 "Programar review" CTA has no observable effect:
+// page only logged, panel doesn't mutate, F.11 cron sees nothing.
+const scheduleReviewSchema = z.object({
+  actionId: z.string().min(1),
+  reviewAt: z.string().min(10),
+});
+
+router.post(
+  '/:projectId/corrective-actions/:actionId/effectiveness-review',
+  verifyAuth,
+  validate(scheduleReviewSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, actionId } = req.params;
+    const body = req.body as z.infer<typeof scheduleReviewSchema>;
+    if (body.actionId !== actionId) {
+      return res.status(400).json({ error: 'actionId_mismatch' });
+    }
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const adapter = new CorrectiveActionsAdapter(
+        admin.firestore() as any,
+        g.tenantId,
+        projectId,
+      );
+      // The legacy adapter doesn't have a `setEffectivenessReviewAt`
+      // method — write directly. Path matches the adapter's PATH().
+      await admin
+        .firestore()
+        .collection(
+          `tenants/${g.tenantId}/projects/${projectId}/corrective_actions`,
+        )
+        .doc(actionId)
+        .set(
+          {
+            effectivenessReviewAt: body.reviewAt,
+            effectivenessReviewScheduledBy: callerUid,
+            effectivenessReviewScheduledAt: new Date().toISOString(),
+          },
+          { merge: true },
+        );
+      return res.status(204).end();
+    } catch (err) {
+      logger.error?.('sprintK.correctiveActions.scheduleReview.error', err);
+      captureRouteError(err, 'sprintK.correctiveActions.scheduleReview');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 const correctiveActionSchema = z.object({
   id: z.string().min(1),
   description: z.string().min(3).max(4000),
@@ -611,20 +663,30 @@ router.get('/:projectId/data-quality', verifyAuth, async (req, res) => {
         });
       }),
       safeRead('trainings', async () => {
-        // Codex P2 round 2 (PR #309): trainings live in BOTH the
-        // top-level `training` collection (Training.tsx) AND under
-        // `projects/{projectId}/trainings` (TrainingRecommendations.tsx
-        // + consistencyAuditor's training_assignments). Union both
-        // sources so the scanner sees every record. De-dupe by id.
-        const [topSnap, nestedSnap] = await Promise.all([
+        // Codex P2 round 2 + 4 (PR #309): trainings live in THREE
+        // sources:
+        //   1. Top-level `training` collection (Training.tsx)
+        //   2. Nested `projects/{id}/trainings` (TrainingRecommendations.tsx)
+        //   3. Nested `projects/{id}/training_assignments` (the live
+        //      collection that `runConsistencyAudit.ts` treats as active
+        //      training data)
+        // Union all three so the F.9 scanner sees every record. De-dupe
+        // by id with first-wins precedence (top-level → nested →
+        // assignments) since the same training can be referenced from
+        // multiple paths.
+        const [topSnap, nestedSnap, assignSnap] = await Promise.all([
           byProject('training').get(),
           projectRef.collection('trainings').get(),
+          projectRef.collection('training_assignments').get(),
         ]);
         const map = new Map<string, Record<string, unknown>>();
         for (const d of topSnap.docs) {
           map.set(d.id, { id: d.id, ...d.data() });
         }
         for (const d of nestedSnap.docs) {
+          if (!map.has(d.id)) map.set(d.id, { id: d.id, ...d.data() });
+        }
+        for (const d of assignSnap.docs) {
           if (!map.has(d.id)) map.set(d.id, { id: d.id, ...d.data() });
         }
         return Array.from(map.values());
@@ -897,9 +959,23 @@ router.get('/:projectId/inbox', verifyAuth, async (req, res) => {
     // Best-effort parallel fetch. Each adapter is wrapped so one failure
     // doesn't blank out the whole inbox — the user still gets the feeds
     // that succeeded.
-    const [openActions, sifPending] = await Promise.all([
+    //
+    // Codex P2 round 4 (PR #309): include `in_progress` and `reopened`
+    // statuses too — they're unresolved work that belongs in the
+    // prevencionista's queue exactly like `open`. The F.4 status model
+    // and the corrective-actions center page already load all 5; the
+    // inbox was lagging.
+    const [openActions, inProgressActions, reopenedActions, sifPending] = await Promise.all([
       correctiveAdapter.listByStatus('open').catch((err) => {
-        logger.warn?.('sprintK.inbox.corrective.fetch_failed', err);
+        logger.warn?.('sprintK.inbox.corrective.open.fetch_failed', err);
+        return [] as Awaited<ReturnType<typeof correctiveAdapter.listByStatus>>;
+      }),
+      correctiveAdapter.listByStatus('in_progress').catch((err) => {
+        logger.warn?.('sprintK.inbox.corrective.in_progress.fetch_failed', err);
+        return [] as Awaited<ReturnType<typeof correctiveAdapter.listByStatus>>;
+      }),
+      correctiveAdapter.listByStatus('reopened').catch((err) => {
+        logger.warn?.('sprintK.inbox.corrective.reopened.fetch_failed', err);
         return [] as Awaited<ReturnType<typeof correctiveAdapter.listByStatus>>;
       }),
       sifAdapter.listPendingExecutiveReview().catch((err) => {
@@ -916,7 +992,8 @@ router.get('/:projectId/inbox', verifyAuth, async (req, res) => {
     // `responsibleUid`; legacy weakActionDetector records don't —
     // those collapse into the inbox by default (the safer fallback,
     // since "unassigned" actions need someone to claim them).
-    const actionsForCaller = openActions.filter((a) => {
+    const unresolvedActions = [...openActions, ...inProgressActions, ...reopenedActions];
+    const actionsForCaller = unresolvedActions.filter((a) => {
       const extra = a as unknown as { responsibleUid?: string };
       // If the record has an explicit responsibleUid, only include it
       // when it matches the caller. Otherwise include it (legacy data

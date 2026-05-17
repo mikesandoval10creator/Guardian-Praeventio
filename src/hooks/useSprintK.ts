@@ -406,3 +406,31 @@ export function useIncidentBundle(
       : null,
   );
 }
+
+/**
+ * Codex P2 round 4 (PR #309): persist a scheduled effectiveness review.
+ * Calls POST /api/sprint-k/:projectId/corrective-actions/:actionId/effectiveness-review.
+ */
+export async function scheduleCorrectiveActionEffectivenessReview(
+  projectId: string,
+  actionId: string,
+  reviewAt: string,
+): Promise<void> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/corrective-actions/${actionId}/effectiveness-review`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ actionId, reviewAt }),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+}
