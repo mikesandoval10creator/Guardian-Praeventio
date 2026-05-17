@@ -154,6 +154,10 @@ const SupplierQuality = lazy(() => import('./pages/SupplierQuality').then(module
 // Obsolescencia. Service determinístico ya existía; este lazy import
 // cierra el último eslabón haciéndola navegable desde la sidebar IA.
 const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase').then(module => ({ default: module.KnowledgeBase })));
+// Sprint K §23-24 — Control de Visitas + Inducción Express QR. Servicio
+// puro `visitorControl/visitorRegistry` + ruta server `visitors.ts`
+// + esta página que cierra el wire end-to-end.
+const Visitors = lazy(() => import('./pages/Visitors').then(module => ({ default: module.Visitors })));
 const GoogleDriveIntegrationManager = lazy(() => import('./pages/GoogleDriveIntegrationManager').then(module => ({ default: module.GoogleDriveIntegrationManager })));
 const ImmutableRender = lazy(() => import('./pages/ImmutableRender').then(module => ({ default: module.ImmutableRender })));
 const WearablesIntegration = lazy(() => import('./pages/WearablesIntegration').then(module => ({ default: module.WearablesIntegration })));
@@ -246,6 +250,7 @@ function AppRoutes() {
               <Route path="confidential-reports" element={<ConfidentialReports />} />
               <Route path="suppliers" element={<SupplierQuality />} />
               <Route path="knowledge-base" element={<KnowledgeBase />} />
+              <Route path="visitors" element={<Visitors />} />
               <Route path="*" element={<Dashboard />} />
             </Route>
           </Routes>
@@ -395,6 +400,7 @@ function AppRoutes() {
                     <Route path="confidential-reports" element={<ConfidentialReports />} />
                     <Route path="suppliers" element={<SupplierQuality />} />
                     <Route path="knowledge-base" element={<KnowledgeBase />} />
+                    <Route path="visitors" element={<Visitors />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
                     <Route path="admin/b2d" element={<B2dAdminPanel />} />
                     <Route path="my-data" element={<MyData />} />

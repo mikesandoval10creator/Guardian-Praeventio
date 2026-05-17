@@ -2113,32 +2113,45 @@
     "saving": "Guardando…",
     "trainingRegistered": "Capacitación registrada"
   },
-  "focusAgenda": {
-    "title": "Agenda de bloques de foco",
-    "subtitle": "Tiempo protegido para inspección, capacitación, auditoría o tareas críticas.",
-    "newBlockButton": "Nuevo bloque",
-    "weekCount": "{{count}} esta semana",
-    "signInPrompt": "Inicia sesión para gestionar tus bloques de foco.",
-    "loading": "Cargando agenda…",
-    "weekViewAria": "Vista semanal",
-    "emptyDay": "Día libre",
-    "emptyWeek": "No tienes bloques de foco esta semana. Crea uno con el botón \"Nuevo bloque\".",
-    "kind": {
-      "inspection": "Inspección",
-      "training": "Capacitación",
-      "audit": "Auditoría",
-      "admin": "Administrativo"
+  "visitors": {
+    "page": {
+      "title": "Control de Visitas",
+      "subtitle": "§23-24 Sprint K — Visitas activas: {{count}}",
+      "selectProject": "Selecciona un proyecto para registrar visitas.",
+      "newVisit": "Nueva visita",
+      "emptyTitle": "Aún no hay visitas activas.",
+      "emptyHint": "Registra una nueva visita para iniciar el control de acceso."
     },
-    "newBlock": {
-      "title": "Nuevo bloque de foco",
-      "close": "Cerrar",
-      "kind": "Tipo de bloque",
-      "startsAt": "Inicio (UTC)",
-      "endsAt": "Fin (UTC)",
-      "note": "Nota (opcional)",
-      "notePlaceholder": "Ej: Inspección zona A, izaje crítico",
-      "cancel": "Cancelar",
-      "save": "Crear bloque"
+    "form": {
+      "title": "Nueva visita",
+      "fullName": "Nombre completo",
+      "rut": "RUT",
+      "company": "Empresa / Organización",
+      "reason": "Motivo de la visita",
+      "reasonPlaceholder": "Auditoría ISO 45001…",
+      "scan": "Escanear QR",
+      "submit": "Registrar ingreso"
+    },
+    "card": {
+      "inducted": "Inducido",
+      "pending": "Inducción pendiente",
+      "host": "Acompañante",
+      "checkIn": "Ingreso",
+      "reason": "Motivo",
+      "induct": "Inducción",
+      "checkOut": "Salida"
+    },
+    "ack": {
+      "title": "Inducción express",
+      "subtitle": "Acepta los términos antes de ingresar a faena.",
+      "version": "Versión de inducción",
+      "empty": "Aún no hay versiones de inducción publicadas para este proyecto.",
+      "agreement": "He leído y acepto las reglas de seguridad de la faena.",
+      "signature": "Firma manual (escribe tu nombre)",
+      "submit": "Confirmar inducción"
+    },
+    "errors": {
+      "noSession": "Debes iniciar sesión."
     }
   }
 }

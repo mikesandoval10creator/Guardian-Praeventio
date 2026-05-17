@@ -144,6 +144,9 @@ import iotRouter from "./src/server/routes/iot.js";
 // Sprint 35 F1 — Aptitude cert biometric generator (export-only, NO push to
 // MUTUAL/SUSESO/IST per memory product_signing_no_blocking_directives).
 import medicalAptitudeRouter from "./src/server/routes/medicalAptitude.js";
+// Sprint K §23-24 — Control de Visitas + Inducción Express QR.
+// Pure event registry in src/services/visitorControl; route is the I/O wrapper.
+import visitorsRouter from "./src/server/routes/visitors.js";
 import {
   connectMqttBroker,
   type IotBrokerAdapterName,
@@ -680,6 +683,11 @@ app.use('/api/iot', iotRouter);
 // /sign-challenge + /sign. Doctor/admin/gerente role gate. Generates
 // the artifact ONLY — empresa cliente prints + signs in person + sends.
 app.use('/api/medical', medicalAptitudeRouter);
+
+// Sprint K §23-24 — Visitor control + express induction QR. check-in /
+// check-out / acknowledge-induction / list-active. uid SIEMPRE from
+// verified token; tenantId resolved from projects/{projectId}.tenantId.
+app.use('/api/visitors', visitorsRouter);
 
 // Sprint 23 Bucket FF — Ley 19.628 compliance surface (consent + RAT +
 // data-subject access/rectification/erasure/portability). All write paths

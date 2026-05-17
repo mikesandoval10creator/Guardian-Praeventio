@@ -2100,32 +2100,45 @@
     "saving": "Saving…",
     "trainingRegistered": "Training registered"
   },
-  "focusAgenda": {
-    "title": "Focus block agenda",
-    "subtitle": "Protected time for inspections, training, audits or critical admin tasks.",
-    "newBlockButton": "New block",
-    "weekCount": "{{count}} this week",
-    "signInPrompt": "Sign in to manage your focus blocks.",
-    "loading": "Loading agenda…",
-    "weekViewAria": "Weekly view",
-    "emptyDay": "No blocks",
-    "emptyWeek": "You have no focus blocks this week. Create one with the \"New block\" button.",
-    "kind": {
-      "inspection": "Inspection",
-      "training": "Training",
-      "audit": "Audit",
-      "admin": "Administrative"
+  "visitors": {
+    "page": {
+      "title": "Visitor Control",
+      "subtitle": "§23-24 Sprint K — Active visits: {{count}}",
+      "selectProject": "Select a project to register visits.",
+      "newVisit": "New visit",
+      "emptyTitle": "No active visits yet.",
+      "emptyHint": "Register a new visit to start access control."
     },
-    "newBlock": {
-      "title": "New focus block",
-      "close": "Close",
-      "kind": "Block type",
-      "startsAt": "Starts at (UTC)",
-      "endsAt": "Ends at (UTC)",
-      "note": "Note (optional)",
-      "notePlaceholder": "E.g.: Zone A inspection, critical lifting",
-      "cancel": "Cancel",
-      "save": "Create block"
+    "form": {
+      "title": "New visit",
+      "fullName": "Full name",
+      "rut": "RUT / ID",
+      "company": "Company / Organization",
+      "reason": "Reason for visit",
+      "reasonPlaceholder": "ISO 45001 audit…",
+      "scan": "Scan QR",
+      "submit": "Check in"
+    },
+    "card": {
+      "inducted": "Inducted",
+      "pending": "Induction pending",
+      "host": "Host",
+      "checkIn": "Check-in",
+      "reason": "Reason",
+      "induct": "Induction",
+      "checkOut": "Check out"
+    },
+    "ack": {
+      "title": "Express induction",
+      "subtitle": "Accept the terms before entering the site.",
+      "version": "Induction version",
+      "empty": "No induction versions have been published for this project yet.",
+      "agreement": "I have read and accept the site safety rules.",
+      "signature": "Manual signature (type your name)",
+      "submit": "Confirm induction"
+    },
+    "errors": {
+      "noSession": "You must be signed in."
     }
   }
 }
