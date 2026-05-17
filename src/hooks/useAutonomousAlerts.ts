@@ -23,15 +23,19 @@ export function useAutonomousAlerts() {
         // out, env stream resolved to null on retry).
         const weather = environment?.weather;
         if (!weather) return;
+        // Codex P2 (PR #304): `windSpeed?` and `temp?` are independent on
+        // the weather payload. Validate each at the callsite of its own
+        // rule, NOT here — a temp-only snapshot must still trigger the
+        // thermal-stress alert. Earlier `if (typeof wind !== 'number')`
+        // pre-guard dropped the heat rule for partial snapshots.
         const temp = weather.temp;
         const wind = weather.windSpeed;
-        if (typeof temp !== 'number' || typeof wind !== 'number') return;
-        
+
         const today = new Date().toDateString();
 
         // Rule 1: High Wind + Work at Heights
-        // Threshold: 30 km/h
-        if (wind > 30) {
+        // Threshold: 30 km/h — requires `wind` present.
+        if (typeof wind === 'number' && wind > 30) {
           const heightTasks = nodes.filter(n => 
             (n.type === NodeType.TASK || n.type === NodeType.RISK) &&
             (n.title.toLowerCase().includes('altura') || (n.description || '').toLowerCase().includes('altura') || n.tags.includes('altura')) &&
@@ -52,8 +56,8 @@ export function useAutonomousAlerts() {
         }
 
         // Rule 2: Extreme Heat
-        // Threshold: 32°C
-        if (temp > 32) {
+        // Threshold: 32°C — requires `temp` present only.
+        if (typeof temp === 'number' && temp > 32) {
            const alertId = `heat-${selectedProject.id}-${today}`;
            if (!triggeredAlerts.current.has(alertId)) {
               addNotification({
@@ -66,8 +70,8 @@ export function useAutonomousAlerts() {
         }
 
         // Rule 3: Hot Work + High Wind / Low Humidity (Fire Risk)
-        // Threshold: Temp > 28, Wind > 20
-        if (temp > 28 && wind > 20) {
+        // Threshold: Temp > 28, Wind > 20 — requires both present.
+        if (typeof temp === 'number' && typeof wind === 'number' && temp > 28 && wind > 20) {
             const hotWorks = nodes.filter(n => 
                 (n.type === NodeType.TASK || n.type === NodeType.RISK) &&
                 (n.title.toLowerCase().includes('soldadura') || n.title.toLowerCase().includes('corte') || n.tags.includes('caliente')) &&
