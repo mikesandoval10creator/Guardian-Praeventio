@@ -50,12 +50,18 @@ export class CorrectiveActionsAdapter {
    * trio. The legacy weakActionDetector type is narrower but the
    * Firestore query is just a `==` on the column — records with the
    * extended states should be returned without coercion.
+   *
+   * Codex P2 PR #317: also accept `verified_effective` (the F.11
+   * effectiveness-review terminal status from `pdcaCycle.ts`). The
+   * CPHS monthly minute counts these as closed/verified and the
+   * adapter is the gateway for that fetch.
    */
   async listByStatus(
     status:
       | CorrectiveAction['status']
       | 'in_progress'
-      | 'reopened',
+      | 'reopened'
+      | 'verified_effective',
     limitN = 200,
   ): Promise<CorrectiveAction[]> {
     const snap = await this.db

@@ -15,6 +15,10 @@ const Reglamentos = lazy(() => import('../pages/Reglamentos').then(module => ({ 
 // que la migración de datos del próximo sprint mueva los `comite_actas` a
 // `cphs_meetings` con quórum + firma WebAuthn validados.
 const CphsModule = lazy(() => import('../pages/CphsModule'));
+// Sprint 40 Fase F.7 — Minuta CPHS automática (borrador mensual
+// determinístico desde incidentes + acciones + capacitaciones +
+// inspecciones). El comité revisa y firma desde el módulo CPHS principal.
+const CphsDraftMinute = lazy(() => import('../pages/CphsDraftMinute').then(m => ({ default: m.CphsDraftMinute })));
 
 export const ComplianceRoutes = [
   <Route key="normatives" path="normatives" element={<Normatives />} />,
@@ -24,6 +28,7 @@ export const ComplianceRoutes = [
   <Route key="audit-trail" path="audit-trail" element={<AuditTrail />} />,
   <Route key="comite-paritario" path="comite-paritario" element={<ComiteParitario />} />,
   <Route key="cphs" path="cphs" element={<CphsModule />} />,
+  <Route key="cphs-draft-minute" path="cphs/draft-minute" element={<CphsDraftMinute />} />,
   <Route key="suseso" path="suseso" element={<SusesoReports />} />,
   <Route key="reglamentos" path="reglamentos" element={<Reglamentos />} />,
 ];

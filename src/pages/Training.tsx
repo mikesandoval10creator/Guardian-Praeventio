@@ -188,9 +188,16 @@ export function Training() {
         ? session.attendees
         : [...(session.attendees || []), user.uid];
 
+      // Codex P2 PR #317 round 2: persist `completedAt` ISO string
+      // so the CPHS monthly draft (server/routes/sprintK.ts) puede
+      // contar la sesión en el mes en que SE IMPARTIÓ, no en el mes
+      // del `date` programado original. Cuando la sesión se agenda en
+      // mayo y se completa en junio el indicador mensual de capacitación
+      // estaba reportando el mes equivocado.
       await updateDoc(docRef, {
         status: 'completed',
-        attendees: newAttendees
+        attendees: newAttendees,
+        completedAt: new Date().toISOString()
       });
 
       setActiveVideoSession(null);

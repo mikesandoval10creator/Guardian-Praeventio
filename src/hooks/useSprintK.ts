@@ -922,3 +922,25 @@ export async function executeDrill(
   const json = (await res.json()) as { ok: true; drill: DrillRecord };
   return json.drill;
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Fase F.7 — Minuta CPHS automática
+// ────────────────────────────────────────────────────────────────────────
+//
+// Wrappea GET /api/sprint-k/:projectId/cphs/draft-minute. El endpoint
+// usa el motor determinístico `buildMonthlyMinuteDraft` para producir
+// un `MinuteDraft` (markdown + secciones + métricas + completeness
+// score). La page lo renderiza y permite descargar como JSON antes
+// de que el CPHS firme el acta definitiva.
+
+import type { MinuteDraft } from '../services/cphs/cphsMinuteAutogenerator';
+
+export interface CphsDraftMinuteResponse {
+  draft: MinuteDraft;
+}
+
+export function useCphsDraftMinute(projectId: string | null) {
+  return useEndpoint<CphsDraftMinuteResponse>(
+    projectId ? `/api/sprint-k/${projectId}/cphs/draft-minute` : null,
+  );
+}

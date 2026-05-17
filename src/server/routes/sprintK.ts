@@ -52,6 +52,20 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 
 const router = Router();
 
+/**
+ * Codex P2 PR #317: utilidad compartida para coercer scores que vienen
+ * de Firestore a un entero 0-100. Cualquier valor fuera de rango se
+ * "clampa" — el motor F.2 garantiza esto pero datos legacy pueden
+ * haberse guardado con floats o valores >100 (ej. proyectos migrados
+ * desde la métrica antigua).
+ */
+function clampScore(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  if (n < 0) return 0;
+  if (n > 100) return 100;
+  return Math.round(n);
+}
+
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
@@ -3348,6 +3362,738 @@ router.post(
     }
   },
 );
+
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.7 — Minuta automática Comité Paritario (CPHS)
+// ─────────────────────────────────────────────────────────────────────
+//
+// Construye el "borrador estructurado mensual" que el CPHS revisa antes
+// de firmar el acta definitiva. Cruza incidentes del período, acciones
+// correctivas (F.4), capacitaciones impartidas, inspecciones realizadas
+// y score semáforo (F.2) en un MarkDown determinístico vía
+// `buildMonthlyMinuteDraft` (sin LLM — la pasada Gemini opcional para
+// pulir redacción queda fuera de scope F.7).
+//
+// El servicio es puro y testable; el endpoint solo orquesta las
+// lecturas Firestore + mapea al shape `MonthlyInputs` que el motor
+// espera. Si cualquiera de los feeds falla por permisos / colección
+// inexistente, el endpoint sigue produciendo el borrador con datos
+// parciales — el campo `completenessScore` del draft alerta al
+// prevencionista de qué falta antes de aprobar.
+
+router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { buildMonthlyMinuteDraft } = await import(
+      '../../services/cphs/cphsMinuteAutogenerator.js'
+    );
+
+    const db = admin.firestore();
+
+    // Período: último mes calendario completo (UTC). El CPHS sesiona
+    // sobre el mes anterior; usar UTC evita off-by-one por zona horaria
+    // del servidor cuando estamos cerca del cambio de mes.
+    const now = new Date();
+    const monthStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1),
+    );
+    const monthEnd = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    );
+    // "YYYY-MM" del mes que cubre el borrador (mes anterior al actual).
+    const periodLabel = `${monthStart.getUTCFullYear()}-${String(
+      monthStart.getUTCMonth() + 1,
+    ).padStart(2, '0')}`;
+
+    // Best-effort wrapper — cada feed envuelto para que un fallo de
+    // permisos o colección ausente no blanquee el borrador completo.
+    // El draft producido refleja honestamente los datos disponibles.
+    const safeRead = async <T,>(
+      label: string,
+      fn: () => Promise<T[]>,
+    ): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.cphs.${label}.fetch_failed`, err);
+        return [];
+      }
+    };
+
+    // Resolve project metadata for the minute header (companyName).
+    // The Project doc lives top-level under `projects/{id}` — same
+    // path used by ProjectContext + every other Sprint K endpoint.
+    let companyName = 'Empresa';
+    let expectedAttendees: string[] = [];
+
+    // Codex P2 PR #317 round 2: source-of-truth para asistentes es
+    // `cphs_committees` (escrito por `services/cphs/cphsService.ts`
+    // cuando el prevencionista constituye el comité). El project doc
+    // sólo guarda overrides ad-hoc (proyectos sin módulo CPHS formal).
+    // Estrategia: primero pedimos el comité ACTIVO del proyecto y
+    // mapeamos `members[].fullName`; si no existe, caemos al lookup
+    // legacy en el doc del proyecto (cphsAttendees / cphsMembers).
+    try {
+      const committeesSnap = await db
+        .collection('cphs_committees')
+        .where('projectId', '==', projectId)
+        .where('status', '==', 'active')
+        .limit(5)
+        .get();
+      if (!committeesSnap.empty) {
+        // Concat members[].fullName from every active committee del proyecto.
+        // Normal es 1, pero defensivo por si quedan duplicados de migraciones.
+        const seen = new Set<string>();
+        const collected: string[] = [];
+        for (const doc of committeesSnap.docs) {
+          const data = doc.data() as { members?: unknown };
+          if (!Array.isArray(data.members)) continue;
+          for (const m of data.members) {
+            if (!m || typeof m !== 'object') continue;
+            const full = (m as { fullName?: unknown }).fullName;
+            if (typeof full === 'string' && full.length > 0 && !seen.has(full)) {
+              seen.add(full);
+              collected.push(full);
+            }
+          }
+        }
+        if (collected.length > 0) {
+          expectedAttendees = collected;
+        }
+      }
+    } catch (err) {
+      logger.warn?.('sprintK.cphs.committees.fetch_failed', err);
+      // No-op: caemos al lookup legacy en el doc del proyecto abajo.
+    }
+    // Codex P2 PR #317: el draft anterior hard-codeaba
+    // complianceTrafficLightScore=0 — eso pintaba 🔴 0/100 en todos
+    // los borradores y disparaba un "Plan de mejora cumplimiento" falso
+    // para proyectos que en realidad estaban verdes. Ahora leemos el
+    // campo `complianceScore` que `projects/{id}` ya mantiene
+    // (mismo dato consumido por insights.role_view); si no existe
+    // (proyecto nuevo / F.2 aún no corrió), pasamos `undefined` al
+    // motor y el draft omite la sección con un mensaje explícito
+    // ("no disponible") en vez de un cero engañoso.
+    let complianceTrafficLightScore: number | undefined;
+    try {
+      const projDoc = await db.collection('projects').doc(projectId).get();
+      const projData = projDoc.exists ? projDoc.data() : null;
+      if (projData) {
+        if (
+          typeof projData.companyName === 'string' &&
+          projData.companyName.length > 0
+        ) {
+          companyName = projData.companyName;
+        } else if (
+          typeof projData.name === 'string' &&
+          projData.name.length > 0
+        ) {
+          companyName = projData.name;
+        }
+        // Legacy fallback (Codex P2 PR #317 round 2): SOLO si el
+        // lookup anterior a `cphs_committees` no devolvió miembros.
+        // Aceptamos shapes ad-hoc del project doc:
+        //   - `cphsAttendees: string[]` (display names)
+        //   - `cphsMembers:   Array<{ displayName?: string; fullName?: string }>`
+        // Si absent, we leave the array empty and the draft's
+        // completeness score will flag it.
+        if (expectedAttendees.length === 0) {
+          if (Array.isArray(projData.cphsAttendees)) {
+            expectedAttendees = projData.cphsAttendees.filter(
+              (v: unknown): v is string =>
+                typeof v === 'string' && v.length > 0,
+            );
+          } else if (Array.isArray(projData.cphsMembers)) {
+            expectedAttendees = projData.cphsMembers
+              .map((m: unknown) => {
+                if (!m || typeof m !== 'object') return '';
+                // Aceptamos `fullName` (shape canónico del módulo CPHS)
+                // o `displayName` (legacy del project doc).
+                const candidate =
+                  (m as { fullName?: unknown }).fullName ??
+                  (m as { displayName?: unknown }).displayName;
+                return typeof candidate === 'string' ? candidate : '';
+              })
+              .filter((s: string) => s.length > 0);
+          }
+        }
+        // Best-effort compliance score lookup. Aceptamos formato número
+        // (0-100) o objeto cache `{ score, computedAt }`. Cualquier
+        // otro shape → undefined (template lo omite).
+        const rawScore = projData.complianceScore;
+        if (typeof rawScore === 'number' && Number.isFinite(rawScore)) {
+          complianceTrafficLightScore = clampScore(rawScore);
+        } else if (
+          rawScore &&
+          typeof rawScore === 'object' &&
+          typeof (rawScore as { score?: unknown }).score === 'number'
+        ) {
+          complianceTrafficLightScore = clampScore(
+            (rawScore as { score: number }).score,
+          );
+        }
+      }
+    } catch (err) {
+      logger.warn?.('sprintK.cphs.project.fetch_failed', err);
+    }
+
+    // ── Incidents (último mes completo) ──
+    // `incidents` es top-level filtrado por `projectId`. Aceptamos
+    // tanto `occurredAt` como `createdAt` como timestamp del evento
+    // (cohabitación legacy + nuevo writer). Filtramos cliente-side
+    // sobre los del proyecto para evitar requerir índice compuesto
+    // `(projectId, occurredAt)` que algunos despliegues no tienen.
+    //
+    // Codex P2 PR #317: el .limit(500) sobre una colección sin orden
+    // explícito puede devolver registros document-id-ordered y omitir
+    // los recientes (el mes que el CPHS necesita). Pedimos ordenado
+    // por `occurredAt desc` para que la "tail" más reciente caiga
+    // siempre dentro de los 500 — luego filtramos al mes objetivo.
+    //
+    // Codex P2 PR #317 round 2:
+    //   1. `orderBy('occurredAt')` filtra a documentos que tengan ese
+    //      campo, y los incidentes legacy / capturados vía SafetyFeed
+    //      sólo tienen `createdAt`. Si el query ordenado vuelve vacío
+    //      (caso típico: proyecto con sólo registros createdAt-only),
+    //      caemos al query sin orden — el catch original sólo cubría
+    //      FAILED_PRECONDITION, no el "0 docs porque el campo no existe".
+    //   2. El writer canónico de la app (SafetyFeed + Telemetry) crea
+    //      `NodeType.INCIDENT` en la colección `nodes`, no en
+    //      `/incidents`. Leemos ambas colecciones y deduplicamos por id
+    //      para que el draft refleje todos los incidentes que el resto
+    //      del sistema considera reales. La normalización del shape
+    //      (severity / description / rootCause) maneja la diferencia
+    //      entre `nodes` (severity en metadata.criticidad) e `incidents`
+    //      (severity al top-level).
+    // Si Firestore lanza FAILED_PRECONDITION (índice (projectId,
+    // occurredAt) no creado en este despliegue), caemos al query
+    // sin orderBy + filtro client-side. El catch del safeRead no nos
+    // sirve para distinguir índice-faltante de error real; lo hacemos
+    // inline. TODO: cursor-based pagination para proyectos con >500
+    // incidentes/mes (extremadamente raro en práctica — el promedio
+    // está bajo 20).
+    const incidents = await safeRead<Record<string, unknown>>(
+      'incidents',
+      async () => {
+        const startMs = monthStart.getTime();
+        const endMs = monthEnd.getTime();
+
+        // (a) Read /incidents (legacy / API writer).
+        const baseIncidentsQuery = db
+          .collection('incidents')
+          .where('projectId', '==', projectId);
+        let incidentsSnap: FirebaseFirestore.QuerySnapshot;
+        try {
+          const orderedSnap = await baseIncidentsQuery
+            .orderBy('occurredAt', 'desc')
+            .limit(500)
+            .get();
+          // Si el ordered devuelve vacío puede ser porque la colección
+          // legacy guarda sólo `createdAt`. Sin un segundo query no
+          // distinguimos "0 incidentes reales" de "0 con campo
+          // occurredAt"; el costo de un read extra a una collection
+          // ya consultada es despreciable y nos asegura no perder
+          // documentos createdAt-only.
+          if (orderedSnap.empty) {
+            incidentsSnap = await baseIncidentsQuery.limit(500).get();
+          } else {
+            incidentsSnap = orderedSnap;
+          }
+        } catch (orderErr) {
+          // Índice compuesto faltante: degradamos a query sin orderBy
+          // (mismo comportamiento que tenía esta ruta antes del fix).
+          // El draft saldrá igual cuando el proyecto tiene <500
+          // incidentes totales — que es el caso normal.
+          logger.warn?.(
+            'sprintK.cphs.incidents.orderBy_failed_fallback_unordered',
+            orderErr,
+          );
+          incidentsSnap = await baseIncidentsQuery.limit(500).get();
+        }
+
+        // (b) Read /nodes filtered to NodeType.INCIDENT — fuente real
+        //     del SafetyFeed/Telemetry/CPHS alert trigger. El enum
+        //     `NodeType.INCIDENT` se persiste literal como 'Incidente'
+        //     en `nodes[].type` (ver src/types/index.ts).
+        let nodeIncidentsSnap: FirebaseFirestore.QuerySnapshot;
+        try {
+          nodeIncidentsSnap = await db
+            .collection('nodes')
+            .where('projectId', '==', projectId)
+            .where('type', '==', 'Incidente')
+            .limit(500)
+            .get();
+        } catch (nodesErr) {
+          logger.warn?.(
+            'sprintK.cphs.incidents.nodes_query_failed',
+            nodesErr,
+          );
+          nodeIncidentsSnap = {
+            docs: [],
+          } as unknown as FirebaseFirestore.QuerySnapshot;
+        }
+
+        // Normalize node-shape to incident-shape: la severidad vive
+        // en `metadata.criticidad` ('Baja'|'Media'|'Alta'|'Crítica');
+        // la fecha del evento es `createdAt` (string ISO) — el nodo
+        // no expone `occurredAt`. Esto pasa por `normSeverity` abajo
+        // que ya tolera tanto las claves español como inglés.
+        const nodeIncidents: Record<string, unknown>[] =
+          nodeIncidentsSnap.docs.map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            const metadata =
+              (data.metadata as Record<string, unknown> | undefined) ?? {};
+            const criticidad =
+              typeof metadata.criticidad === 'string'
+                ? metadata.criticidad
+                : typeof data.severity === 'string'
+                  ? data.severity
+                  : undefined;
+            return {
+              id: d.id,
+              ...data,
+              severity: criticidad ?? data.severity,
+              // El motor usa `description` como label; nodes lo
+              // tienen al top-level, pero algunos legacy sólo en
+              // metadata.context — fallback defensivo.
+              description:
+                typeof data.description === 'string'
+                  ? data.description
+                  : typeof (metadata.context as unknown) === 'string'
+                    ? (metadata.context as string)
+                    : typeof data.title === 'string'
+                      ? data.title
+                      : 'Sin descripción',
+            };
+          });
+
+        const incidentDocs: Record<string, unknown>[] = incidentsSnap.docs.map(
+          (d) => ({
+            id: d.id,
+            ...(d.data() as Record<string, unknown>),
+          }),
+        );
+
+        // Dedupe by id — un proyecto puede tener ambos shapes (writer
+        // legacy + writer nuevo) durante la transición; preferimos el
+        // shape canónico de `incidents` cuando hay colisión.
+        const byId = new Map<string, Record<string, unknown>>();
+        for (const n of nodeIncidents) byId.set(String(n.id), n);
+        for (const i of incidentDocs) byId.set(String(i.id), i);
+        const combined = Array.from(byId.values());
+
+        return combined.filter((doc) => {
+          // Aceptamos `occurredAt` (writer canónico /incidents) o
+          // `createdAt` (legacy + nodes). NO descartamos por falta de
+          // `occurredAt` — esa era la regresión que Codex flagged.
+          const ts =
+            (typeof doc.occurredAt === 'string' ? doc.occurredAt : null) ??
+            (typeof doc.createdAt === 'string' ? doc.createdAt : null);
+          if (!ts) return false;
+          const t = Date.parse(ts);
+          return Number.isFinite(t) && t >= startMs && t < endMs;
+        });
+      },
+    );
+
+    // ── Corrective actions ── (full set: open + in_progress + closed +
+    //    verified + verified_effective + reopened). El servicio acepta
+    //    todos los status; el motor cphs los proyecta al enum de la
+    //    minuta (open|closed|verified|verified_effective).
+    //
+    // Codex P2 PR #317:
+    //   1. Incluimos `verified_effective` (F.11 terminal state) — antes
+    //      quedaba fuera y `closedActionsCount` subreportaba PDCA real.
+    //   2. Aumentamos el limit por status a 1000 (vs default 200 del
+    //      adapter) — para proyectos con backlog grande, 200 truncaba
+    //      acciones legítimas del período y la minuta perdía evidencia.
+    //      1000 cubre prácticamente el 100% de casos reales; para
+    //      cuadrillas/sitios con backlogs >1000 abiertos en un sólo
+    //      status, el indicador subreporta pero el resto del draft es
+    //      honest — el cursor-based pagination queda en TODO sub-PR.
+    const ACTIONS_PAGE = 1000;
+    const correctiveActions = await safeRead<Record<string, unknown>>(
+      'correctiveActions',
+      async () => {
+        const adapter = new CorrectiveActionsAdapter(
+          db as any,
+          g.tenantId,
+          projectId,
+        );
+        const [
+          openA,
+          inProgressA,
+          closedA,
+          verifiedA,
+          verifiedEffectiveA,
+          reopenedA,
+        ] = await Promise.all([
+          adapter.listByStatus('open', ACTIONS_PAGE).catch(() => []),
+          adapter
+            .listByStatus('in_progress', ACTIONS_PAGE)
+            .catch(() => []),
+          adapter.listByStatus('closed', ACTIONS_PAGE).catch(() => []),
+          adapter.listByStatus('verified', ACTIONS_PAGE).catch(() => []),
+          adapter
+            .listByStatus('verified_effective', ACTIONS_PAGE)
+            .catch(() => []),
+          adapter.listByStatus('reopened', ACTIONS_PAGE).catch(() => []),
+        ]);
+        return [
+          ...openA,
+          ...inProgressA,
+          ...closedA,
+          ...verifiedA,
+          ...verifiedEffectiveA,
+          ...reopenedA,
+        ] as unknown as Record<string, unknown>[];
+      },
+    );
+
+    // ── Trainings impartidas. Top-level `training` collection
+    //    filtrada por `projectId`. ──
+    //
+    // Codex P2 PR #317: el writer de Training.tsx escribe
+    // `status: 'scheduled'` + `date: ISO` al crear la sesión y la
+    // muta a `'completed'` al cerrar (vía `updateDoc`). El draft
+    // CPHS mensual debe contar SOLO sesiones efectivamente impartidas
+    // en el mes objetivo — no las agendadas a futuro ni las
+    // canceladas. Filtramos client-side por `status === 'completed'`
+    // Y por `date` dentro de la ventana mensual (mismo periodo que
+    // los incidentes), para evitar inflar el indicador con
+    // capacitaciones legacy de meses anteriores.
+    //
+    // Codex P2 PR #317 round 2:
+    //   1. El `.limit(500)` sin orderBy podía devolver una "ventana"
+    //      document-id-ordered y omitir las sesiones recientes — el
+    //      mismo problema que vimos en incidents. Pedimos
+    //      `orderBy('date', 'desc')` para que la cola más reciente
+    //      siempre caiga adentro, y degradamos a query sin orden si
+    //      falta el índice compuesto.
+    //   2. Filtramos por `completedAt` cuando existe (writer nuevo),
+    //      y caemos a `date` SÓLO como compat — pero exigimos que la
+    //      fecha de schedule también caiga en la ventana del mes, para
+    //      no contar sesiones agendadas previo al mes que se
+    //      completaron en otro periodo. Es la mejor heurística sin
+    //      backfill: el sub-PR siguiente actualiza Training.tsx para
+    //      escribir `completedAt: serverTimestamp()` al cerrar (ver
+    //      handleCompleteVideo) y a partir de ahí el draft preferirá
+    //      ese timestamp.
+    const trainings = await safeRead<Record<string, unknown>>(
+      'trainings',
+      async () => {
+        const baseQuery = db
+          .collection('training')
+          .where('projectId', '==', projectId);
+        let snap: FirebaseFirestore.QuerySnapshot;
+        try {
+          snap = await baseQuery
+            .orderBy('date', 'desc')
+            .limit(500)
+            .get();
+        } catch (orderErr) {
+          // Índice compuesto faltante: degradamos a query sin orderBy
+          // (mismo comportamiento previo). Para proyectos con <500
+          // trainings totales esto sigue siendo correcto; el riesgo
+          // sólo aparece con backlogs masivos sin índice.
+          logger.warn?.(
+            'sprintK.cphs.trainings.orderBy_failed_fallback_unordered',
+            orderErr,
+          );
+          snap = await baseQuery.limit(500).get();
+        }
+        const startMs = monthStart.getTime();
+        const endMs = monthEnd.getTime();
+        const all: Record<string, unknown>[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Record<string, unknown>),
+        }));
+        return all.filter((doc) => {
+          if (doc.status !== 'completed') return false;
+          // Preferimos `completedAt` (writer nuevo) — ese es el
+          // timestamp REAL de cuándo se impartió. Si no existe,
+          // caemos a `date` (writer legacy: fecha de schedule).
+          // Sólo contamos el training si el timestamp resultante
+          // cae en la ventana del mes objetivo.
+          const ts =
+            (typeof doc.completedAt === 'string'
+              ? doc.completedAt
+              : null) ??
+            (typeof doc.date === 'string' ? doc.date : null);
+          if (!ts) return false;
+          const t = Date.parse(ts);
+          return Number.isFinite(t) && t >= startMs && t < endMs;
+        });
+      },
+    );
+
+    // ── Inspections realizadas. ──
+    //
+    // Codex P2 PR #317 round 2: el writer canónico de la app
+    // (`SafetyInspection.tsx` + `AddAuditModal.tsx`) crea
+    // `NodeType.AUDIT` en la colección `nodes` (no en `/audits`).
+    // Antes la ruta sólo leía `/audits`, así que proyectos con flujo
+    // estándar obtenían `inspectionsCompleted: 0` aunque el dashboard
+    // mostraba inspecciones reales. Además, cualquier audit histórico
+    // o futuro inflaba el contador porque no había filtro por estado
+    // ni por ventana mensual.
+    //
+    // Cambios:
+    //   1. Leemos AMBAS colecciones: `nodes` (type='Auditoría' literal
+    //      del enum, ver src/types/index.ts) y `/audits` (legacy).
+    //   2. Filtramos al mismo `[monthStart, monthEnd)` que incidentes
+    //      y trainings — sólo cuentan inspecciones EJECUTADAS en el
+    //      período del borrador, no programadas para más tarde.
+    //   3. Filtramos por estado: 'Completado' (writer SafetyInspection)
+    //      o equivalentes ('completed', 'ejecutada'). El writer
+    //      AddAuditModal escribe `metadata.status: 'Planificada'`
+    //      cuando se agenda; ese estado NO debe contar.
+    //   4. Dedupe por id para tolerar despliegues mixtos.
+    const inspections = await safeRead<Record<string, unknown>>(
+      'inspections',
+      async () => {
+        const startMs = monthStart.getTime();
+        const endMs = monthEnd.getTime();
+
+        // (a) Read /nodes filtered to NodeType.AUDIT (canonical writer).
+        let nodesSnap: FirebaseFirestore.QuerySnapshot;
+        try {
+          nodesSnap = await db
+            .collection('nodes')
+            .where('projectId', '==', projectId)
+            .where('type', '==', 'Auditoría')
+            .limit(500)
+            .get();
+        } catch (nodesErr) {
+          logger.warn?.(
+            'sprintK.cphs.inspections.nodes_query_failed',
+            nodesErr,
+          );
+          nodesSnap = {
+            docs: [],
+          } as unknown as FirebaseFirestore.QuerySnapshot;
+        }
+
+        // (b) Read /audits (legacy collection).
+        let auditsSnap: FirebaseFirestore.QuerySnapshot;
+        try {
+          auditsSnap = await db
+            .collection('audits')
+            .where('projectId', '==', projectId)
+            .limit(500)
+            .get();
+        } catch (auditsErr) {
+          logger.warn?.(
+            'sprintK.cphs.inspections.audits_query_failed',
+            auditsErr,
+          );
+          auditsSnap = {
+            docs: [],
+          } as unknown as FirebaseFirestore.QuerySnapshot;
+        }
+
+        const isCompletedStatus = (raw: unknown): boolean => {
+          if (typeof raw !== 'string') return false;
+          const s = raw.toLowerCase();
+          return (
+            s === 'completado' ||
+            s === 'completada' ||
+            s === 'completed' ||
+            s === 'ejecutada' ||
+            s === 'ejecutado'
+          );
+        };
+
+        const isInPeriod = (raw: unknown): boolean => {
+          if (typeof raw !== 'string') return false;
+          const t = Date.parse(raw);
+          return Number.isFinite(t) && t >= startMs && t < endMs;
+        };
+
+        // Normalize node-shape to inspection-shape: estado / fecha
+        // viven en `metadata.status` y `metadata.date` (writers
+        // SafetyInspection/AddAuditModal), y la fecha de creación
+        // del documento es `createdAt` (string ISO escrito por
+        // useRiskEngine o un serverTimestamp).
+        const fromNodes: Record<string, unknown>[] = nodesSnap.docs
+          .map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            const metadata =
+              (data.metadata as Record<string, unknown> | undefined) ?? {};
+            const status =
+              (metadata.status as unknown) ?? (data.status as unknown);
+            const dateField =
+              (metadata.date as unknown) ??
+              (data.completedAt as unknown) ??
+              (data.createdAt as unknown);
+            return {
+              id: d.id,
+              status,
+              date: dateField,
+              raw: data,
+            };
+          })
+          .filter(
+            (doc) =>
+              isCompletedStatus(doc.status) && isInPeriod(doc.date),
+          );
+
+        const fromAudits: Record<string, unknown>[] = auditsSnap.docs
+          .map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            const status =
+              (data.status as unknown) ??
+              ((data.metadata as Record<string, unknown> | undefined)
+                ?.status as unknown);
+            const dateField =
+              (data.completedAt as unknown) ??
+              (data.date as unknown) ??
+              (data.createdAt as unknown) ??
+              ((data.metadata as Record<string, unknown> | undefined)
+                ?.date as unknown);
+            return {
+              id: d.id,
+              status,
+              date: dateField,
+              raw: data,
+            };
+          })
+          .filter(
+            (doc) =>
+              isCompletedStatus(doc.status) && isInPeriod(doc.date),
+          );
+
+        // Dedupe by id — un proyecto puede tener ambos shapes durante
+        // la transición; preferimos el shape canónico de `audits`
+        // cuando hay colisión.
+        const byId = new Map<string, Record<string, unknown>>();
+        for (const n of fromNodes) byId.set(String(n.id), n);
+        for (const a of fromAudits) byId.set(String(a.id), a);
+        return Array.from(byId.values());
+      },
+    );
+
+    // ── Map al shape `MonthlyInputs` del servicio ──
+
+    // Severity normalization: incident docs pueden traer 'low'|'medium'|
+    // 'high'|'critical' literalmente, o variantes ('baja'|'alta'|'1'..).
+    // Mapeamos al enum estricto del servicio; default 'medium'.
+    const normSeverity = (
+      raw: unknown,
+    ): 'low' | 'medium' | 'high' | 'critical' => {
+      const s = String(raw ?? '').toLowerCase();
+      if (
+        s === 'critical' ||
+        s === 'critico' ||
+        s === 'crítico' ||
+        s === '4'
+      )
+        return 'critical';
+      if (s === 'high' || s === 'alta' || s === 'alto' || s === '3')
+        return 'high';
+      if (s === 'low' || s === 'baja' || s === 'bajo' || s === '1') return 'low';
+      return 'medium';
+    };
+
+    const incidentsInput = incidents.map((i: Record<string, unknown>) => ({
+      id: String(i.id ?? 'unknown'),
+      severity: normSeverity(i.severity),
+      description:
+        typeof i.description === 'string' && i.description.length > 0
+          ? i.description
+          : typeof i.summary === 'string' && i.summary.length > 0
+            ? i.summary
+            : 'Sin descripción',
+      // rootCauseKnown: aceptamos el flag explícito o derivamos de la
+      // presencia de cualquier shape de `rootCause` (string o objeto).
+      rootCauseKnown:
+        i.rootCauseKnown === true ||
+        (typeof i.rootCause === 'string' && i.rootCause.length > 0) ||
+        (typeof i.rootCause === 'object' && i.rootCause !== null),
+    }));
+
+    const correctiveActionsInput = correctiveActions.map(
+      (a: Record<string, unknown>) => {
+        const rawStatus = String(a.status ?? 'open');
+        // Map al enum aceptado por el servicio. `reopened` (F.4 nuevo)
+        // se proyecta a 'open' para la minuta — sigue siendo trabajo
+        // abierto desde la óptica del CPHS.
+        const status:
+          | 'open'
+          | 'in_progress'
+          | 'closed'
+          | 'verified'
+          | 'verified_effective' =
+          rawStatus === 'closed'
+            ? 'closed'
+            : rawStatus === 'verified'
+              ? 'verified'
+              : rawStatus === 'verified_effective'
+                ? 'verified_effective'
+                : rawStatus === 'in_progress'
+                  ? 'in_progress'
+                  : 'open';
+        return {
+          id: String(a.id ?? 'unknown'),
+          status,
+          dueDate: typeof a.dueDate === 'string' ? a.dueDate : undefined,
+          label:
+            typeof a.description === 'string' && a.description.length > 0
+              ? a.description.slice(0, 200)
+              : 'Acción sin descripción',
+        };
+      },
+    );
+
+    const trainingsInput = trainings.map((t: Record<string, unknown>) => ({
+      title:
+        typeof t.title === 'string' && t.title.length > 0
+          ? t.title
+          : typeof t.name === 'string' && t.name.length > 0
+            ? t.name
+            : 'Capacitación',
+      participantsCount: (() => {
+        if (typeof t.participantsCount === 'number') return t.participantsCount;
+        if (Array.isArray(t.participants)) return t.participants.length;
+        if (Array.isArray(t.attendees)) return t.attendees.length;
+        return 0;
+      })(),
+    }));
+
+    // Codex P2 PR #317:
+    //   - `complianceTrafficLightScore` ahora viene del campo
+    //     `projects/{id}.complianceScore` (cacheado por la F.2
+    //     pipeline). Si no existe en el doc del proyecto, pasamos
+    //     `undefined` para que el motor omita la sección con
+    //     "no disponible" en vez de pintar 🔴 0/100 engañoso.
+    //   - `legalRecommendations` queda como `[]` por ahora — wiring
+    //     real al `legalRuleEngine.getCriticalRequirements(profile)`
+    //     requiere un `ProjectProfile` que el módulo de proyectos aún
+    //     no expone consistentemente; sub-PR siguiente cuando F.2 y
+    //     B.10 estén ambos cableados al doc del proyecto.
+    const draft = buildMonthlyMinuteDraft({
+      projectId,
+      period: periodLabel,
+      companyName,
+      incidents: incidentsInput,
+      correctiveActions: correctiveActionsInput,
+      trainingsCompleted: trainingsInput,
+      inspectionsCompleted: inspections.length,
+      complianceTrafficLightScore,
+      legalRecommendations: [],
+      expectedAttendees,
+    });
+
+    return res.json({ draft });
+  } catch (err) {
+    logger.error?.('sprintK.cphs.draftMinute.error', err);
+    captureRouteError(err, 'sprintK.cphs.draftMinute');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
 
 
 export default router;
