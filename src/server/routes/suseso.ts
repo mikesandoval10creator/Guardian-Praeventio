@@ -192,7 +192,7 @@ router.post(
   async (req, res) => {
     const { tenantId, signature, webauthnAssertion } =
       req.validated as z.infer<typeof signSchema>;
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     try {
       // 2026-05-15 (Regla #3): SI algorithm === 'webauthn-ecdsa-p256',
       // ejecutamos la ceremonia WebAuthn end-to-end antes de persistir.
@@ -279,7 +279,7 @@ router.post(
 // implícitamente porque el cliente debe pasar el mismo `challengeId` al
 // llamar `/sign` después de la ceremonia biométrica.
 router.get('/form/:id/sign-challenge', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   try {
     const { generateWebAuthnChallenge, storeWebAuthnChallenge } = await import(
       '../../services/auth/webauthnChallenge.js'

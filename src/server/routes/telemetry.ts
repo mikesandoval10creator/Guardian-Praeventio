@@ -218,7 +218,7 @@ router.post('/telemetry/ingest', async (req, res) => {
 // /api/admin/iot/rotate-secret directly so that mounting order is
 // preserved and the body parser/limits already on /api/ apply.
 router.post('/admin/iot/rotate-secret', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const { tenantId } = req.body ?? {};
   if (typeof tenantId !== 'string' || tenantId.length === 0 || tenantId.length > 128) {
     return res.status(400).json({ error: 'Invalid tenantId' });

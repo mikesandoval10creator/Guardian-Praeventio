@@ -1011,6 +1011,7 @@ function PricingInner() {
       // Best-effort receipt-validate ping. The server returns 202 here
       // because the authoritative grant flows through the store webhook;
       // this call is for fraud signal + audit trail.
+      if (!user) return;
       try {
         const idToken = await user.getIdToken();
         const endpoint =

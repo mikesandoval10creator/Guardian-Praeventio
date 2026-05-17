@@ -120,7 +120,7 @@ async function findShareById(tokenId: string): Promise<VaultShareToken | null> {
 // POST /api/health-vault/share â€” el worker genera un share token.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/share', verifyAuth, async (req, res) => {
-  const callerUid: string = req.user?.uid;
+  const callerUid: string | undefined = req.user?.uid;
   if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
 
   const { scope, topic, recordIds, ttlHours } = req.body ?? {};
@@ -290,7 +290,7 @@ router.get(
 // POST /api/health-vault/share/:tokenId/revoke â€” el worker revoca.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/share/:tokenId/revoke', verifyAuth, async (req, res) => {
-  const callerUid: string = req.user?.uid;
+  const callerUid: string | undefined = req.user?.uid;
   if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
 
   const { tokenId } = req.params;

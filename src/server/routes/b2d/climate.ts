@@ -88,7 +88,7 @@ router.get('/forecast', b2dAuth('climate.forecast'), async (req, res) => {
 
   const days = Math.min(14, Math.max(1, Math.floor(Number(req.query.days ?? 7))));
   const today = new Date();
-  const days_data = [];
+  const days_data: { date: string; tempMinC: number; tempMaxC: number; precipitationMm: number; windKmh: number }[] = [];
   for (let i = 0; i < days; i += 1) {
     const date = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
     const base = climateSnapshot(coords);

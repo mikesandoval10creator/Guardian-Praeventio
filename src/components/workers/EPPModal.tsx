@@ -62,8 +62,11 @@ export function EPPModal({ isOpen, onClose, worker, projectId }: EPPModalProps) 
           if (!eppItem) continue;
 
           // Find or create EPP node
-          let eppNode = nodes.find(n => n.type === NodeType.EPP && n.title === eppItem.name);
-          
+          // addNode() returns `RiskNode | null` (rejected/offline); the
+          // find() returns `RiskNode | undefined`. Allow both for the
+          // local variable so the strict-null assignment doesn't reject.
+          let eppNode: import('../../types').RiskNode | null | undefined = nodes.find(n => n.type === NodeType.EPP && n.title === eppItem.name);
+
           if (!eppNode) {
             eppNode = await addNode({
               type: NodeType.EPP,
