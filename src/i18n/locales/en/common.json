@@ -2100,45 +2100,61 @@
     "saving": "Saving…",
     "trainingRegistered": "Training registered"
   },
-  "visitors": {
-    "page": {
-      "title": "Visitor Control",
-      "subtitle": "§23-24 Sprint K — Active visits: {{count}}",
-      "selectProject": "Select a project to register visits.",
-      "newVisit": "New visit",
-      "emptyTitle": "No active visits yet.",
-      "emptyHint": "Register a new visit to start access control."
+  "import": {
+    "title": "Import data from Excel",
+    "subtitle": "Upload your spreadsheet, review errors and confirm the import.",
+    "kind_label": "Data type",
+    "kinds": {
+      "workers": "Workers",
+      "epp": "PPE issued",
+      "trainings": "Trainings",
+      "incidents": "Incidents",
+      "projects": "Projects",
+      "risks": "Risks / IPER"
     },
-    "form": {
-      "title": "New visit",
-      "fullName": "Full name",
-      "rut": "RUT / ID",
-      "company": "Company / Organization",
-      "reason": "Reason for visit",
-      "reasonPlaceholder": "ISO 45001 audit…",
-      "scan": "Scan QR",
-      "submit": "Check in"
+    "steps": {
+      "upload": "Upload",
+      "review": "Review",
+      "done": "Done"
     },
-    "card": {
-      "inducted": "Inducted",
-      "pending": "Induction pending",
-      "host": "Host",
-      "checkIn": "Check-in",
-      "reason": "Reason",
-      "induct": "Induction",
-      "checkOut": "Check out"
+    "dropzone": {
+      "placeholder": "Drag your Excel file here, or click to select",
+      "selected": "{{name}} ({{size}} KB)",
+      "hint": "Up to 5MB · .xlsx, .xls, .csv"
     },
-    "ack": {
-      "title": "Express induction",
-      "subtitle": "Accept the terms before entering the site.",
-      "version": "Induction version",
-      "empty": "No induction versions have been published for this project yet.",
-      "agreement": "I have read and accept the site safety rules.",
-      "signature": "Manual signature (type your name)",
-      "submit": "Confirm induction"
+    "actions": {
+      "validate": "Validate file",
+      "validating": "Validating…",
+      "commit": "Confirm import ({{n}})",
+      "committing": "Importing…",
+      "back": "Back",
+      "new_import": "Import another file"
+    },
+    "stats": {
+      "total": "Rows",
+      "valid": "Valid",
+      "invalid": "With errors",
+      "duplicates": "Duplicates"
+    },
+    "review": {
+      "sheet": "Processed sheet: {{sheet}}",
+      "errors_heading": "Detected errors",
+      "sample_heading": "Sample of valid rows",
+      "col_row": "Row",
+      "col_column": "Column",
+      "col_message": "Message"
+    },
+    "done": {
+      "success_title": "Import completed",
+      "partial_title": "Partial import",
+      "summary": "{{n}} records imported.",
+      "failures": "{{n}} failed — check logs."
     },
     "errors": {
-      "noSession": "You must be signed in."
+      "no_file": "Select an Excel file.",
+      "too_large": "The file exceeds the 5MB limit.",
+      "nothing_to_commit": "No valid rows to import.",
+      "no_project": "Select a project before confirming."
     }
   }
 }

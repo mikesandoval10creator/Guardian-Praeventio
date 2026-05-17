@@ -127,6 +127,8 @@ import onboardingRouter from "./src/server/routes/onboarding.js";
 import sitebookRouter from "./src/server/routes/sitebook.js";
 import insightsRouter from "./src/server/routes/insights.js";
 import sprintKRouter from "./src/server/routes/sprintK.js";
+// Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
+import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import { setupSystemEngineTrigger } from "./src/server/triggers/systemEngineTrigger.js";
@@ -715,6 +717,12 @@ app.use('/api', onboardingRouter);
 app.use('/api/sitebook', sitebookRouter);
 app.use('/api/insights', insightsRouter);
 app.use('/api/sprint-k', sprintKRouter);
+
+// Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
+//   • POST /api/import/excel  → parse + validate + dedupe (no writes)
+//   • POST /api/import/commit → persist a validated batch
+// El body parser local del router permite 5MB (override del 64kb global).
+app.use('/api', importRouter);
 
 // Sprint 21 Ola 4 Bucket M.5 — IANA-registered MIME for `.usdz` so iOS
 // Safari invokes AR Quick Look. Without this header the browser treats

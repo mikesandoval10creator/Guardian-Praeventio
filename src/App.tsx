@@ -158,6 +158,10 @@ const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase').then(module => 
 // puro `visitorControl/visitorRegistry` + ruta server `visitors.ts`
 // + esta página que cierra el wire end-to-end.
 const Visitors = lazy(() => import('./pages/Visitors').then(module => ({ default: module.Visitors })));
+// Sprint K §106-108 — Wizard para importar planillas Excel de PYMEs
+// (trabajadores, EPP, capacitaciones, incidentes). El service
+// `excelImporter` valida con Zod y deduplica; este page lo expone.
+const ImportData = lazy(() => import('./pages/ImportData').then(module => ({ default: module.ImportData })));
 const GoogleDriveIntegrationManager = lazy(() => import('./pages/GoogleDriveIntegrationManager').then(module => ({ default: module.GoogleDriveIntegrationManager })));
 const ImmutableRender = lazy(() => import('./pages/ImmutableRender').then(module => ({ default: module.ImmutableRender })));
 const WearablesIntegration = lazy(() => import('./pages/WearablesIntegration').then(module => ({ default: module.WearablesIntegration })));
@@ -251,6 +255,7 @@ function AppRoutes() {
               <Route path="suppliers" element={<SupplierQuality />} />
               <Route path="knowledge-base" element={<KnowledgeBase />} />
               <Route path="visitors" element={<Visitors />} />
+              <Route path="import-data" element={<ImportData />} />
               <Route path="*" element={<Dashboard />} />
             </Route>
           </Routes>
@@ -401,6 +406,7 @@ function AppRoutes() {
                     <Route path="suppliers" element={<SupplierQuality />} />
                     <Route path="knowledge-base" element={<KnowledgeBase />} />
                     <Route path="visitors" element={<Visitors />} />
+                    <Route path="import-data" element={<ImportData />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
                     <Route path="admin/b2d" element={<B2dAdminPanel />} />
                     <Route path="my-data" element={<MyData />} />
