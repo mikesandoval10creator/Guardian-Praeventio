@@ -171,6 +171,9 @@ let cachedAdapter: XlsxParserAdapter | null = null;
 async function getSheetJsAdapter(): Promise<XlsxParserAdapter> {
   if (cachedAdapter) return cachedAdapter;
   // Lazy import so unit tests que no usan XLSX no fuerzan el paquete.
+  // SheetJS (xlsx) is intentionally not installed in node_modules — it's
+  // declared as optional/peer and resolved at runtime when present.
+  // @ts-expect-error: optional runtime dep — xlsx may not be installed
   const mod = (await import('xlsx')) as unknown as {
     read: (data: Uint8Array, opts: { type: 'array' }) => {
       SheetNames: string[];
@@ -285,7 +288,7 @@ export async function parseXlsx(
 
 export class XlsxReaderError extends Error {
   readonly code: 'too_large' | 'missing_dep' | 'invalid_file';
-  readonly cause?: Error;
+  override readonly cause?: Error;
   constructor(message: string, code: XlsxReaderError['code'], cause?: Error) {
     super(message);
     this.name = 'XlsxReaderError';

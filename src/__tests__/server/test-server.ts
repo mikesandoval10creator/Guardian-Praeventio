@@ -1271,7 +1271,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       return next(err);
     },
     verifyAuth,
-    async (req, res) => {
+    async (req: Request, res: Response) => {
       const { content } = req.body ?? {};
       if (typeof content !== 'string') {
         return res.status(400).json({ error: 'content is required' });
@@ -1280,7 +1280,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       // legitimately large body (200kb+) is accepted and a small ACK
       // is returned. The 2MB ceiling is enforced by the body parser.
       res.setHeader('Content-Type', 'application/pdf');
-      res.status(200).send(Buffer.from(`PDF:${content.length}`));
+      return res.status(200).send(Buffer.from(`PDF:${content.length}`));
     },
   );
 

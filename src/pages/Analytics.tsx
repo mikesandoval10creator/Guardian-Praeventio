@@ -600,13 +600,14 @@ export function Analytics() {
                   <Radar name="Objetivo" dataKey="B" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
                   <Legend />
                   <Tooltip
-                    formatter={(value: number, name: string, props: any) => {
-                      const subject = props?.payload?.subject;
+                    formatter={(value, name, props) => {
+                      const payload = (props as { payload?: { subject?: string } } | undefined)?.payload;
+                      const subject = payload?.subject;
                       const dim = safetyDimensionsData.find(d => d.subject === subject);
                       if (dim?.insufficient_data && name === 'Actual') {
-                        return [`${value} (datos insuficientes)`, name];
+                        return [`${String(value)} (datos insuficientes)`, name];
                       }
-                      return [value, name];
+                      return [String(value), name];
                     }}
                   />
                 </RadarChart>

@@ -2542,7 +2542,7 @@ router.get('/:projectId/repeating-risks', verifyAuth, async (req, res) => {
               .collection('incidents')
               .where('projectId', '==', projectId)
               .get();
-            const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            const docs: Array<{ id: string } & Record<string, unknown>> = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             // JS sort by `field` desc; tolerate Firestore Timestamp,
             // Date, number, or ISO string. Cap to 500 (same as ordered
             // query) so the rest of the pipeline keeps its memory bound.

@@ -297,16 +297,21 @@ billingApiRouter.post('/verify', verifyAuth, idempotencyKey(), async (req, res) 
 
     // Update user subscription status
     if (type === 'subscription') {
-      const expiryDate = data.expiryTimeMillis ? new Date(parseInt(data.expiryTimeMillis)).toISOString() : null;
+      // Narrow: `type === 'subscription'` guarantees subscription branch above
+      // returned `Schema$SubscriptionPurchase` (which has `expiryTimeMillis` &
+      // `paymentState`). TS can't narrow `data` through the disjoint `if`,
+      // so we project to a typed shape here.
+      const subData = data as { expiryTimeMillis?: string | null; paymentState?: number | null; orderId?: string | null };
+      const expiryDate = subData.expiryTimeMillis ? new Date(parseInt(subData.expiryTimeMillis)).toISOString() : null;
       // paymentState 1 = received, 2 = free trial
-      const isActive = data.paymentState === 1 || data.paymentState === 2;
+      const isActive = subData.paymentState === 1 || subData.paymentState === 2;
 
       await db.collection('users').doc(uid).update({
         'subscription.planId': resolvedPlan,
         'subscription.status': isActive ? 'active' : 'expired',
         'subscription.expiryDate': expiryDate,
         'subscription.purchaseToken': purchaseToken,
-        'subscription.orderId': data.orderId,
+        'subscription.orderId': subData.orderId,
         'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
       });
     } else {
