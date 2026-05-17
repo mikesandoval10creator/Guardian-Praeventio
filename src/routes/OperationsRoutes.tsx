@@ -21,6 +21,10 @@ const DigitalTwinAR = lazy(() => import('../pages/DigitalTwinAR').then(module =>
 // de afiches usando la MISMA MediaPipe que el ARPosterScanner runtime.
 // Gated por PremiumFeatureGuard dentro del componente.
 const DevPosterSeeder = lazy(() => import('../pages/DevPosterSeeder').then(module => ({ default: module.DevPosterSeeder })));
+// Sprint mobile FGS — Lone worker landing page. Wires the native Android
+// Foreground Service to keep the check-in alive when the WebView is
+// backgrounded; no-op on web/iOS.
+const LoneWorker = lazy(() => import('../pages/LoneWorker').then(module => ({ default: module.LoneWorker })));
 
 export const OperationsRoutes = [
   <Route key="projects" path="projects" element={<Projects />} />,
@@ -40,4 +44,5 @@ export const OperationsRoutes = [
   <Route key="digital-twin" path="digital-twin" element={<DigitalTwinFaena />} />,
   <Route key="digital-twin-ar" path="digital-twin/ar" element={<DigitalTwinAR />} />,
   <Route key="dev-poster-seeder" path="dev/poster-seeder" element={<DevPosterSeeder />} />,
+  <Route key="lone-worker" path="lone-worker" element={<LoneWorker />} />,
 ];

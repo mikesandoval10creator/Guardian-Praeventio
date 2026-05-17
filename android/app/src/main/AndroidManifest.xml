@@ -44,9 +44,45 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Sprint mobile FGS — @capawesome-team/capacitor-android-foreground-service.
+             Declares the native foreground service used by the lone-worker
+             check-in flow + health/location sustained tracking. The two
+             `foregroundServiceType` flags must match the permission set
+             declared above (`FOREGROUND_SERVICE_LOCATION` +
+             `FOREGROUND_SERVICE_HEALTH`). See:
+             https://developer.android.com/develop/background-work/services/fgs/service-types
+        -->
+        <service
+            android:name="io.capawesome.capacitorjs.plugins.foregroundservice.AndroidForegroundService"
+            android:foregroundServiceType="location|health"
+            android:exported="false" />
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Sprint mobile FGS — required permissions for the
+         @capawesome-team/capacitor-android-foreground-service plugin used by
+         the lone-worker check-in foreground service.
+
+         FOREGROUND_SERVICE                — base permission (SDK 28+).
+         FOREGROUND_SERVICE_LOCATION       — required when foregroundServiceType
+                                             includes "location" (SDK 34+).
+         FOREGROUND_SERVICE_HEALTH         — required when foregroundServiceType
+                                             includes "health" (SDK 34+).
+         ACCESS_BACKGROUND_LOCATION        — needed so the worker location
+                                             keeps updating when the app is
+                                             not in the foreground.
+         POST_NOTIFICATIONS                — needed on SDK 33+ to show the
+                                             persistent FGS notification.
+         WAKE_LOCK                         — keeps the service alive while
+                                             check-in interval ticks. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 </manifest>

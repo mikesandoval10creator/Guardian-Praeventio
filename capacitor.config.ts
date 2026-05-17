@@ -96,7 +96,37 @@ const config: CapacitorConfig = {
         biometricTitle: "Biometric login for capacitor sqlite",
         biometricSubTitle: "Log in using your biometric"
       }
-    }
+    },
+    // Sprint mobile FGS — @capawesome-team/capacitor-android-foreground-service.
+    //
+    // The plugin itself does NOT accept a config block (it is fully
+    // imperative: notification channels are created at runtime via
+    // `createNotificationChannel`). This block exists as a single source
+    // of truth that the `foregroundServiceClient` wrapper reads at boot,
+    // so visual config (icon, channel name) lives next to the rest of
+    // the Capacitor plugin metadata instead of being hard-coded inside
+    // a service.
+    //
+    // `iconSm` MUST be the name of a drawable resource shipped in
+    // `android/app/src/main/res/drawable/` (without extension). The icon
+    // should be a monochrome white-on-transparent silhouette per the
+    // Material guidelines for status-bar icons; coloured launcher
+    // icons are silently dropped by Android.
+    //
+    // `titlePlaceholder` is the title shown on the persistent FGS
+    // notification until the live session pushes a more specific title
+    // (worker name, check-in window remaining, …) via
+    // `updateForegroundService`.
+    ForegroundService: {
+      notificationChannel: {
+        id: 'lone_worker',
+        name: 'Guardian — Trabajador solitario',
+        description: 'Notificación persistente del check-in periódico durante trabajo aislado.',
+        importance: 'low',
+      },
+      iconSm: 'ic_guardian_shield',
+      titlePlaceholder: 'Guardian Activo — Protegiendo tu vida',
+    },
   }
 };
 
