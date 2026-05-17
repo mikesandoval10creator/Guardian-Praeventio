@@ -52,6 +52,20 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 
 const router = Router();
 
+/**
+ * Codex P2 PR #317: utilidad compartida para coercer scores que vienen
+ * de Firestore a un entero 0-100. Cualquier valor fuera de rango se
+ * "clampa" — el motor F.2 garantiza esto pero datos legacy pueden
+ * haberse guardado con floats o valores >100 (ej. proyectos migrados
+ * desde la métrica antigua).
+ */
+function clampScore(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  if (n < 0) return 0;
+  if (n > 100) return 100;
+  return Math.round(n);
+}
+
 async function resolveTenantId(
   callerUid: string,
   projectId: string,
@@ -3414,6 +3428,16 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
     // path used by ProjectContext + every other Sprint K endpoint.
     let companyName = 'Empresa';
     let expectedAttendees: string[] = [];
+    // Codex P2 PR #317: el draft anterior hard-codeaba
+    // complianceTrafficLightScore=0 — eso pintaba 🔴 0/100 en todos
+    // los borradores y disparaba un "Plan de mejora cumplimiento" falso
+    // para proyectos que en realidad estaban verdes. Ahora leemos el
+    // campo `complianceScore` que `projects/{id}` ya mantiene
+    // (mismo dato consumido por insights.role_view); si no existe
+    // (proyecto nuevo / F.2 aún no corrió), pasamos `undefined` al
+    // motor y el draft omite la sección con un mensaje explícito
+    // ("no disponible") en vez de un cero engañoso.
+    let complianceTrafficLightScore: number | undefined;
     try {
       const projDoc = await db.collection('projects').doc(projectId).get();
       const projData = projDoc.exists ? projDoc.data() : null;
@@ -3448,6 +3472,21 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
             )
             .filter((s: string) => s.length > 0);
         }
+        // Best-effort compliance score lookup. Aceptamos formato número
+        // (0-100) o objeto cache `{ score, computedAt }`. Cualquier
+        // otro shape → undefined (template lo omite).
+        const rawScore = projData.complianceScore;
+        if (typeof rawScore === 'number' && Number.isFinite(rawScore)) {
+          complianceTrafficLightScore = clampScore(rawScore);
+        } else if (
+          rawScore &&
+          typeof rawScore === 'object' &&
+          typeof (rawScore as { score?: unknown }).score === 'number'
+        ) {
+          complianceTrafficLightScore = clampScore(
+            (rawScore as { score: number }).score,
+          );
+        }
       }
     } catch (err) {
       logger.warn?.('sprintK.cphs.project.fetch_failed', err);
@@ -3459,14 +3498,42 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
     // (cohabitación legacy + nuevo writer). Filtramos cliente-side
     // sobre los del proyecto para evitar requerir índice compuesto
     // `(projectId, occurredAt)` que algunos despliegues no tienen.
+    //
+    // Codex P2 PR #317: el .limit(500) sobre una colección sin orden
+    // explícito puede devolver registros document-id-ordered y omitir
+    // los recientes (el mes que el CPHS necesita). Pedimos ordenado
+    // por `occurredAt desc` para que la "tail" más reciente caiga
+    // siempre dentro de los 500 — luego filtramos al mes objetivo.
+    // Si Firestore lanza FAILED_PRECONDITION (índice (projectId,
+    // occurredAt) no creado en este despliegue), caemos al query
+    // sin orderBy + filtro client-side. El catch del safeRead no nos
+    // sirve para distinguir índice-faltante de error real; lo hacemos
+    // inline. TODO: cursor-based pagination para proyectos con >500
+    // incidentes/mes (extremadamente raro en práctica — el promedio
+    // está bajo 20).
     const incidents = await safeRead<Record<string, unknown>>(
       'incidents',
       async () => {
-        const snap = await db
+        const baseQuery = db
           .collection('incidents')
-          .where('projectId', '==', projectId)
-          .limit(500)
-          .get();
+          .where('projectId', '==', projectId);
+        let snap: FirebaseFirestore.QuerySnapshot;
+        try {
+          snap = await baseQuery
+            .orderBy('occurredAt', 'desc')
+            .limit(500)
+            .get();
+        } catch (orderErr) {
+          // Índice compuesto faltante: degradamos a query sin orderBy
+          // (mismo comportamiento que tenía esta ruta antes del fix).
+          // El draft saldrá igual cuando el proyecto tiene <500
+          // incidentes totales — que es el caso normal.
+          logger.warn?.(
+            'sprintK.cphs.incidents.orderBy_failed_fallback_unordered',
+            orderErr,
+          );
+          snap = await baseQuery.limit(500).get();
+        }
         const startMs = monthStart.getTime();
         const endMs = monthEnd.getTime();
         const all: Record<string, unknown>[] = snap.docs.map((d) => ({
@@ -3485,8 +3552,21 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
     );
 
     // ── Corrective actions ── (full set: open + in_progress + closed +
-    //    verified + reopened). El servicio acepta los 4 status que mapean
-    //    a su enum interno.
+    //    verified + verified_effective + reopened). El servicio acepta
+    //    todos los status; el motor cphs los proyecta al enum de la
+    //    minuta (open|closed|verified|verified_effective).
+    //
+    // Codex P2 PR #317:
+    //   1. Incluimos `verified_effective` (F.11 terminal state) — antes
+    //      quedaba fuera y `closedActionsCount` subreportaba PDCA real.
+    //   2. Aumentamos el limit por status a 1000 (vs default 200 del
+    //      adapter) — para proyectos con backlog grande, 200 truncaba
+    //      acciones legítimas del período y la minuta perdía evidencia.
+    //      1000 cubre prácticamente el 100% de casos reales; para
+    //      cuadrillas/sitios con backlogs >1000 abiertos en un sólo
+    //      status, el indicador subreporta pero el resto del draft es
+    //      honest — el cursor-based pagination queda en TODO sub-PR.
+    const ACTIONS_PAGE = 1000;
     const correctiveActions = await safeRead<Record<string, unknown>>(
       'correctiveActions',
       async () => {
@@ -3495,19 +3575,31 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
           g.tenantId,
           projectId,
         );
-        const [openA, inProgressA, closedA, verifiedA, reopenedA] =
-          await Promise.all([
-            adapter.listByStatus('open').catch(() => []),
-            adapter.listByStatus('in_progress' as any).catch(() => []),
-            adapter.listByStatus('closed').catch(() => []),
-            adapter.listByStatus('verified').catch(() => []),
-            adapter.listByStatus('reopened' as any).catch(() => []),
-          ]);
+        const [
+          openA,
+          inProgressA,
+          closedA,
+          verifiedA,
+          verifiedEffectiveA,
+          reopenedA,
+        ] = await Promise.all([
+          adapter.listByStatus('open', ACTIONS_PAGE).catch(() => []),
+          adapter
+            .listByStatus('in_progress', ACTIONS_PAGE)
+            .catch(() => []),
+          adapter.listByStatus('closed', ACTIONS_PAGE).catch(() => []),
+          adapter.listByStatus('verified', ACTIONS_PAGE).catch(() => []),
+          adapter
+            .listByStatus('verified_effective', ACTIONS_PAGE)
+            .catch(() => []),
+          adapter.listByStatus('reopened', ACTIONS_PAGE).catch(() => []),
+        ]);
         return [
           ...openA,
           ...inProgressA,
           ...closedA,
           ...verifiedA,
+          ...verifiedEffectiveA,
           ...reopenedA,
         ] as unknown as Record<string, unknown>[];
       },
@@ -3515,6 +3607,16 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
 
     // ── Trainings impartidas. Top-level `training` collection
     //    filtrada por `projectId`. ──
+    //
+    // Codex P2 PR #317: el writer de Training.tsx escribe
+    // `status: 'scheduled'` + `date: ISO` al crear la sesión y la
+    // muta a `'completed'` al cerrar (vía `updateDoc`). El draft
+    // CPHS mensual debe contar SOLO sesiones efectivamente impartidas
+    // en el mes objetivo — no las agendadas a futuro ni las
+    // canceladas. Filtramos client-side por `status === 'completed'`
+    // Y por `date` dentro de la ventana mensual (mismo periodo que
+    // los incidentes), para evitar inflar el indicador con
+    // capacitaciones legacy de meses anteriores.
     const trainings = await safeRead<Record<string, unknown>>(
       'trainings',
       async () => {
@@ -3523,10 +3625,26 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
           .where('projectId', '==', projectId)
           .limit(500)
           .get();
-        return snap.docs.map((d) => ({
+        const startMs = monthStart.getTime();
+        const endMs = monthEnd.getTime();
+        const all: Record<string, unknown>[] = snap.docs.map((d) => ({
           id: d.id,
           ...(d.data() as Record<string, unknown>),
         }));
+        return all.filter((doc) => {
+          if (doc.status !== 'completed') return false;
+          // `date` es la fecha de la sesión (creada al schedule y
+          // conservada al completar). Aceptamos también `completedAt`
+          // si existe (forward-compat).
+          const ts =
+            (typeof doc.completedAt === 'string'
+              ? doc.completedAt
+              : null) ??
+            (typeof doc.date === 'string' ? doc.date : null);
+          if (!ts) return false;
+          const t = Date.parse(ts);
+          return Number.isFinite(t) && t >= startMs && t < endMs;
+        });
       },
     );
 
@@ -3636,11 +3754,17 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
       })(),
     }));
 
-    // El servicio acepta `complianceTrafficLightScore` y
-    // `legalRecommendations` como hint; valor 0 + [] son válidos
-    // (el draft simplemente reflejará "rojo" / sin recomendaciones).
-    // Sub-PR siguiente puede cablear el F.2 + B.10 reales — la firma
-    // del wire no cambia.
+    // Codex P2 PR #317:
+    //   - `complianceTrafficLightScore` ahora viene del campo
+    //     `projects/{id}.complianceScore` (cacheado por la F.2
+    //     pipeline). Si no existe en el doc del proyecto, pasamos
+    //     `undefined` para que el motor omita la sección con
+    //     "no disponible" en vez de pintar 🔴 0/100 engañoso.
+    //   - `legalRecommendations` queda como `[]` por ahora — wiring
+    //     real al `legalRuleEngine.getCriticalRequirements(profile)`
+    //     requiere un `ProjectProfile` que el módulo de proyectos aún
+    //     no expone consistentemente; sub-PR siguiente cuando F.2 y
+    //     B.10 estén ambos cableados al doc del proyecto.
     const draft = buildMonthlyMinuteDraft({
       projectId,
       period: periodLabel,
@@ -3649,7 +3773,7 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
       correctiveActions: correctiveActionsInput,
       trainingsCompleted: trainingsInput,
       inspectionsCompleted: inspections.length,
-      complianceTrafficLightScore: 0,
+      complianceTrafficLightScore,
       legalRecommendations: [],
       expectedAttendees,
     });

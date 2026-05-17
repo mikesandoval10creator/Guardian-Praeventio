@@ -44,8 +44,17 @@ export interface MonthlyInputs {
   trainingsCompleted: Array<{ title: string; participantsCount: number }>;
   /** Inspecciones realizadas. */
   inspectionsCompleted: number;
-  /** Score semáforo cumplimiento (F.2). */
-  complianceTrafficLightScore: number;
+  /**
+   * Score semáforo cumplimiento (F.2).
+   *
+   * Codex P2 PR #317: ahora opcional — si el caller no logra computar el
+   * score (datos insuficientes, engine no disponible), debe pasar
+   * `undefined` para que el draft omita la sección "Semáforo" en vez de
+   * pintar 🔴 0/100 (que es objetivamente engañoso). Cuando el caller
+   * tiene un valor genuino — incluso 0 — el motor lo respeta y renderiza
+   * el color correspondiente.
+   */
+  complianceTrafficLightScore?: number;
   /** Recomendaciones del legalRuleEngine (B.10). */
   legalRecommendations: string[];
   /** Asistentes esperados (paritario: trabajadores + empresa). */
@@ -97,7 +106,13 @@ function deriveCompleteness(input: MonthlyInputs): number {
   check(input.correctiveActions.length > 0);
   check(input.trainingsCompleted.length > 0);
   check(input.inspectionsCompleted > 0);
-  check(input.complianceTrafficLightScore > 0);
+  // Codex P2 PR #317: ahora el score es opcional. Un score >0 cuenta
+  // como dato presente; undefined o 0 cuentan como dato ausente (los
+  // dos casos en los que la sección semáforo se omite o se pinta rojo).
+  check(
+    typeof input.complianceTrafficLightScore === 'number' &&
+      input.complianceTrafficLightScore > 0,
+  );
   check(input.legalRecommendations.length >= 0, 5);
   check(input.expectedAttendees.length >= 2); // CPHS requires both reps
   check(input.companyName.length > 0);
@@ -138,7 +153,13 @@ function suggestResolutions(
   }
 
   // 3) Compliance traffic light bajo
-  if (input.complianceTrafficLightScore < 60) {
+  // Codex P2 PR #317: solo sugerir el plan de mejora cuando hay score
+  // REAL y es <60. `undefined` significa "no pudimos computarlo" — no
+  // generar una resolución basada en un valor que no existe.
+  if (
+    typeof input.complianceTrafficLightScore === 'number' &&
+    input.complianceTrafficLightScore < 60
+  ) {
     out.push({
       text: `Plan de mejora cumplimiento (semáforo en ${trafficColor(input.complianceTrafficLightScore)}; score ${input.complianceTrafficLightScore}/100).`,
       responsibleHint: 'prevencionista + gerente',
@@ -187,10 +208,18 @@ export function buildMonthlyMinuteDraft(input: MonthlyInputs): MinuteDraft {
   let md = '';
 
   // Header
+  // Codex P2 PR #317: si el caller no logró computar el semáforo
+  // (engine no disponible / datos insuficientes / score `undefined`),
+  // omitimos la línea en vez de pintar 🔴 0/100 — mostrar "0" cuando
+  // realmente es "no sabemos" es materialmente engañoso para el CPHS.
   md += `# Acta CPHS — ${input.companyName}\n`;
   md += `**Proyecto**: ${input.projectId}  \n`;
   md += `**Período**: ${input.period}  \n`;
-  md += `**Semáforo cumplimiento**: ${trafficColor(input.complianceTrafficLightScore)} (${input.complianceTrafficLightScore}/100)\n\n`;
+  if (typeof input.complianceTrafficLightScore === 'number') {
+    md += `**Semáforo cumplimiento**: ${trafficColor(input.complianceTrafficLightScore)} (${input.complianceTrafficLightScore}/100)\n\n`;
+  } else {
+    md += `**Semáforo cumplimiento**: _no disponible para este período (revisar configuración F.2)._\n\n`;
+  }
   sections.push('Encabezado');
 
   // Asistentes

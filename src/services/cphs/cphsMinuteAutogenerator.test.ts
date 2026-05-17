@@ -170,4 +170,41 @@ describe('buildMonthlyMinuteDraft', () => {
     const draft = buildMonthlyMinuteDraft(inputs());
     expect(draft.markdown).toMatch(/Sin incidentes registrados/);
   });
+
+  it('omite la línea de semáforo cuando el score es undefined — Codex P2 PR #317', () => {
+    const draft = buildMonthlyMinuteDraft(
+      inputs({ complianceTrafficLightScore: undefined }),
+    );
+    // Cuando el motor F.2 no logra computar el score, NO debe aparecer
+    // la línea "🔴 rojo (0/100)" — eso es objetivamente engañoso.
+    expect(draft.markdown).not.toMatch(/🔴 rojo/);
+    expect(draft.markdown).not.toMatch(/\(0\/100\)/);
+    // En su lugar, mostramos un mensaje explícito "no disponible".
+    expect(draft.markdown).toMatch(/no disponible para este período/);
+  });
+
+  it('no sugiere plan de mejora cuando el score es undefined — Codex P2 PR #317', () => {
+    const draft = buildMonthlyMinuteDraft(
+      inputs({ complianceTrafficLightScore: undefined }),
+    );
+    const planRec = draft.suggestedResolutions.find((r) =>
+      /Plan de mejora cumplimiento/.test(r.text),
+    );
+    // Sin score real, no inventar resoluciones basadas en un valor
+    // que el sistema no tiene.
+    expect(planRec).toBeUndefined();
+  });
+
+  it('still triggers plan de mejora cuando el score es 0 explícito', () => {
+    // El caller que YA computó el score y obtuvo cero (peor caso) sigue
+    // recibiendo la sugerencia — undefined es distinto de 0.
+    const draft = buildMonthlyMinuteDraft(
+      inputs({ complianceTrafficLightScore: 0 }),
+    );
+    const planRec = draft.suggestedResolutions.find((r) =>
+      /Plan de mejora cumplimiento/.test(r.text),
+    );
+    expect(planRec).toBeDefined();
+    expect(draft.markdown).toMatch(/🔴 rojo/);
+  });
 });
