@@ -58,6 +58,19 @@ function promote(action: CorrectiveAction): CorrectiveActionRecord {
   // adapter stored the extended fields) carries the extra keys; cast
   // through `unknown` to access them safely without TS narrowing.
   const extra = action as unknown as Partial<CorrectiveActionRecord>;
+  // Codex P2 round 3 (PR #309): the panel renders "Programar review"
+  // for closed/verified actions, but `scheduleEffectivenessReview()`
+  // returns null when `closedAt` is missing. Legacy actions don't
+  // carry that timestamp. Synthesize a conservative fallback using
+  // the closure-trigger timestamp when status is closed/verified so
+  // the CTA actually schedules instead of being a silent no-op. We
+  // use `now` because the legacy schema has no closure timestamp at
+  // all — better to bias slightly recent (the F.11 cron picks up
+  // newly-closed actions on its next pass).
+  const synthClosedAt =
+    action.status === 'closed' || action.status === 'verified'
+      ? new Date().toISOString()
+      : null;
   return {
     id: action.id,
     source: (extra.source ?? 'audit') as CorrectiveActionSource,
@@ -69,7 +82,7 @@ function promote(action: CorrectiveAction): CorrectiveActionRecord {
     level: action.level,
     evidenceRequired: extra.evidenceRequired ?? false,
     effectivenessReviewAt: extra.effectivenessReviewAt ?? null,
-    closedAt: extra.closedAt ?? null,
+    closedAt: extra.closedAt ?? synthClosedAt,
     isSystemic: action.isSystemic,
   };
 }
@@ -80,26 +93,43 @@ export function CorrectiveActions() {
   const isOnline = useOnlineStatus();
   const projectId = selectedProject?.id ?? null;
 
-  // Codex P2 (PR #309): fetch every PDCA status (open + closed + verified),
-  // not just 'open'. The panel computes Plan-Do-Check-Act phase counts,
-  // closure rate, status filters, and the schedule-effectiveness-review
-  // CTA from the FULL `actions` prop. Requesting only `open` would make
-  // the dashboard always show 0 closed/verified and a flat 0% closure
-  // rate — misleading for projects that already completed acciones.
+  // Codex P2 round 1 + 3 (PR #309): fetch every F.4 status (open +
+  // in_progress + closed + verified + reopened), not just 'open'. The
+  // panel computes Plan-Do-Check-Act phase counts, closure rate, status
+  // filters, and the schedule-effectiveness-review CTA from the FULL
+  // `actions` prop. Round 1 added closed+verified; round 3 noted the
+  // panel's own status filter also supports `in_progress` and
+  // `reopened`, so any F.4 record in those Do/reopened states was
+  // invisible to the dashboard.
   const openResp = useCorrectiveActions(projectId, { status: 'open' });
+  const inProgressResp = useCorrectiveActions(projectId, { status: 'in_progress' as const });
   const closedResp = useCorrectiveActions(projectId, { status: 'closed' });
   const verifiedResp = useCorrectiveActions(projectId, { status: 'verified' });
+  const reopenedResp = useCorrectiveActions(projectId, { status: 'reopened' as const });
 
   const loading =
-    openResp.loading || closedResp.loading || verifiedResp.loading;
-  const error = openResp.error || closedResp.error || verifiedResp.error;
+    openResp.loading ||
+    inProgressResp.loading ||
+    closedResp.loading ||
+    verifiedResp.loading ||
+    reopenedResp.loading;
+  const error =
+    openResp.error ||
+    inProgressResp.error ||
+    closedResp.error ||
+    verifiedResp.error ||
+    reopenedResp.error;
 
   const records: CorrectiveActionRecord[] = useMemo(() => {
     const open = (openResp.data?.actions ?? []) as CorrectiveAction[];
+    const inProgress = (inProgressResp.data?.actions ?? []) as CorrectiveAction[];
     const closed = (closedResp.data?.actions ?? []) as CorrectiveAction[];
     const verified = (verifiedResp.data?.actions ?? []) as CorrectiveAction[];
-    return [...open, ...closed, ...verified].map(promote);
-  }, [openResp.data, closedResp.data, verifiedResp.data]);
+    const reopened = (reopenedResp.data?.actions ?? []) as CorrectiveAction[];
+    return [...open, ...inProgress, ...closed, ...verified, ...reopened].map(
+      promote,
+    );
+  }, [openResp.data, inProgressResp.data, closedResp.data, verifiedResp.data, reopenedResp.data]);
 
   const handleScheduleReview = (entry: EffectivenessReviewEntry) => {
     // Wire to a Cloud Function in a follow-up; for now we just log so

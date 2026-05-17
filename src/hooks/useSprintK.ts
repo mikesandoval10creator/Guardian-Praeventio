@@ -166,7 +166,12 @@ export interface CorrectiveActionsResponse {
 
 export function useCorrectiveActions(
   projectId: string | null,
-  opts: { status?: 'open' | 'closed' | 'verified' } = {},
+  // Codex P2 round 3 (PR #309): widened to accept the full F.4
+  // status set so the CorrectiveActions page can fetch in_progress
+  // and reopened records too.
+  opts: {
+    status?: 'open' | 'in_progress' | 'closed' | 'verified' | 'reopened';
+  } = {},
 ) {
   let path: string | null = null;
   if (projectId) {

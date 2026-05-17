@@ -44,8 +44,18 @@ export class CorrectiveActionsAdapter {
       .update({ status });
   }
 
+  /**
+   * Codex P2 round 3 (PR #309): widened to accept the extended F.4
+   * statuses (`in_progress`, `reopened`) in addition to the legacy
+   * trio. The legacy weakActionDetector type is narrower but the
+   * Firestore query is just a `==` on the column — records with the
+   * extended states should be returned without coercion.
+   */
   async listByStatus(
-    status: CorrectiveAction['status'],
+    status:
+      | CorrectiveAction['status']
+      | 'in_progress'
+      | 'reopened',
     limitN = 200,
   ): Promise<CorrectiveAction[]> {
     const snap = await this.db

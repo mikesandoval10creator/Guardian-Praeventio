@@ -44,12 +44,14 @@ type LegacyAction = {
   status: 'open' | 'closed' | 'verified';
   isSystemic: boolean;
 };
-// Codex P2 fix on PR #309: page now fetches each PDCA status
-// independently (open/closed/verified). Track per-status mocks so tests
-// can assert what the page shows for each combination.
-let mockOpen: { data: { actions: LegacyAction[] } | null; loading: boolean; error: Error | null };
-let mockClosed: { data: { actions: LegacyAction[] } | null; loading: boolean; error: Error | null };
-let mockVerified: { data: { actions: LegacyAction[] } | null; loading: boolean; error: Error | null };
+// Codex P2 fix rounds 1 + 3 on PR #309: page now fetches every F.4
+// status independently (open/in_progress/closed/verified/reopened).
+type StatusMock = { data: { actions: LegacyAction[] } | null; loading: boolean; error: Error | null };
+let mockOpen: StatusMock;
+let mockInProgress: StatusMock;
+let mockClosed: StatusMock;
+let mockVerified: StatusMock;
+let mockReopened: StatusMock;
 
 vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: mockSelectedProject }),
@@ -59,8 +61,10 @@ vi.mock('../hooks/useOnlineStatus', () => ({
 }));
 vi.mock('../hooks/useSprintK', () => ({
   useCorrectiveActions: (_pid: string | null, opts?: { status?: string }) => {
+    if (opts?.status === 'in_progress') return mockInProgress;
     if (opts?.status === 'closed') return mockClosed;
     if (opts?.status === 'verified') return mockVerified;
+    if (opts?.status === 'reopened') return mockReopened;
     return mockOpen;
   },
 }));
@@ -70,8 +74,10 @@ beforeEach(() => {
   mockIsOnline = true;
   const empty = { data: null, loading: false, error: null };
   mockOpen = empty;
+  mockInProgress = empty;
   mockClosed = empty;
   mockVerified = empty;
+  mockReopened = empty;
 });
 
 describe('<CorrectiveActions /> page wrapper (Fase F.4)', () => {

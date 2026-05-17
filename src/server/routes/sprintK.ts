@@ -352,13 +352,29 @@ router.get('/:projectId/corrective-actions', verifyAuth, async (req, res) => {
       g.tenantId,
       projectId,
     );
-    const status = typeof req.query.status === 'string' ? req.query.status : 'open';
-    const validStatus =
-      status === 'open' || status === 'closed' || status === 'verified'
-        ? status
-        : 'open';
+    // Codex P2 round 3 (PR #309): accept the full F.4 status set so
+    // the page's "En curso" and "Reabiertas" filters can actually
+    // fetch records. The adapter signature was widened in tandem.
+    const status =
+      typeof req.query.status === 'string' ? req.query.status : 'open';
+    type AnyStatus =
+      | 'open'
+      | 'in_progress'
+      | 'closed'
+      | 'verified'
+      | 'reopened';
+    const ALL_STATUSES: ReadonlySet<AnyStatus> = new Set([
+      'open',
+      'in_progress',
+      'closed',
+      'verified',
+      'reopened',
+    ]);
+    const validStatus: AnyStatus = ALL_STATUSES.has(status as AnyStatus)
+      ? (status as AnyStatus)
+      : 'open';
     const [byStatus, systemic] = await Promise.all([
-      adapter.listByStatus(validStatus as 'open' | 'closed' | 'verified'),
+      adapter.listByStatus(validStatus),
       adapter.listSystemic(),
     ]);
     return res.json({ actions: byStatus, systemic });
@@ -551,11 +567,32 @@ router.get('/:projectId/data-quality', verifyAuth, async (req, res) => {
           (d) => ({ id: d.id, ...d.data() }),
         ),
       ),
-      safeRead('incidents', async () =>
-        (await byProject('incidents').get()).docs.map(
-          (d) => ({ id: d.id, ...d.data() }),
-        ),
-      ),
+      safeRead('incidents', async () => {
+        // Codex P2 round 3 (PR #309): scanIncidents looks for
+        // `description` and `rootCauseCategory`, but the existing
+        // close flow (backgroundTriggers.ts:385) writes `rootCause`
+        // as a STRING, and the bundle endpoint also reads `summary`
+        // as a narrative alias. Normalize both at the boundary so
+        // the scanner doesn't falsely flag missing fields when the
+        // narrative/RCA actually exists.
+        const snap = await byProject('incidents').get();
+        return snap.docs.map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          return {
+            id: d.id,
+            ...data,
+            description: data.description ?? data.summary,
+            // Accept any of: explicit category, string rootCause, or
+            // object-shape rootCause.primaryCauseKind. Casts via
+            // unknown because Firestore data is untyped.
+            rootCauseCategory:
+              data.rootCauseCategory ??
+              (typeof data.rootCause === 'string'
+                ? data.rootCause
+                : (data.rootCause as { primaryCauseKind?: string } | undefined)?.primaryCauseKind),
+          };
+        });
+      }),
       safeRead('machines', async () => {
         // Codex P2 round 2 (PR #309): MaquinariaManager.tsx writes
         // assets with `name` + `nextMaintenance`. The scanner
@@ -677,13 +714,47 @@ router.get(
         return res.status(403).json({ error: 'cross_project_forbidden' });
       }
 
+      // Codex P2 round 3 (PR #309): the legal evidence bundle must
+      // never fabricate timestamps. Previously we fell back to
+      // `new Date().toISOString()` when both `occurredAt` and
+      // `createdAt` were missing — that silently invented a
+      // "ocurred at right now" claim for a legacy incident, which
+      // would be perjury in a SUSESO submission. Reject explicitly
+      // and let the caller fix the upstream record.
+      const occurredAt =
+        typeof incidentData.occurredAt === 'string'
+          ? incidentData.occurredAt
+          : typeof incidentData.createdAt === 'string'
+            ? incidentData.createdAt
+            : null;
+      if (!occurredAt) {
+        return res.status(422).json({
+          error: 'incident_missing_timestamp',
+          detail:
+            'El incidente no tiene `occurredAt` ni `createdAt`. Corregir el registro origen antes de construir el expediente.',
+        });
+      }
+      const reportedAt =
+        typeof incidentData.reportedAt === 'string'
+          ? incidentData.reportedAt
+          : occurredAt;
+
       const severity =
         normalizeSeverity(String(incidentData.severity ?? 'medium')) ?? 'medium';
 
-      // 2. Audit log entries scoped to this incident.
+      // 2. Audit log entries scoped to this incident AND project.
+      //
+      // Codex P2 round 3 (PR #309): audit_logs is a global collection;
+      // filtering only by `details.incidentId` would surface rows from
+      // OTHER tenants/projects that happen to reference the same
+      // incidentId (collision possible since incidentId is per-tenant
+      // not globally unique in the legacy schema). Scope to projectId
+      // too. The audit-log writer (audit.ts route) stamps `projectId`
+      // at the top level when known.
       const auditSnap = await db
         .collection('audit_logs')
         .where('details.incidentId', '==', incidentId)
+        .where('projectId', '==', projectId)
         .limit(200)
         .get()
         .catch((err) => {
@@ -711,9 +782,7 @@ router.get(
         incident: {
           id: incidentDoc.id,
           projectId,
-          occurredAt: String(
-            incidentData.occurredAt ?? incidentData.createdAt ?? new Date().toISOString(),
-          ),
+          occurredAt,
           severity,
           summary: String(
             incidentData.summary ?? incidentData.description ?? incidentDoc.id,
@@ -722,9 +791,7 @@ router.get(
           reportedByUid: String(
             incidentData.reportedByUid ?? incidentData.userId ?? 'unknown',
           ),
-          reportedAt: String(
-            incidentData.reportedAt ?? incidentData.createdAt ?? new Date().toISOString(),
-          ),
+          reportedAt,
         },
         // Empty arrays — these are the OUTSTANDING data sources to be
         // wired in sub-PRs. The bundle's gap detector reports them as
@@ -735,33 +802,52 @@ router.get(
         requiredEpp: [],
         requiredTrainings: [],
         normativeRefs: [],
-        // Codex P2 round 2 (PR #309): if the incident doc already
-        // carries a `rootCause` payload (Alta/Crítica/SIF incidents
-        // usually do), preserve it so the bundle scorer doesn't emit
-        // a false `no_root_cause_assigned` gap and tank completeness.
-        rootCause:
-          typeof incidentData.rootCause === 'object' && incidentData.rootCause
-            ? {
-                analyzed: Boolean((incidentData.rootCause as any).analyzed ?? true),
-                primaryCauseKind:
-                  typeof (incidentData.rootCause as any).primaryCauseKind === 'string'
-                    ? (incidentData.rootCause as any).primaryCauseKind
-                    : undefined,
-                contributingFactors: Array.isArray(
-                  (incidentData.rootCause as any).contributingFactors,
-                )
-                  ? ((incidentData.rootCause as any).contributingFactors as string[])
+        // Codex P2 round 2 + 3 (PR #309): if the incident doc already
+        // carries a `rootCause` payload, preserve it so the bundle
+        // scorer doesn't emit a false `no_root_cause_assigned` gap
+        // and tank completeness.
+        //
+        // The field can be either:
+        // - STRING (set by backgroundTriggers.ts:385 on close flow)
+        // - OBJECT (set by F.4 rootCauseClassifier)
+        //
+        // Map both shapes into the builder input. Strings become a
+        // minimal { analyzed: true, primaryCauseKind: stringValue }
+        // so the gap detector recognizes the analysis happened.
+        rootCause: ((): typeof undefined | {
+          analyzed: boolean;
+          primaryCauseKind?: string;
+          contributingFactors?: string[];
+          pendingOwnerUid?: string;
+          pendingDueDate?: string;
+        } => {
+          const rc = incidentData.rootCause;
+          if (typeof rc === 'string' && rc.trim().length > 0) {
+            return { analyzed: true, primaryCauseKind: rc };
+          }
+          if (typeof rc === 'object' && rc !== null) {
+            const obj = rc as Record<string, unknown>;
+            return {
+              analyzed: Boolean(obj.analyzed ?? true),
+              primaryCauseKind:
+                typeof obj.primaryCauseKind === 'string'
+                  ? obj.primaryCauseKind
                   : undefined,
-                pendingOwnerUid:
-                  typeof (incidentData.rootCause as any).pendingOwnerUid === 'string'
-                    ? (incidentData.rootCause as any).pendingOwnerUid
-                    : undefined,
-                pendingDueDate:
-                  typeof (incidentData.rootCause as any).pendingDueDate === 'string'
-                    ? (incidentData.rootCause as any).pendingDueDate
-                    : undefined,
-              }
-            : undefined,
+              contributingFactors: Array.isArray(obj.contributingFactors)
+                ? (obj.contributingFactors as string[])
+                : undefined,
+              pendingOwnerUid:
+                typeof obj.pendingOwnerUid === 'string'
+                  ? obj.pendingOwnerUid
+                  : undefined,
+              pendingDueDate:
+                typeof obj.pendingDueDate === 'string'
+                  ? obj.pendingDueDate
+                  : undefined,
+            };
+          }
+          return undefined;
+        })(),
         auditLog,
       });
 
