@@ -82,6 +82,11 @@ const AnnualReview = lazy(() => import('./pages/AnnualReview').then(module => ({
 // Sprint K §296-301 — Riesgo Residual + Aceptación Formal + Criticidad
 // Sospechosa. ISO 31000 / ISO 45001 §6.1.2.2 — endpoint + hook + page wired.
 const ResidualRisk = lazy(() => import('./pages/ResidualRisk').then(module => ({ default: module.ResidualRisk })));
+// Sprint K §104 — Panel de Confianza de Datos (calidad para IA).
+// Score 0-100 + per-domain bars + top issues dismissables + recos +
+// trend 30 días. Permite al prevencionista evaluar si confiar en las
+// sugerencias IA o pedir alimentar los inventarios primero.
+const DataConfidence = lazy(() => import('./pages/DataConfidence').then(module => ({ default: module.DataConfidence })));
 // Sprint K §74-78 — Brigada de Emergencia + Recursos (extintores, AED,
 // eyewash, kits, etc.). Service + panel ya existían; este wire cierra
 // el end-to-end con endpoint + hook + page navegable.
@@ -263,6 +268,7 @@ function AppRoutes() {
               <Route path="pdca" element={<PdcaModule />} />
               <Route path="annual-review" element={<AnnualReview />} />
               <Route path="residual-risk" element={<ResidualRisk />} />
+              <Route path="data-confidence" element={<DataConfidence />} />
               <Route path="emergency-brigade" element={<EmergencyBrigade />} />
               <Route path="positive-observations" element={<PositiveObservations />} />
               <Route path="inspections" element={<OfflineInspection />} />
@@ -422,6 +428,7 @@ function AppRoutes() {
                     <Route path="pdca" element={<PdcaModule />} />
                     <Route path="annual-review" element={<AnnualReview />} />
                     <Route path="residual-risk" element={<ResidualRisk />} />
+                    <Route path="data-confidence" element={<DataConfidence />} />
                     <Route path="emergency-brigade" element={<EmergencyBrigade />} />
                     <Route path="positive-observations" element={<PositiveObservations />} />
                     <Route path="inspections" element={<OfflineInspection />} />

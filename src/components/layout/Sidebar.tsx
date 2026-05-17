@@ -276,6 +276,9 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: "Coach de Seguridad", icon: Brain, path: "/safety-coach", color: "text-[#4db6ac]" },
         { title: t("nav.zettelkasten", "Zettelkasten"), icon: Database, path: "/zettelkasten", color: "text-blue-500" },
         { title: t("nav.knowledge_base", "Base de Conocimiento"), icon: Database, path: "/knowledge-base", color: "text-violet-500" },
+        // Sprint K §104 — Panel de Confianza de Datos (calidad para IA).
+        // Score 0-100 + bandera roja si cualquier dimensión <50.
+        { title: t("nav.data_confidence", "Confianza de Datos"), icon: Database, path: "/data-confidence", color: "text-violet-500" },
         { title: "Pizarra", icon: LayoutDashboard, path: "/pizarra", color: "text-indigo-400" },
         { title: t("nav.academic_processor", "Procesador Académico"), icon: BookOpen, path: "/academic-processor", color: "text-violet-500" },
         { title: t("nav.ocr_motor", "Motor OCR"), icon: Scan, path: "/document-ocr", color: "text-violet-400" },

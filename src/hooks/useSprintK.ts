@@ -35,6 +35,7 @@ import type {
   SupervisionDecisionKind,
   SupervisorRanking,
 } from '../services/leadership/supervisionDecisionTrail';
+import type { DataConfidenceReport } from '../services/dataConfidence/dataConfidencePanel';
 
 interface FetchState<T> {
   data: T | null;
@@ -3257,6 +3258,88 @@ export async function respondToReport(
   projectId: string,
   reportId: string,
   message: string,
+// Sprint K §104 — Panel de Confianza de Datos (calidad para IA)
+// ────────────────────────────────────────────────────────────────────────
+//
+// Hooks fetch-based para `/api/sprint-k/:projectId/data-confidence`. El
+// patrón es el mismo que useResidualRisks: `useEndpoint<T>` + mutation
+// helper (`dismissDataIssue`) que devuelve `void` y no expone el doc
+// crudo de Firestore.
+
+export type DataConfidenceSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export type DataConfidenceDomain =
+  | 'workers'
+  | 'incidents'
+  | 'training'
+  | 'epp'
+  | 'permits'
+  | 'audits';
+
+export interface DataConfidenceIssue {
+  id: string;
+  domain: DataConfidenceDomain;
+  collection: string;
+  severity: DataConfidenceSeverity;
+  count: number;
+  description: string;
+  dismissed: boolean;
+  dismissedByUid?: string | null;
+  dismissedAt?: string | null;
+}
+
+export interface DataConfidenceDomainScore {
+  name: DataConfidenceDomain;
+  score: number;
+  observed: number;
+  expected: number;
+  staleDays: number;
+  detail: string;
+}
+
+export interface DataConfidenceTrendPoint {
+  date: string;
+  overallScore: number;
+}
+
+export interface DataConfidenceSnapshot {
+  generatedAt: string;
+  report: DataConfidenceReport;
+  domains: DataConfidenceDomainScore[];
+  topIssues: DataConfidenceIssue[];
+  trend: DataConfidenceTrendPoint[];
+}
+
+export interface DataConfidenceRecommendation {
+  id: string;
+  priority: 'high' | 'medium' | 'low';
+  title: string;
+  action: string;
+  target: number;
+  domain: DataConfidenceDomain;
+}
+
+export interface DataConfidenceRecommendationsResponse {
+  generatedAt: string;
+  recommendations: DataConfidenceRecommendation[];
+}
+
+export function useDataConfidence(projectId: string | null) {
+  return useEndpoint<DataConfidenceSnapshot>(
+    projectId ? `/api/sprint-k/${projectId}/data-confidence` : null,
+  );
+}
+
+export function useDataConfidenceRecommendations(projectId: string | null) {
+  return useEndpoint<DataConfidenceRecommendationsResponse>(
+    projectId ? `/api/sprint-k/${projectId}/data-confidence/recommendations` : null,
+  );
+}
+
+export async function dismissDataIssue(
+  projectId: string,
+  issueId: string,
+  reason?: string,
 ): Promise<void> {
   const user = auth.currentUser;
   const token = user ? await user.getIdToken() : null;
@@ -3411,6 +3494,7 @@ export async function updatePortableConsent(
   const token = user ? await user.getIdToken() : null;
   const res = await fetch(
     `/api/sprint-k/${projectId}/workers/${workerUid}/portable-history/consent`,
+    `/api/sprint-k/${projectId}/data-confidence/dismiss/${encodeURIComponent(issueId)}`,
     {
       method: 'POST',
       headers: {
@@ -3420,6 +3504,7 @@ export async function updatePortableConsent(
       body: JSON.stringify({ message }),
       body: JSON.stringify(payload),
       body: JSON.stringify(flags),
+      body: JSON.stringify(reason ? { reason } : {}),
     },
   );
   if (!res.ok) {
@@ -3427,6 +3512,7 @@ export async function updatePortableConsent(
     throw new Error(body.error ?? `http_${res.status}`);
   }
 }
+<<<<<<< HEAD
 
 export async function closeReport(
   projectId: string,
@@ -3482,3 +3568,5 @@ export async function exportPortableHistory(
   const checksum = res.headers.get('X-Portable-History-Checksum');
   return { blob, filename, checksum };
 }
+=======
+>>>>>>> fd84edc6 (feat(data-confidence): §104 Panel Confianza Datos — endpoint + hook + page wired)

@@ -63,6 +63,11 @@ import {
   type RiskLikelihood,
   type RiskSeverity,
 } from '../../services/residualRisk/residualRiskEngine.js';
+import {
+  buildDataConfidenceReport,
+  type ConfidenceInputs,
+  type DataConfidenceReport,
+} from '../../services/dataConfidence/dataConfidencePanel.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 
@@ -9393,6 +9398,40 @@ function isNearMissRecord(rec: Record<string, unknown>): boolean {
     if (typeof c !== 'string') continue;
     const k = c.trim().toLowerCase().replace(/[\s-]/g, '_');
     if (k === 'near_miss' || k === 'nearmiss' || k === 'casi_accidente') {
+// Sprint K §104 — Panel de Confianza de Datos (calidad para IA)
+// ─────────────────────────────────────────────────────────────────────
+//
+// "Panel que muestra cuánto se puede confiar en los datos que está
+//  usando el sistema para sugerir/decidir. Ayuda al prevencionista a
+//  no creer ciegamente en IA si los datos son malos."
+//
+// Pipeline:
+//   1. Lee inventarios + feeds Firestore (con safeRead degradado).
+//   2. Compone `ConfidenceInputs` deterministicamente.
+//   3. Llama `buildDataConfidenceReport(inputs)` (servicio puro).
+//   4. Computes per-domain scores (workers, incidents, training, EPP,
+//      permits, audits) y top issues con severity + count + collection.
+//   5. Calcula trend rolling 30 días desde snapshots históricos.
+//
+// El UI nunca debe creer ciegamente en este score — es una señal para
+// que el prevencionista decida si confiar en las sugerencias IA.
+
+const DATA_CONFIDENCE_DISMISS_ROLES: ReadonlySet<string> = new Set([
+  'admin',
+  'gerente',
+  'prevention_lead',
+  'prevention_manager',
+]);
+
+function callerCanDismissDataIssue(
+  user: Express.PraeventioAuthUser,
+): boolean {
+  if (user.admin === true) return true;
+  const role = typeof user.role === 'string' ? user.role : null;
+  if (role && DATA_CONFIDENCE_DISMISS_ROLES.has(role)) return true;
+  const roles = Array.isArray(user.roles) ? user.roles : [];
+  for (const r of roles) {
+    if (typeof r === 'string' && DATA_CONFIDENCE_DISMISS_ROLES.has(r)) {
       return true;
     }
   }
@@ -9471,6 +9510,96 @@ interface TrendResponse {
 }
 
 router.get('/:projectId/incidents/trends', verifyAuth, async (req, res) => {
+type DataConfidenceSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+type DataConfidenceDomain =
+  | 'workers'
+  | 'incidents'
+  | 'training'
+  | 'epp'
+  | 'permits'
+  | 'audits';
+
+interface DataConfidenceIssue {
+  id: string;
+  domain: DataConfidenceDomain;
+  collection: string;
+  severity: DataConfidenceSeverity;
+  count: number;
+  description: string;
+  dismissed: boolean;
+  dismissedByUid?: string | null;
+  dismissedAt?: string | null;
+}
+
+interface DataConfidenceDomainScore {
+  name: DataConfidenceDomain;
+  score: number; // 0..100
+  observed: number;
+  expected: number;
+  staleDays: number;
+  detail: string;
+}
+
+interface DataConfidenceTrendPoint {
+  date: string; // YYYY-MM-DD
+  overallScore: number;
+}
+
+interface DataConfidenceSnapshot {
+  generatedAt: string;
+  report: DataConfidenceReport;
+  domains: DataConfidenceDomainScore[];
+  topIssues: DataConfidenceIssue[];
+  trend: DataConfidenceTrendPoint[];
+}
+
+interface StoredDataIssueDismissal {
+  id: string;
+  dismissedByUid: string;
+  dismissedAt: string;
+  reason?: string;
+}
+
+interface StoredDataConfidenceSnapshot {
+  date: string;
+  overallScore: number;
+}
+
+/**
+ * Calcula días entre `iso` (timestamp ISO) y `now`. Si `iso` está
+ * vacío/inválido retorna `fallbackDays` para que el score sea
+ * conservador (no inflar artificialmente cuando no hay datos).
+ */
+function daysSince(iso: string | null | undefined, now: Date, fallbackDays = 999): number {
+  if (!iso) return fallbackDays;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return fallbackDays;
+  const ms = now.getTime() - d.getTime();
+  return Math.max(0, Math.round(ms / (24 * 60 * 60 * 1000)));
+}
+
+function ratioToScore(ratio: number): number {
+  return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+}
+
+function severityFromScore(score: number): DataConfidenceSeverity {
+  if (score < 25) return 'critical';
+  if (score < 50) return 'high';
+  if (score < 75) return 'medium';
+  return 'low';
+}
+
+function severityFromCount(count: number, total: number): DataConfidenceSeverity {
+  if (total <= 0) return 'low';
+  const ratio = count / Math.max(total, 1);
+  if (ratio >= 0.5) return 'critical';
+  if (ratio >= 0.25) return 'high';
+  if (ratio >= 0.1) return 'medium';
+  return 'low';
+}
+
+router.get('/:projectId/data-confidence', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
@@ -9481,12 +9610,16 @@ router.get('/:projectId/incidents/trends', verifyAuth, async (req, res) => {
     );
 
     const db = admin.firestore();
+    const db = admin.firestore();
+    const now = new Date();
+    const base = `tenants/${g.tenantId}/projects/${projectId}`;
 
     const safeRead = async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
       try {
         return await fn();
       } catch (err) {
         logger.warn?.(`sprintK.closure.status.read.${label}.failed`, err);
+        logger.warn?.(`sprintK.dataConfidence.read.${label}.failed`, err);
         return null;
       }
     };
@@ -10933,6 +11066,506 @@ router.get('/:projectId/confidential-reports', verifyAuth, async (req, res) => {
   } catch (err) {
     logger.error?.('sprintK.confidential.list.error', err);
     captureRouteError(err, 'sprintK.confidential.list');
+    // ── Workers domain ───────────────────────────────────────────────
+    const workersData = await safeRead('workers', async () => {
+      const snap = await db.collection(`${base}/workers`).limit(2000).get();
+      const docs = snap.docs.map((d) => d.data() as Record<string, unknown>);
+      let withRole = 0;
+      let withAuditLog = 0;
+      let withFullProfile = 0;
+      let latestUpdate: string | null = null;
+      for (const doc of docs) {
+        if (typeof doc.role === 'string' && (doc.role as string).length > 0) withRole++;
+        if (Array.isArray(doc.auditLog) && (doc.auditLog as unknown[]).length > 0) {
+          withAuditLog++;
+        }
+        const hasName = typeof doc.name === 'string' && (doc.name as string).length > 0;
+        const hasRole = typeof doc.role === 'string' && (doc.role as string).length > 0;
+        const hasCrew = typeof doc.crewId === 'string' && (doc.crewId as string).length > 0;
+        if (hasName && hasRole && hasCrew) withFullProfile++;
+        const updatedAt =
+          typeof doc.updatedAt === 'string' ? (doc.updatedAt as string) : null;
+        if (updatedAt && (!latestUpdate || updatedAt > latestUpdate)) {
+          latestUpdate = updatedAt;
+        }
+      }
+      return {
+        total: docs.length,
+        withRole,
+        withAuditLog,
+        withFullProfile,
+        latestUpdate,
+      };
+    });
+
+    // ── EPP domain ───────────────────────────────────────────────────
+    const eppData = await safeRead('epp', async () => {
+      const snap = await db.collection(`${base}/epp_items`).limit(2000).get();
+      const docs = snap.docs.map((d) => d.data() as Record<string, unknown>);
+      let withExpiration = 0;
+      let withAuditLog = 0;
+      let latestUpdate: string | null = null;
+      for (const doc of docs) {
+        if (typeof doc.expirationDate === 'string' && (doc.expirationDate as string).length > 0) {
+          withExpiration++;
+        }
+        if (Array.isArray(doc.auditLog) && (doc.auditLog as unknown[]).length > 0) {
+          withAuditLog++;
+        }
+        const updatedAt =
+          typeof doc.updatedAt === 'string' ? (doc.updatedAt as string) : null;
+        if (updatedAt && (!latestUpdate || updatedAt > latestUpdate)) {
+          latestUpdate = updatedAt;
+        }
+      }
+      return {
+        total: docs.length,
+        withExpiration,
+        withAuditLog,
+        latestUpdate,
+      };
+    });
+
+    // ── Incidents domain ─────────────────────────────────────────────
+    const incidentsData = await safeRead('incidents', async () => {
+      const snap = await db.collection(`${base}/incidents`).limit(2000).get();
+      const docs = snap.docs.map((d) => d.data() as Record<string, unknown>);
+      let withRootCause = 0;
+      let withAuditLog = 0;
+      let latestWrite: string | null = null;
+      for (const doc of docs) {
+        if (typeof doc.rootCause === 'string' && (doc.rootCause as string).length > 0) {
+          withRootCause++;
+        }
+        if (Array.isArray(doc.auditLog) && (doc.auditLog as unknown[]).length > 0) {
+          withAuditLog++;
+        }
+        const createdAt =
+          typeof doc.createdAt === 'string' ? (doc.createdAt as string) : null;
+        if (createdAt && (!latestWrite || createdAt > latestWrite)) {
+          latestWrite = createdAt;
+        }
+      }
+      return {
+        total: docs.length,
+        withRootCause,
+        withAuditLog,
+        latestWrite,
+      };
+    });
+
+    // ── Training domain ──────────────────────────────────────────────
+    const trainingData = await safeRead('training', async () => {
+      const snap = await db.collection(`${base}/training_records`).limit(2000).get();
+      const docs = snap.docs.map((d) => d.data() as Record<string, unknown>);
+      let withApprover = 0;
+      let withAuditLog = 0;
+      let latestUpdate: string | null = null;
+      for (const doc of docs) {
+        if (typeof doc.approverUid === 'string' && (doc.approverUid as string).length > 0) {
+          withApprover++;
+        }
+        if (Array.isArray(doc.auditLog) && (doc.auditLog as unknown[]).length > 0) {
+          withAuditLog++;
+        }
+        const updatedAt =
+          typeof doc.updatedAt === 'string' ? (doc.updatedAt as string) : null;
+        if (updatedAt && (!latestUpdate || updatedAt > latestUpdate)) {
+          latestUpdate = updatedAt;
+        }
+      }
+      return {
+        total: docs.length,
+        withApprover,
+        withAuditLog,
+        latestUpdate,
+      };
+    });
+
+    // ── Permits domain ───────────────────────────────────────────────
+    const permitsData = await safeRead('permits', async () => {
+      const snap = await db.collection(`${base}/work_permits`).limit(2000).get();
+      const docs = snap.docs.map((d) => d.data() as Record<string, unknown>);
+      let withApprover = 0;
+      let withAuditLog = 0;
+      let latestUpdate: string | null = null;
+      for (const doc of docs) {
+        if (typeof doc.issuedByUid === 'string' && (doc.issuedByUid as string).length > 0) {
+          withApprover++;
+        }
+        if (Array.isArray(doc.auditLog) && (doc.auditLog as unknown[]).length > 0) {
+          withAuditLog++;
+        }
+        const updatedAt =
+          typeof doc.updatedAt === 'string' ? (doc.updatedAt as string) : null;
+        if (updatedAt && (!latestUpdate || updatedAt > latestUpdate)) {
+          latestUpdate = updatedAt;
+        }
+      }
+      return {
+        total: docs.length,
+        withApprover,
+        withAuditLog,
+        latestUpdate,
+      };
+    });
+
+    // ── Audits domain ────────────────────────────────────────────────
+    const auditsData = await safeRead('audits', async () => {
+      const snap = await db.collection(`${base}/audits`).limit(2000).get();
+      const docs = snap.docs.map((d) => d.data() as Record<string, unknown>);
+      let withConclusion = 0;
+      let withAuditLog = 0;
+      let latestUpdate: string | null = null;
+      for (const doc of docs) {
+        if (typeof doc.conclusion === 'string' && (doc.conclusion as string).length > 0) {
+          withConclusion++;
+        }
+        if (Array.isArray(doc.auditLog) && (doc.auditLog as unknown[]).length > 0) {
+          withAuditLog++;
+        }
+        const updatedAt =
+          typeof doc.updatedAt === 'string' ? (doc.updatedAt as string) : null;
+        if (updatedAt && (!latestUpdate || updatedAt > latestUpdate)) {
+          latestUpdate = updatedAt;
+        }
+      }
+      return {
+        total: docs.length,
+        withConclusion,
+        withAuditLog,
+        latestUpdate,
+      };
+    });
+
+    // ── Project expected counts ───────────────────────────────────────
+    const projectMeta = await safeRead('project_meta', async () => {
+      const snap = await db.collection('projects').doc(projectId).get();
+      return snap.exists ? (snap.data() as Record<string, unknown>) : null;
+    });
+    const workersExpected =
+      projectMeta && typeof projectMeta.expectedWorkers === 'number'
+        ? (projectMeta.expectedWorkers as number)
+        : Math.max(workersData?.total ?? 0, 0);
+    const eppItemsExpected =
+      projectMeta && typeof projectMeta.expectedEppItems === 'number'
+        ? (projectMeta.expectedEppItems as number)
+        : Math.max(eppData?.total ?? 0, 0);
+    const documentsRequired =
+      projectMeta && typeof projectMeta.expectedDocuments === 'number'
+        ? (projectMeta.expectedDocuments as number)
+        : Math.max(permitsData?.total ?? 0, 0) +
+          Math.max(auditsData?.total ?? 0, 0);
+
+    // ── Dismissals (so issues can be hidden from top list) ─────────────
+    const dismissals = await safeRead('dismissals', async () => {
+      const snap = await db
+        .collection(`${base}/data_confidence_dismissals`)
+        .limit(500)
+        .get();
+      return snap.docs.map(
+        (d) => ({ id: d.id, ...(d.data() as Omit<StoredDataIssueDismissal, 'id'>) }),
+      );
+    });
+    const dismissedIds = new Set((dismissals ?? []).map((d) => d.id));
+
+    // ── Build ConfidenceInputs ─────────────────────────────────────────
+    const inputs: ConfidenceInputs = {
+      coverage: {
+        workersExpected,
+        workersPresent: workersData?.total ?? 0,
+        eppItemsExpected,
+        eppItemsPresent: eppData?.total ?? 0,
+        documentsRequired,
+        documentsPresent:
+          (permitsData?.total ?? 0) + (auditsData?.total ?? 0),
+      },
+      freshness: {
+        workersLastUpdateDays: daysSince(workersData?.latestUpdate ?? null, now),
+        eppInventoryLastUpdateDays: daysSince(eppData?.latestUpdate ?? null, now),
+        incidentsLastWriteDays: daysSince(incidentsData?.latestWrite ?? null, now),
+        documentsLastReviewDays: daysSince(
+          permitsData?.latestUpdate ?? auditsData?.latestUpdate ?? null,
+          now,
+        ),
+      },
+      completeness: {
+        workersWithFullProfileRatio:
+          (workersData?.total ?? 0) > 0
+            ? (workersData?.withFullProfile ?? 0) / (workersData?.total ?? 1)
+            : 1,
+        eppWithExpirationRatio:
+          (eppData?.total ?? 0) > 0
+            ? (eppData?.withExpiration ?? 0) / (eppData?.total ?? 1)
+            : 1,
+        incidentsWithRootCauseRatio:
+          (incidentsData?.total ?? 0) > 0
+            ? (incidentsData?.withRootCause ?? 0) / (incidentsData?.total ?? 1)
+            : 1,
+        documentsWithApproverRatio:
+          (permitsData?.total ?? 0) > 0
+            ? (permitsData?.withApprover ?? 0) / (permitsData?.total ?? 1)
+            : 1,
+      },
+      traceability: {
+        workersWithAuditLogRatio:
+          (workersData?.total ?? 0) > 0
+            ? (workersData?.withAuditLog ?? 0) / (workersData?.total ?? 1)
+            : 1,
+        eppWithAuditLogRatio:
+          (eppData?.total ?? 0) > 0
+            ? (eppData?.withAuditLog ?? 0) / (eppData?.total ?? 1)
+            : 1,
+        incidentsWithAuditLogRatio:
+          (incidentsData?.total ?? 0) > 0
+            ? (incidentsData?.withAuditLog ?? 0) / (incidentsData?.total ?? 1)
+            : 1,
+        documentsWithAuditLogRatio:
+          (permitsData?.total ?? 0) > 0
+            ? (permitsData?.withAuditLog ?? 0) / (permitsData?.total ?? 1)
+            : 1,
+      },
+      concordance: {
+        inconsistenciesCount: 0,
+        totalEntitiesScanned:
+          (workersData?.total ?? 0) +
+          (incidentsData?.total ?? 0) +
+          (permitsData?.total ?? 0),
+      },
+    };
+
+    const report = buildDataConfidenceReport(inputs, { now });
+
+    // ── Per-domain summaries (UI consumes these for bar chart) ─────────
+    const domainScore = (
+      name: DataConfidenceDomain,
+      observed: number,
+      expected: number,
+      staleDays: number,
+      detail: string,
+    ): DataConfidenceDomainScore => {
+      const coverageRatio = expected > 0 ? Math.min(observed / expected, 1) : 1;
+      const stalenessRatio = Math.max(0, Math.min(1, 1 - staleDays / 60));
+      const score = ratioToScore((coverageRatio + stalenessRatio) / 2);
+      return { name, score, observed, expected, staleDays, detail };
+    };
+
+    const domains: DataConfidenceDomainScore[] = [
+      domainScore(
+        'workers',
+        workersData?.total ?? 0,
+        workersExpected,
+        daysSince(workersData?.latestUpdate ?? null, now, 0),
+        `Workers: ${workersData?.total ?? 0}/${workersExpected} con perfil completo ${workersData?.withFullProfile ?? 0}.`,
+      ),
+      domainScore(
+        'incidents',
+        incidentsData?.total ?? 0,
+        Math.max(incidentsData?.total ?? 0, 1),
+        daysSince(incidentsData?.latestWrite ?? null, now, 0),
+        `Incidentes con RCA ${incidentsData?.withRootCause ?? 0}/${incidentsData?.total ?? 0}.`,
+      ),
+      domainScore(
+        'training',
+        trainingData?.total ?? 0,
+        Math.max(trainingData?.total ?? 0, 1),
+        daysSince(trainingData?.latestUpdate ?? null, now, 0),
+        `Capacitaciones con aprobador ${trainingData?.withApprover ?? 0}/${trainingData?.total ?? 0}.`,
+      ),
+      domainScore(
+        'epp',
+        eppData?.total ?? 0,
+        eppItemsExpected,
+        daysSince(eppData?.latestUpdate ?? null, now, 0),
+        `EPP con vencimiento ${eppData?.withExpiration ?? 0}/${eppData?.total ?? 0}.`,
+      ),
+      domainScore(
+        'permits',
+        permitsData?.total ?? 0,
+        Math.max(permitsData?.total ?? 0, 1),
+        daysSince(permitsData?.latestUpdate ?? null, now, 0),
+        `Permisos con emisor ${permitsData?.withApprover ?? 0}/${permitsData?.total ?? 0}.`,
+      ),
+      domainScore(
+        'audits',
+        auditsData?.total ?? 0,
+        Math.max(auditsData?.total ?? 0, 1),
+        daysSince(auditsData?.latestUpdate ?? null, now, 0),
+        `Auditorías con conclusión ${auditsData?.withConclusion ?? 0}/${auditsData?.total ?? 0}.`,
+      ),
+    ];
+
+    // ── Top issues (concrete, dismissable findings) ───────────────────
+    const candidateIssues: DataConfidenceIssue[] = [];
+    const pushIssue = (
+      idSeed: string,
+      domain: DataConfidenceDomain,
+      collection: string,
+      count: number,
+      description: string,
+      severity: DataConfidenceSeverity,
+    ) => {
+      if (count <= 0) return;
+      const id = `${domain}.${idSeed}`;
+      candidateIssues.push({
+        id,
+        domain,
+        collection,
+        severity,
+        count,
+        description,
+        dismissed: dismissedIds.has(id),
+      });
+    };
+
+    if (workersData && workersData.total > 0) {
+      const missingRole = workersData.total - workersData.withRole;
+      pushIssue(
+        'missing_role',
+        'workers',
+        'workers',
+        missingRole,
+        `Workers sin cargo asignado: ${missingRole}.`,
+        severityFromCount(missingRole, workersData.total),
+      );
+      const missingProfile = workersData.total - workersData.withFullProfile;
+      pushIssue(
+        'incomplete_profile',
+        'workers',
+        'workers',
+        missingProfile,
+        `Workers con perfil incompleto: ${missingProfile}.`,
+        severityFromCount(missingProfile, workersData.total),
+      );
+    }
+    if (eppData && eppData.total > 0) {
+      const missingExp = eppData.total - eppData.withExpiration;
+      pushIssue(
+        'missing_expiration',
+        'epp',
+        'epp_items',
+        missingExp,
+        `EPP sin fecha de vencimiento: ${missingExp}.`,
+        severityFromCount(missingExp, eppData.total),
+      );
+    }
+    if (incidentsData && incidentsData.total > 0) {
+      const missingRca = incidentsData.total - incidentsData.withRootCause;
+      pushIssue(
+        'missing_root_cause',
+        'incidents',
+        'incidents',
+        missingRca,
+        `Incidentes sin causa raíz: ${missingRca}.`,
+        severityFromCount(missingRca, incidentsData.total),
+      );
+    }
+    if (trainingData && trainingData.total > 0) {
+      const missingApprover = trainingData.total - trainingData.withApprover;
+      pushIssue(
+        'training_missing_approver',
+        'training',
+        'training_records',
+        missingApprover,
+        `Capacitaciones sin aprobador: ${missingApprover}.`,
+        severityFromCount(missingApprover, trainingData.total),
+      );
+    }
+    if (permitsData && permitsData.total > 0) {
+      const missingApprover = permitsData.total - permitsData.withApprover;
+      pushIssue(
+        'permits_missing_issuer',
+        'permits',
+        'work_permits',
+        missingApprover,
+        `Permisos sin emisor: ${missingApprover}.`,
+        severityFromCount(missingApprover, permitsData.total),
+      );
+    }
+    if (auditsData && auditsData.total > 0) {
+      const missingConclusion = auditsData.total - auditsData.withConclusion;
+      pushIssue(
+        'audits_missing_conclusion',
+        'audits',
+        'audits',
+        missingConclusion,
+        `Auditorías sin conclusión escrita: ${missingConclusion}.`,
+        severityFromCount(missingConclusion, auditsData.total),
+      );
+    }
+
+    const severityRank: Record<DataConfidenceSeverity, number> = {
+      critical: 0,
+      high: 1,
+      medium: 2,
+      low: 3,
+    };
+    const topIssues = candidateIssues
+      .filter((i) => !i.dismissed)
+      .sort((a, b) => {
+        const sa = severityRank[a.severity] - severityRank[b.severity];
+        if (sa !== 0) return sa;
+        return b.count - a.count;
+      })
+      .slice(0, 10);
+
+    // ── Trend (last 30 days) ───────────────────────────────────────────
+    const trendSnapshots = await safeRead('trend', async () => {
+      const snap = await db
+        .collection(`${base}/data_confidence_snapshots`)
+        .orderBy('date', 'desc')
+        .limit(30)
+        .get();
+      return snap.docs.map((d) => d.data() as StoredDataConfidenceSnapshot);
+    });
+    const trend: DataConfidenceTrendPoint[] = (trendSnapshots ?? [])
+      .filter(
+        (s) =>
+          typeof s.date === 'string' &&
+          typeof s.overallScore === 'number' &&
+          Number.isFinite(s.overallScore),
+      )
+      .map((s) => ({
+        date: s.date,
+        overallScore: Math.max(0, Math.min(100, Math.round(s.overallScore))),
+      }))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    // Persist today's snapshot so trend accumulates over time. We use the
+    // YYYY-MM-DD bucket so multiple reads on the same day overwrite the
+    // same doc (the freshest score wins).
+    const todayBucket = now.toISOString().slice(0, 10);
+    if (!trend.some((p) => p.date === todayBucket)) {
+      trend.push({ date: todayBucket, overallScore: report.overallScore });
+    } else {
+      // Update in-place so the UI sees today's latest computation, not
+      // the stored stale one.
+      const idx = trend.findIndex((p) => p.date === todayBucket);
+      if (idx >= 0) trend[idx] = { date: todayBucket, overallScore: report.overallScore };
+    }
+    await safeRead('persist_snapshot', async () => {
+      await db
+        .collection(`${base}/data_confidence_snapshots`)
+        .doc(todayBucket)
+        .set(
+          { date: todayBucket, overallScore: report.overallScore },
+          { merge: true },
+        );
+      return null;
+    });
+
+    const snapshot: DataConfidenceSnapshot = {
+      generatedAt: now.toISOString(),
+      report,
+      domains,
+      topIssues,
+      trend,
+    };
+
+    return res.json(snapshot);
+  } catch (err) {
+    logger.error?.('sprintK.dataConfidence.snapshot.error', err);
+    captureRouteError(err, 'sprintK.dataConfidence.snapshot');
     return res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -11030,6 +11663,40 @@ router.post(
         createdBy: callerUid,
       };
       // Stripped of `undefined` keys — Firestore rejects them.
+const dismissDataIssueSchema = z.object({
+  reason: z.string().min(1).max(2000).optional(),
+});
+
+router.post(
+  '/:projectId/data-confidence/dismiss/:issueId',
+  verifyAuth,
+  validate(dismissDataIssueSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, issueId } = req.params;
+    const body = req.body as z.infer<typeof dismissDataIssueSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    if (!callerCanDismissDataIssue(req.user!)) {
+      return res.status(403).json({
+        error: 'forbidden',
+        reason: 'caller_lacks_data_confidence_dismiss_role',
+      });
+    }
+    // Defense in depth: server validates issueId against a known shape
+    // ("<domain>.<seed>") so attackers can't write arbitrary doc ids.
+    if (!/^[a-z_]+\.[a-z_]+$/.test(issueId)) {
+      return res.status(400).json({ error: 'invalid_issue_id' });
+    }
+    try {
+      const db = admin.firestore();
+      const now = new Date().toISOString();
+      const payload: StoredDataIssueDismissal = {
+        id: issueId,
+        dismissedByUid: callerUid,
+        dismissedAt: now,
+        reason: body.reason,
+      };
       const cleaned: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(payload)) {
         if (v !== undefined) cleaned[k] = v;
@@ -11303,6 +11970,15 @@ router.post(
     } catch (err) {
       logger.error?.('sprintK.apprentices.expose.error', err);
       captureRouteError(err, 'sprintK.apprentices.expose');
+        .collection(
+          `tenants/${g.tenantId}/projects/${projectId}/data_confidence_dismissals`,
+        )
+        .doc(issueId)
+        .set(cleaned, { merge: true });
+      return res.status(200).json({ ok: true, dismissal: payload });
+    } catch (err) {
+      logger.error?.('sprintK.dataConfidence.dismiss.error', err);
+      captureRouteError(err, 'sprintK.dataConfidence.dismiss');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
@@ -11311,6 +11987,7 @@ router.post(
 router.get(
   '/:projectId/confidential-reports/retaliation-alerts',
   '/:projectId/mentors/availability',
+  '/:projectId/data-confidence/recommendations',
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
@@ -12255,7 +12932,6 @@ router.get(
   }
 });
 >>>>>>> ca8e4b8b (feat(apprentices): §244-250 Aprendices + Mentoría + Autorización Progresiva — endpoint + hook + page wired)
-=======
 
 const portableHistoryConsentSchema = z.object({
   allowsPortableExport: z.boolean(),
@@ -12430,9 +13106,121 @@ router.get(
     } catch (err) {
       logger.error?.('sprintK.portableHistory.export.error', err);
       captureRouteError(err, 'sprintK.portableHistory.export');
+=======
+      const db = admin.firestore();
+      const now = new Date();
+      const base = `tenants/${g.tenantId}/projects/${projectId}`;
+
+      const safeReadCount = async (
+        label: string,
+        col: string,
+        filter?: (doc: Record<string, unknown>) => boolean,
+      ): Promise<{ total: number; flagged: number }> => {
+        try {
+          const snap = await db.collection(`${base}/${col}`).limit(2000).get();
+          let flagged = 0;
+          for (const d of snap.docs) {
+            const data = d.data() as Record<string, unknown>;
+            if (!filter || filter(data)) flagged++;
+          }
+          return { total: snap.size, flagged };
+        } catch (err) {
+          logger.warn?.(`sprintK.dataConfidence.recos.${label}.failed`, err);
+          return { total: 0, flagged: 0 };
+        }
+      };
+
+      const workers = await safeReadCount(
+        'workers',
+        'workers',
+        (d) => !d.role || (typeof d.role === 'string' && (d.role as string).length === 0),
+      );
+      const epp = await safeReadCount(
+        'epp',
+        'epp_items',
+        (d) =>
+          !d.expirationDate ||
+          (typeof d.expirationDate === 'string' && (d.expirationDate as string).length === 0),
+      );
+      const incidents = await safeReadCount(
+        'incidents',
+        'incidents',
+        (d) =>
+          !d.rootCause ||
+          (typeof d.rootCause === 'string' && (d.rootCause as string).length === 0),
+      );
+      const trainings = await safeReadCount(
+        'training',
+        'training_records',
+        (d) =>
+          !d.approverUid ||
+          (typeof d.approverUid === 'string' && (d.approverUid as string).length === 0),
+      );
+
+      const recommendations: Array<{
+        id: string;
+        priority: 'high' | 'medium' | 'low';
+        title: string;
+        action: string;
+        target: number;
+        domain: DataConfidenceDomain;
+      }> = [];
+
+      if (workers.flagged > 0) {
+        recommendations.push({
+          id: 'reco_workers_role',
+          priority: workers.flagged >= 10 ? 'high' : 'medium',
+          title: `Completa ${workers.flagged} workers sin cargo asignado`,
+          action: 'Asigna cargo y cuadrilla a los trabajadores marcados.',
+          target: workers.flagged,
+          domain: 'workers',
+        });
+      }
+      if (epp.flagged > 0) {
+        recommendations.push({
+          id: 'reco_epp_expiration',
+          priority: epp.flagged >= 20 ? 'high' : 'medium',
+          title: `Agrega fecha de vencimiento a ${epp.flagged} EPP`,
+          action: 'Actualiza el inventario con la fecha real de caducidad por ítem.',
+          target: epp.flagged,
+          domain: 'epp',
+        });
+      }
+      if (incidents.flagged > 0) {
+        recommendations.push({
+          id: 'reco_incidents_root_cause',
+          priority: incidents.flagged >= 5 ? 'high' : 'medium',
+          title: `Cierra causa raíz en ${incidents.flagged} incidentes`,
+          action: 'Completa el análisis RCA y persiste la causa raíz.',
+          target: incidents.flagged,
+          domain: 'incidents',
+        });
+      }
+      if (trainings.flagged > 0) {
+        recommendations.push({
+          id: 'reco_training_approver',
+          priority: 'medium',
+          title: `Asigna aprobador a ${trainings.flagged} capacitaciones`,
+          action: 'Define el supervisor responsable de aprobar la capacitación.',
+          target: trainings.flagged,
+          domain: 'training',
+        });
+      }
+
+      // Stamp the response so the UI can show when the recommendations
+      // were computed without forcing the caller to look at the network
+      // log.
+      return res.json({ generatedAt: now.toISOString(), recommendations });
+    } catch (err) {
+      logger.error?.('sprintK.dataConfidence.recos.error', err);
+      captureRouteError(err, 'sprintK.dataConfidence.recos');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
 );
+<<<<<<< HEAD
+=======
+
+>>>>>>> fd84edc6 (feat(data-confidence): §104 Panel Confianza Datos — endpoint + hook + page wired)
 
 export default router;
