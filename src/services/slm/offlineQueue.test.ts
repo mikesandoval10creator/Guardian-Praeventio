@@ -32,8 +32,7 @@
  */
 
 import 'fake-indexeddb/auto';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import FDBFactory from 'fake-indexeddb/lib/FDBFactory';
+import { IDBFactory as FDBFactory } from 'fake-indexeddb';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

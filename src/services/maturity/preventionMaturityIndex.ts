@@ -238,8 +238,8 @@ export function computeMaturityLevel(signals: MaturitySignals): MaturityReport {
   const level = levelFromOverall(overallScore);
   const weakestArea = pickWeakestArea(categoryScores);
 
-  const targetLevel: MaturityLevelNumber | null =
-    level === 5 ? null : ((level + 1) as MaturityLevelNumber);
+  const targetLevel: Exclude<MaturityLevelNumber, 1> | null =
+    level === 5 ? null : ((level + 1) as Exclude<MaturityLevelNumber, 1>);
   const pointsNeeded =
     targetLevel === null
       ? 0

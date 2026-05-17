@@ -75,9 +75,9 @@ const AD_LAST_SHOWN_KEY = 'pg_last_ad_ts';
 
 function isNativeRuntime(): boolean {
   try {
-    // @ts-ignore - Capacitor global may not exist in pure web
-    return typeof globalThis.Capacitor?.isNativePlatform === 'function'
-      && globalThis.Capacitor.isNativePlatform();
+    const capacitor = (globalThis as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    return typeof capacitor?.isNativePlatform === 'function'
+      && capacitor.isNativePlatform();
   } catch {
     return false;
   }

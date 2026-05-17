@@ -86,7 +86,7 @@ export const indexLaw = async (law: any, vectorCollection: admin.firestore.Colle
   const batchSize = 5;
   for (let i = 0; i < chunks.length; i += batchSize) {
     const batch = chunks.slice(i, i + batchSize);
-    await Promise.all(batch.map(async (chunk, batchIndex) => {
+    await Promise.all(batch.map(async (chunk: string, batchIndex: number) => {
       const actualIndex = i + batchIndex;
       const docId = `law-${law.idNorma}-chunk-${actualIndex}`;
       
