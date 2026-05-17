@@ -14,6 +14,7 @@
 //
 // Cada handler reusa los adapters ya construidos.
 
+import { createHash } from 'node:crypto';
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { z } from 'zod';
@@ -6554,5 +6555,450 @@ router.post(
     }
   },
 );
+
+// ─────────────────────────────────────────────────────────────────────
+// Sprint K §61-63 — Encuesta de Percepción + Índice de Cultura + Reconocimiento
+// ─────────────────────────────────────────────────────────────────────
+//
+// Endpoints HTTP que exponen el motor determinístico
+// `safetyCulturePulse` al frontend. El servicio existía pero no era
+// navegable — el ciclo predictivo (Detección → Respuesta →
+// Consolidación) quedaba inerte aunque computePulseIndex y
+// buildPulseTrend estuvieran listos.
+//
+// Storage paths:
+//   - Survey doc:   tenants/{tid}/projects/{pid}/culture_pulse/{surveyId}
+//   - Response:     .../culture_pulse/{surveyId}/responses/{responseDocId}
+//
+// PRIVACIDAD CRÍTICA (directiva del producto):
+//   - Las respuestas NUNCA persisten `responderUid`. El doc carga sólo
+//     `responderHash` (SHA-256 del uid+surveyId, primeros 16 hex) que
+//     sirve para garantizar "una respuesta por trabajador por encuesta"
+//     SIN permitir reconstruir la identidad. Aunque un atacante con
+//     acceso a Firestore conozca todos los `responderHash`, no puede
+//     recorrer la lista de uids del proyecto y derivar quién respondió
+//     qué a menos que ya tenga el uid Y el surveyId — y en ese caso ya
+//     tiene auth de admin total, así que la propiedad de anonimato es
+//     "anonimato respecto a otros revisores del dashboard / SUSESO /
+//     SII". El responderUid NO entra a Firestore en ningún momento.
+//   - El endpoint snapshot (`/culture-pulse`) agrega métricas (índice,
+//     conteo, top concerns/strengths) y NUNCA expone respuestas
+//     individuales.
+//   - El endpoint history devuelve sólo (periodo, índice, respuestas).
+
+const PULSE_QUESTION_KEYS = [
+  'felt_safe_today',
+  'manager_listens',
+  'free_to_stop',
+  'reported_incident_safely',
+  'has_resources_to_be_safe',
+] as const;
+type PulseQuestionKey = (typeof PULSE_QUESTION_KEYS)[number];
+
+interface StoredPulseSurvey {
+  id: string;
+  status: 'open' | 'closed';
+  /** Ventana en la que se aceptan respuestas. */
+  openAt: string;
+  closeAt: string;
+  /** Plantilla / título — admin lo define al programar. */
+  title?: string;
+  /** Conteo objetivo de respondedores (para % participación). */
+  expectedRespondents?: number;
+  createdAt: string;
+  createdBy: string;
+}
+
+interface StoredPulseResponse {
+  /**
+   * SHA-256 truncado de `${responderUid}:${surveyId}`. NO permite
+   * reconstruir el uid, pero garantiza idempotencia por respondedor
+   * (siempre el mismo hash → siempre el mismo docId).
+   *
+   * NO se persiste `responderUid` en el doc. La directiva de
+   * anonimato del producto lo prohíbe explícitamente: aún si el
+   * dashboard/SUSESO/SII gana acceso, no puede mapear hash → uid.
+   */
+  responderHash: string;
+  workerRole: string;
+  area: string;
+  answers: Record<PulseQuestionKey, number>;
+  submittedAt: string;
+}
+
+function pulseResponderHash(uid: string, surveyId: string): string {
+  return createHash('sha256').update(`${uid}:${surveyId}`).digest('hex').slice(0, 32);
+}
+
+/**
+ * Etiquetas humanas por question key — usadas para top concerns/
+ * strengths. Mantenemos castellano (audiencia objetivo: prevencionistas
+ * y trabajadores de habla hispana).
+ */
+const PULSE_QUESTION_LABEL: Record<PulseQuestionKey, string> = {
+  felt_safe_today: 'Me sentí seguro hoy',
+  manager_listens: 'Mi jefe escucha mis inquietudes',
+  free_to_stop: 'Me siento libre de detener un trabajo inseguro',
+  reported_incident_safely: 'Puedo reportar incidentes sin miedo',
+  has_resources_to_be_safe: 'Tengo los recursos para trabajar seguro',
+};
+
+interface CulturePulseSnapshot {
+  surveyId: string | null;
+  status: 'open' | 'closed' | null;
+  openAt: string | null;
+  closeAt: string | null;
+  cultureIndex: number;
+  level: 'low' | 'fair' | 'good' | 'strong';
+  totalResponses: number;
+  expectedRespondents: number | null;
+  participationRate: number | null;
+  punitiveCulturedFlagged: boolean;
+  byQuestion: Record<PulseQuestionKey, number>;
+  topConcerns: Array<{ key: PulseQuestionKey; label: string; score: number }>;
+  topStrengths: Array<{ key: PulseQuestionKey; label: string; score: number }>;
+  hasResponded: boolean;
+}
+
+router.get('/:projectId/culture-pulse', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { computePulseIndex } = await import(
+      '../../services/culturePulse/safetyCulturePulse.js'
+    );
+
+    const db = admin.firestore();
+    const baseRef = db.collection(
+      `tenants/${g.tenantId}/projects/${projectId}/culture_pulse`,
+    );
+
+    const safeRead = async <T,>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.('sprintK.culturePulse.snapshot.read_failed', err);
+        return fallback;
+      }
+    };
+
+    // Prefer the most recent OPEN survey, falling back to the most
+    // recent closed one — the page renders both states (active banner
+    // vs. last-snapshot card).
+    let surveyDoc: admin.firestore.QueryDocumentSnapshot | null = null;
+    const openSnap = await safeRead<admin.firestore.QuerySnapshot | null>(
+      () => baseRef.where('status', '==', 'open').orderBy('openAt', 'desc').limit(1).get(),
+      null,
+    );
+    if (openSnap && openSnap.size > 0) {
+      surveyDoc = openSnap.docs[0];
+    } else {
+      const closedSnap = await safeRead<admin.firestore.QuerySnapshot | null>(
+        () => baseRef.where('status', '==', 'closed').orderBy('closeAt', 'desc').limit(1).get(),
+        null,
+      );
+      if (closedSnap && closedSnap.size > 0) {
+        surveyDoc = closedSnap.docs[0];
+      }
+    }
+
+    const emptySnapshot: CulturePulseSnapshot = {
+      surveyId: null,
+      status: null,
+      openAt: null,
+      closeAt: null,
+      cultureIndex: 0,
+      level: 'low',
+      totalResponses: 0,
+      expectedRespondents: null,
+      participationRate: null,
+      punitiveCulturedFlagged: false,
+      byQuestion: {
+        felt_safe_today: 0,
+        manager_listens: 0,
+        free_to_stop: 0,
+        reported_incident_safely: 0,
+        has_resources_to_be_safe: 0,
+      },
+      topConcerns: [],
+      topStrengths: [],
+      hasResponded: false,
+    };
+
+    if (!surveyDoc) {
+      return res.json({ snapshot: emptySnapshot });
+    }
+
+    const survey = surveyDoc.data() as Omit<StoredPulseSurvey, 'id'>;
+    const surveyId = surveyDoc.id;
+
+    // Read all responses for aggregation.
+    const responsesSnap = await safeRead<admin.firestore.QuerySnapshot | null>(
+      () => baseRef.doc(surveyId).collection('responses').get(),
+      null,
+    );
+
+    const responses =
+      responsesSnap?.docs.map((d) => d.data() as StoredPulseResponse) ?? [];
+
+    const index = computePulseIndex(responses);
+
+    // Top concerns: 3 questions with lowest avg. Top strengths: top 3.
+    const ranked = (Object.keys(index.byQuestion) as PulseQuestionKey[])
+      .map((k) => ({ key: k, label: PULSE_QUESTION_LABEL[k], score: index.byQuestion[k] }))
+      .filter((r) => r.score > 0); // 0 only happens for empty surveys
+    const sortedAsc = [...ranked].sort((a, b) => a.score - b.score);
+    const sortedDesc = [...ranked].sort((a, b) => b.score - a.score);
+
+    const callerHash = pulseResponderHash(callerUid, surveyId);
+    const responderHashes = new Set(responses.map((r) => r.responderHash));
+
+    const participationRate =
+      typeof survey.expectedRespondents === 'number' && survey.expectedRespondents > 0
+        ? Math.min(1, responses.length / survey.expectedRespondents)
+        : null;
+
+    const snapshot: CulturePulseSnapshot = {
+      surveyId,
+      status: survey.status,
+      openAt: survey.openAt,
+      closeAt: survey.closeAt,
+      cultureIndex: index.cultureIndex,
+      level: index.level,
+      totalResponses: index.totalResponses,
+      expectedRespondents:
+        typeof survey.expectedRespondents === 'number'
+          ? survey.expectedRespondents
+          : null,
+      participationRate,
+      punitiveCulturedFlagged: index.punitiveCulturedFlagged,
+      byQuestion: index.byQuestion,
+      topConcerns: sortedAsc.slice(0, 5),
+      topStrengths: sortedDesc.slice(0, 5),
+      hasResponded: responderHashes.has(callerHash),
+    };
+
+    return res.json({ snapshot });
+  } catch (err) {
+    logger.error?.('sprintK.culturePulse.snapshot.error', err);
+    captureRouteError(err, 'sprintK.culturePulse.snapshot');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+const culturePulseScheduleSchema = z
+  .object({
+    surveyId: z
+      .string()
+      .min(3)
+      .max(120)
+      // Restrict to filesystem-safe characters to avoid surprising
+      // Firestore behaviour with `/` (sub-collection escape).
+      .regex(/^[a-zA-Z0-9_-]+$/),
+    openAt: z.string().min(10),
+    closeAt: z.string().min(10),
+    title: z.string().min(1).max(200).optional(),
+    expectedRespondents: z.number().int().nonnegative().optional(),
+  })
+  .refine((v) => v.openAt < v.closeAt, {
+    message: 'closeAt must be after openAt',
+    path: ['closeAt'],
+  });
+
+router.post(
+  '/:projectId/culture-pulse/survey',
+  verifyAuth,
+  validate(culturePulseScheduleSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof culturePulseScheduleSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const docRef = db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/culture_pulse`)
+        .doc(body.surveyId);
+
+      const existing = await docRef.get();
+      if (existing.exists) {
+        return res.status(409).json({ error: 'survey_already_exists' });
+      }
+
+      const now = new Date().toISOString();
+      const status: 'open' | 'closed' =
+        body.closeAt > now ? 'open' : 'closed';
+
+      const payload: StoredPulseSurvey = {
+        id: body.surveyId,
+        status,
+        openAt: body.openAt,
+        closeAt: body.closeAt,
+        title: body.title,
+        expectedRespondents: body.expectedRespondents,
+        createdAt: now,
+        createdBy: callerUid,
+      };
+
+      // Strip undefined fields — Firestore rejects them.
+      const cleaned: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(payload)) {
+        if (v !== undefined) cleaned[k] = v;
+      }
+      await docRef.set(cleaned, { merge: false });
+      return res.status(201).json({ ok: true, survey: payload });
+    } catch (err) {
+      logger.error?.('sprintK.culturePulse.schedule.error', err);
+      captureRouteError(err, 'sprintK.culturePulse.schedule');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const culturePulseResponseSchema = z.object({
+  workerRole: z.string().min(1).max(120),
+  area: z.string().min(1).max(120),
+  answers: z.object({
+    felt_safe_today: z.number().int().min(1).max(5),
+    manager_listens: z.number().int().min(1).max(5),
+    free_to_stop: z.number().int().min(1).max(5),
+    reported_incident_safely: z.number().int().min(1).max(5),
+    has_resources_to_be_safe: z.number().int().min(1).max(5),
+  }),
+});
+
+router.post(
+  '/:projectId/culture-pulse/survey/:id/respond',
+  verifyAuth,
+  validate(culturePulseResponseSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, id: surveyId } = req.params;
+    const body = req.body as z.infer<typeof culturePulseResponseSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const surveyRef = db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/culture_pulse`)
+        .doc(surveyId);
+
+      const surveySnap = await surveyRef.get();
+      if (!surveySnap.exists) {
+        return res.status(404).json({ error: 'survey_not_found' });
+      }
+      const survey = surveySnap.data() as Omit<StoredPulseSurvey, 'id'>;
+      const now = new Date().toISOString();
+      if (survey.status === 'closed' || now > survey.closeAt) {
+        return res.status(409).json({ error: 'survey_closed' });
+      }
+      if (now < survey.openAt) {
+        return res.status(409).json({ error: 'survey_not_open' });
+      }
+
+      // PRIVACY: the response doc is keyed by responder hash so the
+      // same worker can only respond once per survey. We never store
+      // `responderUid` on the doc. The hash is deterministic and
+      // one-way for any outside observer.
+      const responderHash = pulseResponderHash(callerUid, surveyId);
+      const responseRef = surveyRef.collection('responses').doc(responderHash);
+
+      const existing = await responseRef.get();
+      if (existing.exists) {
+        return res.status(409).json({ error: 'already_responded' });
+      }
+
+      const responsePayload: StoredPulseResponse = {
+        responderHash,
+        workerRole: body.workerRole,
+        area: body.area,
+        answers: body.answers,
+        submittedAt: now,
+      };
+      await responseRef.set(responsePayload);
+      return res.status(201).json({ ok: true });
+    } catch (err) {
+      logger.error?.('sprintK.culturePulse.respond.error', err);
+      captureRouteError(err, 'sprintK.culturePulse.respond');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+interface CulturePulseHistoryPoint {
+  surveyId: string;
+  closeAt: string | null;
+  openAt: string;
+  cultureIndex: number;
+  totalResponses: number;
+  level: 'low' | 'fair' | 'good' | 'strong';
+}
+
+router.get('/:projectId/culture-pulse/history', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { computePulseIndex } = await import(
+      '../../services/culturePulse/safetyCulturePulse.js'
+    );
+
+    const db = admin.firestore();
+    const baseRef = db.collection(
+      `tenants/${g.tenantId}/projects/${projectId}/culture_pulse`,
+    );
+
+    const safeRead = async <T,>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.('sprintK.culturePulse.history.read_failed', err);
+        return fallback;
+      }
+    };
+
+    // Pull the last 6 surveys ordered by openAt desc. We sort the
+    // final output ASC (oldest → newest) so the sparkline reads
+    // left-to-right.
+    const surveysSnap = await safeRead<admin.firestore.QuerySnapshot | null>(
+      () => baseRef.orderBy('openAt', 'desc').limit(6).get(),
+      null,
+    );
+
+    const points: CulturePulseHistoryPoint[] = [];
+    if (surveysSnap) {
+      for (const surveyDoc of surveysSnap.docs) {
+        const survey = surveyDoc.data() as Omit<StoredPulseSurvey, 'id'>;
+        const responsesSnap = await safeRead<admin.firestore.QuerySnapshot | null>(
+          () => surveyDoc.ref.collection('responses').get(),
+          null,
+        );
+        const responses =
+          responsesSnap?.docs.map((d) => d.data() as StoredPulseResponse) ?? [];
+        const idx = computePulseIndex(responses);
+        points.push({
+          surveyId: surveyDoc.id,
+          openAt: survey.openAt,
+          closeAt: survey.closeAt ?? null,
+          cultureIndex: idx.cultureIndex,
+          totalResponses: idx.totalResponses,
+          level: idx.level,
+        });
+      }
+    }
+
+    // Sort ascending (oldest first) for the sparkline.
+    points.sort((a, b) => a.openAt.localeCompare(b.openAt));
+    return res.json({ history: points });
+  } catch (err) {
+    logger.error?.('sprintK.culturePulse.history.error', err);
+    captureRouteError(err, 'sprintK.culturePulse.history');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
 
 export default router;

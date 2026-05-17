@@ -160,6 +160,11 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // substitution > engineering > administrative > epp) y la
         // vigencia de cada verificación (verde/ámbar/rojo).
         { title: t("nav.engineering_controls", "Controles de Ingeniería"), icon: Layers, path: "/engineering-controls", color: "text-violet-500" },
+        // Sprint K §61-63 — Cultura Preventiva (encuesta + índice).
+        // Pulso periódico anónimo (Likert 1-5) que mide percepción y
+        // detecta cultura punitiva. Cierra la fase de "Detección
+        // Predictiva" del Flow Infinito para liderazgo.
+        { title: t("nav.culture_pulse", "Cultura Preventiva"), icon: HeartPulse, path: "/culture-pulse", color: "text-rose-500" },
         // Sprint 40 Fase F.5 — Firma QR de Recepción (EPP, charlas, docs).
         // Genera challenge HMAC + TTL corto; firma del trabajador queda
         // como comprobante interno (no se empuja a SUSESO/SII/MINSAL).
