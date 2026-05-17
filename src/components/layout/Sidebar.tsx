@@ -39,6 +39,7 @@ import {
   BarChart3,
   Brain,
   ListChecks,
+  Inbox as InboxIcon,
   ChevronDown,
   ChevronRight,
   Wrench,
@@ -119,6 +120,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
       icon: Home,
       items: [
         { title: t("nav.dashboard", "Inicio"), icon: Home, path: "/", color: "text-[#4db6ac]" },
+        // Sprint 40 Fase F.8 — Bandeja del Prevencionista. Pendientes
+        // de hoy agregados de múltiples feeds (corrective actions, SIF,
+        // exceptions, etc.) en una vista única ordenada por urgencia.
+        { title: t("nav.inbox", "Bandeja"), icon: InboxIcon, path: "/inbox", color: "text-teal-500" },
         { title: "Safe Driving", icon: Car, path: "/safe-driving", color: "text-blue-500" },
         { title: t("nav.safety_feed", "Muro Social"), icon: Users, path: "/safety-feed", color: "text-[#4db6ac]" },
         { title: t("nav.projects", "Proyectos"), icon: Briefcase, path: "/projects", color: "text-blue-500" },

@@ -215,6 +215,31 @@ export function useEquipment(
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// Fase F.8 — Inbox del prevencionista
+// ────────────────────────────────────────────────────────────────────────
+//
+// Wraps GET /api/sprint-k/:projectId/inbox which aggregates the N feeds
+// listed in F.8 (corrective actions, SIF precursors, etc.) into a single
+// ordered list. Types come from the aggregator service so the component
+// gets the same shape it would from a direct in-process call.
+
+import type {
+  InboxItem,
+  InboxSummary,
+} from '../services/inbox/inboxAggregator';
+
+export interface InboxResponse {
+  items: InboxItem[];
+  summary: InboxSummary;
+}
+
+export function useInbox(projectId: string | null) {
+  return useEndpoint<InboxResponse>(
+    projectId ? `/api/sprint-k/${projectId}/inbox` : null,
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // Mutations
 // ────────────────────────────────────────────────────────────────────────
 

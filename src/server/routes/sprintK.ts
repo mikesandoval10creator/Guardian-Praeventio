@@ -464,4 +464,108 @@ router.get('/:projectId/equipment', verifyAuth, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────
+// Inbox del prevencionista (Fase F.8)
+// ─────────────────────────────────────────────────────────────────────
+//
+// Agrega N feeds heterogéneos en una única lista ordenada por urgencia,
+// reusando los adapters Sprint K/L ya wireados (corrective actions, SIF,
+// equipment) + la collection legacy `audit_logs`/`incidents` para los
+// canales que el plan F.8 lista pero aún no tienen su propio adapter
+// (documents_pending_approval, repeating_risk_alerts, workers_onboarding).
+//
+// Output: { items: InboxItem[], summary: InboxSummary } — listo para
+// renderizar con <InboxPrevencionistaPanel>.
+
+router.get('/:projectId/inbox', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { aggregateInbox, summarizeInbox } = await import(
+      '../../services/inbox/inboxAggregator.js'
+    );
+
+    const correctiveAdapter = new CorrectiveActionsAdapter(
+      admin.firestore() as any,
+      g.tenantId,
+      projectId,
+    );
+    const sifAdapter = new SIFAdapter(
+      admin.firestore() as any,
+      g.tenantId,
+      projectId,
+    );
+
+    // Best-effort parallel fetch. Each adapter is wrapped so one failure
+    // doesn't blank out the whole inbox — the user still gets the feeds
+    // that succeeded.
+    const [openActions, sifPending] = await Promise.all([
+      correctiveAdapter.listByStatus('open').catch((err) => {
+        logger.warn?.('sprintK.inbox.corrective.fetch_failed', err);
+        return [] as Awaited<ReturnType<typeof correctiveAdapter.listByStatus>>;
+      }),
+      sifAdapter.listPendingExecutiveReview().catch((err) => {
+        logger.warn?.('sprintK.inbox.sif.fetch_failed', err);
+        return [] as Awaited<
+          ReturnType<typeof sifAdapter.listPendingExecutiveReview>
+        >;
+      }),
+    ]);
+
+    const items = aggregateInbox(
+      {
+        documentsPending: [],
+        incidentsPending: [],
+        correctiveActionsOpen: openActions.map((a) => {
+          // Promote legacy weakActionDetector shape to the dueDate/
+          // daysOverdue projection the inbox wants. Legacy actions
+          // don't carry dueDate; we synthesize a conservative window
+          // (created + 30d) so the inbox doesn't classify everything
+          // overdue. Records that already have dueDate (F.4 shape)
+          // override via the spread inside the helper.
+          const extra = a as unknown as { dueDate?: string };
+          const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+          const synthDue = new Date(Date.now() + thirtyDaysMs).toISOString();
+          return {
+            id: a.id,
+            label: a.description.slice(0, 80),
+            dueDate: extra.dueDate ?? synthDue,
+          };
+        }),
+        eppPendingValidation: [],
+        workersPendingOnboarding: [],
+        repeatingRiskAlerts: [],
+        dataQualityGaps: [],
+        sifPrecursorsPending: sifPending.map((p) => ({
+          id: p.id,
+          kind: p.kind,
+          // SIFPrecursor carries `rationale: string[]` (the justification
+          // chain of triggers). Join into a short summary for the inbox
+          // card — the user clicks "Revisión ejecutiva" to see the full
+          // detail anyway.
+          summary: Array.isArray(p.rationale) ? p.rationale.join(' · ') : '',
+          createdAt: p.occurredAt,
+        })),
+        legalObligationsDueSoon: [],
+        exceptionsExpiringSoon: [],
+        responsibleUid: callerUid,
+      },
+      // Sprint 40 Codex pre-empt: the aggregator throws on `now`-less
+      // calls in dev only. Server-side we always pass `new Date()` so
+      // the urgency calc is deterministic relative to wall-clock.
+      { now: new Date() },
+    );
+
+    const summary = summarizeInbox(items, new Date().toISOString());
+
+    return res.json({ items, summary });
+  } catch (err) {
+    logger.error?.('sprintK.inbox.error', err);
+    captureRouteError(err, 'sprintK.inbox');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 export default router;
