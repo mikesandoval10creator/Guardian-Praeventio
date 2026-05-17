@@ -151,6 +151,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // seguros + ideas de mejora. El widget de balance pinta la
         // salud cultural (cultura punitiva si solo hay correctivas).
         { title: t("nav.positive_observations", "Observaciones Positivas"), icon: Award, path: "/positive-observations", color: "text-teal-500" },
+        // Sprint 42 Fase F.6 — Modo Sin Señal para Inspecciones.
+        // Offline-first daily ops: inspector captura hallazgos en
+        // terreno sin conexión, sync diferido cuando vuelve la red.
+        { title: t("nav.inspections", "Inspecciones"), icon: ClipboardCheck, path: "/inspections", color: "text-blue-500" },
         // Sprint 40 Fase F.5 — Firma QR de Recepción (EPP, charlas, docs).
         // Genera challenge HMAC + TTL corto; firma del trabajador queda
         // como comprobante interno (no se empuja a SUSESO/SII/MINSAL).
