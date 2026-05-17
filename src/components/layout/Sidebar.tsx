@@ -149,6 +149,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Sprint K §195-200 — Módulo PDCA + No Conformidades (ISO 45001 §10.2).
         // Kanban Plan/Do/Check/Act sobre ciclos vinculados a NCs.
         { title: t("nav.pdca", "PDCA + No Conformidades"), icon: Activity, path: "/pdca", color: "text-teal-500" },
+        // Sprint K §291-295 — Revisión Anual del SGI (ISO 45001 §9.3 + DS 76).
+        // Cierra el ciclo PDCA a nivel anual: objetivos preventivos,
+        // evidencias y conclusiones firmadas por la dirección.
+        { title: t("nav.annual_review", "Revisión Anual SGI"), icon: ClipboardCheck, path: "/annual-review", color: "text-violet-500" },
         // Sprint K §90-91 — Calidad de Proveedores + Ranking de Riesgo.
         // Motor determinístico (supplierScoring 4-dim) ya vivía; este link
         // hace visible el ranking para decisiones de adjudicación.

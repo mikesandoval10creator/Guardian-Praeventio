@@ -69,6 +69,10 @@ const CorrectiveActions = lazy(() => import('./pages/CorrectiveActions').then(mo
 // (`services/pdca/pdcaCycleEngine.ts` + `pdcaCycle.ts`) ya existía;
 // este lazy cierra el wire navegable.
 const PdcaModule = lazy(() => import('./pages/PdcaModule').then(module => ({ default: module.PdcaModule })));
+// Sprint K §291-295 — Revisión Anual del SGI (ISO 45001 §9.3 + DS 76).
+// Snapshot anual con objetivos preventivos + evidencias + conclusiones
+// firmadas. Cierra el ciclo PDCA a nivel anual.
+const AnnualReview = lazy(() => import('./pages/AnnualReview').then(module => ({ default: module.AnnualReview })));
 // Sprint K §74-78 — Brigada de Emergencia + Recursos (extintores, AED,
 // eyewash, kits, etc.). Service + panel ya existían; este wire cierra
 // el end-to-end con endpoint + hook + page navegable.
@@ -192,6 +196,7 @@ function AppRoutes() {
               <Route path="analytics" element={<Analytics />} />
               <Route path="corrective-actions" element={<CorrectiveActions />} />
               <Route path="pdca" element={<PdcaModule />} />
+              <Route path="annual-review" element={<AnnualReview />} />
               <Route path="emergency-brigade" element={<EmergencyBrigade />} />
               <Route path="positive-observations" element={<PositiveObservations />} />
               <Route path="inspections" element={<OfflineInspection />} />
@@ -334,6 +339,7 @@ function AppRoutes() {
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="corrective-actions" element={<CorrectiveActions />} />
                     <Route path="pdca" element={<PdcaModule />} />
+                    <Route path="annual-review" element={<AnnualReview />} />
                     <Route path="emergency-brigade" element={<EmergencyBrigade />} />
                     <Route path="positive-observations" element={<PositiveObservations />} />
                     <Route path="inspections" element={<OfflineInspection />} />
