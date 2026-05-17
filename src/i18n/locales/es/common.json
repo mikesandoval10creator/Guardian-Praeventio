@@ -2113,45 +2113,61 @@
     "saving": "Guardando…",
     "trainingRegistered": "Capacitación registrada"
   },
-  "visitors": {
-    "page": {
-      "title": "Control de Visitas",
-      "subtitle": "§23-24 Sprint K — Visitas activas: {{count}}",
-      "selectProject": "Selecciona un proyecto para registrar visitas.",
-      "newVisit": "Nueva visita",
-      "emptyTitle": "Aún no hay visitas activas.",
-      "emptyHint": "Registra una nueva visita para iniciar el control de acceso."
+  "import": {
+    "title": "Importar datos desde Excel",
+    "subtitle": "Sube tu planilla, revisa errores y confirma la importación.",
+    "kind_label": "Tipo de dato",
+    "kinds": {
+      "workers": "Trabajadores",
+      "epp": "EPP entregados",
+      "trainings": "Capacitaciones",
+      "incidents": "Incidentes",
+      "projects": "Proyectos",
+      "risks": "Riesgos / IPER"
     },
-    "form": {
-      "title": "Nueva visita",
-      "fullName": "Nombre completo",
-      "rut": "RUT",
-      "company": "Empresa / Organización",
-      "reason": "Motivo de la visita",
-      "reasonPlaceholder": "Auditoría ISO 45001…",
-      "scan": "Escanear QR",
-      "submit": "Registrar ingreso"
+    "steps": {
+      "upload": "Subir",
+      "review": "Revisar",
+      "done": "Hecho"
     },
-    "card": {
-      "inducted": "Inducido",
-      "pending": "Inducción pendiente",
-      "host": "Acompañante",
-      "checkIn": "Ingreso",
-      "reason": "Motivo",
-      "induct": "Inducción",
-      "checkOut": "Salida"
+    "dropzone": {
+      "placeholder": "Arrastra tu archivo Excel aquí o haz click para seleccionar",
+      "selected": "{{name}} ({{size}} KB)",
+      "hint": "Máximo 5MB · .xlsx, .xls, .csv"
     },
-    "ack": {
-      "title": "Inducción express",
-      "subtitle": "Acepta los términos antes de ingresar a faena.",
-      "version": "Versión de inducción",
-      "empty": "Aún no hay versiones de inducción publicadas para este proyecto.",
-      "agreement": "He leído y acepto las reglas de seguridad de la faena.",
-      "signature": "Firma manual (escribe tu nombre)",
-      "submit": "Confirmar inducción"
+    "actions": {
+      "validate": "Validar archivo",
+      "validating": "Validando…",
+      "commit": "Confirmar import ({{n}})",
+      "committing": "Importando…",
+      "back": "Volver",
+      "new_import": "Importar otro archivo"
+    },
+    "stats": {
+      "total": "Filas",
+      "valid": "Válidas",
+      "invalid": "Con errores",
+      "duplicates": "Duplicadas"
+    },
+    "review": {
+      "sheet": "Hoja procesada: {{sheet}}",
+      "errors_heading": "Errores detectados",
+      "sample_heading": "Muestra de filas válidas",
+      "col_row": "Fila",
+      "col_column": "Columna",
+      "col_message": "Mensaje"
+    },
+    "done": {
+      "success_title": "Importación completada",
+      "partial_title": "Importación parcial",
+      "summary": "{{n}} registros importados.",
+      "failures": "{{n}} fallaron — revisa logs."
     },
     "errors": {
-      "noSession": "Debes iniciar sesión."
+      "no_file": "Selecciona un archivo Excel.",
+      "too_large": "El archivo supera el límite de 5MB.",
+      "nothing_to_commit": "No hay filas válidas para importar.",
+      "no_project": "Selecciona un proyecto antes de confirmar."
     }
   }
 }
