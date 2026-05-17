@@ -1107,3 +1107,56 @@ export async function inspectResource(
   }
   return (await res.json()) as { ok: true; inspectionId: string };
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Sprint K §214-215 — Observaciones Positivas + Balance
+// ────────────────────────────────────────────────────────────────────────
+//
+// Hooks adicionales sobre el motor positiveObservations. El hook
+// `usePositiveObservationsForWorker` ya existe arriba para listas por
+// trabajador. Aquí se agrega:
+//   - usePositiveObservations(projectId, { period })  → listado global
+//   - usePositiveObservationBalance(projectId, period) → ratio §215
+//
+// El mutator `createPositiveObservation` ya existe arriba.
+
+import type { BalanceReport } from '../services/positiveObservations/positiveObservationsService';
+
+export type PositiveObservationPeriod = '30d' | '90d' | 'all';
+
+export interface PositiveObservationsListResponse {
+  observations: PositiveObservation[];
+  period: PositiveObservationPeriod;
+}
+
+export interface PositiveObservationBalanceResponse {
+  positive: number;
+  corrective: number;
+  ratio: number;
+  period: PositiveObservationPeriod;
+  balance: BalanceReport;
+}
+
+export function usePositiveObservations(
+  projectId: string | null,
+  opts: { period?: PositiveObservationPeriod } = {},
+) {
+  let path: string | null = null;
+  if (projectId) {
+    const qs = new URLSearchParams();
+    if (opts.period) qs.set('period', opts.period);
+    const query = qs.toString();
+    path = `/api/sprint-k/${projectId}/positive-observations${query ? `?${query}` : ''}`;
+  }
+  return useEndpoint<PositiveObservationsListResponse>(path);
+}
+
+export function usePositiveObservationBalance(
+  projectId: string | null,
+  period: PositiveObservationPeriod = '30d',
+) {
+  const path = projectId
+    ? `/api/sprint-k/${projectId}/positive-observations/balance?period=${period}`
+    : null;
+  return useEndpoint<PositiveObservationBalanceResponse>(path);
+}

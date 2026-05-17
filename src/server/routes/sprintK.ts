@@ -5578,5 +5578,142 @@ router.post(
   },
 );
 
+// ────────────────────────────────────────────────────────────────────────
+// Sprint K §214-215 — Observaciones Positivas (listing + balance)
+// ────────────────────────────────────────────────────────────────────────
+//
+// Endpoints adicionales sobre el motor positiveObservations que ya
+// expone /worker/:workerUid (más arriba). Aquí cerramos:
+//   - GET /positive-observations?period=30d|90d|all   (listing global)
+//   - POST /positive-observations                     (alias create — el
+//      handler genérico sigue validando observerUid via verifyAuth)
+//   - GET /positive-observations/balance              (Balance §215:
+//      ratio positivas vs correctivas del mismo período)
+//
+// La filosofía detrás de §214-215 (cultura preventiva sana NO solo
+// registra lo malo): documento usuario "§214-215".
+
+type ObservationPeriod = '30d' | '90d' | 'all';
+
+function periodToSinceIso(period: ObservationPeriod): string | null {
+  if (period === 'all') return null;
+  const ms = period === '30d' ? 30 * 24 * 60 * 60 * 1000 : 90 * 24 * 60 * 60 * 1000;
+  return new Date(Date.now() - ms).toISOString();
+}
+
+function parsePeriod(raw: unknown): ObservationPeriod {
+  if (raw === '30d' || raw === '90d' || raw === 'all') return raw;
+  return '30d';
+}
+
+router.get(
+  '/:projectId/positive-observations',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    const period = parsePeriod(req.query.period);
+    try {
+      const db = admin.firestore();
+      const path = `tenants/${g.tenantId}/projects/${projectId}/positive_observations`;
+      // safeRead pattern: per-query try/catch so a missing/empty collection
+      // returns [] instead of 500. Aligns with the existing
+      // dataQuality/maturity endpoints in this file.
+      const safeRead = async <T,>(
+        label: string,
+        fn: () => Promise<T[]>,
+      ): Promise<T[]> => {
+        try {
+          return await fn();
+        } catch (err) {
+          logger.warn?.(`sprintK.positive.list.${label}.failed`, err);
+          return [];
+        }
+      };
+      const sinceIso = periodToSinceIso(period);
+      const observations = await safeRead('positive_observations', async () => {
+        const query = sinceIso
+          ? db.collection(path).where('observedAt', '>=', sinceIso)
+          : db.collection(path);
+        const snap = await query.get();
+        return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+      });
+      return res.json({ observations, period });
+    } catch (err) {
+      logger.error?.('sprintK.positive.list.error', err);
+      captureRouteError(err, 'sprintK.positive.list');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+router.get(
+  '/:projectId/positive-observations/balance',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    const period = parsePeriod(req.query.period);
+    try {
+      const { computeBalance } = await import(
+        '../../services/positiveObservations/positiveObservationsService.js'
+      );
+      const db = admin.firestore();
+      const tenantProjectPath = `tenants/${g.tenantId}/projects/${projectId}`;
+      const sinceIso = periodToSinceIso(period);
+
+      const safeCount = async (label: string, fn: () => Promise<number>): Promise<number> => {
+        try {
+          return await fn();
+        } catch (err) {
+          logger.warn?.(`sprintK.positive.balance.${label}.failed`, err);
+          return 0;
+        }
+      };
+
+      const [positiveCount, correctiveCount] = await Promise.all([
+        safeCount('positive', async () => {
+          const query = sinceIso
+            ? db
+                .collection(`${tenantProjectPath}/positive_observations`)
+                .where('observedAt', '>=', sinceIso)
+            : db.collection(`${tenantProjectPath}/positive_observations`);
+          const snap = await query.get();
+          return snap.docs.length;
+        }),
+        safeCount('corrective', async () => {
+          // CorrectiveAction shape (weakActionDetector.ts) doesn't carry a
+          // timestamp field, so we can't server-side filter by period. We
+          // count the whole collection and let the UI display the period
+          // label honestly. Counting docs (not filtering) keeps the cost
+          // bounded and the ratio interpretable.
+          const snap = await db
+            .collection(`${tenantProjectPath}/corrective_actions`)
+            .get();
+          return snap.docs.length;
+        }),
+      ]);
+
+      const balance = computeBalance({ positiveCount, correctiveCount });
+      const ratio = correctiveCount > 0 ? positiveCount / correctiveCount : positiveCount;
+      return res.json({
+        positive: positiveCount,
+        corrective: correctiveCount,
+        ratio,
+        period,
+        balance,
+      });
+    } catch (err) {
+      logger.error?.('sprintK.positive.balance.error', err);
+      captureRouteError(err, 'sprintK.positive.balance');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 
 export default router;
