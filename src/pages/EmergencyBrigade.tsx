@@ -401,6 +401,16 @@ export function EmergencyBrigade() {
   const [showAddResource, setShowAddResource] = useState(false);
 
   // Group members by role for the side-by-side cards.
+  //
+  // Codex P2 #4 (PR #321, line 413): the snapshot endpoint returns the
+  // raw `members` array (including `active: false` and expired
+  // trainings) so the audit log is complete, but the server's
+  // `brigade.byRole` / `uncoveredRoles` only count members that are
+  // active AND whose `trainedAt + trainingValidYears` is still in the
+  // future. If we pushed every returned member into the role bucket,
+  // the card would say `1 miembro(s)` for a role the readiness banner
+  // marks as a brecha — conflicting signals. Match the server's filter
+  // here so the card never disagrees with the banner.
   const membersByRole = useMemo(() => {
     const buckets: Record<BrigadeRole, (BrigadeMember & { id: string })[]> = {
       brigade_chief: [],
@@ -409,7 +419,13 @@ export function EmergencyBrigade() {
       evacuation_coordinator: [],
       communications: [],
     };
+    const nowMs = Date.now();
     for (const m of data?.members ?? []) {
+      if (!m.active) continue;
+      const trainedMs = Date.parse(m.trainedAt);
+      if (!Number.isFinite(trainedMs)) continue;
+      const expiresMs = trainedMs + m.trainingValidYears * 365 * 86_400_000;
+      if (expiresMs < nowMs) continue;
       buckets[m.role].push(m);
     }
     return buckets;

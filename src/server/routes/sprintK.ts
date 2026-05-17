@@ -5125,6 +5125,99 @@ const resourceKindEnum = z.enum([
   'spill_kit',
 ]);
 
+// Codex P2 #1 (PR #321, line 5237): training / inspection dates were
+// previously typed as `z.string().min(10)`, which accepted any 10+ char
+// string (e.g. "not-a-date"). `buildBrigadeCoverageReport` then does
+// `Date.parse(trainedAt) + ...` → `NaN`, and the `expiresMs < nowMs`
+// check falls through to the `else` branch counting the member as
+// actively certified. Result: a junk string makes the brigade look
+// covered.
+//
+// Fix: validate that the string parses to a finite Date AND (for past
+// events like trainings / inspections) is not future-dated. Future
+// expirations (`nextExpirationAt`) only need to be parseable — by
+// definition they are in the future.
+const isoPastDate = z
+  .string()
+  .min(10)
+  .refine((s) => Number.isFinite(Date.parse(s)), {
+    message: 'invalid_iso_date',
+  })
+  .refine((s) => Date.parse(s) <= Date.now(), {
+    message: 'date_in_future',
+  });
+
+const isoDate = z
+  .string()
+  .min(10)
+  .refine((s) => Number.isFinite(Date.parse(s)), {
+    message: 'invalid_iso_date',
+  });
+
+// Codex P2 #2 (PR #321, line 5251): only roles authorized to manage
+// emergency-response data may write brigade members / resources /
+// inspections. Mirrors the F.5 QR signature role gate
+// (`QR_SIG_CHALLENGE_ROLES`). Ordinary workers — who in many projects
+// are also project members — must not be able to add brigadists or flip
+// a resource to "operational", which would directly move the readiness
+// banner.
+const BRIGADE_WRITE_ROLES = new Set([
+  'admin',
+  'prevencionista',
+  'brigade_chief',
+]);
+
+function callerCanWriteBrigade(req: import('express').Request): boolean {
+  const u = req.user;
+  if (!u) return false;
+  if (u.admin === true) return true;
+  if (typeof u.role === 'string' && BRIGADE_WRITE_ROLES.has(u.role)) {
+    return true;
+  }
+  const tenants = (u as unknown as {
+    tenants?: Record<string, { role?: string }>;
+  }).tenants;
+  if (tenants && typeof tenants === 'object' && typeof u.tenantId === 'string') {
+    const t = tenants[u.tenantId];
+    if (t && typeof t.role === 'string' && BRIGADE_WRITE_ROLES.has(t.role)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Codex P2 #3 (PR #321, line 5261): when adding a brigadist by uid,
+// confirm the uid is an actual project member before persisting. A typo
+// or fabricated uid would otherwise satisfy required role coverage with
+// a nonexistent worker. Reads the same `projects/{projectId}.members[]`
+// array used by `assertProjectMember` so the check is consistent with
+// the rest of the auth surface.
+async function workerIsProjectMember(
+  workerUid: string,
+  projectId: string,
+): Promise<boolean> {
+  try {
+    const snap = await admin
+      .firestore()
+      .collection('projects')
+      .doc(projectId)
+      .get();
+    if (!snap.exists) return false;
+    const data = (snap.data() ?? {}) as Record<string, unknown>;
+    const members = data.members;
+    const createdBy = data.createdBy;
+    if (Array.isArray(members) && members.includes(workerUid)) return true;
+    if (typeof createdBy === 'string' && createdBy === workerUid) return true;
+    return false;
+  } catch (err) {
+    logger.warn?.(
+      'sprintK.emergencyBrigade.workerIsProjectMember.failed',
+      err,
+    );
+    return false;
+  }
+}
+
 router.get(
   '/:projectId/emergency-brigade',
   verifyAuth,
@@ -5197,13 +5290,24 @@ router.get(
       const resourceReport = buildResourceReadinessReport(resources);
 
       // Readiness rollup: combines brigade coverage + resource health.
-      // - green: minimum brigade coverage + 0 needing-attention
+      // - green: minimum brigade coverage + ≥1 resource + 0 needing-attention
       // - amber: one of (gap in coverage XOR ≥1 needing-attention)
       // - rose:  both fail OR multiple coverage gaps OR multiple
-      //          resources needing attention
+      //          resources needing attention OR empty inventory
+      //
+      // Codex P2 #5 (PR #321, line 5209): an empty resource inventory
+      // is itself a readiness gap. With three brigadists present but
+      // zero registered resources, `needingAttention` is naturally
+      // empty (you can't have an expired resource you don't have),
+      // which previously evaluated to a GREEN banner saying "recursos
+      // al día". For a project that has only added brigadists, that
+      // incorrectly marks emergency response as ready. Treat
+      // `totalResources === 0` as one extra structural gap so the
+      // banner moves to amber (only gap) or rose (with other gaps).
       const coverageGapCount = brigadeReport.uncoveredRoles.length;
       const resourceGapCount = resourceReport.needingAttention.length;
-      const totalGaps = coverageGapCount + resourceGapCount;
+      const emptyInventoryGap = resourceReport.totalResources === 0 ? 1 : 0;
+      const totalGaps = coverageGapCount + resourceGapCount + emptyInventoryGap;
       let readinessLevel: 'green' | 'amber' | 'rose';
       if (totalGaps === 0 && brigadeReport.meetsMinimum) {
         readinessLevel = 'green';
@@ -5234,7 +5338,8 @@ router.get(
 const addBrigadeMemberSchema = z.object({
   workerUid: z.string().min(1).max(120),
   role: brigadeRoleEnum,
-  trainedAt: z.string().min(10),
+  // Codex P2 #1 (PR #321): reject "not-a-date" + future-dated trainings.
+  trainedAt: isoPastDate,
   trainingValidYears: z.number().int().min(1).max(10).optional(),
   active: z.boolean().optional(),
 });
@@ -5249,6 +5354,22 @@ router.post(
     const body = req.body as z.infer<typeof addBrigadeMemberSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
+    // Codex P2 #2 (PR #321, line 5251): role gate. guard() only proved
+    // the caller is a project member; here we require the caller to be
+    // an admin / prevencionista / brigade_chief before mutating brigade
+    // data — same pattern as F.5 QR signature challenge.
+    if (!callerCanWriteBrigade(req)) {
+      return res.status(403).json({
+        error: 'forbidden_role',
+        allowed: Array.from(BRIGADE_WRITE_ROLES),
+      });
+    }
+    // Codex P2 #3 (PR #321, line 5261): the workerUid being added must
+    // actually be a project member. Otherwise a typo or fabricated uid
+    // would satisfy required role coverage with a nonexistent worker.
+    if (!(await workerIsProjectMember(body.workerUid, projectId))) {
+      return res.status(422).json({ error: 'worker_not_in_project' });
+    }
     try {
       const db = admin.firestore();
       const baseRef = db.collection(
@@ -5278,8 +5399,10 @@ router.post(
 const addResourceSchema = z.object({
   kind: resourceKindEnum,
   location: z.string().min(1).max(240),
-  lastInspectedAt: z.string().min(10),
-  nextExpirationAt: z.string().min(10),
+  // Codex P2 #1 (PR #321): inspection date must be a real past ISO
+  // date; expiration date must be a real ISO date (may be future).
+  lastInspectedAt: isoPastDate,
+  nextExpirationAt: isoDate,
   operational: z.boolean().optional(),
 });
 
@@ -5293,6 +5416,15 @@ router.post(
     const body = req.body as z.infer<typeof addResourceSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
+    // Codex P2 #2 (PR #321, line 5251): role gate for resource writes
+    // — flipping a resource's operational state directly moves the
+    // readiness signal.
+    if (!callerCanWriteBrigade(req)) {
+      return res.status(403).json({
+        error: 'forbidden_role',
+        allowed: Array.from(BRIGADE_WRITE_ROLES),
+      });
+    }
     try {
       const db = admin.firestore();
       const baseRef = db.collection(
@@ -5320,9 +5452,11 @@ router.post(
 );
 
 const inspectResourceSchema = z.object({
-  inspectedAt: z.string().min(10),
+  // Codex P2 #1 (PR #321): inspection timestamp must parse and not be
+  // future-dated; the new expiration may legitimately be in the future.
+  inspectedAt: isoPastDate,
   operational: z.boolean(),
-  nextExpirationAt: z.string().min(10).optional(),
+  nextExpirationAt: isoDate.optional(),
   notes: z.string().max(2000).optional(),
 });
 
@@ -5336,6 +5470,14 @@ router.post(
     const body = req.body as z.infer<typeof inspectResourceSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
+    // Codex P2 #2 (PR #321, line 5251): role gate for resource
+    // inspections — `operational: true` resets the readiness signal.
+    if (!callerCanWriteBrigade(req)) {
+      return res.status(403).json({
+        error: 'forbidden_role',
+        allowed: Array.from(BRIGADE_WRITE_ROLES),
+      });
+    }
     try {
       const db = admin.firestore();
       const baseRef = db.collection(
