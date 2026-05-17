@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Mountain, Wind, AlertTriangle, MapPin, ShieldAlert, Navigation, Info, Loader2 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Polygon } from '@react-google-maps/api';
 import { getMapLoaderConfig } from '../components/maps/mapConfig';
+import * as environmentBackend from '../services/environmentBackend.client';
 
 const containerStyle = {
   width: '100%',
@@ -37,9 +38,45 @@ export function VolcanicEruptionMap() {
   const { t } = useTranslation();
   // Villarrica Volcano coordinates
   const [volcanoLocation, setVolcanoLocation] = useState({ lat: -39.4200, lng: -71.9396, name: 'Volcán Villarrica' });
+  // ── Real-wind seeding (2026-05-17) ─────────────────────────────────
+  // Antes: windDirection=45° y windSpeed=20 km/h hardcoded "for simulation".
+  // Una pluma de cenizas calculada con viento ficticio puede mandar la
+  // recomendación de evacuación al lado equivocado del volcán — para
+  // Villarrica en alerta naranja eso son ~50-100 km de error operativo.
+  // Ahora consultamos `environmentBackend.getCurrentWeather` en mount y
+  // cuando cambia la posición del volcán seleccionado, manteniendo los
+  // setters como override manual (modo simulación). Fallback silencioso
+  // a los defaults con banner visible si OpenWeather no responde.
   const [windDirection, setWindDirection] = useState(45); // Degrees
   const [windSpeed, setWindSpeed] = useState(20); // km/h
+  const [useRealWind, setUseRealWind] = useState(true);
+  const [windUnavailable, setWindUnavailable] = useState(false);
+  const [loadingWind, setLoadingWind] = useState(false);
   const [alertLevel, setAlertLevel] = useState<'yellow' | 'orange' | 'red'>('orange');
+
+  useEffect(() => {
+    if (!useRealWind) return;
+    let cancelled = false;
+    setLoadingWind(true);
+    environmentBackend
+      .getCurrentWeather({ lat: volcanoLocation.lat, lng: volcanoLocation.lng })
+      .then((wx) => {
+        if (cancelled) return;
+        if (wx.unavailable) {
+          setWindUnavailable(true);
+          return;
+        }
+        setWindUnavailable(false);
+        setWindDirection(wx.windDirectionDeg);
+        setWindSpeed(Math.round(wx.windSpeedKmh));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingWind(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [volcanoLocation.lat, volcanoLocation.lng, useRealWind]);
 
   const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
@@ -138,6 +175,35 @@ export function VolcanicEruptionMap() {
           </h2>
 
           <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-zinc-400">Modo Viento</label>
+                <button
+                  type="button"
+                  onClick={() => setUseRealWind((v) => !v)}
+                  aria-pressed={useRealWind}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-colors ${
+                    useRealWind
+                      ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                      : 'bg-zinc-900 text-zinc-400 border-white/10'
+                  }`}
+                  data-testid="volcanic-wind-mode-toggle"
+                >
+                  {useRealWind ? '🌐 Viento real' : '✋ Modo simulación'}
+                </button>
+              </div>
+              {useRealWind && windUnavailable && (
+                <p className="text-[10px] text-amber-400 mb-2" role="status">
+                  Viento no disponible — usando valores manuales.
+                </p>
+              )}
+              {useRealWind && loadingWind && (
+                <p className="text-[10px] text-zinc-500 mb-2" role="status">
+                  Consultando viento real…
+                </p>
+              )}
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-zinc-400 mb-2">Dirección del Viento (Grados)</label>
               <input

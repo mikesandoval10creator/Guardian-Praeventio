@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ShieldAlert, Wind, AlertTriangle, MapPin, Navigation, Info, Droplet, Loader2 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
@@ -11,6 +11,7 @@ import {
   periodFromDate,
   type HazmatClass,
 } from '../services/hazmat/hazmatExposureCalculator';
+import * as environmentBackend from '../services/environmentBackend.client';
 
 const containerStyle = {
   width: '100%',
@@ -42,14 +43,56 @@ const getDestinationPoint = (lat: number, lng: number, distance: number, bearing
 export function HazmatMap() {
   const { t } = useTranslation();
   const [incidentLocation, setIncidentLocation] = useState({ lat: -33.4489, lng: -70.6693, name: 'Planta Química' });
+  // ── Real-wind seeding (2026-05-17) ─────────────────────────────────
+  // Antes: windDirection=120° y windSpeed=15 km/h hardcoded "para
+  // visualización". Una pluma tóxica calculada con viento ficticio
+  // puede orientar la zona de evacuación hacia la dirección opuesta al
+  // viento real — directamente peligroso. Ahora consultamos
+  // `environmentBackend.getCurrentWeather` (OpenWeather /weather) en
+  // mount y cuando cambia la ubicación del incidente. Mantenemos los
+  // setters como override manual: el usuario puede pasar a "modo
+  // simulación" para hipotetizar otros escenarios. Si el fetch falla,
+  // degradamos a los defaults y mostramos una nota visible.
   const [windDirection, setWindDirection] = useState(120); // Degrees (direction wind is blowing towards)
   const [windSpeed, setWindSpeed] = useState(15); // km/h
+  const [useRealWind, setUseRealWind] = useState(true);
+  const [windUnavailable, setWindUnavailable] = useState(false);
+  const [loadingWind, setLoadingWind] = useState(false);
   // 2026-05-15 (Sprint C): antes este UI usaba dos toggles ('gas'/'liquid' y
   // 'small'/'large') y hardcoded los radios (30/60 isolation, 100/300
   // protection) sin referenciar fuente. Ahora aceptamos hazmatClass NU
   // (Class 2.1, 2.3, 3, 8, etc.) y delegamos al calculador GRE 2024.
   const [hazmatClass, setHazmatClass] = useState<HazmatClass>('class_2_3');
   const [spillSize, setSpillSize] = useState<'small' | 'large'>('large');
+
+  // Fetch real wind on mount + whenever the incident location changes (or the
+  // user toggles back into "viento real"). If we're in simulation mode the
+  // effect short-circuits so the user's manual values stick.
+  useEffect(() => {
+    if (!useRealWind) return;
+    let cancelled = false;
+    setLoadingWind(true);
+    environmentBackend
+      .getCurrentWeather({ lat: incidentLocation.lat, lng: incidentLocation.lng })
+      .then((wx) => {
+        if (cancelled) return;
+        if (wx.unavailable) {
+          setWindUnavailable(true);
+          // Leave windSpeed/windDirection at their last value — they default
+          // to 15/120 if the user never touched the sliders.
+          return;
+        }
+        setWindUnavailable(false);
+        setWindDirection(wx.windDirectionDeg);
+        setWindSpeed(Math.round(wx.windSpeedKmh));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingWind(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [incidentLocation.lat, incidentLocation.lng, useRealWind]);
 
   const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
@@ -150,6 +193,35 @@ export function HazmatMap() {
                 <button onClick={() => setSpillSize('small')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${spillSize === 'small' ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>Pequeño</button>
                 <button onClick={() => setSpillSize('large')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${spillSize === 'large' ? 'bg-rose-500/20 text-rose-400 border-rose-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>Grande</button>
               </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-zinc-400">Modo Viento</label>
+                <button
+                  type="button"
+                  onClick={() => setUseRealWind((v) => !v)}
+                  aria-pressed={useRealWind}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-colors ${
+                    useRealWind
+                      ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                      : 'bg-zinc-900 text-zinc-400 border-white/10'
+                  }`}
+                  data-testid="hazmat-wind-mode-toggle"
+                >
+                  {useRealWind ? '🌐 Viento real' : '✋ Modo simulación'}
+                </button>
+              </div>
+              {useRealWind && windUnavailable && (
+                <p className="text-[10px] text-amber-400 mb-2" role="status">
+                  Viento no disponible — usando valores manuales.
+                </p>
+              )}
+              {useRealWind && loadingWind && (
+                <p className="text-[10px] text-zinc-500 mb-2" role="status">
+                  Consultando viento real…
+                </p>
+              )}
             </div>
 
             <div>
