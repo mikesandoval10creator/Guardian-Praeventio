@@ -64,6 +64,12 @@ const Splash = lazy(() => import('./pages/Splash').then(module => ({ default: mo
 const SafetyFeed = lazy(() => import('./pages/SafetyFeed').then(module => ({ default: module.SafetyFeed })));
 const Analytics = lazy(() => import('./pages/Analytics').then(module => ({ default: module.Analytics })));
 const CorrectiveActions = lazy(() => import('./pages/CorrectiveActions').then(module => ({ default: module.CorrectiveActions })));
+// Sprint K §131-138 — Cierre de Proyecto + Lecciones Transferibles +
+// Decisiones Críticas + Resúmenes Multi-Rol. Cierra el ciclo completo:
+// cuando un proyecto termina, NO desaparece su data — extrae lecciones
+// publicables al library F.12 con scope='industry', registra decisiones
+// críticas con outcome retroactivo, y genera resúmenes adaptados al rol.
+const ProjectClosure = lazy(() => import('./pages/ProjectClosure').then(module => ({ default: module.ProjectClosure })));
 // Sprint K §195-200 — Módulo PDCA + No Conformidades (ISO 45001 §10.2).
 // Kanban Plan/Do/Check/Act sobre ciclos vinculados a NCs. El motor
 // (`services/pdca/pdcaCycleEngine.ts` + `pdcaCycle.ts`) ya existía;
@@ -201,6 +207,7 @@ function AppRoutes() {
               <Route path="settings/system-health" element={<SystemHealth />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="corrective-actions" element={<CorrectiveActions />} />
+              <Route path="closure" element={<ProjectClosure />} />
               <Route path="pdca" element={<PdcaModule />} />
               <Route path="annual-review" element={<AnnualReview />} />
               <Route path="residual-risk" element={<ResidualRisk />} />
@@ -346,6 +353,7 @@ function AppRoutes() {
                     <Route path="safety-feed" element={<SafetyFeed />} />
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="corrective-actions" element={<CorrectiveActions />} />
+                    <Route path="closure" element={<ProjectClosure />} />
                     <Route path="pdca" element={<PdcaModule />} />
                     <Route path="annual-review" element={<AnnualReview />} />
                     <Route path="residual-risk" element={<ResidualRisk />} />
