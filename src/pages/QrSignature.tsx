@@ -82,15 +82,42 @@ export function QrSignature() {
     }
   };
 
+  // Codex P2 (PR #313, line 93): NUNCA enviar `biometricUsed: true` sin
+  // un challenge biométrico real — eso corrompía la evidencia de
+  // auditoría (todos los acks aparecían respaldados por huella aunque
+  // hubieran sido tipeados). Llamamos al plugin Capacitor lazy-loaded
+  // (mismo patrón que Site25DPanel/DigitalTwinFaena); si el plugin no
+  // está disponible (web sin Capacitor, simulador) o el usuario
+  // cancela, el ack se persiste con `biometricUsed: false` — el
+  // supervisor sigue siendo responsable de la firma manual, pero la
+  // bandera no miente.
+  const tryBiometric = async (): Promise<boolean> => {
+    try {
+      const mod: any = await import(
+        /* @vite-ignore */ '@aparajita/capacitor-biometric-auth'
+      );
+      const result = await mod.BiometricAuth.authenticate({
+        reason: 'Verifica tu identidad para firmar la recepción',
+        cancelTitle: 'Cancelar',
+      });
+      return Boolean(result?.isAuthenticated ?? true);
+    } catch (err) {
+      logger.warn?.('qrSignature.page.biometric.unavailable', err);
+      return false;
+    }
+  };
+
   const handleAck = async () => {
     if (!projectId || !challenge || !workerUid.trim()) return;
     setLoading(true);
     setError(null);
     try {
+      const biometricOk = await tryBiometric();
       const ack = await persistQrAcknowledgement(projectId, {
         challengeId: challenge.challengeId,
         workerUid: workerUid.trim(),
-        biometricUsed: true,
+        // Sólo true si el plugin biométrico devolvió isAuthenticated:true.
+        biometricUsed: biometricOk,
         signedAt: new Date().toISOString(),
       });
       // Promote the server payload to the SignedAcknowledgement shape
@@ -105,7 +132,7 @@ export function QrSignature() {
         signedByUid: (ack as unknown as { workerUid?: string }).workerUid ?? workerUid.trim(),
         signedAt: ack.signedAt,
         biometricUsed:
-          (ack as unknown as { biometricUsed?: boolean }).biometricUsed ?? true,
+          (ack as unknown as { biometricUsed?: boolean }).biometricUsed ?? biometricOk,
       });
     } catch (err) {
       logger.error('qrSignature.page.acknowledge.failed', err);
