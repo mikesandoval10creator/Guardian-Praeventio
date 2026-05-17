@@ -32,6 +32,18 @@ import { LessonsAdapter } from '../../services/lessonsLearned/lessonsFirestoreAd
 import { CorrectiveActionsAdapter } from '../../services/correctiveActions/correctiveActionsFirestoreAdapter.js';
 import { LotoAdapter } from '../../services/loto/lotoFirestoreAdapter.js';
 import { EquipmentAdapter } from '../../services/equipment/equipmentFirestoreAdapter.js';
+import { WorkPermitAdapter } from '../../services/workPermits/workPermitFirestoreAdapter.js';
+import {
+  issuePermit,
+  cancelPermit,
+  fulfillPermit,
+  deriveStatus,
+  REQUIRED_CHECKLIST_BY_KIND,
+  WorkPermitValidationError,
+  type WorkPermit,
+  type WorkPermitKind,
+  type WorkPermitStatus,
+} from '../../services/workPermits/workPermitEngine.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 
@@ -1741,5 +1753,251 @@ router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
     return res.status(500).json({ error: 'internal_error' });
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.15 — Centro de Permisos de Trabajo
+// ─────────────────────────────────────────────────────────────────────
+//
+// Permisos digitales para tareas críticas:
+//   - Trabajo en altura (DS 594 art. 53)
+//   - Trabajo en caliente (DS 132)
+//   - Espacios confinados (DS 132 + protocolo MINSAL)
+//   - LOTO / bloqueo energético (DS 132 + DS 109)
+//   - Excavaciones (DS 594)
+//   - Izaje crítico (DS 132)
+//
+//   GET  /:projectId/work-permits             — list filtered by status/kind
+//   POST /:projectId/work-permits             — create permit (engine validates)
+//   POST /:projectId/work-permits/:permitId/sign  — sign/issue active permit
+//   POST /:projectId/work-permits/:permitId/close — close (cancel) with reason
+
+const VALID_KINDS: ReadonlySet<WorkPermitKind> = new Set<WorkPermitKind>([
+  'altura',
+  'caliente',
+  'confinado',
+  'loto',
+  'excavacion',
+  'izaje_critico',
+]);
+
+router.get('/:projectId/work-permits', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const adapter = new WorkPermitAdapter({
+      db: admin.firestore() as any,
+      tenantId: g.tenantId,
+      projectId,
+    });
+    const statusQ =
+      typeof req.query.status === 'string' ? req.query.status : null;
+    const kindQ =
+      typeof req.query.kind === 'string' ? req.query.kind : null;
+
+    let permits: WorkPermit[];
+    if (kindQ && VALID_KINDS.has(kindQ as WorkPermitKind)) {
+      permits = await adapter.listByKind(kindQ as WorkPermitKind);
+    } else if (
+      statusQ === 'active' ||
+      statusQ === 'expired' ||
+      statusQ === 'cancelled' ||
+      statusQ === 'fulfilled' ||
+      statusQ === 'pending_approval' ||
+      statusQ === 'draft'
+    ) {
+      // For non-active statuses we fall back to listActive() + filter
+      // in-memory because the adapter only indexes the active subset.
+      // Active maps directly to listActive().
+      if (statusQ === 'active') {
+        permits = await adapter.listActive();
+      } else {
+        const all = await adapter.listActive();
+        const now = new Date();
+        permits = all.filter((p) => deriveStatus(p, now) === statusQ);
+      }
+    } else {
+      permits = await adapter.listActive();
+    }
+
+    return res.json({ permits });
+  } catch (err) {
+    logger.error?.('sprintK.workPermits.list.error', err);
+    captureRouteError(err, 'sprintK.workPermits.list');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+
+const checklistItemSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  checked: z.boolean(),
+  verifiedAt: z.string().optional(),
+});
+
+const workPermitCreateSchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum([
+    'altura',
+    'caliente',
+    'confinado',
+    'loto',
+    'excavacion',
+    'izaje_critico',
+  ]),
+  workerUid: z.string().min(1),
+  approverUid: z.string().min(1),
+  approverRole: z.enum(['supervisor', 'prevencionista', 'gerente', 'admin']),
+  zoneId: z.string().optional(),
+  taskDescription: z.string().min(3).max(4000),
+  durationHours: z.number().positive().max(24),
+  preconditions: z.object({
+    workerHasTraining: z.boolean(),
+    workerHasEpp: z.boolean(),
+    workerMedicallyFit: z.boolean(),
+    checklist: z.object({
+      items: z.array(checklistItemSchema),
+    }),
+  }),
+});
+
+router.post(
+  '/:projectId/work-permits',
+  verifyAuth,
+  validate(workPermitCreateSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof workPermitCreateSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const permit = issuePermit({
+        id: body.id,
+        kind: body.kind,
+        workerUid: body.workerUid,
+        approverUid: body.approverUid,
+        approverRole: body.approverRole,
+        zoneId: body.zoneId,
+        taskDescription: body.taskDescription,
+        preconditions: body.preconditions,
+        durationHours: body.durationHours,
+      });
+      const adapter = new WorkPermitAdapter({
+        db: admin.firestore() as any,
+        tenantId: g.tenantId,
+        projectId,
+      });
+      await adapter.save(permit);
+      return res.status(201).json({ permit });
+    } catch (err) {
+      if (err instanceof WorkPermitValidationError) {
+        return res.status(400).json({ error: 'validation_error', code: err.code, message: err.message });
+      }
+      logger.error?.('sprintK.workPermits.create.error', err);
+      captureRouteError(err, 'sprintK.workPermits.create');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+router.post(
+  '/:projectId/work-permits/:permitId/sign',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, permitId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const adapter = new WorkPermitAdapter({
+        db: admin.firestore() as any,
+        tenantId: g.tenantId,
+        projectId,
+      });
+      const permit = await adapter.getById(permitId);
+      if (!permit) return res.status(404).json({ error: 'not_found' });
+
+      // Validate checklist completeness for the kind.
+      const required = REQUIRED_CHECKLIST_BY_KIND[permit.kind];
+      const checked = new Set(
+        permit.preconditions.checklist.items
+          .filter((i) => i.checked)
+          .map((i) => i.label),
+      );
+      const missing = required.filter((r) => !checked.has(r));
+      if (missing.length > 0) {
+        return res.status(400).json({
+          error: 'checklist_incomplete',
+          missing,
+        });
+      }
+
+      // The permit was created via issuePermit which already issues it as
+      // 'active'. Signing here is the explicit acknowledgement: bump
+      // approvedAt to now and ensure status is active.
+      const now = new Date().toISOString();
+      const next: WorkPermit = {
+        ...permit,
+        status: 'active' as WorkPermitStatus,
+        approvedAt: now,
+      };
+      await adapter.save(next);
+      return res.json({ permit: next });
+    } catch (err) {
+      if (err instanceof WorkPermitValidationError) {
+        return res.status(400).json({ error: 'validation_error', code: err.code, message: err.message });
+      }
+      logger.error?.('sprintK.workPermits.sign.error', err);
+      captureRouteError(err, 'sprintK.workPermits.sign');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const closePermitSchema = z.object({
+  reason: z.string().min(10).max(2000),
+  /** 'fulfill' = trabajo cumplido; 'cancel' = anulación. Default: fulfill. */
+  outcome: z.enum(['fulfill', 'cancel']).optional(),
+});
+
+router.post(
+  '/:projectId/work-permits/:permitId/close',
+  verifyAuth,
+  validate(closePermitSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, permitId } = req.params;
+    const body = req.body as z.infer<typeof closePermitSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const adapter = new WorkPermitAdapter({
+        db: admin.firestore() as any,
+        tenantId: g.tenantId,
+        projectId,
+      });
+      const permit = await adapter.getById(permitId);
+      if (!permit) return res.status(404).json({ error: 'not_found' });
+
+      const outcome = body.outcome ?? 'fulfill';
+      const next =
+        outcome === 'cancel'
+          ? cancelPermit(permit, body.reason)
+          : fulfillPermit(permit);
+      await adapter.save(next);
+      return res.json({ permit: next });
+    } catch (err) {
+      if (err instanceof WorkPermitValidationError) {
+        return res.status(400).json({ error: 'validation_error', code: err.code, message: err.message });
+      }
+      logger.error?.('sprintK.workPermits.close.error', err);
+      captureRouteError(err, 'sprintK.workPermits.close');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
 
 export default router;

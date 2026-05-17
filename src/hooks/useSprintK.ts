@@ -560,3 +560,131 @@ export function usePreventionMaturity(projectId: string | null) {
     projectId ? `/api/sprint-k/${projectId}/maturity-index` : null,
   );
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Fase F.15 — Centro de Permisos de Trabajo (Work Permits)
+// ────────────────────────────────────────────────────────────────────────
+//
+// LOTO / Altura / Caliente / Confinado / Excavación / Izaje crítico.
+// Engine: src/services/workPermits/workPermitEngine.ts
+// Adapter: src/services/workPermits/workPermitFirestoreAdapter.ts
+
+import type {
+  WorkPermit,
+  WorkPermitKind,
+  WorkPermitStatus,
+} from '../services/workPermits/workPermitEngine';
+
+export interface WorkPermitsResponse {
+  permits: WorkPermit[];
+}
+
+export function useWorkPermits(
+  projectId: string | null,
+  opts: { status?: WorkPermitStatus; kind?: WorkPermitKind } = {},
+) {
+  let path: string | null = null;
+  if (projectId) {
+    const qs = new URLSearchParams();
+    if (opts.status) qs.set('status', opts.status);
+    if (opts.kind) qs.set('kind', opts.kind);
+    const query = qs.toString();
+    path = `/api/sprint-k/${projectId}/work-permits${query ? `?${query}` : ''}`;
+  }
+  return useEndpoint<WorkPermitsResponse>(path);
+}
+
+export interface WorkPermitChecklistItemPayload {
+  id: string;
+  label: string;
+  checked: boolean;
+  verifiedAt?: string;
+}
+
+export interface WorkPermitCreatePayload {
+  id: string;
+  kind: WorkPermitKind;
+  workerUid: string;
+  approverUid: string;
+  approverRole: 'supervisor' | 'prevencionista' | 'gerente' | 'admin';
+  zoneId?: string;
+  taskDescription: string;
+  durationHours: number;
+  preconditions: {
+    workerHasTraining: boolean;
+    workerHasEpp: boolean;
+    workerMedicallyFit: boolean;
+    checklist: { items: WorkPermitChecklistItemPayload[] };
+  };
+}
+
+export async function createWorkPermit(
+  projectId: string,
+  payload: WorkPermitCreatePayload,
+): Promise<{ permit: WorkPermit }> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(`/api/sprint-k/${projectId}/work-permits`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  return (await res.json()) as { permit: WorkPermit };
+}
+
+export async function signWorkPermit(
+  projectId: string,
+  permitId: string,
+): Promise<{ permit: WorkPermit }> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/work-permits/${permitId}/sign`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({}),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  return (await res.json()) as { permit: WorkPermit };
+}
+
+export async function closeWorkPermit(
+  projectId: string,
+  permitId: string,
+  reason: string,
+  outcome: 'fulfill' | 'cancel' = 'fulfill',
+): Promise<{ permit: WorkPermit }> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/work-permits/${permitId}/close`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ reason, outcome }),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  return (await res.json()) as { permit: WorkPermit };
+}

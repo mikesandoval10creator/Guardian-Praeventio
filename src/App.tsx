@@ -69,6 +69,8 @@ const CorrectiveActions = lazy(() => import('./pages/CorrectiveActions').then(mo
 const QrSignature = lazy(() => import('./pages/QrSignature').then(module => ({ default: module.QrSignature })));
 // Sprint 41 Fase F.26 — Indicador de Madurez Preventiva (1..5).
 const MaturityIndicator = lazy(() => import('./pages/MaturityIndicator').then(module => ({ default: module.MaturityIndicator })));
+// Sprint 42 Fase F.15 — Centro de Permisos de Trabajo (LOTO/altura/caliente/confinado/excavación/izaje).
+const WorkPermits = lazy(() => import('./pages/WorkPermits').then(module => ({ default: module.WorkPermits })));
 const Inbox = lazy(() => import('./pages/Inbox').then(module => ({ default: module.Inbox })));
 const IncidentBundle = lazy(() => import('./pages/IncidentBundle').then(module => ({ default: module.IncidentBundle })));
 const GoogleDriveIntegrationManager = lazy(() => import('./pages/GoogleDriveIntegrationManager').then(module => ({ default: module.GoogleDriveIntegrationManager })));
@@ -140,6 +142,7 @@ function AppRoutes() {
               <Route path="corrective-actions" element={<CorrectiveActions />} />
               <Route path="qr-signature" element={<QrSignature />} />
               <Route path="maturity-index" element={<MaturityIndicator />} />
+              <Route path="work-permits" element={<WorkPermits />} />
               <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="*" element={<Dashboard />} />
@@ -268,6 +271,7 @@ function AppRoutes() {
                     <Route path="corrective-actions" element={<CorrectiveActions />} />
                     <Route path="qr-signature" element={<QrSignature />} />
                     <Route path="maturity-index" element={<MaturityIndicator />} />
+                    <Route path="work-permits" element={<WorkPermits />} />
                     <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
