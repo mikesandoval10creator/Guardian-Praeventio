@@ -434,3 +434,79 @@ export async function scheduleCorrectiveActionEffectivenessReview(
     throw new Error(body.error ?? `http_${res.status}`);
   }
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Fase F.5 — Firma QR de Recepción
+// ────────────────────────────────────────────────────────────────────────
+//
+// Cliente para los dos endpoints F.5 expuestos en sprintK.ts:
+//   - POST /qr-signature/challenge  → genera challenge HMAC + nonce
+//   - POST /qr-signature/acknowledge → persiste la firma del trabajador
+//
+// El motor de firma vive en `services/qrSignature/qrSignatureService.ts`
+// (HMAC + canonicalize). Aquí solo wrap HTTP + auth header.
+
+import type {
+  QrSignatureChallenge,
+  SignedAcknowledgement,
+  SignatureItemKind,
+} from '../services/qrSignature/qrSignatureService';
+
+export async function requestQrSignatureChallenge(
+  projectId: string,
+  itemId: string,
+  kind: SignatureItemKind,
+  ttlMinutes?: number,
+): Promise<QrSignatureChallenge> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/qr-signature/challenge`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ itemId, kind, ttlMinutes }),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  const data = (await res.json()) as { challenge: QrSignatureChallenge };
+  return data.challenge;
+}
+
+export interface QrAcknowledgementPayload {
+  challengeId: string;
+  workerUid: string;
+  biometricUsed?: boolean;
+  signedAt: string;
+}
+
+export async function persistQrAcknowledgement(
+  projectId: string,
+  payload: QrAcknowledgementPayload,
+): Promise<SignedAcknowledgement> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/qr-signature/acknowledge`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  const data = (await res.json()) as { acknowledgement: SignedAcknowledgement };
+  return data.acknowledgement;
+}

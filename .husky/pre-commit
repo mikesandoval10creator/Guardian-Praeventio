@@ -1,1 +1,2 @@
+#!/bin/sh
 node scripts/precommit-medical-guard.cjs

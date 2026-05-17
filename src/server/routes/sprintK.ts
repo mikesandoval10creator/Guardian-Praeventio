@@ -1058,4 +1058,276 @@ router.get('/:projectId/inbox', verifyAuth, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.5 — Firma de Recepción Digital con QR
+// ─────────────────────────────────────────────────────────────────────
+//
+// Cierra el wire end-to-end del flujo F.5:
+//   1) POST /qr-signature/challenge — supervisor genera challenge HMAC
+//      (server firma con QR_SIG_SECRET). El payload incluye TTL corto
+//      (5 min default, cap 30 min) y un nonce 16-byte para anti-replay.
+//      El challenge se PERSISTE en
+//      `tenants/{tid}/projects/{pid}/qr_signature_challenges/{challengeId}`
+//      para que /acknowledge pueda re-leerlo y verificar el HMAC
+//      server-side (NUNCA confiamos en el client para re-enviar el
+//      challenge firmado; eso permitiría adivinar `challengeId` y forjar
+//      firmas).
+//   2) POST /qr-signature/acknowledge — al finalizar el escaneo + firma
+//      biométrica del trabajador, persistimos la confirmación en
+//      `tenants/{tid}/projects/{pid}/qr_acknowledgements/{challengeId}`.
+//      La escritura es ATÓMICA via Firestore transaction:
+//         a) lee el challenge → 401 si no existe
+//         b) verifica HMAC + TTL via verifyChallenge() (timing-safe)
+//         c) si ya existe ack en la misma transacción → return existing
+//            (idempotente); si no, crea con create() para que dos
+//            scans simultáneos no se pisen.
+//      El doc ack DENORMALIZA `itemId`, `kind`, `supervisorUid` y
+//      `signatureHex` del challenge — el challenge puede rotarse o
+//      caducar, pero la auditoría queda autocontenida en el ack.
+//
+// Directiva del usuario (product_signing_no_blocking_directives_2026-05-06):
+// el documento queda con la empresa firmado, NO empujamos a
+// SUSESO/MINSAL/SII. Generamos el comprobante; la entrega al organismo
+// la hace la empresa.
+
+const qrSignatureKindEnum = z.enum([
+  'epp_delivery',
+  'safety_talk',
+  'document_read',
+  'training_completion',
+  'permit_acknowledgement',
+  'inspection_handover',
+]);
+
+// Codex P2 (PR #313, line 1108): /qr-signature/challenge solo puede ser
+// invocado por roles que crean firmas de recepción — supervisor de
+// faena, prevencionista (HSE pro) o admin del tenant. Workers no pueden
+// emitir challenges por su cuenta (de hacerlo se autoasignarían
+// entregas de EPP sin supervisor presente). Mantiene la directiva
+// "supervisor es quien firma + cita la entrega".
+const QR_SIG_CHALLENGE_ROLES = new Set([
+  'supervisor',
+  'prevencionista',
+  'admin',
+]);
+
+function callerHasSupervisorRole(req: import('express').Request): boolean {
+  const u = req.user;
+  if (!u) return false;
+  if (u.admin === true) return true;
+  if (typeof u.role === 'string' && QR_SIG_CHALLENGE_ROLES.has(u.role)) {
+    return true;
+  }
+  // Tenant-scoped role claim: tenants[tenantId].role — algunas org
+  // estructuras emiten el role a nivel tenant. Soportamos ambas formas.
+  const tenants = (u as unknown as {
+    tenants?: Record<string, { role?: string }>;
+  }).tenants;
+  if (tenants && typeof tenants === 'object' && typeof u.tenantId === 'string') {
+    const t = tenants[u.tenantId];
+    if (t && typeof t.role === 'string' && QR_SIG_CHALLENGE_ROLES.has(t.role)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+router.post(
+  '/:projectId/qr-signature/challenge',
+  verifyAuth,
+  validate(
+    z.object({
+      itemId: z.string().min(1),
+      kind: qrSignatureKindEnum,
+      ttlMinutes: z.number().int().min(1).max(30).optional(),
+    }),
+  ),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as {
+      itemId: string;
+      kind: z.infer<typeof qrSignatureKindEnum>;
+      ttlMinutes?: number;
+    };
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    // Codex P2 (PR #313, line 1108): role gate antes de mintear el
+    // challenge HMAC. assertProjectMember ya verificó pertenencia al
+    // proyecto; aquí filtramos el role específico.
+    if (!callerHasSupervisorRole(req)) {
+      return res
+        .status(403)
+        .json({ error: 'forbidden_role', allowed: Array.from(QR_SIG_CHALLENGE_ROLES) });
+    }
+    try {
+      const { buildChallenge } = await import(
+        '../../services/qrSignature/qrSignatureService.js'
+      );
+      const nodeCrypto = await import('node:crypto');
+      const secret = process.env.QR_SIG_SECRET ?? '';
+      if (secret.length < 16) {
+        return res
+          .status(500)
+          .json({ error: 'qr_signature_secret_not_configured' });
+      }
+      const challenge = buildChallenge(
+        {
+          challengeId: nodeCrypto.randomUUID(),
+          itemId: body.itemId,
+          kind: body.kind,
+          projectId,
+          initiatedByUid: callerUid,
+          nonceHex: nodeCrypto.randomBytes(16).toString('hex'),
+          ttlMinutes: body.ttlMinutes,
+        },
+        secret,
+      );
+      // Codex P1 (PR #313, line 1166): PERSIST el challenge — sin esto
+      // /acknowledge no puede verificar el HMAC server-side y cualquiera
+      // con un challengeId adivinado forjaría firmas válidas.
+      const db = admin.firestore();
+      const challengePath = `tenants/${g.tenantId}/projects/${projectId}/qr_signature_challenges`;
+      await db
+        .collection(challengePath)
+        .doc(challenge.challengeId)
+        .set({
+          ...challenge,
+          // Audit fields — quién lo emitió + cuándo.
+          createdAt: new Date().toISOString(),
+          createdByCallerUid: callerUid,
+        });
+      return res.status(201).json({ challenge });
+    } catch (err) {
+      logger.error?.('sprintK.qrSignature.challenge.error', err);
+      captureRouteError(err, 'sprintK.qrSignature.challenge');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+router.post(
+  '/:projectId/qr-signature/acknowledge',
+  verifyAuth,
+  validate(
+    z.object({
+      challengeId: z.string().min(1),
+      workerUid: z.string().min(1),
+      biometricUsed: z.boolean().optional(),
+      signedAt: z.string().min(10),
+    }),
+  ),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as {
+      challengeId: string;
+      workerUid: string;
+      biometricUsed?: boolean;
+      signedAt: string;
+    };
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const { verifyChallenge } = await import(
+        '../../services/qrSignature/qrSignatureService.js'
+      );
+      const secret = process.env.QR_SIG_SECRET ?? '';
+      if (secret.length < 16) {
+        return res
+          .status(500)
+          .json({ error: 'qr_signature_secret_not_configured' });
+      }
+      const db = admin.firestore();
+      const challengeRef = db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/qr_signature_challenges`)
+        .doc(body.challengeId);
+      const ackRef = db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/qr_acknowledgements`)
+        .doc(body.challengeId);
+
+      // Codex P1 (PR #313, line 1166) + P2 #4 (line 1182):
+      // Toda la verificación + escritura va en UNA transacción. Esto:
+      //  1) Cierra la race condition entre check-existe → write (dos
+      //     scans concurrentes ya no pueden ambos pasar el check y
+      //     escribir; Firestore aborta la 2da txn).
+      //  2) Asegura que el challenge existe + verifica HMAC ANTES de
+      //     emitir el ack.
+      // verifyChallenge() re-computa el HMAC con QR_SIG_SECRET y
+      // compara constant-time (constantTimeEqual interno). Si el
+      // challenge fue tampered / expiró / no existe → 401.
+      const txnResult = await db.runTransaction(async (txn) => {
+        const challengeSnap = await txn.get(challengeRef);
+        if (!challengeSnap.exists) {
+          return { kind: 'unauthorized' as const, reason: 'challenge_not_found' };
+        }
+        const challengeData = challengeSnap.data() as
+          | import('../../services/qrSignature/qrSignatureService.js').QrSignatureChallenge
+          | undefined;
+        if (!challengeData) {
+          return { kind: 'unauthorized' as const, reason: 'challenge_malformed' };
+        }
+        // Project mismatch (defense-in-depth: route param vs stored payload).
+        if (challengeData.projectId !== projectId) {
+          return { kind: 'unauthorized' as const, reason: 'challenge_project_mismatch' };
+        }
+        // Verify HMAC + TTL (timing-safe internal).
+        const verification = verifyChallenge({
+          challenge: challengeData,
+          serverSecret: secret,
+        });
+        if (!verification.valid) {
+          return {
+            kind: 'unauthorized' as const,
+            reason: `challenge_${verification.reason ?? 'invalid'}`,
+          };
+        }
+        // Idempotency: if ack already exists, return it (don't overwrite).
+        const ackSnap = await txn.get(ackRef);
+        if (ackSnap.exists) {
+          return {
+            kind: 'idempotent' as const,
+            acknowledgement: ackSnap.data(),
+          };
+        }
+        // Codex P2 #3 (PR #313, line 1176): denormalize challenge fields
+        // (itemId, kind, signatureHex, supervisorUid) into the ack
+        // document so audit/forensic exports remain self-contained even
+        // if the challenge doc is rotated/deleted.
+        const acknowledgement = {
+          challengeId: body.challengeId,
+          itemId: challengeData.itemId,
+          kind: challengeData.kind,
+          supervisorUid: challengeData.initiatedByUid,
+          challengeSignatureHex: challengeData.signatureHex,
+          challengeExpiresAt: challengeData.expiresAt,
+          workerUid: body.workerUid,
+          acknowledgedByCallerUid: callerUid,
+          biometricUsed: Boolean(body.biometricUsed),
+          signedAt: body.signedAt,
+          recordedAt: new Date().toISOString(),
+        };
+        // create() throws if doc exists — txn already guarded that, but
+        // belt-and-suspenders: any race outside txn (somehow) aborts.
+        txn.create(ackRef, acknowledgement);
+        return { kind: 'created' as const, acknowledgement };
+      });
+
+      if (txnResult.kind === 'unauthorized') {
+        return res
+          .status(401)
+          .json({ error: 'invalid_challenge', reason: txnResult.reason });
+      }
+      if (txnResult.kind === 'idempotent') {
+        return res.status(200).json({ acknowledgement: txnResult.acknowledgement });
+      }
+      return res.status(201).json({ acknowledgement: txnResult.acknowledgement });
+    } catch (err) {
+      logger.error?.('sprintK.qrSignature.acknowledge.error', err);
+      captureRouteError(err, 'sprintK.qrSignature.acknowledge');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 export default router;

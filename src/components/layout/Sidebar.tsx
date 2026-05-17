@@ -39,6 +39,7 @@ import {
   BarChart3,
   Brain,
   ListChecks,
+  ScanLine,
   Inbox as InboxIcon,
   ChevronDown,
   ChevronRight,
@@ -139,6 +140,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Sprint 40 Fase F.4 — Centro de Acciones Correctivas (PDCA).
         // Acceso directo desde Cumplimiento — cierra ISO 45001 §10.2.
         { title: t("nav.corrective_actions", "Acciones Correctivas"), icon: ListChecks, path: "/corrective-actions", color: "text-teal-500" },
+        // Sprint 40 Fase F.5 — Firma QR de Recepción (EPP, charlas, docs).
+        // Genera challenge HMAC + TTL corto; firma del trabajador queda
+        // como comprobante interno (no se empuja a SUSESO/SII/MINSAL).
+        { title: t("nav.qr_signature", "Firma QR"), icon: ScanLine, path: "/qr-signature", color: "text-violet-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },
