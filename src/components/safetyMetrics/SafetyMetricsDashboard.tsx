@@ -2,6 +2,13 @@
 //
 // Dashboard ejecutivo TRIR + LTIFR + DART + SIFR + Severity + benchmark
 // vs industria + tendencia vs período anterior. Cierra Fase D.10.
+//
+// Sprint 49 — activación @tremor/react:
+//   Antes de instalar `@tremor/react`, los MetricCards eran `<div>` plain.
+//   Tras la autorización del usuario para instalar la dep bloqueada,
+//   wrappeamos las cards en `<Card>` de Tremor (mantiene los mismos
+//   data-testid + clases tailwind del proyecto). Si el caller pasa
+//   `trendSeries`, además rendereamos `<SafetyTrendChart>` con Recharts.
 
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +20,7 @@ import {
   Skull,
   Activity,
 } from 'lucide-react';
+import { Card } from '@tremor/react';
 import {
   buildSafetyMetricsReport,
   analyzeTrend,
@@ -24,6 +32,7 @@ import {
   type SafetyMetricsReport,
   type TrendDirection,
 } from '../../services/safetyMetrics/osha.js';
+import { SafetyTrendChart, type SafetyTrendPoint } from './SafetyTrendChart.js';
 
 interface SafetyMetricsDashboardProps {
   counts: IncidentCounts;
@@ -33,6 +42,8 @@ interface SafetyMetricsDashboardProps {
   previous?: SafetyMetricsReport;
   /** Industry benchmark a comparar (defaults all_industries_us). */
   industry?: IndustryBenchmark;
+  /** Si se pasa, renderiza chart Recharts con la tendencia temporal. */
+  trendSeries?: ReadonlyArray<SafetyTrendPoint>;
 }
 
 const TREND_TONE: Record<TrendDirection, { Icon: typeof TrendingUp; color: string }> = {
@@ -67,9 +78,12 @@ function MetricCard({
 }: MetricCardProps) {
   const trendTone = trend ? TREND_TONE[trend] : null;
 
+  // Tremor `<Card>` envuelve el contenido. Conservamos los mismos tokens
+  // tailwind del proyecto (`bg-surface-elevated`) vía className override —
+  // Tremor aplica padding/radio default pero nuestro UI denso necesita p-2.
   return (
-    <div
-      className="bg-surface-elevated rounded p-2 space-y-1"
+    <Card
+      className="bg-surface-elevated rounded p-2 space-y-1 ring-0 shadow-none border-0"
       data-testid={`safety-metric-${testIdSuffix}`}
     >
       <div className="flex items-center justify-between">
@@ -101,7 +115,7 @@ function MetricCard({
           benchmark {formatRate(benchmarkValue)}
         </p>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -111,6 +125,7 @@ export function SafetyMetricsDashboard({
   periodLabel,
   previous,
   industry = 'all_industries_us',
+  trendSeries,
 }: SafetyMetricsDashboardProps) {
   const { t } = useTranslation();
 
@@ -234,6 +249,18 @@ export function SafetyMetricsDashboard({
               'Período con fatalidad(es) registrada(s) — revisión obligatoria con comité directivo.',
             )}
           </span>
+        </div>
+      )}
+
+      {trendSeries && trendSeries.length > 0 && (
+        <div data-testid="safety-metrics-trend-chart-wrap">
+          <SafetyTrendChart
+            data={trendSeries}
+            industryBenchmark={{
+              trir: trirVsBench.benchmark,
+              ltifr: ltifrVsBench.benchmark,
+            }}
+          />
         </div>
       )}
 
