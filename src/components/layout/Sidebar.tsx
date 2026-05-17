@@ -163,6 +163,9 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // bloquea operación. Acompaña Acciones Correctivas: el radar
         // detecta el patrón, las CA lo cierran.
         { title: t("nav.repeating_risks", "Patrones de Riesgo"), icon: AlertTriangle, path: "/repeating-risks", color: "text-rose-500" },
+        // Sprint 41 Fase F.20 — Gestor de Simulacros (DS 132 / DS 594).
+        // Planifica + ejecuta + reporta preparación (excellent → critical).
+        { title: t("nav.drills", "Gestor de Simulacros"), icon: ShieldAlert, path: "/drills", color: "text-amber-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },

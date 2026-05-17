@@ -40,12 +40,20 @@ export interface DrillResult {
   executedAt: string;
   /** Personas participantes. */
   participantCount: number;
-  /** Personas esperadas (workers en proyecto). */
-  expectedCount: number;
+  /**
+   * Personas esperadas (workers en proyecto). Optional: si la planificación
+   * no incluyó un baseline real, NO se asume `participantCount` — la
+   * evaluación reporta `insufficient_baseline` en su lugar para no
+   * inflar la participación a 100% artificialmente. (Codex PR #316 P2.)
+   */
+  expectedCount?: number;
   /** Tiempo de respuesta total (segundos). */
   responseTimeSeconds: number;
-  /** Benchmark esperado (segundos). */
-  benchmarkSeconds: number;
+  /**
+   * Benchmark esperado (segundos). Optional por la misma razón que
+   * `expectedCount`: sin baseline real no se puede gradear velocidad.
+   */
+  benchmarkSeconds?: number;
   /** Brechas observadas. */
   observedGaps: string[];
   /** Si requirió interventión externa. */
@@ -71,28 +79,84 @@ export const LEGAL_FREQUENCY_DAYS: Record<DrillKind, number> = {
 // Result analysis
 // ────────────────────────────────────────────────────────────────────────
 
+export type DrillReadinessLevel =
+  | 'excellent'
+  | 'good'
+  | 'needs_improvement'
+  | 'critical'
+  /**
+   * Sin baseline real para gradear: la planificación omitió
+   * `expectedCount` y/o `benchmarkSeconds`, así que no podemos calcular
+   * participación o velocidad sin inflar artificialmente el resultado a
+   * 100%. La UI muestra "Baseline insuficiente" y pide volver al plan a
+   * registrar los valores reales. (Codex PR #316 P2.)
+   */
+  | 'insufficient_baseline';
+
 export interface DrillReadinessReport {
   drillId: string;
-  participationRate: number; // %
-  /** Diferencia % vs benchmark (>0 = más lento). */
-  speedDeficitPercent: number;
-  level: 'excellent' | 'good' | 'needs_improvement' | 'critical';
+  /** % de participación. `null` si no se proveyó baseline (`expectedCount`). */
+  participationRate: number | null;
+  /**
+   * Diferencia % vs benchmark (>0 = más lento). `null` si no se proveyó
+   * baseline (`benchmarkSeconds`).
+   */
+  speedDeficitPercent: number | null;
+  level: DrillReadinessLevel;
   recommendations: string[];
 }
 
 export function evaluateDrillResult(result: DrillResult): DrillReadinessReport {
-  const participationRate =
-    result.expectedCount > 0
-      ? Math.round((result.participantCount / result.expectedCount) * 100)
-      : 0;
-  const speedDeficitPercent =
-    result.benchmarkSeconds > 0
-      ? Math.round(
-          ((result.responseTimeSeconds - result.benchmarkSeconds) / result.benchmarkSeconds) * 100,
-        )
-      : 0;
+  // Codex PR #316 P2 (line 1300): no asumimos baselines. Si la
+  // planificación omitió `expectedCount` o `benchmarkSeconds` (y la
+  // ejecución tampoco los aportó), reportamos `insufficient_baseline`
+  // con una recomendación explícita. Antes esto se gradeaba como
+  // "excellent" porque participación = 100% y déficit = 0% por default.
+  const hasParticipationBaseline =
+    typeof result.expectedCount === 'number' && result.expectedCount > 0;
+  const hasSpeedBaseline =
+    typeof result.benchmarkSeconds === 'number' && result.benchmarkSeconds > 0;
 
-  let level: DrillReadinessReport['level'];
+  if (!hasParticipationBaseline || !hasSpeedBaseline) {
+    const missing: string[] = [];
+    if (!hasParticipationBaseline) missing.push('participantes esperados');
+    if (!hasSpeedBaseline) missing.push('tiempo benchmark');
+    const recommendations: string[] = [
+      `Baseline insuficiente: falta ${missing.join(' y ')}. Edita el plan del simulacro y registra ${missing.length > 1 ? 'estos valores' : 'este valor'} antes de gradear el resultado.`,
+    ];
+    if (result.observedGaps.length > 0) {
+      recommendations.push(`Cerrar brechas: ${result.observedGaps.join('; ')}`);
+    }
+    if (result.requiredExternal) {
+      recommendations.push('Intervención externa requerida — fortalecer capacidad interna.');
+    }
+    return {
+      drillId: result.id,
+      participationRate: hasParticipationBaseline
+        ? Math.round((result.participantCount / (result.expectedCount as number)) * 100)
+        : null,
+      speedDeficitPercent: hasSpeedBaseline
+        ? Math.round(
+            ((result.responseTimeSeconds - (result.benchmarkSeconds as number)) /
+              (result.benchmarkSeconds as number)) *
+              100,
+          )
+        : null,
+      level: 'insufficient_baseline',
+      recommendations,
+    };
+  }
+
+  const participationRate = Math.round(
+    (result.participantCount / (result.expectedCount as number)) * 100,
+  );
+  const speedDeficitPercent = Math.round(
+    ((result.responseTimeSeconds - (result.benchmarkSeconds as number)) /
+      (result.benchmarkSeconds as number)) *
+      100,
+  );
+
+  let level: DrillReadinessLevel;
   if (participationRate >= 90 && speedDeficitPercent <= 20 && result.observedGaps.length === 0) {
     level = 'excellent';
   } else if (

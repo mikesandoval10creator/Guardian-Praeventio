@@ -60,6 +60,99 @@ describe('evaluateDrillResult', () => {
     );
     expect(r.recommendations.length).toBeGreaterThanOrEqual(3);
   });
+
+  // Codex PR #316 P2 (sprintK.ts line 1300): sin baselines reales no
+  // debemos gradear como "Excelente" por default. Antes el route
+  // defaulteaba `expectedCount` a `participantCount` y `benchmarkSeconds`
+  // a `responseTimeSeconds`, haciendo que participación = 100% y déficit
+  // = 0% siempre. Ahora reportamos `insufficient_baseline`.
+  describe('insufficient_baseline (Codex PR #316 P2)', () => {
+    it('sin expectedCount → insufficient_baseline y participationRate null', () => {
+      const r = evaluateDrillResult({
+        id: 'd1',
+        drillKind: 'evacuation',
+        executedAt: '2026-05-01T10:00:00Z',
+        participantCount: 95,
+        responseTimeSeconds: 180,
+        benchmarkSeconds: 240,
+        observedGaps: [],
+        requiredExternal: false,
+      });
+      expect(r.level).toBe('insufficient_baseline');
+      expect(r.participationRate).toBeNull();
+      expect(r.speedDeficitPercent).not.toBeNull();
+      expect(r.recommendations.some((s) => /Baseline insuficiente/.test(s))).toBe(
+        true,
+      );
+    });
+
+    it('sin benchmarkSeconds → insufficient_baseline y speedDeficitPercent null', () => {
+      const r = evaluateDrillResult({
+        id: 'd1',
+        drillKind: 'evacuation',
+        executedAt: '2026-05-01T10:00:00Z',
+        participantCount: 95,
+        expectedCount: 100,
+        responseTimeSeconds: 180,
+        observedGaps: [],
+        requiredExternal: false,
+      });
+      expect(r.level).toBe('insufficient_baseline');
+      expect(r.speedDeficitPercent).toBeNull();
+      expect(r.participationRate).toBe(95);
+    });
+
+    it('sin ningún baseline → insufficient_baseline con ambos null', () => {
+      const r = evaluateDrillResult({
+        id: 'd1',
+        drillKind: 'evacuation',
+        executedAt: '2026-05-01T10:00:00Z',
+        participantCount: 95,
+        responseTimeSeconds: 180,
+        observedGaps: [],
+        requiredExternal: false,
+      });
+      expect(r.level).toBe('insufficient_baseline');
+      expect(r.participationRate).toBeNull();
+      expect(r.speedDeficitPercent).toBeNull();
+    });
+
+    it('expectedCount = 0 → tratado como baseline ausente', () => {
+      const r = evaluateDrillResult({
+        id: 'd1',
+        drillKind: 'evacuation',
+        executedAt: '2026-05-01T10:00:00Z',
+        participantCount: 0,
+        expectedCount: 0,
+        responseTimeSeconds: 180,
+        benchmarkSeconds: 240,
+        observedGaps: [],
+        requiredExternal: false,
+      });
+      expect(r.level).toBe('insufficient_baseline');
+    });
+
+    it('insufficient_baseline preserva recomendaciones de gaps y externa', () => {
+      const r = evaluateDrillResult({
+        id: 'd1',
+        drillKind: 'evacuation',
+        executedAt: '2026-05-01T10:00:00Z',
+        participantCount: 95,
+        responseTimeSeconds: 180,
+        observedGaps: ['salida bloqueada'],
+        requiredExternal: true,
+      });
+      expect(r.level).toBe('insufficient_baseline');
+      expect(r.recommendations.length).toBeGreaterThanOrEqual(3);
+      expect(r.recommendations.some((s) => /Baseline insuficiente/.test(s))).toBe(
+        true,
+      );
+      expect(r.recommendations.some((s) => /salida bloqueada/.test(s))).toBe(
+        true,
+      );
+      expect(r.recommendations.some((s) => /externa/i.test(s))).toBe(true);
+    });
+  });
 });
 
 describe('buildDrillComplianceReport', () => {
