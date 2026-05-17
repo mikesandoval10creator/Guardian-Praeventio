@@ -21,6 +21,7 @@ import type {
 } from '../services/correctiveActions/weakActionDetector';
 import type { LotoApplication } from '../services/loto/lotoDigitalLight';
 import type { Equipment, EquipmentStatus } from '../services/equipment/equipmentQrService';
+import type { ScoreBreakdown } from '../services/suppliers/supplierScoring';
 
 interface FetchState<T> {
   data: T | null;
@@ -1980,4 +1981,197 @@ export async function createPdcaNonConformity(
     nonConformity: PdcaNonConformityRecord;
   };
   return json.nonConformity;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Sprint K §90-91 — Calidad de Proveedores + Ranking de Riesgo
+// ────────────────────────────────────────────────────────────────────────
+//
+// Hooks fetch-based para los 5 endpoints de proveedores:
+//   GET  /:projectId/suppliers?riskLevel=low|medium|high|all
+//   POST /:projectId/suppliers
+//   POST /:projectId/suppliers/:id/incidents
+//   POST /:projectId/suppliers/:id/audits
+//   GET  /:projectId/suppliers/ranking
+//
+// El servidor calcula `score` + `riskLevel` + `trend` desde el motor
+// determinístico `supplierScoring`. El frontend NO recalcula — sólo
+// presenta y filtra.
+
+export type SupplierRiskLevel = 'low' | 'medium' | 'high';
+export type SupplierRiskFilter = SupplierRiskLevel | 'all';
+export type SupplierTrend = 'improving' | 'stable' | 'worsening';
+export type SupplierIncidentSeverity = 'near_miss' | 'incident';
+
+export interface SupplierIncidentRecord {
+  id: string;
+  occurredAt: string;
+  severity: SupplierIncidentSeverity;
+  description: string;
+  recordedByUid: string;
+}
+
+export interface SupplierAuditRecord {
+  id: string;
+  auditedAt: string;
+  documentComplianceRatio: number;
+  avgResponseHours: number;
+  reputationScore: number;
+  notes?: string;
+  recordedByUid: string;
+}
+
+export interface SupplierView {
+  id: string;
+  legalName: string;
+  taxId: string;
+  services: string[];
+  criticalRoles: string[];
+  active: boolean;
+  registeredAt: string;
+  score: number;
+  riskLevel: SupplierRiskLevel;
+  trend: SupplierTrend;
+  lastIncidentAt: string | null;
+  lastAuditAt: string | null;
+  incidentCount: number;
+  auditCount: number;
+}
+
+export interface SuppliersResponse {
+  suppliers: SupplierView[];
+  total: number;
+}
+
+export interface SupplierRankingEntry extends SupplierView {
+  rank: number;
+  breakdown: ScoreBreakdown;
+}
+
+export interface SupplierRankingResponse {
+  ranking: SupplierRankingEntry[];
+  total: number;
+}
+
+export function useSuppliers(
+  projectId: string | null,
+  opts: { riskLevel?: SupplierRiskFilter } = {},
+) {
+  let path: string | null = null;
+  if (projectId) {
+    const qs = new URLSearchParams();
+    if (opts.riskLevel && opts.riskLevel !== 'all') {
+      qs.set('riskLevel', opts.riskLevel);
+    } else if (opts.riskLevel === 'all') {
+      qs.set('riskLevel', 'all');
+    }
+    const query = qs.toString();
+    path = `/api/sprint-k/${projectId}/suppliers${query ? `?${query}` : ''}`;
+  }
+  return useEndpoint<SuppliersResponse>(path);
+}
+
+export function useSupplierRanking(projectId: string | null) {
+  return useEndpoint<SupplierRankingResponse>(
+    projectId ? `/api/sprint-k/${projectId}/suppliers/ranking` : null,
+  );
+}
+
+export interface RegisterSupplierPayload {
+  id?: string;
+  name: string;
+  taxId: string;
+  services: string[];
+  criticalRoles?: string[];
+  active?: boolean;
+}
+
+export async function registerSupplier(
+  projectId: string,
+  payload: RegisterSupplierPayload,
+): Promise<SupplierView> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(`/api/sprint-k/${projectId}/suppliers`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  const data = (await res.json()) as { ok: true; supplier: SupplierView };
+  return data.supplier;
+}
+
+export interface RecordSupplierIncidentPayload {
+  id?: string;
+  occurredAt: string;
+  severity: SupplierIncidentSeverity;
+  description: string;
+}
+
+export async function recordSupplierIncident(
+  projectId: string,
+  supplierId: string,
+  payload: RecordSupplierIncidentPayload,
+): Promise<SupplierIncidentRecord> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/suppliers/${supplierId}/incidents`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  const data = (await res.json()) as { ok: true; incident: SupplierIncidentRecord };
+  return data.incident;
+}
+
+export interface RecordSupplierAuditPayload {
+  id?: string;
+  auditedAt: string;
+  documentComplianceRatio: number;
+  avgResponseHours: number;
+  reputationScore: number;
+  notes?: string;
+}
+
+export async function recordSupplierAudit(
+  projectId: string,
+  supplierId: string,
+  payload: RecordSupplierAuditPayload,
+): Promise<SupplierAuditRecord> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/suppliers/${supplierId}/audits`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  const data = (await res.json()) as { ok: true; audit: SupplierAuditRecord };
+  return data.audit;
 }
