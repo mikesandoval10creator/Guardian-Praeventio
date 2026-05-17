@@ -123,6 +123,9 @@ const PreShiftRisk = lazy(() => import('./pages/PreShiftRisk').then(module => ({
 // Sprint 41 Fase F.16 — Score de Preparación del Trabajador (asistente
 // no-bloqueante). Lazy-loaded; chunked away from the cold-start shell.
 const WorkerReadiness = lazy(() => import('./pages/WorkerReadiness').then(module => ({ default: module.WorkerReadiness })));
+// Sprint K §276-277 — Bitácora de Decisiones de Supervisión + Ranking
+// de Impacto. Liderazgo preventivo trazable (no castiga, mide).
+const LeadershipDecisions = lazy(() => import('./pages/LeadershipDecisions').then(module => ({ default: module.LeadershipDecisions })));
 // Sprint K §90-91 — Calidad de Proveedores + Ranking de Riesgo.
 // Motor determinístico (supplierScoring 4-dim) ya vivía; este lazy
 // expone el ranking para decisiones de adjudicación.
@@ -216,6 +219,7 @@ function AppRoutes() {
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
               <Route path="worker-readiness" element={<WorkerReadiness />} />
+              <Route path="leadership-decisions" element={<LeadershipDecisions />} />
               <Route path="suppliers" element={<SupplierQuality />} />
               <Route path="knowledge-base" element={<KnowledgeBase />} />
               <Route path="*" element={<Dashboard />} />
@@ -360,6 +364,7 @@ function AppRoutes() {
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
                     <Route path="worker-readiness" element={<WorkerReadiness />} />
+                    <Route path="leadership-decisions" element={<LeadershipDecisions />} />
                     <Route path="suppliers" element={<SupplierQuality />} />
                     <Route path="knowledge-base" element={<KnowledgeBase />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
