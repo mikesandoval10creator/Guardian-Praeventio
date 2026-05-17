@@ -122,6 +122,10 @@ const RepeatingRisks = lazy(() => import('./pages/RepeatingRisks').then(module =
 const DrillsManager = lazy(() => import('./pages/DrillsManager').then(module => ({ default: module.DrillsManager })));
 const Inbox = lazy(() => import('./pages/Inbox').then(module => ({ default: module.Inbox })));
 const IncidentBundle = lazy(() => import('./pages/IncidentBundle').then(module => ({ default: module.IncidentBundle })));
+// Sprint 33 wire W4 — formulario minimalista para reportar near-miss /
+// incident / post-mortem desde mobile. Wire al endpoint canónico
+// POST /api/incidents/report (verifyAuth + idempotencyKey + Zod).
+const IncidentReport = lazy(() => import('./pages/IncidentReport').then(module => ({ default: module.IncidentReport })));
 // Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno). Visible
 // para el supervisor antes de iniciar el turno; compone 7 fuentes
 // determinísticas en un score 0-100 + recomendaciones priorizadas.
@@ -234,6 +238,7 @@ function AppRoutes() {
               <Route path="drills" element={<DrillsManager />} />
               <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
+              <Route path="incidents/report" element={<IncidentReport />} />
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
               <Route path="worker-readiness" element={<WorkerReadiness />} />
               <Route path="leadership-decisions" element={<LeadershipDecisions />} />
@@ -382,6 +387,7 @@ function AppRoutes() {
                     <Route path="drills" element={<DrillsManager />} />
                     <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
+              <Route path="incidents/report" element={<IncidentReport />} />
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
                     <Route path="worker-readiness" element={<WorkerReadiness />} />
                     <Route path="leadership-decisions" element={<LeadershipDecisions />} />

@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Phone,
   Shield,
+  ShieldAlert,
   ChevronRight,
   BookOpen,
   Download,
@@ -264,8 +265,18 @@ export function Emergency() {
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <div className="flex gap-2 w-full sm:w-auto">
+            {/* Sprint 33 wire W4 — Reportar near-miss. Wire al endpoint
+                canónico POST /api/incidents/report. Cultura POSITIVA:
+                reportar SIEMPRE suma XP, nunca penaliza. */}
+            <Link
+              to="/incidents/report"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-teal-50 dark:bg-teal-500/10 border border-teal-200 dark:border-teal-500/30 text-teal-700 dark:text-teal-300 hover:bg-teal-500 hover:text-white dark:hover:bg-teal-500 dark:hover:text-white px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm"
+            >
+              <ShieldAlert className="w-4 h-4" />
+              <span>Reportar near miss</span>
+            </Link>
             {isOnline ? (
-              <Link 
+              <Link
                 to="/emergency-generator"
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-500 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm"
               >
@@ -273,7 +284,7 @@ export function Emergency() {
                 <span>{t('emergency_page.btn.ai_generator')}</span>
               </Link>
             ) : (
-              <button 
+              <button
                 disabled
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700/50 text-zinc-400 dark:text-zinc-500 px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] cursor-not-allowed shadow-sm"
                 title={t('emergency_page.requires_internet')}

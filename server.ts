@@ -102,6 +102,11 @@ import subscriptionRouter from "./src/server/routes/subscription.js";
 import zettelkastenRouter from "./src/server/routes/zettelkasten.js";
 import commuteRouter from "./src/server/routes/commute.js";
 import emergencyRouter from "./src/server/routes/emergency.js";
+// Sprint 33 wire W4 — POST /api/incidents/report. Punto canónico para
+// near-miss/incident/post-mortem; dispara awardXp positivo, persiste bajo
+// tenants/{tid}/projects/{pid}/incidents y delega a indexIncident() para
+// hacer el resumen buscable vía RAG.
+import incidentsRouter from "./src/server/routes/incidents.js";
 import cadRouter from "./src/server/routes/cad.js";
 import complianceRouter from "./src/server/routes/compliance.js";
 // Sprint 31 Bucket PP — DS 67 (Reglamento Interno) + DS 76 (Subcontratación
@@ -655,6 +660,12 @@ app.use('/api/commute', commuteRouter);
 // member of the project. notify-brigada (defined inline below) is left in
 // place; the new router only owns /sos so the two paths can coexist.
 app.use('/api/emergency', emergencyRouter);
+
+// Sprint 33 wire W4 — POST /api/incidents/report.
+// verifyAuth + idempotencyKey + Zod validate. Persiste el reporte bajo
+// tenants/{tenantId}/projects/{projectId}/incidents/{incidentId} con uid
+// SIEMPRE desde req.user (no body) y dispara awardXp positivo según tipo.
+app.use('/api/incidents', incidentsRouter);
 
 // Sprint 17a — POST /api/cad/convert-dwg (stub; Sprint 18 wires ODA File
 // Converter server-side so the frontend can stay MIT-only — see ADR 0002).
