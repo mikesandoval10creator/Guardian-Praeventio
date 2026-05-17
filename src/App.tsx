@@ -73,6 +73,10 @@ const EmergencyBrigade = lazy(() => import('./pages/EmergencyBrigade').then(modu
 // observaciones positivas capturan lo que vale la pena reconocer. El
 // widget de balance (verde/amber/rojo) hace visible la salud cultural.
 const PositiveObservations = lazy(() => import('./pages/PositiveObservations').then(module => ({ default: module.PositiveObservations })));
+// Sprint 42 Fase F.6 — Modo Sin Señal para Inspecciones (offline-first daily ops).
+// Distinto del SOS de emergencia: inspector/supervisor captura hallazgos
+// de terreno sin conexión, sync diferido cuando vuelve la red.
+const OfflineInspection = lazy(() => import('./pages/OfflineInspection').then(module => ({ default: module.OfflineInspection })));
 // Sprint 40 Fase F.5 — Firma QR de Recepción (EPP, charlas, docs, capacitaciones).
 // Service + modal + HMAC engine ya existían; este page wire cierra el wire end-to-end.
 const QrSignature = lazy(() => import('./pages/QrSignature').then(module => ({ default: module.QrSignature })));
@@ -168,6 +172,7 @@ function AppRoutes() {
               <Route path="corrective-actions" element={<CorrectiveActions />} />
               <Route path="emergency-brigade" element={<EmergencyBrigade />} />
               <Route path="positive-observations" element={<PositiveObservations />} />
+              <Route path="inspections" element={<OfflineInspection />} />
               <Route path="qr-signature" element={<QrSignature />} />
               <Route path="maturity-index" element={<MaturityIndicator />} />
               <Route path="work-permits" element={<WorkPermits />} />
@@ -304,6 +309,7 @@ function AppRoutes() {
                     <Route path="corrective-actions" element={<CorrectiveActions />} />
                     <Route path="emergency-brigade" element={<EmergencyBrigade />} />
                     <Route path="positive-observations" element={<PositiveObservations />} />
+                    <Route path="inspections" element={<OfflineInspection />} />
                     <Route path="qr-signature" element={<QrSignature />} />
                     <Route path="maturity-index" element={<MaturityIndicator />} />
                     <Route path="work-permits" element={<WorkPermits />} />
