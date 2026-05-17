@@ -232,6 +232,22 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // de represalia sin de-anonimizar. Color rose-500 = sensibilidad
         // legal (consistente con Riesgo Residual y Patrones de Riesgo).
         { title: t("nav.confidential_reports", "Reportes Confidenciales"), icon: ShieldAlert, path: "/confidential-reports", color: "text-rose-500" },
+        // Sprint 55 Fase F.14 — Mapa de Calor de Hallazgos. Distribución
+        // espacial por celda con filtros de período + severidad. SVG
+        // top-down, sin Maps API (offline-safe).
+        { title: t("nav.findings_heatmap", "Mapa Calor Hallazgos"), icon: Map, path: "/findings-heatmap", color: "text-rose-500" },
+        // Sprint 55 Fase F.17 — Centro de Bloqueos Soft. Recomienda
+        // fuertemente sin bloquear; override con audit log obligatorio
+        // (UID supervisor + razón ≥20 chars). Directiva 2.
+        { title: t("nav.soft_blocks", "Bloqueos Soft"), icon: ShieldAlert, path: "/soft-blocks", color: "text-amber-500" },
+        // Sprint 55 Fase F.24 — Cadena de Custodia. Timeline inmutable
+        // por evidencia (hash SHA-256 + audit log). NO empuja a APIs
+        // externas (SUSESO/SII/MINSAL etc.) — directiva 3.
+        { title: t("nav.custody_chain", "Cadena de Custodia"), icon: Shield, path: "/custody-chain", color: "text-violet-500" },
+        // Sprint 55 Fase F.27 — Comparador de Proyectos. KPIs side-by-side
+        // de hasta 4 proyectos seleccionables. Asiste con datos sin
+        // recomendar cierre (directiva 2).
+        { title: t("nav.projects_compare", "Comparar Proyectos"), icon: BarChart3, path: "/projects-compare", color: "text-blue-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },
