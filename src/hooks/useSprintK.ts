@@ -407,6 +407,47 @@ export function useIncidentBundle(
   );
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// Fase F.21 — Panel de Riesgo por Turno (pre-turno)
+// ────────────────────────────────────────────────────────────────────────
+//
+// Wraps GET /api/sprint-k/:projectId/pre-shift-risk which composes the
+// determinístico pre-shift risk panel from 7 signals (weather, fatigue,
+// new workers, critical tasks, equipment, recent incidents, brigade).
+// Types come from `preShiftRiskComposer` so the page shows the same
+// shape it would from a direct in-process call.
+
+import type {
+  ShiftRiskReport,
+  ShiftPeriod,
+} from '../services/shiftRiskPanel/preShiftRiskComposer';
+
+export interface PreShiftRiskResponse {
+  panel: ShiftRiskReport;
+}
+
+export interface PreShiftRiskOptions {
+  /** YYYY-MM-DD. Defaults to today (server-side). */
+  date?: string;
+  /** Defaults to 'day' (server-side). */
+  shift?: ShiftPeriod;
+}
+
+export function usePreShiftRisk(
+  projectId: string | null,
+  opts: PreShiftRiskOptions = {},
+) {
+  let path: string | null = null;
+  if (projectId) {
+    const qs = new URLSearchParams();
+    if (opts.date) qs.set('date', opts.date);
+    if (opts.shift) qs.set('shift', opts.shift);
+    const query = qs.toString();
+    path = `/api/sprint-k/${projectId}/pre-shift-risk${query ? `?${query}` : ''}`;
+  }
+  return useEndpoint<PreShiftRiskResponse>(path);
+}
+
 /**
  * Codex P2 round 4 (PR #309): persist a scheduled effectiveness review.
  * Calls POST /api/sprint-k/:projectId/corrective-actions/:actionId/effectiveness-review.

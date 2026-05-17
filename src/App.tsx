@@ -77,6 +77,10 @@ const WorkPermits = lazy(() => import('./pages/WorkPermits').then(module => ({ d
 const LessonsLearned = lazy(() => import('./pages/LessonsLearned').then(module => ({ default: module.LessonsLearned })));
 const Inbox = lazy(() => import('./pages/Inbox').then(module => ({ default: module.Inbox })));
 const IncidentBundle = lazy(() => import('./pages/IncidentBundle').then(module => ({ default: module.IncidentBundle })));
+// Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno). Visible
+// para el supervisor antes de iniciar el turno; compone 7 fuentes
+// determinísticas en un score 0-100 + recomendaciones priorizadas.
+const PreShiftRisk = lazy(() => import('./pages/PreShiftRisk').then(module => ({ default: module.PreShiftRisk })));
 const GoogleDriveIntegrationManager = lazy(() => import('./pages/GoogleDriveIntegrationManager').then(module => ({ default: module.GoogleDriveIntegrationManager })));
 const ImmutableRender = lazy(() => import('./pages/ImmutableRender').then(module => ({ default: module.ImmutableRender })));
 const WearablesIntegration = lazy(() => import('./pages/WearablesIntegration').then(module => ({ default: module.WearablesIntegration })));
@@ -150,6 +154,7 @@ function AppRoutes() {
               <Route path="lessons" element={<LessonsLearned />} />
               <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
+              <Route path="pre-shift-risk" element={<PreShiftRisk />} />
               <Route path="*" element={<Dashboard />} />
             </Route>
           </Routes>
@@ -280,6 +285,7 @@ function AppRoutes() {
                     <Route path="lessons" element={<LessonsLearned />} />
                     <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
+              <Route path="pre-shift-risk" element={<PreShiftRisk />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
                     <Route path="admin/b2d" element={<B2dAdminPanel />} />
                     <Route path="my-data" element={<MyData />} />
