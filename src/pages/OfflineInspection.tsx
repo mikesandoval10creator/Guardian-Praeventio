@@ -18,7 +18,7 @@
 //   - Consolidación: una vez sincronizada, la inspección queda como
 //     nodo auditable y feedea Acciones Correctivas / SIF / lecciones.
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ClipboardCheck,
@@ -32,6 +32,7 @@ import {
   MapPin,
   FileText,
   AlertTriangle,
+  CloudOff,
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -41,10 +42,25 @@ import {
   addObservation as addObservationAPI,
   completeInspection as completeInspectionAPI,
   type InspectionRecord,
+  type InspectionObservationRecord,
   type InspectionStatusAPI,
 } from '../hooks/useSprintK';
 import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
+import { auth } from '../services/firebase';
+import {
+  enqueueInspectionStart,
+  enqueueObservation,
+  listPendingInspections,
+  listPendingObservations,
+  markInspectionFailed,
+  markInspectionSynced,
+  markObservationFailed,
+  markObservationSynced,
+  rekeyObservation,
+  type PendingInspection,
+  type PendingObservation,
+} from '../services/inspections/inspectionOutbox';
 
 // ────────────────────────────────────────────────────────────────────────
 // Hard-coded checklist templates (Sprint F.6 launch set).
@@ -144,19 +160,143 @@ export function OfflineInspection() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  // Codex PR #322 P2 #1: optimistic update — we keep a tiny in-memory
+  // list of inspections we started locally that the server hasn't
+  // confirmed yet (or that fall outside the current filter selection).
+  // They merge with `resp.data.inspections` so the inspector sees their
+  // freshly started session immediately, regardless of which toolbar
+  // filter is selected.
+  const [optimistic, setOptimistic] = useState<InspectionRecord[]>([]);
+
+  // Codex PR #322 P1 #3: pending outbox rows (inspections + observations
+  // that haven't synced yet) so the UI can render a "Pendiente
+  // sincronizar" badge AND so the completion button can be gated
+  // against unsynced observations (P2 #4).
+  const [pendingInspections, setPendingInspections] = useState<
+    PendingInspection[]
+  >([]);
+  const [pendingObservations, setPendingObservations] = useState<
+    PendingObservation[]
+  >([]);
+
   // Single hook call — we use a single status param (or 'all') instead
   // of fanning out like CorrectiveActions, because inspections have
   // only two states and the most common view is "En curso" alone.
   const resp = useInspections(projectId, { status: statusFilter });
 
-  const inspections: InspectionRecord[] = useMemo(
-    () => resp.data?.inspections ?? [],
-    [resp.data],
-  );
+  const refreshOutbox = useCallback(async () => {
+    try {
+      const [insps, obs] = await Promise.all([
+        listPendingInspections(),
+        listPendingObservations(),
+      ]);
+      setPendingInspections(insps);
+      setPendingObservations(obs);
+    } catch (err) {
+      logger.warn('offlineInspection.outbox.read_failed', err);
+    }
+  }, []);
+
+  // Initial outbox load + refresh whenever the server list refreshes
+  // (so a newly-synced row stops showing the pending badge).
+  useEffect(() => {
+    void refreshOutbox();
+  }, [refreshOutbox, resp.data]);
+
+  // Codex PR #322 P1 #3 (flush trigger): on every transition into
+  // online (or on mount when already online) we attempt to flush
+  // pending starts + observations. The server endpoints are idempotent
+  // by id / observationId, so safe to retry. We never block the UI on
+  // the flush — failures stay in the outbox for the next attempt.
+  const flushInFlightRef = useRef(false);
+  const flushOutbox = useCallback(async () => {
+    if (!isOnline || flushInFlightRef.current) return;
+    flushInFlightRef.current = true;
+    try {
+      const [insps, obs] = await Promise.all([
+        listPendingInspections(),
+        listPendingObservations(),
+      ]);
+      for (const insp of insps) {
+        try {
+          await startInspectionAPI(insp.projectId, {
+            id: insp.id,
+            templateId: insp.templateId,
+            responsibleUid: insp.responsibleUid,
+            startedAt: insp.startedAt,
+          });
+          await markInspectionSynced(insp.id);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await markInspectionFailed(insp.id, msg);
+          logger.warn('offlineInspection.outbox.start.flush_failed', err);
+        }
+      }
+      for (const ob of obs) {
+        try {
+          await addObservationAPI(ob.projectId, ob.inspectionId, {
+            observationId: ob.observationId,
+            ...(ob.itemId !== undefined ? { itemId: ob.itemId } : {}),
+            ...(ob.notes !== undefined ? { notes: ob.notes } : {}),
+            ...(ob.photoStoragePath !== undefined
+              ? { photoStoragePath: ob.photoStoragePath }
+              : {}),
+            ...(ob.locationLatLng !== undefined
+              ? { locationLatLng: ob.locationLatLng }
+              : {}),
+            recordedAt: ob.recordedAt,
+          });
+          await markObservationSynced(ob.observationId);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          // Codex PR #322 P2 #2: 409 observation_id_conflict means the
+          // server already has a DIFFERENT observation under this id.
+          // Re-key with a fresh UUID so the next flush succeeds.
+          if (/observation_id_conflict/i.test(msg)) {
+            await rekeyObservation(ob.observationId, randomId());
+          } else {
+            await markObservationFailed(ob.observationId, msg);
+          }
+          logger.warn(
+            'offlineInspection.outbox.observation.flush_failed',
+            err,
+          );
+        }
+      }
+      await refreshOutbox();
+      resp.refetch?.();
+    } finally {
+      flushInFlightRef.current = false;
+    }
+  }, [isOnline, refreshOutbox, resp]);
+
+  useEffect(() => {
+    if (isOnline) void flushOutbox();
+  }, [isOnline, flushOutbox]);
+
+  const inspections: InspectionRecord[] = useMemo(() => {
+    const server = resp.data?.inspections ?? [];
+    // Codex PR #322 P2 #1: merge optimistic local-only inspections
+    // (de-duplicate by id so a server confirmation replaces the
+    // optimistic row instead of doubling it). Local optimistic rows
+    // are shown REGARDLESS of statusFilter so the inspector always
+    // sees "the session I just started" even from the Completadas tab.
+    const seen = new Set(server.map((i) => i.id));
+    const merged: InspectionRecord[] = [...server];
+    for (const opt of optimistic) {
+      if (!seen.has(opt.id)) merged.push(opt);
+    }
+    return merged;
+  }, [resp.data, optimistic]);
 
   const detail = useMemo(
     () => inspections.find((i) => i.id === detailId) ?? null,
     [inspections, detailId],
+  );
+
+  const pendingInspectionIds = useMemo(
+    () => new Set(pendingInspections.map((p) => p.id)),
+    [pendingInspections],
   );
 
   const handleStartInspection = async () => {
@@ -165,19 +305,84 @@ export function OfflineInspection() {
     setCreateError(null);
     try {
       const sessionId = randomId();
-      await startInspectionAPI(projectId, {
+      // Codex PR #322 P2 #3: use the actual signed-in caller as the
+      // responsibleUid (was hard-coded to 'self', which broke any
+      // downstream assignment / filtering logic). If no user is
+      // signed in we surface a clear error rather than silently
+      // persisting a bogus uid.
+      const callerUid = auth.currentUser?.uid;
+      if (!callerUid) {
+        throw new Error(
+          t(
+            'inspections.start.error.not_signed_in',
+            'Debes iniciar sesión antes de iniciar una inspección.',
+          ) as string,
+        );
+      }
+      const startedAt = new Date().toISOString();
+      const payload = {
         id: sessionId,
         templateId: selectedTemplateId,
-        // For Sprint F.6 launch the inspector is also the responsible.
-        // A future sprint can add assignment via a worker picker.
-        responsibleUid: 'self',
+        responsibleUid: callerUid,
+        startedAt,
+      } as const;
+
+      // Codex PR #322 P1 #3: enqueue in the outbox FIRST so the local
+      // session exists immediately even if the network call below
+      // fails. The server endpoint is idempotent by id, so retrying
+      // later with the same payload is safe.
+      await enqueueInspectionStart({
+        id: sessionId,
+        projectId,
+        templateId: selectedTemplateId,
+        responsibleUid: callerUid,
+        startedAt,
       });
+
+      // Codex PR #322 P2 #1: optimistic local session, visible even
+      // when the toolbar filter excludes in_progress. The server
+      // confirmation will simply replace this row on next refetch.
+      const optimisticRecord: InspectionRecord = {
+        id: sessionId,
+        templateId: selectedTemplateId,
+        responsibleUid: callerUid,
+        status: 'in_progress',
+        startedAt,
+        startedBy: callerUid,
+        observations: [],
+      };
+      setOptimistic((prev) =>
+        prev.some((p) => p.id === sessionId) ? prev : [...prev, optimisticRecord],
+      );
+
+      let networkOk = false;
+      try {
+        await startInspectionAPI(projectId, payload);
+        networkOk = true;
+        await markInspectionSynced(sessionId);
+      } catch (netErr) {
+        // Offline (or server error) — keep the outbox row in pending
+        // state. The auto-flush on next `online` event will retry.
+        const msg = netErr instanceof Error ? netErr.message : String(netErr);
+        await markInspectionFailed(sessionId, msg);
+        logger.warn('offlineInspection.start.queued_locally', { msg });
+      }
+
+      await refreshOutbox();
       setShowNewModal(false);
-      resp.refetch?.();
+      // Switch to a filter that contains the new session so the
+      // detail modal opens against a row that's actually visible in
+      // the underlying list (otherwise toggling between completedas/
+      // todas would hide it).
+      if (statusFilter === 'completed') {
+        setStatusFilter('in_progress');
+      }
       setDetailId(sessionId);
+      if (networkOk) resp.refetch?.();
       logger.info('offlineInspection.start.ok', {
         sessionId,
         templateId: selectedTemplateId,
+        synced: networkOk,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -354,6 +559,7 @@ export function OfflineInspection() {
           {inspections.map((insp) => {
             const meta = STATUS_META[insp.status];
             const Icon = meta.icon;
+            const isPendingSync = pendingInspectionIds.has(insp.id);
             return (
               <li
                 key={insp.id}
@@ -380,6 +586,19 @@ export function OfflineInspection() {
                       >
                         {meta.label}
                       </span>
+                      {isPendingSync && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 rounded-full"
+                          data-testid={`offline-inspection-card-${insp.id}-pending-badge`}
+                          title="Esta inspección aún no se ha sincronizado con el servidor."
+                        >
+                          <CloudOff className="w-3 h-3" aria-hidden="true" />
+                          {t(
+                            'inspections.card.pendingSync',
+                            'Pendiente sincronizar',
+                          )}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-1 flex items-center gap-3 text-xs text-secondary-token">
                       <span>
@@ -485,8 +704,33 @@ export function OfflineInspection() {
         <InspectionDetailModal
           inspection={detail}
           projectId={projectId}
+          pendingObservations={pendingObservations.filter(
+            (o) => o.inspectionId === detail.id,
+          )}
+          isOnline={isOnline}
           onClose={() => setDetailId(null)}
           onRefetch={() => resp.refetch?.()}
+          onOutboxChange={refreshOutbox}
+          onObservationAdded={(observation) => {
+            // Codex PR #322 P2 #1 (detail flavor): optimistically push
+            // the newly captured observation into the same in-memory
+            // record we render, so the count + list update instantly
+            // without waiting for the server refetch round-trip.
+            setOptimistic((prev) => {
+              const existing = prev.find((p) => p.id === detail.id);
+              if (existing) {
+                return prev.map((p) =>
+                  p.id === detail.id
+                    ? { ...p, observations: [...p.observations, observation] }
+                    : p,
+                );
+              }
+              return [
+                ...prev,
+                { ...detail, observations: [...detail.observations, observation] },
+              ];
+            });
+          }}
         />
       )}
     </div>
@@ -500,15 +744,28 @@ export function OfflineInspection() {
 interface InspectionDetailModalProps {
   inspection: InspectionRecord;
   projectId: string;
+  /**
+   * Pending (un-synced) observations for THIS inspection, sourced from
+   * the local outbox. Used to gate the Completar button (P2 #4) and to
+   * surface a "Sincronizando N observaciones..." hint.
+   */
+  pendingObservations: PendingObservation[];
+  isOnline: boolean;
   onClose: () => void;
   onRefetch: () => void;
+  onOutboxChange: () => void | Promise<void>;
+  onObservationAdded: (observation: InspectionObservationRecord) => void;
 }
 
 function InspectionDetailModal({
   inspection,
   projectId,
+  pendingObservations,
+  isOnline,
   onClose,
   onRefetch,
+  onOutboxChange,
+  onObservationAdded,
 }: InspectionDetailModalProps) {
   const { t } = useTranslation();
   const [notes, setNotes] = useState('');
@@ -518,6 +775,14 @@ function InspectionDetailModal({
   const [obsError, setObsError] = useState<string | null>(null);
 
   const isCompleted = inspection.status === 'completed';
+  // Codex PR #322 P2 #4: completion is gated against (a) the in-flight
+  // observation save (so a click that races the save doesn't lose the
+  // note), AND (b) any un-synced rows in the outbox (otherwise the
+  // server marks the inspection completed before the queue flushes,
+  // and subsequent observation POSTs are rejected with
+  // inspection_already_completed → silent data loss).
+  const pendingCount = pendingObservations.length;
+  const completionBlocked = saving || pendingCount > 0;
 
   const handleAddObservation = async () => {
     if (!notes.trim() && !photoName) {
@@ -531,23 +796,79 @@ function InspectionDetailModal({
     }
     setSaving(true);
     setObsError(null);
+    let observationId = randomId();
+    const recordedAt = new Date().toISOString();
+    const payload = {
+      observationId,
+      notes: notes.trim() || undefined,
+      // For Sprint F.6 we only record the photo NAME locally; the
+      // actual upload + storage path resolution is a follow-up
+      // (TODO sprint F.6.1: pipe through `<input capture>` → blob →
+      // storage upload → photoStoragePath). The server schema
+      // accepts the photoStoragePath optional so this is forward-
+      // compatible.
+      photoStoragePath: photoName ?? undefined,
+      recordedAt,
+    };
     try {
-      await addObservationAPI(projectId, inspection.id, {
-        observationId: randomId(),
-        notes: notes.trim() || undefined,
-        // For Sprint F.6 we only record the photo NAME locally; the
-        // actual upload + storage path resolution is a follow-up
-        // (TODO sprint F.6.1: pipe through `<input capture>` → blob →
-        // storage upload → photoStoragePath). The server schema
-        // accepts the photoStoragePath optional so this is forward-
-        // compatible.
-        photoStoragePath: photoName ?? undefined,
+      // Codex PR #322 P1 #3: always enqueue locally first so the
+      // observation survives a sudden offline / app kill. The flush
+      // loop in OfflineInspection re-uses the same payload.
+      await enqueueObservation({
+        observationId,
+        inspectionId: inspection.id,
+        projectId,
+        ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+        ...(payload.photoStoragePath !== undefined
+          ? { photoStoragePath: payload.photoStoragePath }
+          : {}),
+        recordedAt,
       });
+      await onOutboxChange();
+
+      // Codex PR #322 P2 #2: 409 observation_id_conflict on the
+      // server (id collides with a DIFFERENT observation) is retried
+      // with a fresh UUID. We bound the loop to 3 attempts so a
+      // pathological server never spins us forever.
+      let attempt = 0;
+      let lastError: unknown = null;
+      let success: InspectionObservationRecord | null = null;
+      while (attempt < 3 && !success) {
+        try {
+          const result = await addObservationAPI(projectId, inspection.id, {
+            ...payload,
+            observationId,
+          });
+          success = result;
+        } catch (err) {
+          lastError = err;
+          const msg = err instanceof Error ? err.message : String(err);
+          if (/observation_id_conflict/i.test(msg)) {
+            const fresh = randomId();
+            await rekeyObservation(observationId, fresh);
+            observationId = fresh;
+            attempt++;
+            continue;
+          }
+          throw err;
+        }
+      }
+      if (!success) {
+        throw lastError instanceof Error
+          ? lastError
+          : new Error('observation_failed');
+      }
+
+      await markObservationSynced(observationId);
+      await onOutboxChange();
+      onObservationAdded(success);
       setNotes('');
       setPhotoName(null);
       onRefetch();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      await markObservationFailed(observationId, msg);
+      await onOutboxChange();
       setObsError(msg);
       logger.error('offlineInspection.observation.failed', err);
     } finally {
@@ -556,6 +877,9 @@ function InspectionDetailModal({
   };
 
   const handleComplete = async () => {
+    // Defense-in-depth — the button is disabled but a programmatic
+    // dispatch (or a stale render) shouldn't bypass the guard.
+    if (completionBlocked) return;
     setCompleting(true);
     try {
       await completeInspectionAPI(projectId, inspection.id);
@@ -737,22 +1061,54 @@ function InspectionDetailModal({
         {!isCompleted && (
           <div className="pt-2 border-t border-default-token flex items-center justify-between gap-2">
             <p className="text-[11px] text-secondary-token">
-              {t(
-                'inspections.detail.complete.hint',
-                'Cierra la inspección cuando termines de capturar observaciones.',
-              )}
+              {completionBlocked && pendingCount > 0
+                ? t(
+                    'inspections.detail.complete.syncing',
+                    'Sincronizando {{count}} observaciones… espera antes de cerrar.',
+                    { count: pendingCount },
+                  )
+                : completionBlocked
+                ? t(
+                    'inspections.detail.complete.saving',
+                    'Guardando observación… espera antes de cerrar.',
+                  )
+                : t(
+                    'inspections.detail.complete.hint',
+                    'Cierra la inspección cuando termines de capturar observaciones.',
+                  )}
             </p>
             <button
               type="button"
               onClick={handleComplete}
-              disabled={completing}
+              disabled={completing || completionBlocked}
               className="px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide bg-emerald-500 text-white disabled:opacity-50"
               data-testid="offline-inspection-detail-complete"
+              title={
+                completionBlocked
+                  ? 'Hay observaciones sin sincronizar — espera o reconecta antes de cerrar.'
+                  : undefined
+              }
             >
               {completing
                 ? t('common.completing', 'Cerrando…')
                 : t('inspections.detail.complete.cta', 'Cerrar inspección')}
             </button>
+          </div>
+        )}
+        {/* Offline notice when there are pending obs (helps the inspector
+            understand why the close button is disabled). */}
+        {!isCompleted && pendingCount > 0 && !isOnline && (
+          <div
+            className="text-[11px] text-amber-600 dark:text-amber-400 inline-flex items-center gap-1 -mt-1"
+            data-testid="offline-inspection-detail-pending-notice"
+          >
+            <WifiOff className="w-3 h-3" aria-hidden="true" />
+            <span>
+              {t(
+                'inspections.detail.complete.pendingOffline',
+                'Sin señal — las observaciones se sincronizarán al reconectar.',
+              )}
+            </span>
           </div>
         )}
 

@@ -5882,27 +5882,25 @@ router.get('/:projectId/inspections', verifyAuth, async (req, res) => {
       ? (rawStatus as InspectionStatus | 'all')
       : 'all';
 
-    const safeRead = async <T,>(fn: () => Promise<T[]>): Promise<T[]> => {
-      try {
-        return await fn();
-      } catch (err) {
-        logger.warn?.('sprintK.inspections.list.read_failed', err);
-        return [];
-      }
-    };
-
     const baseRef = db.collection(
       `tenants/${g.tenantId}/projects/${projectId}/inspections`,
     );
 
-    const inspections = await safeRead<StoredInspection>(async () => {
-      let q: admin.firestore.Query = baseRef;
-      if (statusFilter !== 'all') {
-        q = q.where('status', '==', statusFilter);
-      }
-      // Most recent first; 200 cap mirrors drills endpoint conventions.
-      const snap = await q.orderBy('startedAt', 'desc').limit(200).get();
-      return snap.docs.map((d) => {
+    // Codex PR #322 P1 #1: don't swallow filtered-read failures any more.
+    // When `statusFilter !== 'all'` we combine an equality filter on
+    // `status` with `orderBy('startedAt')`, which needs the composite
+    // index `inspections(status ASC, startedAt DESC)`. The index is now
+    // declared in firestore.indexes.json, but in projects where it's
+    // still building Firestore returns FAILED_PRECONDITION (code 9).
+    // We catch that one specific error and fall back to a fetch-then-
+    // sort-in-JS path so in-progress/completed inspections remain
+    // visible during index propagation. ANY OTHER error is rethrown
+    // and surfaces as a 500 to the caller — so we never silently
+    // return [] and make rows look "missing" again.
+    const mapDocs = (
+      snap: admin.firestore.QuerySnapshot,
+    ): StoredInspection[] =>
+      snap.docs.map((d) => {
         const data = d.data() as Omit<StoredInspection, 'id'>;
         return {
           id: d.id,
@@ -5912,7 +5910,53 @@ router.get('/:projectId/inspections', verifyAuth, async (req, res) => {
           observations: Array.isArray(data.observations) ? data.observations : [],
         };
       });
-    });
+
+    const FAILED_PRECONDITION = 9;
+    const isMissingIndexError = (err: unknown): boolean => {
+      if (!err || typeof err !== 'object') return false;
+      const e = err as { code?: number | string; message?: string };
+      if (e.code === FAILED_PRECONDITION || e.code === 'failed-precondition') {
+        return true;
+      }
+      return (
+        typeof e.message === 'string' &&
+        /requires an index|FAILED_PRECONDITION/i.test(e.message)
+      );
+    };
+
+    let inspections: StoredInspection[];
+    try {
+      let q: admin.firestore.Query = baseRef;
+      if (statusFilter !== 'all') {
+        q = q.where('status', '==', statusFilter);
+      }
+      // Most recent first; 200 cap mirrors drills endpoint conventions.
+      const snap = await q.orderBy('startedAt', 'desc').limit(200).get();
+      inspections = mapDocs(snap);
+    } catch (err) {
+      if (!isMissingIndexError(err)) {
+        // Real failure (auth, network, schema) — bubble up instead of
+        // swallowing into an empty list (the previous behaviour hid
+        // genuine outages from the caller).
+        throw err;
+      }
+      logger.warn?.(
+        'sprintK.inspections.list.index_fallback',
+        { statusFilter },
+      );
+      // Index missing or still building: fetch without orderBy (cap
+      // raised slightly so the JS-side limit doesn't truncate the
+      // newest rows after sort) and sort in JS. Equality filter alone
+      // doesn't need a composite index.
+      let q: admin.firestore.Query = baseRef;
+      if (statusFilter !== 'all') {
+        q = q.where('status', '==', statusFilter);
+      }
+      const snap = await q.limit(500).get();
+      inspections = mapDocs(snap)
+        .sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1))
+        .slice(0, 200);
+    }
 
     return res.json({ inspections });
   } catch (err) {
@@ -6007,40 +6051,126 @@ router.post(
           `tenants/${g.tenantId}/projects/${projectId}/inspections`,
         )
         .doc(inspectionId);
-      const snap = await docRef.get();
-      if (!snap.exists) {
+
+      // Codex PR #322 P1 #2: wrap the read + de-dup + write inside a
+      // Firestore transaction so concurrent appends (typical when the
+      // offline queue flushes several queued observations in parallel
+      // after reconnecting) don't read the same array and overwrite
+      // each other. Without the transaction, the second writer's
+      // version of `observations` clobbers the first writer's append.
+      //
+      // Codex PR #322 P2 #2: idempotency now also covers the
+      // `inspection_already_completed` path. If a POST succeeds on the
+      // server but the client never gets the response, then the same
+      // observationId is retried AFTER the inspection has been closed,
+      // returning 409 would falsely surface a data-loss error. We
+      // detect that case and return 200 with the already-persisted
+      // observation. Conversely, a retry that SHARES an observationId
+      // but carries DIFFERENT content (different notes, different
+      // photoStoragePath, different itemId, different locationLatLng)
+      // is an actual id collision — we surface that as 409
+      // `observation_id_conflict` instead of silently overwriting.
+      type ObservationCommitOutcome =
+        | { kind: 'created'; observation: StoredInspectionObservation; status: 201 }
+        | { kind: 'duplicate'; observation: StoredInspectionObservation; status: 200 }
+        | { kind: 'not_found' }
+        | { kind: 'completed_new_id' }
+        | { kind: 'id_conflict' };
+
+      const observationsEqual = (
+        a: StoredInspectionObservation,
+        b: StoredInspectionObservation,
+      ): boolean => {
+        // Compare only the caller-supplied fields. `recordedAt` and
+        // `recordedBy` are server-stamped and shouldn't gate
+        // idempotency: a network retry that survives across midnight
+        // would otherwise spuriously 409 over a recordedAt drift.
+        if ((a.itemId ?? null) !== (b.itemId ?? null)) return false;
+        if ((a.notes ?? null) !== (b.notes ?? null)) return false;
+        if ((a.photoStoragePath ?? null) !== (b.photoStoragePath ?? null)) {
+          return false;
+        }
+        const aLoc = a.locationLatLng;
+        const bLoc = b.locationLatLng;
+        if (aLoc && bLoc) {
+          if (aLoc.lat !== bLoc.lat || aLoc.lng !== bLoc.lng) return false;
+        } else if (Boolean(aLoc) !== Boolean(bLoc)) {
+          return false;
+        }
+        return true;
+      };
+
+      const outcome = await db.runTransaction<ObservationCommitOutcome>(
+        async (tx) => {
+          const snap = await tx.get(docRef);
+          if (!snap.exists) {
+            return { kind: 'not_found' };
+          }
+          const existing = snap.data() as Omit<StoredInspection, 'id'>;
+          const prev = Array.isArray(existing.observations)
+            ? existing.observations
+            : [];
+          const existingSameId = prev.find(
+            (o: StoredInspectionObservation) =>
+              o.observationId === body.observationId,
+          );
+
+          // Candidate record we'd persist (used for both create + conflict check).
+          const candidate: StoredInspectionObservation = {
+            observationId: body.observationId,
+            recordedAt:
+              body.recordedAt ??
+              existingSameId?.recordedAt ??
+              new Date().toISOString(),
+            recordedBy: existingSameId?.recordedBy ?? callerUid,
+            ...(body.itemId !== undefined ? { itemId: body.itemId } : {}),
+            ...(body.notes !== undefined ? { notes: body.notes } : {}),
+            ...(body.photoStoragePath !== undefined
+              ? { photoStoragePath: body.photoStoragePath }
+              : {}),
+            ...(body.locationLatLng !== undefined
+              ? { locationLatLng: body.locationLatLng }
+              : {}),
+          };
+
+          if (existing.status === 'completed') {
+            if (existingSameId) {
+              // Retry after completion — already persisted, return 200.
+              return { kind: 'duplicate', observation: existingSameId, status: 200 };
+            }
+            // Genuinely new observation on a closed inspection — reject.
+            return { kind: 'completed_new_id' };
+          }
+
+          if (existingSameId) {
+            if (observationsEqual(existingSameId, candidate)) {
+              return {
+                kind: 'duplicate',
+                observation: existingSameId,
+                status: 200,
+              };
+            }
+            return { kind: 'id_conflict' };
+          }
+
+          const next = [...prev, candidate];
+          tx.set(docRef, { observations: next }, { merge: true });
+          return { kind: 'created', observation: candidate, status: 201 };
+        },
+      );
+
+      if (outcome.kind === 'not_found') {
         return res.status(404).json({ error: 'inspection_not_found' });
       }
-      const existing = snap.data() as Omit<StoredInspection, 'id'>;
-      if (existing.status === 'completed') {
+      if (outcome.kind === 'completed_new_id') {
         return res.status(409).json({ error: 'inspection_already_completed' });
       }
-      // Idempotency: de-dup by observationId so a flaky retry from
-      // the offline queue never doubles the entry. Last-write-wins
-      // for the same observationId (matches the service's
-      // recordObservation semantics).
-      const prev = Array.isArray(existing.observations)
-        ? existing.observations
-        : [];
-      const filtered = prev.filter(
-        (o: StoredInspectionObservation) => o.observationId !== body.observationId,
-      );
-      const newObs: StoredInspectionObservation = {
-        observationId: body.observationId,
-        recordedAt: body.recordedAt ?? new Date().toISOString(),
-        recordedBy: callerUid,
-        ...(body.itemId !== undefined ? { itemId: body.itemId } : {}),
-        ...(body.notes !== undefined ? { notes: body.notes } : {}),
-        ...(body.photoStoragePath !== undefined
-          ? { photoStoragePath: body.photoStoragePath }
-          : {}),
-        ...(body.locationLatLng !== undefined
-          ? { locationLatLng: body.locationLatLng }
-          : {}),
-      };
-      const next = [...filtered, newObs];
-      await docRef.set({ observations: next }, { merge: true });
-      return res.status(201).json({ ok: true, observation: newObs });
+      if (outcome.kind === 'id_conflict') {
+        return res.status(409).json({ error: 'observation_id_conflict' });
+      }
+      return res
+        .status(outcome.status)
+        .json({ ok: true, observation: outcome.observation });
     } catch (err) {
       logger.error?.('sprintK.inspections.observation.error', err);
       captureRouteError(err, 'sprintK.inspections.observation');
