@@ -10,8 +10,11 @@ import {
   ThermometerSnowflake,
   ShieldAlert,
   Info,
+  Phone,
+  ClipboardCheck,
 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { useProject } from '../contexts/ProjectContext';
 import {
   findNearestRefuges,
   refugeAvailability,
@@ -24,20 +27,44 @@ import {
 // si hay un refugio REAL cerca. Ahora consume el catálogo
 // \`services/refuges/mountainRefuges\` con coordenadas verificadas vía
 // OpenStreetMap.
+//
+// 2026-05-17 (audit follow-up): el catálogo ahora incluye `contactPhone`
+// y `lastInspectedAt` por refugio. La página renderiza el teléfono como
+// `tel:` link (el dialer móvil funciona aunque haya solo voz) y la
+// fecha de última inspección para que el usuario pondere la frescura
+// de la información. También priorizamos `selectedProject.coordinates`
+// sobre el default Santiago para que la distancia se calcule desde la
+// faena real cuando el contexto Project la tenga.
 
 export function MountainRefuges() {
   const { t } = useTranslation();
-  // Default razonable mientras esperamos geolocation; permite usar la
-  // página antes de aceptar el permiso.
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number }>({
-    lat: -33.45,
-    lng: -70.6667,
-  });
+  const { selectedProject } = useProject();
+
+  // Priorizar coordenadas del proyecto seleccionado (faena real). Si no
+  // hay proyecto o no tiene coordenadas, caemos a un default razonable
+  // (Santiago) mientras esperamos geolocalización del navegador.
+  const projectCoords =
+    selectedProject?.coordinates ??
+    selectedProject?.geo ??
+    null;
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number }>(
+    projectCoords ?? { lat: -33.45, lng: -70.6667 },
+  );
   const [geoStatus, setGeoStatus] = useState<'idle' | 'requesting' | 'ok' | 'denied'>('idle');
   const [weatherCondition, setWeatherCondition] = useState<'clear' | 'blizzard' | 'storm'>(
     'blizzard',
   );
   const [temperature, setTemperature] = useState(-15);
+
+  // Si cambia el proyecto seleccionado, re-anclamos la ubicación a sus
+  // coordenadas. La geolocalización del navegador sigue ganando si el
+  // usuario la aceptó (`geoStatus === 'ok'`), porque el operador en
+  // terreno puede estar lejos de la base.
+  useEffect(() => {
+    if (projectCoords && geoStatus !== 'ok') {
+      setUserLocation(projectCoords);
+    }
+  }, [projectCoords, geoStatus]);
 
   // Pedir geolocalización solo si el usuario está en la página (no se
   // pide proactivamente al cargar). Esto cumple con privacy: el usuario
@@ -61,7 +88,10 @@ export function MountainRefuges() {
   }, [userLocation]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
+    <div
+      data-testid="mountain-refuges-page"
+      className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8"
+    >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
@@ -245,6 +275,7 @@ export function MountainRefuges() {
                 return (
                   <Card
                     key={refuge.id}
+                    data-testid={`mountain-refuge-card-${refuge.id}`}
                     className={`p-4 border-white/5 ${availability === 'closed' ? 'opacity-60' : ''}`}
                   >
                     <div className="flex justify-between items-start mb-3">
@@ -254,7 +285,10 @@ export function MountainRefuges() {
                         />
                         {refuge.name}
                       </h3>
-                      <span className="text-xs font-bold text-zinc-400">
+                      <span
+                        data-testid={`mountain-refuge-distance-${refuge.id}`}
+                        className="text-xs font-bold text-zinc-400"
+                      >
                         {refuge.distanceKm.toFixed(1)} km
                       </span>
                     </div>
@@ -292,6 +326,35 @@ export function MountainRefuges() {
                               : t('mountainRefuges.status.check', 'Verificar')}
                         </span>
                       </div>
+                      {refuge.lastInspectedAt && (
+                        <div className="flex justify-between text-zinc-400">
+                          <span className="flex items-center gap-1">
+                            <ClipboardCheck className="w-3 h-3" />
+                            {t('mountainRefuges.lastInspected', 'Última inspección:')}
+                          </span>
+                          <span
+                            data-testid={`mountain-refuge-inspected-${refuge.id}`}
+                            className="text-zinc-300"
+                          >
+                            {refuge.lastInspectedAt}
+                          </span>
+                        </div>
+                      )}
+                      {refuge.contactPhone && (
+                        <div className="flex justify-between text-zinc-400 items-center">
+                          <span className="flex items-center gap-1">
+                            <Phone className="w-3 h-3" />
+                            {t('mountainRefuges.contact', 'Contacto:')}
+                          </span>
+                          <a
+                            data-testid={`mountain-refuge-phone-${refuge.id}`}
+                            href={`tel:${refuge.contactPhone}`}
+                            className="text-blue-300 hover:text-blue-200 underline font-mono"
+                          >
+                            {refuge.contactPhone}
+                          </a>
+                        </div>
+                      )}
                     </div>
 
                     {refuge.notes && (

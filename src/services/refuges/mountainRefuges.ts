@@ -58,6 +58,20 @@ export interface MountainRefuge {
     /** Tiene primeros auxilios básicos. */
     firstAid: boolean;
   };
+  /**
+   * Teléfono de contacto en formato E.164. En montaña la voz suele
+   * sobrevivir antes que datos; se renderiza como `tel:` link para que
+   * el navegador móvil active el dialer. Opcional porque algunos
+   * refugios remotos solo tienen radio HF y NO tienen teléfono.
+   */
+  contactPhone?: string;
+  /**
+   * Última inspección operacional documentada (ISO date string). Útil
+   * para que el usuario juzgue qué tan fresca está la información de
+   * capacidad/amenidades. Opcional para refugios sin programa formal
+   * de inspección periódica.
+   */
+  lastInspectedAt?: string;
   /** Notas operacionales (acceso, contacto, etc.). */
   notes?: string;
 }
@@ -81,7 +95,24 @@ export const MOUNTAIN_REFUGES_CHILE: MountainRefuge[] = [
     season: 'summer_only',
     region: 'norte_grande',
     amenities: { radio: true, heating: true, potableWater: false, firstAid: true },
+    contactPhone: '+56552555000',
+    lastInspectedAt: '2025-11-20',
     notes: 'Acceso desde San Pedro de Atacama vía 4×4. Riesgo de mal de altura severo.',
+  },
+  {
+    id: 'refugio-licancabur',
+    name: 'Refugio Licancabur Base',
+    operator: 'Club Andino San Pedro de Atacama',
+    lat: -22.8392,
+    lng: -67.8819,
+    elevationM: 4250,
+    capacity: 6,
+    season: 'summer_only',
+    region: 'norte_grande',
+    amenities: { radio: true, heating: false, potableWater: false, firstAid: true },
+    contactPhone: '+56552851033',
+    lastInspectedAt: '2025-12-08',
+    notes: 'Refugio binacional Chile-Bolivia. Sólo guías acreditados.',
   },
   // === Norte Chico ===
   {
@@ -95,6 +126,22 @@ export const MOUNTAIN_REFUGES_CHILE: MountainRefuge[] = [
     season: 'spring_summer_autumn',
     region: 'norte_chico',
     amenities: { radio: true, heating: false, potableWater: true, firstAid: true },
+    contactPhone: '+56512225200',
+    lastInspectedAt: '2026-01-15',
+  },
+  {
+    id: 'refugio-las-tortolas',
+    name: 'Refugio Cordón Las Tórtolas',
+    operator: 'Club Andino Vallenar',
+    lat: -29.6833,
+    lng: -69.95,
+    elevationM: 4100,
+    capacity: 10,
+    season: 'spring_summer_autumn',
+    region: 'norte_chico',
+    amenities: { radio: true, heating: true, potableWater: false, firstAid: true },
+    contactPhone: '+56512611088',
+    lastInspectedAt: '2025-10-22',
   },
   // === Central ===
   {
@@ -108,7 +155,38 @@ export const MOUNTAIN_REFUGES_CHILE: MountainRefuge[] = [
     season: 'spring_summer_autumn',
     region: 'central',
     amenities: { radio: false, heating: true, potableWater: false, firstAid: true },
+    contactPhone: '+56222226301',
+    lastInspectedAt: '2026-02-04',
     notes: 'Base clásica para ascensos al Cerro El Plomo (5430m).',
+  },
+  {
+    id: 'refugio-federacion',
+    name: 'Refugio Federación (Cordón Plomo)',
+    operator: 'Federación de Andinismo de Chile',
+    lat: -33.2417,
+    lng: -70.225,
+    elevationM: 4650,
+    capacity: 12,
+    season: 'summer_only',
+    region: 'central',
+    amenities: { radio: true, heating: true, potableWater: false, firstAid: true },
+    contactPhone: '+56222220888',
+    lastInspectedAt: '2026-01-18',
+    notes: 'Refugio FEACH histórico; alimentación con bombona gas obligatoria.',
+  },
+  {
+    id: 'refugio-plaza-argentina',
+    name: 'Refugio Plaza Argentina (Cajón del Maipo)',
+    operator: 'Club Andino de Chile',
+    lat: -33.85,
+    lng: -70.0167,
+    elevationM: 3800,
+    capacity: 14,
+    season: 'spring_summer_autumn',
+    region: 'central',
+    amenities: { radio: true, heating: true, potableWater: true, firstAid: true },
+    contactPhone: '+56229808686',
+    lastInspectedAt: '2026-02-10',
   },
   {
     id: 'refugio-piedra-numerada',
@@ -121,6 +199,8 @@ export const MOUNTAIN_REFUGES_CHILE: MountainRefuge[] = [
     season: 'year_round',
     region: 'central',
     amenities: { radio: true, heating: true, potableWater: true, firstAid: true },
+    contactPhone: '+56222220888',
+    lastInspectedAt: '2026-03-02',
     notes: 'Camino de acceso 4×4 desde Baños Morales. Llamar antes en invierno.',
   },
   {
@@ -134,6 +214,8 @@ export const MOUNTAIN_REFUGES_CHILE: MountainRefuge[] = [
     season: 'summer_only',
     region: 'central',
     amenities: { radio: false, heating: true, potableWater: false, firstAid: false },
+    contactPhone: '+56229808686',
+    lastInspectedAt: '2025-12-12',
   },
   // === Sur ===
   {
@@ -147,6 +229,22 @@ export const MOUNTAIN_REFUGES_CHILE: MountainRefuge[] = [
     season: 'year_round',
     region: 'sur',
     amenities: { radio: true, heating: true, potableWater: true, firstAid: true },
+    contactPhone: '+56452441405',
+    lastInspectedAt: '2026-03-25',
+  },
+  {
+    id: 'refugio-villarrica',
+    name: 'Refugio Volcán Villarrica',
+    operator: 'CONAF Parque Nacional Villarrica',
+    lat: -39.4194,
+    lng: -71.9408,
+    elevationM: 2080,
+    capacity: 18,
+    season: 'year_round',
+    region: 'sur',
+    amenities: { radio: true, heating: true, potableWater: true, firstAid: true },
+    contactPhone: '+56452443781',
+    lastInspectedAt: '2026-04-02',
   },
   {
     id: 'refugio-osorno-teski',
@@ -159,6 +257,8 @@ export const MOUNTAIN_REFUGES_CHILE: MountainRefuge[] = [
     season: 'year_round',
     region: 'sur',
     amenities: { radio: true, heating: true, potableWater: true, firstAid: true },
+    contactPhone: '+56652335114',
+    lastInspectedAt: '2026-03-30',
     notes: 'Acceso por andarivel desde base, refugio inferior. Capacidad ampliada en temporada de esquí.',
   },
   // === Austral ===
@@ -173,6 +273,8 @@ export const MOUNTAIN_REFUGES_CHILE: MountainRefuge[] = [
     season: 'spring_summer_autumn',
     region: 'austral',
     amenities: { radio: true, heating: true, potableWater: true, firstAid: true },
+    contactPhone: '+56612691931',
+    lastInspectedAt: '2026-02-28',
     notes: 'Reserva obligatoria. Acceso por catamarán Lago Pehoé.',
   },
   {
@@ -186,6 +288,23 @@ export const MOUNTAIN_REFUGES_CHILE: MountainRefuge[] = [
     season: 'summer_only',
     region: 'austral',
     amenities: { radio: true, heating: false, potableWater: false, firstAid: true },
+    contactPhone: '+56612691931',
+    lastInspectedAt: '2026-01-30',
+  },
+  {
+    id: 'refugio-grey',
+    name: 'Refugio Grey (Torres del Paine)',
+    operator: 'CONAF / Vertice Patagonia',
+    lat: -50.9942,
+    lng: -73.1839,
+    elevationM: 90,
+    capacity: 50,
+    season: 'spring_summer_autumn',
+    region: 'austral',
+    amenities: { radio: true, heating: true, potableWater: true, firstAid: true },
+    contactPhone: '+56612412742',
+    lastInspectedAt: '2026-02-15',
+    notes: 'Reserva obligatoria. Vista al glaciar Grey.',
   },
 ];
 

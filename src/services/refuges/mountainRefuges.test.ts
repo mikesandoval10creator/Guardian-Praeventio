@@ -130,4 +130,28 @@ describe('MOUNTAIN_REFUGES_CHILE catálogo', () => {
     const regions = new Set(MOUNTAIN_REFUGES_CHILE.map((r) => r.region));
     expect(regions.size).toBeGreaterThanOrEqual(4);
   });
+
+  it('todos los IDs son únicos', () => {
+    const ids = MOUNTAIN_REFUGES_CHILE.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('los teléfonos están en formato E.164 cuando existen', () => {
+    for (const r of MOUNTAIN_REFUGES_CHILE) {
+      if (r.contactPhone !== undefined) {
+        expect(r.contactPhone).toMatch(/^\+\d{8,15}$/);
+      }
+    }
+  });
+
+  it('las fechas de última inspección están en formato ISO YYYY-MM-DD cuando existen', () => {
+    for (const r of MOUNTAIN_REFUGES_CHILE) {
+      if (r.lastInspectedAt !== undefined) {
+        expect(r.lastInspectedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        // Y la fecha debe ser parseable.
+        const parsed = new Date(r.lastInspectedAt);
+        expect(Number.isNaN(parsed.getTime())).toBe(false);
+      }
+    }
+  });
 });
