@@ -2424,6 +2424,126 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.13 — Radar de Riesgos Repetidos
+// ─────────────────────────────────────────────────────────────────────
+//
+// Lee los `incidents` recientes del proyecto (top-level collection,
+// usada por backgroundTriggers) y los normaliza al shape
+// `IncidentSample` que consume el servicio determinístico
+// `buildRepeatingRiskRadar`. El resultado (`RadarReport`) viaja crudo al
+// frontend para que `<RepeatingRiskRadarCard>` lo renderice.
+//
+// 100% determinístico, sin ML — agregaciones simples sobre los nodos
+// por zona/tipo/tiempo. Si la lectura de incidents falla, devolvemos un
+// reporte vacío en lugar de 500 para no bloquear el dashboard.
+
+router.get('/:projectId/repeating-risks', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { buildRepeatingRiskRadar } = await import(
+      '../../services/riskRadar/repeatingRiskRadar.js'
+    );
+    const db = admin.firestore();
+
+    // Ventana: últimos 90 días — suficiente para detectar patrones según
+    // F.13. Filtramos en memoria por occurredAt para tolerar docs con
+    // timestamps inconsistentes (la fn `filterRecent` del servicio
+    // también descarta futuros + invalid).
+    const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+    const cutoffIso = new Date(Date.now() - NINETY_DAYS_MS).toISOString();
+
+    const safeIncidents = async (): Promise<Array<Record<string, unknown> & { id: string }>> => {
+      try {
+        const snap = await db
+          .collection('incidents')
+          .where('projectId', '==', projectId)
+          .limit(500)
+          .get();
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      } catch (err) {
+        logger.warn?.('sprintK.riskRadar.incidents.fetch_failed', err);
+        return [];
+      }
+    };
+
+    const rawIncidents = await safeIncidents();
+
+    // Normaliza al shape `IncidentSample`. Solo conservamos los docs que
+    // tengan al menos `occurredAt` + `kind` + `zoneId` derivables.
+    // - `kind` ← `kind | type | category`
+    // - `zoneId` ← `zoneId | zone | location | area`
+    // - `taskId` ← `taskId | task`
+    // - `shift` ← solo si está en el enum válido del servicio.
+    type Shift = 'day' | 'evening' | 'night';
+    const VALID_SHIFTS: ReadonlySet<Shift> = new Set(['day', 'evening', 'night']);
+    type Severity = 'low' | 'medium' | 'high' | 'critical';
+    const VALID_SEVERITIES: ReadonlySet<Severity> = new Set([
+      'low',
+      'medium',
+      'high',
+      'critical',
+    ]);
+
+    const samples = rawIncidents
+      .filter((d) => typeof d.occurredAt === 'string' && (d.occurredAt as string) >= cutoffIso)
+      .map((d) => {
+        const kind =
+          (typeof d.kind === 'string' && d.kind) ||
+          (typeof d.type === 'string' && (d.type as string)) ||
+          (typeof d.category === 'string' && (d.category as string)) ||
+          '';
+        const zoneId =
+          (typeof d.zoneId === 'string' && d.zoneId) ||
+          (typeof d.zone === 'string' && (d.zone as string)) ||
+          (typeof d.location === 'string' && (d.location as string)) ||
+          (typeof d.area === 'string' && (d.area as string)) ||
+          '';
+        const taskId =
+          (typeof d.taskId === 'string' && d.taskId) ||
+          (typeof d.task === 'string' && (d.task as string)) ||
+          undefined;
+        const workerUid =
+          typeof d.workerUid === 'string' ? (d.workerUid as string) : undefined;
+        const rawShift = typeof d.shift === 'string' ? (d.shift as string) : '';
+        const shift = VALID_SHIFTS.has(rawShift as Shift)
+          ? (rawShift as Shift)
+          : undefined;
+        const rawSev = typeof d.severity === 'string' ? (d.severity as string) : '';
+        const severity = VALID_SEVERITIES.has(rawSev as Severity)
+          ? (rawSev as Severity)
+          : undefined;
+        return {
+          id: d.id,
+          occurredAt: d.occurredAt as string,
+          kind,
+          zoneId,
+          taskId,
+          workerUid,
+          shift,
+          severity,
+        };
+      })
+      // Drop incompletos: el servicio omite por keyFn, pero filtrar acá
+      // mantiene `consideredIncidents` realista en el reporte.
+      .filter((s) => s.kind.length > 0 && s.zoneId.length > 0);
+
+    const report = buildRepeatingRiskRadar(samples, {
+      minOccurrences: 3,
+      windowDays: 90,
+    });
+
+    return res.json({ report });
+  } catch (err) {
+    logger.error?.('sprintK.riskRadar.error', err);
+    captureRouteError(err, 'sprintK.riskRadar');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 
 const checklistItemSchema = z.object({
   id: z.string().min(1),

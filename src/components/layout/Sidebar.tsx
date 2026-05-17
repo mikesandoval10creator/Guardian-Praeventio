@@ -158,6 +158,11 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Supervisor lo abre ANTES de iniciar el turno para ver score
         // global + factores trazables + top recomendaciones.
         { title: t("nav.pre_shift_risk", "Pre-turno"), icon: Sun, path: "/pre-shift-risk", color: "text-amber-500" },
+        // Sprint 40 Fase F.13 — Radar de Riesgos Repetidos (patrones
+        // determinísticos sobre incidentes, sin ML). Sólo asiste — nunca
+        // bloquea operación. Acompaña Acciones Correctivas: el radar
+        // detecta el patrón, las CA lo cierran.
+        { title: t("nav.repeating_risks", "Patrones de Riesgo"), icon: AlertTriangle, path: "/repeating-risks", color: "text-rose-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },
