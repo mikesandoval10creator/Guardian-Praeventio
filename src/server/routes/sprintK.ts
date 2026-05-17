@@ -593,6 +593,125 @@ router.get('/:projectId/data-quality', verifyAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// Incident evidence bundle (Fase F.3)
+// ─────────────────────────────────────────────────────────────────────
+//
+// Construye el "expediente automático" de un incidente: cruza
+// incidents, audit_logs y los registros vinculados para producir un
+// `IncidentBundleManifest` con score de completitud + gaps detectados.
+// El caller (fiscalizador, abogado, SUSESO) ve de un vistazo qué falta
+// para cerrar el caso.
+//
+// Este endpoint deja explícito el contrato — los feeds más caros
+// (evidencia foto/video, EPP/training del trabajador afectado,
+// custody chain) viajan en sub-PRs siguientes. La versión actual
+// popula incident + audit_log y deja arrays vacíos honestos para los
+// demás, que el scorer entonces clasifica como gaps. Eso es
+// honestidad arquitectónica: el panel muestra el bundle real con sus
+// huecos reales, no un 100% falso.
+
+router.get(
+  '/:projectId/incidents/:incidentId/bundle',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, incidentId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const { buildIncidentBundle, normalizeSeverity } = await import(
+        '../../services/incidentBundle/incidentEvidenceBundle.js'
+      );
+
+      const db = admin.firestore();
+
+      // 1. Incident itself. Stored top-level by IncidentReport.tsx,
+      //    filtered by projectId.
+      const incidentDoc = await db
+        .collection('incidents')
+        .doc(incidentId)
+        .get();
+      if (!incidentDoc.exists) {
+        return res.status(404).json({ error: 'incident_not_found' });
+      }
+      const incidentData = incidentDoc.data() ?? {};
+      // Cross-tenant safety: the docId is global; assert the incident
+      // belongs to the project the caller can read.
+      if (incidentData.projectId && incidentData.projectId !== projectId) {
+        return res.status(403).json({ error: 'cross_project_forbidden' });
+      }
+
+      const severity =
+        normalizeSeverity(String(incidentData.severity ?? 'medium')) ?? 'medium';
+
+      // 2. Audit log entries scoped to this incident.
+      const auditSnap = await db
+        .collection('audit_logs')
+        .where('details.incidentId', '==', incidentId)
+        .limit(200)
+        .get()
+        .catch((err) => {
+          logger.warn?.('sprintK.bundle.audit.fetch_failed', err);
+          return null;
+        });
+      const auditLog =
+        auditSnap?.docs.map((d) => {
+          const data = d.data();
+          const ts =
+            data.timestamp?.toDate?.()?.toISOString() ??
+            (typeof data.timestamp === 'string'
+              ? data.timestamp
+              : new Date().toISOString());
+          return {
+            at: ts,
+            actorUid: String(data.userId ?? 'unknown'),
+            actorRole: String(data.actorRole ?? 'unknown'),
+            action: String(data.action ?? 'unknown'),
+            context: typeof data.details === 'object' ? data.details : undefined,
+          };
+        }) ?? [];
+
+      const manifest = buildIncidentBundle({
+        incident: {
+          id: incidentDoc.id,
+          projectId,
+          occurredAt: String(
+            incidentData.occurredAt ?? incidentData.createdAt ?? new Date().toISOString(),
+          ),
+          severity,
+          summary: String(
+            incidentData.summary ?? incidentData.description ?? incidentDoc.id,
+          ),
+          location: incidentData.location ?? undefined,
+          reportedByUid: String(
+            incidentData.reportedByUid ?? incidentData.userId ?? 'unknown',
+          ),
+          reportedAt: String(
+            incidentData.reportedAt ?? incidentData.createdAt ?? new Date().toISOString(),
+          ),
+        },
+        // Empty arrays — these are the OUTSTANDING data sources to be
+        // wired in sub-PRs. The bundle's gap detector reports them as
+        // missing, which is the honest signal we want surfacing.
+        affectedWorkers: [],
+        evidence: [],
+        appliedControls: [],
+        requiredEpp: [],
+        requiredTrainings: [],
+        normativeRefs: [],
+        auditLog,
+      });
+
+      return res.json({ manifest });
+    } catch (err) {
+      logger.error?.('sprintK.bundle.error', err);
+      captureRouteError(err, 'sprintK.bundle');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────────
 // Inbox del prevencionista (Fase F.8)
 // ─────────────────────────────────────────────────────────────────────
 //

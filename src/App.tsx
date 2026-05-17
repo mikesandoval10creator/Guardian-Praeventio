@@ -65,6 +65,7 @@ const SafetyFeed = lazy(() => import('./pages/SafetyFeed').then(module => ({ def
 const Analytics = lazy(() => import('./pages/Analytics').then(module => ({ default: module.Analytics })));
 const CorrectiveActions = lazy(() => import('./pages/CorrectiveActions').then(module => ({ default: module.CorrectiveActions })));
 const Inbox = lazy(() => import('./pages/Inbox').then(module => ({ default: module.Inbox })));
+const IncidentBundle = lazy(() => import('./pages/IncidentBundle').then(module => ({ default: module.IncidentBundle })));
 const GoogleDriveIntegrationManager = lazy(() => import('./pages/GoogleDriveIntegrationManager').then(module => ({ default: module.GoogleDriveIntegrationManager })));
 const ImmutableRender = lazy(() => import('./pages/ImmutableRender').then(module => ({ default: module.ImmutableRender })));
 const WearablesIntegration = lazy(() => import('./pages/WearablesIntegration').then(module => ({ default: module.WearablesIntegration })));
@@ -133,6 +134,7 @@ function AppRoutes() {
               <Route path="analytics" element={<Analytics />} />
               <Route path="corrective-actions" element={<CorrectiveActions />} />
               <Route path="inbox" element={<Inbox />} />
+              <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="*" element={<Dashboard />} />
             </Route>
           </Routes>
@@ -258,6 +260,7 @@ function AppRoutes() {
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="corrective-actions" element={<CorrectiveActions />} />
                     <Route path="inbox" element={<Inbox />} />
+              <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
                     <Route path="admin/b2d" element={<B2dAdminPanel />} />
                     <Route path="my-data" element={<MyData />} />

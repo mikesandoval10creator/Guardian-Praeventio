@@ -380,3 +380,24 @@ export function useDataQuality(projectId: string | null) {
     projectId ? `/api/sprint-k/${projectId}/data-quality` : null,
   );
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Fase F.3 — Incident evidence bundle
+// ────────────────────────────────────────────────────────────────────────
+
+import type { IncidentBundleManifest } from '../services/incidentBundle/incidentEvidenceBundle';
+
+export interface IncidentBundleResponse {
+  manifest: IncidentBundleManifest;
+}
+
+export function useIncidentBundle(
+  projectId: string | null,
+  incidentId: string | null,
+) {
+  return useEndpoint<IncidentBundleResponse>(
+    projectId && incidentId
+      ? `/api/sprint-k/${projectId}/incidents/${incidentId}/bundle`
+      : null,
+  );
+}
