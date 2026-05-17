@@ -7,6 +7,7 @@ import { EmergencyProvider } from "../contexts/EmergencyContext";
 import { SensorProvider } from "../contexts/SensorContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
 import { AppModeProvider } from "../contexts/AppModeContext";
+import { AccessibilityProvider } from "../contexts/AccessibilityContext";
 import { NormativeProvider } from "../contexts/NormativeContext";
 import { SLMProvider } from "../components/slm/SLMProvider";
 import { MeshProvider } from "./MeshProvider";
@@ -71,7 +72,15 @@ export function AppProviders({ children }: AppProvidersProps) {
   // banner's visual mode. Position is innermost above `SensorProvider`
   // so consumers of every other context (theme, project, etc.) can
   // also reach the SLM state.
+  // Sprint K §139-145 — `AccessibilityProvider` is mounted *above*
+  // `ThemeProvider` and `AppModeProvider` because its CSS classes
+  // (`high-contrast`, `easy-reading`, `glove-friendly`,
+  // `low-connectivity`) apply on `<html>` and must be honoured by
+  // every downstream theme. The provider only owns 4 booleans + their
+  // setters, no Firebase / network dependencies, so it is safe at the
+  // outermost layer next to AppModeProvider.
   return (
+    <AccessibilityProvider>
     <AppModeProvider>
       <ThemeProvider>
         <NormativeProvider>
@@ -113,5 +122,6 @@ export function AppProviders({ children }: AppProvidersProps) {
         </NormativeProvider>
       </ThemeProvider>
     </AppModeProvider>
+    </AccessibilityProvider>
   );
 }

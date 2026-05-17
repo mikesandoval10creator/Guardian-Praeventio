@@ -2173,5 +2173,31 @@
       "nothing_to_commit": "No hay filas válidas para importar.",
       "no_project": "Selecciona un proyecto antes de confirmar."
     }
+  },
+  "accessibility": {
+    "title": "Modos accesibles",
+    "subtitle": "Adapta Praeventio Guard a tus necesidades. Cada modo se activa de forma independiente y queda guardado en este dispositivo.",
+    "preview": "Vista previa",
+    "reset": "Restablecer todo",
+    "easyReading": {
+      "title": "Lectura fácil",
+      "description": "Aumenta el tamaño del texto y simplifica la tipografía para mejorar la lectura.",
+      "previewBody": "Este texto se ve más grande y con más espacio entre líneas cuando el modo está activado."
+    },
+    "highContrast": {
+      "title": "Alto contraste",
+      "description": "Invierte los colores principales para mejorar la legibilidad en condiciones de baja visibilidad.",
+      "previewBody": "Los colores se invierten: fondo negro con texto blanco, ideal con luz solar fuerte."
+    },
+    "glovesMode": {
+      "title": "Modo guantes",
+      "description": "Aumenta los botones y áreas táctiles a 56px o más para usar la app con guantes de trabajo.",
+      "previewBody": "Cada botón se vuelve fácilmente alcanzable con guantes industriales gruesos."
+    },
+    "lowConnectivity": {
+      "title": "Baja conectividad",
+      "description": "Muestra avisos amigables cuando la red es lenta o intermitente y favorece la carga offline.",
+      "previewBody": "En vez de spinners, verás placeholders esqueléticos y mensajes claros sobre el estado de la red."
+    }
   }
 }

@@ -229,6 +229,9 @@ const CustodyChain = lazy(() => import('./pages/CustodyChain').then(module => ({
 // `projectComparator/projectComparator` computa KPIs side-by-side
 // normalizados de hasta 4 proyectos seleccionables.
 const ProjectsCompare = lazy(() => import('./pages/ProjectsCompare').then(module => ({ default: module.ProjectsCompare })));
+// Sprint K §139-145 — Modos accesibles (lectura fácil, alto contraste,
+// guantes, baja conectividad). Page lazy + provider en AppProviders.
+const Accessibility = lazy(() => import('./pages/Accessibility').then(module => ({ default: module.Accessibility })));
 
 // Sprint 24 Bucket KK.4 — onboarded-flag hook (self-contained, does not
 // touch FirebaseContext to keep that file's surface area small).
@@ -300,6 +303,7 @@ function AppRoutes() {
               <Route path="soft-blocks" element={<SoftBlocks />} />
               <Route path="custody-chain" element={<CustodyChain />} />
               <Route path="projects-compare" element={<ProjectsCompare />} />
+              <Route path="accessibility" element={<Accessibility />} />
               <Route path="*" element={<Dashboard />} />
             </Route>
           </Routes>
@@ -460,6 +464,8 @@ function AppRoutes() {
                     <Route path="soft-blocks" element={<SoftBlocks />} />
                     <Route path="custody-chain" element={<CustodyChain />} />
                     <Route path="projects-compare" element={<ProjectsCompare />} />
+                    {/* Sprint K §139-145 — Modos accesibles. */}
+                    <Route path="accessibility" element={<Accessibility />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
                     <Route path="admin/b2d" element={<B2dAdminPanel />} />
                     <Route path="my-data" element={<MyData />} />

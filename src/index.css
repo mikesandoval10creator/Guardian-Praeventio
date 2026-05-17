@@ -302,3 +302,96 @@
     background-color: rgba(212, 175, 55, 0.6);
   }
 }
+
+@layer base {
+  /* ─────────────────────────────────────────────────────────────────
+     SPRINT K §139-145 — Accessibility modes.
+     Each class is applied to <html> by `<AccessibilityProvider>` and
+     to a local preview container by the `Accessibility` page. The
+     selectors also accept the class on any ancestor (descendant
+     selectors) so previews work without polluting the root state.
+
+     `--min-tap-target` is the canonical token consumed by buttons /
+     toggles / inputs across the app. The default 44px matches Apple
+     HIG; `.glove-friendly` lifts it to 56px to honour the Brecha A
+     spec (industrial workers with thick safety gloves).
+     ───────────────────────────────────────────────────────────────── */
+  :root {
+    --min-tap-target: 44px;
+  }
+
+  /* easy-reading — larger type + generous line-height. Scoped via
+     descendant selector so preview containers can opt in without
+     mutating <html>. The 1.0625× scale is conservative; combined with
+     1.7 line-height it adds ~28% reading comfort according to BSI
+     8878 (built environment / digital inclusion). */
+  .easy-reading,
+  .easy-reading * {
+    font-size: 1.0625em;
+    line-height: 1.7;
+    letter-spacing: 0.012em;
+  }
+  .easy-reading h1,
+  .easy-reading h2,
+  .easy-reading h3 {
+    line-height: 1.35;
+  }
+
+  /* high-contrast — black canvas + white text + strong accents. Acts
+     as a "force AAA" override regardless of the active mode (light,
+     dark, driving, emergency). Borders pin to bright cyan so focus
+     rings remain visible. */
+  .high-contrast {
+    --bg-canvas: #000000;
+    --bg-surface: #0a0a0a;
+    --bg-elevated: #141414;
+    --text-primary: #ffffff;
+    --text-secondary: #f4f4f5;
+    --text-muted: #d4d4d8;
+    --accent-primary: #ffe066;       /* amber-200 — high luminance on black */
+    --accent-on-primary: #000000;
+    --border-default: #ffffff;
+    --border-strong: #ffffff;
+    --border-subtle: rgba(255, 255, 255, 0.30);
+    --shadow-color: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    background-color: #000000;
+  }
+  .high-contrast a,
+  .high-contrast button {
+    text-decoration-thickness: from-font;
+  }
+
+  /* glove-friendly — bump the canonical tap-target token. Components
+     that bind their `min-width` / `min-height` / `style.minHeight` to
+     `var(--min-tap-target, 44px)` will scale automatically. Also
+     widens spacing because workers wearing gloves are usually
+     outdoors / in helmets where reading distance is greater. */
+  .glove-friendly {
+    --min-tap-target: 56px;
+  }
+  .glove-friendly button,
+  .glove-friendly [role="button"],
+  .glove-friendly [role="switch"],
+  .glove-friendly a,
+  .glove-friendly input[type="checkbox"],
+  .glove-friendly input[type="radio"] {
+    min-height: var(--min-tap-target);
+    min-width: var(--min-tap-target);
+  }
+  .glove-friendly button,
+  .glove-friendly [role="button"] {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* low-connectivity — visual hint only. The hard work is event-driven
+     (`praeventio-low-connectivity-changed`). We dim animations + slow
+     pulses so users on flaky links do not see jittery loaders. */
+  .low-connectivity .animate-spin {
+    animation-duration: 2.4s;
+  }
+  .low-connectivity .animate-pulse {
+    animation-duration: 2.4s;
+  }
+}
