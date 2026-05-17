@@ -150,6 +150,12 @@ const ConfidentialReports = lazy(() => import('./pages/ConfidentialReports').the
 // Time series + near-miss ratio / closure rate / días promedio abierto.
 // Read-only sobre `incidents` filtrados por proyecto; no escribe nada.
 const IncidentTrends = lazy(() => import('./pages/IncidentTrends').then(module => ({ default: module.IncidentTrends })));
+// Sprint K §244-250 — Aprendices + Mentoría + Autorización Progresiva
+// + Exposición a Tareas. Cierra la pieza UI del flujo §244-250 que ya
+// tenía servicio determinístico (apprenticeshipProgressService.ts) pero
+// no estaba accesible desde la navegación. NO bloquea operación; solo
+// trazea el avance del aprendiz hacia autonomía y alerta sobreexposición.
+const Apprenticeship = lazy(() => import('./pages/Apprenticeship').then(module => ({ default: module.Apprenticeship })));
 // Sprint K §90-91 — Calidad de Proveedores + Ranking de Riesgo.
 // Motor determinístico (supplierScoring 4-dim) ya vivía; este lazy
 // expone el ranking para decisiones de adjudicación.
@@ -273,6 +279,7 @@ function AppRoutes() {
               <Route path="driving-safety" element={<DrivingSafety />} />
               <Route path="confidential-reports" element={<ConfidentialReports />} />
               <Route path="incident-trends" element={<IncidentTrends />} />
+              <Route path="apprenticeship" element={<Apprenticeship />} />
               <Route path="suppliers" element={<SupplierQuality />} />
               <Route path="knowledge-base" element={<KnowledgeBase />} />
               <Route path="visitors" element={<Visitors />} />
@@ -430,6 +437,7 @@ function AppRoutes() {
                     <Route path="driving-safety" element={<DrivingSafety />} />
                     <Route path="confidential-reports" element={<ConfidentialReports />} />
                     <Route path="incident-trends" element={<IncidentTrends />} />
+                    <Route path="apprenticeship" element={<Apprenticeship />} />
                     <Route path="suppliers" element={<SupplierQuality />} />
                     <Route path="knowledge-base" element={<KnowledgeBase />} />
                     <Route path="visitors" element={<Visitors />} />

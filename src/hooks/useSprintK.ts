@@ -2877,6 +2877,102 @@ export async function registerRoute(
   const user = auth.currentUser;
   const token = user ? await user.getIdToken() : null;
   const res = await fetch(`/api/sprint-k/${projectId}/driving/routes`, {
+// Sprint K §244-250 — Aprendices + Mentoría + Autorización Progresiva
+// ────────────────────────────────────────────────────────────────────────
+//
+// Hooks que envuelven los 5 endpoints declarados en sprintK.ts:
+//   useApprentices(projectId)            → GET  /apprentices
+//   useMentorAvailability(projectId)     → GET  /mentors/availability
+//   registerApprentice(...)              → POST /apprentices
+//   authorizeApprentice(...)             → POST /apprentices/:uid/authorize
+//   recordExposure(...)                  → POST /apprentices/:uid/expose
+//
+// Tipos espejo de los shapes en el server. NO importamos del módulo
+// de servicio directamente (`apprenticeshipProgressService`) porque
+// estos shapes son UI-friendly (incluyen `currentLevel`, `progress`
+// y `recentExposures` derivados server-side) — el servicio canónico
+// devuelve formas más crudas para uso determinístico interno.
+
+export type ApprenticeAuthLevel =
+  | 'none'
+  | 'observer'
+  | 'supervised'
+  | 'autonomous';
+
+export type ApprenticeRole =
+  | 'aprendiz'
+  | 'nuevo_ingreso'
+  | 'practicante'
+  | 'trabajador_general';
+
+export type ApprenticeExposureOutcome = 'success' | 'partial' | 'unsafe';
+
+export interface ApprenticeRecentExposure {
+  id: string;
+  taskKind: string;
+  recordedAt: string;
+  supervisedBy: string;
+  outcome: ApprenticeExposureOutcome;
+}
+
+export interface ApprenticeRecord {
+  workerUid: string;
+  mentorUid: string;
+  role: ApprenticeRole;
+  startDate: string;
+  currentLevel: ApprenticeAuthLevel;
+  taskAuthorizations: Record<string, ApprenticeAuthLevel>;
+  progress: number;
+  recentExposures: ApprenticeRecentExposure[];
+  createdAt: string;
+  createdBy: string;
+  updatedAt?: string;
+}
+
+export interface ApprenticesResponse {
+  apprentices: ApprenticeRecord[];
+}
+
+export interface MentorAvailabilityEntry {
+  mentorUid: string;
+  apprenticeUids: string[];
+  currentLoad: number;
+  maxLoad: number;
+  available: boolean;
+  availableSlots: number;
+}
+
+export interface MentorAvailabilityResponse {
+  mentors: MentorAvailabilityEntry[];
+  maxLoad: number;
+}
+
+export function useApprentices(projectId: string | null) {
+  return useEndpoint<ApprenticesResponse>(
+    projectId ? `/api/sprint-k/${projectId}/apprentices` : null,
+  );
+}
+
+export function useMentorAvailability(projectId: string | null) {
+  return useEndpoint<MentorAvailabilityResponse>(
+    projectId ? `/api/sprint-k/${projectId}/mentors/availability` : null,
+  );
+}
+
+export interface RegisterApprenticePayload {
+  uid: string;
+  mentorUid: string;
+  role: ApprenticeRole;
+  startDate: string;
+}
+
+export async function registerApprentice(
+  projectId: string,
+  payload: RegisterApprenticePayload,
+): Promise<ApprenticeRecord> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(`/api/sprint-k/${projectId}/apprentices`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -2918,6 +3014,18 @@ export async function flagRouteAlert(
   );
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      mentorUid?: string;
+      currentLoad?: number;
+    };
+    // Surface the mentor_at_capacity case with a friendly message so
+    // the UI can render it directly instead of "http_409".
+    if (body.error === 'mentor_at_capacity') {
+      throw new Error(
+        `mentor_at_capacity: ${body.mentorUid ?? ''} (load=${body.currentLoad ?? '?'})`,
+      );
+    }
     throw new Error(body.error ?? `http_${res.status}`);
   }
   const json = (await res.json()) as {
@@ -2958,6 +3066,36 @@ export async function recordJourney(
   const token = user ? await user.getIdToken() : null;
   const res = await fetch(
     `/api/sprint-k/${projectId}/driving/drivers/${driverUid}/journey`,
+    apprentice: ApprenticeRecord;
+  };
+  return json.apprentice;
+}
+
+export interface AuthorizeApprenticePayload {
+  taskKind: string;
+  toLevel: Exclude<ApprenticeAuthLevel, 'none'>;
+  signedByUid: string;
+  evidence: string;
+}
+
+export interface AuthorizeApprenticeResult {
+  ok: true;
+  workerUid: string;
+  taskKind: string;
+  toLevel: Exclude<ApprenticeAuthLevel, 'none'>;
+  currentLevel: ApprenticeAuthLevel;
+  progress: number;
+}
+
+export async function authorizeApprentice(
+  projectId: string,
+  uid: string,
+  payload: AuthorizeApprenticePayload,
+): Promise<AuthorizeApprenticeResult> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/apprentices/${uid}/authorize`,
     {
       method: 'POST',
       headers: {
@@ -3124,6 +3262,41 @@ export async function respondToReport(
   const token = user ? await user.getIdToken() : null;
   const res = await fetch(
     `/api/sprint-k/${projectId}/confidential-reports/${reportId}/respond`,
+  return (await res.json()) as AuthorizeApprenticeResult;
+}
+
+export interface RecordExposurePayload {
+  taskKind: string;
+  supervisedBy: string;
+  outcome: ApprenticeExposureOutcome;
+  recordedAt?: string;
+  notes?: string;
+}
+
+export interface RecordExposureResult {
+  ok: true;
+  exposure: {
+    id: string;
+    workerUid: string;
+    taskKind: string;
+    supervisedBy: string;
+    outcome: ApprenticeExposureOutcome;
+    recordedAt: string;
+    notes?: string;
+    createdAt: string;
+    createdBy: string;
+  };
+}
+
+export async function recordExposure(
+  projectId: string,
+  uid: string,
+  payload: RecordExposurePayload,
+): Promise<RecordExposureResult> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/apprentices/${uid}/expose`,
     {
       method: 'POST',
       headers: {
@@ -3131,6 +3304,7 @@ export async function respondToReport(
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ message }),
+      body: JSON.stringify(payload),
     },
   );
   if (!res.ok) {
@@ -3168,4 +3342,5 @@ export async function closeReport(
     path = `/api/sprint-k/${projectId}/incidents/trends${query ? `?${query}` : ''}`;
   }
   return useEndpoint<IncidentTrendsResponse>(path);
+  return (await res.json()) as RecordExposureResult;
 }

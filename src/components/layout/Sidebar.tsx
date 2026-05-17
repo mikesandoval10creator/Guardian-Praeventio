@@ -253,6 +253,12 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // colección de incidents. Acompaña Repeating Risks: el radar
         // detecta patrones, esta página muestra la dirección agregada.
         { title: t("nav.incident_trends", "Tendencia Incidentes"), icon: BarChart3, path: "/incident-trends", color: "text-amber-500" },
+        // Sprint K §244-250 — Aprendices + Mentoría + Autorización Progresiva
+        // + Exposición a Tareas. NO bloquea operación; trazea el avance del
+        // aprendiz hacia autonomía (observer → supervised → autonomous), la
+        // carga del mentor (max 3 simultáneos §245), y alerta sobreexposición
+        // a tareas repetitivas (riesgo músculo-esquelético §246-247).
+        { title: t("nav.apprenticeship", "Aprendices y Mentores"), icon: UserCheck, path: "/apprenticeship", color: "text-teal-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },
