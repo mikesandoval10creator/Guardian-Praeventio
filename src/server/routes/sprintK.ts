@@ -9218,5 +9218,578 @@ router.get(
   },
 );
 
+// ─────────────────────────────────────────────────────────────────────
+// Sprint K §131-138 — Cierre de Proyecto + Lecciones Transferibles +
+//                      Decisiones Críticas + Resúmenes Multi-Rol
+// ─────────────────────────────────────────────────────────────────────
+//
+// Cuando un proyecto cierra, NO desaparece su data — extrae:
+//   - Lecciones transferibles (publicadas al library F.12 con scope='industry')
+//   - Decisiones críticas con outcome retroactivo
+//   - Resúmenes multi-rol (gerencia/cliente/operación/regulatorio)
+//   - Métricas finales (snapshot del cierre)
+//
+// El motor (`services/projectClosure/projectClosureService.ts`) ya
+// existe y es determinístico. Estos handlers son thin wrappers que
+// leen el estado de cierre, validan readiness, y persisten capturas.
+//
+// Storage layout:
+//   tenants/{tid}/projects/{pid}/closure/state    → ClosureState
+//   tenants/{tid}/projects/{pid}/closure/lessons/{id}  → ClosureLesson
+//   tenants/{tid}/projects/{pid}/closure/decisions/{id}  → CriticalDecision
+//
+// Las lecciones aceptadas se publican al library global de lecciones
+// (tenants/{tid}/lessons/{id}) con scope='industry' usando el adapter F.12
+// para que aparezcan en `/lessons` de futuros proyectos.
+
+interface ClosureState {
+  status: 'open' | 'initiated' | 'finalized';
+  initiatedAt: string | null;
+  initiatedByUid: string | null;
+  finalizedAt: string | null;
+  finalizedByUid: string | null;
+}
+
+interface StoredClosureLesson {
+  id: string;
+  summary: string;
+  preventiveAction: string;
+  riskCategories: string[];
+  tags: string[];
+  industry: string;
+  capturedAt: string;
+  capturedByUid: string;
+  publishedLessonId: string | null;
+}
+
+interface StoredCriticalDecision {
+  id: string;
+  decidedAt: string;
+  context: string;
+  decision: string;
+  decidedByUid: string;
+  outcome: 'positive' | 'neutral' | 'negative';
+  loggedAt: string;
+  loggedByUid: string;
+}
+
+async function readClosureState(
+  db: admin.firestore.Firestore,
+  tenantId: string,
+  projectId: string,
+): Promise<ClosureState> {
+  const snap = await db
+    .collection(`tenants/${tenantId}/projects/${projectId}/closure`)
+    .doc('state')
+    .get();
+  if (!snap.exists) {
+    return {
+      status: 'open',
+      initiatedAt: null,
+      initiatedByUid: null,
+      finalizedAt: null,
+      finalizedByUid: null,
+    };
+  }
+  const data = snap.data() as Partial<ClosureState>;
+  return {
+    status: data.status ?? 'open',
+    initiatedAt: data.initiatedAt ?? null,
+    initiatedByUid: data.initiatedByUid ?? null,
+    finalizedAt: data.finalizedAt ?? null,
+    finalizedByUid: data.finalizedByUid ?? null,
+  };
+}
+
+router.get('/:projectId/closure/status', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { validateClosureReadiness } = await import(
+      '../../services/projectClosure/projectClosureService.js'
+    );
+
+    const db = admin.firestore();
+
+    const safeRead = async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.closure.status.read.${label}.failed`, err);
+        return null;
+      }
+    };
+
+    const byProject = (col: string) =>
+      db.collection(col).where('projectId', '==', projectId);
+
+    const [openIncidents, openActions, openPermits, lessonsCount, decisionsCount, state] =
+      await Promise.all([
+        safeRead('incidents', async () => {
+          const snap = await byProject('incidents').get();
+          return snap.docs.filter((d) => {
+            const data = d.data() as Record<string, unknown>;
+            const status = data.status;
+            return status !== 'closed' && status !== 'resolved' && status !== 'verified';
+          }).length;
+        }),
+        safeRead('actions', async () => {
+          const snap = await db
+            .collection(`tenants/${g.tenantId}/projects/${projectId}/corrective_actions`)
+            .get();
+          return snap.docs.filter((d) => {
+            const data = d.data() as Record<string, unknown>;
+            const status = data.status;
+            return status !== 'closed' && status !== 'verified';
+          }).length;
+        }),
+        safeRead('permits', async () => {
+          const snap = await db
+            .collection(`tenants/${g.tenantId}/projects/${projectId}/work_permits`)
+            .get();
+          return snap.docs.filter((d) => {
+            const data = d.data() as Record<string, unknown>;
+            const status = data.status;
+            return status === 'pending' || status === 'issued';
+          }).length;
+        }),
+        safeRead('lessonsCount', async () => {
+          const snap = await db
+            .collection(`tenants/${g.tenantId}/projects/${projectId}/closure/lessons`)
+            .get();
+          return snap.size;
+        }),
+        safeRead('decisionsCount', async () => {
+          const snap = await db
+            .collection(`tenants/${g.tenantId}/projects/${projectId}/closure/decisions`)
+            .get();
+          return snap.size;
+        }),
+        readClosureState(db, g.tenantId, projectId),
+      ]);
+
+    const pendingOpenIncidents = openIncidents ?? 0;
+    const pendingOpenActions = openActions ?? 0;
+    const pendingOpenPermits = openPermits ?? 0;
+
+    const readiness = validateClosureReadiness({
+      pendingOpenIncidents,
+      pendingOpenActions,
+      pendingOpenPermits,
+      hasFinalReport: (lessonsCount ?? 0) > 0,
+      unconfirmedSpofs: 0,
+    });
+
+    // Readiness percent: each blocker subtracts ~25, each warning ~5.
+    const blockerPenalty = readiness.blockers.length * 25;
+    const warningPenalty = readiness.warnings.length * 5;
+    const readinessPercent = Math.max(0, Math.min(100, 100 - blockerPenalty - warningPenalty));
+
+    return res.json({
+      state,
+      readinessPercent,
+      canClose: readiness.canClose,
+      blockers: readiness.blockers,
+      warnings: readiness.warnings,
+      pending: {
+        openIncidents: pendingOpenIncidents,
+        openActions: pendingOpenActions,
+        openPermits: pendingOpenPermits,
+        lessonsCaptured: lessonsCount ?? 0,
+        decisionsLogged: decisionsCount ?? 0,
+      },
+    });
+  } catch (err) {
+    logger.error?.('sprintK.closure.status.error', err);
+    captureRouteError(err, 'sprintK.closure.status');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+router.post('/:projectId/closure/initiate', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const db = admin.firestore();
+    const ref = db
+      .collection(`tenants/${g.tenantId}/projects/${projectId}/closure`)
+      .doc('state');
+    const snap = await ref.get();
+    const current = snap.exists ? (snap.data() as Partial<ClosureState>) : {};
+    if (current.status === 'finalized') {
+      return res.status(409).json({ error: 'already_finalized' });
+    }
+    const now = new Date().toISOString();
+    const payload: ClosureState = {
+      status: 'initiated',
+      initiatedAt: now,
+      initiatedByUid: callerUid,
+      finalizedAt: current.finalizedAt ?? null,
+      finalizedByUid: current.finalizedByUid ?? null,
+    };
+    await ref.set(payload, { merge: true });
+    return res.status(201).json({ ok: true, state: payload });
+  } catch (err) {
+    logger.error?.('sprintK.closure.initiate.error', err);
+    captureRouteError(err, 'sprintK.closure.initiate');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+const closureLessonSchema = z.object({
+  id: z.string().min(1).max(120).optional(),
+  summary: z.string().min(5).max(2000),
+  preventiveAction: z.string().min(5).max(2000),
+  riskCategories: z.array(z.string().min(1).max(80)).max(20).optional(),
+  tags: z.array(z.string().min(1).max(80)).max(20).optional(),
+  industry: z.string().min(1).max(120),
+});
+
+router.post(
+  '/:projectId/closure/lessons',
+  verifyAuth,
+  validate(closureLessonSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof closureLessonSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const state = await readClosureState(db, g.tenantId, projectId);
+      if (state.status === 'finalized') {
+        return res.status(409).json({ error: 'closure_finalized' });
+      }
+      const now = new Date().toISOString();
+      const id =
+        body.id ?? `cl_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+      // Publish to the global F.12 LessonsLearned library with
+      // scope='industry'. We do this BEFORE persisting the closure
+      // record so the publishedLessonId is captured atomically. If
+      // publication fails we still record the captured lesson and
+      // leave publishedLessonId null — the UI can re-attempt later.
+      let publishedLessonId: string | null = null;
+      try {
+        const adapter = new LessonsAdapter(
+          admin.firestore() as any,
+          g.tenantId,
+        );
+        const publishId = `pub_${id}`;
+        await adapter.save({
+          id: publishId,
+          summary: body.summary,
+          preventiveAction: body.preventiveAction,
+          riskCategories: body.riskCategories ?? [],
+          tags: [
+            ...(body.tags ?? []),
+            'project_closure',
+            body.industry,
+          ],
+          scope: 'industry',
+          industry: body.industry,
+          publishedAt: now,
+          adoptionCount: 0,
+        });
+        publishedLessonId = publishId;
+      } catch (publishErr) {
+        logger.warn?.('sprintK.closure.lessons.publish_failed', publishErr);
+      }
+
+      const stored: StoredClosureLesson = {
+        id,
+        summary: body.summary,
+        preventiveAction: body.preventiveAction,
+        riskCategories: body.riskCategories ?? [],
+        tags: body.tags ?? [],
+        industry: body.industry,
+        capturedAt: now,
+        capturedByUid: callerUid,
+        publishedLessonId,
+      };
+      await db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/closure/lessons`)
+        .doc(id)
+        .set(stored, { merge: true });
+      return res.status(201).json({ ok: true, lesson: stored });
+    } catch (err) {
+      logger.error?.('sprintK.closure.lessons.create.error', err);
+      captureRouteError(err, 'sprintK.closure.lessons.create');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const closureDecisionSchema = z.object({
+  id: z.string().min(1).max(120).optional(),
+  decidedAt: z.string().min(10),
+  context: z.string().min(5).max(4000),
+  decision: z.string().min(5).max(4000),
+  decidedByUid: z.string().min(1).max(120).optional(),
+  outcome: z.enum(['positive', 'neutral', 'negative']),
+});
+
+router.post(
+  '/:projectId/closure/decisions',
+  verifyAuth,
+  validate(closureDecisionSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof closureDecisionSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const state = await readClosureState(db, g.tenantId, projectId);
+      if (state.status === 'finalized') {
+        return res.status(409).json({ error: 'closure_finalized' });
+      }
+      const now = new Date().toISOString();
+      const id =
+        body.id ?? `cd_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const stored: StoredCriticalDecision = {
+        id,
+        decidedAt: body.decidedAt,
+        context: body.context,
+        decision: body.decision,
+        decidedByUid: body.decidedByUid ?? callerUid,
+        outcome: body.outcome,
+        loggedAt: now,
+        loggedByUid: callerUid,
+      };
+      await db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/closure/decisions`)
+        .doc(id)
+        .set(stored, { merge: true });
+      return res.status(201).json({ ok: true, decision: stored });
+    } catch (err) {
+      logger.error?.('sprintK.closure.decisions.create.error', err);
+      captureRouteError(err, 'sprintK.closure.decisions.create');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+router.get('/:projectId/closure/summary', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { buildSummary } = await import(
+      '../../services/projectClosure/projectClosureService.js'
+    );
+
+    // Worker/supervisor/gerencia → motor audiences (management/operations/client/regulatory).
+    const roleParam =
+      typeof req.query.role === 'string' ? req.query.role.toLowerCase() : 'gerencia';
+    let audience: 'management' | 'client' | 'operations' | 'regulatory' = 'management';
+    if (roleParam === 'worker' || roleParam === 'operations') audience = 'operations';
+    else if (roleParam === 'supervisor') audience = 'client';
+    else if (roleParam === 'gerencia' || roleParam === 'management') audience = 'management';
+    else if (roleParam === 'regulatory') audience = 'regulatory';
+
+    const db = admin.firestore();
+
+    const safeRead = async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.closure.summary.read.${label}.failed`, err);
+        return null;
+      }
+    };
+
+    const byProject = (col: string) =>
+      db.collection(col).where('projectId', '==', projectId);
+
+    const [
+      incidents,
+      lessonsList,
+      decisionsList,
+      state,
+    ] = await Promise.all([
+      safeRead('incidents', async () => {
+        const snap = await byProject('incidents').get();
+        return snap.docs.map((d) => d.data() as Record<string, unknown>);
+      }),
+      safeRead('lessons', async () => {
+        const snap = await db
+          .collection(`tenants/${g.tenantId}/projects/${projectId}/closure/lessons`)
+          .get();
+        return snap.docs.map((d) => d.data() as StoredClosureLesson);
+      }),
+      safeRead('decisions', async () => {
+        const snap = await db
+          .collection(`tenants/${g.tenantId}/projects/${projectId}/closure/decisions`)
+          .get();
+        return snap.docs.map((d) => d.data() as StoredCriticalDecision);
+      }),
+      readClosureState(db, g.tenantId, projectId),
+    ]);
+
+    const totalIncidents = incidents?.length ?? 0;
+    const criticalIncidents =
+      incidents?.filter((it) => {
+        const sev = it.severity;
+        return sev === 'critical' || sev === 'serious' || sev === 'fatal';
+      }).length ?? 0;
+
+    const snapshot = {
+      projectId,
+      closedAt: state.finalizedAt ?? new Date().toISOString(),
+      closedByUid: state.finalizedByUid ?? 'pending',
+      totalIncidents,
+      criticalIncidents,
+      preventedIncidentsEstimated: 0,
+      totalActionsCompleted: 0,
+      totalSitebookEntries: 0,
+      totalTrainingHours: 0,
+      averageComplianceScore: 0,
+      criticalDecisions: (decisionsList ?? []).map((d) => ({
+        id: d.id,
+        decidedAt: d.decidedAt,
+        context: d.context,
+        decision: d.decision,
+        decidedByUid: d.decidedByUid,
+        outcome: d.outcome,
+      })),
+      transferableLessons: (lessonsList ?? []).map((l) => ({
+        id: l.id,
+        summary: l.summary,
+        preventiveAction: l.preventiveAction,
+        riskCategories: l.riskCategories,
+        tags: l.tags,
+        scope: 'industry' as const,
+        industry: l.industry,
+        publishedAt: l.capturedAt,
+        adoptionCount: 0,
+      })),
+      retentionRecommendations: [],
+      improvementOpportunities: [],
+    };
+
+    const summary = buildSummary(audience, snapshot);
+    return res.json({
+      summary,
+      role: roleParam,
+      audience,
+      counts: {
+        lessons: lessonsList?.length ?? 0,
+        decisions: decisionsList?.length ?? 0,
+        incidents: totalIncidents,
+        criticalIncidents,
+      },
+    });
+  } catch (err) {
+    logger.error?.('sprintK.closure.summary.error', err);
+    captureRouteError(err, 'sprintK.closure.summary');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+router.post('/:projectId/closure/finalize', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { validateClosureReadiness } = await import(
+      '../../services/projectClosure/projectClosureService.js'
+    );
+
+    const db = admin.firestore();
+
+    const safeRead = async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.closure.finalize.read.${label}.failed`, err);
+        return null;
+      }
+    };
+
+    const byProject = (col: string) =>
+      db.collection(col).where('projectId', '==', projectId);
+
+    const [openIncidents, openActions, openPermits, lessonsCount] = await Promise.all([
+      safeRead('incidents', async () => {
+        const snap = await byProject('incidents').get();
+        return snap.docs.filter((d) => {
+          const data = d.data() as Record<string, unknown>;
+          const status = data.status;
+          return status !== 'closed' && status !== 'resolved' && status !== 'verified';
+        }).length;
+      }),
+      safeRead('actions', async () => {
+        const snap = await db
+          .collection(`tenants/${g.tenantId}/projects/${projectId}/corrective_actions`)
+          .get();
+        return snap.docs.filter((d) => {
+          const data = d.data() as Record<string, unknown>;
+          const status = data.status;
+          return status !== 'closed' && status !== 'verified';
+        }).length;
+      }),
+      safeRead('permits', async () => {
+        const snap = await db
+          .collection(`tenants/${g.tenantId}/projects/${projectId}/work_permits`)
+          .get();
+        return snap.docs.filter((d) => {
+          const data = d.data() as Record<string, unknown>;
+          const status = data.status;
+          return status === 'pending' || status === 'issued';
+        }).length;
+      }),
+      safeRead('lessonsCount', async () => {
+        const snap = await db
+          .collection(`tenants/${g.tenantId}/projects/${projectId}/closure/lessons`)
+          .get();
+        return snap.size;
+      }),
+    ]);
+
+    const readiness = validateClosureReadiness({
+      pendingOpenIncidents: openIncidents ?? 0,
+      pendingOpenActions: openActions ?? 0,
+      pendingOpenPermits: openPermits ?? 0,
+      hasFinalReport: (lessonsCount ?? 0) > 0,
+      unconfirmedSpofs: 0,
+    });
+
+    if (!readiness.canClose) {
+      return res.status(409).json({
+        error: 'cannot_finalize',
+        blockers: readiness.blockers,
+      });
+    }
+
+    const now = new Date().toISOString();
+    const stateRef = db
+      .collection(`tenants/${g.tenantId}/projects/${projectId}/closure`)
+      .doc('state');
+    const current = (await stateRef.get()).data() as Partial<ClosureState> | undefined;
+    const payload: ClosureState = {
+      status: 'finalized',
+      initiatedAt: current?.initiatedAt ?? now,
+      initiatedByUid: current?.initiatedByUid ?? callerUid,
+      finalizedAt: now,
+      finalizedByUid: callerUid,
+    };
+    await stateRef.set(payload, { merge: true });
+    return res.status(200).json({ ok: true, state: payload });
+  } catch (err) {
+    logger.error?.('sprintK.closure.finalize.error', err);
+    captureRouteError(err, 'sprintK.closure.finalize');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 
 export default router;

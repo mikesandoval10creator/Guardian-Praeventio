@@ -146,6 +146,11 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Sprint 40 Fase F.4 — Centro de Acciones Correctivas (PDCA).
         // Acceso directo desde Cumplimiento — cierra ISO 45001 §10.2.
         { title: t("nav.corrective_actions", "Acciones Correctivas"), icon: ListChecks, path: "/corrective-actions", color: "text-teal-500" },
+        // Sprint K §131-138 — Cierre de Proyecto + Lecciones Transferibles +
+        // Decisiones Críticas + Resúmenes Multi-Rol. Cierra el ciclo
+        // completo: extrae lecciones publicables (scope='industry'),
+        // registra decisiones críticas, y genera resúmenes adaptados al rol.
+        { title: t("nav.project_closure", "Cierre de Proyecto"), icon: Briefcase, path: "/closure", color: "text-violet-500" },
         // Sprint K §195-200 — Módulo PDCA + No Conformidades (ISO 45001 §10.2).
         // Kanban Plan/Do/Check/Act sobre ciclos vinculados a NCs.
         { title: t("nav.pdca", "PDCA + No Conformidades"), icon: Activity, path: "/pdca", color: "text-teal-500" },
