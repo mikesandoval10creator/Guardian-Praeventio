@@ -42,6 +42,7 @@ export const calculatePreventionROI = async (projectData: any) => {
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 };
 
@@ -81,5 +82,6 @@ export const generateSusesoFormMetadata = async (incident: any, projectContext: 
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 };

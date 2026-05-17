@@ -141,8 +141,8 @@ router.post(
   zettelkastenWriteLimiter,
   validate(zettelkastenWriteSchema),
   async (req, res) => {
-    const callerUid = req.user.uid;
-    const callerEmail: string | null = req.user.email ?? null;
+    const callerUid = req.user!.uid;
+    const callerEmail: string | null = req.user!.email ?? null;
     // Sprint 29 H17: shape gate (projectId/nodes typeof + length) removed â€”
     // `zettelkastenWriteSchema` is the single source of truth. `validateNode`
     // stays: it enforces the ID_REGEX on idempotencyKey and other per-node

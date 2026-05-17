@@ -17,9 +17,6 @@ function entry(over: Partial<SiteBookEntry> & { folio: string; year: number; seq
   return {
     id: `id-${over.folio}`,
     projectId: 'p1',
-    folio: over.folio,
-    year: over.year,
-    sequenceNumber: over.sequenceNumber,
     kind: over.kind ?? 'inspection',
     occurredAt: over.occurredAt ?? '2026-05-11T10:00:00Z',
     recordedAt: '2026-05-11T10:05:00Z',
@@ -27,6 +24,10 @@ function entry(over: Partial<SiteBookEntry> & { folio: string; year: number; seq
     recordedByRole: 'supervisor',
     description: over.description ?? 'Inspección de rutina sector A.',
     status: over.status ?? 'open',
+    // Spread `over` LAST so folio/year/sequenceNumber from the caller
+    // override our defaults instead of being overwritten by the spread.
+    // The original `folio: over.folio` early in the object literal was
+    // dead code — the trailing `...over` always shadowed it.
     ...over,
   };
 }

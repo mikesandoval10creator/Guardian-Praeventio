@@ -71,6 +71,7 @@ async function generatePredictiveForecastImpl(projectName: string, context: stri
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 }
 
@@ -119,5 +120,6 @@ async function analyzeRiskCorrelationsImpl(nodes: any[], events: any[]) {
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 }

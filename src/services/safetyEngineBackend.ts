@@ -83,6 +83,7 @@ export const autoValidateTelemetry = async (telemetryEvent: any) => {
             config: { responseMimeType: "application/json" }
         });
         
+        if (!response.text) throw new Error('gemini_empty_response');
         return JSON.parse(response.text);
     } catch (e) {
         logger.error("Error auto-validating telemetry:", e);
@@ -124,5 +125,6 @@ export const predictGlobalIncidents = async (context: string, envContext: string
         }
     });
 
+    if (!response.text) throw new Error('gemini_empty_response');
     return JSON.parse(response.text);
 };

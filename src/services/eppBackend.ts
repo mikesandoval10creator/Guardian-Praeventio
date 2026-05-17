@@ -33,6 +33,7 @@ export const predictEPPReplacement = async (eppItem: any, usageData: any) => {
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 };
 
@@ -68,5 +69,6 @@ export const auditEPPCompliance = async (workerId: string, assignedEPP: any[], r
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 };

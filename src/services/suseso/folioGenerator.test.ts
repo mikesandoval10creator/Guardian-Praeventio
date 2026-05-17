@@ -57,8 +57,12 @@ function buildStore(opts?: { ghostWriteOnFirstRead?: boolean }): {
           if (opts?.ghostWriteOnFirstRead && !ghostUsed && pendingWrite) {
             ghostUsed = true;
             // Inject a competing write that lands BEFORE our commit.
-            const cur = data.get(pendingWrite.path)?.lastSeq ?? 0;
-            data.set(pendingWrite.path, { lastSeq: cur + 1 });
+            // TS narrowing of `pendingWrite` (declared `let`) is lost
+            // across the next statement under strictNullChecks; capture
+            // in a const to preserve the non-null narrowing.
+            const ghostTarget = pendingWrite;
+            const cur = data.get(ghostTarget.path)?.lastSeq ?? 0;
+            data.set(ghostTarget.path, { lastSeq: cur + 1 });
             collided = true;
           }
           if (!collided && pendingWrite) {
