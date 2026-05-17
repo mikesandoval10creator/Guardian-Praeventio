@@ -6229,4 +6229,330 @@ router.post(
   },
 );
 
+// ────────────────────────────────────────────────────────────────────────
+// §42-44 — Inventario Controles de Ingeniería + Jerarquía ISO 31000
+// ────────────────────────────────────────────────────────────────────────
+//
+// Inventario de controles aplicados según la jerarquía ISO 31000 /
+// 45001:
+//   elimination > substitution > engineering > administrative > epp
+//
+// Persistido en
+//   tenants/{tid}/projects/{pid}/engineering_controls/{id}
+//
+// Cada control declara:
+//   - level (en la jerarquía)
+//   - riskCategory que mitiga
+//   - descripción + responsable + frecuencia de verificación (días)
+//   - lista de verificaciones realizadas (verifierUid + result + evidence)
+//
+// La página deriva el estado de vigencia (verde/ámbar/rojo) a partir
+// del `lastVerifiedAt + verificationFrequencyDays`. Esta lógica es
+// determinística: el motor `engineeringControlsInventory` (servicio
+// existente, intacto) calcula la cobertura de riesgos y la auditoría
+// de jerarquía a partir del inventario.
+
+type EngControlHierarchyLevel =
+  | 'elimination'
+  | 'substitution'
+  | 'engineering'
+  | 'administrative'
+  | 'epp';
+
+const ENG_CTRL_LEVELS: ReadonlySet<EngControlHierarchyLevel> = new Set([
+  'elimination',
+  'substitution',
+  'engineering',
+  'administrative',
+  'epp',
+]);
+
+interface StoredEngineeringControl {
+  id: string;
+  level: EngControlHierarchyLevel;
+  riskCategory: string;
+  name: string;
+  description: string;
+  responsibleUid: string;
+  verificationFrequencyDays: number;
+  createdAt: string;
+  createdBy: string;
+  lastVerifiedAt: string | null;
+  verifications: Array<{
+    verifierUid: string;
+    verifiedAt: string;
+    result: 'pass' | 'observation' | 'fail';
+    evidence?: string;
+  }>;
+}
+
+router.get(
+  '/:projectId/engineering-controls',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      // Codex P2 (PR #319): surface read failures instead of silently
+      // returning `[]`. A missing collection already yields an empty
+      // snapshot — a *thrown* error here means Firestore is degraded,
+      // permissions changed, or the backend rejected the read. Hiding
+      // that as "no controls" lets the UI report the project has nothing
+      // inventoried during outages, which is dangerous for a safety
+      // surface. We still return 200 + empty list so the page renders,
+      // but we attach `warning: 'partial_read_failure'` so the UI can
+      // show a degraded-data banner instead of a clean empty state.
+      let partialReadFailure = false;
+      const safeRead = async <T,>(
+        label: string,
+        fn: () => Promise<T[]>,
+      ): Promise<T[]> => {
+        try {
+          return await fn();
+        } catch (err) {
+          logger.warn?.(`sprintK.engineeringControls.read.${label}.failed`, err);
+          partialReadFailure = true;
+          return [];
+        }
+      };
+
+      const db = admin.firestore();
+      const colRef = db.collection(
+        `tenants/${g.tenantId}/projects/${projectId}/engineering_controls`,
+      );
+
+      const rawLevel = typeof req.query.level === 'string' ? req.query.level : 'all';
+      // 'admin' is the shorthand used on the frontend; map to 'administrative'.
+      const levelParam: 'all' | EngControlHierarchyLevel =
+        rawLevel === 'all'
+          ? 'all'
+          : rawLevel === 'admin'
+            ? 'administrative'
+            : (ENG_CTRL_LEVELS.has(rawLevel as EngControlHierarchyLevel)
+                ? (rawLevel as EngControlHierarchyLevel)
+                : 'all');
+      const riskCategory =
+        typeof req.query.riskCategory === 'string' ? req.query.riskCategory : null;
+
+      const controls = await safeRead('list', async () => {
+        const snap = await colRef.get();
+        return snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<StoredEngineeringControl, 'id'>),
+        }));
+      });
+
+      // Codex P2 (PR #319, round 2): include `general` (cross-cutting)
+      // controls in risk-filtered results. The page contract — and the
+      // client-side post-filter in EngineeringControls.tsx — treats
+      // `general` controls as applicable to every risk (site-wide
+      // signage, housekeeping, etc.). An exact-match server filter would
+      // strip them out before the client could keep them, leaving the
+      // user with an incomplete inventory under any specific risk chip.
+      // Match if the control's category equals the requested one *or*
+      // the control is tagged `general`. The level filter still applies
+      // unchanged.
+      const filtered = controls.filter((c) => {
+        if (levelParam !== 'all' && c.level !== levelParam) return false;
+        if (
+          riskCategory &&
+          c.riskCategory !== riskCategory &&
+          c.riskCategory !== 'general'
+        )
+          return false;
+        return true;
+      });
+
+      return res.json({
+        controls: filtered,
+        ...(partialReadFailure ? { warning: 'partial_read_failure' } : {}),
+      });
+    } catch (err) {
+      logger.error?.('sprintK.engineeringControls.list.error', err);
+      captureRouteError(err, 'sprintK.engineeringControls.list');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+/**
+ * Codex P1 (PR #319): typed error raised inside the create-transaction
+ * when the client-supplied control ID already exists. Lets the route
+ * map the failure to a 409 with the stable code
+ * `engineering_control_duplicate_id` instead of bubbling up as a 500.
+ */
+class EngineeringControlDuplicateError extends Error {
+  readonly controlId: string;
+  constructor(controlId: string) {
+    super(`engineering control already exists: ${controlId}`);
+    this.name = 'EngineeringControlDuplicateError';
+    this.controlId = controlId;
+  }
+}
+
+const engineeringControlCreateSchema = z.object({
+  id: z.string().min(1),
+  level: z.enum(['elimination', 'substitution', 'engineering', 'administrative', 'epp']),
+  riskCategory: z.string().min(1).max(200),
+  name: z.string().min(3).max(300),
+  description: z.string().min(3).max(4000),
+  responsibleUid: z.string().min(1),
+  verificationFrequencyDays: z.number().int().positive().max(3650),
+});
+
+router.post(
+  '/:projectId/engineering-controls',
+  verifyAuth,
+  validate(engineeringControlCreateSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof engineeringControlCreateSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const doc: StoredEngineeringControl = {
+        id: body.id,
+        level: body.level,
+        riskCategory: body.riskCategory,
+        name: body.name,
+        description: body.description,
+        responsibleUid: body.responsibleUid,
+        verificationFrequencyDays: body.verificationFrequencyDays,
+        createdAt: new Date().toISOString(),
+        createdBy: callerUid,
+        lastVerifiedAt: null,
+        verifications: [],
+      };
+      const ref = admin
+        .firestore()
+        .collection(
+          `tenants/${g.tenantId}/projects/${projectId}/engineering_controls`,
+        )
+        .doc(body.id);
+      // Codex P1 (PR #319): reject duplicate IDs instead of silently
+      // overwriting. The ID is client-supplied, so `.set()` would let a
+      // colliding ID erase an existing control's `createdAt`,
+      // `createdBy`, `lastVerifiedAt` and the whole `verifications`
+      // audit history. Run the write inside a transaction that fails
+      // when the document already exists, returning 409 with a stable
+      // error code (`engineering_control_duplicate_id`) so the frontend
+      // can show a "ya existe" message. Note: `.create()` is documented
+      // to throw `ALREADY_EXISTS` (gRPC code 6) if the doc exists, but
+      // a transaction-based check is more portable across mocked admin
+      // SDKs in tests and matches the qr-signature acknowledgement
+      // pattern used elsewhere in this file.
+      const db = admin.firestore();
+      try {
+        await db.runTransaction(async (txn) => {
+          const existing = await txn.get(ref);
+          if (existing.exists) {
+            throw new EngineeringControlDuplicateError(body.id);
+          }
+          txn.create(ref, doc);
+        });
+      } catch (err) {
+        if (err instanceof EngineeringControlDuplicateError) {
+          return res.status(409).json({
+            error: 'engineering_control_duplicate_id',
+            controlId: err.controlId,
+          });
+        }
+        // `txn.create()` itself can throw ALREADY_EXISTS (gRPC code 6)
+        // if a parallel writer races us between `txn.get` and `txn.create`.
+        // Surface that as 409 too so the contract stays consistent.
+        const code = (err as { code?: number | string } | null)?.code;
+        if (code === 6 || code === 'ALREADY_EXISTS') {
+          return res.status(409).json({
+            error: 'engineering_control_duplicate_id',
+            controlId: body.id,
+          });
+        }
+        throw err;
+      }
+      return res.status(201).json({ ok: true, control: doc });
+    } catch (err) {
+      logger.error?.('sprintK.engineeringControls.create.error', err);
+      captureRouteError(err, 'sprintK.engineeringControls.create');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// Codex P1 (PR #319): the verify schema no longer accepts `verifierUid`
+// from the request body. The server derives the verifier identity from
+// the authenticated caller (`req.user!.uid`) so a project member cannot
+// impersonate a supervisor/manager in the audit trail. Same fix as
+// PR #318: never trust client-supplied identity for safety records.
+const engineeringControlVerifySchema = z.object({
+  result: z.enum(['pass', 'observation', 'fail']),
+  evidence: z.string().max(4000).optional(),
+});
+
+router.post(
+  '/:projectId/engineering-controls/:id/verify',
+  verifyAuth,
+  validate(engineeringControlVerifySchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, id } = req.params;
+    const body = req.body as z.infer<typeof engineeringControlVerifySchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const ref = admin
+        .firestore()
+        .collection(
+          `tenants/${g.tenantId}/projects/${projectId}/engineering_controls`,
+        )
+        .doc(id);
+
+      const snap = await ref.get();
+      if (!snap.exists) {
+        return res.status(404).json({ error: 'control_not_found' });
+      }
+      const now = new Date().toISOString();
+      const entry = {
+        // Codex P1 (PR #319): use the authenticated caller, never the
+        // request body. The audit trail must reflect who actually did
+        // the check, not who the client claims did it.
+        verifierUid: callerUid,
+        verifiedAt: now,
+        result: body.result,
+        ...(body.evidence ? { evidence: body.evidence } : {}),
+      };
+      // FieldValue.arrayUnion keeps history additive — never silently
+      // overwrites prior verifications. `lastVerifiedAt` is the canonical
+      // timestamp the UI uses to compute vigencia (verde/ámbar/rojo)
+      // against `verificationFrequencyDays`.
+      //
+      // Codex P2 (PR #319): only advance `lastVerifiedAt` when the
+      // verification actually passed. Advancing on `observation` or
+      // `fail` would let a freshly *failed* control appear "Vigente"
+      // (green) right after the failure — because the page derives the
+      // green/amber/red status from `lastVerifiedAt + frequency` alone.
+      // The failed/observation entries still land in `verifications` so
+      // the history is complete; they just don't bump the canonical
+      // currency timestamp.
+      const updatePayload: {
+        verifications: admin.firestore.FieldValue;
+        lastVerifiedAt?: string;
+      } = {
+        verifications: admin.firestore.FieldValue.arrayUnion(entry),
+      };
+      if (body.result === 'pass') {
+        updatePayload.lastVerifiedAt = now;
+      }
+      await ref.update(updatePayload);
+      return res.status(200).json({ ok: true, entry });
+    } catch (err) {
+      logger.error?.('sprintK.engineeringControls.verify.error', err);
+      captureRouteError(err, 'sprintK.engineeringControls.verify');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 export default router;

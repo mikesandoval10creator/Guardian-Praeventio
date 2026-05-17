@@ -77,6 +77,10 @@ const PositiveObservations = lazy(() => import('./pages/PositiveObservations').t
 // Distinto del SOS de emergencia: inspector/supervisor captura hallazgos
 // de terreno sin conexión, sync diferido cuando vuelve la red.
 const OfflineInspection = lazy(() => import('./pages/OfflineInspection').then(module => ({ default: module.OfflineInspection })));
+// §42-44 — Inventario Controles de Ingeniería + Jerarquía ISO 31000.
+// Service `engineeringControlsInventory` ya existía; este page wrapper
+// + endpoint cierra el wire end-to-end.
+const EngineeringControls = lazy(() => import('./pages/EngineeringControls').then(module => ({ default: module.EngineeringControls })));
 // Sprint 40 Fase F.5 — Firma QR de Recepción (EPP, charlas, docs, capacitaciones).
 // Service + modal + HMAC engine ya existían; este page wire cierra el wire end-to-end.
 const QrSignature = lazy(() => import('./pages/QrSignature').then(module => ({ default: module.QrSignature })));
@@ -173,6 +177,7 @@ function AppRoutes() {
               <Route path="emergency-brigade" element={<EmergencyBrigade />} />
               <Route path="positive-observations" element={<PositiveObservations />} />
               <Route path="inspections" element={<OfflineInspection />} />
+              <Route path="engineering-controls" element={<EngineeringControls />} />
               <Route path="qr-signature" element={<QrSignature />} />
               <Route path="maturity-index" element={<MaturityIndicator />} />
               <Route path="work-permits" element={<WorkPermits />} />
@@ -310,6 +315,7 @@ function AppRoutes() {
                     <Route path="emergency-brigade" element={<EmergencyBrigade />} />
                     <Route path="positive-observations" element={<PositiveObservations />} />
                     <Route path="inspections" element={<OfflineInspection />} />
+                    <Route path="engineering-controls" element={<EngineeringControls />} />
                     <Route path="qr-signature" element={<QrSignature />} />
                     <Route path="maturity-index" element={<MaturityIndicator />} />
                     <Route path="work-permits" element={<WorkPermits />} />
