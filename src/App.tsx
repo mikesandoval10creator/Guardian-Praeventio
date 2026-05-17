@@ -73,6 +73,9 @@ const PdcaModule = lazy(() => import('./pages/PdcaModule').then(module => ({ def
 // Snapshot anual con objetivos preventivos + evidencias + conclusiones
 // firmadas. Cierra el ciclo PDCA a nivel anual.
 const AnnualReview = lazy(() => import('./pages/AnnualReview').then(module => ({ default: module.AnnualReview })));
+// Sprint K §296-301 — Riesgo Residual + Aceptación Formal + Criticidad
+// Sospechosa. ISO 31000 / ISO 45001 §6.1.2.2 — endpoint + hook + page wired.
+const ResidualRisk = lazy(() => import('./pages/ResidualRisk').then(module => ({ default: module.ResidualRisk })));
 // Sprint K §74-78 — Brigada de Emergencia + Recursos (extintores, AED,
 // eyewash, kits, etc.). Service + panel ya existían; este wire cierra
 // el end-to-end con endpoint + hook + page navegable.
@@ -197,6 +200,7 @@ function AppRoutes() {
               <Route path="corrective-actions" element={<CorrectiveActions />} />
               <Route path="pdca" element={<PdcaModule />} />
               <Route path="annual-review" element={<AnnualReview />} />
+              <Route path="residual-risk" element={<ResidualRisk />} />
               <Route path="emergency-brigade" element={<EmergencyBrigade />} />
               <Route path="positive-observations" element={<PositiveObservations />} />
               <Route path="inspections" element={<OfflineInspection />} />
@@ -340,6 +344,7 @@ function AppRoutes() {
                     <Route path="corrective-actions" element={<CorrectiveActions />} />
                     <Route path="pdca" element={<PdcaModule />} />
                     <Route path="annual-review" element={<AnnualReview />} />
+                    <Route path="residual-risk" element={<ResidualRisk />} />
                     <Route path="emergency-brigade" element={<EmergencyBrigade />} />
                     <Route path="positive-observations" element={<PositiveObservations />} />
                     <Route path="inspections" element={<OfflineInspection />} />

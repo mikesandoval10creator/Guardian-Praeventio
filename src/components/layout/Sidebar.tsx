@@ -153,6 +153,11 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Cierra el ciclo PDCA a nivel anual: objetivos preventivos,
         // evidencias y conclusiones firmadas por la dirección.
         { title: t("nav.annual_review", "Revisión Anual SGI"), icon: ClipboardCheck, path: "/annual-review", color: "text-violet-500" },
+        // Sprint K §296-301 — Riesgo Residual + Aceptación Formal +
+        // Detector de Criticidad Sospechosa. ISO 31000 risk-flow:
+        // residual >= alto requiere firma de gerencia, drift sospechoso
+        // se marca para revisión humana sin bloquear operación.
+        { title: t("nav.residual_risk", "Riesgo Residual"), icon: AlertOctagon, path: "/residual-risk", color: "text-rose-500" },
         // Sprint K §90-91 — Calidad de Proveedores + Ranking de Riesgo.
         // Motor determinístico (supplierScoring 4-dim) ya vivía; este link
         // hace visible el ranking para decisiones de adjudicación.

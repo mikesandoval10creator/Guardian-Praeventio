@@ -23,6 +23,13 @@ import type { LotoApplication } from '../services/loto/lotoDigitalLight';
 import type { Equipment, EquipmentStatus } from '../services/equipment/equipmentQrService';
 import type { ScoreBreakdown } from '../services/suppliers/supplierScoring';
 import type { PreventiveObjective } from '../services/annualReview/annualSgiReview';
+import type {
+  RiskLikelihood as ResidualRiskLikelihood,
+  RiskSeverity as ResidualRiskSeverity,
+  RiskLevel as ResidualRiskLevel,
+  AppliedControl as ResidualAppliedControl,
+  ControlEffectivenessLevel as ResidualControlEffectiveness,
+} from '../services/residualRisk/residualRiskEngine';
 
 interface FetchState<T> {
   data: T | null;
@@ -2330,4 +2337,113 @@ export async function concludeAnnualReview(
     input as unknown as Record<string, unknown>,
   );
   return json.snapshot;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Sprint K §296-301 — Riesgo Residual + Aceptación Formal + Suspicious
+// ────────────────────────────────────────────────────────────────────────
+
+export interface StoredResidualRisk {
+  id: string;
+  hazard: string;
+  category: string;
+  riskKind: 'physical' | 'administrative';
+  likelihood: ResidualRiskLikelihood;
+  inherentSeverity: ResidualRiskSeverity;
+  residualSeverity: ResidualRiskSeverity;
+  currentControls: ResidualAppliedControl[];
+  justification: string;
+  initialScore: number;
+  controlReduction: number;
+  residualScore: number;
+  initialLevel: ResidualRiskLevel;
+  residualLevel: ResidualRiskLevel;
+  requiresFormalAcceptance: boolean;
+  nextReviewInDays: number;
+  acceptance: {
+    status: 'pending' | 'accepted';
+    signedByUid: string | null;
+    signedAt: string | null;
+    reason: string | null;
+  };
+  createdAt: string;
+  createdBy: string;
+  isSuspicious: boolean;
+  suspiciousReason: string | null;
+}
+
+export interface ResidualRisksResponse {
+  risks: StoredResidualRisk[];
+}
+
+export function useResidualRisks(projectId: string | null) {
+  return useEndpoint<ResidualRisksResponse>(
+    projectId ? `/api/sprint-k/${projectId}/residual-risk` : null,
+  );
+}
+
+export function useSuspiciousRisks(projectId: string | null) {
+  return useEndpoint<ResidualRisksResponse>(
+    projectId ? `/api/sprint-k/${projectId}/residual-risk/suspicious` : null,
+  );
+}
+
+export interface ResidualRiskPayload {
+  id: string;
+  hazard: string;
+  category: string;
+  riskKind: 'physical' | 'administrative';
+  likelihood: ResidualRiskLikelihood;
+  inherentSeverity: ResidualRiskSeverity;
+  residualSeverity: ResidualRiskSeverity;
+  currentControls: Array<{
+    controlId: string;
+    effectiveness: ResidualControlEffectiveness;
+  }>;
+  justification: string;
+}
+
+export async function registerResidualRisk(
+  projectId: string,
+  payload: ResidualRiskPayload,
+): Promise<{ ok: true; risk: StoredResidualRisk }> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(`/api/sprint-k/${projectId}/residual-risk`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  return (await res.json()) as { ok: true; risk: StoredResidualRisk };
+}
+
+export async function acceptResidualRisk(
+  projectId: string,
+  riskId: string,
+  reason: string,
+): Promise<void> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/residual-risk/${riskId}/accept`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
 }
