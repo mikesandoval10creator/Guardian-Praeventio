@@ -46,7 +46,13 @@ let mockSelectedProject: { id: string; name: string } | null = null;
 let mockIsOnline = true;
 
 interface HookState {
-  data: { controls: EngineeringControlAPI[] } | null;
+  // Codex P2 (PR #319): the response may carry a `warning` flag when
+  // the server's read of the inventory partially failed. The test mock
+  // mirrors the wire shape so we can exercise the degraded-data banner.
+  data: {
+    controls: EngineeringControlAPI[];
+    warning?: 'partial_read_failure';
+  } | null;
   loading: boolean;
   error: Error | null;
   refetch: () => void;
@@ -230,11 +236,111 @@ describe('<EngineeringControls /> page wrapper (§42-44)', () => {
     // Wait microtask so the async handler resolves.
     await Promise.resolve();
     await Promise.resolve();
+    // Codex P1 (PR #319): the client no longer sends `verifierUid` —
+    // the server derives the verifier identity from the authenticated
+    // caller. The call should contain only `result` (and optional
+    // `evidence`) in the payload, never an arbitrary uid string.
     expect(mockVerifyControl).toHaveBeenCalledWith(
       'p-1',
       'ec_b',
-      expect.objectContaining({ verifierUid: 'caller_uid', result: 'pass' }),
+      expect.objectContaining({ result: 'pass' }),
     );
+    const verifyCallArgs = mockVerifyControl.mock.calls[0]?.[2] as
+      | Record<string, unknown>
+      | undefined;
+    expect(verifyCallArgs).toBeDefined();
+    expect(verifyCallArgs).not.toHaveProperty('verifierUid');
     expect(mockRefetch).toHaveBeenCalled();
+  });
+
+  it('mantiene visible el botón "Todos los riesgos" cuando el filtro está activo y no hay categorías', () => {
+    // Codex P2 (PR #319): when the user picks a category and then
+    // switches to a level with zero matching controls, the chip row
+    // must still surface the clear button so the stale `riskFilter` is
+    // recoverable without a page reload. We simulate this by setting a
+    // risk filter manually after first render with categories present.
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockResp = {
+      data: {
+        controls: [
+          makeControl({ id: 'ec_x', riskCategory: 'altura', level: 'engineering' }),
+        ],
+      },
+      loading: false,
+      error: null,
+      refetch: mockRefetch,
+    };
+    const { rerender } = render(<EngineeringControls />);
+    // Click the only existing risk chip to activate `riskFilter`. The
+    // chip is the only `<button>` whose accessible name is the category
+    // string (the strong tag inside the card is not a button), so a
+    // role-scoped query disambiguates it from any card text.
+    fireEvent.click(
+      screen.getByRole('button', { name: 'altura' }),
+    );
+    // Now simulate the server returning an empty list under that filter.
+    mockResp = {
+      data: { controls: [] },
+      loading: false,
+      error: null,
+      refetch: mockRefetch,
+    };
+    rerender(<EngineeringControls />);
+    // Clear button must still be there so the user can recover.
+    expect(
+      screen.getByTestId('engineering-controls-risk-clear'),
+    ).toBeInTheDocument();
+  });
+
+  it('siempre muestra controles con riskCategory "general" aunque haya filtro activo', () => {
+    // Codex P2 (PR #319): `general` controls are cross-cutting (they
+    // mitigate every risk, not a specific category) and must stay
+    // visible regardless of `riskFilter`. A user filtering by "altura"
+    // would otherwise hide a general control that also applies to
+    // altura, painting an incomplete inventory.
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockResp = {
+      data: {
+        controls: [
+          makeControl({ id: 'ec_alt', riskCategory: 'altura', name: 'Baranda' }),
+          makeControl({ id: 'ec_gen', riskCategory: 'general', name: 'Señalética' }),
+        ],
+      },
+      loading: false,
+      error: null,
+      refetch: mockRefetch,
+    };
+    const { rerender } = render(<EngineeringControls />);
+    // Pick `altura` filter chip.
+    fireEvent.click(
+      screen.getByRole('button', { name: 'altura' }),
+    );
+    rerender(<EngineeringControls />);
+    // The altura control is visible.
+    expect(
+      screen.getByTestId('engineering-controls-card-ec_alt'),
+    ).toBeInTheDocument();
+    // …and the general control is still visible (cross-cutting).
+    expect(
+      screen.getByTestId('engineering-controls-card-ec_gen'),
+    ).toBeInTheDocument();
+  });
+
+  it('muestra banner de lectura parcial cuando el servidor reporta partial_read_failure', () => {
+    // Codex P2 (PR #319): degraded-data banner must appear when the
+    // server returns `warning: 'partial_read_failure'`. Without it the
+    // page would silently show an empty (or partial) inventory and the
+    // user could act on incorrect compliance data.
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockResp = {
+      data: { controls: [], warning: 'partial_read_failure' },
+      loading: false,
+      error: null,
+      refetch: mockRefetch,
+    };
+    render(<EngineeringControls />);
+    expect(
+      screen.getByTestId('engineering-controls-warning'),
+    ).toBeInTheDocument();
   });
 });

@@ -6295,10 +6295,16 @@ router.get(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      // Best-effort read. If the collection is empty (new project) we
-      // return an empty list, not a 500. `safeRead` mirrors the helper
-      // used elsewhere in this file (data-quality / maturity) so a
-      // missing collection doesn't blank the UI.
+      // Codex P2 (PR #319): surface read failures instead of silently
+      // returning `[]`. A missing collection already yields an empty
+      // snapshot — a *thrown* error here means Firestore is degraded,
+      // permissions changed, or the backend rejected the read. Hiding
+      // that as "no controls" lets the UI report the project has nothing
+      // inventoried during outages, which is dangerous for a safety
+      // surface. We still return 200 + empty list so the page renders,
+      // but we attach `warning: 'partial_read_failure'` so the UI can
+      // show a degraded-data banner instead of a clean empty state.
+      let partialReadFailure = false;
       const safeRead = async <T,>(
         label: string,
         fn: () => Promise<T[]>,
@@ -6307,6 +6313,7 @@ router.get(
           return await fn();
         } catch (err) {
           logger.warn?.(`sprintK.engineeringControls.read.${label}.failed`, err);
+          partialReadFailure = true;
           return [];
         }
       };
@@ -6343,7 +6350,10 @@ router.get(
         return true;
       });
 
-      return res.json({ controls: filtered });
+      return res.json({
+        controls: filtered,
+        ...(partialReadFailure ? { warning: 'partial_read_failure' } : {}),
+      });
     } catch (err) {
       logger.error?.('sprintK.engineeringControls.list.error', err);
       captureRouteError(err, 'sprintK.engineeringControls.list');
@@ -6351,6 +6361,21 @@ router.get(
     }
   },
 );
+
+/**
+ * Codex P1 (PR #319): typed error raised inside the create-transaction
+ * when the client-supplied control ID already exists. Lets the route
+ * map the failure to a 409 with the stable code
+ * `engineering_control_duplicate_id` instead of bubbling up as a 500.
+ */
+class EngineeringControlDuplicateError extends Error {
+  readonly controlId: string;
+  constructor(controlId: string) {
+    super(`engineering control already exists: ${controlId}`);
+    this.name = 'EngineeringControlDuplicateError';
+    this.controlId = controlId;
+  }
+}
 
 const engineeringControlCreateSchema = z.object({
   id: z.string().min(1),
@@ -6386,13 +6411,52 @@ router.post(
         lastVerifiedAt: null,
         verifications: [],
       };
-      await admin
+      const ref = admin
         .firestore()
         .collection(
           `tenants/${g.tenantId}/projects/${projectId}/engineering_controls`,
         )
-        .doc(body.id)
-        .set(doc);
+        .doc(body.id);
+      // Codex P1 (PR #319): reject duplicate IDs instead of silently
+      // overwriting. The ID is client-supplied, so `.set()` would let a
+      // colliding ID erase an existing control's `createdAt`,
+      // `createdBy`, `lastVerifiedAt` and the whole `verifications`
+      // audit history. Run the write inside a transaction that fails
+      // when the document already exists, returning 409 with a stable
+      // error code (`engineering_control_duplicate_id`) so the frontend
+      // can show a "ya existe" message. Note: `.create()` is documented
+      // to throw `ALREADY_EXISTS` (gRPC code 6) if the doc exists, but
+      // a transaction-based check is more portable across mocked admin
+      // SDKs in tests and matches the qr-signature acknowledgement
+      // pattern used elsewhere in this file.
+      const db = admin.firestore();
+      try {
+        await db.runTransaction(async (txn) => {
+          const existing = await txn.get(ref);
+          if (existing.exists) {
+            throw new EngineeringControlDuplicateError(body.id);
+          }
+          txn.create(ref, doc);
+        });
+      } catch (err) {
+        if (err instanceof EngineeringControlDuplicateError) {
+          return res.status(409).json({
+            error: 'engineering_control_duplicate_id',
+            controlId: err.controlId,
+          });
+        }
+        // `txn.create()` itself can throw ALREADY_EXISTS (gRPC code 6)
+        // if a parallel writer races us between `txn.get` and `txn.create`.
+        // Surface that as 409 too so the contract stays consistent.
+        const code = (err as { code?: number | string } | null)?.code;
+        if (code === 6 || code === 'ALREADY_EXISTS') {
+          return res.status(409).json({
+            error: 'engineering_control_duplicate_id',
+            controlId: body.id,
+          });
+        }
+        throw err;
+      }
       return res.status(201).json({ ok: true, control: doc });
     } catch (err) {
       logger.error?.('sprintK.engineeringControls.create.error', err);
@@ -6402,8 +6466,12 @@ router.post(
   },
 );
 
+// Codex P1 (PR #319): the verify schema no longer accepts `verifierUid`
+// from the request body. The server derives the verifier identity from
+// the authenticated caller (`req.user!.uid`) so a project member cannot
+// impersonate a supervisor/manager in the audit trail. Same fix as
+// PR #318: never trust client-supplied identity for safety records.
 const engineeringControlVerifySchema = z.object({
-  verifierUid: z.string().min(1),
   result: z.enum(['pass', 'observation', 'fail']),
   evidence: z.string().max(4000).optional(),
 });
@@ -6432,7 +6500,10 @@ router.post(
       }
       const now = new Date().toISOString();
       const entry = {
-        verifierUid: body.verifierUid,
+        // Codex P1 (PR #319): use the authenticated caller, never the
+        // request body. The audit trail must reflect who actually did
+        // the check, not who the client claims did it.
+        verifierUid: callerUid,
         verifiedAt: now,
         result: body.result,
         ...(body.evidence ? { evidence: body.evidence } : {}),
@@ -6441,10 +6512,25 @@ router.post(
       // overwrites prior verifications. `lastVerifiedAt` is the canonical
       // timestamp the UI uses to compute vigencia (verde/ámbar/rojo)
       // against `verificationFrequencyDays`.
-      await ref.update({
+      //
+      // Codex P2 (PR #319): only advance `lastVerifiedAt` when the
+      // verification actually passed. Advancing on `observation` or
+      // `fail` would let a freshly *failed* control appear "Vigente"
+      // (green) right after the failure — because the page derives the
+      // green/amber/red status from `lastVerifiedAt + frequency` alone.
+      // The failed/observation entries still land in `verifications` so
+      // the history is complete; they just don't bump the canonical
+      // currency timestamp.
+      const updatePayload: {
+        verifications: admin.firestore.FieldValue;
+        lastVerifiedAt?: string;
+      } = {
         verifications: admin.firestore.FieldValue.arrayUnion(entry),
-        lastVerifiedAt: now,
-      });
+      };
+      if (body.result === 'pass') {
+        updatePayload.lastVerifiedAt = now;
+      }
+      await ref.update(updatePayload);
       return res.status(200).json({ ok: true, entry });
     } catch (err) {
       logger.error?.('sprintK.engineeringControls.verify.error', err);

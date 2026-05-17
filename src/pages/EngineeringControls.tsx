@@ -197,19 +197,46 @@ export function EngineeringControls() {
 
   const loading = resp.loading;
   const error = resp.error;
-  const controls = useMemo<EngineeringControlAPI[]>(
+  const rawControls = useMemo<EngineeringControlAPI[]>(
     () => resp.data?.controls ?? [],
     [resp.data],
   );
 
+  // Codex P2 (PR #319): controls tagged with the `general` risk
+  // category are cross-cutting (they mitigate every risk, not a
+  // specific one — e.g. site-wide signage, general housekeeping).
+  // They must remain visible regardless of the active `riskFilter`,
+  // otherwise a user filtering by "altura" would hide a general
+  // control that *also* applies to altura. We post-filter client-side:
+  // when a specific `riskFilter` is set, keep matching controls *plus*
+  // any `general` ones. The server still applies its own filter for
+  // bandwidth, but we never hide `general` rows in the rendered list.
+  const controls = useMemo<EngineeringControlAPI[]>(() => {
+    if (!riskFilter) return rawControls;
+    return rawControls.filter(
+      (c) => c.riskCategory === riskFilter || c.riskCategory === 'general',
+    );
+  }, [rawControls, riskFilter]);
+
+  // Codex P2 (PR #319): surface a degraded-data banner when the
+  // server's read of the engineering-controls collection threw. The
+  // server returns 200 + `warning: 'partial_read_failure'` so the page
+  // still renders, but we must tell the user the list may be incomplete.
+  const partialReadFailure = resp.data?.warning === 'partial_read_failure';
+
   // Risk categories surfaced from the loaded controls. We keep the
   // filter chip-list dynamic so a project doesn't see categories it
   // doesn't actually use. Sorted alphabetically for stability.
+  //
+  // Codex P2 (PR #319): derive categories from the *raw* (unfiltered)
+  // controls — using the post-filter `controls` would shrink the chip
+  // list as the user narrows the filter, making it impossible to switch
+  // back to other categories without first clearing the filter.
   const riskCategories = useMemo(() => {
     const set = new Set<string>();
-    for (const c of controls) set.add(c.riskCategory);
+    for (const c of rawControls) set.add(c.riskCategory);
     return Array.from(set).sort();
-  }, [controls]);
+  }, [rawControls]);
 
   const handleCreate = async () => {
     if (!projectId) return;
@@ -291,16 +318,17 @@ export function EngineeringControls() {
     result: 'pass' | 'observation' | 'fail' = 'pass',
   ) => {
     if (!projectId) return;
+    // Codex P1 (PR #319): the server now derives the verifier identity
+    // from `req.user!.uid`, so we no longer pass `verifierUid` from the
+    // client. We still guard against an unauthenticated state for the
+    // log line and to short-circuit before the network call.
     const currentUid = auth.currentUser?.uid ?? null;
     if (!currentUid) {
       logger.warn('engineeringControls.verify.noUser', { id: control.id });
       return;
     }
     try {
-      await verifyControl(projectId, control.id, {
-        verifierUid: currentUid,
-        result,
-      });
+      await verifyControl(projectId, control.id, { result });
       logger.info('engineeringControls.verified', { id: control.id, result });
       resp.refetch?.();
     } catch (err) {
@@ -429,7 +457,13 @@ export function EngineeringControls() {
             );
           })}
         </div>
-        {riskCategories.length > 0 && (
+        {/* Codex P2 (PR #319): keep this chip row mounted whenever there
+            are categories *or* when `riskFilter` is set, so a user who
+            filters into a now-empty category can still clear the filter
+            with the "Todos los riesgos" button. Previously the row was
+            hidden whenever the derived list was empty, stranding the
+            stale filter until the user reloaded the page. */}
+        {(riskCategories.length > 0 || riskFilter !== null) && (
           <div
             className="flex flex-wrap gap-2"
             data-testid="engineering-controls-risk-filters"
@@ -443,6 +477,7 @@ export function EngineeringControls() {
                   : 'bg-transparent text-secondary-token border-default-token hover:border-teal-500/50'
               }`}
               aria-pressed={riskFilter === null}
+              data-testid="engineering-controls-risk-clear"
             >
               {t('engCtrl.filter.allRisks', 'Todos los riesgos')}
             </button>
@@ -637,6 +672,24 @@ export function EngineeringControls() {
           {t('engCtrl.page.error', 'No se pudieron cargar los controles: {{msg}}', {
             msg: error.message,
           })}
+        </div>
+      )}
+
+      {/* Codex P2 (PR #319): degraded-data banner. The server returned
+          200 with `warning: 'partial_read_failure'` — the list may be
+          incomplete because Firestore threw on the inventory read. We
+          surface this prominently so users don't act on a stale or
+          empty compliance picture. */}
+      {!error && partialReadFailure && (
+        <div
+          className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300"
+          data-testid="engineering-controls-warning"
+          role="status"
+        >
+          {t(
+            'engCtrl.page.partialRead',
+            'Lectura parcial: el inventario puede estar incompleto. Intenta recargar.',
+          )}
         </div>
       )}
 
