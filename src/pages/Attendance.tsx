@@ -170,9 +170,10 @@ export function Attendance() {
       }
     }
 
-    // For demonstration purposes: if the worker's name includes "Demo Block", force a block
-    if (String(worker.name || '').toLowerCase().includes('demo block')) {
-      reasons.push('Bloqueo de demostración activado');
+    // For demonstration purposes: if the worker's name includes "Demo Block", force a block.
+    // Gated behind DEV mode + VITE_DEMO_MODE flag so it never reaches production builds.
+    if (import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === 'true' && String(worker.name || '').toLowerCase().includes('demo block')) {
+      reasons.push('Bloqueo de demostración activado (modo demo)');
     }
 
     return {
