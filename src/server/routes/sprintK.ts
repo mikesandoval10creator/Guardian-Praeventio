@@ -4171,72 +4171,158 @@ router.get(
         null as Record<string, unknown> | null,
       );
 
-      // Training assignments — first try nested
-      // `projects/{pid}/training_assignments` (active live data per
-      // runConsistencyAudit.ts and the data-quality scanner), then
-      // fall back to top-level `training` filtered by projectId +
-      // workerUid for legacy records.
+      // Training assignments live in THREE collections (matching the
+      // data-quality scanner pattern at line 665 of this file):
+      //   1. `projects/{pid}/training_assignments` — active live data
+      //      (runConsistencyAudit.ts).
+      //   2. `projects/{pid}/trainings` — written by
+      //      TrainingRecommendations.tsx:104 with `workerId` (NOT
+      //      `workerUid`).
+      //   3. Top-level `training` filtered by projectId + workerUid for
+      //      legacy records.
+      //
+      // Codex PR #315 P2: previously the route only read (1) + (3),
+      // silently missing trainings assigned via the recommendations
+      // flow and falsely scoring those workers as untrained. De-dupe
+      // by document id with first-wins precedence to avoid
+      // double-counting when the same training is referenced from
+      // multiple paths.
       const trainingsPromise = safeRead(
         'trainings',
         async () => {
-          const [nestedSnap, topSnap] = await Promise.all([
-            db
-              .collection('projects')
-              .doc(projectId)
-              .collection('training_assignments')
-              .where('workerUid', '==', workerUid)
-              .get()
-              .catch(() => null),
-            db
-              .collection('training')
-              .where('projectId', '==', projectId)
-              .where('workerUid', '==', workerUid)
-              .get()
-              .catch(() => null),
-          ]);
-          const all: Array<Record<string, unknown>> = [];
+          const [nestedSnap, projectTrainingsByUid, projectTrainingsByWorkerId, topSnap] =
+            await Promise.all([
+              db
+                .collection('projects')
+                .doc(projectId)
+                .collection('training_assignments')
+                .where('workerUid', '==', workerUid)
+                .get()
+                .catch(() => null),
+              // `projects/{pid}/trainings` — TrainingRecommendations writes
+              // `workerId`; some other flows may write `workerUid` as well.
+              db
+                .collection('projects')
+                .doc(projectId)
+                .collection('trainings')
+                .where('workerUid', '==', workerUid)
+                .get()
+                .catch(() => null),
+              db
+                .collection('projects')
+                .doc(projectId)
+                .collection('trainings')
+                .where('workerId', '==', workerUid)
+                .get()
+                .catch(() => null),
+              db
+                .collection('training')
+                .where('projectId', '==', projectId)
+                .where('workerUid', '==', workerUid)
+                .get()
+                .catch(() => null),
+            ]);
+          const all = new Map<string, Record<string, unknown>>();
           if (nestedSnap) {
             for (const d of nestedSnap.docs) {
-              all.push({ id: d.id, ...d.data() });
+              all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (projectTrainingsByUid) {
+            for (const d of projectTrainingsByUid.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (projectTrainingsByWorkerId) {
+            for (const d of projectTrainingsByWorkerId.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
             }
           }
           if (topSnap) {
             for (const d of topSnap.docs) {
-              all.push({ id: d.id, ...d.data() });
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
             }
           }
-          return all;
+          return Array.from(all.values());
         },
         [] as Array<Record<string, unknown>>,
       );
 
-      // EPP assignments — `epp_assignments` is the canonical collection
-      // (insights.ts line 215 confirms). Records carry `workerUid` (the
-      // canonical SLA) or fall back to `assignedTo` (legacy). Check both
-      // so we don't false-flag missing EPP for older records.
+      // EPP assignments — Codex PR #315 P1 (CRITICAL):
+      //
+      // The CANONICAL storage path is `projects/{pid}/epp_assignments`
+      // (per AssignEPPModal.tsx:88 + EPP.tsx:55 + firestore.rules:324
+      // + firebase-blueprint.json:347). The previous implementation only
+      // queried the top-level `epp_assignments` collection, which:
+      //   1. Misses every assignment written by the modal that records
+      //      EPP for workers — `activeEpp` stays empty and the score
+      //      falsely reports missing EPP for every selected worker/task.
+      //   2. Leaks across projects in the same tenant if the same
+      //      `workerUid` ever appears in another project's EPP feed.
+      //
+      // Project-scoped storage carries `workerId` (NOT `workerUid`,
+      // matching the modal's field). We also read top-level
+      // `epp_assignments` filtered by projectId for the insights.ts
+      // legacy shape (line 215 of that file) — both shapes coexist.
+      // De-dupe by document id with project-nested first-wins (the
+      // canonical store) so legacy records never overwrite a doc that
+      // the modal is the source of truth for.
       const eppPromise = safeRead(
         'epp',
         async () => {
-          const [byUid, byAssignedTo] = await Promise.all([
-            db
-              .collection('epp_assignments')
-              .where('workerUid', '==', workerUid)
-              .get()
-              .catch(() => null),
-            db
-              .collection('epp_assignments')
-              .where('assignedTo', '==', workerUid)
-              .get()
-              .catch(() => null),
-          ]);
+          const [nestedByWorkerId, nestedByWorkerUid, topByUid, topByAssignedTo] =
+            await Promise.all([
+              // Canonical: `projects/{pid}/epp_assignments` with `workerId`.
+              db
+                .collection('projects')
+                .doc(projectId)
+                .collection('epp_assignments')
+                .where('workerId', '==', workerUid)
+                .get()
+                .catch(() => null),
+              // Same nested path, alternate field name (some flows
+              // may write `workerUid` directly).
+              db
+                .collection('projects')
+                .doc(projectId)
+                .collection('epp_assignments')
+                .where('workerUid', '==', workerUid)
+                .get()
+                .catch(() => null),
+              // Top-level legacy (insights.ts:215 shape). Scoped by
+              // projectId to prevent cross-project leakage.
+              db
+                .collection('epp_assignments')
+                .where('projectId', '==', projectId)
+                .where('workerUid', '==', workerUid)
+                .get()
+                .catch(() => null),
+              // Top-level legacy with `assignedTo`. Scoped by projectId.
+              db
+                .collection('epp_assignments')
+                .where('projectId', '==', projectId)
+                .where('assignedTo', '==', workerUid)
+                .get()
+                .catch(() => null),
+            ]);
           const all = new Map<string, Record<string, unknown>>();
-          if (byUid) {
-            for (const d of byUid.docs) {
+          if (nestedByWorkerId) {
+            for (const d of nestedByWorkerId.docs) {
               all.set(d.id, { id: d.id, ...d.data() });
             }
           }
-          if (byAssignedTo) {
-            for (const d of byAssignedTo.docs) {
+          if (nestedByWorkerUid) {
+            for (const d of nestedByWorkerUid.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (topByUid) {
+            for (const d of topByUid.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (topByAssignedTo) {
+            for (const d of topByAssignedTo.docs) {
               if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
             }
           }
@@ -4272,31 +4358,107 @@ router.get(
       );
 
       // Recent incidents (last 90 days) where the worker was involved.
-      // Used purely to compute `daysSinceLastIncident`. We avoid Firestore
-      // array-contains-with-range gymnastics by filtering by projectId +
-      // date range and matching in-memory on `involvedWorkers`.
+      // Used purely to compute `daysSinceLastIncident`.
+      //
+      // Codex PR #315 P1 (CRITICAL): incident docs in this codebase
+      // identify the affected worker with FIVE possible shapes:
+      //   1. `involvedWorkers: string[]` (legacy array)
+      //   2. `affectedWorkerUid: string` (legacy single-uid alias)
+      //   3. `workerUid: string` (canonical — written by the close
+      //      trigger at backgroundTriggers.ts:396)
+      //   4. `workers: [{ uid: string }]` (subdoc shape)
+      //   5. `affectedWorkerUids: string[]` (variant of #1)
+      // The previous filter only accepted (1) + (2), so a worker with a
+      // recent canonical incident silently fell to the 90-day cap and
+      // the score lied about safety history. Iterate ALL shapes.
+      //
+      // Codex PR #315 P2 (#6): in projects with > 200 incidents in the
+      // last 90 days, the previous `.limit(200)` was applied BEFORE the
+      // in-memory worker filter — relevant incidents past the page
+      // boundary were dropped. We need ALL of the worker's recent
+      // incidents to find the most recent one, but we don't want to
+      // page the entire incident collection either.
+      //
+      // Fix: run FOUR Firestore-side filters covering the shapes that
+      // can be queried via `where` (`workerUid`, `affectedWorkerUid`,
+      // `array-contains` on the two array shapes). Each query is itself
+      // limited (50) — the worker-specific bound is small in practice
+      // because each query is already scoped by uid + 90-day date range.
+      // The subdoc `workers: [{ uid }]` shape can't be queried server-
+      // side; we accept the limit there because no current writer in
+      // the codebase produces it (it's listed for forward-compat).
       const ninetyDaysAgo = new Date(
         Date.now() - 90 * 24 * 60 * 60 * 1000,
       ).toISOString();
       const incidentsPromise = safeRead(
         'incidents',
         async () => {
-          const snap = await db
+          const baseQuery = db
             .collection('incidents')
             .where('projectId', '==', projectId)
-            .where('occurredAt', '>=', ninetyDaysAgo)
-            .limit(200)
-            .get();
-          return snap.docs
-            .map((d) => d.data() as Record<string, unknown>)
-            .filter((data) => {
-              const inv = data.involvedWorkers;
-              if (Array.isArray(inv) && inv.includes(workerUid)) return true;
-              // Legacy fallback: some records track a single
-              // `affectedWorkerUid` or `reportedByUid` field.
-              if (data.affectedWorkerUid === workerUid) return true;
-              return false;
-            });
+            .where('occurredAt', '>=', ninetyDaysAgo);
+          const [byWorkerUid, byAffectedWorkerUid, byInvolvedWorkers, byAffectedWorkerUids] =
+            await Promise.all([
+              // Shape 3: canonical single-uid field.
+              baseQuery
+                .where('workerUid', '==', workerUid)
+                .limit(50)
+                .get()
+                .catch(() => null),
+              // Shape 2: legacy single-uid alias.
+              baseQuery
+                .where('affectedWorkerUid', '==', workerUid)
+                .limit(50)
+                .get()
+                .catch(() => null),
+              // Shape 1: legacy array — Firestore array-contains.
+              baseQuery
+                .where('involvedWorkers', 'array-contains', workerUid)
+                .limit(50)
+                .get()
+                .catch(() => null),
+              // Shape 5: array variant — Firestore array-contains.
+              baseQuery
+                .where('affectedWorkerUids', 'array-contains', workerUid)
+                .limit(50)
+                .get()
+                .catch(() => null),
+            ]);
+          const all = new Map<string, Record<string, unknown>>();
+          const merge = (snap: FirebaseFirestore.QuerySnapshot | null) => {
+            if (!snap) return;
+            for (const d of snap.docs) {
+              if (!all.has(d.id)) {
+                all.set(d.id, d.data() as Record<string, unknown>);
+              }
+            }
+          };
+          merge(byWorkerUid);
+          merge(byAffectedWorkerUid);
+          merge(byInvolvedWorkers);
+          merge(byAffectedWorkerUids);
+          // Shape 4: subdoc `workers: [{ uid }]` — there's no Firestore
+          // index for nested object fields; the in-memory pass below
+          // catches matches in any other rows that happened to be
+          // pulled by the array-contains queries. Defensive — if a
+          // future writer uses this shape, audit it then.
+          return Array.from(all.values()).filter((data) => {
+            const inv = data.involvedWorkers;
+            if (Array.isArray(inv) && inv.includes(workerUid)) return true;
+            const invUids = data.affectedWorkerUids;
+            if (Array.isArray(invUids) && invUids.includes(workerUid)) return true;
+            if (data.affectedWorkerUid === workerUid) return true;
+            if (data.workerUid === workerUid) return true;
+            const workers = data.workers;
+            if (Array.isArray(workers)) {
+              for (const w of workers) {
+                if (w && typeof w === 'object' && (w as { uid?: string }).uid === workerUid) {
+                  return true;
+                }
+              }
+            }
+            return false;
+          });
         },
         [] as Array<Record<string, unknown>>,
       );
@@ -4358,21 +4520,79 @@ router.get(
         if (cat) activeEpp.push(cat);
       }
 
-      // Medical aptitude — read from the worker doc. Default to
-      // `sin_aptitud` when missing (worst case; the score honestly
-      // reports the gap rather than masking it).
+      // Medical aptitude — Codex PR #315 P2 (#4):
+      //
+      // Sources, in priority order:
+      //   1. `medicalAptitudeStatus` (canonical enum field).
+      //   2. `medicalStatus` (legacy alias).
+      //   3. `medicalAptitude.lastEvaluation` (typed Worker.medicalAptitude
+      //      shape — see MedicalAptitude service contract).
+      //   4. `medicalClearanceDate` (ISO date, written by
+      //      AccessControlModal.tsx:45 — when present and not expired
+      //      it counts as `vigente`).
+      // Previously the route only read (1) + (2) — workers cleared
+      // through the access-control UI (which only writes
+      // `medicalClearanceDate`) lost the medical subscore and got a
+      // false `sin_aptitud` blocker.
       const medRaw = worker.medicalAptitudeStatus ?? worker.medicalStatus;
-      const medicalAptitudeStatus: 'vigente' | 'expirada' | 'restringida' | 'sin_aptitud' =
+      let medicalAptitudeStatus: 'vigente' | 'expirada' | 'restringida' | 'sin_aptitud' =
         medRaw === 'vigente' || medRaw === 'expirada' || medRaw === 'restringida'
           ? medRaw
           : 'sin_aptitud';
+      if (medicalAptitudeStatus === 'sin_aptitud') {
+        // Source 3: typed `medicalAptitude.lastEvaluation`.
+        const medApt = worker.medicalAptitude;
+        if (medApt && typeof medApt === 'object') {
+          const lastEvalRaw = (medApt as Record<string, unknown>).lastEvaluation;
+          const lastEval = typeof lastEvalRaw === 'string' ? lastEvalRaw : null;
+          const expiryRaw =
+            (medApt as Record<string, unknown>).expiresAt ??
+            (medApt as Record<string, unknown>).validUntil;
+          const expiry = typeof expiryRaw === 'string' ? expiryRaw : null;
+          if (lastEval) {
+            medicalAptitudeStatus = expiry !== null && expiry < nowIso ? 'expirada' : 'vigente';
+          }
+        }
+      }
+      if (medicalAptitudeStatus === 'sin_aptitud') {
+        // Source 4: `medicalClearanceDate` (AccessControlModal).
+        // Treat as `vigente` if present (no separate expiry in that
+        // shape — the modal records the date the clearance was issued
+        // and the app considers it valid until a doctor updates it).
+        const clrDate = worker.medicalClearanceDate;
+        if (typeof clrDate === 'string' && clrDate.length > 0) {
+          medicalAptitudeStatus = 'vigente';
+        }
+      }
 
-      // Signed documents — `signedDocuments` on the worker doc; legacy
-      // alias `acknowledgements`. Array of doc codes.
+      // Signed documents — Codex PR #315 P2 (#5):
+      //
+      // Sources (union):
+      //   1. `signedDocuments: string[]` (canonical).
+      //   2. `acknowledgements: string[]` (legacy alias).
+      //   3. `odiSigned: boolean` on the worker doc (written by
+      //      LaborManagementModal.tsx:79). When `true`, inject `'ODI'`
+      //      into the signed-docs set.
+      //   4. `digitalSignatureStatus === 'Firmado'` on the worker doc
+      //      (same modal) — counts as a generic acknowledgement signal;
+      //      inject `'DIGITAL'`.
+      //
+      // Previously the route only read (1) + (2), so workers who signed
+      // ODI through LaborManagementModal lost the document subscore
+      // and were falsely flagged for any task that required `ODI`.
       const signedDocsRaw = worker.signedDocuments ?? worker.acknowledgements;
-      const signedDocuments: string[] = Array.isArray(signedDocsRaw)
-        ? (signedDocsRaw.filter((s) => typeof s === 'string') as string[])
-        : [];
+      const signedDocsSet = new Set<string>(
+        Array.isArray(signedDocsRaw)
+          ? (signedDocsRaw.filter((s) => typeof s === 'string') as string[])
+          : [],
+      );
+      if (worker.odiSigned === true) {
+        signedDocsSet.add('ODI');
+      }
+      if (worker.digitalSignatureStatus === 'Firmado') {
+        signedDocsSet.add('DIGITAL');
+      }
+      const signedDocuments: string[] = Array.from(signedDocsSet);
 
       // Fatigue — best-effort from worker doc; absent → 'low' so the
       // score doesn't punish workers whose project hasn't wired the
@@ -4434,33 +4654,192 @@ router.get(
 
       // ───── Build TaskRequirements ─────
       //
+      // Codex PR #315 P2 (#3): per ADR 0001 + firestore.rules:780-783,
+      // organic Task docs are constrained to the closed key set
+      // `['description', 'assignedUids', 'status', 'date', 'crewId',
+      // 'processId', 'projectId', 'completedAt']` — they do NOT carry
+      // `requiredTrainings`/`requiredEpp`/`requiredAcknowledgements`
+      // directly. The previous implementation always fell back to the
+      // empty-requirements baseline for organic tasks, producing a
+      // generic score that ignored the task's actual risk profile.
+      //
+      // Fix: requirements are sourced from FOUR layers (union, dedup):
+      //   1. The task doc itself, if present in any of these fields:
+      //      - `requiredTrainingIds` / `requiredTrainings` (string[])
+      //      - `requiredEppIds` / `requiredEpp` (string[])
+      //      - `requiredAcknowledgements` (string[])
+      //      Custom flows that bypass the rules constraint (server-side
+      //      writes) may attach these.
+      //   2. The parent Process (if `processId` is set) — Process docs
+      //      can carry `requiredTrainings`/`requiredEpp` (some flows
+      //      write them at the process level).
+      //   3. Deterministic mapping from `Process.type` → known SAFE
+      //      defaults (`ProcessType` is a closed union; we know
+      //      `soldadura` requires welding training, etc.).
+      //   4. Fuzzy match: name-based requirements are matched
+      //      case-insensitively (substring) against the worker's
+      //      training codes/names, so a task that says "Trabajo en
+      //      altura" can be satisfied by a training titled "Curso de
+      //      Trabajo en Altura — Avanzado".
+      //
       // Task-less calls (taskId omitted) get a baseline that requires
       // nothing — the report still surfaces medical/fatigue/incident
       // gaps because those don't depend on the task.
-      const reqTrainings: string[] = taskDoc
-        ? Array.isArray(taskDoc.requiredTrainings)
-          ? (taskDoc.requiredTrainings.filter(
-              (s: unknown) => typeof s === 'string',
-            ) as string[])
-          : []
-        : [];
-      const reqEpp: string[] = taskDoc
-        ? Array.isArray(taskDoc.requiredEpp)
-          ? (taskDoc.requiredEpp.filter(
-              (s: unknown) => typeof s === 'string',
-            ) as string[])
-          : []
-        : [];
-      const reqAcks: string[] = taskDoc
-        ? Array.isArray(taskDoc.requiredAcknowledgements)
-          ? (taskDoc.requiredAcknowledgements.filter(
-              (s: unknown) => typeof s === 'string',
-            ) as string[])
-          : []
-        : [];
-      const requiresMedicalAptitude: boolean = taskDoc
-        ? Boolean(taskDoc.requiresMedicalAptitude)
-        : false;
+
+      // Deterministic baseline by Process.type. Conservative — we err
+      // on the side of FEWER requirements (the score reports a missing
+      // training as a real gap, so over-requiring would produce false
+      // negatives in the readiness verdict).
+      const processTypeBaseline: Record<
+        string,
+        { trainings: string[]; epp: string[]; acks: string[]; requiresMedical: boolean }
+      > = {
+        soldadura: {
+          trainings: ['Soldadura', 'Trabajo en caliente'],
+          epp: ['casco', 'careta', 'guantes', 'mandil'],
+          acks: ['ODI'],
+          requiresMedical: false,
+        },
+        instalacion_electrica: {
+          trainings: ['Trabajo eléctrico', 'Bloqueo y etiquetado (LOTO)'],
+          epp: ['casco', 'guantes dieléctricos', 'calzado dieléctrico'],
+          acks: ['ODI'],
+          requiresMedical: false,
+        },
+        demolicion: {
+          trainings: ['Demolición segura', 'Trabajo en altura'],
+          epp: ['casco', 'gafas', 'arnés'],
+          acks: ['ODI'],
+          requiresMedical: true,
+        },
+        fachada: {
+          trainings: ['Trabajo en altura'],
+          epp: ['arnés', 'casco', 'línea de vida'],
+          acks: ['ODI'],
+          requiresMedical: true,
+        },
+        movimiento_tierras: {
+          trainings: ['Operación maquinaria pesada'],
+          epp: ['casco', 'chaleco reflectante', 'calzado seguridad'],
+          acks: ['ODI'],
+          requiresMedical: false,
+        },
+        concreto: {
+          trainings: [],
+          epp: ['casco', 'guantes', 'botas'],
+          acks: ['ODI'],
+          requiresMedical: false,
+        },
+        mantenimiento: {
+          trainings: ['Bloqueo y etiquetado (LOTO)'],
+          epp: ['casco', 'guantes', 'gafas'],
+          acks: ['ODI'],
+          requiresMedical: false,
+        },
+        pintura: {
+          trainings: ['Manejo solventes'],
+          epp: ['respirador', 'guantes', 'gafas'],
+          acks: ['ODI'],
+          requiresMedical: false,
+        },
+        topografia: { trainings: [], epp: ['casco'], acks: [], requiresMedical: false },
+        transporte: {
+          trainings: ['Conducción defensiva'],
+          epp: ['chaleco reflectante'],
+          acks: ['ODI'],
+          requiresMedical: true,
+        },
+      };
+
+      // Layer 2: parent process (optional best-effort read).
+      let processDoc: Record<string, unknown> | null = null;
+      if (taskDoc && typeof taskDoc.processId === 'string' && taskDoc.processId.length > 0) {
+        processDoc = await safeRead(
+          'process',
+          async () => {
+            const snap = await db
+              .collection('processes')
+              .doc(taskDoc.processId as string)
+              .get();
+            if (!snap.exists) return null;
+            const data = snap.data() as Record<string, unknown>;
+            // Cross-project safety: refuse silently if mismatched.
+            if (typeof data.projectId === 'string' && data.projectId !== projectId) {
+              return null;
+            }
+            return data;
+          },
+          null as Record<string, unknown> | null,
+        );
+      }
+
+      const collectStrings = (src: Record<string, unknown> | null, key: string): string[] => {
+        if (!src) return [];
+        const v = src[key];
+        if (!Array.isArray(v)) return [];
+        return v.filter((s): s is string => typeof s === 'string');
+      };
+
+      const reqTrainingsSet = new Set<string>();
+      // Layer 1: task doc directly.
+      for (const s of collectStrings(taskDoc, 'requiredTrainings')) reqTrainingsSet.add(s);
+      for (const s of collectStrings(taskDoc, 'requiredTrainingIds')) reqTrainingsSet.add(s);
+      // Layer 2: parent process.
+      for (const s of collectStrings(processDoc, 'requiredTrainings')) reqTrainingsSet.add(s);
+      for (const s of collectStrings(processDoc, 'requiredTrainingIds')) reqTrainingsSet.add(s);
+
+      const reqEppSet = new Set<string>();
+      for (const s of collectStrings(taskDoc, 'requiredEpp')) reqEppSet.add(s);
+      for (const s of collectStrings(taskDoc, 'requiredEppIds')) reqEppSet.add(s);
+      for (const s of collectStrings(processDoc, 'requiredEpp')) reqEppSet.add(s);
+      for (const s of collectStrings(processDoc, 'requiredEppIds')) reqEppSet.add(s);
+
+      const reqAcksSet = new Set<string>();
+      for (const s of collectStrings(taskDoc, 'requiredAcknowledgements')) reqAcksSet.add(s);
+      for (const s of collectStrings(processDoc, 'requiredAcknowledgements')) reqAcksSet.add(s);
+
+      let requiresMedicalAptitude: boolean = false;
+      if (taskDoc) requiresMedicalAptitude = Boolean(taskDoc.requiresMedicalAptitude);
+      if (!requiresMedicalAptitude && processDoc) {
+        requiresMedicalAptitude = Boolean(processDoc.requiresMedicalAptitude);
+      }
+
+      // Layer 3: deterministic baseline by Process.type.
+      if (processDoc && typeof processDoc.type === 'string') {
+        const baseline = processTypeBaseline[processDoc.type];
+        if (baseline) {
+          for (const s of baseline.trainings) reqTrainingsSet.add(s);
+          for (const s of baseline.epp) reqEppSet.add(s);
+          for (const s of baseline.acks) reqAcksSet.add(s);
+          if (baseline.requiresMedical) requiresMedicalAptitude = true;
+        }
+      }
+
+      // Layer 4: fuzzy resolution. If a requirement is a HUMAN NAME (not
+      // a canonical code), substitute it with the matching training/EPP
+      // entry the worker already has (case-insensitive substring) so
+      // the scorer's exact-set-membership check succeeds.
+      const fuzzyResolve = (req: string, owned: string[]): string => {
+        const reqLower = req.toLowerCase().trim();
+        if (reqLower.length === 0) return req;
+        // Walk the worker's owned items; if any case-insensitive
+        // substring match, return the requirement itself unchanged AND
+        // inject the owned item as an alias by also adding it to owned
+        // (caller passes a set). Here we just normalize: return the
+        // owned entry that matches, so set membership works.
+        for (const item of owned) {
+          const itemLower = item.toLowerCase();
+          if (itemLower.includes(reqLower) || reqLower.includes(itemLower)) {
+            return item;
+          }
+        }
+        return req;
+      };
+      const reqTrainings = Array.from(reqTrainingsSet).map((r) =>
+        fuzzyResolve(r, activeTrainings),
+      );
+      const reqEpp = Array.from(reqEppSet).map((r) => fuzzyResolve(r, activeEpp));
+      const reqAcks = Array.from(reqAcksSet);
 
       const task = {
         requiredTrainings: reqTrainings,

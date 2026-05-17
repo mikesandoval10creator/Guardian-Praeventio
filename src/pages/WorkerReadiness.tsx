@@ -32,6 +32,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { UserCheck, WifiOff, AlertTriangle, ListChecks, Lightbulb } from 'lucide-react';
+import { where } from 'firebase/firestore';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
@@ -146,11 +147,24 @@ export function WorkerReadiness() {
   );
 
   // Tasks for the optional selector — top-level `tasks` filtered by
-  // projectId (server queries the same way). The page uses a plain
-  // <select> so we don't need a search/filter; the list is bounded
-  // by the project.
+  // projectId via a Firestore `where` clause. Per `firestore.rules` line
+  // 774 (`match /tasks/{taskId}`), reads are gated by
+  // `isProjectMember(resource.data.projectId)`, so an unconstrained
+  // listener on the top-level `tasks` collection would request docs
+  // the caller can't read and return permission-denied — leaving the
+  // task selector silently empty.
+  //
+  // Codex PR #315 P2: scope server-side by projectId so the query only
+  // returns docs the caller is authorized to read. The hook's stable
+  // identity (constraints serialized via JSON.stringify) means we only
+  // need to gate on `projectId` for the path itself.
+  const taskConstraints = useMemo(
+    () => (projectId ? [where('projectId', '==', projectId)] : []),
+    [projectId],
+  );
   const { data: tasks } = useFirestoreCollection<TaskLite>(
     projectId ? 'tasks' : null,
+    taskConstraints,
   );
 
   const filteredWorkers = useMemo(() => {
@@ -167,11 +181,11 @@ export function WorkerReadiness() {
 
   const tasksForProject = useMemo(() => {
     if (!projectId) return [];
+    // Server-side `where` already gates by projectId, but useFirestoreCollection
+    // merges in pendingSync optimistic items that may not yet have projectId
+    // set — defensive client-side filter preserves cross-project safety.
     return tasks.filter(
       (task) =>
-        // useFirestoreCollection includes pendingSync data so the field
-        // can be missing — only show tasks that actually belong to the
-        // current project.
         (task as unknown as { projectId?: string }).projectId === projectId,
     );
   }, [tasks, projectId]);
