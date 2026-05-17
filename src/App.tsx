@@ -132,6 +132,11 @@ const WorkerReadiness = lazy(() => import('./pages/WorkerReadiness').then(module
 // Sprint K §276-277 — Bitácora de Decisiones de Supervisión + Ranking
 // de Impacto. Liderazgo preventivo trazable (no castiga, mide).
 const LeadershipDecisions = lazy(() => import('./pages/LeadershipDecisions').then(module => ({ default: module.LeadershipDecisions })));
+// Sprint K §69-71 — Conducción Segura + Rutas Críticas + Alertas Ruta.
+// Service `drivingSafety/drivingSafetyService` (score conductor + score
+// ruta + matching) ya existía; este lazy cierra el wire end-to-end con
+// endpoint + hook + page navegable.
+const DrivingSafety = lazy(() => import('./pages/DrivingSafety').then(module => ({ default: module.DrivingSafety })));
 // Sprint K §90-91 — Calidad de Proveedores + Ranking de Riesgo.
 // Motor determinístico (supplierScoring 4-dim) ya vivía; este lazy
 // expone el ranking para decisiones de adjudicación.
@@ -227,6 +232,7 @@ function AppRoutes() {
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
               <Route path="worker-readiness" element={<WorkerReadiness />} />
               <Route path="leadership-decisions" element={<LeadershipDecisions />} />
+              <Route path="driving-safety" element={<DrivingSafety />} />
               <Route path="suppliers" element={<SupplierQuality />} />
               <Route path="knowledge-base" element={<KnowledgeBase />} />
               <Route path="*" element={<Dashboard />} />
@@ -373,6 +379,7 @@ function AppRoutes() {
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
                     <Route path="worker-readiness" element={<WorkerReadiness />} />
                     <Route path="leadership-decisions" element={<LeadershipDecisions />} />
+                    <Route path="driving-safety" element={<DrivingSafety />} />
                     <Route path="suppliers" element={<SupplierQuality />} />
                     <Route path="knowledge-base" element={<KnowledgeBase />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
