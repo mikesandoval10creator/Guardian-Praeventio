@@ -166,7 +166,12 @@ export interface CorrectiveActionsResponse {
 
 export function useCorrectiveActions(
   projectId: string | null,
-  opts: { status?: 'open' | 'closed' | 'verified' } = {},
+  // Codex P2 round 3 (PR #309): widened to accept the full F.4
+  // status set so the CorrectiveActions page can fetch in_progress
+  // and reopened records too.
+  opts: {
+    status?: 'open' | 'in_progress' | 'closed' | 'verified' | 'reopened';
+  } = {},
 ) {
   let path: string | null = null;
   if (projectId) {
@@ -212,6 +217,31 @@ export function useEquipment(
     path = `/api/sprint-k/${projectId}/equipment${query ? `?${query}` : ''}`;
   }
   return useEndpoint<EquipmentResponse>(path);
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Fase F.8 — Inbox del prevencionista
+// ────────────────────────────────────────────────────────────────────────
+//
+// Wraps GET /api/sprint-k/:projectId/inbox which aggregates the N feeds
+// listed in F.8 (corrective actions, SIF precursors, etc.) into a single
+// ordered list. Types come from the aggregator service so the component
+// gets the same shape it would from a direct in-process call.
+
+import type {
+  InboxItem,
+  InboxSummary,
+} from '../services/inbox/inboxAggregator';
+
+export interface InboxResponse {
+  items: InboxItem[];
+  summary: InboxSummary;
+}
+
+export function useInbox(projectId: string | null) {
+  return useEndpoint<InboxResponse>(
+    projectId ? `/api/sprint-k/${projectId}/inbox` : null,
+  );
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -334,4 +364,73 @@ export async function createCorrectiveAction(
     throw new Error(body.error ?? `http_${res.status}`);
   }
   return { ok: true };
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Fase F.9 — Data Quality scanner (pre-IA gap detector)
+// ────────────────────────────────────────────────────────────────────────
+
+import type {
+  DataQualityReport,
+  Gap as DataQualityGap,
+} from '../services/dataQuality/incompletenessScanner';
+
+export interface DataQualityResponse {
+  report: DataQualityReport;
+  topGaps: DataQualityGap[];
+}
+
+export function useDataQuality(projectId: string | null) {
+  return useEndpoint<DataQualityResponse>(
+    projectId ? `/api/sprint-k/${projectId}/data-quality` : null,
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Fase F.3 — Incident evidence bundle
+// ────────────────────────────────────────────────────────────────────────
+
+import type { IncidentBundleManifest } from '../services/incidentBundle/incidentEvidenceBundle';
+
+export interface IncidentBundleResponse {
+  manifest: IncidentBundleManifest;
+}
+
+export function useIncidentBundle(
+  projectId: string | null,
+  incidentId: string | null,
+) {
+  return useEndpoint<IncidentBundleResponse>(
+    projectId && incidentId
+      ? `/api/sprint-k/${projectId}/incidents/${incidentId}/bundle`
+      : null,
+  );
+}
+
+/**
+ * Codex P2 round 4 (PR #309): persist a scheduled effectiveness review.
+ * Calls POST /api/sprint-k/:projectId/corrective-actions/:actionId/effectiveness-review.
+ */
+export async function scheduleCorrectiveActionEffectivenessReview(
+  projectId: string,
+  actionId: string,
+  reviewAt: string,
+): Promise<void> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/corrective-actions/${actionId}/effectiveness-review`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ actionId, reviewAt }),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
 }

@@ -38,6 +38,8 @@ import {
   Award,
   BarChart3,
   Brain,
+  ListChecks,
+  Inbox as InboxIcon,
   ChevronDown,
   ChevronRight,
   Wrench,
@@ -118,6 +120,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
       icon: Home,
       items: [
         { title: t("nav.dashboard", "Inicio"), icon: Home, path: "/", color: "text-[#4db6ac]" },
+        // Sprint 40 Fase F.8 — Bandeja del Prevencionista. Pendientes
+        // de hoy agregados de múltiples feeds (corrective actions, SIF,
+        // exceptions, etc.) en una vista única ordenada por urgencia.
+        { title: t("nav.inbox", "Bandeja"), icon: InboxIcon, path: "/inbox", color: "text-teal-500" },
         { title: "Safe Driving", icon: Car, path: "/safe-driving", color: "text-blue-500" },
         { title: t("nav.safety_feed", "Muro Social"), icon: Users, path: "/safety-feed", color: "text-[#4db6ac]" },
         { title: t("nav.projects", "Proyectos"), icon: Briefcase, path: "/projects", color: "text-blue-500" },
@@ -130,6 +136,9 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: t("nav.cphs", "Comité Paritario (CPHS)"), icon: ShieldCheck, path: "/cphs", color: "text-[#4db6ac]" },
         { title: t("nav.mining_contractors", "Contratistas Mineros"), icon: Mountain, path: "/mining-contractors", color: "text-amber-500" },
         { title: t("nav.analytics", "Reportabilidad"), icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
+        // Sprint 40 Fase F.4 — Centro de Acciones Correctivas (PDCA).
+        // Acceso directo desde Cumplimiento — cierra ISO 45001 §10.2.
+        { title: t("nav.corrective_actions", "Acciones Correctivas"), icon: ListChecks, path: "/corrective-actions", color: "text-teal-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },
