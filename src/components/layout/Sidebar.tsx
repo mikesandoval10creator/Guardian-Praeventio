@@ -172,6 +172,11 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Sprint 41 Fase F.20 — Gestor de Simulacros (DS 132 / DS 594).
         // Planifica + ejecuta + reporta preparación (excellent → critical).
         { title: t("nav.drills", "Gestor de Simulacros"), icon: ShieldAlert, path: "/drills", color: "text-amber-500" },
+        // Sprint K §74-78 — Brigada de Emergencia + Inventario de Recursos.
+        // Brigadistas por rol (líder / fuego / primeros aux / evac / comms)
+        // + extintores / AED / lavaojos / botiquines con QR + countdown
+        // de inspección. Determinístico, sin push a SUSESO/MINSAL.
+        { title: t("nav.emergency_brigade", "Brigada Emergencia"), icon: ShieldAlert, path: "/emergency-brigade", color: "text-amber-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },

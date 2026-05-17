@@ -5080,5 +5080,503 @@ router.get(
   },
 );
 
+// ─────────────────────────────────────────────────────────────────────
+// §74-78 — Brigada de Emergencia + Recursos
+// ─────────────────────────────────────────────────────────────────────
+//
+// Cierra el ciclo "respuesta a emergencias":
+//   - Brigade de emergencia con roles (jefe / primeros auxilios /
+//     fuego / evacuación / comunicaciones)
+//   - Recursos (extintores, kits, AED, eyewash, fire hose, ducha
+//     emergencia, kit derrames) con QR + inspección periódica
+//   - Snapshot agregado: coverage + readiness + needing-attention
+//
+// Path firestore: tenants/{tid}/projects/{pid}/emergency_brigade/{id}
+//   - Documento "_members" guarda la lista de brigadistas
+//   - Documento "_resources" guarda la lista de recursos
+//   - Documento "_inspections" guarda historial de inspecciones
+//
+// El servicio `emergencyBrigadeService` es pure — solo agregaciones.
+// Aquí persistimos el state, allá calculamos el report.
+
+import {
+  buildBrigadeCoverageReport,
+  buildResourceReadinessReport,
+  type BrigadeMember,
+  type BrigadeRole,
+  type EmergencyResource,
+} from '../../services/emergencyBrigade/emergencyBrigadeService.js';
+
+const brigadeRoleEnum = z.enum([
+  'brigade_chief',
+  'first_aid',
+  'fire_response',
+  'evacuation_coordinator',
+  'communications',
+]);
+
+const resourceKindEnum = z.enum([
+  'extinguisher',
+  'first_aid_kit',
+  'aed',
+  'eyewash',
+  'safety_shower',
+  'fire_hose',
+  'spill_kit',
+]);
+
+// Codex P2 #1 (PR #321, line 5237): training / inspection dates were
+// previously typed as `z.string().min(10)`, which accepted any 10+ char
+// string (e.g. "not-a-date"). `buildBrigadeCoverageReport` then does
+// `Date.parse(trainedAt) + ...` → `NaN`, and the `expiresMs < nowMs`
+// check falls through to the `else` branch counting the member as
+// actively certified. Result: a junk string makes the brigade look
+// covered.
+//
+// Fix: validate that the string parses to a finite Date AND (for past
+// events like trainings / inspections) is not future-dated. Future
+// expirations (`nextExpirationAt`) only need to be parseable — by
+// definition they are in the future.
+const isoPastDate = z
+  .string()
+  .min(10)
+  .refine((s) => Number.isFinite(Date.parse(s)), {
+    message: 'invalid_iso_date',
+  })
+  .refine((s) => Date.parse(s) <= Date.now(), {
+    message: 'date_in_future',
+  });
+
+const isoDate = z
+  .string()
+  .min(10)
+  .refine((s) => Number.isFinite(Date.parse(s)), {
+    message: 'invalid_iso_date',
+  });
+
+// Codex P2 #2 (PR #321, line 5251): only roles authorized to manage
+// emergency-response data may write brigade members / resources /
+// inspections. Mirrors the F.5 QR signature role gate
+// (`QR_SIG_CHALLENGE_ROLES`). Ordinary workers — who in many projects
+// are also project members — must not be able to add brigadists or flip
+// a resource to "operational", which would directly move the readiness
+// banner.
+//
+// Codex P2 round 2 #6 (PR #321, line 5168): include `supervisor` —
+// the F.5 QR challenge role gate (`QR_SIG_CHALLENGE_ROLES`) already
+// includes supervisors, and the inline comment claimed parity with
+// that gate. Field supervisors must be able to add brigadists /
+// register resources / mark inspections from the new page; without
+// `supervisor` here every UI write action returned 403 even though the
+// page allowed them through. The original gate already includes
+// `brigade_chief` (the role that operates the brigade itself), so the
+// union is { admin, prevencionista, supervisor, brigade_chief }.
+const BRIGADE_WRITE_ROLES = new Set([
+  'admin',
+  'prevencionista',
+  'supervisor',
+  'brigade_chief',
+]);
+
+function callerCanWriteBrigade(req: import('express').Request): boolean {
+  const u = req.user;
+  if (!u) return false;
+  if (u.admin === true) return true;
+  if (typeof u.role === 'string' && BRIGADE_WRITE_ROLES.has(u.role)) {
+    return true;
+  }
+  const tenants = (u as unknown as {
+    tenants?: Record<string, { role?: string }>;
+  }).tenants;
+  if (tenants && typeof tenants === 'object' && typeof u.tenantId === 'string') {
+    const t = tenants[u.tenantId];
+    if (t && typeof t.role === 'string' && BRIGADE_WRITE_ROLES.has(t.role)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Codex P2 #3 (PR #321, line 5261): when adding a brigadist by uid,
+// confirm the uid is an actual project member before persisting. A typo
+// or fabricated uid would otherwise satisfy required role coverage with
+// a nonexistent worker.
+//
+// Codex P2 round 2 #7 (PR #321, line 5204): the previous revision only
+// checked the legacy `projects/{projectId}.members[]` top-level array
+// plus `createdBy`. But other production code paths
+// (`src/server/routes/emergency.ts` → `sendToProjectSupervisors`)
+// already treat `projects/{projectId}/members/{uid}` (subcollection) as
+// the canonical member source — many tenants keep memberships there
+// rather than duplicating every uid into the array. Without the
+// subcollection check, legitimate workers were rejected with
+// `worker_not_in_project`. Check BOTH sources before returning false so
+// the canonical (subcollection) AND legacy (array) shapes are honored.
+async function workerIsProjectMember(
+  workerUid: string,
+  projectId: string,
+): Promise<boolean> {
+  const db = admin.firestore();
+  // Source 1: legacy top-level array + createdBy (matches
+  // assertProjectMember semantics).
+  try {
+    const snap = await db.collection('projects').doc(projectId).get();
+    if (snap.exists) {
+      const data = (snap.data() ?? {}) as Record<string, unknown>;
+      const members = data.members;
+      const createdBy = data.createdBy;
+      if (Array.isArray(members) && members.includes(workerUid)) return true;
+      if (typeof createdBy === 'string' && createdBy === workerUid) return true;
+    }
+  } catch (err) {
+    logger.warn?.(
+      'sprintK.emergencyBrigade.workerIsProjectMember.legacyArray.failed',
+      err,
+    );
+    // Fall through to the subcollection check — a partial failure on
+    // one source shouldn't deny legitimate workers in the other.
+  }
+  // Source 2: canonical `projects/{projectId}/members/{uid}`
+  // subcollection. Used by emergency.ts and other notification
+  // surfaces; many tenants only populate this shape.
+  try {
+    const memberDoc = await db
+      .collection('projects')
+      .doc(projectId)
+      .collection('members')
+      .doc(workerUid)
+      .get();
+    if (memberDoc.exists) return true;
+  } catch (err) {
+    logger.warn?.(
+      'sprintK.emergencyBrigade.workerIsProjectMember.subcollection.failed',
+      err,
+    );
+  }
+  return false;
+}
+
+router.get(
+  '/:projectId/emergency-brigade',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const baseRef = db.collection(
+        `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
+      );
+
+      // Per-domain safe reads. Mirrors the dataQuality pattern so a
+      // missing collection (fresh project) doesn't blank the snapshot —
+      // empty arrays drive the empty-state UI cleanly.
+      const safeRead = async <T,>(
+        label: string,
+        fn: () => Promise<T[]>,
+      ): Promise<T[]> => {
+        try {
+          return await fn();
+        } catch (err) {
+          logger.warn?.(`sprintK.emergencyBrigade.read.${label}.failed`, err);
+          return [];
+        }
+      };
+
+      const [members, resources] = await Promise.all([
+        safeRead<BrigadeMember & { id: string }>('members', async () => {
+          const snap = await baseRef
+            .where('docType', '==', 'member')
+            .get();
+          return snap.docs.map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            return {
+              id: d.id,
+              workerUid: String(data.workerUid ?? ''),
+              role: (data.role ?? 'brigade_chief') as BrigadeRole,
+              trainedAt: String(data.trainedAt ?? ''),
+              trainingValidYears:
+                typeof data.trainingValidYears === 'number'
+                  ? data.trainingValidYears
+                  : 2,
+              active: data.active !== false,
+            };
+          });
+        }),
+        safeRead<EmergencyResource>('resources', async () => {
+          const snap = await baseRef
+            .where('docType', '==', 'resource')
+            .get();
+          return snap.docs.map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            return {
+              id: d.id,
+              kind:
+                (data.kind ?? 'extinguisher') as EmergencyResource['kind'],
+              location: String(data.location ?? ''),
+              lastInspectedAt: String(data.lastInspectedAt ?? ''),
+              nextExpirationAt: String(data.nextExpirationAt ?? ''),
+              operational: data.operational !== false,
+            };
+          });
+        }),
+      ]);
+
+      const brigadeReport = buildBrigadeCoverageReport(members);
+      const resourceReport = buildResourceReadinessReport(resources);
+
+      // Readiness rollup: combines brigade coverage + resource health.
+      // - green: minimum brigade coverage + ≥1 resource + 0 needing-attention
+      // - amber: one of (gap in coverage XOR ≥1 needing-attention)
+      // - rose:  both fail OR multiple coverage gaps OR multiple
+      //          resources needing attention OR empty inventory
+      //
+      // Codex P2 #5 (PR #321, line 5209): an empty resource inventory
+      // is itself a readiness gap. With three brigadists present but
+      // zero registered resources, `needingAttention` is naturally
+      // empty (you can't have an expired resource you don't have),
+      // which previously evaluated to a GREEN banner saying "recursos
+      // al día". For a project that has only added brigadists, that
+      // incorrectly marks emergency response as ready. Treat
+      // `totalResources === 0` as one extra structural gap so the
+      // banner moves to amber (only gap) or rose (with other gaps).
+      const coverageGapCount = brigadeReport.uncoveredRoles.length;
+      const resourceGapCount = resourceReport.needingAttention.length;
+      const emptyInventoryGap = resourceReport.totalResources === 0 ? 1 : 0;
+      const totalGaps = coverageGapCount + resourceGapCount + emptyInventoryGap;
+      let readinessLevel: 'green' | 'amber' | 'rose';
+      if (totalGaps === 0 && brigadeReport.meetsMinimum) {
+        readinessLevel = 'green';
+      } else if (
+        totalGaps === 1 ||
+        (totalGaps <= 2 && brigadeReport.meetsMinimum)
+      ) {
+        readinessLevel = 'amber';
+      } else {
+        readinessLevel = 'rose';
+      }
+
+      return res.json({
+        members,
+        resources,
+        brigade: brigadeReport,
+        resourceReadiness: resourceReport,
+        readinessLevel,
+      });
+    } catch (err) {
+      logger.error?.('sprintK.emergencyBrigade.snapshot.error', err);
+      captureRouteError(err, 'sprintK.emergencyBrigade.snapshot');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const addBrigadeMemberSchema = z.object({
+  workerUid: z.string().min(1).max(120),
+  role: brigadeRoleEnum,
+  // Codex P2 #1 (PR #321): reject "not-a-date" + future-dated trainings.
+  trainedAt: isoPastDate,
+  trainingValidYears: z.number().int().min(1).max(10).optional(),
+  active: z.boolean().optional(),
+});
+
+router.post(
+  '/:projectId/emergency-brigade/members',
+  verifyAuth,
+  validate(addBrigadeMemberSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof addBrigadeMemberSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    // Codex P2 #2 (PR #321, line 5251): role gate. guard() only proved
+    // the caller is a project member; here we require the caller to be
+    // an admin / prevencionista / brigade_chief before mutating brigade
+    // data — same pattern as F.5 QR signature challenge.
+    if (!callerCanWriteBrigade(req)) {
+      return res.status(403).json({
+        error: 'forbidden_role',
+        allowed: Array.from(BRIGADE_WRITE_ROLES),
+      });
+    }
+    // Codex P2 #3 (PR #321, line 5261): the workerUid being added must
+    // actually be a project member. Otherwise a typo or fabricated uid
+    // would satisfy required role coverage with a nonexistent worker.
+    if (!(await workerIsProjectMember(body.workerUid, projectId))) {
+      return res.status(422).json({ error: 'worker_not_in_project' });
+    }
+    try {
+      const db = admin.firestore();
+      const baseRef = db.collection(
+        `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
+      );
+      // Codex P2 round 2 #9 (PR #321, line 5382): the previous revision
+      // called `baseRef.doc()` which mints a fresh random id every
+      // submission. Adding the same worker twice (or once per required
+      // role) produced N distinct member documents, and
+      // `buildBrigadeCoverageReport` counted them as separate active
+      // members — so a single real person could inflate the byRole
+      // counter to satisfy the three-member minimum. Fix: derive a
+      // deterministic id keyed on `worker:role`, and reject with 409
+      // if a member document for that (workerUid, role) pair already
+      // exists. The deterministic id also makes the audit trail easier
+      // (one worker = one member doc per role across re-trainings).
+      const safeUid = body.workerUid.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const id = `member-${safeUid}-${body.role}`;
+      const doc = baseRef.doc(id);
+      const existing = await doc.get();
+      if (existing.exists) {
+        return res.status(409).json({
+          error: 'worker_already_in_role',
+          existingId: id,
+        });
+      }
+      await doc.set({
+        docType: 'member',
+        workerUid: body.workerUid,
+        role: body.role,
+        trainedAt: body.trainedAt,
+        trainingValidYears: body.trainingValidYears ?? 2,
+        active: body.active !== false,
+        createdAt: new Date().toISOString(),
+        createdBy: callerUid,
+      });
+      return res.status(201).json({ ok: true, id });
+    } catch (err) {
+      logger.error?.('sprintK.emergencyBrigade.addMember.error', err);
+      captureRouteError(err, 'sprintK.emergencyBrigade.addMember');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const addResourceSchema = z.object({
+  kind: resourceKindEnum,
+  location: z.string().min(1).max(240),
+  // Codex P2 #1 (PR #321): inspection date must be a real past ISO
+  // date; expiration date must be a real ISO date (may be future).
+  lastInspectedAt: isoPastDate,
+  nextExpirationAt: isoDate,
+  operational: z.boolean().optional(),
+});
+
+router.post(
+  '/:projectId/emergency-brigade/resources',
+  verifyAuth,
+  validate(addResourceSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof addResourceSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    // Codex P2 #2 (PR #321, line 5251): role gate for resource writes
+    // — flipping a resource's operational state directly moves the
+    // readiness signal.
+    if (!callerCanWriteBrigade(req)) {
+      return res.status(403).json({
+        error: 'forbidden_role',
+        allowed: Array.from(BRIGADE_WRITE_ROLES),
+      });
+    }
+    try {
+      const db = admin.firestore();
+      const baseRef = db.collection(
+        `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
+      );
+      const doc = baseRef.doc();
+      const id = doc.id;
+      await doc.set({
+        docType: 'resource',
+        kind: body.kind,
+        location: body.location,
+        lastInspectedAt: body.lastInspectedAt,
+        nextExpirationAt: body.nextExpirationAt,
+        operational: body.operational !== false,
+        createdAt: new Date().toISOString(),
+        createdBy: callerUid,
+      });
+      return res.status(201).json({ ok: true, id });
+    } catch (err) {
+      logger.error?.('sprintK.emergencyBrigade.addResource.error', err);
+      captureRouteError(err, 'sprintK.emergencyBrigade.addResource');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const inspectResourceSchema = z.object({
+  // Codex P2 #1 (PR #321): inspection timestamp must parse and not be
+  // future-dated; the new expiration may legitimately be in the future.
+  inspectedAt: isoPastDate,
+  operational: z.boolean(),
+  nextExpirationAt: isoDate.optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+router.post(
+  '/:projectId/emergency-brigade/resources/:id/inspect',
+  verifyAuth,
+  validate(inspectResourceSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, id } = req.params;
+    const body = req.body as z.infer<typeof inspectResourceSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    // Codex P2 #2 (PR #321, line 5251): role gate for resource
+    // inspections — `operational: true` resets the readiness signal.
+    if (!callerCanWriteBrigade(req)) {
+      return res.status(403).json({
+        error: 'forbidden_role',
+        allowed: Array.from(BRIGADE_WRITE_ROLES),
+      });
+    }
+    try {
+      const db = admin.firestore();
+      const baseRef = db.collection(
+        `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
+      );
+      const resourceRef = baseRef.doc(id);
+      const snap = await resourceRef.get();
+      if (!snap.exists || snap.data()?.docType !== 'resource') {
+        return res.status(404).json({ error: 'resource_not_found' });
+      }
+      // Patch the resource with the latest inspection + audit a separate
+      // inspection record so historical inspections survive the next
+      // patch.
+      const patch: Record<string, unknown> = {
+        lastInspectedAt: body.inspectedAt,
+        operational: body.operational,
+        lastInspectedBy: callerUid,
+      };
+      if (body.nextExpirationAt) {
+        patch.nextExpirationAt = body.nextExpirationAt;
+      }
+      const auditDoc = baseRef.doc();
+      const batch = db.batch();
+      batch.set(resourceRef, patch, { merge: true });
+      batch.set(auditDoc, {
+        docType: 'inspection',
+        resourceId: id,
+        inspectedAt: body.inspectedAt,
+        inspectedBy: callerUid,
+        operational: body.operational,
+        notes: body.notes ?? null,
+        createdAt: new Date().toISOString(),
+      });
+      await batch.commit();
+      return res.status(201).json({ ok: true, inspectionId: auditDoc.id });
+    } catch (err) {
+      logger.error?.('sprintK.emergencyBrigade.inspect.error', err);
+      captureRouteError(err, 'sprintK.emergencyBrigade.inspect');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 
 export default router;
