@@ -1,13 +1,12 @@
 // Sprint 29 Bucket AA F-B — Incident RAG (NL search sobre histórico tenant).
 //
-// TODO(sprint32-W4): este servicio es puro indexador/searcher — no tiene
-// concepto de "near-miss reportado" ni "post-mortem cerrado" con uid del
-// reporter. Los hooks `awardXp('near_miss_reported', ...)` y
-// `awardXp('incident_post_mortem_completed', ...)` deben wirearse desde
-// el service que persiste el incidente con el uid del reporter (cuando
-// exista — actualmente no hay una función `reportIncident(uid, ...)`
-// claramente identificable). Los XpReason ya están registrados en
-// `src/types/organic.ts` (30/50 XP respectivamente) listos para wire.
+// Sprint 33 wire W4 (2026-05-17) — `reportIncident(uid, payload)` cierra el
+// TODO original: ahora SÍ existe un punto canónico que persiste un incidente
+// con el uid del reporter, dispara `awardXp('near_miss_reported', 10)` para
+// near-misses e `awardXp('incident_post_mortem_completed', 50)` cuando el
+// post-mortem se cierra en el mismo flujo, e indexa el resumen vía
+// `indexIncident()` para que `searchIncidents()` lo encuentre. Fire-and-forget
+// del XP: si gamificación falla, el incidente sigue persistido.
 //
 // Indexa cada incidente del tenant en una colección segregada por tenantId
 // y permite búsquedas naturales mediante embeddings. La aislación
@@ -24,6 +23,13 @@
 //     summary, embedding, indexedAt}. Idempotente vía .doc(incidentId).set.
 //   • `searchIncidents(tenantId, query, topK=5)`: findNearest gated por
 //     tenantId scope. Si query es vacío, retorna [] (skip explícito).
+//   • `reportIncident(uid, payload)`: persiste el incidente bajo
+//     `tenants/{tenantId}/projects/{projectId}/incidents/{incidentId}`,
+//     auto-genera incidentId si el caller no lo aporta, ejecuta
+//     `indexIncident()` para que el RAG lo vea, y emite XP positivo según
+//     tipo (near_miss / incident / post_mortem). Por las directivas del
+//     producto (gamificación SOLO positiva), no se castiga al reporter
+//     bajo ninguna circunstancia.
 
 export interface IncidentReport {
   /** Identificador estable del incidente (DIAT, doc id, etc.). */
@@ -203,5 +209,227 @@ export async function searchIncidents(
         ? `incident:${r.incidentId} (${r.occurredAt})`
         : `incident:${r.incidentId}`,
     ),
+  };
+}
+
+// ─── reportIncident — Sprint 33 wire W4 ─────────────────────────────────────
+//
+// Punto canónico para registrar un incidente. Persiste en
+// `tenants/{tenantId}/projects/{projectId}/incidents/{incidentId}`,
+// dispara XP positivo según tipo, y delega a `indexIncident()` para que el
+// resumen quede inmediatamente buscable vía RAG.
+//
+// Idempotencia: el caller puede pasar un `id` propio (recomendado para
+// flujos offline-first / queue replay) — si no, generamos uno con shape
+// `inc_{ts}_{rand6}` similar al patrón de commute.ts. La capa HTTP usa el
+// header `Idempotency-Key` de Stripe-pattern (middleware idempotencyKey)
+// para deduplicar el endpoint completo; este `id` interno garantiza que
+// dos llamadas con MISMO id sobreescriban en lugar de duplicar (set merge
+// indirecto vía `indexIncident`, doc.set en el principal).
+
+/** Tipo de evento reportado. Drive del XP que se emite. */
+export type IncidentEventType = 'near_miss' | 'incident' | 'post_mortem';
+
+/** Severidad subjetiva del reporter (no usada para gating XP — positivo-only). */
+export type IncidentSeverity = 'low' | 'med' | 'high' | 'critical';
+
+/**
+ * Forma del payload aceptada por `reportIncident`. Espejo del Zod schema
+ * en el handler HTTP (`routes/incidents.ts`); mantener sincronizados.
+ */
+export interface ReportIncidentInput {
+  /** tenantId que será dueño del incidente. Resuelto en el handler desde el project doc. */
+  tenantId: string;
+  /** projectId al que pertenece el incidente. */
+  projectId: string;
+  /** Opcional — si se omite, se autogenera. */
+  id?: string;
+  /** near_miss | incident | post_mortem. */
+  incidentType: IncidentEventType;
+  /** Severidad declarada por el reporter. */
+  severity: IncidentSeverity;
+  /** Texto narrativo (>= 1 char). Se embedea para búsqueda RAG. */
+  description: string;
+  /** Ubicación textual (opcional — geolocalización va aparte si llega). */
+  location?: string;
+  /** Lista de uids/nombres de testigos. */
+  witnesses?: string[];
+  /** ISO-8601 cuándo ocurrió el evento. Default: now. */
+  ts?: string;
+}
+
+export interface ReportIncidentOk {
+  ok: true;
+  /** Path final del doc en Firestore. */
+  path: string;
+  incidentId: string;
+  /** XP emitido al reporter (0 si no aplicó por tipo o si gamificación falló). */
+  xpAwarded: number;
+  /** True si el embedding se indexó OK; false si falló (no rompe el report). */
+  indexed: boolean;
+}
+
+export interface ReportIncidentErr {
+  ok: false;
+  reason: string;
+}
+
+/** Dependencias del reportIncident: Firestore + embedder + opcional awardXp. */
+export interface ReportIncidentDeps extends IncidentRagDeps {
+  /**
+   * Inyección opcional del awardXp. En producción se pasa el de
+   * `services/gamification/positiveXp.ts`; en tests se inyecta un spy.
+   * Cualquier excepción se swallows — gamificación NUNCA rompe el report.
+   */
+  awardXp?: (
+    reason: 'near_miss_reported' | 'incident_post_mortem_completed',
+    amount: number,
+    context?: Record<string, unknown>,
+  ) => unknown;
+}
+
+function generateIncidentId(now: () => unknown): string {
+  // Match commute.ts shape: prefix + ts + 6 random b36 chars.
+  const ts =
+    typeof now === 'function'
+      ? typeof now() === 'string'
+        ? Date.now()
+        : Date.now()
+      : Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `inc_${ts}_${rand}`;
+}
+
+/**
+ * Persiste un incidente con uid del reporter, dispara XP positivo, e indexa
+ * el embedding. NUNCA penaliza al reporter (directiva del producto: solo
+ * gamificación positiva — reportar es siempre un acto deseable).
+ *
+ * Path: `tenants/{tenantId}/projects/{projectId}/incidents/{incidentId}`.
+ *
+ * XP:
+ *   • `near_miss`     → awardXp('near_miss_reported', 10, ctx)
+ *   • `incident`      → awardXp('near_miss_reported', 10, ctx)  (mismo reason — el reporter no se castiga)
+ *   • `post_mortem`   → awardXp('incident_post_mortem_completed', 50, ctx)
+ *
+ * Errores parciales:
+ *   • Si el embedding falla, el incidente igual se persiste (campo
+ *     `indexed: false` en el resultado). El RAG no lo encontrará pero el
+ *     audit/Firestore sí.
+ *   • Si awardXp throws, se swallows y `xpAwarded: 0`. El reporte no falla.
+ */
+export async function reportIncident(
+  uid: string,
+  payload: ReportIncidentInput,
+  deps: ReportIncidentDeps,
+): Promise<ReportIncidentOk | ReportIncidentErr> {
+  if (!uid || typeof uid !== 'string') return { ok: false, reason: 'invalid_uid' };
+  if (!payload?.tenantId || typeof payload.tenantId !== 'string') {
+    return { ok: false, reason: 'invalid_tenant' };
+  }
+  if (!payload.projectId || typeof payload.projectId !== 'string') {
+    return { ok: false, reason: 'invalid_project' };
+  }
+  if (
+    payload.incidentType !== 'near_miss' &&
+    payload.incidentType !== 'incident' &&
+    payload.incidentType !== 'post_mortem'
+  ) {
+    return { ok: false, reason: 'invalid_incident_type' };
+  }
+  if (
+    payload.severity !== 'low' &&
+    payload.severity !== 'med' &&
+    payload.severity !== 'high' &&
+    payload.severity !== 'critical'
+  ) {
+    return { ok: false, reason: 'invalid_severity' };
+  }
+  if (
+    !payload.description ||
+    typeof payload.description !== 'string' ||
+    payload.description.trim().length === 0
+  ) {
+    return { ok: false, reason: 'empty_description' };
+  }
+
+  const now = deps.now ?? DEFAULT_NOW;
+  const incidentId = payload.id?.trim() || generateIncidentId(now);
+  const occurredAt = payload.ts ?? (typeof now() === 'string' ? (now() as string) : new Date().toISOString());
+
+  // ── 1. Persist al doc principal bajo tenants/{tid}/projects/{pid}/incidents/{id}
+  const incidentPath = `tenants/${payload.tenantId}/projects/${payload.projectId}/incidents`;
+  const docRef = deps.db.collection(incidentPath).doc(incidentId);
+  await docRef.set(
+    {
+      id: incidentId,
+      tenantId: payload.tenantId,
+      projectId: payload.projectId,
+      reporterUid: uid,
+      incidentType: payload.incidentType,
+      severity: payload.severity,
+      description: payload.description.trim(),
+      location: payload.location ?? null,
+      witnesses: Array.isArray(payload.witnesses) ? payload.witnesses : [],
+      ts: occurredAt,
+      createdAt: now(),
+    },
+    { merge: true },
+  );
+
+  // ── 2. Index para RAG (best-effort)
+  let indexed = false;
+  try {
+    const idxResult = await indexIncident(
+      {
+        id: incidentId,
+        tenantId: payload.tenantId,
+        projectId: payload.projectId,
+        summary: payload.description.trim(),
+        occurredAt,
+      },
+      deps,
+    );
+    indexed = idxResult.ok === true;
+  } catch {
+    // Indexing failure must NOT block report write — RAG es enhancement,
+    // no es contrato del reporte.
+    indexed = false;
+  }
+
+  // ── 3. XP positivo (fire-and-forget)
+  let xpAwarded = 0;
+  if (typeof deps.awardXp === 'function') {
+    try {
+      if (payload.incidentType === 'post_mortem') {
+        deps.awardXp('incident_post_mortem_completed', 50, {
+          incidentId,
+          tenantId: payload.tenantId,
+          projectId: payload.projectId,
+          reporterUid: uid,
+        });
+        xpAwarded = 50;
+      } else {
+        // near_miss + incident: reportar SIEMPRE suma XP (positivo-only).
+        deps.awardXp('near_miss_reported', 10, {
+          incidentId,
+          tenantId: payload.tenantId,
+          projectId: payload.projectId,
+          reporterUid: uid,
+          incidentType: payload.incidentType,
+        });
+        xpAwarded = 10;
+      }
+    } catch {
+      xpAwarded = 0;
+    }
+  }
+
+  return {
+    ok: true,
+    path: `${incidentPath}/${incidentId}`,
+    incidentId,
+    xpAwarded,
+    indexed,
   };
 }
