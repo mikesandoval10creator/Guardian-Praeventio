@@ -14,8 +14,9 @@ import { useTranslation } from 'react-i18next';
 import { Inbox as InboxIcon, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { useInbox } from '../hooks/useSprintK';
+import { useInbox, useDataQuality } from '../hooks/useSprintK';
 import { InboxPrevencionistaPanel } from '../components/inbox/InboxPrevencionistaPanel';
+import { DataQualityCard } from '../components/dataQuality/DataQualityCard';
 import { logger } from '../utils/logger';
 
 export function Inbox() {
@@ -25,6 +26,10 @@ export function Inbox() {
   const projectId = selectedProject?.id ?? null;
 
   const { data, loading, error } = useInbox(projectId);
+  // Sprint 40 Fase F.9: data quality scanner attached to the inbox per
+  // plan ("tarjeta en F.8 Inbox: Mejora calidad de datos"). Runs in
+  // parallel — own loading/error independent of the inbox feed.
+  const { data: dataQuality } = useDataQuality(projectId);
 
   const handleAction = (
     item: { id: string; kind: string },
@@ -129,6 +134,15 @@ export function Inbox() {
           items={data.items}
           summary={data.summary}
           onAction={handleAction}
+        />
+      )}
+
+      {/* Data Quality card (F.9). Independent of inbox load — render
+          when the data-quality endpoint returns its own result. */}
+      {dataQuality && (
+        <DataQualityCard
+          report={dataQuality.report}
+          topGaps={dataQuality.topGaps}
         />
       )}
     </div>

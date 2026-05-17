@@ -465,6 +465,113 @@ router.get('/:projectId/equipment', verifyAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// Data Quality (Fase F.9) — pre-IA gap detector
+// ─────────────────────────────────────────────────────────────────────
+//
+// Lee colecciones canónicas del proyecto (workers, projects, EPP
+// assignments, documents, incidents, machines, trainings) y corre el
+// scanner determinístico `scanAll()`. Devuelve un `DataQualityReport`
+// con score 0-100 + breakdown por dominio + top gaps para el panel
+// `<DataQualityCard>`.
+//
+// El scanner no requiere proyecto context — es puramente data-driven.
+// Pero scopeamos los reads por projectId para que cada faena vea solo
+// sus propios gaps.
+
+router.get('/:projectId/data-quality', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { scanAll, pickTopGaps } = await import(
+      '../../services/dataQuality/incompletenessScanner.js'
+    );
+
+    const db = admin.firestore();
+
+    // Best-effort parallel reads. Each query wrapped so one failure
+    // doesn't blank the whole report — the user sees partial data
+    // and can still drill into the populated domains.
+    const safeRead = async <T,>(
+      label: string,
+      fn: () => Promise<T[]>,
+    ): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.dataQuality.read.${label}.failed`, err);
+        return [];
+      }
+    };
+
+    const projectCollections = db.collection('projects').doc(projectId);
+    const [
+      workers,
+      epps,
+      documents,
+      incidents,
+      machines,
+      trainings,
+      thisProject,
+    ] = await Promise.all([
+      safeRead('workers', async () =>
+        (await projectCollections.collection('workers').get()).docs.map(
+          (d) => ({ id: d.id, ...d.data() }),
+        ),
+      ),
+      safeRead('epps', async () =>
+        (await projectCollections.collection('epp_assignments').get()).docs.map(
+          (d) => ({ id: d.id, ...d.data() }),
+        ),
+      ),
+      safeRead('documents', async () =>
+        (await projectCollections.collection('documents').get()).docs.map(
+          (d) => ({ id: d.id, ...d.data() }),
+        ),
+      ),
+      safeRead('incidents', async () =>
+        (await projectCollections.collection('incidents').get()).docs.map(
+          (d) => ({ id: d.id, ...d.data() }),
+        ),
+      ),
+      safeRead('machines', async () =>
+        (await projectCollections.collection('machines').get()).docs.map(
+          (d) => ({ id: d.id, ...d.data() }),
+        ),
+      ),
+      safeRead('trainings', async () =>
+        (await projectCollections.collection('trainings').get()).docs.map(
+          (d) => ({ id: d.id, ...d.data() }),
+        ),
+      ),
+      safeRead('project', async () => {
+        const snap = await projectCollections.get();
+        return snap.exists ? [{ id: snap.id, ...snap.data() }] : [];
+      }),
+    ]);
+
+    const report = scanAll({
+      workers: workers as any,
+      projects: thisProject as any,
+      eppAssignments: epps as any,
+      documents: documents as any,
+      incidents: incidents as any,
+      machines: machines as any,
+      trainings: trainings as any,
+    });
+
+    const topGaps = pickTopGaps(report, 10);
+
+    return res.json({ report, topGaps });
+  } catch (err) {
+    logger.error?.('sprintK.dataQuality.error', err);
+    captureRouteError(err, 'sprintK.dataQuality');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // Inbox del prevencionista (Fase F.8)
 // ─────────────────────────────────────────────────────────────────────
 //

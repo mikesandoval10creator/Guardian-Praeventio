@@ -48,6 +48,9 @@ vi.mock('../hooks/useOnlineStatus', () => ({
 }));
 vi.mock('../hooks/useSprintK', () => ({
   useInbox: () => mockUseInbox,
+  // F.9 hook also wired in the page; tests don't assert the gap card
+  // so the mock returns a null/empty result and the page hides it.
+  useDataQuality: () => ({ data: null, loading: false, error: null }),
 }));
 
 beforeEach(() => {

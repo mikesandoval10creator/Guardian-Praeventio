@@ -360,3 +360,23 @@ export async function createCorrectiveAction(
   }
   return { ok: true };
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Fase F.9 — Data Quality scanner (pre-IA gap detector)
+// ────────────────────────────────────────────────────────────────────────
+
+import type {
+  DataQualityReport,
+  Gap as DataQualityGap,
+} from '../services/dataQuality/incompletenessScanner';
+
+export interface DataQualityResponse {
+  report: DataQualityReport;
+  topGaps: DataQualityGap[];
+}
+
+export function useDataQuality(projectId: string | null) {
+  return useEndpoint<DataQualityResponse>(
+    projectId ? `/api/sprint-k/${projectId}/data-quality` : null,
+  );
+}
