@@ -27,8 +27,11 @@
 //   Stores:
 //     - `pending_inspections` keyed by `id` (the client-generated
 //       sessionId; same id the server sees so reconciliation is
-//       trivial).
-//     - `pending_observations` keyed by `observationId`.
+//       trivial). Each row now carries an `ownerUid` so a multi-user
+//       device (kiosk/shared tablet) never flushes user A's queue
+//       under user B's auth token.
+//     - `pending_observations` keyed by `observationId`, also tagged
+//       with `ownerUid` for the same isolation reason.
 //
 // IDEMPOTENCY:
 //   The server endpoints are idempotent by id / observationId (see
@@ -40,6 +43,15 @@
 //   unit tests, SSR-only render pass) the module falls back to an
 //   in-memory Map. Tests can call `__resetInspectionOutboxForTests()`
 //   to clear state between runs.
+//
+// CONCURRENCY (Codex round 2 hardening):
+//   - `acquireFlushLock()` is module-scoped, so a StrictMode double
+//     mount / second tab / HMR remount can't fire two flushes in
+//     parallel and double-POST the same observation. The lock auto-
+//     releases on caller `release()` (try/finally pattern).
+//   - `clearForUser(uid)` exists so the auth layer can purge another
+//     user's queue when a new user signs in on the same device, before
+//     the new user's bearer token starts flushing the stale rows.
 //
 // Filosofía Praeventio:
 //   - Detección Predictiva: el hallazgo de terreno NUNCA se pierde por
@@ -63,6 +75,15 @@ export interface PendingInspection {
   projectId: string;
   templateId: string;
   responsibleUid: string;
+  /**
+   * Codex round 2: the Firebase uid that owned the session at enqueue
+   * time. Used to filter the flush queue when a different user is
+   * signed in on the same device (kiosks, shared tablets), so user A's
+   * stuck queue never POSTs under user B's bearer token. Optional for
+   * backward compatibility with rows enqueued before this field
+   * existed; legacy rows are treated as "any owner".
+   */
+  ownerUid?: string;
   /** ISO timestamp captured on the device the moment the session opened. */
   startedAt: string;
   /** UNIX epoch ms — used to age out stuck entries. */
@@ -85,6 +106,8 @@ export interface PendingObservation {
   notes?: string;
   photoStoragePath?: string;
   locationLatLng?: { lat: number; lng: number };
+  /** Same role as PendingInspection.ownerUid — see comment above. */
+  ownerUid?: string;
   /** ISO recorded-at captured by the device at the moment of capture. */
   recordedAt: string;
   enqueuedAt: number;
@@ -129,11 +152,101 @@ function getDb(): Promise<IDBPDatabase> | null {
   return dbPromise;
 }
 
-/** Test-only: clears all state (DB handle + in-memory fallback). */
+/** Test-only: clears all state (DB handle + in-memory fallback + locks). */
 export function __resetInspectionOutboxForTests(): void {
   dbPromise = null;
   memInspections.clear();
   memObservations.clear();
+  flushLockHeld = false;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Module-level flush lock (Codex round 2 hardening).
+//
+// `<OfflineInspection>` may mount twice under React StrictMode (which
+// runs the effect → cleanup → effect cycle in development), and HMR /
+// route remounts can also momentarily render two copies. A per-
+// component `useRef` lock doesn't prevent a SECOND tab on the same
+// device from kicking off a concurrent flush either. Both scenarios
+// would pick the same `pending` observation row and POST it in
+// parallel — even though the server is idempotent by id, the second
+// POST is wasted work and would race the `markObservationSynced`
+// write.
+//
+// The lock is intentionally tiny: a boolean + an `acquire/release`
+// pair. We do NOT use a true mutex because there's nothing to await —
+// the second caller should just bail and let the first flush drain
+// the queue.
+// ────────────────────────────────────────────────────────────────────────
+
+let flushLockHeld = false;
+
+/**
+ * Attempt to take the flush lock. Returns `true` if acquired; the
+ * caller MUST invoke `releaseFlushLock()` when done (try / finally).
+ * Returns `false` if another flush is already in progress; the caller
+ * should bail gracefully — the in-flight flush will drain the queue.
+ */
+export function acquireFlushLock(): boolean {
+  if (flushLockHeld) return false;
+  flushLockHeld = true;
+  return true;
+}
+
+export function releaseFlushLock(): void {
+  flushLockHeld = false;
+}
+
+/**
+ * Codex round 2: purge ALL pending rows whose `ownerUid` does not match
+ * `currentUid`. Call this from the auth boundary on every sign-in or
+ * tenant switch so a previous user's stuck queue is not posted under
+ * the new user's bearer token. Legacy rows with no `ownerUid` are
+ * KEPT (we can't prove they belong to someone else) — once they reach
+ * the server the per-uid security rules there reject any cross-tenant
+ * leakage anyway. Returns the count of rows removed.
+ */
+export async function clearOutboxForOtherUsers(
+  currentUid: string,
+): Promise<number> {
+  const db = getDb();
+  let removed = 0;
+  if (db) {
+    const handle = await db;
+    const insps = (await handle.getAll(INSPECTIONS_STORE)) as PendingInspection[];
+    const obs = (await handle.getAll(OBSERVATIONS_STORE)) as PendingObservation[];
+    const stale = insps.filter(
+      (i) => typeof i.ownerUid === 'string' && i.ownerUid !== currentUid,
+    );
+    const staleObs = obs.filter(
+      (o) => typeof o.ownerUid === 'string' && o.ownerUid !== currentUid,
+    );
+    if (stale.length) {
+      const tx = handle.transaction(INSPECTIONS_STORE, 'readwrite');
+      await Promise.all(stale.map((i) => tx.store.delete(i.id)));
+      await tx.done;
+    }
+    if (staleObs.length) {
+      const tx = handle.transaction(OBSERVATIONS_STORE, 'readwrite');
+      await Promise.all(staleObs.map((o) => tx.store.delete(o.observationId)));
+      await tx.done;
+    }
+    removed = stale.length + staleObs.length;
+    return removed;
+  }
+  for (const [k, v] of memInspections.entries()) {
+    if (typeof v.ownerUid === 'string' && v.ownerUid !== currentUid) {
+      memInspections.delete(k);
+      removed++;
+    }
+  }
+  for (const [k, v] of memObservations.entries()) {
+    if (typeof v.ownerUid === 'string' && v.ownerUid !== currentUid) {
+      memObservations.delete(k);
+      removed++;
+    }
+  }
+  return removed;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -158,13 +271,29 @@ export async function enqueueInspectionStart(
   return record;
 }
 
-export async function listPendingInspections(): Promise<PendingInspection[]> {
+/**
+ * List pending (non-synced) inspections. When `ownerUid` is provided
+ * only rows belonging to that uid (or legacy rows with no ownerUid,
+ * see clearOutboxForOtherUsers note) are returned. The flush loop
+ * passes the current `auth.currentUser.uid` so a multi-user device
+ * never POSTs another user's queue under the new caller's token.
+ */
+export async function listPendingInspections(
+  ownerUid?: string,
+): Promise<PendingInspection[]> {
   const db = getDb();
+  const matchOwner = (i: PendingInspection): boolean => {
+    if (!ownerUid) return true;
+    if (typeof i.ownerUid !== 'string') return true; // legacy row
+    return i.ownerUid === ownerUid;
+  };
   if (db) {
     const all = (await (await db).getAll(INSPECTIONS_STORE)) as PendingInspection[];
-    return all.filter((i) => i.status !== 'synced');
+    return all.filter((i) => i.status !== 'synced' && matchOwner(i));
   }
-  return Array.from(memInspections.values()).filter((i) => i.status !== 'synced');
+  return Array.from(memInspections.values()).filter(
+    (i) => i.status !== 'synced' && matchOwner(i),
+  );
 }
 
 export async function markInspectionSynced(id: string): Promise<void> {
@@ -263,8 +392,18 @@ export async function enqueueObservation(
   return record;
 }
 
+/**
+ * List pending (non-synced) observations. Filters:
+ *   - `inspectionId` — scope to a single parent session (used by the
+ *     detail modal to gate "Cerrar inspección").
+ *   - `ownerUid` — Codex round 2: scope to the currently signed-in user
+ *     so a queue inherited from a previous session on a shared device
+ *     is not POSTed under the new caller's token. Legacy rows without
+ *     ownerUid are included (see clearOutboxForOtherUsers note).
+ */
 export async function listPendingObservations(
   inspectionId?: string,
+  ownerUid?: string,
 ): Promise<PendingObservation[]> {
   const db = getDb();
   let all: PendingObservation[];
@@ -273,7 +412,12 @@ export async function listPendingObservations(
   } else {
     all = Array.from(memObservations.values());
   }
-  const pending = all.filter((o) => o.status !== 'synced');
+  const matchOwner = (o: PendingObservation): boolean => {
+    if (!ownerUid) return true;
+    if (typeof o.ownerUid !== 'string') return true; // legacy row
+    return o.ownerUid === ownerUid;
+  };
+  const pending = all.filter((o) => o.status !== 'synced' && matchOwner(o));
   return inspectionId
     ? pending.filter((o) => o.inspectionId === inspectionId)
     : pending;

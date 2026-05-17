@@ -18,7 +18,7 @@
 //   - Consolidación: una vez sincronizada, la inspección queda como
 //     nodo auditable y feedea Acciones Correctivas / SIF / lecciones.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ClipboardCheck,
@@ -49,6 +49,8 @@ import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
 import { auth } from '../services/firebase';
 import {
+  acquireFlushLock,
+  clearOutboxForOtherUsers,
   enqueueInspectionStart,
   enqueueObservation,
   listPendingInspections,
@@ -58,6 +60,7 @@ import {
   markObservationFailed,
   markObservationSynced,
   rekeyObservation,
+  releaseFlushLock,
   type PendingInspection,
   type PendingObservation,
 } from '../services/inspections/inspectionOutbox';
@@ -184,18 +187,22 @@ export function OfflineInspection() {
   // only two states and the most common view is "En curso" alone.
   const resp = useInspections(projectId, { status: statusFilter });
 
+  // Codex round 2: scope outbox reads to the current signed-in uid so a
+  // queue inherited from a different account on a shared device (kiosks,
+  // shared tablets) is invisible until that user signs back in.
+  const callerUid = auth.currentUser?.uid;
   const refreshOutbox = useCallback(async () => {
     try {
       const [insps, obs] = await Promise.all([
-        listPendingInspections(),
-        listPendingObservations(),
+        listPendingInspections(callerUid),
+        listPendingObservations(undefined, callerUid),
       ]);
       setPendingInspections(insps);
       setPendingObservations(obs);
     } catch (err) {
       logger.warn('offlineInspection.outbox.read_failed', err);
     }
-  }, []);
+  }, [callerUid]);
 
   // Initial outbox load + refresh whenever the server list refreshes
   // (so a newly-synced row stops showing the pending badge).
@@ -203,20 +210,53 @@ export function OfflineInspection() {
     void refreshOutbox();
   }, [refreshOutbox, resp.data]);
 
+  // Codex round 2: when a new user signs in on a shared device, purge
+  // any rows still tagged with a different ownerUid. We only run this
+  // once per uid change (guarded by the effect dependency) so the
+  // current user's freshly enqueued items are never touched.
+  useEffect(() => {
+    if (!callerUid) return;
+    void clearOutboxForOtherUsers(callerUid).then((removed) => {
+      if (removed > 0) {
+        logger.info('offlineInspection.outbox.cross_user_purged', {
+          uid: callerUid,
+          removed,
+        });
+        void refreshOutbox();
+      }
+    });
+  }, [callerUid, refreshOutbox]);
+
   // Codex PR #322 P1 #3 (flush trigger): on every transition into
   // online (or on mount when already online) we attempt to flush
   // pending starts + observations. The server endpoints are idempotent
   // by id / observationId, so safe to retry. We never block the UI on
   // the flush — failures stay in the outbox for the next attempt.
-  const flushInFlightRef = useRef(false);
+  //
+  // Codex round 2 hardening: the in-flight guard is now the
+  // module-scoped `acquireFlushLock()` (was a component-scoped
+  // useRef). StrictMode double mount, HMR remount, route remount, or a
+  // second tab on the same device can no longer race two flushes in
+  // parallel — the second caller bails. We also serialize POSTs (no
+  // Promise.all) because the server transaction on observations
+  // serializes server-side anyway; firing 20 POSTs in parallel just
+  // creates 20 retries on Firestore contention without any latency win
+  // on a flaky 4G uplink. Finally, observations whose parent inspection
+  // is still in the `pending` queue are SKIPPED in this pass — posting
+  // them now would 404 because the parent doc doesn't exist yet. They
+  // get retried on the next pass after the parent syncs.
   const flushOutbox = useCallback(async () => {
-    if (!isOnline || flushInFlightRef.current) return;
-    flushInFlightRef.current = true;
+    if (!isOnline) return;
+    if (!acquireFlushLock()) return; // another flush is already running.
     try {
       const [insps, obs] = await Promise.all([
-        listPendingInspections(),
-        listPendingObservations(),
+        listPendingInspections(callerUid),
+        listPendingObservations(undefined, callerUid),
       ]);
+      // Track which inspection ids successfully synced in THIS pass —
+      // observations attached to a still-pending parent will be skipped
+      // and retried after the next reconnect.
+      const syncedInspectionIds = new Set<string>();
       for (const insp of insps) {
         try {
           await startInspectionAPI(insp.projectId, {
@@ -226,13 +266,29 @@ export function OfflineInspection() {
             startedAt: insp.startedAt,
           });
           await markInspectionSynced(insp.id);
+          syncedInspectionIds.add(insp.id);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           await markInspectionFailed(insp.id, msg);
           logger.warn('offlineInspection.outbox.start.flush_failed', err);
         }
       }
+      const pendingInspectionIdSet = new Set(insps.map((i) => i.id));
       for (const ob of obs) {
+        // Skip observations whose parent inspection is still pending
+        // AND failed to sync in this same pass — posting them now
+        // would 404 (inspection_not_found). They stay in pending state
+        // for the next reconnect cycle.
+        if (
+          pendingInspectionIdSet.has(ob.inspectionId) &&
+          !syncedInspectionIds.has(ob.inspectionId)
+        ) {
+          logger.info(
+            'offlineInspection.outbox.observation.deferred_parent_pending',
+            { inspectionId: ob.inspectionId, observationId: ob.observationId },
+          );
+          continue;
+        }
         try {
           await addObservationAPI(ob.projectId, ob.inspectionId, {
             observationId: ob.observationId,
@@ -266,9 +322,9 @@ export function OfflineInspection() {
       await refreshOutbox();
       resp.refetch?.();
     } finally {
-      flushInFlightRef.current = false;
+      releaseFlushLock();
     }
-  }, [isOnline, refreshOutbox, resp]);
+  }, [isOnline, refreshOutbox, resp, callerUid]);
 
   useEffect(() => {
     if (isOnline) void flushOutbox();
@@ -331,11 +387,16 @@ export function OfflineInspection() {
       // session exists immediately even if the network call below
       // fails. The server endpoint is idempotent by id, so retrying
       // later with the same payload is safe.
+      //
+      // Codex round 2: tag the row with `ownerUid` so a different user
+      // on a shared device cannot accidentally flush this session under
+      // their bearer token.
       await enqueueInspectionStart({
         id: sessionId,
         projectId,
         templateId: selectedTemplateId,
         responsibleUid: callerUid,
+        ownerUid: callerUid,
         startedAt,
       });
 
@@ -704,6 +765,7 @@ export function OfflineInspection() {
         <InspectionDetailModal
           inspection={detail}
           projectId={projectId}
+          callerUid={callerUid}
           pendingObservations={pendingObservations.filter(
             (o) => o.inspectionId === detail.id,
           )}
@@ -745,6 +807,14 @@ interface InspectionDetailModalProps {
   inspection: InspectionRecord;
   projectId: string;
   /**
+   * Codex round 2: the currently signed-in uid, used to tag enqueued
+   * observations with `ownerUid` so a multi-user device can't flush
+   * the wrong user's queue. Undefined when no user is signed in (the
+   * page hides the detail in that case, but the prop is optional for
+   * test stubs that don't initialise auth).
+   */
+  callerUid: string | undefined;
+  /**
    * Pending (un-synced) observations for THIS inspection, sourced from
    * the local outbox. Used to gate the Completar button (P2 #4) and to
    * surface a "Sincronizando N observaciones..." hint.
@@ -760,6 +830,7 @@ interface InspectionDetailModalProps {
 function InspectionDetailModal({
   inspection,
   projectId,
+  callerUid,
   pendingObservations,
   isOnline,
   onClose,
@@ -814,10 +885,15 @@ function InspectionDetailModal({
       // Codex PR #322 P1 #3: always enqueue locally first so the
       // observation survives a sudden offline / app kill. The flush
       // loop in OfflineInspection re-uses the same payload.
+      //
+      // Codex round 2: tag the row with `ownerUid` so a shared-device
+      // user switch doesn't leak this observation through another
+      // bearer token.
       await enqueueObservation({
         observationId,
         inspectionId: inspection.id,
         projectId,
+        ...(callerUid !== undefined ? { ownerUid: callerUid } : {}),
         ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
         ...(payload.photoStoragePath !== undefined
           ? { photoStoragePath: payload.photoStoragePath }

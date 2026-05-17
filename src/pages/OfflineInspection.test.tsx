@@ -102,12 +102,23 @@ let mockPendingObservations: Array<{
   observationId: string;
   inspectionId: string;
 }> = [];
+// Codex round 2 additions: module-level flush lock, cross-user purge.
+const acquireFlushLockSpy = vi.fn();
+const releaseFlushLockSpy = vi.fn();
+const clearOutboxForOtherUsersSpy = vi.fn();
 vi.mock('../services/inspections/inspectionOutbox', () => ({
+  acquireFlushLock: (...args: unknown[]) => acquireFlushLockSpy(...args),
+  releaseFlushLock: (...args: unknown[]) => releaseFlushLockSpy(...args),
+  clearOutboxForOtherUsers: (...args: unknown[]) =>
+    clearOutboxForOtherUsersSpy(...args),
   enqueueInspectionStart: (...args: unknown[]) =>
     enqueueInspectionStartSpy(...args),
   enqueueObservation: (...args: unknown[]) => enqueueObservationSpy(...args),
-  listPendingInspections: () => Promise.resolve(mockPendingInspections),
-  listPendingObservations: () => Promise.resolve(mockPendingObservations),
+  // Accept both (ownerUid?) and (inspectionId?, ownerUid?) call shapes.
+  listPendingInspections: (..._args: unknown[]) =>
+    Promise.resolve(mockPendingInspections),
+  listPendingObservations: (..._args: unknown[]) =>
+    Promise.resolve(mockPendingObservations),
   markInspectionSynced: (...args: unknown[]) =>
     markInspectionSyncedSpy(...args),
   markInspectionFailed: (...args: unknown[]) =>
@@ -176,6 +187,12 @@ beforeEach(() => {
   markObservationFailedSpy.mockResolvedValue(undefined);
   rekeyObservationSpy.mockReset();
   rekeyObservationSpy.mockResolvedValue(null);
+  // Codex round 2 — new helpers.
+  acquireFlushLockSpy.mockReset();
+  acquireFlushLockSpy.mockReturnValue(true);
+  releaseFlushLockSpy.mockReset();
+  clearOutboxForOtherUsersSpy.mockReset();
+  clearOutboxForOtherUsersSpy.mockResolvedValue(0);
   mockPendingInspections = [];
   mockPendingObservations = [];
 });

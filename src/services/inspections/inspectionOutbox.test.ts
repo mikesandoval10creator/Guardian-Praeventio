@@ -23,6 +23,8 @@ import { describe, it, expect, beforeEach, vi, afterAll } from 'vitest';
 vi.stubGlobal('indexedDB', undefined);
 
 import {
+  acquireFlushLock,
+  clearOutboxForOtherUsers,
   enqueueInspectionStart,
   listPendingInspections,
   markInspectionSynced,
@@ -34,6 +36,7 @@ import {
   markObservationSynced,
   markObservationFailed,
   rekeyObservation,
+  releaseFlushLock,
   dropSyncedObservations,
   __resetInspectionOutboxForTests,
 } from './inspectionOutbox';
@@ -191,5 +194,162 @@ describe('inspectionOutbox — observation-level queue', () => {
     await markObservationSynced('obs_f');
     const dropped = await dropSyncedObservations();
     expect(dropped).toBe(1);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Codex round 2 hardening: module-level flush lock + cross-user purge.
+// ────────────────────────────────────────────────────────────────────────
+
+describe('inspectionOutbox — Codex round 2 hardening', () => {
+  it('acquireFlushLock is mutually exclusive until releaseFlushLock is called', () => {
+    expect(acquireFlushLock()).toBe(true);
+    // A second acquire while the first is held must bail out.
+    expect(acquireFlushLock()).toBe(false);
+    releaseFlushLock();
+    // After release the lock is taken again cleanly.
+    expect(acquireFlushLock()).toBe(true);
+    releaseFlushLock();
+  });
+
+  it('__resetInspectionOutboxForTests() also frees a held flush lock', () => {
+    expect(acquireFlushLock()).toBe(true);
+    __resetInspectionOutboxForTests();
+    expect(acquireFlushLock()).toBe(true);
+    releaseFlushLock();
+  });
+
+  it('listPendingInspections(ownerUid) hides rows owned by other users', async () => {
+    await enqueueInspectionStart({
+      id: 'insp_user_a',
+      projectId: 'p1',
+      templateId: 'tpl_altura_v1',
+      responsibleUid: 'user_a',
+      ownerUid: 'user_a',
+      startedAt: '2026-05-17T10:00:00.000Z',
+    });
+    await enqueueInspectionStart({
+      id: 'insp_user_b',
+      projectId: 'p1',
+      templateId: 'tpl_loto_v1',
+      responsibleUid: 'user_b',
+      ownerUid: 'user_b',
+      startedAt: '2026-05-17T10:01:00.000Z',
+    });
+    const userA = await listPendingInspections('user_a');
+    expect(userA).toHaveLength(1);
+    expect(userA[0].id).toBe('insp_user_a');
+    const userB = await listPendingInspections('user_b');
+    expect(userB).toHaveLength(1);
+    expect(userB[0].id).toBe('insp_user_b');
+    // No ownerUid filter — both visible.
+    const all = await listPendingInspections();
+    expect(all).toHaveLength(2);
+  });
+
+  it('listPendingInspections(ownerUid) still includes legacy rows without ownerUid', async () => {
+    // Legacy row (pre-Codex-round-2 schema) has no ownerUid.
+    await enqueueInspectionStart({
+      id: 'insp_legacy',
+      projectId: 'p1',
+      templateId: 'tpl_altura_v1',
+      responsibleUid: 'someone',
+      startedAt: '2026-05-17T10:00:00.000Z',
+    });
+    const filtered = await listPendingInspections('current_user');
+    expect(filtered.map((i) => i.id)).toContain('insp_legacy');
+  });
+
+  it('listPendingObservations(_, ownerUid) hides rows owned by other users', async () => {
+    await enqueueObservation({
+      observationId: 'obs_a',
+      inspectionId: 'insp_a',
+      projectId: 'p1',
+      ownerUid: 'user_a',
+      notes: 'A',
+      recordedAt: '2026-05-17T10:00:00.000Z',
+    });
+    await enqueueObservation({
+      observationId: 'obs_b',
+      inspectionId: 'insp_b',
+      projectId: 'p1',
+      ownerUid: 'user_b',
+      notes: 'B',
+      recordedAt: '2026-05-17T10:01:00.000Z',
+    });
+    const userA = await listPendingObservations(undefined, 'user_a');
+    expect(userA.map((o) => o.observationId)).toEqual(['obs_a']);
+    const userB = await listPendingObservations(undefined, 'user_b');
+    expect(userB.map((o) => o.observationId)).toEqual(['obs_b']);
+  });
+
+  it('clearOutboxForOtherUsers() purges rows owned by other uids but spares legacy + current', async () => {
+    // Owned by the previous user — should be purged.
+    await enqueueInspectionStart({
+      id: 'insp_prev',
+      projectId: 'p1',
+      templateId: 'tpl_altura_v1',
+      responsibleUid: 'prev_user',
+      ownerUid: 'prev_user',
+      startedAt: '2026-05-17T10:00:00.000Z',
+    });
+    // Owned by the current user — must be kept.
+    await enqueueInspectionStart({
+      id: 'insp_curr',
+      projectId: 'p1',
+      templateId: 'tpl_loto_v1',
+      responsibleUid: 'curr_user',
+      ownerUid: 'curr_user',
+      startedAt: '2026-05-17T10:01:00.000Z',
+    });
+    // Legacy row (no ownerUid) — preserved because we can't prove ownership.
+    await enqueueInspectionStart({
+      id: 'insp_legacy',
+      projectId: 'p1',
+      templateId: 'tpl_caliente_v1',
+      responsibleUid: 'unknown',
+      startedAt: '2026-05-17T10:02:00.000Z',
+    });
+    await enqueueObservation({
+      observationId: 'obs_prev',
+      inspectionId: 'insp_prev',
+      projectId: 'p1',
+      ownerUid: 'prev_user',
+      notes: 'prev',
+      recordedAt: '2026-05-17T10:00:30.000Z',
+    });
+    await enqueueObservation({
+      observationId: 'obs_curr',
+      inspectionId: 'insp_curr',
+      projectId: 'p1',
+      ownerUid: 'curr_user',
+      notes: 'curr',
+      recordedAt: '2026-05-17T10:01:30.000Z',
+    });
+
+    const removed = await clearOutboxForOtherUsers('curr_user');
+    expect(removed).toBe(2); // insp_prev + obs_prev
+
+    const remainingInsps = await listPendingInspections();
+    const remainingIds = remainingInsps.map((i) => i.id).sort();
+    expect(remainingIds).toEqual(['insp_curr', 'insp_legacy']);
+
+    const remainingObs = await listPendingObservations();
+    expect(remainingObs.map((o) => o.observationId)).toEqual(['obs_curr']);
+  });
+
+  it('clearOutboxForOtherUsers() is a no-op when no cross-user rows exist', async () => {
+    await enqueueInspectionStart({
+      id: 'insp_only',
+      projectId: 'p1',
+      templateId: 'tpl_altura_v1',
+      responsibleUid: 'me',
+      ownerUid: 'me',
+      startedAt: '2026-05-17T10:00:00.000Z',
+    });
+    const removed = await clearOutboxForOtherUsers('me');
+    expect(removed).toBe(0);
+    const remaining = await listPendingInspections();
+    expect(remaining).toHaveLength(1);
   });
 });
