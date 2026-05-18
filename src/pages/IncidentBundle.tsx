@@ -24,6 +24,10 @@ import {
   manifestToJson,
   type IncidentBundleManifest,
 } from '../services/incidentBundle/incidentEvidenceBundle';
+// F.19 wire-up: render photo evidence linked to this incident.
+import { usePhotoEvidenceByNode } from '../hooks/usePhotoEvidence';
+import { PhotoEvidenceCard } from '../components/photoEvidence/PhotoEvidenceCard';
+import { Camera } from 'lucide-react';
 import { logger } from '../utils/logger';
 
 export function IncidentBundle() {
@@ -35,6 +39,15 @@ export function IncidentBundle() {
 
   const { data, loading, error } = useIncidentBundle(
     projectId,
+    incidentId ?? null,
+  );
+
+  // F.19: photos linked to the incident render as their own section. The
+  // bundle endpoint's `evidence` array is the high-level manifest shape;
+  // photo-evidence is the concrete byte-backed feed for fiscalizadores.
+  const { data: photoEvidence } = usePhotoEvidenceByNode(
+    projectId,
+    incidentId ? 'incident' : null,
     incidentId ?? null,
   );
 
@@ -169,6 +182,31 @@ export function IncidentBundle() {
           manifest={data.manifest}
           onExport={handleExport}
         />
+      )}
+
+      {photoEvidence && photoEvidence.artifacts.length > 0 && (
+        <section
+          className="space-y-2"
+          data-testid="incident-bundle-photo-evidence"
+        >
+          <header className="flex items-center gap-2">
+            <Camera
+              className="w-4 h-4 text-teal-600 dark:text-teal-400"
+              aria-hidden="true"
+            />
+            <h2 className="text-sm font-bold uppercase tracking-tight text-primary-token">
+              {t('incidentBundle.photoEvidence.title', 'Evidencia fotográfica')}
+            </h2>
+            <span className="ml-auto text-[11px] text-secondary-token">
+              {photoEvidence.artifacts.length}
+            </span>
+          </header>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {photoEvidence.artifacts.map((artifact) => (
+              <PhotoEvidenceCard key={artifact.id} artifact={artifact} />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );
