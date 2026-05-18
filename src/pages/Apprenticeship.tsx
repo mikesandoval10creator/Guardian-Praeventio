@@ -43,6 +43,8 @@ import {
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+// 2026-05-17 — migrated from monolithic useSprintK.ts to dedicated hook
+// per Sprint K reformulation directive. See docs/SPRINT_K_REFORMULATED.md.
 import {
   useApprentices,
   useMentorAvailability,
@@ -53,7 +55,7 @@ import {
   type ApprenticeAuthLevel,
   type ApprenticeRole,
   type ApprenticeExposureOutcome,
-} from '../hooks/useSprintK';
+} from '../hooks/useApprenticeship';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────
