@@ -241,6 +241,8 @@ import deduplicationRouter from "./src/server/routes/deduplication.js";
 import returnToWorkRouter from "./src/server/routes/returnToWork.js";
 // ROI Scenario Comparator — Sprint 53 §175 extendido (multi-scenario simulation).
 import roiScenarioRouter from "./src/server/routes/roiScenario.js";
+// Admin Burden + Automation Suggester — Sprint 51 §259-260.
+import adminBurdenRouter from "./src/server/routes/adminBurden.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -904,6 +906,7 @@ app.use('/api/sprint-k', upsellRouter);
 app.use('/api/sprint-k', deduplicationRouter);
 app.use('/api/sprint-k', returnToWorkRouter);
 app.use('/api/sprint-k', roiScenarioRouter);
+app.use('/api/sprint-k', adminBurdenRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
