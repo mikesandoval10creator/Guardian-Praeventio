@@ -142,6 +142,7 @@ import positiveObservationsRouter from "./src/server/routes/positiveObservations
 import residualRiskRouter from "./src/server/routes/residualRisk.js";
 import maturityRouter from "./src/server/routes/maturity.js";
 import drillsManagerRouter from "./src/server/routes/drillsManager.js";
+import workerReadinessRouter from "./src/server/routes/workerReadiness.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -745,6 +746,7 @@ app.use('/api/sprint-k', positiveObservationsRouter);
 app.use('/api/sprint-k', residualRiskRouter);
 app.use('/api/sprint-k', maturityRouter);
 app.use('/api/sprint-k', drillsManagerRouter);
+app.use('/api/sprint-k', workerReadinessRouter);
 app.use('/api/sprint-k', sprintKRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:

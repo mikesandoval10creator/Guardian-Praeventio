@@ -36,7 +36,7 @@ import { where } from 'firebase/firestore';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
-import { useWorkerReadiness } from '../hooks/useSprintK';
+import { useWorkerReadiness } from '../hooks/useWorkerReadiness';
 import type { Worker } from '../types';
 import type { ReadinessReport } from '../services/workerReadiness/readinessScore';
 
