@@ -9610,7 +9610,6 @@ router.get('/:projectId/data-confidence', verifyAuth, async (req, res) => {
     );
 
     const db = admin.firestore();
-    const db = admin.firestore();
     const now = new Date();
     const base = `tenants/${g.tenantId}/projects/${projectId}`;
 
@@ -10284,6 +10283,50 @@ function startOfIsoWeek(now: Date): Date {
  *   - all      = list everything (200 cap)
  */
 router.get('/:projectId/driving/routes', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const db = admin.firestore();
+    const statusRaw = typeof req.query.status === 'string' ? req.query.status : 'all';
+    const status: 'active' | 'critical' | 'all' =
+      statusRaw === 'active' || statusRaw === 'critical' ? statusRaw : 'all';
+
+    const safeReadDriving = async <T,>(label: string, fn: () => Promise<T[]>): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.driving.routes.read.${label}.failed`, err);
+        return [];
+      }
+    };
+
+    const routes = await safeReadDriving<StoredDrivingRoute>('list', async () => {
+      const snap = await db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/driving_routes`)
+        .orderBy('createdAt', 'desc')
+        .limit(200)
+        .get();
+      return snap.docs.map(
+        (d) => ({ id: d.id, ...(d.data() as Omit<StoredDrivingRoute, 'id'>) }),
+      );
+    });
+
+    const filtered = routes.filter((r) => {
+      if (status === 'active') return r.activeAlert !== null;
+      if (status === 'critical') return r.criticality === 'high' || r.criticality === 'extreme';
+      return true;
+    });
+
+    return res.json({ routes: filtered });
+  } catch (err) {
+    logger.error?.('sprintK.driving.routes.list.error', err);
+    captureRouteError(err, 'sprintK.driving.routes.list');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 // Sprint K §244-250 — Aprendices + Mentoría + Autorización Progresiva
 // ─────────────────────────────────────────────────────────────────────
 //
@@ -10413,70 +10456,23 @@ router.get('/:projectId/apprentices', verifyAuth, async (req, res) => {
   if (!g) return undefined;
   try {
     const db = admin.firestore();
-    const statusRaw = typeof req.query.status === 'string' ? req.query.status : 'all';
-    const status: 'active' | 'critical' | 'all' =
-      statusRaw === 'active' || statusRaw === 'critical' ? statusRaw : 'all';
     const baseRef = db.collection(
       `tenants/${g.tenantId}/projects/${projectId}/apprentices`,
     );
 
-    const safeRead = async <T,>(
+    const safeReadApprentices = async <T,>(
       label: string,
-      fn: () => Promise<T[]>,
-    ): Promise<T[]> => {
+      fn: () => Promise<T>,
+    ): Promise<T | null> => {
       try {
         return await fn();
       } catch (err) {
-        logger.warn?.(`sprintK.driving.routes.read.${label}.failed`, err);
-    const db = admin.firestore();
-
-    const windowKey = (() => {
-      const raw = typeof req.query.window === 'string' ? req.query.window.toLowerCase() : '';
-      if (raw === '3m' || raw === '6m' || raw === '12m') return raw;
-      return '12m';
-    })();
-    const groupKey: 'month' | 'week' = (() => {
-      const raw = typeof req.query.group === 'string' ? req.query.group.toLowerCase() : '';
-      if (raw === 'week') return 'week';
-      return 'month';
-    })();
-
-    const windowMs = TREND_WINDOW_MS[windowKey];
-    const cutoffMs = Date.now() - windowMs;
-    const cutoffIso = new Date(cutoffMs).toISOString();
-
-    const safeRead = async <T,>(label: string, fn: () => Promise<T[]>): Promise<T[]> => {
-      try {
-        return await fn();
-      } catch (err) {
-        logger.warn?.(`sprintK.trends.${label}.read_failed`, err);
         logger.warn?.(`sprintK.apprentices.read.${label}.failed`, err);
-        return [];
+        return null;
       }
     };
 
-    const routes = await safeRead<StoredDrivingRoute>('list', async () => {
-      const snap = await db
-        .collection(`tenants/${g.tenantId}/projects/${projectId}/driving_routes`)
-        .orderBy('createdAt', 'desc')
-        .limit(200)
-        .get();
-      return snap.docs.map(
-        (d) => ({ id: d.id, ...(d.data() as Omit<StoredDrivingRoute, 'id'>) }),
-      );
-    });
-
-    const filtered = routes.filter((r) => {
-      if (status === 'active') return r.activeAlert !== null;
-      if (status === 'critical') return r.criticality === 'high' || r.criticality === 'extreme';
-      return true;
-    });
-
-    return res.json({ routes: filtered });
-  } catch (err) {
-    logger.error?.('sprintK.driving.routes.list.error', err);
-    captureRouteError(err, 'sprintK.driving.routes.list');
-    const apprentices = await safeRead<StoredApprentice>(
+    const apprentices = await safeReadApprentices<StoredApprentice[]>(
       'apprentices',
       async () => {
         const snap = await baseRef.limit(500).get();
@@ -10543,21 +10539,6 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof drivingRouteCreateSchema>;
-const apprenticeRegisterSchema = z.object({
-  uid: z.string().min(1).max(120),
-  mentorUid: z.string().min(1).max(120),
-  role: z.enum(APPRENTICE_ROLES).default('aprendiz'),
-  startDate: z.string().min(10),
-});
-
-router.post(
-  '/:projectId/apprentices',
-  verifyAuth,
-  validate(apprenticeRegisterSchema),
-  async (req, res) => {
-    const callerUid = req.user!.uid;
-    const { projectId } = req.params;
-    const body = req.body as z.infer<typeof apprenticeRegisterSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -11066,6 +11047,29 @@ router.get('/:projectId/confidential-reports', verifyAuth, async (req, res) => {
   } catch (err) {
     logger.error?.('sprintK.confidential.list.error', err);
     captureRouteError(err, 'sprintK.confidential.list');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+router.get('/:projectId/data-confidence/snapshot', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const db = admin.firestore();
+    const now = new Date();
+    const base = `tenants/${g.tenantId}/projects/${projectId}`;
+
+    const safeRead = async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.dataConfidence.read.${label}.failed`, err);
+        return null;
+      }
+    };
+
     // ── Workers domain ───────────────────────────────────────────────
     const workersData = await safeRead('workers', async () => {
       const snap = await db.collection(`${base}/workers`).limit(2000).get();
