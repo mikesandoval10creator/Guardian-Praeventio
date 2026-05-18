@@ -1065,3 +1065,292 @@ describe('webpayAdapter env + init configuration (Sprint 41 ratchet)', () => {
     expect(webpayAdapter.isConfigured()).toBe(false);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────
+// 2026-05-18 Stryker baseline lift round 2 — error classes + env paths.
+//
+// Target the lower-score regions: WebpayAdapterError fields/message and
+// the readEnvOptions branch logic. These are pure constructors / branch
+// checks — easy to pin tightly so Stryker mutants can't survive.
+// ───────────────────────────────────────────────────────────────────────
+describe('WebpayAdapterError shape (Sprint 41 ratchet round 2)', () => {
+  it('wraps Error cause: name === WebpayAdapterError, message includes method + cause msg', async () => {
+    const cause = new Error('Transbank 504');
+    commitMock.mockRejectedValueOnce(cause);
+    try {
+      await webpayAdapter.commitTransaction('TKN_err_cause');
+      throw new Error('expected throw');
+    } catch (e) {
+      const err = e as WebpayAdapterError;
+      expect(err).toBeInstanceOf(WebpayAdapterError);
+      expect(err.name).toBe('WebpayAdapterError');
+      expect(err.method).toBe('commitTransaction');
+      expect(err.message).toContain('WebpayAdapter.commitTransaction()');
+      expect(err.message).toContain('failed');
+      expect(err.message).toContain('Transbank 504');
+      expect(err.cause).toBe(cause);
+    }
+  });
+
+  it('wraps string cause: message contains the string verbatim', async () => {
+    // Pin `typeof cause === 'string'` branch. A mutation collapsing the
+    // ternary would either always produce "unknown error" (losing the
+    // diagnostic) or throw on the .message access.
+    const cause = 'network timeout literal';
+    commitMock.mockRejectedValueOnce(cause);
+    try {
+      await webpayAdapter.commitTransaction('TKN_str_cause');
+      throw new Error('expected throw');
+    } catch (e) {
+      const err = e as WebpayAdapterError;
+      expect(err.message).toContain('network timeout literal');
+      expect(err.cause).toBe(cause);
+    }
+  });
+
+  it('wraps non-Error / non-string cause: message contains "unknown error"', async () => {
+    // Pin the fallback branch `: 'unknown error'`. A mutation flipping
+    // the literal would lose the diagnostic floor (e.g. mutate to '' or
+    // undefined).
+    const cause = { weird: 'object', not: 'Error' };
+    commitMock.mockRejectedValueOnce(cause);
+    try {
+      await webpayAdapter.commitTransaction('TKN_obj_cause');
+      throw new Error('expected throw');
+    } catch (e) {
+      const err = e as WebpayAdapterError;
+      expect(err.message).toContain('unknown error');
+      expect(err.cause).toBe(cause);
+    }
+  });
+
+  it('createTransaction error carries method="createTransaction" tag', async () => {
+    // Pin per-call `method` field. A mutation that hardcoded the field to
+    // a single value would let a refund error masquerade as a create
+    // error and break Sentry breadcrumbs.
+    createMock.mockRejectedValueOnce(new Error('boom'));
+    try {
+      await webpayAdapter.createTransaction({
+        buyOrder: 'inv',
+        sessionId: 's',
+        amount: 1,
+        returnUrl: 'https://x',
+      });
+      throw new Error('expected throw');
+    } catch (e) {
+      expect((e as WebpayAdapterError).method).toBe('createTransaction');
+    }
+  });
+
+  it('refundTransaction error carries method="refundTransaction" tag', async () => {
+    refundMock.mockRejectedValueOnce(new Error('refund denied'));
+    try {
+      await webpayAdapter.refundTransaction('TKN', 1000);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect((e as WebpayAdapterError).method).toBe('refundTransaction');
+    }
+  });
+});
+
+describe('readEnvOptions branch coverage (Sprint 41 ratchet round 2)', () => {
+  it('returns null when only WEBPAY_COMMERCE_CODE is set (key missing)', async () => {
+    // `if (!code || !key) return null` — pin the right operand of ||.
+    // A mutation `||` → `&&` would let this case fall through to the
+    // production-route check.
+    process.env.WEBPAY_COMMERCE_CODE = '597000000001';
+    // WEBPAY_API_KEY intentionally unset
+    expect(webpayAdapter.isConfigured()).toBe(false);
+  });
+
+  it('returns null when only WEBPAY_API_KEY is set (code missing)', async () => {
+    // Pin the left operand of `!code || !key`.
+    process.env.WEBPAY_API_KEY = 'k';
+    expect(webpayAdapter.isConfigured()).toBe(false);
+  });
+
+  it('WEBPAY_ENV=integration routes to Integration (not Production)', async () => {
+    // Pin `process.env.WEBPAY_ENV === 'production'` strict-equality. A
+    // mutation `===` → `!==` would route the explicit integration env
+    // to Production (catastrophic — sandbox creds against prod URL).
+    process.env.WEBPAY_COMMERCE_CODE = '597000000002';
+    process.env.WEBPAY_API_KEY = 'k';
+    process.env.WEBPAY_ENV = 'integration';
+    expect(webpayAdapter.isConfigured()).toBe(true);
+    createMock.mockResolvedValueOnce({ token: 'T_int', url: 'https://int' });
+    await expect(
+      webpayAdapter.createTransaction({
+        buyOrder: 'inv',
+        sessionId: 's',
+        amount: 1,
+        returnUrl: 'https://x',
+      }),
+    ).resolves.toEqual({ token: 'T_int', url: 'https://int' });
+  });
+
+  it('WEBPAY_ENV neither prod nor int (e.g. "staging") → Integration default', async () => {
+    // Pin the `=== 'production'` literal. A mutation to `!== 'production'`
+    // would route every non-prod string (including 'staging') through prod.
+    process.env.WEBPAY_COMMERCE_CODE = '597000000003';
+    process.env.WEBPAY_API_KEY = 'k';
+    process.env.WEBPAY_ENV = 'staging';
+    expect(webpayAdapter.isConfigured()).toBe(true);
+    createMock.mockResolvedValueOnce({ token: 'T_def', url: 'https://def' });
+    await expect(
+      webpayAdapter.createTransaction({
+        buyOrder: 'inv',
+        sessionId: 's',
+        amount: 1,
+        returnUrl: 'https://x',
+      }),
+    ).resolves.toEqual({ token: 'T_def', url: 'https://def' });
+  });
+
+  it('WEBPAY_ENV unset, WEBPAY_ENVIRONMENT=production → Production', async () => {
+    // Pin the `||` between the two env names. A mutation `||` → `&&`
+    // would require BOTH set, breaking deployments using only one.
+    process.env.WEBPAY_COMMERCE_CODE = '597000000004';
+    process.env.WEBPAY_API_KEY = 'k';
+    // WEBPAY_ENV intentionally unset
+    process.env.WEBPAY_ENVIRONMENT = 'production';
+    expect(webpayAdapter.isConfigured()).toBe(true);
+  });
+
+  it('init() priority over env vars when explicit init was called', async () => {
+    // Pin the priority chain `if (state.options) return state.options`.
+    // Even if env vars say production, an explicit init() should win.
+    process.env.WEBPAY_COMMERCE_CODE = 'env-code';
+    process.env.WEBPAY_API_KEY = 'env-key';
+    webpayAdapter.init({
+      commerceCode: 'init-code',
+      apiKey: 'init-key',
+      environment: 'integration',
+    });
+    expect(webpayAdapter.isConfigured()).toBe(true);
+    // Verify by triggering a create — no throw means options resolved.
+    createMock.mockResolvedValueOnce({ token: 'T_init', url: 'https://init' });
+    await expect(
+      webpayAdapter.createTransaction({
+        buyOrder: 'inv',
+        sessionId: 's',
+        amount: 1,
+        returnUrl: 'https://x',
+      }),
+    ).resolves.toEqual({ token: 'T_init', url: 'https://init' });
+  });
+
+  it('sandbox fallback when neither init nor env are configured (no throw)', async () => {
+    // Pin `buildIntegrationOptions()` fallback. With nothing set, the
+    // adapter still allows createTransaction (development convenience).
+    expect(webpayAdapter.isConfigured()).toBe(false);
+    createMock.mockResolvedValueOnce({ token: 'T_sb', url: 'https://sb' });
+    await expect(
+      webpayAdapter.createTransaction({
+        buyOrder: 'inv_sandbox',
+        sessionId: 'sess_sb',
+        amount: 1500,
+        returnUrl: 'https://sb-return',
+      }),
+    ).resolves.toEqual({ token: 'T_sb', url: 'https://sb' });
+    expect(createMock).toHaveBeenCalledWith(
+      'inv_sandbox',
+      'sess_sb',
+      1500,
+      'https://sb-return',
+    );
+  });
+});
+
+describe('mapCommitResponse full payload assertions (Sprint 41 ratchet round 2)', () => {
+  it('AUTHORIZED response maps ALL fields exactly (kills field-drop mutants)', async () => {
+    // Each `result.X` assertion kills a corresponding `X: ...` field drop
+    // in the return statement. Pin every field to a unique value so
+    // any mutation that swaps fields would be caught.
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'INV-UNIQUE-12345',
+      amount: 99777,
+      response_code: 0,
+      authorization_code: 'AUTH-XYZ',
+      card_detail: { card_number: '4111111111119876' },
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_full');
+    expect(result.status).toBe('AUTHORIZED');
+    expect(result.buyOrder).toBe('INV-UNIQUE-12345');
+    expect(result.amount).toBe(99777);
+    expect(result.authorizationCode).toBe('AUTH-XYZ');
+    expect(result.cardLast4).toBe('9876');
+    expect(result.raw).toBeDefined();
+  });
+
+  it('REJECTED response preserves buyOrder + amount + raw (no field loss on decline)', async () => {
+    commitMock.mockResolvedValueOnce({
+      status: 'FAILED',
+      buy_order: 'INV-REJECTED-99',
+      amount: 11000,
+      response_code: -4,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_rej_full');
+    expect(result.status).toBe('REJECTED');
+    expect(result.buyOrder).toBe('INV-REJECTED-99');
+    expect(result.amount).toBe(11000);
+    expect(result.authorizationCode).toBeUndefined();
+    expect(result.cardLast4).toBeUndefined();
+  });
+
+  it('AUTHORIZED requires BOTH operands (code=0 alone does not authorize)', async () => {
+    // Targets line 197 ConditionalExpression survivors. With code=0 but
+    // status="PENDING", we must NOT map to AUTHORIZED. A mutation that
+    // dropped the second operand of && would let this slip through.
+    commitMock.mockResolvedValueOnce({
+      status: 'PENDING',
+      buy_order: 'inv_pending_zero',
+      amount: 5000,
+      response_code: 0,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_pending_zero');
+    expect(result.status).toBe('FAILED');
+    expect(result.status).not.toBe('AUTHORIZED');
+  });
+});
+
+describe('mapRefundResponse explicit field assertions (Sprint 41 ratchet round 2)', () => {
+  it('REVERSED response preserves all fields (full check kills field-drop)', async () => {
+    refundMock.mockResolvedValueOnce({
+      type: 'REVERSED',
+      authorization_code: 'AUTH-RFND-1',
+      nullified_amount: 12000,
+      balance: 0,
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_rev_full', 12000);
+    expect(result.type).toBe('REVERSED');
+    expect(result.authorizationCode).toBe('AUTH-RFND-1');
+    expect(result.authorizedAmount).toBe(12000);
+    expect(result.balance).toBe(0);
+  });
+
+  it('exact-equality "REVERSED" matters: "reverse" (typo) → NULLIFIED', async () => {
+    // Pin `rawType === 'REVERSED'` strict-equality. A mutation `===` →
+    // `.includes(` or `.startsWith(` would let "reverse" or "REVERSING"
+    // through and corrupt accounting categorization.
+    refundMock.mockResolvedValueOnce({
+      type: 'REVERSE', // missing trailing D
+      nullified_amount: 5000,
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_typo', 5000);
+    expect(result.type).toBe('NULLIFIED');
+  });
+
+  it('refund preserves the SDK requestedAmount when nullified_amount=0', async () => {
+    // Pin `typeof === 'number'` guard. nullified_amount=0 IS a valid
+    // number (zero), so the typeof check should accept it. A mutation
+    // that fell to requestedAmount in this case would mis-account.
+    refundMock.mockResolvedValueOnce({
+      type: 'NULLIFIED',
+      nullified_amount: 0,
+      balance: 11990,
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_zero', 5000);
+    expect(result.authorizedAmount).toBe(0);
+  });
+});
