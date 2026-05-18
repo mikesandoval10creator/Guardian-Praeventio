@@ -47,6 +47,8 @@ import {
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+// 2026-05-17 — migrated from monolithic useSprintK.ts to dedicated hook
+// per Sprint K reformulation directive. See docs/SPRINT_K_REFORMULATED.md.
 import {
   useConfidentialReports,
   useRetaliationAlerts,
@@ -58,7 +60,7 @@ import {
   type ConfidentialReportSeverity,
   type ConfidentialReportStatusApi,
   type RetaliationAlertApi,
-} from '../hooks/useSprintK';
+} from '../hooks/useConfidentialReports';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────
