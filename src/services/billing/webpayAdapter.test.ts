@@ -695,4 +695,373 @@ describe('finalizeWebpayIdempotencyLock', () => {
       }),
     ).resolves.toBeUndefined();
   });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // 2026-05-18 Stryker baseline lift: kill survivors detected on Run #5.
+  //
+  // The previous score (60.55%) reflected unverified branches for:
+  //   - serverTimestamp factory path (use it vs default new Date())
+  //   - completedAt presence in the update payload
+  // ─────────────────────────────────────────────────────────────────────
+  it('uses serverTimestamp factory when provided (preserves Admin SDK FieldValue)', async () => {
+    // The Admin SDK `FieldValue.serverTimestamp()` returns a sentinel that
+    // Firestore replaces server-side. If a mutation drops the factory call
+    // and falls back to `new Date()`, the doc would carry the client clock
+    // (subject to skew) instead of the canonical server time. Pin both:
+    //   1. the factory IS invoked (kills mutation that ignores it)
+    //   2. its return value appears verbatim in the update payload
+    const ref = makeFakeRef({ status: 'in_progress', lockedAtMs: Date.now() });
+    const sentinel = { __serverTimestamp: true };
+    const factory = vi.fn(() => sentinel);
+    await finalizeWebpayIdempotencyLock(ref as any, {
+      outcome: 'paid',
+      invoiceId: 'inv_finalize_st',
+      serverTimestamp: factory,
+    });
+    expect(factory).toHaveBeenCalledTimes(1);
+    const [payload] = ref.update.mock.calls[0];
+    expect(payload.completedAt).toBe(sentinel);
+  });
+
+  it('falls back to new Date() when serverTimestamp factory is not provided', async () => {
+    // Pin the `args.serverTimestamp ? ... : new Date()` ternary. A mutation
+    // that always-picks-one-branch would either skip the factory invocation
+    // (when supplied) or never produce a Date (when not). The other test
+    // covers the truthy branch; this one pins the falsy branch.
+    const ref = makeFakeRef({ status: 'in_progress', lockedAtMs: Date.now() });
+    await finalizeWebpayIdempotencyLock(ref as any, {
+      outcome: 'rejected',
+      invoiceId: 'inv_finalize_date',
+      // serverTimestamp intentionally omitted
+    });
+    const [payload] = ref.update.mock.calls[0];
+    expect(payload.completedAt).toBeInstanceOf(Date);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// 2026-05-18 Stryker baseline lift — mapCommitResponse defensive paths.
+//
+// Targets surviving mutants on the response coercion fallbacks. Each test
+// pins a specific operand of a ternary so a mutation collapsing the branch
+// would flip the contract.
+// ───────────────────────────────────────────────────────────────────────
+describe('mapCommitResponse defensive coercion (Sprint 41 ratchet)', () => {
+  it('amount falls to 0 when SDK response omits the field (zero-default)', async () => {
+    // Pin `typeof response?.amount === 'number' ? response.amount : 0`. A
+    // mutation that replaces the typeof guard with `true` would let
+    // `undefined` flow through as amount and break downstream invoice math.
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'inv_no_amount',
+      response_code: 0,
+      // amount intentionally absent
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_no_amount');
+    expect(result.amount).toBe(0);
+  });
+
+  it('amount falls to 0 when response sends a non-numeric amount (string)', async () => {
+    // Some Transbank proxies serialize numbers as strings ("11990"). The
+    // typeof guard must NOT accept the string — otherwise downstream
+    // arithmetic on `result.amount` produces NaN propagation.
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'inv_str_amount',
+      response_code: 0,
+      amount: '11990' as unknown as number,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_str_amount');
+    expect(result.amount).toBe(0);
+    expect(typeof result.amount).toBe('number');
+  });
+
+  it('buyOrder falls to empty string when buy_order is missing (never undefined)', async () => {
+    // Pin `response?.buy_order ?? ''`. A mutation that drops the
+    // nullish-coalescing operand would let `undefined` flow through and
+    // break the audit log key generation downstream.
+    commitMock.mockResolvedValueOnce({
+      status: 'FAILED',
+      response_code: -1,
+      // buy_order intentionally absent
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_no_buy_order');
+    expect(result.buyOrder).toBe('');
+    expect(typeof result.buyOrder).toBe('string');
+  });
+
+  it('authorizationCode is undefined when authorization_code is missing', async () => {
+    // Pin `response?.authorization_code ?? undefined`. The undefined branch
+    // is the legal contract — never the literal string 'undefined'.
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'inv_no_auth',
+      amount: 11990,
+      response_code: 0,
+      // authorization_code intentionally absent
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_no_auth');
+    expect(result.authorizationCode).toBeUndefined();
+  });
+
+  it('cardLast4 is undefined when card_number is not a string (number type)', async () => {
+    // Defensive: card_number could theoretically arrive as a number from a
+    // misbehaving proxy. The `typeof === 'string'` guard must reject it.
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'inv_num_card',
+      amount: 11990,
+      response_code: 0,
+      card_detail: { card_number: 4111111111111111 as unknown as string },
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_num_card');
+    expect(result.cardLast4).toBeUndefined();
+  });
+
+  it('raw payload is preserved verbatim on the result for audit', async () => {
+    // Pin `raw: response`. A mutation that drops the assignment would lose
+    // the audit-log payload entirely. We compare the reference identity by
+    // checking a sentinel key the SDK would never invent on its own.
+    const sentinel = '__test_marker_xyz__';
+    const responseBody = {
+      status: 'AUTHORIZED',
+      buy_order: 'inv_raw',
+      amount: 11990,
+      response_code: 0,
+      __test_marker__: sentinel,
+    };
+    commitMock.mockResolvedValueOnce(responseBody);
+    const result = await webpayAdapter.commitTransaction('TKN_raw');
+    expect((result.raw as { __test_marker__: string }).__test_marker__).toBe(
+      sentinel,
+    );
+  });
+
+  it('response_code: -7 (final card-side decline boundary) → REJECTED', async () => {
+    // -7 is the last card-side decline in the Transbank table. Pin the
+    // `responseCode < 0` boundary — a mutation `<` → `<=` would still pass
+    // for -1, but a `<` → `===` would silently break this case.
+    commitMock.mockResolvedValueOnce({
+      status: 'FAILED',
+      buy_order: 'inv_neg_seven',
+      amount: 11990,
+      response_code: -7,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_neg_seven');
+    expect(result.status).toBe('REJECTED');
+  });
+
+  it('response_code: -50 (outside known table) → REJECTED (any negative is card-side)', async () => {
+    // Catch any `< 0` mutation that would treat unknown negative codes as
+    // AUTHORIZED or FAILED. Anything negative-and-non-transient maps to
+    // REJECTED per the conservative contract.
+    commitMock.mockResolvedValueOnce({
+      status: 'FAILED',
+      buy_order: 'inv_neg_fifty',
+      amount: 11990,
+      response_code: -50,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_neg_fifty');
+    expect(result.status).toBe('REJECTED');
+  });
+
+  it('response_code as a string ("0") is treated as malformed → FAILED', async () => {
+    // Pin `typeof responseCode === 'number'`. A proxy that JSONifies
+    // response_code as a string MUST NOT collapse to AUTHORIZED — the
+    // typeof guard catches it and we fall back to FAILED (retry path).
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'inv_str_code',
+      amount: 11990,
+      response_code: '0' as unknown as number,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_str_code');
+    expect(result.status).toBe('FAILED');
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// 2026-05-18 Stryker baseline lift — refund-mapping defensive paths.
+// ───────────────────────────────────────────────────────────────────────
+describe('mapRefundResponse defensive coercion (Sprint 41 ratchet)', () => {
+  it('balance is undefined when SDK omits the field (never 0 by default)', async () => {
+    // Pin `typeof response?.balance === 'number' ? response.balance : undefined`.
+    // A mutation collapsing the ternary would either return 0 (wrong — looks
+    // like a fully drained card) or `undefined`-as-number (NaN propagation).
+    refundMock.mockResolvedValueOnce({
+      type: 'NULLIFIED',
+      nullified_amount: 5000,
+      // balance intentionally absent
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_no_bal', 5000);
+    expect(result.balance).toBeUndefined();
+  });
+
+  it('balance is undefined when value is non-numeric (typeof guard)', async () => {
+    refundMock.mockResolvedValueOnce({
+      type: 'NULLIFIED',
+      nullified_amount: 5000,
+      balance: 'unknown' as unknown as number,
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_str_bal', 5000);
+    expect(result.balance).toBeUndefined();
+  });
+
+  it('authorizationCode is undefined when absent on refund response', async () => {
+    refundMock.mockResolvedValueOnce({
+      type: 'NULLIFIED',
+      nullified_amount: 5000,
+      balance: 6990,
+      // authorization_code intentionally absent
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_no_authcode', 5000);
+    expect(result.authorizationCode).toBeUndefined();
+  });
+
+  it('raw payload preserved verbatim on the refund result for audit', async () => {
+    const sentinel = '__refund_marker_42__';
+    const responseBody = {
+      type: 'NULLIFIED',
+      nullified_amount: 5000,
+      balance: 6990,
+      __test_marker__: sentinel,
+    };
+    refundMock.mockResolvedValueOnce(responseBody);
+    const result = await webpayAdapter.refundTransaction('TKN_refund_raw', 5000);
+    expect((result.raw as { __test_marker__: string }).__test_marker__).toBe(
+      sentinel,
+    );
+  });
+
+  it('handles entirely empty refund response (defensive)', async () => {
+    // Pin `(response?.type ?? '').toString().toUpperCase()` for the case
+    // where response is `{}` — the optional-chaining + nullish operand
+    // must collapse to '' so toUpperCase succeeds (no throw).
+    refundMock.mockResolvedValueOnce({});
+    const result = await webpayAdapter.refundTransaction('TKN_empty', 3000);
+    expect(result.type).toBe('NULLIFIED'); // default
+    expect(result.authorizedAmount).toBe(3000); // requestedAmount fallback
+    expect(result.balance).toBeUndefined();
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// 2026-05-18 Stryker baseline lift — idempotency lock defensive paths.
+// ───────────────────────────────────────────────────────────────────────
+describe('acquireWebpayIdempotencyLock defensive paths (Sprint 41 ratchet)', () => {
+  it('writes a 7-day expiresAt for Firestore TTL hint', async () => {
+    // Pin `new Date(lockedAtMs + 7 * 24 * 60 * 60 * 1000)`. A mutation on
+    // any of the multiplicands (7→6, 24→23, 60→59) would change the TTL
+    // window and either leak completed locks (too short) or block
+    // re-emission (too long). Use a fixed clock for byte-level pinning.
+    const fixedNow = 1_700_000_000_000;
+    const ref = makeFakeRef(null);
+    const result = await acquireWebpayIdempotencyLock(
+      ref as any,
+      () => fixedNow,
+    );
+    expect(result.acquired).toBe(true);
+    const [data] = ref.set.mock.calls[0];
+    expect(data.expiresAt).toBeInstanceOf(Date);
+    const expectedMs = fixedNow + 7 * 24 * 60 * 60 * 1000;
+    expect((data.expiresAt as Date).getTime()).toBe(expectedMs);
+  });
+
+  it('writes both lockedAtMs and receivedAtMs to the same value (audit pair)', async () => {
+    // The doc carries `lockedAtMs` (for staleness math) and `receivedAtMs`
+    // (for human-readable audit). They must match on initial acquisition;
+    // a mutation that drops `receivedAtMs` would break the audit trail.
+    const fixedNow = 1_750_000_000_000;
+    const ref = makeFakeRef(null);
+    await acquireWebpayIdempotencyLock(ref as any, () => fixedNow);
+    const [data] = ref.set.mock.calls[0];
+    expect(data.lockedAtMs).toBe(fixedNow);
+    expect(data.receivedAtMs).toBe(fixedNow);
+  });
+
+  it('alreadyDone payload omits invoiceId when stored value is not a string', async () => {
+    // Pin `typeof data.invoiceId === 'string' ? data.invoiceId : undefined`.
+    // A mutation that drops the typeof check would return the wrong type
+    // (number/null) and downstream consumers would break casting to string.
+    const ref = makeFakeRef({
+      status: 'done',
+      outcome: 'paid',
+      invoiceId: 42 as unknown as string,
+    });
+    const result = await acquireWebpayIdempotencyLock(ref as any, () => Date.now());
+    expect(result.alreadyDone).toBe(true);
+    expect(result.invoiceId).toBeUndefined();
+  });
+
+  it('returns done with valid string invoiceId echoed through', async () => {
+    // Companion to the above: the truthy branch of the typeof guard.
+    const ref = makeFakeRef({
+      status: 'done',
+      outcome: 'rejected',
+      invoiceId: 'inv_already_done_99',
+    });
+    const result = await acquireWebpayIdempotencyLock(ref as any, () => Date.now());
+    expect(result.invoiceId).toBe('inv_already_done_99');
+    expect(result.outcome).toBe('rejected');
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// 2026-05-18 Stryker baseline lift — env / init configuration paths.
+// ───────────────────────────────────────────────────────────────────────
+describe('webpayAdapter env + init configuration (Sprint 41 ratchet)', () => {
+  it('uses WEBPAY_ENVIRONMENT as alternate name for WEBPAY_ENV', async () => {
+    // The adapter accepts EITHER env var name. A mutation removing the
+    // OR-clause would break deployments using the alternate name (which
+    // matches the convention used by other modules in the repo).
+    process.env.WEBPAY_COMMERCE_CODE = '597000000999';
+    process.env.WEBPAY_API_KEY = 'alt-env-secret';
+    process.env.WEBPAY_ENVIRONMENT = 'production';
+    expect(webpayAdapter.isConfigured()).toBe(true);
+    createMock.mockResolvedValueOnce({ token: 'TKN_prod', url: 'https://prod' });
+    // Trigger resolveOptions() by issuing a create — the test asserts no
+    // throw rather than spying on the environment internally.
+    await expect(
+      webpayAdapter.createTransaction({
+        buyOrder: 'inv_alt_env',
+        sessionId: 'sess',
+        amount: 1000,
+        returnUrl: 'https://x',
+      }),
+    ).resolves.toEqual({ token: 'TKN_prod', url: 'https://prod' });
+  });
+
+  it('production environment via init() switches the SDK env URL', async () => {
+    // Pin `config.environment === 'production' ? Environment.Production : ...`.
+    // A mutation flipping the ternary would route prod credentials to the
+    // sandbox URL — silently leaking real charges into the integration env.
+    webpayAdapter.init({
+      commerceCode: 'real-commerce',
+      apiKey: 'real-api',
+      environment: 'production',
+    });
+    expect(webpayAdapter.isConfigured()).toBe(true);
+  });
+
+  it('init() with empty commerceCode → isConfigured() returns false', async () => {
+    // Pin `Boolean(config.commerceCode && config.apiKey)`. A mutation that
+    // drops one operand of the && would either falsely report configured
+    // (with empty creds → SDK fails opaquely) or always-false (deploys
+    // can't ever activate).
+    webpayAdapter.init({
+      commerceCode: '',
+      apiKey: 'has-key',
+      environment: 'integration',
+    });
+    expect(webpayAdapter.isConfigured()).toBe(false);
+  });
+
+  it('init() with empty apiKey → isConfigured() returns false', async () => {
+    webpayAdapter.init({
+      commerceCode: 'has-code',
+      apiKey: '',
+      environment: 'integration',
+    });
+    expect(webpayAdapter.isConfigured()).toBe(false);
+  });
 });
