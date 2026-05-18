@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { Folder, WifiOff, FileQuestion } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { useIncidentBundle } from '../hooks/useSprintK';
+import { useIncidentBundle } from '../hooks/useIncidentBundle';
 import { IncidentEvidenceBundleCard } from '../components/incidentBundle/IncidentEvidenceBundleCard';
 import {
   manifestToJson,

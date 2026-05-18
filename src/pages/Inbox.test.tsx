@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Inbox } from './Inbox';
-import type { InboxResponse } from '../hooks/useSprintK';
+import type { InboxResponse } from '../hooks/useInbox';
 
 // Codex P2 PR #309: page now uses useNavigate() for the onOpenDetail
 // handler. Wrap each render in a MemoryRouter so the hook resolves.
@@ -54,10 +54,12 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useInbox', () => ({
   useInbox: () => mockUseInbox,
-  // F.9 hook also wired in the page; tests don't assert the gap card
-  // so the mock returns a null/empty result and the page hides it.
+}));
+// F.9 hook also wired in the page; tests don't assert the gap card
+// so the mock returns a null/empty result and the page hides it.
+vi.mock('../hooks/useDataQuality', () => ({
   useDataQuality: () => ({ data: null, loading: false, error: null }),
 }));
 

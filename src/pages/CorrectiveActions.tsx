@@ -26,7 +26,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
   useCorrectiveActions,
   scheduleCorrectiveActionEffectivenessReview,
-} from '../hooks/useSprintK';
+} from '../hooks/useCorrectiveActions';
 import { CorrectiveActionsCenterPanel } from '../components/correctiveActions/CorrectiveActionsCenterPanel';
 import type { CorrectiveAction } from '../services/correctiveActions/weakActionDetector';
 import type {

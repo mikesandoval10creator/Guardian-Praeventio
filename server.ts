@@ -126,7 +126,10 @@ import onboardingRouter from "./src/server/routes/onboarding.js";
 // Sprint 39 PASO 2 — Wire UI bridge routes (persistence layer + insights).
 import sitebookRouter from "./src/server/routes/sitebook.js";
 import insightsRouter from "./src/server/routes/insights.js";
-import sprintKRouter from "./src/server/routes/sprintK.js";
+// sprintK.ts monolito eliminado (2026-05-18). Cada feature ahora vive en
+// su propio router dedicado (ver imports `vulnerability`, `sif`, `waste`,
+// `correctiveActions`, `loto`, `equipment`, `dataQuality`, `incidentBundle`,
+// `inbox` y todos los previos).
 // Sprint K reformulation 2026-05-17 — dedicated routers per feature
 // (see docs/SPRINT_K_REFORMULATED.md). Mounted BEFORE the monolith so
 // migrated routes take precedence and can be removed from the monolith
@@ -158,6 +161,16 @@ import annualReviewRouter from "./src/server/routes/annualReview.js";
 import leadershipRouter from "./src/server/routes/leadership.js";
 import projectClosureRouter from "./src/server/routes/projectClosure.js";
 import drivingSafetyRouter from "./src/server/routes/drivingSafety.js";
+// Sprint K final batch — migrados del monolito (2026-05-18).
+import vulnerabilityRouter from "./src/server/routes/vulnerability.js";
+import sifRouter from "./src/server/routes/sif.js";
+import wasteRouter from "./src/server/routes/waste.js";
+import correctiveActionsRouter from "./src/server/routes/correctiveActions.js";
+import lotoRouter from "./src/server/routes/loto.js";
+import equipmentRouter from "./src/server/routes/equipment.js";
+import dataQualityRouter from "./src/server/routes/dataQuality.js";
+import incidentBundleRouter from "./src/server/routes/incidentBundle.js";
+import inboxRouter from "./src/server/routes/inbox.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -777,7 +790,15 @@ app.use('/api/sprint-k', annualReviewRouter);
 app.use('/api/sprint-k', leadershipRouter);
 app.use('/api/sprint-k', projectClosureRouter);
 app.use('/api/sprint-k', drivingSafetyRouter);
-app.use('/api/sprint-k', sprintKRouter);
+app.use('/api/sprint-k', vulnerabilityRouter);
+app.use('/api/sprint-k', sifRouter);
+app.use('/api/sprint-k', wasteRouter);
+app.use('/api/sprint-k', correctiveActionsRouter);
+app.use('/api/sprint-k', lotoRouter);
+app.use('/api/sprint-k', equipmentRouter);
+app.use('/api/sprint-k', dataQualityRouter);
+app.use('/api/sprint-k', incidentBundleRouter);
+app.use('/api/sprint-k', inboxRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)

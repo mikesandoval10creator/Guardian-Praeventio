@@ -22,7 +22,7 @@ import * as sprintKHooks from '../hooks/useLeadership';
 import type {
   LeadershipDecisionsResponse,
   LeadershipRankingResponse,
-} from '../hooks/useSprintK';
+} from '../hooks/useLeadership';
 import type {
   SupervisionDecision,
   SupervisorRanking,
