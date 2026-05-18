@@ -68,7 +68,7 @@ Top 3 riesgos identificados para R22:
 
 1. **Dynamic-import barrel surface drift**: `gemini.ts:202` hace `await import` y `ALLOWED_GEMINI_ACTIONS` actúa como allowlist — mitigación es un test CI que assertea que las 84 acciones permanecen en el barrel post-cada-round.
 2. **networkBackend.ts ↔ geminiBackend.ts cycle**: `networkBackend.ts:3` importa `autoConnectNodes` y `geminiBackend.ts:2699` re-exporta `networkBackend.js` — fix atómico R22 cambiando el import a `./gemini/classify.js` y el `vi.mock` en `networkBackend.test.ts:131`.
-3. **IPER doctrine drift**: `criticidad` MUST estar ausente de prompts/schemas (Ley 16.744 / DS 40 / DS 54). Comments en L229, L714, L1289, L2197 enforcean hoy; archivos más chicos abren surface a accidental reintroduction. Mitigación: regression test per-módulo + JSDoc top-of-file.
+3. **IPER doctrine drift**: `criticidad` MUST estar ausente de prompts/schemas (Ley 16.744 / DS 44/2024 / DS 54). Comments en L229, L714, L1289, L2197 enforcean hoy; archivos más chicos abren surface a accidental reintroduction. Mitigación: regression test per-módulo + JSDoc top-of-file.
 
 ### IPv6 keyGenerator fix (B4)
 

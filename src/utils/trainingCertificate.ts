@@ -104,7 +104,7 @@ export function generateTrainingCertificate(
   if (score !== undefined) {
     doc.text(`Puntaje: ${Math.round(score)}%`, W - 30, footerY + 2, { align: 'right' });
   }
-  doc.text(`Cumplimiento DS 54 · DS 40 · Ley 16.744`, W / 2, footerY + 9, { align: 'center' });
+  doc.text(`Cumplimiento DS 54 · DS 44/2024 · Ley 16.744`, W / 2, footerY + 9, { align: 'center' });
 
   const fileName = `Certificado_${trainingTitle.replace(/[^a-zA-Z0-9]/g, '_')}_${participantName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
   doc.save(fileName);

@@ -3,7 +3,8 @@
  *
  * Fuentes (verificadas contra BCN — Biblioteca del Congreso Nacional):
  *  - Ley 16.744 (1968) — Seguro Social contra Accidentes y Enfermedades Profesionales.
- *  - DS 40 (1969) — Reglamento sobre Prevención de Riesgos Profesionales.
+ *  - DS 44/2024 — Reglamento sobre Prevención de Riesgos Profesionales (vigente
+ *      desde 2025-02-01, reemplaza al DS 40/1969 derogado).
  *      Art. 8: Departamento de Prevención obligatorio si > 100 trabajadores.
  *  - DS 54 (1969) — Reglamento sobre Comités Paritarios de Higiene y Seguridad.
  *      Art. 1: Comité Paritario obligatorio en faenas con > 25 trabajadores.
@@ -27,7 +28,7 @@ export const CL_PACK: CountryPack = {
   language: 'es-CL',
   iso45001Compatibility: 'high',
   notes:
-    'Marco SST chileno consolidado: Ley 16.744 + DS 40/54/594. Compatible con ISO 45001 vía SGSST.',
+    'Marco SST chileno consolidado: Ley 16.744 + DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01) + DS 54 + DS 594. Compatible con ISO 45001 vía SGSST.',
   thresholds: {
     comiteRequiredAtWorkers: 25,
     preventionDeptRequiredAtWorkers: 100,
@@ -43,12 +44,12 @@ export const CL_PACK: CountryPack = {
       url: 'https://www.bcn.cl/leychile/navegar?idNorma=28650',
     },
     {
-      id: 'cl-ds-40',
-      title: 'DS 40 — Reglamento sobre Prevención de Riesgos Profesionales',
-      reference: 'Decreto Supremo N° 40 (1969), MINTRAB. Art. 8 (Dpto. Prevención)',
+      id: 'cl-ds-44',
+      title: 'DS 44/2024 — Reglamento sobre Prevención de Riesgos Profesionales',
+      reference: 'Decreto Supremo N° 44 (2024), MINTRAB. Vigente desde 2025-02-01. Reemplaza DS 40/1969 (derogado).',
       scope:
         'Departamento de Prevención de Riesgos obligatorio en empresas con más de 100 trabajadores. Obligación de informar (ODI) y Reglamento Interno de Higiene y Seguridad.',
-      url: 'https://www.bcn.cl/leychile/navegar?idNorma=1041130',
+      url: 'https://www.bcn.cl/leychile/navegar?idNorma=1217760',
     },
     {
       id: 'cl-ds-54',

@@ -56,9 +56,10 @@ const RIOHS_TEMPLATE: LegalDocTemplate = {
 **Industria**: {{industry}}
 
 ## I. Disposiciones generales
-El presente Reglamento se dicta en cumplimiento del DS 40/1969 (art. 14)
-y la Ley 16.744 (art. 67). Es obligatorio para todos los trabajadores
-de {{companyName}} en la faena {{projectName}}.
+El presente Reglamento se dicta en cumplimiento del DS 44/2024 (vigente
+desde 2025-02-01, reemplaza al DS 40/1969 derogado) y la Ley 16.744
+(art. 67). Es obligatorio para todos los trabajadores de {{companyName}}
+en la faena {{projectName}}.
 
 ## II. Comité Paritario
 **¿Requerido?**: {{cphsRequired}} (DS 54/1969 art. 1 — ≥25 trabajadores).
@@ -83,7 +84,7 @@ Código del Trabajo art. 157).
 - Protocolos de emergencia.
 - Rutas de evacuación.
 `,
-  legalReferences: ['DS 40/1969', 'Ley 16.744 art. 67', 'DS 54/1969 art. 1', 'Código del Trabajo art. 157'],
+  legalReferences: ['DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)', 'Ley 16.744 art. 67', 'DS 54/1969 art. 1', 'Código del Trabajo art. 157'],
 };
 
 const DDR_TEMPLATE: LegalDocTemplate = {
@@ -97,9 +98,10 @@ const DDR_TEMPLATE: LegalDocTemplate = {
 **Empresa**: {{companyName}}
 **Fecha**: {{date}}
 
-En cumplimiento del DS 40/1969 art. 21 y la Ley 16.744, se informa
-al trabajador de los riesgos asociados a su puesto de trabajo, las
-medidas preventivas y los procedimientos correctos.
+En cumplimiento del DS 44/2024 (vigente desde 2025-02-01, reemplaza al
+DS 40/1969 derogado) y la Ley 16.744, se informa al trabajador de los
+riesgos asociados a su puesto de trabajo, las medidas preventivas y los
+procedimientos correctos.
 
 ## Riesgos identificados
 Ver Matriz IPER vigente del puesto **{{position}}**.
@@ -117,7 +119,7 @@ _____________________________
 {{workerName}}
 {{workerRut}}
 `,
-  legalReferences: ['DS 40/1969 art. 21', 'Ley 16.744'],
+  legalReferences: ['DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)', 'Ley 16.744'],
 };
 
 const ODI_TEMPLATE: LegalDocTemplate = {
@@ -131,9 +133,9 @@ const ODI_TEMPLATE: LegalDocTemplate = {
 **Empresa**: {{companyName}}
 **Fecha**: {{date}}
 
-En cumplimiento de la Ley 16.744 art. 21 y el DS 40 art. 21, se
-informa al trabajador de los siguientes riesgos específicos de su
-puesto:
+En cumplimiento de la Ley 16.744 art. 21 y el DS 44/2024 (vigente desde
+2025-02-01, reemplaza al DS 40/1969 derogado), se informa al trabajador
+de los siguientes riesgos específicos de su puesto:
 
 ## Riesgos específicos del puesto
 {{specificRisks}}
@@ -151,7 +153,7 @@ preventivas.
 _____________________________
 {{workerName}} | {{workerRut}}
 `,
-  legalReferences: ['Ley 16.744 art. 21', 'DS 40/1969 art. 21'],
+  legalReferences: ['Ley 16.744 art. 21', 'DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)'],
 };
 
 const PTS_TEMPLATE: LegalDocTemplate = {
@@ -178,7 +180,7 @@ const PTS_TEMPLATE: LegalDocTemplate = {
 ## Referencias normativas
 {{references}}
 `,
-  legalReferences: ['DS 40/1969', 'DS 594/1999', 'Ley 16.744'],
+  legalReferences: ['DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)', 'DS 594/1999', 'Ley 16.744'],
 };
 
 const CPHS_ACTA_TEMPLATE: LegalDocTemplate = {

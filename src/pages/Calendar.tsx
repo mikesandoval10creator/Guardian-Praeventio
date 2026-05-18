@@ -255,7 +255,7 @@ export function Calendar() {
 
   // Generate legal obligations based on worker count.
   // NOTE: SUSESO/ACHS/IST/Mutual/ONEMI/SAMU/CITUC and Chilean legal references
-  // (DS 54, DS 40, Comité Paritario) are proper nouns and stay untranslated.
+  // (DS 54, DS 44/2024, Comité Paritario) are proper nouns and stay untranslated.
   const legalObligations = React.useMemo(() => {
     const obligations: Event[] = [];
     if (totalWorkers >= 25) {

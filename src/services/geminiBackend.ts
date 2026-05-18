@@ -451,7 +451,7 @@ async function analyzeRiskWithAIImpl(description: string, nodesContext: string, 
     1. Lista de recomendaciones inmediatas.
     2. Lista de controles a implementar siguiendo la Jerarquía de Controles
        (eliminación → sustitución → ingeniería → administrativo → EPP).
-    3. Normativa aplicable (ej. DS 594, DS 40, DS 54, Ley 16.744, NCh ISO 45001).`;
+    3. Normativa aplicable (ej. DS 594, DS 44/2024, DS 54, Ley 16.744, NCh ISO 45001).`;
 
   const safePrompt = redactPromptForVertex(prompt, 'analyzeRiskWithAI');
 
@@ -919,7 +919,7 @@ export const enrichNodeData = async (nodeData: Partial<RiskNode>): Promise<Parti
   // Round 16 (R1) doctrine + R18 R6 MEDIUM #2 — Same doctrine applies here:
   // `criticidad` is intentionally OMITTED from prompt + schema even when
   // enriching a Riesgo node. Risk-level classification is a legal output of
-  // the deterministic IPER P×S matrix (`calculateIper()`); Ley 16.744 / DS 40
+  // the deterministic IPER P×S matrix (`calculateIper()`); Ley 16.744 / DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)
   // attach liability to that figure. This helper only enriches descriptive
   // fields (title, description). The prevencionista must classify via IPER.
   const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -1512,7 +1512,7 @@ export const suggestRisksWithAI = async (industry: string, context: string) => {
     contents: `Basado en el rubro "${industry}" y el contexto del proyecto "${context}", sugiere 5 riesgos críticos que deberían estar en la matriz IPERC.
     Para cada riesgo, asigna un valor de Probabilidad (1-5) y Severidad (1-5) según la metodología de evaluación de riesgos.
 
-    IMPORTANTE: NO devuelvas criticidad — la clasificación legal viene de IPER P×S deterministic en \`calculateIper()\`. Tu rol se limita a estimar P y S como inputs numéricos, junto con recomendaciones, controles (Jerarquía: eliminación → sustitución → ingeniería → administrativo → EPP) y normativa aplicable (DS 594, DS 40, DS 54, Ley 16.744, NCh ISO 45001).`,
+    IMPORTANTE: NO devuelvas criticidad — la clasificación legal viene de IPER P×S deterministic en \`calculateIper()\`. Tu rol se limita a estimar P y S como inputs numéricos, junto con recomendaciones, controles (Jerarquía: eliminación → sustitución → ingeniería → administrativo → EPP) y normativa aplicable (DS 594, DS 44/2024, DS 54, Ley 16.744, NCh ISO 45001).`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -2409,7 +2409,7 @@ export const analyzeFeedPostForRiskNetwork = async (content: string, imageBase64
   // Round 16 (R1) doctrine — SafetyFeed posts are pure triage signals. The
   // LLM does NOT classify criticidad here; the prevencionista will run the
   // deterministic IPER P×S matrix (`calculateIper()`) once the node lands
-  // in the network. Ley 16.744 / DS 40 / DS 54 attach legal liability to
+  // in the network. Ley 16.744 / DS 44/2024 / DS 54 attach legal liability to
   // the deterministic classification, so we strip `criticidad` from both
   // the prompt and the JSON schema to prevent Gemini's structured-output
   // mode from injecting an AI guess that auditors could mistake for it.
@@ -2838,7 +2838,7 @@ export const scanLegalUpdates = async (normativeTitle: string, normativeText: st
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
   const prompt = `
-    Eres un experto en normativa de seguridad laboral chilena (DS 594, DS 40, Ley 16.744, SUSESO).
+    Eres un experto en normativa de seguridad laboral chilena (DS 594, DS 44/2024, Ley 16.744, SUSESO).
     Se ha publicado o actualizado la siguiente norma: "${normativeTitle}".
     Extracto: ${normativeText.slice(0, 1500)}
 
@@ -2919,7 +2919,7 @@ export const analyzeMedicalInjury = async (regions: { id: string; label: string;
     `- ${r.label} (severidad: ${r.severity}${r.ds594Article ? `, ${r.ds594Article}` : ''})`
   ).join('\n');
 
-  const prompt = `Eres un médico experto en salud ocupacional chilena (DS 594, DS 40, Ley 16.744).
+  const prompt = `Eres un médico experto en salud ocupacional chilena (DS 594, DS 44/2024, Ley 16.744).
 Analiza estas lesiones de accidente laboral y entrega un diagnóstico ocupacional estructurado en JSON.
 
 ZONAS LESIONADAS:

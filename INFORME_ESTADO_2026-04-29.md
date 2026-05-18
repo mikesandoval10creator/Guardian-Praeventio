@@ -13,7 +13,7 @@
 
 ## TL;DR — Una sola página
 
-Guardian-Praeventio es una plataforma SaaS de prevención de riesgos ocupacionales para Chile y LATAM (DS 54, DS 40, Ley 16.744, ISO 45001). Está **técnicamente production-ready a nivel código** pero **bloqueada operacionalmente** por items que vos tenés que tramitar (verificación de dominio, OAuth Consent Screen de Google, KYC Transbank, assets Marketplace, GCP terraform apply).
+Guardian-Praeventio es una plataforma SaaS de prevención de riesgos ocupacionales para Chile y LATAM (DS 54, DS 44/2024, Ley 16.744, ISO 45001). Está **técnicamente production-ready a nivel código** pero **bloqueada operacionalmente** por items que vos tenés que tramitar (verificación de dominio, OAuth Consent Screen de Google, KYC Transbank, assets Marketplace, GCP terraform apply).
 
 **Métricas finales R21:**
 - 1.719 tests pasando + 66 skipped = 1.785 total. tsc 0 errors. Build PWA OK.
@@ -59,7 +59,7 @@ Guardian-Praeventio es una plataforma SaaS de prevención de riesgos ocupacional
 **Las 5 calculadoras canónicas conectadas a UI** (Round 14 cerró el "safety theatre" gap):
 - **REBA** (Rapid Entire Body Assessment) — wizard 7-step en `AddErgonomicsModal.tsx`
 - **RULA** (Rapid Upper Limb Assessment) — mismo wizard, diferentes inputs
-- **IPER** (Identificación de Peligros y Evaluación de Riesgos) — matriz 5×5 deterministic en `IPERCAnalysis.tsx`, AI freeform descartada para clasificación legal (DS 40 + ACHS Manual IPER)
+- **IPER** (Identificación de Peligros y Evaluación de Riesgos) — matriz 5×5 deterministic en `IPERCAnalysis.tsx`, AI freeform descartada para clasificación legal (DS 44/2024 + ACHS Manual IPER)
 - **TMERT** (MINSAL Norma Técnica 2012) — Chile-specific
 - **PREXOR** (DS 594 ruido ocupacional) — Q=3 dB
 

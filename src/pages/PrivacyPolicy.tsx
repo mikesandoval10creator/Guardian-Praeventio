@@ -65,7 +65,7 @@ export function PrivacyPolicy() {
               <li>Gestionar la identidad y autenticación del usuario.</li>
               <li>Enviar alertas de emergencia y notificaciones de capacitación.</li>
               <li>Verificar y gestionar suscripciones a través de Google Play Billing.</li>
-              <li>Cumplir con la normativa chilena: DS 54, DS 40, Ley 16.744, ISO 45001.</li>
+              <li>Cumplir con la normativa chilena: DS 54, DS 44/2024, Ley 16.744, ISO 45001.</li>
               <li>Mejorar la plataforma mediante análisis de uso agregado y anónimo.</li>
             </ul>
           </section>

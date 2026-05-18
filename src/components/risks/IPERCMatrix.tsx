@@ -54,7 +54,7 @@ const getLevelColor = (level: IperLevel | null) => {
 
 /**
  * Deterministic IPER matrix subcomponent. The level/criticidad MUST come
- * from `calculateIper(P, S)`. Per SUSESO Guía Técnica DS 40 + ACHS Manual
+ * from `calculateIper(P, S)`. Per SUSESO Guía Técnica DS 44/2024 + ACHS Manual
  * IPER, the LLM cannot legally classify the risk; it may only SUGGEST
  * controls. P, S and controlEffectiveness drive the engine.
  */

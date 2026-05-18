@@ -41,7 +41,7 @@ export const bcnKnowledgeBase: BCNLaw[] = [
     id: "ds-40",
     title: "Decreto Supremo 40",
     description: "Reglamento sobre prevención de riesgos profesionales.",
-    content: `El DS 40 aprueba el reglamento sobre prevención de riesgos profesionales.
+    content: `El DS 44/2024 aprueba el reglamento sobre prevención de riesgos profesionales.
     - Departamento de Prevención de Riesgos: Toda empresa que ocupe a más de 100 trabajadores deberá contar con un Departamento de Prevención de Riesgos Profesionales.
     - Obligación de Informar (ODI): Los empleadores tienen la obligación de informar oportuna y convenientemente a todos sus trabajadores acerca de los riesgos que entrañan sus labores, de las medidas preventivas y de los métodos de trabajo correctos.
     - Reglamento Interno: Las empresas deben mantener al día un Reglamento Interno de Seguridad e Higiene en el Trabajo.`,

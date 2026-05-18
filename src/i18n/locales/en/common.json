@@ -140,7 +140,7 @@
       ],
       "departamento-prevencion": [
         "Everything in Joint Committee",
-        "Prevention Department (DS 40)",
+        "Prevention Department (DS 44/2024)",
         "AI-generated Safe Work Procedures",
         "SUSESO dashboard",
         "Automated ISO audits"
@@ -883,7 +883,7 @@
     "legal_obligations": {
       "comite_paritario_title": "Comité Paritario Meeting (DS 54)",
       "comite_paritario_description": "Mandatory monthly meeting of the Joint Health and Safety Committee.",
-      "depto_prevencion_title": "Prevention Dept. Report (DS 40)",
+      "depto_prevencion_title": "Prevention Dept. Report (DS 44/2024)",
       "depto_prevencion_description": "Monthly accident-rate and preventive-management report submission.",
       "location_meeting_room": "Meeting Room",
       "location_management": "Management Office"
@@ -1165,7 +1165,7 @@
     "action_risk_matrix_title": "Risk Matrix Update",
     "action_risk_matrix_desc": "Quarterly reviews are missing in 2 critical operational areas. Updating will reduce exposure to fines.",
     "cta_risk_matrix": "Go to Matrices",
-    "action_training_title": "Pending Training (DS 40)",
+    "action_training_title": "Pending Training (DS 44/2024)",
     "action_training_desc": "15 workers have not completed the \"Right to Know\" induction (ODI) this semester.",
     "cta_training": "Schedule Training",
     "action_findings_title": "Close Critical Findings",
@@ -1906,7 +1906,7 @@
       "enter": "Enter"
     },
     "hero": {
-      "compliance_badge": "Compliant with DS 54 . DS 40 . Law 16.744",
+      "compliance_badge": "Compliant with DS 54 . DS 44/2024 . Law 16.744",
       "title_line_1": "The revolution of",
       "title_line_2": "risk prevention",
       "subtitle": "Risk management, team wellbeing, and regulatory compliance - all in one AI-powered platform",

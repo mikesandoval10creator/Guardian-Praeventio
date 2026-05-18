@@ -122,7 +122,7 @@ function ArcadeGamesInner() {
           {t('arcadeGames.whyPlay', 'Por qué jugar')}
         </h2>
         <p className="text-sm text-zinc-400 leading-relaxed">
-          {t('arcadeGames.whyPlayDescription', 'Los serious-games refuerzan respuestas automáticas (memoria muscular) y reducen el tiempo de reacción frente a incidentes reales. Cada partida persiste un puntaje a tu historial gamificado y se registra en el audit log para evidencia de capacitación continua (Ley 16.744 Art. 21, DS 40 Art. 3).')}
+          {t('arcadeGames.whyPlayDescription', 'Los serious-games refuerzan respuestas automáticas (memoria muscular) y reducen el tiempo de reacción frente a incidentes reales. Cada partida persiste un puntaje a tu historial gamificado y se registra en el audit log para evidencia de capacitación continua (Ley 16.744 Art. 21, DS 44/2024 Art. 3).')}
         </p>
       </Card>
     </div>

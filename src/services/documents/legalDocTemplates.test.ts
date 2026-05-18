@@ -113,7 +113,7 @@ describe('renderLegalDoc', () => {
         workerCount: '120',
       },
     });
-    expect(r.references).toContain('DS 40/1969');
+    expect(r.references).toContain('DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)');
     expect(r.references).toContain('Ley 16.744 art. 67');
   });
 });

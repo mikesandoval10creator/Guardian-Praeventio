@@ -57,7 +57,7 @@ Companion artefacts:
   roadmap.
 - Multi-region disaster recovery and Firestore backup policy.
 - Compliance certification (ISO 27001, SOC 2). Praeventio's regulatory
-  envelope today is Chilean Ley 16.744, DS 54, DS 40, and Ley 19.628
+  envelope today is Chilean Ley 16.744, DS 54, DS 44/2024, and Ley 19.628
   (privacy). ISO 45001 §7.5.3 informs the audit trail design but is not
   a security boundary.
 
