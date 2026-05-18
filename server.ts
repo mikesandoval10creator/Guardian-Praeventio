@@ -189,6 +189,8 @@ import microtrainingRouter from "./src/server/routes/microtraining.js";
 import consultativeSaleRouter from "./src/server/routes/consultativeSale.js";
 // Route Scoring — segment-level driving route risk + driver-route matching.
 import routeScoringRouter from "./src/server/routes/routeScoring.js";
+// JSA (Job Safety Analysis) — DS 76 art. 21 step-by-step task risk decomposition.
+import jsaRouter from "./src/server/routes/jsa.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -826,6 +828,7 @@ app.use('/api/sprint-k', aiToggleRouter);
 app.use('/api/sprint-k', microtrainingRouter);
 app.use('/api/sprint-k', consultativeSaleRouter);
 app.use('/api/sprint-k', routeScoringRouter);
+app.use('/api/sprint-k', jsaRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
