@@ -1,7 +1,7 @@
-﻿import { Capacitor } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
 import { logger } from '../utils/logger';
 
-// Ad unit IDs come exclusively from env vars â€” no test-ID fallback in production builds.
+// Ad unit IDs come exclusively from env vars — no test-ID fallback in production builds.
 // Required vars: VITE_ADMOB_ANDROID_INTERSTITIAL, VITE_ADMOB_IOS_INTERSTITIAL
 // Optional (web PWA): VITE_ADSENSE_CLIENT, VITE_ADSENSE_SLOT
 export const AD_CONFIG = {
@@ -28,7 +28,7 @@ export async function prepareInterstitial(): Promise<void> {
   const adId = Capacitor.getPlatform() === 'android'
     ? AD_CONFIG.androidInterstitialId
     : AD_CONFIG.iosInterstitialId;
-  if (!adId) return; // no unit ID configured â€” skip silently
+  if (!adId) return; // no unit ID configured — skip silently
   try {
     const { AdMob, InterstitialAdPluginEvents } = await import('@capacitor-community/admob');
     await AdMob.prepareInterstitial({ adId });
@@ -67,9 +67,9 @@ export function loadAdSenseScript(): Promise<void> {
 const AD_COOLDOWN_MS = 60 * 60 * 1000; // 1 hora
 const AD_LAST_SHOWN_KEY = 'pg_last_ad_ts';
 
-// Round 22 â€” audit fix DT-10: en Capacitor nativo `localStorage` no
-// estÃ¡ disponible (puede crashear o silently devolver null) â€” usar
-// `@capacitor/preferences`. Web sigue usando localStorage. Los mÃ©todos
+// Round 22 — audit fix DT-10: en Capacitor nativo `localStorage` no
+// está disponible (puede crashear o silently devolver null) — usar
+// `@capacitor/preferences`. Web sigue usando localStorage. Los métodos
 // son async ahora; callers que esperaban sync deben await o aceptar
 // promise.
 
@@ -104,7 +104,7 @@ async function setLastAdTs(): Promise<void> {
       const { Preferences } = await import('@capacitor/preferences');
       await Preferences.set({ key: AD_LAST_SHOWN_KEY, value: now });
     } catch {
-      /* silent â€” ad cooldown is best-effort UX, not security */
+      /* silent — ad cooldown is best-effort UX, not security */
     }
     return;
   }

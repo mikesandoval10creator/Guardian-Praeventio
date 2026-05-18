@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Round 20 R5: POST /api/auth/webauthn/register/options
+// Praeventio Guard — Round 20 R5: POST /api/auth/webauthn/register/options
 // + /verify supertest harness.
 //
 // Closes the TODO from R19 (`webauthnCredentialStore.ts` line 34): the
@@ -8,9 +8,9 @@
 //
 // Coverage matrix (R20 R5 + R20 R6 MEDIUM #2):
 //   1. 401 when Bearer header is missing (options + verify)
-//   2. 200 happy path â€” register/options issues a challenge AND
+//   2. 200 happy path — register/options issues a challenge AND
 //      register/verify persists the credential via registerCredential()
-//   3. 200 idempotent register â€” second register with the same
+//   3. 200 idempotent register — second register with the same
 //      credentialId overwrites the row (matches registerCredential
 //      contract).
 //   4. 401 when verifyRegistrationResponse â†’ verified:false
@@ -22,10 +22,10 @@
 //   7. 401 when challengeId points at a never-issued challenge
 //      (reason='unknown')
 //   8. 401 when challenge has expired (reason='expired')
-//   9. Audit row contains uid + credentialId only â€” NEVER the public-key bytes
-//  10. webauthnRegisterLimiter â€” 4th call within 60s gets 429
-//  11. cross-uid isolation â€” uid A's quota does NOT throttle uid B
-//  12. expectedOrigin prod fail-fast â€” module-load throws when
+//   9. Audit row contains uid + credentialId only — NEVER the public-key bytes
+//  10. webauthnRegisterLimiter — 4th call within 60s gets 429
+//  11. cross-uid isolation — uid A's quota does NOT throttle uid B
+//  12. expectedOrigin prod fail-fast — module-load throws when
 //      NODE_ENV=production with no APP_BASE_URL/APP_URL set.
 //
 // Strategy mirrors webauthnVerify.test.ts: parallel minimal Express app
@@ -59,7 +59,7 @@ vi.mock('@simplewebauthn/server', () => ({
   generateRegistrationOptions: (opts: any) => mockGenerateRegistrationOptions(opts),
   verifyRegistrationResponse: (opts: any) => mockVerifyRegistrationResponse(opts),
   // verifyAuthenticationResponse is unused in this suite but the
-  // production module imports it â€” make the mock surface complete.
+  // production module imports it — make the mock surface complete.
   verifyAuthenticationResponse: vi.fn(),
 }));
 
@@ -182,7 +182,7 @@ interface RegisterTestDeps {
 /**
  * Verbatim copy of the production R20 handler in
  * `src/server/routes/curriculum.ts`. Drift is mitigated the same way the
- * rest of __tests__/server is â€” checking both files in the same review.
+ * rest of __tests__/server is — checking both files in the same review.
  */
 function buildRegisterApp(deps: RegisterTestDeps): Express {
   const app = express();
@@ -346,7 +346,7 @@ function buildRegisterApp(deps: RegisterTestDeps): Express {
   return app;
 }
 
-describe('POST /api/auth/webauthn/register â€” R20 R5 ceremony', () => {
+describe('POST /api/auth/webauthn/register — R20 R5 ceremony', () => {
   let fs: InMemoryFirestore;
   let app: Express;
 
@@ -407,7 +407,7 @@ describe('POST /api/auth/webauthn/register â€” R20 R5 ceremony', () => {
     expect(res.status).toBe(401);
   });
 
-  it('200 happy path â€” /register/options issues a challenge, /register/verify persists the credential', async () => {
+  it('200 happy path — /register/options issues a challenge, /register/verify persists the credential', async () => {
     const uid = 'uid-happy';
     const auth = `Bearer test:${uid}:happy@test.com`;
 
@@ -446,7 +446,7 @@ describe('POST /api/auth/webauthn/register â€” R20 R5 ceremony', () => {
     expect(stored!.credential.counter).toBe(0);
   });
 
-  it('200 idempotent â€” re-registering the same credentialId overwrites the row', async () => {
+  it('200 idempotent — re-registering the same credentialId overwrites the row', async () => {
     const uid = 'uid-idem';
     const auth = `Bearer test:${uid}:idem@test.com`;
     // Two ceremonies = 4 hits on the limiter; bump the cap so the
@@ -567,7 +567,7 @@ describe('POST /api/auth/webauthn/register â€” R20 R5 ceremony', () => {
     expect(res.body.reason).toBe('attestation_invalid');
   });
 
-  it('401 reason=consumed on replay â€” second register/verify with the same challengeId fails', async () => {
+  it('401 reason=consumed on replay — second register/verify with the same challengeId fails', async () => {
     const uid = 'uid-replay';
     const auth = `Bearer test:${uid}:rp@test.com`;
     stubOptions('REPLAY_CH');
@@ -592,7 +592,7 @@ describe('POST /api/auth/webauthn/register â€” R20 R5 ceremony', () => {
       });
     expect(r1.status).toBe(200);
 
-    // Replay attempt â€” same challenge, even with a fresh signed body.
+    // Replay attempt — same challenge, even with a fresh signed body.
     stubVerify('cred-REPLAY', 0);
     const r2 = await request(app)
       .post('/api/auth/webauthn/register/verify')
@@ -653,7 +653,7 @@ describe('POST /api/auth/webauthn/register â€” R20 R5 ceremony', () => {
       .set('Authorization', auth)
       .send({});
 
-    fakeNow += 10 * 60 * 1000; // 10 minutes â€” past the 5-minute default TTL
+    fakeNow += 10 * 60 * 1000; // 10 minutes — past the 5-minute default TTL
 
     stubVerify('cred-EXP', 0);
     const res = await request(expiringApp)
@@ -673,7 +673,7 @@ describe('POST /api/auth/webauthn/register â€” R20 R5 ceremony', () => {
     expect(res.body.reason).toBe('expired');
   });
 
-  it('audit row records uid + credentialId only â€” never the public-key bytes', async () => {
+  it('audit row records uid + credentialId only — never the public-key bytes', async () => {
     const uid = 'uid-audit';
     const auth = `Bearer test:${uid}:au@test.com`;
     stubOptions('AUDIT_CH');
@@ -758,7 +758,7 @@ describe('POST /api/auth/webauthn/register â€” R20 R5 ceremony', () => {
       .send({});
     expect(c.status).toBe(200);
 
-    // 4th call â€” even on a different sub-route â€” trips the limiter.
+    // 4th call — even on a different sub-route — trips the limiter.
     const d = await request(limitedApp)
       .post('/api/auth/webauthn/register/verify')
       .set('Authorization', auth)
@@ -777,7 +777,7 @@ describe('POST /api/auth/webauthn/register â€” R20 R5 ceremony', () => {
     expect(d.body.retryAfterMs).toBe(60_000);
   });
 
-  it('cross-uid isolation â€” uid A exhausting its quota does NOT throttle uid B', async () => {
+  it('cross-uid isolation — uid A exhausting its quota does NOT throttle uid B', async () => {
     const limitedApp = buildRegisterApp({
       firestore: fs,
       auth: FAKE_AUTH,
@@ -803,7 +803,7 @@ describe('POST /api/auth/webauthn/register â€” R20 R5 ceremony', () => {
       .send({});
     expect(blocked.status).toBe(429);
 
-    // uid B is fresh â€” first call still succeeds.
+    // uid B is fresh — first call still succeeds.
     stubOptions('B_1');
     const okB = await request(limitedApp)
       .post('/api/auth/webauthn/register/options')
@@ -815,11 +815,11 @@ describe('POST /api/auth/webauthn/register â€” R20 R5 ceremony', () => {
 });
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Round 20 R6 MEDIUM #2 â€” expectedOrigin prod fail-fast guard.
+// Round 20 R6 MEDIUM #2 — expectedOrigin prod fail-fast guard.
 //
 // The production curriculum.ts module computes expectedOrigin at boot.
 // In production with no APP_BASE_URL/APP_URL the module MUST throw at
-// import time (refusing to load) â€” the WebAuthn signature-verify path
+// import time (refusing to load) — the WebAuthn signature-verify path
 // would otherwise silently fall back to http://localhost:3000 and reject
 // every legitimate assertion as `signature_invalid`.
 //
@@ -828,7 +828,7 @@ describe('POST /api/auth/webauthn/register â€” R20 R5 ceremony', () => {
 // env between tests so other suites stay deterministic.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe('curriculum module-load â€” expectedOrigin prod fail-fast', () => {
+describe('curriculum module-load — expectedOrigin prod fail-fast', () => {
   const ORIGINAL = {
     NODE_ENV: process.env.NODE_ENV,
     APP_BASE_URL: process.env.APP_BASE_URL,
@@ -837,12 +837,12 @@ describe('curriculum module-load â€” expectedOrigin prod fail-fast', () => 
   const RESEND_KEY = process.env.RESEND_API_KEY;
 
   beforeEach(() => {
-    // The module instantiates a Resend client at load â€” give it a stub
+    // The module instantiates a Resend client at load — give it a stub
     // value so that side-effect doesn't fail for an unrelated reason.
     if (!process.env.RESEND_API_KEY) process.env.RESEND_API_KEY = 're_test_stub';
     // firebase-admin's default app instantiation won't happen because
     // curriculum.ts doesn't call admin.initializeApp() at module load
-    // â€” it only calls admin.firestore() lazily inside handlers. The
+    // — it only calls admin.firestore() lazily inside handlers. The
     // import itself is safe.
   });
 

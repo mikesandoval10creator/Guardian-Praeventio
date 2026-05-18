@@ -1,10 +1,10 @@
-﻿// Sprint 20 fifth wave (Bucket Phi): wired al orchestrator SLM, soporta offline-first via Brecha B.
-// TODO Ola 5b â€” Bucket O: cuando `SLM_OFFLINE_ENABLED` estÃ© true en prod,
+// Sprint 20 fifth wave (Bucket Phi): wired al orchestrator SLM, soporta offline-first via Brecha B.
+// TODO Ola 5b — Bucket O: cuando `SLM_OFFLINE_ENABLED` esté true en prod,
 // migrar este wire al hook `useSlmOffline` (`src/hooks/useSlmOffline.ts`)
 // + `OnnxSlmAdapter` directo. Hoy seguimos sobre `services/slm.ask()`,
 // que usa el adapter Worker-based (registry Phi-3 / Qwen). El nuevo
 // adapter ONNX-direct con TinyLlama 1.1B Q4 y streaming `onToken` queda
-// detrÃ¡s del feature flag mientras se publican los pesos en CDN.
+// detrás del feature flag mientras se publican los pesos en CDN.
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles, WifiOff, Wifi, Shield, Save, CheckCircle2, ThumbsUp, ThumbsDown } from 'lucide-react';
@@ -25,13 +25,13 @@ import { logger } from '../../utils/logger';
 // reconciliation pass once connectivity returns.
 import { ask, enqueueSession, type SLMResponse } from '../../services/slm';
 import { useSLM, SLM_ENQUEUED_EVENT } from '../slm/SLMProvider';
-// Sprint 26 Bucket ZZ â€” fallback El GuardiÃ¡n Offline (caso sÃ­smico).
+// Sprint 26 Bucket ZZ — fallback El Guardián Offline (caso sísmico).
 // Se activa cuando `ask()` (orchestrator) falla por completo: corpus
-// local + cache + FAQ garantizan que el trabajador reciba algo Ãºtil
-// para sangrado, evacuaciÃ³n, gas, RCP, etc., aunque el modelo SLM no
-// estÃ© descargado todavÃ­a.
+// local + cache + FAQ garantizan que el trabajador reciba algo útil
+// para sangrado, evacuación, gas, RCP, etc., aunque el modelo SLM no
+// esté descargado todavía.
 import { GuardianOfflineService } from '../../services/slm/guardianOffline';
-// Sprint 20 17th-wave (Bucket D â€” title= â†’ <Tooltip>): WCAG 1.4.13
+// Sprint 20 17th-wave (Bucket D — title= â†’ <Tooltip>): WCAG 1.4.13
 // compliant tooltip replaces the native `title=` on the per-message
 // thumbs up/down feedback buttons (icon-only).
 import { Tooltip } from './Tooltip';
@@ -52,7 +52,7 @@ export function AsesorChat() {
     {
       id: '1',
       role: 'assistant',
-      content: 'Hola, soy El GuardiÃ¡n. Â¿En quÃ© puedo asesorarte hoy sobre la seguridad y salud de tu proyecto?',
+      content: 'Hola, soy El Guardián. Â¿En qué puedo asesorarte hoy sobre la seguridad y salud de tu proyecto?',
       timestamp: new Date()
     }
   ]);
@@ -74,7 +74,7 @@ export function AsesorChat() {
         userId: auth.currentUser?.uid || null,
         createdAt: serverTimestamp(),
       });
-    } catch { /* non-critical â€” feedback loss is acceptable */ }
+    } catch { /* non-critical — feedback loss is acceptable */ }
   };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { nodes, addNode } = useRiskEngine();
@@ -86,11 +86,11 @@ export function AsesorChat() {
   // Last response backend, surfaced as a debug chip ("gemini" vs.
   // "webgpu"/"wasm-simd"). Cleared between sends; null means no chip.
   const [lastBackend, setLastBackend] = useState<SLMResponse['backend'] | null>(null);
-  // Bucket ZZ: El GuardiÃ¡n Offline service. fromEnv() retorna null si
-  // SLM_OFFLINE_ENABLED no estÃ¡ activo â€” en ese caso simplemente no hay
-  // fallback offline disponible y mostramos el mensaje genÃ©rico.
+  // Bucket ZZ: El Guardián Offline service. fromEnv() retorna null si
+  // SLM_OFFLINE_ENABLED no está activo — en ese caso simplemente no hay
+  // fallback offline disponible y mostramos el mensaje genérico.
   const [offlineService] = useState(() => GuardianOfflineService.fromEnv());
-  // Pre-cargar el corpus + (si estÃ¡) el modelo en idle al montar para
+  // Pre-cargar el corpus + (si está) el modelo en idle al montar para
   // que el primer ask() en emergencia no pague costo de download.
   useEffect(() => {
     if (!offlineService) return undefined;
@@ -108,7 +108,7 @@ export function AsesorChat() {
     
     try {
       const newNode = await addNode({
-        title: `AsesorÃ­a: ${topic || 'Consulta IA'}`,
+        title: `Asesoría: ${topic || 'Consulta IA'}`,
         description: content,
         type: NodeType.NORMATIVE,
         tags: ['ia-advice', 'chat-capture', topic].filter(Boolean),
@@ -145,7 +145,7 @@ export function AsesorChat() {
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
           role: 'assistant',
-          content: `**Â¡ConexiÃ³n Restaurada!** ðŸŒ\n\nHe notado que tenÃ­as consultas pendientes mientras estabas offline:\n\n${pendingQueries.map(q => `- "${q}"`).join('\n')}\n\nÂ¿Te gustarÃ­a que analice alguna de estas consultas ahora con toda mi capacidad?`,
+          content: `**Â¡Conexión Restaurada!** ðŸŒ\n\nHe notado que tenías consultas pendientes mientras estabas offline:\n\n${pendingQueries.map(q => `- "${q}"`).join('\n')}\n\nÂ¿Te gustaría que analice alguna de estas consultas ahora con toda mi capacidad?`,
           timestamp: new Date()
         }]);
         setPendingQueries([]); // Clear pending queries state
@@ -192,7 +192,7 @@ export function AsesorChat() {
 
     try {
       // Determine if this is a continuation to increase depth
-      const isContinuation = /m[aÃ¡]s|detalle|profundiza|ampl[iÃ­]a|contin[uÃº]a|ejemplo|explica|profundidad/i.test(currentInput);
+      const isContinuation = /m[aá]s|detalle|profundiza|ampl[ií]a|contin[uú]a|ejemplo|explica|profundidad/i.test(currentInput);
       let newDetailLevel = detailLevel;
 
       if (isContinuation) {
@@ -207,15 +207,15 @@ export function AsesorChat() {
 
       // Enrich with normative + live environment context in parallel.
       // The orchestrator's `ask()` accepts only a flat prompt string, so we
-      // splice the context directly into the prompt â€” same payload Gemini
+      // splice the context directly into the prompt — same payload Gemini
       // used to receive via the `normativeContext` / `environmentContext`
       // body fields, just rolled into the text the model sees.
-      // Sprint 27 (audit P0 H12) â€” drop the Santiago fallback. A faena
+      // Sprint 27 (audit P0 H12) — drop the Santiago fallback. A faena
       // in Antofagasta or Punta Arenas was getting clima/sismo for
       // Santiago, leading the model to recommend Santiago-specific
       // protocols. If the project has no coords, we now skip the
       // climate/seismic fetch entirely and let the prompt run without
-      // geo context â€” better silent miss than confidently wrong reply.
+      // geo context — better silent miss than confidently wrong reply.
       const projectLat = selectedProject?.coordinates?.lat;
       const projectLon = selectedProject?.coordinates?.lng;
       const hasGeoContext =
@@ -253,7 +253,7 @@ export function AsesorChat() {
               return `Clima actual: ${parts.join(', ')}.`;
             })()
           : '',
-        seismic ? `Sismo reciente: Magnitud ${seismic.magnitude} â€” Nivel de alerta: ${seismic.alertLevel}.` : '',
+        seismic ? `Sismo reciente: Magnitud ${seismic.magnitude} — Nivel de alerta: ${seismic.alertLevel}.` : '',
       ].filter(Boolean).join(' ');
 
       const normativeContext = getComprehensiveNormativeContext();
@@ -266,7 +266,7 @@ export function AsesorChat() {
 
       // Single entry point: orchestrator picks online (Gemini) vs. offline
       // (on-device SLM) based on `navigator.onLine`. We do NOT need the
-      // explicit `if (!isOnline)` branch anymore â€” the orchestrator
+      // explicit `if (!isOnline)` branch anymore — the orchestrator
       // handles that decision and any silent fallback on network failure.
       const response = await ask({ prompt });
       setLastBackend(response.backend);
@@ -374,7 +374,7 @@ export function AsesorChat() {
                   <Shield className="w-6 h-6 text-emerald-500" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-zinc-900 dark:text-white">El GuardiÃ¡n</h3>
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-white">El Guardián</h3>
                   <div className="flex items-center gap-1.5">
                     {isOnline ? (
                       <>
@@ -402,7 +402,7 @@ export function AsesorChat() {
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
-                {/* Bucket Phi: backend chip â€” surfaces which engine answered the
+                {/* Bucket Phi: backend chip — surfaces which engine answered the
                     last query (online Gemini vs. on-device SLM). Cleared on next
                     send. Hidden until the first response. */}
                 {lastBackend && (
@@ -417,7 +417,7 @@ export function AsesorChat() {
                     {lastBackend === 'gemini' ? 'online' : 'offline'}
                   </span>
                 )}
-                {/* Bucket Phi: pending-count badge â€” shown only when the offline
+                {/* Bucket Phi: pending-count badge — shown only when the offline
                     queue actually has entries waiting to be reconciled. */}
                 {pendingCount > 0 && (
                   <span
@@ -441,8 +441,8 @@ export function AsesorChat() {
                 prometer respuestas que no podemos entregar. */}
             {!isOnline && offlineService && (
               <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
-                EstÃ¡s sin conexiÃ³n. El GuardiÃ¡n tiene respuestas bÃ¡sicas de
-                emergencia disponibles (sangrado, evacuaciÃ³n, RCP, gas, sismo).
+                Estás sin conexión. El Guardián tiene respuestas básicas de
+                emergencia disponibles (sangrado, evacuación, RCP, gas, sismo).
               </div>
             )}
 
@@ -474,16 +474,16 @@ export function AsesorChat() {
                             <Tooltip content="Ãštil">
                               <button
                                 onClick={() => handleFeedback(msg.id, msg.content, 'up')}
-                                aria-label="Marcar respuesta como Ãºtil"
+                                aria-label="Marcar respuesta como útil"
                                 className={`p-1 rounded-md transition-all ${messageFeedback[msg.id] === 'up' ? 'text-emerald-500 bg-emerald-500/10' : 'text-zinc-400 hover:text-emerald-500 hover:bg-emerald-500/10'}`}
                               >
                                 <ThumbsUp className="w-3 h-3" />
                               </button>
                             </Tooltip>
-                            <Tooltip content="No Ãºtil">
+                            <Tooltip content="No útil">
                               <button
                                 onClick={() => handleFeedback(msg.id, msg.content, 'down')}
-                                aria-label="Marcar respuesta como no Ãºtil"
+                                aria-label="Marcar respuesta como no útil"
                                 className={`p-1 rounded-md transition-all ${messageFeedback[msg.id] === 'down' ? 'text-rose-500 bg-rose-500/10' : 'text-zinc-400 hover:text-rose-500 hover:bg-rose-500/10'}`}
                               >
                                 <ThumbsDown className="w-3 h-3" />
@@ -544,7 +544,7 @@ export function AsesorChat() {
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Pregunta a El GuardiÃ¡n..."
+                  placeholder="Pregunta a El Guardián..."
                   className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-2xl py-3 pl-4 pr-12 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                 />
                 <button

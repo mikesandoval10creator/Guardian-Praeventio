@@ -1,5 +1,5 @@
-﻿// SPDX-License-Identifier: MIT
-// Sprint 23 Bucket BB.9 â€” b2dAuth middleware tests.
+// SPDX-License-Identifier: MIT
+// Sprint 23 Bucket BB.9 — b2dAuth middleware tests.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express from 'express';

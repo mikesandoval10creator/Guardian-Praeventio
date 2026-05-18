@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { AlertTriangle, MapPin, ShieldAlert, Phone, ArrowRight, CheckCircle2, Navigation } from 'lucide-react';
 import { useEmergency } from '../../contexts/EmergencyContext';

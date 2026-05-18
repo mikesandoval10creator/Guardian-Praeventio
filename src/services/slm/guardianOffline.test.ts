@@ -1,5 +1,5 @@
-﻿/**
- * Tests for GuardianOfflineService â€” Sprint 26 Bucket ZZ.
+/**
+ * Tests for GuardianOfflineService — Sprint 26 Bucket ZZ.
  *
  * Cobertura:
  *   1. fromEnv null cuando SLM_OFFLINE_ENABLED off
@@ -9,7 +9,7 @@
  *   5. ask() devuelve citations de chunks usados
  *   6. getFAQ retorna lista no vacia
  *   7. preload no-op si ya pre-cargado (idempotente)
- *   8. AbortSignal honored â€” pre-aborted cae a corpus-only
+ *   8. AbortSignal honored — pre-aborted cae a corpus-only
  *   9. Empty corpus â†’ ask sigue funcionando con FAQ + adapter
  *  10. Corpus chunks parseo correcto desde JSON
  *  11. FAQ exact match â†’ source='faq'
@@ -33,14 +33,14 @@ const SAMPLE_CHUNKS: CorpusChunk[] = [
     id: 'chunk-001',
     topic: 'primeros_auxilios.sangrado_abundante',
     keywords: ['sangrado', 'hemorragia', 'presion'],
-    text: 'Sangrado abundante: aplicar presiÃ³n directa con tela limpia.',
+    text: 'Sangrado abundante: aplicar presión directa con tela limpia.',
     citation: 'DS 109 + Cruz Roja Chile',
   },
   {
     id: 'chunk-002',
     topic: 'evacuacion.salida_bloqueada',
     keywords: ['evacuacion', 'salida', 'bloqueada'],
-    text: 'Si la salida principal estÃ¡ bloqueada, identificar segunda salida.',
+    text: 'Si la salida principal está bloqueada, identificar segunda salida.',
     citation: 'NCh 1410',
   },
   {
@@ -182,7 +182,7 @@ describe('GuardianOfflineService.ask', () => {
       cacheImpl: new MemCache(),
     });
     const r = await svc.ask({
-      prompt: 'Â¿QuÃ© hago con un trabajador con sangrado abundante?',
+      prompt: 'Â¿Qué hago con un trabajador con sangrado abundante?',
     });
     expect(r.source).toBe('faq');
     expect(r.citations.length).toBeGreaterThan(0);
@@ -208,7 +208,7 @@ describe('GuardianOfflineService.ask', () => {
     })();
     const r = await svcNoAdapter.ask({ prompt: 'sangrado herida abierta xpz' });
     expect(r.source).toBe('corpus-only');
-    expect(r.answer).toContain('presiÃ³n directa');
+    expect(r.answer).toContain('presión directa');
   });
 
   it('honors a pre-aborted AbortSignal (corpus-only fallback)', async () => {
@@ -234,7 +234,7 @@ describe('GuardianOfflineService.ask', () => {
     });
     // FAQ match should still return
     const faq = await svc.ask({
-      prompt: 'Â¿CÃ³mo evacuamos esta zona si la salida principal estÃ¡ bloqueada?',
+      prompt: 'Â¿Cómo evacuamos esta zona si la salida principal está bloqueada?',
     });
     expect(faq.source).toBe('faq');
 

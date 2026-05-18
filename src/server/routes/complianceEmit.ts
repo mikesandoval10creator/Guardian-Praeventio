@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Sprint 38 (CL adapter consolidation).
+// Praeventio Guard — Sprint 38 (CL adapter consolidation).
 //
 // Generic emission endpoint per ADR-0017:
 //
@@ -11,16 +11,16 @@
 //     403:  { error: 'forbidden_role', required: [...] }
 //
 // Reglas durables del usuario reafirmadas en este endpoint:
-//   â€¢ NO push a SUSESO/MUTUAL/SII â€” el handler retorna documento al
-//     caller, jamÃ¡s llama submitToOrganism / pushToSII.
-//   â€¢ Firma biomÃ©trica WebAuthn â€” la firma se aplica fuera de este
+//   • NO push a SUSESO/MUTUAL/SII — el handler retorna documento al
+//     caller, jamás llama submitToOrganism / pushToSII.
+//   • Firma biométrica WebAuthn — la firma se aplica fuera de este
 //     handler (challenge â†’ cliente firma â†’ re-POST `/sign` legacy). El
-//     `/emit` endpoint es generaciÃ³n + validaciÃ³n, sin tocar passkeys.
-//   â€¢ NO bloquear maquinaria â€” solo emite documentos.
+//     `/emit` endpoint es generación + validación, sin tocar passkeys.
+//   • NO bloquear maquinaria — solo emite documentos.
 //
 // Mounted in server.ts at `/api/compliance/emit`. Es OPT-IN: las rutas
 // legacy (`/api/dte/generate`, `/api/compliance/ds67`, etc.) siguen
-// expuestas y siguen funcionando â€” este router NO las reemplaza.
+// expuestas y siguen funcionando — este router NO las reemplaza.
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';

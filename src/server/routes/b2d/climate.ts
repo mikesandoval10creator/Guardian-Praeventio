@@ -1,14 +1,14 @@
-﻿// SPDX-License-Identifier: MIT
-// Sprint 23 Bucket BB.3 â€” B2D Climate API.
+// SPDX-License-Identifier: MIT
+// Sprint 23 Bucket BB.3 — B2D Climate API.
 //
 // Mounted via `app.use('/api/b2d/v1/climate', climateRouter)`.
 //
 // Endpoints:
-//   â€¢ GET /api/b2d/v1/climate/current     â€” current weather + seismic + AQ
+//   • GET /api/b2d/v1/climate/current     — current weather + seismic + AQ
 //       Scope: `climate.read`
-//   â€¢ GET /api/b2d/v1/climate/forecast    â€” 7-day forecast
+//   • GET /api/b2d/v1/climate/forecast    — 7-day forecast
 //       Scope: `climate.forecast`  (climate-pro tier or suite.all)
-//   â€¢ GET /api/b2d/v1/climate/risk-score  â€” composite industry risk score
+//   • GET /api/b2d/v1/climate/risk-score  — composite industry risk score
 //       Scope: `climate.read`
 //
 // Privacy boundary: never reads tenant Zettelkasten data. Every payload
@@ -39,7 +39,7 @@ function parseLatLng(req: import('express').Request): LatLng | null {
 
 /** Deterministic stub: real Open-Meteo proxy lives in Sprint 24 fan-out. */
 function climateSnapshot(coords: LatLng) {
-  // Latitude-derived temperature gradient â€” keeps shape realistic.
+  // Latitude-derived temperature gradient — keeps shape realistic.
   const tempC = Math.round((20 - Math.abs(coords.lat) / 3) * 10) / 10;
   return {
     tempC,
@@ -65,7 +65,7 @@ router.get('/current', b2dAuth('climate.read'), async (req, res) => {
     coordinates: coords,
     weather: climateSnapshot(coords),
     seismic: {
-      // Placeholder â€” USGS earthquake feed integration arrives Sprint 24.
+      // Placeholder — USGS earthquake feed integration arrives Sprint 24.
       last24hMaxMagnitude: null,
       nearbyEventCount: 0,
       source: 'usgs',

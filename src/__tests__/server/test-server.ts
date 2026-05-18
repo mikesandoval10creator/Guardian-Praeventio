@@ -1,9 +1,9 @@
-﻿// Praeventio Guard â€” Round 15 (I3 / A6 audit) test server harness.
+// Praeventio Guard — Round 15 (I3 / A6 audit) test server harness.
 //
 // `server.ts` is 3027 LOC, boots Vite middleware, calls `app.listen()`,
 // initializes Firebase Admin against a real GCP project, kicks off
 // background timers, and mounts 50 routes. We CANNOT just `await import
-// '../../server.ts'` from a test â€” it would block on Vite, spawn timers
+// '../../server.ts'` from a test — it would block on Vite, spawn timers
 // that survive the test run, and need a real GCP credential to even
 // pass `admin.initializeApp`.
 //
@@ -22,7 +22,7 @@
 //      imported and called directly, so behavior changes there ARE
 //      reflected here.
 //   3. Tests focus on wiring (auth, validation, status codes, audit
-//      emissions, tenant isolation) â€” exactly what server.ts adds on
+//      emissions, tenant isolation) — exactly what server.ts adds on
 //      top of the unit-tested pure functions.
 //
 // Future work: extract route handlers from server.ts into a registrar
@@ -252,7 +252,7 @@ export interface TestServerDeps {
   webhookSecret?: string;
   webpayConfigured?: boolean;
   /**
-   * Sprint 10 â€” mock para `fetchEnvironmentContext` (orquestador). Permite
+   * Sprint 10 — mock para `fetchEnvironmentContext` (orquestador). Permite
    * a los tests verificar el flujo "Sentidos â†’ Mente": clima + sismo se
    * inyectan ANTES del RAG. Si no se provee, /api/ask-guardian se comporta
    * como antes (legacy RAG-only).
@@ -332,7 +332,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   };
 
   const app = express();
-  // Per-route body parser for reports â€” production allows >64kb (full
+  // Per-route body parser for reports — production allows >64kb (full
   // incident narrative + AI summary), capped at 2MB. Mounted BEFORE the
   // global 64kb parser so the limit applies per request path.
   app.use('/api/reports/generate-pdf', express.json({ limit: '2mb' }));
@@ -355,18 +355,18 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   };
 
-  // Sprint E backend debt (2026-05-16) â€” minimal in-memory mirror of the
+  // Sprint E backend debt (2026-05-16) — minimal in-memory mirror of the
   // production `idempotencyKey()` middleware (see
   // `src/server/middleware/idempotencyKey.ts`). The full Firestore-backed
   // implementation is unit-tested in `middleware/idempotencyKey.test.ts`;
   // here we just need enough behavior so the route smoke test can verify
   // double-call is suppressed when the client sends the same
   // `Idempotency-Key` header. Behavior contract preserved:
-  //   â€¢ no header â†’ pass-through (handler runs every time)
-  //   â€¢ first call â†’ handler runs, response cached keyed on `uid|key`
-  //   â€¢ second call w/ same key â†’ cached response replayed, handler runs ZERO times
-  //   â€¢ only 2xx responses cached
-  // Mirror complexity is intentionally low â€” no fingerprint mismatch, no
+  //   • no header â†’ pass-through (handler runs every time)
+  //   • first call â†’ handler runs, response cached keyed on `uid|key`
+  //   • second call w/ same key â†’ cached response replayed, handler runs ZERO times
+  //   • only 2xx responses cached
+  // Mirror complexity is intentionally low — no fingerprint mismatch, no
   // TTL, no header allowlist. The richer cases are covered upstream.
   const idemCache = new Map<string, { status: number; body: unknown }>();
   const idempotencyKey = () => async (req: Request, res: Response, next: NextFunction) => {
@@ -529,7 +529,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
 
   // â”€â”€â”€ /api/billing/verify â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Sprint E backend debt (2026-05-16): `idempotencyKey()` opt-in to
-  // suppress double-call from flaky mobile networks â€” mirrors production
+  // suppress double-call from flaky mobile networks — mirrors production
   // wiring in `src/server/routes/billing.ts:241`. Header absent â†’ no-op.
   app.post('/api/billing/verify', verifyAuth, idempotencyKey(), async (req, res) => {
     const { purchaseToken, productId, type } = req.body ?? {};
@@ -743,7 +743,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
           .where('subscription.purchaseToken', '==', purchaseToken)
           .get();
         if (!usersQ.empty) {
-          // Just stamp activity â€” we don't re-call play API in tests.
+          // Just stamp activity — we don't re-call play API in tests.
           await usersQ.docs[0].ref.update({ 'subscription.status': 'active' });
         }
       }
@@ -779,7 +779,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       }
       return res.status(500).json({ error: 'verify_failed' });
     }
-    // Idempotency â€” mirror the RTDN test harness pattern.
+    // Idempotency — mirror the RTDN test harness pattern.
     const lockRef = deps.firestore.collection('processed_apple_ssn').doc(payload.notificationUUID);
     const lockSnap = await lockRef.get();
     if (lockSnap.exists && lockSnap.data()?.status === 'done') {
@@ -855,7 +855,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       } else if (commit.status === 'REJECTED') {
         outcome = 'rejected';
         await invoiceRef.set({ status: 'rejected' }, { merge: true });
-        // Sprint 20 18th-wave â€” TM-R02 closure. Mirror the production
+        // Sprint 20 18th-wave — TM-R02 closure. Mirror the production
         // billing.ts: rejected branch now emits an explicit audit row.
         await deps.firestore.collection('audit_logs').add({
           action: 'billing.webpay-return.rejected',
@@ -865,7 +865,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       } else {
         outcome = 'failed';
         await invoiceRef.set({ status: 'pending-payment' }, { merge: true });
-        // Sprint 20 18th-wave â€” TM-R02 closure. Mirror the production
+        // Sprint 20 18th-wave — TM-R02 closure. Mirror the production
         // billing.ts: failed branch now emits an explicit audit row.
         await deps.firestore.collection('audit_logs').add({
           action: 'billing.webpay-return.failed',
@@ -927,7 +927,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
             await deps.resendSend({
               from: 'Praeventio Guard <noreply@praeventio.net>',
               to: referees[idx].email,
-              subject: `Te nombrÃ³ referencia`,
+              subject: `Te nombró referencia`,
               html: `<a href="/curriculum/referee/${rawToken}">Co-firmar</a>`,
             });
           } catch {}
@@ -1123,7 +1123,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     const { token } = req.params;
     const callerUid = req.user!.uid;
     const callerEmail = req.user!.email;
-    // Optional client-supplied projectId â€” when present, must match the
+    // Optional client-supplied projectId — when present, must match the
     // invitation's projectId. Blocks cross-tenant write attacks.
     const claimedProjectId: string | undefined =
       typeof req.body?.projectId === 'string' ? req.body.projectId : undefined;
@@ -1174,7 +1174,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // â”€â”€â”€ /api/ask-guardian â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Sprint 10 â€” mirrors the production env-context injection. We don't
+  // Sprint 10 — mirrors the production env-context injection. We don't
   // call Gemini in tests; instead we surface the intermediate state
   // (envContextUsed, envContextSnippet) so tests can assert that the
   // orchestrator was invoked, skipped, or timed out as expected.
@@ -1231,7 +1231,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
 
   // â”€â”€â”€ /api/gemini â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Mirrors the production allowlist gate. Only tests the security
-  // boundary (allowlist enforcement) â€” the actual backend dispatch is
+  // boundary (allowlist enforcement) — the actual backend dispatch is
   // not exercised here.
   const ALLOWED_GEMINI_ACTIONS = new Set([
     'generateEmbeddingsBatch',
@@ -1276,7 +1276,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       if (typeof content !== 'string') {
         return res.status(400).json({ error: 'content is required' });
       }
-      // We don't actually render PDFKit in tests â€” assert that a
+      // We don't actually render PDFKit in tests — assert that a
       // legitimately large body (200kb+) is accepted and a small ACK
       // is returned. The 2MB ceiling is enforced by the body parser.
       res.setHeader('Content-Type', 'application/pdf');
@@ -1319,7 +1319,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
         }
       }
     } else if (typeof targetUid === 'string' && targetUid !== callerUid) {
-      // No project scope but trying to award to another user â€” block.
+      // No project scope but trying to award to another user — block.
       return res.status(403).json({ error: 'cross_tenant_forbidden' });
     }
     const beneficiary = typeof targetUid === 'string' && targetUid.length > 0 ? targetUid : callerUid;
@@ -1396,7 +1396,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
 
   // â”€â”€â”€ /api/zettelkasten/nodes (Sprint 11) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Mirrors src/server/routes/zettelkasten.ts. The production handler
-  // uses a per-uid express-rate-limit (30 req / 15 min); aquÃ­ lo
+  // uses a per-uid express-rate-limit (30 req / 15 min); aquí lo
   // emulamos con un Map<uid, count> para no introducir dependencias
   // de timers cross-test. Cada test instancia un buildTestServer nuevo
   // â‡’ contador limpio.

@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Round 18 R6 (Round 17 MEDIUM #1 close-out):
+// Praeventio Guard — Round 18 R6 (Round 17 MEDIUM #1 close-out):
 // POST /api/auth/webauthn/verify HTTP-layer supertest harness.
 //
 // Round 17 R5 shipped the GET /api/auth/webauthn/challenge endpoint and the
@@ -11,7 +11,7 @@
 // This test mounts a parallel minimal Express app that re-implements the
 // production handler from src/server/routes/curriculum.ts
 // (`webauthnChallengeRouter` / POST /webauthn/verify). Drift is mitigated
-// the same way the rest of __tests__/server is â€” the handler here is a
+// the same way the rest of __tests__/server is — the handler here is a
 // near-verbatim copy, and the consume helper is the REAL one.
 //
 // Coverage matrix (R18 R6):
@@ -22,12 +22,12 @@
 //   5. 200 happy path (consume succeeds + audit row emitted)
 //   6. 401 unknown challenge (consume returns valid:false, reason='unknown')
 //   7. 401 expired challenge (reason='expired')
-//   8. 401 already-consumed (replay attempt â€” reason='consumed')
-//   9. Audit row contains uid only â€” NO assertion bytes (clientDataJSON,
+//   8. 401 already-consumed (replay attempt — reason='consumed')
+//   9. Audit row contains uid only — NO assertion bytes (clientDataJSON,
 //      authenticatorData, signature MUST NOT appear in the audit details).
 //
 // CRITICAL invariant: the verify endpoint MUST be fail-closed. There is no
-// "best effort" branch â€” if the challenge cannot be consumed atomically,
+// "best effort" branch — if the challenge cannot be consumed atomically,
 // the request is rejected with 401. This closes the R6 finding.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -61,7 +61,7 @@ vi.mock('@simplewebauthn/server', () => ({
 interface VerifyTestDeps {
   firestore: InMemoryFirestore;
   auth: FakeAuth;
-  /** Injected clock â€” defaults to Date.now. Tests override for TTL. */
+  /** Injected clock — defaults to Date.now. Tests override for TTL. */
   now?: () => number;
 }
 
@@ -179,7 +179,7 @@ function buildVerifyApp(deps: VerifyTestDeps): Express {
     // TODO R19: integrate @simplewebauthn/server to CBOR-decode the
     // authenticatorData + verify the assertion signature against the
     // user's stored public key. For now (MVP) we trust the assertion if
-    // the challenge consume succeeds â€” replay is already prevented via
+    // the challenge consume succeeds — replay is already prevented via
     // the single-use challenge cache.
     await deps.firestore.collection('audit_logs').add({
       action: 'auth.webauthn.verified',
@@ -319,7 +319,7 @@ describe('POST /api/auth/webauthn/verify', () => {
       .send({
         challengeId: issued.challengeId,
         clientDataJSON: issued.clientDataJSON,
-        authenticatorData: 'aGVsbG8=', // base64('hello') â€” placeholder until R19
+        authenticatorData: 'aGVsbG8=', // base64('hello') — placeholder until R19
         signature: 'c2ln', // base64('sig')
       });
     expect(res.status).toBe(200);
@@ -394,13 +394,13 @@ describe('POST /api/auth/webauthn/verify', () => {
     };
     const r1 = await request(app).post('/api/auth/webauthn/verify').set('Authorization', auth).send(body);
     expect(r1.status).toBe(200);
-    // Second call with the SAME challenge â€” replay attempt.
+    // Second call with the SAME challenge — replay attempt.
     const r2 = await request(app).post('/api/auth/webauthn/verify').set('Authorization', auth).send(body);
     expect(r2.status).toBe(401);
     expect(r2.body.reason).toBe('consumed');
   });
 
-  it('audit row contains uid ONLY â€” never the assertion bytes', async () => {
+  it('audit row contains uid ONLY — never the assertion bytes', async () => {
     const uid = 'uid-audit';
     const issued = await issueChallenge(fs, uid);
     await request(app)
@@ -429,9 +429,9 @@ describe('POST /api/auth/webauthn/verify', () => {
 });
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Round 19 R19 A5 â€” full @simplewebauthn/server crypto-verify path.
+// Round 19 R19 A5 — full @simplewebauthn/server crypto-verify path.
 // Triggered when the request body includes the credential `id` (base64url).
-// The MVP consume-only path above stays alive (legacy clients) â€” these
+// The MVP consume-only path above stays alive (legacy clients) — these
 // tests exercise the new layer on top.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -653,7 +653,7 @@ function buildCryptoVerifyApp(deps: CryptoVerifyTestDeps): Express {
   return app;
 }
 
-describe('POST /api/auth/webauthn/verify â€” R19 crypto-verify path', () => {
+describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
   let fs: InMemoryFirestore;
   let app: Express;
 
@@ -819,7 +819,7 @@ describe('POST /api/auth/webauthn/verify â€” R19 crypto-verify path', () =>
     expect(res.status).toBe(401);
     expect(res.body.reason).toBe('unknown_credential');
     // verifyAuthenticationResponse must NOT have been called when the
-    // credential lookup fails â€” saves a CBOR-decode + crypto op.
+    // credential lookup fails — saves a CBOR-decode + crypto op.
     expect(mockVerifyAuthenticationResponse).not.toHaveBeenCalled();
   });
 
@@ -845,7 +845,7 @@ describe('POST /api/auth/webauthn/verify â€” R19 crypto-verify path', () =>
     expect(res.body.reason).toBe('unknown_credential');
   });
 
-  it('audit row records uid + credentialId + newCounter â€” never the assertion bytes', async () => {
+  it('audit row records uid + credentialId + newCounter — never the assertion bytes', async () => {
     const uid = 'uid-crypto';
     const issued = await issueChallenge(fs, uid);
     mockVerifyAuthenticationResponse.mockResolvedValueOnce({
@@ -923,7 +923,7 @@ describe('POST /api/auth/webauthn/verify â€” R19 crypto-verify path', () =>
 });
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Round 19 R6 â€” per-uid rate limiter on /webauthn/verify.
+// Round 19 R6 — per-uid rate limiter on /webauthn/verify.
 //
 // Hardens R18 R6 MEDIUM #1: even though the verify endpoint already
 // enforces single-use challenges + monotonic-counter replay prevention,
@@ -949,7 +949,7 @@ interface RateLimitedTestDeps extends VerifyTestDeps {
  * Builds a verify app whose /webauthn/verify route is wrapped with the
  * SAME limiter shape used in production (`webauthnVerifyLimiter`). We
  * reconstruct it inside the test so each `it()` gets a fresh in-memory
- * counter store â€” sharing the production singleton would leak counts
+ * counter store — sharing the production singleton would leak counts
  * across tests.
  */
 function buildRateLimitedApp(deps: RateLimitedTestDeps): Express {
@@ -1029,7 +1029,7 @@ function buildRateLimitedApp(deps: RateLimitedTestDeps): Express {
   return app;
 }
 
-describe('POST /api/auth/webauthn/verify â€” R19 R6 per-uid rate limiter', () => {
+describe('POST /api/auth/webauthn/verify — R19 R6 per-uid rate limiter', () => {
   let fs: InMemoryFirestore;
 
   beforeEach(() => {
@@ -1039,7 +1039,7 @@ describe('POST /api/auth/webauthn/verify â€” R19 R6 per-uid rate limiter', 
   /**
    * Helper: build N independent verify request bodies for a given uid.
    * Each body uses a fresh challenge so the request would otherwise
-   * succeed with 200 (or a content 401 from a cold store) â€” the test
+   * succeed with 200 (or a content 401 from a cold store) — the test
    * isolates the rate-limit behavior, not consume semantics.
    */
   async function buildBodies(uid: string, n: number) {
@@ -1080,7 +1080,7 @@ describe('POST /api/auth/webauthn/verify â€” R19 R6 per-uid rate limiter', 
     expect(sixth.body.retryAfterMs).toBe(60_000);
   });
 
-  it('keeps per-uid quotas independent â€” uid A exhausting its budget does not throttle uid B', async () => {
+  it('keeps per-uid quotas independent — uid A exhausting its budget does not throttle uid B', async () => {
     const app = buildRateLimitedApp({ firestore: fs, auth: FAKE_AUTH });
     const uidA = 'uid-A';
     const uidB = 'uid-B';
@@ -1103,7 +1103,7 @@ describe('POST /api/auth/webauthn/verify â€” R19 R6 per-uid rate limiter', 
       .send((await buildBodies(uidA, 1))[0]);
     expect(blocked.status).toBe(429);
 
-    // uid B starts with a fresh budget â€” first call still succeeds.
+    // uid B starts with a fresh budget — first call still succeeds.
     const bodyB = (await buildBodies(uidB, 1))[0];
     const resB = await request(app)
       .post('/api/auth/webauthn/verify')
@@ -1112,7 +1112,7 @@ describe('POST /api/auth/webauthn/verify â€” R19 R6 per-uid rate limiter', 
     expect(resB.status).toBe(200);
   });
 
-  it('counts 401 attempts (unknown challenge) against the quota â€” flooding bad bodies still trips the limiter', async () => {
+  it('counts 401 attempts (unknown challenge) against the quota — flooding bad bodies still trips the limiter', async () => {
     // Use a tighter cap (2) to keep the test fast and focused.
     const app = buildRateLimitedApp({ firestore: fs, auth: FAKE_AUTH, max: 2 });
     const uid = 'uid-flood';

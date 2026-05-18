@@ -1,16 +1,16 @@
-﻿// Praeventio Guard â€” Sprint 23 Bucket GG + Sprint 34 biometric DTE.
+// Praeventio Guard — Sprint 23 Bucket GG + Sprint 34 biometric DTE.
 //
 // IMPORTANT (regla de producto inviolable):
-//   Praeventio NO push a SII. La empresa cliente imprime/firma/envÃ­a.
+//   Praeventio NO push a SII. La empresa cliente imprime/firma/envía.
 //   Ver memoria producto product_signing_no_blocking_directives_2026-05-06.
 //
 // Admin DTE endpoints. Wraps the Bsale adapter so an operator can:
-//   â€¢ POST /api/dte/create  â€” emit a manual DTE outside the auto-pipeline.
-//   â€¢ GET  /api/dte/:folio  â€” fetch the live status from Bsale.
-//   â€¢ POST /api/dte/:folio/cancel â€” issue a Nota de CrÃ©dito to cancel a folio.
+//   • POST /api/dte/create  — emit a manual DTE outside the auto-pipeline.
+//   • GET  /api/dte/:folio  — fetch the live status from Bsale.
+//   • POST /api/dte/:folio/cancel — issue a Nota de Crédito to cancel a folio.
 //
 // Sprint 34 additions (biometric, no-push):
-//   â€¢ POST /api/dte/generate â€” build a SII-canonical DTE XML, sign it with
+//   • POST /api/dte/generate — build a SII-canonical DTE XML, sign it with
 //     a WebAuthn passkey (FaceID / Android Biometric / Google login
 //     fingerprint), render PDF. Returns { xml, pdfBase64, dteId, signedAt }.
 //     Does NOT push to SII; caller (frontend) downloads the artefacts and
@@ -18,7 +18,7 @@
 //
 // Auto-emission on `invoice.status === 'paid'` lives in
 // `src/services/billing/invoice.ts:tryAutoIssueDte`. This route is the
-// admin / fallback surface â€” never exposed to the SPA without an admin role.
+// admin / fallback surface — never exposed to the SPA without an admin role.
 //
 // Mounted in server.ts at `/api/dte`. Final paths preserved verbatim.
 
@@ -30,7 +30,7 @@ import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { isAdminRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
 import { BsaleAdapter, type DteCreateInput } from '../../services/sii/bsaleAdapter.js';
-// Sprint 36 audit P1 Â§1.4 â€” DTE generator/signer/PDF renderer are lazy-
+// Sprint 36 audit P1 Â§1.4 — DTE generator/signer/PDF renderer are lazy-
 // imported so Cloud Run cold-start doesn't pay the xmlbuilder2/pdfkit
 // parse cost for every container; only the first POST /generate pays
 // the ~50-100ms once-per-process import. The endpoint is admin-only and
@@ -145,7 +145,7 @@ function isValidDteCreateInput(body: unknown): body is DteCreateInput {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/dte/create  â€” admin-only manual DTE emission.
+// POST /api/dte/create  — admin-only manual DTE emission.
 // ---------------------------------------------------------------------------
 dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res: Response) => {
   if (!(await requireAdmin(req, res))) return undefined;
@@ -183,10 +183,10 @@ dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/dte/:folio  â€” fetch live status from Bsale (admin or owner).
+// GET /api/dte/:folio  — fetch live status from Bsale (admin or owner).
 // ---------------------------------------------------------------------------
 dteRouter.get('/:folio', verifyAuth, async (req: Request, res: Response) => {
-  // Read-only: gated by auth but not admin-only â€” owners may legitimately
+  // Read-only: gated by auth but not admin-only — owners may legitimately
   // fetch their own DTE PDF. Strict ACL (matching invoice ownership) is
   // deferred to a follow-up; for now, any authenticated user can hit this.
   const folio = req.params.folio;
@@ -217,7 +217,7 @@ dteRouter.get('/:folio', verifyAuth, async (req: Request, res: Response) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/dte/:folio/cancel  â€” admin-only cancellation (issues NC).
+// POST /api/dte/:folio/cancel  — admin-only cancellation (issues NC).
 // ---------------------------------------------------------------------------
 // Sprint E backend debt 2026-05-16: idempotencyKey() added. Without it,
 // a flaky-network double-tap from admin could file two NC (notas de
@@ -252,7 +252,7 @@ dteRouter.post('/:folio/cancel', verifyAuth, idempotencyKey(), async (req: Reque
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/dte/generate  â€” Sprint 34 biometric DTE generator (NO push to SII).
+// POST /api/dte/generate  — Sprint 34 biometric DTE generator (NO push to SII).
 // ---------------------------------------------------------------------------
 //
 // Body shape (Zod-validated):
@@ -324,7 +324,7 @@ dteRouter.post('/generate', verifyAuth, idempotencyKey(), async (req: Request, r
 
   let generated;
   try {
-    // Sprint 36 audit P1 Â§1.4 â€” `generateDte` is now lazy-imported so the
+    // Sprint 36 audit P1 Â§1.4 — `generateDte` is now lazy-imported so the
     // call site must `await` it; the underlying function is still sync.
     generated = await generateDte({
       type: body.type,

@@ -1,12 +1,12 @@
-﻿// Praeventio Guard â€” Round 17 R2 Phase 2 split.
+// Praeventio Guard — Round 17 R2 Phase 2 split.
 //
 // Billing endpoints extracted from server.ts. Phase 1 (Round 16 R5) shipped
 // admin/health/audit; this phase moves the 6 /api/billing/* routes plus the
 // Webpay return handler at /billing/webpay/return.
 //
 // Mount strategy (in server.ts):
-//   â€¢ app.use('/api/billing', billingApiRouter)  â† 6 /api/billing/* routes
-//   â€¢ app.use('/billing',     billingWebpayRouter) â† Webpay return only
+//   • app.use('/api/billing', billingApiRouter)  â† 6 /api/billing/* routes
+//   • app.use('/billing',     billingWebpayRouter) â† Webpay return only
 //
 // Why TWO routers? `/billing/webpay/return` is the URL Transbank redirects
 // the cardholder's browser to after card entry. That URL is registered with
@@ -15,16 +15,16 @@
 // byte-identical path while still letting the API surface live under
 // `/api/billing/`.
 //
-// Final paths (preserved verbatim â€” DO NOT change):
-//   â€¢ POST /api/billing/verify                  (Google Play purchase verify)
-//   â€¢ POST /api/billing/webhook                 (RTDN, shared-secret + idempotency)
-//   â€¢ POST /api/billing/checkout                (Webpay/Stripe/manual invoice)
-//   â€¢ POST /api/billing/checkout/mercadopago    (LATAM, Round 15 R2)
-//   â€¢ POST /api/billing/invoice/:id/mark-paid   (admin manual fallback)
-//   â€¢ GET  /api/billing/invoice/:id             (status poll, Round 13)
-//   â€¢ GET  /billing/webpay/return               (Webpay browser return)
+// Final paths (preserved verbatim — DO NOT change):
+//   • POST /api/billing/verify                  (Google Play purchase verify)
+//   • POST /api/billing/webhook                 (RTDN, shared-secret + idempotency)
+//   • POST /api/billing/checkout                (Webpay/Stripe/manual invoice)
+//   • POST /api/billing/checkout/mercadopago    (LATAM, Round 15 R2)
+//   • POST /api/billing/invoice/:id/mark-paid   (admin manual fallback)
+//   • GET  /api/billing/invoice/:id             (status poll, Round 13)
+//   • GET  /billing/webpay/return               (Webpay browser return)
 //
-// Behavior contract (covered by I3 supertest harness â€” see
+// Behavior contract (covered by I3 supertest harness — see
 // src/__tests__/server/billing.test.ts; that harness builds a parallel
 // minimal Express app, so this extraction does not affect those tests).
 //
@@ -41,16 +41,16 @@ import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { safeSecretEqual } from '../middleware/safeSecretEqual.js';
-// Sprint 28 Bucket B3 â€” transversal Zod validation factory. See
+// Sprint 28 Bucket B3 — transversal Zod validation factory. See
 // src/server/middleware/validate.ts for the contract.
 import { validate } from '../middleware/validate.js';
 import { invoiceStatusLimiter, googlePlayWebhookLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
-// Sprint 22 Bucket AA â€” request-scoped tracing on the billing dispatch path.
+// Sprint 22 Bucket AA — request-scoped tracing on the billing dispatch path.
 import { tracedAsync } from '../../services/observability/tracing.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 
-// Sentry capture helper â€” additive to logger.error. Wrapped so observability
+// Sentry capture helper — additive to logger.error. Wrapped so observability
 // failures never crash the request path.
 function sentryCapture(
   err: unknown,
@@ -83,7 +83,7 @@ import {
 import { KhipuAdapter } from '../../services/billing/khipuAdapter.js';
 import { stripeAdapter } from '../../services/billing/stripeAdapter.js';
 import { withIdempotency } from '../../services/billing/idempotency.js';
-// Sprint 39 P0.3 â€” synchronous server-to-server IAP receipt validators.
+// Sprint 39 P0.3 — synchronous server-to-server IAP receipt validators.
 // See file headers in each for the auth/env contract.
 import { validateGooglePlaySubscription } from '../../services/billing/googlePlayValidator.js';
 import { validateAppleTransaction } from '../../services/billing/appleTransactionValidator.js';
@@ -151,11 +151,11 @@ if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON) {
 // Persistence:
 //   Invoices are written to the `invoices/{id}` Firestore collection via the
 //   Admin SDK only. firestore.rules treats this collection as default-deny
-//   (server-only writes) â€” clients must NEVER read/write it directly. Do
+//   (server-only writes) — clients must NEVER read/write it directly. Do
 //   not add a rule for `invoices/{id}` without an explicit threat-model
 //   review; a wrong rule there leaks tax data and PII.
 //
-// Real provider integration is NOT in this commit â€” `webpayAdapter` and
+// Real provider integration is NOT in this commit — `webpayAdapter` and
 // `stripeAdapter` throw on every method except `isConfigured()`. See
 // BILLING.md for the runbook to wire transbank-sdk + stripe.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -200,11 +200,11 @@ const VALID_PAYMENT_METHODS: ReadonlyArray<PaymentMethod> = [
 const VALID_CURRENCIES: ReadonlyArray<CurrencyCode> = ['CLP', 'USD'];
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Round 15 â€” MercadoPago checkout (LATAM: PE/AR/CO/MX/BR).
+// Round 15 — MercadoPago checkout (LATAM: PE/AR/CO/MX/BR).
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** Per-country expected currency. The (country, currency) tuple must match
- *  before we'll create a preference â€” prevents accidental cross-currency
+ *  before we'll create a preference — prevents accidental cross-currency
  *  invoicing. */
 const MP_VALID_TUPLES: ReadonlySet<string> = new Set(
   Object.entries(MP_CURRENCY_BY_COUNTRY).map(([c, cur]) => `${c}:${cur}`),
@@ -214,28 +214,28 @@ const MP_VALID_TUPLES: ReadonlySet<string> = new Set(
  *  fallback ratios as `BILLING_TIER_FALLBACK`. We use the tier's USD
  *  price as a stable anchor, then apply a rough country multiplier so
  *  the displayed price is a sensible local-currency number. This is
- *  intentionally simple â€” Round 16 will swap it for per-country pricing
+ *  intentionally simple — Round 16 will swap it for per-country pricing
  *  rows on the tier definition. */
 const MP_UNIT_PRICE_USD_MULTIPLIER: Record<string, number> = {
   PEN: 3.8, // 1 USD â‰ˆ 3.8 PEN
-  ARS: 870, // 1 USD â‰ˆ 870 ARS (volatile â€” review monthly)
+  ARS: 870, // 1 USD â‰ˆ 870 ARS (volatile — review monthly)
   COP: 4100, // 1 USD â‰ˆ 4100 COP
   MXN: 17.5, // 1 USD â‰ˆ 17.5 MXN
   BRL: 5.0, // 1 USD â‰ˆ 5 BRL
 };
 
-// Suppress "unused" warning for the LatamCurrency type re-export above â€”
+// Suppress "unused" warning for the LatamCurrency type re-export above —
 // kept in scope so future endpoints in this file can narrow on it
 // without re-importing from the currency module.
 void (null as unknown as LatamCurrency | null);
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Routers â€” see header for the two-router rationale.
+// Routers — see header for the two-router rationale.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const billingApiRouter = Router();
 export const billingWebpayRouter = Router();
 
-// POST /api/billing/verify â€” Google Play one-shot verify (subscription or
+// POST /api/billing/verify — Google Play one-shot verify (subscription or
 // in-app product). On success we mirror the order into `transactions` and
 // update the user's `subscription` block.
 //
@@ -243,7 +243,7 @@ export const billingWebpayRouter = Router();
 // to protect against double-call on flaky mobile networks. Same pattern as
 // `/checkout` (line ~462 below): if the client retries with the same
 // `Idempotency-Key` header, the first cached 2xx response is replayed and
-// the handler runs ZERO times â€” preventing duplicate `transactions/*`
+// the handler runs ZERO times — preventing duplicate `transactions/*`
 // rows and duplicate `users/{uid}.subscription.*` writes. The middleware
 // is OPT-IN (no header â†’ falls through to the handler normally), so
 // existing clients that don't send the header keep working exactly as
@@ -334,11 +334,11 @@ billingApiRouter.post('/verify', verifyAuth, idempotencyKey(), async (req, res) 
   }
 });
 
-// POST /api/billing/webhook â€” Real-Time Developer Notifications (RTDN) push
+// POST /api/billing/webhook — Real-Time Developer Notifications (RTDN) push
 // from Google Play via Cloud Pub/Sub. Shared-secret gate via ?token=
 // query-string + lock-then-complete idempotency on `processed_pubsub`.
 billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => {
-  // Verify shared secret â€” configure WEBHOOK_SECRET in Pub/Sub push subscription URL as ?token=<secret>
+  // Verify shared secret — configure WEBHOOK_SECRET in Pub/Sub push subscription URL as ?token=<secret>
   // Fail closed: missing config means we reject everything rather than accept everyone.
   const expectedToken = process.env.WEBHOOK_SECRET;
   if (!expectedToken) {
@@ -366,7 +366,7 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
   // Idempotency: Pub/Sub may redeliver the same message. We dedupe via
   // `processed_pubsub/{messageId}` using the shared `withIdempotency`
   // helper (lock-then-complete; 5-minute staleness window). The helper
-  // encapsulates the four-state machine â€” see
+  // encapsulates the four-state machine — see
   // src/services/billing/idempotency.ts for the full contract.
   //
   // No messageId? We bail out non-idempotently and ACK 200; without a
@@ -389,7 +389,7 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
         const { subscriptionNotification } = decodedData;
         const packageName = decodedData.packageName;
 
-        // Log only non-sensitive metadata. NEVER log purchaseToken â€” it's a
+        // Log only non-sensitive metadata. NEVER log purchaseToken — it's a
         // bearer credential for Google Play.
         logger.info('rtdn_received', {
           notificationType: subscriptionNotification?.notificationType,
@@ -431,7 +431,7 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
       },
     );
 
-    // Surface the outcome for observability â€” preserves the
+    // Surface the outcome for observability — preserves the
     // `rtdn_in_progress_skip` / `rtdn_stale_lock_stealing` signals the
     // inline implementation emitted.
     if (outcome.kind === 'in-flight') {
@@ -440,7 +440,7 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
       logger.warn('rtdn_stale_lock_stealing', { messageId });
     }
 
-    // Sprint 28 H18 â€” audit trail of every webhook delivery (success
+    // Sprint 28 H18 — audit trail of every webhook delivery (success
     // and replay). Best-effort: we never fail the request because of a
     // failed audit write.
     if (outcome.kind === 'duplicate') {
@@ -458,7 +458,7 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
       }).catch(() => {});
     }
 
-    // All four outcomes ACK 200 to suppress Pub/Sub redelivery â€” see
+    // All four outcomes ACK 200 to suppress Pub/Sub redelivery — see
     // contract notes in idempotency.ts.
     return res.status(200).send('OK');
   } catch (error) {
@@ -471,7 +471,7 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
   }
 });
 
-// POST /api/billing/checkout â€” create invoice + (eventually) redirect URL
+// POST /api/billing/checkout — create invoice + (eventually) redirect URL
 // for Webpay/Stripe. CLP must use webpay or manual-transfer; USD must use
 // stripe. Until adapters are wired, falls back to 'pending-config'.
 billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res) => {
@@ -481,7 +481,7 @@ billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res
   try {
     const body = req.body ?? {};
 
-    // Input validation â€” fail closed. Never trust currency/method from client.
+    // Input validation — fail closed. Never trust currency/method from client.
     if (typeof body.tierId !== 'string' || body.tierId.length === 0 || body.tierId.length > 64) {
       return res.status(400).json({ error: 'Invalid tierId' });
     }
@@ -537,7 +537,7 @@ billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res
       paymentMethod: body.paymentMethod,
     };
 
-    // Compute overage off the tier limits. For now only ComitÃ© Paritario
+    // Compute overage off the tier limits. For now only Comité Paritario
     // and Departamento have variable overage in the fallback; the real
     // calculation belongs in pricing/tiers.ts.
     const workerOverage = Math.max(0, body.totalWorkers - 25);
@@ -568,7 +568,7 @@ billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Adapter call â€” typed stubs throw, so we fall back to 'pending-config'.
+    // Adapter call — typed stubs throw, so we fall back to 'pending-config'.
     let paymentUrl: string | undefined;
     let status: CheckoutResponse['status'] = 'pending-config';
 
@@ -612,7 +612,7 @@ billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res
         sentryCapture(err, { endpoint: 'billing.checkout.stripe', tags: { invoiceId: invoice.id } });
       }
     } else if (body.paymentMethod === 'manual-transfer') {
-      // No external provider â€” admin marks paid via /mark-paid endpoint.
+      // No external provider — admin marks paid via /mark-paid endpoint.
       status = 'awaiting-payment';
     }
 
@@ -633,7 +633,7 @@ billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res
   }
 });
 
-// POST /api/billing/invoice/:id/mark-paid â€” admin manual fallback for
+// POST /api/billing/invoice/:id/mark-paid — admin manual fallback for
 // transferencia bancaria. 403 unless caller has admin role; writes a
 // matching audit_logs row directly via the Admin SDK.
 billingApiRouter.post('/invoice/:id/mark-paid', verifyAuth, async (req, res) => {
@@ -673,7 +673,7 @@ billingApiRouter.post('/invoice/:id/mark-paid', verifyAuth, async (req, res) => 
       paymentSource: 'manual',
     });
 
-    // Mirror /api/audit-log behavior â€” write directly via Admin SDK so we
+    // Mirror /api/audit-log behavior — write directly via Admin SDK so we
     // stamp the same fields without an extra HTTP hop.
     await db.collection('audit_logs').add({
       action: 'billing.mark-paid',
@@ -730,19 +730,19 @@ billingApiRouter.post('/invoice/:id/mark-paid', verifyAuth, async (req, res) => 
   }
 });
 
-// GET /api/billing/invoice/:id â€” read-only status poll for the SPA's
+// GET /api/billing/invoice/:id — read-only status poll for the SPA's
 // post-checkout waiting screen. Returns ONLY safe fields (no purchaseToken,
 // no internal audit metadata, no payer notes). Authorization model:
 //
-//   â€¢ verifyAuth gates the request to a logged-in user (req.user.uid).
-//   â€¢ The doc must have been created by the same uid (`createdBy === uid`).
-//   â€¢ Mismatch â†’ 404 (deliberate: do NOT 403, which would leak existence).
+//   • verifyAuth gates the request to a logged-in user (req.user.uid).
+//   • The doc must have been created by the same uid (`createdBy === uid`).
+//   • Mismatch â†’ 404 (deliberate: do NOT 403, which would leak existence).
 //
 // We deliberately do NOT expose: the full lineItems list (already in the
 // CheckoutResponse the client already has), webpayToken (bearer-credential),
 // webpayAuthCode (PCI-adjacent), createdByEmail (PII duplicated elsewhere),
 // or rawResponse fields from the adapter. If Pricing.tsx needs more, add
-// fields here narrowly â€” never spread the entire doc.
+// fields here narrowly — never spread the entire doc.
 billingApiRouter.get('/invoice/:id', verifyAuth, invoiceStatusLimiter, async (req, res) => {
   const callerUid = req.user!.uid;
   const invoiceId = req.params.id;
@@ -761,7 +761,7 @@ billingApiRouter.get('/invoice/:id', verifyAuth, invoiceStatusLimiter, async (re
 
     // Authorization: the invoice must belong to the caller. We use
     // `createdBy` (set in /api/billing/checkout) as the owner uid. A
-    // mismatch returns 404, NOT 403 â€” this prevents enumeration of
+    // mismatch returns 404, NOT 403 — this prevents enumeration of
     // other users' invoice ids.
     if (data.createdBy !== callerUid) {
       return res.status(404).json({ error: 'Invoice not found' });
@@ -814,10 +814,10 @@ billingApiRouter.get('/invoice/:id', verifyAuth, invoiceStatusLimiter, async (re
   }
 });
 
-// POST /api/billing/checkout/mercadopago â€” Round 15 R2. LATAM checkout
+// POST /api/billing/checkout/mercadopago — Round 15 R2. LATAM checkout
 // (PE/AR/CO/MX/BR). Auth-gated; idempotent at the invoice layer. Round 16
 // will add the matching IPN webhook with OIDC verification similar to
-// RTDN â€” until then MP payments must be reconciled via /mark-paid (same
+// RTDN — until then MP payments must be reconciled via /mark-paid (same
 // admin fallback used for transferencia bancaria).
 billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), async (req, res) => {
   const callerUid = req.user!.uid;
@@ -826,7 +826,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), asy
   try {
     const body = req.body ?? {};
 
-    // Input validation â€” fail closed. Never trust currency/country pair
+    // Input validation — fail closed. Never trust currency/country pair
     // from the client; mismatches reject with 400.
     if (typeof body.tierKey !== 'string' || body.tierKey.length === 0 || body.tierKey.length > 64) {
       return res.status(400).json({ error: 'Invalid tierKey' });
@@ -856,7 +856,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), asy
       });
     }
 
-    // Load tier from the existing fallback table â€” same source of
+    // Load tier from the existing fallback table — same source of
     // truth as the Webpay path.
     const tier = resolveBillingTier(body.tierKey);
     if (!tier) {
@@ -865,7 +865,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), asy
 
     // Compute MP unit_price from the tier's USD anchor. Annual cycles
     // get the 12x annual figure (MP supports preference-level recurrence
-    // via PreApproval, which is a Round 16 concern â€” for now we charge
+    // via PreApproval, which is a Round 16 concern — for now we charge
     // the annual lump sum).
     const usdAmount = body.billingCycle === 'annual' ? tier.usdAnual : tier.usdRegular;
     const multiplier = MP_UNIT_PRICE_USD_MULTIPLIER[expectedCurrency] ?? 1;
@@ -873,7 +873,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), asy
     const unitPrice = Math.round(usdAmount * multiplier * 100) / 100;
 
     // Build a minimal invoice doc. We deliberately DO NOT call the
-    // shared `buildInvoice()` here â€” that path is Chile-specific (CLP /
+    // shared `buildInvoice()` here — that path is Chile-specific (CLP /
     // IVA / RUT). MP invoices live in the same Firestore collection
     // but with a `paymentMethod: 'mercadopago'` tag and the local-
     // currency totals. Round 16 will refactor `buildInvoice` to be
@@ -897,7 +897,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), asy
         () => mercadoPagoAdapter.createPreference({
         items: [
           {
-            title: `Praeventio Guard â€” ${body.tierKey} (${body.billingCycle})`,
+            title: `Praeventio Guard — ${body.tierKey} (${body.billingCycle})`,
             quantity: 1,
             unit_price: unitPrice,
             currency_id: expectedCurrency as MercadoPagoCurrencyId,
@@ -931,7 +931,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), asy
       lineItems: [
         {
           tierId: body.tierKey,
-          description: `Praeventio Guard â€” ${body.tierKey} (${body.billingCycle})`,
+          description: `Praeventio Guard — ${body.tierKey} (${body.billingCycle})`,
           quantity: 1,
           unitAmount: unitPrice,
           currency: expectedCurrency,
@@ -949,7 +949,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), asy
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Audit log â€” mirror the /api/billing/checkout pattern but with the
+    // Audit log — mirror the /api/billing/checkout pattern but with the
     // mercadopago.preference.created action so dashboards can split the
     // funnel by payment rail.
     await db.collection('audit_logs').add({
@@ -987,10 +987,10 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), asy
   }
 });
 
-// POST /api/billing/webhook/mercadopago â€” Round 18 R2 (deferred from R17),
+// POST /api/billing/webhook/mercadopago — Round 18 R2 (deferred from R17),
 // extended in Round 19 (A9) with OIDC JWT verification.
 //
-// MercadoPago IPN endpoint. Public route (no verifyAuth) â€” trust comes from
+// MercadoPago IPN endpoint. Public route (no verifyAuth) — trust comes from
 // signature verification. Two modes are supported in the same handler:
 //
 //   Precedence: OIDC > HMAC > LEGACY_HMAC_FALLBACK
@@ -1008,7 +1008,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), asy
 //   3. LEGACY_HMAC_FALLBACK=1 (emergency rollback): inside the HMAC path,
 //      `verifyMercadoPagoIpnSignatureFromBody` will additionally accept a
 //      legacy JSON.stringify-signed body. Off by default. Turn back off
-//      ASAP â€” see the helper definition for the signal we emit on use.
+//      ASAP — see the helper definition for the signal we emit on use.
 //
 // All three failure modes return 401. The body still re-fetches canonical
 // payment state from MP via the adapter, idempotent on
@@ -1036,7 +1036,7 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
       authenticated = true;
     } else {
       // Log the OIDC-side reason for ops, then fall through to HMAC. Note
-      // that we don't outright 401 here â€” MP could be in the middle of
+      // that we don't outright 401 here — MP could be in the middle of
       // rolling out OIDC delivery and a sender that legacily sets BOTH
       // headers should still succeed via HMAC.
       logger.warn('mp_ipn_oidc_failed', { reason: oidc.reason ?? null });
@@ -1068,7 +1068,7 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
       { paymentId: paymentId ?? null, action: req.body?.action ?? null },
       () => processMercadoPagoIpn(req.body ?? {}),
     );
-    // Sprint 28 H18 â€” audit success and replay for MP webhooks.
+    // Sprint 28 H18 — audit success and replay for MP webhooks.
     if (result.idempotencyKind === 'duplicate') {
       await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
         replay: true,
@@ -1183,7 +1183,7 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
 });
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Webpay return URL â€” Transbank redirects the cardholder's browser back here
+// Webpay return URL — Transbank redirects the cardholder's browser back here
 // after they pay. Mounted at /billing/webpay/return (NOT /api/) because
 // Transbank's commerce config has this exact path registered.
 //
@@ -1194,7 +1194,7 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
 // Idempotency model (lock-then-complete via `processed_webpay/{token_ws}`):
 //
 //   processed_webpay is a server-only collection (default-deny via the
-//   absence of any rule in firestore.rules â€” see header TODO there).
+//   absence of any rule in firestore.rules — see header TODO there).
 //   We mirror the Google Play RTDN pattern (`processed_pubsub`) so a
 //   redelivered token (browser reload, double-tap, eventual-consistency
 //   second hit) cannot double-process the commit.
@@ -1212,7 +1212,7 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
 // Status-mapping (matches WebpayCommitStatus + Invoice status):
 //   AUTHORIZED â†’ invoice 'paid'           â†’ /pricing/success?invoice=...
 //   REJECTED   â†’ invoice 'rejected'       â†’ /pricing/failed?invoice=...
-//                (NOT 'cancelled' â€” card decline â‰  user cancellation)
+//                (NOT 'cancelled' — card decline â‰  user cancellation)
 //   FAILED     â†’ invoice stays 'pending-payment' â†’ /pricing/retry?invoice=...
 //                (transient infra error; same card can retry)
 //
@@ -1224,7 +1224,7 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
 // outcome+invoiceId replay-redirect contract (see types in
 // webpayAdapter.ts) which is too domain-specific to fold into the
 // generic helper without muddying its return shape.
-// TODO(billing): consider unifying after the next round â€” risk in this
+// TODO(billing): consider unifying after the next round — risk in this
 // commit is too high (would touch the entire payment confirmation
 // path; deferring until invoice-replay typing settles).
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1232,9 +1232,9 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
   // Round 13: capture wall-clock at handler entry so we can emit a
   // single `praeventio/webpay/return_latency_ms` histogram observation
   // at every exit. `outcome` is one of {success, failure, invalid}
-  // â€” see src/services/billing/webpayMetrics.ts for label discipline.
+  // — see src/services/billing/webpayMetrics.ts for label discipline.
   // The label key MUST match the Terraform descriptor (monitoring.tf
-  // `webpay_return_latency`) â€” descriptor labels are immutable.
+  // `webpay_return_latency`) — descriptor labels are immutable.
   const startedAt = performance.now();
   const elapsed = () => performance.now() - startedAt;
 
@@ -1257,7 +1257,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
   };
 
   // Map WebpayReturnOutcome (paid|rejected|failed) to the histogram's
-  // `outcome` label (success|failure|invalid). Keep cardinality LOW â€”
+  // `outcome` label (success|failure|invalid). Keep cardinality LOW —
   // see webpayMetrics.ts header.
   const histogramOutcomeFor = (
     o: WebpayReturnOutcome,
@@ -1273,7 +1273,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
           outcome: histogramOutcomeFor(lock.outcome),
           latencyMs: elapsed(),
         });
-        // Sprint 28 H18 â€” audit webhook replay for Webpay returns.
+        // Sprint 28 H18 — audit webhook replay for Webpay returns.
         await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
           replay: true,
           source: 'webpay',
@@ -1284,7 +1284,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         return res.redirect(redirectFor(lock.outcome, lock.invoiceId ?? null));
       }
       // In-flight from another worker. Mirror RTDN's "ack and let UI handle
-      // eventual consistency" â€” redirect to /pricing/success and the SPA
+      // eventual consistency" — redirect to /pricing/success and the SPA
       // will surface the actual state once Firestore catches up.
       recordWebpayReturnLatency({ outcome: 'success', latencyMs: elapsed() });
       return res.redirect(`/pricing/success`);
@@ -1306,10 +1306,10 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         webpayAuthCode: commit.authorizationCode ?? null,
       }, { merge: true });
 
-      // Round 22 â€” audit fix CRITICAL #2 (DT-02): activar suscripciÃ³n
+      // Round 22 — audit fix CRITICAL #2 (DT-02): activar suscripción
       // del usuario tras pago confirmado. Sin esto el invoice quedaba
       // 'paid' pero users/{uid}.subscription.planId nunca cambiaba.
-      // Best-effort: no rompe el redirect si la actualizaciÃ³n falla
+      // Best-effort: no rompe el redirect si la actualización falla
       // (admin tiene /api/billing/invoice/:id/mark-paid como fallback).
       try {
         const invoiceSnap = await invoiceRef.get();
@@ -1435,7 +1435,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         sentryCapture(dteErr, { endpoint: 'billing.webpay.dteAutoIssue', tags: { invoiceId } });
       }
     } else if (commit.status === 'REJECTED') {
-      // Card-side decline. Invoice stays actionable â€” user may retry with a
+      // Card-side decline. Invoice stays actionable — user may retry with a
       // different card. 'cancelled' is reserved for explicit user/admin
       // cancellation only.
       outcome = 'rejected';
@@ -1443,7 +1443,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         { status: 'rejected', webpayToken: tokenWs },
         { merge: true },
       );
-      // Sprint 20 18th-wave â€” TM-R02 closure. Mirror the AUTHORIZED audit
+      // Sprint 20 18th-wave — TM-R02 closure. Mirror the AUTHORIZED audit
       // row so a customer dispute on a "rejected" outcome has a tamper-
       // evident server-side trail (Repudiation threat in STRIDE).
       await db.collection('audit_logs').add({
@@ -1462,7 +1462,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         { status: 'pending-payment', webpayToken: tokenWs },
         { merge: true },
       );
-      // Sprint 20 18th-wave â€” TM-R02 closure. Same audit-row contract as
+      // Sprint 20 18th-wave — TM-R02 closure. Same audit-row contract as
       // the REJECTED branch; distinguishes transient infra failures from
       // card-side declines for ops dashboards.
       await db.collection('audit_logs').add({
@@ -1476,7 +1476,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
     }
 
     // Step 3: finalize the lock so a redelivery can replay the redirect.
-    // Best-effort â€” never throws.
+    // Best-effort — never throws.
     await finalizeWebpayIdempotencyLock(lockRef, {
       outcome,
       invoiceId,
@@ -1491,7 +1491,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
   } catch (error: any) {
     // Deliberate: do NOT update processed_webpay here. Leaving the doc as
     // 'in_progress' allows the staleness window to grant a future
-    // redelivery a fresh attempt â€” same approach as the RTDN handler.
+    // redelivery a fresh attempt — same approach as the RTDN handler.
     logger.error('webpay_return_failed', error, { tokenWs });
     sentryCapture(error, { endpoint: '/billing/webpay/return', tags: { method: 'GET' } });
     recordWebpayReturnLatency({ outcome: 'failure', latencyMs: elapsed() });
@@ -1500,23 +1500,23 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
 });
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// POST /api/billing/khipu/webhook â€” Khipu IPN endpoint.
+// POST /api/billing/khipu/webhook — Khipu IPN endpoint.
 //
-// Public route (no verifyAuth) â€” trust comes from the HMAC-SHA256 signature
+// Public route (no verifyAuth) — trust comes from the HMAC-SHA256 signature
 // on the `X-Khipu-Signature` header (`t=<unix-seconds>,s=<hex>`). Body is
 // parsed as RAW so the signature input matches exactly what Khipu signed
-// â€” going through `express.json()` would re-serialise and break the HMAC.
+// — going through `express.json()` would re-serialise and break the HMAC.
 //
 // Idempotency: shared `withIdempotency` helper keyed on the Khipu
 // `payment_id` (or `notification_id`/`api_request_id` if present), mirroring
 // the MercadoPago IPN pattern. The work() block is intentionally minimal:
 // after authenticating the producer, we re-fetch canonical state via
-// `getPaymentStatus()` (the IPN body is informational only â€” never trust
+// `getPaymentStatus()` (the IPN body is informational only — never trust
 // status fields from a webhook payload directly), update the invoice, and
 // write an audit log row.
 //
 // Mounted on the API router (NOT the /billing/webpay/* router) because
-// Khipu is the producer and they choose the URL â€” we control it with our
+// Khipu is the producer and they choose the URL — we control it with our
 // own commerce config rather than Transbank's.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 billingApiRouter.post(
@@ -1570,7 +1570,7 @@ billingApiRouter.post(
         db,
         { collection: 'processed_khipu', key: dedupeKey },
         async () => {
-          // Re-fetch canonical state â€” never trust status fields from the
+          // Re-fetch canonical state — never trust status fields from the
           // webhook body alone (they're informational; the producer might
           // be fooled by a downstream replay).
           const status = await tracedAsync(
@@ -1636,7 +1636,7 @@ billingApiRouter.post(
         logger.warn('khipu_ipn_stale_lock_stealing', { dedupeKey });
       }
 
-      // Sprint 28 H18 â€” audit replay vs success for Khipu webhooks.
+      // Sprint 28 H18 — audit replay vs success for Khipu webhooks.
       if (outcome.kind === 'duplicate') {
         await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
           replay: true,
@@ -1668,18 +1668,18 @@ billingApiRouter.post(
 );
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Sprint 21 Ola 6 Bucket T â€” IAP receipt validation stubs.
+// Sprint 21 Ola 6 Bucket T — IAP receipt validation stubs.
 //
 // The Capacitor IAP plugin (used by Pricing.tsx on android/ios) returns a
 // purchase receipt to the client. The client POSTs that receipt here so
 // the server has a fraud-signal hook AND an audit trail of the attempt.
 //
-// IMPORTANT â€” these endpoints DO NOT grant the subscription benefit on
+// IMPORTANT — these endpoints DO NOT grant the subscription benefit on
 // their own. The authoritative grant flow is:
-//   â€¢ Google Play â†’ RTDN webhook at POST /api/billing/webhook (this file
+//   • Google Play â†’ RTDN webhook at POST /api/billing/webhook (this file
 //     line 278) which re-fetches the canonical subscription state from
 //     the Google Play Developer API (`purchases.subscriptions.get`).
-//   â€¢ App Store â†’ App Store Server Notifications (SSN) v2 webhook
+//   • App Store â†’ App Store Server Notifications (SSN) v2 webhook
 //     (TODO: ship in a follow-up bucket alongside the App Store Connect
 //     entitlement flow).
 //
@@ -1707,7 +1707,7 @@ billingApiRouter.post(
     }
 
     // Always persist the attempt (best-effort) so ops can correlate with
-    // RTDN later. We never store the full token â€” it's token-equivalent
+    // RTDN later. We never store the full token — it's token-equivalent
     // material and would broaden the blast radius of a Firestore breach.
     const recordAttempt = async (outcome: string, reason?: string) => {
       try {
@@ -1740,7 +1740,7 @@ billingApiRouter.post(
         await recordAttempt('rejected', failure.reason);
 
         // Map internal reasons to HTTP status. We deliberately do NOT
-        // echo `failure.detail` to the client â€” it carries operator info
+        // echo `failure.detail` to the client — it carries operator info
         // (env var names, internal state) that could help an attacker
         // probe the validation surface.
         switch (failure.reason) {
@@ -1788,7 +1788,7 @@ billingApiRouter.post(
             });
 
           default: {
-            // Exhaustiveness guard â€” a new failure reason must land here.
+            // Exhaustiveness guard — a new failure reason must land here.
             const _exhaustive: never = failure.reason;
             void _exhaustive;
             return res.status(500).json({ error: 'iap_receipt_validation_failed' });
@@ -1872,7 +1872,7 @@ billingApiRouter.post(
     };
 
     try {
-      // `receiptId` here is the iOS transactionId â€” StoreKit 2 and the
+      // `receiptId` here is the iOS transactionId — StoreKit 2 and the
       // Capacitor IAP plugin both surface the transactionId, not the
       // legacy base64 receipt blob.
       const result = await validateAppleTransaction(receiptId, productId);
@@ -1967,32 +1967,32 @@ billingApiRouter.post(
 );
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// POST /api/billing/webhook/apple â€” App Store Server Notifications v2.
+// POST /api/billing/webhook/apple — App Store Server Notifications v2.
 //
-// Sprint 27 audit P0 fix H2 â€” closes the iOS entitlement gap. Apple
+// Sprint 27 audit P0 fix H2 — closes the iOS entitlement gap. Apple
 // posts `{ signedPayload: "<JWS>" }`; we verify the JWS, decode the
 // nested transactionInfo / renewalInfo blobs, and dispatch to the
 // shared entitlement helper in services/billing/appleSsn.ts.
 //
 // Mirrors the Google Play RTDN handler at /api/billing/webhook above:
-//   â€¢ idempotent on Apple's `notificationUUID` via `processed_apple_ssn`
+//   • idempotent on Apple's `notificationUUID` via `processed_apple_ssn`
 //     (using the same `withIdempotency` lock-then-complete helper),
-//   â€¢ ALWAYS ACK 200 except when the JWS itself fails verification
-//     (401) â€” Apple retries on 5xx for ~24h; we suppress retries for
+//   • ALWAYS ACK 200 except when the JWS itself fails verification
+//     (401) — Apple retries on 5xx for ~24h; we suppress retries for
 //     anything we've already accepted by writing the lock doc,
-//   â€¢ writes `apple_ssn_attempts/{auto}` for every accepted
-//     notification with `verified_chain: false` (intermediate mode â€”
+//   • writes `apple_ssn_attempts/{auto}` for every accepted
+//     notification with `verified_chain: false` (intermediate mode —
 //     see the file header in services/billing/appleSsn.ts for the
 //     follow-up to ship full Apple Root G3 chain verification).
 //
 // Why no shared-secret token like the RTDN handler? Apple SSN v2 is
-// authenticated via the JWS signature alone â€” Apple's docs explicitly
+// authenticated via the JWS signature alone — Apple's docs explicitly
 // recommend AGAINST adding a query-string token because it ends up in
 // CDN logs. The cryptographic signature is the auth boundary.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Sprint 28 Bucket B3 â€” Zod-gated payload before JWS verify.
+// Sprint 28 Bucket B3 — Zod-gated payload before JWS verify.
 // Sprint 29 H17: legacy `typeof signedPayload !== 'string'` guard removed
-// â€” Zod schema is the single source of truth for shape.
+// — Zod schema is the single source of truth for shape.
 const appleWebhookSchema = z.object({
   signedPayload: z.string().min(1),
 });
@@ -2007,7 +2007,7 @@ billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req
     verifiedChain = verified.verifiedChain;
   } catch (err) {
     if (err instanceof AppleSsnVerificationError) {
-      // Auth failure â€” never ACK 200 on these. Apple WILL retry,
+      // Auth failure — never ACK 200 on these. Apple WILL retry,
       // but a forged-JWS replay in a tight loop would be a DoS we
       // want to drop hard.
       logger.warn('apple_ssn_verification_failed', { reason: err.message });
@@ -2029,7 +2029,7 @@ billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req
           notificationType: payload.notificationType,
           subtype: payload.subtype ?? null,
           notificationUUID: payload.notificationUUID,
-          // Never log the inner JWTs or appAccountToken â€” both are
+          // Never log the inner JWTs or appAccountToken — both are
           // bearer-equivalent material in the App Store Server API.
         });
 
@@ -2064,7 +2064,7 @@ billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req
       });
     }
 
-    // Sprint 28 H18 â€” audit replay vs success for Apple SSN webhooks.
+    // Sprint 28 H18 — audit replay vs success for Apple SSN webhooks.
     if (outcome.kind === 'duplicate') {
       await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
         replay: true,
@@ -2084,7 +2084,7 @@ billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req
       }).catch(() => {});
     }
 
-    // All four outcomes ACK 200 â€” see contract notes in idempotency.ts.
+    // All four outcomes ACK 200 — see contract notes in idempotency.ts.
     return res.status(200).json({ ok: true });
   } catch (error) {
     logger.error('apple_ssn_webhook_failed', error, {

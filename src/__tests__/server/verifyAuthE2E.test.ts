@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Sprint 19 / F-B05.
+// Praeventio Guard — Sprint 19 / F-B05.
 //
 // E2E_MODE guard tests for `verifyAuth`. The middleware accepts an
 // `Authorization: E2E <secret>:<uid>` header ONLY when:
@@ -8,13 +8,13 @@
 //
 // In production NODE_ENV the guard MUST stay inert no matter what env vars
 // are set. A configuration error (NODE_ENV=production && E2E_MODE=1) is a
-// startup-time fatal â€” exercised in the third describe block via re-import.
+// startup-time fatal — exercised in the third describe block via re-import.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 
-describe('verifyAuth â€” E2E_MODE guard', () => {
+describe('verifyAuth — E2E_MODE guard', () => {
   const ORIGINAL_ENV = { ...process.env };
 
   beforeEach(() => {

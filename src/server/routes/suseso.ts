@@ -1,15 +1,15 @@
-﻿// Praeventio Guard â€” Sprint 28 Bucket B6.
+// Praeventio Guard — Sprint 28 Bucket B6.
 //
 // Express router for SUSESO DIAT/DIEP form generation.
 //
 // Endpoints:
-//   POST /api/suseso/form                â€” create a form (auth required)
-//   POST /api/suseso/form/:id/sign       â€” attach signature (auth required)
-//   POST /api/suseso/form/:id/submit     â€” record mutualidad submission
-//   GET  /api/suseso/verify/:folio       â€” public folio verification (no auth)
+//   POST /api/suseso/form                — create a form (auth required)
+//   POST /api/suseso/form/:id/sign       — attach signature (auth required)
+//   POST /api/suseso/form/:id/submit     — record mutualidad submission
+//   GET  /api/suseso/verify/:folio       — public folio verification (no auth)
 //
 // Auth model: form-mutating endpoints require `verifyAuth` (Firebase ID
-// token). The verify endpoint is INTENTIONALLY public â€” that's what the
+// token). The verify endpoint is INTENTIONALLY public — that's what the
 // QR code on the printed PDF resolves to, and it returns no clinical data.
 
 import { Router } from 'express';
@@ -171,7 +171,7 @@ router.post('/form', verifyAuth, validate(createFormSchema), async (req, res) =>
     }
     // Return only the metadata + base64-encoded PDF; client decides how to
     // download. (PDF is base64'd to avoid a binary content-type response
-    // â€” this is a JSON API.)
+    // — this is a JSON API.)
     const pdfB64 = Buffer.from(result.pdfBytes).toString('base64');
     res.json({
       form: result.form,
@@ -317,7 +317,7 @@ router.post(
   },
 );
 
-// Sprint 28 follow-up â€” empresa marks the form as submitted to the
+// Sprint 28 follow-up — empresa marks the form as submitted to the
 // mutualidad portal. Stops reminder spam + flips the badge to the green
 // "âœ“ Enviado por la empresa" pill. Role-gated to admin/gerente/supervisor
 // since these are the project officers responsible for the submission.

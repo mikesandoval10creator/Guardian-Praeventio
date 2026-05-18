@@ -1,21 +1,21 @@
-﻿// Praeventio Guard â€” Round 17 (R3): /api/push/register-token HTTP tests.
+// Praeventio Guard — Round 17 (R3): /api/push/register-token HTTP tests.
 //
 // FCM token registration endpoint. The mobile client (Capacitor push plugin)
 // calls this once it has the device token so the server can `arrayUnion` it
 // into `users/{uid}.fcmTokens` for later targeted notifications.
 //
 // Coverage matrix:
-//   â€¢ 401 unauthed (no Bearer)
-//   â€¢ 401 malformed Bearer
-//   â€¢ 400 empty/missing token
-//   â€¢ 400 invalid platform
-//   â€¢ 400 token >512 chars
-//   â€¢ 200 happy path: writes arrayUnion into users/{uid} + audit row
-//   â€¢ 200 idempotent: posting same token twice keeps a single entry
-//   â€¢ 500 if Firestore throws
+//   • 401 unauthed (no Bearer)
+//   • 401 malformed Bearer
+//   • 400 empty/missing token
+//   • 400 invalid platform
+//   • 400 token >512 chars
+//   • 200 happy path: writes arrayUnion into users/{uid} + audit row
+//   • 200 idempotent: posting same token twice keeps a single entry
+//   • 500 if Firestore throws
 //
 // Critical rule: the audit row MUST NOT contain the raw token (the token is
-// a credential â€” see firestore.rules append-only audit_logs invariant).
+// a credential — see firestore.rules append-only audit_logs invariant).
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
@@ -24,7 +24,7 @@ import { Router } from 'express';
 import { InMemoryFirestore, type FakeAuth } from './test-server.js';
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Test harness â€” mirror real prod wiring. We can't import the real
+// Test harness — mirror real prod wiring. We can't import the real
 // router because it touches `admin.firestore()` which would require
 // Firebase Admin init. Instead we build a parallel express app whose
 // handler is a verbatim copy of the production handler (R3 owns both).
@@ -80,7 +80,7 @@ function buildPushApp(deps: PushTestDeps): Express {
 
     try {
       // Mirror prod: arrayUnion semantics. The InMemoryFirestore exports a
-      // sentinel-based `applyMerge`, but the sentinel is internal â€” we model
+      // sentinel-based `applyMerge`, but the sentinel is internal — we model
       // arrayUnion directly here so the test is self-contained.
       const cur = deps.firestore.store.get(`users/${callerUid}`) ?? {};
       const existing: string[] = Array.isArray(cur.fcmTokens) ? cur.fcmTokens : [];

@@ -1,6 +1,6 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 //
-// Sprint 20 â€” Bucket D â€” StartProcessModal integration tests.
+// Sprint 20 — Bucket D — StartProcessModal integration tests.
 
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -21,7 +21,7 @@ vi.mock('../../services/analytics', () => ({
   analytics: { track: vi.fn() },
 }));
 
-// framer-motion â€” render direct DOM without animations to keep tests sync.
+// framer-motion — render direct DOM without animations to keep tests sync.
 vi.mock('framer-motion', () => {
   const Pass = ({ children, ...rest }: any) =>
     React.createElement('div', rest, children);
@@ -40,7 +40,7 @@ afterEach(() => {
 
 describe('StartProcessModal', () => {
   beforeEach(() => {
-    // Default fetch â€” happy path. Override per test as needed.
+    // Default fetch — happy path. Override per test as needed.
     globalThis.fetch = vi.fn(async () =>
       ({ ok: true, json: async () => ({ id: 'proc-123' }) }) as any
     );

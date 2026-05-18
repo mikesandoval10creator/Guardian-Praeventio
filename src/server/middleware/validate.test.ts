@@ -1,8 +1,8 @@
-﻿// Praeventio Guard â€” Sprint 28 Bucket B3.
+// Praeventio Guard — Sprint 28 Bucket B3.
 //
 // Coverage for the transversal Zod validation middleware
 // (`src/server/middleware/validate.ts`). The middleware is the FIRST
-// barrier on every endpoint that opts in via Sprint 28 â€” these tests
+// barrier on every endpoint that opts in via Sprint 28 — these tests
 // pin the contract that broke in the audit (H17): one error envelope,
 // one log emission, validated data exposed to the next handler.
 

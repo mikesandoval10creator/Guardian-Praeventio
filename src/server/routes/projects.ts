@@ -1,28 +1,28 @@
-﻿// Praeventio Guard â€” Round 18 Phase 3 split.
+// Praeventio Guard — Round 18 Phase 3 split.
 //
 // Project membership + invitation endpoints extracted from server.ts. The
 // 6 routes are split across TWO routers because one set lives under
 // `/api/projects/:id/...` and the other under `/api/invitations/...`.
 //
 // Mount strategy (in server.ts):
-//   â€¢ app.use('/api/projects', projectsRouter)           â† 4 routes
-//   â€¢ app.use('/api/invitations', invitationsRouter)     â† 2 routes
+//   • app.use('/api/projects', projectsRouter)           â† 4 routes
+//   • app.use('/api/invitations', invitationsRouter)     â† 2 routes
 //
-// Final paths preserved verbatim â€” DO NOT change:
-//   â€¢ POST   /api/projects/:id/invite
-//   â€¢ GET    /api/projects/:id/members
-//   â€¢ DELETE /api/projects/:id/members/:uid
-//   â€¢ DELETE /api/projects/:id/invite
-//   â€¢ GET    /api/invitations/info/:token        (public)
-//   â€¢ POST   /api/invitations/:token/accept      (verifyAuth)
+// Final paths preserved verbatim — DO NOT change:
+//   • POST   /api/projects/:id/invite
+//   • GET    /api/projects/:id/members
+//   • DELETE /api/projects/:id/members/:uid
+//   • DELETE /api/projects/:id/invite
+//   • GET    /api/invitations/info/:token        (public)
+//   • POST   /api/invitations/:token/accept      (verifyAuth)
 //
 // Authorization model:
-//   â€¢ Project surfaces: caller must be the project's `createdBy` OR have
+//   • Project surfaces: caller must be the project's `createdBy` OR have
 //     gerente/admin role. We do NOT use `assertProjectMemberFromParam`
 //     here because the existing semantics distinguish "creator" from
-//     "member" â€” only creators can invite/remove. The members LIST
+//     "member" — only creators can invite/remove. The members LIST
 //     endpoint allows any project member (or gerente/admin) to read.
-//   â€¢ Invitation accept: the caller's email must match the invited email.
+//   • Invitation accept: the caller's email must match the invited email.
 
 import { Router } from 'express';
 import admin from 'firebase-admin';
@@ -30,7 +30,7 @@ import crypto from 'crypto';
 import { Resend } from 'resend';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
-// Sprint 22 Bucket Y â€” centralized email service. We keep the legacy
+// Sprint 22 Bucket Y — centralized email service. We keep the legacy
 // `resend` instance below for backwards compatibility with any inline
 // callers, but new sends route through `EmailService` so we get a
 // uniform `{ ok, error }` envelope, automatic plain-text fallback, and
@@ -42,7 +42,7 @@ import { projectInvitationTemplate } from '../../services/email/templates.js';
 // 16th wave (Bucket B) analytics: server-side wire-points for
 // `project.member.invited`, `project.member.accepted`, and
 // `project.member.removed`. The `serverAnalytics` adapter mirrors the
-// browser surface but runs on Node primitives only â€” same pattern as
+// browser surface but runs on Node primitives only — same pattern as
 // `auth.role.granted/revoked` from the 15th wave Bucket D admin routes.
 import { serverAnalytics } from '../../services/analytics/serverAdapter.js';
 import type { Role as AnalyticsRole } from '../../services/analytics/types.js';
@@ -63,7 +63,7 @@ function sentryCapture(
   }
 }
 
-// Sprint 25 (CI fix) â€” same fallback as curriculum.ts; see note there.
+// Sprint 25 (CI fix) — same fallback as curriculum.ts; see note there.
 const resend = new Resend(process.env.RESEND_API_KEY ?? 're_ci_placeholder');
 
 /**
@@ -100,16 +100,16 @@ function buildInviteEmailHtml({
   const appUrl = process.env.APP_URL || 'https://app.praeventio.net';
   const acceptUrl = `${appUrl}/invite?token=${token}`;
   const roleLabels: Record<string, string> = {
-    gerente: 'Gerente de PrevenciÃ³n',
+    gerente: 'Gerente de Prevención',
     prevencionista: 'Prevencionista de Riesgos',
     supervisor: 'Supervisor',
     director_obra: 'Director de Obra',
-    medico_ocupacional: 'MÃ©dico Ocupacional',
+    medico_ocupacional: 'Médico Ocupacional',
     operario: 'Operario',
     contratista: 'Contratista',
   };
   const roleLabel = roleLabels[role] || role;
-  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>InvitaciÃ³n a Praeventio</title></head><body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f4f4f5;color:#18181b">
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Invitación a Praeventio</title></head><body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f4f4f5;color:#18181b">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 0"><tr><td align="center">
   <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
     <tr><td style="background:#09090b;padding:32px 40px;text-align:center">
@@ -118,15 +118,15 @@ function buildInviteEmailHtml({
     </td></tr>
     <tr><td style="padding:40px">
       <h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">Fuiste invitado a un proyecto</h2>
-      <p style="margin:0 0 24px;font-size:14px;color:#71717a"><strong style="color:#09090b">${inviterName}</strong> te invitÃ³ a unirte a <strong style="color:#09090b">"${projectName}"</strong> como <strong style="color:#10b981">${roleLabel}</strong>.</p>
+      <p style="margin:0 0 24px;font-size:14px;color:#71717a"><strong style="color:#09090b">${inviterName}</strong> te invitó a unirte a <strong style="color:#09090b">"${projectName}"</strong> como <strong style="color:#10b981">${roleLabel}</strong>.</p>
       <div style="text-align:center;margin:32px 0">
-        <a href="${acceptUrl}" style="display:inline-block;background:#10b981;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:10px;letter-spacing:0.5px">Aceptar InvitaciÃ³n</a>
+        <a href="${acceptUrl}" style="display:inline-block;background:#10b981;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:10px;letter-spacing:0.5px">Aceptar Invitación</a>
       </div>
-      <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;text-align:center">Si no esperabas esta invitaciÃ³n, puedes ignorar este email.</p>
+      <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;text-align:center">Si no esperabas esta invitación, puedes ignorar este email.</p>
       <p style="margin:8px 0 0;font-size:11px;color:#d4d4d8;text-align:center;word-break:break-all">O copia este enlace: ${acceptUrl}</p>
     </td></tr>
     <tr><td style="background:#f9fafb;padding:20px 40px;text-align:center">
-      <p style="margin:0;font-size:11px;color:#a1a1aa">Â© ${new Date().getFullYear()} Praeventio Guard Â· Plataforma de PrevenciÃ³n de Riesgos</p>
+      <p style="margin:0;font-size:11px;color:#a1a1aa">Â© ${new Date().getFullYear()} Praeventio Guard Â· Plataforma de Prevención de Riesgos</p>
     </td></tr>
   </table></td></tr></table>
 </body></html>`;
@@ -134,7 +134,7 @@ function buildInviteEmailHtml({
 
 const projectsRouter = Router();
 
-// POST /api/projects/:id/invite  â€” project creator sends an invitation
+// POST /api/projects/:id/invite  — project creator sends an invitation
 projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
   const projectId = req.params.id;
   const callerUid = req.user!.uid;
@@ -169,7 +169,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
         return res.status(409).json({ error: 'User is already a member of this project' });
       }
     } catch {
-      // User doesn't exist yet â€” invitation will add them when they register and accept
+      // User doesn't exist yet — invitation will add them when they register and accept
     }
 
     // Check for existing pending invitation
@@ -203,7 +203,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
       expiresAt,
     });
 
-    // Send invitation email â€” failure does NOT block the response.
+    // Send invitation email — failure does NOT block the response.
     // Sprint 22 Bucket Y: prefer the centralized `EmailService` which
     // wraps Resend with a uniform error envelope and audit footer.
     // Falls back to the legacy inline path if `RESEND_API_KEY` is unset
@@ -212,7 +212,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
       const callerRecord = await admin.auth().getUser(callerUid);
       const inviterName = callerRecord.displayName || callerRecord.email || 'Tu equipo';
       const emailService = EmailService.fromEnv();
-      const subject = `${inviterName} te invitÃ³ a "${projectData.name || 'un proyecto'}" en Praeventio`;
+      const subject = `${inviterName} te invitó a "${projectData.name || 'un proyecto'}" en Praeventio`;
       if (emailService) {
         const result = await emailService.send({
           to: invitedEmail,
@@ -246,7 +246,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
       logger.warn('invitation_email_delivery_failed', { err: emailErr instanceof Error ? emailErr.message : String(emailErr) });
     }
 
-    // 16th wave (Bucket B) analytics: `project.member.invited` â€” fires
+    // 16th wave (Bucket B) analytics: `project.member.invited` — fires
     // ONLY after the invitation row was successfully written to Firestore.
     // Email delivery failure does not block the analytics emit; the catalog
     // row reflects "invite link emitted" which is the Firestore write, not
@@ -273,7 +273,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
   }
 });
 
-// GET /api/projects/:id/members  â€” list members with display info and roles
+// GET /api/projects/:id/members  — list members with display info and roles
 projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
   const projectId = req.params.id;
   const callerUid = req.user!.uid;
@@ -350,7 +350,7 @@ projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/projects/:id/members/:uid  â€” remove a member
+// DELETE /api/projects/:id/members/:uid  — remove a member
 projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
   const { id: projectId, uid: targetUid } = req.params;
   const callerUid = req.user!.uid;
@@ -384,13 +384,13 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
       [`memberRoles.${targetUid}`]: admin.firestore.FieldValue.delete(),
     });
 
-    // 16th wave (Bucket B) analytics: `project.member.removed` â€” fires after
+    // 16th wave (Bucket B) analytics: `project.member.removed` — fires after
     // the Firestore arrayRemove succeeded so the analytics row reflects the
     // committed mutation rather than a hypothetical attempt. The catalog
     // requires hashed identifiers (`*_user_id_hash`); we emit raw uids here
     // because server-side hashing every event would bottleneck the route
     // (same trade-off as `auth.role.revoked` at line ~117 of admin.ts).
-    // `removal_reason` is omitted because the API doesn't carry one yet â€” a
+    // `removal_reason` is omitted because the API doesn't carry one yet — a
     // future PATCH could add a `reason` body field and forward it.
     try {
       await serverAnalytics.track('project.member.removed', {
@@ -412,7 +412,7 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/projects/:id/invite  â€” project creator cancels a pending invitation
+// DELETE /api/projects/:id/invite  — project creator cancels a pending invitation
 projectsRouter.delete('/:id/invite', verifyAuth, async (req, res) => {
   const projectId = req.params.id;
   const callerUid = req.user!.uid;
@@ -463,12 +463,12 @@ projectsRouter.delete('/:id/invite', verifyAuth, async (req, res) => {
 export default projectsRouter;
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Invitations router â€” separate mount because URLs live under
+// Invitations router — separate mount because URLs live under
 // /api/invitations/... NOT /api/projects/...
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const invitationsRouter = Router();
 
-// GET /api/invitations/info/:token  â€” public, returns safe invite preview (no auth required)
+// GET /api/invitations/info/:token  — public, returns safe invite preview (no auth required)
 invitationsRouter.get('/info/:token', async (req, res) => {
   const { token } = req.params;
   try {
@@ -497,12 +497,12 @@ invitationsRouter.get('/info/:token', async (req, res) => {
   }
 });
 
-// POST /api/invitations/:token/accept  â€” invited user accepts
+// POST /api/invitations/:token/accept  — invited user accepts
 invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
   const { token } = req.params;
   const callerUid = req.user!.uid;
   const callerEmail = req.user!.email;
-  // Optional client-supplied projectId â€” when present it MUST match the
+  // Optional client-supplied projectId — when present it MUST match the
   // invitation's projectId. This blocks cross-tenant write attacks where a
   // crafted projectId could otherwise bypass the invitation's intended target.
   const claimedProjectId: string | undefined =
@@ -584,11 +584,11 @@ invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
       });
     });
 
-    // 16th wave (Bucket B) analytics: `project.member.accepted` â€” fires
+    // 16th wave (Bucket B) analytics: `project.member.accepted` — fires
     // after the transaction committed (so we never emit on a rolled-back
     // accept). The catalog optional `accept_latency_seconds` is the time
     // between invite emission and acceptance; we compute it from the
-    // invitation's `createdAt` (best-effort â€” falls back to `undefined`
+    // invitation's `createdAt` (best-effort — falls back to `undefined`
     // when the field is missing or unparseable, which keeps the dashboard
     // honest about historical rows that lack the timestamp).
     try {

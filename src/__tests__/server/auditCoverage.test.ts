@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Round 17 R1: Audit-log coverage tests for the 6
+// Praeventio Guard — Round 17 R1: Audit-log coverage tests for the 6
 // hardened endpoints (R6 R16 HIGH).
 //
 // Endpoints under test (each MUST emit `audit_logs` on success):
@@ -14,7 +14,7 @@
 // the handler shape in a parallel express app and verify each emits a row
 // into the in-memory `audit_logs` store. The shared `auditServerEvent`
 // helper from src/server/middleware/auditLog.ts is exercised indirectly
-// through these handlers â€” its failure modes are covered separately by
+// through these handlers — its failure modes are covered separately by
 // the per-endpoint 500-path branches in the production code (defensive
 // try/catch around every audit emit).
 //
@@ -151,7 +151,7 @@ function buildApp(deps: Deps): Express {
     }
     const initiator = sess.oauthInitiator;
     if (!initiator?.uid) return res.status(403).send('No initiator');
-    // Skip token exchange â€” record audit row only.
+    // Skip token exchange — record audit row only.
     try {
       await auditServerEvent(req, deps.fs, 'oauth.link', 'oauth', { provider: 'google' }, {
         actorOverride: { uid: initiator.uid, email: null },
@@ -245,7 +245,7 @@ beforeEach(() => {
   app = buildApp({ fs, auth: makeAuth() });
 });
 
-describe('Round 17 R1 â€” audit_logs coverage', () => {
+describe('Round 17 R1 — audit_logs coverage', () => {
   it('POST /api/oauth/unlink emits audit row with actor uid + providers', async () => {
     const res = await request(app)
       .post('/api/oauth/unlink')

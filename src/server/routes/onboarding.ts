@@ -1,4 +1,4 @@
-﻿// Sprint 24 Bucket KK.3 â€” Self-service onboarding completion endpoint.
+// Sprint 24 Bucket KK.3 — Self-service onboarding completion endpoint.
 //
 // `POST /api/onboarding/complete` finalizes the wizard for a brand-new
 // tenant in a single transactional pass:
@@ -7,16 +7,16 @@
 //      `users/{uid}.tenantConfig` and mirror the tier into
 //      `users/{uid}.subscription.planId` so the rest of the SPA picks it
 //      up immediately. Note: this DOES NOT replace the
-//      payment-verified `/api/subscription/upgrade` flow â€” for paid
+//      payment-verified `/api/subscription/upgrade` flow — for paid
 //      tiers (anything above `gratis`) we leave a `pendingTier` flag
 //      so billing can require an invoice before the upgrade is
 //      considered active. The user can still use the app on `gratis`
 //      meanwhile, but write paths gate on `subscription.planId`.
 //   2. Create the first project under `tenants/{tenantId}/projects/{id}`
-//      (we use uid as tenantId â€” single-tenant-per-uid is the current
+//      (we use uid as tenantId — single-tenant-per-uid is the current
 //      data model; multi-tenant CSM is a separate Sprint).
 //   3. Fire off team invitations (email side-effects best-effort, never
-//      blocking the wizard response â€” same pattern as projects.ts).
+//      blocking the wizard response — same pattern as projects.ts).
 //   4. Stash the optional workers CSV into `tenants/{tenantId}/imports/
 //      onboarding-{ts}` for the JJ-bucket ETL worker to pick up
 //      asynchronously. We deliberately do NOT call the ETL inline:
@@ -25,7 +25,7 @@
 //      guard stops sending the user back to /onboarding.
 //
 // Failures in steps 3-4 are logged but do NOT fail the whole
-// onboarding â€” the user has done their part and shouldn't be punished
+// onboarding — the user has done their part and shouldn't be punished
 // for a flaky email provider. Failures in steps 1, 2 or 5 are fatal
 // because they leave the account in an unusable state.
 
@@ -217,7 +217,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
               html,
             });
           } catch (sendErr) {
-            // The invitation row is the source of truth â€” a bad email
+            // The invitation row is the source of truth — a bad email
             // delivery shouldn't ditch the invite. The recipient can
             // still accept via direct link.
             logger.warn('onboarding_email_failed', {
@@ -256,7 +256,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
     } catch (csvErr) {
-      // CSV stash is best-effort â€” user can re-upload from the project
+      // CSV stash is best-effort — user can re-upload from the project
       // page.
       logger.warn('onboarding_csv_stash_failed', {
         uid,

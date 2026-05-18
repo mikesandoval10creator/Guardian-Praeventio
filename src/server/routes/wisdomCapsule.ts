@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 // Sprint 15 — Wisdom Capsule daily endpoint.
 // Sprint 16 — Gemini summary integration + Firestore cache + ack endpoint.
 //

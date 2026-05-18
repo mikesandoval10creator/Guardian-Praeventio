@@ -1,6 +1,6 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 //
-// Sprint 32 Bucket UU â€” RLHF feedback loop API.
+// Sprint 32 Bucket UU — RLHF feedback loop API.
 //
 // POST /api/ai/feedback
 //   Persists a thumbs up/down vote (+ optional rationale) from AsesorChat
@@ -39,9 +39,9 @@ import { tracedAsync } from '../../services/observability/tracing.js';
 // Chilean RUT: 7-8 digits, optional dot separators, dash, verifier digit.
 // Matches `12.345.678-9`, `12345678-9`, `1.234.567-K`, `1234567-k`.
 const RUT_RE = /\b\d{1,2}\.?\d{3}\.?\d{3}-[\dkK]\b/g;
-// Email â€” RFC-lite. Good enough for opportunistic redaction.
+// Email — RFC-lite. Good enough for opportunistic redaction.
 const EMAIL_RE = /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g;
-// Chilean phone â€” `+56 9 1234 5678`, `+56912345678`, `9 1234 5678`,
+// Chilean phone — `+56 9 1234 5678`, `+56912345678`, `9 1234 5678`,
 // `912345678`. Also matches a bare 8-digit fixed line. Conservative: we
 // require at least 8 digits to avoid eating arbitrary numbers.
 const PHONE_RE = /(\+?56[\s-]?)?(9[\s-]?)?\d{4}[\s-]?\d{4}\b/g;
@@ -191,12 +191,12 @@ router.post(
     const body = req.validated as z.infer<typeof feedbackBodySchema>;
     const tenantId: string = req.user?.uid ?? 'unknown';
     const callerEmail: string | null = req.user?.email ?? null;
-    // Sprint 33 â€” replay-attack guard. Without `force`, a duplicate POST on
+    // Sprint 33 — replay-attack guard. Without `force`, a duplicate POST on
     // the same (tenantId, messageId) tuple is rejected with 409. Why: the
     // pre-Sprint-33 handler used `set({ merge: true })` which silently
     // overwrites `vote`. An attacker holding a valid Bearer could flip a
     // genuine 'down' to 'up' (RLHF dataset poisoning) without ever needing
-    // high QPS â€” the rate limiter alone wouldn't catch it. The transaction
+    // high QPS — the rate limiter alone wouldn't catch it. The transaction
     // makes the read-then-write atomic so two concurrent first votes can't
     // race past the existence check.
     const force = String(req.query.force ?? '') === 'true';
@@ -229,7 +229,7 @@ router.post(
         if (previousVote && !force) {
           // Idempotency rationale: callers retrying the SAME vote (network
           // hiccup) get a 409, not a silent merge. Clients should not
-          // pretend the second call succeeded â€” they should drop it.
+          // pretend the second call succeeded — they should drop it.
           return { kind: 'conflict', existingVote: previousVote };
         }
         const doc = {
@@ -265,7 +265,7 @@ router.post(
         });
       }
 
-      // Audit row â€” every successful write (including overrides) gets one
+      // Audit row — every successful write (including overrides) gets one
       // so RLHF dataset auditors can reconstruct vote-flip history. We do
       // this OUTSIDE the transaction because audit_logs is append-only and
       // a failed audit append must not roll back a legitimate vote.

@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -200,12 +200,12 @@ export function Projects() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12">
               <div className="space-y-6 sm:space-y-8">
                 <div>
-                  <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-3 sm:mb-4">{t('projects.detail.general_info', 'InformaciÃ³n General')}</h3>
+                  <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-3 sm:mb-4">{t('projects.detail.general_info', 'Información General')}</h3>
                   <div className="grid grid-cols-1 gap-3 sm:gap-4">
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
                       <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-[#4db6ac] dark:text-[#d4af37] shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('projects.form.location', 'UbicaciÃ³n')}</p>
+                        <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('projects.form.location', 'Ubicación')}</p>
                         <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white truncate">{selectedProject.location}</p>
                       </div>
                     </div>
@@ -236,7 +236,7 @@ export function Projects() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-3 sm:mb-4">{t('projects.detail.description', 'DescripciÃ³n')}</h3>
+                  <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-3 sm:mb-4">{t('projects.detail.description', 'Descripción')}</h3>
                   <p className="text-zinc-600 dark:text-zinc-400 text-xs sm:text-sm leading-relaxed bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl p-4 sm:p-6">
                     {selectedProject.description}
                   </p>
@@ -247,7 +247,7 @@ export function Projects() {
                   <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-3 sm:mb-4">{t('projects.detail.risk_level', 'Nivel de Riesgo')}</h3>
                   <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl sm:rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center text-center gap-3 sm:gap-4">
                     <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center border-4 ${
-                      selectedProject.riskLevel === 'CrÃ­tico' ? 'border-red-500/20 text-red-500' :
+                      selectedProject.riskLevel === 'Crítico' ? 'border-red-500/20 text-red-500' :
                       selectedProject.riskLevel === 'Alto' ? 'border-amber-500/20 text-amber-500' :
                       selectedProject.riskLevel === 'Medio' ? 'border-blue-500/20 text-blue-500' : 'border-[#4db6ac]/20 text-[#4db6ac] dark:text-[#d4af37]'
                     }`}>
@@ -255,7 +255,7 @@ export function Projects() {
                     </div>
                     <div>
                       <p className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">{t('projects.risk_label', 'Riesgo {{level}}', { level: selectedProject.riskLevel })}</p>
-                      <p className="text-[8px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{t('projects.detail.base_safety_eval', 'EvaluaciÃ³n de Seguridad Base')}</p>
+                      <p className="text-[8px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{t('projects.detail.base_safety_eval', 'Evaluación de Seguridad Base')}</p>
                     </div>
                   </div>
                 </div>
@@ -278,7 +278,7 @@ export function Projects() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter uppercase break-words leading-tight">{t('projects.title', 'GestiÃ³n de Proyectos')}</h1>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter uppercase break-words leading-tight">{t('projects.title', 'Gestión de Proyectos')}</h1>
           <p className="text-zinc-500 font-medium text-[9px] sm:text-xs md:text-sm mt-1">{t('projects.subtitle', 'Administra tus faenas, industrias y niveles de riesgo')}</p>
         </div>
         <motion.button
@@ -286,7 +286,7 @@ export function Projects() {
           whileTap={{ scale: 0.98 }}
           onClick={() => setIsModalOpen(true)}
           disabled={!isOnline}
-          title={!isOnline ? t('projects.requires_internet', 'Requiere conexiÃ³n a internet') : ''}
+          title={!isOnline ? t('projects.requires_internet', 'Requiere conexión a internet') : ''}
           className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 transition-all w-full sm:w-auto shrink-0 ${
             !isOnline
               ? 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed'
@@ -294,7 +294,7 @@ export function Projects() {
           }`}
         >
           {!isOnline ? <WifiOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Plus className="w-4 h-4 sm:w-5 sm:h-5" />}
-          {!isOnline ? t('auth.requires_connection', 'Requiere ConexiÃ³n') : t('projects.new_project', 'Nuevo Proyecto')}
+          {!isOnline ? t('auth.requires_connection', 'Requiere Conexión') : t('projects.new_project', 'Nuevo Proyecto')}
         </motion.button>
       </div>
 
@@ -323,8 +323,8 @@ export function Projects() {
             <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
           </div>
           <div className="min-w-0">
-            <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">{t('projects.stats.critical_risk', 'Riesgo CrÃ­tico')}</p>
-            <p className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white">{projects.filter(p => p.riskLevel === 'CrÃ­tico').length}</p>
+            <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">{t('projects.stats.critical_risk', 'Riesgo Crítico')}</p>
+            <p className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white">{projects.filter(p => p.riskLevel === 'Crítico').length}</p>
           </div>
         </div>
       </div>
@@ -333,7 +333,7 @@ export function Projects() {
       <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl w-full sm:w-auto sm:self-start shadow-sm">
         {[
           { id: 'cards' as const, label: t('projects.view.cards', 'Tarjetas'), icon: Layout },
-          { id: 'timeline' as const, label: t('projects.view.timeline', 'LÃ­nea de tiempo'), icon: Calendar },
+          { id: 'timeline' as const, label: t('projects.view.timeline', 'Línea de tiempo'), icon: Calendar },
         ].map((mode) => (
           <button
             key={mode.id}
@@ -356,7 +356,7 @@ export function Projects() {
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-zinc-500" />
         <input
           type="text"
-          placeholder={t('projects.search_placeholder', 'Buscar por nombre, industria o ubicaciÃ³n...')}
+          placeholder={t('projects.search_placeholder', 'Buscar por nombre, industria o ubicación...')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all shadow-sm"
@@ -391,7 +391,7 @@ export function Projects() {
           onClimateRiskClick={(risk) => {
             // The RiskNetwork page is the canonical "knowledge graph" view.
             // ClimateRiskNodePayload doesn't expose a stable id (the doc isn't
-            // persisted yet from the Gantt), so we pass the title â€” the Risk
+            // persisted yet from the Gantt), so we pass the title — the Risk
             // Network can use that as a search/highlight hint. Fallback to a
             // synthetic id derived from project + forecast date when needed.
             const payload = risk?.riskNodePayload;
@@ -464,7 +464,7 @@ export function Projects() {
                 <div className="pt-3 sm:pt-4 border-t border-zinc-200 dark:border-white/5 flex items-center justify-between mt-auto">
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <ShieldAlert className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${
-                      project.riskLevel === 'CrÃ­tico' ? 'text-red-500' :
+                      project.riskLevel === 'Crítico' ? 'text-red-500' :
                       project.riskLevel === 'Alto' ? 'text-amber-500' :
                       project.riskLevel === 'Medio' ? 'text-blue-500' : 'text-[#4db6ac] dark:text-[#d4af37]'
                     }`} />
@@ -545,7 +545,7 @@ export function Projects() {
                 </div>
 
                 <div className="space-y-1.5 sm:space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.description', 'DescripciÃ³n del Proyecto')}</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.description', 'Descripción del Proyecto')}</label>
                   <textarea
                     required
                     value={formData.description}
@@ -558,7 +558,7 @@ export function Projects() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <div className="space-y-1.5 sm:space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.location', 'UbicaciÃ³n')}</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.location', 'Ubicación')}</label>
                     <div className="relative">
                       <MapPin className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-zinc-500" />
                       <input
@@ -566,7 +566,7 @@ export function Projects() {
                         type="text"
                         value={formData.location}
                         onChange={e => setFormData({ ...formData, location: e.target.value })}
-                        placeholder={t('projects.form.location_placeholder', 'Ciudad, RegiÃ³n')}
+                        placeholder={t('projects.form.location_placeholder', 'Ciudad, Región')}
                         className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl pl-10 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
@@ -588,7 +588,7 @@ export function Projects() {
                   <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-4">{t('projects.form.employer_section', 'Datos del Empleador (Ley 16.744 / SUSESO)')}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div className="space-y-1.5 sm:space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.legal_name', 'RazÃ³n Social')}</label>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.legal_name', 'Razón Social')}</label>
                       <input
                         type="text"
                         value={formData.companyName}
@@ -608,12 +608,12 @@ export function Projects() {
                       />
                     </div>
                     <div className="space-y-1.5 sm:space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.address', 'DirecciÃ³n')}</label>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.address', 'Dirección')}</label>
                       <input
                         type="text"
                         value={formData.companyAddress}
                         onChange={e => setFormData({ ...formData, companyAddress: e.target.value })}
-                        placeholder={t('projects.form.address_placeholder', 'Calle, NÃºmero, Ciudad')}
+                        placeholder={t('projects.form.address_placeholder', 'Calle, Número, Ciudad')}
                         className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
@@ -627,7 +627,7 @@ export function Projects() {
                         <option value="ACHS">ACHS</option>
                         <option value="IST">IST</option>
                         <option value="Mutual de Seguridad">Mutual de Seguridad</option>
-                        <option value="SUSESO">SUSESO (AdministraciÃ³n Delegada)</option>
+                        <option value="SUSESO">SUSESO (Administración Delegada)</option>
                         <option value="Otra">Otra</option>
                       </select>
                     </div>
@@ -664,7 +664,7 @@ export function Projects() {
                 </div>
 
                 <div className="pt-4 border-t border-zinc-200 dark:border-white/5">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-4">{t('projects.form.shift_section', 'ConfiguraciÃ³n de Jornada y GPS')}</h4>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-4">{t('projects.form.shift_section', 'Configuración de Jornada y GPS')}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div className="space-y-1.5 sm:space-y-2">
                       <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('projects.form.shift_start', 'Inicio de Jornada')}</label>
@@ -696,7 +696,7 @@ export function Projects() {
                       />
                       <div>
                         <p className="text-xs font-bold text-zinc-900 dark:text-white">{t('projects.form.track_commute', 'Rastrear Accidentes de Trayecto')}</p>
-                        <p className="text-[10px] text-zinc-500">{t('projects.form.track_commute_desc', 'Mantiene el GPS activo 1 hora antes y despuÃ©s de la jornada.')}</p>
+                        <p className="text-[10px] text-zinc-500">{t('projects.form.track_commute_desc', 'Mantiene el GPS activo 1 hora antes y después de la jornada.')}</p>
                       </div>
                     </label>
                   </div>
@@ -722,7 +722,7 @@ export function Projects() {
         )}
       </AnimatePresence>
 
-      {/* Predicted activity detail modal â€” opened from the Gantt timeline. */}
+      {/* Predicted activity detail modal — opened from the Gantt timeline. */}
       <PredictedActivityModal
         activity={selectedActivity}
         onClose={() => setSelectedActivity(null)}
@@ -737,7 +737,7 @@ export function Projects() {
           try {
             addNotification({
               title: 'Actividad agendada',
-              message: `${activity.type} programada para ${activity.recommendedDate.toLocaleDateString('es-CL')}. Sincronizaremos con Google Calendar cuando el endpoint estructurado estÃ© disponible.`,
+              message: `${activity.type} programada para ${activity.recommendedDate.toLocaleDateString('es-CL')}. Sincronizaremos con Google Calendar cuando el endpoint estructurado esté disponible.`,
               type: 'info',
             });
             logger.info('predicted_activity_schedule_requested', {

@@ -1,5 +1,5 @@
-﻿/**
- * PredictedActivityModal â€” accessibility tests.
+/**
+ * PredictedActivityModal — accessibility tests.
  *
  * Why no DOM render? The repo intentionally does NOT ship `jsdom`,
  * `happy-dom`, or `@testing-library/react` (see vitest.config.ts and
@@ -23,7 +23,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { attachEscapeHandler } from './PredictedActivityModal';
 
-describe('PredictedActivityModal â€” Escape key handler (attachEscapeHandler)', () => {
+describe('PredictedActivityModal — Escape key handler (attachEscapeHandler)', () => {
   let win: EventTarget;
 
   beforeEach(() => {
@@ -43,7 +43,7 @@ describe('PredictedActivityModal â€” Escape key handler (attachEscapeHandle
     );
     // The above dispatched a generic Event without a `key`. Now dispatch a
     // proper keydown with key=Escape using a plain object that mimics
-    // KeyboardEvent â€” EventTarget-based windows just need `.key`.
+    // KeyboardEvent — EventTarget-based windows just need `.key`.
     const escEvent = new globalThis.Event('keydown') as Event & { key: string };
     (escEvent as any).key = 'Escape';
     win.dispatchEvent(escEvent);

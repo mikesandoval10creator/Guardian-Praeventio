@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Sprint 11.
+// Praeventio Guard — Sprint 11.
 //
 // Cliente del endpoint POST /api/zettelkasten/nodes (ver
 // src/server/routes/zettelkasten.ts). Reemplaza los `logger.info('zettelkasten:â€¦')`
@@ -7,15 +7,15 @@
 // con identidad determinista, cola offline y dedupe por debounce.
 //
 // Contratos:
-//   â€¢ `nodeIdFor(payload, projectId)`: id determinista. Mismos inputs â‡’ mismo
+//   • `nodeIdFor(payload, projectId)`: id determinista. Mismos inputs â‡’ mismo
 //     id (16 hex SHA-256 truncado). Mismo id â‡’ Firestore upsert idempotente.
-//   â€¢ `writeNodes(nodes, ctx)`: POST â†’ 200/4xx. Si offline o el POST tira,
+//   • `writeNodes(nodes, ctx)`: POST â†’ 200/4xx. Si offline o el POST tira,
 //     enrola via `saveForSync` y devuelve { queued: true }.
-//   â€¢ `writeNodesDebounced(nodes, ctx)`: agrupa por (projectId+nodeKey) y
-//     vacÃ­a la cola tras 2 s sin actividad. Closure-based, sin lodash.
+//   • `writeNodesDebounced(nodes, ctx)`: agrupa por (projectId+nodeKey) y
+//     vacía la cola tras 2 s sin actividad. Closure-based, sin lodash.
 //
 // Why not lodash: el bundle del PWA ya sufre con MediaPipe; un Map<key, timer>
-// es 12 LOC y suficiente para nuestro patrÃ³n.
+// es 12 LOC y suficiente para nuestro patrón.
 
 import { auth } from '../../firebase';
 import { saveForSync } from '../../../utils/pwa-offline';
@@ -58,8 +58,8 @@ export interface WriteResult {
 
 /**
  * Canonicaliza un payload para hashing determinista. Recorre claves en
- * orden alfabÃ©tico en cada nivel, asÃ­ dos objetos con el mismo contenido
- * pero distinto orden de inserciÃ³n producen exactamente el mismo string.
+ * orden alfabético en cada nivel, así dos objetos con el mismo contenido
+ * pero distinto orden de inserción producen exactamente el mismo string.
  */
 function canonical(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
@@ -75,12 +75,12 @@ function canonical(value: unknown): string {
  * SHA-256 truncado a 16 hex chars (64 bits) sobre
  * `${type}|${projectId}|${canonical(metadata+connections+references+title)}`.
  *
- * 64 bits son suficientes contra colisiones accidentales para los volÃºmenes
+ * 64 bits son suficientes contra colisiones accidentales para los volúmenes
  * esperados (â‰¤30 nodos / 15 min por uid; ver `zettelkastenWriteLimiter`). El
  * espacio de keys queda dentro del regex ID_REGEX del servidor.
  *
  * Uso de `globalThis.crypto.subtle` para correr igual en navegador (PWA) y
- * en Node 18+ (tests). NUNCA cae al RNG: si subtle no estÃ¡ disponible
+ * en Node 18+ (tests). NUNCA cae al RNG: si subtle no está disponible
  * tiramos en lugar de generar un id no determinista (rompe idempotencia).
  */
 export async function nodeIdFor(node: RiskNodePayload, projectId: string): Promise<string> {
@@ -96,7 +96,7 @@ export async function nodeIdFor(node: RiskNodePayload, projectId: string): Promi
   const material = `${node.type}|${projectId}|${inputs}`;
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) {
-    throw new Error('crypto.subtle unavailable â€” refusing to generate non-deterministic id');
+    throw new Error('crypto.subtle unavailable — refusing to generate non-deterministic id');
   }
   const data = new TextEncoder().encode(material);
   const digest = await subtle.digest('SHA-256', data);
@@ -110,7 +110,7 @@ export async function nodeIdFor(node: RiskNodePayload, projectId: string): Promi
 
 /**
  * POST `/api/zettelkasten/nodes`. Si offline o el POST falla, encola via
- * `saveForSync` (PWA) â€” el sync worker reintentarÃ¡ cuando vuelva la red.
+ * `saveForSync` (PWA) — el sync worker reintentará cuando vuelva la red.
  *
  * Idempotencia: cada nodo lleva su propio `idempotencyKey = nodeIdFor(...)`.
  * Re-ejecutar la misma llamada NO duplica filas (el servidor hace
@@ -120,7 +120,7 @@ export async function writeNodes(
   nodes: RiskNodePayload[],
   ctx: WriteContext,
 ): Promise<WriteResult> {
-  // Sprint 20 Bucket Mu â€” Sentry scope tags `module=zettelkasten`. We
+  // Sprint 20 Bucket Mu — Sentry scope tags `module=zettelkasten`. We
   // count nodes by type (low cardinality) so an issue with the IPER
   // generator vs. the HazmatStorageDesigner is easy to disambiguate
   // from the Sentry issue page. We DO NOT pass the raw nodes (they
@@ -157,7 +157,7 @@ async function writeNodesImpl(
     try {
       const user = auth.currentUser;
       if (!user) {
-        // Sin sesiÃ³n, encolamos para que el flujo offline lo recupere.
+        // Sin sesión, encolamos para que el flujo offline lo recupere.
         await saveForSync({
           type: 'create',
           collection: 'zettelkasten_nodes',
@@ -182,7 +182,7 @@ async function writeNodesImpl(
       }
       // 13th wave analytics: emit `knowledge.zk.node.created` per node only
       // on the success path (online + 2xx). Offline / queued writes do NOT
-      // fire here â€” the catalog defines this as "post-reconciliation"; a
+      // fire here — the catalog defines this as "post-reconciliation"; a
       // future enhancement can fire from the sync worker once a queued
       // write lands on Firestore. Fire-and-forget; never block the POST.
       try {
@@ -196,7 +196,7 @@ async function writeNodesImpl(
       } catch { /* analytics must never break user flow */ }
       return { ok: true, ids };
     } catch (err) {
-      // Red caÃ­da entre el check `navigator.onLine` y el fetch. Encolamos.
+      // Red caída entre el check `navigator.onLine` y el fetch. Encolamos.
       logger.warn('zettelkasten_write_falling_back_to_offline_queue', { err: String(err) });
       await saveForSync({
         type: 'create',
@@ -217,14 +217,14 @@ async function writeNodesImpl(
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Debounce wrapper (2s) â€” un Map<key, timer> en clausura, sin lodash.
+// Debounce wrapper (2s) — un Map<key, timer> en clausura, sin lodash.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DEBOUNCE_MS = 2000;
 
 interface PendingEntry {
   timer: ReturnType<typeof setTimeout>;
-  nodes: Map<string, RiskNodePayload>; // key = nodeIdFor â†’ Ãºltimo payload gana
+  nodes: Map<string, RiskNodePayload>; // key = nodeIdFor â†’ último payload gana
   ctx: WriteContext;
 }
 
@@ -236,11 +236,11 @@ function debounceKey(ctx: WriteContext, node: RiskNodePayload): string {
 
 /**
  * Debounce por (projectId, nodeType). Si el usuario tira el slider que
- * recalcula el `scaffold-uplift` 50 veces en 2 s, solo el Ãºltimo estado
+ * recalcula el `scaffold-uplift` 50 veces en 2 s, solo el último estado
  * vuela al servidor. Cada call resetea el timer (trailing edge).
  *
  * Devuelve void: el resultado del POST no es observable desde la UI; los
- * errores se reportan via `logger`. Para await del resultado real, usÃ¡
+ * errores se reportan via `logger`. Para await del resultado real, usá
  * `writeNodes(...)` directamente.
  */
 export function writeNodesDebounced(
@@ -255,7 +255,7 @@ export function writeNodesDebounced(
     const cur = pending.get(key);
     if (cur) {
       clearTimeout(cur.timer);
-      cur.nodes.set(node.type, node); // Ãºltimo estado para ese type gana
+      cur.nodes.set(node.type, node); // último estado para ese type gana
       cur.timer = setTimeout(() => flush(key), DEBOUNCE_MS);
     } else {
       const map = new Map<string, RiskNodePayload>();
@@ -276,7 +276,7 @@ function flush(key: string): void {
   });
 }
 
-/** Test-only: vacÃ­a el estado del debounce. NO usar en producciÃ³n. */
+/** Test-only: vacía el estado del debounce. NO usar en producción. */
 export function __resetDebounceForTests(): void {
   for (const entry of pending.values()) {
     clearTimeout(entry.timer);

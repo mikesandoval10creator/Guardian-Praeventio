@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Bucket CC: B2D admin endpoints (Sprint 23).
+// Praeventio Guard — Bucket CC: B2D admin endpoints (Sprint 23).
 //
 // Admin-gated CRUD over Bucket BB's `b2d_api_keys` collection plus
 // the revenue-metrics + audit-event reads that back the admin panel
@@ -7,12 +7,12 @@
 // Mounted at `/api/admin/b2d` from `server.ts` after `/api/admin`
 // (admin.ts) so the same admin-role gate semantics apply. The
 // `assertAdmin` helper duplicates the pattern used in `admin.ts`
-// (`assertAdminCaller`) â€” kept local to avoid coupling the two
+// (`assertAdminCaller`) — kept local to avoid coupling the two
 // files; if the predicate diverges we want it to diverge per route.
 //
 // PATHS:
 //   GET  /api/admin/b2d/keys[?customerId=X]   list (masked)
-//   POST /api/admin/b2d/keys                  create â€” returns rawKey ONCE
+//   POST /api/admin/b2d/keys                  create — returns rawKey ONCE
 //   POST /api/admin/b2d/keys/:id/revoke       revoke
 //   GET  /api/admin/b2d/metrics               { mrr, arr, ... }
 //   GET  /api/admin/b2d/events?from=&to=      audit-style event log
@@ -30,7 +30,7 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 import { computeB2dMetrics } from '../../services/analytics/b2dMetrics.js';
 import { readRecentB2dMrrSnapshots } from '../jobs/runB2dMrrSnapshot.js';
 import { API_TIERS, type ApiTierId } from '../../services/pricing/aiTier.js';
-// Bucket BB shipped â€” we depend on the canonical key service directly.
+// Bucket BB shipped — we depend on the canonical key service directly.
 import {
   createApiKey,
   revokeApiKey,
@@ -120,7 +120,7 @@ router.get('/keys', verifyAuth, async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // POST /api/admin/b2d/keys     { customerId, tier, scopes, expiresInDays? }
-// Returns rawKey EXACTLY ONCE â€” caller must store/show it then.
+// Returns rawKey EXACTLY ONCE — caller must store/show it then.
 // ---------------------------------------------------------------------------
 router.post('/keys', verifyAuth, async (req, res) => {
   if (!(await assertAdmin(req, res))) return undefined;

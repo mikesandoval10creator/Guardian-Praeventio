@@ -1,15 +1,15 @@
-﻿// Praeventio Guard â€” Round 19 R2 Phase 4 split.
+// Praeventio Guard — Round 19 R2 Phase 4 split.
 //
 // Gemini-backed AI endpoints extracted from server.ts:
-//   â€¢ POST /api/gemini         â€” whitelisted backend RPC proxy. Routes
+//   • POST /api/gemini         — whitelisted backend RPC proxy. Routes
 //     `{ action, args }` to a known method on `src/services/geminiBackend.ts`
 //     after asserting the action is on the explicit allowlist below.
-//   â€¢ POST /api/ask-guardian   â€” "El Cerebro Externo". Performs RAG context
+//   • POST /api/ask-guardian   — "El Cerebro Externo". Performs RAG context
 //     search and prompts Gemini; supports SSE streaming when the body sets
 //     `stream: true`.
 //
 // Both endpoints require a Firebase ID token (`verifyAuth`) and consume the
-// shared per-user Gemini limiter (`geminiLimiter`) â€” 30 req / 15 min keyed
+// shared per-user Gemini limiter (`geminiLimiter`) — 30 req / 15 min keyed
 // on uid (see src/server/middleware/limiters.ts for rationale). The
 // allowlist on /api/gemini is the security boundary that prevents arbitrary
 // backend method invocation; adding a new RPC requires adding it here.
@@ -25,7 +25,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { geminiLimiter, geminiGlobalDailyLimiter } from '../middleware/limiters.js';
 import { getFirestore } from 'firebase-admin/firestore';
-// Sprint 22 prod hardening (Bucket X) â€” wire circuit breaker + per-tenant
+// Sprint 22 prod hardening (Bucket X) — wire circuit breaker + per-tenant
 // quota gating at the dispatch seam. Both /api/ask-guardian and /api/gemini
 // route every authed Gemini call through here, so a single guard pair
 // (`assertGeminiAllowed` BEFORE, `recordGeminiOutcome` AFTER) covers all
@@ -36,7 +36,7 @@ import {
   recordGeminiOutcome,
   estimateGeminiCostUsd,
 } from '../../services/geminiBackend.js';
-// Sprint 22 Bucket AA â€” request-scoped tracing for the AI dispatch path.
+// Sprint 22 Bucket AA — request-scoped tracing for the AI dispatch path.
 import { tracedAsync } from '../../services/observability/tracing.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
@@ -55,10 +55,10 @@ function sentryCapture(
   }
 }
 
-// Sprint 10 â€” restablece el patrÃ³n "Portal â†’ Sentidos â†’ Mente" del prototipo
-// histÃ³rico (ver docs/proto/analisis_funcional.md). El orquestador inyecta
+// Sprint 10 — restablece el patrón "Portal â†’ Sentidos â†’ Mente" del prototipo
+// histórico (ver docs/proto/analisis_funcional.md). El orquestador inyecta
 // contexto ambiental (clima + sismicidad) ANTES del RAG normativo, de modo
-// que "El Gran Maestro" nunca razona en el vacÃ­o. Si el flag estÃ¡ apagado o
+// que "El Gran Maestro" nunca razona en el vacío. Si el flag está apagado o
 // los datos del proyecto son insuficientes, el handler degrada de forma
 // silenciosa al comportamiento legacy (RAG-only).
 const ENV_CONTEXT_TIMEOUT_MS = 2000;
@@ -207,7 +207,7 @@ const router = Router();
 
 // Ask Guardian Endpoint (El Cerebro Externo).
 // Round 20 R6 R19 MEDIUM #1: gated by `geminiLimiter` (30 req / 15 min keyed
-// on uid) â€” same per-user bucket as /api/gemini. Without it, an authed user
+// on uid) — same per-user bucket as /api/gemini. Without it, an authed user
 // could spend the global 100/15min /api/* budget entirely on SSE Gemini
 // streams, which is real cost exposure. The limiter is mounted AFTER
 // verifyAuth so the keyGenerator can read req.user.uid (per-uid keying); a
@@ -217,12 +217,12 @@ const router = Router();
 router.post('/ask-guardian', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, async (req, res) => {
   const { query, projectId, stream = false } = req.body;
 
-  // Sprint 19 / F-B11 â€” E2E_MODE deterministic mock. When the test runner
+  // Sprint 19 / F-B11 — E2E_MODE deterministic mock. When the test runner
   // hits this endpoint with an `Authorization: E2E ...` header (validated
   // upstream by verifyAuth's E2E branch), we skip the real Gemini call and
   // return a stable payload. This keeps Playwright specs offline-cheap and
   // independent of the live Gemini quota. Production never enters this
-  // branch â€” verifyAuth tira fatal en boot si NODE_ENV=production && E2E_MODE=1.
+  // branch — verifyAuth tira fatal en boot si NODE_ENV=production && E2E_MODE=1.
   if (
     process.env.E2E_MODE === '1' &&
     process.env.NODE_ENV !== 'production' &&
@@ -237,7 +237,7 @@ router.post('/ask-guardian', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter
       query,
       projectId: projectId ?? null,
       stream,
-      response: 'E2E mock response â€” Gemini real call bypassed.',
+      response: 'E2E mock response — Gemini real call bypassed.',
     });
   }
 
@@ -272,7 +272,7 @@ router.post('/ask-guardian', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter
 
     // Sentidos: contexto ambiental tiempo real (clima + sismicidad). Se
     // ejecuta antes del RAG normativo y se omite con elegancia si falta
-    // projectId, geo o el flag ENV_CONTEXT_ENABLED estÃ¡ desactivado.
+    // projectId, geo o el flag ENV_CONTEXT_ENABLED está desactivado.
     let envContext: string | null = null;
     if (isEnvContextEnabled() && typeof projectId === 'string' && projectId.length > 0) {
       const geo = await lookupProjectGeo(projectId);
@@ -290,12 +290,12 @@ router.post('/ask-guardian', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter
       ? `\n      [CONTEXTO AMBIENTAL TIEMPO REAL]\n      ${envContext}\n`
       : '';
     const prompt = `
-      Eres "El GuardiÃ¡n", el nÃºcleo de inteligencia artificial de Praeventio Guard.
-      Tu propÃ³sito es proteger la vida humana, analizar normativas (leyes chilenas como DS 594, Ley 16.744) y gestionar riesgos.
-      Responde de forma profesional, vigilante y altamente tÃ©cnica pero accionable.
+      Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard.
+      Tu propósito es proteger la vida humana, analizar normativas (leyes chilenas como DS 594, Ley 16.744) y gestionar riesgos.
+      Responde de forma profesional, vigilante y altamente técnica pero accionable.
 
-      REGLA DE ORO: Si el usuario te pregunta por procedimientos especÃ­ficos o leyes, prioritiza la informaciÃ³n en el CONTEXTO LEGAL proporcionado.
-      Si no hay informaciÃ³n especÃ­fica en el contexto, usa tu base de conocimientos pero aclara que es una recomendaciÃ³n general.
+      REGLA DE ORO: Si el usuario te pregunta por procedimientos específicos o leyes, prioritiza la información en el CONTEXTO LEGAL proporcionado.
+      Si no hay información específica en el contexto, usa tu base de conocimientos pero aclara que es una recomendación general.
 ${envBlock}
       [CONTEXTO NORMATIVO RELEVANTE]
       ${context}
@@ -342,7 +342,7 @@ ${envBlock}
 
       res.json({
         response: result.text,
-        contextUsed: context !== 'No se encontrÃ³ contexto legal relevante.',
+        contextUsed: context !== 'No se encontró contexto legal relevante.',
         envContextUsed: envContext !== null,
       });
       // Bucket X: post-call accounting. Prefer SDK-reported token usage
@@ -380,7 +380,7 @@ ${envBlock}
 router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, async (req, res) => {
   const { action, args } = req.body;
 
-  // Sprint 19 / F-B11 â€” E2E_MODE deterministic mock (same gating as
+  // Sprint 19 / F-B11 — E2E_MODE deterministic mock (same gating as
   // /ask-guardian). Returns a shape compatible with the typical wrapper
   // `{ result: ... }` without invoking the real Gemini backend.
   if (
@@ -399,7 +399,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
   }
 
   // Sprint 22 (Bucket X): circuit + quota gate. The dispatcher is the
-  // single chokepoint for 100+ Gemini RPCs â€” guarding here covers them
+  // single chokepoint for 100+ Gemini RPCs — guarding here covers them
   // all without touching individual handlers in geminiBackend.ts.
   const tenantId: string = req.user?.uid ?? 'unknown';
   const tier: string = req.user?.tier ?? req.user?.subscriptionTier ?? 'bronze';
@@ -432,7 +432,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
       // Bucket X: post-call accounting. The whitelisted RPC layer does
       // not return per-call token usage, so we charge a flat estimate
       // based on serialized arg/result size. This is intentionally a
-      // ceiling â€” better to over-charge slightly than to under-meter.
+      // ceiling — better to over-charge slightly than to under-meter.
       const argsLen = JSON.stringify(args ?? []).length;
       const resultLen = JSON.stringify(result ?? null).length;
       const tokensIn = Math.ceil(argsLen / 4);
@@ -461,16 +461,16 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
 });
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Sprint 32 Bucket UU â€” SSE streaming endpoint for AsesorChat.
+// Sprint 32 Bucket UU — SSE streaming endpoint for AsesorChat.
 //
 // POST /api/gemini/stream
-//   â€¢ Streams Gemini chunks back to the browser as Server-Sent Events:
+//   • Streams Gemini chunks back to the browser as Server-Sent Events:
 //        data: {"chunk":"...","done":false}\n\n
 //        ...
 //        data: {"chunk":"","done":true,"totalTokens":N}\n\n
-//   â€¢ Reuses verifyAuth + geminiLimiter + geminiGlobalDailyLimiter and the
+//   • Reuses verifyAuth + geminiLimiter + geminiGlobalDailyLimiter and the
 //     Bucket X circuit/quota guard (`assertGeminiAllowed`).
-//   â€¢ Body validated by Zod (Sprint 28 B3 middleware): `{ prompt, sessionId? }`.
+//   • Body validated by Zod (Sprint 28 B3 middleware): `{ prompt, sessionId? }`.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const streamBodySchema = z.object({
@@ -487,7 +487,7 @@ router.post(
   async (req, res) => {
     const { prompt, sessionId } = req.validated as z.infer<typeof streamBodySchema>;
 
-    // E2E mock â€” keeps Playwright specs offline-cheap.
+    // E2E mock — keeps Playwright specs offline-cheap.
     if (
       process.env.E2E_MODE === '1' &&
       process.env.NODE_ENV !== 'production' &&

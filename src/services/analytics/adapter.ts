@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Analytics adapter (ninth wave, Bucket D).
  *
  * Vendor-neutral product-analytics surface. Implements the design from
@@ -7,7 +7,7 @@
  *   - `track(name, props)` fans out to every configured sink with
  *     auto-filled common props (TRACKING_PLAN Â§4.8).
  *   - PII guard drops events whose top-level props include any of the
- *     forbidden keys (TRACKING_PLAN Â§4.4 â€” but we DROP rather than
+ *     forbidden keys (TRACKING_PLAN Â§4.4 — but we DROP rather than
  *     redact: the spec is "PII never enters analytics", not "redact and
  *     ship").
  *   - Opt-out short-circuit on `localStorage.analytics_opt_out === '1'`
@@ -18,7 +18,7 @@
  *     through every sink in arrival order.
  *
  * Backend selection is intentionally deferred (TRACKING_PLAN Â§9). The
- * adapter accepts an array of sinks via DI â€” flipping from the default
+ * adapter accepts an array of sinks via DI — flipping from the default
  * `[consoleSink, sentryBreadcrumbSink]` to `[postHogSink]` is a 1-line
  * change.
  *
@@ -42,7 +42,7 @@ import type {
  * Forbidden top-level prop names. Presence of ANY of these in the input
  * props causes the event to be dropped before it reaches the sinks. The
  * spec (TRACKING_PLAN Â§4.4) is explicit: PII should never enter the
- * analytics payload â€” redaction-after-the-fact is too easy to get wrong.
+ * analytics payload — redaction-after-the-fact is too easy to get wrong.
  *
  * `lat` / `lng` are listed because emergency events use `commune_code`
  * for geo bucketing (Â§4.5); a stray `lat` would be a regression.
@@ -83,7 +83,7 @@ function defaultGetCommonProps(): CommonProperties {
   const isMobile = typeof window !== 'undefined' &&
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(max-width: 768px)').matches;
-  // Keep Capacitor detection cheap â€” the runtime check `window.Capacitor` is what `@capacitor/core` itself uses internally.
+  // Keep Capacitor detection cheap — the runtime check `window.Capacitor` is what `@capacitor/core` itself uses internally.
   const cap = (typeof window !== 'undefined' && (window as { Capacitor?: { getPlatform?: () => string } }).Capacitor)
     || undefined;
   let device_class: CommonProperties['device_class'] = isMobile ? 'web-mobile' : 'web-desktop';
@@ -140,14 +140,14 @@ function readImportMetaEnv(): Record<string, string | undefined> {
  * sha256 hex digest of `firebaseUid + salt` via Web Crypto. Salt comes
  * from `VITE_ANALYTICS_SALT` and falls back to a stable string so dev
  * builds don't crash when the env var is absent. Production deploys
- * MUST override the salt â€” document this in the deploy checklist.
+ * MUST override the salt — document this in the deploy checklist.
  */
 export async function userIdHash(uid: string): Promise<string> {
   const env = readImportMetaEnv();
   const salt = env.VITE_ANALYTICS_SALT || 'praeventio-default';
   const data = new TextEncoder().encode(uid + salt);
   // Web Crypto is present in browsers + Node >=20. We don't fall back
-  // to a userland sha256 â€” the cost would dwarf the analytics layer.
+  // to a userland sha256 — the cost would dwarf the analytics layer.
   const subtle = (globalThis as { crypto?: { subtle?: SubtleCrypto } }).crypto?.subtle;
   if (!subtle) {
     throw new Error('analytics.userIdHash: Web Crypto SubtleCrypto unavailable');
@@ -258,7 +258,7 @@ export class AnalyticsAdapter {
 
       await this.fanOut(event as Event<EventName>);
     } catch (err) {
-      // Defensive â€” anything that escaped the inner try/catch lands here.
+      // Defensive — anything that escaped the inner try/catch lands here.
       await warnSentry('analytics.track: unexpected adapter error', {
         name,
         error: err instanceof Error ? err.message : String(err),
@@ -291,7 +291,7 @@ export class AnalyticsAdapter {
 
   /**
    * Send to every sink. Faults from any one sink are caught and
-   * reported but never block the others â€” analytics is fan-out, not
+   * reported but never block the others — analytics is fan-out, not
    * fan-in.
    */
   private async fanOut(event: Event<EventName>): Promise<void> {
