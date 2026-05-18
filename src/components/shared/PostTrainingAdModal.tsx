@@ -138,7 +138,7 @@ export function PostTrainingAdModal({ trainingTitle, onClose }: PostTrainingAdMo
                 onClick={() => { onClose(); navigate('/pricing'); }}
                 className="text-[9px] text-zinc-600 hover:text-zinc-400 underline underline-offset-2 transition-colors"
               >
-                Eliminar anuncios Â· Plan Profesional desde $10/mes
+                Eliminar anuncios · Plan Profesional desde $10/mes
               </button>
             </div>
           </div>

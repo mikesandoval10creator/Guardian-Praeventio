@@ -1,4 +1,4 @@
-// Praeventio Guard — Sprint 35 Bucket (Audit P1 Â§1.3).
+// Praeventio Guard — Sprint 35 Bucket (Audit P1 §1.3).
 //
 // Tests for `idempotencyKey()` middleware. Six branches mirror the
 // behavior contract pinned in idempotencyKey.ts:

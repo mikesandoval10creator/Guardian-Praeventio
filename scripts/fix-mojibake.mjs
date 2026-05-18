@@ -58,9 +58,44 @@ const REPLACEMENTS = [
   [[0xc3, 0x83, 0xe2, 0x80, 0xb0], [0xc3, 0x89]], // É
   [[0xc3, 0x83, 0xe2, 0x80, 0x9d], [0xc3, 0x93]], // Ó
   [[0xc3, 0x83, 0xe2, 0x80, 0x99], [0xc3, 0x91]], // Ñ
+  // Sprint 41 follow-up (Codex P2 on PR #361): the first sweep missed
+  // these CP1252-control-character mojibake variants. The same Ã/Â
+  // double-encoding pattern but with U+0080-U+009F control chars as the
+  // second byte, which editors hide.
+  [[0xc3, 0x83, 0xc2, 0x8d], [0xc3, 0x8d]], // Í (e.g. "SÍSMICA")
+  [[0xc3, 0x83, 0xc2, 0x9c], [0xc3, 0x9c]], // Ü
+  [[0xc3, 0x82, 0xc2, 0xb7], [0xc2, 0xb7]], // · middle dot
+  [[0xc3, 0x82, 0xc2, 0xa1], [0xc2, 0xa1]], // ¡ inverted exclam
+  [[0xc3, 0x82, 0xc2, 0xbf], [0xc2, 0xbf]], // ¿ inverted question
+  [[0xc3, 0x82, 0xc2, 0xb0], [0xc2, 0xb0]], // ° degree
+  [[0xc3, 0x82, 0xc2, 0xb1], [0xc2, 0xb1]], // ± plus-minus
+  [[0xc3, 0x82, 0xc2, 0xa9], [0xc2, 0xa9]], // © copyright
+  [[0xc3, 0x82, 0xc2, 0xae], [0xc2, 0xae]], // ® registered
+  [[0xc3, 0x82, 0xc2, 0xa7], [0xc2, 0xa7]], // § section
+  [[0xc3, 0x82, 0xc2, 0xb6], [0xc2, 0xb6]], // ¶ pilcrow
+  [[0xc3, 0x82, 0xc2, 0xa0], [0xc2, 0xa0]], // nbsp
+  // Superscripts + math symbols (Codex residual check on PR #361b):
+  [[0xc3, 0x82, 0xc2, 0xb2], [0xc2, 0xb2]], // ² superscript 2
+  [[0xc3, 0x82, 0xc2, 0xb3], [0xc2, 0xb3]], // ³ superscript 3
+  [[0xc3, 0x82, 0xc2, 0xb5], [0xc2, 0xb5]], // µ micro sign
+  [[0xc3, 0x83, 0xc2, 0x81], [0xc3, 0x81]], // Á (alt encoding — same target as 0x9a variant)
   // BOM at file start
   [[0xef, 0xbb, 0xbf], []],
 ];
+
+/**
+ * Residual mojibake detector — used by --check mode to flag any
+ * suspicious 4-byte Ã/Â+UTF-8-continuation sequence we don't have an
+ * explicit rule for yet. Catches future regressions where a new
+ * mojibake variant slips through the table.
+ *
+ * Pattern: lead byte is `0xC3` (Ã) or `0xC2` (Â), next byte is `0xC2`
+ * or `0xE2` (typical CP1252-double-encode markers), then a continuation.
+ * False positives are rare because legitimate text rarely produces
+ * `Ã+Â` adjacent — Spanish/Portuguese accented letters encode as
+ * `0xC3 + (0xA0..0xBF)` directly.
+ */
+const RESIDUAL_PATTERN = /\xc3[\x83\x82]\xc2[\x80-\x9f\xa0-\xbf]/g;
 
 // argv layout: [node binary, this script, ...user args]
 const userArgs = process.argv.slice(2);
@@ -132,26 +167,50 @@ async function main() {
 
   let changedCount = 0;
   let stillBadCount = 0;
+  let residualCount = 0;
   for (const file of targets) {
     const original = await fs.readFile(file);
     const { buf, changed } = fixBuffer(original);
-    if (!changed) continue;
-    changedCount += 1;
+    if (changed) {
+      changedCount += 1;
+      if (checkOnly) {
+        stillBadCount += 1;
+        console.log(`[fix-mojibake] WOULD-FIX ${file}`);
+      } else if (dryRun) {
+        console.log(`[fix-mojibake] dry-run ${file}`);
+      } else {
+        await fs.writeFile(file, buf);
+        console.log(`[fix-mojibake] fixed ${file}`);
+      }
+    }
     if (checkOnly) {
-      stillBadCount += 1;
-      console.log(`[fix-mojibake] WOULD-FIX ${file}`);
-    } else if (dryRun) {
-      console.log(`[fix-mojibake] dry-run ${file}`);
-    } else {
-      await fs.writeFile(file, buf);
-      console.log(`[fix-mojibake] fixed ${file}`);
+      // Detect residual mojibake patterns NOT in REPLACEMENTS so future
+      // variants surface as failures rather than passing silently. Use
+      // Latin-1 decoding to operate on the raw bytes via String.
+      const asLatin1 = buf.toString('latin1');
+      const matches = asLatin1.match(RESIDUAL_PATTERN);
+      if (matches && matches.length > 0) {
+        residualCount += matches.length;
+        console.log(
+          `[fix-mojibake] RESIDUAL ${file} (${matches.length} unknown pattern${matches.length === 1 ? '' : 's'})`,
+        );
+      }
     }
   }
 
   const verb = dryRun || checkOnly ? 'would change' : 'changed';
   console.log(`[fix-mojibake] ${changedCount} file(s) ${verb}.`);
-  if (checkOnly && stillBadCount > 0) {
-    process.exit(1);
+  if (checkOnly) {
+    if (stillBadCount > 0) {
+      console.error(`[fix-mojibake] FAIL: ${stillBadCount} file(s) still have known mojibake patterns.`);
+      process.exit(1);
+    }
+    if (residualCount > 0) {
+      console.error(
+        `[fix-mojibake] FAIL: ${residualCount} residual mojibake-shaped sequence(s) detected. Inspect manually and add to REPLACEMENTS table.`,
+      );
+      process.exit(1);
+    }
   }
 }
 

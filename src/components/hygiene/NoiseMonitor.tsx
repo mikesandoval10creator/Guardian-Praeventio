@@ -81,7 +81,7 @@ export function NoiseMonitor() {
     if (db < 60) return { level: 'Seguro', color: 'text-emerald-500', bg: 'bg-emerald-500', alert: null };
     if (db < 80) return { level: 'Precaución', color: 'text-yellow-500', bg: 'bg-yellow-500', alert: null };
     if (db < 85) return { level: 'Alerta', color: 'text-orange-500', bg: 'bg-orange-500', alert: 'Límite de exposición cercano.' };
-    return { level: 'Peligro', color: 'text-rose-500', bg: 'bg-rose-500', alert: 'Â¡Uso obligatorio de protección auditiva!' };
+    return { level: 'Peligro', color: 'text-rose-500', bg: 'bg-rose-500', alert: '¡Uso obligatorio de protección auditiva!' };
   };
 
   const risk = getRiskLevel(decibels);

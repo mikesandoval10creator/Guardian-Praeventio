@@ -185,7 +185,7 @@ export function FirstAidCards() {
                         setDepthFeedback(null);
                         stopAccel();
                       }}
-                      // Audit P0 Â§1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+                      // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
                       className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                     >
                       <X className="w-6 h-6 text-zinc-500" />

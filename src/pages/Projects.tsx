@@ -229,7 +229,7 @@ export function Projects() {
                         <div className="min-w-0">
                           <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('projects.detail.employer_suseso', 'Empleador (SUSESO)')}</p>
                           <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white truncate">{selectedProject.companyName}</p>
-                          <p className="text-[10px] text-zinc-500">{selectedProject.companyRut} Â· {selectedProject.mutualidad}</p>
+                          <p className="text-[10px] text-zinc-500">{selectedProject.companyRut} · {selectedProject.mutualidad}</p>
                         </div>
                       </div>
                     )}

@@ -20,7 +20,7 @@
 //
 // The SAME `audit_logs` row schema we assert here is what hits Firestore
 // in production (see auditLog.ts). Drift between this harness and
-// production is intentional and tracked in test-server.ts Â§"Strategy".
+// production is intentional and tracked in test-server.ts §"Strategy".
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';

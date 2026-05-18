@@ -52,7 +52,7 @@ export function AsesorChat() {
     {
       id: '1',
       role: 'assistant',
-      content: 'Hola, soy El Guardián. Â¿En qué puedo asesorarte hoy sobre la seguridad y salud de tu proyecto?',
+      content: 'Hola, soy El Guardián. ¿En qué puedo asesorarte hoy sobre la seguridad y salud de tu proyecto?',
       timestamp: new Date()
     }
   ]);
@@ -145,7 +145,7 @@ export function AsesorChat() {
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
           role: 'assistant',
-          content: `**Â¡Conexión Restaurada!** ðŸŒ\n\nHe notado que tenías consultas pendientes mientras estabas offline:\n\n${pendingQueries.map(q => `- "${q}"`).join('\n')}\n\nÂ¿Te gustaría que analice alguna de estas consultas ahora con toda mi capacidad?`,
+          content: `**¡Conexión Restaurada!** ðŸŒ\n\nHe notado que tenías consultas pendientes mientras estabas offline:\n\n${pendingQueries.map(q => `- "${q}"`).join('\n')}\n\n¿Te gustaría que analice alguna de estas consultas ahora con toda mi capacidad?`,
           timestamp: new Date()
         }]);
         setPendingQueries([]); // Clear pending queries state

@@ -71,7 +71,7 @@ const UID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
  * Map a Firestore/Auth domain role (the granular operational role like
  * `operario`, `medico_ocupacional`, `gerente`) onto the analytics-catalog
  * `Role` enum (`worker | supervisor | prevencionista | admin |
- * executive`). Property-glossary Â§"Role" intentionally uses a coarse
+ * executive`). Property-glossary §"Role" intentionally uses a coarse
  * taxonomy so dashboards stay legible across customers — the granular
  * runtime roles would explode cardinality. Unknown / unmapped roles
  * fall through to `worker` (the safe default; see catalog row 23 note).
@@ -246,7 +246,7 @@ router.post('/set-role', verifyAuth, async (req, res) => {
 //     • Operator dashboard "re-drive missed hour" button
 //
 // Returns { ok, collections: [{ collection, docs, path, error? }], window }.
-// Per-collection errors do NOT fail the request — DR_RUNBOOK Â§3 commits
+// Per-collection errors do NOT fail the request — DR_RUNBOOK §3 commits
 // to "best-effort hourly replica"; a failure on one collection should
 // never starve the other.
 router.post('/replicate-critical', verifyAuth, async (req, res) => {

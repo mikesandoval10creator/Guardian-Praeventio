@@ -259,8 +259,8 @@ export function EmergenciaAvanzada() {
               </h2>
               <p className="text-xs text-red-400/80 mt-1">
                 Activado por {activeEmergency.startedBy}
-                {activeEmergency.epicenter ? ` Â· Epicentro: ${activeEmergency.epicenter}` : ''}
-                {activeEmergency.magnitude ? ` Â· Magnitud: ${activeEmergency.magnitude}` : ''}
+                {activeEmergency.epicenter ? ` · Epicentro: ${activeEmergency.epicenter}` : ''}
+                {activeEmergency.magnitude ? ` · Magnitud: ${activeEmergency.magnitude}` : ''}
               </p>
             </div>
             <div className="flex gap-4 text-xs font-bold shrink-0">
@@ -284,7 +284,7 @@ export function EmergenciaAvanzada() {
             <Zap className="w-5 h-5 text-amber-400 shrink-0" />
             <div className="flex-1">
               <p className="text-xs font-bold text-amber-400">
-                ALERTA SÃSMICA CERCANA — M{criticalAlert.magnitude.toFixed(1)} Â· {criticalAlert.place}
+                ALERTA SÍSMICA CERCANA — M{criticalAlert.magnitude.toFixed(1)} · {criticalAlert.place}
               </p>
             </div>
             <button
@@ -332,7 +332,7 @@ export function EmergenciaAvanzada() {
               Estado de Zonas
             </h3>
             {[
-              { name: 'Ãrea de Trabajo', status: activeEmergency ? 'BLOQUEADO' : 'OPERATIVO', color: activeEmergency ? 'text-red-400 bg-red-500/10' : 'text-emerald-400 bg-emerald-500/10' },
+              { name: 'Área de Trabajo', status: activeEmergency ? 'BLOQUEADO' : 'OPERATIVO', color: activeEmergency ? 'text-red-400 bg-red-500/10' : 'text-emerald-400 bg-emerald-500/10' },
               { name: 'Planta / Faena', status: activeEmergency ? 'EVACUANDO' : 'OPERATIVO', color: activeEmergency ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400 bg-emerald-500/10' },
               { name: 'Zona de Seguridad', status: 'ACTIVA', color: 'text-emerald-400 bg-emerald-500/10' },
             ].map(z => (
@@ -435,7 +435,7 @@ export function EmergenciaAvanzada() {
                         </div>
                       ) : (
                         <div className={`max-w-[80%] px-3 py-2 rounded-xl ${msg.sender === (user?.displayName ?? user?.email) ? 'bg-blue-600/20 border border-blue-500/30 rounded-tr-none' : 'bg-zinc-200 dark:bg-zinc-800 rounded-tl-none'}`}>
-                          <p className="text-[10px] text-zinc-500 mb-1">{msg.sender} Â· {msg.senderRole}</p>
+                          <p className="text-[10px] text-zinc-500 mb-1">{msg.sender} · {msg.senderRole}</p>
                           <p className="text-xs text-zinc-900 dark:text-white">{msg.text}</p>
                         </div>
                       )}
@@ -544,7 +544,7 @@ export function EmergenciaAvanzada() {
       <ConfirmDialog
         isOpen={showResolveConfirm}
         title="Resolver Emergencia"
-        message="Â¿Confirmas que la emergencia ha sido controlada y todos los trabajadores están seguros?"
+        message="¿Confirmas que la emergencia ha sido controlada y todos los trabajadores están seguros?"
         confirmLabel="Sí, resolver"
         onConfirm={resolveEmergency}
         onCancel={() => setShowResolveConfirm(false)}

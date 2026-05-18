@@ -5,19 +5,19 @@
  * the eighth wave's `docs/tracking/TRACKING_PLAN.md`:
  *
  *   - `track(name, props)` fans out to every configured sink with
- *     auto-filled common props (TRACKING_PLAN Â§4.8).
+ *     auto-filled common props (TRACKING_PLAN §4.8).
  *   - PII guard drops events whose top-level props include any of the
- *     forbidden keys (TRACKING_PLAN Â§4.4 — but we DROP rather than
+ *     forbidden keys (TRACKING_PLAN §4.4 — but we DROP rather than
  *     redact: the spec is "PII never enters analytics", not "redact and
  *     ship").
  *   - Opt-out short-circuit on `localStorage.analytics_opt_out === '1'`
- *     (TRACKING_PLAN Â§8.2).
+ *     (TRACKING_PLAN §8.2).
  *   - Offline support via `AnalyticsQueue`. When `navigator.onLine`
  *     reports false at fire time the event is queued; on `flush()` (the
  *     app shell wires this to the `online` event) the queue drains
  *     through every sink in arrival order.
  *
- * Backend selection is intentionally deferred (TRACKING_PLAN Â§9). The
+ * Backend selection is intentionally deferred (TRACKING_PLAN §9). The
  * adapter accepts an array of sinks via DI — flipping from the default
  * `[consoleSink, sentryBreadcrumbSink]` to `[postHogSink]` is a 1-line
  * change.
@@ -41,11 +41,11 @@ import type {
 /**
  * Forbidden top-level prop names. Presence of ANY of these in the input
  * props causes the event to be dropped before it reaches the sinks. The
- * spec (TRACKING_PLAN Â§4.4) is explicit: PII should never enter the
+ * spec (TRACKING_PLAN §4.4) is explicit: PII should never enter the
  * analytics payload — redaction-after-the-fact is too easy to get wrong.
  *
  * `lat` / `lng` are listed because emergency events use `commune_code`
- * for geo bucketing (Â§4.5); a stray `lat` would be a regression.
+ * for geo bucketing (§4.5); a stray `lat` would be a regression.
  */
 const PII_FORBIDDEN_KEYS: ReadonlySet<string> = new Set([
   'email',
@@ -62,7 +62,7 @@ const PII_FORBIDDEN_KEYS: ReadonlySet<string> = new Set([
 /**
  * Plan-level event_version. Bumped per row in the catalog; the adapter
  * stamps every event with the same value until codegen takes over
- * (TRACKING_PLAN Â§11.6). All 5 wave-9 events carry version 1.0.0 in the
+ * (TRACKING_PLAN §11.6). All 5 wave-9 events carry version 1.0.0 in the
  * catalog.
  */
 const EVENT_VERSION = '1.0.0';

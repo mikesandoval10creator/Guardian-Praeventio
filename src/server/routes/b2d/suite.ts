@@ -14,7 +14,7 @@
 //
 //   This isolation is non-negotiable: API key holders are NOT tenants;
 //   they are integrators. They have ZERO visibility into the Zettelkasten,
-//   per `PRICING.md Â§9.3` and `aiTier.ts` ZETTELKASTEN_BOUNDARY.
+//   per `PRICING.md §9.3` and `aiTier.ts` ZETTELKASTEN_BOUNDARY.
 
 import { Router } from 'express';
 import { z } from 'zod';
