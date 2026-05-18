@@ -111,18 +111,62 @@ async function buildPortableHistoryBundle(
 ): Promise<PortableHistoryBundle | null> {
   const base = `tenants/${tenantId}/projects/${projectId}`;
 
-  const workerSnap = await db.collection(`${base}/workers`).doc(workerUid).get();
-  if (!workerSnap.exists) return null;
-  const worker = workerSnap.data() as Record<string, unknown>;
-
-  // Consent doc (separate so changes don't trigger worker writes).
-  const consentSnap = await db
-    .collection(`${base}/workers/${workerUid}/portable_history`)
-    .doc('consent')
+  // Codex P1 fix: el roster canónico vive en `projects/{pid}/workers`
+  // (lo que usa el WorkerPortableHistory page selector). El monolito
+  // también caía a `users/{uid}` como último fallback.
+  let worker: Record<string, unknown> | null = null;
+  const canonicalSnap = await db
+    .collection('projects')
+    .doc(projectId)
+    .collection('workers')
+    .doc(workerUid)
     .get();
-  const consentData = consentSnap.exists
-    ? (consentSnap.data() as Partial<PortableHistoryConsent>)
-    : {};
+  if (canonicalSnap.exists) {
+    worker = canonicalSnap.data() as Record<string, unknown>;
+  } else {
+    const tenantSnap = await db.collection(`${base}/workers`).doc(workerUid).get();
+    if (tenantSnap.exists) {
+      worker = tenantSnap.data() as Record<string, unknown>;
+    } else {
+      const userSnap = await db.collection('users').doc(workerUid).get();
+      if (userSnap.exists) {
+        worker = userSnap.data() as Record<string, unknown>;
+      }
+    }
+  }
+  if (!worker) return null;
+
+  // Codex P2 fix: consent puede estar en cualquiera de los 2 paths
+  // (legacy monolítico vs migración nueva). Leemos ambos y preferimos
+  // el más reciente.
+  const [consentNewSnap, consentLegacySnap] = await Promise.all([
+    db
+      .collection(`${base}/workers/${workerUid}/portable_history`)
+      .doc('consent')
+      .get()
+      .catch(() => null),
+    db
+      .collection(`${base}/portable_history_consents`)
+      .doc(workerUid)
+      .get()
+      .catch(() => null),
+  ]);
+  const consentNew = consentNewSnap?.exists
+    ? (consentNewSnap.data() as Partial<PortableHistoryConsent>)
+    : null;
+  const consentLegacy = consentLegacySnap?.exists
+    ? (consentLegacySnap.data() as Partial<PortableHistoryConsent>)
+    : null;
+  // Pick whichever has the most recent updatedAt.
+  const pickConsent = (): Partial<PortableHistoryConsent> => {
+    if (consentNew && consentLegacy) {
+      const newT = typeof consentNew.updatedAt === 'string' ? consentNew.updatedAt : '';
+      const oldT = typeof consentLegacy.updatedAt === 'string' ? consentLegacy.updatedAt : '';
+      return newT >= oldT ? consentNew : consentLegacy;
+    }
+    return consentNew ?? consentLegacy ?? {};
+  };
+  const consentData = pickConsent();
   const consent: PortableHistoryConsent = {
     allowsPortableExport: consentData.allowsPortableExport === true,
     includesIncidents: consentData.includesIncidents === true,
@@ -130,8 +174,24 @@ async function buildPortableHistoryBundle(
     updatedByUid: typeof consentData.updatedByUid === 'string' ? consentData.updatedByUid : workerUid,
   };
 
-  // Read worker sub-collections in parallel (each is best-effort).
-  const safeReadDocs = async (col: string): Promise<Record<string, unknown>[]> => {
+  // Codex P2 fix: las collections canónicas viven en project-level
+  // (training_assignments, epp_assignments, etc.), no en worker
+  // sub-collections. Leemos ambas y mergeamos para preservar historia.
+  const safeReadDocs = async (paths: string[]): Promise<Record<string, unknown>[]> => {
+    const results: Record<string, unknown>[] = [];
+    for (const p of paths) {
+      try {
+        const snap = await db.collection(p).where('workerUid', '==', workerUid).limit(500).get();
+        for (const doc of snap.docs) {
+          results.push({ id: doc.id, ...(doc.data() as Record<string, unknown>) });
+        }
+      } catch (err) {
+        logger.warn?.(`sprintK.portableHistory.read.${p}.failed`, err);
+      }
+    }
+    return results;
+  };
+  const safeReadSubcollection = async (col: string): Promise<Record<string, unknown>[]> => {
     try {
       const snap = await db
         .collection(`${base}/workers/${workerUid}/${col}`)
@@ -139,19 +199,36 @@ async function buildPortableHistoryBundle(
         .get();
       return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }));
     } catch (err) {
-      logger.warn?.(`sprintK.portableHistory.read.${col}.failed`, err);
+      logger.warn?.(`sprintK.portableHistory.read.subcoll.${col}.failed`, err);
       return [];
     }
   };
 
   const [trainings, eppDeliveries, aptitudes, criticalRoles, signatures, incidents] =
     await Promise.all([
-      safeReadDocs('trainings'),
-      safeReadDocs('epp_deliveries'),
-      safeReadDocs('aptitudes'),
-      safeReadDocs('critical_roles'),
-      safeReadDocs('signatures'),
-      consent.includesIncidents ? safeReadDocs('incidents') : Promise.resolve([]),
+      Promise.all([
+        safeReadDocs([`${base}/training_assignments`, `${base}/training_records`]),
+        safeReadSubcollection('trainings'),
+      ]).then(([a, b]) => [...a, ...b]),
+      Promise.all([
+        safeReadDocs([`${base}/epp_assignments`, `${base}/epp_deliveries`]),
+        safeReadSubcollection('epp_deliveries'),
+      ]).then(([a, b]) => [...a, ...b]),
+      Promise.all([
+        safeReadDocs([`${base}/medical_aptitudes`, `${base}/aptitudes`]),
+        safeReadSubcollection('aptitudes'),
+      ]).then(([a, b]) => [...a, ...b]),
+      Promise.all([
+        safeReadDocs([`${base}/critical_role_assignments`]),
+        safeReadSubcollection('critical_roles'),
+      ]).then(([a, b]) => [...a, ...b]),
+      Promise.all([
+        safeReadDocs([`${base}/signatures`]),
+        safeReadSubcollection('signatures'),
+      ]).then(([a, b]) => [...a, ...b]),
+      consent.includesIncidents
+        ? safeReadDocs([`${base}/incidents`, 'incidents'])
+        : Promise.resolve([]),
     ]);
 
   const fullName = typeof worker.name === 'string' ? worker.name : '';

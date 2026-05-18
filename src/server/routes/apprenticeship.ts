@@ -249,7 +249,36 @@ router.post(
         (l) => l === 'supervised' || l === 'autonomous',
       ).length;
       const progress = Math.min(100, Math.round((authorizedCount / 5) * 100));
-      const currentLevel: ApprenticeAuthLevel = body.toLevel;
+      // Codex P2 fix: derivar currentLevel del MÁXIMO de todas las
+      // autorizaciones, no del último cambio. Una autorización lower
+      // para una tarea nueva no debe degradar el nivel global del
+      // aprendiz si ya tenía autonomous en otra tarea.
+      const levelOrder: Record<ApprenticeAuthLevel, number> = {
+        none: 0,
+        observer: 1,
+        supervised: 2,
+        autonomous: 3,
+      };
+      let maxLevel: ApprenticeAuthLevel = 'none';
+      for (const l of Object.values(updatedAuthorizations)) {
+        if (levelOrder[l as ApprenticeAuthLevel] > levelOrder[maxLevel]) {
+          maxLevel = l as ApprenticeAuthLevel;
+        }
+      }
+      const currentLevel: ApprenticeAuthLevel = maxLevel;
+      // Codex P2 fix: persistir authorization en subcollection para
+      // audit trail (signedByUid, evidence, recordedBy por cada
+      // cambio de nivel).
+      const authId = `auth_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      await apprenticeRef.collection('authorizations').doc(authId).set({
+        id: authId,
+        taskKind: body.taskKind,
+        toLevel: body.toLevel,
+        signedByUid: body.signedByUid,
+        evidence: body.evidence,
+        recordedBy: callerUid,
+        recordedAt: now,
+      });
       await apprenticeRef.set(
         {
           taskAuthorizations: updatedAuthorizations,

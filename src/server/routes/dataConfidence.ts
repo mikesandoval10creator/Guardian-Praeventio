@@ -249,9 +249,19 @@ router.get('/:projectId/data-confidence', verifyAuth, async (req, res) => {
     const now = new Date();
     const base = `tenants/${g.tenantId}/projects/${projectId}`;
 
+    // Codex P2 fix: el servicio puro consume `workersWithFullProfileRatio`
+    // entendido como "perfil completo" (name + role + crew), no solo
+    // role presente. Sin esto, el score se infla y la página oculta
+    // que muchos workers están sin cuadrilla / nombre.
+    const fullProfileCheck = (d: Record<string, unknown>): boolean => {
+      const hasName = typeof d.name === 'string' && (d.name as string).length > 0;
+      const hasRole = typeof d.role === 'string' && (d.role as string).length > 0;
+      const hasCrew = typeof d.crewId === 'string' && (d.crewId as string).length > 0;
+      return hasName && hasRole && hasCrew;
+    };
     // Lee inventarios en paralelo (todos con fallback graceful).
     const [workers, epp, incidents, training, permits, audits] = await Promise.all([
-      readDomain(db, base, 'workers', (d) => typeof d.role === 'string' && (d.role as string).length > 0),
+      readDomain(db, base, 'workers', fullProfileCheck),
       readDomain(db, base, 'epp_items', (d) => typeof d.expirationDate === 'string' && (d.expirationDate as string).length > 0),
       readDomain(db, base, 'incidents', (d) => typeof d.rootCause === 'string' && (d.rootCause as string).length > 0),
       readDomain(db, base, 'training_records', (d) => typeof d.approverUid === 'string' && (d.approverUid as string).length > 0),

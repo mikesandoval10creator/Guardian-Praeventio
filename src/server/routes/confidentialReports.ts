@@ -32,17 +32,18 @@ const router = Router();
 
 // ── Types ─────────────────────────────────────────────────────────────
 
+// Codex P1 fix: UI envía enums en inglés. Schema acepta los valores
+// que la página ConfidentialReports.tsx realmente postea.
 const CONFIDENTIAL_REPORT_KINDS = [
-  'acoso_laboral',
-  'acoso_sexual',
-  'violencia',
-  'discriminacion',
-  'falta_etica',
-  'incumplimiento_seguridad',
-  'otro',
+  'harassment',
+  'safety',
+  'discrimination',
+  'violence',
+  'conflict_of_interest',
+  'other',
 ] as const;
 
-const CONFIDENTIAL_REPORT_SEVERITIES = ['baja', 'media', 'alta', 'critica'] as const;
+const CONFIDENTIAL_REPORT_SEVERITIES = ['low', 'medium', 'high', 'critical'] as const;
 
 const CONFIDENTIAL_REPORT_STATUSES = [
   'open',
@@ -83,12 +84,19 @@ interface StoredAdverseAction {
   notedByUid: string;
 }
 
+// Codex P2 fix: preservar la lista de roles que la versión monolítica
+// aceptaba para no bloquear handlers existentes que ya tenían permiso.
 const CONFIDENTIAL_HANDLER_ROLES: ReadonlySet<string> = new Set([
   'admin',
   'gerente',
   'prevention_lead',
   'comite_paritario',
   'rrhh',
+  'confidential_handler',
+  'legal_counsel',
+  'hr_director',
+  'prevencionista',
+  'investigator',
 ]);
 
 const CONFIDENTIAL_REPORTS_PATH = (tenantId: string) =>
@@ -131,16 +139,43 @@ async function guard(
   return { tenantId };
 }
 
-async function resolveRequesterRole(callerUid: string): Promise<string> {
+/**
+ * Codex P2 fix: honrar roles via Firebase custom claims (lo que
+ * `verifyAuth` ya expone en `req.user.role`) además del fallback al
+ * documento `users/{uid}`. El monolito usaba esta combinación.
+ */
+async function resolveRequesterRole(
+  callerUid: string,
+  reqUser?: { role?: string; roles?: string[]; admin?: boolean },
+): Promise<{ role: string; roles: string[]; isAdmin: boolean }> {
+  const claimRole = typeof reqUser?.role === 'string' ? reqUser.role : '';
+  const claimRoles = Array.isArray(reqUser?.roles) ? reqUser!.roles! : [];
+  const claimAdmin = reqUser?.admin === true;
+  if (claimRole || claimRoles.length > 0 || claimAdmin) {
+    return { role: claimRole, roles: claimRoles, isAdmin: claimAdmin };
+  }
   try {
     const userDoc = await admin.firestore().collection('users').doc(callerUid).get();
-    if (!userDoc.exists) return '';
+    if (!userDoc.exists) return { role: '', roles: [], isAdmin: false };
     const data = userDoc.data() as Record<string, unknown>;
-    if (typeof data.role === 'string') return data.role;
-    return '';
+    const role = typeof data.role === 'string' ? data.role : '';
+    const roles = Array.isArray(data.roles)
+      ? (data.roles as unknown[]).filter((r): r is string => typeof r === 'string')
+      : [];
+    const isAdmin = data.admin === true;
+    return { role, roles, isAdmin };
   } catch {
-    return '';
+    return { role: '', roles: [], isAdmin: false };
   }
+}
+
+function isHandlerRole(role: { role: string; roles: string[]; isAdmin: boolean }): boolean {
+  if (role.isAdmin) return true;
+  if (role.role && CONFIDENTIAL_HANDLER_ROLES.has(role.role)) return true;
+  for (const r of role.roles) {
+    if (CONFIDENTIAL_HANDLER_ROLES.has(r)) return true;
+  }
+  return false;
 }
 
 function hashReporterAnon(callerUid: string, tenantId: string): string {
@@ -157,6 +192,10 @@ const createSchema = z.object({
   narrative: z.string().min(10).max(8000),
   evidence: z.string().max(4000).optional(),
   allowsIdentity: z.boolean(),
+  // Codex feedback: el client puede enviar reporterUid cuando
+  // allowsIdentity=true. Lo aceptamos pero el server siempre re-deriva
+  // desde callerUid (nunca confiar en el client para identidad).
+  reporterUid: z.string().min(1).max(120).optional(),
 });
 
 router.post(
@@ -216,6 +255,9 @@ router.post(
 
 // ── Endpoint 2: GET list (handler-only) ───────────────────────────────
 
+// Codex P1 fix: reporters acceden a sus propios reports filtrados por
+// reporterAnonHash. Handlers ven todos. La UI espera `role: 'investigator'
+// | 'reporter'` para conmutar entre Inbox e "Mis reportes" tabs.
 router.get('/:projectId/confidential-reports', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
   const { projectId } = req.params;
@@ -223,10 +265,8 @@ router.get('/:projectId/confidential-reports', verifyAuth, async (req, res) => {
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
-    const callerRole = await resolveRequesterRole(callerUid);
-    if (!CONFIDENTIAL_HANDLER_ROLES.has(callerRole)) {
-      return res.status(403).json({ error: 'role_not_authorized' });
-    }
+    const callerRoleInfo = await resolveRequesterRole(callerUid, req.user as { role?: string; roles?: string[]; admin?: boolean });
+    const isHandler = isHandlerRole(callerRoleInfo);
     const db = admin.firestore();
     const snap = await db
       .collection(CONFIDENTIAL_REPORTS_PATH(g.tenantId))
@@ -234,8 +274,17 @@ router.get('/:projectId/confidential-reports', verifyAuth, async (req, res) => {
       .orderBy('submittedAt', 'desc')
       .limit(500)
       .get();
-    const reports = snap.docs.map((d) => d.data() as StoredConfidentialReport);
-    return res.json({ reports });
+    const all = snap.docs.map((d) => d.data() as StoredConfidentialReport);
+    if (isHandler) {
+      return res.json({ reports: all, role: 'investigator' });
+    }
+    // Codex P1 fix: reporter ve solo sus propios reports (filtrado por
+    // hash o reporterUid si dio identidad).
+    const myHash = hashReporterAnon(callerUid, g.tenantId);
+    const mine = all.filter(
+      (r) => r.reporterAnonHash === myHash || r.reporterUid === callerUid,
+    );
+    return res.json({ reports: mine, role: 'reporter' });
   } catch (err) {
     logger.error?.('sprintK.confidential.list.error', err);
     captureRouteError(err, 'sprintK.confidential.list');
@@ -259,8 +308,8 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const callerRole = await resolveRequesterRole(callerUid);
-      if (!CONFIDENTIAL_HANDLER_ROLES.has(callerRole)) {
+      const callerRoleInfo = await resolveRequesterRole(callerUid, req.user as { role?: string; roles?: string[]; admin?: boolean });
+      if (!isHandlerRole(callerRoleInfo)) {
         return res.status(403).json({ error: 'role_not_authorized_to_respond' });
       }
       const db = admin.firestore();
@@ -274,6 +323,18 @@ router.post(
       const now = new Date().toISOString();
       const newStatus: ConfidentialReportStatus =
         existing.status === 'open' ? 'investigating' : existing.status;
+      // Codex P2 fix: preservar history en subcollection (cada response
+      // se appendea como audit event, no se sobreescribe).
+      const auditId = `resp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      await docRef.collection('audit').doc(auditId).set({
+        id: auditId,
+        kind: 'response',
+        actorUid: callerUid,
+        role: callerRoleInfo.role || (callerRoleInfo.isAdmin ? 'admin' : 'investigator'),
+        message: body.message,
+        atStatus: newStatus,
+        createdAt: now,
+      });
       await docRef.set(
         {
           status: newStatus,
@@ -312,8 +373,8 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const callerRole = await resolveRequesterRole(callerUid);
-      if (!CONFIDENTIAL_HANDLER_ROLES.has(callerRole)) {
+      const callerRoleInfo = await resolveRequesterRole(callerUid, req.user as { role?: string; roles?: string[]; admin?: boolean });
+      if (!isHandlerRole(callerRoleInfo)) {
         return res.status(403).json({ error: 'role_not_authorized_to_close' });
       }
       const db = admin.firestore();
@@ -327,6 +388,18 @@ router.post(
       const now = new Date().toISOString();
       const newStatus: ConfidentialReportStatus =
         body.outcome === 'substantiated' ? 'resolved' : 'closed';
+      // Codex P2 fix: append closure event to history subcollection.
+      const auditId = `close_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      await docRef.collection('audit').doc(auditId).set({
+        id: auditId,
+        kind: 'close',
+        actorUid: callerUid,
+        role: callerRoleInfo.role || (callerRoleInfo.isAdmin ? 'admin' : 'investigator'),
+        resolution: body.resolution,
+        outcome: body.outcome,
+        atStatus: newStatus,
+        createdAt: now,
+      });
       await docRef.set(
         {
           status: newStatus,
@@ -358,8 +431,8 @@ router.get(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const callerRole = await resolveRequesterRole(callerUid);
-      if (!CONFIDENTIAL_HANDLER_ROLES.has(callerRole)) {
+      const callerRoleInfo = await resolveRequesterRole(callerUid, req.user as { role?: string; roles?: string[]; admin?: boolean });
+      if (!isHandlerRole(callerRoleInfo)) {
         return res.status(403).json({ error: 'role_not_authorized' });
       }
       const db = admin.firestore();

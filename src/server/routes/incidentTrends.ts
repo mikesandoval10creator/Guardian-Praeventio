@@ -98,6 +98,9 @@ const TREND_WINDOW_MS: Record<string, number> = {
 const TREND_SEVERITY_WEIGHT: Record<string, number> = {
   low: 1,
   medium: 2,
+  // Codex P2 fix: el schema canónico `POST /api/incidents/report`
+  // persiste `med` para severidad media.
+  med: 2,
   high: 4,
   critical: 8,
   sif: 8,
@@ -146,7 +149,9 @@ function trendBucketLabel(iso: string, group: 'month' | 'week'): string | null {
  */
 function isNearMissRecord(rec: Record<string, unknown>): boolean {
   if (rec.nearMiss === true || rec.isNearMiss === true) return true;
-  const candidates = [rec.type, rec.kind, rec.severity];
+  // Codex P2 fix: el flujo canónico `POST /api/incidents/report`
+  // categoriza near-misses bajo `incidentType: 'near_miss'`.
+  const candidates = [rec.incidentType, rec.type, rec.kind, rec.severity];
   for (const c of candidates) {
     if (typeof c !== 'string') continue;
     const k = c.trim().toLowerCase().replace(/[\s-]/g, '_');
@@ -306,11 +311,34 @@ router.get('/:projectId/incidents/trends', verifyAuth, async (req, res) => {
     }
     const allIncidents = Array.from(byId.values());
 
-    // Filtrar por ventana usando occurredAt | createdAt (string ISO).
-    const occurredOf = (rec: Record<string, unknown>): string | null => {
-      if (typeof rec.occurredAt === 'string' && rec.occurredAt) return rec.occurredAt;
-      if (typeof rec.createdAt === 'string' && rec.createdAt) return rec.createdAt;
+    // Codex P1 fix: el flujo canónico `POST /api/incidents/report`
+    // persiste el timestamp en `ts` y escribe `createdAt` como
+    // FieldValue.serverTimestamp() (no string). Si no leemos `ts`
+    // ni convertimos el Timestamp de Firestore, esos incidents quedan
+    // fuera de la ventana → totales/leading indicators a cero.
+    const tsToIso = (raw: unknown): string | null => {
+      if (typeof raw === 'string' && raw) return raw;
+      if (raw && typeof raw === 'object') {
+        const t = raw as { toDate?: () => Date; _seconds?: number; seconds?: number };
+        if (typeof t.toDate === 'function') {
+          const d = t.toDate();
+          if (d instanceof Date && !Number.isNaN(d.getTime())) return d.toISOString();
+        }
+        const seconds = typeof t._seconds === 'number' ? t._seconds : typeof t.seconds === 'number' ? t.seconds : null;
+        if (seconds !== null) {
+          const d = new Date(seconds * 1000);
+          if (!Number.isNaN(d.getTime())) return d.toISOString();
+        }
+      }
       return null;
+    };
+    const occurredOf = (rec: Record<string, unknown>): string | null => {
+      return (
+        tsToIso(rec.ts) ??
+        tsToIso(rec.occurredAt) ??
+        tsToIso(rec.createdAt) ??
+        null
+      );
     };
     const windowed = allIncidents.filter((rec) => {
       const ts = occurredOf(rec);
@@ -335,14 +363,54 @@ router.get('/:projectId/incidents/trends', verifyAuth, async (req, res) => {
         } satisfies TrendBucket);
       existing.count += 1;
       existing.severityWeighted += trendSeverityWeight(rec.severity);
-      // Codex P2: aceptar tanto `type` como `kind` para nombrar el
-      // breakdown; legacy escribió ambos en distintas etapas.
+      // Codex P2: aceptar `incidentType` (canónico), `type` y `kind`
+      // para nombrar el breakdown; legacy escribió cada uno en distinta
+      // etapa.
       const kindRaw =
+        (typeof rec.incidentType === 'string' && rec.incidentType) ||
         (typeof rec.type === 'string' && rec.type) ||
         (typeof rec.kind === 'string' && rec.kind) ||
         'sin_categoria';
       existing.byKind[kindRaw] = (existing.byKind[kindRaw] ?? 0) + 1;
       bucketMap.set(label, existing);
+    }
+    // Codex P2 fix: incluir buckets vacíos entre cutoff y now para que
+    // la regresión lineal y el gráfico tengan periodos consecutivos.
+    // Sin esto, gaps de meses sin incidents distorsionan la tendencia.
+    const fillEmpty = (group: 'month' | 'week', from: Date, to: Date): string[] => {
+      const labels: string[] = [];
+      const cursor = new Date(from.getTime());
+      if (group === 'month') {
+        cursor.setUTCDate(1);
+        cursor.setUTCHours(0, 0, 0, 0);
+        while (cursor.getTime() <= to.getTime()) {
+          const label = trendBucketLabel(cursor.toISOString(), 'month');
+          if (label) labels.push(label);
+          cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+        }
+      } else {
+        // Snap to ISO week start (Monday).
+        const day = cursor.getUTCDay() || 7;
+        cursor.setUTCDate(cursor.getUTCDate() - day + 1);
+        cursor.setUTCHours(0, 0, 0, 0);
+        while (cursor.getTime() <= to.getTime()) {
+          const label = trendBucketLabel(cursor.toISOString(), 'week');
+          if (label) labels.push(label);
+          cursor.setUTCDate(cursor.getUTCDate() + 7);
+        }
+      }
+      return labels;
+    };
+    const allLabels = fillEmpty(groupKey, new Date(cutoffMs), new Date());
+    for (const label of allLabels) {
+      if (!bucketMap.has(label)) {
+        bucketMap.set(label, {
+          label,
+          count: 0,
+          severityWeighted: 0,
+          byKind: {},
+        });
+      }
     }
     const buckets = Array.from(bucketMap.values()).sort((a, b) =>
       a.label < b.label ? -1 : a.label > b.label ? 1 : 0,
