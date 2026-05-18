@@ -265,6 +265,8 @@ import safetyPerformanceRouter from "./src/server/routes/safetyPerformance.js";
 import commsRouter from "./src/server/routes/comms.js";
 // 5S Audit — Sprint K §227 (seiri/seiton/seiso/seiketsu/shitsuke scoring + zone ranking).
 import fiveSRouter from "./src/server/routes/fiveS.js";
+// Industrial Hygiene — Mifflin-St Jeor BMR + current-burn helpers.
+import hygieneRouter from "./src/server/routes/hygiene.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -940,6 +942,7 @@ app.use('/api/sprint-k', circadianRouter);
 app.use('/api/sprint-k', safetyPerformanceRouter);
 app.use('/api/sprint-k', commsRouter);
 app.use('/api/sprint-k', fiveSRouter);
+app.use('/api/sprint-k', hygieneRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
