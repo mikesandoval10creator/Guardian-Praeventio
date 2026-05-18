@@ -18,13 +18,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Apprenticeship } from './Apprenticeship';
-import * as sprintKHooks from '../hooks/useSprintK';
+import * as sprintKHooks from '../hooks/useApprenticeship';
 import type {
   ApprenticesResponse,
   MentorAvailabilityResponse,
   ApprenticeRecord,
-  MentorAvailabilityEntry,
-} from '../hooks/useSprintK';
+  MentorAvailability as MentorAvailabilityEntry,
+} from '../hooks/useApprenticeship';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -70,7 +70,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useApprenticeship', () => ({
   useApprentices: () => mockApprentices,
   useMentorAvailability: () => mockMentors,
   registerApprentice: vi.fn(),

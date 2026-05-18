@@ -24,7 +24,7 @@ import type {
   ConfidentialReportsListResponse,
   RetaliationAlertsResponse,
   RetaliationAlertApi,
-} from '../hooks/useSprintK';
+} from '../hooks/useConfidentialReports';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -80,7 +80,7 @@ vi.mock('../contexts/FirebaseContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useConfidentialReports', () => ({
   useConfidentialReports: () => mockReports,
   useRetaliationAlerts: () => mockRetaliation,
   submitConfidentialReport: (...args: unknown[]) => submitConfidentialReport(...args),

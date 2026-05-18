@@ -61,7 +61,7 @@ import {
   type DrivingRoutesStatus,
   type DrivingDriver,
   type DrivingRankingEntry,
-} from '../hooks/useSprintK';
+} from '../hooks/useDrivingSafety';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────

@@ -6,16 +6,22 @@
 import { auth } from '../services/firebase';
 import { useEndpoint } from './_fetchUtils';
 
+// Codex P1 fix: enums alineados al server (Codex P1 sesión 2026-05-18).
+// Antes eran labels en español (acoso_laboral, baja/media/...); el server
+// usa los canónicos en inglés que el UI también espera.
 export type ConfidentialReportKindApi =
-  | 'acoso_laboral'
-  | 'acoso_sexual'
-  | 'violencia'
-  | 'discriminacion'
-  | 'falta_etica'
-  | 'incumplimiento_seguridad'
-  | 'otro';
+  | 'harassment'
+  | 'safety'
+  | 'discrimination'
+  | 'violence'
+  | 'conflict_of_interest'
+  | 'other';
 
-export type ConfidentialReportSeverity = 'baja' | 'media' | 'alta' | 'critica';
+export type ConfidentialReportSeverity =
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'critical';
 
 export type ConfidentialReportStatusApi =
   | 'open'
