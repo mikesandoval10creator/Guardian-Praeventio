@@ -213,6 +213,8 @@ import rootCauseInvestigationRouter from "./src/server/routes/rootCauseInvestiga
 import skillGapRouter from "./src/server/routes/skillGap.js";
 // Pricing Simulator — Sprint K §171-179 (tier estimation + break-even).
 import pricingSimulatorRouter from "./src/server/routes/pricingSimulator.js";
+// F.23 Document Versioning — semver chains with immutability.
+import documentVersioningRouter from "./src/server/routes/documentVersioning.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -862,6 +864,7 @@ app.use('/api/sprint-k', multiProjectRouter);
 app.use('/api/sprint-k', rootCauseInvestigationRouter);
 app.use('/api/sprint-k', skillGapRouter);
 app.use('/api/sprint-k', pricingSimulatorRouter);
+app.use('/api/sprint-k', documentVersioningRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
