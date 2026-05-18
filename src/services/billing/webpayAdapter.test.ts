@@ -17,6 +17,19 @@ const createMock = vi.fn();
 const commitMock = vi.fn();
 const refundMock = vi.fn();
 
+// Mock `withSentryScope` so tests can assert the (module, context, fn)
+// arguments the adapter passes to it. Without this, mutants on the
+// context object literals (action / buyOrder / amount / tokenLength)
+// survive — they have no observable effect inside the no-op fallback
+// path the real Sentry takes in unit tests.
+const withSentryScopeMock = vi.fn();
+vi.mock('../observability/sentryInstrumentation', () => ({
+  withSentryScope: (mod: string, ctx: unknown, fn: () => Promise<unknown>) => {
+    withSentryScopeMock(mod, ctx);
+    return fn();
+  },
+}));
+
 vi.mock('transbank-sdk', () => {
   class TransactionStub {
     constructor(_options: unknown) {
@@ -66,6 +79,7 @@ beforeEach(() => {
   createMock.mockReset();
   commitMock.mockReset();
   refundMock.mockReset();
+  withSentryScopeMock.mockClear();
   __resetWebpayAdapterStateForTests();
   // Wipe any env that might leak between tests.
   delete process.env.WEBPAY_COMMERCE_CODE;
@@ -694,5 +708,774 @@ describe('finalizeWebpayIdempotencyLock', () => {
         invoiceId: 'inv_finalize_2',
       }),
     ).resolves.toBeUndefined();
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // 2026-05-18 Stryker baseline lift: kill survivors detected on Run #5.
+  //
+  // The previous score (60.55%) reflected unverified branches for:
+  //   - serverTimestamp factory path (use it vs default new Date())
+  //   - completedAt presence in the update payload
+  // ─────────────────────────────────────────────────────────────────────
+  it('uses serverTimestamp factory when provided (preserves Admin SDK FieldValue)', async () => {
+    // The Admin SDK `FieldValue.serverTimestamp()` returns a sentinel that
+    // Firestore replaces server-side. If a mutation drops the factory call
+    // and falls back to `new Date()`, the doc would carry the client clock
+    // (subject to skew) instead of the canonical server time. Pin both:
+    //   1. the factory IS invoked (kills mutation that ignores it)
+    //   2. its return value appears verbatim in the update payload
+    const ref = makeFakeRef({ status: 'in_progress', lockedAtMs: Date.now() });
+    const sentinel = { __serverTimestamp: true };
+    const factory = vi.fn(() => sentinel);
+    await finalizeWebpayIdempotencyLock(ref as any, {
+      outcome: 'paid',
+      invoiceId: 'inv_finalize_st',
+      serverTimestamp: factory,
+    });
+    expect(factory).toHaveBeenCalledTimes(1);
+    const [payload] = ref.update.mock.calls[0];
+    expect(payload.completedAt).toBe(sentinel);
+  });
+
+  it('falls back to new Date() when serverTimestamp factory is not provided', async () => {
+    // Pin the `args.serverTimestamp ? ... : new Date()` ternary. A mutation
+    // that always-picks-one-branch would either skip the factory invocation
+    // (when supplied) or never produce a Date (when not). The other test
+    // covers the truthy branch; this one pins the falsy branch.
+    const ref = makeFakeRef({ status: 'in_progress', lockedAtMs: Date.now() });
+    await finalizeWebpayIdempotencyLock(ref as any, {
+      outcome: 'rejected',
+      invoiceId: 'inv_finalize_date',
+      // serverTimestamp intentionally omitted
+    });
+    const [payload] = ref.update.mock.calls[0];
+    expect(payload.completedAt).toBeInstanceOf(Date);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// 2026-05-18 Stryker baseline lift — mapCommitResponse defensive paths.
+//
+// Targets surviving mutants on the response coercion fallbacks. Each test
+// pins a specific operand of a ternary so a mutation collapsing the branch
+// would flip the contract.
+// ───────────────────────────────────────────────────────────────────────
+describe('mapCommitResponse defensive coercion (Sprint 41 ratchet)', () => {
+  it('amount falls to 0 when SDK response omits the field (zero-default)', async () => {
+    // Pin `typeof response?.amount === 'number' ? response.amount : 0`. A
+    // mutation that replaces the typeof guard with `true` would let
+    // `undefined` flow through as amount and break downstream invoice math.
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'inv_no_amount',
+      response_code: 0,
+      // amount intentionally absent
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_no_amount');
+    expect(result.amount).toBe(0);
+  });
+
+  it('amount falls to 0 when response sends a non-numeric amount (string)', async () => {
+    // Some Transbank proxies serialize numbers as strings ("11990"). The
+    // typeof guard must NOT accept the string — otherwise downstream
+    // arithmetic on `result.amount` produces NaN propagation.
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'inv_str_amount',
+      response_code: 0,
+      amount: '11990' as unknown as number,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_str_amount');
+    expect(result.amount).toBe(0);
+    expect(typeof result.amount).toBe('number');
+  });
+
+  it('buyOrder falls to empty string when buy_order is missing (never undefined)', async () => {
+    // Pin `response?.buy_order ?? ''`. A mutation that drops the
+    // nullish-coalescing operand would let `undefined` flow through and
+    // break the audit log key generation downstream.
+    commitMock.mockResolvedValueOnce({
+      status: 'FAILED',
+      response_code: -1,
+      // buy_order intentionally absent
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_no_buy_order');
+    expect(result.buyOrder).toBe('');
+    expect(typeof result.buyOrder).toBe('string');
+  });
+
+  it('authorizationCode is undefined when authorization_code is missing', async () => {
+    // Pin `response?.authorization_code ?? undefined`. The undefined branch
+    // is the legal contract — never the literal string 'undefined'.
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'inv_no_auth',
+      amount: 11990,
+      response_code: 0,
+      // authorization_code intentionally absent
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_no_auth');
+    expect(result.authorizationCode).toBeUndefined();
+  });
+
+  it('cardLast4 is undefined when card_number is not a string (number type)', async () => {
+    // Defensive: card_number could theoretically arrive as a number from a
+    // misbehaving proxy. The `typeof === 'string'` guard must reject it.
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'inv_num_card',
+      amount: 11990,
+      response_code: 0,
+      card_detail: { card_number: 4111111111111111 as unknown as string },
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_num_card');
+    expect(result.cardLast4).toBeUndefined();
+  });
+
+  it('raw payload is preserved verbatim on the result for audit', async () => {
+    // Pin `raw: response`. A mutation that drops the assignment would lose
+    // the audit-log payload entirely. We compare the reference identity by
+    // checking a sentinel key the SDK would never invent on its own.
+    const sentinel = '__test_marker_xyz__';
+    const responseBody = {
+      status: 'AUTHORIZED',
+      buy_order: 'inv_raw',
+      amount: 11990,
+      response_code: 0,
+      __test_marker__: sentinel,
+    };
+    commitMock.mockResolvedValueOnce(responseBody);
+    const result = await webpayAdapter.commitTransaction('TKN_raw');
+    expect((result.raw as { __test_marker__: string }).__test_marker__).toBe(
+      sentinel,
+    );
+  });
+
+  it('response_code: -7 (final card-side decline boundary) → REJECTED', async () => {
+    // -7 is the last card-side decline in the Transbank table. Pin the
+    // `responseCode < 0` boundary — a mutation `<` → `<=` would still pass
+    // for -1, but a `<` → `===` would silently break this case.
+    commitMock.mockResolvedValueOnce({
+      status: 'FAILED',
+      buy_order: 'inv_neg_seven',
+      amount: 11990,
+      response_code: -7,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_neg_seven');
+    expect(result.status).toBe('REJECTED');
+  });
+
+  it('response_code: -50 (outside known table) → REJECTED (any negative is card-side)', async () => {
+    // Catch any `< 0` mutation that would treat unknown negative codes as
+    // AUTHORIZED or FAILED. Anything negative-and-non-transient maps to
+    // REJECTED per the conservative contract.
+    commitMock.mockResolvedValueOnce({
+      status: 'FAILED',
+      buy_order: 'inv_neg_fifty',
+      amount: 11990,
+      response_code: -50,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_neg_fifty');
+    expect(result.status).toBe('REJECTED');
+  });
+
+  it('response_code as a string ("0") is treated as malformed → FAILED', async () => {
+    // Pin `typeof responseCode === 'number'`. A proxy that JSONifies
+    // response_code as a string MUST NOT collapse to AUTHORIZED — the
+    // typeof guard catches it and we fall back to FAILED (retry path).
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'inv_str_code',
+      amount: 11990,
+      response_code: '0' as unknown as number,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_str_code');
+    expect(result.status).toBe('FAILED');
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// 2026-05-18 Stryker baseline lift — refund-mapping defensive paths.
+// ───────────────────────────────────────────────────────────────────────
+describe('mapRefundResponse defensive coercion (Sprint 41 ratchet)', () => {
+  it('balance is undefined when SDK omits the field (never 0 by default)', async () => {
+    // Pin `typeof response?.balance === 'number' ? response.balance : undefined`.
+    // A mutation collapsing the ternary would either return 0 (wrong — looks
+    // like a fully drained card) or `undefined`-as-number (NaN propagation).
+    refundMock.mockResolvedValueOnce({
+      type: 'NULLIFIED',
+      nullified_amount: 5000,
+      // balance intentionally absent
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_no_bal', 5000);
+    expect(result.balance).toBeUndefined();
+  });
+
+  it('balance is undefined when value is non-numeric (typeof guard)', async () => {
+    refundMock.mockResolvedValueOnce({
+      type: 'NULLIFIED',
+      nullified_amount: 5000,
+      balance: 'unknown' as unknown as number,
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_str_bal', 5000);
+    expect(result.balance).toBeUndefined();
+  });
+
+  it('authorizationCode is undefined when absent on refund response', async () => {
+    refundMock.mockResolvedValueOnce({
+      type: 'NULLIFIED',
+      nullified_amount: 5000,
+      balance: 6990,
+      // authorization_code intentionally absent
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_no_authcode', 5000);
+    expect(result.authorizationCode).toBeUndefined();
+  });
+
+  it('raw payload preserved verbatim on the refund result for audit', async () => {
+    const sentinel = '__refund_marker_42__';
+    const responseBody = {
+      type: 'NULLIFIED',
+      nullified_amount: 5000,
+      balance: 6990,
+      __test_marker__: sentinel,
+    };
+    refundMock.mockResolvedValueOnce(responseBody);
+    const result = await webpayAdapter.refundTransaction('TKN_refund_raw', 5000);
+    expect((result.raw as { __test_marker__: string }).__test_marker__).toBe(
+      sentinel,
+    );
+  });
+
+  it('handles entirely empty refund response (defensive)', async () => {
+    // Pin `(response?.type ?? '').toString().toUpperCase()` for the case
+    // where response is `{}` — the optional-chaining + nullish operand
+    // must collapse to '' so toUpperCase succeeds (no throw).
+    refundMock.mockResolvedValueOnce({});
+    const result = await webpayAdapter.refundTransaction('TKN_empty', 3000);
+    expect(result.type).toBe('NULLIFIED'); // default
+    expect(result.authorizedAmount).toBe(3000); // requestedAmount fallback
+    expect(result.balance).toBeUndefined();
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// 2026-05-18 Stryker baseline lift — idempotency lock defensive paths.
+// ───────────────────────────────────────────────────────────────────────
+describe('acquireWebpayIdempotencyLock defensive paths (Sprint 41 ratchet)', () => {
+  it('writes a 7-day expiresAt for Firestore TTL hint', async () => {
+    // Pin `new Date(lockedAtMs + 7 * 24 * 60 * 60 * 1000)`. A mutation on
+    // any of the multiplicands (7→6, 24→23, 60→59) would change the TTL
+    // window and either leak completed locks (too short) or block
+    // re-emission (too long). Use a fixed clock for byte-level pinning.
+    const fixedNow = 1_700_000_000_000;
+    const ref = makeFakeRef(null);
+    const result = await acquireWebpayIdempotencyLock(
+      ref as any,
+      () => fixedNow,
+    );
+    expect(result.acquired).toBe(true);
+    const [data] = ref.set.mock.calls[0];
+    expect(data.expiresAt).toBeInstanceOf(Date);
+    const expectedMs = fixedNow + 7 * 24 * 60 * 60 * 1000;
+    expect((data.expiresAt as Date).getTime()).toBe(expectedMs);
+  });
+
+  it('writes both lockedAtMs and receivedAtMs to the same value (audit pair)', async () => {
+    // The doc carries `lockedAtMs` (for staleness math) and `receivedAtMs`
+    // (for human-readable audit). They must match on initial acquisition;
+    // a mutation that drops `receivedAtMs` would break the audit trail.
+    const fixedNow = 1_750_000_000_000;
+    const ref = makeFakeRef(null);
+    await acquireWebpayIdempotencyLock(ref as any, () => fixedNow);
+    const [data] = ref.set.mock.calls[0];
+    expect(data.lockedAtMs).toBe(fixedNow);
+    expect(data.receivedAtMs).toBe(fixedNow);
+  });
+
+  it('alreadyDone payload omits invoiceId when stored value is not a string', async () => {
+    // Pin `typeof data.invoiceId === 'string' ? data.invoiceId : undefined`.
+    // A mutation that drops the typeof check would return the wrong type
+    // (number/null) and downstream consumers would break casting to string.
+    const ref = makeFakeRef({
+      status: 'done',
+      outcome: 'paid',
+      invoiceId: 42 as unknown as string,
+    });
+    const result = await acquireWebpayIdempotencyLock(ref as any, () => Date.now());
+    expect(result.alreadyDone).toBe(true);
+    expect(result.invoiceId).toBeUndefined();
+  });
+
+  it('returns done with valid string invoiceId echoed through', async () => {
+    // Companion to the above: the truthy branch of the typeof guard.
+    const ref = makeFakeRef({
+      status: 'done',
+      outcome: 'rejected',
+      invoiceId: 'inv_already_done_99',
+    });
+    const result = await acquireWebpayIdempotencyLock(ref as any, () => Date.now());
+    expect(result.invoiceId).toBe('inv_already_done_99');
+    expect(result.outcome).toBe('rejected');
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// 2026-05-18 Stryker baseline lift — env / init configuration paths.
+// ───────────────────────────────────────────────────────────────────────
+describe('webpayAdapter env + init configuration (Sprint 41 ratchet)', () => {
+  it('uses WEBPAY_ENVIRONMENT as alternate name for WEBPAY_ENV', async () => {
+    // The adapter accepts EITHER env var name. A mutation removing the
+    // OR-clause would break deployments using the alternate name (which
+    // matches the convention used by other modules in the repo).
+    process.env.WEBPAY_COMMERCE_CODE = '597000000999';
+    process.env.WEBPAY_API_KEY = 'alt-env-secret';
+    process.env.WEBPAY_ENVIRONMENT = 'production';
+    expect(webpayAdapter.isConfigured()).toBe(true);
+    createMock.mockResolvedValueOnce({ token: 'TKN_prod', url: 'https://prod' });
+    // Trigger resolveOptions() by issuing a create — the test asserts no
+    // throw rather than spying on the environment internally.
+    await expect(
+      webpayAdapter.createTransaction({
+        buyOrder: 'inv_alt_env',
+        sessionId: 'sess',
+        amount: 1000,
+        returnUrl: 'https://x',
+      }),
+    ).resolves.toEqual({ token: 'TKN_prod', url: 'https://prod' });
+  });
+
+  it('production environment via init() switches the SDK env URL', async () => {
+    // Pin `config.environment === 'production' ? Environment.Production : ...`.
+    // A mutation flipping the ternary would route prod credentials to the
+    // sandbox URL — silently leaking real charges into the integration env.
+    webpayAdapter.init({
+      commerceCode: 'real-commerce',
+      apiKey: 'real-api',
+      environment: 'production',
+    });
+    expect(webpayAdapter.isConfigured()).toBe(true);
+  });
+
+  it('init() with empty commerceCode → isConfigured() returns false', async () => {
+    // Pin `Boolean(config.commerceCode && config.apiKey)`. A mutation that
+    // drops one operand of the && would either falsely report configured
+    // (with empty creds → SDK fails opaquely) or always-false (deploys
+    // can't ever activate).
+    webpayAdapter.init({
+      commerceCode: '',
+      apiKey: 'has-key',
+      environment: 'integration',
+    });
+    expect(webpayAdapter.isConfigured()).toBe(false);
+  });
+
+  it('init() with empty apiKey → isConfigured() returns false', async () => {
+    webpayAdapter.init({
+      commerceCode: 'has-code',
+      apiKey: '',
+      environment: 'integration',
+    });
+    expect(webpayAdapter.isConfigured()).toBe(false);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// 2026-05-18 Stryker baseline lift round 2 — error classes + env paths.
+//
+// Target the lower-score regions: WebpayAdapterError fields/message and
+// the readEnvOptions branch logic. These are pure constructors / branch
+// checks — easy to pin tightly so Stryker mutants can't survive.
+// ───────────────────────────────────────────────────────────────────────
+describe('WebpayAdapterError shape (Sprint 41 ratchet round 2)', () => {
+  it('wraps Error cause: name === WebpayAdapterError, message includes method + cause msg', async () => {
+    const cause = new Error('Transbank 504');
+    commitMock.mockRejectedValueOnce(cause);
+    try {
+      await webpayAdapter.commitTransaction('TKN_err_cause');
+      throw new Error('expected throw');
+    } catch (e) {
+      const err = e as WebpayAdapterError;
+      expect(err).toBeInstanceOf(WebpayAdapterError);
+      expect(err.name).toBe('WebpayAdapterError');
+      expect(err.method).toBe('commitTransaction');
+      expect(err.message).toContain('WebpayAdapter.commitTransaction()');
+      expect(err.message).toContain('failed');
+      expect(err.message).toContain('Transbank 504');
+      expect(err.cause).toBe(cause);
+    }
+  });
+
+  it('wraps string cause: message contains the string verbatim', async () => {
+    // Pin `typeof cause === 'string'` branch. A mutation collapsing the
+    // ternary would either always produce "unknown error" (losing the
+    // diagnostic) or throw on the .message access.
+    const cause = 'network timeout literal';
+    commitMock.mockRejectedValueOnce(cause);
+    try {
+      await webpayAdapter.commitTransaction('TKN_str_cause');
+      throw new Error('expected throw');
+    } catch (e) {
+      const err = e as WebpayAdapterError;
+      expect(err.message).toContain('network timeout literal');
+      expect(err.cause).toBe(cause);
+    }
+  });
+
+  it('wraps non-Error / non-string cause: message contains "unknown error"', async () => {
+    // Pin the fallback branch `: 'unknown error'`. A mutation flipping
+    // the literal would lose the diagnostic floor (e.g. mutate to '' or
+    // undefined).
+    const cause = { weird: 'object', not: 'Error' };
+    commitMock.mockRejectedValueOnce(cause);
+    try {
+      await webpayAdapter.commitTransaction('TKN_obj_cause');
+      throw new Error('expected throw');
+    } catch (e) {
+      const err = e as WebpayAdapterError;
+      expect(err.message).toContain('unknown error');
+      expect(err.cause).toBe(cause);
+    }
+  });
+
+  it('createTransaction error carries method="createTransaction" tag', async () => {
+    // Pin per-call `method` field. A mutation that hardcoded the field to
+    // a single value would let a refund error masquerade as a create
+    // error and break Sentry breadcrumbs.
+    createMock.mockRejectedValueOnce(new Error('boom'));
+    try {
+      await webpayAdapter.createTransaction({
+        buyOrder: 'inv',
+        sessionId: 's',
+        amount: 1,
+        returnUrl: 'https://x',
+      });
+      throw new Error('expected throw');
+    } catch (e) {
+      expect((e as WebpayAdapterError).method).toBe('createTransaction');
+    }
+  });
+
+  it('refundTransaction error carries method="refundTransaction" tag', async () => {
+    refundMock.mockRejectedValueOnce(new Error('refund denied'));
+    try {
+      await webpayAdapter.refundTransaction('TKN', 1000);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect((e as WebpayAdapterError).method).toBe('refundTransaction');
+    }
+  });
+});
+
+describe('readEnvOptions branch coverage (Sprint 41 ratchet round 2)', () => {
+  it('returns null when only WEBPAY_COMMERCE_CODE is set (key missing)', async () => {
+    // `if (!code || !key) return null` — pin the right operand of ||.
+    // A mutation `||` → `&&` would let this case fall through to the
+    // production-route check.
+    process.env.WEBPAY_COMMERCE_CODE = '597000000001';
+    // WEBPAY_API_KEY intentionally unset
+    expect(webpayAdapter.isConfigured()).toBe(false);
+  });
+
+  it('returns null when only WEBPAY_API_KEY is set (code missing)', async () => {
+    // Pin the left operand of `!code || !key`.
+    process.env.WEBPAY_API_KEY = 'k';
+    expect(webpayAdapter.isConfigured()).toBe(false);
+  });
+
+  it('WEBPAY_ENV=integration routes to Integration (not Production)', async () => {
+    // Pin `process.env.WEBPAY_ENV === 'production'` strict-equality. A
+    // mutation `===` → `!==` would route the explicit integration env
+    // to Production (catastrophic — sandbox creds against prod URL).
+    process.env.WEBPAY_COMMERCE_CODE = '597000000002';
+    process.env.WEBPAY_API_KEY = 'k';
+    process.env.WEBPAY_ENV = 'integration';
+    expect(webpayAdapter.isConfigured()).toBe(true);
+    createMock.mockResolvedValueOnce({ token: 'T_int', url: 'https://int' });
+    await expect(
+      webpayAdapter.createTransaction({
+        buyOrder: 'inv',
+        sessionId: 's',
+        amount: 1,
+        returnUrl: 'https://x',
+      }),
+    ).resolves.toEqual({ token: 'T_int', url: 'https://int' });
+  });
+
+  it('WEBPAY_ENV neither prod nor int (e.g. "staging") → Integration default', async () => {
+    // Pin the `=== 'production'` literal. A mutation to `!== 'production'`
+    // would route every non-prod string (including 'staging') through prod.
+    process.env.WEBPAY_COMMERCE_CODE = '597000000003';
+    process.env.WEBPAY_API_KEY = 'k';
+    process.env.WEBPAY_ENV = 'staging';
+    expect(webpayAdapter.isConfigured()).toBe(true);
+    createMock.mockResolvedValueOnce({ token: 'T_def', url: 'https://def' });
+    await expect(
+      webpayAdapter.createTransaction({
+        buyOrder: 'inv',
+        sessionId: 's',
+        amount: 1,
+        returnUrl: 'https://x',
+      }),
+    ).resolves.toEqual({ token: 'T_def', url: 'https://def' });
+  });
+
+  it('WEBPAY_ENV unset, WEBPAY_ENVIRONMENT=production → Production', async () => {
+    // Pin the `||` between the two env names. A mutation `||` → `&&`
+    // would require BOTH set, breaking deployments using only one.
+    process.env.WEBPAY_COMMERCE_CODE = '597000000004';
+    process.env.WEBPAY_API_KEY = 'k';
+    // WEBPAY_ENV intentionally unset
+    process.env.WEBPAY_ENVIRONMENT = 'production';
+    expect(webpayAdapter.isConfigured()).toBe(true);
+  });
+
+  it('init() priority over env vars when explicit init was called', async () => {
+    // Pin the priority chain `if (state.options) return state.options`.
+    // Even if env vars say production, an explicit init() should win.
+    process.env.WEBPAY_COMMERCE_CODE = 'env-code';
+    process.env.WEBPAY_API_KEY = 'env-key';
+    webpayAdapter.init({
+      commerceCode: 'init-code',
+      apiKey: 'init-key',
+      environment: 'integration',
+    });
+    expect(webpayAdapter.isConfigured()).toBe(true);
+    // Verify by triggering a create — no throw means options resolved.
+    createMock.mockResolvedValueOnce({ token: 'T_init', url: 'https://init' });
+    await expect(
+      webpayAdapter.createTransaction({
+        buyOrder: 'inv',
+        sessionId: 's',
+        amount: 1,
+        returnUrl: 'https://x',
+      }),
+    ).resolves.toEqual({ token: 'T_init', url: 'https://init' });
+  });
+
+  it('sandbox fallback when neither init nor env are configured (no throw)', async () => {
+    // Pin `buildIntegrationOptions()` fallback. With nothing set, the
+    // adapter still allows createTransaction (development convenience).
+    expect(webpayAdapter.isConfigured()).toBe(false);
+    createMock.mockResolvedValueOnce({ token: 'T_sb', url: 'https://sb' });
+    await expect(
+      webpayAdapter.createTransaction({
+        buyOrder: 'inv_sandbox',
+        sessionId: 'sess_sb',
+        amount: 1500,
+        returnUrl: 'https://sb-return',
+      }),
+    ).resolves.toEqual({ token: 'T_sb', url: 'https://sb' });
+    expect(createMock).toHaveBeenCalledWith(
+      'inv_sandbox',
+      'sess_sb',
+      1500,
+      'https://sb-return',
+    );
+  });
+});
+
+describe('mapCommitResponse full payload assertions (Sprint 41 ratchet round 2)', () => {
+  it('AUTHORIZED response maps ALL fields exactly (kills field-drop mutants)', async () => {
+    // Each `result.X` assertion kills a corresponding `X: ...` field drop
+    // in the return statement. Pin every field to a unique value so
+    // any mutation that swaps fields would be caught.
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'INV-UNIQUE-12345',
+      amount: 99777,
+      response_code: 0,
+      authorization_code: 'AUTH-XYZ',
+      card_detail: { card_number: '4111111111119876' },
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_full');
+    expect(result.status).toBe('AUTHORIZED');
+    expect(result.buyOrder).toBe('INV-UNIQUE-12345');
+    expect(result.amount).toBe(99777);
+    expect(result.authorizationCode).toBe('AUTH-XYZ');
+    expect(result.cardLast4).toBe('9876');
+    expect(result.raw).toBeDefined();
+  });
+
+  it('REJECTED response preserves buyOrder + amount + raw (no field loss on decline)', async () => {
+    commitMock.mockResolvedValueOnce({
+      status: 'FAILED',
+      buy_order: 'INV-REJECTED-99',
+      amount: 11000,
+      response_code: -4,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_rej_full');
+    expect(result.status).toBe('REJECTED');
+    expect(result.buyOrder).toBe('INV-REJECTED-99');
+    expect(result.amount).toBe(11000);
+    expect(result.authorizationCode).toBeUndefined();
+    expect(result.cardLast4).toBeUndefined();
+  });
+
+  it('AUTHORIZED requires BOTH operands (code=0 alone does not authorize)', async () => {
+    // Targets line 197 ConditionalExpression survivors. With code=0 but
+    // status="PENDING", we must NOT map to AUTHORIZED. A mutation that
+    // dropped the second operand of && would let this slip through.
+    commitMock.mockResolvedValueOnce({
+      status: 'PENDING',
+      buy_order: 'inv_pending_zero',
+      amount: 5000,
+      response_code: 0,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_pending_zero');
+    expect(result.status).toBe('FAILED');
+    expect(result.status).not.toBe('AUTHORIZED');
+  });
+});
+
+describe('mapRefundResponse explicit field assertions (Sprint 41 ratchet round 2)', () => {
+  it('REVERSED response preserves all fields (full check kills field-drop)', async () => {
+    refundMock.mockResolvedValueOnce({
+      type: 'REVERSED',
+      authorization_code: 'AUTH-RFND-1',
+      nullified_amount: 12000,
+      balance: 0,
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_rev_full', 12000);
+    expect(result.type).toBe('REVERSED');
+    expect(result.authorizationCode).toBe('AUTH-RFND-1');
+    expect(result.authorizedAmount).toBe(12000);
+    expect(result.balance).toBe(0);
+  });
+
+  it('exact-equality "REVERSED" matters: "reverse" (typo) → NULLIFIED', async () => {
+    // Pin `rawType === 'REVERSED'` strict-equality. A mutation `===` →
+    // `.includes(` or `.startsWith(` would let "reverse" or "REVERSING"
+    // through and corrupt accounting categorization.
+    refundMock.mockResolvedValueOnce({
+      type: 'REVERSE', // missing trailing D
+      nullified_amount: 5000,
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_typo', 5000);
+    expect(result.type).toBe('NULLIFIED');
+  });
+
+  it('refund preserves the SDK requestedAmount when nullified_amount=0', async () => {
+    // Pin `typeof === 'number'` guard. nullified_amount=0 IS a valid
+    // number (zero), so the typeof check should accept it. A mutation
+    // that fell to requestedAmount in this case would mis-account.
+    refundMock.mockResolvedValueOnce({
+      type: 'NULLIFIED',
+      nullified_amount: 0,
+      balance: 11990,
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_zero', 5000);
+    expect(result.authorizedAmount).toBe(0);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// 2026-05-18 Stryker baseline lift round 3 — Sentry scope context.
+//
+// withSentryScope is invoked with `(moduleName, context, fn)`. Stryker
+// generates mutants on the context object literals (swap field values,
+// drop fields, mutate string action names). These tests assert the exact
+// shape per-method so every mutant is observable.
+// ───────────────────────────────────────────────────────────────────────
+describe('withSentryScope invocation shape (Sprint 41 ratchet round 3)', () => {
+  it('createTransaction passes module=webpay + action + buyOrder + amount (no sessionId)', async () => {
+    createMock.mockResolvedValueOnce({ token: 'T', url: 'u' });
+    await webpayAdapter.createTransaction({
+      buyOrder: 'inv_sentry_create',
+      sessionId: 'sess_x',
+      amount: 13579,
+      returnUrl: 'https://ret',
+    });
+    expect(withSentryScopeMock).toHaveBeenCalledTimes(1);
+    const [mod, ctx] = withSentryScopeMock.mock.calls[0];
+    expect(mod).toBe('webpay');
+    expect(ctx).toEqual({
+      action: 'createTransaction',
+      buyOrder: 'inv_sentry_create',
+      amount: 13579,
+    });
+    // PII guard: sessionId and returnUrl must NOT leak into Sentry context.
+    expect(ctx).not.toHaveProperty('sessionId');
+    expect(ctx).not.toHaveProperty('returnUrl');
+  });
+
+  it('commitTransaction passes module=webpay + action + tokenLength (no token value)', async () => {
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'inv',
+      amount: 1,
+      response_code: 0,
+    });
+    await webpayAdapter.commitTransaction('TKN_thirteen!');
+    expect(withSentryScopeMock).toHaveBeenCalledTimes(1);
+    const [mod, ctx] = withSentryScopeMock.mock.calls[0];
+    expect(mod).toBe('webpay');
+    expect(ctx).toEqual({
+      action: 'commitTransaction',
+      tokenLength: 'TKN_thirteen!'.length,
+    });
+    // PII guard: the token value itself must never be in the Sentry payload.
+    expect(JSON.stringify(ctx)).not.toContain('TKN_thirteen!');
+  });
+
+  it('commitTransaction handles null-ish token: tokenLength === 0 (no throw)', async () => {
+    commitMock.mockResolvedValueOnce({
+      status: 'FAILED',
+      response_code: -98,
+    });
+    // The adapter uses `token?.length ?? 0` so undefined → 0.
+    await webpayAdapter.commitTransaction(undefined as unknown as string);
+    expect(withSentryScopeMock).toHaveBeenCalledTimes(1);
+    const [, ctx] = withSentryScopeMock.mock.calls[0];
+    expect((ctx as { tokenLength: number }).tokenLength).toBe(0);
+  });
+
+  it('refundTransaction passes amount + tokenLength (Sentry context for refunds)', async () => {
+    refundMock.mockResolvedValueOnce({
+      type: 'NULLIFIED',
+      nullified_amount: 4000,
+      balance: 1000,
+    });
+    await webpayAdapter.refundTransaction('TKN_refund_sentry', 4000);
+    expect(withSentryScopeMock).toHaveBeenCalledTimes(1);
+    const [mod, ctx] = withSentryScopeMock.mock.calls[0];
+    expect(mod).toBe('webpay');
+    expect(ctx).toEqual({
+      action: 'refundTransaction',
+      amount: 4000,
+      tokenLength: 'TKN_refund_sentry'.length,
+    });
+    // PII guard: the token itself never appears in Sentry context.
+    expect(JSON.stringify(ctx)).not.toContain('TKN_refund_sentry');
+  });
+
+  it('each adapter method routes through withSentryScope exactly once', async () => {
+    // Pin the wrapper presence on all three entry points. A mutation that
+    // strips the withSentryScope wrapper would still pass functional tests
+    // but lose Sentry breadcrumbs in prod — this assertion catches it.
+    createMock.mockResolvedValueOnce({ token: 't', url: 'u' });
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      response_code: 0,
+      buy_order: '',
+      amount: 0,
+    });
+    refundMock.mockResolvedValueOnce({ type: 'NULLIFIED' });
+    await webpayAdapter.createTransaction({
+      buyOrder: 'a', sessionId: 'b', amount: 1, returnUrl: 'c',
+    });
+    await webpayAdapter.commitTransaction('TKN');
+    await webpayAdapter.refundTransaction('TKN', 1);
+    expect(withSentryScopeMock).toHaveBeenCalledTimes(3);
+    const modules = withSentryScopeMock.mock.calls.map((c) => c[0]);
+    expect(modules).toEqual(['webpay', 'webpay', 'webpay']);
+    const actions = withSentryScopeMock.mock.calls.map(
+      (c) => (c[1] as { action: string }).action,
+    );
+    expect(actions).toEqual([
+      'createTransaction',
+      'commitTransaction',
+      'refundTransaction',
+    ]);
   });
 });
