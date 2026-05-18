@@ -249,7 +249,7 @@ export function SusesoReports() {
         </div>
         {/* Sprint 29 EE — citas normativas dinámicas. NONCONFORMITY_CORRECTIVE_ACTION
             mapea a DS 109 (Chile), OSHA 1904 (US), RIDDOR (UK),
-            CLC Â§125 (CA), WHS Act Part 3 (AU). */}
+            CLC §125 (CA), WHS Act Part 3 (AU). */}
         <RegulatoryCitation
           controlId="NONCONFORMITY_CORRECTIVE_ACTION"
           tenantCountry={selectedProject?.country ?? 'CL'}
@@ -305,7 +305,7 @@ export function SusesoReports() {
                     <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-4">
                       <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Incidentes Registrados (Proyecto)</h4>
                       <p className="text-2xl font-black text-zinc-900 dark:text-white">{incidents.length} <span className="text-xs font-medium text-zinc-500">totales</span></p>
-                      <p className="text-[10px] text-zinc-500 mt-2">{resolvedIncidents} resueltos Â· {incidents.length - resolvedIncidents} activos</p>
+                      <p className="text-[10px] text-zinc-500 mt-2">{resolvedIncidents} resueltos · {incidents.length - resolvedIncidents} activos</p>
                     </div>
                     <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-4">
                       <h4 className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1">Ahorro Estimado (30% prevención)</h4>
@@ -408,7 +408,7 @@ export function SusesoReports() {
                       ) : currentSusesoState?.status === 'received' ? (
                         <>
                           <CheckCircle2 className="w-4 h-4" />
-                          {`Recibido Â· ${currentSusesoState.folio ?? ''}`}
+                          {`Recibido · ${currentSusesoState.folio ?? ''}`}
                         </>
                       ) : currentSusesoState?.status === 'rejected' ? (
                         <>

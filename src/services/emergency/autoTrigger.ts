@@ -98,7 +98,7 @@ export function pushCompanyEmergency(active: boolean): void {
 // Sismo bridge — DeviceMotion sliding 1s window
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-const G = 9.80665; // m/sÂ² â†’ 1 g
+const G = 9.80665; // m/s² â†’ 1 g
 // Sismic threshold rationale: most consumer phones report ~1g at rest
 // (gravity vector). A genuine MMI VI+ ground motion produces peak
 // horizontal accelerations >0.6g sustained for hundreds of ms. The
@@ -194,7 +194,7 @@ function debounced(key: string, active: boolean, nowMs: number = Date.now()): bo
 
 /**
  * Adverse climate: trigger on >80 km/h wind, storm/tornado conditions,
- * or temperature outside the [-5, 45] Â°C band.
+ * or temperature outside the [-5, 45] °C band.
  */
 export async function checkAdverseClimate(): Promise<boolean> {
   const { windKmh, conditions, temperatureC } = weatherSnapshot;

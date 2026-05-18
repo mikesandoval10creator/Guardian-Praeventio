@@ -1,4 +1,4 @@
-// Praeventio Guard — Sprint 35 Bucket (Audit P1 Â§1.3).
+// Praeventio Guard — Sprint 35 Bucket (Audit P1 §1.3).
 //
 // `idempotencyKey()` Express middleware. Stripe-pattern: a client may attach
 // `Idempotency-Key: <opaque-token>` to any mutating route opt-in to the

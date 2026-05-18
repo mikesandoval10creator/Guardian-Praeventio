@@ -182,7 +182,7 @@ describe('GuardianOfflineService.ask', () => {
       cacheImpl: new MemCache(),
     });
     const r = await svc.ask({
-      prompt: 'Â¿Qué hago con un trabajador con sangrado abundante?',
+      prompt: '¿Qué hago con un trabajador con sangrado abundante?',
     });
     expect(r.source).toBe('faq');
     expect(r.citations.length).toBeGreaterThan(0);
@@ -234,7 +234,7 @@ describe('GuardianOfflineService.ask', () => {
     });
     // FAQ match should still return
     const faq = await svc.ask({
-      prompt: 'Â¿Cómo evacuamos esta zona si la salida principal está bloqueada?',
+      prompt: '¿Cómo evacuamos esta zona si la salida principal está bloqueada?',
     });
     expect(faq.source).toBe('faq');
 

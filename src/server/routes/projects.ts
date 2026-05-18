@@ -73,7 +73,7 @@ const resend = new Resend(process.env.RESEND_API_KEY ?? 're_ci_placeholder');
  * `admin.ts` but inlined here to keep the projects route module
  * self-contained. `gerente` is mapped to `executive` (the catalog row 23
  * convention); unknown roles fall through to `worker` so dashboards stay
- * cardinality-bounded (TRACKING_PLAN Â§7).
+ * cardinality-bounded (TRACKING_PLAN §7).
  */
 function mapDomainRole(role: unknown): AnalyticsRole {
   if (typeof role !== 'string') return 'worker';
@@ -126,7 +126,7 @@ function buildInviteEmailHtml({
       <p style="margin:8px 0 0;font-size:11px;color:#d4d4d8;text-align:center;word-break:break-all">O copia este enlace: ${acceptUrl}</p>
     </td></tr>
     <tr><td style="background:#f9fafb;padding:20px 40px;text-align:center">
-      <p style="margin:0;font-size:11px;color:#a1a1aa">Â© ${new Date().getFullYear()} Praeventio Guard Â· Plataforma de Prevención de Riesgos</p>
+      <p style="margin:0;font-size:11px;color:#a1a1aa">© ${new Date().getFullYear()} Praeventio Guard · Plataforma de Prevención de Riesgos</p>
     </td></tr>
   </table></td></tr></table>
 </body></html>`;

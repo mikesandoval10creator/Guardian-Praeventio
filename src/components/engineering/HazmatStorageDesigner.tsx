@@ -121,11 +121,11 @@ export const HazmatStorageDesigner: React.FC = () => {
   }, [roomVolumeM3, inletAreaA1, throatAreaA2, deltaPPa, materialClass, storageType, selectedProject?.id]);
 
   // Bucket B.4 — misting dust suppression: recommend nozzle count from ambient PM10.
-  // OEL DS 594 Art. 65 (sílice respirable) â‰ˆ 0.025 mg/mÂ³; trigger generator if PM10 > 50 Âµg/mÂ³.
+  // OEL DS 594 Art. 65 (sílice respirable) â‰ˆ 0.025 mg/m³; trigger generator if PM10 > 50 µg/m³.
   const mistingResult = useMemo(() => {
     const pm10 = Number(pm10UgM3);
     if (!pm10UgM3 || pm10 <= 0) return null;
-    // Heuristic: 1 nozzle per 50 mÂ³ of room when PM10 > OEL guidance, +1 every 50 Âµg/mÂ³.
+    // Heuristic: 1 nozzle per 50 m³ of room when PM10 > OEL guidance, +1 every 50 µg/m³.
     const baseNozzles = Math.max(1, Math.ceil(Number(roomVolumeM3 || 150) / 50));
     const extraNozzles = Math.max(0, Math.floor((pm10 - 50) / 50));
     const nozzleCount = baseNozzles + extraNozzles;
@@ -153,7 +153,7 @@ export const HazmatStorageDesigner: React.FC = () => {
     const q = Number(leakRateKgS);
     const w = Number(windKmh);
     if (q <= 0 || w <= 0) return null;
-    // Use IDLH proxy for ammonia/H2S class (300 mg/mÂ³). Density per material class heuristic.
+    // Use IDLH proxy for ammonia/H2S class (300 mg/m³). Density per material class heuristic.
     const node = generateGasDispersionNode(
       { id: `leak-${storageType}`, releaseRateKgS: q, idlhMgM3: 300, relativeDensity: 1.2 },
       { windKmh: w, pasquillStability },
@@ -384,7 +384,7 @@ export const HazmatStorageDesigner: React.FC = () => {
               <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-lg px-3 py-2">
                 <p className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">{t('hazmat_designer.q_extraction')}</p>
                 <p className="text-lg font-black text-slate-900 dark:text-white">
-                  {formatEs(venturiResult.q, 4)} <span className="text-xs font-medium text-slate-500">mÂ³/s</span>
+                  {formatEs(venturiResult.q, 4)} <span className="text-xs font-medium text-slate-500">m³/s</span>
                 </p>
               </div>
               <div className={`rounded-lg px-3 py-2 border ${
@@ -437,7 +437,7 @@ export const HazmatStorageDesigner: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
           <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">PM10 ambiente (Âµg/mÂ³)</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">PM10 ambiente (µg/m³)</label>
             <input
               type="number"
               min="0"

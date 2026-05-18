@@ -30,7 +30,7 @@
 //   • Compute: ~15-20 min @ 4 vCPU + 8 GiB â‰ˆ USD 0.05–0.10
 //   • Storage: <50 MB images + ~10 MB mesh per job — pennies/month
 //   • Cloud Tasks: free tier covers <1M dispatches/month
-// Anchored to the budget in DIGITAL_TWIN_GPU_FREE_PLAN.md Â§5.3 (Phase C2).
+// Anchored to the budget in DIGITAL_TWIN_GPU_FREE_PLAN.md §5.3 (Phase C2).
 
 import { Router } from 'express';
 import admin from 'firebase-admin';

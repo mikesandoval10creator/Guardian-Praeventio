@@ -30,7 +30,7 @@ import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { isAdminRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
 import { BsaleAdapter, type DteCreateInput } from '../../services/sii/bsaleAdapter.js';
-// Sprint 36 audit P1 Â§1.4 — DTE generator/signer/PDF renderer are lazy-
+// Sprint 36 audit P1 §1.4 — DTE generator/signer/PDF renderer are lazy-
 // imported so Cloud Run cold-start doesn't pay the xmlbuilder2/pdfkit
 // parse cost for every container; only the first POST /generate pays
 // the ~50-100ms once-per-process import. The endpoint is admin-only and
@@ -324,7 +324,7 @@ dteRouter.post('/generate', verifyAuth, idempotencyKey(), async (req: Request, r
 
   let generated;
   try {
-    // Sprint 36 audit P1 Â§1.4 — `generateDte` is now lazy-imported so the
+    // Sprint 36 audit P1 §1.4 — `generateDte` is now lazy-imported so the
     // call site must `await` it; the underlying function is still sync.
     generated = await generateDte({
       type: body.type,

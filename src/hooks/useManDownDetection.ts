@@ -42,7 +42,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   const INACTIVITY_THRESHOLD = selectedProject?.settings?.manDownInactivityThreshold || 30000;
   const MOVEMENT_THRESHOLD = selectedProject?.settings?.manDownMovementThreshold || 0.5;
   // Jerk threshold for movement detection. Empirical — tune with field data from real
-  // miners/construction workers (PPE, gait, vehicle vibration). 1.5 m/sÂ² roughly
+  // miners/construction workers (PPE, gait, vehicle vibration). 1.5 m/s² roughly
   // separates resting hand tremor / vehicle idle from intentional limb motion.
   const JERK_THRESHOLD = 1.5;
   // ~5 samples â‰ˆ 100–200ms at typical DeviceMotion rates (30–60Hz).
@@ -236,9 +236,9 @@ export function useManDownDetection(options: ManDownOptions = {}) {
       await addDoc(messagesRef, {
         projectId: selectedProject.id,
         senderId: user.uid,
-        senderName: 'SISTEMA AUTOMÃTICO',
+        senderName: 'SISTEMA AUTOMÁTICO',
         senderRole: 'ALERTA MAN DOWN',
-        text: `ðŸš¨ ALERTA CRÃTICA: Se ha detectado una posible caída o inmovilidad prolongada del trabajador ${user.displayName || 'Desconocido'}. Ubicación: ${location}`,
+        text: `ðŸš¨ ALERTA CRÍTICA: Se ha detectado una posible caída o inmovilidad prolongada del trabajador ${user.displayName || 'Desconocido'}. Ubicación: ${location}`,
         type: 'emergency',
         timestamp: serverTimestamp()
       });

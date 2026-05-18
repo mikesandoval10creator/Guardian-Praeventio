@@ -197,7 +197,7 @@ export function buildClaimEmailHtml({
       <p style="margin:8px 0 0;font-size:11px;color:#d4d4d8;text-align:center;word-break:break-all">O copia este enlace: ${magicLink}</p>
     </td></tr>
     <tr><td style="background:#f9fafb;padding:20px 40px;text-align:center">
-      <p style="margin:0;font-size:11px;color:#a1a1aa">Â© ${new Date().getFullYear()} Praeventio Guard Â· Plataforma de Prevención de Riesgos</p>
+      <p style="margin:0;font-size:11px;color:#a1a1aa">© ${new Date().getFullYear()} Praeventio Guard · Plataforma de Prevención de Riesgos</p>
     </td></tr>
   </table></td></tr></table>
 </body></html>`;
