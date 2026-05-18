@@ -251,6 +251,8 @@ import auditChainRouter from "./src/server/routes/auditChain.js";
 import expressBundleRouter from "./src/server/routes/expressBundle.js";
 // Research Mode — Sprint K §191-194 (root cause investigation: tree + comparator + failed control detector).
 import researchModeRouter from "./src/server/routes/researchMode.js";
+// Organizational Metrics — Sprint K §278-283 (silos / friction / closure / chronic / pressure).
+import orgMetricsRouter from "./src/server/routes/orgMetrics.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -919,6 +921,7 @@ app.use('/api/sprint-k', eventReplayRouter);
 app.use('/api/sprint-k', auditChainRouter);
 app.use('/api/sprint-k', expressBundleRouter);
 app.use('/api/sprint-k', researchModeRouter);
+app.use('/api/sprint-k', orgMetricsRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
