@@ -18,7 +18,7 @@ import { EngineeringControls } from './EngineeringControls';
 import type {
   EngineeringControlAPI,
   EngineeringControlsOptions,
-} from '../hooks/useSprintK';
+} from '../hooks/useEngineeringControls';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -73,7 +73,7 @@ vi.mock('../hooks/useOnlineStatus', () => ({
 vi.mock('../services/firebase', () => ({
   auth: { currentUser: { uid: 'caller_uid' } },
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useEngineeringControls', () => ({
   useEngineeringControls: (
     _pid: string | null,
     opts?: EngineeringControlsOptions,

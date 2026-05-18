@@ -46,7 +46,7 @@ import {
   addBrigadeMember,
   addBrigadeResource,
   inspectResource,
-} from '../hooks/useSprintK';
+} from '../hooks/useEmergencyBrigade';
 import type {
   BrigadeRole,
   EmergencyResource,

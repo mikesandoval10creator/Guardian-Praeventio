@@ -438,138 +438,17 @@ export {
   type WorkerReadinessResponse,
 } from "./useWorkerReadiness";
 
-// ────────────────────────────────────────────────────────────────────────
-// §74-78 — Brigada de Emergencia + Recursos
-// ────────────────────────────────────────────────────────────────────────
-//
-// Wrappers para los 4 endpoints `/api/sprint-k/:projectId/emergency-brigade`:
-//   - GET snapshot completo (members + resources + readiness rollup)
-//   - POST member
-//   - POST resource
-//   - POST resource inspection
-//
-// El reporte agregado vive en el servidor (usa `buildBrigadeCoverageReport`
-// + `buildResourceReadinessReport`); aquí solo se expone como `data` al
-// componente.
-
-import type {
-  BrigadeMember,
-  BrigadeRole,
-  EmergencyResource,
-  BrigadeCoverageReport,
-  ResourceReadinessReport,
-} from '../services/emergencyBrigade/emergencyBrigadeService';
-
-export interface EmergencyBrigadeSnapshotResponse {
-  members: (BrigadeMember & { id: string })[];
-  resources: EmergencyResource[];
-  brigade: BrigadeCoverageReport;
-  resourceReadiness: ResourceReadinessReport;
-  /** green | amber | rose — rollup para el banner del page. */
-  readinessLevel: 'green' | 'amber' | 'rose';
-}
-
-export function useEmergencyBrigade(projectId: string | null) {
-  return useEndpoint<EmergencyBrigadeSnapshotResponse>(
-    projectId ? `/api/sprint-k/${projectId}/emergency-brigade` : null,
-  );
-}
-
-export interface AddBrigadeMemberPayload {
-  workerUid: string;
-  role: BrigadeRole;
-  trainedAt: string;
-  trainingValidYears?: number;
-  active?: boolean;
-}
-
-export async function addBrigadeMember(
-  projectId: string,
-  payload: AddBrigadeMemberPayload,
-): Promise<{ ok: true; id: string }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/emergency-brigade/members`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as { ok: true; id: string };
-}
-
-export interface AddBrigadeResourcePayload {
-  kind: EmergencyResource['kind'];
-  location: string;
-  lastInspectedAt: string;
-  nextExpirationAt: string;
-  operational?: boolean;
-}
-
-export async function addBrigadeResource(
-  projectId: string,
-  payload: AddBrigadeResourcePayload,
-): Promise<{ ok: true; id: string }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/emergency-brigade/resources`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as { ok: true; id: string };
-}
-
-export interface InspectResourcePayload {
-  inspectedAt: string;
-  operational: boolean;
-  nextExpirationAt?: string;
-  notes?: string;
-}
-
-export async function inspectResource(
-  projectId: string,
-  resourceId: string,
-  payload: InspectResourcePayload,
-): Promise<{ ok: true; inspectionId: string }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/emergency-brigade/resources/${resourceId}/inspect`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as { ok: true; inspectionId: string };
-}
+// §74-78 Emergency Brigade hooks migrados a useEmergencyBrigade.ts (2026-05-18).
+export {
+  useEmergencyBrigade,
+  addBrigadeMember,
+  addBrigadeResource,
+  inspectResource,
+  type EmergencyBrigadeSnapshotResponse,
+  type AddBrigadeMemberPayload,
+  type AddBrigadeResourcePayload,
+  type InspectResourcePayload,
+} from "./useEmergencyBrigade";
 
 // §214-215 listing + balance hooks migrados a `usePositiveObservations.ts` (2026-05-18).
 export {
@@ -597,158 +476,19 @@ export {
   type InspectionObservationPayload,
 } from "./useOfflineInspections";
 
-// ────────────────────────────────────────────────────────────────────────
-// §42-44 — Inventario Controles de Ingeniería + Jerarquía ISO 31000
-// ────────────────────────────────────────────────────────────────────────
-//
-// Hooks + mutations para el inventario de controles aplicados según
-// la jerarquía ISO 31000 / 45001:
-//   elimination > substitution > engineering > administrative > epp
-//
-// Endpoints en `src/server/routes/sprintK.ts`:
-//   GET    /api/sprint-k/:projectId/engineering-controls?level=...&riskCategory=...
-//   POST   /api/sprint-k/:projectId/engineering-controls
-//   POST   /api/sprint-k/:projectId/engineering-controls/:id/verify
-
-export type EngineeringControlLevelAPI =
-  | 'elimination'
-  | 'substitution'
-  | 'engineering'
-  | 'administrative'
-  | 'epp';
-
-export interface EngineeringControlVerificationAPI {
-  verifierUid: string;
-  verifiedAt: string;
-  result: 'pass' | 'observation' | 'fail';
-  evidence?: string;
-}
-
-export interface EngineeringControlAPI {
-  id: string;
-  level: EngineeringControlLevelAPI;
-  riskCategory: string;
-  name: string;
-  description: string;
-  responsibleUid: string;
-  verificationFrequencyDays: number;
-  createdAt: string;
-  createdBy: string;
-  lastVerifiedAt: string | null;
-  verifications: EngineeringControlVerificationAPI[];
-}
-
-export interface EngineeringControlsResponse {
-  controls: EngineeringControlAPI[];
-  /**
-   * Codex P2 (PR #319): present when the server's best-effort read of
-   * the `engineering_controls` collection threw (transient Firestore /
-   * permissions / backend error). The list is still returned (possibly
-   * empty) so the page renders, but the UI must show a degraded-data
-   * banner instead of treating it as a clean empty inventory.
-   */
-  warning?: 'partial_read_failure';
-}
-
-export interface EngineeringControlsOptions {
-  /** 'admin' is mapped to 'administrative' server-side. */
-  level?: 'engineering' | 'admin' | 'epp' | 'all' | EngineeringControlLevelAPI;
-  riskCategory?: string;
-}
-
-export function useEngineeringControls(
-  projectId: string | null,
-  opts: EngineeringControlsOptions = {},
-) {
-  let path: string | null = null;
-  if (projectId) {
-    const qs = new URLSearchParams();
-    if (opts.level) qs.set('level', opts.level);
-    if (opts.riskCategory) qs.set('riskCategory', opts.riskCategory);
-    const query = qs.toString();
-    path = `/api/sprint-k/${projectId}/engineering-controls${query ? `?${query}` : ''}`;
-  }
-  return useEndpoint<EngineeringControlsResponse>(path);
-}
-
-export interface EngineeringControlCreatePayload {
-  id: string;
-  level: EngineeringControlLevelAPI;
-  riskCategory: string;
-  name: string;
-  description: string;
-  responsibleUid: string;
-  verificationFrequencyDays: number;
-}
-
-export async function createEngineeringControl(
-  projectId: string,
-  payload: EngineeringControlCreatePayload,
-): Promise<{ ok: true; control: EngineeringControlAPI }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(`/api/sprint-k/${projectId}/engineering-controls`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as { ok: true; control: EngineeringControlAPI };
-}
-
-/**
- * Codex P1 (PR #319): `verifierUid` was removed from the verify
- * payload — the server now derives the verifier identity from the
- * authenticated caller (`req.user!.uid`) instead of trusting the
- * client. The field is kept on the public type as an optional alias so
- * existing callers that still pass it do not break the compile; it is
- * stripped before the fetch goes out.
- */
-export interface EngineeringControlVerifyPayload {
-  result: 'pass' | 'observation' | 'fail';
-  evidence?: string;
-  /** @deprecated Server derives verifier from the authenticated caller. */
-  verifierUid?: string;
-}
-
-export async function verifyControl(
-  projectId: string,
-  id: string,
-  payload: EngineeringControlVerifyPayload,
-): Promise<{ ok: true; entry: EngineeringControlVerificationAPI }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  // Codex P1 (PR #319): strip `verifierUid` before the wire. The server
-  // ignores it (and the schema rejects unknowns), but stripping here
-  // makes the intent explicit and keeps the request body minimal.
-  const { verifierUid: _ignored, ...wirePayload } = payload;
-  void _ignored;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/engineering-controls/${id}/verify`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(wirePayload),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as {
-    ok: true;
-    entry: EngineeringControlVerificationAPI;
-  };
-}
+// §42-44 Engineering Controls hooks migrados a useEngineeringControls.ts (2026-05-18).
+export {
+  useEngineeringControls,
+  createEngineeringControl,
+  verifyControl,
+  type EngineeringControlLevelAPI,
+  type EngineeringControlVerificationAPI,
+  type EngineeringControlAPI,
+  type EngineeringControlsResponse,
+  type EngineeringControlsOptions,
+  type EngineeringControlCreatePayload,
+  type EngineeringControlVerifyPayload,
+} from "./useEngineeringControls";
 
 // ────────────────────────────────────────────────────────────────────────
 // Sprint K §61-63 — Encuesta de Percepción + Índice de Cultura Preventiva

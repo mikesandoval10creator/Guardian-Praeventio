@@ -63,7 +63,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useEmergencyBrigade', () => ({
   useEmergencyBrigade: () => ({
     data: mockHookData,
     loading: mockHookLoading,
