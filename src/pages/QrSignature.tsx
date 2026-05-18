@@ -29,7 +29,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
   requestQrSignatureChallenge,
   persistQrAcknowledgement,
-} from '../hooks/useSprintK';
+} from '../hooks/useQrSignature';
 import { QrSignatureModal } from '../components/qrSignature/QrSignatureModal';
 import type {
   QrSignatureChallenge,

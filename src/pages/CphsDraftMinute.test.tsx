@@ -57,7 +57,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useCphsMinute', () => ({
   useCphsDraftMinute: () => mockHookState,
 }));
 

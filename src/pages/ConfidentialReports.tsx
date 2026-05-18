@@ -47,6 +47,8 @@ import {
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+// 2026-05-17 — migrated from monolithic useSprintK.ts to dedicated hook
+// per Sprint K reformulation directive. See docs/SPRINT_K_REFORMULATED.md.
 import {
   useConfidentialReports,
   useRetaliationAlerts,
@@ -58,7 +60,7 @@ import {
   type ConfidentialReportSeverity,
   type ConfidentialReportStatusApi,
   type RetaliationAlertApi,
-} from '../hooks/useSprintK';
+} from '../hooks/useConfidentialReports';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────
@@ -134,6 +136,16 @@ const STATUS_META: Record<
     label: 'Resuelto',
     color: 'text-emerald-600',
     bg: 'bg-emerald-500/10',
+  },
+  closed: {
+    label: 'Cerrado',
+    color: 'text-zinc-600',
+    bg: 'bg-zinc-500/10',
+  },
+  dismissed: {
+    label: 'Descartado',
+    color: 'text-zinc-500',
+    bg: 'bg-zinc-400/10',
   },
 };
 

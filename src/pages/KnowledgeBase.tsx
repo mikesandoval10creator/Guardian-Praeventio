@@ -45,7 +45,7 @@ import {
   type KnowledgeEntry,
   type KbCategory,
   type KbSourceType,
-} from '../hooks/useSprintK';
+} from '../hooks/useKnowledgeBase';
 import { logger } from '../utils/logger';
 
 type TLite = (key: string, fallback?: string) => string;

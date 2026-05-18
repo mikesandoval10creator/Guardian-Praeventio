@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { AlertTriangle, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { useRepeatingRisks } from '../hooks/useSprintK';
+import { useRepeatingRisks } from '../hooks/useRepeatingRisks';
 import { RepeatingRiskRadarCard } from '../components/riskRadar/RepeatingRiskRadarCard';
 
 export function RepeatingRisks() {

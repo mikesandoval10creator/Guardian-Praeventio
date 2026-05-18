@@ -89,7 +89,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useSuppliers', () => ({
   useSuppliers: (_pid: string | null, opts?: { riskLevel?: string }) => {
     lastFilterArg = opts?.riskLevel;
     return { ...mockHook, refetch: refetchSpy };

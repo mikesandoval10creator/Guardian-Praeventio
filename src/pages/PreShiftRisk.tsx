@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { usePreShiftRisk } from '../hooks/useSprintK';
+import { usePreShiftRisk } from '../hooks/usePreShiftRisk';
 import type { ShiftRiskReport } from '../services/shiftRiskPanel/preShiftRiskComposer';
 
 /**

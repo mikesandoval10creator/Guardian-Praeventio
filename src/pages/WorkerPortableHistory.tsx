@@ -42,12 +42,14 @@ import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
+// 2026-05-17 — migrated from monolithic useSprintK.ts to dedicated hook
+// per Sprint K reformulation directive. See docs/SPRINT_K_REFORMULATED.md.
 import {
   useWorkerPortableHistory,
   updatePortableConsent,
   exportPortableHistory,
   type PortableHistoryFormat,
-} from '../hooks/useSprintK';
+} from '../hooks/usePortableHistory';
 import type { Worker } from '../types';
 import { logger } from '../utils/logger';
 

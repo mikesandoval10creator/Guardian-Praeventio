@@ -24,7 +24,7 @@ import type {
   ConfidentialReportsListResponse,
   RetaliationAlertsResponse,
   RetaliationAlertApi,
-} from '../hooks/useSprintK';
+} from '../hooks/useConfidentialReports';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -80,7 +80,7 @@ vi.mock('../contexts/FirebaseContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useConfidentialReports', () => ({
   useConfidentialReports: () => mockReports,
   useRetaliationAlerts: () => mockRetaliation,
   submitConfidentialReport: (...args: unknown[]) => submitConfidentialReport(...args),
@@ -113,9 +113,8 @@ function report(over: Partial<ConfidentialReportApi> & { id: string }): Confiden
     submittedAt: over.submittedAt ?? '2026-05-15T10:00:00Z',
     firstResponseDueAt: over.firstResponseDueAt ?? '2026-05-22T10:00:00Z',
     resolveDueAt: over.resolveDueAt ?? '2026-06-14T10:00:00Z',
-    handlerUid: over.handlerUid,
-    firstResponseAt: over.firstResponseAt,
-    resolvedAt: over.resolvedAt,
+    respondedAt: over.respondedAt,
+    closedAt: over.closedAt,
     resolution: over.resolution,
   };
 }

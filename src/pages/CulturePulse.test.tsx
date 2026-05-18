@@ -20,7 +20,7 @@ import { CulturePulse } from './CulturePulse';
 import type {
   CulturePulseResponse,
   CulturePulseHistoryResponse,
-} from '../hooks/useSprintK';
+} from '../hooks/useCulturePulse';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -64,7 +64,7 @@ vi.mock('../contexts/FirebaseContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useCulturePulse', () => ({
   useCulturePulse: () => mockPulse,
   useCulturePulseHistory: () => mockHistory,
   scheduleCulturePulse: vi.fn(),

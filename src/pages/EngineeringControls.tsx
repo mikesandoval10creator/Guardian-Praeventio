@@ -36,7 +36,7 @@ import {
   verifyControl,
   type EngineeringControlAPI,
   type EngineeringControlLevelAPI,
-} from '../hooks/useSprintK';
+} from '../hooks/useEngineeringControls';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────

@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AnnualReview } from './AnnualReview';
-import type { AnnualReviewSnapshot } from '../hooks/useSprintK';
+import type { AnnualReviewSnapshot } from '../hooks/useAnnualReview';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -54,18 +54,13 @@ vi.mock('../contexts/FirebaseContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', async () => {
-  const actual = await vi.importActual<typeof import('../hooks/useSprintK')>(
-    '../hooks/useSprintK',
-  );
-  return {
-    ...actual,
-    useCurrentAnnualReview: () => mockResp,
-    setAnnualReviewObjectives: (...args: unknown[]) => setObjectivesMock(...args),
-    attachAnnualReviewEvidence: (...args: unknown[]) => attachEvidenceMock(...args),
-    concludeAnnualReview: (...args: unknown[]) => concludeMock(...args),
-  };
-});
+vi.mock('../hooks/useAnnualReview', () => ({
+  useCurrentAnnualReview: () => mockResp,
+  setAnnualReviewObjectives: (...args: unknown[]) => setObjectivesMock(...args),
+  attachAnnualReviewEvidence: (...args: unknown[]) =>
+    attachEvidenceMock(...args),
+  concludeAnnualReview: (...args: unknown[]) => concludeMock(...args),
+}));
 
 function makeSnapshot(overrides: Partial<AnnualReviewSnapshot> = {}): AnnualReviewSnapshot {
   return {

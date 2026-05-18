@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { DrivingSafety } from './DrivingSafety';
-import * as sprintKHooks from '../hooks/useSprintK';
+import * as sprintKHooks from '../hooks/useDrivingSafety';
 import type {
   DrivingRoute,
   DrivingDriver,
@@ -26,7 +26,7 @@ import type {
   DrivingRoutesResponse,
   DrivingDriversResponse,
   DrivingRankingResponse,
-} from '../hooks/useSprintK';
+} from '../hooks/useDrivingSafety';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -81,7 +81,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useDrivingSafety', () => ({
   useDrivingRoutes: () => mockRoutes,
   useDrivingDrivers: () => mockDrivers,
   useDrivingRanking: () => mockRanking,

@@ -14,7 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { WorkerPortableHistory } from './WorkerPortableHistory';
-import type { PortableHistoryBundle } from '../hooks/useSprintK';
+import type { PortableHistoryBundle } from '../hooks/usePortableHistory';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -54,17 +54,11 @@ vi.mock('../hooks/useOnlineStatus', () => ({
 vi.mock('../hooks/useFirestoreCollection', () => ({
   useFirestoreCollection: () => ({ data: [] as never[] }),
 }));
-vi.mock('../hooks/useSprintK', async () => {
-  const actual = await vi.importActual<typeof import('../hooks/useSprintK')>(
-    '../hooks/useSprintK',
-  );
-  return {
-    ...actual,
-    useWorkerPortableHistory: () => mockResp,
-    updatePortableConsent: (...args: unknown[]) => updateConsentMock(...args),
-    exportPortableHistory: (...args: unknown[]) => exportMock(...args),
-  };
-});
+vi.mock('../hooks/usePortableHistory', () => ({
+  useWorkerPortableHistory: () => mockResp,
+  updatePortableConsent: (...args: unknown[]) => updateConsentMock(...args),
+  exportPortableHistory: (...args: unknown[]) => exportMock(...args),
+}));
 
 function makeBundle(overrides: Partial<PortableHistoryBundle> = {}): PortableHistoryBundle {
   return {

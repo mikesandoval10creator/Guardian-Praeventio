@@ -30,7 +30,7 @@ import {
   createWorkPermit,
   signWorkPermit,
   closeWorkPermit,
-} from '../hooks/useSprintK';
+} from '../hooks/useWorkPermits';
 import { WorkPermitCard } from '../components/workPermits/WorkPermitCard';
 import {
   deriveStatus,

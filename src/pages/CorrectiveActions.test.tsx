@@ -59,7 +59,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useCorrectiveActions', () => ({
   useCorrectiveActions: (_pid: string | null, opts?: { status?: string }) => {
     if (opts?.status === 'in_progress') return mockInProgress;
     if (opts?.status === 'closed') return mockClosed;
@@ -67,6 +67,7 @@ vi.mock('../hooks/useSprintK', () => ({
     if (opts?.status === 'reopened') return mockReopened;
     return mockOpen;
   },
+  scheduleCorrectiveActionEffectivenessReview: vi.fn(),
 }));
 
 beforeEach(() => {

@@ -60,7 +60,7 @@ vi.mock('../hooks/useOnlineStatus', () => ({
 
 const mockRequestChallenge = vi.fn();
 const mockPersistAck = vi.fn();
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useQrSignature', () => ({
   requestQrSignatureChallenge: (...args: unknown[]) =>
     mockRequestChallenge(...args),
   persistQrAcknowledgement: (...args: unknown[]) => mockPersistAck(...args),

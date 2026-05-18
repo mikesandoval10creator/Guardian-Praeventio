@@ -78,7 +78,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useLessonsLearned', () => ({
   useLessons: (
     _pid: string | null,
     opts?: { scope?: string; riskCategory?: string },

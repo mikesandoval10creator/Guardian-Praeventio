@@ -18,11 +18,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { LeadershipDecisions } from './LeadershipDecisions';
-import * as sprintKHooks from '../hooks/useSprintK';
+import * as sprintKHooks from '../hooks/useLeadership';
 import type {
   LeadershipDecisionsResponse,
   LeadershipRankingResponse,
-} from '../hooks/useSprintK';
+} from '../hooks/useLeadership';
 import type {
   SupervisionDecision,
   SupervisorRanking,
@@ -78,7 +78,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useLeadership', () => ({
   useLeadershipDecisions: (
     _projectId: string | null,
     opts?: { supervisorUid?: string; period?: string },

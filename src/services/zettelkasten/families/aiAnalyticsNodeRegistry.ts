@@ -15,7 +15,7 @@ export const AI_ANALYTICS_NODES: ReadonlyArray<FamilyNodeSpec> = [
   ROW('ai-prediction-non-compliance', 'Prediccion AI de no conformidad.', 'ISO-45001'),
   ROW('ai-recommendation-epp', 'Recomendacion AI de EPP.', 'DS-594'),
   ROW('ai-recommendation-stop-work', 'Recomendacion AI de stop-work.', 'ISO-45001'),
-  ROW('ai-recommendation-training', 'Recomendacion AI de capacitacion.', 'DS-40'),
+  ROW('ai-recommendation-training', 'Recomendacion AI de capacitacion.', 'DS-44'),
   ROW('ai-recommendation-route', 'Recomendacion AI de ruta segura.', 'internal'),
   ROW('ai-recommendation-control', 'Recomendacion AI de control operacional.', 'ISO-45001'),
   ROW('ai-alert-triggered', 'Alerta AI disparada.', 'internal'),

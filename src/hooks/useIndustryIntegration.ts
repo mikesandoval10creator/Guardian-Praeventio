@@ -19,7 +19,7 @@ const INDUSTRY_NORMATIVES: Record<string, string[]> = {
   'Construcción': ['D.S. 594/1999 (Condiciones Sanitarias)', 'Ley 16.744 (Accidentes del Trabajo)', 'NCh 1508 (Estudio de Mecánica de Suelos)', 'NCh 349 (Disposiciones de Seguridad en Excavación)'],
   'Agricultura': ['D.S. 594/1999 (Condiciones Sanitarias)', 'Ley 16.744 (Accidentes del Trabajo)', 'D.S. 157/2005 (Reglamento de Pesticidas)'],
   'Transporte': ['Ley 16.744 (Accidentes del Trabajo)', 'D.S. 594/1999 (Condiciones Sanitarias)', 'D.S. 170/1985 (Licencias de Conducir)', 'Ley 18.290 (Ley de Tránsito)'],
-  'Manufactura': ['D.S. 594/1999 (Condiciones Sanitarias)', 'Ley 16.744 (Accidentes del Trabajo)', 'D.S. 40/1969 (Reglamento sobre Prevención de Riesgos)'],
+  'Manufactura': ['D.S. 594/1999 (Condiciones Sanitarias)', 'Ley 16.744 (Accidentes del Trabajo)', 'D.S. 44/2024 (Reglamento sobre Prevención de Riesgos — reemplaza D.S. 40/1969 derogado 2025-02-01)'],
 };
 
 const ROLE_EPP: Record<string, string[]> = {

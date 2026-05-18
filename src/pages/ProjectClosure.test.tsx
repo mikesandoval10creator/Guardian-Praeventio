@@ -104,7 +104,7 @@ vi.mock('../hooks/useOnlineStatus', () => ({
 vi.mock('../contexts/FirebaseContext', () => ({
   useFirebase: () => ({ isAdmin: mockIsAdmin }),
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useProjectClosure', () => ({
   useClosureStatus: () => mockStatus,
   useClosureSummary: () => mockSummary,
   initiateClosure: (...args: unknown[]) => initiateClosureMock(...args),

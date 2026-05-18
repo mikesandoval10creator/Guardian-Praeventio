@@ -16,7 +16,8 @@ import { useNavigate } from 'react-router-dom';
 import { Inbox as InboxIcon, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { useInbox, useDataQuality } from '../hooks/useSprintK';
+import { useInbox } from '../hooks/useInbox';
+import { useDataQuality } from '../hooks/useDataQuality';
 import { InboxPrevencionistaPanel } from '../components/inbox/InboxPrevencionistaPanel';
 import { DataQualityCard } from '../components/dataQuality/DataQualityCard';
 import {

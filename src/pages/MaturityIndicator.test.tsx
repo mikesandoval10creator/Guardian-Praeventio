@@ -17,7 +17,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MaturityIndicator } from './MaturityIndicator';
-import type { MaturityIndexResponse } from '../hooks/useSprintK';
+import type { MaturityIndexResponse } from '../hooks/useMaturityIndex';
 import type {
   MaturityCategory,
   MaturityReport,
@@ -59,7 +59,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useMaturityIndex', () => ({
   usePreventionMaturity: () => mockUseMaturity,
 }));
 

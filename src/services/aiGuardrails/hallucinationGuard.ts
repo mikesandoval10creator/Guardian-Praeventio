@@ -81,10 +81,14 @@ const DATE_REGEX =
 
 /**
  * Referencias a normativa específica chilena (y genérica):
- *   • DS 594, D.S. 40, decreto supremo 594
+ *   • DS 594, DS 44 (vigente desde 2025-02-01), decreto supremo 594
  *   • Ley 16.744, Ley N° 21.012
  *   • NCh 1258, ISO 45001, NFPA 70E
  *   • Art. 184, artículo 5
+ *
+ * Nota: el regex matchea cualquier número de DS, incluyendo el derogado
+ * DS 40/1969. Cuando el output cite DS 40 sin anotación histórica, el
+ * caller debe sustituirlo por DS 44/2024 (vigente).
  */
 const LAW_REF_REGEX =
   /\b(?:d\.?s\.?\s*\d+|decreto\s+supremo\s*\d+|ley\s+(?:n[°º]\s*)?\d+(?:[.,]\d+)?|nch\s*\d+|iso\s*\d+|nfpa\s*\d+|art(?:[íi]culo|\.?)?\s+\d+)\b/i;

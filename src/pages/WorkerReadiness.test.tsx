@@ -18,7 +18,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { WorkerReadiness } from './WorkerReadiness';
 import type { ReadinessReport } from '../services/workerReadiness/readinessScore';
-import type { WorkerReadinessResponse } from '../hooks/useSprintK';
+import type { WorkerReadinessResponse } from '../hooks/useWorkerReadiness';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -74,7 +74,7 @@ vi.mock('../hooks/useFirestoreCollection', () => ({
     return { data: [], loading: false, error: null };
   },
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useWorkerReadiness', () => ({
   useWorkerReadiness: (
     _pid: string | null,
     workerUid: string | null,

@@ -97,7 +97,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/usePdca', () => ({
   usePdcaCycles: () => mockCyclesResp,
   usePdcaSummary: () => mockSummaryResp,
   usePdcaNonConformities: () => mockNcResp,

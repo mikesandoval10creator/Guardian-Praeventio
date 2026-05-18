@@ -69,17 +69,26 @@ export default defineConfig({
           },
           {
             // Express con E2E_MODE=1 — tests que tocan /api/*.
+            //
+            // 2026-05-18: tsx compila ~35+ routers en cada cold start (no
+            // hay build de servidor todavía — Fase 5.3 del plan). En CI la
+            // boot real es 60-90s. Subir timeout a 150_000 da headroom sin
+            // ocultar regresiones genuinas.
             command: 'npx cross-env NODE_ENV=test E2E_MODE=1 E2E_TEST_SECRET=e2e-test-secret-do-not-use-in-prod PORT=3000 npx tsx server.ts',
             url: 'http://localhost:3000/api/health',
             reuseExistingServer: !process.env.CI,
-            timeout: 90_000,
+            timeout: 150_000,
           },
           {
             // Firestore Emulator — tests que escriben docs reales.
+            //
+            // 2026-05-18: emulator cold start en CI ubuntu-latest mide
+            // ~40-80s tras descarga JAR + JVM init (Java 17 + firebase-tools).
+            // Bumpeamos 90→150s consistente con Express webServer arriba.
             command: 'npx firebase emulators:start --only firestore --project demo-test',
             url: 'http://localhost:8080',
             reuseExistingServer: !process.env.CI,
-            timeout: 90_000,
+            timeout: 150_000,
           },
         ]
       : {

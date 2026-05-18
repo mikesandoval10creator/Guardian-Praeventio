@@ -10,7 +10,7 @@ import { IncidentBundle } from './IncidentBundle';
 import type {
   IncidentBundleManifest,
 } from '../services/incidentBundle/incidentEvidenceBundle';
-import type { IncidentBundleResponse } from '../hooks/useSprintK';
+import type { IncidentBundleResponse } from '../hooks/useIncidentBundle';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -44,7 +44,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useIncidentBundle', () => ({
   useIncidentBundle: () => mockUseBundle,
 }));
 

@@ -42,7 +42,7 @@ import {
   submitCulturePulseResponse,
   type CulturePulseQuestionKey,
   type CulturePulseHistoryPoint,
-} from '../hooks/useSprintK';
+} from '../hooks/useCulturePulse';
 import { logger } from '../utils/logger';
 
 // ─────────────────────────────────────────────────────────────────────

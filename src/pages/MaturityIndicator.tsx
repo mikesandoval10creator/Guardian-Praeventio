@@ -27,7 +27,7 @@ import { useTranslation } from 'react-i18next';
 import { Award, WifiOff, Sparkles, TrendingUp } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { usePreventionMaturity } from '../hooks/useSprintK';
+import { usePreventionMaturity } from '../hooks/useMaturityIndex';
 import type {
   MaturityLevelNumber,
   MaturityCategory,

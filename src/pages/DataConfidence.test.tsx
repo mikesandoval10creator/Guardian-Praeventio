@@ -20,7 +20,7 @@ import { DataConfidence } from './DataConfidence';
 import type {
   DataConfidenceSnapshot,
   DataConfidenceRecommendationsResponse,
-} from '../hooks/useSprintK';
+} from '../hooks/useDataConfidence';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -75,7 +75,7 @@ vi.mock('../contexts/FirebaseContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useDataConfidence', () => ({
   useDataConfidence: () => mockSnapshot,
   useDataConfidenceRecommendations: () => mockRecos,
   dismissDataIssue: (...args: unknown[]) => dismissMock(...args),

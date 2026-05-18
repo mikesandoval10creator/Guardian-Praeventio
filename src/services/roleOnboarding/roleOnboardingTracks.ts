@@ -117,7 +117,7 @@ const SUPERVISOR_STEPS: OnboardingStep[] = [
 ];
 
 const PREVENCIONISTA_STEPS: OnboardingStep[] = [
-  { id: 'prev.normative_cl', title: 'Orientación normativa Chile (DS40, DS594, L16744)', kind: 'doc_read', estimatedMinutes: 25, learningOutcome: 'Citar normativa aplicable a faena', blockingForOperation: true },
+  { id: 'prev.normative_cl', title: 'Orientación normativa Chile (DS44/2024, DS594, L16744)', kind: 'doc_read', estimatedMinutes: 25, learningOutcome: 'Citar normativa aplicable a faena', blockingForOperation: true },
   { id: 'prev.matrix_5x5', title: 'Matriz de riesgos 5×5', kind: 'live_demo', estimatedMinutes: 20, learningOutcome: 'Construir matriz IPER con probabilidad×severidad', blockingForOperation: true },
   { id: 'prev.diat_diep', title: 'Tutorial DIAT / DIEP', kind: 'doc_read', estimatedMinutes: 15, learningOutcome: 'Completar DIAT/DIEP correctamente', blockingForOperation: true },
   { id: 'prev.bowtie', title: 'Análisis Bowtie', kind: 'sandbox_task', estimatedMinutes: 25, learningOutcome: 'Mapear amenazas → controles → consecuencias', blockingForOperation: true },
