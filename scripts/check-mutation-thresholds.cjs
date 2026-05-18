@@ -56,7 +56,8 @@ const REPORT_PATH = path.join(
 // entry locks a floor; future PRs can RAISE but never lower a value.
 //
 // Files NOT in RATCHET intentionally: orchestrator (43.59%), webpayAdapter
-// (58.26% — covered by CRITICAL_FLOORS), offlineQueue (60.44%), limiters
+// (77.06% as of PR #359 — covered by CRITICAL_FLOORS at 75%; promote to
+// RATCHET when next CI run shows ≥80%), offlineQueue (60.44%), limiters
 // (3.05% — covered by CRITICAL_FLOORS ramp), verifyAuth (76.19% — covered
 // by CRITICAL_FLOORS at 75% which is the higher floor). Let those grow
 // organically; promote into RATCHET once a CI run shows them ≥80%.
@@ -80,6 +81,15 @@ const RATCHET = {
 const RATCHET_BUMP_LOG = [
   // Example: { sprint: 39, file: 'src/services/slm/orchestrator.ts',
   //            from: null, to: 70, source: 'CI #82 mutation run' },
+  {
+    sprint: 41,
+    file: 'src/services/billing/webpayAdapter.ts',
+    from: 60.55, // baseline (pre-PR #359)
+    to: 77.06, // PR #359 round 3
+    source: 'PR #359 mutation lift (3 rounds, +52 tests)',
+    promotedToRatchet: false, // still <80%, stays in CRITICAL_FLOORS only
+    note: 'Defensive coercion + error-class shape + Sentry-scope mocks. Promote to RATCHET at 75 when next CI run confirms ≥80%.',
+  },
 ];
 
 // Critical files: must hit a hard floor regardless of ratchet.
