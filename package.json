@@ -192,7 +192,6 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@types/react-window": "^1.8.8",
     "@types/supertest": "^6.0.3",
     "@types/three": "^0.183.1",
     "@typescript-eslint/eslint-plugin": "^8.59.3",
