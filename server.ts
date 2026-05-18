@@ -175,6 +175,8 @@ import inboxRouter from "./src/server/routes/inbox.js";
 import photoEvidenceRouter from "./src/server/routes/photoEvidence.js";
 // F.28 Explainability — stateless "porque..." rationale endpoint.
 import explainabilityRouter from "./src/server/routes/explainability.js";
+// F.30 Aggregate Telemetry — privacy-preserving event aggregation for dashboards.
+import aggregateTelemetryRouter from "./src/server/routes/aggregateTelemetry.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -805,6 +807,7 @@ app.use('/api/sprint-k', incidentBundleRouter);
 app.use('/api/sprint-k', inboxRouter);
 app.use('/api/sprint-k', photoEvidenceRouter);
 app.use('/api/sprint-k', explainabilityRouter);
+app.use('/api/sprint-k', aggregateTelemetryRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
