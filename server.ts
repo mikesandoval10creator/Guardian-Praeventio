@@ -127,6 +127,11 @@ import onboardingRouter from "./src/server/routes/onboarding.js";
 import sitebookRouter from "./src/server/routes/sitebook.js";
 import insightsRouter from "./src/server/routes/insights.js";
 import sprintKRouter from "./src/server/routes/sprintK.js";
+// Sprint K reformulation 2026-05-17 — dedicated routers per feature
+// (see docs/SPRINT_K_REFORMULATED.md). Mounted BEFORE the monolith so
+// migrated routes take precedence and can be removed from the monolith
+// progressively without breaking consumers.
+import incidentTrendsRouter from "./src/server/routes/incidentTrends.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -716,6 +721,10 @@ app.use('/api', onboardingRouter);
 // role-view widgets (read-only — engines are pure, server only stages data).
 app.use('/api/sitebook', sitebookRouter);
 app.use('/api/insights', insightsRouter);
+// Sprint K reformulation 2026-05-17 — migrated feature routers BEFORE the
+// monolith so they take precedence. Once all features migrate, the monolith
+// (sprintK.ts) is deleted.
+app.use('/api/sprint-k', incidentTrendsRouter);
 app.use('/api/sprint-k', sprintKRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
