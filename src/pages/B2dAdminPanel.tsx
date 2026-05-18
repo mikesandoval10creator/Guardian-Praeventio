@@ -101,27 +101,45 @@ export function B2dAdminPanel() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [keysRes, metricsRes, eventsRes, mrrHistoryRes] = await Promise.all([
-        authedFetch('/api/admin/b2d/keys'),
-        authedFetch('/api/admin/b2d/metrics'),
-        authedFetch('/api/admin/b2d/events'),
-        authedFetch('/api/admin/b2d/mrr-history?limit=12'),
-      ]);
-      if (keysRes.ok) {
-        const data = await keysRes.json();
+      // H15 (audit 2026-05-17): Promise.allSettled instead of Promise.all so
+      // a single failing endpoint (e.g. /metrics 500) does not blank the
+      // entire admin panel — the other three panels still render.
+      const [keysSettled, metricsSettled, eventsSettled, mrrHistorySettled] =
+        await Promise.allSettled([
+          authedFetch('/api/admin/b2d/keys'),
+          authedFetch('/api/admin/b2d/metrics'),
+          authedFetch('/api/admin/b2d/events'),
+          authedFetch('/api/admin/b2d/mrr-history?limit=12'),
+        ]);
+      if (keysSettled.status === 'fulfilled' && keysSettled.value.ok) {
+        const data = await keysSettled.value.json();
         setKeys(Array.isArray(data.keys) ? data.keys : []);
+      } else if (keysSettled.status === 'rejected') {
+        logger.warn('b2d_admin_panel_keys_failed', keysSettled.reason);
       }
-      if (metricsRes.ok) {
-        const data = await metricsRes.json();
+      if (metricsSettled.status === 'fulfilled' && metricsSettled.value.ok) {
+        const data = await metricsSettled.value.json();
         setMetrics(data.metrics ?? null);
+      } else if (metricsSettled.status === 'rejected') {
+        logger.warn('b2d_admin_panel_metrics_failed', metricsSettled.reason);
       }
-      if (eventsRes.ok) {
-        const data = await eventsRes.json();
+      if (eventsSettled.status === 'fulfilled' && eventsSettled.value.ok) {
+        const data = await eventsSettled.value.json();
         setEvents(Array.isArray(data.events) ? data.events : []);
+      } else if (eventsSettled.status === 'rejected') {
+        logger.warn('b2d_admin_panel_events_failed', eventsSettled.reason);
       }
-      if (mrrHistoryRes.ok) {
-        const data = await mrrHistoryRes.json();
+      if (
+        mrrHistorySettled.status === 'fulfilled' &&
+        mrrHistorySettled.value.ok
+      ) {
+        const data = await mrrHistorySettled.value.json();
         setMrrHistory(Array.isArray(data.snapshots) ? data.snapshots : []);
+      } else if (mrrHistorySettled.status === 'rejected') {
+        logger.warn(
+          'b2d_admin_panel_mrr_history_failed',
+          mrrHistorySettled.reason,
+        );
       }
     } catch (err) {
       logger.error('b2d_admin_panel_load_failed', err);
