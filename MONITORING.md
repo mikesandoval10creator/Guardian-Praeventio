@@ -18,7 +18,7 @@ Después de correr `terraform apply` desde `infrastructure/terraform/`:
 2. Los dashboards se ven en **Cloud Console → Monitoring → Dashboards**:
    "Praeventio Guard — Operational" y "Praeventio Guard — Business KPI".
 3. Acepta el correo de confirmación que GCP envía a
-   `soporte@praeventio.net` y `security@praeventio.net` — sin esa
+   `contacto@praeventio.net` y `contacto@praeventio.net` — sin esa
    confirmación los canales de notificación no envían nada.
 
 ```sh
@@ -36,8 +36,8 @@ el state. Ver `infrastructure/terraform/README.md` §State management.
 
 | Canal             | Dirección                  | Usado por                                    |
 | ----------------- | -------------------------- | -------------------------------------------- |
-| Founder email     | soporte@praeventio.net     | Default — todas las alertas P2/P3            |
-| Security email    | security@praeventio.net    | Alertas P1 sensibles (KMS, backups)          |
+| Founder email     | contacto@praeventio.net     | Default — todas las alertas P2/P3            |
+| Security email    | contacto@praeventio.net    | Alertas P1 sensibles (KMS, backups)          |
 | PagerDuty         | TODO                       | Pendiente: rotación on-call                  |
 | Slack #incidents  | TODO                       | Pendiente: app de Slack + token en SM        |
 

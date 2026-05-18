@@ -2,7 +2,7 @@
 
 > **Audience:** founder, on-call engineer, future DPO, ISO 27001 auditor.
 > **Last updated:** 2026-04-28
-> **Owner:** founder@praeventio.net
+> **Owner:** contacto@praeventio.net
 
 Praeventio Guard stores regulatory and life-safety data on behalf of Chilean
 employers. A few hours of downtime is annoying; loss of a worker's medical

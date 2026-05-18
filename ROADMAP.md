@@ -85,7 +85,7 @@
 - 🌟 ~**Gamificación ↔ Probabilidad de Riesgo:**~ (DESCARTADO: Por principios de seguridad y responsabilidad legal, la gamificación nunca alterará la probabilidad real en la Matriz IPER. El enfoque es recomendar, no subestimar riesgos).
 - 🌟 **Telemetría IoT ↔ Probabilidad de Falla:** Alertas visuales en el grafo (aristas rojas) a medida que se acerca la fecha de mantención de un activo crítico.
 - 🌟 **Dashboard de Cumplimiento SUSESO:** Cálculo interno de Tasas de Accidentabilidad y Siniestralidad para preparar auditorías, reemplazando el scraping público.
-- 🌟 **Módulo de Suscripciones y Facturación B2B:** Implementación de Tiers de precios basados en cantidad de trabajadores (DS 54, DS 40) con alertas de cumplimiento legal.
+- 🌟 **Módulo de Suscripciones y Facturación B2B:** Implementación de Tiers de precios basados en cantidad de trabajadores (DS 54, DS 44/2024) con alertas de cumplimiento legal.
 
 ### 5. Clasificación de Funciones y Estrategia de Monetización 💎
 

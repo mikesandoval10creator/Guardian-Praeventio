@@ -12,7 +12,7 @@ interface NormaTrunk {
 
 const TRUNKS: ReadonlyArray<NormaTrunk> = [
   { id: 'norma-DS-54', title: 'DS 54 — Comites paritarios de higiene y seguridad.', source: 'DS-54' },
-  { id: 'norma-DS-40', title: 'DS 40 — Reglamento sobre prevencion de riesgos.', source: 'DS-40' },
+  { id: 'norma-DS-40', title: 'DS 44/2024 — Reglamento sobre prevencion de riesgos.', source: 'DS-40' },
   { id: 'norma-DS-76', title: 'DS 76 — Subcontratacion y obligaciones del mandante.', source: 'DS-76' },
   { id: 'norma-DS-132', title: 'DS 132 — Reglamento de seguridad minera.', source: 'DS-132' },
   { id: 'norma-DS-594', title: 'DS 594 — Condiciones sanitarias y ambientales basicas en lugares de trabajo.', source: 'DS-594' },
@@ -69,8 +69,8 @@ const ARTICLES: ReadonlyArray<ArticleSpec> = [
   { id: 'norma-DS-132-Art-75', title: 'DS 132 Art. 75 — Caudal minimo de aire por trabajador en mina.', source: 'DS-132' },
   { id: 'norma-DS-132-Art-201', title: 'DS 132 Art. 201 — Voladuras controladas.', source: 'DS-132' },
   { id: 'norma-DS-132-Art-220', title: 'DS 132 Art. 220 — Manejo de explosivos.', source: 'DS-132' },
-  { id: 'norma-DS-40-Art-14', title: 'DS 40 Art. 14 — Departamento de prevencion de riesgos.', source: 'DS-40' },
-  { id: 'norma-DS-40-Art-21', title: 'DS 40 Art. 21 — Obligacion de informar (ODI/Derecho a saber).', source: 'DS-40' },
+  { id: 'norma-DS-40-Art-14', title: 'DS 44/2024 Art. 14 — Departamento de prevencion de riesgos.', source: 'DS-40' },
+  { id: 'norma-DS-40-Art-21', title: 'DS 44/2024 Art. 21 — Obligacion de informar (ODI/Derecho a saber).', source: 'DS-40' },
   { id: 'norma-DS-54-Art-1', title: 'DS 54 Art. 1 — Constitucion de comite paritario.', source: 'DS-54' },
   { id: 'norma-DS-54-Art-24', title: 'DS 54 Art. 24 — Funciones del comite paritario.', source: 'DS-54' },
   { id: 'norma-DS-76-Art-3', title: 'DS 76 Art. 3 — Reglamento especial de subcontratistas.', source: 'DS-76' },

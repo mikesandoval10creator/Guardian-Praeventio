@@ -21,8 +21,8 @@ test.describe.skip('Landing page (skipped — needs Firebase env in CI, see TODO
 
   test('compliance badges row renders all 9', async ({ page }) => {
     await page.goto('/');
-    // Badges: DS 54, DS 40, Ley 16.744, ISO 45001, OHSAS 18001, SUSESO, ISL, ACHS, IST
-    const expected = ['DS 54', 'DS 40', 'Ley 16.744', 'ISO 45001', 'OHSAS 18001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
+    // Badges: DS 54, DS 44/2024, Ley 16.744, ISO 45001, OHSAS 18001, SUSESO, ISL, ACHS, IST
+    const expected = ['DS 54', 'DS 44/2024', 'Ley 16.744', 'ISO 45001', 'OHSAS 18001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
     for (const badge of expected) {
       await expect(page.getByText(badge, { exact: false }).first()).toBeVisible();
     }

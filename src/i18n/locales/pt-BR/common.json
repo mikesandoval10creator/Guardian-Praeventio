@@ -136,7 +136,7 @@
       ],
       "departamento-prevencion": [
         "Tudo da Comissão Paritária",
-        "Departamento de Prevenção (DS 40)",
+        "Departamento de Prevenção (DS 44/2024)",
         "Geração de PTS com IA",
         "Dashboard SUSESO",
         "Auditorias ISO automatizadas"
@@ -879,7 +879,7 @@
     "legal_obligations": {
       "comite_paritario_title": "Reunião Comité Paritario (DS 54)",
       "comite_paritario_description": "Reunião mensal obrigatória do Comité Paritario de Higiene e Segurança.",
-      "depto_prevencion_title": "Relatório Depto. Prevención (DS 40)",
+      "depto_prevencion_title": "Relatório Depto. Prevención (DS 44/2024)",
       "depto_prevencion_description": "Entrega do relatório mensal de acidentabilidade e gestão preventiva.",
       "location_meeting_room": "Sala de Reuniões",
       "location_management": "Gerência"
@@ -1161,7 +1161,7 @@
     "action_risk_matrix_title": "Atualização de Matrizes de Risco",
     "action_risk_matrix_desc": "Faltam revisões trimestrais em 2 áreas operacionais críticas. A atualização reduzirá a exposição a multas.",
     "cta_risk_matrix": "Ir para Matrizes",
-    "action_training_title": "Capacitações Pendentes (DS 40)",
+    "action_training_title": "Capacitações Pendentes (DS 44/2024)",
     "action_training_desc": "15 trabalhadores não completaram a indução de \"Direito a Saber\" (ODI) neste semestre.",
     "cta_training": "Programar Capacitação",
     "action_findings_title": "Encerramento de Achados Críticos",
@@ -1785,7 +1785,7 @@
       "enter": "Acessar"
     },
     "hero": {
-      "compliance_badge": "Conformidade DS 54 · DS 40 · Lei 16.744",
+      "compliance_badge": "Conformidade DS 54 · DS 44/2024 · Lei 16.744",
       "title_line_1": "A revolução da",
       "title_line_2": "prevenção de riscos",
       "subtitle": "Gestão de riscos, bem-estar da equipe e conformidade regulatória — tudo em uma plataforma com IA",

@@ -106,5 +106,5 @@ Submitting these scopes would (a) be rejected by Google because Fit OAuth is in 
 - **App backend:** Node.js Express, deployed Cloud Run, region `southamerica-west1` (Santiago).
 - **Data residency:** Firestore CL (default), Vertex AI ready for `southamerica-west1` migration (`VERTEX_MIGRATION.md`).
 - **Encryption:** OAuth tokens envelope-encrypted with Cloud KMS rotable keys (`KMS_ROTATION.md`).
-- **Compliance frameworks invoked:** Ley 19.628 (Chile data protection, current), Ley 21.719 (Chile data protection, effective 2026), ISO 45001, Ley 16.744 (Chile labor accident insurance), DS 54, DS 40, DS 594.
+- **Compliance frameworks invoked:** Ley 19.628 (Chile data protection, current), Ley 21.719 (Chile data protection, effective 2026), ISO 45001, Ley 16.744 (Chile labor accident insurance), DS 54, DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01), DS 594.
 - **Test account for reviewer:** create a Workspace test user under praeventio.net/marketplace-reviewer-2026 and email credentials to dev-contact when Google requests them.

@@ -676,7 +676,7 @@ export function EmergencyGenerator() {
           {[
             { code: 'Ley 16.744', title: 'Seguro Social contra Riesgos de Accidentes del Trabajo y Enfermedades Profesionales', desc: 'Establece las obligaciones del empleador en materia de prevención de riesgos, cobertura del seguro y las prestaciones ante accidentes laborales y enfermedades profesionales.' },
             { code: 'DS 594', title: 'Reglamento sobre Condiciones Sanitarias y Ambientales en los Lugares de Trabajo', desc: 'Regula las condiciones mínimas de higiene, seguridad, ventilación, temperatura y manejo de sustancias peligrosas en los centros de trabajo.' },
-            { code: 'DS 40', title: 'Reglamento sobre Prevención de Riesgos Profesionales', desc: 'Define las obligaciones del empleador de informar a los trabajadores sobre los riesgos de su actividad (Derecho a Saber) y las medidas de control establecidas.' },
+            { code: 'DS 44/2024', title: 'Reglamento sobre Prevención de Riesgos Profesionales', desc: 'Define las obligaciones del empleador de informar a los trabajadores sobre los riesgos de su actividad (Derecho a Saber) y las medidas de control establecidas.' },
             { code: 'DS 101', title: 'Reglamento para la Aplicación de la Ley 16.744', desc: 'Establece los procedimientos para la calificación y declaración de accidentes del trabajo y enfermedades profesionales, así como los organismos administradores.' },
           ].map(norm => (
             <div key={norm.code} className="border border-white/10 rounded-xl p-4 space-y-1">

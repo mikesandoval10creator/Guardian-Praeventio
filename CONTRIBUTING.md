@@ -309,4 +309,4 @@ publicada en [`/.well-known/pgp-key.asc`](./public/.well-known/pgp-key.asc)
 
 ---
 
-¿Dudas? Abre una discussion o escribe a `dev@praeventio.net`.
+¿Dudas? Abre una discussion o escribe a `contacto@praeventio.net`.

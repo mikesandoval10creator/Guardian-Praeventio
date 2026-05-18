@@ -1,6 +1,6 @@
 /**
  * IPER tests — Identificación de Peligros y Evaluación de Riesgos.
- * Reference: SUSESO Guía Técnica DS 40 / ACHS Manual IPER (5×5 matrix).
+ * Reference: SUSESO Guía Técnica DS 44/2024 / ACHS Manual IPER (5×5 matrix).
  */
 import { describe, expect, it } from 'vitest';
 import { calculateIper, IPER_MATRIX, type IperLevel } from './iper';

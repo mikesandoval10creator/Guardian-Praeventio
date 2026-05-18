@@ -435,7 +435,7 @@ site documenting the mock dependency.
 ### Risk 4 — **IPER doctrine drift** (LOW likelihood, CRITICAL impact)
 
 L229-238, L714-720, L1289-1297, L2197-2213 contain repeated comments that
-`criticidad` MUST NOT be in the prompt or schema (Ley 16.744 / DS 40 / DS 54
+`criticidad` MUST NOT be in the prompt or schema (Ley 16.744 / DS 44/2024 / DS 54
 liability). Splitting into smaller files makes it easier for a future maintainer
 to "innocently" add a `criticidad` field to a single module, breaking the legal
 contract for that endpoint only.

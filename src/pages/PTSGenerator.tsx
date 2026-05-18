@@ -647,7 +647,7 @@ export function PTSGenerator() {
                   >
                     <option value="DS 594 (Condiciones Sanitarias y Ambientales)">DS 594</option>
                     <option value="Ley 16.744 (Accidentes del Trabajo)">Ley 16.744</option>
-                    <option value="DS 40 (Prevención de Riesgos)">DS 40</option>
+                    <option value="DS 44/2024 (Prevención de Riesgos)">DS 44/2024</option>
                     <option value="ISO 45001 (Sistemas de Gestión SST)">ISO 45001</option>
                   </select>
                 </div>

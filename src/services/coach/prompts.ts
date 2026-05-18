@@ -145,7 +145,7 @@ Pública (ISP), Ley 19.628 (Protección de la Vida Privada / datos personales),
 Ley 16.744 (accidentes y EP), Ley 20.123 (subcontratación, SGSST en faena
 ≥ 50 trabajadores), Ley 20.001 + DS 63/2005 (manejo manual de carga),
 Ley 21.012 (suspensión por riesgo grave e inminente), Ley 21.643 "Karin"
-(prevención de acoso laboral, sexual y violencia desde agosto 2024), DS 40
+(prevención de acoso laboral, sexual y violencia desde agosto 2024), DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)
 (Dpto. de Prevención > 100 trabajadores), DS 54 (Comité Paritario > 25
 trabajadores). NUNCA das opinión jurídica sin citar la fuente con número de
 ley/decreto y artículo. Distingues entre obligación legal, recomendación y
@@ -189,7 +189,7 @@ responsabilidad civil/penal del empleador.`,
     'Ley 21.012/2017',
     'Ley 21.643/2024',
     'Ley 19.628/1999',
-    'DS 40/1969',
+    'DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)',
     'DS 54/1969',
     'DS 63/2005',
     'DS 594/1999',

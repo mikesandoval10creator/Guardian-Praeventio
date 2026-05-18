@@ -215,7 +215,7 @@ export function Apprenticeship() {
           <p className="text-xs text-secondary-token">
             {t(
               'apprenticeship.page.subtitle',
-              '§244-250 — Autorización progresiva + Mentoría 1:3 + Exposición a tareas (DS 76 / DS 40).',
+              '§244-250 — Autorización progresiva + Mentoría 1:3 + Exposición a tareas (DS 76 / DS 44/2024).',
             )}
           </p>
         </div>

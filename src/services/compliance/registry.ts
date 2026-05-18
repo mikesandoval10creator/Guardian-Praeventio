@@ -344,7 +344,7 @@ function clTrainingRecordAdapter(): EmissionAdapter {
       completedAt: z.string(),
     }),
     suggestedFormats: ['application/pdf'],
-    legalCitation: 'Ley 16.744 + DS 40/1969 + ODI (Obligación de Informar)',
+    legalCitation: 'Ley 16.744 + DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01) + ODI (Obligación de Informar)',
     async generate(payload: unknown): Promise<EmissionResult> {
       return { json: { adapter: 'CL/training_record', ...(payload as object) } };
     },

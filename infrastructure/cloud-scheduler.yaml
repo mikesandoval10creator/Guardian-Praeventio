@@ -16,7 +16,7 @@
 # it expecting the change to take effect — edit the corresponding .tf files
 # and run `terraform apply` from infrastructure/terraform/ instead.
 #
-# Owner: founder@praeventio.net
+# Owner: contacto@praeventio.net
 # Last updated: 2026-04-28
 # =============================================================================
 
@@ -138,15 +138,15 @@ alerts:
   - name: firestore-backup-failed
     description: "Nightly backup Cloud Run job exited non-zero"
     condition: "resource.type=cloud_run_job AND job=firestore-nightly-backup AND severity>=ERROR"
-    notifyChannel: email:founder@praeventio.net
+    notifyChannel: email:contacto@praeventio.net
   - name: firestore-backup-integrity-failed
     description: "Weekly integrity check found stale or malformed backup"
     condition: "resource.type=cloud_run_job AND job=firestore-backup-integrity-check AND severity>=ERROR"
-    notifyChannel: email:founder@praeventio.net
+    notifyChannel: email:contacto@praeventio.net
   - name: firestore-backup-missing
     description: "No firestore-export-* folder created in the last 36h"
     condition: "log-based: GCS object create event in praeventio-backups, absent for 36h"
-    notifyChannel: email:founder@praeventio.net
+    notifyChannel: email:contacto@praeventio.net
 
 # -----------------------------------------------------------------------------
 # 6. Equivalent gcloud commands (run manually until IaC is wired).

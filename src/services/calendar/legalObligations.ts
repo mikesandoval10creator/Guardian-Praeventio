@@ -6,12 +6,12 @@
  *
  * Sources cited per rule:
  *  - DS 54: Reglamento de Comités Paritarios (sesión mensual obligatoria).
- *  - Ley 16.744 + DS 40: Obligación de Informar (ODI) periódica.
+ *  - Ley 16.744 + DS 44/2024: Obligación de Informar (ODI) periódica.
  *  - ISO 45001 cláusula 9.3: revisión por la dirección al menos anualmente.
  *  - NT MINSAL TMERT/PREXOR: vigilancia médica audiométrica anual; se
  *    adelanta a 6 meses cuando la dosis de ruido supera 100 % del valor
  *    límite permisible.
- *  - DS 40 art. 21: revisión periódica de matrices IPER.
+ *  - DS 44/2024 art. 21: revisión periódica de matrices IPER.
  */
 
 export type ObligationKind =
@@ -46,7 +46,7 @@ const BASE_RULES: Record<ObligationKind, RuleSpec> = {
   },
   'odi-training': {
     cadenceDays: 180,
-    legalReference: 'Ley 16.744 + DS 40 art. 21 (ODI semestral)',
+    legalReference: 'Ley 16.744 + DS 44/2024 art. 21 (ODI semestral)',
   },
   'audiometria-prexor': {
     cadenceDays: 365,
@@ -54,7 +54,7 @@ const BASE_RULES: Record<ObligationKind, RuleSpec> = {
   },
   'iper-review': {
     cadenceDays: 180,
-    legalReference: 'DS 40 art. 21 (revisión periódica de IPER)',
+    legalReference: 'DS 44/2024 art. 21 (revisión periódica de IPER)',
   },
   'management-review-iso45001': {
     cadenceDays: 365,

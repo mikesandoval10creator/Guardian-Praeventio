@@ -37,7 +37,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
   const { t } = useTranslation();
   const [description, setDescription] = useState('');
   // P×S drive `calculateIper`; the matrix is the only legal classifier
-  // (SUSESO DS 40 + ACHS). LLM flow only suggests controls.
+  // (SUSESO DS 44/2024 + ACHS). LLM flow only suggests controls.
   const [probability, setProbability] = useState<IperInput['probability']>(3);
   const [severity, setSeverity] = useState<IperInput['severity']>(3);
   const [controlEffectiveness, setControlEffectiveness] = useState<NonNullable<IperInput['controlEffectiveness']>>('none');

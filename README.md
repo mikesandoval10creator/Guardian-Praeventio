@@ -13,7 +13,7 @@
 
 > **Estado honesto**: ~62% E2E ponderado tras la auditoría 2026-05-05. La cifra previa de 99% era optimista. Ver [docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md) y la profundización [docs/audits/AUDIT_2026-05-05_FULL.md](docs/audits/AUDIT_2026-05-05_FULL.md).
 
-**Cumplimiento:** DS 54, DS 40, Ley 16.744 (Chile) — extensible a otras normativas LATAM.
+**Cumplimiento:** DS 54, DS 44/2024, Ley 16.744 (Chile) — extensible a otras normativas LATAM.
 
 > "El riesgo se neutraliza en el diseño, no en la reacción." — El Guardián
 
@@ -21,9 +21,9 @@
 
 ## Soporte
 
-- General: soporte@praeventio.net
-- Privacidad: privacidad@praeventio.net
-- Comercial / Enterprise: ventas@praeventio.net
+- General: contacto@praeventio.net
+- Privacidad: contacto@praeventio.net
+- Comercial / Enterprise: contacto@praeventio.net
 - Bugs: https://github.com/mikesandoval10creator/Guardian-Praeventio/issues
 
 ---

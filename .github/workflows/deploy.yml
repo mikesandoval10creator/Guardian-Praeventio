@@ -13,9 +13,11 @@ permissions:
 
 env:
   PROJECT_ID: praeventio-541ad
-  REGION: us-central1
+  # H16: alineado con cloudbuild.yaml (data residency Chile, Ley 19.628)
+  REGION: southamerica-west1
   SERVICE: guardian-praeventio
-  IMAGE: us-central1-docker.pkg.dev/praeventio-541ad/guardian-praeventio/guardian-praeventio
+  # H17: misma image path que cloudbuild (api repo + southamerica-west1)
+  IMAGE: southamerica-west1-docker.pkg.dev/praeventio-541ad/praeventio/api
 
 jobs:
   deploy:
@@ -36,16 +38,20 @@ jobs:
           service_account: github-guardian-deploy@praeventio-541ad.iam.gserviceaccount.com
 
       - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+        run: gcloud auth configure-docker southamerica-west1-docker.pkg.dev --quiet
 
       - name: Build and push Docker image
         env:
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
+          # H17: usar Dockerfile.api (runtime moderno) en vez del legado Dockerfile (monolito API+frontend)
           docker build \
+            -f Dockerfile.api \
             -t ${{ env.IMAGE }}:${SHA} \
             -t ${{ env.IMAGE }}:latest \
             .
+          docker push ${{ env.IMAGE }}:${SHA}
+          docker push ${{ env.IMAGE }}:latest
           docker push ${{ env.IMAGE }}:${SHA}
           docker push ${{ env.IMAGE }}:latest
 

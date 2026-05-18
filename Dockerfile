@@ -24,8 +24,9 @@ COPY --from=builder /app/dist ./dist
 COPY server.ts tsconfig.json ./
 COPY src ./src
 
-# Optional: Firebase Admin config (mount as secret in Cloud Run instead)
-COPY firebase-applet-config.json* ./
+# H3 (2026-05-17): firebase-applet-config.json NO se hornea en la imagen.
+# Se monta como Secret Manager en runtime de Cloud Run.
+# Ver docs/runbooks/SECRETS_RUNBOOK.md.
 
 EXPOSE 3000
 

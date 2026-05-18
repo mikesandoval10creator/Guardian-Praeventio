@@ -152,7 +152,7 @@ export const API_TIERS: readonly ApiTier[] = [
     requestsPerMonth: 50_000,
     rateLimit: { perSecond: 10, perDay: 50_000 },
     features: [
-      '15 normativas chilenas (DS 54, DS 40, Ley 16.744, NCh, etc.)',
+      '15 normativas chilenas (DS 54, DS 44/2024, Ley 16.744, NCh, etc.)',
       '5 protocolos chilenos',
       'ISO 45001 fallback global',
       'Endpoint applies-to (proyecto → normativas aplicables)',

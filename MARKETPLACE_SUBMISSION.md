@@ -12,8 +12,8 @@ This runbook is **English (developer-facing)** by design. End-user listing copy 
 
 - [ ] Domain `praeventio.net` registered AND verified in Google Search Console under the same Google account that will submit the listing.
 - [ ] Domain `praeventio.cl` registered (defensive for Chilean users) — nice-to-have.
-- [ ] `soporte@praeventio.net` MX records resolve and a real human / shared inbox monitors it.
-- [ ] `privacidad@praeventio.net`, `dev@praeventio.net` (or `dahosandoval@gmail.com` as developer contact) reachable.
+- [ ] `contacto@praeventio.net` MX records resolve and a real human / shared inbox monitors it.
+- [ ] `contacto@praeventio.net`, `contacto@praeventio.net` (or `dahosandoval@gmail.com` as developer contact) reachable.
 - [ ] Privacy policy live at `https://praeventio.net/privacy` (returns HTTP 200, includes scope-by-scope disclosure per `marketplace/scope-justifications.md`).
 - [ ] Terms of service live at `https://praeventio.net/terms`.
 - [ ] Marketing homepage live at `https://praeventio.net` (not a "Coming Soon" page).
@@ -79,7 +79,7 @@ Sensitive scopes (`calendar.events`, plus `drive.file` if Google flags it for ou
      - App writes an IPER PDF to user's Drive
    - **App home page screenshot** (proves we control praeventio.net).
 4. Submit.
-5. **Wait 5-15 business days.** Reviewer questions arrive at `soporte@praeventio.net` (the User Support email).
+5. **Wait 5-15 business days.** Reviewer questions arrive at `contacto@praeventio.net` (the User Support email).
 
 **While waiting:** do NOT change scopes or OAuth client config — every change resets the queue position.
 
@@ -143,7 +143,7 @@ Sensitive scopes (`calendar.events`, plus `drive.file` if Google flags it for ou
 ## Step 10 — Review & feedback loop
 
 - **Review SLA:** 5-15 business days, often longer for first-time developers.
-- **Reviewer feedback:** arrives at User Support email (`soporte@praeventio.net`). Common asks:
+- **Reviewer feedback:** arrives at User Support email (`contacto@praeventio.net`). Common asks:
   - "Demonstrate scope X" — re-record demo video with a clearer flow.
   - "Privacy policy section Y is missing" — update praeventio.net/privacy, re-submit.
   - "App icon contains text" — re-export icon without wordmark, re-upload.
@@ -157,7 +157,7 @@ Sensitive scopes (`calendar.events`, plus `drive.file` if Google flags it for ou
 Once approved and live:
 
 - **Monitor:** Marketplace SDK → Analytics tab. Track installs, uninstalls, active users.
-- **Respond to reviews:** within 48 hours. Use the same `soporte@praeventio.net` voice as the listing copy (Spanish-CL primary).
+- **Respond to reviews:** within 48 hours. Use the same `contacto@praeventio.net` voice as the listing copy (Spanish-CL primary).
 - **Update cadence:** any change to scopes, privacy policy, or core functionality triggers a re-review (5-15 business days). Plan changes in batches.
 - **Sunset Fit scopes** before 2026-12-31 — already removed from manifest, but server-side `/api/fitness/sync` still emits Sunset header per RFC 8594. Confirm zero callers in logs by Q4 2026.
 - **Featured listing request:** after first 100 installs, request featuring via Marketplace partner manager (email follow-up).

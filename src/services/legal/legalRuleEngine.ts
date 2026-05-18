@@ -99,7 +99,7 @@ const RULES: Rule[] = [
       recommendation:
         'Constituir Departamento de Prevención de Riesgos a cargo de un experto en ' +
         'prevención inscrito en SUSESO. Mantener registros de horas dedicadas.',
-      legalCitation: 'Ley 16.744 art. 8 + DS 40',
+      legalCitation: 'Ley 16.744 art. 8 + DS 44/2024 (reemplaza DS 40/1969, derogado 2025-02-01)',
       urgency: 'critical',
     }),
   },

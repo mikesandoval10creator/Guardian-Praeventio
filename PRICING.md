@@ -13,7 +13,7 @@ Praeventio cobra en dos dimensiones independientes:
 | **Capacidad**      | Trabajadores totales + proyectos    | Define el **tier** (1 a 10)  |
 | **Cumplimiento**   | Normativa local por proyecto/faena  | Pack opcional **per-project**|
 
-El tier se elige por capacidad. Los packs normativos (DS 54, DS 40, NIOSH, ISO 45001…) se contratan por proyecto y se acumulan sin afectar el tier.
+El tier se elige por capacidad. Los packs normativos (DS 54, DS 44/2024, NIOSH, ISO 45001…) se contratan por proyecto y se acumulan sin afectar el tier.
 
 ---
 
@@ -70,7 +70,7 @@ Sólo los tiers Comité Paritario, Departamento, Plata y Oro permiten overage. L
 
 ## 5. Roadmap LATAM + ISO 45001
 
-Praeventio nace cubriendo Chile (DS 54, DS 40, Ley 16.744, SUSESO). El roadmap LATAM agrega packs locales sin costo extra para tiers vigentes:
+Praeventio nace cubriendo Chile (DS 54, DS 44/2024, Ley 16.744, SUSESO). El roadmap LATAM agrega packs locales sin costo extra para tiers vigentes:
 
 - **Q2 2026:** Perú (DS 005-2012-TR), Colombia (Decreto 1072 / SG-SST).
 - **Q3 2026:** México (NOM-035, NOM-019), Argentina (Ley 19.587, Res. 295/03).
@@ -128,7 +128,7 @@ A partir de Sprint 10, Praeventio expone una capa **B2D** (Business-to-Developer
 |---|---|---|
 | **A — Climate & Environmental Intelligence** | `A` | Boletín climático (wrapper de Open-Meteo con lógica Praeventio), índices sísmicos USGS, tracker solar/lunar, escalamiento por altitud y la lógica de inversión cruzada de tema climático |
 | **B — Hazmat & Engineering Calculations (Bernoulli)** | `B` | Las 6 funciones puras de `bernoulliEngine.ts` + los 15 casos de uso `BERNOULLI_EXTENSIONS` (presión dinámica, Venturi, carga de viento, fatiga respiratoria, rocío, etc.) |
-| **C — Normativa Chilena & LATAM Compliance** | `C` | 15 normativas chilenas (DS 54, DS 40, Ley 16.744, NCh, etc.) + 5 protocolos chilenos + ISO 45001 fallback global + roadmap LATAM (Q2 Perú/Colombia · Q3 México/Argentina · Q4 Brasil/Ecuador) |
+| **C — Normativa Chilena & LATAM Compliance** | `C` | 15 normativas chilenas (DS 54, DS 44/2024, Ley 16.744, NCh, etc.) + 5 protocolos chilenos + ISO 45001 fallback global + roadmap LATAM (Q2 Perú/Colombia · Q3 México/Argentina · Q4 Brasil/Ecuador) |
 | **D — Praeventio Intelligence Suite** | `D` | Combo A+B+C con descuento (~30%) + acceso al **Gemini AI Coach** con contexto Praeventio. Entrada única para integradores que quieran "todo Praeventio menos Zettelkasten" |
 
 ### 9.2 Pricing B2D (USD/mes)
@@ -179,7 +179,7 @@ Esta frontera está reflejada en `aiTier.ts:privacyNote` (campo obligatorio por 
 - IDEs de IA agentic (Cursor, Cline, Codex) generando hojas de cálculo de hazmat correctas a la primera.
 
 **C — Normativa Chilena & LATAM Compliance**
-- Bufetes laborales que quieran auto-checks de cumplimiento DS 54 / DS 40.
+- Bufetes laborales que quieran auto-checks de cumplimiento DS 54 / DS 44/2024.
 - Plataformas SaaS verticales (mineras, construcción) que necesiten un motor normativo CL al día.
 - Agentes de IA legal que respondan "¿esta faena cumple DS 594?" con la matriz oficial.
 

@@ -37,7 +37,7 @@ resource "google_monitoring_notification_channel" "founder_email" {
   description  = "Default channel for all P2/P3 alerts. Routes to the founder inbox."
 
   labels = {
-    email_address = "soporte@praeventio.net"
+    email_address = "contacto@praeventio.net"
   }
 
   user_labels = {
@@ -52,7 +52,7 @@ resource "google_monitoring_notification_channel" "security_email" {
   description  = "Channel for security-sensitive alerts (KMS errors, backup gaps, auth anomalies)."
 
   labels = {
-    email_address = "security@praeventio.net"
+    email_address = "contacto@praeventio.net"
   }
 
   user_labels = {

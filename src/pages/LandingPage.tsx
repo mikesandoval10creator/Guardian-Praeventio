@@ -25,7 +25,7 @@ const FEATURES = [
     color: 'text-violet-400',
     bg: 'bg-violet-500/10 border-violet-500/20',
     title: 'Inteligencia Artificial',
-    desc: 'Gemini Pro genera PTS automáticos, evalúa riesgos y te guía con normativa DS 54, DS 40 y Ley 16.744.',
+    desc: 'Gemini Pro genera PTS automáticos, evalúa riesgos y te guía con normativa DS 54, DS 44/2024 (reemplaza DS 40/1969) y Ley 16.744.',
   },
   {
     icon: BookOpen,
@@ -73,7 +73,7 @@ const PLANS: Plan[] = [
   { name: 'Enterprise', workers: '250+', price: 'Desde $50/mes', color: 'border-violet-500' },
 ];
 
-const COMPLIANCE_BADGES = ['DS 54', 'DS 40', 'Ley 16.744', 'ISO 45001', 'OHSAS 18001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
+const COMPLIANCE_BADGES = ['DS 54', 'DS 44/2024', 'Ley 16.744', 'ISO 45001', 'OHSAS 18001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
 
 const HOW_STEPS = [
   {

@@ -128,7 +128,7 @@ Este no es un producto SaaS de gestión de tickets. Esto es un sistema que cruza
 - Bluetooth mesh sincronizado entre dispositivos
 - Encriptación AES-256 en cliente
 - PWA con búnker offline de 100MB
-- Cumplimiento normativo de 9 normas chilenas (DS 54, DS 40, DS 43, DS 72, DS 76, DS 109, DS 594, Ley 16.744, Ley 21.156)
+- Cumplimiento normativo de 9 normas chilenas (DS 54, DS 44/2024, DS 43, DS 72, DS 76, DS 109, DS 594, Ley 16.744, Ley 21.156)
 - Multi-tenancy empresarial con RBAC
 - Generación de PDFs inmutables con hash criptográfico
 

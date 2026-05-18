@@ -129,7 +129,7 @@
 - **0:05-0:15** — Cut a prevencionista en oficina con planilla Excel; texto: "El compliance no debería ser una hoja de cálculo."
 - **0:15-0:35** — Demo rápido: IPER con IA, REBA on-device, Calendar predictivo, Modo Crisis.
 - **0:35-0:50** — "Multi-país sin recargo. ISO 45001 como fallback global. Soberanía de datos en Santiago."
-- **0:50-1:00** — Logo Praeventio, "soporte@praeventio.net", "Instalar gratis en Google Workspace".
+- **0:50-1:00** — Logo Praeventio, "contacto@praeventio.net", "Instalar gratis en Google Workspace".
 
 **TODO (design + marketing):** out of scope for code. Recommend studio quote post-MVP.
 

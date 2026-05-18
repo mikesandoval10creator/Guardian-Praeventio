@@ -13,6 +13,10 @@
 .env
 .env.*
 !.env.example
+# H3 (2026-05-17): excluir firebase-applet-config para que un dev con el
+# archivo local no lo hornee en la imagen. En runtime se monta como
+# Secret Manager (Cloud Run). Ver docs/runbooks/SECRETS_RUNBOOK.md.
+firebase-applet-config.json
 
 # ── Node ─────────────────────────────────────────────────────────────────
 node_modules/

@@ -87,7 +87,7 @@ export function Normatives() {
       const criticalLaws = [
         { id: "28650", name: "Ley 16.744" },
         { id: "14305", name: "DS 594" },
-        { id: "25510", name: "DS 40" }
+        { id: "25510", name: "DS 44/2024" }
       ];
 
       for (const law of criticalLaws) {
@@ -118,7 +118,7 @@ export function Normatives() {
         },
         {
           title: 'Decreto Supremo 40: Reglamento sobre Prevención de Riesgos Profesionales',
-          code: 'DS 40',
+          code: 'DS 44/2024',
           category: 'Prevención',
           description: 'Establece normas sobre la organización y funcionamiento de los Departamentos de Prevención de Riesgos.',
           status: 'active',

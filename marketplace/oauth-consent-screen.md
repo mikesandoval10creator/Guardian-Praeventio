@@ -21,7 +21,7 @@
 ---
 
 ### Field 2 — User support email
-**Paste:** `soporte@praeventio.net`
+**Paste:** `contacto@praeventio.net`
 
 **Why:** This is the public-facing inbox shown to end users on the Google consent dialog. `README.md` already commits this address. End users WILL email it; route it to a real ticketing system or shared inbox.
 
@@ -64,7 +64,7 @@
 - Data retention period.
 - Third-party processors (Firebase, Vertex AI, KMS).
 - User rights under Ley 19.628 (Chile) and Ley 21.719 (new data protection law effective 2026).
-- A working contact for data deletion requests (privacidad@praeventio.net per README.md).
+- A working contact for data deletion requests (contacto@praeventio.net per README.md).
 
 **Common mistakes to avoid:**
 - Hosting the policy on Notion or Google Docs — reviewers reject these as "third-party platforms not on declared domain."
@@ -97,7 +97,7 @@ praeventio.cl
 ### Field 8 — Developer contact information
 **Paste:** `dahosandoval@gmail.com`
 
-**Why:** This inbox is **private to Google** — only Trust & Safety reviewers email it, never end users. The personal Gmail is correct here until `dev@praeventio.net` is set up. Google requires it to be reachable for security/policy notifications (deprecation announcements, suspension notices).
+**Why:** This inbox is **private to Google** — only Trust & Safety reviewers email it, never end users. The personal Gmail is correct here until `contacto@praeventio.net` is set up. Google requires it to be reachable for security/policy notifications (deprecation announcements, suspension notices).
 
 **Common mistakes to avoid:**
 - Using the same address as User Support (Field 2). Google warns if both match — they want a separate developer contact.
@@ -166,4 +166,4 @@ Once status flips to **In production**, this list is ignored.
 
 - **OAuth verification (sensitive scopes path):** 5-15 business days. Plan for 4 weeks calendar end-to-end.
 - **Hard date risk:** the Google Fit deprecation announcement (sunset 2026-12-31) means our Fit scopes would block verification. We removed them from the manifest; double-check before clicking Submit.
-- **Reviewer questions arrive at User Support email (Field 2)**, NOT Developer contact. Monitor `soporte@praeventio.net` daily during review.
+- **Reviewer questions arrive at User Support email (Field 2)**, NOT Developer contact. Monitor `contacto@praeventio.net` daily during review.

@@ -129,7 +129,7 @@
 | # | ID | Descripcion | Producer | Consumers | Source |
 |---|----|-------------|----------|-----------|--------|
 | 1 | `norma-DS-54` | DS 54 — Comites paritarios de higiene y seguridad. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/services/orchestratorService.ts` | DS-54 |
-| 2 | `norma-DS-40` | DS 40 — Reglamento sobre prevencion de riesgos. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/services/orchestratorService.ts` | DS-40 |
+| 2 | `norma-DS-40` | DS 44/2024 — Reglamento sobre prevencion de riesgos. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/services/orchestratorService.ts` | DS-40 |
 | 3 | `norma-DS-76` | DS 76 — Subcontratacion y obligaciones del mandante. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/services/orchestratorService.ts` | DS-76 |
 | 4 | `norma-DS-132` | DS 132 — Reglamento de seguridad minera. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/services/orchestratorService.ts` | DS-132 |
 | 5 | `norma-DS-594` | DS 594 — Condiciones sanitarias y ambientales basicas en lugares de trabajo. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/services/orchestratorService.ts` | DS-594 |
@@ -176,8 +176,8 @@
 | 46 | `norma-DS-132-Art-75` | DS 132 Art. 75 — Caudal minimo de aire por trabajador en mina. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/pages/Audits.tsx` | DS-132 |
 | 47 | `norma-DS-132-Art-201` | DS 132 Art. 201 — Voladuras controladas. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/pages/Audits.tsx` | DS-132 |
 | 48 | `norma-DS-132-Art-220` | DS 132 Art. 220 — Manejo de explosivos. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/pages/Audits.tsx` | DS-132 |
-| 49 | `norma-DS-40-Art-14` | DS 40 Art. 14 — Departamento de prevencion de riesgos. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/pages/Audits.tsx` | DS-40 |
-| 50 | `norma-DS-40-Art-21` | DS 40 Art. 21 — Obligacion de informar (ODI/Derecho a saber). | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/pages/Audits.tsx` | DS-40 |
+| 49 | `norma-DS-40-Art-14` | DS 44/2024 Art. 14 — Departamento de prevencion de riesgos. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/pages/Audits.tsx` | DS-40 |
+| 50 | `norma-DS-40-Art-21` | DS 44/2024 Art. 21 — Obligacion de informar (ODI/Derecho a saber). | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/pages/Audits.tsx` | DS-40 |
 | 51 | `norma-DS-54-Art-1` | DS 54 Art. 1 — Constitucion de comite paritario. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/pages/Audits.tsx` | DS-54 |
 | 52 | `norma-DS-54-Art-24` | DS 54 Art. 24 — Funciones del comite paritario. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/pages/Audits.tsx` | DS-54 |
 | 53 | `norma-DS-76-Art-3` | DS 76 Art. 3 — Reglamento especial de subcontratistas. | `src/services/zettelkasten/normaRegistry.ts` | `src/pages/RiskNetwork.tsx`, `src/pages/Audits.tsx` | DS-76 |

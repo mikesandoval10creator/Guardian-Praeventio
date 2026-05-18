@@ -94,6 +94,13 @@ export function initSentry(): void {
 
   Sentry.init({
     dsn,
+    // 2026-05-17: directiva usuario — habilitar PII por default (IP cliente).
+    // El `beforeSend` aplica `redactPii` después, que borra email/username/
+    // ip_address/GPS/Auth headers antes de transportar al backend Sentry.
+    // Resultado neto: misma protección Ley 19.628 + GDPR, código alineado
+    // con la guía oficial de Sentry. Ver SECURITY.md §"Datos enviados a
+    // observabilidad" para el detalle del backstop.
+    sendDefaultPii: true,
     environment: (import.meta.env.VITE_APP_ENV as string | undefined) ?? import.meta.env.MODE,
     release: (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'dev',
 

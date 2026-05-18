@@ -6,7 +6,7 @@
  *   1. Project-size rules (Ley 16.744 art. 66 and DS 54): triggered purely
  *      by `workerCount` per project. These do not require a `context`.
  *
- *   2. Time-based rules (DS 54 art. 16/24, Ley 16.744 art. 21 / DS 40,
+ *   2. Time-based rules (DS 54 art. 16/24, Ley 16.744 art. 21 / DS 44/2024,
  *      NT MINSAL PREXOR): triggered by elapsed days since the last
  *      occurrence of the obligation. The caller passes per-project /
  *      per-worker last-event timestamps via `NormativeContext`.
@@ -74,7 +74,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const CPHS_CADENCE_DAYS = 30;
 const CPHS_WARNING_DAYS = 25;
 
-/** Ley 16.744 art. 21 + DS 40 — ODI cada 6 meses. */
+/** Ley 16.744 art. 21 + DS 44/2024 — ODI cada 6 meses. */
 const ODI_CADENCE_DAYS = 180;
 const ODI_WARNING_DAYS = 150; // ~5 meses
 
@@ -179,7 +179,7 @@ export function evaluateNormativeAlerts(
       }
     }
 
-    /* ODI — Ley 16.744 art. 21 / DS 40 — semestral */
+    /* ODI — Ley 16.744 art. 21 / DS 44/2024 — semestral */
     if (context.lastOdiByProject !== undefined) {
       const last = context.lastOdiByProject[project.id];
       if (last === undefined) {
@@ -189,7 +189,7 @@ export function evaluateNormativeAlerts(
           severity: 'critical',
           message:
             `El proyecto "${project.id}" no registra capacitaciones ODI ` +
-            `(Obligación de Informar). Ley 16.744 art. 21 y DS 40 exigen ` +
+            `(Obligación de Informar). Ley 16.744 art. 21 y DS 44/2024 exigen ` +
             `inducción semestral. Programa la primera ODI a la brevedad.`,
         });
       } else {

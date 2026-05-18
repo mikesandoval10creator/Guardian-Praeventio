@@ -1,7 +1,7 @@
 /**
  * IPER — Identificación de Peligros y Evaluación de Riesgos.
  *
- * Reference: SUSESO Guía Técnica DS 40 (Reglamento del Sistema de Gestión de
+ * Reference: SUSESO Guía Técnica DS 44/2024 (Reglamento del Sistema de Gestión de
  * la Seguridad y Salud en el Trabajo) and ACHS / IST / Mutual Manual IPER.
  * The 5×5 risk matrix below (Probability × Severity) is the standard mapping
  * adopted by the Chilean mutuales for sectorial IPER assessments.

@@ -216,7 +216,7 @@ export function LaborManagementModal({ isOpen, onClose, worker }: LaborManagemen
                 </h3>
               <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-xl p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-zinc-900 dark:text-white font-medium">Documento ODI (DS 40)</p>
+                  <p className="text-zinc-900 dark:text-white font-medium">Documento ODI (DS 44/2024)</p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">El trabajador ha sido informado de los riesgos laborales.</p>
                 </div>
                 <div className="flex items-center gap-3">

@@ -62,8 +62,9 @@ COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/src ./src
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/package.json ./package.json
-# Optional config; the COPY will silently no-op if the file is absent.
-COPY --from=build /app/firebase-applet-config.json* ./
+# H3 (2026-05-17): firebase-applet-config.json NO se hornea en la imagen.
+# Se monta como Secret Manager en runtime de Cloud Run.
+# Ver docs/runbooks/SECRETS_RUNBOOK.md.
 
 # Drop privileges. The official node:20-alpine image ships a `node` user.
 RUN chown -R node:node /app

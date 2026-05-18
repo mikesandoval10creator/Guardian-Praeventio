@@ -9,7 +9,7 @@
   "scripts": {
     "cli": "node scripts/cli/praeventio.mjs",
     "dev": "tsx server.ts",
-    "prebuild": "node scripts/download-mediapipe-models.mjs",
+    "prebuild": "node scripts/download-mediapipe-models.mjs && node scripts/render-well-known.mjs",
     "build": "vite build",
     "prepackage:slm": "node scripts/prepackage-slm-models.mjs",
     "prepackage:slm:dry": "node scripts/prepackage-slm-models.mjs --dry-run",

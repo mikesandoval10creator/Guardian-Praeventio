@@ -12,6 +12,10 @@ tsconfig.tsbuildinfo
 # Firebase config — contains project credentials, use env vars in production
 firebase-applet-config.json
 
+# Agent multi-paralelo worktrees scratch (ver lección plan vivo línea 1970)
+.claude/worktrees/
+*.tmp.ts
+
 # Sprint 40 — gstack pirate adoption: share commands/settings via repo
 # (per Garry Tan team-mode pattern). Local outputs stay private.
 .claude/agents-output/
