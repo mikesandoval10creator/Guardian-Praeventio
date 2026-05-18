@@ -23,13 +23,7 @@ import type { LotoApplication } from '../services/loto/lotoDigitalLight';
 import type { Equipment, EquipmentStatus } from '../services/equipment/equipmentQrService';
 import type { ScoreBreakdown } from '../services/suppliers/supplierScoring';
 import type { PreventiveObjective } from '../services/annualReview/annualSgiReview';
-import type {
-  RiskLikelihood as ResidualRiskLikelihood,
-  RiskSeverity as ResidualRiskSeverity,
-  RiskLevel as ResidualRiskLevel,
-  AppliedControl as ResidualAppliedControl,
-  ControlEffectivenessLevel as ResidualControlEffectiveness,
-} from '../services/residualRisk/residualRiskEngine';
+// Tipos del engine residual ya no se importan aquí; viven en useResidualRisk.ts (2026-05-18).
 import type {
   SupervisionDecision,
   SupervisionDecisionKind,
@@ -118,20 +112,11 @@ export function useSifPendingReview(projectId: string | null) {
   );
 }
 
-export interface PositiveObservationsResponse {
-  observations: PositiveObservation[];
-}
-
-export function usePositiveObservationsForWorker(
-  projectId: string | null,
-  workerUid: string | null,
-) {
-  return useEndpoint<PositiveObservationsResponse>(
-    projectId && workerUid
-      ? `/api/sprint-k/${projectId}/positive-observations/worker/${workerUid}`
-      : null,
-  );
-}
+// §214-215 Positive Observations hooks migrados a `usePositiveObservations.ts` (2026-05-18).
+export {
+  usePositiveObservationsForWorker,
+  type PositiveObservationsResponse,
+} from './usePositiveObservations';
 
 export interface WasteInventoryResponse {
   wastes: WasteRecord[];
@@ -278,35 +263,12 @@ export async function recordSifExecutiveReview(
   }
 }
 
-export interface PositiveObservationPayload {
-  id: string;
-  observedWorkerUid: string;
-  kind: PositiveObservation['kind'];
-  description: string;
-  observedAt: string;
-  location: string;
-  shared?: boolean;
-}
-
-export async function createPositiveObservation(
-  projectId: string,
-  payload: PositiveObservationPayload,
-): Promise<void> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(`/api/sprint-k/${projectId}/positive-observations`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-}
+// PositiveObservationPayload + createPositiveObservation migrados a
+// `usePositiveObservations.ts` (2026-05-18). Re-export para compatibilidad:
+export {
+  createPositiveObservation,
+  type PositiveObservationPayload,
+} from './usePositiveObservations';
 
 // LessonPayload + createLesson migrados a `useLessonsLearned.ts` (2026-05-18).
 // Se re-exportan desde la cabecera de este archivo.
@@ -1073,84 +1035,15 @@ export async function inspectResource(
   return (await res.json()) as { ok: true; inspectionId: string };
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// Sprint K §214-215 — Observaciones Positivas + Balance
-// ────────────────────────────────────────────────────────────────────────
-//
-// Hooks adicionales sobre el motor positiveObservations. El hook
-// `usePositiveObservationsForWorker` ya existe arriba para listas por
-// trabajador. Aquí se agrega:
-//   - usePositiveObservations(projectId, { period })  → listado global
-//   - usePositiveObservationBalance(projectId, period) → ratio §215
-//
-// El mutator `createPositiveObservation` ya existe arriba.
-
-import type { BalanceReport } from '../services/positiveObservations/positiveObservationsService';
-
-export type PositiveObservationPeriod = '30d' | '90d' | 'all';
-
-export interface PositiveObservationsPageInfo {
-  /** Page size cap applied server-side. */
-  limit: number;
-  /** True when more docs exist past `nextStartAfter`. */
-  hasMore: boolean;
-  /** Cursor doc id to pass back as `?startAfter=…` for the next page. */
-  nextStartAfter: string | null;
-}
-
-export interface PositiveObservationsListResponse {
-  observations: PositiveObservation[];
-  period: PositiveObservationPeriod;
-  /** Codex P2 PR #320 (line 5142): pagination metadata for bounded reads. */
-  pagination?: PositiveObservationsPageInfo;
-}
-
-export interface PositiveObservationBalanceResponse {
-  positive: number;
-  corrective: number;
-  ratio: number;
-  period: PositiveObservationPeriod;
-  balance: BalanceReport;
-  /**
-   * Codex P2 PR #320 (line 5198) + round 2: explicit window per side
-   * so the UI can label the asymmetry honestly. The server now applies
-   * a `dueDate >=` filter to correctives when a finite period is
-   * requested (since the F.4 `CorrectiveActionRecord` carries `dueDate`
-   * at creation), and falls back to `'all'` when the filter fails
-   * (e.g. missing index, pre-F.4 docs). `correctivePeriodBasis` tells
-   * the client which path was taken so it can render either a
-   * symmetric "vs 30 días · dueDate" subtitle or an explicit asymmetry
-   * chip when the basis falls back to `'all'`.
-   */
-  positivePeriod?: PositiveObservationPeriod;
-  correctivePeriod?: PositiveObservationPeriod;
-  correctivePeriodBasis?: 'dueDate' | 'all';
-}
-
-export function usePositiveObservations(
-  projectId: string | null,
-  opts: { period?: PositiveObservationPeriod; startAfter?: string } = {},
-) {
-  let path: string | null = null;
-  if (projectId) {
-    const qs = new URLSearchParams();
-    if (opts.period) qs.set('period', opts.period);
-    if (opts.startAfter) qs.set('startAfter', opts.startAfter);
-    const query = qs.toString();
-    path = `/api/sprint-k/${projectId}/positive-observations${query ? `?${query}` : ''}`;
-  }
-  return useEndpoint<PositiveObservationsListResponse>(path);
-}
-
-export function usePositiveObservationBalance(
-  projectId: string | null,
-  period: PositiveObservationPeriod = '30d',
-) {
-  const path = projectId
-    ? `/api/sprint-k/${projectId}/positive-observations/balance?period=${period}`
-    : null;
-  return useEndpoint<PositiveObservationBalanceResponse>(path);
-}
+// §214-215 listing + balance hooks migrados a `usePositiveObservations.ts` (2026-05-18).
+export {
+  usePositiveObservations,
+  usePositiveObservationBalance,
+  type PositiveObservationPeriod,
+  type PositiveObservationsPageInfo,
+  type PositiveObservationsListResponse,
+  type PositiveObservationBalanceResponse,
+} from './usePositiveObservations';
 
 // ────────────────────────────────────────────────────────────────────────
 // Fase F.6 — Modo Sin Señal para Inspecciones
@@ -2295,114 +2188,17 @@ export async function concludeAnnualReview(
   return json.snapshot;
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// Sprint K §296-301 — Riesgo Residual + Aceptación Formal + Suspicious
-// ────────────────────────────────────────────────────────────────────────
-
-export interface StoredResidualRisk {
-  id: string;
-  hazard: string;
-  category: string;
-  riskKind: 'physical' | 'administrative';
-  likelihood: ResidualRiskLikelihood;
-  inherentSeverity: ResidualRiskSeverity;
-  residualSeverity: ResidualRiskSeverity;
-  currentControls: ResidualAppliedControl[];
-  justification: string;
-  initialScore: number;
-  controlReduction: number;
-  residualScore: number;
-  initialLevel: ResidualRiskLevel;
-  residualLevel: ResidualRiskLevel;
-  requiresFormalAcceptance: boolean;
-  nextReviewInDays: number;
-  acceptance: {
-    status: 'pending' | 'accepted';
-    signedByUid: string | null;
-    signedAt: string | null;
-    reason: string | null;
-  };
-  createdAt: string;
-  createdBy: string;
-  isSuspicious: boolean;
-  suspiciousReason: string | null;
-}
-
-export interface ResidualRisksResponse {
-  risks: StoredResidualRisk[];
-}
-
-export function useResidualRisks(projectId: string | null) {
-  return useEndpoint<ResidualRisksResponse>(
-    projectId ? `/api/sprint-k/${projectId}/residual-risk` : null,
-  );
-}
-
-export function useSuspiciousRisks(projectId: string | null) {
-  return useEndpoint<ResidualRisksResponse>(
-    projectId ? `/api/sprint-k/${projectId}/residual-risk/suspicious` : null,
-  );
-}
-
-export interface ResidualRiskPayload {
-  id: string;
-  hazard: string;
-  category: string;
-  riskKind: 'physical' | 'administrative';
-  likelihood: ResidualRiskLikelihood;
-  inherentSeverity: ResidualRiskSeverity;
-  residualSeverity: ResidualRiskSeverity;
-  currentControls: Array<{
-    controlId: string;
-    effectiveness: ResidualControlEffectiveness;
-  }>;
-  justification: string;
-}
-
-export async function registerResidualRisk(
-  projectId: string,
-  payload: ResidualRiskPayload,
-): Promise<{ ok: true; risk: StoredResidualRisk }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(`/api/sprint-k/${projectId}/residual-risk`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as { ok: true; risk: StoredResidualRisk };
-}
-
-export async function acceptResidualRisk(
-  projectId: string,
-  riskId: string,
-  reason: string,
-): Promise<void> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/residual-risk/${riskId}/accept`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ reason }),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-}
+// §296-301 Residual Risk hooks migrados a useResidualRisk.ts (2026-05-18).
+export {
+  useResidualRisks,
+  useSuspiciousRisks,
+  registerResidualRisk,
+  acceptResidualRisk,
+  type StoredResidualRisk,
+  type ResidualRiskPayload,
+  type ResidualControlEffectiveness,
+  type ResidualRisksResponse,
+} from "./useResidualRisk";
 
 // ────────────────────────────────────────────────────────────────────────
 // Sprint K §276-277 — Bitácora de decisiones de supervisión + Ranking

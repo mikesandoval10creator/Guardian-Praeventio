@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ResidualRisk } from './ResidualRisk';
-import type { StoredResidualRisk } from '../hooks/useSprintK';
+import type { StoredResidualRisk } from '../hooks/useResidualRisk';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -60,7 +60,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useResidualRisk', () => ({
   useResidualRisks: () => mockRisksResp,
   useSuspiciousRisks: () => mockSuspiciousResp,
   registerResidualRisk: (...args: unknown[]) => mockRegister(...args),

@@ -28,7 +28,7 @@ import {
   usePositiveObservationBalance,
   createPositiveObservation,
   type PositiveObservationPeriod,
-} from '../hooks/useSprintK';
+} from '../hooks/usePositiveObservations';
 import type {
   PositiveObservation,
   PositiveObservationKind,

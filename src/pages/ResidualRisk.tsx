@@ -39,7 +39,7 @@ import {
   acceptResidualRisk,
   type StoredResidualRisk,
   type ResidualRiskPayload,
-} from '../hooks/useSprintK';
+} from '../hooks/useResidualRisk';
 import type {
   RiskLevel,
   RiskLikelihood,

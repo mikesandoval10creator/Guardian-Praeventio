@@ -106,7 +106,7 @@ vi.mock('../hooks/useOnlineStatus', () => ({
 vi.mock('../hooks/useFirestoreCollection', () => ({
   useFirestoreCollection: () => ({ data: mockWorkers, loading: false, error: null }),
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/usePositiveObservations', () => ({
   usePositiveObservations: (
     pid: string | null,
     opts: { period?: string; startAfter?: string } = {},
