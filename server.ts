@@ -233,6 +233,8 @@ import aiQualityRouter from "./src/server/routes/aiQuality.js";
 import geofencePermissionsRouter from "./src/server/routes/geofencePermissions.js";
 // Privacy Shield — PII classifier + compliance gap detector + retention reaper.
 import privacyShieldRouter from "./src/server/routes/privacyShield.js";
+// Upsell — Sprint K §116 (pain-based upsell suggestions).
+import upsellRouter from "./src/server/routes/upsell.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -892,6 +894,7 @@ app.use('/api/sprint-k', postTrainingRouter);
 app.use('/api/sprint-k', aiQualityRouter);
 app.use('/api/sprint-k', geofencePermissionsRouter);
 app.use('/api/sprint-k', privacyShieldRouter);
+app.use('/api/sprint-k', upsellRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
