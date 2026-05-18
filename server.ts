@@ -215,6 +215,8 @@ import skillGapRouter from "./src/server/routes/skillGap.js";
 import pricingSimulatorRouter from "./src/server/routes/pricingSimulator.js";
 // F.23 Document Versioning — semver chains with immutability.
 import documentVersioningRouter from "./src/server/routes/documentVersioning.js";
+// Form Builder Advanced — Sprint 53 §263-268 (computed fields + cross-field validation + topo sort).
+import formBuilderAdvancedRouter from "./src/server/routes/formBuilderAdvanced.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -865,6 +867,7 @@ app.use('/api/sprint-k', rootCauseInvestigationRouter);
 app.use('/api/sprint-k', skillGapRouter);
 app.use('/api/sprint-k', pricingSimulatorRouter);
 app.use('/api/sprint-k', documentVersioningRouter);
+app.use('/api/sprint-k', formBuilderAdvancedRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
