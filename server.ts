@@ -173,6 +173,8 @@ import incidentBundleRouter from "./src/server/routes/incidentBundle.js";
 import inboxRouter from "./src/server/routes/inbox.js";
 // F.19 Photo Evidence — metadata + linkage endpoints (bytes upload via Storage).
 import photoEvidenceRouter from "./src/server/routes/photoEvidence.js";
+// F.28 Explainability — stateless "porque..." rationale endpoint.
+import explainabilityRouter from "./src/server/routes/explainability.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -802,6 +804,7 @@ app.use('/api/sprint-k', dataQualityRouter);
 app.use('/api/sprint-k', incidentBundleRouter);
 app.use('/api/sprint-k', inboxRouter);
 app.use('/api/sprint-k', photoEvidenceRouter);
+app.use('/api/sprint-k', explainabilityRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
