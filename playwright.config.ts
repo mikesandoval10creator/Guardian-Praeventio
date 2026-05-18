@@ -70,7 +70,7 @@ export default defineConfig({
           {
             // Express con E2E_MODE=1 — tests que tocan /api/*.
             command: 'npx cross-env NODE_ENV=test E2E_MODE=1 E2E_TEST_SECRET=e2e-test-secret-do-not-use-in-prod PORT=3000 npx tsx server.ts',
-            url: 'http://localhost:3000/health',
+            url: 'http://localhost:3000/api/health',
             reuseExistingServer: !process.env.CI,
             timeout: 90_000,
           },
