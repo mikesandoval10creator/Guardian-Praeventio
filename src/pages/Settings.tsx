@@ -33,6 +33,8 @@ import { WebAuthnKeysSection } from '../components/settings/WebAuthnKeysSection'
 import { KekRotationPanel } from '../components/security/KekRotationPanel';
 // Sprint 31 Bucket MM — privacy compliance matrix UI.
 import { PrivacyComplianceMatrix } from '../components/compliance/PrivacyComplianceMatrix';
+// 2026-05-17 — admin-only Sentry verification button.
+import { SentryTestButton } from '../components/admin/SentryTestButton';
 import { LocalePicker } from '../components/LocalePicker';
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
@@ -665,6 +667,21 @@ export function Settings() {
                 {adminActionStatus}
               </p>
             )}
+
+            {/* 2026-05-17 — Sentry verification (admin-only). */}
+            <div className="space-y-3 border-t border-zinc-200 dark:border-white/5 pt-4">
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                {t('settings.observability.title', 'Observabilidad (Sentry)')}
+              </p>
+              <p className="text-xs text-zinc-500">
+                {t(
+                  'settings.observability.desc',
+                  'Botones de verificación para confirmar que el DSN de Sentry está conectado y los eventos PII-safe llegan correctamente. Solo visibles para admins.',
+                )}
+              </p>
+              <SentryTestButton variant="message" />
+              <SentryTestButton variant="throw" />
+            </div>
           </div>
         );
       default:
