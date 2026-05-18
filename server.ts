@@ -203,6 +203,8 @@ import multiRoleSummaryRouter from "./src/server/routes/multiRoleSummary.js";
 import privacyRetentionRouter from "./src/server/routes/privacyRetention.js";
 // Comms Drill — Sprint 53 §215-218 (emergency drill scoring + scheduling).
 import commsDrillRouter from "./src/server/routes/commsDrill.js";
+// Efficacy Verification — F.11 (30-day corrective-action follow-up).
+import efficacyVerificationRouter from "./src/server/routes/efficacyVerification.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -847,6 +849,7 @@ app.use('/api/sprint-k', checklistBuilderRouter);
 app.use('/api/sprint-k', multiRoleSummaryRouter);
 app.use('/api/sprint-k', privacyRetentionRouter);
 app.use('/api/sprint-k', commsDrillRouter);
+app.use('/api/sprint-k', efficacyVerificationRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
