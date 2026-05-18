@@ -237,6 +237,8 @@ import privacyShieldRouter from "./src/server/routes/privacyShield.js";
 import upsellRouter from "./src/server/routes/upsell.js";
 // Deduplication — record deduplicator (worker / equipment / project / contractor).
 import deduplicationRouter from "./src/server/routes/deduplication.js";
+// Return-to-work — Sprint 49 §251-254 (assess fit / derivación mutualidad / RTW plan).
+import returnToWorkRouter from "./src/server/routes/returnToWork.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -898,6 +900,7 @@ app.use('/api/sprint-k', geofencePermissionsRouter);
 app.use('/api/sprint-k', privacyShieldRouter);
 app.use('/api/sprint-k', upsellRouter);
 app.use('/api/sprint-k', deduplicationRouter);
+app.use('/api/sprint-k', returnToWorkRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
