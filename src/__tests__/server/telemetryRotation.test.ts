@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Round 17 R1: per-tenant IoT secret rotation.
+// Praeventio Guard — Round 17 R1: per-tenant IoT secret rotation.
 //
 // The `/api/telemetry/ingest` endpoint historically authenticated all
 // callers against a single env-level shared secret (`IOT_WEBHOOK_SECRET`).
@@ -7,13 +7,13 @@
 // one tenant compromises every other tenant.
 //
 // R17 R1 layers per-tenant secrets on top of the existing path:
-//   â€¢ Each tenant doc may carry `iotSecret` (32-byte hex) and
+//   • Each tenant doc may carry `iotSecret` (32-byte hex) and
 //     `iotSecretRotatedAt` (server timestamp).
-//   â€¢ Clients declare `tenantId` via header (`x-tenant-id`) or body.
-//   â€¢ When per-tenant secret exists, request body MUST be HMAC-SHA256 signed
+//   • Clients declare `tenantId` via header (`x-tenant-id`) or body.
+//   • When per-tenant secret exists, request body MUST be HMAC-SHA256 signed
 //     using that secret; signature lands in `x-iot-signature` header as
 //     `sha256=<hex>`.
-//   â€¢ When per-tenant secret is missing, fall back to legacy env secret
+//   • When per-tenant secret is missing, fall back to legacy env secret
 //     (logged as `telemetry_no_per_tenant_secret`).
 //
 // Tests:
@@ -196,7 +196,7 @@ beforeEach(() => {
   fs = new InMemoryFirestore();
 });
 
-describe('POST /api/telemetry/ingest â€” per-tenant secret (R17 R1)', () => {
+describe('POST /api/telemetry/ingest — per-tenant secret (R17 R1)', () => {
   it('accepts request when per-tenant HMAC signature matches', async () => {
     fs.store.set('tenants/tenant-A', { iotSecret: 'tenant-A-secret' });
     const app = buildApp({ fs, auth: makeAuth(), envSecret: ENV_SECRET });

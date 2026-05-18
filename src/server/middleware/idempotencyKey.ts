@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Sprint 35 Bucket (Audit P1 Â§1.3).
+// Praeventio Guard — Sprint 35 Bucket (Audit P1 Â§1.3).
 //
 // `idempotencyKey()` Express middleware. Stripe-pattern: a client may attach
 // `Idempotency-Key: <opaque-token>` to any mutating route opt-in to the
@@ -6,30 +6,30 @@
 // resulting (status + headers + body) keyed by `(uid|tenantId, key)` for
 // `ttlSec` seconds (default 24 h, Stripe convention). Subsequent requests
 // with the same key replay the cached response WITHOUT re-running the
-// handler â€” protecting flaky-mobile-network double-submits from creating
+// handler — protecting flaky-mobile-network double-submits from creating
 // duplicate crews / nodes / DTEs / aptitude certs.
 //
 // Why a NEW middleware instead of reusing `withIdempotency` (the lock-then-
 // complete helper used by Google Play RTDN + Webpay)?
 //
-//   â€¢ `withIdempotency` is shaped for at-least-once webhook delivery: it
+//   • `withIdempotency` is shaped for at-least-once webhook delivery: it
 //     returns an `IdempotencyOutcome<T>` discriminated union the caller
 //     branches on (`fresh-success` | `duplicate` | `in-flight` |
 //     `stale-retry`). Every billing-webhook caller hand-codes the response
 //     mapping. That's the right shape for webhooks because they need to
 //     decide "do I 200 the producer to suppress redelivery, or 500 to make
 //     them retry?".
-//   â€¢ Authenticated mutating routes don't have a producer-redelivery
+//   • Authenticated mutating routes don't have a producer-redelivery
 //     contract. They just need: "if I see this key again, return exactly
 //     what I returned last time, don't run the handler". That's a thin
 //     Express middleware shaped like Stripe's idempotency layer, with the
 //     full Response replay (status + body + headers) handled here so
 //     individual routes need only `idempotencyKey()` in the middleware
-//     chain â€” no per-route response-replay code.
+//     chain — no per-route response-replay code.
 //
 // Both helpers cache on Firestore and both honour TTL via Firestore TTL
 // policy on `expiresAt` (configure once in the Firestore console for the
-// `system_idempotency_cache` collection â€” same operator step as for the
+// `system_idempotency_cache` collection — same operator step as for the
 // existing `processed_pubsub` / `processed_webpay` collections).
 //
 // Concurrency:
@@ -41,15 +41,15 @@
 //   `withIdempotency` set-merge note). The post-handler write is the
 //   point where a second concurrent caller sees the cache populated.
 //   For STRICT serialization, place the rate-limiter middleware before
-//   this one â€” concurrent dupes from a single client are already 429-d.
+//   this one — concurrent dupes from a single client are already 429-d.
 //
 // Audit log fields:
-//   â€¢ `idempotency.cache_hit`   â€” replay path, action runs ZERO times
-//   â€¢ `idempotency.cache_write` â€” fresh path, response captured for replay
+//   • `idempotency.cache_hit`   — replay path, action runs ZERO times
+//   • `idempotency.cache_write` — fresh path, response captured for replay
 // Both rows carry { route, scope, key (hashed for PII), uid|tenantId }.
 //
 // Opt-in policy: middleware is applied per-route, NOT globally. A blanket
-// app.use() would cache GETs (semantically wrong â€” GET responses can
+// app.use() would cache GETs (semantically wrong — GET responses can
 // contain time-varying data) and webhook responses (already covered by
 // `withIdempotency`). Keep the surface explicit.
 
@@ -60,7 +60,7 @@ import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 
 /**
- * Default TTL for cached responses. Stripe uses 24 h â€” long enough for
+ * Default TTL for cached responses. Stripe uses 24 h — long enough for
  * a phone with intermittent connectivity to retry over multiple sessions,
  * short enough that a stale "ok" response can't pollute the user's view
  * of subscription / aptitude state forever.
@@ -70,7 +70,7 @@ export const IDEMPOTENCY_DEFAULT_TTL_SEC = 24 * 60 * 60;
 /** Firestore collection for the response cache. */
 export const IDEMPOTENCY_CACHE_COLLECTION = 'system_idempotency_cache';
 
-/** Header name (RFC-style â€” Stripe / IETF idempotency-key draft). */
+/** Header name (RFC-style — Stripe / IETF idempotency-key draft). */
 export const IDEMPOTENCY_HEADER = 'idempotency-key';
 
 export interface IdempotencyKeyOptions {
@@ -78,9 +78,9 @@ export interface IdempotencyKeyOptions {
   ttlSec?: number;
   /**
    * Cache scope:
-   *   â€¢ `uid`    â€” keys live under the authenticated user (default).
+   *   • `uid`    — keys live under the authenticated user (default).
    *               Two different users sending the same key are isolated.
-   *   â€¢ `tenant` â€” keys live under the user's tenantId (uid in the
+   *   • `tenant` — keys live under the user's tenantId (uid in the
    *               current single-tenant-per-uid model). Same-uid by
    *               construction; the alias exists so future multi-tenant
    *               rewrites have a one-line migration target.
@@ -105,7 +105,7 @@ interface CachedResponse {
   headers: Record<string, string>;
   /**
    * Captured request fingerprint (sha256 of method+path+body). On replay,
-   * if the fingerprint mismatches, we 422 â€” Stripe's behaviour: same key
+   * if the fingerprint mismatches, we 422 — Stripe's behaviour: same key
    * with different params is a client bug we refuse to silently mask.
    */
   fingerprint: string;
@@ -151,7 +151,7 @@ function computeFingerprint(req: Request): string {
   try {
     bodyStr = canonicalStringify(req.body ?? null);
   } catch {
-    // Body not JSON-serializable â€” fall back to "" so the fingerprint is
+    // Body not JSON-serializable — fall back to "" so the fingerprint is
     // still deterministic. Mismatches against a previously-cached call
     // will then trigger the 422 path, which is the safe direction.
     bodyStr = '';
@@ -225,7 +225,7 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
     const user = req.user as { uid?: string; tenantId?: string } | undefined;
     if (!user || !user.uid) {
       // verifyAuth must run BEFORE this middleware. If we got here without
-      // a uid the route is misconfigured â€” fail closed.
+      // a uid the route is misconfigured — fail closed.
       return res.status(401).json({ error: 'idempotency_key_requires_auth' });
     }
 

@@ -1,15 +1,15 @@
-﻿// Praeventio Guard â€” Sprint 39 STUB-3 cierre: SLM integrity checker.
+// Praeventio Guard — Sprint 39 STUB-3 cierre: SLM integrity checker.
 //
 // Cierra: AUDIT_TRUTH_MATRIX (SLM URLs Qwen/Gemma sin SHA256)
-//         Plan integral STUB 2 â€” factibilidad alta
+//         Plan integral STUB 2 — factibilidad alta
 //
 // Verifica que un modelo SLM descargado coincide con el `expectedSha256`
 // declarado en su `ModelDescriptor`. Modelo de seguridad:
 //
-//   - Si descriptor.expectedSha256 estÃ¡ definido:
+//   - Si descriptor.expectedSha256 está definido:
 //       - sha256 coincide â†’ âœ… accept
 //       - sha256 NO coincide â†’ âŒ fail-closed (modelo rechazado)
-//   - Si descriptor.expectedSha256 estÃ¡ undefined:
+//   - Si descriptor.expectedSha256 está undefined:
 //       - production â†’ âŒ fail-closed con error claro
 //       - non-production â†’ âš ï¸ warn pero pasa
 //
@@ -61,7 +61,7 @@ async function defaultHasher(bytes: Uint8Array): Promise<string> {
     );
     return bufferToHex(new Uint8Array(digest));
   }
-  // Node fallback â€” solo para tests/server-side.
+  // Node fallback — solo para tests/server-side.
   try {
     // Dynamic import para que el browser bundle no traiga node:crypto.
     const nodeCrypto: any = await import('node:crypto');
@@ -90,7 +90,7 @@ function bufferToHex(buf: Uint8Array): string {
  * discriminated union; caller must check status before loading the model
  * into the ONNX session.
  *
- * PolÃ­tica production:
+ * Política production:
  *   - status='mismatch' â†’ caller MUST NOT load (riesgo de modelo
  *     comprometido o corrupto)
  *   - status='rejected' (no hash in prod) â†’ caller MUST NOT load
@@ -115,7 +115,7 @@ export async function verifyModelIntegrity(
       return {
         status: 'rejected',
         reason: 'no_expected_hash_in_production',
-        detail: `Model '${descriptor.id}' has no expectedSha256 â€” production refuses load`,
+        detail: `Model '${descriptor.id}' has no expectedSha256 — production refuses load`,
       };
     }
     return { status: 'unverified', reason: 'no_expected_hash', mode: 'staging' };
@@ -146,7 +146,7 @@ export async function verifyModelIntegrity(
 
 /**
  * Helper: dado un IntegrityResult, decide si el loader puede proceder.
- * Centraliza la polÃ­tica en un solo lugar.
+ * Centraliza la política en un solo lugar.
  */
 export function shouldLoadModel(result: IntegrityResult): boolean {
   return result.status === 'verified' || result.status === 'unverified';
@@ -154,16 +154,16 @@ export function shouldLoadModel(result: IntegrityResult): boolean {
 
 /**
  * Construye URL completa del weight file dado un descriptor.
- * Si descriptor.weightFilename estÃ¡ presente, lo concatena al url base.
- * Si no, devuelve el url tal cual (asume el loader resolverÃ¡ heurÃ­stico).
+ * Si descriptor.weightFilename está presente, lo concatena al url base.
+ * Si no, devuelve el url tal cual (asume el loader resolverá heurístico).
  */
 export function buildWeightUrl(descriptor: ModelDescriptor): string {
   if (!descriptor.weightFilename) return descriptor.url;
-  // HuggingFace canÃ³nico: https://huggingface.co/<repo>/resolve/main/<path>
+  // HuggingFace canónico: https://huggingface.co/<repo>/resolve/main/<path>
   // Si la url ya es el repo root, agregamos /resolve/main/<filename>.
   const base = descriptor.url.replace(/\/$/, '');
   if (base.includes('/resolve/')) {
-    // Ya tiene un /resolve/ â€” el caller pasÃ³ URL completa.
+    // Ya tiene un /resolve/ — el caller pasó URL completa.
     return base;
   }
   return `${base}/resolve/main/${descriptor.weightFilename}`;

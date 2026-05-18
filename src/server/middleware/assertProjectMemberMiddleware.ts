@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Round 16 R5 Phase 1 split.
+// Praeventio Guard — Round 16 R5 Phase 1 split.
 //
 // Express middleware wrapper around the pure
 // `assertProjectMember(uid, projectId, db)` helper from
@@ -16,12 +16,12 @@
 //
 // The body-shape variant reads `req.body.projectId`. If absent / empty, the
 // middleware is a no-op (routes that *optionally* tag entries with a
-// projectId â€” like /api/audit-log â€” keep working). The param-shape variant
+// projectId — like /api/audit-log — keep working). The param-shape variant
 // reads `req.params.projectId` (or a configurable param name) and is strict
 // (a missing/invalid projectId yields HTTP 400).
 //
 // Phase 2 (billing) and Phase 3 (curriculum/projects) and Phase 4
-// (oauth/gemini) deferred to Round 17/18 â€” none of those routes are extracted
+// (oauth/gemini) deferred to Round 17/18 — none of those routes are extracted
 // in Phase 1, so this middleware is shipped now to unblock that work without
 // further server.ts churn.
 
@@ -33,7 +33,7 @@ import {
 } from '../../services/auth/projectMembership.js';
 
 /**
- * Optional projectId from req.body â€” common shape for write endpoints that
+ * Optional projectId from req.body — common shape for write endpoints that
  * accept a projectId tag (audit-log, telemetry tagging, etc.). When the body
  * lacks a projectId, the middleware is a no-op.
  */
@@ -49,7 +49,7 @@ export function assertProjectMemberFromBody() {
       return next();
     }
     if (!callerUid) {
-      // Defensive â€” verifyAuth should have run first.
+      // Defensive — verifyAuth should have run first.
       return res.status(401).json({ error: 'Unauthorized' });
     }
     try {

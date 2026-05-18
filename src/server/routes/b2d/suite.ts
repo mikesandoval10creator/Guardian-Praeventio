@@ -1,12 +1,12 @@
-﻿// SPDX-License-Identifier: MIT
-// Sprint 23 Bucket BB.6 â€” B2D Suite tier API.
+// SPDX-License-Identifier: MIT
+// Sprint 23 Bucket BB.6 — B2D Suite tier API.
 //
 // Mounted via `app.use('/api/b2d/v1/suite', suiteRouter)`.
 //
 // Endpoint:
-//   â€¢ POST /api/b2d/v1/suite/coach   â€” AI safety coach (suite.all scope)
+//   • POST /api/b2d/v1/suite/coach   — AI safety coach (suite.all scope)
 //
-// CRITICAL â€” privacy boundary:
+// CRITICAL — privacy boundary:
 //   The coach NEVER reads the Praeventio Zettelkasten. It operates ONLY
 //   on the input the integrator passes in the request body. The coach is
 //   a pure function from `(industry, scenario, mitigations) â†’ guidance`
@@ -43,13 +43,13 @@ function buildCoachGuidance(input: z.infer<typeof CoachSchema>) {
   const { industry, scenario, riskCategory, mitigations, language } = input;
   const baseRecommendations = [
     'Asegurar que la matriz IPER cubra el escenario descrito.',
-    'Verificar disponibilidad de EPP especÃ­fico para la industria.',
+    'Verificar disponibilidad de EPP específico para la industria.',
     'Documentar la cadena de mando para escalamiento de emergencia.',
   ];
   const riskTrailer =
     riskCategory === 'critical' || riskCategory === 'high'
-      ? 'Activar plan de respuesta inmediata y notificar al ComitÃ© Paritario.'
-      : 'Programar revisiÃ³n preventiva en prÃ³ximo ciclo mensual.';
+      ? 'Activar plan de respuesta inmediata y notificar al Comité Paritario.'
+      : 'Programar revisión preventiva en próximo ciclo mensual.';
 
   return {
     industry,

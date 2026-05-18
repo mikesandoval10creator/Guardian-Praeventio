@@ -1,6 +1,6 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 //
-// Sprint 20 â€” Bucket D â€” CloseProcessModal integration tests.
+// Sprint 20 — Bucket D — CloseProcessModal integration tests.
 
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

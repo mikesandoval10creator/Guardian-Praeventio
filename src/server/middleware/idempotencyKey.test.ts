@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Sprint 35 Bucket (Audit P1 Â§1.3).
+// Praeventio Guard — Sprint 35 Bucket (Audit P1 Â§1.3).
 //
 // Tests for `idempotencyKey()` middleware. Six branches mirror the
 // behavior contract pinned in idempotencyKey.ts:
@@ -10,8 +10,8 @@
 //   5. TTL expired             â†’ handler re-runs, cache row refreshed.
 //   6. Concurrent first calls  â†’ only ONE write commits (transaction race).
 //
-// We use vitest + an in-memory Firestore double â€” same pattern as
-// idempotency.test.ts â€” to keep the tests hermetic. The middleware accepts
+// We use vitest + an in-memory Firestore double — same pattern as
+// idempotency.test.ts — to keep the tests hermetic. The middleware accepts
 // `firestore: () => instance` injection precisely so tests don't need
 // firebase-admin running.
 
@@ -143,7 +143,7 @@ describe('idempotencyKey middleware', () => {
     // No cache row written.
     expect(collections.get(IDEMPOTENCY_CACHE_COLLECTION)?.size ?? 0).toBe(0);
 
-    // Second identical request still runs the handler â€” no idempotency.
+    // Second identical request still runs the handler — no idempotency.
     const r2 = await request(app).post('/test').send({ x: 1 });
     expect(r2.status).toBe(200);
     expect(calls.count).toBe(2);
@@ -177,7 +177,7 @@ describe('idempotencyKey middleware', () => {
     expect(r2.status).toBe(200);
     expect(r2.body).toEqual({ created: 'crew-42' });
     expect(r2.headers['idempotent-replayed']).toBe('true');
-    // Handler did NOT run again â€” that's the whole point.
+    // Handler did NOT run again — that's the whole point.
     expect(calls.count).toBe(1);
   });
 
@@ -185,7 +185,7 @@ describe('idempotencyKey middleware', () => {
   it('scope=uid isolates: same key from a different uid does NOT replay', async () => {
     const { fs, collections } = makeFakeFirestore();
 
-    // First app â€” uid A.
+    // First app — uid A.
     const appA = buildApp({
       firestore: () => fs,
       uid: 'uid-A',
@@ -199,7 +199,7 @@ describe('idempotencyKey middleware', () => {
     expect(collections.get(IDEMPOTENCY_CACHE_COLLECTION)?.size).toBe(1);
     expect(appA.calls.count).toBe(1);
 
-    // Second app â€” uid B, SAME idempotency key. Must NOT collide.
+    // Second app — uid B, SAME idempotency key. Must NOT collide.
     const appB = buildApp({
       firestore: () => fs,
       uid: 'uid-B',

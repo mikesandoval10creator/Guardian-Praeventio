@@ -1,27 +1,27 @@
-﻿// Praeventio Guard â€” Sprint 11.
+// Praeventio Guard — Sprint 11.
 //
-// POST /api/zettelkasten/nodes â€” server-side persistence for the 15
+// POST /api/zettelkasten/nodes — server-side persistence for the 15
 // Bernoulli-driven Zettelkasten node generators that fire client-side
 // inside HazmatStorageDesigner, StructuralCalculator, VisionAnalyzer y
-// BioAnalysis. Antes del Sprint 11 estos nodos se emitÃ­an sÃ³lo a
+// BioAnalysis. Antes del Sprint 11 estos nodos se emitían sólo a
 // `logger.info` (commit d121b9e); ahora cada llamada aterriza en
 // `zettelkasten_nodes/{nodeId}` con su par `audit_logs/{...}` para
 // trazabilidad.
 //
-// Membership y validaciÃ³n reutilizan el patrÃ³n de audit.ts:
-//   â€¢ verifyAuth â†’ uid del token (no del body)
-//   â€¢ assertProjectMember(uid, projectId) â†’ 403 cross-tenant
-//   â€¢ zettelkastenWriteLimiter (limiters.ts) â†’ 30 req / 15 min por uid
-//   â€¢ ValidaciÃ³n estricta de RiskNodePayload por nodo
+// Membership y validación reutilizan el patrón de audit.ts:
+//   • verifyAuth â†’ uid del token (no del body)
+//   • assertProjectMember(uid, projectId) â†’ 403 cross-tenant
+//   • zettelkastenWriteLimiter (limiters.ts) â†’ 30 req / 15 min por uid
+//   • Validación estricta de RiskNodePayload por nodo
 //
 // Cada documento incluye:
-//   â€¢ payload (title, description, type, severity, metadata, connections, references)
-//   â€¢ projectId (para reglas de lectura)
-//   â€¢ createdBy (uid del token, no del body)
-//   â€¢ createdAt (server timestamp)
-//   â€¢ idempotencyKey (id determinista; permite upsert con set+merge)
+//   • payload (title, description, type, severity, metadata, connections, references)
+//   • projectId (para reglas de lectura)
+//   • createdBy (uid del token, no del body)
+//   • createdAt (server timestamp)
+//   • idempotencyKey (id determinista; permite upsert con set+merge)
 //
-// Las escrituras son idempotentes vÃ­a .doc(idempotencyKey).set(...) â€” el
+// Las escrituras son idempotentes vía .doc(idempotencyKey).set(...) — el
 // cliente deriva el id en `nodeIdFor` y reintentos de la cola offline no
 // duplican filas.
 
@@ -35,14 +35,14 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { zettelkastenWriteLimiter } from '../middleware/limiters.js';
-// Sprint 28 Bucket B3 â€” Zod transversal middleware (audit hallazgo H17).
+// Sprint 28 Bucket B3 — Zod transversal middleware (audit hallazgo H17).
 // Mounted as the FIRST barrier; the existing per-node `validateNode` helper
 // stays as a defense-in-depth guard until Sprint 29.
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
-// Sprint 22 Bucket AA â€” request-scoped tracing across the node-write batch.
+// Sprint 22 Bucket AA — request-scoped tracing across the node-write batch.
 import { tracedAsync } from '../../services/observability/tracing.js';
-// Sprint 29 Bucket AA F-B â€” incident RAG service para /nl-query.
+// Sprint 29 Bucket AA F-B — incident RAG service para /nl-query.
 import { generateEmbedding } from '../../services/ragService.js';
 import {
   searchIncidents,
@@ -68,7 +68,7 @@ const VALID_TYPES = new Set([
   'slam-mesh',
   'dike-hydrostatic',
   'gas-dispersion',
-  // Sprint 16 â€” wisdom-capsule learning node emitted by /api/wisdom-capsule.
+  // Sprint 16 — wisdom-capsule learning node emitted by /api/wisdom-capsule.
   'safety-learning',
 ]);
 
@@ -113,7 +113,7 @@ function validateNode(node: any, idx: number): ValidationOk | ValidationFail {
   return { ok: true };
 }
 
-// Sprint 28 Bucket B3 â€” minimal coarse-shape gate. Per-node validation
+// Sprint 28 Bucket B3 — minimal coarse-shape gate. Per-node validation
 // continues to live in `validateNode` below (richer error messages, kept
 // for backward compat). This schema only ensures `projectId` is present
 // and `nodes` is a bounded array of objects so the legacy validator can
@@ -143,7 +143,7 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const callerEmail: string | null = req.user!.email ?? null;
-    // Sprint 29 H17: shape gate (projectId/nodes typeof + length) removed â€”
+    // Sprint 29 H17: shape gate (projectId/nodes typeof + length) removed —
     // `zettelkastenWriteSchema` is the single source of truth. `validateNode`
     // stays: it enforces the ID_REGEX on idempotencyKey and other per-node
     // invariants the Zod schema's .passthrough() does not cover.
@@ -241,9 +241,9 @@ router.post(
   },
 );
 
-// â”€â”€â”€ Sprint 29 Bucket AA F-B â€” POST /api/zettelkasten/nl-query â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€â”€ Sprint 29 Bucket AA F-B — POST /api/zettelkasten/nl-query â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// BÃºsqueda en lenguaje natural sobre el histÃ³rico de incidentes del tenant
+// Búsqueda en lenguaje natural sobre el histórico de incidentes del tenant
 // (scope = projectId). Reusa verifyAuth + assertProjectMember + Zod via
 // validate, igual que /nodes.
 

@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Wire UI bridge: /api/sitebook routes.
+// Praeventio Guard — Wire UI bridge: /api/sitebook routes.
 //
 // Server-side endpoints that wrap `SiteBookAdapter` for:
 //   GET    /api/sitebook/:projectId/entries?year=YYYY
@@ -147,7 +147,7 @@ router.post(
     const year = new Date(body.occurredAt).getUTCFullYear();
 
     try {
-      // createAndPersist orquesta counter atÃ³mico + createEntry + set().
+      // createAndPersist orquesta counter atómico + createEntry + set().
       // El servicio puro ya valida description >= 15 chars.
       const entry = await adapter.createAndPersist(
         {

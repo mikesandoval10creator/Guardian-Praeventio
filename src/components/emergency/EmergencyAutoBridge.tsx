@@ -1,15 +1,15 @@
-﻿/**
- * Guardian Praeventio â€” Sprint 14 EmergencyAutoBridge.
+/**
+ * Guardian Praeventio — Sprint 14 EmergencyAutoBridge.
  *
  * Vanilla-JS-bridge component that wires React-side context into the
  * stateless predicates inside `services/emergency/autoTrigger.ts`. The
  * autoTrigger module is intentionally React-free (it is polled from
  * `AppModeContext` via `startEmergencyMonitor`), so we need a bridge that:
  *
- *   â€¢ Subscribes to weather (window CustomEvent broadcast by WeatherBulletin)
+ *   • Subscribes to weather (window CustomEvent broadcast by WeatherBulletin)
  *     and pushes snapshots into `pushWeatherSnapshot`.
- *   â€¢ Mirrors `useEmergency().isEmergencyActive` â†’ `pushCompanyEmergency`.
- *   â€¢ Subscribes to DeviceMotion (browser) or `Capacitor Motion`
+ *   • Mirrors `useEmergency().isEmergencyActive` â†’ `pushCompanyEmergency`.
+ *   • Subscribes to DeviceMotion (browser) or `Capacitor Motion`
  *     (native, when `Capacitor.isNative` is true) â†’ `ingestAccelerationSample`.
  *
  * Mounted from RootLayout; renders nothing.
@@ -30,7 +30,7 @@ import {
 } from '../../services/emergency/autoTrigger';
 import { logger } from '../../utils/logger';
 
-// Sprint 32 audit W1 â€” auto-trigger broadcast from AppModeContext. The
+// Sprint 32 audit W1 — auto-trigger broadcast from AppModeContext. The
 // emergency monitor fires a CustomEvent `gp:emergency-auto-trigger` when
 // it detects a sismo/company/climate condition. We listen here, resolve the
 // active project from localStorage (the SelectedProjectProvider mirrors it
@@ -54,7 +54,7 @@ function readActiveProjectId(): string | undefined {
 // to avoid an invasive context refactor we listen for a CustomEvent named
 // `gp:weather-snapshot` that callers can dispatch with `{ windKmh,
 // conditions, temperatureC }`. Existing callers that haven't migrated yet
-// continue to work â€” the bridge simply observes nothing.
+// continue to work — the bridge simply observes nothing.
 const WEATHER_EVENT = 'gp:weather-snapshot';
 
 interface WeatherEventDetail {
@@ -82,7 +82,7 @@ export function EmergencyAutoBridge(): React.ReactElement | null {
     pushCompanyEmergency(!!isEmergencyActive);
   }, [isEmergencyActive]);
 
-  // Sprint 32 audit W1 â€” listen for the auto-trigger broadcast from
+  // Sprint 32 audit W1 — listen for the auto-trigger broadcast from
   // AppModeContext and route it through triggerEmergency(), which writes
   // the Firestore event AND calls /api/emergency/notify-brigada for the
   // FCM fan-out to supervisors. Without this listener the supervisor never
@@ -97,7 +97,7 @@ export function EmergencyAutoBridge(): React.ReactElement | null {
       // triggerEmergency degrades gracefully when projectId is undefined
       // (it just sets local state without persisting / fanning out). For
       // a worker outside any project context a sismo trigger still flips
-      // the UI to emergency mode â€” the Firestore doc + push only happen
+      // the UI to emergency mode — the Firestore doc + push only happen
       // when there is an active project to scope the audit row.
       void triggerEmergency(reason, projectId).catch((err) => {
         logger.error('EmergencyAutoBridge: triggerEmergency failed', { err, reason });
@@ -123,7 +123,7 @@ export function EmergencyAutoBridge(): React.ReactElement | null {
   }, []);
 
   // Acceleration: prefer Capacitor Motion plugin on native; fall back to
-  // `DeviceMotionEvent` (which autoTrigger.ts also attaches internally â€”
+  // `DeviceMotionEvent` (which autoTrigger.ts also attaches internally —
   // attaching a second listener is idempotent at the predicate level
   // because samples are time-windowed).
   useEffect(() => {

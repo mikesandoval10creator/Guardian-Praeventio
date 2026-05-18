@@ -1,5 +1,5 @@
-﻿/**
- * Guardian Praeventio â€” emergency auto-trigger predicates.
+/**
+ * Guardian Praeventio — emergency auto-trigger predicates.
  *
  * Sprint 14: stubs replaced with real signal sources. Each predicate
  * now reads from a vanilla bridge (no React) so the orchestrator at
@@ -7,9 +7,9 @@
  * tree into a service-layer file.
  *
  * Bridges (set from React-side adapters):
- *   â€¢ `pushWeatherSnapshot(...)`     â†’ updates the climate cache.
- *   â€¢ `pushCompanyEmergency(active)` â†’ mirrors EmergencyContext.
- *   â€¢ DeviceMotion is subscribed at module load when available; the
+ *   • `pushWeatherSnapshot(...)`     â†’ updates the climate cache.
+ *   • `pushCompanyEmergency(active)` â†’ mirrors EmergencyContext.
+ *   • DeviceMotion is subscribed at module load when available; the
  *     listener mutates a sliding 1s peak-acceleration window.
  *
  * Each predicate is debounced: at most one rising-edge per 60 s.
@@ -42,7 +42,7 @@ export function pushWeatherSnapshot(snap: Partial<WeatherSnapshot>): void {
   weatherSnapshot = { ...weatherSnapshot, ...snap };
 }
 
-/** Test helper â€” reset all bridges to a known state. */
+/** Test helper — reset all bridges to a known state. */
 export function __resetEmergencyBridges(): void {
   weatherSnapshot = { windKmh: null, conditions: null, temperatureC: null };
   companyEmergencyActive = false;
@@ -75,8 +75,8 @@ export function pushUsgsAdapter(
 }
 
 /**
- * Inyecta la Ãºltima ubicaciÃ³n conocida del device (GPS / faena). Necesaria
- * para que `checkSismoEnriched` pueda preguntar al feed sÃ­smico por
+ * Inyecta la última ubicación conocida del device (GPS / faena). Necesaria
+ * para que `checkSismoEnriched` pueda preguntar al feed sísmico por
  * eventos cercanos.
  */
 export function pushDeviceLocation(loc: { lat: number; lon: number } | null): void {
@@ -95,7 +95,7 @@ export function pushCompanyEmergency(active: boolean): void {
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Sismo bridge â€” DeviceMotion sliding 1s window
+// Sismo bridge — DeviceMotion sliding 1s window
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const G = 9.80665; // m/sÂ² â†’ 1 g
@@ -128,7 +128,7 @@ export function ingestAccelerationSample(
   if (!accel) return;
   const { x, y, z } = accel;
   if (x == null || y == null || z == null) return;
-  // Use linear acceleration (no gravity) when available â€” `acceleration`
+  // Use linear acceleration (no gravity) when available — `acceleration`
   // is null on browsers that only expose `accelerationIncludingGravity`,
   // in which case we subtract a 1g baseline along the magnitude.
   const magM = Math.sqrt(x * x + y * y + z * z);
@@ -137,7 +137,7 @@ export function ingestAccelerationSample(
   const dynamicG = Math.max(0, gMag - 1);
   if (dynamicG >= SISMO_PEAK_G) {
     if (peakAccelG < SISMO_PEAK_G) {
-      // Rising edge â€” start the sustain timer.
+      // Rising edge — start the sustain timer.
       peakSinceMs = nowMs;
     }
     peakAccelG = Math.max(peakAccelG, dynamicG);
@@ -207,7 +207,7 @@ export async function checkAdverseClimate(): Promise<boolean> {
 
 /**
  * Sismo: peak dynamic acceleration â‰¥0.6 g sustained â‰¥300 ms within a 1 s
- * sliding window (heuristic â€” see threshold rationale above).
+ * sliding window (heuristic — see threshold rationale above).
  */
 export async function checkSismo(): Promise<boolean> {
   attachMotionListener();
@@ -218,15 +218,15 @@ export async function checkSismo(): Promise<boolean> {
 /**
  * Sismo enriquecido con cross-check USGS (Sprint 39 J3c).
  *
- * PolÃ­tica directiva:
+ * Política directiva:
  *   - SIEMPRE blockOperation: false (regla #1 del usuario).
- *   - El cross-check NO bloquea el trigger â€” solo enriquece la severity:
+ *   - El cross-check NO bloquea el trigger — solo enriquece la severity:
  *       * USGS confirma sismo Mâ‰¥3.5 en proximidad â†’ severity 'high'.
  *       * USGS responde sin coincidencia â†’ severity 'caution' (puede ser
  *         false positive del DeviceMotion).
  *       * USGS timeout / adapter ausente â†’ severity 'caution' + warn log.
- *   - El recommendation body es construido externamente vÃ­a
- *     `buildCalmRecommendation`; este mÃ³dulo solo provee la severity y
+ *   - El recommendation body es construido externamente vía
+ *     `buildCalmRecommendation`; este módulo solo provee la severity y
  *     la lista cruda de eventos.
  */
 export interface EnrichedSismoResult {
@@ -269,12 +269,12 @@ export async function checkSismoEnriched(
     };
   }
 
-  // Default conservador: caution. Solo subimos a 'high' con confirmaciÃ³n.
+  // Default conservador: caution. Solo subimos a 'high' con confirmación.
   if (!usgsAdapter || !lastSeismicLocation) {
     try {
       // eslint-disable-next-line no-console
       console.warn(
-        '[autoTrigger] USGS cross-check skipped â€” adapter/location missing',
+        '[autoTrigger] USGS cross-check skipped — adapter/location missing',
       );
     } catch {
       /* console may not exist */
@@ -353,7 +353,7 @@ export async function checkCompanyEmergency(): Promise<boolean> {
  * when multiple predicates fire on the same tick (life-safety > weather). */
 export type EmergencyReason = 'sismo' | 'company' | 'climate';
 
-/** Climate sub-type â€” derived from the latest snapshot at trigger time so
+/** Climate sub-type — derived from the latest snapshot at trigger time so
  * the overlay can pick the right copy ("storm" vs "extreme heat" vs
  * "extreme cold"). `null` when the predicate did not fire on this tick. */
 export type ClimateSubType = 'storm' | 'extreme_heat' | 'extreme_cold' | null;
@@ -410,7 +410,7 @@ export function startEmergencyMonitor(
     }
   };
 
-  // 5s cadence â€” DeviceMotion is event-driven so the poll is just a
+  // 5s cadence — DeviceMotion is event-driven so the poll is just a
   // sustain check; cheap enough at 5s to cap detection latency.
   const interval = setInterval(() => {
     void tick();

@@ -1,8 +1,8 @@
-﻿// Praeventio Guard â€” Sprint 12.
+// Praeventio Guard — Sprint 12.
 //
 // HTTP tests for /api/commute/{start,sample,end}. The production handlers
 // live in src/server/routes/commute.ts and call admin.firestore() directly
-// â€” same as zettelkasten.ts. To avoid pulling firebase-admin into the test
+// — same as zettelkasten.ts. To avoid pulling firebase-admin into the test
 // surface we build a minimal Express app here whose handlers mirror the
 // production logic (validation, member guard, ownership check, audit
 // emissions) using the InMemoryFirestore fake from test-server.ts. Drift

@@ -1,23 +1,23 @@
-﻿// Praeventio Guard â€” Round 22 (audit fix CRITICAL #1):
-// /api/subscription/upgrade endpoint con verificaciÃ³n de pago.
+// Praeventio Guard — Round 22 (audit fix CRITICAL #1):
+// /api/subscription/upgrade endpoint con verificación de pago.
 //
 // Cierra la brecha de escalada de privilegios documentada en el audit
 // AUDITORIA_GUARDIAN_PRAEVENTIO.md (DT-01 / DT-05): el contexto
-// `SubscriptionContext.upgradePlan()` escribÃ­a `users/{uid}.subscription.planId`
-// directamente vÃ­a cliente SDK sin verificar pago. Cualquier usuario
-// autenticado podÃ­a auto-asignarse el plan Ilimitado (â‰ˆ $5M CLP/mes).
+// `SubscriptionContext.upgradePlan()` escribía `users/{uid}.subscription.planId`
+// directamente vía cliente SDK sin verificar pago. Cualquier usuario
+// autenticado podía auto-asignarse el plan Ilimitado (â‰ˆ $5M CLP/mes).
 //
-// Esta ruta es la ÃšNICA forma legÃ­tima de promover un plan desde el
+// Esta ruta es la ÃšNICA forma legítima de promover un plan desde el
 // cliente. Verifica que existe un invoice `status: 'paid'` propiedad del
 // caller con un `lineItems[].tierId` o `tierId` que coincida con el plan
-// solicitado. Si no, 403. Si sÃ­, actualiza vÃ­a Admin SDK (que bypassa
+// solicitado. Si no, 403. Si sí, actualiza vía Admin SDK (que bypassa
 // las rules del cliente) y emite audit log.
 //
 // El back-end de Webpay (`billing.ts`) y el IPN de MercadoPago
-// (`mercadoPagoIpn.ts`) actualizan la suscripciÃ³n automÃ¡ticamente al
-// confirmar el pago â€” este endpoint es el fallback para cuando el SPA
+// (`mercadoPagoIpn.ts`) actualizan la suscripción automáticamente al
+// confirmar el pago — este endpoint es el fallback para cuando el SPA
 // quiere reflejar el upgrade en la UI inmediatamente, o para flujos
-// manuales donde un admin marcÃ³ el invoice como paid vÃ­a
+// manuales donde un admin marcó el invoice como paid vía
 // `/api/billing/invoice/:id/mark-paid`.
 
 import { Router } from "express";
@@ -96,7 +96,7 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
 
   const normalizedPlanId = normalizeSubscriptionPlanId(planId) ?? planId;
 
-  // Payment exists â€” update via Admin SDK (bypasses client rules).
+  // Payment exists — update via Admin SDK (bypasses client rules).
   try {
     await db.collection("users").doc(uid).set(
       {

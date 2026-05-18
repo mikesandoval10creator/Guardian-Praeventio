@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   FileText, 
@@ -53,7 +53,7 @@ export function SusesoReports() {
   const [isSavingToDrive, setIsSavingToDrive] = useState(false);
   const [savedToDrive, setSavedToDrive] = useState(false);
 
-  // SUSESO submission state â€” keyed by `${activeTab}:${incidentId}` so a folio
+  // SUSESO submission state — keyed by `${activeTab}:${incidentId}` so a folio
   // for an incident's DIAT doesn't get reused for its DIEP.
   const [susesoStatus, setSusesoStatus] = useState<Record<string, { status: SusesoSubmissionStatus; folio?: string; reason?: string }>>({});
   const susesoClient = SusesoApiClient.fromEnv();
@@ -244,10 +244,10 @@ export function SusesoReports() {
           </div>
           <div>
             <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">{t('suseso.title', 'Reportes SUSESO')}</h1>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('suseso.subtitle', 'GeneraciÃ³n de DIAT y DIEP')}</p>
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('suseso.subtitle', 'Generación de DIAT y DIEP')}</p>
           </div>
         </div>
-        {/* Sprint 29 EE â€” citas normativas dinÃ¡micas. NONCONFORMITY_CORRECTIVE_ACTION
+        {/* Sprint 29 EE — citas normativas dinámicas. NONCONFORMITY_CORRECTIVE_ACTION
             mapea a DS 109 (Chile), OSHA 1904 (US), RIDDOR (UK),
             CLC Â§125 (CA), WHS Act Part 3 (AU). */}
         <RegulatoryCitation
@@ -258,7 +258,7 @@ export function SusesoReports() {
         />
       </div>
 
-      {/* Sprint 28 B6 â€” generador real DIAT/DIEP con folio + firma */}
+      {/* Sprint 28 B6 — generador real DIAT/DIEP con folio + firma */}
       <SusesoBuilderSection />
 
       {/* Tabs */}
@@ -287,8 +287,8 @@ export function SusesoReports() {
         {activeTab === 'ROI' ? (
           <div className="lg:col-span-3 space-y-6">
             <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
-              <h3 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-4">{t('suseso.roi.title', 'CÃ¡lculo Financiero del Ahorro por Siniestralidad')}</h3>
-              <p className="text-sm text-zinc-500 mb-6">EstimaciÃ³n del Retorno de InversiÃ³n (ROI) basado en la prevenciÃ³n de incidentes y reducciÃ³n de la tasa de siniestralidad.</p>
+              <h3 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-4">{t('suseso.roi.title', 'Cálculo Financiero del Ahorro por Siniestralidad')}</h3>
+              <p className="text-sm text-zinc-500 mb-6">Estimación del Retorno de Inversión (ROI) basado en la prevención de incidentes y reducción de la tasa de siniestralidad.</p>
               
               {(() => {
                 const COST_PER_INCIDENT = 2_500_000;
@@ -300,7 +300,7 @@ export function SusesoReports() {
                     <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-2xl p-4">
                       <h4 className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Costo Promedio por Incidente</h4>
                       <p className="text-2xl font-black text-zinc-900 dark:text-white">$2.500.000 <span className="text-xs font-medium text-zinc-500">CLP</span></p>
-                      <p className="text-[10px] text-zinc-500 mt-2">Basado en datos histÃ³ricos de la industria (dÃ­as perdidos, multas, reemplazos).</p>
+                      <p className="text-[10px] text-zinc-500 mt-2">Basado en datos históricos de la industria (días perdidos, multas, reemplazos).</p>
                     </div>
                     <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-4">
                       <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Incidentes Registrados (Proyecto)</h4>
@@ -308,7 +308,7 @@ export function SusesoReports() {
                       <p className="text-[10px] text-zinc-500 mt-2">{resolvedIncidents} resueltos Â· {incidents.length - resolvedIncidents} activos</p>
                     </div>
                     <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-4">
-                      <h4 className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1">Ahorro Estimado (30% prevenciÃ³n)</h4>
+                      <h4 className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1">Ahorro Estimado (30% prevención)</h4>
                       <p className="text-2xl font-black text-zinc-900 dark:text-white">${totalSavings.toLocaleString('es-CL')} <span className="text-xs font-medium text-zinc-500">CLP</span></p>
                       <p className="text-[10px] text-zinc-500 mt-2">Basado en {estimatedPrevented} incidentes prevenidos estimados.</p>
                     </div>
@@ -317,9 +317,9 @@ export function SusesoReports() {
               })()}
 
               <div className="mt-8 p-6 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-white/5">
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-4">Impacto en CotizaciÃ³n Adicional (SUSESO)</h4>
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-4">Impacto en Cotización Adicional (SUSESO)</h4>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-                  Al mantener una tasa de siniestralidad baja, la empresa puede acceder a rebajas en la cotizaciÃ³n adicional diferenciada.
+                  Al mantener una tasa de siniestralidad baja, la empresa puede acceder a rebajas en la cotización adicional diferenciada.
                 </p>
                 <div className="flex items-center justify-between p-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-white/10">
                   <div>
@@ -445,7 +445,7 @@ export function SusesoReports() {
                     ) : !isOnline ? (
                       <>
                         <AlertTriangle className="w-4 h-4" />
-                        Requiere ConexiÃ³n
+                        Requiere Conexión
                       </>
                     ) : (
                       <>
@@ -465,7 +465,7 @@ export function SusesoReports() {
                     <div>
                       <h2 className="text-2xl font-black uppercase tracking-tighter">{activeTab}</h2>
                       <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">
-                        {activeTab === 'DIAT' ? 'DeclaraciÃ³n Individual de Accidente de Trabajo' : 'DeclaraciÃ³n Individual de Enfermedad Profesional'}
+                        {activeTab === 'DIAT' ? 'Declaración Individual de Accidente de Trabajo' : 'Declaración Individual de Enfermedad Profesional'}
                       </p>
                     </div>
                     <div className="text-right">
@@ -478,15 +478,15 @@ export function SusesoReports() {
                   <div className="space-y-6">
                     {/* Section A: Empleador */}
                     <div className="border border-zinc-300 rounded-lg p-4">
-                      <h3 className="text-[10px] font-black uppercase tracking-widest bg-zinc-100 inline-block px-2 py-1 rounded mb-3">A. IdentificaciÃ³n del Empleador</h3>
+                      <h3 className="text-[10px] font-black uppercase tracking-widest bg-zinc-100 inline-block px-2 py-1 rounded mb-3">A. Identificación del Empleador</h3>
                       {!selectedProject?.companyName && (
                         <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-[9px] text-amber-700 font-medium">
-                          âš ï¸ Datos del empleador incompletos â€” completa RazÃ³n Social, RUT y Organismo Administrador en la configuraciÃ³n del proyecto.
+                          âš ï¸ Datos del empleador incompletos — completa Razón Social, RUT y Organismo Administrador en la configuración del proyecto.
                         </div>
                       )}
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <p className="text-[8px] font-bold uppercase text-zinc-500">RazÃ³n Social</p>
+                          <p className="text-[8px] font-bold uppercase text-zinc-500">Razón Social</p>
                           <p className={`text-sm font-medium border-b border-zinc-200 pb-1 ${!selectedProject?.companyName ? 'text-amber-600 italic' : ''}`}>
                             {selectedProject?.companyName || 'Sin configurar'}
                           </p>
@@ -499,7 +499,7 @@ export function SusesoReports() {
                         </div>
                         <div>
                           <p className="text-[8px] font-bold uppercase text-zinc-500">Proyecto / Sucursal</p>
-                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">{selectedProject?.name || 'â€”'}</p>
+                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">{selectedProject?.name || '—'}</p>
                         </div>
                         <div>
                           <p className="text-[8px] font-bold uppercase text-zinc-500">Organismo Administrador</p>
@@ -509,7 +509,7 @@ export function SusesoReports() {
                         </div>
                         {selectedProject?.companyAddress && (
                           <div className="col-span-2">
-                            <p className="text-[8px] font-bold uppercase text-zinc-500">DirecciÃ³n</p>
+                            <p className="text-[8px] font-bold uppercase text-zinc-500">Dirección</p>
                             <p className="text-sm font-medium border-b border-zinc-200 pb-1">{selectedProject.companyAddress}</p>
                           </div>
                         )}
@@ -518,7 +518,7 @@ export function SusesoReports() {
 
                     {/* Section B: Trabajador */}
                     <div className="border border-zinc-300 rounded-lg p-4">
-                      <h3 className="text-[10px] font-black uppercase tracking-widest bg-zinc-100 inline-block px-2 py-1 rounded mb-3">B. IdentificaciÃ³n del Trabajador</h3>
+                      <h3 className="text-[10px] font-black uppercase tracking-widest bg-zinc-100 inline-block px-2 py-1 rounded mb-3">B. Identificación del Trabajador</h3>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="col-span-2">
                           <p className="text-[8px] font-bold uppercase text-zinc-500">Nombre Completo</p>
@@ -529,7 +529,7 @@ export function SusesoReports() {
                           <p className="text-sm font-medium border-b border-zinc-200 pb-1">{selectedIncident.metadata?.workerRut || '12.345.678-9'}</p>
                         </div>
                         <div>
-                          <p className="text-[8px] font-bold uppercase text-zinc-500">ProfesiÃ³n / Oficio</p>
+                          <p className="text-[8px] font-bold uppercase text-zinc-500">Profesión / Oficio</p>
                           <p className="text-sm font-medium border-b border-zinc-200 pb-1">{selectedIncident.metadata?.workerRole || 'Operario'}</p>
                         </div>
                       </div>
@@ -550,7 +550,7 @@ export function SusesoReports() {
                           <p className="text-sm font-medium border-b border-zinc-200 pb-1">{new Date(selectedIncident.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                         <div className="col-span-2">
-                          <p className="text-[8px] font-bold uppercase text-zinc-500">DescripciÃ³n de lo ocurrido</p>
+                          <p className="text-[8px] font-bold uppercase text-zinc-500">Descripción de lo ocurrido</p>
                           <p className="text-sm font-medium border-b border-zinc-200 pb-1 min-h-[60px]">{selectedIncident.description}</p>
                         </div>
                         <div className="col-span-2">
@@ -573,7 +573,7 @@ export function SusesoReports() {
                     </div>
                     
                     <div className="mt-8 text-center">
-                      <p className="text-[8px] text-zinc-400 uppercase tracking-widest">Documento generado automÃ¡ticamente por Praeventio Guard AI</p>
+                      <p className="text-[8px] text-zinc-400 uppercase tracking-widest">Documento generado automáticamente por Praeventio Guard AI</p>
                     </div>
                   </div>
                 </div>
@@ -584,7 +584,7 @@ export function SusesoReports() {
               <div className="w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-4">
                 <FileText className="w-8 h-8 text-zinc-400" />
               </div>
-              <h3 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-2">Sin SelecciÃ³n</h3>
+              <h3 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-2">Sin Selección</h3>
               <p className="text-xs text-zinc-500 max-w-sm">Selecciona un incidente de la lista para generar la vista previa del formulario SUSESO correspondiente.</p>
             </div>
           )}
@@ -596,7 +596,7 @@ export function SusesoReports() {
   );
 }
 
-// Sprint 28 Bucket B6 â€” wires the new folio-stamped DIAT/DIEP generator
+// Sprint 28 Bucket B6 — wires the new folio-stamped DIAT/DIEP generator
 // (POST /api/suseso/form). Kept as a sibling component so the legacy
 // Gemini-metadata flow above remains untouched until the migration is
 // complete. The tenantId is derived from the Firebase Auth custom claim
@@ -615,7 +615,7 @@ function SusesoBuilderSection() {
         const claim = tokenResult?.claims?.tenantId;
         if (!cancelled && typeof claim === 'string') setTenantId(claim);
       } catch {
-        /* fallthrough â€” no tenant claim */
+        /* fallthrough — no tenant claim */
       }
     })();
     return () => {
@@ -632,7 +632,7 @@ function SusesoBuilderSection() {
         className="w-full flex items-center justify-between"
       >
         <span className="text-sm font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-200">
-          Generar declaraciÃ³n con folio + firma electrÃ³nica
+          Generar declaración con folio + firma electrónica
         </span>
         <span className="text-xs text-zinc-500">{collapsed ? 'â–¾' : 'â–´'}</span>
       </button>
@@ -643,13 +643,13 @@ function SusesoBuilderSection() {
               tenantId={tenantId}
               reportedBy={{
                 uid: user.uid,
-                rut: '', // RUT del usuario debe venir del perfil; por ahora vacÃ­o
+                rut: '', // RUT del usuario debe venir del perfil; por ahora vacío
                 fullName: user.displayName || user.email || 'Usuario',
               }}
             />
           ) : (
             <p className="text-sm text-zinc-500">
-              Tu cuenta aÃºn no estÃ¡ asociada a un tenant. Contacta al administrador.
+              Tu cuenta aún no está asociada a un tenant. Contacta al administrador.
             </p>
           )}
         </div>

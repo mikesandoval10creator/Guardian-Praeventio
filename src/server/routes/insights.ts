@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Wire UI bridge: /api/insights routes.
+// Praeventio Guard — Wire UI bridge: /api/insights routes.
 //
 // Read-only endpoints that consume the PURE engines (no persistence
 // writes) and return shaped JSON for the dashboard widgets:
@@ -13,7 +13,7 @@
 //   3. invokes the deterministic engine (pure function)
 //   4. returns the result
 //
-// No Firestore writes â€” these are read paths. Mutations live in their
+// No Firestore writes — these are read paths. Mutations live in their
 // respective domain routes (sitebook.ts, etc.).
 
 import { Router } from 'express';

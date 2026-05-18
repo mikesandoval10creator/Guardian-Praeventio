@@ -1,13 +1,13 @@
-﻿// Praeventio Guard â€” Sprint 14: /api/emergency/sos HTTP tests.
+// Praeventio Guard — Sprint 14: /api/emergency/sos HTTP tests.
 //
 // Worker-initiated SOS. The mobile client (SOSButton 3s long-press) calls
 // this endpoint with `{type:'sos', uid, projectId, geo, timestamp}`. The
 // server must:
-//   â€¢ verify Bearer auth
-//   â€¢ assert project membership (cross-tenant SOS is a privacy leak)
-//   â€¢ write tenants/{tenantId}/emergency_alerts/{id}
-//   â€¢ emit one audit_logs row
-//   â€¢ fan out FCM to supervisor/gerente/prevencionista members
+//   • verify Bearer auth
+//   • assert project membership (cross-tenant SOS is a privacy leak)
+//   • write tenants/{tenantId}/emergency_alerts/{id}
+//   • emit one audit_logs row
+//   • fan out FCM to supervisor/gerente/prevencionista members
 //
 // We use the same parallel-app pattern as push.test.ts because the real
 // router calls `admin.firestore()` which we can't init in tests.
@@ -23,7 +23,7 @@ interface SosTestDeps {
   fcmSend: (input: any) => Promise<any>;
   forceFirestoreThrow?: boolean;
   /**
-   * Sprint 27 P0 H7 â€” counter incremented every time the mirror reads
+   * Sprint 27 P0 H7 — counter incremented every time the mirror reads
    * `users/{uid}` to resolve `fcmTokens`. Used by the cache test to assert
    * that two SOS calls in quick succession only hit `users/*` once per uid.
    */
@@ -34,7 +34,7 @@ function buildSosApp(deps: SosTestDeps): Express {
   const app = express();
   app.use(express.json({ limit: '64kb' }));
 
-  // Sprint 27 P0 H7 â€” mirror of the in-process token cache from
+  // Sprint 27 P0 H7 — mirror of the in-process token cache from
   // src/server/routes/emergency.ts. TTL 5 min keyed by uid, populated from
   // `users/{uid}.fcmTokens`. Per-app instance â‡’ test isolation is automatic
   // (each test builds a fresh app).
@@ -76,7 +76,7 @@ function buildSosApp(deps: SosTestDeps): Express {
     }
   };
 
-  // Naive rate limiter mirror â€” track sos count per uid in a Map.
+  // Naive rate limiter mirror — track sos count per uid in a Map.
   const rateMap = new Map<string, number[]>();
   const sosLimiter = (req: any, res: any, next: any): void => {
     const uid = req.user?.uid ?? 'anon';
@@ -151,7 +151,7 @@ function buildSosApp(deps: SosTestDeps): Express {
       projectId,
     });
 
-    // Fan out FCM. Sprint 27 P0 H7 â€” cross-collection token lookup. Mirror
+    // Fan out FCM. Sprint 27 P0 H7 — cross-collection token lookup. Mirror
     // of the production logic in emergency.ts:
     //   1. Iterate supervisor members of the project (here: `projectMembers`
     //      filtered by `projectId`; in prod: `projects/{id}/members`).
@@ -162,7 +162,7 @@ function buildSosApp(deps: SosTestDeps): Express {
     //      notified once.
     //
     // Convention for tests: the `projectMembers` doc carries a `uid` field
-    // that names the user â€” the mirror reads `users/{uid}.fcmTokens` from
+    // that names the user — the mirror reads `users/{uid}.fcmTokens` from
     // it. (In production the doc ID itself is the uid because it lives at
     // `projects/{id}/members/{uid}`.)
     const membersQ = await deps.firestore
@@ -196,7 +196,7 @@ function buildSosApp(deps: SosTestDeps): Express {
         });
         notified = tokens.length;
       } catch {
-        // Swallow â€” see route comment.
+        // Swallow — see route comment.
       }
     }
 
@@ -358,7 +358,7 @@ describe('/api/emergency/sos', () => {
     expect(alertKeys.length).toBe(1);
   });
 
-  // â”€â”€â”€ Sprint 27 P0 H7 â€” cross-collection FCM token lookup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€â”€ Sprint 27 P0 H7 — cross-collection FCM token lookup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   //
   // Background: push.ts writes to users/{uid}.fcmTokens (array, arrayUnion).
   // The legacy emergency.ts read members/{uid}.fcmToken (singular). Nobody
@@ -375,7 +375,7 @@ describe('/api/emergency/sos', () => {
     firestore.store.set('projectMembers/m3', { projectId: 'p1', role: 'prevencionista', uid: 'sup-C' });
     firestore.store.set('users/sup-A', { fcmTokens: ['t-A-phone', 't-A-tablet'] });
     firestore.store.set('users/sup-B', { fcmTokens: ['t-B-phone'] });
-    // Duplicate token across two users â€” must dedupe to ONE entry.
+    // Duplicate token across two users — must dedupe to ONE entry.
     firestore.store.set('users/sup-C', { fcmTokens: ['t-C-phone', 't-A-phone'] });
 
     const r = await request(app)
@@ -417,7 +417,7 @@ describe('/api/emergency/sos', () => {
     firestore.store.set('projects/p1', { createdBy: 'u1', tenantId: 't-A', members: ['u1'] });
     firestore.store.set('projectMembers/m1', { projectId: 'p1', role: 'supervisor', uid: 'sup-A' });
     firestore.store.set('projectMembers/m2', { projectId: 'p1', role: 'gerente', uid: 'sup-B' });
-    // users docs exist but with empty token arrays â€” uninstalled apps,
+    // users docs exist but with empty token arrays — uninstalled apps,
     // tokens pruned by client.
     firestore.store.set('users/sup-A', { fcmTokens: [] });
     firestore.store.set('users/sup-B', {});
@@ -441,7 +441,7 @@ describe('/api/emergency/sos', () => {
     firestore.store.set('users/sup-A', { fcmTokens: ['t-A'] });
     firestore.store.set('users/sup-B', { fcmTokens: ['t-B'] });
 
-    // First call â€” both users read.
+    // First call — both users read.
     const r1 = await request(app)
       .post('/api/emergency/sos')
       .set('Authorization', 'Bearer test:u1:u1@t.com')
@@ -450,7 +450,7 @@ describe('/api/emergency/sos', () => {
     expect(r1.body.notified).toBe(2);
     expect(userReadCounter.count).toBe(2);
 
-    // Second call within TTL â€” cache hits for both, count stays at 2.
+    // Second call within TTL — cache hits for both, count stays at 2.
     const r2 = await request(app)
       .post('/api/emergency/sos')
       .set('Authorization', 'Bearer test:u1:u1@t.com')

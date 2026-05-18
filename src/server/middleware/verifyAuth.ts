@@ -1,20 +1,20 @@
-﻿// Praeventio Guard â€” Round 16 R5 Phase 1 split + Sprint 19 F-B05.
+// Praeventio Guard — Round 16 R5 Phase 1 split + Sprint 19 F-B05.
 //
 // Firebase Auth middleware. Verifies the Bearer ID token attached to the
 // request, attaches the decoded token to `req.user`, and short-circuits with
 // HTTP 401 on missing / malformed / invalid tokens. firebase-admin is
-// imported normally â€” its initialization happens at server boot time in
+// imported normally — its initialization happens at server boot time in
 // server.ts, so by the time this middleware runs it is already configured.
 //
 // Behavior contract (covered by I3 supertest harness in src/__tests__/server):
-//   â€¢ 401 + { error: "Unauthorized: No token provided" } when Authorization
+//   • 401 + { error: "Unauthorized: No token provided" } when Authorization
 //     header is missing OR uses a scheme other than "Bearer " (or "E2E " in
 //     non-production E2E mode).
-//   â€¢ 401 + { error: "Unauthorized: Invalid token" } when verifyIdToken
+//   • 401 + { error: "Unauthorized: Invalid token" } when verifyIdToken
 //     throws (malformed / expired / revoked token).
-//   â€¢ Calls next() with `req.user = decodedToken` on success.
+//   • Calls next() with `req.user = decodedToken` on success.
 //
-// Sprint 19 â€” F-B05: E2E_MODE guard.
+// Sprint 19 — F-B05: E2E_MODE guard.
 //   When `process.env.E2E_MODE === '1'` AND `process.env.NODE_ENV !== 'production'`,
 //   the middleware additionally accepts `Authorization: E2E <secret>:<uid>` headers
 //   where `<secret>` matches `process.env.E2E_TEST_SECRET`. On match it populates
@@ -22,7 +22,7 @@
 //   Firebase token. Production NODE_ENV makes the guard inert.
 //
 //   A startup-time guard throws if both `NODE_ENV=production` and `E2E_MODE=1`
-//   are set â€” that combination is a configuration error and we refuse to boot.
+//   are set — that combination is a configuration error and we refuse to boot.
 
 import type { Request, Response, NextFunction } from 'express';
 import admin from 'firebase-admin';
@@ -59,7 +59,7 @@ const isE2EModeEnabled = (): boolean =>
 export const verifyAuth = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
 
-  // No header at all â†’ 401 regardless of mode.
+  // No header at all → 401 regardless of mode.
   if (!authHeader) {
     return res.status(401).json({ error: 'Unauthorized: No token provided' });
   }
@@ -98,10 +98,10 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
   try {
     // Sprint 39 Fase B.2: checkRevoked=true valida `tokensValidAfterTime`
     // en cada request. Cuando un usuario se desactiva via deactivateUser()
-    // â†’ admin.auth().revokeRefreshTokens(uid), todos los tokens emitidos
-    // antes del revoke quedan inmediatamente invÃ¡lidos sin esperar la
-    // expiraciÃ³n natural de 1h. Cierra IMPLEMENTATION_ROADMAP 0.6 (riesgo
-    // activo: ex-empleados con acceso por hasta 1h post-desactivaciÃ³n).
+    // → admin.auth().revokeRefreshTokens(uid), todos los tokens emitidos
+    // antes del revoke quedan inmediatamente inválidos sin esperar la
+    // expiración natural de 1h. Cierra IMPLEMENTATION_ROADMAP 0.6 (riesgo
+    // activo: ex-empleados con acceso por hasta 1h post-desactivación).
     const decodedToken = await admin.auth().verifyIdToken(token, true);
     // DecodedIdToken has many fields (iat, auth_time, firebase, …). We
     // narrow into our PraeventioAuthUser shape (declared in
@@ -129,7 +129,7 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
         method: req.method,
       });
       return res.status(401).json({
-        error: 'Unauthorized: Token revoked â€” please re-authenticate',
+        error: 'Unauthorized: Token revoked — please re-authenticate',
         reason: 'token_revoked',
       });
     }

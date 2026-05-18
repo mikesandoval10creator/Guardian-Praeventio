@@ -1,8 +1,8 @@
-﻿// Praeventio Guard â€” Google OAuth callback security suite.
+// Praeventio Guard — Google OAuth callback security suite.
 //
 // Covers the dual-router design in src/server/routes/oauthGoogle.ts:
-//   â€¢ oauthGoogleAuthRouter mounted at `/auth`     â†’ /auth/google/callback
-//   â€¢ oauthGoogleApiRouter  mounted at `/api`      â†’ /api/drive/auth/callback
+//   • oauthGoogleAuthRouter mounted at `/auth`     â†’ /auth/google/callback
+//   • oauthGoogleApiRouter  mounted at `/api`      â†’ /api/drive/auth/callback
 //
 // Both callbacks consume a per-flow `state` (CSRF token) that was minted by
 // the matching URL-issuance endpoint and stamped on `req.session`. The
@@ -17,7 +17,7 @@
 //      propagated, no tokens saved).
 //
 // The production handlers exchange the OAuth code by calling
-// `fetch('https://oauth2.googleapis.com/token', â€¦)` directly â€” the
+// `fetch('https://oauth2.googleapis.com/token', â€¦)` directly — the
 // `googleapis` package is NOT used in this route (it's used elsewhere for
 // Calendar/Fit). We therefore stub `global.fetch` rather than `googleapis`.
 //
@@ -60,7 +60,7 @@ vi.mock('../../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-// Tiny in-memory session middleware â€” the production code does
+// Tiny in-memory session middleware — the production code does
 // `req.session as any` and writes properties; we just need a stable object
 // across requests in the same supertest agent.
 function makeSessionMiddleware() {
@@ -145,7 +145,7 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
   it('cross-router CSRF: state minted by /api/drive/auth/url cannot be redeemed at /auth/google/callback', async () => {
     const app = await buildApp();
     const agent = request.agent(app);
-    // Mint a Drive state â€” populates session.driveOauthState (NOT oauthState).
+    // Mint a Drive state — populates session.driveOauthState (NOT oauthState).
     const driveUrlRes = await agent
       .get('/api/drive/auth/url')
       .set('x-test-session', 'sess-C')
@@ -156,7 +156,7 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
     expect(driveState).toBeTruthy();
 
     // Attempt to redeem the Drive state at the Calendar/Fit callback, which
-    // looks up `session.oauthState` â€” it is undefined, so the comparison
+    // looks up `session.oauthState` — it is undefined, so the comparison
     // must fail with 403 even though `state` IS the genuine session-bound
     // CSRF value for the *other* router.
     const res = await agent

@@ -1,14 +1,14 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 //
-// Sprint 38 â€” Brecha C closure: photogrammetry job orchestration endpoint.
+// Sprint 38 — Brecha C closure: photogrammetry job orchestration endpoint.
 //
 // Mounted via `app.use('/api/photogrammetry', photogrammetryRouter)`.
 //
 // On-the-wire:
-//   â€¢ POST /api/photogrammetry/jobs
+//   • POST /api/photogrammetry/jobs
 //       body: { projectId: string; imageUrls: string[]; name?: string }
 //       -> 201 { jobId, status: 'queued', estimatedDurationMin }
-//   â€¢ GET  /api/photogrammetry/jobs/:jobId?projectId=...
+//   • GET  /api/photogrammetry/jobs/:jobId?projectId=...
 //       -> 200 { jobId, status, meshUri?, errorMessage?, ... }
 //
 // === Why this exists ===
@@ -16,7 +16,7 @@
 // `src/services/digitalTwin/photogrammetry/colmapAdapter.ts` already speaks
 // HTTP to a Cloud Run worker; what was missing was an authenticated server
 // endpoint that:
-//   1. Verifies the caller's role (admin / supervisor â€” there's no
+//   1. Verifies the caller's role (admin / supervisor — there's no
 //      `digital_twin_user` role in `src/types/roles.ts`, so we map the
 //      product-spec audience to the existing supervisor-tier).
 //   2. Asserts project membership before touching any project data.
@@ -27,9 +27,9 @@
 //      `cloud-run/photogrammetry-worker/`).
 //
 // === Cost notes (per job, CPU-only Cloud Run) ===
-//   â€¢ Compute: ~15-20 min @ 4 vCPU + 8 GiB â‰ˆ USD 0.05â€“0.10
-//   â€¢ Storage: <50 MB images + ~10 MB mesh per job â€” pennies/month
-//   â€¢ Cloud Tasks: free tier covers <1M dispatches/month
+//   • Compute: ~15-20 min @ 4 vCPU + 8 GiB â‰ˆ USD 0.05–0.10
+//   • Storage: <50 MB images + ~10 MB mesh per job — pennies/month
+//   • Cloud Tasks: free tier covers <1M dispatches/month
 // Anchored to the budget in DIGITAL_TWIN_GPU_FREE_PLAN.md Â§5.3 (Phase C2).
 
 import { Router } from 'express';
@@ -46,13 +46,13 @@ import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 
 // Codex P2 (PR #88): relax gs:// path regex to accept percent-encoded
-// characters and literal spaces â€” Cloud Storage object names legally
+// characters and literal spaces — Cloud Storage object names legally
 // include spaces and Unicode (https://cloud.google.com/storage/docs/objects#naming).
 // Pattern: gs://<bucket>/<object>. Bucket: alphanum + . _ -.
 // Object: any printable char except control chars; we use \S plus a literal
 // space so a path with one or more spaces validates, while newlines/tabs
 // (which would break the HTTP boundary) are still rejected.
-// Codex P2 PR #96: aceptar Unicode en object name (recorrido_bodega_Ã±.mp4
+// Codex P2 PR #96: aceptar Unicode en object name (recorrido_bodega_ñ.mp4
 // y acentos). Bucket sigue ASCII por spec GCS; object permite cualquier
 // codepoint excepto control chars que rompan el boundary HTTP.
 const GS_URI_REGEX = /^gs:\/\/[A-Za-z0-9_.\-]+\/[^\r\n\t]+$/u;
@@ -64,7 +64,7 @@ const CreateJobSchema = z.object({
     .min(3, 'photogrammetry needs >= 3 images')
     .max(500, 'photogrammetry capped at 500 images per job')
     .optional(),
-  // Codex P2 (PR #88): worker only supports gs:// videos â€” reject https URLs
+  // Codex P2 (PR #88): worker only supports gs:// videos — reject https URLs
   // at the schema level so callers get a 400 instead of a worker-side failure.
   videoUrl: z.string().regex(GS_URI_REGEX, 'videoUrl must be a gs:// URI').optional(),
   name: z.string().min(1).max(256).optional(),
@@ -94,7 +94,7 @@ function estimateDurationMin(imageCount: number): number {
 }
 
 // -----------------------------------------------------------------------------
-// POST /api/photogrammetry/jobs â€” create a queued job and dispatch to worker.
+// POST /api/photogrammetry/jobs — create a queued job and dispatch to worker.
 // -----------------------------------------------------------------------------
 router.post('/jobs', verifyAuth, validate(CreateJobSchema), async (req, res) => {
   const callerUid = req.user!.uid;
@@ -179,7 +179,7 @@ router.post('/jobs', verifyAuth, validate(CreateJobSchema), async (req, res) => 
   const outputBucket =
     process.env.PHOTOGRAMMETRY_OUTPUT_BUCKET ?? 'praeventio-photogrammetry';
   if (!workerUrl || !workerToken) {
-    // Worker not configured â€” leave job queued. The next manual run of the
+    // Worker not configured — leave job queued. The next manual run of the
     // worker can pick it up; UI shows status='queued' meanwhile.
     return res.status(201).json({
       jobId,
@@ -210,7 +210,7 @@ router.post('/jobs', verifyAuth, validate(CreateJobSchema), async (req, res) => 
         status: dispatchRes.status,
       });
       // Job stays in 'queued'; orchestrator can retry. Don't fail the
-      // user-facing call â€” they'll see the job in the UI.
+      // user-facing call — they'll see the job in the UI.
     }
   } catch (err) {
     sentryCapture(err, {
@@ -223,7 +223,7 @@ router.post('/jobs', verifyAuth, validate(CreateJobSchema), async (req, res) => 
 });
 
 // -----------------------------------------------------------------------------
-// GET /api/photogrammetry/jobs â€” list recent jobs for the Digital Twin UI.
+// GET /api/photogrammetry/jobs — list recent jobs for the Digital Twin UI.
 // -----------------------------------------------------------------------------
 router.get('/jobs', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
@@ -260,7 +260,7 @@ router.get('/jobs', verifyAuth, async (req, res) => {
     .where('projectId', '==', projectId)
     // Codex P2 (PR #88): order newest-first so the UI list isn't
     // arbitrary. Requires composite index (projectId ASC, createdAt DESC)
-    // â€” auto-prompted by Firestore on first cold call in a region.
+    // — auto-prompted by Firestore on first cold call in a region.
     .orderBy('createdAt', 'desc')
     .limit(20)
     .get();
@@ -289,7 +289,7 @@ router.get('/jobs', verifyAuth, async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// GET /api/photogrammetry/jobs/:jobId â€” return status + result URL when done.
+// GET /api/photogrammetry/jobs/:jobId — return status + result URL when done.
 // -----------------------------------------------------------------------------
 router.get('/jobs/:jobId', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;

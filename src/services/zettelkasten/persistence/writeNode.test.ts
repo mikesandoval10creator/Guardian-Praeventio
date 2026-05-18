@@ -1,10 +1,10 @@
-﻿// Praeventio Guard â€” Sprint 11 (writeNode coverage).
+// Praeventio Guard — Sprint 11 (writeNode coverage).
 //
 // Cubre:
-//   â€¢ happy path â†’ POST con Bearer â†’ 200
-//   â€¢ offline â†’ enrola en saveForSync, no llama a fetch
-//   â€¢ idempotencia: mismos inputs â‡’ mismo id, distintos â‡’ distinto
-//   â€¢ debounce: rebotes <2s se colapsan en una sola escritura
+//   • happy path â†’ POST con Bearer â†’ 200
+//   • offline â†’ enrola en saveForSync, no llama a fetch
+//   • idempotencia: mismos inputs â‡’ mismo id, distintos â‡’ distinto
+//   • debounce: rebotes <2s se colapsan en una sola escritura
 //
 // Mockeamos `firebase` (auth.currentUser.getIdToken), `pwa-offline`
 // (saveForSync), y la global `fetch`. Usamos `vi.useFakeTimers()` para
@@ -35,7 +35,7 @@ vi.mock('../../../utils/logger', () => ({
   },
 }));
 
-// Importes despuÃ©s de los mocks.
+// Importes después de los mocks.
 import {
   writeNodes,
   writeNodesDebounced,
@@ -109,7 +109,7 @@ describe('nodeIdFor', () => {
   });
 });
 
-describe('writeNodes â€” happy path', () => {
+describe('writeNodes — happy path', () => {
   it('POSTs with Bearer token and idempotencyKey on each node', async () => {
     const result = await writeNodes([basePayload()], { projectId: 'proj-A' });
     expect(result.ok).toBe(true);
@@ -141,7 +141,7 @@ describe('writeNodes â€” happy path', () => {
   });
 });
 
-describe('writeNodes â€” offline path', () => {
+describe('writeNodes — offline path', () => {
   it('queues via saveForSync when navigator.onLine is false', async () => {
     Object.defineProperty(globalThis, 'navigator', {
       value: { onLine: false },
@@ -170,7 +170,7 @@ describe('writeNodes â€” offline path', () => {
   });
 });
 
-describe('writeNodes â€” guards', () => {
+describe('writeNodes — guards', () => {
   it('returns ok with empty ids on empty input', async () => {
     const result = await writeNodes([], { projectId: 'proj-A' });
     expect(result.ok).toBe(true);
@@ -196,14 +196,14 @@ describe('writeNodesDebounced', () => {
       vi.advanceTimersByTime(100); // <2s entre calls â†’ siguen reseteando
     }
     expect(fetchMock).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(2100); // ahora sÃ­ dispara el flush
+    vi.advanceTimersByTime(2100); // ahora sí dispara el flush
     // El flush dispara una promesa async; la dejamos correr.
     await vi.waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.nodes).toHaveLength(1);
-    // Solo el Ãºltimo estado (forceN 1009) debe estar.
+    // Solo el último estado (forceN 1009) debe estar.
     expect(body.nodes[0].metadata.forceN).toBe(1009);
   });
 

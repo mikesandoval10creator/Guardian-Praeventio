@@ -1,10 +1,10 @@
-﻿// Sprint 29 Bucket AA F-B â€” integration tests para POST /api/zettelkasten/nl-query.
+// Sprint 29 Bucket AA F-B — integration tests para POST /api/zettelkasten/nl-query.
 //
 // Estrategia: en vez de bootear el server.ts completo (3000+ LOC, depende de
 // firebase-admin global), montamos un Express mini-app que mimetiza el
 // pipeline real (verifyAuth fake â†’ validate(zodSchema) â†’ assertProjectMember
 // fake â†’ searchIncidents). Los dos casos cubiertos:
-//   1. Zod fail (query vacÃ­o) â†’ 400 con error 'invalid_payload'.
+//   1. Zod fail (query vacío) â†’ 400 con error 'invalid_payload'.
 //   2. Happy path â†’ 200 con results + citations del incidente sembrado.
 
 import { describe, it, expect, vi } from 'vitest';
@@ -80,7 +80,7 @@ function buildApp(opts: {
   return app;
 }
 
-describe('POST /api/zettelkasten/nl-query â€” Zod fail', () => {
+describe('POST /api/zettelkasten/nl-query — Zod fail', () => {
   it('returns 400 when query is empty (Zod min(1))', async () => {
     const app = buildApp({ isMember: true, tenantADocs: [] });
     const res = await request(app)
@@ -96,13 +96,13 @@ describe('POST /api/zettelkasten/nl-query â€” Zod fail', () => {
     const res = await request(app)
       .post('/api/zettelkasten/nl-query')
       .set('Authorization', 'Bearer tok:uid-1')
-      .send({ query: 'caÃ­da altura' });
+      .send({ query: 'caída altura' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_payload');
   });
 });
 
-describe('POST /api/zettelkasten/nl-query â€” happy path', () => {
+describe('POST /api/zettelkasten/nl-query — happy path', () => {
   it('returns results+citations for a tenant-scoped incident match', async () => {
     const docs: MinimalDocSnap[] = [
       {
@@ -111,7 +111,7 @@ describe('POST /api/zettelkasten/nl-query â€” happy path', () => {
           tenantId: 'proj-A',
           incidentId: 'inc-1',
           projectId: 'proj-A',
-          summary: 'CaÃ­da de altura sin arnÃ©s en pasarela.',
+          summary: 'Caída de altura sin arnés en pasarela.',
           occurredAt: '2026-04-10',
         }),
       },
@@ -120,7 +120,7 @@ describe('POST /api/zettelkasten/nl-query â€” happy path', () => {
     const res = await request(app)
       .post('/api/zettelkasten/nl-query')
       .set('Authorization', 'Bearer tok:uid-1')
-      .send({ query: 'altura arnÃ©s', projectId: 'proj-A', topK: 3 });
+      .send({ query: 'altura arnés', projectId: 'proj-A', topK: 3 });
 
     expect(res.status).toBe(200);
     expect(res.body.results).toHaveLength(1);

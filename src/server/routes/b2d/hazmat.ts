@@ -1,13 +1,13 @@
-﻿// SPDX-License-Identifier: MIT
-// Sprint 23 Bucket BB.4 â€” B2D Hazmat / engineering calculations API.
+// SPDX-License-Identifier: MIT
+// Sprint 23 Bucket BB.4 — B2D Hazmat / engineering calculations API.
 //
 // Mounted via `app.use('/api/b2d/v1/hazmat', hazmatRouter)`.
 //
 // Endpoints (all `hazmat.calculate` scope):
-//   â€¢ POST /api/b2d/v1/hazmat/pipe-pressure
-//   â€¢ POST /api/b2d/v1/hazmat/gas-dispersion
-//   â€¢ POST /api/b2d/v1/hazmat/scaffold-uplift
-//   â€¢ POST /api/b2d/v1/hazmat/extinguisher-coverage
+//   • POST /api/b2d/v1/hazmat/pipe-pressure
+//   • POST /api/b2d/v1/hazmat/gas-dispersion
+//   • POST /api/b2d/v1/hazmat/scaffold-uplift
+//   • POST /api/b2d/v1/hazmat/extinguisher-coverage
 //
 // Each endpoint:
 //   1. Validates input via zod.
@@ -184,7 +184,7 @@ router.post('/extinguisher-coverage', b2dAuth('hazmat.calculate'), async (req, r
     kind: e.kind,
     position: e.position,
     lifecycle: e.lifecycle,
-    // Fields not used by the rule but required by PlacedObject â€” provide
+    // Fields not used by the rule but required by PlacedObject — provide
     // benign defaults so the type contract holds without leaking shape.
     rotationDeg: 0,
     placedAt: 0,

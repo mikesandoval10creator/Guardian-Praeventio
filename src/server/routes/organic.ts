@@ -1,5 +1,5 @@
-﻿// SPDX-License-Identifier: MIT
-// Sprint 15 â€” Organic structure (Crew/Process/Task) write endpoints.
+// SPDX-License-Identifier: MIT
+// Sprint 15 — Organic structure (Crew/Process/Task) write endpoints.
 //
 // All routes require `verifyAuth`. Routes that touch a specific project are
 // gated by `assertProjectMemberFromBody` (membership for the body's
@@ -10,12 +10,12 @@
 // shape.
 //
 // On-the-wire paths (mounted via `app.use('/api', organicRouter)`):
-//   â€¢ POST /api/crews
-//   â€¢ POST /api/crews/:id/members
-//   â€¢ POST /api/processes
-//   â€¢ POST /api/processes/:id/close
-//   â€¢ POST /api/processes/:id/tasks
-//   â€¢ POST /api/tasks/:id/done
+//   • POST /api/crews
+//   • POST /api/crews/:id/members
+//   • POST /api/processes
+//   • POST /api/processes/:id/close
+//   • POST /api/processes/:id/tasks
+//   • POST /api/tasks/:id/done
 
 import { Router } from 'express';
 import admin from 'firebase-admin';
@@ -43,7 +43,7 @@ const organicLimiter = rateLimit({
   keyGenerator: (req) => req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiadas operaciones. Intenta de nuevo mÃ¡s tarde.' },
+  message: { error: 'Demasiadas operaciones. Intenta de nuevo más tarde.' },
 });
 
 const VALID_PROCESS_TYPES: ProcessType[] = [
@@ -194,8 +194,8 @@ router.post('/processes/:id/close', verifyAuth, organicLimiter, async (req, res)
 });
 
 router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res) => {
-  // Sprint 16 â€” pause/resume support for ProcessDetailModal.
-  // Sprint 17a â€” uses pure `checkStatusTransition` guard, audits the
+  // Sprint 16 — pause/resume support for ProcessDetailModal.
+  // Sprint 17a — uses pure `checkStatusTransition` guard, audits the
   // transition, and emits a Sentry breadcrumb for ops visibility.
   const uid = req.user!.uid;
   const processId = req.params.id;
@@ -224,7 +224,7 @@ router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res
 
     await ref.update({ status });
 
-    // Sprint 17a â€” audit + ops breadcrumb. Both are best-effort: a logging
+    // Sprint 17a — audit + ops breadcrumb. Both are best-effort: a logging
     // failure must never block the user-facing state change.
     try {
       await db.collection('audit_logs').add({
@@ -295,13 +295,13 @@ router.post('/processes/:id/tasks', verifyAuth, organicLimiter, async (req, res)
 });
 
 /**
- * Sprint 16 â€” POST /api/predictive-alerts/ack
+ * Sprint 16 — POST /api/predictive-alerts/ack
  *   body: { projectId, crewId, generatorId }
  *
  * Marks a predictive alert as "Atendida" by the calling user's crew,
  * increments `processes.alertsResponded` for any active process owned
  * by the crew, and awards 30 XP (XP_AMOUNTS.evadir_riesgo_predictivo)
- * to the crew. Always positive â€” alerts NEVER deduct XP.
+ * to the crew. Always positive — alerts NEVER deduct XP.
  */
 router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, res) => {
   const uid = req.user!.uid;

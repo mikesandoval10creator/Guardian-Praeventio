@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -86,12 +86,12 @@ export function PostTrainingAdModal({ trainingTitle, onClose }: PostTrainingAdMo
           <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-5 flex items-center gap-3">
             <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
             <div className="min-w-0">
-              <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">CapacitaciÃ³n completada</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Capacitación completada</p>
               <p className="text-sm font-bold text-white truncate mt-0.5">{trainingTitle}</p>
             </div>
           </div>
 
-          {/* Ad area â€” only shown on web */}
+          {/* Ad area — only shown on web */}
           {!isNative() && (
             <div className="px-4 pt-4">
               <p className="text-[8px] font-bold uppercase tracking-widest text-zinc-600 text-center mb-2">Publicidad</p>

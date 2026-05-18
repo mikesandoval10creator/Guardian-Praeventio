@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { designHazmatStorage } from '../../services/geminiService';
 import { Building2, ShieldAlert, Loader2, CheckCircle2, Wind, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,7 +19,7 @@ import { useFirebase } from '../../contexts/FirebaseContext';
 import { saveScratchCalculation } from '../../services/engineering/scratchCalculations';
 import { RegulatoryCitation } from '../shared/RegulatoryCitation';
 
-// DS 594 Art. 35 â€” minimum air changes per hour for chemical storage
+// DS 594 Art. 35 — minimum air changes per hour for chemical storage
 const ACH_MIN_DS594 = 12;
 const AIR_DENSITY_KG_M3 = 1.225;
 
@@ -52,9 +52,9 @@ export const HazmatStorageDesigner: React.FC = () => {
   const [inletAreaA1, setInletAreaA1] = useState<number | ''>(0.4);
   const [throatAreaA2, setThroatAreaA2] = useState<number | ''>(0.1);
   const [deltaPPa, setDeltaPPa] = useState<number | ''>(50);
-  // Bucket B.4 â€” misting dust suppression (PM10 ambient â†’ recommended nozzles).
+  // Bucket B.4 — misting dust suppression (PM10 ambient â†’ recommended nozzles).
   const [pm10UgM3, setPm10UgM3] = useState<number | ''>(80);
-  // Sprint 25 Bucket NN â€” Gas dispersion cloud (Pasquill-Gifford).
+  // Sprint 25 Bucket NN — Gas dispersion cloud (Pasquill-Gifford).
   const [leakRateKgS, setLeakRateKgS] = useState<number | ''>(0.05);
   const [windKmh, setWindKmh] = useState<number | ''>(15);
   const [pasquillStability, setPasquillStability] = useState<'A' | 'B' | 'C' | 'D' | 'E' | 'F'>('D');
@@ -120,8 +120,8 @@ export const HazmatStorageDesigner: React.FC = () => {
     }
   }, [roomVolumeM3, inletAreaA1, throatAreaA2, deltaPPa, materialClass, storageType, selectedProject?.id]);
 
-  // Bucket B.4 â€” misting dust suppression: recommend nozzle count from ambient PM10.
-  // OEL DS 594 Art. 65 (sÃ­lice respirable) â‰ˆ 0.025 mg/mÂ³; trigger generator if PM10 > 50 Âµg/mÂ³.
+  // Bucket B.4 — misting dust suppression: recommend nozzle count from ambient PM10.
+  // OEL DS 594 Art. 65 (sílice respirable) â‰ˆ 0.025 mg/mÂ³; trigger generator if PM10 > 50 Âµg/mÂ³.
   const mistingResult = useMemo(() => {
     const pm10 = Number(pm10UgM3);
     if (!pm10UgM3 || pm10 <= 0) return null;
@@ -148,7 +148,7 @@ export const HazmatStorageDesigner: React.FC = () => {
     return { nozzleCount, pm10, exceedsOel: pm10 > 50 };
   }, [pm10UgM3, roomVolumeM3, inletAreaA1, throatAreaA2, deltaPPa, storageType, selectedProject?.id, currentUser?.uid]);
 
-  // Sprint 25 Bucket NN â€” Gas dispersion cloud (LFL distance / IDLH exclusion).
+  // Sprint 25 Bucket NN — Gas dispersion cloud (LFL distance / IDLH exclusion).
   const dispersionResult = useMemo(() => {
     const q = Number(leakRateKgS);
     const w = Number(windKmh);
@@ -202,10 +202,10 @@ export const HazmatStorageDesigner: React.FC = () => {
             <p className="text-slate-500 dark:text-slate-400 text-sm">{t('hazmat_designer.subtitle')}</p>
           </div>
         </div>
-        {/* Sprint 29 EE â€” citas normativas dinÃ¡micas por jurisdicciÃ³n.
-            OPERATIONAL_CONTROL cubre PPE, ventilaciÃ³n y procedimientos
+        {/* Sprint 29 EE — citas normativas dinámicas por jurisdicción.
+            OPERATIONAL_CONTROL cubre PPE, ventilación y procedimientos
             (DS 594 en Chile, OSHA 1910.132/1910.95 en EE.UU., COSHH/PPER
-            en UK, COHSR Part XII en CanadÃ¡, WHS Reg Part 3.2 en AU). */}
+            en UK, COHSR Part XII en Canadá, WHS Reg Part 3.2 en AU). */}
         <RegulatoryCitation
           controlId="OPERATIONAL_CONTROL"
           tenantCountry={selectedProject?.country}
@@ -317,7 +317,7 @@ export const HazmatStorageDesigner: React.FC = () => {
         </div>
       </div>
 
-      {/* Venturi extraction (DS 594 Art. 35) â€” additive Bernoulli engine integration */}
+      {/* Venturi extraction (DS 594 Art. 35) — additive Bernoulli engine integration */}
       <div className="mt-6 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center border border-sky-500/20">
@@ -421,16 +421,16 @@ export const HazmatStorageDesigner: React.FC = () => {
         </p>
       </div>
 
-      {/* Bucket B.4 â€” Misting dust suppression (DS 594 Art. 65, ISO 14644). */}
+      {/* Bucket B.4 — Misting dust suppression (DS 594 Art. 65, ISO 14644). */}
       <div className="mt-6 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
             <Wind className="w-5 h-5 text-cyan-500 dark:text-cyan-400" />
           </div>
           <div>
-            <h4 className="text-lg font-bold text-slate-900 dark:text-white">SupresiÃ³n de polvo (misting Venturi)</h4>
+            <h4 className="text-lg font-bold text-slate-900 dark:text-white">Supresión de polvo (misting Venturi)</h4>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Calcula boquillas mister segÃºn PM10 ambiente â€” DS 594 Art. 65, ISO 14644.
+              Calcula boquillas mister según PM10 ambiente — DS 594 Art. 65, ISO 14644.
             </p>
           </div>
         </div>
@@ -468,22 +468,22 @@ export const HazmatStorageDesigner: React.FC = () => {
           <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
             <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
             <p className="text-xs text-amber-700 dark:text-amber-300">
-              PM10 supera referencia OEL â€” activar misting Venturi para captar partÃ­culas finas.
+              PM10 supera referencia OEL — activar misting Venturi para captar partículas finas.
             </p>
           </div>
         )}
       </div>
 
-      {/* Sprint 25 Bucket NN â€” Modelo de dispersiÃ³n de nube (Pasquill-Gifford). */}
+      {/* Sprint 25 Bucket NN — Modelo de dispersión de nube (Pasquill-Gifford). */}
       <div className="mt-6 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
             <Wind className="w-5 h-5 text-rose-500 dark:text-rose-400" />
           </div>
           <div>
-            <h4 className="text-lg font-bold text-slate-900 dark:text-white">Modelo de dispersiÃ³n de nube</h4>
+            <h4 className="text-lg font-bold text-slate-900 dark:text-white">Modelo de dispersión de nube</h4>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Pluma Gaussiana simplificada (Pasquill-Gifford) â€” DS 144/1961, MINSAL ATSDR.
+              Pluma Gaussiana simplificada (Pasquill-Gifford) — DS 144/1961, MINSAL ATSDR.
             </p>
           </div>
         </div>
@@ -502,7 +502,7 @@ export const HazmatStorageDesigner: React.FC = () => {
               className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Estabilidad atmosfÃ©rica</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Estabilidad atmosférica</label>
             <select value={pasquillStability}
               onChange={(e) => setPasquillStability(e.target.value as 'A' | 'B' | 'C' | 'D' | 'E' | 'F')}
               className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white">
@@ -516,7 +516,7 @@ export const HazmatStorageDesigner: React.FC = () => {
         {dispersionResult?.node ? (
           <div className="rounded-lg px-3 py-2 border bg-rose-500/10 border-rose-500/20">
             <p className="text-[10px] uppercase tracking-widest font-bold text-rose-700 dark:text-rose-300">
-              Distancia a LFL / Radio exclusiÃ³n IDLH ({dispersionResult.node.severity})
+              Distancia a LFL / Radio exclusión IDLH ({dispersionResult.node.severity})
             </p>
             <p className="text-lg font-black text-rose-700 dark:text-rose-300">
               {(dispersionResult.lflDistanceM ?? 0).toFixed(0)} m

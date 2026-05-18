@@ -1,4 +1,4 @@
-﻿// SystemEngine â€” POST /api/system-events/emit.
+// SystemEngine — POST /api/system-events/emit.
 //
 // Server-side emit endpoint: clients that cannot write directly to
 // `tenants/{tid}/system_events` (e.g. when the firestore.rules tighten to
@@ -19,7 +19,7 @@ import { logger } from '../../utils/logger.js';
 const router = Router();
 
 // We trust the client to provide envelope + payload but ignore any
-// `tenantId` they put in the body â€” we stamp it from the token claim, so
+// `tenantId` they put in the body — we stamp it from the token claim, so
 // a worker on tenant A cannot inject events into tenant B.
 const emitBodySchema = z.object({
   event: SystemEventSchema,

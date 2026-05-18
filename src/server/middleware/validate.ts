@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Sprint 28 Bucket B3.
+// Praeventio Guard — Sprint 28 Bucket B3.
 //
 // Transversal Zod request validation middleware. Closes audit hallazgo H17:
 // previously only `POST /api/erp/sync` (in `routes/misc.ts`) used Zod; the
@@ -6,11 +6,11 @@
 // `typeof` checks. The result was 376 `as any/unknown` casts in `src/` and
 // inconsistent error envelopes per route. This factory unifies both:
 //
-//   â€¢ One canonical 400 envelope (`{ error: 'invalid_payload', issues }`)
+//   • One canonical 400 envelope (`{ error: 'invalid_payload', issues }`)
 //     so clients can reliably switch on `error === 'invalid_payload'`.
-//   â€¢ Validated, typed payloads attached to `req.validated` (typed via the
+//   • Validated, typed payloads attached to `req.validated` (typed via the
 //     module augmentation at the bottom of this file).
-//   â€¢ `logger.warn('validation_failed', â€¦)` on every reject so abuse
+//   • `logger.warn('validation_failed', â€¦)` on every reject so abuse
 //     patterns (uid spamming malformed bodies, scanners, etc.) show up
 //     in observability.
 //
@@ -22,7 +22,7 @@
 //     â€¦
 //   });
 //
-// IMPORTANT â€” coexistence with legacy `typeof` checks. Sprint 28 only
+// IMPORTANT — coexistence with legacy `typeof` checks. Sprint 28 only
 // adds this middleware as a FIRST barrier. Existing handlers still keep
 // their hand-rolled checks (TODO: remove in Sprint 29) so a defect in the
 // schema can't regress runtime behavior. The middleware logs at warn but
@@ -58,7 +58,7 @@ export function validate<T extends z.ZodTypeAny>(
         source,
         method: req.method,
         uid: uid ?? null,
-        // `issues` is intentionally short â€” we log the array (Zod tops
+        // `issues` is intentionally short — we log the array (Zod tops
         // out at ~kB for normal payloads) and rely on log aggregation
         // truncation rather than guessing a cutoff here.
         issues: parsed.error.issues,

@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Round 17 R1.
+// Praeventio Guard — Round 17 R1.
 //
 // Server-side audit log helper. Wraps the Firestore Admin write to
 // `audit_logs/` with the standard server-stamped fields (userId from
@@ -6,14 +6,14 @@
 // the same five-line block.
 //
 // Critical rule (mirrored from src/server/routes/audit.ts):
-//   â€¢ The actor's uid + email come from the verified ID token attached by
+//   • The actor's uid + email come from the verified ID token attached by
 //     `verifyAuth`, NOT from req.body. Nothing the client puts in the body
 //     can spoof the actor.
-//   â€¢ Some routes (e.g. /auth/google/callback) are intentionally unauthed â€”
+//   • Some routes (e.g. /auth/google/callback) are intentionally unauthed —
 //     verifyAuth never runs there. For those, callers MAY pass an
 //     `actorOverride` carrying { uid, email } recovered from oauth state /
 //     session. When `req.user` is undefined AND no override is provided,
-//     the helper records `actor = "anonymous"` rather than throwing â€”
+//     the helper records `actor = "anonymous"` rather than throwing —
 //     observability MUST NEVER break the request path (Round 17 R1).
 //
 // Usage:
@@ -29,7 +29,7 @@
 //   });
 //
 // The helper is `async` but its returned promise is intentionally
-// fire-and-forget at the call site â€” wrap each `await` in a try/catch (or
+// fire-and-forget at the call site — wrap each `await` in a try/catch (or
 // use the no-throw signature below) so an audit failure cannot 5xx the
 // real request. The helper itself swallows errors via `logger.error` and
 // resolves with `false` on failure, but defensive callers still wrap it.

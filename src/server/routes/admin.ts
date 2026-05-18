@@ -1,4 +1,4 @@
-﻿// Praeventio Guard â€” Round 16 R5 Phase 1 split.
+// Praeventio Guard — Round 16 R5 Phase 1 split.
 //
 // Admin-only privileged endpoints for forced disconnect (revoke refresh
 // tokens) and role assignment via Firebase Auth custom claims. Both routes
@@ -7,15 +7,15 @@
 // compromised non-admin token cannot escalate.
 //
 // Mounted at `/api/admin` in server.ts. Final paths preserved verbatim:
-//   â€¢ POST /api/admin/revoke-access
-//   â€¢ POST /api/admin/set-role
+//   • POST /api/admin/revoke-access
+//   • POST /api/admin/set-role
 //
-// Behavior contract (covered by I3 supertest harness â€” see
+// Behavior contract (covered by I3 supertest harness — see
 // src/__tests__/server/admin.test.ts):
-//   â€¢ 401 when no Bearer token (handled by verifyAuth)
-//   â€¢ 400 invalid uid / invalid role
-//   â€¢ 403 non-admin caller
-//   â€¢ 200 + audit_logs row on success, with token revocation on the target
+//   • 401 when no Bearer token (handled by verifyAuth)
+//   • 400 invalid uid / invalid role
+//   • 403 non-admin caller
+//   • 200 + audit_logs row on success, with token revocation on the target
 //
 // Phase 2 (billing) and Phase 3 (curriculum/projects) and Phase 4
 // (oauth/gemini) deferred to Round 17/18.
@@ -33,7 +33,7 @@ import {
 } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
-// 15th wave (Bucket D): real server analytics adapter â€” closes the 13th
+// 15th wave (Bucket D): real server analytics adapter — closes the 13th
 // wave Sentry-breadcrumb deferral for `auth.role.granted/revoked`.
 import { serverAnalytics } from '../../services/analytics/serverAdapter.js';
 import type { Role as AnalyticsRole } from '../../services/analytics/types.js';
@@ -43,18 +43,18 @@ import type { Role as AnalyticsRole } from '../../services/analytics/types.js';
 // owning a separate Cloud Run job; admin can also re-drive a missed hour
 // manually from the operator dashboard.
 import { replicateCriticalData } from '../jobs/firestoreCriticalReplicate.js';
-// Sprint 22 Bucket Y â€” weekly digest job. Runs Mondays 09:00 Santiago via
+// Sprint 22 Bucket Y — weekly digest job. Runs Mondays 09:00 Santiago via
 // Cloud Scheduler hitting POST /api/admin/jobs/weekly-digest. Job pure-ish
 // in jobs/weeklyDigest.ts; this endpoint is a thin admin-gated wrapper.
 import { runWeeklyDigest } from '../jobs/weeklyDigest.js';
-// Sprint 25 Bucket TT â€” daily climate risk scan orchestrator. Cloud
+// Sprint 25 Bucket TT — daily climate risk scan orchestrator. Cloud
 // Scheduler hits this endpoint at 05:00 Santiago (08:00 UTC) every day.
 import {
   runDailyClimateRiskScan,
   type ClimateRiskScanDeps,
   type DailyScanProject,
 } from '../jobs/dailyClimateRiskScan.js';
-// Sprint 22 prod hardening (Bucket X) â€” admin-facing observability for
+// Sprint 22 prod hardening (Bucket X) — admin-facing observability for
 // per-tenant Gemini quotas and the upstream circuit breaker.
 import {
   getUsage,
@@ -72,7 +72,7 @@ const UID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
  * `operario`, `medico_ocupacional`, `gerente`) onto the analytics-catalog
  * `Role` enum (`worker | supervisor | prevencionista | admin |
  * executive`). Property-glossary Â§"Role" intentionally uses a coarse
- * taxonomy so dashboards stay legible across customers â€” the granular
+ * taxonomy so dashboards stay legible across customers — the granular
  * runtime roles would explode cardinality. Unknown / unmapped roles
  * fall through to `worker` (the safe default; see catalog row 23 note).
  */
@@ -94,7 +94,7 @@ function mapToAnalyticsRole(role: unknown): AnalyticsRole {
 
 const router = Router();
 
-// DesconexiÃ³n Forzada (Revoke Tokens - El Haki del Rey / Security)
+// Desconexión Forzada (Revoke Tokens - El Haki del Rey / Security)
 router.post('/revoke-access', verifyAuth, async (req, res) => {
   const { targetUid } = req.body;
   const callerUid = req.user!.uid;
@@ -109,7 +109,7 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: Requires admin role to revoke access' });
     }
 
-    // Revoca los refresh tokens. El usuario serÃ¡ desconectado cuando su token a corto plazo expire (o si es validado estrictamente)
+    // Revoca los refresh tokens. El usuario será desconectado cuando su token a corto plazo expire (o si es validado estrictamente)
     await admin.auth().revokeRefreshTokens(targetUid);
 
     // Opcional: Escribir en base de datos para que el cliente detecte el baneo inmediatamente
@@ -120,7 +120,7 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
       { merge: true },
     );
 
-    // Audit trail â€” see audit_logs schema at the top of server.ts.
+    // Audit trail — see audit_logs schema at the top of server.ts.
     await admin.firestore().collection('audit_logs').add({
       actor: callerUid,
       action: 'revoke_access',
@@ -130,7 +130,7 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
       ua: req.header('user-agent') || null,
     });
 
-    // 15th wave (Bucket D) analytics: `auth.role.revoked` â€” closes the
+    // 15th wave (Bucket D) analytics: `auth.role.revoked` — closes the
     // 13th wave Sentry-breadcrumb deferral. The server adapter
     // (`serverAnalytics`) mirrors the browser surface but uses Node
     // primitives (stdout JSON sink + Sentry breadcrumb sink + in-memory
@@ -144,7 +144,7 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
     try {
       // Prior role unknown without an extra read; the catalog's `Role`
       // enum has no `unknown` literal so we fall through to `worker`
-      // (the safe default â€” see mapToAnalyticsRole).
+      // (the safe default — see mapToAnalyticsRole).
       await serverAnalytics.track('auth.role.revoked', {
         role: 'worker',
         revoked_by_user_id_hash: callerUid,
@@ -195,7 +195,7 @@ router.post('/set-role', verifyAuth, async (req, res) => {
     // than continuing with a stale ID token until natural expiry.
     await admin.auth().revokeRefreshTokens(uid);
 
-    // Audit trail â€” see audit_logs schema notes at the top of server.ts.
+    // Audit trail — see audit_logs schema notes at the top of server.ts.
     await admin.firestore().collection('audit_logs').add({
       actor: callerUid,
       action: 'set_role',
@@ -236,17 +236,17 @@ router.post('/set-role', verifyAuth, async (req, res) => {
   }
 });
 
-// Sprint 22 Bucket W.5 â€” hourly critical-data replicate.
+// Sprint 22 Bucket W.5 — hourly critical-data replicate.
 //
 // POST /api/admin/replicate-critical
 //   Drives the audit_logs + invoices write-through to GCS for the last
 //   hour. Idempotent: re-running for the same hour overwrites the same
 //   JSONL file with the same contents. Intended call sites:
-//     â€¢ Cloud Scheduler (hourly) â†’ admin OIDC token â†’ this endpoint
-//     â€¢ Operator dashboard "re-drive missed hour" button
+//     • Cloud Scheduler (hourly) â†’ admin OIDC token â†’ this endpoint
+//     • Operator dashboard "re-drive missed hour" button
 //
 // Returns { ok, collections: [{ collection, docs, path, error? }], window }.
-// Per-collection errors do NOT fail the request â€” DR_RUNBOOK Â§3 commits
+// Per-collection errors do NOT fail the request — DR_RUNBOOK Â§3 commits
 // to "best-effort hourly replica"; a failure on one collection should
 // never starve the other.
 router.post('/replicate-critical', verifyAuth, async (req, res) => {
@@ -262,7 +262,7 @@ router.post('/replicate-critical', verifyAuth, async (req, res) => {
 
     const result = await replicateCriticalData();
 
-    // Audit trail â€” replicate runs are infrequent enough that we want one
+    // Audit trail — replicate runs are infrequent enough that we want one
     // row per invocation. Captures partial-success state in `result`.
     await admin.firestore().collection('audit_logs').add({
       actor: callerUid,
@@ -281,7 +281,7 @@ router.post('/replicate-critical', verifyAuth, async (req, res) => {
   }
 });
 
-// Sprint 22 Bucket Y â€” weekly digest cron entry point.
+// Sprint 22 Bucket Y — weekly digest cron entry point.
 // Cloud Scheduler hits this endpoint every Monday at 09:00 Santiago.
 // Admin-gated so a stale token can't trigger an N-tenant email burst.
 // Optional `projectIds` body field allows ad-hoc replays for ops:
@@ -323,7 +323,7 @@ router.post('/jobs/weekly-digest', verifyAuth, async (req, res) => {
   }
 });
 
-// Sprint 25 Bucket TT â€” daily climate risk scan. Cloud Scheduler at
+// Sprint 25 Bucket TT — daily climate risk scan. Cloud Scheduler at
 // 05:00 Santiago (08:00 UTC). Admin-gated so a stale token cannot trigger
 // an N-tenant FCM burst. Wires the orchestrator to real Firestore /
 // Open-Meteo / FCM admin SDK; the orchestrator itself is DI-testeable.
@@ -368,7 +368,7 @@ router.post('/jobs/climate-scan', verifyAuth, async (req, res) => {
         return getForecast(days, { lat: geo.lat, lng: geo.lng });
       },
       persistNodes: async (assessments, projectId) => {
-        // Server-side persistence â€” write directly to the `zettelkasten_nodes`
+        // Server-side persistence — write directly to the `zettelkasten_nodes`
         // collection used by the POST /api/zettelkasten/nodes endpoint, with
         // the same SHA-256 idempotency contract enforced by `nodeIdFor`. We
         // avoid the HTTP roundtrip (cron is internal) and reuse the hash
@@ -423,7 +423,7 @@ router.post('/jobs/climate-scan', verifyAuth, async (req, res) => {
         if (opts.uids.length === 0) {
           return { successCount: 0, failureCount: 0 };
         }
-        // Look up FCM tokens â€” Firestore `in` is capped at 30 values, so we
+        // Look up FCM tokens — Firestore `in` is capped at 30 values, so we
         // chunk the supervisor UID list.
         const tokens: string[] = [];
         const fs = admin.firestore();
@@ -473,7 +473,7 @@ router.post('/jobs/climate-scan', verifyAuth, async (req, res) => {
   }
 });
 
-// Sprint 22 prod hardening (Bucket X) â€” admin observability for the
+// Sprint 22 prod hardening (Bucket X) — admin observability for the
 // Gemini quota/circuit layer. All four endpoints gate on admin role
 // (mirrors the /revoke-access + /set-role pattern above) and return
 // JSON shaped for the operator dashboard.
@@ -527,7 +527,7 @@ router.get('/quotas', verifyAuth, async (req, res) => {
 // GET /api/admin/quotas/global?date=Y&limit=N
 //   Top-N tenants by Gemini USD spend on a given day (default today,
 //   default 10). Backs the "biggest spenders" widget on the operator
-//   dashboard â€” useful for catching runaway tenants before billing
+//   dashboard — useful for catching runaway tenants before billing
 //   sees the bill.
 router.get('/quotas/global', verifyAuth, async (req, res) => {
   if (!(await assertAdminCaller(req, res))) return undefined;
@@ -551,7 +551,7 @@ router.get('/quotas/global', verifyAuth, async (req, res) => {
 //   Manual reset of a tenant's daily quota. Audit-logged. Use case:
 //   tenant was unfairly throttled by a buggy client or a one-off batch
 //   job that shouldn't have been counted. Document the reason in the
-//   change ticket â€” the audit_logs row captures who/when only.
+//   change ticket — the audit_logs row captures who/when only.
 router.post('/quotas/reset', verifyAuth, async (req, res) => {
   if (!(await assertAdminCaller(req, res))) return undefined;
   const callerUid = req.user!.uid;
@@ -583,7 +583,7 @@ router.post('/quotas/reset', verifyAuth, async (req, res) => {
 
 // GET /api/admin/circuit-state
 //   Snapshot of in-process circuit breaker state. Note: in-process
-//   only â€” see header comment block above.
+//   only — see header comment block above.
 router.get('/circuit-state', verifyAuth, async (req, res) => {
   if (!(await assertAdminCaller(req, res))) return undefined;
   try {
@@ -603,7 +603,7 @@ router.get('/circuit-state', verifyAuth, async (req, res) => {
   }
 });
 
-// Sprint 25 Bucket QQ â€” admin observability/control for the offline
+// Sprint 25 Bucket QQ — admin observability/control for the offline
 // sync state machine. The state machine itself lives client-side
 // (browser IndexedDB), so the server only knows about *server-side
 // observability of pending writes*: we track pending sync operations
@@ -612,13 +612,13 @@ router.get('/circuit-state', verifyAuth, async (req, res) => {
 // updatedAt } whenever their state machine snapshot changes.
 //
 // Endpoints:
-//   â€¢ POST /api/admin/sync/clear-user-queue { targetUid }
+//   • POST /api/admin/sync/clear-user-queue { targetUid }
 //       Marks the user_sync_state doc with `clearRequested: true` so
 //       the client drops its local queue on next subscription. Use
 //       case: a stuck queue caused by a bad payload that retries
-//       forever â€” admin can break the loop without forcing the user
+//       forever — admin can break the loop without forcing the user
 //       to clear their browser storage.
-//   â€¢ GET /api/admin/sync/stats
+//   • GET /api/admin/sync/stats
 //       Aggregates pending op count across all users. Backs the
 //       "stuck users" widget on the operator dashboard.
 
@@ -684,7 +684,7 @@ router.get('/sync/stats', verifyAuth, async (req, res) => {
         stuckUsers.push({ uid: d.id, pendingCount, state });
       }
     });
-    // Sort stuck users by pendingCount desc and cap to 25 â€” the
+    // Sort stuck users by pendingCount desc and cap to 25 — the
     // dashboard widget only renders the worst offenders.
     stuckUsers.sort((a, b) => b.pendingCount - a.pendingCount);
     res.json({
