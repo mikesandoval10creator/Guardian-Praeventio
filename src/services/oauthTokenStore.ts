@@ -15,10 +15,12 @@
  *   AES-256-GCM Data Encryption Key (DEK), and that DEK is itself wrapped by
  *   a KMS-managed Key Encryption Key (KEK) selected via `KMS_ADAPTER`.
  *
- *   In Round 1, only the `in-memory-dev` adapter is functional. The
- *   `cloud-kms` adapter is a stub awaiting a `@google-cloud/kms` install
- *   (see KMS_ROTATION.md, "Round 2 TODO"). Until then production should
- *   leave the flag OFF and rely on Firestore at-rest encryption.
+ *   Both adapters are functional: `in-memory-dev` for tests, and
+ *   `cloud-kms` (real `CloudKmsAdapter` backed by `@google-cloud/kms`,
+ *   see `security/kmsAdapter.ts`) for production. Production should set
+ *   the flag ON together with `KMS_ADAPTER=cloud-kms` so refresh_tokens
+ *   are envelope-encrypted at rest. The earlier "stub awaiting install"
+ *   note here was stale — kept for historical context only.
  *
  *   Backwards compatibility: when the flag is OFF (default), behavior is
  *   identical to pre-envelope code. When ON, the read path is permissive —
