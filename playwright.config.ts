@@ -81,10 +81,14 @@ export default defineConfig({
           },
           {
             // Firestore Emulator — tests que escriben docs reales.
+            //
+            // 2026-05-18: emulator cold start en CI ubuntu-latest mide
+            // ~40-80s tras descarga JAR + JVM init (Java 17 + firebase-tools).
+            // Bumpeamos 90→150s consistente con Express webServer arriba.
             command: 'npx firebase emulators:start --only firestore --project demo-test',
             url: 'http://localhost:8080',
             reuseExistingServer: !process.env.CI,
-            timeout: 90_000,
+            timeout: 150_000,
           },
         ]
       : {
