@@ -1,0 +1,39 @@
+MIT License
+
+Copyright (c) 2025-2026 Mike Sandoval (Guardian Praeventio / Praeventio Guard)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+Third-party components keep their original licenses. Notable boundaries:
+
+- The DWG converter service (LibreDWG) runs as an isolated service under
+  GPL-3.0 (see ADR 0008 in docs/architecture-decisions/0008-*.md). This
+  repository does NOT statically link against LibreDWG; it calls the
+  service via HTTP, preserving the license boundary.
+
+- SLM models (Phi-3 Mini, Qwen, Gemma 2) keep their respective licenses
+  (MIT, Apache 2.0, Gemma Terms of Use). See src/services/slm/registry.ts.
+
+- Bioicons (medical iconography) is MIT/CC0.
+
+- See package.json for direct dependencies; run `npm ls --long` for full
+  third-party license disclosure (SBOM target for Day-1 release per the
+  consolidation plan).
