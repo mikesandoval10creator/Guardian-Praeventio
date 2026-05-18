@@ -261,6 +261,8 @@ import continuityRouter from "./src/server/routes/continuity.js";
 import circadianRouter from "./src/server/routes/circadian.js";
 // Safety Performance Index — Sprint K §197-198 (ISO 45001 leading/lagging blend).
 import safetyPerformanceRouter from "./src/server/routes/safetyPerformance.js";
+// Communication Map — Sprint K §216-221 (channel map / escalation / contactability / failover).
+import commsRouter from "./src/server/routes/comms.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -934,6 +936,7 @@ app.use('/api/sprint-k', spacedRepetitionRouter);
 app.use('/api/sprint-k', continuityRouter);
 app.use('/api/sprint-k', circadianRouter);
 app.use('/api/sprint-k', safetyPerformanceRouter);
+app.use('/api/sprint-k', commsRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
