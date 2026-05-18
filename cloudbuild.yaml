@@ -83,7 +83,7 @@ steps:
       - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest"
       - "--cache-from=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest"
       - "--label=org.opencontainers.image.revision=${COMMIT_SHA}"
-      - "--label=org.opencontainers.image.source=https://github.com/dahosandoval/Guardian-Praeventio"
+      - "--label=org.opencontainers.image.source=https://github.com/mikesandoval10creator/Guardian-Praeventio"
       - "."
     waitFor: ["build"]
 
@@ -97,7 +97,7 @@ steps:
       - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:latest"
       - "--cache-from=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:latest"
       - "--label=org.opencontainers.image.revision=${COMMIT_SHA}"
-      - "--label=org.opencontainers.image.source=https://github.com/dahosandoval/Guardian-Praeventio"
+      - "--label=org.opencontainers.image.source=https://github.com/mikesandoval10creator/Guardian-Praeventio"
       - "."
     waitFor: ["build"]
 
