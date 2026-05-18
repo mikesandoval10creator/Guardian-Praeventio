@@ -71,7 +71,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useWorkPermits', () => ({
   useWorkPermits: () => mockResp,
   signWorkPermit: (projectId: string, permitId: string) =>
     mockSignWorkPermit(projectId, permitId),
