@@ -4,10 +4,10 @@
   "name": "Guardian Praeventio",
   "_form_section_name": "App Configuration → App name (max 50 chars). Must match OAuth Consent Screen 'App name' EXACTLY or the listing is rejected.",
 
-  "description": "Plataforma de prevención de riesgos laborales con IA para Chile y LATAM. Cumplimiento DS 54 / DS 40 / Ley 16.744 + ISO 45001.",
+  "description": "Plataforma de prevención de riesgos laborales con IA para Chile y LATAM. Cumplimiento DS 54 / DS 44/2024 / Ley 16.744 + ISO 45001.",
   "_form_section_description": "App Configuration → Short description (max 200 chars). Same string also goes into the Listing form 'Short description' field — keep them identical.",
 
-  "supportContact": "soporte@praeventio.net",
+  "supportContact": "contacto@praeventio.net",
   "_form_section_supportContact": "App Configuration → Support contact. Must be a real inbox monitored ≥ 1 business day. Google sends reviewer questions here.",
 
   "developerName": "Praeventio Guard SpA",

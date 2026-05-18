@@ -12,7 +12,7 @@
  * Cumplimiento referenciado:
  *   - Ley 19.496 (Protección al Consumidor, Chile)
  *   - Ley 19.628 (Protección de Datos Personales, Chile)
- *   - Ley 16.744, DS 54, DS 40 (prevención de riesgos laborales)
+ *   - Ley 16.744, DS 54, DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01) — prevención de riesgos laborales
  *   - SUSESO (rol del prevencionista certificado)
  */
 
@@ -50,8 +50,8 @@ export const TERMS_CONTENT_ES_CL: TermsContent = {
   title: 'Términos y Condiciones de Servicio — Praeventio Guard',
   subtitle: 'Guardian Praeventio · praeventio.net',
   lastUpdatedISO: LAST_UPDATED_ISO,
-  contactEmail: 'soporte@praeventio.net',
-  privacyEmail: 'privacidad@praeventio.net',
+  contactEmail: 'contacto@praeventio.net',
+  privacyEmail: 'contacto@praeventio.net',
   rut: '78.231.119-0',
   legalEntity: 'Guardian Praeventio',
   sections: [
@@ -84,20 +84,20 @@ export const TERMS_CONTENT_ES_CL: TermsContent = {
       paragraphs: [
         'Los planes de pago se contratan en modalidad de suscripción mensual o anual, con renovación automática salvo cancelación expresa antes del próximo ciclo. Los precios publicados en praeventio.net y en la sección de Pricing del producto incluyen IVA (19%) cuando aplique para clientes en Chile. La razón social facturadora es Guardian Praeventio, RUT 78.231.119-0.',
         'Los métodos de pago disponibles incluyen tarjetas de crédito y débito a través de procesadores certificados (Webpay/Transbank, Google Play Billing y otros gateways). Praeventio Guard no almacena datos completos de tarjetas en sus servidores; solo conserva un identificador opaco devuelto por el procesador y los metadatos necesarios para emitir documentos tributarios.',
-        'Conforme a la Ley 19.496 sobre Protección de los Derechos de los Consumidores, el Usuario puede ejercer el derecho de retracto dentro de los 10 días corridos contados desde la contratación inicial, siempre que no haya consumido la totalidad de los servicios incluidos en el ciclo. Las solicitudes de devolución deben canalizarse a soporte@praeventio.net y serán respondidas en un plazo máximo de 10 días hábiles. No se efectúan devoluciones proporcionales por cancelaciones realizadas en mitad de un ciclo de facturación ya iniciado, sin perjuicio de los derechos irrenunciables del consumidor.',
+        'Conforme a la Ley 19.496 sobre Protección de los Derechos de los Consumidores, el Usuario puede ejercer el derecho de retracto dentro de los 10 días corridos contados desde la contratación inicial, siempre que no haya consumido la totalidad de los servicios incluidos en el ciclo. Las solicitudes de devolución deben canalizarse a contacto@praeventio.net y serán respondidas en un plazo máximo de 10 días hábiles. No se efectúan devoluciones proporcionales por cancelaciones realizadas en mitad de un ciclo de facturación ya iniciado, sin perjuicio de los derechos irrenunciables del consumidor.',
       ],
     },
     {
       heading: 'Privacidad de datos',
       paragraphs: [
         'El tratamiento de datos personales realizado por Praeventio Guard se rige por la Política de Privacidad disponible en /privacy, la cual forma parte integrante de estos Términos. La Política detalla qué datos se recopilan, con qué finalidad, los terceros con quienes se comparten (Google Firebase, Google Gemini, Resend, procesadores de pago), los plazos de retención y los mecanismos para ejercer derechos ARCO bajo la Ley 19.628.',
-        'Para consultas, solicitudes de acceso, rectificación o eliminación de datos, el Usuario puede escribir a privacidad@praeventio.net. Praeventio Guard responderá dentro de los 15 días hábiles establecidos por la normativa chilena vigente.',
+        'Para consultas, solicitudes de acceso, rectificación o eliminación de datos, el Usuario puede escribir a contacto@praeventio.net. Praeventio Guard responderá dentro de los 15 días hábiles establecidos por la normativa chilena vigente.',
       ],
     },
     {
       heading: 'Limitación de responsabilidad',
       paragraphs: [
-        'Praeventio Guard es una herramienta complementaria de gestión de prevención de riesgos. EL SERVICIO NO REEMPLAZA AL EXPERTO EN PREVENCIÓN DE RIESGOS CERTIFICADO POR SUSESO ni a los profesionales habilitados legalmente para emitir matrices IPER, programas de seguridad, peritajes, certificaciones de equipos críticos, exámenes ocupacionales, ni cualquier otro acto que la legislación chilena (Ley 16.744, DS 40, DS 54, DS 594, entre otras) reserva exclusivamente a profesionales colegiados o a organismos administradores de la Ley 16.744.',
+        'Praeventio Guard es una herramienta complementaria de gestión de prevención de riesgos. EL SERVICIO NO REEMPLAZA AL EXPERTO EN PREVENCIÓN DE RIESGOS CERTIFICADO POR SUSESO ni a los profesionales habilitados legalmente para emitir matrices IPER, programas de seguridad, peritajes, certificaciones de equipos críticos, exámenes ocupacionales, ni cualquier otro acto que la legislación chilena (Ley 16.744, DS 44/2024 [reemplaza DS 40/1969 derogado 2025-02-01], DS 54, DS 594, entre otras) reserva exclusivamente a profesionales colegiados o a organismos administradores de la Ley 16.744.',
         'Las recomendaciones, análisis predictivos y respuestas generadas por los componentes de inteligencia artificial de la Plataforma (incluyendo "El Guardián", basado en Google Gemini) son de carácter orientativo y deben ser validadas por el prevencionista responsable antes de su aplicación operativa. El Usuario asume la responsabilidad final por las decisiones que adopte a partir de la información provista por el Servicio.',
         'En la máxima medida permitida por la ley, Praeventio Guard no será responsable por daños indirectos, lucro cesante, pérdida de oportunidad, interrupción del negocio, o por incidentes laborales que pudieran ocurrir, sin perjuicio de las garantías irrenunciables que correspondan al consumidor conforme a la Ley 19.496.',
       ],
@@ -126,7 +126,7 @@ export const TERMS_CONTENT_ES_CL: TermsContent = {
     {
       heading: 'Contacto',
       paragraphs: [
-        'Para consultas comerciales, soporte técnico o reclamos relativos a estos Términos, el Usuario puede contactar a Guardian Praeventio en soporte@praeventio.net. Para temas relacionados con datos personales y privacidad, el canal específico es privacidad@praeventio.net. El plazo objetivo de respuesta es de 5 días hábiles para soporte y 15 días hábiles para solicitudes de privacidad.',
+        'Para consultas comerciales, soporte técnico o reclamos relativos a estos Términos, el Usuario puede contactar a Guardian Praeventio en contacto@praeventio.net. Para temas relacionados con datos personales y privacidad, el canal específico es contacto@praeventio.net. El plazo objetivo de respuesta es de 5 días hábiles para soporte y 15 días hábiles para solicitudes de privacidad.',
       ],
     },
   ],

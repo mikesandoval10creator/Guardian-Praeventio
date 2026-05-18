@@ -11,7 +11,7 @@
 > Field: Listing → Short description (max 200 characters).
 
 ```
-Plataforma de prevención de riesgos laborales con IA para Chile y LATAM. Cumple DS 54, DS 40, Ley 16.744. Multi-país sin recargo. ISO 45001 alineado.
+Plataforma de prevención de riesgos laborales con IA para Chile y LATAM. Cumple DS 54, DS 44/2024, Ley 16.744. Multi-país sin recargo. ISO 45001 alineado.
 ```
 
 **Char count:** 167 / 200.
@@ -19,7 +19,7 @@ Plataforma de prevención de riesgos laborales con IA para Chile y LATAM. Cumple
 ### English fallback
 
 ```
-AI-powered occupational safety platform for Chile and LATAM. Meets DS 54, DS 40, Ley 16.744. Multi-country at no extra cost. ISO 45001 aligned.
+AI-powered occupational safety platform for Chile and LATAM. Meets DS 54, DS 44/2024, Ley 16.744. Multi-country at no extra cost. ISO 45001 aligned.
 ```
 
 ---
@@ -41,14 +41,14 @@ Praeventio Guard es la primera plataforma chilena de Seguridad y Salud en el Tra
 
 - **Prevencionistas de riesgos** que necesitan dejar de copiar IPER en planillas Excel y empezar a gestionar riesgos como sistema de información en vivo.
 - **Comités Paritarios de Higiene y Seguridad** (DS 54) que requieren agendar y documentar sus reuniones mensuales, levantar actas, y subir evidencias auditables a SUSESO.
-- **Departamentos de Prevención** (DS 40, obligatorio sobre 100 trabajadores) que quieren un sistema de gestión SST alineado con ISO 45001 sin pagar la consultora internacional.
+- **Departamentos de Prevención** (DS 44/2024, obligatorio sobre 100 trabajadores) que quieren un sistema de gestión SST alineado con ISO 45001 sin pagar la consultora internacional.
 - **Gerentes de operaciones** que necesitan ver el riesgo de su faena en un dashboard, no en un PDF de 200 páginas.
 - **Trabajadores en terreno** que quieren saber dónde están las salidas de emergencia, qué hacer ante un sismo, y cómo reportar un casi-incidente desde su celular sin internet.
 
 ### Las funciones que importan
 
 #### Compliance chileno nativo
-DS 54 (Comité Paritario), DS 40 (Departamento de Prevención), DS 594 (condiciones sanitarias), Ley 16.744 (seguro contra accidentes), Ley 21.643 "Ley Karin" (acoso laboral), protocolos PREXOR/CEAL-SM/SUSESO. La normativa está cargada como base de conocimiento navegable, no como PDFs colgados en un drive.
+DS 54 (Comité Paritario), DS 44/2024 (Departamento de Prevención), DS 594 (condiciones sanitarias), Ley 16.744 (seguro contra accidentes), Ley 21.643 "Ley Karin" (acoso laboral), protocolos PREXOR/CEAL-SM/SUSESO. La normativa está cargada como base de conocimiento navegable, no como PDFs colgados en un drive.
 
 #### IPER asistido por IA
 "El Guardián" — asistente con RAG sobre la base normativa chilena (BCN, ISO) — sugiere peligros relevantes según el rubro y la tarea, calcula el nivel de riesgo (matriz 5×5 estándar), y propone medidas de control. El prevencionista valida; la IA asiste. La trazabilidad queda en `audit_logs` inmutables.
@@ -114,7 +114,7 @@ Cuando un cliente certifica ISO 45001, Praeventio Guard genera la evidencia para
 
 ### Soporte y SLA por tier
 
-- **Gratis / Comité Paritario / Departamento Prevención:** soporte por email (soporte@praeventio.net), best-effort, base de conocimiento online.
+- **Gratis / Comité Paritario / Departamento Prevención:** soporte por email (contacto@praeventio.net), best-effort, base de conocimiento online.
 - **Plata / Oro:** email + chat en horario hábil Chile (9-18 hrs), respuesta < 24 hrs hábiles.
 - **Titanio:** SLA 99.5%, CSM dedicado, onboarding en sitio, soporte 24/7 para incidentes P0/P1.
 - **Diamante:** SLA 99.5% + CASA Tier (auditoría seguridad anual independiente), API privada, soporte 24/7.
@@ -126,7 +126,7 @@ Cuando un cliente certifica ISO 45001, Praeventio Guard genera la evidencia para
 | Comparación | Praeventio | SafetyCulture | Excel + un prevencionista part-time |
 |---|---|---|---|
 | Costo mensual (faena 100 trabajadores) | $30.990 CLP | ~$120 USD (~$110.000 CLP) | $400.000-700.000 CLP |
-| Compliance DS 54 / DS 40 / Ley 16.744 nativo | Sí | No (genérico anglosajón) | Manual |
+| Compliance DS 54 / DS 44/2024 / Ley 16.744 nativo | Sí | No (genérico anglosajón) | Manual |
 | IA generativa para IPER | Sí (Gemini + RAG normativo) | No | No |
 | REBA/RULA on-device | Sí | No | No |
 | Knowledge Graph normativo | Sí | No | No |
@@ -194,7 +194,7 @@ Ninguna funcionalidad crítica de vida o muerte está detrás de un muro de pago
 **Prevención abierta, transparente y multi-país.** Hecho en Chile.
 
 — Praeventio Guard SpA
-soporte@praeventio.net
+contacto@praeventio.net
 https://praeventio.net
 
 ---
@@ -208,10 +208,10 @@ https://praeventio.net
 Praeventio Guard is the first Chilean Occupational Safety & Health (OSH) platform that combines generative AI, on-device computer vision, and a navigable knowledge graph of regional regulations to help industrial companies in Chile and Latin America comply with the law without sacrificing operational throughput. Built by Chileans for real worksites: mining, construction, remote operations, manufacturing.
 
 #### Who it's for
-Safety officers (prevencionistas), Joint Health & Safety Committees (Comités Paritarios mandated by DS 54), Prevention Departments (mandated by DS 40 over 100 workers), operations managers, and field workers across the LATAM industrial belt.
+Safety officers (prevencionistas), Joint Health & Safety Committees (Comités Paritarios mandated by DS 54), Prevention Departments (mandated by DS 44/2024 over 100 workers), operations managers, and field workers across the LATAM industrial belt.
 
 #### Core capabilities
-- Native compliance with Chilean OSH law (DS 54, DS 40, DS 594, Ley 16.744, Ley 21.643).
+- Native compliance with Chilean OSH law (DS 54, DS 44/2024, DS 594, Ley 16.744, Ley 21.643).
 - AI-assisted Hazard Identification and Risk Assessment (IPER) with retrieval-augmented generation over the BCN regulatory corpus.
 - On-device REBA/RULA ergonomic analysis (MediaPipe, no biometric data leaves the device).
 - Predictive calendar that auto-schedules legally mandated meetings (committee, ODI training, ergonomic exams, ISO 45001 management reviews).
