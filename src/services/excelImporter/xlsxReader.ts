@@ -173,7 +173,8 @@ async function getSheetJsAdapter(): Promise<XlsxParserAdapter> {
   // Lazy import so unit tests que no usan XLSX no fuerzan el paquete.
   // SheetJS (xlsx) is intentionally not installed in node_modules — it's
   // declared as optional/peer and resolved at runtime when present.
-  // @ts-expect-error: optional runtime dep — xlsx may not be installed
+  // 2026-05-18: package ahora está instalado (PR #351 — Excel Importer),
+  // así que ya no hace falta el @ts-expect-error.
   const mod = (await import('xlsx')) as unknown as {
     read: (data: Uint8Array, opts: { type: 'array' }) => {
       SheetNames: string[];

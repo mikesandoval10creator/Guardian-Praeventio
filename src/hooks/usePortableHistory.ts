@@ -17,6 +17,44 @@ export interface PortableHistoryConsent {
   updatedByUid: string;
 }
 
+/** Forma deliberadamente laxa — el server agrega documentos de varias
+ *  colecciones legacy + canonical (Worker training_assignments, EPP
+ *  assignments, medical_aptitudes, etc.). El UI lee los campos comunes
+ *  que casi todos comparten; campos faltantes degradan al fallback "—".
+ *
+ *  Codex P2 fix: TS strict desfasaba `[key: string]: unknown` con los
+ *  accesos directos en el UI (e.eppCategory, a.recordedAt, etc.). Los
+ *  campos opcionales se declaran como `string | undefined` para que TS
+ *  resuelva el tipo sin obligar al UI a hacer narrowing manual. */
+export interface PortableHistoryRecord {
+  id?: string;
+  obtainedAt?: string;
+  trainingName?: string;
+  trainingCode?: string;
+  eppItemName?: string;
+  eppCategory?: string;
+  eppModel?: string;
+  category?: string;
+  deliveredAt?: string;
+  aptitudeStatus?: string;
+  status?: string;
+  recordedAt?: string;
+  evaluationDate?: string;
+  role?: string;
+  roleName?: string;
+  roleCode?: string;
+  startDate?: string;
+  startedAt?: string;
+  endedAt?: string;
+  signedAt?: string;
+  signatureType?: string;
+  documentTitle?: string;
+  documentKind?: string;
+  occurredAt?: string;
+  severity?: string;
+  description?: string;
+}
+
 export interface PortableHistoryBundle {
   schemaVersion: '1.0.0';
   generatedAt: string;
@@ -27,12 +65,12 @@ export interface PortableHistoryBundle {
     rut: string;
     email?: string | null;
   };
-  trainings: Record<string, unknown>[];
-  eppDeliveries: Record<string, unknown>[];
-  aptitudes: Record<string, unknown>[];
-  criticalRoles: Record<string, unknown>[];
-  signatures: Record<string, unknown>[];
-  incidents: Record<string, unknown>[];
+  trainings: PortableHistoryRecord[];
+  eppDeliveries: PortableHistoryRecord[];
+  aptitudes: PortableHistoryRecord[];
+  criticalRoles: PortableHistoryRecord[];
+  signatures: PortableHistoryRecord[];
+  incidents: PortableHistoryRecord[];
   disclaimer: string;
 }
 

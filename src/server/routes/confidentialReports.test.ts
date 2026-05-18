@@ -13,7 +13,12 @@ describe('confidentialReportsRouter (§211-213 / Ley Karin migration contract)',
     }).stack;
 
     const expectRoute = (path: string, method: 'get' | 'post') => {
-      const layer = layers.find((l) => l.route?.path === path);
+      // Express crea una layer separada por (path, method). Un mismo path
+      // con GET+POST registrados aparece como dos layers distintas;
+      // .find sólo devuelve la primera. Buscamos por (path, method).
+      const layer = layers.find(
+        (l) => l.route?.path === path && l.route?.methods[method] === true,
+      );
       expect(layer, `missing ${method.toUpperCase()} ${path}`).toBeDefined();
       expect(layer?.route?.methods[method]).toBe(true);
     };

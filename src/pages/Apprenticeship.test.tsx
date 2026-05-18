@@ -232,9 +232,10 @@ describe('<Apprenticeship /> page wrapper (Sprint K §244-250)', () => {
   it('al registrar un aprendiz llama a registerApprentice y cierra el modal', async () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
     const registerMock = vi.mocked(sprintKHooks.registerApprentice);
-    registerMock.mockResolvedValueOnce(
-      apprentice({ workerUid: 'app_new', mentorUid: 'mentor_juan' }),
-    );
+    registerMock.mockResolvedValueOnce({
+      ok: true,
+      apprentice: apprentice({ workerUid: 'app_new', mentorUid: 'mentor_juan' }),
+    });
 
     render(<Apprenticeship />);
     fireEvent.click(screen.getByTestId('apprenticeship-register-button'));

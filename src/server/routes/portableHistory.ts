@@ -65,7 +65,7 @@ export const PORTABLE_HISTORY_DISCLAIMER =
 // ── Guard helpers ─────────────────────────────────────────────────────
 
 async function resolveTenantId(
-  callerUid: string,
+  _callerUid: string,
   projectId: string,
   db: admin.firestore.Firestore,
 ): Promise<string | null> {

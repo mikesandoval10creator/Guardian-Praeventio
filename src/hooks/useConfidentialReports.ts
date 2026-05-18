@@ -60,14 +60,26 @@ export interface RetaliationAlertApi {
   severity: 'high' | 'critical';
 }
 
+export interface ConfidentialReportsListResponse {
+  reports: ConfidentialReportApi[];
+  /** Codex P1: server informa el rol del caller para que el UI decida
+   *  si mostrar la vista handler (todos) o reporter (sólo míos). */
+  role?: 'investigator' | 'reporter';
+}
+
+export interface RetaliationAlertsResponse {
+  alerts: RetaliationAlertApi[];
+  windowDays: number;
+}
+
 export function useConfidentialReports(projectId: string | null) {
-  return useEndpoint<{ reports: ConfidentialReportApi[] }>(
+  return useEndpoint<ConfidentialReportsListResponse>(
     projectId ? `/api/sprint-k/${projectId}/confidential-reports` : null,
   );
 }
 
 export function useRetaliationAlerts(projectId: string | null) {
-  return useEndpoint<{ alerts: RetaliationAlertApi[]; windowDays: number }>(
+  return useEndpoint<RetaliationAlertsResponse>(
     projectId ? `/api/sprint-k/${projectId}/confidential-reports/retaliation-alerts` : null,
   );
 }
@@ -78,6 +90,10 @@ export interface SubmitConfidentialReportPayload {
   narrative: string;
   evidence?: string;
   allowsIdentity: boolean;
+  /** Sólo cuando allowsIdentity=true. Si está omitido el server lo
+   *  deriva del token. Cuando allowsIdentity=false NUNCA se envía
+   *  (principio de mínima exposición). */
+  reporterUid?: string;
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {

@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react';
-import { useState } from 'react';
+import { useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../shared/Card';
 
@@ -28,7 +28,9 @@ export interface SentryTestButtonProps {
   variant?: 'throw' | 'message';
 }
 
-export function SentryTestButton({ variant = 'throw' }: SentryTestButtonProps): JSX.Element {
+export function SentryTestButton({
+  variant = 'throw',
+}: SentryTestButtonProps): ReactElement {
   const { t } = useTranslation();
   const [lastEventId, setLastEventId] = useState<string | null>(null);
 

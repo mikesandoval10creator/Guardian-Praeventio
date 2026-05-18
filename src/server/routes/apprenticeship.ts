@@ -75,7 +75,7 @@ interface StoredExposure {
 // ── Guard ─────────────────────────────────────────────────────────────
 
 async function resolveTenantId(
-  callerUid: string,
+  _callerUid: string,
   projectId: string,
   db: admin.firestore.Firestore,
 ): Promise<string | null> {

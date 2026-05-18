@@ -107,7 +107,7 @@ const CONFIDENTIAL_ADVERSE_ACTIONS_PATH = (tenantId: string) =>
 // ── Guard + helpers ───────────────────────────────────────────────────
 
 async function resolveTenantId(
-  callerUid: string,
+  _callerUid: string,
   projectId: string,
   db: admin.firestore.Firestore,
 ): Promise<string | null> {

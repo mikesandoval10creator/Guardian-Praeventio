@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { IncidentTrends } from './IncidentTrends';
-import type { IncidentTrendsResponse } from '../hooks/useSprintK';
+import type { IncidentTrendsResponse } from '../hooks/useIncidentTrends';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -61,7 +61,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useIncidentTrends', () => ({
   useIncidentTrends: (
     _projectId: string | null,
     opts?: { window?: string; group?: string },

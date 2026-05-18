@@ -137,6 +137,16 @@ const STATUS_META: Record<
     color: 'text-emerald-600',
     bg: 'bg-emerald-500/10',
   },
+  closed: {
+    label: 'Cerrado',
+    color: 'text-zinc-600',
+    bg: 'bg-zinc-500/10',
+  },
+  dismissed: {
+    label: 'Descartado',
+    color: 'text-zinc-500',
+    bg: 'bg-zinc-400/10',
+  },
 };
 
 function formatIso(iso: string): string {
