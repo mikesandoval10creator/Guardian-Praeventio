@@ -379,81 +379,12 @@ export async function scheduleCorrectiveActionEffectivenessReview(
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// Fase F.5 — Firma QR de Recepción
-// ────────────────────────────────────────────────────────────────────────
-//
-// Cliente para los dos endpoints F.5 expuestos en sprintK.ts:
-//   - POST /qr-signature/challenge  → genera challenge HMAC + nonce
-//   - POST /qr-signature/acknowledge → persiste la firma del trabajador
-//
-// El motor de firma vive en `services/qrSignature/qrSignatureService.ts`
-// (HMAC + canonicalize). Aquí solo wrap HTTP + auth header.
-
-import type {
-  QrSignatureChallenge,
-  SignedAcknowledgement,
-  SignatureItemKind,
-} from '../services/qrSignature/qrSignatureService';
-
-export async function requestQrSignatureChallenge(
-  projectId: string,
-  itemId: string,
-  kind: SignatureItemKind,
-  ttlMinutes?: number,
-): Promise<QrSignatureChallenge> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/qr-signature/challenge`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ itemId, kind, ttlMinutes }),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const data = (await res.json()) as { challenge: QrSignatureChallenge };
-  return data.challenge;
-}
-
-export interface QrAcknowledgementPayload {
-  challengeId: string;
-  workerUid: string;
-  biometricUsed?: boolean;
-  signedAt: string;
-}
-
-export async function persistQrAcknowledgement(
-  projectId: string,
-  payload: QrAcknowledgementPayload,
-): Promise<SignedAcknowledgement> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/qr-signature/acknowledge`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const data = (await res.json()) as { acknowledgement: SignedAcknowledgement };
-  return data.acknowledgement;
-}
+// F.5 QR Signature mutators migrados a useQrSignature.ts (2026-05-18).
+export {
+  requestQrSignatureChallenge,
+  persistQrAcknowledgement,
+  type QrAcknowledgementPayload,
+} from "./useQrSignature";
 
 // F.26 Maturity Index hooks migrados a useMaturityIndex.ts (2026-05-18).
 export {
@@ -495,27 +426,11 @@ export {
   type DrillExecutePayload,
 } from "./useDrillsManager";
 
-// ────────────────────────────────────────────────────────────────────────
-// Fase F.7 — Minuta CPHS automática
-// ────────────────────────────────────────────────────────────────────────
-//
-// Wrappea GET /api/sprint-k/:projectId/cphs/draft-minute. El endpoint
-// usa el motor determinístico `buildMonthlyMinuteDraft` para producir
-// un `MinuteDraft` (markdown + secciones + métricas + completeness
-// score). La page lo renderiza y permite descargar como JSON antes
-// de que el CPHS firme el acta definitiva.
-
-import type { MinuteDraft } from '../services/cphs/cphsMinuteAutogenerator';
-
-export interface CphsDraftMinuteResponse {
-  draft: MinuteDraft;
-}
-
-export function useCphsDraftMinute(projectId: string | null) {
-  return useEndpoint<CphsDraftMinuteResponse>(
-    projectId ? `/api/sprint-k/${projectId}/cphs/draft-minute` : null,
-  );
-}
+// F.7 CPHS Minute hook migrado a useCphsMinute.ts (2026-05-18).
+export {
+  useCphsDraftMinute,
+  type CphsDraftMinuteResponse,
+} from "./useCphsMinute";
 
 // F.16 Worker Readiness hook migrado a useWorkerReadiness.ts (2026-05-18).
 export {
@@ -666,172 +581,21 @@ export {
   type PositiveObservationBalanceResponse,
 } from './usePositiveObservations';
 
-// ────────────────────────────────────────────────────────────────────────
-// Fase F.6 — Modo Sin Señal para Inspecciones
-// ────────────────────────────────────────────────────────────────────────
-//
-// Hooks + mutations for the offline-first inspections surface. The page
-// (`OfflineInspection.tsx`) lets the inspector capture observations
-// WITHOUT signal; the sync runs against these endpoints once the device
-// is back online. Mutations are idempotent server-side (de-dup by
-// client-generated id / observationId) so the offline queue can retry
-// safely without doubling rows.
-
-export type InspectionStatusAPI = 'in_progress' | 'completed';
-
-export interface InspectionObservationRecord {
-  observationId: string;
-  itemId?: string;
-  notes?: string;
-  photoStoragePath?: string;
-  locationLatLng?: { lat: number; lng: number };
-  recordedAt: string;
-  recordedBy: string;
-}
-
-export interface InspectionRecord {
-  id: string;
-  templateId: string;
-  responsibleUid: string;
-  status: InspectionStatusAPI;
-  startedAt: string;
-  startedBy: string;
-  completedAt?: string;
-  observations: InspectionObservationRecord[];
-}
-
-export interface InspectionsResponse {
-  inspections: InspectionRecord[];
-}
-
-export interface InspectionResponse {
-  inspection: InspectionRecord;
-}
-
-export function useInspections(
-  projectId: string | null,
-  opts: { status?: InspectionStatusAPI | 'all' } = {},
-) {
-  let path: string | null = null;
-  if (projectId) {
-    const qs = new URLSearchParams();
-    if (opts.status) qs.set('status', opts.status);
-    const query = qs.toString();
-    path = `/api/sprint-k/${projectId}/inspections${query ? `?${query}` : ''}`;
-  }
-  return useEndpoint<InspectionsResponse>(path);
-}
-
-export function useInspection(
-  projectId: string | null,
-  inspectionId: string | null,
-) {
-  // The list endpoint returns the full collection; for a single doc we
-  // reuse the list call client-side. Keeping a single read surface
-  // avoids a second endpoint round-trip just to refresh detail after
-  // an observation append (we re-fetch the list anyway).
-  const all = useInspections(projectId, { status: 'all' });
-  const inspection = all.data?.inspections.find((i) => i.id === inspectionId) ?? null;
-  return {
-    data: inspection ? { inspection } : null,
-    loading: all.loading,
-    error: all.error,
-    refetch: all.refetch,
-  } as FetchState<InspectionResponse> & { refetch: () => void };
-}
-
-export interface InspectionStartPayload {
-  id: string;
-  templateId: string;
-  responsibleUid: string;
-  startedAt?: string;
-}
-
-export async function startInspection(
-  projectId: string,
-  payload: InspectionStartPayload,
-): Promise<InspectionRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(`/api/sprint-k/${projectId}/inspections`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const json = (await res.json()) as { ok: true; inspection: InspectionRecord };
-  return json.inspection;
-}
-
-export interface InspectionObservationPayload {
-  observationId: string;
-  itemId?: string;
-  notes?: string;
-  photoStoragePath?: string;
-  locationLatLng?: { lat: number; lng: number };
-  recordedAt?: string;
-}
-
-export async function addObservation(
-  projectId: string,
-  inspectionId: string,
-  payload: InspectionObservationPayload,
-): Promise<InspectionObservationRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/inspections/${inspectionId}/observations`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const json = (await res.json()) as {
-    ok: true;
-    observation: InspectionObservationRecord;
-  };
-  return json.observation;
-}
-
-export async function completeInspection(
-  projectId: string,
-  inspectionId: string,
-  completedAt?: string,
-): Promise<InspectionRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/inspections/${inspectionId}/complete`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(completedAt ? { completedAt } : {}),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const json = (await res.json()) as { ok: true; inspection: InspectionRecord };
-  return json.inspection;
-}
+// F.6 Offline Inspections hooks migrados a useOfflineInspections.ts (2026-05-18).
+export {
+  useInspections,
+  useInspection,
+  startInspection,
+  addObservation,
+  completeInspection,
+  type InspectionStatusAPI,
+  type InspectionObservationRecord,
+  type InspectionRecord,
+  type InspectionsResponse,
+  type InspectionResponse,
+  type InspectionStartPayload,
+  type InspectionObservationPayload,
+} from "./useOfflineInspections";
 
 // ────────────────────────────────────────────────────────────────────────
 // §42-44 — Inventario Controles de Ingeniería + Jerarquía ISO 31000

@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { useCphsDraftMinute } from '../hooks/useSprintK';
+import { useCphsDraftMinute } from '../hooks/useCphsMinute';
 import { logger } from '../utils/logger';
 
 export function CphsDraftMinute() {

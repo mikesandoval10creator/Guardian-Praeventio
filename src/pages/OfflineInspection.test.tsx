@@ -21,7 +21,7 @@ import { OfflineInspection } from './OfflineInspection';
 import type {
   InspectionRecord,
   InspectionsResponse,
-} from '../hooks/useSprintK';
+} from '../hooks/useOfflineInspections';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -69,7 +69,7 @@ vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
 
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useOfflineInspections', () => ({
   useInspections: (_pid: string | null, opts?: { status?: string }) => {
     lastHookOpts = opts ?? {};
     return mockResp;

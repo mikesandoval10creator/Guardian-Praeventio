@@ -44,7 +44,7 @@ import {
   type InspectionRecord,
   type InspectionObservationRecord,
   type InspectionStatusAPI,
-} from '../hooks/useSprintK';
+} from '../hooks/useOfflineInspections';
 import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
 import { auth } from '../services/firebase';
