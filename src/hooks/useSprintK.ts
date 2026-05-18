@@ -489,55 +489,11 @@ export async function persistQrAcknowledgement(
   return data.acknowledgement;
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// Fase F.26 — Indicador de Madurez Preventiva
-// ────────────────────────────────────────────────────────────────────────
-//
-// Wraps GET /api/sprint-k/:projectId/maturity-index which derives 10
-// señales objetivas a partir de las colecciones canónicas del proyecto
-// y corre `computeMaturityLevel` + `recommendNextSteps`. Devuelve el
-// `MaturityReport` con sub-puntajes por categoría + 3 recomendaciones
-// concretas para subir de nivel.
-//
-// Cuando el proyecto es muy nuevo o no tiene actividad mínima el server
-// devuelve `{ insufficientData: true, reason }` y la UI muestra el
-// empty-state explicativo en vez de un score 1 alarmista.
-
-import type {
-  MaturityReport,
-  MaturityRecommendation,
-  MaturitySignals,
-} from '../services/maturity/preventionMaturityIndex';
-
-export interface MaturityIndexResponse {
-  // Caso "datos insuficientes": faena recién creada o sin señales.
-  insufficientData?: boolean;
-  reason?: 'project_too_new' | 'not_enough_signals';
-  signalsCount?: number;
-  /** Fuentes (feeds) distintas con ≥1 doc. Codex P2 fix: el gate y el
-   *  honest-data-completeness se basa en esto, no en signalsCount. */
-  feedsAvailable?: number;
-  /** Nombres de las fuentes pobladas (útil para diagnóstico/UI). */
-  populatedFeeds?: string[];
-  projectAgeDays?: number | null;
-  // Caso normal: reporte completo.
-  report?: MaturityReport;
-  recommendations?: MaturityRecommendation[];
-  signals?: MaturitySignals;
-  metadata?: {
-    signalsCount: number;
-    feedsAvailable: number;
-    populatedFeeds: string[];
-    projectAgeDays: number | null;
-    windowMonths: number;
-  };
-}
-
-export function usePreventionMaturity(projectId: string | null) {
-  return useEndpoint<MaturityIndexResponse>(
-    projectId ? `/api/sprint-k/${projectId}/maturity-index` : null,
-  );
-}
+// F.26 Maturity Index hooks migrados a useMaturityIndex.ts (2026-05-18).
+export {
+  usePreventionMaturity,
+  type MaturityIndexResponse,
+} from "./useMaturityIndex";
 
 // ────────────────────────────────────────────────────────────────────────
 // Fase F.15 — Centro de Permisos de Trabajo (Work Permits)
@@ -682,173 +638,21 @@ export {
   type RepeatingRisksResponse,
 } from './useRepeatingRisks';
 
-// ────────────────────────────────────────────────────────────────────────
-// Fase F.20 — Gestor de Simulacros
-// ────────────────────────────────────────────────────────────────────────
-//
-// Hooks + mutations for the drills surface. Shapes mirror what the
-// sprintK.ts endpoints return — the page consumes the response directly
-// and renders cards / detail without an intermediate adapter.
-
-export type DrillKindAPI =
-  | 'evacuation'
-  | 'fire'
-  | 'spill_chemical'
-  | 'first_aid'
-  | 'rescue_confined'
-  | 'rescue_height'
-  | 'gas_leak'
-  | 'earthquake';
-
-export type DrillStatusAPI =
-  | 'planned'
-  | 'in_progress'
-  | 'completed'
-  | 'cancelled';
-
-export type DrillLevelAPI =
-  | 'excellent'
-  | 'good'
-  | 'needs_improvement'
-  | 'critical'
-  /**
-   * Sin baseline real para gradear: el plan omitió `expectedCount` y/o
-   * `benchmarkSeconds`. La UI muestra "Baseline insuficiente" en vez de
-   * un nivel cuantitativo. (Codex PR #316 P2.)
-   */
-  | 'insufficient_baseline';
-
-export interface DrillRecord {
-  id: string;
-  kind: DrillKindAPI;
-  scheduledAt: string;
-  responsibleUid: string;
-  status: DrillStatusAPI;
-  title?: string;
-  location?: string;
-  expectedCount?: number;
-  benchmarkSeconds?: number;
-  createdAt: string;
-  createdBy: string;
-  executedAt?: string;
-  participantCount?: number;
-  responseTimeSeconds?: number;
-  observedGaps?: string[];
-  requiredExternal?: boolean;
-  notes?: string;
-  report?: {
-    /** `null` cuando el baseline `expectedCount` no fue registrado. */
-    participationRate: number | null;
-    /** `null` cuando el baseline `benchmarkSeconds` no fue registrado. */
-    speedDeficitPercent: number | null;
-    level: DrillLevelAPI;
-    recommendations: string[];
-  };
-}
-
-export interface DrillsResponse {
-  drills: DrillRecord[];
-}
-
-export interface DrillResponse {
-  drill: DrillRecord;
-}
-
-export function useDrills(
-  projectId: string | null,
-  opts: { status?: DrillStatusAPI; kind?: DrillKindAPI } = {},
-) {
-  let path: string | null = null;
-  if (projectId) {
-    const qs = new URLSearchParams();
-    if (opts.status) qs.set('status', opts.status);
-    if (opts.kind) qs.set('kind', opts.kind);
-    const query = qs.toString();
-    path = `/api/sprint-k/${projectId}/drills${query ? `?${query}` : ''}`;
-  }
-  return useEndpoint<DrillsResponse>(path);
-}
-
-export function useDrill(
-  projectId: string | null,
-  drillId: string | null,
-) {
-  return useEndpoint<DrillResponse>(
-    projectId && drillId
-      ? `/api/sprint-k/${projectId}/drills/${drillId}`
-      : null,
-  );
-}
-
-export interface DrillPlanPayload {
-  id: string;
-  kind: DrillKindAPI;
-  scheduledAt: string;
-  responsibleUid: string;
-  title?: string;
-  location?: string;
-  expectedCount?: number;
-  benchmarkSeconds?: number;
-}
-
-export async function planDrill(
-  projectId: string,
-  payload: DrillPlanPayload,
-): Promise<DrillRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(`/api/sprint-k/${projectId}/drills/plan`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const json = (await res.json()) as { ok: true; drill: DrillRecord };
-  return json.drill;
-}
-
-export interface DrillExecutePayload {
-  executedAt: string;
-  participantCount: number;
-  expectedCount?: number;
-  responseTimeSeconds: number;
-  benchmarkSeconds?: number;
-  observedGaps?: string[];
-  requiredExternal?: boolean;
-  notes?: string;
-}
-
-export async function executeDrill(
-  projectId: string,
-  drillId: string,
-  payload: DrillExecutePayload,
-): Promise<DrillRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/drills/${drillId}/execute`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const json = (await res.json()) as { ok: true; drill: DrillRecord };
-  return json.drill;
-}
+// F.20 Drills hooks migrados a useDrillsManager.ts (2026-05-18).
+export {
+  useDrills,
+  useDrill,
+  planDrill,
+  executeDrill,
+  type DrillKindAPI,
+  type DrillStatusAPI,
+  type DrillLevelAPI,
+  type DrillRecord,
+  type DrillsResponse,
+  type DrillResponse,
+  type DrillPlanPayload,
+  type DrillExecutePayload,
+} from "./useDrillsManager";
 
 // ────────────────────────────────────────────────────────────────────────
 // Fase F.7 — Minuta CPHS automática

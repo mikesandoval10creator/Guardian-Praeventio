@@ -42,7 +42,7 @@ import {
   type DrillKindAPI,
   type DrillStatusAPI,
   type DrillLevelAPI,
-} from '../hooks/useSprintK';
+} from '../hooks/useDrillsManager';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────

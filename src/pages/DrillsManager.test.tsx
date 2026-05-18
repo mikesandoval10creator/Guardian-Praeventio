@@ -18,11 +18,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { DrillsManager } from './DrillsManager';
-import type { DrillRecord, DrillsResponse } from '../hooks/useSprintK';
+import type { DrillRecord, DrillsResponse } from '../hooks/useDrillsManager';
 // `executeDrill` is mocked below; we re-grab the spy after `render`
 // so the failure test can assert/reject without coupling the order in
 // the manual mock factory.
-import * as sprintKHooks from '../hooks/useSprintK';
+import * as sprintKHooks from '../hooks/useDrillsManager';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -72,7 +72,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useDrillsManager', () => ({
   useDrills: (
     _projectId: string | null,
     opts?: { status?: string; kind?: string },
