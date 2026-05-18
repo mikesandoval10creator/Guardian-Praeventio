@@ -26,13 +26,25 @@ const router = Router();
 router.get('/health', async (_req, res) => {
   const checks: Record<string, 'ok' | 'fail' | 'skipped'> = {};
   let allOk = true;
-  // Firestore reachability:
-  try {
-    await admin.firestore().listCollections(); // cheap admin op
-    checks.firestore = 'ok';
-  } catch {
-    checks.firestore = 'fail';
-    allOk = false;
+
+  // E2E_MODE: Playwright's webServer setup races emulator boot vs Express
+  // listening. If Express is up but the Firestore emulator is still
+  // starting, `listCollections()` triggers exponential backoff inside the
+  // SDK and the gRPC channel can get stuck in a failure state — even
+  // after the emulator becomes reachable. That kills the /api/health
+  // poll loop for the entire window. Skip the Firestore check in E2E
+  // mode; the dedicated `/health/deep` endpoint still exercises it when
+  // tests need to verify the dependency.
+  if (process.env.E2E_MODE === '1') {
+    checks.firestore = 'skipped';
+  } else {
+    try {
+      await admin.firestore().listCollections(); // cheap admin op
+      checks.firestore = 'ok';
+    } catch {
+      checks.firestore = 'fail';
+      allOk = false;
+    }
   }
   // Add more checks as the deployment grows (Resend, Gemini, Webpay).
   res.status(allOk ? 200 : 503).json({
