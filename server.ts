@@ -195,6 +195,8 @@ import jsaRouter from "./src/server/routes/jsa.js";
 import bowtieRouter from "./src/server/routes/bowtie.js";
 // Checklist Builder — conditional-field + multi-signature checklist engine.
 import checklistBuilderRouter from "./src/server/routes/checklistBuilder.js";
+// Multi-Role Summary — single snapshot → tailored summary per audience.
+import multiRoleSummaryRouter from "./src/server/routes/multiRoleSummary.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -835,6 +837,7 @@ app.use('/api/sprint-k', routeScoringRouter);
 app.use('/api/sprint-k', jsaRouter);
 app.use('/api/sprint-k', bowtieRouter);
 app.use('/api/sprint-k', checklistBuilderRouter);
+app.use('/api/sprint-k', multiRoleSummaryRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
