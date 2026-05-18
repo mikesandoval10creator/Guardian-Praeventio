@@ -63,8 +63,11 @@ describe('validateRows — workers', () => {
   });
 
   it('RUT inválido → issue invalid_format', () => {
+    // fullName ≥ 2 chars so only the rut issue fires; otherwise the
+    // fullName.length<2 refine emits 'missing' first and the assertion
+    // on issues[0] would see that instead of the invalid_rut.
     const r = validateRows('workers', [
-      { rowNumber: 2, data: { fullName: 'X', rut: '11.111.111-9' } },
+      { rowNumber: 2, data: { fullName: 'Juan', rut: '11.111.111-9' } },
     ]);
     expect(r.invalid).toHaveLength(1);
     expect(r.invalid[0]?.issues[0]?.code).toBe('invalid_format');

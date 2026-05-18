@@ -827,12 +827,12 @@ export async function exportOccupationalBundle(
   header.writeUInt32LE(ivBytes.length, 4);
   header.writeUInt32LE(authTagBytes.length, 8);
 
-  const finalPayload = Buffer.concat([
-    header,
-    ivBytes,
-    authTagBytes,
-    ciphertextBytes,
-  ]);
+  // Buffer extends Uint8Array structurally, but vitest 4 / Node 22+
+  // toEqual distinguishes the prototypes — VaultStorageUploader's
+  // contract is Uint8Array, so normalize via Uint8Array.from to honor it.
+  const finalPayload = Uint8Array.from(
+    Buffer.concat([header, ivBytes, authTagBytes, ciphertextBytes]),
+  );
 
   // 4. SHA-256 del payload cifrado (integridad post-Storage).
   const sha256 = createHash('sha256').update(finalPayload).digest('hex');

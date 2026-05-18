@@ -25,6 +25,33 @@ if (typeof globalThis.document !== 'undefined') {
   afterEach(() => {
     cleanup();
   });
+
+  // jsdom (>= v22) ships without `window.matchMedia`. GSAP's gsap-core
+  // (v4) calls `_win.matchMedia(query)` inside `MatchMedia.add()` when
+  // any component constructs a `Card` (gsap.scope wraps it). Without
+  // this stub every Card-mounting test crashes with
+  // `TypeError: _win.matchMedia is not a function`. We provide the
+  // minimum surface MediaQueryList shape that GSAP queries.
+  const win = globalThis as unknown as Window & typeof globalThis;
+  if (typeof win.matchMedia !== 'function') {
+    const matchMediaStub = (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    });
+    // Define on both `window` and `globalThis` because GSAP can resolve
+    // `_win` from either depending on bundler scope.
+    Object.defineProperty(win, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: matchMediaStub,
+    });
+  }
 }
 
 export {};
