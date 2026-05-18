@@ -225,6 +225,8 @@ import retaliationProtectionRouter from "./src/server/routes/retaliationProtecti
 import portfolioLessonsRouter from "./src/server/routes/portfolioLessons.js";
 // Reputational Alerts — Sprint K §120 (external signal clustering + severity).
 import reputationalAlertsRouter from "./src/server/routes/reputationalAlerts.js";
+// Post-Training — Sprint K §85-89 (assessment scoring + spaced repetition + case studies).
+import postTrainingRouter from "./src/server/routes/postTraining.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -880,6 +882,7 @@ app.use('/api/sprint-k', contingencySimulationRouter);
 app.use('/api/sprint-k', retaliationProtectionRouter);
 app.use('/api/sprint-k', portfolioLessonsRouter);
 app.use('/api/sprint-k', reputationalAlertsRouter);
+app.use('/api/sprint-k', postTrainingRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
