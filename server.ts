@@ -259,6 +259,8 @@ import spacedRepetitionRouter from "./src/server/routes/spacedRepetition.js";
 import continuityRouter from "./src/server/routes/continuity.js";
 // Circadian Rhythm + Alertness — Sprint K §256-257 (NIOSH windows + alertness scoring + shift rotation).
 import circadianRouter from "./src/server/routes/circadian.js";
+// Safety Performance Index — Sprint K §197-198 (ISO 45001 leading/lagging blend).
+import safetyPerformanceRouter from "./src/server/routes/safetyPerformance.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -931,6 +933,7 @@ app.use('/api/sprint-k', orgMetricsRouter);
 app.use('/api/sprint-k', spacedRepetitionRouter);
 app.use('/api/sprint-k', continuityRouter);
 app.use('/api/sprint-k', circadianRouter);
+app.use('/api/sprint-k', safetyPerformanceRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
