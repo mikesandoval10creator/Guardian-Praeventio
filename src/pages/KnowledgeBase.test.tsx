@@ -20,7 +20,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { KnowledgeBase } from './KnowledgeBase';
-import type { KnowledgeEntry } from '../hooks/useSprintK';
+import type { KnowledgeEntry } from '../hooks/useKnowledgeBase';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -70,7 +70,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useKnowledgeBase', () => ({
   useKnowledgeBase: (
     _pid: string | null,
     opts?: { category?: string; search?: string },
