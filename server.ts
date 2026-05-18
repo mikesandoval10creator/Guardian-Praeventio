@@ -150,6 +150,7 @@ import offlineInspectionsRouter from "./src/server/routes/offlineInspections.js"
 import qrSignatureRouter from "./src/server/routes/qrSignature.js";
 import emergencyBrigadeRouter from "./src/server/routes/emergencyBrigade.js";
 import engineeringControlsRouter from "./src/server/routes/engineeringControls.js";
+import culturePulseRouter from "./src/server/routes/culturePulse.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -761,6 +762,7 @@ app.use('/api/sprint-k', offlineInspectionsRouter);
 app.use('/api/sprint-k', qrSignatureRouter);
 app.use('/api/sprint-k', emergencyBrigadeRouter);
 app.use('/api/sprint-k', engineeringControlsRouter);
+app.use('/api/sprint-k', culturePulseRouter);
 app.use('/api/sprint-k', sprintKRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
