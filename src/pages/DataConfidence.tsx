@@ -42,6 +42,8 @@ import {
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+// 2026-05-17 — migrated from monolithic useSprintK.ts to dedicated hook
+// per Sprint K reformulation directive. See docs/SPRINT_K_REFORMULATED.md.
 import {
   useDataConfidence,
   useDataConfidenceRecommendations,
@@ -50,7 +52,7 @@ import {
   type DataConfidenceIssue,
   type DataConfidenceSeverity,
   type DataConfidenceTrendPoint,
-} from '../hooks/useSprintK';
+} from '../hooks/useDataConfidence';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────

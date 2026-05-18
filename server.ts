@@ -132,6 +132,7 @@ import sprintKRouter from "./src/server/routes/sprintK.js";
 // migrated routes take precedence and can be removed from the monolith
 // progressively without breaking consumers.
 import incidentTrendsRouter from "./src/server/routes/incidentTrends.js";
+import dataConfidenceRouter from "./src/server/routes/dataConfidence.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -725,6 +726,7 @@ app.use('/api/insights', insightsRouter);
 // monolith so they take precedence. Once all features migrate, the monolith
 // (sprintK.ts) is deleted.
 app.use('/api/sprint-k', incidentTrendsRouter);
+app.use('/api/sprint-k', dataConfidenceRouter);
 app.use('/api/sprint-k', sprintKRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
