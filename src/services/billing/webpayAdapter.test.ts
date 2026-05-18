@@ -30,21 +30,41 @@ vi.mock('../observability/sentryInstrumentation', () => ({
   },
 }));
 
+// Captured Options instances per Transaction construction. Tests inspect
+// `lastTxOptions()` to assert which environment / credentials the adapter
+// actually selected — without this, the env-routing tests pass trivially
+// because the stubbed Transaction discards its constructor argument and
+// the Stryker mutants on the production-routing ternary survive.
+let lastTxOptionsCaptured:
+  | { commerceCode: string; apiKey: string; environment: string }
+  | null = null;
+function lastTxOptions() {
+  return lastTxOptionsCaptured;
+}
+
 vi.mock('transbank-sdk', () => {
-  class TransactionStub {
-    constructor(_options: unknown) {
-      // no-op; we don't care about options in tests
-    }
-    create = createMock;
-    commit = commitMock;
-    refund = refundMock;
-  }
   class OptionsStub {
     constructor(
       public commerceCode: string,
       public apiKey: string,
       public environment: string,
     ) {}
+  }
+  class TransactionStub {
+    constructor(options: unknown) {
+      // Capture the Options that the adapter constructed via
+      // resolveOptions() so tests can assert env-routing decisions.
+      if (options instanceof OptionsStub) {
+        lastTxOptionsCaptured = {
+          commerceCode: options.commerceCode,
+          apiKey: options.apiKey,
+          environment: options.environment,
+        };
+      }
+    }
+    create = createMock;
+    commit = commitMock;
+    refund = refundMock;
   }
   // Mirror the real CJS shape of `transbank-sdk`: the adapter does
   // `import transbankSdk from 'transbank-sdk'` and destructures, so a
@@ -80,6 +100,7 @@ beforeEach(() => {
   commitMock.mockReset();
   refundMock.mockReset();
   withSentryScopeMock.mockClear();
+  lastTxOptionsCaptured = null;
   __resetWebpayAdapterStateForTests();
   // Wipe any env that might leak between tests.
   delete process.env.WEBPAY_COMMERCE_CODE;
@@ -1033,8 +1054,6 @@ describe('webpayAdapter env + init configuration (Sprint 41 ratchet)', () => {
     process.env.WEBPAY_ENVIRONMENT = 'production';
     expect(webpayAdapter.isConfigured()).toBe(true);
     createMock.mockResolvedValueOnce({ token: 'TKN_prod', url: 'https://prod' });
-    // Trigger resolveOptions() by issuing a create — the test asserts no
-    // throw rather than spying on the environment internally.
     await expect(
       webpayAdapter.createTransaction({
         buyOrder: 'inv_alt_env',
@@ -1043,6 +1062,14 @@ describe('webpayAdapter env + init configuration (Sprint 41 ratchet)', () => {
         returnUrl: 'https://x',
       }),
     ).resolves.toEqual({ token: 'TKN_prod', url: 'https://prod' });
+    // Codex P2 PR #359: assert the SDK Options actually carried the
+    // production URL. Without this the env-routing mutant survives
+    // because TransactionStub discards its constructor argument.
+    expect(lastTxOptions()).toEqual({
+      commerceCode: '597000000999',
+      apiKey: 'alt-env-secret',
+      environment: 'https://webpay3g.transbank.cl', // Environment.Production
+    });
   });
 
   it('production environment via init() switches the SDK env URL', async () => {
@@ -1055,6 +1082,42 @@ describe('webpayAdapter env + init configuration (Sprint 41 ratchet)', () => {
       environment: 'production',
     });
     expect(webpayAdapter.isConfigured()).toBe(true);
+    // Codex P2: trigger resolveOptions() and verify the Options instance
+    // the adapter built carries the production URL. isConfigured() alone
+    // doesn't prove anything about routing — TransactionStub had to be
+    // upgraded to capture the constructor argument for this assertion.
+    createMock.mockResolvedValueOnce({ token: 'T_init_prod', url: 'u' });
+    await webpayAdapter.createTransaction({
+      buyOrder: 'inv_init_prod',
+      sessionId: 'sess',
+      amount: 1,
+      returnUrl: 'https://x',
+    });
+    expect(lastTxOptions()).toEqual({
+      commerceCode: 'real-commerce',
+      apiKey: 'real-api',
+      environment: 'https://webpay3g.transbank.cl', // Environment.Production
+    });
+  });
+
+  it('integration environment via init() routes to Integration URL', async () => {
+    // Pin the OTHER branch of the ternary. Without this, a mutation that
+    // hardcoded Environment.Production would still pass the prod-routing
+    // test but break sandbox setups.
+    webpayAdapter.init({
+      commerceCode: 'sandbox-c',
+      apiKey: 'sandbox-k',
+      environment: 'integration',
+    });
+    createMock.mockResolvedValueOnce({ token: 'T_init_int', url: 'u' });
+    await webpayAdapter.createTransaction({
+      buyOrder: 'inv_init_int',
+      sessionId: 'sess',
+      amount: 1,
+      returnUrl: 'https://x',
+    });
+    expect(lastTxOptions()?.environment).toBe('https://webpay3gint.transbank.cl');
+    expect(lastTxOptions()?.commerceCode).toBe('sandbox-c');
   });
 
   it('init() with empty commerceCode → isConfigured() returns false', async () => {
@@ -1192,14 +1255,16 @@ describe('readEnvOptions branch coverage (Sprint 41 ratchet round 2)', () => {
     process.env.WEBPAY_ENV = 'integration';
     expect(webpayAdapter.isConfigured()).toBe(true);
     createMock.mockResolvedValueOnce({ token: 'T_int', url: 'https://int' });
-    await expect(
-      webpayAdapter.createTransaction({
-        buyOrder: 'inv',
-        sessionId: 's',
-        amount: 1,
-        returnUrl: 'https://x',
-      }),
-    ).resolves.toEqual({ token: 'T_int', url: 'https://int' });
+    await webpayAdapter.createTransaction({
+      buyOrder: 'inv',
+      sessionId: 's',
+      amount: 1,
+      returnUrl: 'https://x',
+    });
+    // Codex P2 PR #359: assert the SDK Options actually carried the
+    // integration URL. Without this the prod-routing mutant survives.
+    expect(lastTxOptions()?.environment).toBe('https://webpay3gint.transbank.cl');
+    expect(lastTxOptions()?.commerceCode).toBe('597000000002');
   });
 
   it('WEBPAY_ENV neither prod nor int (e.g. "staging") → Integration default', async () => {
@@ -1210,14 +1275,13 @@ describe('readEnvOptions branch coverage (Sprint 41 ratchet round 2)', () => {
     process.env.WEBPAY_ENV = 'staging';
     expect(webpayAdapter.isConfigured()).toBe(true);
     createMock.mockResolvedValueOnce({ token: 'T_def', url: 'https://def' });
-    await expect(
-      webpayAdapter.createTransaction({
-        buyOrder: 'inv',
-        sessionId: 's',
-        amount: 1,
-        returnUrl: 'https://x',
-      }),
-    ).resolves.toEqual({ token: 'T_def', url: 'https://def' });
+    await webpayAdapter.createTransaction({
+      buyOrder: 'inv',
+      sessionId: 's',
+      amount: 1,
+      returnUrl: 'https://x',
+    });
+    expect(lastTxOptions()?.environment).toBe('https://webpay3gint.transbank.cl');
   });
 
   it('WEBPAY_ENV unset, WEBPAY_ENVIRONMENT=production → Production', async () => {
@@ -1228,6 +1292,16 @@ describe('readEnvOptions branch coverage (Sprint 41 ratchet round 2)', () => {
     // WEBPAY_ENV intentionally unset
     process.env.WEBPAY_ENVIRONMENT = 'production';
     expect(webpayAdapter.isConfigured()).toBe(true);
+    createMock.mockResolvedValueOnce({ token: 'T_env_prod', url: 'u' });
+    await webpayAdapter.createTransaction({
+      buyOrder: 'inv',
+      sessionId: 's',
+      amount: 1,
+      returnUrl: 'https://x',
+    });
+    // Codex P2: verify SDK Options received Production URL — assertion
+    // that fails if the OR-clause is mutated to AND.
+    expect(lastTxOptions()?.environment).toBe('https://webpay3g.transbank.cl');
   });
 
   it('init() priority over env vars when explicit init was called', async () => {
@@ -1235,22 +1309,50 @@ describe('readEnvOptions branch coverage (Sprint 41 ratchet round 2)', () => {
     // Even if env vars say production, an explicit init() should win.
     process.env.WEBPAY_COMMERCE_CODE = 'env-code';
     process.env.WEBPAY_API_KEY = 'env-key';
+    process.env.WEBPAY_ENV = 'production'; // env says prod
     webpayAdapter.init({
       commerceCode: 'init-code',
       apiKey: 'init-key',
-      environment: 'integration',
+      environment: 'integration', // init says integration — must win
     });
     expect(webpayAdapter.isConfigured()).toBe(true);
-    // Verify by triggering a create — no throw means options resolved.
     createMock.mockResolvedValueOnce({ token: 'T_init', url: 'https://init' });
-    await expect(
-      webpayAdapter.createTransaction({
-        buyOrder: 'inv',
-        sessionId: 's',
-        amount: 1,
-        returnUrl: 'https://x',
-      }),
-    ).resolves.toEqual({ token: 'T_init', url: 'https://init' });
+    await webpayAdapter.createTransaction({
+      buyOrder: 'inv',
+      sessionId: 's',
+      amount: 1,
+      returnUrl: 'https://x',
+    });
+    // Codex P2: the captured Options must contain the init-supplied
+    // values, NOT the env-supplied ones. A mutation that flipped the
+    // priority would show env-code / production here.
+    expect(lastTxOptions()).toEqual({
+      commerceCode: 'init-code',
+      apiKey: 'init-key',
+      environment: 'https://webpay3gint.transbank.cl',
+    });
+  });
+
+  it('readEnvOptions: half-configured env (only code, no key) → fall through to sandbox', async () => {
+    // Codex P2 PR #359: `if (!code || !key) return null` — without
+    // exercising resolveOptions(), the previous "only-code" test only
+    // verified isConfigured() returns false but didn't prove the
+    // adapter falls back to sandbox defaults instead of constructing
+    // SDK Options with a missing credential.
+    process.env.WEBPAY_COMMERCE_CODE = '597000000005';
+    // WEBPAY_API_KEY intentionally absent
+    createMock.mockResolvedValueOnce({ token: 'T_half', url: 'u' });
+    await webpayAdapter.createTransaction({
+      buyOrder: 'inv_half',
+      sessionId: 's',
+      amount: 1,
+      returnUrl: 'https://x',
+    });
+    // The captured Options must be the sandbox defaults, NOT a partial
+    // payload with the orphan commerceCode and empty apiKey.
+    expect(lastTxOptions()?.commerceCode).toBe('597055555532'); // sandbox
+    expect(lastTxOptions()?.apiKey).toBe('TEST_API_KEY'); // sandbox
+    expect(lastTxOptions()?.environment).toBe('https://webpay3gint.transbank.cl');
   });
 
   it('sandbox fallback when neither init nor env are configured (no throw)', async () => {
@@ -1272,6 +1374,13 @@ describe('readEnvOptions branch coverage (Sprint 41 ratchet round 2)', () => {
       1500,
       'https://sb-return',
     );
+    // Codex P2: assert the sandbox-default Options were actually
+    // constructed (not just that the call didn't throw).
+    expect(lastTxOptions()).toEqual({
+      commerceCode: '597055555532', // IntegrationCommerceCodes.WEBPAY_PLUS
+      apiKey: 'TEST_API_KEY', // IntegrationApiKeys.WEBPAY
+      environment: 'https://webpay3gint.transbank.cl', // Environment.Integration
+    });
   });
 });
 
