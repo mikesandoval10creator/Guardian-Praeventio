@@ -207,6 +207,8 @@ import commsDrillRouter from "./src/server/routes/commsDrill.js";
 import efficacyVerificationRouter from "./src/server/routes/efficacyVerification.js";
 // Multi-Project Comparator — Sprint 41 F.27 (tenant-wide SST metrics).
 import multiProjectRouter from "./src/server/routes/multiProject.js";
+// Root Cause Investigation — Sprint K §191 (5-Why tree + Ishikawa 6M).
+import rootCauseInvestigationRouter from "./src/server/routes/rootCauseInvestigation.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -853,6 +855,7 @@ app.use('/api/sprint-k', privacyRetentionRouter);
 app.use('/api/sprint-k', commsDrillRouter);
 app.use('/api/sprint-k', efficacyVerificationRouter);
 app.use('/api/sprint-k', multiProjectRouter);
+app.use('/api/sprint-k', rootCauseInvestigationRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
