@@ -269,6 +269,8 @@ import fiveSRouter from "./src/server/routes/fiveS.js";
 import hygieneRouter from "./src/server/routes/hygiene.js";
 // Mental Load (NASA-TLX) + per-worker Admin Burden — Sprint K §258-260.
 import mentalLoadRouter from "./src/server/routes/mentalLoad.js";
+// Non-Conformity engine — Sprint 49 §196-199 (NC↔action linkage + stage + patterns).
+import nonConformityRouter from "./src/server/routes/nonConformity.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -946,6 +948,7 @@ app.use('/api/sprint-k', commsRouter);
 app.use('/api/sprint-k', fiveSRouter);
 app.use('/api/sprint-k', hygieneRouter);
 app.use('/api/sprint-k', mentalLoadRouter);
+app.use('/api/sprint-k', nonConformityRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
