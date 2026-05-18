@@ -155,24 +155,15 @@ export function useActiveVisitors(projectId: string | null) {
   );
 }
 
-export interface LessonsResponse {
-  lessons: Lesson[];
-}
-
-export function useLessons(
-  projectId: string | null,
-  opts: { scope?: LessonScope; riskCategory?: string } = {},
-) {
-  let path: string | null = null;
-  if (projectId) {
-    const qs = new URLSearchParams();
-    if (opts.scope) qs.set('scope', opts.scope);
-    if (opts.riskCategory) qs.set('riskCategory', opts.riskCategory);
-    const query = qs.toString();
-    path = `/api/sprint-k/${projectId}/lessons${query ? `?${query}` : ''}`;
-  }
-  return useEndpoint<LessonsResponse>(path);
-}
+// F.12 Lessons Learned hook migrado a `src/hooks/useLessonsLearned.ts`
+// (2026-05-18) — re-export para mantener compatibilidad mientras los
+// consumers se actualizan al import dedicado.
+export {
+  useLessons,
+  createLesson,
+  type LessonsResponse,
+  type LessonPayload,
+} from './useLessonsLearned';
 
 export interface CorrectiveActionsResponse {
   actions: CorrectiveAction[];
@@ -317,39 +308,8 @@ export async function createPositiveObservation(
   }
 }
 
-export interface LessonPayload {
-  id: string;
-  summary: string;
-  preventiveAction: string;
-  riskCategories: string[];
-  tags: string[];
-  scope: LessonScope;
-  industry?: string;
-  derivedFromIncidentId?: string;
-  publishedAt: string;
-  adoptionCount: number;
-}
-
-export async function createLesson(
-  projectId: string,
-  payload: LessonPayload,
-): Promise<{ ok: true }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(`/api/sprint-k/${projectId}/lessons`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  return { ok: true };
-}
+// LessonPayload + createLesson migrados a `useLessonsLearned.ts` (2026-05-18).
+// Se re-exportan desde la cabecera de este archivo.
 
 export interface CorrectiveActionPayload {
   id: string;
@@ -754,21 +714,11 @@ export async function closeWorkPermit(
   return (await res.json()) as { permit: WorkPermit };
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// Fase F.13 — Radar de Riesgos Repetidos
-// ────────────────────────────────────────────────────────────────────────
-
-import type { RadarReport } from '../services/riskRadar/repeatingRiskRadar';
-
-export interface RepeatingRisksResponse {
-  report: RadarReport;
-}
-
-export function useRepeatingRisks(projectId: string | null) {
-  return useEndpoint<RepeatingRisksResponse>(
-    projectId ? `/api/sprint-k/${projectId}/repeating-risks` : null,
-  );
-}
+// F.13 Radar de Riesgos Repetidos migrado a `useRepeatingRisks.ts` (2026-05-18).
+export {
+  useRepeatingRisks,
+  type RepeatingRisksResponse,
+} from './useRepeatingRisks';
 
 // ────────────────────────────────────────────────────────────────────────
 // Fase F.20 — Gestor de Simulacros

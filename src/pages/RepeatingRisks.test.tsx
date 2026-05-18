@@ -57,7 +57,7 @@ vi.mock('../contexts/ProjectContext', () => ({
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
-vi.mock('../hooks/useSprintK', () => ({
+vi.mock('../hooks/useRepeatingRisks', () => ({
   useRepeatingRisks: (_pid: string | null) => mockRadar,
 }));
 // Stub the visual card — keeps the test focused on page orchestration

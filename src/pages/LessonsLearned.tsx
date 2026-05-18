@@ -38,7 +38,7 @@ import { useTranslation } from 'react-i18next';
 import { BookOpen, WifiOff, Tag, Layers, Calendar, FileText } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { useLessons } from '../hooks/useSprintK';
+import { useLessons } from '../hooks/useLessonsLearned';
 import type { Lesson, LessonScope } from '../services/lessonsLearned/lessonsLibrary';
 
 // Codex P2 (PR #310): claves canónicas alineadas con las que el resto
