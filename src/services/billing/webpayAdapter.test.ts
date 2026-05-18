@@ -17,6 +17,19 @@ const createMock = vi.fn();
 const commitMock = vi.fn();
 const refundMock = vi.fn();
 
+// Mock `withSentryScope` so tests can assert the (module, context, fn)
+// arguments the adapter passes to it. Without this, mutants on the
+// context object literals (action / buyOrder / amount / tokenLength)
+// survive — they have no observable effect inside the no-op fallback
+// path the real Sentry takes in unit tests.
+const withSentryScopeMock = vi.fn();
+vi.mock('../observability/sentryInstrumentation', () => ({
+  withSentryScope: (mod: string, ctx: unknown, fn: () => Promise<unknown>) => {
+    withSentryScopeMock(mod, ctx);
+    return fn();
+  },
+}));
+
 vi.mock('transbank-sdk', () => {
   class TransactionStub {
     constructor(_options: unknown) {
@@ -66,6 +79,7 @@ beforeEach(() => {
   createMock.mockReset();
   commitMock.mockReset();
   refundMock.mockReset();
+  withSentryScopeMock.mockClear();
   __resetWebpayAdapterStateForTests();
   // Wipe any env that might leak between tests.
   delete process.env.WEBPAY_COMMERCE_CODE;
@@ -1352,5 +1366,116 @@ describe('mapRefundResponse explicit field assertions (Sprint 41 ratchet round 2
     });
     const result = await webpayAdapter.refundTransaction('TKN_zero', 5000);
     expect(result.authorizedAmount).toBe(0);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// 2026-05-18 Stryker baseline lift round 3 — Sentry scope context.
+//
+// withSentryScope is invoked with `(moduleName, context, fn)`. Stryker
+// generates mutants on the context object literals (swap field values,
+// drop fields, mutate string action names). These tests assert the exact
+// shape per-method so every mutant is observable.
+// ───────────────────────────────────────────────────────────────────────
+describe('withSentryScope invocation shape (Sprint 41 ratchet round 3)', () => {
+  it('createTransaction passes module=webpay + action + buyOrder + amount (no sessionId)', async () => {
+    createMock.mockResolvedValueOnce({ token: 'T', url: 'u' });
+    await webpayAdapter.createTransaction({
+      buyOrder: 'inv_sentry_create',
+      sessionId: 'sess_x',
+      amount: 13579,
+      returnUrl: 'https://ret',
+    });
+    expect(withSentryScopeMock).toHaveBeenCalledTimes(1);
+    const [mod, ctx] = withSentryScopeMock.mock.calls[0];
+    expect(mod).toBe('webpay');
+    expect(ctx).toEqual({
+      action: 'createTransaction',
+      buyOrder: 'inv_sentry_create',
+      amount: 13579,
+    });
+    // PII guard: sessionId and returnUrl must NOT leak into Sentry context.
+    expect(ctx).not.toHaveProperty('sessionId');
+    expect(ctx).not.toHaveProperty('returnUrl');
+  });
+
+  it('commitTransaction passes module=webpay + action + tokenLength (no token value)', async () => {
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      buy_order: 'inv',
+      amount: 1,
+      response_code: 0,
+    });
+    await webpayAdapter.commitTransaction('TKN_thirteen!');
+    expect(withSentryScopeMock).toHaveBeenCalledTimes(1);
+    const [mod, ctx] = withSentryScopeMock.mock.calls[0];
+    expect(mod).toBe('webpay');
+    expect(ctx).toEqual({
+      action: 'commitTransaction',
+      tokenLength: 'TKN_thirteen!'.length,
+    });
+    // PII guard: the token value itself must never be in the Sentry payload.
+    expect(JSON.stringify(ctx)).not.toContain('TKN_thirteen!');
+  });
+
+  it('commitTransaction handles null-ish token: tokenLength === 0 (no throw)', async () => {
+    commitMock.mockResolvedValueOnce({
+      status: 'FAILED',
+      response_code: -98,
+    });
+    // The adapter uses `token?.length ?? 0` so undefined → 0.
+    await webpayAdapter.commitTransaction(undefined as unknown as string);
+    expect(withSentryScopeMock).toHaveBeenCalledTimes(1);
+    const [, ctx] = withSentryScopeMock.mock.calls[0];
+    expect((ctx as { tokenLength: number }).tokenLength).toBe(0);
+  });
+
+  it('refundTransaction passes amount + tokenLength (Sentry context for refunds)', async () => {
+    refundMock.mockResolvedValueOnce({
+      type: 'NULLIFIED',
+      nullified_amount: 4000,
+      balance: 1000,
+    });
+    await webpayAdapter.refundTransaction('TKN_refund_sentry', 4000);
+    expect(withSentryScopeMock).toHaveBeenCalledTimes(1);
+    const [mod, ctx] = withSentryScopeMock.mock.calls[0];
+    expect(mod).toBe('webpay');
+    expect(ctx).toEqual({
+      action: 'refundTransaction',
+      amount: 4000,
+      tokenLength: 'TKN_refund_sentry'.length,
+    });
+    // PII guard: the token itself never appears in Sentry context.
+    expect(JSON.stringify(ctx)).not.toContain('TKN_refund_sentry');
+  });
+
+  it('each adapter method routes through withSentryScope exactly once', async () => {
+    // Pin the wrapper presence on all three entry points. A mutation that
+    // strips the withSentryScope wrapper would still pass functional tests
+    // but lose Sentry breadcrumbs in prod — this assertion catches it.
+    createMock.mockResolvedValueOnce({ token: 't', url: 'u' });
+    commitMock.mockResolvedValueOnce({
+      status: 'AUTHORIZED',
+      response_code: 0,
+      buy_order: '',
+      amount: 0,
+    });
+    refundMock.mockResolvedValueOnce({ type: 'NULLIFIED' });
+    await webpayAdapter.createTransaction({
+      buyOrder: 'a', sessionId: 'b', amount: 1, returnUrl: 'c',
+    });
+    await webpayAdapter.commitTransaction('TKN');
+    await webpayAdapter.refundTransaction('TKN', 1);
+    expect(withSentryScopeMock).toHaveBeenCalledTimes(3);
+    const modules = withSentryScopeMock.mock.calls.map((c) => c[0]);
+    expect(modules).toEqual(['webpay', 'webpay', 'webpay']);
+    const actions = withSentryScopeMock.mock.calls.map(
+      (c) => (c[1] as { action: string }).action,
+    );
+    expect(actions).toEqual([
+      'createTransaction',
+      'commitTransaction',
+      'refundTransaction',
+    ]);
   });
 });
