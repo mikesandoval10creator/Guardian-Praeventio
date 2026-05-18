@@ -257,6 +257,8 @@ import orgMetricsRouter from "./src/server/routes/orgMetrics.js";
 import spacedRepetitionRouter from "./src/server/routes/spacedRepetition.js";
 // Business Continuity — Sprint K §237-243 (SPOF detection / outage simulator / polyvalence plan).
 import continuityRouter from "./src/server/routes/continuity.js";
+// Circadian Rhythm + Alertness — Sprint K §256-257 (NIOSH windows + alertness scoring + shift rotation).
+import circadianRouter from "./src/server/routes/circadian.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -928,6 +930,7 @@ app.use('/api/sprint-k', researchModeRouter);
 app.use('/api/sprint-k', orgMetricsRouter);
 app.use('/api/sprint-k', spacedRepetitionRouter);
 app.use('/api/sprint-k', continuityRouter);
+app.use('/api/sprint-k', circadianRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
