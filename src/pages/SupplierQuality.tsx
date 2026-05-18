@@ -25,7 +25,7 @@ import {
   type SupplierRiskLevel,
   type SupplierView,
   type SupplierTrend,
-} from '../hooks/useSprintK';
+} from '../hooks/useSuppliers';
 import { logger } from '../utils/logger';
 
 const RISK_FILTERS: ReadonlyArray<SupplierRiskFilter> = ['all', 'low', 'medium', 'high'];

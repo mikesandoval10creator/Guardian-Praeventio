@@ -37,7 +37,7 @@ import {
   type PdcaNonConformityRecord,
   type PdcaStage,
   type PdcaOrigin,
-} from '../hooks/useSprintK';
+} from '../hooks/usePdca';
 import { logger } from '../utils/logger';
 
 const STAGE_ORDER: PdcaStage[] = ['plan', 'do', 'check', 'act'];

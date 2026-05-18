@@ -21,7 +21,7 @@ import type {
 } from '../services/correctiveActions/weakActionDetector';
 import type { LotoApplication } from '../services/loto/lotoDigitalLight';
 import type { Equipment, EquipmentStatus } from '../services/equipment/equipmentQrService';
-import type { ScoreBreakdown } from '../services/suppliers/supplierScoring';
+// ScoreBreakdown migró con §90-91 a useSuppliers.ts (2026-05-18).
 import type { PreventiveObjective } from '../services/annualReview/annualSgiReview';
 // Tipos del engine residual ya no se importan aquí; viven en useResidualRisk.ts (2026-05-18).
 import type {
@@ -519,389 +519,48 @@ export {
   type KbEntryCreatePayload,
 } from "./useKnowledgeBase";
 
-// ────────────────────────────────────────────────────────────────────────
-// Sprint K §195-200 — Ciclo PDCA + No Conformidades (ISO 45001 §10.2)
-// ────────────────────────────────────────────────────────────────────────
-//
-// Wraps the /api/sprint-k/:projectId/pdca/* family. The page renders a
-// kanban-style board (Plan/Do/Check/Act) over the cycle list and the
-// summary card consumes `usePdcaSummary` for counts + closure rate.
+// §195-200 PDCA hooks migrados a usePdca.ts (2026-05-18).
+export {
+  usePdcaCycles,
+  usePdcaSummary,
+  usePdcaNonConformities,
+  createPdcaCycle,
+  advancePdcaPhase,
+  createPdcaNonConformity,
+  type PdcaStage,
+  type PdcaOrigin,
+  type PdcaEntry,
+  type PdcaCycleRecord,
+  type PdcaNonConformityRecord,
+  type PdcaSummaryResponse,
+  type PdcaCyclesResponse,
+  type PdcaNonConformitiesResponse,
+  type PdcaCreatePayload,
+  type PdcaAdvancePayload,
+  type PdcaNonConformityPayload,
+} from "./usePdca";
 
-export type PdcaStage = 'plan' | 'do' | 'check' | 'act';
-
-export type PdcaOrigin = 'audit' | 'incident' | 'finding' | 'inspection';
-
-export interface PdcaEntry {
-  kind: PdcaStage;
-  activityId: string;
-  notes: string;
-  ownerUid: string;
-  startedAt: string;
-  completedAt?: string;
-  evidence?: string[];
-  efficacyScore?: number;
-}
-
-export interface PdcaCycleRecord {
-  id: string;
-  currentStage: PdcaStage;
-  stages: PdcaEntry[];
-  cycleNumber: number;
-  nonConformityId?: string;
-  origin?: PdcaOrigin;
-  ownerUid?: string;
-  createdAt?: string;
-  createdByUid?: string;
-}
-
-export interface PdcaNonConformityRecord {
-  id: string;
-  category: string;
-  severity: 'minor' | 'major' | 'critical';
-  description: string;
-  location: string;
-  detectedAt: string;
-  taskId?: string;
-  responsibleUid: string;
-  status: 'open' | 'in_progress' | 'closed' | 'verified_effective' | 'reoccurred';
-  correctiveActionId?: string;
-  closedAt?: string;
-  verifiedEffectiveAt?: string;
-  reoccurredAt?: string;
-}
-
-export interface PdcaSummaryResponse {
-  summary: {
-    total: number;
-    byPhase: Record<PdcaStage, number>;
-    closedCycles: number;
-    closureRate: number;
-  };
-}
-
-export interface PdcaCyclesResponse {
-  cycles: PdcaCycleRecord[];
-}
-
-export interface PdcaNonConformitiesResponse {
-  nonConformities: PdcaNonConformityRecord[];
-}
-
-export function usePdcaCycles(projectId: string | null) {
-  return useEndpoint<PdcaCyclesResponse>(
-    projectId ? `/api/sprint-k/${projectId}/pdca/cycles` : null,
-  );
-}
-
-export function usePdcaSummary(projectId: string | null) {
-  return useEndpoint<PdcaSummaryResponse>(
-    projectId ? `/api/sprint-k/${projectId}/pdca/summary` : null,
-  );
-}
-
-export function usePdcaNonConformities(projectId: string | null) {
-  return useEndpoint<PdcaNonConformitiesResponse>(
-    projectId ? `/api/sprint-k/${projectId}/pdca/non-conformities` : null,
-  );
-}
-
-export interface PdcaCreatePayload {
-  id: string;
-  nonConformityId: string;
-  origin: PdcaOrigin;
-  ownerUid: string;
-  notes?: string;
-  startedAt?: string;
-}
-
-export async function createPdcaCycle(
-  projectId: string,
-  payload: PdcaCreatePayload,
-): Promise<PdcaCycleRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(`/api/sprint-k/${projectId}/pdca/cycles`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const json = (await res.json()) as { ok: true; cycle: PdcaCycleRecord };
-  return json.cycle;
-}
-
-export interface PdcaAdvancePayload {
-  evidence: string[];
-  notes?: string;
-  efficacyScore?: number;
-}
-
-export async function advancePdcaPhase(
-  projectId: string,
-  cycleId: string,
-  payload: PdcaAdvancePayload,
-): Promise<PdcaCycleRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/pdca/cycles/${cycleId}/advance`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      reason?: string;
-    };
-    throw new Error(body.reason ?? body.error ?? `http_${res.status}`);
-  }
-  const json = (await res.json()) as { ok: true; cycle: PdcaCycleRecord };
-  return json.cycle;
-}
-
-export interface PdcaNonConformityPayload {
-  id: string;
-  category: string;
-  severity: 'minor' | 'major' | 'critical';
-  description: string;
-  location: string;
-  detectedAt?: string;
-  taskId?: string;
-  responsibleUid: string;
-}
-
-export async function createPdcaNonConformity(
-  projectId: string,
-  payload: PdcaNonConformityPayload,
-): Promise<PdcaNonConformityRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/pdca/non-conformities`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const json = (await res.json()) as {
-    ok: true;
-    nonConformity: PdcaNonConformityRecord;
-  };
-  return json.nonConformity;
-}
-
-// ────────────────────────────────────────────────────────────────────────
-// Sprint K §90-91 — Calidad de Proveedores + Ranking de Riesgo
-// ────────────────────────────────────────────────────────────────────────
-//
-// Hooks fetch-based para los 5 endpoints de proveedores:
-//   GET  /:projectId/suppliers?riskLevel=low|medium|high|all
-//   POST /:projectId/suppliers
-//   POST /:projectId/suppliers/:id/incidents
-//   POST /:projectId/suppliers/:id/audits
-//   GET  /:projectId/suppliers/ranking
-//
-// El servidor calcula `score` + `riskLevel` + `trend` desde el motor
-// determinístico `supplierScoring`. El frontend NO recalcula — sólo
-// presenta y filtra.
-
-export type SupplierRiskLevel = 'low' | 'medium' | 'high';
-export type SupplierRiskFilter = SupplierRiskLevel | 'all';
-export type SupplierTrend = 'improving' | 'stable' | 'worsening';
-export type SupplierIncidentSeverity = 'near_miss' | 'incident';
-
-export interface SupplierIncidentRecord {
-  id: string;
-  occurredAt: string;
-  severity: SupplierIncidentSeverity;
-  description: string;
-  recordedByUid: string;
-}
-
-export interface SupplierAuditRecord {
-  id: string;
-  auditedAt: string;
-  documentComplianceRatio: number;
-  avgResponseHours: number;
-  reputationScore: number;
-  notes?: string;
-  recordedByUid: string;
-}
-
-export interface SupplierView {
-  id: string;
-  legalName: string;
-  taxId: string;
-  services: string[];
-  criticalRoles: string[];
-  active: boolean;
-  registeredAt: string;
-  score: number;
-  riskLevel: SupplierRiskLevel;
-  trend: SupplierTrend;
-  lastIncidentAt: string | null;
-  lastAuditAt: string | null;
-  incidentCount: number;
-  auditCount: number;
-}
-
-export interface SuppliersResponse {
-  suppliers: SupplierView[];
-  total: number;
-}
-
-export interface SupplierRankingEntry extends SupplierView {
-  rank: number;
-  breakdown: ScoreBreakdown;
-}
-
-export interface SupplierRankingResponse {
-  ranking: SupplierRankingEntry[];
-  total: number;
-}
-
-export function useSuppliers(
-  projectId: string | null,
-  opts: { riskLevel?: SupplierRiskFilter } = {},
-) {
-  let path: string | null = null;
-  if (projectId) {
-    const qs = new URLSearchParams();
-    if (opts.riskLevel && opts.riskLevel !== 'all') {
-      qs.set('riskLevel', opts.riskLevel);
-    } else if (opts.riskLevel === 'all') {
-      qs.set('riskLevel', 'all');
-    }
-    const query = qs.toString();
-    path = `/api/sprint-k/${projectId}/suppliers${query ? `?${query}` : ''}`;
-  }
-  return useEndpoint<SuppliersResponse>(path);
-}
-
-export function useSupplierRanking(projectId: string | null) {
-  return useEndpoint<SupplierRankingResponse>(
-    projectId ? `/api/sprint-k/${projectId}/suppliers/ranking` : null,
-  );
-}
-
-export interface RegisterSupplierPayload {
-  id?: string;
-  name: string;
-  taxId: string;
-  services: string[];
-  criticalRoles?: string[];
-  active?: boolean;
-}
-
-export async function registerSupplier(
-  projectId: string,
-  payload: RegisterSupplierPayload,
-): Promise<SupplierView> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(`/api/sprint-k/${projectId}/suppliers`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const data = (await res.json()) as { ok: true; supplier: SupplierView };
-  return data.supplier;
-}
-
-export interface RecordSupplierIncidentPayload {
-  id?: string;
-  occurredAt: string;
-  severity: SupplierIncidentSeverity;
-  description: string;
-}
-
-export async function recordSupplierIncident(
-  projectId: string,
-  supplierId: string,
-  payload: RecordSupplierIncidentPayload,
-): Promise<SupplierIncidentRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/suppliers/${supplierId}/incidents`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const data = (await res.json()) as { ok: true; incident: SupplierIncidentRecord };
-  return data.incident;
-}
-
-export interface RecordSupplierAuditPayload {
-  id?: string;
-  auditedAt: string;
-  documentComplianceRatio: number;
-  avgResponseHours: number;
-  reputationScore: number;
-  notes?: string;
-}
-
-export async function recordSupplierAudit(
-  projectId: string,
-  supplierId: string,
-  payload: RecordSupplierAuditPayload,
-): Promise<SupplierAuditRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/suppliers/${supplierId}/audits`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const data = (await res.json()) as { ok: true; audit: SupplierAuditRecord };
-  return data.audit;
-}
+// §90-91 Suppliers hooks migrados a useSuppliers.ts (2026-05-18).
+export {
+  useSuppliers,
+  useSupplierRanking,
+  registerSupplier,
+  recordSupplierIncident,
+  recordSupplierAudit,
+  type SupplierRiskLevel,
+  type SupplierRiskFilter,
+  type SupplierTrend,
+  type SupplierIncidentSeverity,
+  type SupplierIncidentRecord,
+  type SupplierAuditRecord,
+  type SupplierView,
+  type SuppliersResponse,
+  type SupplierRankingEntry,
+  type SupplierRankingResponse,
+  type RegisterSupplierPayload,
+  type RecordSupplierIncidentPayload,
+  type RecordSupplierAuditPayload,
+} from "./useSuppliers";
 
 // ────────────────────────────────────────────────────────────────────────
 // Sprint K §291-295 — Revisión Anual del SGI (ISO 45001 §9.3)
