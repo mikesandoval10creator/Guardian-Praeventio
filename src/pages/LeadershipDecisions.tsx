@@ -46,7 +46,7 @@ import {
   useLeadershipRanking,
   recordLeadershipDecision,
   type LeadershipPeriod,
-} from '../hooks/useSprintK';
+} from '../hooks/useLeadership';
 import type {
   SupervisionDecision,
   SupervisionDecisionKind,

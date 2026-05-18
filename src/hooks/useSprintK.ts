@@ -22,13 +22,9 @@ import type {
 import type { LotoApplication } from '../services/loto/lotoDigitalLight';
 import type { Equipment, EquipmentStatus } from '../services/equipment/equipmentQrService';
 // ScoreBreakdown migró con §90-91 a useSuppliers.ts (2026-05-18).
-import type { PreventiveObjective } from '../services/annualReview/annualSgiReview';
+// PreventiveObjective migró con §291-295 a useAnnualReview.ts (2026-05-18).
 // Tipos del engine residual ya no se importan aquí; viven en useResidualRisk.ts (2026-05-18).
-import type {
-  SupervisionDecision,
-  SupervisionDecisionKind,
-  SupervisorRanking,
-} from '../services/leadership/supervisionDecisionTrail';
+// SupervisionDecision/Kind/Ranking migraron con §276-277 a useLeadership.ts (2026-05-18).
 import type { DataConfidenceReport } from '../services/dataConfidence/dataConfidencePanel';
 
 interface FetchState<T> {
@@ -562,160 +558,19 @@ export {
   type RecordSupplierAuditPayload,
 } from "./useSuppliers";
 
-// ────────────────────────────────────────────────────────────────────────
-// Sprint K §291-295 — Revisión Anual del SGI (ISO 45001 §9.3)
-// ────────────────────────────────────────────────────────────────────────
-
-export interface AnnualReviewEvidence {
-  objectiveId: string;
-  evidenceUrl: string;
-  evidenceKind: 'document' | 'audit' | 'incident' | 'training' | 'other';
-  caption?: string;
-  attachedAt: string;
-  attachedByUid: string;
-}
-
-export interface AnnualReviewSnapshot {
-  fiscalYear: number;
-  tenantId: string;
-  projectId: string;
-  createdAt: string;
-  updatedAt: string;
-  updatedByUid: string;
-  objectives: PreventiveObjective[];
-  evidences: AnnualReviewEvidence[];
-  analysis: string;
-  conclusion: string | null;
-  signedOffByUid: string | null;
-  signedOffByName: string | null;
-  concludedAt: string | null;
-  isConcluded: boolean;
-}
-
-export interface AnnualReviewResponse {
-  year: number;
-  exists: boolean;
-  snapshot: AnnualReviewSnapshot | null;
-}
-
-export function useCurrentAnnualReview(
-  projectId: string | null,
-  opts: { year?: number } = {},
-) {
-  let path: string | null = null;
-  if (projectId) {
-    const qs = new URLSearchParams();
-    if (typeof opts.year === 'number' && Number.isInteger(opts.year)) {
-      qs.set('year', String(opts.year));
-    }
-    const query = qs.toString();
-    path = `/api/sprint-k/${projectId}/annual-review/current${query ? `?${query}` : ''}`;
-  }
-  return useEndpoint<AnnualReviewResponse>(path);
-}
-
-async function annualReviewPost<T>(
-  projectId: string,
-  segment: string,
-  payload: Record<string, unknown>,
-): Promise<T> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(`/api/sprint-k/${projectId}/annual-review/${segment}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as T;
-}
-
-export interface SetObjectivesInput {
-  year: number;
-  objectives: Array<{
-    id: string;
-    title: string;
-    description?: string;
-    metric:
-      | 'count_reduction'
-      | 'count_increase'
-      | 'percent_completion'
-      | 'percent_reduction';
-    baseline: number;
-    target: number;
-    currentValue?: number;
-    deadline: string;
-    ownerUid: string;
-    status?:
-      | 'planned'
-      | 'in_progress'
-      | 'on_track'
-      | 'at_risk'
-      | 'achieved'
-      | 'missed';
-    linkedActionIds?: string[];
-    evidenceUrls?: string[];
-  }>;
-  /** Optional analysis text snapshot. */
-  analysis?: string;
-}
-
-export async function setAnnualReviewObjectives(
-  projectId: string,
-  input: SetObjectivesInput,
-): Promise<AnnualReviewSnapshot> {
-  const json = await annualReviewPost<{ ok: true; snapshot: AnnualReviewSnapshot }>(
-    projectId,
-    'objectives',
-    input as unknown as Record<string, unknown>,
-  );
-  return json.snapshot;
-}
-
-export interface AttachEvidenceInput {
-  year: number;
-  objectiveId: string;
-  evidenceUrl: string;
-  evidenceKind?: 'document' | 'audit' | 'incident' | 'training' | 'other';
-  caption?: string;
-}
-
-export async function attachAnnualReviewEvidence(
-  projectId: string,
-  input: AttachEvidenceInput,
-): Promise<AnnualReviewSnapshot> {
-  const json = await annualReviewPost<{ ok: true; snapshot: AnnualReviewSnapshot }>(
-    projectId,
-    'evidence',
-    input as unknown as Record<string, unknown>,
-  );
-  return json.snapshot;
-}
-
-export interface ConcludeReviewInput {
-  year: number;
-  conclusion: string;
-  signedOffByUid: string;
-  signedOffByName: string;
-}
-
-export async function concludeAnnualReview(
-  projectId: string,
-  input: ConcludeReviewInput,
-): Promise<AnnualReviewSnapshot> {
-  const json = await annualReviewPost<{ ok: true; snapshot: AnnualReviewSnapshot }>(
-    projectId,
-    'conclude',
-    input as unknown as Record<string, unknown>,
-  );
-  return json.snapshot;
-}
+// §291-295 Annual Review hooks migrados a useAnnualReview.ts (2026-05-18).
+export {
+  useCurrentAnnualReview,
+  setAnnualReviewObjectives,
+  attachAnnualReviewEvidence,
+  concludeAnnualReview,
+  type AnnualReviewEvidence,
+  type AnnualReviewSnapshot,
+  type AnnualReviewResponse,
+  type SetObjectivesInput,
+  type AttachEvidenceInput,
+  type ConcludeReviewInput,
+} from "./useAnnualReview";
 
 // §296-301 Residual Risk hooks migrados a useResidualRisk.ts (2026-05-18).
 export {
@@ -729,253 +584,34 @@ export {
   type ResidualRisksResponse,
 } from "./useResidualRisk";
 
-// ────────────────────────────────────────────────────────────────────────
-// Sprint K §276-277 — Bitácora de decisiones de supervisión + Ranking
-// ────────────────────────────────────────────────────────────────────────
+// §276-277 Leadership hooks migrados a useLeadership.ts (2026-05-18).
+export {
+  useLeadershipDecisions,
+  useLeadershipRanking,
+  recordLeadershipDecision,
+  type LeadershipPeriod,
+  type LeadershipDecisionsResponse,
+  type LeadershipRankingResponse,
+  type LeadershipDecisionPayload,
+} from "./useLeadership";
 
-export type LeadershipPeriod = '30d' | '90d' | 'all';
-
-export interface LeadershipDecisionsResponse {
-  decisions: SupervisionDecision[];
-}
-
-export interface LeadershipRankingResponse {
-  ranking: SupervisorRanking[];
-}
-
-export interface LeadershipDecisionPayload {
-  id?: string;
-  decidedAt?: string;
-  kind: SupervisionDecisionKind;
-  context: string;
-  rationale: string;
-  involvedRef?: {
-    kind: 'TASK' | 'WORKER' | 'FINDING' | 'EXCEPTION';
-    id: string;
-  };
-  outcome?: {
-    positive: boolean;
-    description: string;
-    recordedAt: string;
-  };
-}
-
-export function useLeadershipDecisions(
-  projectId: string | null,
-  opts: { supervisorUid?: string; period?: LeadershipPeriod } = {},
-) {
-  let path: string | null = null;
-  if (projectId) {
-    const qs = new URLSearchParams();
-    if (opts.supervisorUid) qs.set('supervisorUid', opts.supervisorUid);
-    if (opts.period) qs.set('period', opts.period);
-    const query = qs.toString();
-    path = `/api/sprint-k/${projectId}/leadership/decisions${query ? `?${query}` : ''}`;
-  }
-  return useEndpoint<LeadershipDecisionsResponse>(path);
-}
-
-export function useLeadershipRanking(
-  projectId: string | null,
-  period: LeadershipPeriod = '90d',
-) {
-  let path: string | null = null;
-  if (projectId) {
-    const qs = new URLSearchParams();
-    qs.set('period', period);
-    path = `/api/sprint-k/${projectId}/leadership/ranking?${qs.toString()}`;
-  }
-  return useEndpoint<LeadershipRankingResponse>(path);
-}
-
-export async function recordLeadershipDecision(
-  projectId: string,
-  payload: LeadershipDecisionPayload,
-): Promise<SupervisionDecision> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(
-    `/api/sprint-k/${projectId}/leadership/decisions`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `http_${res.status}`);
-  }
-  const json = (await res.json()) as {
-    ok: true;
-    decision: SupervisionDecision;
-  };
-  return json.decision;
-}
-
-// ────────────────────────────────────────────────────────────────────────
-// Sprint K §131-138 — Cierre de Proyecto + Lecciones Transferibles +
-//                      Decisiones Críticas + Resúmenes Multi-Rol
-// ────────────────────────────────────────────────────────────────────────
-//
-// Hooks delgados sobre /api/sprint-k/:projectId/closure/*. Mantienen
-// el patrón useEndpoint para queries y funciones async para mutaciones.
-
-export type ClosureRole = 'worker' | 'supervisor' | 'gerencia';
-
-export interface ClosureState {
-  status: 'open' | 'initiated' | 'finalized';
-  initiatedAt: string | null;
-  initiatedByUid: string | null;
-  finalizedAt: string | null;
-  finalizedByUid: string | null;
-}
-
-export interface ClosureStatusResponse {
-  state: ClosureState;
-  readinessPercent: number;
-  canClose: boolean;
-  blockers: string[];
-  warnings: string[];
-  pending: {
-    openIncidents: number;
-    openActions: number;
-    openPermits: number;
-    lessonsCaptured: number;
-    decisionsLogged: number;
-  };
-}
-
-export function useClosureStatus(projectId: string | null) {
-  return useEndpoint<ClosureStatusResponse>(
-    projectId ? `/api/sprint-k/${projectId}/closure/status` : null,
-  );
-}
-
-export interface ClosureSummaryResponse {
-  summary: {
-    audience: 'management' | 'client' | 'operations' | 'regulatory';
-    highlights: Array<{ label: string; value: string }>;
-    narrative: string;
-  };
-  role: string;
-  audience: string;
-  counts: {
-    lessons: number;
-    decisions: number;
-    incidents: number;
-    criticalIncidents: number;
-  };
-}
-
-export function useClosureSummary(
-  projectId: string | null,
-  role: ClosureRole,
-) {
-  const path =
-    projectId !== null
-      ? `/api/sprint-k/${projectId}/closure/summary?role=${encodeURIComponent(role)}`
-      : null;
-  return useEndpoint<ClosureSummaryResponse>(path);
-}
-
-async function authedPost<T>(path: string, body: unknown): Promise<T> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body ?? {}),
-  });
-  if (!res.ok) {
-    const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(errBody.error ?? `http_${res.status}`);
-  }
-  return (await res.json()) as T;
-}
-
-export async function initiateClosure(projectId: string): Promise<ClosureState> {
-  const json = await authedPost<{ ok: true; state: ClosureState }>(
-    `/api/sprint-k/${projectId}/closure/initiate`,
-    {},
-  );
-  return json.state;
-}
-
-export interface CaptureLessonPayload {
-  summary: string;
-  preventiveAction: string;
-  industry: string;
-  riskCategories?: string[];
-  tags?: string[];
-}
-
-export interface CapturedLesson {
-  id: string;
-  summary: string;
-  preventiveAction: string;
-  riskCategories: string[];
-  tags: string[];
-  industry: string;
-  capturedAt: string;
-  capturedByUid: string;
-  publishedLessonId: string | null;
-}
-
-export async function captureLesson(
-  projectId: string,
-  payload: CaptureLessonPayload,
-): Promise<CapturedLesson> {
-  const json = await authedPost<{ ok: true; lesson: CapturedLesson }>(
-    `/api/sprint-k/${projectId}/closure/lessons`,
-    payload,
-  );
-  return json.lesson;
-}
-
-export interface LogDecisionPayload {
-  decidedAt: string;
-  context: string;
-  decision: string;
-  outcome: 'positive' | 'neutral' | 'negative';
-  decidedByUid?: string;
-}
-
-export interface LoggedDecision {
-  id: string;
-  decidedAt: string;
-  context: string;
-  decision: string;
-  decidedByUid: string;
-  outcome: 'positive' | 'neutral' | 'negative';
-  loggedAt: string;
-  loggedByUid: string;
-}
-
-export async function logDecision(
-  projectId: string,
-  payload: LogDecisionPayload,
-): Promise<LoggedDecision> {
-  const json = await authedPost<{ ok: true; decision: LoggedDecision }>(
-    `/api/sprint-k/${projectId}/closure/decisions`,
-    payload,
-  );
-  return json.decision;
-}
-
-export async function finalizeClosure(projectId: string): Promise<ClosureState> {
-  const json = await authedPost<{ ok: true; state: ClosureState }>(
-    `/api/sprint-k/${projectId}/closure/finalize`,
-    {},
-  );
-  return json.state;
-}
+// §131-138 Project Closure hooks migrados a useProjectClosure.ts (2026-05-18).
+export {
+  useClosureStatus,
+  useClosureSummary,
+  initiateClosure,
+  captureLesson,
+  logDecision,
+  finalizeClosure,
+  type ClosureRole,
+  type ClosureState,
+  type ClosureStatusResponse,
+  type ClosureSummaryResponse,
+  type CaptureLessonPayload,
+  type CapturedLesson,
+  type LogDecisionPayload,
+  type LoggedDecision,
+} from "./useProjectClosure";
 
 // ────────────────────────────────────────────────────────────────────────
 // Sprint K §69-71 — Conducción Segura + Rutas Críticas + Alertas Ruta

@@ -41,7 +41,7 @@ import {
   concludeAnnualReview,
   type AnnualReviewSnapshot,
   type AnnualReviewEvidence,
-} from '../hooks/useSprintK';
+} from '../hooks/useAnnualReview';
 import {
   computeObjectiveProgress,
   type PreventiveObjective,

@@ -27,7 +27,7 @@ import {
   logDecision,
   finalizeClosure,
   type ClosureRole,
-} from '../hooks/useSprintK';
+} from '../hooks/useProjectClosure';
 import { logger } from '../utils/logger';
 
 function readinessTone(percent: number): string {
