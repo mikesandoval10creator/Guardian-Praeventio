@@ -181,6 +181,8 @@ import aggregateTelemetryRouter from "./src/server/routes/aggregateTelemetry.js"
 import signaleticsRouter from "./src/server/routes/signaletics.js";
 // Control Comparator — A/B compare risk controls + failure library lookup.
 import controlComparatorRouter from "./src/server/routes/controlComparator.js";
+// AI Toggle — decide cloud/local/rules mode + drift detector on rule application.
+import aiToggleRouter from "./src/server/routes/aiToggle.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -814,6 +816,7 @@ app.use('/api/sprint-k', explainabilityRouter);
 app.use('/api/sprint-k', aggregateTelemetryRouter);
 app.use('/api/sprint-k', signaleticsRouter);
 app.use('/api/sprint-k', controlComparatorRouter);
+app.use('/api/sprint-k', aiToggleRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
