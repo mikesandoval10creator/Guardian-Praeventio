@@ -287,6 +287,8 @@ import nonConformityRouter from "./src/server/routes/nonConformity.js";
 import changeMgmtRouter from "./src/server/routes/changeMgmt.js";
 // Adoption Analytics — Sprint K §164-170 (module-adoption / funnel / churn / first-value).
 import adoptionRouter from "./src/server/routes/adoption.js";
+// Agenda + focus blocks + reminders + digests — Sprint K §201-207.
+import agendaRouter from "./src/server/routes/agenda.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -973,6 +975,7 @@ app.use('/api/sprint-k', criticalRolesRouter);
 app.use('/api/sprint-k', nonConformityRouter);
 app.use('/api/sprint-k', changeMgmtRouter);
 app.use('/api/sprint-k', adoptionRouter);
+app.use('/api/sprint-k', agendaRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
