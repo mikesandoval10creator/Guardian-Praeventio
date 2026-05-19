@@ -31,6 +31,7 @@
  */
 
 import admin from 'firebase-admin';
+import crypto from 'node:crypto';
 import {
   envelopeEncrypt,
   envelopeDecrypt,
@@ -43,6 +44,23 @@ import { fetchWithTimeout } from '../utils/fetchWithTimeout.ts';
 const REFRESH_FETCH_TIMEOUT_MS = 10_000;
 
 const COLLECTION = 'oauth_tokens';
+
+/**
+ * In-flight refresh coalescer. When N concurrent callers ask for a valid
+ * access_token for the same {uid,provider} and the stored token is expired,
+ * only the FIRST hits googleapis — the rest await the same promise.
+ *
+ * Keyed by `docId({uid,provider})`. Entries are deleted in finally{} so a
+ * later expiry triggers a fresh refresh.
+ *
+ * Scope: per-process. Cloud Run scaling out means two instances may still
+ * race on the same identity. We accept that residual risk: Google's
+ * refresh_token flow allows reuse (the refresh_token itself is not rotated
+ * on each call), so cross-instance duplicates are wasted bandwidth, not a
+ * correctness bug. A Firestore-transaction lock would close it at the cost
+ * of two extra round-trips per refresh — deferred to a future task.
+ */
+const inFlightRefreshes = new Map<string, Promise<string | null>>();
 
 export type OAuthProvider = 'google' | 'google-drive';
 
@@ -173,7 +191,8 @@ export async function getValidAccessToken(
   clientId: string,
   clientSecret: string,
 ): Promise<string | null> {
-  const docRef = admin.firestore().collection(COLLECTION).doc(docId(id));
+  const key = docId(id);
+  const docRef = admin.firestore().collection(COLLECTION).doc(key);
   const snap = await docRef.get();
   if (!snap.exists) return null;
 
@@ -184,7 +203,26 @@ export async function getValidAccessToken(
     return data.access_token;
   }
 
-  // Need to refresh. Unwrap refresh_token (envelope or legacy plaintext).
+  // Need to refresh. Coalesce concurrent refreshes for the same identity:
+  // if a refresh is already in flight, await its result instead of firing
+  // a duplicate POST to googleapis.
+  const existing = inFlightRefreshes.get(key);
+  if (existing) return existing;
+
+  const promise = refreshAccessToken(docRef, data, clientId, clientSecret).finally(() => {
+    inFlightRefreshes.delete(key);
+  });
+  inFlightRefreshes.set(key, promise);
+  return promise;
+}
+
+async function refreshAccessToken(
+  docRef: admin.firestore.DocumentReference,
+  data: StoredTokens,
+  clientId: string,
+  clientSecret: string,
+): Promise<string | null> {
+  // Unwrap refresh_token (envelope or legacy plaintext).
   let refreshToken: string | undefined;
   try {
     refreshToken = await maybeUnwrapRefreshToken(data.refresh_token);
@@ -195,13 +233,21 @@ export async function getValidAccessToken(
   }
   if (!refreshToken) return null;
 
+  // Idempotency-Key: documents intent so any reverse proxy or future
+  // upstream-side dedup can collapse repeat refresh attempts. Google's
+  // OAuth endpoint ignores unknown headers today but the cost is zero.
+  const idempotencyKey = crypto.randomUUID();
+
   let refreshed: RawTokenResponse;
   try {
     const response = await fetchWithTimeout(
       'https://oauth2.googleapis.com/token',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Idempotency-Key': idempotencyKey,
+        },
         body: new URLSearchParams({
           client_id: clientId,
           client_secret: clientSecret,
