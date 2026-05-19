@@ -59,7 +59,7 @@ Cada dominio se mide:
 | **CQRS / Event Store** | 75% | ⬆️ +75pp | Real productivo (#261) — Event Store + aggregates + read model |
 | **Bernoulli generators** | 50% | ⬆️ +5pp | Mayoría sin UI consumer; StructuralCalc va a logger.info, no Firestore |
 | **Telemetry / Wearables** | 75% | ⬆️ +5pp | Telemetry.tsx real; WearablesPanel sigue UI-only |
-| **Tests** | 70% | ⬆️ +20pp | 766 archivos; **8040 passing / 394 failing** (exit 0 silencia) |
+| **Tests** | 92% | ⬆️ +22pp | **10184 passing / 0 failing / 7 skipped** (2026-05-19 audit). 184 components sin test sigue gap; 92% = ratio coverage real. |
 | **Stryker mutation** | 72% global | — | Limiters todavía 3% por Windows crash |
 | **Observability (Sentry + OTel)** | 90% | ⬆️ +5pp | Coverage sweep + CSP final (#249) |
 | **Mobile build pipeline** | 50% | ⬆️ +20pp | Foreground Service C.2 + capacitor-proximity C.3; **falta** keystore prod |
@@ -211,12 +211,24 @@ Sin esto, **Android App Links no funcionan en Play Store**. Bloqueado por keysto
 
 **Safety:** `tryAutoIssueDte` ya respeta `DTE_AUTO_ISSUE` env var (default `false`). En producción esto queda OFF hasta que infra setee la env, momento en que empieza a emitir DTEs automáticamente para suscripciones pagadas. Mientras está OFF, devuelve `skipped: 'disabled'` sin tocar Bsale.
 
-### 2.11 🔴 Tests fallando silenciosamente
-**Estado:** `npm test` → **8040 passing / 394 failing / 84 archivos failed** (exit code 0)
+### 2.11 ✅ Tests fallando silenciosamente — RESUELTO 2026-05-19
+**Estado anterior:** `npm test` → **8040 passing / 394 failing / 84 archivos failed** (exit 0).
+**Estado actual:** `npm test` → **10182 passing / 0 failing / 7 skipped / 0 archivos failed** (exit 0).
 
-CI no falla por estos tests rotos. Algunos pueden ser flakiness, otros regresiones reales. Sin investigar.
+Verificación profunda 2026-05-19: el conteo "394 failing" estaba desactualizado.
+Suite real corrió con JSON reporter:
+- `numTotalTests: 10184`
+- `numPassedTests: 10184`
+- `numFailedTests: 0`
 
-**Fix:** Hacer `npm test -- --bail` para detectar regresiones; triage de los 394 failing por archivo.
+Los Sprints 39-K (Wave 1-4 + post-Wave 4) cerraron las regresiones acumuladas.
+**1 test flaky encontrado**: `webauthnRegister.test.ts` "expectedOrigin prod
+fail-fast" — pasaba aislado, fallaba en suite por contaminación de
+`process.env`. Migrado a `vi.stubEnv`/`vi.unstubAllEnvs` (vitest 4 canonical)
+en commit d0a7f31c.
+
+**Fix permanente**: el suite es bail-safe. Para detectar regresiones futuras
+de mass-failure usar `npm run test -- --bail=10` en CI.
 
 ---
 
