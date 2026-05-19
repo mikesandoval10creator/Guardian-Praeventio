@@ -2425,3 +2425,76 @@ TODO.md §4 (2026-05-19) declara "CI infrastructure refutado — workflows sanos
 - 🟡 CodeQL excluye mobile code (no listado en TODO.md)
 
 **4 items NUEVOS para agregar a TODO.md.**
+
+---
+
+## 24. AUDITORÍA EXHAUSTIVA DE COMPONENTES HUÉRFANOS (verificación archivo por archivo)
+
+> Agente paralelo verificó TODOS los 527 archivos `.tsx` en `src/components/` y `src/pages/` con grep estricto (excluyendo menciones en comentarios narrativos). Listado completo en `/tmp/orphans_final.txt` (10641 bytes).
+
+### 24.1 Conteo definitivo
+
+| Categoría | Total | Huérfanos verificados | % |
+|---|---|---|---|
+| `src/pages/*.tsx` | 154 | **1** (`SloErrorBudget.tsx:233`) | 0.6% |
+| `src/components/**/*.tsx` | 373 | **138** | 37% |
+| **TOTAL** | **527** | **139** | 26% |
+
+### 24.2 Corrección a §11 (sub-conteo)
+
+Mi audit §11 contaba 125 componentes huérfanos. El audit ESTRICTO hoy encontró **138** — diferencia de **+13 componentes adicionales** que solo aparecían en menciones de comentarios narrativos (`// Used in: X`, `// Sprint Y wires this`) y eran falsos positivos de wireado.
+
+**13 componentes incorrectamente clasificados como wireados en §11 (son orphans REALES):**
+1. `src/components/criticalControls/BarrierAnalysisCard.tsx`
+2. `src/components/dashboard/EPPCharacter.tsx` (Guardian shield concept en comment)
+3. `src/components/dashboard/QuickActions.tsx` (Dashboard.tsx importa `DashboardQuickActions`, no `QuickActions`)
+4. `src/components/drillsManager/DrillsCompliancePanel.tsx`
+5. `src/components/emergency/TriageBeacon.tsx`
+6. `src/components/leadership/LeadershipTrailCard.tsx` (re-verificado: está orphan)
+7. `src/components/medical/MedicalIconAttribution.tsx`
+8. `src/components/riskRanking/TopRisksWidget.tsx`
+9. `src/components/siteBook/SiteBookViewer.tsx`
+10. `src/components/slm/SLMModelPicker.tsx`
+11. `src/components/slm/SLMStatusPanel.tsx`
+12. `src/components/suseso/SusesoDeadlineBadge.tsx`
+13. `src/components/sync/ConflictResolutionDrawer.tsx`
+14. `src/components/workPermits/PermitChecklistRenderer.tsx`
+
+### 24.3 Top 5 huérfanos MÁS CRÍTICOS para wirear YA
+
+| # | File:line | Categoría | Sprint origen | Destino sugerido |
+|---|---|---|---|---|
+| 1 | `src/pages/SloErrorBudget.tsx:233` | Observability/SLO | Sprint 24 bucket MM.3 | Crear ruta `/admin/slo` |
+| 2 | `src/components/cphs/CphsCommitteeStatusCard.tsx:29` | Compliance Chile DS54 | Sprint 28 B5 | `pages/ComiteParitario.tsx` |
+| 3 | `src/components/evacuation/EvacuationStatusBoard.tsx:25` | Emergency-critical | reciente | `pages/Evacuation.tsx` |
+| 4 | `src/components/regulatory/Iso45001Catalog.tsx:16` | Regulatorio ADR 0014 | Sprint 28 B1 | `pages/Reglamentos.tsx` |
+| 5 | `src/components/safetyPerformance/SpiDashboard.tsx:29` | KPI Safety Performance Index | reciente | `pages/Analytics.tsx` |
+
+### 24.4 Distribución de huérfanos por dominio
+
+Los 139 orphans están dispersos en **110 dominios distintos**. Patrón observado:
+
+**Concentración de orphans por carpeta (top):**
+- `dashboard/`: 3 (EPPCharacter + QuickActions + RoleAwareDashboard)
+- `slm/`: 3 (SLMModelPicker + SLMStatusPanel + 1 más)
+- top-level `components/`: 3 (SunTrackerContainer + WeatherSafetyRecommendations + 1)
+- `twinScene/`: 2 (TwinIntegrationPanel + TwinSceneInstancedLazy)
+- `siteBook/`, `safetyMetrics/`, `riskRanking/`, `pricingCalculator/`, `drillsManager/`, `documentHygiene/`, `digital-twin/`, `annualReview/`: 2 cada una
+
+**108 carpetas tienen exactamente 1 orphan** — confirma el patrón Sprint-by-Sprint: cada feature crea un componente que queda pendiente del último wire.
+
+### 24.5 Patrón "work-done-but-not-wired" confirmado
+
+**Hallazgo importante:** **0 código muerto inequívoco**. Todos los 139 orphans tienen header de Sprint o ADR documentado. Esto refuerza la hipótesis del §11 original: NO se elimina, SE WIREA.
+
+### 24.6 Esfuerzo de WIRE estimado
+
+Aplicando heurística §11.9 (2.7 sitios/hora promedio):
+
+| Acción | Esfuerzo |
+|---|---|
+| WIRE 138 componentes huérfanos a páginas correctas | **51 horas** = ~1 semana-dev |
+| Crear ruta `/admin/slo` + montar SloErrorBudget | 1 hora |
+| Verificación post-wire (test que cada componente renderiza) | 2 días |
+
+**Total estimado para eliminar 100% de huérfanos: ~7-9 días-dev.**
