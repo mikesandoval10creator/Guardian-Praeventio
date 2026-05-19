@@ -55,7 +55,13 @@ async function guard(
   return true;
 }
 
-const COACH_DOMAINS = ['chemical', 'medicine', 'legal'] as const;
+const COACH_DOMAINS = [
+  'chemical',
+  'medicine',
+  'legal',
+  'ergonomics',
+  'structural',
+] as const satisfies readonly CoachDomain[];
 
 // ────────────────────────────────────────────────────────────────────────
 // 1. search-top-k
