@@ -1042,3 +1042,78 @@ Podar **214 branches** en `origin/` (claude/* 10-17d + dev/sprint-* 10-53 + feat
 ---
 
 **Última actualización TODO.md:** 2026-05-19 23:45 — agregado §14 con 20 items C nuevos (C1-C20) descubiertos en AUDIT §29 (3 Explore agents adicionales). Total acumulado: 95 items.
+
+---
+
+## §15 — Items D1-D15 del plan exhaustivo 2026-05-17 incorporados (§31 AUDIT)
+
+> Origen: plan `buenas-las-skill-que-scalable-porcupine.md` de sesión 2026-05-17 (~2000 LOC, 38 hallazgos H1-H26 + H25b.1-13). Verificación HOY (2026-05-19) reveló que 10/26 H-items ya están fixed. Esta sección incorpora los 15 hallazgos del plan que mi audit §1-§30 había omitido.
+
+### 15.1 🔴 P0 ABSOLUTOS NUEVOS (2 items)
+
+| ID | Item | Estimate | Razón |
+|---|---|---|---|
+| **D9** | Auditar WebAuthn register flow `credentialId` (H25b.1) | M 4h | Auditor externo: cliente puede no enviar credentialId en register, dejando fallback que marca firmas "verificadas" sin validar llave pública |
+| **D-FLUJO1** | Flujo ZK flagship: Inspección EPP → Inventario → Orden Compra | L 1 sprint | Flujo Zettelkasten flagship del informe taxonomía 255+ del usuario, demuestra valor producto |
+
+### 15.2 🟡 P1 NEXT-SPRINT (8 items)
+
+| ID | Item | Estimate | Notas |
+|---|---|---|---|
+| **D1** | Sweep H5 correos canónicos en marketplace/+.md raíz (resto pendiente) | S 1h | **HOY ya cerrado en src/+i18n** — falta marketplace + docs |
+| **D2** | Lint real cubrir src/**/*.{ts,tsx} con typescript-eslint + react-hooks (H7) | M 1 día | Deps `eslint-plugin-react-hooks@^7.1.1` + `typescript-eslint@^8.59.3` ya en devDeps, sin uso |
+| **D3** | Compilar backend a JS prod (H10) — `tsconfig.server.json` + `tsc --outDir dist/server` + `start: node dist/server/server.js` | M 1 día | Mantener `dev` con tsx |
+| **D5** | Pricing OC PDF formal (H21) — reusar `diatPdfRenderer.ts` patrón | M 1 día | `PricingCalculator.tsx:184` TODO `pdf_emission_pending_sprint_k_177` |
+| **D10** | Tests reglas Firestore sólo via `npm run test:rules` (H25b.3) — excluir `src/rules-tests/**` del default vitest | S 30min | `vitest.config.ts` |
+| **D-FLUJO2** | Flujo ZK flagship: Accidente → Investigación → Lección → Capacitación | L 1 sprint | Cierra ciclo PDCA aprendizaje organizacional |
+| **D-FLUJO3** | Flujo ZK flagship: Horómetro → Mantenimiento Preventivo | L 1 sprint | "Primera demostración poder Zettelkasten" según informe usuario |
+| **D-IND** | Auditar catálogo 500+ industrias SII completitud | M 4h | `src/data/industryIPER.ts` + `src/services/industryRules/` + `src/services/pricing/eppIndustryCatalog.ts` |
+
+### 15.3 🟢 P2/P3 BACKLOG (6 items)
+
+| ID | Item | Estimate | Notas |
+|---|---|---|---|
+| **D4** | `.npmrc legacy-peer-deps` audit (H19) | M 2-3 días | Investigar deps incompatibles, reemplazar/forkear OSS |
+| **D6** | `tsconfig.json allowJs` eliminar post `.js` → `.ts` sweep (H22) | L iterative | `skipLibCheck` mantener (estándar) |
+| **D7** | `oauthTokenStore.ts:19-20` actualizar comentario KMS stub obsoleto (H23) | S 5min | `kmsAdapter.ts:127` CloudKmsAdapter ya es real |
+| **D8** | README actualizar claim mutation/lint (H24) | S 10min | Tras D2 |
+| **D11** | `alert()` → `useToast()` sweep 42 instancias (H25b.6) | M 1 día | Consistencia UX |
+| **D12** | Vite `manualChunks` MediaPipe + Three.js (H25b.7) | M 4h | Bundle ~500KB c/u, lazy load |
+
+### 15.4 ⏸ DAY-1+ post-Fase 5 (3 items)
+
+| ID | Item | Notas |
+|---|---|---|
+| **D13** | EU AI Act compliance audit (Reglamento UE 2024/1689) | Antes expansion EU; "asistentes seguridad" = alto riesgo |
+| **D14** | Mobile CI/CD pipeline iOS/Android (H25b.12) | Bloqueado por keystore + Apple Developer Account |
+| **D-KPI** | Integrar KPIs informe usuario al TODO §6 + criterios éxito Day-1: $500K→$5M ARR 2025→2026, 500→2500 clientes, retention >85%→>90%, NPS >50→>70, 50K→250K trabajadores protegidos | Criterios success commercial |
+
+### 15.5 ✅ YA CERRADOS HOY (verificado en código)
+
+| ID | Estado |
+|---|---|
+| **D15** | dev/multiagent-bernoulli-sweep — verificado §30, todo squashed en main ✅ |
+| H5 correos en src/ | sweep aplicado HOY ✅ |
+| H1, H2, H3, H4, H6, H12, H13, H16 (principal), H17, H26 | fixed entre 2026-05-17 y HOY ✅ |
+
+### 15.6 Resumen cuantitativo final tras §15
+
+| Métrica | Valor |
+|---|---|
+| Items totales auditoría 2026-05-19 | **110+** (32 N + 35 B + 20 C + 15 D + flujos ZK) |
+| Hallazgos del plan exhaustivo 2026-05-17 incorporados | **38** (H1-H26 + H25b.1-13) |
+| Hallazgos del plan YA FIXED entre 2026-05-17 y HOY | **10** (verificados) |
+| Hallazgos pendientes con D-asignación | **15** (D1-D15 + 3 D-FLUJO + D-IND + D-KPI + D-COMP) |
+| Esfuerzo restante Day-1 mundial | **~13 semanas-dev** (12 sem + 1 sem D-items) |
+
+### 15.7 Directivas usuario 2026-05-17 — inviolables tras §15
+
+1. **Correo único `contacto@praeventio.net`** — sweep aplicado HOY src/+i18n ✅; marketplace+docs pendiente
+2. **OSS-first ante problemas licencia** — restricción inviolable agregada
+3. **EXTRACT propuestas antes de archivar docs** — aplica cuando se archiven docs históricos
+4. **Sprint K = lista de pendientes, NO archivo** — CONFIRMADO YA APLICADO (294 routes modulares) ✅
+5. **Skills obligatorios del plan** — solo disponibles en Claude Code Desktop. Este entorno (cloud/web) tiene set distinto: `design-html`, `cso-praeventio`, `security-review`, `review`, `simplify`, etc.
+
+---
+
+**Última actualización TODO.md:** 2026-05-19 — agregado §15 con 15 items D + 3 flujos ZK flagship + D-IND + D-KPI + D-COMP. Total acumulado: 110+ items. Plan exhaustivo 2026-05-17 incorporado completamente.

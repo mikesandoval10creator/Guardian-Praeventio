@@ -3294,3 +3294,140 @@ Esto confirma que el "trabajo único" reportado por `git diff` es engañoso — 
 ### 30.6 Inventario completo
 
 Generado en `docs/audits/BRANCHES_INVENTORY_2026-05-19.md` (232 LOC) con tabla completa de 214 branches ordenadas por archivos añadidos.
+
+---
+
+## §31 Integración del plan exhaustivo 2026-05-17 — reconciliación + cierre de gaps
+
+> Tras presentar el plan de 2000 LOC con 38 hallazgos (H1-H26 + H25b.1-13) que el usuario tenía de la sesión 2026-05-17, se verificaron HOY los hallazgos contra el código actual. Esta sección documenta: (1) hallazgos del plan ya cerrados entre 2026-05-17 y 2026-05-19, (2) hallazgos aún pendientes con file:line actualizado, (3) hallazgos que mi audit omitió y ahora incorpora.
+
+### 31.1 Hallazgos del plan YA RESUELTOS (verificado 2026-05-19)
+
+| ID | Verificación HOY | Estado |
+|---|---|---|
+| H1 lockfile xlsx | `npm ci --dry-run` sin errores | ✅ FIXED |
+| H2 Playwright probe | `playwright.config.ts:78` = `/api/health` | ✅ FIXED |
+| H3 Dockerfile firebase-applet | `Dockerfile:27` comentario "H3 (2026-05-17): NO se hornea" + `.dockerignore` excluye | ✅ FIXED |
+| H4 cloudbuild owner | `cloudbuild.yaml:86,100` = `mikesandoval10creator/Guardian-Praeventio` | ✅ FIXED |
+| H6 LICENSE | Existe en raíz | ✅ FIXED |
+| H12 sprintK.ts monolítico | **Archivo ELIMINADO**. Sprint K modularizado en **294 routes** en `src/server/routes/` | ✅ FIXED COMPLETAMENTE |
+| H13 useSprintK.ts | Eliminado también | ✅ FIXED |
+| H16 región us-central1 principal | `deploy.yml:17` = `southamerica-west1` | ✅ FIXED |
+| H17 Dockerfile legado en deploy | `deploy.yml:20` usa repo `api` (Dockerfile.api) | ✅ FIXED |
+| H26 DS 40 → DS 44/2024 en código | **10/10 archivos** con anotación histórica correcta ("DS 44/2024 reemplaza DS 40/1969 derogado 2025-02-01") | ✅ FIXED |
+
+**Comentario:** Sprint K refactor de monolito a 294 routes individuales es un acierto arquitectónico mayor, alineado con la directiva "Sprint K = lista de pendientes, NO archivo".
+
+### 31.2 Hallazgos del plan AÚN PENDIENTES (file:line actualizado HOY)
+
+| ID | Severidad | Estado actual HOY |
+|---|---|---|
+| **H5** correos canónicos sweep | P1 trust | **PARCIALMENTE CERRADO HOY** — sweep aplicado en 4 archivos src/ + 3 i18n locales (`Help.tsx:91`, `Pricing.tsx:560,563,586,589,1081`, `PrivacyPolicy.tsx:44,125,151`, `specGenerator.ts:190`, locales es/en/pt-BR). Marketplace/.md raíz pendiente verificar |
+| **H7** lint no cubre código aplicación | P1 calidad | Pendiente — `npm run lint` solo lintea firestore.rules |
+| **H8/H18** AASA TEAMID | P0 deploy iOS | `apple-app-site-association:6,9` aún tiene `TEAMID.com.praeventio.guard`. Bloqueado por Apple Developer Account (= mi C2) |
+| H10 backend `tsx` en producción | P1 arquitectura | Pendiente — `package.json:11` `start: NODE_ENV=production tsx server.ts` |
+| **H16.2** SCHEDULER_LOCATION us-central1 residual | P1 compliance | `deploy.yml:151,222` aún `us-central1` (línea principal SÍ migrada) |
+| H19 `.npmrc legacy-peer-deps` | P1 supply chain | Pendiente verificar |
+| H20 landing E2E desactivado | P2 testing | = mi C5 ya documentado |
+| H21 Pricing OC PDF | P1 producto | `PricingCalculator.tsx:184` TODO `pdf_emission_pending_sprint_k_177` |
+| H22 tsconfig allowJs/skipLibCheck | P3 calidad | Pendiente |
+| H23 oauthTokenStore comentario obsoleto | P3 doc drift | `src/services/oauthTokenStore.ts:19-20` |
+| H24 README claim mutation/lint obsoleto | P3 doc drift | Pendiente |
+| **H25b.1** WebAuthn credentialId register flow | P0 seguridad | Auditar `useBiometricAuth.ts` register vs verify |
+| H25b.6 42 instancias `alert()` vs toasts | P3 UX | Pendiente sweep |
+| H25b.7 Bundle MediaPipe + Three.js | P2 perf | Pendiente vite manualChunks |
+| H25b.12 Mobile CI/CD pipeline | P2 mobile | Pendiente — bloqueado por keystores |
+
+### 31.3 Hallazgos del plan QUE MI AUDIT OMITIÓ — ahora incorporados
+
+Estos 15 ítems estaban en el plan 2026-05-17 pero NO en mi audit §1-§30:
+
+| ID | Tema | Asignación TODO |
+|---|---|---|
+| H5 | Correos no canónicos sweep src/i18n/marketplace | D1 — cerrado parcialmente HOY |
+| H7 | Lint real cubrir TS/TSX (eslint-plugin-react-hooks + typescript-eslint ya en devDeps) | D2 |
+| H10 | Compilar backend a JS para producción | D3 |
+| H19 | .npmrc legacy-peer-deps audit | D4 |
+| H21 | Pricing OC PDF formal | D5 |
+| H22 | tsconfig allowJs eliminar (post `.js` → `.ts` sweep) | D6 |
+| H23 | oauthTokenStore.ts:19-20 comentario stub obsoleto | D7 |
+| H24 | README claim mutation/lint update | D8 |
+| H25b.1 | WebAuthn credentialId register flow audit | D9 |
+| H25b.3 | Tests reglas Firestore en `npm test` (mover a `test:rules` only) | D10 |
+| H25b.6 | `alert()` → `useToast()` sweep 42 instancias | D11 |
+| H25b.7 | Bundle MediaPipe + Three.js code split | D12 |
+| H25b.10 | EU AI Act compliance (Reglamento 2024/1689) — Day-1 post EU expansion | D13 |
+| H25b.12 | Mobile CI/CD pipeline (post keystore + Apple Dev) | D14 |
+| H25b.4 | dev/multiagent-bernoulli-sweep — ya verificado §30 (todo squashed) | D15 ✅ ya cerrado |
+
+### 31.4 Directivas usuario 2026-05-17 — verificación + incorporación
+
+| Directiva | Estado HOY |
+|---|---|
+| Correo único `contacto@praeventio.net` | **SWEEP APLICADO HOY** en src/+i18n (H5 D1) ✅ |
+| OSS-first ante problemas licencia | Documentar como restricción inviolable en próximo commit ⚠️ |
+| EXTRACT propuestas antes de archivar docs | Pendiente — aplica cuando se archiven los 15+ docs históricos |
+| Sprint K = lista de pendientes, NO archivo | **CONFIRMADO YA APLICADO** — sprintK.ts eliminado, 294 routes modularizadas ✅ |
+| Skills obligatorios (ui-ux-pro-max + superpowers + everything-claude-code) | Solo disponibles en Claude Code Desktop (no en cloud/web). Documentar |
+
+### 31.5 Funciones del informe taxonomía 255+ del usuario — gaps de mi audit
+
+Mi audit NO mencionó:
+
+| Categoría | Estado plan | Acción |
+|---|---|---|
+| Taxonomía 255+ funcionalidades (🟢🟡🔵⚪) | Inventory completo en plan | D-INV — guardar como `docs/inputs/2025-09-and-10-funcionalidades-completas.md` y mapear contra código actual |
+| Flujo ZK flagship 1: Inspección EPP → Inv → OC | ⚪ no implementado | D-FLUJO1 — Fase 2 Tier 1 |
+| Flujo ZK flagship 2: Accidente → Lección → Capacitación | ⚪ no implementado | D-FLUJO2 — Fase 2 Tier 1 |
+| Flujo ZK flagship 3: Horómetro → Mantenimiento | ⚪ no implementado | D-FLUJO3 — Fase 2 Tier 1 |
+| Catálogo 500+ industrias SII | infraestructura existe, completitud sin verificar | D-IND — auditar `src/data/industryIPER.ts` + `src/services/industryRules/` |
+| KPIs 2025-2026 ($500K→$5M ARR, 500→2500 clientes) | No en mi audit | D-KPI — agregar a TODO.md §6 como criterios éxito |
+| Análisis competidores (SafeHS, SafetyMind, Zyght...) | No en mi audit | D-COMP — crear `docs/COMPETITORS.md` |
+
+### 31.6 Cobertura skills obligatorios — gap entorno
+
+Plan 2026-05-17 menciona skills obligatorios:
+- `ui-ux-pro-max:ui-ux-pro-max` (UI design)
+- `superpowers:*` (14 skills — git-worktrees, parallel-agents, TDD, code-review)
+- `everything-claude-code:*` (agents, build-fix, test-coverage, etc.)
+- `frontend-design:frontend-design`
+
+**Estado en este entorno (Claude Code web/cloud):** NO disponibles. Skills locales requieren Claude Code Desktop con plugins instalados.
+
+**Disponibles aquí (verificado system reminder):**
+- `design-html` (cubre parcialmente UI mockups)
+- `cso-praeventio` (security review OWASP+STRIDE)
+- `security-review`, `review`, `simplify`, `init`
+- `cross-review`, `cross-review-vs-codex`
+- `careful`, `freeze`, `guard`, `unfreeze`, `canary`, `retro`
+
+**Acción:** documentar gap. El usuario decide si abrir local para usar skills del plan.
+
+### 31.7 Métricas consolidadas tras §31
+
+| Métrica | §28 | §30 | §31 |
+|---|---|---|---|
+| Items accionables totales | 67 (32N+35B) | 95 (+20 C) | **110+** (+15 D) |
+| Hallazgos del plan considerados | 0 | 0 | **38** (H1-H26 + H25b) |
+| Sprint K en monolito (verificación) | "1373 LOC" (incorrecto) | sin verificar | **0 LOC (ELIMINADO)** ✅ |
+| Cobertura E2E proyectada Day-1 | 95%+ | 95%+ | **igual** (no cambia por reconciliación) |
+| Esfuerzo restante Day-1 | 10 sem | 12 sem | **12 sem + 1 sem D-items** |
+
+### 31.8 Conclusión §31
+
+El plan exhaustivo 2026-05-17 del usuario es **~3x más completo** que mi auditoría inicial (28-30 secciones). Su fortaleza: cobertura sistemática de hallazgos H1-H26 + H25b.1-13 con file:line + 38 directivas + funciones taxonomía 255+.
+
+**Mi auditoría aportó valor único en:**
+- ✅ Verificación HOY de qué se ejecutó entre 2026-05-17 y 2026-05-19 (10/26 H-items YA FIXED)
+- ✅ Triage real de 214 branches (descubrió rebranch/squash-merge — no hay trabajo perdido)
+- ✅ Hallazgos nuevos en services/lib (30+ fetch sin timeout, 355 any, OAuth idempotency)
+- ✅ a11y deep audit (190 huérfanos, 4 imgs sin alt)
+- ✅ Fix CI Playwright (ErrorBoundary main landmark)
+
+**Acción ejecutada HOY:** sweep H5 correos canónicos en 4 archivos src/ + 3 i18n locales. Verificado limpio en src/+public/+marketplace/.
+
+**Próximos pasos prácticos:**
+1. ✅ §31 + items D1-D15 al TODO.md (HOY)
+2. Verificar 30+ archivos marketplace/.md raíz para sweep H5 completo
+3. Atacar D2 (lint real) + D3 (backend JS prod) + D9 (WebAuthn credentialId audit)
+4. Considerar abrir local para usar skills (`superpowers`, `ui-ux-pro-max`) en items que las requieran

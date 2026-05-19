@@ -187,7 +187,7 @@ export function generateOpenApiSpec(opts: GenerateOpts = {}): OpenApiSpec {
       contact: {
         name: 'Praeventio Guard',
         url: 'https://praeventio.guard',
-        email: 'soporte@praeventio.guard',
+        email: 'contacto@praeventio.net',
       },
       license: { name: 'Proprietary — see EULA' },
     },
