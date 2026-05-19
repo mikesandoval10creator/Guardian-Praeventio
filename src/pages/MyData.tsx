@@ -22,6 +22,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { auth } from '../services/firebase';
+import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
 import {
   PROCESSING_ACTIVITIES,
   type ConsentRecord,
@@ -152,6 +153,14 @@ export function MyData() {
           momento.
         </p>
       </header>
+
+      {/*
+       * ADR 0012 — esta vista permite exportar/eliminar datos personales,
+       * incluida la cartera médica (Health Vault). El disclaimer es
+       * obligatorio en toda superficie que toque datos de salud, aunque
+       * sea de forma indirecta.
+       */}
+      <MedicalDisclaimer variant="card" className="mb-6" />
 
       {error && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-700 dark:bg-red-900/40 dark:text-red-200">
@@ -301,8 +310,8 @@ export function MyData() {
 
       <p className="mt-2 text-center text-xs text-zinc-500 dark:text-zinc-400">
         Encargado de protección de datos:{' '}
-        <a className="text-[#4db6ac]" href="mailto:dpo@praeventio.app">
-          dpo@praeventio.app
+        <a className="text-[#4db6ac]" href="mailto:contacto@praeventio.net">
+          contacto@praeventio.net
         </a>
       </p>
 
