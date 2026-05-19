@@ -269,6 +269,50 @@ import fiveSRouter from "./src/server/routes/fiveS.js";
 import hygieneRouter from "./src/server/routes/hygiene.js";
 // Mental Load (NASA-TLX) + per-worker Admin Burden — Sprint K §258-260.
 import mentalLoadRouter from "./src/server/routes/mentalLoad.js";
+// Coach IA RAG — Bucket HH #90 (search / list-chunks / domain-prompt).
+import coachRagRouter from "./src/server/routes/coachRag.js";
+// QR Acknowledgement Sessions — Sprint 43 F.5 (HMAC + Firestore replay defense).
+import qrAckRouter from "./src/server/routes/qrAck.js";
+// AI Guardrails — Sprint K §155-160 (prompts versioned + citation + hallucination guard).
+import aiGuardrailsRouter from "./src/server/routes/aiGuardrails.js";
+// RACI Matrix — Sprint 53 §50-58 (R/A/C/I assignment + cross-matrix overload analysis).
+import raciMatrixRouter from "./src/server/routes/raciMatrix.js";
+// Behavior-Based Safety — Sprint K (anonymous observation + profile).
+import bbsRouter from "./src/server/routes/bbs.js";
+// Critical Roles — Sprint K §271-275 (bus-factor + sustitutos + training plan).
+import criticalRolesRouter from "./src/server/routes/criticalRoles.js";
+// Non-Conformity engine — Sprint 49 §196-199 (NC↔action linkage + stage + patterns).
+import nonConformityRouter from "./src/server/routes/nonConformity.js";
+// Operational Change (MOC) — Sprint 39 F.J6 (declare / ack / revert / summary).
+import changeMgmtRouter from "./src/server/routes/changeMgmt.js";
+// Adoption Analytics — Sprint K §164-170 (module-adoption / funnel / churn / first-value).
+import adoptionRouter from "./src/server/routes/adoption.js";
+// Agenda + focus blocks + reminders + digests — Sprint K §201-207.
+import agendaRouter from "./src/server/routes/agenda.js";
+// Consistency Auditor — Sprint 39 Fase G.3 (12+ cross-module rules).
+import consistencyRouter from "./src/server/routes/consistency.js";
+// Prevention Cost Calculator — Sprint 39 J.3 (§117-118 non-compliance + ROI).
+import costCalculatorRouter from "./src/server/routes/costCalculator.js";
+// Universal expiration scanner — Sprint 39 B.9 (9 ExpirationKind buckets).
+import expirationsRouter from "./src/server/routes/expirations.js";
+// Fatigue Monitor — Sprint 39 I.4 (§65-67 DS 594 art. 102 + Ley 20.949).
+import fatigueRouter from "./src/server/routes/fatigue.js";
+// Escalation + SLA engine — Sprint 50 §206-210 (multi-level + breach detection).
+import escalationRouter from "./src/server/routes/escalation.js";
+// First Responder Map — Sprint 52 §219 (dispatch + coverage gaps).
+import firstResponderMapRouter from "./src/server/routes/firstResponderMap.js";
+// Contractors KPI + Acreditación — Sprint K §47-48, §90-91 (TRIR/LTIFR + ranking).
+import contractorsRouter from "./src/server/routes/contractors.js";
+// Evacuation headcount — Sprint 39 G.12 (QR-scan based + postmortem).
+import evacuationRouter from "./src/server/routes/evacuation.js";
+// Exception engine — Sprint 39 G.2 (controlled rule exceptions with validUntil).
+import exceptionsRouter from "./src/server/routes/exceptions.js";
+// Critical Controls — Sprint 39 I.2 (library + robustness + barriers + energy).
+import criticalControlsRouter from "./src/server/routes/criticalControls.js";
+// External Audit Portal — Sprint 39 H.1 (read-only token + scope + access logs).
+import auditPortalRouter from "./src/server/routes/auditPortal.js";
+// Driving telemetry — speedTrigger (haversine + mileage + brake detection).
+import drivingRouter from "./src/server/routes/driving.js";
 // Ergonomics REBA/RULA — canonical scoring per Hignett & McAtamney + McAtamney & Corlett.
 import ergonomicsRouter from "./src/server/routes/ergonomics.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
@@ -948,6 +992,28 @@ app.use('/api/sprint-k', commsRouter);
 app.use('/api/sprint-k', fiveSRouter);
 app.use('/api/sprint-k', hygieneRouter);
 app.use('/api/sprint-k', mentalLoadRouter);
+app.use('/api/sprint-k', coachRagRouter);
+app.use('/api/sprint-k', qrAckRouter);
+app.use('/api/sprint-k', aiGuardrailsRouter);
+app.use('/api/sprint-k', raciMatrixRouter);
+app.use('/api/sprint-k', bbsRouter);
+app.use('/api/sprint-k', criticalRolesRouter);
+app.use('/api/sprint-k', nonConformityRouter);
+app.use('/api/sprint-k', changeMgmtRouter);
+app.use('/api/sprint-k', adoptionRouter);
+app.use('/api/sprint-k', agendaRouter);
+app.use('/api/sprint-k', consistencyRouter);
+app.use('/api/sprint-k', costCalculatorRouter);
+app.use('/api/sprint-k', expirationsRouter);
+app.use('/api/sprint-k', fatigueRouter);
+app.use('/api/sprint-k', escalationRouter);
+app.use('/api/sprint-k', firstResponderMapRouter);
+app.use('/api/sprint-k', contractorsRouter);
+app.use('/api/sprint-k', evacuationRouter);
+app.use('/api/sprint-k', exceptionsRouter);
+app.use('/api/sprint-k', criticalControlsRouter);
+app.use('/api/sprint-k', auditPortalRouter);
+app.use('/api/sprint-k', drivingRouter);
 app.use('/api/sprint-k', ergonomicsRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
