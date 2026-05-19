@@ -323,6 +323,8 @@ import meetingPackRouter from "./src/server/routes/meetingPack.js";
 import routingRouter from "./src/server/routes/routing.js";
 // Protocols — IPER 5×5 + PREXOR auditory + TMERT MSD (Chilean MINSAL).
 import protocolsRouter from "./src/server/routes/protocols.js";
+// Portable worker history — Ley 19.628 + ADR 0012 compliant export.
+import workerHistoryRouter from "./src/server/routes/workerHistory.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -1027,6 +1029,7 @@ app.use('/api/sprint-k', climateAwareSchedulingRouter);
 app.use('/api/sprint-k', meetingPackRouter);
 app.use('/api/sprint-k', routingRouter);
 app.use('/api/sprint-k', protocolsRouter);
+app.use('/api/sprint-k', workerHistoryRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
