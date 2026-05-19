@@ -1083,6 +1083,26 @@ app.use('/models/slm', (_req, res, next) => {
   next();
 });
 
+// Billing / subscription / Webpay / DTE routers — B1 fix (2026-05-19): these
+// MUST be mounted BEFORE the SPA catch-all (`app.get('*')` further down)
+// because the catch-all matches every GET and would otherwise shadow
+// `/billing/webpay/return` and friends. Phase 2 split (Round 17 R2) extracted
+// them out of server.ts; mounting them up here keeps the route surface
+// reachable both in dev (Vite middleware comes after) and prod (SPA fallback
+// comes after).
+//
+// Two mounts because /billing/webpay/return MUST live at the root (Transbank
+// commerce config has the exact path) while the rest of the billing surface
+// stays under /api/billing/.
+app.use("/api/billing", billingApiRouter);
+// Round 22 — audit fix CRITICAL #1: subscription upgrade with payment verify
+app.use("/api/subscription", subscriptionRouter);
+app.use("/billing", billingWebpayRouter);
+// Sprint 23 Bucket GG — DTE / SII admin endpoints. Mount AFTER /api/billing
+// because the auto-issue path is invoked from billing handlers; mounting the
+// admin surface here keeps the route surface co-located with billing.
+app.use("/api/dte", dteRouter);
+
 // Vite middleware for development
 if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
@@ -1125,19 +1145,6 @@ if (process.env.NODE_ENV !== "production") {
     return res.send(html);
   });
 }
-
-// Billing routes — extracted to src/server/routes/billing.ts in Round 17 R2
-// Phase 2 split. Two mounts because /billing/webpay/return MUST live at the
-// root (Transbank commerce config has the exact path) while the rest of the
-// billing surface stays under /api/billing/.
-app.use("/api/billing", billingApiRouter);
-// Round 22 — audit fix CRITICAL #1: subscription upgrade with payment verify
-app.use("/api/subscription", subscriptionRouter);
-app.use("/billing", billingWebpayRouter);
-// Sprint 23 Bucket GG — DTE / SII admin endpoints. Mount AFTER /api/billing
-// because the auto-issue path is invoked from billing handlers; mounting the
-// admin surface here keeps the route surface co-located with billing.
-app.use("/api/dte", dteRouter);
 
 // Initialize RAG system asynchronously
 initializeRAG().catch(console.error);
