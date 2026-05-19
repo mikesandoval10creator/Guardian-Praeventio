@@ -1,0 +1,97 @@
+// Praeventio Guard — Portable worker history client hook (3 mutators).
+
+import { auth } from '../services/firebase';
+import type {
+  WorkerData,
+  PortableWorkerHistory,
+  RedactionLevel,
+  SerializedExport,
+} from '../services/workerHistory/portableHistoryExporter';
+
+async function authedFetch(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  return fetch(path, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init.headers ?? {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+}
+
+async function json<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  return (await res.json()) as T;
+}
+
+// ── 1. build-portable (uid forced server-side) ─────────────────────────
+
+export interface BuildPortableWireInput {
+  worker: WorkerData;
+  options: {
+    includeMedical?: boolean;
+    redactionLevel: RedactionLevel;
+    exportedAt: string;
+    requestedBy: {
+      role: 'self' | 'employer' | 'physician' | 'inspector';
+    };
+  };
+}
+export interface BuildPortableResponse { history: PortableWorkerHistory }
+
+export async function buildPortableWorkerHistory(
+  projectId: string,
+  input: BuildPortableWireInput,
+): Promise<BuildPortableResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/worker-history/build-portable`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+  return json<BuildPortableResponse>(res);
+}
+
+// ── 2. redact-pii ──────────────────────────────────────────────────────
+
+export interface RedactInput {
+  history: PortableWorkerHistory;
+  level: RedactionLevel;
+}
+export interface RedactResponse { history: PortableWorkerHistory }
+
+export async function redactWorkerHistoryPII(
+  projectId: string,
+  input: RedactInput,
+): Promise<RedactResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/worker-history/redact-pii`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+  return json<RedactResponse>(res);
+}
+
+// ── 3. serialize ───────────────────────────────────────────────────────
+
+export interface SerializeInput {
+  history: PortableWorkerHistory;
+  format: 'json' | 'markdown';
+}
+export interface SerializeResponse { export: SerializedExport }
+
+export async function serializeWorkerHistory(
+  projectId: string,
+  input: SerializeInput,
+): Promise<SerializeResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/worker-history/serialize`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+  return json<SerializeResponse>(res);
+}
