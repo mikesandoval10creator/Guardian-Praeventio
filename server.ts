@@ -293,6 +293,10 @@ import syncStatusRouter from "./src/server/routes/syncStatus.js";
 import refugesRouter from "./src/server/routes/refuges.js";
 // Predictive Alerts (windowed trigger + scheduler) — Sprint 15.
 import predictiveAlertsRouter from "./src/server/routes/predictiveAlerts.js";
+// Regulatory Framework — ISO 45001 + 14 jurisdicciones (ADR 0014).
+import regulatoryFrameworkRouter from "./src/server/routes/regulatoryFramework.js";
+// Medical Catalogs (diagnoses ICD-10 + drugs ATC + anatomy DS 594) — Sprint 21 R.
+import medicalCatalogsRouter from "./src/server/routes/medicalCatalogs.js";
 // Coach IA RAG — Bucket HH #90 (search / list-chunks / domain-prompt).
 import coachRagRouter from "./src/server/routes/coachRag.js";
 // QR Acknowledgement Sessions — Sprint 43 F.5 (HMAC + Firestore replay defense).
@@ -1050,6 +1054,8 @@ app.use('/api/sprint-k', pymeWizardRouter);
 app.use('/api/sprint-k', syncStatusRouter);
 app.use('/api/sprint-k', refugesRouter);
 app.use('/api/sprint-k', predictiveAlertsRouter);
+app.use('/api/sprint-k', regulatoryFrameworkRouter);
+app.use('/api/sprint-k', medicalCatalogsRouter);
 app.use('/api/sprint-k', coachRagRouter);
 app.use('/api/sprint-k', qrAckRouter);
 app.use('/api/sprint-k', aiGuardrailsRouter);
