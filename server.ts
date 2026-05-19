@@ -269,6 +269,18 @@ import fiveSRouter from "./src/server/routes/fiveS.js";
 import hygieneRouter from "./src/server/routes/hygiene.js";
 // Mental Load (NASA-TLX) + per-worker Admin Burden — Sprint K §258-260.
 import mentalLoadRouter from "./src/server/routes/mentalLoad.js";
+// Coach IA RAG — Bucket HH #90 (search / list-chunks / domain-prompt).
+import coachRagRouter from "./src/server/routes/coachRag.js";
+// QR Acknowledgement Sessions — Sprint 43 F.5 (HMAC + Firestore replay defense).
+import qrAckRouter from "./src/server/routes/qrAck.js";
+// AI Guardrails — Sprint K §155-160 (prompts versioned + citation + hallucination guard).
+import aiGuardrailsRouter from "./src/server/routes/aiGuardrails.js";
+// RACI Matrix — Sprint 53 §50-58 (R/A/C/I assignment + cross-matrix overload analysis).
+import raciMatrixRouter from "./src/server/routes/raciMatrix.js";
+// Behavior-Based Safety — Sprint K (anonymous observation + profile).
+import bbsRouter from "./src/server/routes/bbs.js";
+// Critical Roles — Sprint K §271-275 (bus-factor + sustitutos + training plan).
+import criticalRolesRouter from "./src/server/routes/criticalRoles.js";
 // Non-Conformity engine — Sprint 49 §196-199 (NC↔action linkage + stage + patterns).
 import nonConformityRouter from "./src/server/routes/nonConformity.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
@@ -948,6 +960,12 @@ app.use('/api/sprint-k', commsRouter);
 app.use('/api/sprint-k', fiveSRouter);
 app.use('/api/sprint-k', hygieneRouter);
 app.use('/api/sprint-k', mentalLoadRouter);
+app.use('/api/sprint-k', coachRagRouter);
+app.use('/api/sprint-k', qrAckRouter);
+app.use('/api/sprint-k', aiGuardrailsRouter);
+app.use('/api/sprint-k', raciMatrixRouter);
+app.use('/api/sprint-k', bbsRouter);
+app.use('/api/sprint-k', criticalRolesRouter);
 app.use('/api/sprint-k', nonConformityRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
