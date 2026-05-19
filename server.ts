@@ -333,6 +333,8 @@ import rootCauseRouter from "./src/server/routes/rootCause.js";
 import readReceiptsRouter from "./src/server/routes/readReceipts.js";
 // Soft-blocking requirement gate — directive #2 compliant (never blocks machinery).
 import softBlockingRouter from "./src/server/routes/softBlocking.js";
+// Role-based dashboard views — Sprint 39 J.4 (worker / site_chief / prevention / management).
+import roleViewsRouter from "./src/server/routes/roleViews.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -1042,6 +1044,7 @@ app.use('/api/sprint-k', pricingCalculatorRouter);
 app.use('/api/sprint-k', rootCauseRouter);
 app.use('/api/sprint-k', readReceiptsRouter);
 app.use('/api/sprint-k', softBlockingRouter);
+app.use('/api/sprint-k', roleViewsRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
