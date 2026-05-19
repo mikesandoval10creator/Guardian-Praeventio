@@ -319,6 +319,8 @@ import ergonomicsRouter from "./src/server/routes/ergonomics.js";
 import climateAwareSchedulingRouter from "./src/server/routes/climateAwareScheduling.js";
 // Meeting pack + briefing — Sprint 51 §188-190 (summary + supervisor pre-shift).
 import meetingPackRouter from "./src/server/routes/meetingPack.js";
+// Routing engines — A* path-finding + route climate assessment (NASA POWER + EONET).
+import routingRouter from "./src/server/routes/routing.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -1021,6 +1023,7 @@ app.use('/api/sprint-k', drivingRouter);
 app.use('/api/sprint-k', ergonomicsRouter);
 app.use('/api/sprint-k', climateAwareSchedulingRouter);
 app.use('/api/sprint-k', meetingPackRouter);
+app.use('/api/sprint-k', routingRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
