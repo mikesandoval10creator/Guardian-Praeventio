@@ -554,36 +554,14 @@ Esta sección cierra los 4 gaps identificados en §8 "Lo que NO sabemos con cert
 
 **Salvaguarda crítica:** antes de delete masivo, `git log --all --grep='revert\|delete'` para NO perder reversiones importantes.
 
-### 9.2 Archivos huérfanos en `src/`
+### 9.2 Archivos huérfanos en `src/` — DATOS PRELIMINARES (corregidos en §11)
 
-**Inventario de ~1612 archivos TS/TSX (sin tests, sin `.d.ts`):**
-
-| Categoría | Count | % |
-|---|---|---|
-| 🔴 HUÉRFANO REAL (0 importadores, no entry point) | ~481 | 30% |
-| 🟡 BAJA REFERENCIA (1 importador) | ~388 | 24% |
-| 🟢 ACTIVO (2+ importadores) | ~388 | 24% |
-| Entrypoints (pages, routers, lazy imports) | ~355 | 22% |
-
-**Hallazgo CRÍTICO:**
-> **77 de 155 páginas (50%) NO están referenciadas en `src/AppRoutes.tsx`** — son código muerto efectivo en src/pages/.
+> ⚠️ **CORRECCIÓN IMPORTANTE:** Los números iniciales de este sub-bloque eran erróneos por un regex mal escapado. Ver §11 para el conteo correcto:
+> - **Páginas huérfanas reales:** 1 (no 77) — `SloErrorBudget.tsx`
+> - **Componentes huérfanos reales:** 125 (no 481)
+> - **LOC eliminables seguros:** ~600-800 (no 12,979)
 >
-> Ejemplos: `Accessibility.tsx`, `Analytics.tsx`, `AnnualReview.tsx`, `Apprenticeship.tsx`, `B2dAdminPanel.tsx`, `CQRSArchitecture.tsx`, `ConfidentialReports.tsx`, `CuadrillasDashboard.tsx`, `Dashboard.tsx`, `DrivingSafety.tsx`, y 67 más.
-
-**LOC eliminables solo TOP 20 páginas huérfanas:** ~12,979 LOC
-
-**Componentes 🔴 críticos a considerar borrar (sin importador real):**
-| Archivo | Estado |
-|---|---|
-| `src/components/medicine/Ds67Modal.tsx` | 0 importadores |
-| `src/pages/ArcadeGames.tsx` | Solo importado por test |
-| `src/components/operationalState/FaenaStateBanner.tsx` | 1 importador (su test) |
-| `src/components/processes/ProcessDetailModal.tsx` | 1 importador (CuadrillasDashboard que es huérfana) |
-| `src/components/engineering/HazmatStorageDesigner.tsx` | 1 importador (AIHub) |
-
-**Patrón de borrado en cascada:** si página `X.tsx` es huérfana (no en AppRoutes) Y usa componente `Y.tsx` exclusivo de X → ambos borrables.
-
-**Acción recomendada:** sprint dedicado de "src cleanup" — borrar 481 huérfanos reales + auditar 388 baja referencia → potencial reducción 20-25% del codebase. Esfuerzo M 3 días.
+> Las páginas SÍ están routeadas en `src/App.tsx` + 7 archivos `src/routes/*.tsx` (NO existe `AppRoutes.tsx` central). Los 125 componentes huérfanos son mayoritariamente **trabajo realizado pendiente de WIRE en páginas existentes** — no código muerto.
 
 ### 9.3 17 promesas AMBIGUAS — RESOLUCIÓN
 
@@ -687,3 +665,164 @@ Esta sección cierra los 4 gaps identificados en §8 "Lo que NO sabemos con cert
 **Veredicto final actualizado:**
 
 > Ya SABEMOS lo que tenemos, lo que falta, y lo que está roto en docs. El producto sigue cumpliendo su misión core (Sección §8 vigente), pero el cierre de gaps reveló **7 drifts nuevos accionables**. La acción inmediata sugerida es priorizar 3 críticos: (1) decidir Bioicons curation vs aceptar placeholders, (2) decidir Stripe activo vs descartado, (3) decidir EPP edge vs cloud. Estos 3 desbloquean ~70% del drift de docs↔código y completan la coherencia del producto.
+
+---
+
+## 11. Huérfanos REALES + plan de WIRE (corrección §9.2)
+
+> **Contexto:** El análisis inicial reportó 77 páginas huérfanas + 481 componentes huérfanos. Verificación posterior con regex correcto reveló que el dato era falso (las páginas SÍ están en routers distribuidos en `src/routes/*.tsx`). Recálculo correcto:
+
+### 11.1 Universo verificado
+
+| Categoría | Total | Huérfanos REALES |
+|---|---|---|
+| Páginas en `src/pages/*.tsx` | 155 | **1** (`SloErrorBudget.tsx`) |
+| Componentes en `src/components/*.tsx` | 372 | **125** |
+
+**Metodología correcta:** Para cada archivo `X.tsx`, contar archivos en `src/` que mencionan `\bX\b` (palabra completa) excluyendo el archivo mismo y `.test.`. Huérfano = 0 importadores.
+
+**Routers reales del repo (NO existe `AppRoutes.tsx`):**
+- `src/App.tsx` — routes top-level (Login, Splash, Dashboard, etc.)
+- `src/routes/AIRoutes.tsx` — AI, KnowledgeIngestion, AcademicProcessor, RiskNetwork, Glossary, Pizarra, CalculatorHub, Zettelkasten
+- `src/routes/EmergencyRoutes.tsx`
+- `src/routes/HealthRoutes.tsx`
+- `src/routes/OperationsRoutes.tsx`
+- `src/routes/RiskRoutes.tsx`
+- `src/routes/ComplianceRoutes.tsx`
+- `src/routes/TrainingRoutes.tsx`
+
+### 11.2 Hipótesis confirmada
+
+Los 125 componentes huérfanos NO son código muerto — son **trabajo realizado en Sprints 39-53** (consistente con los 50 commits `feat(...)` últimos 30 días que crearon archivos en `src/components/{dominio}/`) que **falta INSTALAR en sus páginas correspondientes**.
+
+Ejemplos del patrón:
+- `Iso45001Catalog.tsx` ✅ código completo → falta mount en `Reglamentos.tsx`
+- `EvacuationStatusBoard.tsx` ✅ código completo → falta mount en `Evacuation.tsx`
+- `CphsCommitteeStatusCard.tsx` ✅ código completo → falta mount en `ComiteParitario.tsx`
+- `LotoStatusPanel.tsx` ✅ código completo → falta mount en `WorkPermits.tsx`
+- `RaciHealthCard.tsx` ✅ código completo → falta mount en `LeadershipDecisions.tsx`
+
+### 11.3 Clasificación de los 125 componentes huérfanos
+
+| Decisión | Count | % | Significado |
+|---|---|---|---|
+| 🟢 **WIRE-PAGE** | 109 | 87% | Instalar en página existente que ya tiene su dominio |
+| 🟢 **WIRE-NEW-PAGE** | 2 | 2% | Feature grande, validar si merece página propia |
+| 🟡 **KEEP** | 2 | 2% | Mantener como referencia (bajo riesgo) |
+| 🔴 **DELETE SEGURO** | 5 | 4% | Duplicados confirmados o POC con razón |
+| ❓ Pendiente verificación | 7 | 5% | Casos dudosos (mejor conservar) |
+
+### 11.4 🔴 DELETE seguros (5 archivos)
+
+Cada uno con razón verificada — antes de borrar, confirmar con un dry-run:
+
+| # | Archivo | Razón confirmada | Acción |
+|---|---|---|---|
+| 1 | `src/components/riskMatrix/RiskMatrix5x5Lazy.tsx` | Variante lazy redundante; `RiskMatrix5x5.tsx` existe y es importada | `rm` |
+| 2 | `src/components/safetyMetrics/SafetyTrendChartLazy.tsx` | Lazy duplicate de `SafetyTrendChart.tsx` existente | `rm` |
+| 3 | `src/components/twinScene/TwinSceneInstancedLazy.tsx` | Lazy duplicate de `TwinSceneInstanced.tsx` existente | `rm` |
+| 4 | `src/components/shared/GuardianMascot.tsx` | POC mascota, NO en master-plan/TODO.md, sin importadores | `rm` (confirmar primero) |
+| 5 | `src/pages/DevPosterSeeder.tsx` | Herramienta dev-only para sembrar afiches de prueba — explícito en comments | `rm` (mover a `scripts/` si se quiere mantener) |
+
+**Total LOC eliminables seguros:** ~600-800 LOC (5 archivos pequeños, no 12,979).
+
+### 11.5 🟡 KEEP (2 componentes baja confianza)
+
+| Archivo | Razón |
+|---|---|
+| `src/components/audit/AuditExpressButton.tsx` | Variante experimental de AuditButton existente, conservar |
+| `src/components/syncStatus/SyncQueueBadge.tsx` | Badge component opcional, bajo riesgo mantener |
+
+### 11.6 🟢 WIRE-PAGE — Top 10 prioritarios (alto valor inmediato)
+
+Estos componentes están **listos para producción**; solo necesitan ser instalados en su página correspondiente (1-3 líneas de código por componente):
+
+| # | Componente | Página destino | Razón priorización |
+|---|---|---|---|
+| 1 | `EvacuationStatusBoard.tsx` | `src/pages/Evacuation.tsx` | Emergency-critical, directa integración |
+| 2 | `CphsCommitteeStatusCard.tsx` | `src/pages/ComiteParitario.tsx` | Compliance Chile DS 54, accionable hoy |
+| 3 | `Iso45001Catalog.tsx` | `src/pages/Reglamentos.tsx` | ADR 0014 regulatory, alta demanda |
+| 4 | `SpiDashboard.tsx` | `src/pages/Analytics.tsx` | KPI core seguridad |
+| 5 | `CulturePulseDashboard.tsx` | `src/pages/CulturePulse.tsx` | Feature completa, página ya existe |
+| 6 | `ComplianceTrafficLight.tsx` | `src/pages/Reglamentos.tsx` | Indicador visual crítico |
+| 7 | `SafetyMetricsDashboard.tsx` | `src/pages/Analytics.tsx` | Métricas core |
+| 8 | `TwinPhysicsScene.tsx` | `src/pages/DigitalTwinFaena.tsx` | 3D/AR, diferenciador |
+| 9 | `WeatherSafetyRecommendations.tsx` | `src/pages/ClimateRoutes.tsx` | Contexto ambiental real |
+| 10 | `MaturityIndexCard.tsx` | `src/pages/MaturityIndicator.tsx` | Diagnóstico + roadmap |
+
+### 11.7 🟢 WIRE — Plan completo (lista de los 99 restantes)
+
+Agrupados por página destino para ejecutar sweep eficiente. Cada componente se monta con 1-3 líneas:
+
+**`src/pages/Audits.tsx`** (5): `ExternalAuditPortalCard`, `ConsistencyAuditCard`, `ExceptionsAuditPanel`, `FiveSAuditForm`, `ExpirationsListPanel`
+
+**`src/pages/Analytics.tsx`** (5): `MonthlyClientReportCard`, `MonthlyClientReportPanel`, `ReconciliationStatusToast`, `ChurnRiskPanel`, `ReportTemplatePreview`
+
+**`src/pages/Reglamentos.tsx`** (2): `SIFAlert`, `IndustryPresetCard`
+
+**`src/pages/Medicine.tsx`** (2): `Ds67Modal`, `OccupationalContextBundleCard`
+
+**`src/pages/Psychosocial.tsx`** (3): `AlertnessGuard`, `FatigueAssessmentCard`, `MentalLoadSurveyForm`
+
+**`src/pages/Training.tsx`** (2): `SafetyCapsules`, `LightningTrainingPlayer`
+
+**`src/pages/Onboarding.tsx`** (3): `PymeOnboardingPlanPanel`, `OnboardingTrackProgressPanel`, `PymeMaturityWizard`
+
+**`src/pages/HazmatStorage.tsx`** (3): `LineOfFireValidationCard`, `HazmatCompatibilityPanel`, `CargoCogPanel`
+
+**`src/pages/DigitalTwinFaena.tsx`** (2): `TwinIntegrationPanel`, `RePositionConfirmDialog`
+
+**`src/pages/IncidentReport.tsx`** (3): `PunitiveLanguageWarning`, `RootCauseTreeSummary`, `RootCauseClassifierCard`
+
+**`src/pages/Assets.tsx`** (2): `HorometerStatusCard`, `EquipmentStatusCard`
+
+**`src/pages/PricingCalculator.tsx`** (3): `PreventionROIWidget`, `ROICalculatorWidget`, `TierComparatorWidget`
+
+**`src/pages/DataConfidence.tsx`** (3): `DocConfidenceCard`, `DocumentHygienePanel`, `MeasurementQualityCard`
+
+**`src/pages/SafetyFeed.tsx`** (2): `CalmRecommendationCard`, `DailyTalkSuggestion`
+
+**`src/pages/Profile.tsx`** (2): `TaxIdInput`, `RoleViewCards`
+
+**`src/pages/ExecutiveDashboard.tsx`** (3): `SupervisorBriefingCard`, `OperationalPressureGauge`, `StoppageSummaryCard`
+
+**Páginas con 1 componente nuevo cada una** (~50): `Risks` (VulnerabilityHeatmap, WeakControlsWidget), `Projects` (OperationalChangeCard, SpofPanel, ProcessClosePreviewCard, ZoneEntryGate), `CorrectiveActions` (ActionBalanceCard), `KnowledgeBase` (KnowledgeBaseSearch), `Calendar` (AgendaDigestCard, LegalCalendarView), `Glossary` (GlossarySearchPanel), `WorkerPortableHistory` (PortableHistoryPreview), `LeadershipDecisions` (DeviationRadarPanel, RaciHealthCard), `ControlsAndMaterials` (WasteInventoryPanel, AirQualityPanel), `Findings` (NonConformityListPanel), `WorkPermits` (LotoStatusPanel), `MiningContractors` (ContractorRankingTable), `WorkerReadiness` (WorkerReadinessCard, ShiftQualityCard), `EmergencyBrigade` (EmergencyBrigadePanel), `ImportData` (ExcelImportPreview), `Documents` (DocumentReadConfirmCard, LegalDocGeneratorForm), `SiteMap` (NewEntryForm), `ConfidentialReports` (ConfidentialReportInbox), `Matrix` (IperMatrixCard), `FindingsHeatMap` (FindingsHeatmapPreview), `Emergency` (FirstResponderDispatchPanel), `ProjectClosure` (ProjectClosureCard), `Apprenticeship` (ApprenticeshipBoard), `LessonsLearned` (LessonSuggestionsCard), `ResidualRisk` (ResidualRiskCard), `CustodyChain` (CustodyChainTimelineCard), `PrivacyPolicy` (PrivacyRegimeCard), `PositiveObservations` (PositiveObservationsBoard, BbsProfileCard), `Driving` (VehiclePreOpChecklistCard), `Dashboard` (FaenaStateBanner, RoleAwareDashboard), `DrivingSafety` (DriverScoreCard), `DigitalTwinAR` (GaussianSplatViewer), `EngineeringControls` (EngineeringInventoryCard), `PredictiveGuard` (PredictiveAlertsList), `Workers` (CriticalRoleCoverageCard), `DrillsManager` (DrillResultReviewCard), `SupplierQuality` (SupplierComparator), `Visitors` (VisitorCheckInForm), `PreShiftRisk` (PreShiftRiskCard, HeatStressCard), `AnnualReview` (PreventiveObjectivesPanel, AnnualReviewSummary), `CalculatorHub` (BucklingCalculatorCard), `IncidentTrends` (TrendSeriesChart), `Inbox` (SlaWatchPanel), `PdcaModule` (PdcaSummaryCard), `PortableCurriculum` (SpacedRepetitionReviewQueue), `AIHub` (DomainPromptCatalog), `SafetyCoach` (AsesorChatRouter, ExplainedRecommendationCard), `SunTracker` (SunTrackerContainer), `SoftBlocks` (RequirementGatePanel), `MaturityIndicator` (MaturityIndexCard, ya en Top 10).
+
+### 11.8 🟢 1 página huérfana: SloErrorBudget
+
+| Archivo | Tamaño | Estado | Acción |
+|---|---|---|---|
+| `src/pages/SloErrorBudget.tsx` | 289 LOC | Sprint 24 differentiators Bucket MM.3, lee de `services/observability/slos.ts`, diseñada para `/admin/slo` | **WIRE** en `src/App.tsx` o `OperationsRoutes.tsx` como admin route con guard |
+
+Razón: dashboard de Error Budget SLO/SLI, infra de observability. Una sola línea de routing + lazy import.
+
+### 11.9 Plan ejecutable de WIRE
+
+**Esfuerzo total estimado:** 1 sweep de 1 semana-dev (no 12 semanas).
+
+- **Día 1**: 10 WIRE prioritarios (§11.6) — 1.5h, alta visibilidad
+- **Día 2-3**: 50 WIRE-PAGE single-component (§11.7) — 3h, 1 línea por componente
+- **Día 4**: 50 WIRE-PAGE multi-component (§11.7) — 4h, agrupados por página
+- **Día 5**: SloErrorBudget WIRE + 5 DELETE seguros + verificación tests + commit
+
+**Salvaguardas:**
+1. Antes de cada DELETE, correr `grep -rln "ComponentName" src/` para reconfirmar 0 importadores
+2. Después de cada WIRE, `npm test -- --grep "PageName"` para confirmar no regresiones
+3. Antes de borrar `DevPosterSeeder.tsx`, evaluar moverlo a `scripts/dev/` si se quiere mantener herramienta
+4. NO borrar los 7 "KEEP/dudosos" — mantener hasta auditoría individual
+
+**Beneficio esperado:**
+- ✅ 110 features adicionales visibles al usuario (87% del trabajo huérfano)
+- ✅ Cobertura UI mucho más densa (cada página gana 2-5 componentes nuevos)
+- ✅ ~600-800 LOC eliminadas (deletes seguros)
+- ✅ Cierre del 87% del trabajo "hecho pero no instalado"
+
+### 11.10 Lecciones aprendidas
+
+1. **Auditorías estructurales requieren verificación de metodología**: el regex `from\s+pages/` falló porque las páginas se cargan con `lazy(() => import('../pages/X'))`, no `from`. Generó 481 "huérfanos" falsos.
+
+2. **Conservadurismo gana**: la decisión del usuario de "corroborar que no sea trabajo realizado" evitó borrado masivo de ~470 archivos de trabajo activo.
+
+3. **Patrón Sprint 39-53**: 50 commits recientes crearon componentes en `src/components/{dominio}/` pero NO los instalaron en páginas. El gap es de WIRE, no de IMPLEMENTAR.
+
+4. **5 DELETE únicos son TODO el ruido real**: los Lazy duplicates (3) + Mascot POC (1) + DevPosterSeeder dev tool (1).
