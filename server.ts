@@ -295,6 +295,8 @@ import consistencyRouter from "./src/server/routes/consistency.js";
 import costCalculatorRouter from "./src/server/routes/costCalculator.js";
 // Universal expiration scanner — Sprint 39 B.9 (9 ExpirationKind buckets).
 import expirationsRouter from "./src/server/routes/expirations.js";
+// Fatigue Monitor — Sprint 39 I.4 (§65-67 DS 594 art. 102 + Ley 20.949).
+import fatigueRouter from "./src/server/routes/fatigue.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -985,6 +987,7 @@ app.use('/api/sprint-k', agendaRouter);
 app.use('/api/sprint-k', consistencyRouter);
 app.use('/api/sprint-k', costCalculatorRouter);
 app.use('/api/sprint-k', expirationsRouter);
+app.use('/api/sprint-k', fatigueRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
