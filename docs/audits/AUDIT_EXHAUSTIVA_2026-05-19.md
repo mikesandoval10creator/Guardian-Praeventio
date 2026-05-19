@@ -2363,3 +2363,65 @@ transformers.web-CZK_sB1e.js.br  862.81 KB / 175.82 KB brotli
 > - i18n 100% + traducciones humanas = +2pp → 95%
 >
 > **Esfuerzo total estimado para 95% real: ~6 semanas-dev** (sin contar items bloqueados §5).
+
+---
+
+## 23. AUDITORÍA WORKFLOWS GitHub Actions (14 workflows)
+
+> Auditoría completa de TODOS los `.yml` en `.github/workflows/` — verificación archivo por archivo (no muestra).
+
+### 23.1 Tabla maestra (14 workflows)
+
+| # | Workflow | Trigger | Jobs | continue-on-error | Status |
+|---|---|---|---|---|---|
+| 1 | `ci.yml` | push/PR main | typecheck, test, validate-env, rules-tests, ADR-0012, build | none | 🟢 ROBUSTO (gate principal) |
+| 2 | `e2e.yml` | PR main, dispatch | e2e (chromium+mobile-android) + e2e-full-stack (Express+Firestore emu) | false (Sprint 36 fix) | 🟡 e2e-full-stack históricamente flaky |
+| 3 | `mutation.yml` | PR main, dispatch, cron `17 3 * * *` | Stryker | gate real (Sprint 39 B.1 removió `|| true`) | 🟢 ROBUSTO |
+| 4 | `codeql.yml` | push/PR main, cron `27 23 * * 3` | analyze (actions + js-ts) | none | 🟡 java-kotlin + swift DESHABILITADOS |
+| 5 | `deploy.yml` | workflow_run post-CI | Docker, Cloud Run, smoke, scheduler | none | 🟢 depende WIF + 16 secrets |
+| 6 | `perf.yml` | push/PR main | size-limit + lighthouse | none | 🟡 lhci Chromium flaky |
+| 7 | `smoke.yml` | push/PR main | npm smoke | none | 🟢 ROBUSTO (5min) |
+| 8 | `firestore-backup.yml` | cron daily 07 UTC | gcloud firestore export | none | 🟢 si secrets están |
+| 9 | **`dr-dryrun.yml`** | dispatch + cron monthly | dr-dryrun | none | **🔴 ROTO: usa `npm run test:dr` inexistente** |
+| 10 | `loadtest.yml` | dispatch only | artillery 1k VUs | none | 🟢 opcional pre-launch |
+| 11 | `mobile-build-check.yml` | PR paths + dispatch | android-build-check | none | 🟢 stub parse-only |
+| 12 | `mobile-release.yml` | dispatch + tag `mobile-v*` | preflight + android + iOS + lint | gated `if: needs.preflight.outputs.*_ready == 'true'` | 🟢 skip pattern OK |
+| 13 | `check-mobile-signing.yml` | tag + dispatch + PR paths | check-placeholders | none | 🟢 ROBUSTO |
+| 14 | `prepackage-slm.yml` | PR paths + dispatch | validate-parser + prepackage | none | 🟢 ROBUSTO |
+
+### 23.2 🔴 Hallazgo crítico: dr-dryrun.yml ROTO
+
+**Evidencia:** `dr-dryrun.yml:87` invoca `npm run test:dr`. Verificado con `grep "test:dr" package.json` → **0 matches**. El script NO existe.
+
+**Impacto:** la próxima cron mensual (1er día 04:00 UTC) fallará silenciosamente porque las cron jobs NO notifican via PR comment.
+
+**Acción P1:**
+- **Opción A:** agregar `"test:dr": "vitest run src/__tests__/dr/**"` a `package.json`
+- **Opción B:** disable el cron schedule hasta que el spec exista (`schedule:` comentar líneas)
+
+### 23.3 Recomendaciones específicas
+
+| # | Recomendación | Archivo | Severidad |
+|---|---|---|---|
+| 1 | Fix `dr-dryrun.yml` (script faltante) | `.github/workflows/dr-dryrun.yml:87` | 🔴 P1 |
+| 2 | Agregar `timeout-minutes: 20-30` explícito a jobs de ci.yml | `.github/workflows/ci.yml` | 🟡 P2 |
+| 3 | `e2e-full-stack`: añadir `--retries=2` a Playwright | `.github/workflows/e2e.yml:123` | 🟡 P2 (mitiga flake) |
+| 4 | Mover `lhci` (perf.yml) a nightly cron en lugar de cada PR | `.github/workflows/perf.yml` | 🟡 P2 |
+| 5 | Agregar `.github/CODEOWNERS` + `PULL_REQUEST_TEMPLATE.md` | `.github/` | 🟡 P2 (governance gap) |
+| 6 | Reactivar CodeQL `java-kotlin` + `swift` post Sprint mobile | `.github/workflows/codeql.yml:46-52` | 🟡 P2 |
+| 7 | Notificación Slack/Sentry en `firestore-backup.yml` cron fallos | `.github/workflows/firestore-backup.yml:109-119` | 🟡 P2 |
+| 8 | `deploy.yml` smoke: verificar `version SHA` post-deploy | `.github/workflows/deploy.yml:114-132` | 🟢 P3 |
+| 9 | `mutation.yml` cron: gating sólo si main cambió | `.github/workflows/mutation.yml:19` | 🟢 P3 |
+| 10 | `prepackage-slm.yml` dispatch baja 2.7GB Phi-3 (justificado dispatch-only) | n/a | ✅ OK |
+
+### 23.4 Cruzar con TODO.md §4
+
+TODO.md §4 (2026-05-19) declara "CI infrastructure refutado — workflows sanos". **Mi audit confirma 13/14 son sanos, pero descubre 1 ROTO (dr-dryrun.yml).** Mi cross-check completa el panorama:
+
+- ✅ ci.yml, e2e.yml, mutation.yml sanos (confirmado vs TODO §4)
+- 🔴 dr-dryrun.yml ROTO (no listado en TODO.md)
+- 🟡 CODEOWNERS + PR template ausentes (no listado en TODO.md)
+- 🟡 ci.yml sin timeout explícito (no listado en TODO.md)
+- 🟡 CodeQL excluye mobile code (no listado en TODO.md)
+
+**4 items NUEVOS para agregar a TODO.md.**
