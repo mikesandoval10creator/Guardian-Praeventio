@@ -1146,3 +1146,130 @@ Podar **214 branches** en `origin/` (claude/* 10-17d + dev/sprint-* 10-53 + feat
 ---
 
 **Última actualización TODO.md:** 2026-05-19 — agregado §15 con 15 items D + 3 flujos ZK flagship + D-IND + D-KPI + D-COMP. Total acumulado: 110+ items. Plan exhaustivo 2026-05-17 incorporado completamente.
+
+---
+
+## 16. 📥 Propuestas re-incorporadas desde docs/archive/2026-05/
+
+> **Generado 2026-05-19** — cross-reference de los 13 docs movidos a `docs/archive/2026-05/` vs §1-§11. Solo items NO presentes en TODO.md, NO en §9 Descartado, NO filosóficos abstractos. Total ~50 items técnicos verificados con grep contra código real.
+>
+> **Política:** estos items son carry-over válido — directiva usuario 2026-05-19: "no puedes borrar propuestas que no estén consideradas en TODO.md". Cada item linkea al doc archive como evidencia histórica.
+
+### 12.1 MASTER_PROPOSAL_2026-05 — Sprints 10-19 no implementados
+
+| ID | Item | Evidencia | Prioridad |
+|---|---|---|---|
+| §12.1.1 | **`/api/ask-guardian` con Gemini function-calling REAL** (no prefix injection). 3 tools: `getWeatherTool`, `getSeismicTool`, `searchNormativaBCN`. Output JSON `{causa_raiz, riesgos[], plan_accion}`. Prompt caching. | `archive/MASTER_PROPOSAL_2026-05.md:262-285` + Grep 0 hits `function_call` en src/server. `gemini.ts:273-282` solo env-context prefix. | ALTA |
+| §12.1.2 | **Blender → glTF pipeline** Digital Twin / EPP / cuerpo DS 594. 3 assets: `human-body-7regions-ds594.glb`, `faena-mining-base.glb`, `epp-modular.glb`. Draco + KTX2. | `archive/MASTER_PROPOSAL_2026-05.md:337-341,484-494`. Hoy procedural fallback. | MEDIA |
+| §12.1.3 | **MaestrIA pipeline 4-agentes foto→hallazgo**: Detector(Gemini Vision)→Evaluador(DS 594)→Estimador→Redactor PDF firmable. UI "PIPELINE PROGRESS". Foto in → hallazgo formal <30s. | `archive/MASTER_PROPOSAL_2026-05.md:343-347` + `PLAN_PARTE4:112-121`. Grep 0 hits src/services/maestria/. | ALTA |
+| §12.1.4 | **ARIA 5 agentes Vertex AI Agent Builder**: Sentinel→KB Builder→Investigator→Q&A→Work Order Writer. MCP `gp-iper` bus. ManDown event → orden trabajo + Calendar <2min. | `archive/MASTER_PROPOSAL_2026-05.md:349-355`. Grep 0 hits src/services/aria/. | ALTA |
+| §12.1.5 | **MCP servers internos** `gp-zettelkasten`, `gp-bernoulli`, `gp-iper`, `gp-environment`. Bus tipado vs callbacks. | `archive/MASTER_PROPOSAL_2026-05.md:130-135`. Grep 0 hits. | MEDIA |
+| §12.1.6 | **5 smart actions Proto-1 ausentes** en `useZettelkastenIntelligence`: `create-worker-epp-connection`, `suggest-normatives-for-project`, `link-industry-to-project`, `suggest-epp-for-worker`, `auto-link-training-to-worker`. | `archive/MASTER_PROPOSAL_2026-05.md:77-83`. Hook existe pero patterns canónicos no. | MEDIA |
+| §12.1.7 | **`AcademicContentProcessor` pipeline real** (695 LOC Proto-1). Hoy `AcademicProcessor.tsx` liviano. | `archive/MASTER_PROPOSAL_2026-05.md:76`. | BAJA |
+| §12.1.8 | **Recovery `docs/legacy/analisis_funcional.md` + `auditoria01.md` + `PLAN_MAESTRO_skeleton.md`** via shallow clone `firebase-version`. | `archive/MASTER_PROPOSAL_2026-05.md:391-396` + `PLAN_PARTE3:177-187`. | BAJA |
+| §12.1.9 | **`CLAUDE.md` raíz** generado con skill `init`. Onboarding <30min. | `archive/MASTER_PROPOSAL_2026-05.md:395`. Grep NO existe. | BAJA |
+| §12.1.10 | **API-First B2B con OpenAPI spec + Postman MCP**. Bloquea ERP/HRM tier Enterprise (SAP/Buk/Workday). | `archive/MASTER_PROPOSAL_2026-05.md:399-405`. NO existe `docs/api/openapi.yaml`. | ALTA |
+| §12.1.11 | **Canva brand kit HSE** (12 plantillas operativas). | `archive/MASTER_PROPOSAL_2026-05.md:399-406`. Grep 0 hits. | BAJA |
+
+### 12.2 IMPLEMENTATION_ROADMAP — puentes arquitectónicos críticos
+
+| ID | Item | Evidencia | Prioridad |
+|---|---|---|---|
+| §12.2.1 | **Event bus central Zustand (`sensorBus`)**. 54 hooks sensor son islas — sin correlación multi-sensor no se reducen falsos positivos. Regla: caída+inactividad+BLE desconectado=critical. | `archive/IMPLEMENTATION_ROADMAP.md:645-737` + `TDA:333-335`. Grep 0 hits. | **CRÍTICA** |
+| §12.2.2 | **`conflict_queue` safety docs**. Para `inspection`/`incident_report`/`emergency_alert`/`medical_record`/`training_completion` NUNCA "last_write_wins" — resolución humana obligatoria. | `archive/IMPLEMENTATION_ROADMAP.md:1083-1102`. Grep NO encuentra `conflict_queue`. | **CRÍTICA** |
+| §12.2.3 | **`safeNormativeQuery()`**. SLM responde "no tengo información verificada" si RAG <0.75 score, NUNCA alucina texto normativo. | `archive/IMPLEMENTATION_ROADMAP.md:1110-1140`. Grep 0 hits. | **CRÍTICA** |
+| §12.2.4 | **Sync predictiva por topología ZK**. `buildPrefetchPlan(workerUid)` lee Calendar 4h → resuelve nodos por tipo tarea. 50MB cap. | `archive/IMPLEMENTATION_ROADMAP.md:578-639`. `topologyAwarePrefetch.ts` foundation parcial. | ALTA |
+| §12.2.5 | **Outbox 3-capas alertas emergencia**: FCM → SMS (descartado) → Llamada voz a 60s. Decisión: ¿voice fallback o single-channel? | `archive/IMPLEMENTATION_ROADMAP.md:379-430`. | ALTA |
+| §12.2.6 | **Test de campo 10 escenarios pre-piloto**: bolsillo 6h, sin señal 2h, caída-colchón <3s, batería 15%, cambio turno, 50 trabajadores k6, IAP falso, token revocado, supervisor sin señal, SHA256 mismatch. | `archive/IMPLEMENTATION_ROADMAP.md:1362-1376`. | ALTA |
+| §12.2.7 | **Pilot fase 1-4 protocolizado** (semana 1-2 doc-only → 14-18 turno noche 24/7). 2-3 empresas voluntarias. | `archive/IMPLEMENTATION_ROADMAP.md:1377-1388`. | MEDIA |
+| §12.2.8 | **Battery-aware polling**. BLE/HR/GPS reducen polling <20% batería. Total <12%/h turno 12h. | `archive/IMPLEMENTATION_ROADMAP.md:1054-1080`. Grep 0 hits `BATTERY_MODE_CHANGED`. | ALTA |
+| §12.2.9 | **Session expiration 8h**. 3 checks en `verifyAuth`: `tokenIssuedAt<revokedAfter`, `tokenAge>8h` re-auth, `decoded.role!==userRecord.role` → ROLE_CHANGED. | `archive/IMPLEMENTATION_ROADMAP.md:1176-1200`. Parcial en §7. | ALTA |
+| §12.2.10 | **MediaPipe local bundle** (`public/models/mediapipe/pose_landmarker_lite.task`). Hoy CDN — viola Ley 19.628 faenas privadas. | `archive/IMPLEMENTATION_ROADMAP.md:1008-1017` + `TDA:175-183`. | ALTA |
+| §12.2.11 | **AIPostureAnalysisModal LIVE**. MediaPipe local + OffscreenCanvas + Worker 5fps + reba/rula streaming. Bucket OO.4. | `archive/IMPLEMENTATION_ROADMAP.md:968-1004`. Grep 0 hits `mediapipePoseWorker.ts`. | MEDIA |
+
+### 12.3 TECHNICAL_DEBT_AUDIT — debt no resuelto
+
+| ID | Item | Evidencia | Prioridad |
+|---|---|---|---|
+| §12.3.1 | **SLM Worker errores tipados** (4 puntos `slmWorker.ts:18,185,267,464`). | `archive/TECHNICAL_DEBT_AUDIT.md:158-168`. | MEDIA |
+| §12.3.2 | **`@ts-ignore` 4 puntos prod**: `GuardianVoiceAssistant.tsx:14`, `billing.ts:125`, `billingService.ts:45`, `adService.ts:78`. | `archive/TECHNICAL_DEBT_AUDIT.md:74-87`. | BAJA |
+| §12.3.3 | **WebXR `immersive-ar` real** (no placeholder simulado). Hit-test + dom-overlay. ARCore/RealityKit. | `archive/TECHNICAL_DEBT_AUDIT.md:230-242` + `IMPLEMENTATION_ROADMAP:925-962`. | MEDIA |
+
+### 12.4 PLAN_PARTE3_PROTOTIPO2 — blueprint + decisiones
+
+| ID | Item | Evidencia | Prioridad |
+|---|---|---|---|
+| §12.4.1 | **Workshop scoping nodos 321-512** (Inteligencia Colectiva / Ecosistema Enterprise / Expansión Regional / AI Avanzada). 192 nodos hoja sin spec. ¿Workshop o abandono "512 nodos"? | `archive/PLAN_PARTE3:155-173`. | DECISIÓN USUARIO |
+| §12.4.2 | **Custom claim `assignedSiteIds[]`** RBAC scoping O(1) vs Firestore lookup. 6h. | `archive/PLAN_PARTE3:127-145`. | MEDIA |
+| §12.4.3 | **`audit_log` mutaciones normativa**. Cada cambio `regulatory/jurisdictions/` emite audit entry. | `archive/PLAN_PARTE3:119`. | MEDIA |
+
+### 12.5 AUDIT.md (2026-04-27)
+
+| §12.5.1 | **`geminiBackend.ts` god-file split** (~2664 líneas → 12 modules: vision, embeddings, RAG, ergonomics, classify). | `archive/AUDIT.md:120-123` + `INFORME_ESTADO:239`. | MEDIA |
+
+### 12.6 PLAN_PARTE2_PROTOTIPO1 — UI rich perdidas
+
+| §12.6.1 | **`GeminiChat` persona técnica legal** (cuando pregunta 100% normativa). 3h. | `archive/PLAN_PARTE2:85-87`. | BAJA |
+| §12.6.2 | **ManDown UI completa**: timer re-escalación + mapa eventos + badge supervisor ACK. ~6h. | `archive/PLAN_PARTE2:73-75`. | MEDIA |
+| §12.6.3 | **Geofence visual rico**: polygon-on-map color riesgo + tooltips. ~4h. | `archive/PLAN_PARTE2:77-79`. | MEDIA |
+| §12.6.4 | **`AfichesSeguridad` descarga PDF** (14 templates industria + QR). | `archive/PLAN_PARTE2:130`. | BAJA |
+| §12.6.5 | **`HumanBodyViewer` rutinas auto-generadas** desde `ergonomicAssessments`. | `archive/PLAN_PARTE2:134`. | BAJA |
+
+### 12.7 ROADMAP.md — Fase 10x
+
+| §12.7.1 | **Wake Word "Hey Guardián"** (Capacitor native + background mic). | `archive/ROADMAP.md:75`. | DECISIÓN USUARIO |
+| §12.7.2 | **Acciones contextuales nodos del grafo** (botones inline generar PTS / ver normativa / asignar capacitación). | `archive/ROADMAP.md:76`. | BAJA |
+| §12.7.3 | **Reconocimiento social Muro Dinámico** ("Enterado y Aplicando" / "Kudos de Seguridad"). | `archive/ROADMAP.md:77`. | BAJA |
+| §12.7.4 | **Telemetría IoT ↔ Probabilidad Falla** (aristas rojas RiskNetwork). | `archive/ROADMAP.md:86`. | BAJA |
+| §12.7.5 | **Dashboard Cumplimiento SUSESO** (cálculo interno Tasas Acc/Sin). Reemplaza scraping descartado. | `archive/ROADMAP.md:87`. | MEDIA |
+| §12.7.6 | **Alerting threshold-cross** (ej. 25 trabajadores → notificación CPHS DS 54). | `archive/ROADMAP.md:88`. | BAJA |
+
+### 12.8 STATE_OF_FUNCTIONALITY — gaps específicos
+
+| §12.8.1 | **9 generadores Bernoulli sin UI dedicada**: `confinedSpaceHVAC`, `dikeHydrostaticMonitor`, `gasDispersionCloud`, `gasLeakDetection`, `microWindEnergy`, `mistingDustSuppression`, `pulmonaryAltitude`, `slamPhotogrammetryNode`, `respiratorFatigue`. CalculatorHub.tsx agrupa pero algunos quieren panel propio. | `archive/STATE_OF_FUNCTIONALITY:130`. | MEDIA |
+| §12.8.2 | **Pinecone API key real** vs fallback in-memory. | `archive/STATE_OF_FUNCTIONALITY:323`. NO en §5. | DECISIÓN USUARIO |
+| §12.8.3 | **Khipu adapter wire**. Código+tests existen, no wireado en `Pricing.tsx`. | `STATE_OF_FUNCTIONALITY:rojo pero código existe`. | DECISIÓN USUARIO |
+| §12.8.4 | **`autoTrigger.ts` test unitario** (DeviceMotion sismic). Crítico: dispara modo emergencia. | `archive/STATE_OF_FUNCTIONALITY:201`. | ALTA |
+| §12.8.5 | **TacticalOnboardingModal persist progreso**. Skip-if-completed flag. | `archive/STATE_OF_FUNCTIONALITY:119`. | BAJA |
+| §12.8.6 | **MorningRoutine slot persistencia respuestas**. UI lista, falta `addDoc(routine_checkins)` + +5 XP. ~2h. | `archive/STATE_OF_FUNCTIONALITY:192,308`. | MEDIA |
+
+### 12.9 INFORME_AVANCE_NOTEBOOK_LLM
+
+| §12.9.1 | **X.509 device cert flow IoT MQTT**. Auth sensores producción industrial. | `archive/INFORME_NOTEBOOK:92`. | ALTA |
+| §12.9.2 | **RLHF bucket feedback → fine-tuning** SLM/Gemini. `aiFeedback` captura pero no cierra loop. | `archive/INFORME_NOTEBOOK:99`. | BAJA |
+| §12.9.3 | **Streaming SSE Gemini** (token-by-token rendering Asesor). | `archive/INFORME_NOTEBOOK:99`. | MEDIA |
+
+### 12.10 INFORME_ESTADO_2026-04-29
+
+| §12.10.1 | **Marketplace Google Workspace add-on** (Titanio+ tier). OAuth Consent + Marketplace review. | `archive/INFORME_ESTADO:250`. | DECISIÓN USUARIO |
+| §12.10.2 | **SOC 2 Type I path** (Vanta/Drata + Access Control / Change Mgmt / IR / BCP / Vendor). 6 meses external review. Enterprise+. | `archive/INFORME_ESTADO:251`. | ESTRATÉGICA |
+| §12.10.3 | **PGP key publicada** `/.well-known/pgp-key.asc`. Vuln-disclosure + auditor trust. | `archive/INFORME_ESTADO:300`. | MEDIA |
+| §12.10.4 | **`status.praeventio.net`** status page. | `archive/INFORME_ESTADO:301`. | BAJA |
+| §12.10.5 | **Refactor Pages >700 LOC** (Training 868, Gamification 794, Matrix 766, SiteMap 746). | `archive/INFORME_ESTADO:260` + `AUDIT:127`. | BAJA |
+| §12.10.6 | **Lighthouse CI status posts en PRs** (`LHCI_GITHUB_APP_TOKEN`). | `archive/INFORME_ESTADO:302`. | BAJA |
+
+### 12.11 Resumen ejecutivo §12
+
+**Prioridades CRÍTICAS (3) — implementar próximo sprint:**
+- §12.2.1 Event bus central `sensorBus` (correlación multi-sensor)
+- §12.2.2 `conflict_queue` safety docs (resolución humana)
+- §12.2.3 `safeNormativeQuery()` (SLM no alucina normativa)
+
+**Prioridades ALTAS (12):**
+- §12.1.1, §12.1.3, §12.1.4, §12.1.10 (Sprints 10/12/13 + OpenAPI)
+- §12.2.4-§12.2.6, §12.2.8-§12.2.10 (Roadmap critical paths)
+- §12.8.4, §12.9.1 (autoTrigger test + X.509 IoT)
+
+**Decisiones del usuario pendientes (6):**
+- §12.4.1 ¿workshop 321-512 nodos o abandono "512 nodos"?
+- §12.7.1 Wake Word — privacidad
+- §12.8.2 Pinecone — pagar o aceptar degradado?
+- §12.8.3 Khipu — wire o dormant?
+- §12.10.1 Marketplace Google Workspace add-on
+- §12.10.2 SOC 2 Type I path (estratégico)
+
+**MEDIAS y BAJAS (~25):** refinamientos UX, recovery legacy, features Fase 10x posteriores. Ver tablas §12.1-§12.10.
+
+---
+
+**Próxima revisión profunda:** post-merge de #267 + #268 + cleanup §2 (estimada 2026-05-22).
