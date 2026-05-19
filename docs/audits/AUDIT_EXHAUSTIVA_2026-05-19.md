@@ -702,36 +702,56 @@ Ejemplos del patrón:
 - `LotoStatusPanel.tsx` ✅ código completo → falta mount en `WorkPermits.tsx`
 - `RaciHealthCard.tsx` ✅ código completo → falta mount en `LeadershipDecisions.tsx`
 
-### 11.3 Clasificación de los 125 componentes huérfanos
+### 11.3 Clasificación de los 125 componentes huérfanos (corregida tras revisión profunda)
 
 | Decisión | Count | % | Significado |
 |---|---|---|---|
 | 🟢 **WIRE-PAGE** | 109 | 87% | Instalar en página existente que ya tiene su dominio |
+| 🟢 **WIRE-REPLACE** | 4 | 3% | Reemplazar sistema legacy / imports directos por versión evolucionada |
 | 🟢 **WIRE-NEW-PAGE** | 2 | 2% | Feature grande, validar si merece página propia |
-| 🟡 **KEEP** | 2 | 2% | Mantener como referencia (bajo riesgo) |
-| 🔴 **DELETE SEGURO** | 5 | 4% | Duplicados confirmados o POC con razón |
-| ❓ Pendiente verificación | 7 | 5% | Casos dudosos (mejor conservar) |
+| 🟡 **KEEP (admin tool)** | 1 | 1% | Tool admin gated (DevPosterSeeder) |
+| 🟡 **KEEP (caución)** | 2 | 2% | Mantener como referencia (bajo riesgo) |
+| ❓ Pendiente verificación | 7 | 5% | Casos dudosos (NO borrar) |
+| 🔴 **DELETE SEGURO** | **0** | 0% | **Tras revisión profunda: NINGUNO confirmado** |
 
-### 11.4 🔴 DELETE seguros (5 archivos)
+### 11.4 RECTIFICACIÓN — 0 DELETE seguros (revisión exhaustiva de los 5 candidatos iniciales)
 
-Cada uno con razón verificada — antes de borrar, confirmar con un dry-run:
+> ⚠️ **Lección crítica del proceso:** Los 5 candidatos a DELETE inicial **TODOS resultaron ser trabajo activo** tras inspección detallada. El usuario insistió correctamente en verificación profunda. Ningún componente debe borrarse del codebase actual.
 
-| # | Archivo | Razón confirmada | Acción |
-|---|---|---|---|
-| 1 | `src/components/riskMatrix/RiskMatrix5x5Lazy.tsx` | Variante lazy redundante; `RiskMatrix5x5.tsx` existe y es importada | `rm` |
-| 2 | `src/components/safetyMetrics/SafetyTrendChartLazy.tsx` | Lazy duplicate de `SafetyTrendChart.tsx` existente | `rm` |
-| 3 | `src/components/twinScene/TwinSceneInstancedLazy.tsx` | Lazy duplicate de `TwinSceneInstanced.tsx` existente | `rm` |
-| 4 | `src/components/shared/GuardianMascot.tsx` | POC mascota, NO en master-plan/TODO.md, sin importadores | `rm` (confirmar primero) |
-| 5 | `src/pages/DevPosterSeeder.tsx` | Herramienta dev-only para sembrar afiches de prueba — explícito en comments | `rm` (mover a `scripts/` si se quiere mantener) |
+| # | Archivo | Razón inicial (errónea) | Realidad verificada | Decisión final |
+|---|---|---|---|---|
+| 1 | `src/components/shared/GuardianMascot.tsx` | "POC sin uso" | Sistema mood-aware completo: 5 moods (`default/celebrating/alert/thinking/emergency`), 5 sizes, integración `AppModeContext` (auto-emergency, hide en driving), 5 PNG assets en `/public/mascots/` (931KB total), `manifest.json` con reglas explícitas (no recolor, exclude driving, emergency-only mood). Evolución del sistema legacy genérico (`/mascot.png` usado en 8 sitios). | 🟢 **WIRE-REPLACE** prioritario |
+| 2 | `src/components/riskMatrix/RiskMatrix5x5Lazy.tsx` | "Duplicate de RiskMatrix5x5" | **Sprint 47 D.7** code-splitting wrapper. Recharts ~80KB gzipped diferidos hasta apertura del panel. Test `data-testid="risk-matrix-lazy.loading"`. NO es duplicado, es la versión PRODUCCIÓN performance-optimized. | 🟢 **WIRE-REPLACE** imports directos por Lazy |
+| 3 | `src/components/safetyMetrics/SafetyTrendChartLazy.tsx` | "Duplicate" | **Sprint 47 D.7** code-splitting wrapper. Test `data-testid="safety-trend-lazy.loading"`. Versión producción. | 🟢 **WIRE-REPLACE** |
+| 4 | `src/components/twinScene/TwinSceneInstancedLazy.tsx` | "Duplicate" | **Sprint 47 D.7** code-splitting wrapper. ~150KB gzipped (r3f + rapier + drei) diferidos. Test `data-testid="twin-scene-lazy.loading"`. Versión producción. | 🟢 **WIRE-REPLACE** |
+| 5 | `src/pages/DevPosterSeeder.tsx` | "Dev tool no-producción" | **Sprint G AR Real Vision follow-up** (2026-05-16). 474 LOC. Tool admin bit-perfect MediaPipe para generar `posterEmbeddings.generated.ts` que el `ARPosterScanner` runtime consume. Gated a rol admin en prod (`/dev/poster-seeder`). Sin esto, el AR Scanner no matchea nada. | 🟡 **KEEP (WIRE como admin route gated)** |
 
-**Total LOC eliminables seguros:** ~600-800 LOC (5 archivos pequeños, no 12,979).
+**Plan específico para los 5 ex-DELETE:**
 
-### 11.5 🟡 KEEP (2 componentes baja confianza)
+```typescript
+// 1. GuardianMascot — reemplazar legacy en 8 sitios:
+// ANTES: <picture><source srcSet="/mascot.webp"/><img src="/mascot.png"/></picture>
+// AHORA: <GuardianMascot mood="default" size="md" />
+// Sitios: ConsciousnessLoader, EmptyState (prop boolean → mood), Login (thinking),
+//         Analytics (celebrating en KPIs verdes), DigitalTwinFaena (alert),
+//         Workers (default), Pizarra (thinking), Training (celebrating)
+
+// 2-4. *Lazy — reemplazar imports directos donde el bundle lo justifique:
+// Buscar consumidores de RiskMatrix5x5/SafetyTrendChart/TwinSceneInstanced
+// y reemplazar import por su versión Lazy para code-splitting
+
+// 5. DevPosterSeeder — wirear admin route:
+// Agregar en App.tsx o un AdminRoutes.tsx:
+//   <Route path="/dev/poster-seeder" element={<RoleGuard role="admin"><DevPosterSeeder/></RoleGuard>}/>
+```
+
+### 11.5 🟡 KEEP (3 componentes — caución conservadora)
 
 | Archivo | Razón |
 |---|---|
 | `src/components/audit/AuditExpressButton.tsx` | Variante experimental de AuditButton existente, conservar |
 | `src/components/syncStatus/SyncQueueBadge.tsx` | Badge component opcional, bajo riesgo mantener |
+| `src/pages/DevPosterSeeder.tsx` | Admin tool Sprint G AR vision (ver §11.4 punto 5) |
 
 ### 11.6 🟢 WIRE-PAGE — Top 10 prioritarios (alto valor inmediato)
 
@@ -817,12 +837,83 @@ Razón: dashboard de Error Budget SLO/SLI, infra de observability. Una sola lín
 - ✅ ~600-800 LOC eliminadas (deletes seguros)
 - ✅ Cierre del 87% del trabajo "hecho pero no instalado"
 
-### 11.10 Lecciones aprendidas
+### 11.10 Lecciones aprendidas (revisión exhaustiva)
 
 1. **Auditorías estructurales requieren verificación de metodología**: el regex `from\s+pages/` falló porque las páginas se cargan con `lazy(() => import('../pages/X'))`, no `from`. Generó 481 "huérfanos" falsos.
 
-2. **Conservadurismo gana**: la decisión del usuario de "corroborar que no sea trabajo realizado" evitó borrado masivo de ~470 archivos de trabajo activo.
+2. **Conservadurismo GANA — confirmado dos veces**: la insistencia del usuario en verificación profunda reveló que TODOS los 5 candidatos a DELETE eran trabajo activo:
+   - GuardianMascot: sistema de mascota mood-aware (manifest + 5 PNG + AppModeContext)
+   - 3× *Lazy: Sprint 47 D.7 code-splitting performance
+   - DevPosterSeeder: Sprint G AR vision tool admin
 
 3. **Patrón Sprint 39-53**: 50 commits recientes crearon componentes en `src/components/{dominio}/` pero NO los instalaron en páginas. El gap es de WIRE, no de IMPLEMENTAR.
 
-4. **5 DELETE únicos son TODO el ruido real**: los Lazy duplicates (3) + Mascot POC (1) + DevPosterSeeder dev tool (1).
+4. **DELETE FINAL = 0 archivos** (no 5, no 470, no 481). La acción correcta para 100% de los huérfanos es WIRE o KEEP. **El proyecto tiene cero código muerto verificado.**
+
+5. **Auditar por inspección semántica, no por grep estructural**: cada archivo "huérfano" tiene comentarios al header explicando su propósito (Sprint, ADR, ROL). El metadato AUTHORITATIVE está en los archivos mismos. Ignorarlo = perder semántica.
+
+---
+
+## 12. Test hygiene — auditoría de skips/onlys/todos
+
+> **Trigger:** preocupación del usuario sobre "test skip que estén afectando la aplicación".
+
+### 12.1 Universo de tests
+
+| Métrica | Valor |
+|---|---|
+| Archivos test (`*.test.*` + `*.spec.*`) en `src/` | **965** |
+| Tests deshabilitados (`it.skip` / `test.skip` / `describe.skip`) | **0** ✅ |
+| Tests focused (`it.only` / `test.only` / `describe.only`) | **0** ✅ |
+| Tests jasmine focus (`fit` / `fdescribe`) | **0** ✅ |
+| Tests skip jasmine (`xit` / `xdescribe`) | **0** ✅ |
+| `it.todo` / `test.todo` (placeholder documentado) | **1** ✅ |
+
+### 12.2 El único `it.todo` (legítimo)
+
+`src/components/ar/ARPosterScanner.test.tsx:153`:
+
+```typescript
+it.todo('renderiza error del matcher con CTA Reintentar (Codex #4) — E2E with mocked dynamic import flaky');
+```
+
+**Análisis:**
+- Es un `it.todo` (placeholder), no `it.skip` (test que ejecutaba y fue deshabilitado)
+- Documenta razón explícita: E2E flaky por dynamic import mock
+- Referencia hallazgo Codex #4 (trazable)
+- Vitest reporta `.todo` como pendiente — **NO bloquea CI, NO afecta runtime**
+
+**Recomendación:** mantener. Es buena higiene tener placeholders documentados antes de implementar fixes E2E flaky.
+
+### 12.3 Falsos positivos eliminados
+
+El primer grep amplio reportó 6 archivos con `.skip` y 5 con `.only`. **Todos eran falsos positivos**:
+
+| Archivo | Match aparente | Realidad |
+|---|---|---|
+| `topologyAwarePrefetch.test.ts` | 6× `.skip` | `r.stats.skippedAlreadyFresh`, `skipReason` — property assertions |
+| `expirationScanner.test.ts` | 4× `.skip` | `r.skipped.toBe(0)` — property assertions |
+| `materializer.test.ts` | 3× `.skip` | `r.skipped.toHaveLength(2)` — property assertions |
+| `returnToWork.test.ts` | `.only`/`fit` | `r.fit === 'fit'` — return value assertions (medical fitness) |
+| `healthFacade.test.ts` | `.only` | Palabras "only" en strings descriptivos |
+| `pricingSimulator.test.ts` | `.only` | "Pro debería ser recomendado (cuesta menos o fit perfecto)" — comments |
+
+### 12.4 Veredicto
+
+> **Higiene de tests: EXCELENTE.** 965 archivos test, 0 deshabilitados, 0 focused, 1 placeholder documentado. **No hay tests skipped afectando la aplicación.** No hay tests `.only` que bloqueen ejecución del resto.
+
+### 12.5 Recomendación de proceso
+
+Agregar regla ESLint para prevenir futuras regresiones:
+
+```json
+{
+  "plugins": ["vitest"],
+  "rules": {
+    "vitest/no-disabled-tests": "error",
+    "vitest/no-focused-tests": "error"
+  }
+}
+```
+
+Esto fallaría CI si alguien commit-ea `test.skip` o `test.only` sin justificación documentada como `it.todo`.
