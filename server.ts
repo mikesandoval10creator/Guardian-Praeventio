@@ -317,6 +317,8 @@ import drivingRouter from "./src/server/routes/driving.js";
 import ergonomicsRouter from "./src/server/routes/ergonomics.js";
 // Climate-Aware Scheduling — Sprint K §94 (proceed/controls/reschedule/suspend).
 import climateAwareSchedulingRouter from "./src/server/routes/climateAwareScheduling.js";
+// Meeting pack + briefing — Sprint 51 §188-190 (summary + supervisor pre-shift).
+import meetingPackRouter from "./src/server/routes/meetingPack.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -1018,6 +1020,7 @@ app.use('/api/sprint-k', auditPortalRouter);
 app.use('/api/sprint-k', drivingRouter);
 app.use('/api/sprint-k', ergonomicsRouter);
 app.use('/api/sprint-k', climateAwareSchedulingRouter);
+app.use('/api/sprint-k', meetingPackRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
