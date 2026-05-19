@@ -196,7 +196,6 @@ const PricingCalculator = lazy(() => import('./pages/PricingCalculator').then(mo
 const OcSugerida = lazy(() => import('./pages/OcSugerida').then(module => ({ default: module.OcSugerida })));
 const Transparencia = lazy(() => import('./pages/Transparencia').then(module => ({ default: module.Transparencia })));
 const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: module.default })));
-const SafeDrivingMode = lazy(() => import('./pages/SafeDrivingMode').then(module => ({ default: module.SafeDrivingMode })));
 const Driving = lazy(() => import('./pages/Driving').then(module => ({ default: module.Driving })));
 const ExecutiveDashboard = lazy(() => import('./pages/ExecutiveDashboard').then(module => ({ default: module.ExecutiveDashboard })));
 const InviteAccept = lazy(() => import('./pages/InviteAccept').then(module => ({ default: module.InviteAccept })));
@@ -267,7 +266,6 @@ function AppRoutes() {
               {HealthRoutes}
               {ComplianceRoutes}
               {AIRoutes}
-              <Route path="safe-driving" element={<SafeDrivingMode />} />
               <Route path="driving" element={<Driving />} />
               <Route path="settings" element={<Settings />} />
               <Route path="settings/system-health" element={<SystemHealth />} />
@@ -412,8 +410,7 @@ function AppRoutes() {
                     {AIRoutes}
 
                     {/* Other Routes */}
-                    <Route path="safe-driving" element={<SafeDrivingMode />} />
-              <Route path="driving" element={<Driving />} />
+                    <Route path="driving" element={<Driving />} />
                     <Route path="webxr" element={<WebXR />} />
                     <Route path="history" element={<History />} />
                     <Route path="pricing" element={<Pricing />} />

@@ -1,3 +1,12 @@
+// Praeventio Guard — Consolidated SafeDriving page.
+//
+// Unifies two previously-separate features that conflicted on the same
+// `/safe-driving` route:
+//   1. Pre-trip planning + post-trip incident reporting (this page, tabs).
+//   2. Active driving mode (voice-first, hands-free, SOS) — now rendered
+//      as an overlay via `<ActiveDrivingOverlay>` when the user taps
+//      "Iniciar Modo Conducción". Replaces the former SafeDrivingMode page.
+
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
@@ -5,19 +14,21 @@ import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { getMapLoaderConfig } from '../components/maps/mapConfig';
 import {
   Map as MapIcon,
-  Navigation, 
-  AlertTriangle, 
-  Clock, 
-  Truck, 
+  Navigation,
+  AlertTriangle,
+  Clock,
+  Truck,
   ShieldAlert,
   PhoneCall,
   CheckCircle2,
   Camera,
-  Loader2
+  Loader2,
+  Car,
 } from 'lucide-react';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
 import { NodeType } from '../types';
+import { ActiveDrivingOverlay } from '../components/driving/ActiveDrivingOverlay';
 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -46,6 +57,11 @@ export function SafeDriving() {
   const [reported, setReported] = useState(false);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [showChecklistDetail, setShowChecklistDetail] = useState(false);
+  const [showActiveMode, setShowActiveMode] = useState(false);
+
+  if (showActiveMode) {
+    return <ActiveDrivingOverlay onExit={() => setShowActiveMode(false)} />;
+  }
 
   const preDriverChecklist = [
     'Luces delanteras y traseras funcionando',
@@ -145,22 +161,32 @@ export function SafeDriving() {
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('safeDriving.subtitle', 'Gestión de Rutas y Logística')}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl">
+            <button
+              onClick={() => setActiveTab('route')}
+              className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                activeTab === 'route' ? 'bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+              }`}
+            >
+              {t('safeDriving.tabs.route', 'Ruta Activa')}
+            </button>
+            <button
+              onClick={() => setActiveTab('report')}
+              className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                activeTab === 'report' ? 'bg-red-500 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+              }`}
+            >
+              {t('safeDriving.tabs.report', 'Reportar Incidente')}
+            </button>
+          </div>
           <button
-            onClick={() => setActiveTab('route')}
-            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-              activeTab === 'route' ? 'bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
-            }`}
+            onClick={() => setShowActiveMode(true)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-colors"
+            aria-label={t('safeDriving.activeMode.start', 'Iniciar Modo Conducción')}
           >
-            {t('safeDriving.tabs.route', 'Ruta Activa')}
-          </button>
-          <button
-            onClick={() => setActiveTab('report')}
-            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-              activeTab === 'report' ? 'bg-red-500 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
-            }`}
-          >
-            {t('safeDriving.tabs.report', 'Reportar Incidente')}
+            <Car className="w-4 h-4" />
+            {t('safeDriving.activeMode.start', 'Iniciar Modo Conducción')}
           </button>
         </div>
       </div>

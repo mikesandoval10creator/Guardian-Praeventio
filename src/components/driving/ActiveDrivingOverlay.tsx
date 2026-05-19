@@ -1,15 +1,28 @@
-import React, { useState, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Car, Phone, MapPin, Mic, ShieldAlert, MicOff, CheckCircle2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { db } from '../services/firebase';
-import { collection, addDoc } from 'firebase/firestore';
-import { useProject } from '../contexts/ProjectContext';
-import { useFirebase } from '../contexts/FirebaseContext';
-import { useEmergency } from '../contexts/EmergencyContext';
-import { WeatherBulletin } from '../components/WeatherBulletin';
+// Praeventio Guard — Active Driving Overlay (consolidated from former SafeDrivingMode page).
+//
+// Fullscreen overlay for active-driving mode: voice dictation + SOS + base call.
+// Hands-free UX with massive touch targets and high-contrast colors.
+//
+// Reusable from any "during-driving" entry point (currently SafeDriving page
+// activates it via "Iniciar Modo Conducción" button; the legacy /safe-driving
+// route conflict that previously mapped to a standalone page is resolved).
 
-export function SafeDrivingMode() {
+import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { Car, Phone, MapPin, Mic, ShieldAlert, MicOff, CheckCircle2 } from 'lucide-react';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+import { useProject } from '../../contexts/ProjectContext';
+import { useFirebase } from '../../contexts/FirebaseContext';
+import { useEmergency } from '../../contexts/EmergencyContext';
+import { WeatherBulletin } from '../WeatherBulletin';
+
+export interface ActiveDrivingOverlayProps {
+  onExit: () => void;
+}
+
+export function ActiveDrivingOverlay({ onExit }: ActiveDrivingOverlayProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { selectedProject } = useProject();
@@ -20,6 +33,7 @@ export function SafeDrivingMode() {
   const [isListening, setIsListening] = useState(false);
   const [dictatedText, setDictatedText] = useState('');
   const [reportSaved, setReportSaved] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const dictatedTextRef = useRef('');
 
@@ -60,7 +74,9 @@ export function SafeDrivingMode() {
     recognition.lang = 'es-CL';
     recognition.continuous = true;
     recognition.interimResults = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onresult = (e: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join(' ');
       dictatedTextRef.current = transcript;
       setDictatedText(transcript);
@@ -90,14 +106,18 @@ export function SafeDrivingMode() {
         <div className="flex items-center gap-4">
           <Car className="w-10 h-10 text-emerald-500" />
           <div>
-            <h1 className="text-2xl font-black text-white uppercase tracking-widest">{t('safeDrivingMode.title', 'Safe Driving')}</h1>
-            <p className="text-emerald-500 font-bold uppercase tracking-widest text-xs">{t('safeDrivingMode.activeMode', 'Modo Activo')}</p>
+            <h1 className="text-2xl font-black text-white uppercase tracking-widest">
+              {t('safeDrivingMode.title', 'Safe Driving')}
+            </h1>
+            <p className="text-emerald-500 font-bold uppercase tracking-widest text-xs">
+              {t('safeDrivingMode.activeMode', 'Modo Activo')}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <WeatherBulletin compact className="w-48" />
           <button
-            onClick={() => navigate(-1)}
+            onClick={onExit}
             className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-white font-black uppercase tracking-widest text-sm transition-colors"
           >
             {t('safeDrivingMode.exit', 'Salir')}
