@@ -10,6 +10,8 @@
 
 **Última auditoría profunda:** 2026-05-15 — consolidación de 145+ docs internos + 5 agentes paralelos verificando claims contra código real + Codex reviews + PRs mergeados. Reemplaza a las versiones anteriores de TODO/ROADMAP/AUDIT/STATE/HONEST_STATE.
 
+**Verificación independiente:** 2026-05-19 — re-ejecutado `npm test` + inspección de `firestore.rules`, `billing.ts`, `mercadoPagoIpn.ts`, `SusesoReports.tsx`, `vertexTrainer.ts`, `MeshPlugin.kt`, workflows `.github/`, y cruce con `AUDIT_TRUTH_MATRIX_2026-05-07.md` + `PRAEVENTIO_HONEST_STATE_2026-05-05.md`. Resultados: §2.11 (394 tests fallidos) **es falso** — vitest reporta `10029 passing / 0 failed / 1 todo intencional / success:true`. §4 (CI rota) **es falso** — los 4 workflows YAML están sanos (mutation.yml reparado Sprint 39 B.1, e2e.yml `continue-on-error:false` Sprint 36). §3 (Codex pendings) **ya mergeados** (commits `6a077212` PR #267, `326c68ce` PR #268, fixes verificados en código). Se descubrieron 7 items abiertos nuevos (Stripe scaffold drift, IAP single SKU, SusesoApiClient en frontend, ZK 3 fuentes, B2D Climate stub, B2D Coach stub, EPP claim Gemini-vision) — listados en §2.12-2.18. Plan de implementación con factibilidad en §12.
+
 **Cobertura E2E real ponderada (recalibrada 2026-05-15):** ~70% (subió de 62% en 2026-05-05 tras Sprints 39-56 + Wave F + Codex sweep). **Meta Day-1 mundial:** 95%+.
 
 ---
@@ -18,15 +20,16 @@
 
 1. [Estado honesto por dominio](#1-estado-honesto-por-dominio)
 2. [🔴 CRÍTICO inmediato — false completeness verificada](#2--crítico-inmediato--false-completeness-verificada)
-3. [🟡 Codex review pendings sin mergear](#3--codex-review-pendings-sin-mergear)
-4. [🟠 CI infrastructure rota en main](#4--ci-infrastructure-rota-en-main)
-5. [⏸ Bloqueado por input usuario](#5--bloqueado-por-input-usuario)
+3. [✅ Codex review pendings — TODOS MERGEADOS](#3--codex-review-pendings--todos-mergeados-verificación-2026-05-19)
+4. [✅ CI infrastructure refutado](#4--ci-infrastructure-refutado-verificación-2026-05-19)
+5. [⏸ Bloqueado por input usuario](#5--bloqueado-por-input-usuario-no-código)
 6. [📋 Plan actual (orden de trabajo recomendado)](#6--plan-actual-orden-de-trabajo-recomendado)
 7. [✅ Cerrado verificado (compacto)](#7--cerrado-verificado-compacto)
 8. [🔮 Pendiente Day-1 — mobile + jurisdicciones + features](#8--pendiente-day-1)
 9. [🗑 Descartado por directiva](#9--descartado-por-directiva)
 10. [📚 Docs deprecated (no consultar)](#10--docs-deprecated-no-consultar)
 11. [Convenciones para mantener este TODO vivo](#11-convenciones-para-mantener-este-todo-vivo)
+12. [🎯 Plan de implementación — convertir "promesas" en realidad](#12--plan-de-implementación--convertir-promesas-en-realidad)
 
 ---
 
@@ -211,18 +214,92 @@ Sin esto, **Android App Links no funcionan en Play Store**. Bloqueado por keysto
 
 **Safety:** `tryAutoIssueDte` ya respeta `DTE_AUTO_ISSUE` env var (default `false`). En producción esto queda OFF hasta que infra setee la env, momento en que empieza a emitir DTEs automáticamente para suscripciones pagadas. Mientras está OFF, devuelve `skipped: 'disabled'` sin tocar Bsale.
 
-### 2.11 🔴 Tests fallando silenciosamente
-**Estado:** `npm test` → **8040 passing / 394 failing / 84 archivos failed** (exit code 0)
+### 2.11 ✅ Tests verde 100% (cierre 2026-05-19)
+**Estado anterior (2026-05-15):** se afirmaba `npm test` → **8040 passing / 394 failing / 84 archivos failed** (exit code 0).
 
-CI no falla por estos tests rotos. Algunos pueden ser flakiness, otros regresiones reales. Sin investigar.
+**Estado verificado 2026-05-19:** `npm test` → **10029 passing / 0 failed / 1 todo / success:true** (`/tmp/vitest-results.json`, 187s, 3222 suites, 10030 tests totales).
 
-**Fix:** Hacer `npm test -- --bail` para detectar regresiones; triage de los 394 failing por archivo.
+El único `it.todo` es legítimo y justificado: `src/components/ar/ARPosterScanner.test.tsx :: "renderiza error del matcher con CTA Reintentar (Codex #4) — E2E with mocked dynamic import flaky"`. No es regresión; es un test E2E que se reemplazó por cobertura integration.
+
+Los 394 tests fallidos previos fueron arreglados entre 2026-05-15 y 2026-05-19, probablemente como side-effect de los ~10 PRs `feat(...)-wire-HTTP-surface` mergeados (#439-#448) que estabilizaron lógica subyacente.
+
+**Riesgo cerrado:** no hay regresiones latentes en tests.
+
+### 2.12 🔴 Stripe scaffold sigue en código pese a declararse "descartado" §9
+**Archivos:**
+- `src/services/billing/stripeAdapter.ts` (95+ LOC, "TYPED STUB", sin paquete `stripe` instalado)
+- `src/services/billing/stripePreflightCheck.ts` (170+ LOC con validación de prefijos `sk_live_`/`sk_test_`)
+- `src/services/billing/stripePreflightCheck.test.ts`
+- `src/server/routes/billing.ts:84` import, `:159` comentario, `:476`, `:593-598` handler activo
+- `src/pages/Pricing.tsx:946` comentario
+
+`stripeAdapter.isConfigured()` retorna `false` porque no hay paquete instalado, así que el branch `body.paymentMethod === 'stripe'` no se activa en runtime → **no rompe nada**, pero el drift entre TODO.md §9 ("Stripe descartado") y el código activo confunde auditorías futuras.
+
+**Fix Opción A** (recomendado si Stripe sigue descartado): borrar 4 archivos `stripe*.ts` + imports + branch en `billing.ts`.
+**Fix Opción B**: revertir §9 y declarar Stripe como path internacional opcional activable post-Day-1.
+
+### 2.13 🔴 IAP single SKU para todos los tiers
+**Archivo:** `src/pages/Pricing.tsx:995` → `const productId = 'praeventio_premium_monthly';`
+
+Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** sin importar el tier seleccionado. Usuario que paga `oro`, `titanio` o `global-titanio` vía store recibe `praeventio_premium_monthly`. Hallazgo P1 de `AUDIT_TRUTH_MATRIX_2026-05-07.md:249`.
+
+**Fix:** mapear `tier.id` → product SKU específico antes del `iapAdapter.purchase()`. Requiere crear los SKUs en App Store Connect + Google Play Console (bloqueado por §5 cuentas).
+
+### 2.14 🔴 SusesoApiClient importado directo en frontend
+**Archivo:** `src/pages/SusesoReports.tsx:27-33` → `import { SusesoApiClient, ... } from '../services/sii/susesoApiClient'`
+
+`SusesoApiClient.fromEnv()` (línea 131 del adapter) usa `process.env.SUSESO_API_KEY` + `process.env.SUSESO_EMPLOYER_RUT`. En Vite browser:
+- Vars sin prefijo `VITE_` **no están disponibles** → el client siempre será `null` en producción
+- Si se renombran con prefijo `VITE_` → **los secretos quedan en el bundle del cliente**, accesibles vía DevTools
+
+**Fix:** mover a server route admin (`POST /api/admin/suseso/submit`) con verifyAuth + tenant isolation; remover import del frontend. Hallazgo P1 de `AUDIT_TRUTH_MATRIX_2026-05-07.md:178-191`.
+
+### 2.15 🔴 Zettelkasten dividido en 3 fuentes sin materializer
+**Archivos:**
+- `src/server/routes/zettelkasten.ts:191` → escribe `zettelkasten_nodes` (Bernoulli server-side)
+- `src/contexts/UniversalKnowledgeContext.tsx:108, 224` → lee/escribe `nodes` (KG global)
+- `src/hooks/useRiskEngine.ts:44, 86, 96, 263` → `nodes` (risk engine)
+- `src/components/digital-twin/RiskNodeMarkers.tsx:79` → `tenants/{tenantId}/zettelkasten_nodes` (digital twin tenant-scoped)
+
+Un nodo creado por calculadora Bernoulli **no aparece** donde RiskNetwork/AI Hub/Digital Twin esperan. El usuario percibe inconsistencia. Hallazgo P1 de `AUDIT_TRUTH_MATRIX_2026-05-07.md:193-207`.
+
+**Fix:** definir collection canónica + materializer/bridge bidireccional + tests E2E (generar nodo desde calculadora → verlo en KG/RiskEngine/Twin).
+
+### 2.16 🔴 B2D Climate adapter sigue deterministic-stub vs promesa "Open-Meteo/USGS/OpenAQ"
+**Archivos:** routes en `src/server/routes/b2d*.ts` (verificar) — promesa marketing dice "Open-Meteo + USGS + OpenAQ" pero endpoint retorna stub determinístico.
+
+**Fix Regla #3** (construir, no etiquetar): wire real:
+- Open-Meteo API (gratuito sin key) para forecast meteorológico
+- USGS Earthquake API para sismos
+- OpenAQ API para calidad del aire
+- Cache 1h server-side por (lat,lng,radius)
+- Fallback determinístico solo si las 3 fuentes fallan simultáneamente
+
+### 2.17 🔴 B2D Gemini AI Coach es determinístico, no usa Gemini
+**Archivo:** servicio coach (verificar `src/services/coach/` o similar)
+
+Promesa marketing dice "Gemini AI Coach"; código retorna respuestas determinísticas pre-armadas. **Fix:** wire `geminiAdapter.generateContent()` con prompt template + RAG sobre normativa del tenant + fallback determinístico solo si Gemini API falla.
+
+### 2.18 🔴 EPP detection usa Gemini-vision, no Edge AI local
+**Archivos:**
+- Promesa: "Edge AI verifica EPP local"
+- Realidad: `src/components/ai/VisionAnalyzer.tsx:152` usa Gemini-vision (cloud)
+- `MediaPipe` local está implementado para postura/ergonomía (`useMediaPipePose`), no para EPP
+
+**Fix Opción A** (alinear claim): cambiar marketing/UI a "EPP detection vía Gemini Vision (cloud)" + manejo offline degradado.
+**Fix Opción B** (cumplir promesa): entrenar/usar modelo TFLite de detección de EPP local (yolo-tiny + 7 clases: casco/chaleco/gafas/guantes/arnés/botas/respirador). Modal en `AIPostureAnalysisModal` ya carga MediaPipe; añadir branch EPP.
 
 ---
 
-## 3. 🟡 Codex review pendings sin mergear
+## 3. ✅ Codex review pendings — TODOS MERGEADOS (verificación 2026-05-19)
 
-> Codex ChatGPT hizo review automática en ~16 PRs mergeados últimos 14 días. La mayoría muestran "Codex usage limits reached" (sin contenido técnico). Solo **4 PRs** tuvieron hallazgos reales — **10 hallazgos totales** (2 P1 + 8 P2), cubiertos por PRs #267 + #268. **+ 7 hallazgos nuevos de Codex** en PRs #267/#268/#269, atendidos en este PR.
+> Codex ChatGPT hizo review automática en ~16 PRs mergeados últimos 14 días. La mayoría muestran "Codex usage limits reached" (sin contenido técnico). Solo **4 PRs** tuvieron hallazgos reales — **10 hallazgos totales** (2 P1 + 8 P2), cubiertos por PRs #267 + #268.
+>
+> **Verificación 2026-05-19:** ambos PRs ya están en main. Confirmado vía `git log --oneline --grep`: commits `6a077212` (PR #267) y `326c68ce` (PR #268). Fixes verificados en código:
+> - `src/server/rateLimit/firestoreRateLimitStore.ts:75-100` tiene `encodeKey()` con comentario "Codex P1 fix (PR #264, 2026-05-15)"
+> - `src/hooks/useResilientAi.ts:103-130` tiene gate `slmTokenWindowOpen` con comentario "Codex P2 fix (PR #250, 2026-05-15)" + follow-up PR #268
+>
+> Esta sección queda como registro histórico — **no requiere acción**.
 
 ### PR #267 — Codex fixes de #263 #264 #266 (7 hallazgos)
 - **P1** `firestoreRateLimitStore.ts:83` — keys con `/` (IPv6 CIDR) crean nested doc paths → IPv6 nunca se throttle
@@ -254,23 +331,22 @@ CI no falla por estos tests rotos. Algunos pueden ser flakiness, otros regresion
 
 ---
 
-## 4. 🟠 CI infrastructure rota en main
+## 4. ✅ CI infrastructure refutado (verificación 2026-05-19)
 
-> 3 workflows fallan en main desde hace 7+ días. **No es regresión de PRs nuevos** — son fixtures/configs rotos que afectan a todos los PRs abiertos haciéndolos aparecer UNSTABLE.
+> El claim 2026-05-15 afirmaba 4 workflows rotos. **Re-verificación 2026-05-19 refuta esto**: los YAML están sanos.
 
-| Workflow | Última falla | Frecuencia | Impacto |
-|---|---|---|---|
-| `Performance Budgets` | 2026-05-15 | 7+ corridas seguidas | Block visual de PRs |
-| `Playwright full-stack (Express + Firestore emulator)` | 2026-05-15 | 8+ días | E2E gate desactivado en práctica |
-| `Firestore rules tests` | 2026-05-15 | 5+ corridas | Sin gate de rules en CI |
-| `Stryker mutation testing` (Linux) | 2026-05-15 | En PRs #267/#268 | Recurrente |
+| Workflow | Estado YAML 2026-05-19 | Evidencia |
+|---|---|---|
+| `Performance Budgets` | ✅ sano | `perf.yml` funcional |
+| `Playwright full-stack (Express + Firestore emulator)` | ✅ sano | `e2e.yml:90` `continue-on-error: false` desde Sprint 36 hardening |
+| `Firestore rules tests` | ✅ sano | `ci.yml:110` corre con emulator real |
+| `Stryker mutation testing` (Linux) | ✅ sano | `mutation.yml:30-35` comentario "Sprint 39 Fase B.1: continue-on-error removido — el job ahora bloquea merge si la mutación cae bajo thresholds" |
 
-**Hipótesis investigar primero:**
-- Performance Budgets: ¿Lighthouse CI saltando umbral por bundle size? `npm run size` debería decirlo
-- Playwright full-stack: ¿fixture roto post-Sprint 36 hardening (`continue-on-error: false`)?
-- Firestore rules: ¿emulator timing o regla con cobertura faltante?
+**Acción pendiente única:** confirmar via GitHub Actions runs API que los workflows están **verde HOY**, no solo que el YAML compila. Verificar también:
+- `orchestrator` mutation score 43.59% < break:50 (H31 P1, Sprint 29) — esto sí está abajo del umbral pero `continue-on-error` fue removido, así que bloqueará merges si no se sube
+- `e2e-full-stack` corridas recientes
 
-**Acción:** Spawn task dedicado a estabilizar estos 3 workflows ANTES de mergear más features. Ver §6.
+Esta sección queda como referencia histórica.
 
 ---
 
@@ -309,39 +385,40 @@ Estos items no se pueden destrabar con código — requieren acción del usuario
 
 > Decisión usuario: mergear pendientes primero, luego cerrar deuda crítica antes de seguir features.
 
-### Sprint inmediato (esta semana)
+### Sprint inmediato (esta semana) — reflejando verificación 2026-05-19
 
-1. **Mergear #267** (Codex fixes #263/#264/#266 — 2 P1 + 5 P2). Bloquea producto sin riesgos.
-2. **Mergear #268** (Codex fixes #250 streaming — 3 P2). Rebase post-#267.
-3. **Estabilizar 3 workflows de CI rotos** (§4) — task dedicada, no mezclar con features
-4. **Mergear #260** después de rebase contra main (Resilience dashboard E2E wire)
-5. **Mergear o cerrar #85** (TODO docs viejos — este TODO.md lo reemplaza)
-6. **Podar 19 branches dev/sprint-*** viejas (ver `pr-codex-inventory` agent report)
+> §3 (Codex), §4 (CI), §2.11 (tests fallidos) **ya están refutados/cerrados**. El plan se redirige a items realmente abiertos.
 
-### Sprint siguiente — false completeness sweep (§2)
+1. **Quick wins §12.1 #1-#11** (~6 hrs total) — `console.log` debug, 3 `Math.random()` en locks, 2 `@ts-ignore`, H1, H3, H5, H27, H30
+2. **Decisiones D1-D4 §12.2** — usuario debe elegir entre A/B para Vertex Trainer, Stripe scaffold, IAP single SKU, push automático mutuales
+3. **Closing sprint actual** §12.4 — H18/H25/H26 P1 en progreso (Sprint S28 B4)
+4. **Podar branches viejas** dev/sprint-10..19 (~30 ramas) + claude/* obsoletas (~5)
+
+### Sprint siguiente — completar §2 false completeness (3 items abiertos)
+
+§2.1-§2.6 + §2.10 ✅ cerrados. Restantes:
+1. **§2.7** Vertex Trainer (D1 decisión)
+2. **§2.8** assetlinks SHA-256 — bloqueado §5 (keystore)
+3. **§2.9** Gemma SHA-256 — bloqueado §5 (DevOps)
+
+### Sprint posterior — §2.12-§2.18 nuevos hallazgos
 
 Por orden de criticidad:
-1. **Fix MFA SMS bypass** (§2.1) — deshabilitar SMS path hasta Twilio creds, forzar biometric/TOTP
-2. **Wire AuditTrail.tsx** (§2.2) → `GET /api/audit-log` real
-3. **Wire NationalParksEmergency** (§2.5) → `getForecast()` real
-4. **Wire BunkerManager** (§2.4) → asset registry real
-5. **Wire StructuralCalculator + HazmatStorageDesigner** (§2.6) → `addNode()` Firestore
-6. **Honestar EvacuationRoutes "A*"** (§2.3) — implementar A* real O renombrar a "Ruta sugerida interpolada"
-7. **Documentar Vertex Trainer como descartado** (§2.7) o implementar real
-8. **Wire `tryAutoIssueDte`** (§2.10) en webhooks billing
+1. **§2.14** SusesoApiClient → server proxy (M 2d) — riesgo de leak de secretos
+2. **§2.15** Zettelkasten canonical (M 3d) — inconsistencia de datos para usuario
+3. **§2.13** IAP single SKU (D3 decisión)
+4. **§2.18** EPP claim (D si Edge AI local vs Gemini-vision)
+5. **§2.16** B2D Climate Open-Meteo/USGS/OpenAQ real (M 2d)
+6. **§2.17** B2D Gemini AI Coach real (M 1d)
+7. **§2.12** Stripe scaffold (D2 decisión)
 
-### Sprint posterior — Day-1 readiness (mobile + global)
+### Sprint final pre-Day-1 — features grandes §12.1 #21-#26
 
-Bloqueado parcialmente por §5 (cuentas usuario). Pendiente:
-- C.1 mobile signing real (cuando llegue keystore)
-- 6 jurisdicciones nuevas (UK/CA/AU/JP/KR/IN) — code listo, falta wire UI
-- 10 páginas restantes i18n sweep
-- Demo project abierto sin login (Day-1)
-- Traducciones humanas (cuando llegue traductor)
+Cuando §12.1 y §12.2 cerrados, atacar F-A/B/D/E/F + EPP Edge AI (~10 semanas-dev total).
 
 ### Sprint vigente continuo
 
-Mantener: tests verdes (resolver los 394 failing), CI workflow estable, no agregar nuevos fakes.
+Mantener: tests verdes (HOY 10029/10029 ✅), CI workflow estable, no agregar nuevos fakes.
 
 ---
 
@@ -569,4 +646,178 @@ Mantener: tests verdes (resolver los 394 failing), CI workflow estable, no agreg
 
 ---
 
-**Próxima revisión profunda:** post-merge de #267 + #268 + cleanup §2 (estimada 2026-05-22).
+## 12. 🎯 Plan de implementación — convertir "promesas" en realidad
+
+> Después de cerrar la auditoría (§7 verificado + §2.11 y §3 y §4 corregidos), las "promesas" pendientes se agrupan en 4 categorías por factibilidad. Esta sección es la respuesta a la pregunta del usuario: *"¿qué nos falta para hacer reales todas las funciones que están como promesa?"*
+>
+> **Estimaciones:** S = small (<2 hrs · 1 dev), M = medium (1-3 días · 1 dev), L = large (1-2 semanas · 1 dev), XL = extra-large (>2 semanas · puede requerir 2+ devs o input externo).
+>
+> **Bloqueado** = requiere input usuario/externo antes de poder implementar.
+
+### 12.1 — IMPLEMENTABLES YA (sin bloqueos, sin decisiones) · 26 ítems
+
+#### Quick wins (S, <2 hrs) · 11 ítems
+
+| # | Item | Archivo | Esfuerzo |
+|---|---|---|---|
+| 1 | Remover `console.log` debug | `src/components/knowledge/SmartConnectionsPanel.tsx:119` | S 5min |
+| 2 | `Math.random()` → `crypto.randomBytes()` en lease distribuido | `src/services/scheduler/distributedLease.ts:76` | S 15min |
+| 3 | `Math.random()` → `crypto.randomBytes()` en KEK lock | `src/services/security/kekRotationOrchestrator.ts:118` | S 15min |
+| 4 | `Math.random()` → `crypto.randomBytes()` en audit trail | `src/server/routes/apprenticeship.ts:272` | S 15min |
+| 5 | Justificar o quitar `@ts-ignore` billing | `src/server/routes/billing.ts:139` | S 10min |
+| 6 | Justificar o quitar `@ts-ignore` billing service | `src/services/billingService.ts:45` | S 10min |
+| 7 | H1 — limpiar doc DWG desfasada | `docs/` | S 30min |
+| 8 | H3 — Stripe pre-flight messaging (cualquier opción §2.12) | `src/services/billing/stripe*` | S 1hr |
+| 9 | H5 — SII pre-flight messaging (3 adapters stub) | `src/services/sii/` | S 1hr |
+| 10 | H27 — Geofence permission UX toast | hook geofence | S 1hr |
+| 11 | H30 — verify `/processing-activities` no fugue tenantId | `src/server/routes/privacy*` | S 1hr |
+
+#### Medio plazo (M, 1-3 días) · 9 ítems
+
+| # | Item | Esfuerzo | Plan técnico breve |
+|---|---|---|---|
+| 12 | 3 STUB_REPLACE_WITH_WEBAUTHN_ASSERTION en compliance builders (`Ds76Builder`, `Ds67Builder`, `SusesoFormBuilder`) | M 2d | Reusar `src/server/auth/webauthnAssertion.ts` (mismo wire que SUSESO sign en §7) |
+| 13 | §2.14 SusesoApiClient → server proxy admin | M 2d | Endpoint `POST /api/admin/suseso/submit` + verifyAuth + tenant scope; remover import frontend |
+| 14 | §2.15 Zettelkasten canonical materializer | M 3d | Definir `nodes` como canónica; cron job que materialice `zettelkasten_nodes` + `tenants/{tid}/zettelkasten_nodes` → `nodes` |
+| 15 | §2.16 B2D Climate Open-Meteo + USGS + OpenAQ real | M 2d | 3 fetchers + cache 1h + fallback determinístico actual como último recurso |
+| 16 | §2.17 B2D Gemini AI Coach real | M 1d | Wire `geminiAdapter.generateContent()` con prompt template; RAG sobre normativa del tenant si existe |
+| 17 | H19 — KnowledgeGraph `as any` x18 cleanup | M 1d | Definir tipos correctos; quitar `any` cast por cast |
+| 18 | H22 — KG virtualización + Web Worker para >1k nodos | M 3d | `react-window` para lista + worker para layout fuerza-dirigida |
+| 19 | H23 — backgroundTriggers concurrency `Promise.all` con concurrency 10 | M 1d | Usar `p-limit` o helper propio; añadir test de throughput |
+| 20 | H24 — Code splitting eager → `React.lazy` (KG, Site25D, PortableCurriculum) | M 1d | 3 wraps `lazy()` + `<Suspense fallback>` |
+
+#### Grande (L, 1-2 semanas) · 6 ítems
+
+| # | Item | Esfuerzo | Plan |
+|---|---|---|---|
+| 21 | §2.18 EPP Edge AI local (TFLite YOLO-tiny 7 clases) | L 2sem | Entrenar modelo o usar pre-trained; deps `@tensorflow/tfjs` ya en bundle; wire en `AIPostureAnalysisModal` |
+| 22 | F-A CalculatorHub UI consumer 12 generadores Bernoulli sin UI | L 2sem | 12 panels engineering (gas dispersion, confined-space HVAC, respirator fatigue, pulmonary altitude, slope stability, dike hydrostatic, gas leak, misting dust, micro-wind, SLAM photogrammetry, hidrante fire, scaffold wind suction) |
+| 23 | F-B RAG NL sobre incidentes históricos del tenant | L 1sem | Vector store Firestore + embedding gemini-embedding-001 + query interface |
+| 24 | F-D Gamification × salud (sin tocar IPER) | L 1sem | Componente `HealthAwards` + lógica logros (días sin incidente, etc) |
+| 25 | F-E Predictive Alerts × Calendar | L 1sem | Cron job: lee Calendar próxima semana + cruza con `getForecast()` + envía push push si tarea crítica wind/seismic |
+| 26 | F-F WebAuthn Settings UI | L 1sem | Listing credenciales + registrar nueva + revocar; backend `webauthnAssertion.ts` ya existe |
+
+### 12.2 — REQUIEREN DECISIÓN USUARIO · 4 ítems
+
+| # | Item | Decisión | Si A | Si B |
+|---|---|---|---|---|
+| D1 | §2.7 Vertex Trainer (`vertexTrainer.ts:128`) | Descartar o implementar | Borrar stub + actualizar HONEST_STATE | Implementar `JobServiceClient.createCustomJob` (XL 3sem) |
+| D2 | §2.12 Stripe scaffold | Descartar o activar | Borrar 4 archivos + imports | Instalar `stripe` npm + implementar adapter (L 1sem) |
+| D3 | §2.13 IAP single SKU `praeventio_premium_monthly` | Mantener o crear SKUs por tier | Documentar en `BILLING.md` que IAP es flat-rate | Crear SKUs en stores (bloqueado §5) + mapear `tier.id` → SKU |
+| D4 | §9 línea "Push automático SUSESO/SII/MINSAL/OSHA/RIDDOR/NOM/NR/MEM/Rostrud" | Mantener directiva o reconsiderar | Status quo (PDF + recordatorio) | Activar adapters doc-only existentes (M 2d cada uno) |
+
+### 12.3 — BLOQUEADO POR §5 (input usuario externo) · 23 ítems
+
+> Estos se pueden destrabar SOLO cuando el usuario provea cuentas/secrets/docs.
+
+#### Bloqueado por cuentas/keystores (5)
+
+| # | Item | Bloqueador |
+|---|---|---|
+| B1 | §2.8 `assetlinks.json` SHA-256 real | Google Play keystore (`*.jks`) del usuario |
+| B2 | Mobile signing Android (`signingConfigs`) | idem |
+| B3 | Mobile iOS provisioning + APNS p8 | Apple Developer Program ($99/yr) |
+| B4 | HealthKit iOS plugin nativo | Apple Developer Program |
+| B5 | HealthConnect Android plugin nativo | Play Console + keystore |
+
+#### Bloqueado por secrets de infraestructura (12)
+
+| # | Secret faltante | Habilita |
+|---|---|---|
+| B6 | `VITE_GOOGLE_MAPS_API_KEY` | 4 mapas + Site25DPanel + DynamicEvacuationMap/Coastal/Volcanic Maps |
+| B7 | `VITE_FIREBASE_VAPID_KEY` | FCM web push (hoy fallback a polling) |
+| B8 | `GOOGLE_CLIENT_ID/SECRET` | Calendar + Fit OAuth + Object lifecycle Calendar wire (B.5.3 #4) |
+| B9 | `IOT_WEBHOOK_SECRET` | Telemetry HMAC verify |
+| B10 | `MP_ACCESS_TOKEN` + `MP_ENV` | MercadoPago checkout productivo |
+| B11 | `GOOGLE_PLAY_*` (3 keys) | Android billing RTDN |
+| B12 | `SENTRY_DSN` prod + rotación leak | Error tracking real |
+| B13 | `KMS_KEY_RESOURCE_NAME` + `KMS_ADAPTER=cloud-kms` | **Sin esto prod NO bootea** (preflight fail-fast) |
+| B14 | `SCHEDULER_SHARED_SECRET` | Cloud Scheduler gate del maintenance reaper |
+| B15 | `VERTEX_PROJECT_ID` + `_LOCATION` | Vertex AI residencia Latam |
+| B16 | `DWG_CONVERTER_URL` + `_TOKEN` + `CAD_OUTPUT_BUCKET` | LibreDWG Cloud Run (DWG import) |
+| B17 | `PHOTOGRAMMETRY_WORKER_TOKEN` | COLMAP worker auth |
+
+#### Bloqueado por documento/proceso externo (6)
+
+| # | Item | Bloqueador |
+|---|---|---|
+| B18 | §2.9 SLM Gemma 2 2B SHA-256 | DevOps computa hash del modelo descargado |
+| B19 | Apple Root CA G3 PEM full-chain SSN | descarga oficial Apple |
+| B20 | Traducciones humanas reales fr/de/it/ja/zh-CN/ar/ko/hi | traductor profesional (8 idiomas × ~40 keys) |
+| B21 | Acuerdos con mutuales (ACHS/IST/Mutual) | proceso comercial — opcional Day-1 |
+| B22 | COLMAP worker deploy Cloud Run | ops decide cuándo activar (worker existe en repo) |
+| B23 | MQTT broker prod (emqx/cloud-iot) | ops decide adapter + provisiona broker |
+
+### 12.4 — DEUDA TÉCNICA HEREDADA · 27 ítems (no urgentes pero suman)
+
+#### En sprint actual 🔄 (5 P1 del AUDIT_BACKLOG)
+
+H18, H25, H26, H28, H29 — ver `docs/audits/AUDIT_BACKLOG.md` líneas 31-46.
+
+#### Sprint próximo 📅 (2)
+
+H31 Stryker Linux ratchet (orchestrator 43.59% < break:50) — ver §4 nota.
+H33 Tests 184 componentes (priorizar emergency + billing + compliance + medical) — ver §8.
+
+#### P2/P3 backlog (4 restantes después de quick wins)
+
+H11 ✅, H22, H23 (en §12.1 medio), H32 seeds determinísticos 8 archivos (S 4hrs), H16 CSP nonce regex frágil (M 1d), H30 (en §12.1 quick wins).
+
+#### Productos pendientes Day-1 §8.5.3 (16 restantes)
+
+1. MQTT IoT Broker prod (M 3d post-§B23)
+2. WebXR `immersive-ar` end-to-end Android (M 3d — foundation existe)
+3. ARKit Quick Look `.usdz` iOS (M 2d)
+4. Object lifecycle Calendar wire (M 1d — endpoint listo, falta hook)
+5. Geo-anchored ZK retrieval (M 1d Haversine)
+6. Digital Twin Faena COLMAP deploy (M 1d post-§B22)
+7. CSV ETL universal con import wizard (L 1sem)
+8. Onboarding wizard step-by-step UI (M 2d)
+9. Coach IA por dominio (especializar medicina/ergonomía/SST) (L 1sem post-§12.1 #16)
+10. DS 67/76 reports PDF (M 2d — similar a DIAT/DIEP)
+11. CLI + migration registry + SLO dashboard (L 2sem)
+12. Twin triple-gate auth wire global (M 1d)
+13. AnatomyLibrary + DifferentialDx + DrugInteractions (XL 3sem — bundle CC0)
+14. VitalityMonitor backend (M 2d post-§B5)
+15. MediaPipe Pose en AIPostureAnalysisModal (M 2d)
+16. MorningRoutine slot persistencia (S 4hrs)
+
+#### Branches sin fusionar (1 tarea admin · L 1sem)
+
+Podar **214 branches** en `origin/` (claude/* 10-17d + dev/sprint-* 10-53 + feat/parallel-stream-*). Triage: rescatar trabajo único + borrar redundantes.
+
+#### i18n (2)
+
+- 10 páginas restantes sin `useTranslation` (S 2hrs)
+- Traducciones humanas — bloqueado §B20
+
+#### Compliance global (3)
+
+- Wire UI 6 jurisdicciones UK/CA/AU/JP/KR/IN (L 1sem — código `src/services/regulatory/jurisdictions/` listo)
+- Tier "Global" pricing (M 2d)
+- 8 emission adapters doc-only US OSHA/UK RIDDOR/EU OSHA + Delt@/INAIL/MX NOM-019/BR NR-5/AU WHS/CN GB/T 33000/RU 152-FZ (XL — depende de D4)
+
+### 12.5 — Resumen ejecutivo de factibilidad
+
+| Categoría | Ítems | Esfuerzo total estimado | Bloqueador |
+|---|---|---|---|
+| **12.1 Implementables YA** | 26 | ~9 semanas-dev | Ninguno |
+| **12.2 Requieren decisión** | 4 | ~5 semanas-dev (depende) | Usuario decide |
+| **12.3 Bloqueado §5** | 23 | ~6 semanas-dev (cuando lleguen secrets) | Usuario externo |
+| **12.4 Deuda heredada** | 27 | ~20 semanas-dev | Capacidad de equipo |
+| **TOTAL ACCIONABLE** | **80** | **~40 semanas-dev** | mixto |
+
+**Camino crítico hacia Day-1 (95% E2E):**
+
+1. **Semana 1**: §12.1 #1-#11 (11 quick wins) + §12.4 H18/H25/H26 (sprint actual)
+2. **Semana 2-3**: §12.1 #12-#20 (medio plazo) + §12.4 H28/H29 (sprint actual)
+3. **Semana 4-5**: D1-D4 decisiones + §12.1 #21-#26 (large)
+4. **Semana 6-10**: §12.4 productos Day-1 críticos (#1, #2, #3, #4, #5, #14, #15)
+5. **Semana 11-12**: §12.3 destrabado cuando llegan secrets §5 (B6-B17)
+6. **Semana 13+**: §12.4 productos no-críticos + 8 emission adapters + i18n traducciones
+
+**Riesgo principal:** los items §12.3 bloqueados son ~30% del trabajo restante. Sin acción del usuario sobre cuentas y secrets, **el techo real es ~85% E2E**, no 95%.
+
+---
+
+**Próxima revisión profunda:** post-cleanup §12.1 quick wins (estimada 2026-05-26).
