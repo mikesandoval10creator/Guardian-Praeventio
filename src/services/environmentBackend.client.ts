@@ -30,6 +30,7 @@
  *   - No `firebase-admin` import — safe to bundle for the browser.
  */
 import { logger } from '../utils/logger';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 
 const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY as
   | string
@@ -120,7 +121,7 @@ export async function getCurrentWeather(
 
   let res: Response;
   try {
-    res = await fetch(url);
+    res = await fetchWithTimeout(url, {}, { timeoutMs: 10_000 });
   } catch (err) {
     logger.warn('[environmentBackend.client] getCurrentWeather: fetch threw', err);
     return UNAVAILABLE;

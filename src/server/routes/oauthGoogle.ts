@@ -42,6 +42,9 @@ import {
 } from '../../services/oauthTokenStore.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout.js';
+
+const TOKEN_EXCHANGE_TIMEOUT_MS = 10_000;
 
 function sentryCapture(
   err: unknown,
@@ -367,17 +370,21 @@ oauthGoogleApiRouter.get('/drive/auth/callback', async (req, res) => {
   }
 
   try {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code: code as string,
-        client_id: GOOGLE_CLIENT_ID || '',
-        client_secret: GOOGLE_CLIENT_SECRET || '',
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      }),
-    });
+    const response = await fetchWithTimeout(
+      'https://oauth2.googleapis.com/token',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code: code as string,
+          client_id: GOOGLE_CLIENT_ID || '',
+          client_secret: GOOGLE_CLIENT_SECRET || '',
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+        }),
+      },
+      { timeoutMs: TOKEN_EXCHANGE_TIMEOUT_MS },
+    );
 
     const tokens = await response.json();
     if (!tokens.access_token) {
@@ -436,17 +443,21 @@ oauthGoogleAuthRouter.get('/google/callback', async (req, res) => {
   }
 
   try {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code: code as string,
-        client_id: GOOGLE_CLIENT_ID || '',
-        client_secret: GOOGLE_CLIENT_SECRET || '',
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      }),
-    });
+    const response = await fetchWithTimeout(
+      'https://oauth2.googleapis.com/token',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code: code as string,
+          client_id: GOOGLE_CLIENT_ID || '',
+          client_secret: GOOGLE_CLIENT_SECRET || '',
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+        }),
+      },
+      { timeoutMs: TOKEN_EXCHANGE_TIMEOUT_MS },
+    );
 
     const tokens = await response.json();
     if (!tokens.access_token) {

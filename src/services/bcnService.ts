@@ -5,6 +5,9 @@
 
 import { XMLParser } from 'fast-xml-parser';
 import { logger } from '../utils/logger';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
+
+const BCN_FETCH_TIMEOUT_MS = 10_000;
 
 export interface BCNLaw {
   idNorma: string;
@@ -20,7 +23,11 @@ export interface BCNLaw {
  */
 export const fetchLawFromBCN = async (idNorma: string): Promise<BCNLaw | null> => {
   try {
-    const response = await fetch(`https://www.leychile.cl/Consulta/obtxml?opt=7&idNorma=${idNorma}`);
+    const response = await fetchWithTimeout(
+      `https://www.leychile.cl/Consulta/obtxml?opt=7&idNorma=${idNorma}`,
+      {},
+      { timeoutMs: BCN_FETCH_TIMEOUT_MS },
+    );
     
     if (!response.ok) {
       throw new Error(`Failed to fetch law ${idNorma} from BCN`);

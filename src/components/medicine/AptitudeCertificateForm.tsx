@@ -8,6 +8,7 @@ import { writeNodesDebounced } from '../../services/zettelkasten/persistence/wri
 import { useProject } from '../../contexts/ProjectContext';
 import { Geolocation } from '@capacitor/geolocation';
 import { logger } from '../../utils/logger';
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout';
 
 const RESULT_OPTION_KEYS: { value: AptitudeData['result']; key: string; fallback: string; color: string }[] = [
   { value: 'apto', key: 'aptitude_certificate.result_apto', fallback: 'Apto', color: 'text-teal-400 dark:text-teal-400' },
@@ -58,7 +59,11 @@ export function AptitudeCertificateForm() {
     try {
       const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10_000 });
       const { latitude, longitude } = pos.coords;
-      const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${latitude},${longitude}`);
+      const res = await fetchWithTimeout(
+        `https://api.open-elevation.com/api/v1/lookup?locations=${latitude},${longitude}`,
+        {},
+        { timeoutMs: 10_000 },
+      );
       if (!res.ok) throw new Error(`Open-Elevation HTTP ${res.status}`);
       const json = await res.json();
       const elev = Number(json?.results?.[0]?.elevation);

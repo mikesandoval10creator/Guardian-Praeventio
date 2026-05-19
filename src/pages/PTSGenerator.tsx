@@ -22,6 +22,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { logger } from '../utils/logger';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 import { useTranslation } from 'react-i18next';
 
 export function PTSGenerator() {
@@ -149,7 +150,11 @@ export function PTSGenerator() {
           const { latitude, longitude } = position.coords;
           
           // Reverse geocoding using OpenStreetMap Nominatim (free, no API key needed for basic usage)
-          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const response = await fetchWithTimeout(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+            {},
+            { timeoutMs: 10_000 },
+          );
           const data = await response.json();
           
           const locationName = data.address?.city || data.address?.town || data.address?.village || data.address?.county || 'Ubicación Desconocida';

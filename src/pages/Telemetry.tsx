@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../utils/logger';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -424,7 +425,11 @@ export function Telemetry() {
       setLoading(true);
       try {
         // Fetch Earthquakes (Chile)
-        const eqResponse = await fetch('https://api.gael.cloud/general/public/sismos');
+        const eqResponse = await fetchWithTimeout(
+          'https://api.gael.cloud/general/public/sismos',
+          {},
+          { timeoutMs: 10_000 },
+        );
         if (eqResponse.ok) {
           const eqData = await eqResponse.json();
           setEarthquakes(eqData.slice(0, 5)); // Get latest 5

@@ -38,6 +38,9 @@ import {
   type EnvelopeCiphertext,
 } from './security/kmsEnvelope.ts';
 import { getKmsAdapter } from './security/kmsAdapter.ts';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout.ts';
+
+const REFRESH_FETCH_TIMEOUT_MS = 10_000;
 
 const COLLECTION = 'oauth_tokens';
 
@@ -194,19 +197,24 @@ export async function getValidAccessToken(
 
   let refreshed: RawTokenResponse;
   try {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      }),
-    });
+    const response = await fetchWithTimeout(
+      'https://oauth2.googleapis.com/token',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token',
+        }),
+      },
+      { timeoutMs: REFRESH_FETCH_TIMEOUT_MS },
+    );
     if (!response.ok) return null;
     refreshed = await response.json();
   } catch {
+    // Network failure, timeout, or non-JSON response — force re-auth.
     return null;
   }
 

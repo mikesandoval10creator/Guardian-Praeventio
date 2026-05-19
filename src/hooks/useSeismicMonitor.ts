@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { logger } from '../utils/logger';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 
 export interface Earthquake {
   id: string;
@@ -18,7 +19,11 @@ export function useSeismicMonitor(projectLat: number = -33.4489, projectLng: num
     const fetchQuakes = async () => {
       try {
         // Fetch all earthquakes from the last 24 hours
-        const res = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson');
+        const res = await fetchWithTimeout(
+          'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson',
+          {},
+          { timeoutMs: 10_000 },
+        );
         const data = await res.json();
         
         const quakes = data.features.map((f: any) => ({

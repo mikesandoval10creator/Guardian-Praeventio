@@ -1,7 +1,9 @@
 import { WeatherData, SeismicData, EnvironmentContext } from '../types';
 import { logger } from '../utils/logger';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 
 const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
+const EXTERNAL_FETCH_TIMEOUT_MS = 10_000;
 
 // Default coordinates (Santiago, Chile) if none provided
 const DEFAULT_LAT = -33.4489;
@@ -18,8 +20,10 @@ export const fetchWeatherData = async (lat: number = DEFAULT_LAT, lon: number = 
   }
 
   try {
-    const response = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric&lang=es`
+    const response = await fetchWithTimeout(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric&lang=es`,
+      {},
+      { timeoutMs: EXTERNAL_FETCH_TIMEOUT_MS },
     );
 
     if (!response.ok) {
@@ -64,8 +68,10 @@ export const fetchSeismicData = async (lat: number = DEFAULT_LAT, lon: number = 
     const endTime = new Date().toISOString();
     const startTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     
-    const response = await fetch(
-      `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude=${lat}&longitude=${lon}&maxradiuskm=${radiusKm}&starttime=${startTime}&minmagnitude=3.0&limit=1&orderby=magnitude`
+    const response = await fetchWithTimeout(
+      `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude=${lat}&longitude=${lon}&maxradiuskm=${radiusKm}&starttime=${startTime}&minmagnitude=3.0&limit=1&orderby=magnitude`,
+      {},
+      { timeoutMs: EXTERNAL_FETCH_TIMEOUT_MS },
     );
 
     if (!response.ok) {
@@ -136,8 +142,10 @@ const AQI_LABELS: Record<number, string> = {
 const fetchAirQualityLabel = async (lat: number, lon: number): Promise<string | null> => {
   if (!OPENWEATHER_API_KEY) return null;
   try {
-    const response = await fetch(
-      `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}`
+    const response = await fetchWithTimeout(
+      `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}`,
+      {},
+      { timeoutMs: EXTERNAL_FETCH_TIMEOUT_MS },
     );
     if (!response.ok) return null;
     const data = await response.json();

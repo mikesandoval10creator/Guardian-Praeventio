@@ -1,6 +1,9 @@
 import admin from "firebase-admin";
 import { logger } from '../utils/logger';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 import type { ClimateForecastDay } from './zettelkasten/climateRiskCoupling';
+
+const EXTERNAL_FETCH_TIMEOUT_MS = 10_000;
 
 // Re-export ClimateForecastDay for callers that already import it via this
 // module (server.ts dynamic import + future API consumers). Authoritative
@@ -33,8 +36,10 @@ export const updateGlobalEnvironmentalContext = async () => {
       timestamp: number;
     } | null = null;
     if (OPENWEATHER_API_KEY) {
-      const weatherRes = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric&lang=es`
+      const weatherRes = await fetchWithTimeout(
+        `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric&lang=es`,
+        {},
+        { timeoutMs: EXTERNAL_FETCH_TIMEOUT_MS },
       );
       if (weatherRes.ok) {
         const data = await weatherRes.json();
@@ -57,8 +62,10 @@ export const updateGlobalEnvironmentalContext = async () => {
       alertLevel: string;
     } | null = null;
     const startTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const seismicRes = await fetch(
-      `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude=${lat}&longitude=${lon}&maxradiuskm=500&starttime=${startTime}&minmagnitude=3.0&limit=1&orderby=magnitude`
+    const seismicRes = await fetchWithTimeout(
+      `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude=${lat}&longitude=${lon}&maxradiuskm=500&starttime=${startTime}&minmagnitude=3.0&limit=1&orderby=magnitude`,
+      {},
+      { timeoutMs: EXTERNAL_FETCH_TIMEOUT_MS },
     );
     if (seismicRes.ok) {
       const data = await seismicRes.json();
@@ -421,7 +428,7 @@ export async function getForecast(
 
   let res: Response;
   try {
-    res = await fetch(url);
+    res = await fetchWithTimeout(url, {}, { timeoutMs: EXTERNAL_FETCH_TIMEOUT_MS });
   } catch (err) {
     console.warn('[EnvironmentBackend] getForecast: fetch threw, returning empty forecast.', err);
     return [];
