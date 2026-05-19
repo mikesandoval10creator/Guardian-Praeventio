@@ -275,6 +275,8 @@ import coachRagRouter from "./src/server/routes/coachRag.js";
 import qrAckRouter from "./src/server/routes/qrAck.js";
 // AI Guardrails — Sprint K §155-160 (prompts versioned + citation + hallucination guard).
 import aiGuardrailsRouter from "./src/server/routes/aiGuardrails.js";
+// RACI Matrix — Sprint 53 §50-58 (R/A/C/I assignment + cross-matrix overload analysis).
+import raciMatrixRouter from "./src/server/routes/raciMatrix.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -955,6 +957,7 @@ app.use('/api/sprint-k', mentalLoadRouter);
 app.use('/api/sprint-k', coachRagRouter);
 app.use('/api/sprint-k', qrAckRouter);
 app.use('/api/sprint-k', aiGuardrailsRouter);
+app.use('/api/sprint-k', raciMatrixRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
