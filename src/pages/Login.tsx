@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { signInWithGoogle, auth, db } from '../services/firebase';
 import { LogIn, ShieldCheck, Zap, Activity, WifiOff, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/shared/Card';
+import { GuardianMascot } from '../components/shared/GuardianMascot';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -143,14 +144,9 @@ export default function Login() {
             </Link>
 
             <div className="flex flex-col items-center mb-8 sm:mb-10">
-              <picture>
-                <source srcSet="/mascot.webp" type="image/webp" />
-                <img
-                  src="/mascot.png"
-                  alt="Guardian Praeventio"
-                  className="w-24 h-24 sm:w-28 sm:h-28 object-contain drop-shadow-xl mb-2"
-                />
-              </picture>
+              <div className="drop-shadow-xl mb-2">
+                <GuardianMascot mood="default" size="lg" />
+              </div>
               <h1 id="login-heading" className="text-2xl sm:text-3xl font-black uppercase tracking-tighter leading-none mb-2 text-center">
                 Guardian Praeventio
               </h1>

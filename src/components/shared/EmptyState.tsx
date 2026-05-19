@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { LucideIcon } from 'lucide-react';
+import { GuardianMascot, MascotMood } from './GuardianMascot';
 
 interface EmptyStateProps {
   icon?: LucideIcon;
@@ -13,9 +14,11 @@ interface EmptyStateProps {
   className?: string;
   compact?: boolean;
   mascot?: boolean;
+  /** Optional mood override when `mascot` is true. Defaults to 'default'. */
+  mascotMood?: MascotMood;
 }
 
-export function EmptyState({ icon: Icon, title, description, action, className = '', compact = false, mascot = false }: EmptyStateProps) {
+export function EmptyState({ icon: Icon, title, description, action, className = '', compact = false, mascot = false, mascotMood = 'default' }: EmptyStateProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -24,16 +27,13 @@ export function EmptyState({ icon: Icon, title, description, action, className =
       className={`flex flex-col items-center justify-center text-center ${compact ? 'py-8 px-4' : 'py-16 px-6'} ${className}`}
     >
       {mascot ? (
-        <picture>
-          <source srcSet="/mascot.webp" type="image/webp" />
-          <motion.img
-            src="/mascot.png"
-            alt="Guardian Praeventio"
-            className={`${compact ? 'w-16 h-16' : 'w-24 h-24'} object-contain drop-shadow-lg mb-4`}
-            animate={{ y: [0, -6, 0] }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-          />
-        </picture>
+        <motion.div
+          animate={{ y: [0, -6, 0] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+          className="drop-shadow-lg mb-4"
+        >
+          <GuardianMascot mood={mascotMood} size={compact ? 'sm' : 'md'} />
+        </motion.div>
       ) : Icon ? (
         <div className={`${compact ? 'w-10 h-10' : 'w-14 h-14'} rounded-2xl bg-elevated border border-default-token flex items-center justify-center mb-4`}>
           <Icon className={`${compact ? 'w-5 h-5' : 'w-6 h-6'} text-muted-token`} />
