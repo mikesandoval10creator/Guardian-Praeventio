@@ -269,6 +269,30 @@ import fiveSRouter from "./src/server/routes/fiveS.js";
 import hygieneRouter from "./src/server/routes/hygiene.js";
 // Mental Load (NASA-TLX) + per-worker Admin Burden — Sprint K §258-260.
 import mentalLoadRouter from "./src/server/routes/mentalLoad.js";
+// Safety Metrics OSHA + ICMM (TRIR/LTIFR/DART/SIFR) — Fase D.10.
+import safetyMetricsRouter from "./src/server/routes/safetyMetrics.js";
+// Project Comparator — Sprint 55 F.27 (KPIs side-by-side, no decision).
+import projectComparatorRouter from "./src/server/routes/projectComparator.js";
+// Reports Automation — Sprint K §267-270 (templates + render + due).
+import reportsAutomationRouter from "./src/server/routes/reportsAutomation.js";
+// Shift Handover (Bitácora Supervisor) — Sprint 39 J.8.
+import shiftHandoverRouter from "./src/server/routes/shiftHandover.js";
+// Shift Risk Panel (Pre-Turno) — Sprint 40 F.21.
+import shiftRiskPanelRouter from "./src/server/routes/shiftRiskPanel.js";
+// Stoppage (Paralización + Reanudación controlada) — Sprint 39 I.1.
+import stoppageRouter from "./src/server/routes/stoppage.js";
+// Risk Ranking (Top-N risks + weak controls + zones + tasks) — Sprint 39 I.6.
+import riskRankingRouter from "./src/server/routes/riskRanking.js";
+// PYME Onboarding (Maturity + 30-day plan) — Sprint K §104-105, §110, F.26.
+import pymeOnboardingRouter from "./src/server/routes/pymeOnboarding.js";
+// PYME Wizard (fast onboarding plan <30min) — Sprint K §105.
+import pymeWizardRouter from "./src/server/routes/pymeWizard.js";
+// Sync Status (offline queue tracker) — Sprint 39 H.3.
+import syncStatusRouter from "./src/server/routes/syncStatus.js";
+// Mountain Refuges (CONAF + clubes andinos) — Sprint C 2026-05-15.
+import refugesRouter from "./src/server/routes/refuges.js";
+// Predictive Alerts (windowed trigger + scheduler) — Sprint 15.
+import predictiveAlertsRouter from "./src/server/routes/predictiveAlerts.js";
 // Coach IA RAG — Bucket HH #90 (search / list-chunks / domain-prompt).
 import coachRagRouter from "./src/server/routes/coachRag.js";
 // QR Acknowledgement Sessions — Sprint 43 F.5 (HMAC + Firestore replay defense).
@@ -1014,6 +1038,18 @@ app.use('/api/sprint-k', commsRouter);
 app.use('/api/sprint-k', fiveSRouter);
 app.use('/api/sprint-k', hygieneRouter);
 app.use('/api/sprint-k', mentalLoadRouter);
+app.use('/api/sprint-k', safetyMetricsRouter);
+app.use('/api/sprint-k', projectComparatorRouter);
+app.use('/api/sprint-k', reportsAutomationRouter);
+app.use('/api/sprint-k', shiftHandoverRouter);
+app.use('/api/sprint-k', shiftRiskPanelRouter);
+app.use('/api/sprint-k', stoppageRouter);
+app.use('/api/sprint-k', riskRankingRouter);
+app.use('/api/sprint-k', pymeOnboardingRouter);
+app.use('/api/sprint-k', pymeWizardRouter);
+app.use('/api/sprint-k', syncStatusRouter);
+app.use('/api/sprint-k', refugesRouter);
+app.use('/api/sprint-k', predictiveAlertsRouter);
 app.use('/api/sprint-k', coachRagRouter);
 app.use('/api/sprint-k', qrAckRouter);
 app.use('/api/sprint-k', aiGuardrailsRouter);
