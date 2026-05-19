@@ -44,6 +44,40 @@ const SHARED_TOKEN = process.env.PHOTOGRAMMETRY_WORKER_TOKEN;
 const COLMAP_BIN = process.env.COLMAP_BIN ?? 'colmap';
 const WORK_DIR = process.env.COLMAP_WORK_DIR ?? path.join(os.tmpdir(), 'colmap');
 
+/**
+ * Auth posture. The worker accepts requests in two modes — at least ONE
+ * must be configured at boot; otherwise we fail fast instead of running
+ * with the historical "accept any non-empty bearer" footgun (B2 fix,
+ * 2026-05-19).
+ *
+ *   • SHARED_TOKEN  — set `PHOTOGRAMMETRY_WORKER_TOKEN` env var. The
+ *                     caller must send exactly that token. Use for local
+ *                     `docker run` smoke-tests and CI.
+ *
+ *   • OIDC          — set `INVOKER_AUDIENCE` env var (e.g. the worker's
+ *                     own Cloud Run URL). The Cloud Run platform MUST be
+ *                     deployed with `--no-allow-unauthenticated` so it
+ *                     validates the OIDC JWT signature + audience claim
+ *                     before forwarding the request to this container.
+ *                     If you flip `--allow-unauthenticated` the worker
+ *                     is exposed; reject the deploy.
+ *
+ * Both can be enabled simultaneously (e.g. shared token for local dev,
+ * OIDC in prod) — any single match passes.
+ */
+const INVOKER_AUDIENCE = process.env.INVOKER_AUDIENCE;
+const WORKER_AUTH_DISABLED_FOR_TESTS = process.env.WORKER_AUTH_DISABLED_FOR_TESTS === 'true';
+
+if (!WORKER_AUTH_DISABLED_FOR_TESTS && !SHARED_TOKEN && !INVOKER_AUDIENCE) {
+  // Fail-fast at module load so a misconfigured deploy crashes the container
+  // boot rather than silently accepting any bearer. See B2 audit 2026-05-19.
+  throw new Error(
+    'photogrammetry-worker: neither PHOTOGRAMMETRY_WORKER_TOKEN nor INVOKER_AUDIENCE is set. ' +
+    'Refusing to start with auth disabled. Set at least one (and remember to deploy with ' +
+    '--no-allow-unauthenticated when relying on INVOKER_AUDIENCE).',
+  );
+}
+
 // Lazy admin init — Cloud Run injects credentials via metadata server.
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -71,21 +105,46 @@ app.get('/health', (_req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// Auth middleware. Accepts either:
-//   • Bearer <PHOTOGRAMMETRY_WORKER_TOKEN>  (local / dev / Cloud Tasks fallback)
-//   • Cloud Run OIDC token  (when invoked via service-to-service auth)
+// Auth middleware. Accepts ONE of:
+//   • Bearer <PHOTOGRAMMETRY_WORKER_TOKEN>  (strict equality against env var)
+//   • Cloud Run OIDC token, when INVOKER_AUDIENCE is configured AND the
+//     service is deployed with `--no-allow-unauthenticated` (Cloud Run then
+//     validates the JWT signature + audience claim at the platform layer
+//     before forwarding to this container).
+//
+// IMPORTANT (B2 fix, 2026-05-19): the prior implementation accepted ANY
+// non-empty bearer token as "OIDC" — a wide-open backdoor if the service
+// was ever deployed without `--no-allow-unauthenticated`. We now require
+// either a strict shared-token match OR a configured audience, never both
+// optional.
 // -----------------------------------------------------------------------------
 function checkAuth(req: Request, res: Response): boolean {
+  if (WORKER_AUTH_DISABLED_FOR_TESTS) return true;
+
   const auth = req.headers.authorization ?? '';
   if (!auth.startsWith('Bearer ')) {
     res.status(401).json({ error: 'unauthorized' });
     return false;
   }
   const token = auth.slice('Bearer '.length).trim();
+  if (token.length === 0) {
+    res.status(401).json({ error: 'unauthorized' });
+    return false;
+  }
+
+  // Path 1: shared-token strict match.
   if (SHARED_TOKEN && token === SHARED_TOKEN) return true;
-  // OIDC token path — Cloud Run already verified it before reaching us when
-  // the service is configured with `--no-allow-unauthenticated`. We trust it.
-  if (token.length > 0) return true;
+
+  // Path 2: OIDC. We rely on Cloud Run's platform-level enforcement here —
+  // when INVOKER_AUDIENCE is set the operator has accepted the contract
+  // that the service is deployed with `--no-allow-unauthenticated`. We
+  // additionally enforce that the token LOOKS like a JWT (three base64url
+  // segments separated by dots) so a stray non-empty string can't slip
+  // through the way it used to.
+  if (INVOKER_AUDIENCE && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) {
+    return true;
+  }
+
   res.status(401).json({ error: 'unauthorized' });
   return false;
 }
