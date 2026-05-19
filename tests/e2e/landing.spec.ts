@@ -1,16 +1,31 @@
 import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
 
 /**
  * Landing page smoke tests — la única superficie 100% pública (sin auth).
  * Estos son los tests más baratos y los que tienen que pasar SÍ o SÍ en
  * cada PR.
+ *
+ * TODO.md H20 (reactivado 2026-05-19): el suite estaba con `.skip` global
+ * por miedo a flaky CI sin firebase-applet-config.json. Ahora hacemos
+ * skip CONDICIONAL: si el archivo existe (localmente o tras inject CI),
+ * corre. Si no, deja un skip claro como pendiente del workflow.
  */
-// TODO Sprint 19 — los tests asumen un bundle con Firebase config completo.
-// En CI sin VITE_FIREBASE_* el app monta ErrorBoundary "Sistema Interrumpido"
-// y la landing nunca se renderiza. Skipeo hasta que el workflow inyecte
-// secrets de un proyecto Firebase de test, o hasta que la landing tenga
-// graceful degradation (renderiza marketing aunque Firebase no esté).
-test.describe.skip('Landing page (skipped — needs Firebase env in CI, see TODO Sprint 19)', () => {
+const firebaseConfigExists = (() => {
+  try {
+    return fs.existsSync(path.join(process.cwd(), 'firebase-applet-config.json'));
+  } catch {
+    return false;
+  }
+})();
+
+test.describe('Landing page', () => {
+  test.skip(
+    !firebaseConfigExists,
+    'firebase-applet-config.json missing — CI workflow must inject it before this suite can run (TODO.md H20)',
+  );
+
   test('hero loads with brand identity', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle(/Guardian Praeventio|Praeventio Guard/i);
