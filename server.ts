@@ -329,6 +329,8 @@ import workerHistoryRouter from "./src/server/routes/workerHistory.js";
 import pricingCalculatorRouter from "./src/server/routes/pricingCalculator.js";
 // Root cause classifier — Sprint 39 I.3 (§28 5-whys + 10-factor taxonomy + no-blame).
 import rootCauseRouter from "./src/server/routes/rootCause.js";
+// Read receipts (mandatory acknowledgement) — Sprint 39 G.1.
+import readReceiptsRouter from "./src/server/routes/readReceipts.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -1036,6 +1038,7 @@ app.use('/api/sprint-k', protocolsRouter);
 app.use('/api/sprint-k', workerHistoryRouter);
 app.use('/api/sprint-k', pricingCalculatorRouter);
 app.use('/api/sprint-k', rootCauseRouter);
+app.use('/api/sprint-k', readReceiptsRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
