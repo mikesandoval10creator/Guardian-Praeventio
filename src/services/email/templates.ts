@@ -408,7 +408,7 @@ export function dataAccessReadyTemplate(payload: DataAccessReadyPayload): string
     </p>
     <p style="margin:14px 0 0;font-size:12px;color:${MUTED};line-height:1.6">
       Si no solicitaste esta exportación, contacta de inmediato a nuestro encargado de
-      protección de datos: <a href="mailto:dpo@praeventio.app" style="color:${TEAL}">dpo@praeventio.app</a>.
+      protección de datos: <a href="mailto:contacto@praeventio.net" style="color:${TEAL}">contacto@praeventio.net</a>.
     </p>
   `;
   return shell(body, TEAL, {
@@ -467,7 +467,7 @@ export function dataErasureConfirmedTemplate(
     ${preservedBlock}
     <p style="margin:14px 0 0;font-size:12px;color:${MUTED};line-height:1.6">
       Si crees que esta eliminación se realizó por error, escribe en las próximas
-      72 horas a <a href="mailto:dpo@praeventio.app" style="color:${TEAL}">dpo@praeventio.app</a>.
+      72 horas a <a href="mailto:contacto@praeventio.net" style="color:${TEAL}">contacto@praeventio.net</a>.
       Después de ese plazo no podremos restaurar la cuenta.
     </p>
   `;
