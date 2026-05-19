@@ -276,6 +276,8 @@ import mentalLoadRouter from "./src/server/routes/mentalLoad.js";
 import regulatoryFrameworkRouter from "./src/server/routes/regulatoryFramework.js";
 // Medical Catalogs (diagnoses ICD-10 + drugs ATC + anatomy DS 594) — Sprint 21 R.
 import medicalCatalogsRouter from "./src/server/routes/medicalCatalogs.js";
+// PIN Sign (firma por PIN sin biometría) — Sprint K F.25.
+import pinSignRouter from "./src/server/routes/pinSign.js";
 // Coach IA RAG — Bucket HH #90 (search / list-chunks / domain-prompt).
 import coachRagRouter from "./src/server/routes/coachRag.js";
 // QR Acknowledgement Sessions — Sprint 43 F.5 (HMAC + Firestore replay defense).
@@ -1024,6 +1026,7 @@ app.use('/api/sprint-k', hygieneRouter);
 app.use('/api/sprint-k', mentalLoadRouter);
 app.use('/api/sprint-k', regulatoryFrameworkRouter);
 app.use('/api/sprint-k', medicalCatalogsRouter);
+app.use('/api/sprint-k', pinSignRouter);
 app.use('/api/sprint-k', coachRagRouter);
 app.use('/api/sprint-k', qrAckRouter);
 app.use('/api/sprint-k', aiGuardrailsRouter);
