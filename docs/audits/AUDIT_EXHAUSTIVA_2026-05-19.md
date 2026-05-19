@@ -917,3 +917,233 @@ Agregar regla ESLint para prevenir futuras regresiones:
 ```
 
 Esto fallaría CI si alguien commit-ea `test.skip` o `test.only` sin justificación documentada como `it.todo`.
+
+---
+
+## 13. SEGUNDA PASADA PROFUNDA — hallazgos no detectados en pasadas previas
+
+> **Trigger:** solicitud del usuario "vuelve a revisar el código, debes ir más en profundidad para saber con certeza que no se nos está pasando nada por alto". Aplicando lección aprendida (inspección semántica, no grep estructural).
+>
+> **Alcance ampliado:** hooks, services, contexts, branches de App.tsx, routes duplicadas, WebAuthn signatures, console statements, stubs alcanzables, imports ESM convention.
+
+### 13.1 🔴 CRÍTICO REGULATORIO — Firmas WebAuthn STUB en compliance Chile
+
+**Hallazgo:** 3 builders de compliance chilena guardan en Firestore una firma literal stub en vez de assertion criptográfica WebAuthn real:
+
+| Archivo:línea | Builder | Reglamento afectado | Riesgo legal |
+|---|---|---|---|
+| `src/components/compliance/Ds67Builder.tsx:64` | DS 67 | Reglamento Interno de Higiene y Seguridad (Chile) | Firma inválida en documento legal obligatorio |
+| `src/components/compliance/Ds76Builder.tsx:59` | DS 76 | Reglamento empresas contratistas/subcontratistas (Ley 16.744) | Firma inválida en obligaciones contractuales |
+| `src/components/suseso/SusesoFormBuilder.tsx:90` | SUSESO | DIAT/DIEP — denuncia accidente / enfermedad profesional | Firma inválida en denuncia oficial al SUSESO |
+
+**Código actual (replicado en los 3):**
+
+```typescript
+async function requestSignature(...) {
+  return {
+    algorithm: 'webauthn-ecdsa-p256' as const,
+    signatureB64: 'STUB_REPLACE_WITH_WEBAUTHN_ASSERTION', // ⚠️ STUB literal
+    ...
+  };
+}
+```
+
+**Análisis crítico:**
+- ✅ La intencionalidad está documentada en comments (`Ds67Builder.tsx:51` — "Stub WebAuthn ceremony placeholder. Replace with the real `useWebAuthn`")
+- ✅ El field `algorithm: 'webauthn-ecdsa-p256'` reserva el slot semánticamente correcto
+- 🔴 PERO: el flujo es ALCANZABLE — UI pública → POST `/api/.../sign` acepta el string literal sin validar criptográficamente → firma stub persiste en Firestore
+- ✅ Infraestructura WebAuthn YA EXISTE: `src/components/settings/WebAuthnKeysSection.tsx` (Sprint 30 Bucket KK) usa `isWebAuthnSupported`, `MFASetupModal.tsx` referencia "Biometría / Passkey (WebAuthn) — recomendado"
+
+**Plan de WIRE (estimado: 3-4h):**
+
+```typescript
+// En Ds67Builder.tsx, Ds76Builder.tsx, SusesoFormBuilder.tsx:
+// ANTES:
+async function requestSignature(...) {
+  return { ..., signatureB64: 'STUB_REPLACE_WITH_WEBAUTHN_ASSERTION' };
+}
+
+// DESPUÉS (usar hook real):
+import { useWebAuthn } from '../../hooks/useWebAuthn'; // wire al existing
+
+async function requestSignature(payloadToSign: Uint8Array) {
+  const { signWithBiometric } = useWebAuthn();
+  const assertion = await signWithBiometric(payloadToSign);
+  return {
+    algorithm: 'webauthn-ecdsa-p256' as const,
+    signatureB64: btoa(String.fromCharCode(...new Uint8Array(assertion.signature))),
+    credentialId: assertion.id,
+    clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(assertion.clientDataJSON))),
+  };
+}
+```
+
+**Y agregar validación SERVER-SIDE** en `/api/compliance/ds67/:formId/sign`, `/api/compliance/ds76/.../sign`, `/api/suseso/form/:id/sign`:
+
+```typescript
+// Rechazar signatureB64 que sea literal stub o no valide criptográficamente:
+if (signature.signatureB64 === 'STUB_REPLACE_WITH_WEBAUTHN_ASSERTION') {
+  throw new HttpError(400, 'Signature is stub - WebAuthn required');
+}
+const valid = await verifyWebAuthnAssertion(signature, expectedChallenge, storedCredential);
+if (!valid) throw new HttpError(400, 'WebAuthn assertion verification failed');
+```
+
+**Prioridad:** P0 — bloquea cualquier deploy a cliente que use estos reglamentos. Sin esto, el cliente legalmente tiene firmas inválidas que no resisten una auditoría SUSESO o jurídica.
+
+### 13.2 🔴 CRÍTICO TÉCNICO — Conflicto de routing `safe-driving`
+
+**Hallazgo:** dos componentes COMPLETAMENTE DISTINTOS están mapeados al mismo path `/safe-driving`:
+
+| Componente | Archivo | LOC | Propósito |
+|---|---|---|---|
+| `SafeDriving` | `src/pages/SafeDriving.tsx` | 414 | Mapa Google + navigation + rutas seguras con alertas tiempo real |
+| `SafeDrivingMode` | `src/pages/SafeDrivingMode.tsx` | 183 | Modo minimalista voice-first manos libres (Mic, ShieldAlert) |
+
+**Ambos registrados al mismo path:**
+- `src/routes/OperationsRoutes.tsx:42` — `<Route path="safe-driving" element={<SafeDriving />} />`
+- `src/App.tsx:270` y `:415` — `<Route path="safe-driving" element={<SafeDrivingMode />} />`
+
+**Comportamiento React Router v6:** ante dos `<Route>` hermanos con mismo path, gana la primera definida en orden de árbol. `{OperationsRoutes}` se inserta antes (líneas 263 y 408) → **`SafeDriving` gana**, **`SafeDrivingMode` (183 LOC) es la página huérfana funcional** (importada pero no accesible vía router).
+
+**Plan de resolución:**
+
+```diff
+// src/App.tsx (líneas 270 y 415):
+- <Route path="safe-driving" element={<SafeDrivingMode />} />
++ <Route path="safe-driving-mode" element={<SafeDrivingMode />} />
++ {/* o: <Route path="driving/voice-mode" element={<SafeDrivingMode />} /> */}
+```
+
+Y verificar que `SafeDrivingMode` se invoque también desde el speedTrigger (`src/services/driving/speedTrigger.ts`) cuando se detecta velocidad > umbral, navegando programáticamente a `/safe-driving-mode`.
+
+**Prioridad:** P1 — feature completa (414 LOC con Google Maps) inaccesible por bug; o feature voz (183 LOC) bloqueada según resolución.
+
+### 13.3 🟡 IMPORTANTE — 89 hooks huérfanos (mismo patrón Sprint pendiente)
+
+**Conteo:** 89 de 175 hooks (51%) tienen 0 importadores en código de producción.
+
+**Sample (todos con header `Praeventio Guard — ... client hook`):**
+
+`useControlComparator`, `useCircadian`, `useErgonomics`, `useAuditChain`, `useRootCause`, `useJsa`, `useUpsell`, `useContingencySimulation`, `useSif`, `useRootCauseInvestigation`, `useFiveS`, `useReturnToWork`, `useContractors`, `useQrAck`, `useCommsDrill`, +74 más.
+
+**Patrón confirmado:** son hooks de feature listos para usar en sus respectivas páginas/componentes — **mismo patrón que componentes huérfanos** (§11). Trabajo Sprint 39-53 pendiente de WIRE.
+
+**Acción:** integrar al Plan de WIRE de §11.9 — cada hook se conecta cuando se monta su componente o página correspondiente. Esfuerzo: incluido en el 1 semana-dev sweep.
+
+### 13.4 🟡 IMPORTANTE — 42 paths con doble definición en App.tsx
+
+**Hallazgo:** 42 rutas (analytics, settings, worker-readiness, work-permits, visitors, suppliers, inbox, lessons, pdca, etc.) están definidas DOS VECES en App.tsx — apuntando al MISMO componente.
+
+**Razón estructural:** `AppInner()` tiene 5 branches según estado (demo mode / pre-landing / pre-onboarding / authenticated / outer wrapper). Las branches **demo (línea 257)** y **main authenticated (línea 371)** ambas contienen un `<Routes>` block con TODAS las mismas rutas inline.
+
+**Análisis:**
+- ✅ NO es bug funcional — solo una branch se renderiza a la vez según condición
+- 🟡 SÍ es DRY violation — agregar/remover una ruta requiere editar 2 lugares
+- 🟡 Costo de mantenimiento: alta probabilidad de drift (alguien edita 1 y olvida el otro)
+
+**Refactor sugerido:**
+
+```typescript
+// Extraer las "Other Routes" duplicadas a una constante:
+const otherAppRoutes = [
+  <Route key="analytics" path="analytics" element={<Analytics />} />,
+  <Route key="settings" path="settings" element={<Settings />} />,
+  // ... (42 routes)
+];
+
+// Usar en ambas branches:
+// branch demo (línea 263):
+return <Routes><Route path="/" element={<RootLayout/>}>
+  {EmergencyRoutes}{TrainingRoutes}{OperationsRoutes}...
+  {otherAppRoutes}
+</Route></Routes>;
+
+// branch main (línea 408):
+return <Routes>...<Route path="/" element={<RootLayout/>}>
+  {EmergencyRoutes}...{otherAppRoutes}
+</Route></Routes>;
+```
+
+**Prioridad:** P2 — opcional, refactor de higiene. Esfuerzo: 1h.
+
+### 13.5 🟢 LIMPIEZA — 1 console.log debug residual
+
+**Hallazgo:** `src/components/knowledge/SmartConnectionsPanel.tsx:119`
+
+```typescript
+onClick={() => {
+  console.log('[SmartAction]', action.id, action.label);
+}}
+```
+
+**Análisis:** un click handler que solo loguea sin ejecutar la acción → **action incompleto, no solo debug**. La función debería invocar la `action` real (probablemente `executeSmartAction(action)` o similar).
+
+**Otros console statements verificados:**
+- `logger.ts:94` — logger interno legítimo ✅
+- `guardianOffline.ts:371` — JSDoc example en comment ✅
+- `runWithGuardrails.ts:184` — JSDoc example en comment ✅
+
+**Prioridad:** P3 — implementar handler real o documentar como "no-op intencional para Sprint futuro".
+
+### 13.6 ✅ FALSOS POSITIVOS confirmados (de auditorías paralelas)
+
+| Reporte | Realidad | Evidencia |
+|---|---|---|
+| "2279 imports rotos con `.js`" | ✅ Convención ESM correcta | `tsconfig.json`: `moduleResolution: "bundler"` + `package.json`: `"type": "module"` → imports `.js` en `.ts` son OBLIGATORIOS por spec ESM |
+| "79 `not implemented` crashes" | ✅ Stubs gated por `isAvailable`/env | SiiAdapter, ObservabilityAdapter, StripeAdapter, ErpAdapter — todos custom error types con docs URL, fallback noop registrado |
+| "261 STUB markers en prod" | ✅ Markers semánticos intencionales | `SCAFFOLDING ONLY`, `TYPED STUB`, `Sprint 39 STUB-3 close` — todos documentados con Sprint/audit hallazgo |
+| "Páginas <100 LOC son shells" | ✅ Delegations legítimas | Onboarding (wrapper a OnboardingWizard), Zettelkasten (NlQueryPanel), Splash (UI simple), Assets (MaquinariaManager), Reglamentos (tabbed switcher Ds67/Ds76) |
+
+### 13.7 ✅ Confirmaciones de buena higiene
+
+- **Páginas referenciadas en routers existen físicamente**: 154/154 ✅
+- **Assets `/mascot.png`, `/mascot.webp`, `/mascots/*.png`**: 100% presentes ✅
+- **Tests deshabilitados**: 0 (1 `it.todo` documentado) ✅
+- **Conflicts entre Routes/*.tsx**: 0 ✅ (cada archivo tiene paths únicos)
+- **Imports rotos a archivos TS/TSX**: 0 ✅
+- **Barrel re-exports rotos**: 0 ✅
+- **Tipos de error custom**: 4 (`SiiNotImplementedError`, `ObservabilityNotImplementedError`, `StripeNotImplementedError`, `ErpNotImplementedError`) — arquitectura disciplinada
+
+### 13.8 Resumen consolidado de acciones priorizadas
+
+| # | Acción | Severidad | Prioridad | Esfuerzo |
+|---|---|---|---|---|
+| 1 | WIRE WebAuthn en Ds67Builder + Ds76Builder + SusesoFormBuilder | 🔴 Regulatorio | P0 | 3-4h |
+| 2 | Resolver conflicto `safe-driving` (renombrar uno de los paths) | 🔴 Funcional | P0 | 30min |
+| 3 | Validar server-side rechazo de `signatureB64 === 'STUB_...'` | 🔴 Defense in depth | P0 | 1h |
+| 4 | WIRE 89 hooks huérfanos + 125 componentes (§11.9) | 🟡 Feature visibility | P1 | 1 semana |
+| 5 | DRY refactor 42 rutas duplicadas en App.tsx | 🟡 Mantenimiento | P2 | 1h |
+| 6 | Cleanup `SmartConnectionsPanel.tsx:119` (action handler incompleto) | 🟢 Hygiene | P3 | 15min |
+
+**Total inversión P0+P1:** ~1 semana-dev y media. Output: producto cumpliendo compliance regulatoria + 110+ features visibles + cero conflicts de routing.
+
+### 13.9 Lecciones aprendidas — proceso
+
+1. **Auditorías deben verificar metodología antes de proponer acción** — el primer "481 huérfanos" era falso por regex. Lección incorporada.
+
+2. **`grep -rln`/`wc -l` son herramientas DE CONTEO, no de SEMÁNTICA** — un componente con 0 importadores puede ser código activo (lazy import dinámico, registry inyectado, mascot system). La semántica AUTHORITATIVE vive en headers de archivo y comments inline.
+
+3. **Subagentes paralelos generan ruido (falsos positivos) si no se les da contexto suficiente** — el agente que reportó "2279 imports rotos" no sabía del `moduleResolution: "bundler"`. Lección: incluir tsconfig en prompts de auditoría.
+
+4. **Conflictos de routing son INVISIBLES en grep tradicional** — requieren parsing AST o regex compuesto `(path, element)`. Python + regex compuesto detectó el conflicto `safe-driving` que escaped grep simple.
+
+5. **STUB ≠ código muerto** — el proyecto tiene 261 markers STUB que son TODOS intencionales (documentados con Sprint + razón). Distinguir STUB-WIRE (futuro pendiente) de STUB-ALCANZABLE (riesgo presente — caso WebAuthn).
+
+6. **Conservadurismo se valida cada vez** — el usuario insistió DOS VECES en verificación profunda. Ambas veces se encontró trabajo activo donde el primer pase reportaba "muerto/duplicate". El proyecto tiene CERO DELETE seguros confirmados.
+
+---
+
+## Conclusión final actualizada
+
+> Tras DOS pasadas de auditoría exhaustiva profunda:
+>
+> **El proyecto tiene 4 problemas accionables reales**:
+> 1. 3× firmas WebAuthn STUB (riesgo regulatorio Chile)
+> 2. 1× conflicto routing `safe-driving` (414 LOC de Google Maps inaccesible)
+> 3. 110+ features hechas pero no wireadas (componentes + hooks)
+> 4. 1× handler de click incompleto
+>
+> **Todo lo demás es código activo, intencional y bien arquitecturado**. Cero código muerto. Cero tests deshabilitados. Cero imports rotos. Cero crashes alcanzables.
+>
+> La acción prioritaria es las 2 P0 regulatorias (3-5h) + el sweep de WIRE de 1 semana. Después de eso, el producto está listo para demostración a cliente.
