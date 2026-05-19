@@ -291,6 +291,8 @@ import adoptionRouter from "./src/server/routes/adoption.js";
 import agendaRouter from "./src/server/routes/agenda.js";
 // Consistency Auditor — Sprint 39 Fase G.3 (12+ cross-module rules).
 import consistencyRouter from "./src/server/routes/consistency.js";
+// Prevention Cost Calculator — Sprint 39 J.3 (§117-118 non-compliance + ROI).
+import costCalculatorRouter from "./src/server/routes/costCalculator.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -979,6 +981,7 @@ app.use('/api/sprint-k', changeMgmtRouter);
 app.use('/api/sprint-k', adoptionRouter);
 app.use('/api/sprint-k', agendaRouter);
 app.use('/api/sprint-k', consistencyRouter);
+app.use('/api/sprint-k', costCalculatorRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
