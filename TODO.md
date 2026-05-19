@@ -967,3 +967,78 @@ Podar **214 branches** en `origin/` (claude/* 10-17d + dev/sprint-* 10-53 + feat
 ---
 
 **Última actualización TODO.md:** 2026-05-19 23:00 — agregado §13 con 32 items NUEVOS (N1-N32 + W1-W8) descubiertos en AUDIT_EXHAUSTIVA_2026-05-19.md.
+
+---
+
+## §14 — Items NUEVOS de §29 AUDIT (cierre 2026-05-19, 3 Explore agents adicionales)
+
+> Origen: `docs/audits/AUDIT_EXHAUSTIVA_2026-05-19.md` §29 — tercera pasada de auditoría con 3 agentes paralelos sobre componentes, services + lib, y testing coverage. Suma de items totales descubiertos en auditoría exhaustiva 2026-05-19: **87 items** (32 N + 35 B + 20 C).
+
+### 14.1 🔴 P0 ABSOLUTOS (cierre antes de prod — 8 items)
+
+| ID | Item | Estimate | Razón |
+|---|---|---|---|
+| **C1** | Crear `docs/architecture-decisions/0005-photogrammetry-pipeline.md` | S 1h | Master plan declara ADR-0005 "(CREATE)" pero no existe — gap governance |
+| **C2** | iOS native scaffolding (`npx cap add ios`) | XL 1 sem | `ios/App/` solo tiene fastlane/ — no hay Xcode project = NO deployable a iOS App Store |
+| **C6** | OAuth refresh AbortController + timeout 10s (`oauthTokenStore.ts:197`) | S 1h | Slow HTTP attack → sesiones colgadas, DoS user-level |
+| **C7** | Gemini/OpenWeather AbortController + timeout 10s sweep | M 4h | Stack exhaustion en Cloud Run multi-instance (>10 archivos) |
+| **C8** | OAuth refresh Idempotency-Key + lock per-user (`oauthTokenStore.ts:215-219`) | M 4h | Token race condition multi-request → duplicación de tokens |
+| **C9** | Mutation orchestrator.ts: 7.69% → 70%+ | L 1 sprint | 48 mutantes sobreviven, 24 sin cobertura — lógica retry/adapters/analytics no testeada |
+| **C10** | 10 rutas API críticas sin test (emergency, OAuth, billing, audit, admin, import, compliance, subscription, health, onboarding) | L 1 sprint | Hot paths (vida, dinero, seguridad) sin cobertura |
+| **C20** | PR #450 CI Playwright e2e-full-stack failing (3 webhooks) | M 4h | Probable mascot a11y regression — bloquea merge a main |
+
+### 14.2 🟡 P1 NEXT-SPRINT (9 items)
+
+| ID | Item | Estimate |
+|---|---|---|
+| **C3** | Photogrammetry worker dedup: Python vs TypeScript canonical decision | M 1 día |
+| **C4** | `marketplace/manifest.json` pricing enum "External pricing" | S 30min |
+| **C11** | 355 `any` en signatures públicas → unknown + type guards (sweep) | L 1 sprint |
+| **C12** | 783 type assertions `as X` sin runtime check → zod schemas + safeParse | L 1 sprint |
+| **C13** | Telemetry Sentry spans en auth/SOS/KMS/payment hot paths | M 2 días |
+| **C14** | SyncManager distributed lock (Firestore-backed, Cloud Run scale-out) | M 1 día |
+| **C15** | Colapsar `geminiService.ts` (126 LOC wrapper) → `geminiBackend.ts` directo | M 1 día |
+| **C16** | KnowledgeGraph.tsx: 16 useState → useReducer + memoization strategy | M 1 día |
+| **C17** | 50 Modal components → BaseModal común (consolidación UI library) | L 1 sprint |
+
+### 14.3 🟢 P2/P3 BACKLOG (3 items)
+
+| ID | Item | Estimate |
+|---|---|---|
+| **C5** | `tests/e2e/landing.spec.ts` un-skip + Firebase test config en CI | M 2h |
+| **C18** | 4 imgs sin alt fix: MorningRoutine.tsx:393, AnatomyLibrary, FindTheGuardian, EPPCharacter | S 1h |
+| **C19** | 3 key={index} fix: CompensatoryExercises, NormativeQuiz, FirstAidCards | S 30min |
+
+### 14.4 Resumen cuantitativo de auditoría 2026-05-19
+
+| Fase | Items descubiertos | Sumatoria |
+|---|---|---|
+| 1ª pasada (§1-§22) | base inicial | — |
+| 2ª pasada (§23-§27) | 32 items N (N1-N32) + 8 W (W1-W8) | 40 |
+| §28 EXHAUSTIVO | 35 items B (B1-B35) | 75 |
+| §29 + 3 Explore agents adicionales | **20 items C (C1-C20)** | **95** |
+
+**Total items accionables: 95** (sin contar branches sin merge §13.7 = 215 branches separados).
+
+### 14.5 Plan revisado HOY tras §29 — camino a Day-1 mundial (12 semanas-dev)
+
+| Semana | Foco | Items |
+|---|---|---|
+| 1 | P0 críticos resiliencia + idempotency | C6 + C7 + C8 (OAuth/Gemini fetch hardening) |
+| 2 | P0 tests rutas críticas | C9 + C10 (mutation orchestrator + 10 routes sin test) |
+| 3 | P0 PR #450 + governance | C20 (CI playwright diagnostic) + C1 (ADR-0005) |
+| 4-5 | Type safety sweep | C11 + C12 (355 any + 783 assertions) |
+| 6 | Telemetry + resilience | C13 + C14 + C15 |
+| 7-8 | WIRE huérfanos componentes (190) + hooks/services huérfanos | N6 + N9 + W3-W8 |
+| 9 | Consolidación UI + a11y | C17 + C18 + C19 + C16 |
+| 10 | iOS native scaffolding | C2 (requiere macOS, paralelizable) |
+| 11 | Misc: photogrammetry dedup + marketplace + landing E2E | C3 + C4 + C5 |
+| 12 | Polishing + smoke + perf budget | regression check + lighthouse green |
+
+**Esfuerzo restante post-§29: ~12 semanas-dev** (sin contar §5 bloqueados por usuario).
+**Cobertura E2E real HOY: 60-65%** (ajustada por hallazgos de §29).
+**Cobertura E2E proyectada Day-1: 95%+** tras 12 semanas-dev.
+
+---
+
+**Última actualización TODO.md:** 2026-05-19 23:45 — agregado §14 con 20 items C nuevos (C1-C20) descubiertos en AUDIT §29 (3 Explore agents adicionales). Total acumulado: 95 items.

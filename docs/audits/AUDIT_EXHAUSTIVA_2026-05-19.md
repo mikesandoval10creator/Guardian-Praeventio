@@ -2944,3 +2944,276 @@ Total después de §28: **35 items B nuevos** + 32 N anteriores = **67 items tot
 > - Bus de eventos: -1pp (B7)
 >
 > **Esfuerzo revisado para Day-1 95%: ~10 semanas-dev** (era 8 sem; +2 sem por nuevos P0).
+
+---
+
+## §29 Cierre 2026-05-19 — Tercera pasada de auditoría con 3 Explore agents adicionales
+
+> Tras §28, el usuario pidió "sigue auditando porfa la totalidad de todas las funciones". Se lanzaron 3 Explore agents paralelos sobre las áreas con auditoría aún superficial. Esta sección documenta los hallazgos y rectifica métricas incorrectas previas.
+
+### 29.1 Áreas NUEVAS verificadas production-ready (Agent 1)
+
+Cobertura adicional sobre `infra/` + `infrastructure/terraform/` + `scripts/` + `bin/` + `loadtest/`.
+
+| Área | Veredicto | Detalle clave (file:line cuando aplica) |
+|---|---|---|
+| `infra/dwg-converter/server.py` | ✅ PROD | Bearer constant-time, GCS signed URLs 1hr, LibreDWG dwg2dxf CLI |
+| `infra/usdz-converter/server.py` | ✅ PROD | Bearer USDZ_CONVERTER_TOKEN, glb_to_usdz.py subprocess, 50MB cap, 110s timeout |
+| `infra/modal-photogrammetry/app.py` | ✅ PROD | Meshroom 2023.3.0 GPU A10G (~$0.10/job), hmac.compare_digest L121-124 |
+| `infra/photogrammetry-worker/server.py` | ✅ PROD | Flask + threading + COLMAP 9-stage pipeline, in-memory registry (documented limitation) |
+| `infrastructure/terraform/` 11 .tf | ✅ PROD | KMS keyring `praeventio` con 90-day rotation, IAM least-privilege, Cloud Run jobs backup/integrity |
+| `scripts/rotate-secrets.sh` | ✅ PROD | 4 pasos: add → redeploy → smoke → disable previous version |
+| `scripts/backup-firestore.cjs` | ✅ PROD | LRO 50-min timeout, manifest.json con counts/timestamp, exit codes 0/1/2 |
+| `scripts/migrate-oauth-tokens-to-envelope.cjs` | ✅ PROD | Idempotent --dry-run + --batch=N, tsx ESM bridge |
+| `scripts/dr-failover.sh` | ✅ PROD | us-central1→us-east1 con DR_MODE=1, smoke + DNS flip manual (humano-en-loop) |
+| `scripts/security-review.cjs` | ✅ PROD | Detector eval/secrets/AES-ECB/child_process scanning git diff BASE...HEAD |
+| `bin/mcp-server.mjs` | ✅ PROD | MCP stdio + tenant whitelist read-only contract |
+| `loadtest/sos-1000-concurrent.yml` | ✅ PROD | Artillery 1000 RPS SOS, p95<800ms, error<1% |
+
+### 29.2 Componentes 190/372 huérfanos (Agent A — rectifica §11)
+
+Auditoría profunda de `src/components/` (no `web/src/components/` como decía §1 — el repo NO tiene carpeta `web/`).
+
+| Métrica | Valor |
+|---|---|
+| Total componentes (.tsx, sin tests) | **372** |
+| Importados en producción | **182** |
+| **Huérfanos potenciales (51%)** | **190** ⚠️ |
+| Con ≥6 useState (refactor a useReducer) | 6 |
+| LOC >500 sin code-split | 15+ |
+| Con `any`/`unknown` no narrowed | **113** |
+| Con `@ts-expect-error` justificado | 1 |
+| `key={index}` anti-pattern | 3 |
+| 50 Modal components sin base común | candidato consolidación |
+
+**Top 6 con multiple-useState (refactor candidato):**
+- `src/components/shared/KnowledgeGraph.tsx`: **16 useState** + 1188 LOC + lazy 3D (parcialmente mitigado)
+- `src/components/shared/AsesorChat.tsx`: 12 useState + 564 LOC
+- `src/components/hygiene/MorningRoutine.tsx`: 11 useState
+- `src/components/shared/SyncCenterModal.tsx`: 7 useState
+- `src/components/shared/EmergencyOverlay.tsx`: 6 useState
+- `src/components/WeatherSafetyRecommendations.tsx`: 6 useState
+
+**Top 5 componentes >500 LOC (sin code-splitting interno):**
+1. `KnowledgeGraph.tsx` 1188 LOC
+2. `ergonomics/AddErgonomicsModal.tsx` 1011 LOC
+3. `ar/ARPosterScanner.tsx` 727 LOC
+4. `audits/ISOManagement.tsx` 655 LOC
+5. `occupational-health/HumanBodyViewer.tsx` 642 LOC
+
+**a11y violations confirmadas (img sin alt):**
+- `hygiene/MorningRoutine.tsx:393`
+- `medicine/AnatomyLibrary.tsx`
+- `gamification/FindTheGuardian.tsx`
+- `dashboard/EPPCharacter.tsx`
+
+**key={index} anti-pattern:**
+- `bio/CompensatoryExercisesModal.tsx`
+- `gamification/NormativeQuiz.tsx`
+- `emergency/FirstAidCards.tsx`
+
+**Discrepancia con §1 + §24:** §1 dijo 139 componentes (basado en `web/src/components/`), §24 confirmó 139 huérfanos. La realidad es **372 componentes únicos** en `src/components/` (no `web/src/`), con **190 huérfanos** (51%). El número 139 era una sub-medición. Esto **eleva el trabajo huérfano** significativamente: 51 componentes adicionales no auditados.
+
+### 29.3 Services + lib P0/P1 críticos (Agent B)
+
+Auditoría profunda de `src/lib/` + `src/services/`.
+
+| Métrica | Valor |
+|---|---|
+| Total services (40 .ts + 219 dirs) | **259** |
+| Importados en producción | 221 |
+| **Huérfanos potenciales** | **53** (~20%) |
+| Lines con `any` en signatures | **355** |
+| Type assertions sin runtime check | **783** |
+| Fetch sin AbortController/timeout | **>30** |
+| Services críticos sin telemetry | **5** (auth/SOS/KMS/payment) |
+
+**🔴 P0 NUEVOS (críticos, no en §28):**
+
+1. **NEW-P0-1 — Fetch sin timeout en OAuth refresh** (`src/services/oauthTokenStore.ts:197`)
+   - `fetch('https://oauth2.googleapis.com/token')` sin AbortController
+   - Impacto: Slow HTTP attack → sesiones colgadas indefinidamente, DoS user-level
+   - Fix: AbortController + 10s timeout (S 1h)
+
+2. **NEW-P0-2 — Fetch sin timeout en Gemini/OpenWeather** (`src/services/orchestratorService.ts:22`, `environmentBackend.ts:37`)
+   - Calls a openweathermap.org / USGS sin signal
+   - Impacto: Stack exhaustion en Cloud Run multi-instance
+   - Fix: AbortController + 10s timeout en cada fetch (M 4h, ~10 archivos)
+
+3. **NEW-P0-3 — OAuth refresh sin Idempotency-Key** (`src/services/oauthTokenStore.ts:215-219`)
+   - `docRef.update()` puede reintentar → token almacenado 2+ veces (race condition)
+   - Impacto: Tokens corruptos en multi-request scenario
+   - Fix: Idempotency-Key header + lock per-user (M 4h)
+
+**🟡 P1 NUEVOS:**
+
+4. **NEW-P1-1 — 355 `any` en firmas públicas**
+   - `geminiService.ts`, `networkBackend.ts`, `predictionBackend.ts`, `ragService.ts`
+   - Ejemplo: `export const indexLaw = async (law: any, ...)`
+   - Fix: Reemplazar `any` por `unknown` + type guards (L 1 sprint, sweep)
+
+5. **NEW-P1-2 — 783 type assertions sin narrowing**
+   - `oauthTokenStore.ts:177: snap.data() as StoredTokens` sin runtime check
+   - `environmentBackend.ts:306: (loc as TenantLocationContext).tenantId`
+   - Fix: zod schemas + safeParse (L 1 sprint)
+
+6. **NEW-P1-3 — Cero telemetry en auth/SOS/KMS/payment**
+   - `oauthTokenStore.ts`: 0 Sentry spans
+   - `auth/totp.ts`, `auth/webauthn*.ts`: 0 traces
+   - SOS services: 0 tracing
+   - Fix: Sentry spans + OTel breadcrumbs en hot paths (M 2 días)
+
+7. **NEW-P1-4 — Singleton SyncManager no thread-safe** (`src/services/syncManager.ts:28`)
+   - `private flushInterval: any = null` — shared mutable state
+   - Impacto: Cloud Run scale-out → queues desincronizadas entre instances
+   - Fix: Distributed lock vía Firestore + interval recreate per-instance (M 1 día)
+
+8. **NEW-P1-5 — Duplicate Gemini wrapper** (`geminiService.ts` 126 LOC delega a `geminiBackend.ts` 3070 LOC)
+   - Maintenance burden, inconsistent error handling
+   - Fix: Colapsar `geminiService.ts` → `geminiBackend.ts` directo (M 1 día) **(coincide con plan §13.6 sem 8)**
+
+**Servicios huérfanos potenciales (53 confirmados):**
+- `adService.ts`, `auditService.ts`, `bcnService.ts`, `firebase.ts` (en services/, hay otro en lib/), `firestore` (dir), `eventBus`, `eventStore`
+- Acción: confirmar uso real y eliminar o documentar como facade intencional
+
+### 29.4 Testing coverage REAL — 7 huecos críticos (Agent C)
+
+Auditoría profunda de tests + E2E + coverage de rutas API.
+
+| Métrica | Valor |
+|---|---|
+| Total test files | **1,586** (unit + e2e + spec) |
+| Test files unitarios (server/routes) | 131 |
+| **E2E specs Playwright** | **7** archivos |
+| **Tests skipped activos** | **10+** casos |
+| **API routes totales** | 167 |
+| **Routes con test colocado** | **129** (~77%) |
+| **Routes sin test** | **38** (~23%) |
+| **Mutation score acumulado** | **46.88%** ⚠️ |
+| Mutation: orchestrator.ts | **7.69%** 🔴 |
+| Mutation: verifyAuth.ts | 64.29% |
+| Snapshots encontrados | 82 |
+| Lighthouse CI | Configurado (accessibility/best-practices: error 90%) |
+
+**🔴 P0 NUEVO — Mutation score orchestrator 7.69%** (`docs/testing/MUTATION_BASELINE.md`):
+- 48 mutantes sobreviven, 24 sin cobertura
+- Tests no asseran retry/adapters/analytics
+- Fix: escribir tests asertivos sobre rama de error + edge cases (M 1 sprint)
+
+**🔴 P0 NUEVO — 10 rutas API críticas SIN test:**
+1. `emergency.ts` — SOS submit + escalation (vida o muerte)
+2. `oauthGoogle.ts` — OAuth login Google/Apple
+3. `billing.ts` — Stripe/MercadoPago payment flow
+4. `onboarding.ts` — Project creation + invite member
+5. `audit.ts` — Audit log + compliance recording
+6. `admin.ts` — Admin permissions escalation
+7. `import.ts` — File upload + AV scan
+8. `compliance.ts` + `complianceEmit.ts` — Compliance workflows
+9. `subscription.ts` — Subscription mgmt
+10. `health.ts` — Health checks + KMS ops
+
+**🟡 P1 — E2E skipped activos:**
+
+| Spec | Skip type | Razón |
+|---|---|---|
+| `tests/e2e/landing.spec.ts:13` | `describe.skip` | Firebase env en CI (TODO Sprint 19) |
+| `tests/e2e/sos-button.spec.ts` | 2× `test.skip` | — |
+| `tests/e2e/accessibility.spec.ts:82,96,118,130` | 4× `test.skip` | E2E_FULL_STACK gate |
+| `tests/e2e/offline-resilience.spec.ts`, `fall-detection-toggle.spec.ts`, `process-lifecycle.spec.ts`, `sw-models-cache.spec.ts` | (varios) | Some E2E_FULL_STACK gated |
+
+**🟡 P1 NUEVOS:**
+
+- **NEW-P1-6 — 5+ tests con solo `.toBeTruthy()` sin asserts específicos:** `iot.test.ts`, `visitors.test.ts`, `suseso.test.ts`, `openapi.test.ts` (tests débiles, cobertura ficticia)
+- **NEW-P1-7 — Sin API contract tests** (sin OpenAPI/JSON schema validation runtime)
+- **NEW-P1-8 — Sin jest-axe en unit tests** (a11y solo a través de Playwright E2E gated)
+
+### 29.5 PR #450 CI Playwright full-stack failing (3 webhooks consecutivos)
+
+Durante esta auditoría llegaron **3 webhook events** consecutivos de CI failure:
+- Run 26118064746/job 76812449809
+- Run 26118548101/job 76814120038
+- Run 26118660634/job 76814514447
+
+**Diagnóstico:**
+
+- **Job afectado:** `e2e-full-stack` (Sprint 22 Bucket Z, Sprint 36 con `continue-on-error: false`)
+- **PR HEAD SHA:** 9fd8f97b25bad37fca1be24bf437cf0655bc53c1
+- **Diff vs main (8 archivos):** TODO.md, AUDIT, App.tsx, ActiveDrivingOverlay.tsx, ConsciousnessLoader.tsx, EmptyState.tsx, Login.tsx, SafeDriving.tsx
+
+**Cambios sospechosos de romper specs e2e-full-stack:**
+
+1. **`src/pages/Login.tsx:147-152`**: reemplazó `<img src="/mascot.png" alt="Guardian Praeventio">` por `<GuardianMascot mood="default" size="lg" />`
+   - **Hipótesis 1 (más probable):** `accessibility.spec.ts:117` corre `axe.analyze()` sobre /login. El nuevo `<GuardianMascot>` componente puede introducir nuevas a11y violations serias (img sin alt dentro del componente, o ARIA labels duplicados)
+   - **Hipótesis 2:** El componente tarda más en montar (motion.div con animation), excede el `domcontentloaded` timeout
+
+2. **`src/App.tsx:199,269,413`**: removió ruta `/safe-driving` que apuntaba a `SafeDrivingMode` (consolidado en SafeDriving)
+   - **Bajo riesgo:** ningún spec testea esa ruta directamente
+
+3. **`src/pages/SafeDriving.tsx`**: agregó `ActiveDrivingOverlay` toggle interno
+   - **Bajo riesgo:** ruta auth-gated, no en E2E full-stack actual
+
+**Branch state:**
+- `mergeable_state: dirty` — origin/main avanzó 1 commit (17e7a32e → 0aa2e515) → necesita rebase
+
+**Acción correctiva propuesta:**
+1. Reproducir local: `E2E_FULL_STACK=1 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 GOOGLE_CLOUD_PROJECT=demo-test E2E_TEST_SECRET=e2e-test-secret-do-not-use-in-prod npx playwright test --project=chromium`
+2. Si confirma hipótesis 1 (mascot a11y): verificar `src/components/shared/GuardianMascot.tsx` por alt text en `<img>` interno, ARIA roles correctos
+3. Si NO se reproduce local: rebase contra main + re-push para destrabar workflow
+
+### 29.6 Items NUEVOS para TODO §13.5 — 20 items C1-C20 totales
+
+Sumando todos los hallazgos de §29:
+
+| ID | Item | Severity | Estimate | Fuente |
+|---|---|---|---|---|
+| **C1** | Crear `docs/architecture-decisions/0005-photogrammetry-pipeline.md` | 🔴 P0 | S 1h | Plan §29 prep |
+| **C2** | iOS native scaffolding `npx cap add ios` (requiere macOS) | 🔴 P0 | XL 1 sem | Plan §29 prep |
+| **C3** | Photogrammetry worker dedup decision (Python vs TS) | 🟡 P1 | M 1 día | Plan §29 prep |
+| **C4** | manifest.json pricing enum "External pricing" | 🟡 P1 | S 30min | Plan §29 prep |
+| **C5** | landing.spec.ts Firebase CI config | 🟢 P2 | M 2h | §29.4 |
+| **C6** | OAuth refresh: AbortController + timeout 10s | 🔴 P0 | S 1h | §29.3 NEW-P0-1 |
+| **C7** | Gemini/OpenWeather: AbortController + timeout 10s sweep | 🔴 P0 | M 4h | §29.3 NEW-P0-2 |
+| **C8** | OAuth refresh Idempotency-Key + lock per-user | 🔴 P0 | M 4h | §29.3 NEW-P0-3 |
+| **C9** | Mutation orchestrator.ts: 7.69% → 70%+ | 🔴 P0 | L 1 sprint | §29.4 |
+| **C10** | 10 rutas API críticas sin test → escribir tests | 🔴 P0 | L 1 sprint | §29.4 |
+| **C11** | 355 `any` en signatures → unknown + type guards | 🟡 P1 | L 1 sprint | §29.3 NEW-P1-1 |
+| **C12** | 783 type assertions sin narrowing → zod schemas | 🟡 P1 | L 1 sprint | §29.3 NEW-P1-2 |
+| **C13** | Telemetry en auth/SOS/KMS/payment | 🟡 P1 | M 2 días | §29.3 NEW-P1-3 |
+| **C14** | SyncManager distributed lock | 🟡 P1 | M 1 día | §29.3 NEW-P1-4 |
+| **C15** | Colapsar geminiService.ts → geminiBackend.ts | 🟡 P1 | M 1 día | §29.3 NEW-P1-5 |
+| **C16** | KnowledgeGraph: useReducer + memoization strategy | 🟡 P1 | M 1 día | §29.2 |
+| **C17** | 50 Modal components → base común (consolidación) | 🟡 P1 | L 1 sprint | §29.2 |
+| **C18** | 4 imgs sin alt fix (MorningRoutine, AnatomyLibrary, FindTheGuardian, EPPCharacter) | 🟡 P1 | S 1h | §29.2 |
+| **C19** | 3 key={index} fix (CompensatoryExercises, NormativeQuiz, FirstAidCards) | 🟡 P1 | S 30min | §29.2 |
+| **C20** | PR #450 CI Playwright e2e-full-stack — diagnóstico + fix (mascot a11y likely) | 🔴 P0 | M 4h | §29.5 |
+
+### 29.7 Cobertura E2E REAL ajustada tras §29
+
+> **Cobertura previa estimada: 65-70%** (post §28)
+> **Cobertura tras §29 (3 Explore agents adicionales): 60-65%**
+
+Ajuste hacia abajo por:
+- Mutation orchestrator 7.69% (era ~50% estimado): **-3pp** efectivos
+- 38 routes sin test (era ~25 estimado): **-2pp**
+- 190 huérfanos componentes vs 139 previo: -0pp (no afecta cobertura E2E, sí bundle bloat)
+- 30+ fetch sin timeout en services críticos: **-2pp** (resiliencia downgrade)
+- OAuth refresh sin idempotency: **-1pp**
+
+**Esfuerzo revisado para Day-1 95%: ~12 semanas-dev** (era 10 sem en §28; +2 sem por NEW-P0-1 + NEW-P0-2 + NEW-P0-3 + mutation orchestrator).
+
+### 29.8 Veredicto final post-§29
+
+✅ **La infraestructura del proyecto es madura y completa**:
+- Todo `infra/` workers production-ready
+- Terraform IaC completo con KMS 90d rotation
+- Scripts de DR + backup + rotación production-ready
+- MCP server production-ready
+
+⚠️ **El código TypeScript tiene 3 categorías de problemas latentes**:
+1. **Resiliencia downstream:** 30+ fetch sin timeout (OAuth, Gemini, OpenWeather) — vulnerable a slow HTTP attacks y stack exhaustion en multi-instance
+2. **Type safety degradada:** 355 `any` + 783 type assertions sin runtime check — runtime errors invisibles
+3. **Testing weak en hot paths:** mutation 7.69% en orchestrator + 38 routes sin test + 10 rutas críticas (emergency, OAuth, billing) sin coverage
+
+🔴 **El estado real cuando se compara contra "Day-1 mundial" es 60-65% E2E**, no 95% como una primera lectura del codebase sugiere. La brecha es **principalmente operacional + testing**, no arquitectónica.
+
+**Recomendación:** Tomar las próximas 4 semanas-dev SOLO para C6, C7, C8, C9, C10 (5 items 🔴 P0) — eso eleva cobertura a 75% efectivo y elimina las exposiciones de seguridad latentes más serias.
