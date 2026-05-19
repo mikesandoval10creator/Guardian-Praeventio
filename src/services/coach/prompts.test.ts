@@ -3,12 +3,14 @@ import {
   CHEMICAL_PROMPT,
   MEDICINE_PROMPT,
   LEGAL_PROMPT,
+  ERGONOMICS_PROMPT,
+  STRUCTURAL_PROMPT,
   DOMAIN_PROMPTS,
   type DomainPrompt,
 } from './prompts';
 
 /**
- * Bucket HH — schema integrity tests for the three coach personas.
+ * Bucket HH + Fase 3.B — schema integrity tests for the 5 coach personas.
  * These tests catch regressions like accidentally emptying citations,
  * removing the few-shot examples, or swapping the persona definitions.
  */
@@ -17,6 +19,8 @@ const allPrompts: Array<[string, DomainPrompt]> = [
   ['CHEMICAL', CHEMICAL_PROMPT],
   ['MEDICINE', MEDICINE_PROMPT],
   ['LEGAL', LEGAL_PROMPT],
+  ['ERGONOMICS', ERGONOMICS_PROMPT],
+  ['STRUCTURAL', STRUCTURAL_PROMPT],
 ];
 
 describe('coach domain prompts', () => {
@@ -40,6 +44,10 @@ describe('coach domain prompts', () => {
     expect(MEDICINE_PROMPT.systemPrompt).toMatch(/PREXOR/);
     expect(LEGAL_PROMPT.systemPrompt).toMatch(/Ley\s*21\.?643/);
     expect(LEGAL_PROMPT.systemPrompt).toMatch(/Ley\s*20\.?123/);
+    expect(ERGONOMICS_PROMPT.systemPrompt).toMatch(/TMERT/);
+    expect(ERGONOMICS_PROMPT.systemPrompt).toMatch(/Ley\s*20\.?001/);
+    expect(STRUCTURAL_PROMPT.systemPrompt).toMatch(/NCh\s*2369/);
+    expect(STRUCTURAL_PROMPT.systemPrompt).toMatch(/OGUC/);
   });
 
   it('citations array references the same norms named in systemPrompt', () => {
@@ -58,16 +66,30 @@ describe('coach domain prompts', () => {
       c.includes('21.643'),
     );
     expect(legalCitationsHit).toBe(true);
+
+    const ergonomicsCitationsHit = ERGONOMICS_PROMPT.citations.some((c) =>
+      c.includes('TMERT'),
+    );
+    expect(ergonomicsCitationsHit).toBe(true);
+
+    const structuralCitationsHit = STRUCTURAL_PROMPT.citations.some((c) =>
+      c.includes('NCh 2369'),
+    );
+    expect(structuralCitationsHit).toBe(true);
   });
 
-  it('DOMAIN_PROMPTS lookup map exposes exactly chemical/medicine/legal', () => {
+  it('DOMAIN_PROMPTS lookup map exposes the 5 canonical domains', () => {
     expect(Object.keys(DOMAIN_PROMPTS).sort()).toEqual([
       'chemical',
+      'ergonomics',
       'legal',
       'medicine',
+      'structural',
     ]);
     expect(DOMAIN_PROMPTS.chemical).toBe(CHEMICAL_PROMPT);
     expect(DOMAIN_PROMPTS.medicine).toBe(MEDICINE_PROMPT);
     expect(DOMAIN_PROMPTS.legal).toBe(LEGAL_PROMPT);
+    expect(DOMAIN_PROMPTS.ergonomics).toBe(ERGONOMICS_PROMPT);
+    expect(DOMAIN_PROMPTS.structural).toBe(STRUCTURAL_PROMPT);
   });
 });

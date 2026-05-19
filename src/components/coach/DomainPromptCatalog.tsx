@@ -1,12 +1,12 @@
 // Praeventio Guard — Wire UI #77: <DomainPromptCatalog />
 //
-// Catálogo navegable de los 3 prompts de dominio del Coach IA
-// (chemical / medicine / legal) — útil para auditoría + transparencia
-// IA + onboarding del prevencionista.
+// Catálogo navegable de los 5 prompts de dominio del Coach IA
+// (chemical / medicine / legal / ergonomics / structural) — útil para
+// auditoría + transparencia IA + onboarding del prevencionista.
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, FlaskConical, Stethoscope, Scale } from 'lucide-react';
+import { Bot, FlaskConical, Stethoscope, Scale, PersonStanding, Building2 } from 'lucide-react';
 import {
   DOMAIN_PROMPTS,
   type CoachDomain,
@@ -21,9 +21,11 @@ const DOMAIN_META: Record<CoachDomain, { label: string; Icon: typeof FlaskConica
   chemical: { label: 'Químico-Toxicológico', Icon: FlaskConical, color: 'text-amber-500' },
   medicine: { label: 'Salud Ocupacional', Icon: Stethoscope, color: 'text-emerald-500' },
   legal: { label: 'Legal / Cumplimiento', Icon: Scale, color: 'text-sky-500' },
+  ergonomics: { label: 'Ergonomía / REBA-RULA', Icon: PersonStanding, color: 'text-rose-500' },
+  structural: { label: 'Estructural / Diseño', Icon: Building2, color: 'text-indigo-500' },
 };
 
-const DOMAIN_ORDER: CoachDomain[] = ['chemical', 'medicine', 'legal'];
+const DOMAIN_ORDER: CoachDomain[] = ['chemical', 'medicine', 'legal', 'ergonomics', 'structural'];
 
 export function DomainPromptCatalog({
   initialDomain = 'chemical',
