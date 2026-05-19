@@ -821,3 +821,149 @@ Podar **214 branches** en `origin/` (claude/* 10-17d + dev/sprint-* 10-53 + feat
 ---
 
 **Próxima revisión profunda:** post-cleanup §12.1 quick wins (estimada 2026-05-26).
+
+---
+
+## 13. 🔍 Hallazgos NUEVOS — auditoría exhaustiva 2026-05-19 (32 items N1-N32)
+
+> **Audit profundo ejecutado 2026-05-19** documentado en `docs/audits/AUDIT_EXHAUSTIVA_2026-05-19.md` (2900+ LOC, 27 secciones, 4 agentes paralelos especializados, build físico medido, verificación archivo por archivo).
+>
+> **Datos consolidados HOY:**
+> - **30 MB** dist/ (28 MB ML models + 2 MB UI)
+> - **15.6 MiB** PWA precache (485 entries)
+> - **10029 tests passing** / 0 failed
+> - **215 branches** sin fusionar (126 dev/sprint-*, 8 claude/*, 4 feat/*, +misc)
+> - **148 TODO/FIXME** markers en código
+> - **17 ADRs** + **16 Runbooks** documentados
+> - **52 Firestore collections** declaradas en rules + **29 composite indexes**
+> - **167 route files** + **542 endpoints** (120 GET + 419 POST + 0 PUT/PATCH + 3 DELETE)
+> - **3 triggers Firestore** + **18 cron jobs**
+> - **154 páginas** (1 huérfana: SloErrorBudget) / 111 sin test (72%)
+> - **373 componentes** / 138 huérfanos REALES (37%) / 192 sin test (51%)
+> - **175 hooks** / 92 huérfanos REALES (52.6%)
+> - **619 services** / 7 estrictos huérfanos + 61 test-only = 68 efectivos (11%)
+>
+> **TOTAL HUÉRFANOS verificados: 299 archivos (139 componentes/páginas + 92 hooks + 68 services efectivos)**
+
+### 13.1 🔴 P0 NUEVOS (críticos / bloqueantes legales)
+
+| ID | Hallazgo | File:line | Esfuerzo |
+|---|---|---|---|
+| N17 | `invoices` collection sin `match` block en rules — billing.ts:563,655,921 escribe via Admin SDK directo | `firestore.rules:11` (solo comentario) + `billing.ts:563,655,921` | S 30min |
+| N18 | `wisdomCapsules` (rules:536) vs `wisdom_capsules` (routes 4 lugares) — naming conflict | `firestore.rules:536` vs `wisdomCapsule.ts:266,314,414` | S 1h |
+| N19 | `POST /api/audit-log` sin Zod — escribe a immutable `audit_logs`, payload malformado server-side es permanente | `routes/audit.ts:40` | S 30min |
+| N20 | 3 admin endpoints sin Zod ni limiter per-uid (revoke-access, set-role, replicate-critical) | `routes/admin.ts:98,164,252` | S 1h |
+| N29 | **Ley Karin engine huérfano** (`karinReportingEngine.validateKarinReport()` 239 LOC) — `useConfidentialReports` existe wireada pero NO usa este engine. **Ley Karin acoso laboral OBLIGATORIA en Chile.** | `src/services/confidentialReports/karinReportingEngine.ts:137` | M 1d |
+| W1 | **`dr-dryrun.yml` workflow ROTO** — invoca `npm run test:dr` que NO existe en package.json. Cron mensual fallará silenciosamente. | `.github/workflows/dr-dryrun.yml:87` + `package.json` (sin `test:dr`) | S 15min |
+
+### 13.2 🟡 P1 NUEVOS
+
+#### Rate limiting / Zod gaps backend
+
+| ID | Hallazgo | Esfuerzo |
+|---|---|---|
+| N21 | 12 endpoints "heavy" sin rate limiter per-uid (reports/generate-pdf, cad/convert-dwg, dte/generate, coachRag ×3, medicalAptitude, eventReplay, criticalRoles, firstResponderMap, auditPortal, adminJobs) | M 1d |
+| N22 | 80 endpoints SIN Zod validation total — distribución billing.ts (9), organic.ts (8), admin.ts (7), curriculum.ts (6), projects.ts (4), +14 archivos más | L 1 semana |
+| N23 | 35 collections que routes escriben pero NO en rules: `iap_receipt_attempts`, `apple_ssn_attempts`, `user_sessions`, `fcm_tokens`, `photogrammetry_jobs`, `predictive_alert_acks`, `imports`, `erp_sync_logs`, `health_vault_shares`, `knowledge_base`, `visitors`, etc. | M 2d |
+
+#### Mascot UX (87 oportunidades del §15 AUDIT)
+
+| ID | Hallazgo | Esfuerzo |
+|---|---|---|
+| N1 | 16 Suspense `fallback={null}` → `MascotLoader thinking` | S 30min |
+| N2 | 11 form-success `setSaved(true)` → mascot celebrating | S 45min |
+| N3 | 7 Hero/Landing prime spots → mascot xl prominente | M 1d |
+| N4 | Onboarding completion celebration mascot xl | S 1h |
+| N11 | DataLoadErrorBanner/SyncConflictBanner/OfflineIndicator → mascot alert | M 1d |
+
+#### WIRE huérfanos (299 archivos)
+
+| ID | Hallazgo | Esfuerzo |
+|---|---|---|
+| N5 | **138 componentes huérfanos verificados** + 1 página (SloErrorBudget) — categorizados por dominio | L 7-9 días |
+| N6 | **92 hooks huérfanos verificados** (52.6%) — top: useEvacuation, useEscalation, useAuditPortal, useAiGuardrails, sosOrchestrator | L 1 semana |
+| N7 | **68 services efectivamente huérfanos** (test-only, 11%) — top: encryptedOfflineQueue (603 LOC), criticalPermitValidators (481 LOC), monthlyClientReportBuilder (387 LOC) | L 1 semana |
+| N27 | Wire `useEvacuation` (119 LOC) + `useEscalation` (155 LOC) en `pages/Emergency.tsx` (DS 76 Chile) | M 1d |
+| N28 | Wire `sosOrchestrator.buildSosOrchestration()` (262 LOC) en `useAcousticSOS` o `useManDownDetection` | M 1d |
+| N30 | Wire `useAiGuardrails` (215 LOC) + `useAiQuality` (170 LOC) en componentes `AiAsesor` | M 1d |
+| N31 | Wire `stripePreflightCheck.runStripePreflight()` (318 LOC) en server.ts boot — o documentar Stripe descartado §9 | S 2h |
+
+#### CI/CD governance gaps
+
+| ID | Hallazgo | Esfuerzo |
+|---|---|---|
+| W2 | `.github/CODEOWNERS` ausente | S 30min |
+| W3 | `.github/PULL_REQUEST_TEMPLATE.md` ausente | S 30min |
+| W4 | `ci.yml` jobs sin `timeout-minutes` explícito (default 360 min) | S 1h |
+| W5 | CodeQL `java-kotlin` + `swift` DESHABILITADOS (mobile code no se escanea) | S 30min (post mobile sprint) |
+| W6 | `perf.yml` lhci Chromium flaky no marcado | M 4h (mover a nightly cron) |
+| W7 | `e2e.yml e2e-full-stack` flaky (6 timeouts recurrentes) — añadir `--retries=2` | S 30min |
+| W8 | `firestore-backup.yml` cron sin notificación Slack/Sentry en fallos | M 2h |
+
+### 13.3 🟢 P2 NUEVOS
+
+| ID | Hallazgo | Esfuerzo |
+|---|---|---|
+| N8 | `transformers.web` aparece 2 veces en bundle (862 KB × 2 = -352 KB brotli waste) — auditar imports SLM | M 4h |
+| N9 | 14 `@deprecated` activos sin remoción — sweep | M 2h |
+| N10 | 42 rutas duplicadas App.tsx (dual mount no destructivo) | M 1h |
+| N12 | 2 nuevos archivos >1000 LOC: ConfidentialReports.tsx (1248) + OfflineInspection.tsx (1208) — split candidatos | L 1 sem cada |
+| N24 | 9 cron jobs sin HTTP entry point (`runConsistencyAudit`, `runLoneWorkerEscalation`, `runExceptionAutoExpire`, `runWorkPermitAutoExpire`, `runLegalCalendarReminders`, `runDailyClimateRiskScan`, `firestoreCriticalReplicate`, `consolidateZettelkasten`, `runWeeklyDigest`) — exponer via verifySchedulerToken o documentar dead code | M 1d |
+| N25 | 0 endpoints PUT/PATCH en 542 — migrar updates de POST a PATCH para REST hygiene | L 3-4d |
+| N26 | 7 collections con composite index pero sin rules match: `work_permits`, `drills`, `inspections`, `culture_pulse`, `photogrammetry_jobs`, `invoices`, `incidents` | M 2h |
+
+### 13.4 🟢 P3 NUEVOS (pulido / bundle)
+
+| ID | Hallazgo | Esfuerzo |
+|---|---|---|
+| N13 | Eliminar `dist/mascot.png` (931 KB) + `dist/mascot.webp` (88 KB) legacy — post-§14.2 AUDIT ningún componente los importa | S 5 min |
+| N14 | Convertir 5 mascots PNG (796 KB) → AVIF/WebP | S 2h |
+| N15 | Tree-shake `lucide-react` (464 importes) | M 3h |
+| N16 | 15 hardcoded strings sin `t()` → i18n 100% (OfflineIndicator:88, ProjectHealthCheck:96, ErrorBoundary:108 + 12 más) | S 1h |
+| N32 | Sweep WIRE 299 huérfanos consolidado (138 componentes + 1 página + 92 hooks + 68 services) | XL 2-3 sem |
+
+### 13.5 Corrección a § anteriores TODO (datos desactualizados detectados)
+
+| § TODO | Estado anterior | Estado VERIFICADO HOY |
+|---|---|---|
+| §8 #13 AnatomyLibrary/DifferentialDiagnosis/DrugInteractions | "no implementadas" | ✅ Wireadas en `pages/Medicine.tsx` (falta data CC0) |
+| §8 #14 VitalityMonitor | "UI sin backend" | ✅ Wireada en `pages/Hygiene.tsx` |
+| §8 #16 MorningRoutine | "falta persistir" | ✅ Wireada en `pages/Hygiene.tsx:25,160` (incl. persistencia) |
+| §8 #19 WearablesPanel | "solo en Telemetry" | ✅ Confirmado limitado a `pages/Telemetry.tsx` |
+| §8 #8 Onboarding wizard UI | "endpoint listo, falta UI" | ✅ EXISTE (`OnboardingWizard.tsx` + `useOnboardingStatus.ts` + `pages/Onboarding.tsx`) |
+| §2.1 TECHNICAL_DEBT android/ | "no existe" | ✅ EXISTE (`android/app/` + .gitignore) |
+| §4.1 TECHNICAL_DEBT firebase.json | "sin hosting/storage" | ✅ YA TIENE hosting + storage + headers + emulators |
+| §13.3 mi audit services | "53 huérfanos" | **CORRECCIÓN: 7 estrictos + 61 test-only = 68 efectivos** (los `.js` imports estaban siendo missed) |
+| §13.3 mi audit hooks | "89 huérfanos" | Confirmado: 92 huérfanos (+3) |
+| §7 Wire UI cards | "5 cards a wirear" | Solo LeadershipTrailCard wireada ✅; las otras 4 (CphsCommitteeStatusCard, EngineeringInventoryCard, MonthlyClientReportPanel, PrivacyRegimeCard) siguen huérfanas 🔴 |
+| §8 Coach IA por dominio | "Asesor único" | ✅ EXISTE DomainPromptCatalog.tsx pero NO wireado en componente AsesorChat |
+| §8 Twin triple-gate auth wire | "solo Site25DPanel y DigitalTwinFaena" | ✅ Confirmado limitado a 2 lugares |
+
+### 13.6 Plan revisado HOY — camino a Day-1 mundial
+
+**Esfuerzo restante: ~8 semanas-dev (sin contar §5 bloqueados)**
+
+| Semana | Foco | Output | Cobertura E2E |
+|---|---|---|---|
+| 1 | P0 críticos: 6 items (WebAuthn ×3 + Karin + invoices + audit_log + dr-dryrun) | 75% |
+| 2 | 12 endpoints heavy → rate limit + 80 endpoints → Zod sweep + CODEOWNERS/PR template | 78% |
+| 3-4 | WIRE 139 componentes huérfanos | 84% |
+| 5-6 | WIRE 92 hooks + 68 services + 17 hooks compliance | 89% |
+| 7 | Tests páginas críticas (5) + i18n 100% + compliance global UK/CA/AU/JP/KR/IN wire | 92% |
+| 8 | Refactor arquitectónico (geminiBackend + billing split) + polishing mascot 87 oportunidades | 95% |
+
+**Items bloqueados §5 (input usuario):** 23 items continúan sin destrabar — techo real sin acción del usuario: ~85%.
+
+### 13.7 Branches sin fusionar — triage URGENTE
+
+| Categoría | Count | Acción recomendada |
+|---|---|---|
+| `dev/sprint-*` | 126 | Auditar work único, mergear o borrar (XL 2 sem) |
+| `claude/*` | 8 | Mergear si activas o borrar |
+| `feat/*` | 4 | Mergear o cerrar |
+| Otros | 77 | Limpieza routinaria |
+| **TOTAL** | **215** | Limpieza branches |
+
+---
+
+**Última actualización TODO.md:** 2026-05-19 23:00 — agregado §13 con 32 items NUEVOS (N1-N32 + W1-W8) descubiertos en AUDIT_EXHAUSTIVA_2026-05-19.md.
