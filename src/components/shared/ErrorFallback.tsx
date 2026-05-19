@@ -31,8 +31,7 @@ export function ErrorFallback({ error, resetError, eventId }: ErrorFallbackProps
   }
 
   return (
-    <div
-      role="alert"
+    <main
       style={{
         minHeight: '100vh',
         display: 'flex',
@@ -46,7 +45,7 @@ export function ErrorFallback({ error, resetError, eventId }: ErrorFallbackProps
         textAlign: 'center',
       }}
     >
-      <div style={{ maxWidth: '480px' }}>
+      <div role="alert" style={{ maxWidth: '480px' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 900, marginBottom: '1rem', letterSpacing: '-0.02em' }}>
           {i18n.t('errors.unexpected', 'Algo salió mal. El equipo fue notificado.')}
         </h1>
@@ -86,7 +85,7 @@ export function ErrorFallback({ error, resetError, eventId }: ErrorFallbackProps
           </button>
         )}
       </div>
-    </div>
+    </main>
   );
 }
 
