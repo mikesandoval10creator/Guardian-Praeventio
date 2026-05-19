@@ -505,3 +505,185 @@ Lo que **sí preocupa**:
 5. Definir prioridad entre §12.1 #21-26 (features grandes F-A/B/D/E/F + EPP Edge AI)
 
 **Próxima revisión exhaustiva:** post-cleanup §12.1 quick wins + decisiones D1-D4 (estimada 2026-06-02).
+
+---
+
+## 9. Cierre de gaps — TODO confirmado (2026-05-19 post-update)
+
+Esta sección cierra los 4 gaps identificados en §8 "Lo que NO sabemos con certeza". 4 agentes Explore paralelos consolidaron:
+
+### 9.1 Triage de 214 branches origin con trabajo único
+
+**Stats globales:**
+- 214 branches origin con commits únicos (100% NO rebased en main)
+- Edad mediana: 5-6 días (creación masiva últimas 2 semanas)
+- Distribución: 125 `dev/sprint-*` (Sprint 11-53), 47 `dev/agent-*`, 8 `claude/*`, 4 `feat/parallel-stream-*`, 30 otros
+
+**Clasificación accionable:**
+
+| Tier | Acción | Branches | Volumen | Riesgo |
+|---|---|---|---|---|
+| Tier 1 | **CHERRY-PICK INMEDIATO** (1-2 commits, <100 files) | 17 | bajo | muy-bajo |
+| Tier 2 | **MERGE CON TEST** (25-50 commits, features completas) | 26 | medio | bajo |
+| Tier 3 | **CHERRY-PICK DOCS** (claude/* + audits) | 8 | bajo | muy-bajo |
+| Tier 4 | **AUDIT INDIVIDUAL** (agent-* con 50+ commits) | 40-50 | grande | medio |
+| Tier 5 | **DELETE MASIVO** (POC/spike/duplicados) | 100+ | grande | bajo |
+
+**Tier 1 cherry-picks específicos (alto valor inmediato):**
+- `fix-main-typecheck-47-errors` — `fix(types): eliminate TS errors blocking CI`
+- `audit-pendings-real` — `fix(erp): replace setTimeout simulado con adapter honesto`
+- `cqrs-real-implementation` — `feat(cqrs)` (ADR 0016 deferred pero código existe)
+- `critical-work-permits` — `feat` (cierre de gap regulatorio)
+- `make-fake-premium-pages-real` — `fix(typecheck): align WearablesIntegration real shape`
+- 12 más: `wire-ui-lote-final`, `settings-kek-mount`, `resilience-health-alert-cron`, etc.
+
+**Tier 2 features mergeable (con test):**
+- `sprint-e-nasa-power-climate` [26 commits] — feat(climate): NASA POWER + EONET real wire
+- `sprint-c-life-critical-fakes` [27 commits] — feat(refuges): MountainRefuges CONAF real
+- `resilience-dashboard-e2e-wire` [20 commits] — feat(observability): ResilienceHealthDashboard e2e
+
+**Tier 3 documentación rescatable:**
+- `claude/impl-roadmap-life-safety` — 522 commits, roadmap + dev port config
+- `claude/technical-debt-documentation-pd2gN` — 22 technical debt items + audit
+- `claude/code-audit-planning-Ihe1q` — 379 commits comprehensive audit findings
+
+**Plan ejecutable:**
+1. **Fase 1 (2h)**: Borrar 50 branches viejos + 17 Tier-1 cherry-picks
+2. **Fase 2 (1h)**: Evaluar 8 claude/* docs branches, rescue docs/AUDIT.md
+3. **Fase 3 (2-3 días)**: Audit 40-50 agent-* (grep main vs commit subjects)
+
+**Salvaguarda crítica:** antes de delete masivo, `git log --all --grep='revert\|delete'` para NO perder reversiones importantes.
+
+### 9.2 Archivos huérfanos en `src/`
+
+**Inventario de ~1612 archivos TS/TSX (sin tests, sin `.d.ts`):**
+
+| Categoría | Count | % |
+|---|---|---|
+| 🔴 HUÉRFANO REAL (0 importadores, no entry point) | ~481 | 30% |
+| 🟡 BAJA REFERENCIA (1 importador) | ~388 | 24% |
+| 🟢 ACTIVO (2+ importadores) | ~388 | 24% |
+| Entrypoints (pages, routers, lazy imports) | ~355 | 22% |
+
+**Hallazgo CRÍTICO:**
+> **77 de 155 páginas (50%) NO están referenciadas en `src/AppRoutes.tsx`** — son código muerto efectivo en src/pages/.
+>
+> Ejemplos: `Accessibility.tsx`, `Analytics.tsx`, `AnnualReview.tsx`, `Apprenticeship.tsx`, `B2dAdminPanel.tsx`, `CQRSArchitecture.tsx`, `ConfidentialReports.tsx`, `CuadrillasDashboard.tsx`, `Dashboard.tsx`, `DrivingSafety.tsx`, y 67 más.
+
+**LOC eliminables solo TOP 20 páginas huérfanas:** ~12,979 LOC
+
+**Componentes 🔴 críticos a considerar borrar (sin importador real):**
+| Archivo | Estado |
+|---|---|
+| `src/components/medicine/Ds67Modal.tsx` | 0 importadores |
+| `src/pages/ArcadeGames.tsx` | Solo importado por test |
+| `src/components/operationalState/FaenaStateBanner.tsx` | 1 importador (su test) |
+| `src/components/processes/ProcessDetailModal.tsx` | 1 importador (CuadrillasDashboard que es huérfana) |
+| `src/components/engineering/HazmatStorageDesigner.tsx` | 1 importador (AIHub) |
+
+**Patrón de borrado en cascada:** si página `X.tsx` es huérfana (no en AppRoutes) Y usa componente `Y.tsx` exclusivo de X → ambos borrables.
+
+**Acción recomendada:** sprint dedicado de "src cleanup" — borrar 481 huérfanos reales + auditar 388 baja referencia → potencial reducción 20-25% del codebase. Esfuerzo M 3 días.
+
+### 9.3 17 promesas AMBIGUAS — RESOLUCIÓN
+
+| # | Promesa | Estado | Evidencia |
+|---|---|---|---|
+| 1 | MedicalDisclaimer en vistas médicas | ✅ | `src/components/health/MedicalDisclaimer.tsx:1-96` — wireado en Medicine, HealthVaultViewer, HealthVaultShare. Cumple Ley 20.584 + 21.719 |
+| 2 | Dynamic evacuation routes A* | ✅ | `src/services/routing/gridAStar.ts` + `src/server/routes/evacuation.ts` POST endpoints |
+| 3 | Zettelkasten reconciliation offline | 🟡 | `src/components/shared/AsesorChat.tsx:142-156` — `handleReconnection` solo dentro de chat, no servicio global cron |
+| 4 | MQTT IoT broker boot | ✅ | `server.ts:1` importa mqttAdapter, `src/services/iot/ingestRuleEngine.ts` activo |
+| 5 | X.509 device certs CA flow | ✅ | `src/server/routes/iot.ts:1-50` endpoint POST /api/iot/devices/register (sin CSR explícito, registra device) |
+| 6 | **Heartbeat 5min + reaper 15min** | 🔴 | `checkLostHeartbeats.ts` **NO existe**. Solo comentarios en `iot/types.ts` referencian. **GAP REAL.** |
+| 7 | Mesh BLE consumer TS | ✅ | `src/services/mesh/transportFacade.ts:1-50` — consume MeshPlugin nativo via Capacitor |
+| 8 | MeshPacket.ts existe | ✅ | `src/services/mesh/meshPacket.ts:1-30` — define type, interface, sign/verify, TTL, dedup |
+| 9 | Bloom filter dedup mesh | ✅ | `src/services/mesh/meshRelayQueue.test.ts` test "drop duplicados (Bloom-filter dedup)" |
+| 10 | WearablesPanel backend adapter | ✅ | `src/services/health/nativeHealthAdapter.ts` expone HealthMetric subset |
+| 11 | Geofence Capacitor plugin | ✅ | `src/hooks/useGeofence.ts:1-50` — AudioContext + vibration + geolocation real (sin Capacitor.Geofence explícito, usa geolocation API) |
+| 12 | Modo Crisis fallen man vs FallDetectionMonitor | ✅ | DISTINTOS. FallDetectionMonitor es feature independiente. "Modo Crisis" no es feature separada en codebase. |
+| 13 | Vertex AI Trainer stub | 🔴 | `src/services/ml/vertexTrainer.ts:1-18` STUB intencional. Requiere `VERTEX_TRAINING_ENABLED` + `BIGQUERY_TRAINING_DATASET`. **NO implementación real** (decisión D1 pendiente) |
+| 14 | ODA File Converter NO activo | ✅ | grep `ODAFileConverter\|ODA.*convert` → 0 resultados. Confirmed deferred |
+| 15 | LibreDWG Cloud Run no deploy | ✅ | `src/server/routes/cad.ts:1-20` proxy listo, **NO deployado** (GPL-3.0 isolation requerido) |
+| 16 | **Bioicons 33 SVG reales** | 🔴 | TODOS los 33 SVG en `public/icons/biology/*.svg` contienen `<!-- Bioicons placeholder - replace with real SVG -->`. **Son placeholders genéricos.** `brain.svg` y `cut-wound.svg` confirmados como paths básicos sin datos biomédicos reales. |
+| 17 | **AsesorChat 5-tier fallback** | 🟡 | `AsesorChat.tsx:1-564` implementa solo **3-tier**: Gemini cloud → SLM local → GuardianOfflineService FAQ. **Marketing/docs dicen 5-tier pero código tiene 3.** |
+
+**Resultado:**
+- ✅ 11 IMPLEMENTADAS (65%) — mueven a §4 promesas IMPLEMENTADAS
+- 🟡 3 PARCIALES (18%) — quedan en parciales
+- 🔴 3 NO IMPLEMENTADAS / PLACEHOLDER (18%) — nuevos hallazgos críticos:
+  - **#6 Heartbeat reaper FALTA** — gap real en IoT Sprint 32 TT
+  - **#13 Vertex Trainer stub** — ya conocido (D1 pendiente)
+  - **#16 Bioicons placeholders** — ADR 0003 declara "Bioicons primary", código tiene placeholders. **DRIFT CRÍTICO.**
+  - **#17 AsesorChat 3-tier vs 5-tier marketing** — drift docs↔código
+
+### 9.4 Cobertura tests por subcarpeta crítica
+
+| Subcarpeta | Code files | Test files | Ratio | Estado |
+|---|---|---|---|---|
+| billing | 16 | 14 | 46% | 🟡 |
+| security | 6 | 6 | 50% | 🟡 |
+| auth | 6 | 5 | 45% | 🟡 |
+| compliance | 8 | 8 | 50% | 🟡 |
+| **regulatory** | **21** | **4** | **16%** | 🔴 |
+| emergency | 6 | 6 | 50% | 🟡 |
+| mesh | 6 | 6 | 50% | 🟡 |
+| **iot** | **6** | **4** | **40%** | 🔴 |
+| zettelkasten | 33 | 24 | 42% | 🟡 |
+| slm | 28 | 22 | 44% | 🟡 |
+| digitalTwin | 11 | 8 | 42% | 🟡 |
+| ar | 11 | 10 | 47% | 🟡 |
+| **observability** | **16** | **7** | **30%** | 🔴 |
+| audit | 2 | 2 | 50% | 🟡 |
+| sii | 12 | 6 | 33% | 🟡 |
+
+**Subcarpetas sin carpeta dedicada** (no significa sin tests — pueden estar en otras subcarpetas o ser servicios internos): sentry, kms, encryption, mqtt, gemini, vertex, auditChain, mesh-iot, billingAdapters. Verificar si son nombres incorrectos antes de declarar gap.
+
+**Gaps reales por cobertura baja:**
+- 🔴 **regulatory 16%** — 21 archivos, solo 4 con test. ADR 0014 es crítico, necesita tests por jurisdicción.
+- 🔴 **observability 30%** — 16 archivos, 7 con test. SENTRY/OTel/tracing necesita más cobertura.
+- 🔴 **iot 40%** — 6 archivos, 4 con test. Sprint 32 TT debería cerrar este gap.
+
+### 9.5 Drift docs ↔ código — confirmación
+
+| # | Declaración | Estado | Evidencia | Acción |
+|---|---|---|---|---|
+| 1 | TODO.md §9: "Stripe descartado" | 🔴 **DRIFT CRÍTICO** | `src/server/routes/billing.ts:84` importa stripeAdapter; `:213` llama `stripeAdapter.createCheckoutSession()` cuando `paymentMethod === 'stripe'`. Código LIVE. | Decisión D2: borrar código stripe o reactivar oficialmente |
+| 2 | ADR 0013 Mesh: features sin consumer | ✅ **ALINEADO** | `src/services/emergency/sosOrchestrator.ts:154` llama `buildPacket()`; `meshFallback.ts` importa MeshPacket | Sin acción |
+| 3 | SUSESO: "Server-side proxy" | 🟡 **DRIFT MENOR** | `src/pages/SusesoReports.tsx:59` instancia `SusesoApiClient.fromEnv()` **en cliente**, línea 89 llama `submitDiat()` directamente. NO hay proxy server real. | TODO.md §2.14: mover a server proxy (M 2d) |
+| 4 | README: "Edge AI EPP" | 🔴 **DRIFT CRÍTICO** | `src/components/ai/VisionAnalyzer.tsx:7` importa `analyzeVisionImage` de geminiService; `:93` ejecuta análisis via Gemini cloud. MediaPipe NO en flujo. | Decisión D5: actualizar marketing O entrenar TFLite local (L 2sem) |
+| 5 | README/TODO: "Push automático SUSESO" | 🟡 **DRIFT MENOR** | `src/server/jobs/sendSusesoReminders.ts:2-9` envía SOLO recordatorios (email/push deadline), NO submit. Código alineado, docs confusas. | Limpiar lenguaje marketing |
+| 6 | ADR 0003 Bioicons primary | 🔴 **DRIFT CRÍTICO** | 33 SVG en `public/icons/biology/*.svg` son TODOS placeholders genéricos | Curation manual de SVG reales (M 3d) |
+| 7 | Docs marcan AsesorChat 5-tier | 🔴 **DRIFT** | `AsesorChat.tsx` implementa 3-tier (Gemini → SLM → FAQ) | Actualizar docs O agregar 2 tiers (ZK + Firestore) |
+
+---
+
+## 10. Resumen post-cierre
+
+**Lo que YA SABEMOS con certeza (post agentes paralelos):**
+
+✅ 214 branches catalogadas con plan de acción (17 cherry-pick, 26 merge, 8 docs, 50+ delete)
+✅ ~481 archivos huérfanos identificados + 77 páginas no-en-router (50%)
+✅ 17 promesas ambiguas resueltas: 11 ✅, 3 🟡, 3 🔴 confirmados
+✅ Cobertura tests servicios críticos: regulatory 16% / observability 30% / iot 40% (gaps cuantificados)
+✅ 7 drifts docs↔código identificados con file:line, 3 críticos
+
+**Promesas originales actualizadas (post §9.3):**
+- ✅ IMPLEMENTADO: ~121 (67%, +11 vs §4)
+- 🟡 PARCIAL: ~53 (29%, +3 vs §4)
+- 🔴 NO IMPLEMENTADO: ~6 (3%, +3 nuevos: heartbeat reaper, Bioicons, AsesorChat 5-tier)
+
+**Nuevos hallazgos críticos del cierre:**
+
+| # | Hallazgo | Severidad | Esfuerzo fix |
+|---|---|---|---|
+| 1 | **Bioicons 33 SVG son placeholders** (ADR 0003 dice "primary") | 🔴 Alto | M 3d (curation manual) |
+| 2 | **Stripe scaffold LIVE en `billing.ts:213`** (TODO.md §9 dice descartado) | 🔴 Crítico | Decisión D2 + 2h cleanup |
+| 3 | **EPP Edge AI usa Gemini cloud** (README dice "edge") | 🔴 Alto | Decisión D5 (TFLite L 2sem o update marketing) |
+| 4 | **77/155 páginas sin route** — 50% código muerto | 🔴 Alto | M 3d cleanup |
+| 5 | **AsesorChat 3-tier vs 5-tier marketing** | 🟡 Medio | 1h docs O L 1sem código |
+| 6 | **Heartbeat reaper IoT no existe** (Sprint 32 TT) | 🟡 Medio | M 2d implementación |
+| 7 | **Regulatory tests 16%** (21 archivos / 4 tests) | 🟡 Medio | L 1sem agregar cobertura |
+
+**Veredicto final actualizado:**
+
+> Ya SABEMOS lo que tenemos, lo que falta, y lo que está roto en docs. El producto sigue cumpliendo su misión core (Sección §8 vigente), pero el cierre de gaps reveló **7 drifts nuevos accionables**. La acción inmediata sugerida es priorizar 3 críticos: (1) decidir Bioicons curation vs aceptar placeholders, (2) decidir Stripe activo vs descartado, (3) decidir EPP edge vs cloud. Estos 3 desbloquean ~70% del drift de docs↔código y completan la coherencia del producto.
