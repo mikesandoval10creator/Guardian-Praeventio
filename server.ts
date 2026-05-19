@@ -281,6 +281,8 @@ import raciMatrixRouter from "./src/server/routes/raciMatrix.js";
 import bbsRouter from "./src/server/routes/bbs.js";
 // Critical Roles — Sprint K §271-275 (bus-factor + sustitutos + training plan).
 import criticalRolesRouter from "./src/server/routes/criticalRoles.js";
+// Non-Conformity engine — Sprint 49 §196-199 (NC↔action linkage + stage + patterns).
+import nonConformityRouter from "./src/server/routes/nonConformity.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -964,6 +966,7 @@ app.use('/api/sprint-k', aiGuardrailsRouter);
 app.use('/api/sprint-k', raciMatrixRouter);
 app.use('/api/sprint-k', bbsRouter);
 app.use('/api/sprint-k', criticalRolesRouter);
+app.use('/api/sprint-k', nonConformityRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
