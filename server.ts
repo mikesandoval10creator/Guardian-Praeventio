@@ -309,6 +309,8 @@ import evacuationRouter from "./src/server/routes/evacuation.js";
 import exceptionsRouter from "./src/server/routes/exceptions.js";
 // Critical Controls — Sprint 39 I.2 (library + robustness + barriers + energy).
 import criticalControlsRouter from "./src/server/routes/criticalControls.js";
+// External Audit Portal — Sprint 39 H.1 (read-only token + scope + access logs).
+import auditPortalRouter from "./src/server/routes/auditPortal.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -1006,6 +1008,7 @@ app.use('/api/sprint-k', contractorsRouter);
 app.use('/api/sprint-k', evacuationRouter);
 app.use('/api/sprint-k', exceptionsRouter);
 app.use('/api/sprint-k', criticalControlsRouter);
+app.use('/api/sprint-k', auditPortalRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
