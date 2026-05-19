@@ -327,6 +327,8 @@ import protocolsRouter from "./src/server/routes/protocols.js";
 import workerHistoryRouter from "./src/server/routes/workerHistory.js";
 // Pricing calculator — Sprint K §172-179 (tier cost + comparison + ROI + PO).
 import pricingCalculatorRouter from "./src/server/routes/pricingCalculator.js";
+// Root cause classifier — Sprint 39 I.3 (§28 5-whys + 10-factor taxonomy + no-blame).
+import rootCauseRouter from "./src/server/routes/rootCause.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -1033,6 +1035,7 @@ app.use('/api/sprint-k', routingRouter);
 app.use('/api/sprint-k', protocolsRouter);
 app.use('/api/sprint-k', workerHistoryRouter);
 app.use('/api/sprint-k', pricingCalculatorRouter);
+app.use('/api/sprint-k', rootCauseRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
