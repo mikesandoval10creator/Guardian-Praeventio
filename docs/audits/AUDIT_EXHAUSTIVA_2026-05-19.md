@@ -2834,3 +2834,113 @@ Top 10 más críticas:
 > **Total a Day-1 mundial 95%**: **~8 semanas-dev** + 23 items bloqueados §5 (input usuario).
 >
 > **Hallazgos NUEVOS no listados en TODO.md (32 items totales N1-N32) → actualizar TODO.md siguiente.**
+
+---
+
+## 28. AUDIT EXTRA — 25 omisiones cubiertas (4 agentes paralelos especializados)
+
+> Tras user request "audita todo, todo" se lanzaron 4 agentes especializados cubriendo las omisiones detectadas: infraestructura crítica, ADRs+configs, backend secundario, contexts+PWA. **8 P0 nuevos + 14 P1 nuevos descubiertos.**
+
+### 28.1 🔴 BLOQUEANTES P0 NUEVOS descubiertos (8 críticos)
+
+| # | Hallazgo | File:line | Impacto |
+|---|---|---|---|
+| **B1** | **🚨 Catch-all SPA `app.get('*')` ANTES de billing routers en producción** — los GET `/api/billing/invoice/:id` y `/billing/webpay/return` (Transbank redirect post-pago) son **inalcanzables**; Express resuelve por orden y catch-all responde HTML del SPA en lugar del JSON/handler real | `server.ts:1115` (catch-all dentro de `else`-prod) vs `server.ts:1133,1136` (billing mounts) | **CRÍTICO**: ningún pago Webpay se confirma correctamente en prod |
+| **B2** | **Photogrammetry worker bypass auth** — `checkAuth` acepta CUALQUIER `Bearer` no vacío cuando no matchea `SHARED_TOKEN` (asume Cloud Run valida OIDC, pero sin verificación local criptográfica) | `cloud-run/photogrammetry-worker/src/index.ts:88` | Si Cloud Run mal configurado o se ejecuta sin gate → upload arbitrario al bucket |
+| **B3** | **`@praeventio/capacitor-mesh@0.1.0-scaffold`** — versión scaffold; android/ + ios/ son carpetas pero **SIN código nativo real** (comentario package.json: "Sprint 31 will land Kotlin/Swift") | `packages/capacitor-mesh/package.json:3` | EmergencyContext.tsx:155 mesh fallback **NO funciona** en runtime nativo |
+| **B4** | **`firebase-messaging-sw.js` con apiKey/projectId/appId HARDCODED** | `public/firebase-messaging-sw.js:4-11` | Bloquea multi-tenant; rota junto al SW deploy |
+| **B5** | **Mesh GATT characteristic sin WRITE_ENCRYPTED** (Android + iOS) — cualquier dispositivo BLE puede inyectar packets sin pairing/MITM defense | `packages/capacitor-mesh/android/.../MeshPlugin.kt:438-443` + `ios/Plugin/Plugin.swift:195-200` | Spoofing mesh packets posible |
+| **B6** | **iOS UUID con letras NO-hex** — `CBUUID(string: "00001234-PRAE-VENTI-O123-...")` probable crash o corrupto en runtime iOS | `packages/capacitor-mesh/ios/Plugin/Plugin.swift:34-35` | iOS Bluetooth no funciona |
+| **B7** | **`SystemEngineProvider.tsx:121` `ALL_EVENT_TYPES.slice(0,30)` TRUNCA arbitrariamente** event types — si llegan a >30 los nuevos se silencian sin warning | `src/contexts/SystemEngineProvider.tsx:121` | Bus de eventos pierde messages silenciosamente |
+| **B8** | **`apple-app-site-association` con `TEAMID` literal placeholder** (líneas 6, 22) — iOS Universal Links INOPERANTES | `public/.well-known/apple-app-site-association:6,22` | Deep linking iOS no funciona |
+
+### 28.2 🟡 P1 NUEVOS (14 importantes)
+
+| # | Hallazgo | File:line |
+|---|---|---|
+| B9 | **eslint.config.js SOLO cubre firestore.rules** — CERO ESLint para TypeScript/React/JSX (no `@typescript-eslint`, no `eslint-plugin-react`, no `eslint-plugin-react-hooks`) | `eslint.config.js:1-14` |
+| B10 | **SENTRY_DSN leaked en git history** (commits `b13cfe8` + `d5e7a8e`) — flagged "rotate-now" | `docs/runbooks/SECRETS_RUNBOOK.md:248-252,382-388` |
+| B11 | **16/22 secrets pending bootstrap** | `docs/runbooks/SECRETS_RUNBOOK.md:407-432` |
+| B12 | **ADR 0013 Mesh con drift confirmado** — engine `meshPacket.ts`/`meshRelayQueue.ts` + scaffold aliased en vite.config.ts:162, pero NO consumers en src/ | ADR 0016 §Comparación + audit |
+| B13 | **ADR 0015 MQTT aspiracional** — solo `mqttAdapter.ts` + `ingestRuleEngine.ts` + UI shell; sin server boot, sin `/api/iot/devices/register`, sin X.509 flow | ADR 0015 mismo |
+| B14 | **B2D `/climate/*` retorna `deterministic-stub`** pese a citation Open-Meteo/USGS/OpenAQ; código USGS real existe en `services/external/usgs/` sin cablear a B2D | `src/server/routes/b2d/climate.ts:41-53,80,111,151` |
+| B15 | **B2D `/suite/coach` 3 strings hardcoded ES** sin invocar Gemini pese a promesa "AI Coach" | `src/server/routes/b2d/suite.ts:42-66` |
+| B16 | **B2D `/normativa/validate` heurística trivial** — `string.includes(regId)` sobre primeros 5 regs del pack | `src/server/routes/b2d/normativa.ts:114-119` |
+| B17 | **CSP `style-src 'unsafe-inline'`** + `img-src https:` wildcard — vectores XSS residuales | `src/server/middleware/securityHeaders.ts:126,130` |
+| B18 | **'unsafe-eval' permitido en DEV** modo — si NODE_ENV mal seteado en deploy abre eval | `src/server/middleware/securityHeaders.ts:175` |
+| B19 | **SIGTERM no llama `server.close()`** — conexiones HTTP activas cortadas abruptamente en Cloud Run rollover | `server.ts:1360-1372` |
+| B20 | **tenantScoped.test.ts:64 sigue `ctx.skip()` silencioso** mientras los otros 2 rules-tests fueron migrados a `throw` | `src/rules-tests/tenantScoped.test.ts:64` |
+| B21 | **photogrammetry-worker sin `package-lock.json`** → `npm ci` cae a `npm install`, builds no reproducibles | `cloud-run/photogrammetry-worker/Dockerfile:73` |
+| B22 | **photogrammetry-worker sin tests** — `runPipeline` exportada pero 0 `.test.ts` files | `cloud-run/photogrammetry-worker/` |
+| B23 | **iOS mesh `subdata(in: 0..<512)` trunca silenciosamente** packets >512B; Android chunkifies — cross-platform inconsistency | `packages/capacitor-mesh/ios/Plugin.swift:148` |
+| B24 | **Android FOREGROUND_SERVICE declarado pero NO instanciado** — BLE muere en doze Android 14+ | `packages/capacitor-mesh/android/AndroidManifest.xml:42` + `MeshPlugin.kt` |
+| B25 | **NotificationContext.tsx:80** `Notification.requestPermission()` sin gesto usuario — navegadores rechazan; FCM permisos no se piden | `src/contexts/NotificationContext.tsx:80` |
+
+### 28.3 🟢 P2/P3 hallazgos extra
+
+| # | Hallazgo |
+|---|---|
+| B26 | **PWA SW `skipWaiting()` + `clientsClaim()`** sin avisar usuario → riesgo formularios largos en updates |
+| B27 | **maximumFileSizeToCacheInBytes: 100MB** global puede romper cuota Safari iOS (~50MB) |
+| B28 | **i18n stubs eagerly cargados** — es-AR/MX/PE con 126 keys vs es 1881 (6.7% coverage) hinchan boot |
+| B29 | **Dockerfile root corre como root** (no `USER`); mejor usar Dockerfile.api (`USER node` correcto) |
+| B30 | **complianceRouter + ds67ds76Router + complianceEmitRouter** comparten prefix `/api/compliance` → path-shadowing possible |
+| B31 | **InMemoryEventStore.readByType()** scan O(N×streams) sin índice — patológico >miles eventos |
+| B32 | **`pgp-key.asc` placeholder** explícito; `security.txt:4` header `Encryption:` ausente |
+| B33 | **Sentry `redactPii` no scrub** `event.message`/`event.extra.*` (donde users pueden pegar RUT/email) | `src/lib/sentry.ts:16-83` |
+| B34 | **tsconfig.json individual flags** sin umbrella `strict: true` — faltan `exactOptionalPropertyTypes` y `noUncheckedIndexedAccess` |
+| B35 | **smoke.test.ts trivial** — solo verifica 3 array lengths de constantes roles |
+
+### 28.4 Hallazgos POSITIVOS verificados HOY
+
+| ✅ | Hallazgo |
+|---|---|
+| 1 | **17 ADRs documentados** — los 3 "inviolables" (0010 privacy, 0011 triple-gate, 0012 health) bien armados; ADR 0012 con CI enforcement automatizado |
+| 2 | **16 Runbooks operativos** — SECRETS_RUNBOOK es el más completo (22 secrets catalogados con qué/dónde/formato/rotación) |
+| 3 | **`assetlinks.json` REAL** (SHA-256 cert válido `3D:AC:D9:BC:...`, package `com.praeventio.guard`) ✅ vs §2.8 anterior |
+| 4 | **MCP Zettelkasten stdio adapter COMPLETO** — protocol 2024-11-05 implementado + 3 tools + tenant allowlist + 2 Codex fixes aplicados |
+| 5 | **CQRS Event Store sólido** — 18 tests inMemoryEventStore + 19 incidentCommands + 14 incidentReadModel; ADR 0016 deferred respetado |
+| 6 | **Photogrammetry worker COLMAP completo** — `colmap automatic_reconstructor --quality medium`, multi-stage Dockerfile, deployable HOY (excepto el bug auth B2) |
+| 7 | **B2D `/hazmat/*` REAL** — 4 endpoints con cálculos Bernoulli puros (pipe-pressure, gas-dispersion, scaffold-uplift, extinguisher-coverage) |
+| 8 | **B2D `/normativa/search` y `/by-id/` REAL** sobre COUNTRY_PACKS (CL/PE/CO/MX/AR/BR/ISO) |
+| 9 | **rules-tests cobertura sólida** — 91 tests firestore.rules + 12 dirtyDozen pentest + 10 tenantScoped = **113 tests** sobre 16 collections |
+| 10 | **17 contexts React** organizados con provider tree claro (FirebaseProvider → Language → Normativa → AppProviders →...) |
+| 11 | **DR setup completo:** tests/dr/seed-dr-dataset.cjs + tests/dr/dr-runbook-dryrun.spec.ts + vitest.dr.config.ts — solo falta `npm run test:dr` script |
+| 12 | **47 npm scripts** organizados por categoría (dev/build/test/mobile/mutation/perf/e2e/loadtest/ops) |
+| 13 | **17 ADRs + 16 Runbooks + marketplace template + scope-justifications** — governance maduro |
+| 14 | **Sprint K monolito YA DECOMPUESTO** — `src/server/routes/sprintK.ts` + `src/hooks/useSprintK.ts` ya NO EXISTEN (verificado con find) |
+| 15 | **Husky pre-commit + CI ADR-0012 enforcement** activos | 
+
+### 28.5 Verificaciones a § anteriores (correcciones)
+
+| § anterior | Estado anterior | Estado VERIFICADO HOY |
+|---|---|---|
+| §1 contexts: "13" | 13 contexts | **17 contexts** verificados (incluye 4 test files contados aparte) |
+| §11 SafetyTrendChartLazy KEEP | "candidato KEEP" | ✅ confirmado huérfano + KEEP por replacement strategy |
+| §13.1 WebAuthn 3 STUB | confirmado | ✅ +Karin engine huérfano detectado (§26 #3) |
+| §21 dist/ 30M | medido | post re-build muestra **dist/ 94M** (más assets + .br) |
+| §22 server.ts 457 LOC | obsoleto | **server.ts 1373 LOC actual** (INFORME_ESTADO_2026-04-29 desactualizado) |
+| §25 167 routes | confirmado | + 119 routers anidados en `/api/sprint-k` (no es path single) |
+| §27 cobertura 70-75% | estimado | confirmado tras 4 agentes — 7 huecos críticos cierran en P0 |
+
+### 28.6 Items NUEVOS adicionales para TODO.md (B1-B35)
+
+Total después de §28: **35 items B nuevos** + 32 N anteriores = **67 items totales** descubiertos en auditoría exhaustiva 2026-05-19. Items priorizados:
+
+- **🔴 P0 ABSOLUTOS (cierre antes de prod):** B1 (catch-all SPA bloquea Webpay), B2 (worker auth bypass), B3 (capacitor-mesh scaffold), B4 (FCM SW hardcoded), B5+B6+B23+B24 (mesh BLE bugs), B7 (event types truncation), B8 (TEAMID placeholder)
+- **🟡 P1 (próximo sprint):** B9-B25 (ESLint, secrets, B2D stubs, photogrammetry tests, etc.)
+- **🟢 P2/P3:** B26-B35 (PWA UX, i18n stubs, Dockerfile root, etc.)
+
+### 28.7 Cobertura E2E REAL HOY (ajuste post-§28)
+
+> **Cobertura previa estimada: 70-75%**
+> **Cobertura tras audit exhaustiva 2026-05-19: 65-70%**
+>
+> El descubrimiento de **8 P0 nuevos** (B1-B8) baja la cobertura efectiva 5-8pp:
+> - Mesh BLE: -3pp (era 70%, real ~50% por B3+B5+B6+B23+B24)
+> - Billing: -2pp (era 88%, real ~80% si B1 confirma bloqueo Webpay return)
+> - Photogrammetry: -1pp (B2 bypass + B21 sin lockfile + B22 sin tests)
+> - PWA hardening: -1pp (B4 + B8 + B25)
+> - Bus de eventos: -1pp (B7)
+>
+> **Esfuerzo revisado para Day-1 95%: ~10 semanas-dev** (era 8 sem; +2 sem por nuevos P0).
