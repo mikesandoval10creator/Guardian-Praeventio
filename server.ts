@@ -325,6 +325,8 @@ import routingRouter from "./src/server/routes/routing.js";
 import protocolsRouter from "./src/server/routes/protocols.js";
 // Portable worker history — Ley 19.628 + ADR 0012 compliant export.
 import workerHistoryRouter from "./src/server/routes/workerHistory.js";
+// Pricing calculator — Sprint K §172-179 (tier cost + comparison + ROI + PO).
+import pricingCalculatorRouter from "./src/server/routes/pricingCalculator.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -1030,6 +1032,7 @@ app.use('/api/sprint-k', meetingPackRouter);
 app.use('/api/sprint-k', routingRouter);
 app.use('/api/sprint-k', protocolsRouter);
 app.use('/api/sprint-k', workerHistoryRouter);
+app.use('/api/sprint-k', pricingCalculatorRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
