@@ -303,6 +303,8 @@ import escalationRouter from "./src/server/routes/escalation.js";
 import firstResponderMapRouter from "./src/server/routes/firstResponderMap.js";
 // Contractors KPI + Acreditación — Sprint K §47-48, §90-91 (TRIR/LTIFR + ranking).
 import contractorsRouter from "./src/server/routes/contractors.js";
+// Evacuation headcount — Sprint 39 G.12 (QR-scan based + postmortem).
+import evacuationRouter from "./src/server/routes/evacuation.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -997,6 +999,7 @@ app.use('/api/sprint-k', fatigueRouter);
 app.use('/api/sprint-k', escalationRouter);
 app.use('/api/sprint-k', firstResponderMapRouter);
 app.use('/api/sprint-k', contractorsRouter);
+app.use('/api/sprint-k', evacuationRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)
