@@ -2132,3 +2132,234 @@ Archivos: `FastCheckModal`, `ActiveDrivingOverlay`, `SurvivalMode`, `FirstAidCar
 - **2 consolidaciones implementadas** (SafeDriving + GuardianMascot)
 - **5 falsos positivos de subagentes** identificados y descartados
 - **Lección reforzada:** subagentes paralelos sobreestiman 3-5× sin contexto profundo; verificación manual mandatoria.
+
+---
+
+## 21. PESO REAL DE LA APLICACIÓN (build verificado HOY)
+
+> Datos extraídos de `npm run build` ejecutado en esta sesión 2026-05-19. NO estimación, NO size-limit bot — pesaje físico del `dist/` post-build completo.
+
+### 21.1 Tamaño total del bundle
+
+| Métrica | Valor |
+|---|---|
+| **`dist/` total** | **30 MB** (raw, incluye 28MB de modelos ML pre-bundled) |
+| **PWA precache (Workbox)** | **485 entries / 15976.87 KiB = 15.6 MiB** |
+| Service Worker generado | `dist/sw.js` + `dist/workbox-d4f8be5c.js` |
+| Brotli compression | ✅ habilitada (todos los `.br` generados) |
+
+### 21.2 Breakdown por subdirectorio dist/
+
+```
+28M   dist/models/              ← MediaPipe WASM + ONNX models
+932K  dist/mascot.png           ← LEGACY (ya no usado en src/; oportunidad eliminar -931KB)
+796K  dist/mascots/             ← 5 PNG mascot mood-aware (en uso)
+140K  dist/icons/
+88K   dist/mascot.webp          ← LEGACY (ya no usado)
+28K   dist/data/                ← guardian-offline-corpus.json
+24K   dist/medallas/
+8K    dist/posters/
+4K    dist/manifest.json
+4K    dist/icon.svg
+```
+
+**Oportunidad inmediata: eliminar `dist/mascot.png` (931KB) + `dist/mascot.webp` (88KB) = -1019 KB cold-start.** Tras §14.2 ningún componente los importa.
+
+### 21.3 Top 20 chunks JS pesados (raw / brotli compressed)
+
+| # | Chunk | Raw | Brotli | Notas |
+|---|---|---|---|---|
+| 1 | `vendor-three` | **1609 KB** | **351 KB** | Digital Twin 3D (R3F + Rapier) |
+| 2 | `transformers.web` (×2) | 862 KB × 2 | 176 KB × 2 | HuggingFace transformers (SLM offline) — **DUPLICADO** |
+| 3 | `index-DkeL3z7I` | 743 KB | **180 KB** | Main entry estimado |
+| 4 | `vendor-viz` | 666 KB | 167 KB | Recharts + d3 + framer-motion |
+| 5 | `vendor-firebase` | 499 KB | **124 KB** | Firebase SDK |
+| 6 | `lazy-cert-pdf` | 422 KB | 111 KB | pdfkit + certificate generation |
+| 7 | `slmWorker` | 398 KB | 89 KB | SLM Web Worker |
+| 8 | `ort.bundle.min` | 391 KB | 86 KB | ONNX Runtime |
+| 9 | `IoTEdgeFiltering` | 369 KB | 89 KB | IoT MQTT edge filtering |
+| 10 | `QRScannerModal` | 367 KB | 85 KB | QR scanner |
+| 11 | `index.css` (global) | 367 KB | **29 KB** | Tailwind compiled |
+| 12 | `katex.min` | 268 KB | 65 KB | Math rendering (engineering calcs) |
+| 13 | MediaPipe wasm (×2) | 316 KB × 2 | 63 KB × 2 | nosimd + simd |
+| 14 | `vendor-react` | **222 KB** | **61 KB** | React 19 runtime |
+| 15 | `vendor-sentry` | 220 KB | 61 KB | @sentry/react + @sentry/node |
+| 16 | `html2canvas` | 194 KB | 36 KB | Screenshot/PDF rendering |
+| 17 | `AIHub` | 165 KB | 31 KB | AI dashboard |
+| 18 | `index.es` | 152 KB | 43 KB | Lazy chunk |
+| 19 | `mapConfig` | 146 KB | 26 KB | Google Maps config |
+| 20 | `vendor-mediapipe` | 133 KB | 33 KB | MediaPipe vision tasks |
+
+### 21.4 Top chunks por dominio página (lazy chunks)
+
+| Página/Chunk | Raw | Brotli |
+|---|---|---|
+| Workers | 110 KB | 18 KB |
+| Emergency | 109 KB | 23 KB |
+| Medicine | 97 KB | 17 KB |
+| Dashboard | 75 KB | **17 KB** |
+| Settings | 78 KB | 17 KB |
+| react-force-graph-2d | 109 KB | 29 KB |
+| react-force-graph-3d | 100 KB | 25 KB |
+
+### 21.5 Hallazgos críticos del build
+
+**🔴 DUPLICACIÓN: `transformers.web` aparece 2 veces** (862 KB raw × 2 = 1.7 MB raw, 352 KB brotli):
+```
+transformers.web-BxtEy8ur.js.br  862.68 KB / 175.92 KB brotli
+transformers.web-CZK_sB1e.js.br  862.81 KB / 175.82 KB brotli
+```
+**Causa probable:** dos rutas/chunks importan transformers en formato ligeramente distinto (ESM vs CJS, o versiones distintas). **Acción:** auditar `import` paths en SLM + cualquier otro consumer.
+
+**🟡 main entry 180 KB brotli vs size-limit dice 308 KB**: discrepancia. Posible que size-limit mida el main entry pre-Brotli (gzip).
+
+**🟢 Lazy chunks pequeños:** las 7 páginas top están todas <115 KB raw / <30 KB brotli. Excelente granularidad.
+
+**🟢 Vendor split correcto:** vendor-three/viz/firebase/sentry/react/mediapipe todos en chunks independientes — permite cache largo del navegador.
+
+### 21.6 Comparación vs size-limit bot
+
+| Métrica | Build real HOY | Bot size-limit | Veredicto |
+|---|---|---|---|
+| Main entry gzipped | ~180 KB brotli (~250 KB gzip estimado) | 308.62 KB | bot mide más pesimista (incluye CSS + sw.js?) |
+| vendor-react | 61 KB brotli | 70.59 KB gzip | ✅ consistente |
+| vendor-firebase | 124 KB brotli | 147.57 KB gzip | ✅ consistente |
+| vendor-three | 351 KB brotli | 442.01 KB gzip | ✅ consistente |
+| Total CSS | 29 KB brotli | 40.57 KB gzip | ✅ consistente |
+
+### 21.7 Resumen ejecutivo de tamaño
+
+> **Praeventio Guard pesa 30 MB físicos** (`dist/`) de los cuales:
+> - **28 MB son ML models pre-bundled** (MediaPipe WASM + ONNX runtime + transformers) — necesarios para inferencia offline en faena
+> - **2 MB son código + assets de UI** (CSS, JS, PNGs, icons, JSON)
+>
+> **PWA precache total: 15.6 MiB comprimido** — instalable offline al 100%.
+>
+> **Cold-start crítico (lo que descarga el navegador en primera visita ANTES de lazy chunks):**
+> - vendor-react 61 KB + vendor-firebase 124 KB + vendor-sentry 61 KB + main entry ~180 KB + index.css 29 KB ≈ **455 KB brotli** (~600 KB gzip)
+>
+> **Esto es razonable para una PWA enterprise con AI offline + Digital Twin 3D + 11 jurisdicciones compliance.**
+>
+> **Oportunidades inmediatas de reducción:**
+> 1. **-1019 KB:** eliminar `mascot.png` legacy + `mascot.webp` (post-§14.2 ningún componente los importa)
+> 2. **-352 KB brotli (-862 KB raw × 2):** consolidar las 2 versiones de `transformers.web` que aparecen duplicadas
+> 3. **-10-20 KB:** tree-shake `lucide-react` (464 importes — auditar uso real)
+> 4. **Convertir 5 mascots PNG (796 KB) → AVIF/WebP:** -500 KB
+
+---
+
+## 22. LO QUE REALMENTE FALTA — cross-reference verificada (TODO.md vs mi audit vs código real HOY)
+
+> Sintetiza: TECHNICAL_DEBT_AUDIT.md 2026-05-07 + PRAEVENTIO_HONEST_STATE_2026-05-05 + AUDIT_BACKLOG.md vivo + INFORME_ESTADO_2026-04-29 R21 + TODO.md 2026-05-19 + mi AUDIT §1-§21 + verificación grep en código HOY.
+
+### 22.1 Estado por dominio (consolidado HOY)
+
+| Dominio | % E2E (TODO 2026-05-19) | Mi audit | Estado real verificado HOY |
+|---|---|---|---|
+| Auth / RBAC + WebAuthn | 95% | ✅ infra completa | ✅ MISMO — falta wire 3 builders (§22.2 #1) |
+| Multi-tenant rules | 85% | ✅ default-deny + RBAC 15 roles | ✅ MISMO |
+| Emergencia (SOS/Fall/Push) | 92% | ✅ EmergencyContext + ActiveDrivingOverlay | ✅ MISMO + ahora consolidado |
+| Billing | 88% | ✅ 5 adapters + Apple SSN + MP IPN | ✅ MISMO — falta IAP SKU por tier (§22.2 #3) |
+| AI Gemini/Vertex inferencia | 80% | ✅ resilientAiOrchestrator 5-tier | ✅ MISMO — Trainer es STUB intencional |
+| SLM offline | 80% | ✅ Phi-3/Qwen SHA-256 reales | ✅ MISMO — Gemma SHA-256 null |
+| Compliance Chile | 80% | ✅ CPHS + DIAT/DIEP + DS54/594 | ✅ MISMO |
+| Compliance global | 45% | 🟡 6 jurisdicciones nuevas | 🟡 MISMO — falta UK/CA/AU/JP/KR/IN wire UI |
+| i18n | 91% | 🟡 10 páginas restantes + 15 hardcoded | 🟡 MISMO |
+| Tests | 100% | ✅ 10029 passing / 0 failing | ✅ MISMO |
+| CI/CD workflows | 75% | 🟡 Playwright flaky (no del PR actual) | 🟡 MISMO — pre-existente |
+| Mascot mood-aware integration | n/a en TODO | 🟢 1 nuevo dominio | ✅ §14.2 implementado |
+
+### 22.2 ITEMS REALMENTE PENDIENTES (priorizado HOY, con file:line verificado)
+
+**🔴 P0 — Regulatorio / Bloqueante (no se puede shippear sin esto):**
+
+| # | Item | File:line verificado | Esfuerzo | Bloqueador |
+|---|---|---|---|---|
+| 1 | **WebAuthn STUB × 3 builders compliance** | `Ds76Builder.tsx:59` + `Ds67Builder.tsx:64` + `SusesoFormBuilder.tsx:90` con `signatureB64: 'STUB_REPLACE_WITH_WEBAUTHN_ASSERTION'` | M 2d | Ninguno — `webauthnAssertion.ts` server-side existe (§7 TODO) |
+| 2 | **Gemma 2 2B SHA-256 null** | `src/services/slm/registry.ts:119` | S 1h | DevOps computa hash |
+| 3 | **assetlinks.json placeholder SHA256** | `public/.well-known/assetlinks.json:8` | S 1h | Keystore real usuario |
+| 4 | **apple-app-site-association TEAM_ID** | `public/.well-known/apple-app-site-association` | S 1h | Apple Developer Program |
+
+**🟡 P1 — Features visibles que prometen y no entregan:**
+
+| # | Item | File:line | Esfuerzo |
+|---|---|---|---|
+| 5 | **§2.13 IAP single SKU** | `Pricing.tsx:995` `productId='praeventio_premium_monthly'` para TODOS los tiers | M 1d (tras D3 decisión) |
+| 6 | **§2.14 SusesoApiClient en frontend (leak risk)** | `SusesoReports.tsx:27-33` import directo | M 2d (mover a server proxy) |
+| 7 | **§2.15 Zettelkasten dividido 3 fuentes** | `routes/zettelkasten.ts:191` + `UniversalKnowledgeContext.tsx:108,224` + `useRiskEngine.ts:44` + `RiskNodeMarkers.tsx:79` | M 3d (materializer) |
+| 8 | **§2.16 B2D Climate stub vs promise** | rutas `b2d*.ts` (verificar) | M 2d (Open-Meteo + USGS + OpenAQ) |
+| 9 | **§2.17 B2D Coach determinístico vs promise Gemini** | servicio coach | M 1d (wire geminiAdapter) |
+| 10 | **§2.18 EPP detection Gemini-vision vs promise Edge AI local** | `VisionAnalyzer.tsx:152` | L 2sem (TFLite YOLO-tiny) — o D4 documentar como Gemini cloud |
+
+**🟡 P1 — Features wireables con código existente (109 componentes huérfanos confirmados §11 + §13):**
+
+| # | Item | Esfuerzo |
+|---|---|---|
+| 11 | WIRE CPHS/Leadership/EngineeringInventory/MonthlyClientReport/PrivacyRegime cards (§7 TODO) | M 3d total |
+| 12 | WIRE 53 services huérfanos confirmados (§13.3) | L 1 semana |
+| 13 | WIRE 89 hooks huérfanos (§13.3) | L 1 semana |
+| 14 | 16 Suspense fallback=null → MascotLoader (§15.7 F1) | S 30min |
+| 15 | 11 form-success → mascot celebrating (§15.7 F1) | S 45min |
+| 16 | Hero/Landing mascot xl prominente | M 1d |
+
+**🟢 P2 — Deuda técnica arquitectónica:**
+
+| # | Item | File:line | Esfuerzo |
+|---|---|---|---|
+| 17 | **Split geminiBackend.ts 3070 LOC** | `src/services/geminiBackend.ts` (plan en `docs/gemini-split-plan.md` 28KB) | XL 2 sem |
+| 18 | **Split billing.ts 2096 LOC** | `src/server/routes/billing.ts` | L 1 sem |
+| 19 | **Año 2026 hardcoded 2339 líneas** | múltiples | M 2d |
+| 20 | **Files >1000 LOC**: DrivingSafety 1418 + Pricing 1272 + ConfidentialReports 1248 + OfflineInspection 1208 + KnowledgeGraph 1188 | refactor en sub-componentes | L 1 sem cada |
+| 21 | **Lucide tree-shake (464 importes)** | múltiples | M 3h |
+| 22 | **2 versiones transformers.web duplicadas** | dist build | M 4h auditoría imports |
+
+**🟢 P3 — Pulido UX:**
+
+| # | Item | Esfuerzo |
+|---|---|---|
+| 23 | 87 oportunidades mascot por mood (§15) — plan 8.5h en 3 fases | F1 1.5h + F2 4h + F3 3h |
+| 24 | 15 hardcoded strings sin t() (§19.2) | S 1h |
+| 25 | Convertir 5 mascots PNG → AVIF/WebP | S 2h |
+| 26 | Eliminar mascot.png + mascot.webp legacy de public/ | S 5 min |
+| 27 | Tree-shake lucide-react | S 3h |
+
+**⏸ Bloqueado por input usuario (§5 TODO):**
+
+23 items listados detalladamente en TODO.md §12.3 — secrets de prod + cuentas store + traducciones humanas.
+
+### 22.3 Items NUEVOS no listados en TODO.md (descubiertos en mi audit que necesitan agregarse)
+
+| # | Item | Origen | Acción |
+|---|---|---|---|
+| N1 | 16 Suspense fallback=null → mascot thinking | §15.3 + §16.2 | Agregar a TODO §12.1 |
+| N2 | 11 form-success → mascot celebrating | §15.2.C | Agregar |
+| N3 | Hero/Landing mascot xl (7 sitios) | §15.6.C | Agregar |
+| N4 | Onboarding completion celebration | §15.6 | Agregar |
+| N5 | 53 services huérfanos categorizados | §13.3 | Agregar plan WIRE |
+| N6 | 89 hooks huérfanos categorizados | §13.3 | Agregar plan WIRE |
+| N7 | `dist/mascot.png` (931KB) + `dist/mascot.webp` (88KB) legacy eliminables | §21.2 | Agregar P3 cleanup |
+| N8 | `transformers.web` duplicado (×2 = 352 KB brotli wasted) | §21.5 | Agregar P2 |
+| N9 | 14 `@deprecated` activos sin remoción | §13.6 | Agregar P3 |
+| N10 | 42 rutas duplicadas App.tsx | §13.4 | Agregar P3 |
+| N11 | DataLoadErrorBanner/SyncConflictBanner → mascot alert | §15.4.A | Agregar UX |
+| N12 | ConfidentialReports.tsx 1248 LOC + OfflineInspection.tsx 1208 LOC (nuevos files >1000) | §17.2 verificado HOY | Agregar candidatos split |
+
+### 22.4 Métrica honesta — % real cobertura HOY
+
+> **Cobertura E2E ponderada estimada HOY (con todos los datos):**
+>
+> - **TODO.md 2026-05-19** dice 70%
+> - **Mi audit + cross-check** sugiere: **72-75%**
+>   - +2pp por consolidaciones de §14 (SafeDriving + Mascot) + 0 código muerto verificado
+>   - +0-3pp por tests al 100% verde (10029/10029)
+>   - Sin cambio en compliance global 45% (los 6 nuevos jurisdiction packs siguen sin UI wire)
+>   - Sin cambio en i18n 91% (15 hardcoded strings siguen)
+>
+> **Para llegar a Day-1 95%+:**
+> - Cerrar §22.2 #1-#10 P0/P1 críticos = +5pp → ~77%
+> - WIRE 109 componentes huérfanos = +8pp → ~85%
+> - WIRE 142 hooks+services huérfanos = +5pp → ~90%
+> - Compliance global UK/CA/AU/JP/KR/IN wire UI = +3pp → ~93%
+> - i18n 100% + traducciones humanas = +2pp → 95%
+>
+> **Esfuerzo total estimado para 95% real: ~6 semanas-dev** (sin contar items bloqueados §5).
