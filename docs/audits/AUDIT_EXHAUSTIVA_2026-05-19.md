@@ -2498,3 +2498,131 @@ Aplicando heurística §11.9 (2.7 sitios/hora promedio):
 | Verificación post-wire (test que cada componente renderiza) | 2 días |
 
 **Total estimado para eliminar 100% de huérfanos: ~7-9 días-dev.**
+
+---
+
+## 25. AUDITORÍA EXHAUSTIVA BACKEND (Firestore + 167 routes + 18 jobs)
+
+> Auditoría completa archivo por archivo: `firestore.rules` (1051 LOC) + `firestore.indexes.json` + 167 route files + 3 triggers + 18 cron jobs.
+
+### 25.1 Inventario Firestore
+
+| Categoría | Count | Notas |
+|---|---|---|
+| Collections declaradas en `firestore.rules` | **52** | 35 top + 16 sub-project + 5 tenant + catch-all |
+| Composite indexes en `firestore.indexes.json` | **29** | work_permits ×3, mandown_events ×2 CG, etc. |
+| Helper functions de auth | 22 | isAdmin, isSupervisor, isMemberOfTenant, isCphsMember, etc. |
+| Total endpoints REST | **542** | 120 GET + 419 POST + 0 PUT + 0 PATCH + 3 DELETE |
+| Route files en `src/server/routes/` | **167** | 162 top + 5 en b2d/ |
+| Triggers Firestore | 3 | backgroundTriggers, systemEngineTrigger, healthCheckInterval, zettelkastenMaterializer |
+| Cron jobs en `src/server/jobs/` | **18** | aggregateAiFeedback, checkExpiredPpe, weeklyDigest, etc. |
+
+### 25.2 🔴 Hallazgos P0 (Seguridad)
+
+| # | Hallazgo | File:line | Acción |
+|---|---|---|---|
+| P0-1 | **`invoices` collection sin rules** — solo `transactions` declared, billing.ts:563,655,921 escribe a `invoices` directo via Admin SDK | `firestore.rules:455-458` + `billing.ts:563,655,921` | Agregar `match /invoices/{id}` |
+| P0-2 | **Naming conflict `wisdomCapsules` (rules) vs `wisdom_capsules` (routes)** — uno es dead code | `firestore.rules:536` vs `routes/wisdomCapsule.ts:266,314,414` | Migrar a 1 nombre, borrar otro |
+| P0-3 | **`POST /api/audit-log` sin Zod** escribe a immutable `audit_logs` — un payload malformado server-side es permanente | `routes/audit.ts:40` | Agregar `validate(auditLogSchema)` |
+| P0-4 | **Admin endpoints sin Zod ni limiter per-uid** | `routes/admin.ts:98,164,252` (revoke-access, set-role, replicate-critical) | Zod + per-uid limiter |
+
+### 25.3 🟡 Hallazgos P1 (Rate limit / DoS)
+
+**12 endpoints "heavy" sin limiter específico** (solo el global IP-keyed `/api/` 100/15min):
+
+| # | Endpoint | File:line | Razón heavy |
+|---|---|---|---|
+| 1 | POST `/api/reports/generate-pdf` | `reports.ts:66` | PDF generation |
+| 2 | POST `/api/cad/convert-dwg` | `cad.ts:69` | DWG→GLTF CPU intensivo |
+| 3 | POST `/api/dte/generate` | `dte.ts:315` | SII XML + cripto |
+| 4-6 | `/coach-rag/*` (×3) | `coachRag.ts:70,97,129` | Vector search fan-out |
+| 7 | POST `/api/medical/aptitude-cert/generate` | `medicalAptitude.ts:68` | PDF + WebAuthn |
+| 8 | POST `/:projectId/event-replay/export-trail` | `eventReplay.ts:196` | Multi-collection export |
+| 9 | POST `/:projectId/critical-roles/build-coverage` | `criticalRoles.ts:159` | KPI roll-up |
+| 10 | POST `/:projectId/first-responder-map/analyze-coverage` | `firstResponderMap.ts:163` | Geo fan-out |
+| 11 | POST `/:projectId/audit-portal/generate-token` | `auditPortal.ts:293` | JWT + writes |
+| 12 | POST `/api/admin/jobs/aggregate-ai-feedback` | `adminJobs.ts:26` | Loop unbounded |
+
+### 25.4 80 endpoints SIN Zod validation
+
+Distribución por file (top 10):
+
+| File | Endpoints sin Zod |
+|---|---|
+| `billing.ts` | 9 |
+| `organic.ts` | 8 |
+| `admin.ts` | 7 |
+| `curriculum.ts` | 6 |
+| `projects.ts` | 4 |
+| `medicalAptitude.ts` | 3 |
+| `commute.ts` | 3 |
+| `dte.ts` | 3 |
+| `oauthGoogle.ts` | 3 |
+| `gamification.ts` | 3 |
+
+Middleware `validate(...)` existe (`src/server/middleware/validate.ts:31`) — adopción uneven.
+
+### 25.5 Collections Firestore SIN endpoint server (potential dead code)
+
+**42 colecciones en `firestore.rules` que NUNCA son escritas server-side** — solo Web SDK directo:
+
+Top 10 más críticas:
+- `wisdomCapsules` (naming mismatch — ver P0-2)
+- `vector_store` (RAG indexer reads via service layer, no route)
+- `mandown_events` (safety-critical, solo client SDK)
+- `zone_violations` (safety-critical, solo client SDK)
+- `driving_reports`, `safety_posts`, `safety_solutions`, `safety_trainings`
+- `ergonomic_assessments`, `iper_assessments`, `lighting_audits`, `uv_exposures`
+- `digital_twin_jobs`, `morning_checkins`, `emergency_messages`, `iso_documents`, etc.
+
+**Implicación:** la superficie de rules está enforced SOLO via Web SDK. Cambios en Admin SDK pueden bypassear silenciosamente.
+
+### 25.6 35 collections que routes ESCRIBEN pero NO están en rules
+
+**Server (Admin SDK) escribe sin envelope declarativo:**
+
+| # | Collection | Endpoints escritor | Riesgo |
+|---|---|---|---|
+| 1 | `invoices` | `billing.ts:563,655,921` | 🔴 Financial data |
+| 2 | `iap_receipt_attempts` | `billing.ts:1715,1854` | 🔴 IAP audit |
+| 3 | `apple_ssn_attempts` | `billing.ts:2050` | 🔴 Apple SSN |
+| 4 | `processed_webpay` | `billing.ts:1248` | 🟡 Intencional (server-only) |
+| 5 | `user_sessions`, `fcm_tokens`, `user_sync_state` | `admin.ts:116,434,635,667` | 🔴 Session data |
+| 6 | `incidents`, `findings`, `corrective_actions`, `risks`, `trainings` | `insights.ts:77,108,121,199,222` | 🟡 Read-only insights |
+| 7 | `photogrammetry_jobs` | `photogrammetry.ts:151,259,325` | 🟡 (index existe, falta rule) |
+| 8 | `predictive_alert_acks` | `organic.ts:355` | 🟡 |
+| 9 | `imports`, `erp_sync_logs`, `health_vault_shares`, `knowledge_base`, `visitors` | varios | 🟡 |
+
+### 25.7 Cron jobs sin HTTP entry point
+
+**9 cron jobs sin verifySchedulerToken endpoint** (existen como funciones pero no expuestas a Cloud Scheduler):
+- `runConsistencyAudit`, `runLoneWorkerEscalation`, `runExceptionAutoExpire`, `runWorkPermitAutoExpire`, `runLegalCalendarReminders`, `runDailyClimateRiskScan`, `firestoreCriticalReplicate`, `consolidateZettelkasten`, `runWeeklyDigest`
+
+**Acción:** o exponer via `verifySchedulerToken` o documentar como dead code.
+
+### 25.8 REST hygiene gap
+
+**0 endpoints PUT/PATCH** en 542 endpoints. Varios POST handlers semánticamente hacen updates:
+- `routes/organic.ts:196 /processes/:id/status`
+- Otros POST con efecto update
+
+**Acción P2:** migrar a PATCH para REST hygiene + mejor cache control.
+
+### 25.9 `/api/sprint-k` con 119 sub-routers
+
+**`server.ts:` monta UN solo prefix con 119 routers anidados.** Spot check: no hay colisiones de path segment. **Acción P2-4:** agregar test automatizado que asserts no haya 2 routers compartiendo el mismo primer segmento.
+
+### 25.10 Items NUEVOS para TODO.md (descubiertos en §25)
+
+| # | Item | Severidad |
+|---|---|---|
+| N17 | `invoices` collection sin rules — agregar match block | 🔴 P0 |
+| N18 | `wisdomCapsules` vs `wisdom_capsules` naming conflict | 🔴 P0 |
+| N19 | `audit_log` endpoint sin Zod escribe immutable | 🔴 P0 |
+| N20 | 3 admin endpoints sin Zod ni limiter | 🔴 P0 |
+| N21 | 12 endpoints heavy sin rate limiter per-uid | 🟡 P1 |
+| N22 | 80 endpoints sin Zod total — sweep validación | 🟡 P1 |
+| N23 | 35 collections escritas server-side sin rules envelope | 🟡 P1 |
+| N24 | 9 cron jobs sin HTTP entry point — exponer o documentar | 🟢 P2 |
+| N25 | 0 endpoints PUT/PATCH en 542 — migrar updates de POST a PATCH | 🟢 P2 |
+| N26 | 7 collections con composite index pero sin rules match | 🟢 P2 |
