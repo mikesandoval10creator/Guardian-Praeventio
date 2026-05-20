@@ -338,6 +338,7 @@ import riskRankingRouter from "./src/server/routes/riskRanking.js";
 import restrictedZonesRouter from "./src/server/routes/restrictedZones.js";
 import hazmatInventoryRouter from "./src/server/routes/hazmatInventory.js";
 import externalAuditPortalRouter from "./src/server/routes/externalAuditPortal.js";
+import equipmentQrRouter from "./src/server/routes/equipmentQr.js";
 // Soft-blocking requirement gate — directive #2 compliant (never blocks machinery).
 import softBlockingRouter from "./src/server/routes/softBlocking.js";
 // Role-based dashboard views — Sprint 39 J.4 (worker / site_chief / prevention / management).
@@ -1058,6 +1059,7 @@ app.use('/api/evacuation-headcount', evacuationHeadcountRouter);
 app.use('/api/risk-ranking', riskRankingRouter);
 app.use('/api/zones', restrictedZonesRouter);
 app.use('/api/sprint-k', hazmatInventoryRouter);
+app.use('/api/sprint-k', equipmentQrRouter);
 // TODO(Bloque 3.7 follow-up): public route /api/audit-portal/public/:token
 // should get its own IP-keyed rate limiter (mirror healthVaultViewLimiter).
 // Current mount inherits the per-uid limiter at line 684, suboptimal for
