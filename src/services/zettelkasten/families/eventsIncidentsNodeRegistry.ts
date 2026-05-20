@@ -68,4 +68,30 @@ export const EVENTS_INCIDENTS_NODES: ReadonlyArray<FamilyNodeSpec> = [
   ROW('incident-investigation-opened', 'Investigacion de incidente abierta.', 'Ley-16744'),
   ROW('incident-investigation-closed', 'Investigacion de incidente cerrada.', 'Ley-16744'),
   ROW('falling-objects', 'Objetos en caida desde altura (riesgo derivado).', 'OSHA-1926-451'),
+  // Bloque 4.3 — Accidente → Investigación → Lección → Capacitación PDCA flow.
+  // These complete the chain that begins at `incident-investigation-opened`
+  // and closes at `incident-investigation-closed`. Producer is the
+  // orchestrator at `src/services/zettelkasten/flows/incidentLessonTrainingFlow.ts`;
+  // consumers are the admin PDCA dashboard and the RiskNetwork graph.
+  ROW(
+    'root-cause-identified',
+    'Causa raiz no-punitiva identificada por la investigacion.',
+    'ISO-45001',
+    'src/services/zettelkasten/flows/incidentLessonTrainingFlow.ts',
+    ['src/components/incidentFlow/PDCAClosePanel.tsx', 'src/pages/RiskNetwork.tsx'],
+  ),
+  ROW(
+    'microtraining-assigned',
+    'Microcapacitacion asignada a trabajadores afectados (derivada de leccion).',
+    'ISO-45001',
+    'src/services/zettelkasten/flows/incidentLessonTrainingFlow.ts',
+    ['src/components/incidentFlow/AssignedMicrotrainingCard.tsx', 'src/pages/RiskNetwork.tsx'],
+  ),
+  ROW(
+    'microtraining-completed',
+    'Microcapacitacion completada por trabajador (cierra ciclo PDCA).',
+    'ISO-45001',
+    'src/services/zettelkasten/flows/incidentLessonTrainingFlow.ts',
+    ['src/components/incidentFlow/PDCAClosePanel.tsx', 'src/pages/RiskNetwork.tsx'],
+  ),
 ];

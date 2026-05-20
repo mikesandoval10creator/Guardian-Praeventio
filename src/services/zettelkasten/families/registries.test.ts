@@ -35,18 +35,33 @@ const ALLOWED_SOURCE_PREFIXES = [
 ];
 
 describe('Zettelkasten v2 family registries', () => {
-  it('totals exactly 512 nodes across the 8 families', () => {
-    expect(TOTAL_NODE_COUNT).toBe(512);
-    expect(ALL_FAMILY_NODES.length).toBe(512);
+  it('totals exactly 526 nodes across the 8 families', () => {
+    // Bloque 4.1 — added 4 horometro/maintenance ZK kinds to ASSETS_FAENA
+    // (was 512 = 50+60+80+50+60+80+80+52; bumped to 516 = 50+60+80+50+60+84+80+52).
+    // Bloque 4.3 — added 3 PDCA learning-chain kinds to EVENTS_INCIDENTS
+    // (root-cause-identified, microtraining-assigned, microtraining-completed)
+    // bumping events-incidents 60 → 63 and the total 516 → 519.
+    // Bloque 4.2 — added 2 EPP-inspection kinds to PERSONAL_EPP and 5
+    // inventory/purchase-order kinds to ASSETS_FAENA (epp-inspection-event,
+    // epp-item-failed, inventory-adjusted, inventory-below-threshold,
+    // purchase-order-suggested, purchase-order-signed, purchase-order-pdf-generated)
+    // bumping personal-epp 50 → 52, assets-faena 84 → 89, total 519 → 526.
+    expect(TOTAL_NODE_COUNT).toBe(526);
+    expect(ALL_FAMILY_NODES.length).toBe(526);
   });
 
   it('has the expected per-family counts', () => {
     expect(CLIMATE_NODES.length).toBe(50);
     expect(PHYSICS_NODES.length).toBe(60);
     expect(OHS_NORMATIVA_NODES.length).toBe(80);
-    expect(PERSONAL_EPP_NODES.length).toBe(50);
-    expect(EVENTS_INCIDENTS_NODES.length).toBe(60);
-    expect(ASSETS_FAENA_NODES.length).toBe(80);
+    // Bloque 4.2: 50 originales + 2 nodos del flujo EPP -> Inventario -> OC
+    // (epp-inspection-event + epp-item-failed).
+    expect(PERSONAL_EPP_NODES.length).toBe(52);
+    // Bloque 4.3: 60 originales + 3 nodos del flujo Accidente -> Capacitacion PDCA.
+    expect(EVENTS_INCIDENTS_NODES.length).toBe(63);
+    // Bloque 4.1: 80 originales + 4 nodos del flujo Horometro -> Mantenimiento.
+    // Bloque 4.2: + 5 nodos del flujo EPP -> Inventario -> Orden de Compra.
+    expect(ASSETS_FAENA_NODES.length).toBe(89);
     expect(WORKFLOW_COMPLIANCE_NODES.length).toBe(80);
     expect(AI_ANALYTICS_NODES.length).toBe(52);
   });
