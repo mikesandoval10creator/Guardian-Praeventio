@@ -58,4 +58,24 @@ export const PERSONAL_EPP_NODES: ReadonlyArray<FamilyNodeSpec> = [
   ROW('worker-overtime-alert', 'Alerta de sobretiempo sostenido.', 'Ley-20949'),
   ROW('subcontractor-credential', 'Credencial vigente de subcontratista.', 'DS-76'),
   ROW('visitor-induction', 'Induccion entregada a visitante en faena.', 'DS-40'),
+  // EPP Inspection & Purchase Flow (Bloque 4.2) — 2 specs (epp side).
+  // Flow: EppInspectionForm.tsx -> useEppFlow.submitEppInspection ->
+  //       routes/eppFlow.ts POST /epp-flow/inspection ->
+  //       eppInventoryPurchaseFlow.onEppInspectionCompleted produces this
+  //       chain. Each node references the previous via `connections` and
+  //       the edges are persisted in zettelkasten_edges via createEdge.
+  ROW(
+    'epp-inspection-event',
+    'Inspeccion EPP completada por trabajador en faena (mobile-first).',
+    'internal',
+    'src/services/zettelkasten/flows/eppInventoryPurchaseFlow.ts',
+    ['src/components/eppFlow/EppInspectionForm.tsx', 'src/pages/RiskNetwork.tsx'],
+  ),
+  ROW(
+    'epp-item-failed',
+    'EPP individual reportado como failed (vencido/danado/perdido/contaminado).',
+    'NIOSH-42-CFR-84',
+    'src/services/zettelkasten/flows/eppInventoryPurchaseFlow.ts',
+    ['src/components/eppFlow/PendingPurchaseOrdersPanel.tsx', 'src/pages/RiskNetwork.tsx'],
+  ),
 ];

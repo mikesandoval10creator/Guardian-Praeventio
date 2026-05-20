@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Static catalog for the ASSETS & FAENA family (80 nodes).
+// Static catalog for the ASSETS & FAENA family (84 nodes — 80 original
+// + 4 added by Bloque 4.1 Horometro -> Maintenance Preventive flow).
 
 import type { FamilyNodeSpec } from './climateNodeRegistry';
 
@@ -95,6 +96,80 @@ export const ASSETS_FAENA_NODES: ReadonlyArray<FamilyNodeSpec> = [
   // beacons (2)
   ROW('beacon-ble-mandown', 'Beacon BLE para deteccion man-down.', 'internal'),
   ROW('beacon-ble-geofence', 'Beacon BLE para geofencing.', 'internal'),
+  // horometro & mantenimiento preventivo (Bloque 4.1) — 4 specs.
+  // Flow: equipmentQrService.scan -> horometroService.recordReading ->
+  //       horometroMaintenanceFlow.onHorometroReading produces these nodes
+  //       in chain. Each node references the previous via `references`
+  //       and the chain is materialized as a sequence of edges in the
+  //       zk graph (writeNodes batches + edges.ts createEdge).
+  ROW(
+    'horometro-reading',
+    'Lectura puntual del horometro de un equipo, reportada via QR + entry.',
+    'internal',
+    'src/services/horometro/horometroService.ts',
+    ['src/services/zettelkasten/flows/horometroMaintenanceFlow.ts', 'src/components/horometro/HorometroEntryForm.tsx'],
+  ),
+  ROW(
+    'maintenance-threshold-reached',
+    'Umbral de mantenimiento alcanzado (250h / 500h / 1000h segun tipo).',
+    'internal',
+    'src/services/horometro/horometroService.ts',
+    ['src/services/zettelkasten/flows/horometroMaintenanceFlow.ts', 'src/components/horometro/MaintenanceTaskList.tsx'],
+  ),
+  ROW(
+    'maintenance-task-created',
+    'Tarea de mantencion preventiva creada automaticamente desde umbral.',
+    'internal',
+    'src/services/maintenance/maintenanceScheduler.ts',
+    ['src/components/horometro/MaintenanceTaskList.tsx', 'src/pages/RiskNetwork.tsx'],
+  ),
+  ROW(
+    'maintenance-task-completed',
+    'Tarea de mantencion preventiva completada con firma biometrica.',
+    'internal',
+    'src/services/maintenance/maintenanceScheduler.ts',
+    ['src/components/horometro/MaintenanceCompleteForm.tsx', 'src/pages/RiskNetwork.tsx'],
+  ),
+  // EPP Inspection -> Inventario -> Orden de Compra (Bloque 4.2) — 5 specs.
+  // Flow: EppInspectionForm.tsx -> useEppFlow.submitEppInspection ->
+  //       routes/eppFlow.ts -> eppInventoryPurchaseFlow.onEppInspectionCompleted.
+  // Cada nodo se materializa con writeNodes y se enlaza con createEdge en
+  // zettelkasten_edges. NUNCA empuja al proveedor (directiva no-push).
+  ROW(
+    'inventory-adjusted',
+    'Inventario de EPP ajustado por baja de item failed (descuenta stock).',
+    'internal',
+    'src/services/zettelkasten/flows/eppInventoryPurchaseFlow.ts',
+    ['src/components/eppFlow/PendingPurchaseOrdersPanel.tsx', 'src/pages/RiskNetwork.tsx'],
+  ),
+  ROW(
+    'inventory-below-threshold',
+    'Stock de EPP cayo por debajo del umbral de reorden — sugerir OC.',
+    'internal',
+    'src/services/zettelkasten/flows/eppInventoryPurchaseFlow.ts',
+    ['src/components/eppFlow/PendingPurchaseOrdersPanel.tsx', 'src/pages/RiskNetwork.tsx'],
+  ),
+  ROW(
+    'purchase-order-suggested',
+    'Orden de compra sugerida automaticamente, pendiente de firma admin.',
+    'internal',
+    'src/services/zettelkasten/flows/eppInventoryPurchaseFlow.ts',
+    ['src/components/eppFlow/PurchaseOrderSignModal.tsx', 'src/pages/RiskNetwork.tsx'],
+  ),
+  ROW(
+    'purchase-order-signed',
+    'Orden de compra firmada por admin (WebAuthn claim-signing, Ley 19.799).',
+    'Ley-19799',
+    'src/services/zettelkasten/flows/eppInventoryPurchaseFlow.ts',
+    ['src/components/eppFlow/PurchaseOrderSignModal.tsx', 'src/pages/RiskNetwork.tsx'],
+  ),
+  ROW(
+    'purchase-order-pdf-generated',
+    'PDF de OC generado para descarga — NO se envia al proveedor (directiva no-push).',
+    'internal',
+    'src/services/zettelkasten/flows/eppInventoryPurchaseFlow.ts',
+    ['src/components/eppFlow/PurchaseOrderSignModal.tsx', 'src/pages/RiskNetwork.tsx'],
+  ),
   // sites (16)
   SITE('site-faena', 'Faena: contenedor topologico raiz.', 'DS-76'),
   SITE('site-zona', 'Zona dentro de una faena.', 'DS-76'),
