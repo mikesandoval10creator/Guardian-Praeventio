@@ -40,8 +40,10 @@ import {
 } from '../services/pricing/subscriptionPlan';
 import {
   estimateMonthlyEppBudgetClp,
+  getEppCatalogForIndustry,
   SUPPORTED_INDUSTRY_OPTIONS,
 } from '../services/pricing/eppIndustryCatalog';
+import { renderPricingOcPdf } from '../services/pricing/pricingOcPdfRenderer';
 import {
   computeRoi,
   type PreventionInvestment,
@@ -165,25 +167,64 @@ export const PricingCalculator: React.FC = () => {
   );
 
   // ─── Actions ─────────────────────────────────────────────────────────
-  const onGeneratePurchaseOrder = () => {
-    // TODO Sprint K §177 — generar PDF formal con plantilla SIIGO/SII.
-    // Por ahora descargamos JSON que la página `/oc-sugerida` consume.
-    const payload = {
-      version: 'pricing-calculator-oc-draft@1',
-      generatedAt: new Date().toISOString(),
-      industryPrefix,
-      workers,
-      projects,
-      recommendedTier: recommendedTier.id,
-      recommendedPlan,
-      monthlyEppBudgetClp: eppBudget.totalClp,
-      annualEppBudgetClp: eppBudget.totalClp * 12,
-      roiPercent: Number.isFinite(roi.roiPercent) ? roi.roiPercent : null,
-      paybackMonths: Number.isFinite(roi.paybackMonths) ? roi.paybackMonths : null,
-      // TODO §177: emitir PDF formal con timbre.
-      todo: 'pdf_emission_pending_sprint_k_177',
-    };
-    downloadJson(`pricing-oc-${Date.now()}.json`, payload);
+  // Bloque 8.4 (D5) 2026-05-20 — cierre Sprint K §177: el botón ahora
+  // genera PDF formal vía `pricingOcPdfRenderer`. El JSON queda como
+  // fallback de debug (descomenta downloadJson si lo necesitas).
+  const onGeneratePurchaseOrder = async () => {
+    const catalog = getEppCatalogForIndustry(industryPrefix);
+    const items = catalog.map((item) => ({
+      kind: item.kind,
+      label: item.label,
+      qty: Math.ceil(workers * item.perWorker),
+      unitCostClp: item.unitCostClp,
+    }));
+
+    try {
+      const pdfBuffer = await renderPricingOcPdf({
+        context: {
+          clientRazonSocial: 'Cliente (autocompletar en wizard)',
+          clientRut: '00.000.000-0',
+          industryLabel: industryPrefix ?? '—',
+          recommendedTier: recommendedTier.id,
+          workersCount: workers,
+          projectsCount: projects,
+        },
+        items,
+        emittedAtIso: new Date().toISOString(),
+        folio: `OC-${Date.now()}`,
+      });
+
+      // pdfkit Buffer → Blob → download anchor (browser-safe).
+      const blob = new Blob([new Uint8Array(pdfBuffer)], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pricing-oc-${Date.now()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      // Fallback JSON si PDF rendering falla (ej. pdfkit no soporta el
+      // browser actual). NO bloquear el flow comercial.
+      // eslint-disable-next-line no-console
+      console.error('[PricingCalculator] PDF render failed, fallback JSON:', err);
+      const payload = {
+        version: 'pricing-calculator-oc-draft@1',
+        generatedAt: new Date().toISOString(),
+        industryPrefix,
+        workers,
+        projects,
+        recommendedTier: recommendedTier.id,
+        recommendedPlan,
+        monthlyEppBudgetClp: eppBudget.totalClp,
+        annualEppBudgetClp: eppBudget.totalClp * 12,
+        roiPercent: Number.isFinite(roi.roiPercent) ? roi.roiPercent : null,
+        paybackMonths: Number.isFinite(roi.paybackMonths) ? roi.paybackMonths : null,
+        fallback_reason: err instanceof Error ? err.message : String(err),
+      };
+      downloadJson(`pricing-oc-${Date.now()}.json`, payload);
+    }
   };
 
   return (
