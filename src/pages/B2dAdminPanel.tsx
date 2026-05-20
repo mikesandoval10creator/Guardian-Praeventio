@@ -21,10 +21,12 @@ import { CreateApiKeyModal } from '../components/admin/CreateApiKeyModal';
 import { MrrChart, type MrrPoint } from '../components/admin/MrrChart';
 import { RevenueByTierChart } from '../components/admin/RevenueByTierChart';
 import { ChurnCohortHeatmap } from '../components/admin/ChurnCohortHeatmap';
+import { ToastContainer } from '../components/shared/ToastContainer';
 import type { B2dMetrics, B2dTier } from '../services/analytics/b2dMetrics';
 import type { ApiTierId } from '../services/pricing/aiTier';
 import { logger } from '../utils/logger';
 import { auth } from '../services/firebase';
+import { useToast } from '../hooks/useToast';
 
 interface ApiKeyRow {
   id: string;
@@ -97,6 +99,7 @@ export function B2dAdminPanel() {
   const [mrrHistory, setMrrHistory] = useState<B2dMrrSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -186,10 +189,10 @@ export function B2dAdminPanel() {
         void loadAll();
       } catch (err) {
         logger.error('b2d_admin_revoke_failed', err);
-        window.alert(t('b2dAdmin.alerts.revokeFailed', 'No se pudo revocar la API key.'));
+        showToast(t('b2dAdmin.alerts.revokeFailed', 'No se pudo revocar la API key.'), 'error');
       }
     },
-    [loadAll],
+    [loadAll, showToast, t],
   );
 
   // Customers-by-tier derived from the active keys list.
@@ -452,6 +455,7 @@ export function B2dAdminPanel() {
           onClose={() => setCreateOpen(false)}
           onSubmit={handleCreate}
         />
+        <ToastContainer toasts={toasts} onDismiss={dismiss} />
       </div>
     </PremiumFeatureGuard>
   );

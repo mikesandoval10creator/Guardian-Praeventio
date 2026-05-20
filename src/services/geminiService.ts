@@ -1,3 +1,40 @@
+// Praeventio Guard — Gemini API CLIENT-side proxy (browser bundle).
+//
+// IMPORTANTE — este archivo NO es duplicado de `geminiBackend.ts`. Es
+// el cliente HTTP del boundary cliente/servidor para Gemini AI:
+//
+//   geminiService.ts (este archivo, 126 LOC)
+//     ─── client-side HTTP wrapper
+//     ─── envía POST /api/gemini con `{ action, args }` + ID token Firebase
+//     ─── bundled al chunk de browser
+//     ─── 62 consumers (páginas, componentes, hooks React)
+//
+//   geminiBackend.ts (3070 LOC)
+//     ─── server-side implementation
+//     ─── importa firebase-admin (transitivamente vía networkBackend/ragService)
+//     ─── importa src/server/middleware (geminiCircuit, quotaTracker)
+//     ─── NO bundleable al cliente — vite.config.ts:262 marca firebase-admin
+//         como external + :337 excluido del optimizer
+//     ─── único cliente: src/server/routes/gemini.ts dispatcher con allowlist
+//
+// AUDIT DRIFT CORREGIDO (2026-05-19, Bloque 5.5 / item C15):
+// El audit `docs/audits/AUDIT_EXHAUSTIVA_2026-05-19.md:3071-3073` propuso
+// "colapsar geminiService.ts → geminiBackend.ts directo". Esa prescripción
+// es INCORRECTA: NO es duplicación, es HTTP boundary necesario por la
+// arquitectura cliente/servidor. Hacer import-swap rompería el browser
+// bundle al intentar bundlear firebase-admin + server middleware.
+//
+// Si en el futuro se quiere reducir mantenimiento de los 94 wrappers,
+// la opción correcta NO es colapsar sino auto-generar las firmas vía
+// `Parameters<typeof X>` + `ReturnType<typeof X>` con `import type`
+// (solo tipos, no runtime) desde `geminiBackend.ts`. Eso queda como
+// follow-up opcional, no obligatorio.
+//
+// Memoria proyecto: directiva "no blind sweeps" — verificar signatures
+// reales antes de wrapping/refactor. Aplicada aquí: agent dispatched
+// 2026-05-19 detectó el boundary y se detuvo antes de la operación
+// destructiva.
+
 import { auth } from './firebase';
 import { logger } from '../utils/logger';
 
