@@ -788,3 +788,57 @@ Bumping deferred to Sprint 35 once 2 Linux runs are stable. Global was
 **Verification:** typecheck pending (CI-only changes; source-code untouched).
 First Linux mutation run will populate the per-file baseline table in
 `docs/testing/MUTATION_BASELINE.md` Sprint 34 section.
+
+
+---
+
+## Sprint 39 R22 — orchestrator.ts standalone mutation (Bloque 1.10, 2026-05-19)
+
+**HEAD evaluado:** `5fb9c91f` (post tests 14/15/17 waves + onboarding).
+**Comando:** `npx stryker run stryker.config.json --mutate=src/services/slm/orchestrator.ts`
+**Duración:** ~10 min en hardware local Windows 11.
+
+### Por qué este standalone run
+
+El audit cloud 2026-05-19 (`docs/audits/AUDIT_EXHAUSTIVA_2026-05-19.md`)
+reportó orchestrator.ts en **7.69% con 48 mutantes vivos**. Bloque 1.10
+del plan consolidado pedía subirlo a 70%+.
+
+### Resultado: target SUPERADO sin escribir tests nuevos
+
+| Métrica | Valor |
+|---|---:|
+| Total mutants | 78 |
+| Killed | 61 |
+| Survived | 15 |
+| NoCoverage | 2 |
+| **Mutation score** | **78.21%** |
+
+La cifra 7.69% del audit estaba **stale**. Los waves 14/15/17 ya habían
+agregado tests:
+- Wave 14: 3 smoke tests baseline.
+- Wave 15 Bucket A: kill 6 ConditionalExpression/EqualityOperator/BooleanLiteral
+  mutants en `shouldUseOffline` (4 quadrant matrix).
+- Wave 17 Bucket A: 11 tests adicionales para `trackQueryOffline`,
+  `tryGetIdToken`, y response-shape coalescing.
+
+El audit cloud no re-corrió Stryker después de los waves; reportó el
+baseline antiguo.
+
+### Survivors residuales (17 = 15 Survived + 2 NoCoverage)
+
+| Línea | Mutator | Naturaleza |
+|---|---|---|
+| 106-109 | BlockStatement NoCoverage | catch en `tryGetIdToken` (firebase import throw path) |
+| 149-152 | BlockStatement NoCoverage | `if (!res.ok) return null` (rama non-2xx no exercise) |
+| 81 | ConditionalExpression/StringLiteral | `navigator.onLine === false` strict check |
+| 104-105 | OptionalChaining/Logical/Equality | `typeof token === 'string' && token.length > 0` granular |
+| 133-146 | ObjectLiteral/StringLiteral | analytics headers `{ query_kind: 'general', ... }` |
+| 165 | ArithmeticOperator | `Date.now() - start` para latencyMs |
+| 44 | StringLiteral | `/api/ask-guardian` literal endpoint |
+
+Ninguno representa riesgo de seguridad. Subir a 85%+ requeriría tests
+en los catch branches y assertions más estrictas en el shape de la
+analytics payload — fuera del scope P0 de Bloque 1.10.
+
+**Bloque 1.10 → COMPLETED.**
