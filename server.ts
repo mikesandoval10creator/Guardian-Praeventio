@@ -335,6 +335,7 @@ import loneWorkerRouter from "./src/server/routes/loneWorker.js";
 import evacuationHeadcountRouter from "./src/server/routes/evacuationHeadcount.js";
 import stoppageRouter from "./src/server/routes/stoppage.js";
 import riskRankingRouter from "./src/server/routes/riskRanking.js";
+import restrictedZonesRouter from "./src/server/routes/restrictedZones.js";
 // Soft-blocking requirement gate — directive #2 compliant (never blocks machinery).
 import softBlockingRouter from "./src/server/routes/softBlocking.js";
 // Role-based dashboard views — Sprint 39 J.4 (worker / site_chief / prevention / management).
@@ -1053,6 +1054,7 @@ app.use('/api/sprint-k', loneWorkerRouter);
 app.use('/api/sprint-k', stoppageRouter);
 app.use('/api/evacuation-headcount', evacuationHeadcountRouter);
 app.use('/api/risk-ranking', riskRankingRouter);
+app.use('/api/zones', restrictedZonesRouter);
 app.use('/api/sprint-k', softBlockingRouter);
 app.use('/api/sprint-k', roleViewsRouter);
 app.use('/api/sprint-k', safetyTalksRouter);
