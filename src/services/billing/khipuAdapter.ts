@@ -233,25 +233,26 @@ export class KhipuAdapter {
           void detail;
         }
 
-        let payload: any;
+        let payload: unknown;
         try {
           payload = await response.json();
         } catch (err) {
           throw new KhipuAdapterError('createPayment', err);
         }
+        const p = (payload ?? {}) as Record<string, unknown>;
 
         return {
-          paymentId: typeof payload.payment_id === 'string' ? payload.payment_id : '',
-          paymentUrl: typeof payload.payment_url === 'string' ? payload.payment_url : '',
+          paymentId: typeof p.payment_id === 'string' ? p.payment_id : '',
+          paymentUrl: typeof p.payment_url === 'string' ? p.payment_url : '',
           simplifiedTransferUrl:
-            typeof payload.simplified_transfer_url === 'string'
-              ? payload.simplified_transfer_url
+            typeof p.simplified_transfer_url === 'string'
+              ? p.simplified_transfer_url
               : undefined,
           transferUrl:
-            typeof payload.transfer_url === 'string' ? payload.transfer_url : undefined,
-          appUrl: typeof payload.app_url === 'string' ? payload.app_url : undefined,
+            typeof p.transfer_url === 'string' ? p.transfer_url : undefined,
+          appUrl: typeof p.app_url === 'string' ? p.app_url : undefined,
           expiresAt:
-            typeof payload.expires_date === 'string' ? payload.expires_date : '',
+            typeof p.expires_date === 'string' ? p.expires_date : '',
           raw: payload,
         };
       },
@@ -288,7 +289,7 @@ export class KhipuAdapter {
           );
         }
 
-        let payload: any;
+        let payload: unknown;
         try {
           payload = await response.json();
         } catch (err) {
@@ -383,16 +384,17 @@ export class KhipuAdapter {
 // the user has paid but the bank hasn't confirmed, which is exactly the
 // "still waiting" UX the SPA shows on /pricing/retry.
 // ───────────────────────────────────────────────────────────────────────────
-function mapKhipuStatus(payload: any): KhipuCommitResult {
+function mapKhipuStatus(payload: unknown): KhipuCommitResult {
+  const p = (payload ?? {}) as Record<string, unknown>;
   const buyOrder: string =
-    typeof payload?.transaction_id === 'string' ? payload.transaction_id : '';
-  const amount: number = typeof payload?.amount === 'number' ? payload.amount : 0;
+    typeof p.transaction_id === 'string' ? p.transaction_id : '';
+  const amount: number = typeof p.amount === 'number' ? p.amount : 0;
   const paymentId: string =
-    typeof payload?.payment_id === 'string' ? payload.payment_id : '';
+    typeof p.payment_id === 'string' ? p.payment_id : '';
   const rawStatus: string =
-    typeof payload?.status === 'string' ? payload.status.toLowerCase() : '';
+    typeof p.status === 'string' ? p.status.toLowerCase() : '';
   const expiresDate: string | undefined =
-    typeof payload?.expires_date === 'string' ? payload.expires_date : undefined;
+    typeof p.expires_date === 'string' ? p.expires_date : undefined;
 
   let status: KhipuCommitResult['status'];
   if (rawStatus === 'done') {

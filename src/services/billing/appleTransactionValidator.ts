@@ -117,7 +117,7 @@ export interface AppleTestSeam {
     base: string,
     transactionId: string,
     bearer: string,
-  ): Promise<{ status: number; body: any }>;
+  ): Promise<{ status: number; body: unknown }>;
   /** Returns the verified payload directly — bypasses real JWS check. */
   verifyJws?: <T>(jws: string) => Promise<{ payload: T; verifiedChain: boolean }>;
   /**
@@ -184,7 +184,7 @@ async function realFetchTransaction(
   base: string,
   transactionId: string,
   bearer: string,
-): Promise<{ status: number; body: any }> {
+): Promise<{ status: number; body: unknown }> {
   const res = await fetch(
     `${base}/inApps/v1/transactions/${encodeURIComponent(transactionId)}`,
     {
@@ -194,7 +194,7 @@ async function realFetchTransaction(
       },
     },
   );
-  let body: any = null;
+  let body: unknown = null;
   try {
     body = await res.json();
   } catch {
@@ -251,7 +251,7 @@ export async function validateAppleTransaction(
   let resp = await fetchTx(PROD_BASE, transactionId, bearer);
   if (
     resp.status === 404 &&
-    Number(resp.body?.errorCode) === APPLE_TX_NOT_FOUND_ERROR_CODE
+    Number((resp.body as { errorCode?: number } | null)?.errorCode) === APPLE_TX_NOT_FOUND_ERROR_CODE
   ) {
     environment = 'sandbox';
     resp = await fetchTx(SANDBOX_BASE, transactionId, bearer);
@@ -261,21 +261,21 @@ export async function validateAppleTransaction(
     return {
       ok: false,
       reason: 'permission_denied',
-      detail: `${resp.status}: ${resp.body?.errorMessage ?? 'auth failed'}`,
+      detail: `${resp.status}: ${(resp.body as { errorMessage?: string } | null)?.errorMessage ?? 'auth failed'}`,
     };
   }
   if (resp.status === 404) {
     return {
       ok: false,
       reason: 'transaction_not_found',
-      detail: `404 in both prod+sandbox: ${resp.body?.errorMessage ?? 'unknown'}`,
+      detail: `404 in both prod+sandbox: ${(resp.body as { errorMessage?: string } | null)?.errorMessage ?? 'unknown'}`,
     };
   }
   if (resp.status === 429 || resp.status >= 500) {
     return {
       ok: false,
       reason: 'transient_error',
-      detail: `${resp.status}: ${resp.body?.errorMessage ?? 'transient'}`,
+      detail: `${resp.status}: ${(resp.body as { errorMessage?: string } | null)?.errorMessage ?? 'transient'}`,
     };
   }
   if (resp.status !== 200) {
@@ -287,7 +287,7 @@ export async function validateAppleTransaction(
   }
 
   const signedTransactionInfo: string | undefined =
-    resp.body?.signedTransactionInfo;
+    (resp.body as { signedTransactionInfo?: string } | null)?.signedTransactionInfo;
   if (!signedTransactionInfo || typeof signedTransactionInfo !== 'string') {
     return {
       ok: false,
