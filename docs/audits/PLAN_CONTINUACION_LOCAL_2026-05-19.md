@@ -1,6 +1,23 @@
-# Plan continuación Guardian-Praeventio — v2 post-merge recovery
+# Plan continuación Guardian-Praeventio — v3 post-sesión móvil
 
-> **Versión 2 — 2026-05-20.** Estado actualizado tras cherry-pick exitoso de 11 commits de `recovery/local-main-2026-05-18`. Verificación contra código HOY + tests passing. Reemplaza v1 (2026-05-19).
+> **Versión 3 — 2026-05-20 tarde.** Sesión cloud-móvil avanzó 12+ items adicionales sobre v2. Bloque 1+4+6 al 100%, Bloque 2/3/8 al 86%+, lint real funcional, AUDIT §32 catálogo industrias. Reemplaza v2.
+
+## ⏩ AVANCE SESIÓN MÓVIL 2026-05-20 (commits c2f391f7..7cae0834, 48 commits)
+
+| Bloque/Item | Trabajo realizado | Commit |
+|---|---|---|
+| **Merge recovery** | 11 cherry-picks exitosos preservando todo trabajo | `73e2bf34..ef6bb036` |
+| **3.5 hook** | `useLegalObligations.ts` creado (264 LOC, 5 endpoints) — Sprint J 10/10 ✅ | `797e79aa` |
+| **C18 verificado** | 4 imgs ya tenían alt — audit inexacto, no requiere fix | — |
+| **C19** | 3 `key={index}` → composite keys con identifier | `797e79aa` |
+| **C4** | marketplace pricing `model: "external"` + URL praeventio.net/pricing | `797e79aa` |
+| **D7** | oauthTokenStore comentario ya actualizado por recovery | — |
+| **D8** | README claim `npm run lint` actualizado | `797e79aa` |
+| **TS error** | `onboarding.test.ts:327` mock tipado, TS 100% limpio | `797e79aa` |
+| **D-IND auditado** | §32 al AUDIT: 6 industrias reales vs 500+ promesa (gap -99%) | `7cae0834` |
+| **6.1 D12** | manualChunks verificado: ya cubre MediaPipe + Three + Firebase + 7 más | — |
+| **5.6 D2** | **Lint real cubre TS/TSX**: 809→694 problems, 74 archivos auto-fixed | `7cae0834` |
+| **8.3 C5** | Verificado: landing.spec gate condicional ya cerrado por recovery | — |
 
 ---
 
