@@ -345,6 +345,7 @@ import preventionCostRouter from "./src/server/routes/preventionCost.js";
 import operationalChangeRouter from "./src/server/routes/operationalChange.js";
 import shiftHandoverRouter from "./src/server/routes/shiftHandover.js";
 import incidentFlowRouter from "./src/server/routes/incidentFlow.js";
+import horometroRouter from "./src/server/routes/horometro.js";
 // Soft-blocking requirement gate — directive #2 compliant (never blocks machinery).
 import softBlockingRouter from "./src/server/routes/softBlocking.js";
 // Role-based dashboard views — Sprint 39 J.4 (worker / site_chief / prevention / management).
@@ -1072,6 +1073,7 @@ app.use('/api/sprint-k', preventionCostRouter);
 app.use('/api/sprint-k', operationalChangeRouter);
 app.use('/api/sprint-k', shiftHandoverRouter);
 app.use('/api/sprint-k', incidentFlowRouter);
+app.use('/api/sprint-k', horometroRouter);
 // TODO(Bloque 3.7 follow-up): public route /api/audit-portal/public/:token
 // should get its own IP-keyed rate limiter (mirror healthVaultViewLimiter).
 // Current mount inherits the per-uid limiter at line 684, suboptimal for
