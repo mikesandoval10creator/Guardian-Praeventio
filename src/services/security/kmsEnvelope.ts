@@ -32,6 +32,15 @@
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import type { KmsAdapter, KmsAdapterName } from './kmsAdapter.ts';
+// Bloque 5.3 (C13) — Sentry instrumentation. KMS round-trips are the
+// chokepoint for every OAuth-token read/write; surfacing latency +
+// adapter faults as `module=kms` rows in Sentry is the only way we'll
+// catch a Cloud KMS regional outage before it cascades into Webpay /
+// Gemini login failures. We wrap each operation in `withSentryScope`
+// so the wrapper's own `captureException` is the single source of
+// truth — callers must NOT add a separate Sentry capture in their
+// catch blocks (would double-report on every fault).
+import { withSentryScope } from '../observability/sentryInstrumentation.js';
 
 export interface EnvelopeCiphertext {
   ciphertext: string;
@@ -56,35 +65,51 @@ export async function envelopeEncrypt(
   plaintext: string,
   adapter: KmsAdapter,
 ): Promise<EnvelopeCiphertext> {
-  if (!adapter.isAvailable) {
-    throw new Error(
-      `envelopeEncrypt: KMS adapter '${adapter.name}' is not available. ` +
-        `Install/configure the adapter or pick a different one (KMS_ADAPTER env var).`,
-    );
-  }
+  // Bloque 5.3 (C13) — wrap the whole envelope encrypt in
+  // `withSentryScope('kms.envelope.encrypt', …)`. The scope carries the
+  // adapter name + plaintext byte length (NOT the plaintext itself) so
+  // ops can tell whether a slow encrypt correlates with a particular
+  // adapter or with token sizes growing. Plaintext is NEVER passed in
+  // because it's the secret we're protecting.
+  return withSentryScope(
+    'kms',
+    {
+      action: 'kms.envelope.encrypt',
+      adapter: adapter.name,
+      plaintextBytes: Buffer.byteLength(plaintext, 'utf8'),
+    },
+    async () => {
+      if (!adapter.isAvailable) {
+        throw new Error(
+          `envelopeEncrypt: KMS adapter '${adapter.name}' is not available. ` +
+            `Install/configure the adapter or pick a different one (KMS_ADAPTER env var).`,
+        );
+      }
 
-  // Generate a fresh DEK + IV per operation. Using the same IV twice with
-  // the same key in GCM is catastrophic, so we ALWAYS randomize the IV.
-  const dek = randomBytes(DEK_BYTES);
-  const iv = randomBytes(IV_BYTES);
+      // Generate a fresh DEK + IV per operation. Using the same IV twice with
+      // the same key in GCM is catastrophic, so we ALWAYS randomize the IV.
+      const dek = randomBytes(DEK_BYTES);
+      const iv = randomBytes(IV_BYTES);
 
-  const cipher = createCipheriv('aes-256-gcm', dek, iv);
-  const plaintextBuf = Buffer.from(plaintext, 'utf8');
-  const ciphertext = Buffer.concat([cipher.update(plaintextBuf), cipher.final()]);
-  const authTag = cipher.getAuthTag();
+      const cipher = createCipheriv('aes-256-gcm', dek, iv);
+      const plaintextBuf = Buffer.from(plaintext, 'utf8');
+      const ciphertext = Buffer.concat([cipher.update(plaintextBuf), cipher.final()]);
+      const authTag = cipher.getAuthTag();
 
-  // Wrap the DEK with the KEK (KMS). This is the only KMS round-trip.
-  const encryptedDek = await adapter.encrypt(dek);
+      // Wrap the DEK with the KEK (KMS). This is the only KMS round-trip.
+      const encryptedDek = await adapter.encrypt(dek);
 
-  return {
-    ciphertext: ciphertext.toString('base64'),
-    iv: iv.toString('base64'),
-    authTag: authTag.toString('base64'),
-    encryptedDek: encryptedDek.toString('base64'),
-    algorithm: 'AES-256-GCM',
-    kmsAdapter: adapter.name,
-    createdAt: new Date().toISOString(),
-  };
+      return {
+        ciphertext: ciphertext.toString('base64'),
+        iv: iv.toString('base64'),
+        authTag: authTag.toString('base64'),
+        encryptedDek: encryptedDek.toString('base64'),
+        algorithm: 'AES-256-GCM',
+        kmsAdapter: adapter.name,
+        createdAt: new Date().toISOString(),
+      };
+    },
+  );
 }
 
 /**
@@ -103,52 +128,70 @@ export async function envelopeDecrypt(
   envelope: EnvelopeCiphertext,
   adapter: KmsAdapter,
 ): Promise<string> {
-  if (!adapter.isAvailable) {
-    throw new Error(
-      `envelopeDecrypt: KMS adapter '${adapter.name}' is not available.`,
-    );
-  }
-  if (envelope.algorithm !== 'AES-256-GCM') {
-    throw new Error(
-      `envelopeDecrypt: unsupported algorithm '${envelope.algorithm}', expected 'AES-256-GCM'.`,
-    );
-  }
-  if (
-    envelope.kmsAdapter !== adapter.name &&
-    envelope.kmsAdapter !== 'noop' &&
-    adapter.name !== 'noop'
-  ) {
-    throw new Error(
-      `envelopeDecrypt: adapter mismatch — envelope was wrapped by '${envelope.kmsAdapter}', ` +
-        `cannot unwrap with '${adapter.name}'.`,
-    );
-  }
+  // Bloque 5.3 (C13) — wrap the decrypt path in
+  // `withSentryScope('kms.envelope.decrypt', …)`. Scope context includes
+  // both adapter names (envelope vs current) so a mismatch / adapter
+  // rotation incident shows up clearly on the Sentry issue page. Note:
+  // we do NOT include the ciphertext or authTag — those are bearer-
+  // shaped opaque bytes and have no triage value outside the process.
+  return withSentryScope(
+    'kms',
+    {
+      action: 'kms.envelope.decrypt',
+      adapter: adapter.name,
+      envelopeAdapter: envelope.kmsAdapter,
+      envelopeAlgorithm: envelope.algorithm,
+      envelopeCreatedAt: envelope.createdAt,
+    },
+    async () => {
+      if (!adapter.isAvailable) {
+        throw new Error(
+          `envelopeDecrypt: KMS adapter '${adapter.name}' is not available.`,
+        );
+      }
+      if (envelope.algorithm !== 'AES-256-GCM') {
+        throw new Error(
+          `envelopeDecrypt: unsupported algorithm '${envelope.algorithm}', expected 'AES-256-GCM'.`,
+        );
+      }
+      if (
+        envelope.kmsAdapter !== adapter.name &&
+        envelope.kmsAdapter !== 'noop' &&
+        adapter.name !== 'noop'
+      ) {
+        throw new Error(
+          `envelopeDecrypt: adapter mismatch — envelope was wrapped by '${envelope.kmsAdapter}', ` +
+            `cannot unwrap with '${adapter.name}'.`,
+        );
+      }
 
-  const ciphertext = Buffer.from(envelope.ciphertext, 'base64');
-  const iv = Buffer.from(envelope.iv, 'base64');
-  const authTag = Buffer.from(envelope.authTag, 'base64');
-  const encryptedDek = Buffer.from(envelope.encryptedDek, 'base64');
+      const ciphertext = Buffer.from(envelope.ciphertext, 'base64');
+      const iv = Buffer.from(envelope.iv, 'base64');
+      const authTag = Buffer.from(envelope.authTag, 'base64');
+      const encryptedDek = Buffer.from(envelope.encryptedDek, 'base64');
 
-  if (iv.length !== IV_BYTES) {
-    throw new Error(`envelopeDecrypt: bad iv length ${iv.length}, expected ${IV_BYTES}`);
-  }
-  if (authTag.length !== 16) {
-    throw new Error(`envelopeDecrypt: bad authTag length ${authTag.length}, expected 16`);
-  }
+      if (iv.length !== IV_BYTES) {
+        throw new Error(`envelopeDecrypt: bad iv length ${iv.length}, expected ${IV_BYTES}`);
+      }
+      if (authTag.length !== 16) {
+        throw new Error(`envelopeDecrypt: bad authTag length ${authTag.length}, expected 16`);
+      }
 
-  // KMS-unwrap the DEK first.
-  const dek = await adapter.decrypt(encryptedDek);
-  if (dek.length !== DEK_BYTES) {
-    throw new Error(
-      `envelopeDecrypt: unwrapped DEK has wrong size ${dek.length}, expected ${DEK_BYTES}`,
-    );
-  }
+      // KMS-unwrap the DEK first.
+      const dek = await adapter.decrypt(encryptedDek);
+      if (dek.length !== DEK_BYTES) {
+        throw new Error(
+          `envelopeDecrypt: unwrapped DEK has wrong size ${dek.length}, expected ${DEK_BYTES}`,
+        );
+      }
 
-  const decipher = createDecipheriv('aes-256-gcm', dek, iv);
-  decipher.setAuthTag(authTag);
-  // .final() throws if authTag does not validate — that's our integrity check.
-  const out = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-  return out.toString('utf8');
+      const decipher = createDecipheriv('aes-256-gcm', dek, iv);
+      decipher.setAuthTag(authTag);
+      // .final() throws if authTag does not validate — that's our integrity check.
+      const out = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+      return out.toString('utf8');
+    },
+  );
 }
 
 /**

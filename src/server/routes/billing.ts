@@ -49,6 +49,14 @@ import { logger } from '../../utils/logger.js';
 // Sprint 22 Bucket AA — request-scoped tracing on the billing dispatch path.
 import { tracedAsync } from '../../services/observability/tracing.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+// Bloque 5.3 (C13) — Sentry scope wrapper for the payment hot paths
+// (Webpay return, MercadoPago IPN, Apple SSN webhook). Module tag
+// `payment` surfaces latency + errors as their own row in the Sentry
+// dashboard. For routes wrapped with `withSentryScope` we REMOVED the
+// inner `sentryCapture(err, …)` call from the corresponding catch
+// blocks — both helpers route through `Sentry.captureException` and
+// would otherwise double-report a single payment failure.
+import { withSentryScope } from '../../services/observability/sentryInstrumentation.js';
 
 // Sentry capture helper — additive to logger.error. Wrapped so observability
 // failures never crash the request path.
@@ -1063,10 +1071,24 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
 
   try {
     const paymentId = req.body?.data?.id;
-    const result = await tracedAsync(
-      'billing.webhook.mercadopago',
-      { paymentId: paymentId ?? null, action: req.body?.action ?? null },
-      () => processMercadoPagoIpn(req.body ?? {}),
+    // Bloque 5.3 (C13) — wrap the IPN processing with
+    // `withSentryScope('payment.mp.ipn', …)`. Scope context carries the
+    // MercadoPago paymentId + action (e.g. 'payment.updated') so the
+    // Sentry issue page shows which webhook triggered the fault. We do
+    // NOT include the request body or signature header — both are
+    // bearer-shaped material we explicitly filter from Sentry.
+    const result = await withSentryScope(
+      'payment',
+      {
+        action: 'payment.mp.ipn',
+        paymentId: paymentId ?? null,
+        mpAction: req.body?.action ?? null,
+      },
+      () => tracedAsync(
+        'billing.webhook.mercadopago',
+        { paymentId: paymentId ?? null, action: req.body?.action ?? null },
+        () => processMercadoPagoIpn(req.body ?? {}),
+      ),
     );
     // Sprint 28 H18 — audit success and replay for MP webhooks.
     if (result.idempotencyKind === 'duplicate') {
@@ -1177,7 +1199,10 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
     logger.error('mp_ipn_processing_failed', err as Error, {
       paymentId: req.body?.data?.id,
     });
-    sentryCapture(err, { endpoint: '/api/billing/webhook/mercadopago', tags: { method: 'POST', paymentId: req.body?.data?.id ?? null } });
+    // NOTE: `withSentryScope('payment', …)` above already captured this
+    // error with `module=payment` + paymentId tag — removed the legacy
+    // `sentryCapture` call to avoid double-reporting one IPN failure as
+    // two Sentry issues.
     return res.status(500).send('IPN processing failed');
   }
 });
@@ -1264,6 +1289,19 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
   ): 'success' | 'failure' => (o === 'paid' ? 'success' : 'failure');
 
   try {
+    // Bloque 5.3 (C13) — wrap the Webpay return work in
+    // `withSentryScope('payment.webpay.return', …)`. Scope context
+    // carries only `tokenWs` (Webpay-side opaque transaction id, safe to
+    // log) — we deliberately do NOT include card BIN / authCode here
+    // even though they're available downstream, because that would put
+    // PCI-adjacent material into a Sentry payload.
+    return await withSentryScope(
+      'payment',
+      {
+        action: 'payment.webpay.return',
+        tokenWs,
+      },
+      async () => {
     // Step 1: try to acquire the idempotency lock.
     const lock = await acquireWebpayIdempotencyLock(lockRef);
     if (!lock.acquired) {
@@ -1487,13 +1525,19 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
       outcome: histogramOutcomeFor(outcome),
       latencyMs: elapsed(),
     });
-    return res.redirect(redirectFor(outcome, invoiceId));
+        return res.redirect(redirectFor(outcome, invoiceId));
+      },
+    );
   } catch (error: any) {
     // Deliberate: do NOT update processed_webpay here. Leaving the doc as
     // 'in_progress' allows the staleness window to grant a future
     // redelivery a fresh attempt — same approach as the RTDN handler.
     logger.error('webpay_return_failed', error, { tokenWs });
-    sentryCapture(error, { endpoint: '/billing/webpay/return', tags: { method: 'GET' } });
+    // NOTE: `withSentryScope('payment', …)` above already captured this
+    // error with the `module=payment` tag — the legacy `sentryCapture`
+    // call was removed to avoid double-reporting the same fault to two
+    // collectors. `recordWebpayReturnLatency` (Cloud Monitoring metric)
+    // remains so the histogram observation still fires on failure.
     recordWebpayReturnLatency({ outcome: 'failure', latencyMs: elapsed() });
     return res.redirect(`/pricing/failed?error=webpay`);
   }
@@ -2002,7 +2046,20 @@ billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req
   let verifiedChain = false;
   let payload;
   try {
-    const verified = await verifyAndDecodeAppleSsn(signedPayload);
+    // Bloque 5.3 (C13) — verification phase wrapped as
+    // `payment.apple.ssn` with subaction='verify'. Scope context carries
+    // the signed-payload length (NOT the payload itself — it's a bearer-
+    // shaped JWS) so a sudden change in size correlates with Apple
+    // pushing a new payload shape we don't yet handle.
+    const verified = await withSentryScope(
+      'payment',
+      {
+        action: 'payment.apple.ssn',
+        subaction: 'verify',
+        signedPayloadBytes: signedPayload.length,
+      },
+      () => verifyAndDecodeAppleSsn(signedPayload),
+    );
     payload = verified.payload;
     verifiedChain = verified.verifiedChain;
   } catch (err) {
@@ -2014,14 +2071,30 @@ billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req
       return res.status(401).json({ error: 'invalid_signature' });
     }
     logger.error('apple_ssn_verify_unexpected', err);
-    sentryCapture(err, { endpoint: '/api/billing/webhook/apple', tags: { method: 'POST', phase: 'verify' } });
+    // NOTE: `withSentryScope('payment', …)` above already captured this
+    // unexpected verify error with `module=payment` — removed the legacy
+    // `sentryCapture` call to avoid double-reporting.
     return res.status(500).json({ error: 'verify_failed' });
   }
 
   const db = admin.firestore();
 
   try {
-    const outcome = await withIdempotency(
+    // Bloque 5.3 (C13) — processing phase wrapped as `payment.apple.ssn`
+    // with subaction='process'. Scope context carries notificationType +
+    // subtype + verifiedChain so the Sentry issue page indicates which
+    // App Store event tripped the failure (e.g. DID_RENEW vs REFUND).
+    const outcome = await withSentryScope(
+      'payment',
+      {
+        action: 'payment.apple.ssn',
+        subaction: 'process',
+        notificationType: payload.notificationType ?? null,
+        subtype: payload.subtype ?? null,
+        notificationUUID: payload.notificationUUID,
+        verifiedChain,
+      },
+      () => withIdempotency(
       db,
       { collection: 'processed_apple_ssn', key: payload.notificationUUID },
       async () => {
@@ -2052,6 +2125,7 @@ billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req
 
         return { ok: true, action: result.action, userId: result.userId };
       },
+      ),
     );
 
     if (outcome.kind === 'in-flight') {
@@ -2090,7 +2164,10 @@ billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req
     logger.error('apple_ssn_webhook_failed', error, {
       notificationUUID: payload.notificationUUID,
     });
-    sentryCapture(error, { endpoint: '/api/billing/webhook/apple', tags: { method: 'POST', notificationUUID: payload.notificationUUID } });
+    // NOTE: `withSentryScope('payment', …)` above already captured this
+    // error with `module=payment` + notificationUUID tag — removed the
+    // legacy `sentryCapture` call to avoid double-reporting one SSN
+    // failure as two Sentry issues.
     return res.status(500).json({ error: 'webhook_processing_failed' });
   }
 });

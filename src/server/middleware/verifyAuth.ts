@@ -26,22 +26,13 @@
 
 import type { Request, Response, NextFunction } from 'express';
 import admin from 'firebase-admin';
-import { getErrorTracker } from '../../services/observability/index.js';
+// Bloque 5.3 (C13) — the legacy `sentryCapture()` helper that wrapped
+// `getErrorTracker().captureException()` was replaced by `withSentryScope`
+// (Sentry SDK scope + module tag + automatic captureException). Both paths
+// fire `Sentry.captureException` under the hood, so we removed the local
+// helper to avoid double-reporting and kept only the scope-aware wrapper.
+import { withSentryScope } from '../../services/observability/sentryInstrumentation.js';
 import { logger } from '../../utils/logger.js';
-
-function sentryCapture(
-  err: unknown,
-  context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
-): void {
-  try {
-    getErrorTracker().captureException(
-      err instanceof Error ? err : new Error(String(err)),
-      context as any,
-    );
-  } catch (e) {
-    console.warn('[observability] capture failed', e);
-  }
-}
 
 // Startup guard: prod + E2E_MODE simultaneously is a CONFIG ERROR.
 // Module-level throw means the server refuses to boot in this state, even
@@ -102,7 +93,23 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
     // antes del revoke quedan inmediatamente inválidos sin esperar la
     // expiración natural de 1h. Cierra IMPLEMENTATION_ROADMAP 0.6 (riesgo
     // activo: ex-empleados con acceso por hasta 1h post-desactivación).
-    const decodedToken = await admin.auth().verifyIdToken(token, true);
+    //
+    // Bloque 5.3 (C13) — wrapped in `withSentryScope('auth.verify', …)` so
+    // latency + non-revoked failures surface as `module=auth` rows in
+    // Sentry. We pass `endpoint` + `method` as scope context (no token /
+    // header value — those are bearer credentials). The wrapper itself
+    // calls `Sentry.captureException` on rejection; the outer catch below
+    // therefore SKIPS the explicit `sentryCapture()` call to avoid double-
+    // reporting the same error to two collectors.
+    const decodedToken = await withSentryScope(
+      'auth',
+      {
+        action: 'auth.verify',
+        endpoint: req.url,
+        method: req.method,
+      },
+      () => admin.auth().verifyIdToken(token, true),
+    );
     // DecodedIdToken has many fields (iat, auth_time, firebase, …). We
     // narrow into our PraeventioAuthUser shape (declared in
     // src/server/types/express.d.ts) so downstream handlers see the
@@ -134,7 +141,12 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
       });
     }
     logger.error('auth_token_verification_failed', error, { endpoint: req.url, method: req.method });
-    sentryCapture(error, { endpoint: req.url, tags: { method: req.method, middleware: 'verifyAuth' } });
+    // NOTE: `withSentryScope('auth', …)` above already called
+    // `Sentry.captureException(error)` inside the scope (with the
+    // `module=auth` tag). We deliberately skip the legacy `sentryCapture()`
+    // helper here to avoid double-reporting the SAME error to two
+    // collectors (Sentry SDK + ErrorTrackingAdapter would otherwise both
+    // fire). Keep `logger.error` — Cloud Logging stays the source-of-truth.
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
 };

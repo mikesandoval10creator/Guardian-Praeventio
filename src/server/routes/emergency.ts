@@ -35,12 +35,17 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
-import { captureRouteError } from '../middleware/captureRouteError.js';
 
 // Sprint 22 Bucket AA — request-scoped tracing on the SOS path. Emergency
 // notifications are CRITICAL to correlate end-to-end (push fan-out
 // failures, missing tokens, Firestore lag).
 import { tracedAsync } from '../../services/observability/tracing.js';
+// Bloque 5.3 (C13) — Sentry scope wrapper for the SOS hot path. Module tag
+// `sos` surfaces latency + errors as its own row in the Sentry dashboard.
+// `withSentryScope` itself calls `Sentry.captureException` on rejection, so
+// the old `captureRouteError(error, 'emergency.sos', …)` was removed to
+// avoid double-reporting the same error to the same backend.
+import { withSentryScope } from '../../services/observability/sentryInstrumentation.js';
 // Sprint 22 Bucket Y — email fallback when FCM push fails or no
 // supervisor has a registered token. Resend service is constructed
 // lazily from env so dev environments without RESEND_API_KEY still
@@ -238,132 +243,162 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
   }
 
   try {
-    const projectSnap = await db.collection('projects').doc(projectId).get();
-    const tenantId: string =
-      (projectSnap.exists && (projectSnap.data() as any)?.tenantId) || projectId;
-    const alertRef = await db
-      .collection('tenants')
-      .doc(tenantId)
-      .collection('emergency_alerts')
-      .add({
-        type: 'sos',
-        uid: callerUid,
-        userEmail: callerEmail,
+    // Bloque 5.3 (C13) — wrap the whole SOS workload in
+    // `withSentryScope('sos.submit', …)`. Scope context carries
+    // projectId + uid + hasGeo so an operator triaging a failed SOS can
+    // see WHICH worker / project the alert came from. The wrapper itself
+    // calls `Sentry.captureException` on throw, so the outer catch below
+    // no longer calls `captureRouteError(error, 'emergency.sos', …)` —
+    // both routed to the same Sentry collector and double-reported.
+    return await withSentryScope(
+      'sos',
+      {
+        action: 'sos.submit',
+        callerUid,
         projectId,
-        geo: validatedGeo,
-        clientTimestamp: timestamp ?? null,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    await db.collection('audit_logs').add({
-      action: 'emergency.sos',
-      module: 'emergency',
-      details: { projectId, alertId: alertRef.id, hasGeo: validatedGeo !== null },
-      userId: callerUid,
-      userEmail: callerEmail,
-      projectId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      ip: req.ip ?? null,
-      userAgent: req.header('user-agent') ?? null,
-    });
-
-    let notified = 0;
-    let pushFailed = 0;
-    let supervisorEmails: string[] = [];
-    try {
-      const result = await tracedAsync(
-        'emergency.sos.fanout',
-        { tenantId, projectId, alertId: alertRef.id },
-        () => sendToProjectSupervisors(
-          projectId,
-          {
-            title: 'ðŸ†˜ SOS recibido',
-            body: `Trabajador solicita ayuda en proyecto ${projectId}`,
-            data: {
-              projectId,
-              alertId: alertRef.id,
-              type: 'sos',
-              uid: callerUid,
-            },
-          },
-          db,
-          admin.messaging(),
-        ),
-      );
-      notified = result.notified;
-      pushFailed = result.failed;
-      supervisorEmails = result.supervisorEmails;
-    } catch (fcmErr: any) {
-      // FCM fan-out failure must NOT fail the SOS write — the worker still
-      // needs the audit row + alert doc so a human dispatcher can pick up.
-      logger.error('sos_fcm_fanout_failed', {
-        uid: callerUid,
-        projectId,
-        message: fcmErr?.message,
-      });
-    }
-
-    // Sprint 22 Bucket Y — email fallback when push delivery is partial
-    // (some tokens failed) OR zero (no registered devices). Best-effort:
-    // failure to email never bubbles up; the SOS Firestore row is the
-    // authoritative artifact.
-    let emailedSupervisors = 0;
-    const shouldEmailFallback =
-      supervisorEmails.length > 0 && (notified === 0 || pushFailed > 0);
-    if (shouldEmailFallback) {
-      try {
-        const emailService = EmailService.fromEnv();
-        if (emailService) {
-          const projectName: string =
-            (projectSnap.exists && (projectSnap.data() as any)?.name) || projectId;
-          const workerName: string =
-            (req.user?.name as string | undefined) ||
-            callerEmail ||
-            callerUid;
-          const html = sosBackupTemplate({
-            worker: { name: workerName, id: callerUid },
-            project: { id: projectId, name: projectName },
-            location: validatedGeo,
-            timestamp: new Date(),
-            alertId: alertRef.id,
+        hasGeo: validatedGeo !== null,
+      },
+      async () => {
+        const projectSnap = await db.collection('projects').doc(projectId).get();
+        const tenantId: string =
+          (projectSnap.exists && (projectSnap.data() as any)?.tenantId) || projectId;
+        const alertRef = await db
+          .collection('tenants')
+          .doc(tenantId)
+          .collection('emergency_alerts')
+          .add({
+            type: 'sos',
+            uid: callerUid,
+            userEmail: callerEmail,
+            projectId,
+            geo: validatedGeo,
+            clientTimestamp: timestamp ?? null,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
-          const batch = await emailService.sendBatch(
-            supervisorEmails.map((email) => ({
-              to: email,
-              subject: `ðŸš¨ SOS — ${workerName} en ${projectName}`,
-              html,
-              tag: 'sos-backup',
-            })),
+        await db.collection('audit_logs').add({
+          action: 'emergency.sos',
+          module: 'emergency',
+          details: { projectId, alertId: alertRef.id, hasGeo: validatedGeo !== null },
+          userId: callerUid,
+          userEmail: callerEmail,
+          projectId,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          ip: req.ip ?? null,
+          userAgent: req.header('user-agent') ?? null,
+        });
+
+        let notified = 0;
+        let pushFailed = 0;
+        let supervisorEmails: string[] = [];
+        try {
+          const result = await tracedAsync(
+            'emergency.sos.fanout',
+            { tenantId, projectId, alertId: alertRef.id },
+            () => withSentryScope(
+              'sos',
+              {
+                action: 'sos.escalate',
+                projectId,
+                alertId: alertRef.id,
+                tenantId,
+              },
+              () => sendToProjectSupervisors(
+                projectId,
+                {
+                  title: 'ðŸ†˜ SOS recibido',
+                  body: `Trabajador solicita ayuda en proyecto ${projectId}`,
+                  data: {
+                    projectId,
+                    alertId: alertRef.id,
+                    type: 'sos',
+                    uid: callerUid,
+                  },
+                },
+                db,
+                admin.messaging(),
+              ),
+            ),
           );
-          emailedSupervisors = batch.sent;
-          if (batch.failed > 0) {
-            logger.warn('sos_email_partial_failure', {
+          notified = result.notified;
+          pushFailed = result.failed;
+          supervisorEmails = result.supervisorEmails;
+        } catch (fcmErr: any) {
+          // FCM fan-out failure must NOT fail the SOS write — the worker still
+          // needs the audit row + alert doc so a human dispatcher can pick up.
+          logger.error('sos_fcm_fanout_failed', {
+            uid: callerUid,
+            projectId,
+            message: fcmErr?.message,
+          });
+        }
+
+        // Sprint 22 Bucket Y — email fallback when push delivery is partial
+        // (some tokens failed) OR zero (no registered devices). Best-effort:
+        // failure to email never bubbles up; the SOS Firestore row is the
+        // authoritative artifact.
+        let emailedSupervisors = 0;
+        const shouldEmailFallback =
+          supervisorEmails.length > 0 && (notified === 0 || pushFailed > 0);
+        if (shouldEmailFallback) {
+          try {
+            const emailService = EmailService.fromEnv();
+            if (emailService) {
+              const projectName: string =
+                (projectSnap.exists && (projectSnap.data() as any)?.name) || projectId;
+              const workerName: string =
+                (req.user?.name as string | undefined) ||
+                callerEmail ||
+                callerUid;
+              const html = sosBackupTemplate({
+                worker: { name: workerName, id: callerUid },
+                project: { id: projectId, name: projectName },
+                location: validatedGeo,
+                timestamp: new Date(),
+                alertId: alertRef.id,
+              });
+              const batch = await emailService.sendBatch(
+                supervisorEmails.map((email) => ({
+                  to: email,
+                  subject: `ðŸš¨ SOS — ${workerName} en ${projectName}`,
+                  html,
+                  tag: 'sos-backup',
+                })),
+              );
+              emailedSupervisors = batch.sent;
+              if (batch.failed > 0) {
+                logger.warn('sos_email_partial_failure', {
+                  alertId: alertRef.id,
+                  sent: batch.sent,
+                  failed: batch.failed,
+                });
+              }
+            }
+          } catch (emailErr: any) {
+            logger.error('sos_email_fallback_failed', {
               alertId: alertRef.id,
-              sent: batch.sent,
-              failed: batch.failed,
+              message: emailErr?.message,
             });
           }
         }
-      } catch (emailErr: any) {
-        logger.error('sos_email_fallback_failed', {
-          alertId: alertRef.id,
-          message: emailErr?.message,
-        });
-      }
-    }
 
-    return res.json({
-      ok: true,
-      alertId: alertRef.id,
-      notified,
-      emailedSupervisors,
-    });
+        return res.json({
+          ok: true,
+          alertId: alertRef.id,
+          notified,
+          emailedSupervisors,
+        });
+      },
+    );
   } catch (error: any) {
     logger.error('sos_write_failed', {
       uid: callerUid,
       projectId,
       message: error?.message,
     });
-    captureRouteError(error, 'emergency.sos', { projectId });
+    // NOTE: `withSentryScope('sos', …)` above already captured this error
+    // with the `module=sos` tag — we removed the legacy `captureRouteError`
+    // call here to avoid double-reporting the same error to the same
+    // Sentry project. `logger.error` (Cloud Logging) remains.
     return res.status(500).json({
       error: 'sos_failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
@@ -432,44 +467,59 @@ router.post(
     }
 
     try {
-      const result = await tracedAsync(
-        'emergency.notify_brigada.handler',
-        { 'praeventio.uid': callerUid, 'praeventio.projectId': projectId, emergencyType },
-        () => sendToProjectSupervisors(
-          projectId,
-          {
-            title: `ðŸš¨ Emergencia: ${emergencyType}`,
-            body: message ?? `Activación de brigada requerida en proyecto ${projectId}`,
-            data: {
-              projectId,
-              emergencyType,
-              timestamp: new Date().toISOString(),
-            },
-          },
-          db,
-          admin.messaging(),
-        ),
-      );
-
-      // Audit trail — same shape as /sos so dashboards can union the streams.
-      await db.collection('audit_logs').add({
-        action: 'emergency.notify_brigada',
-        module: 'emergency',
-        details: {
+      // Bloque 5.3 (C13) — supervisor-initiated brigade activation is the
+      // OTHER major SOS-shaped path (sos.escalate). Wrap with the same
+      // `sos` module tag so a single Sentry filter surfaces both /sos and
+      // /notify-brigada failures together.
+      return await withSentryScope(
+        'sos',
+        {
+          action: 'sos.escalate',
+          callerUid,
           projectId,
           emergencyType,
-          notified: result.notified,
-          failed: result.failed,
         },
-        userId: callerUid,
-        userEmail: callerEmail,
-        projectId,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        ip: req.ip ?? null,
-        userAgent: req.header('user-agent') ?? null,
-      });
+        async () => {
+          const result = await tracedAsync(
+            'emergency.notify_brigada.handler',
+            { 'praeventio.uid': callerUid, 'praeventio.projectId': projectId, emergencyType },
+            () => sendToProjectSupervisors(
+              projectId,
+              {
+                title: `ðŸš¨ Emergencia: ${emergencyType}`,
+                body: message ?? `Activación de brigada requerida en proyecto ${projectId}`,
+                data: {
+                  projectId,
+                  emergencyType,
+                  timestamp: new Date().toISOString(),
+                },
+              },
+              db,
+              admin.messaging(),
+            ),
+          );
 
-      return res.json({ ok: true, notified: result.notified, failed: result.failed });
+          // Audit trail — same shape as /sos so dashboards can union the streams.
+          await db.collection('audit_logs').add({
+            action: 'emergency.notify_brigada',
+            module: 'emergency',
+            details: {
+              projectId,
+              emergencyType,
+              notified: result.notified,
+              failed: result.failed,
+            },
+            userId: callerUid,
+            userEmail: callerEmail,
+            projectId,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            ip: req.ip ?? null,
+            userAgent: req.header('user-agent') ?? null,
+          });
+
+          return res.json({ ok: true, notified: result.notified, failed: result.failed });
+        },
+      );
     } catch (err: any) {
       logger.error('notify_brigada_failed', {
         uid: callerUid,
@@ -477,6 +527,7 @@ router.post(
         emergencyType,
         message: err?.message,
       });
+      // `withSentryScope` already captured this error with `module=sos`.
       return res.status(500).json({ error: 'notify_brigada_failed' });
     }
   },

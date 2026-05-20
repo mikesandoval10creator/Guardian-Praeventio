@@ -39,12 +39,26 @@
 import * as Sentry from '@sentry/core';
 
 /** Module identifier — fixed enum to keep cardinality bounded in Sentry. */
+//
+// Bloque 5.3 (C13) 2026-05-20 — extended with hot-path modules:
+//   • 'auth'    — verifyAuth middleware (Firebase ID token verify).
+//   • 'sos'     — SOS submit + brigade notify-brigada handlers.
+//   • 'kms'     — envelope encrypt/decrypt + KEK rotation.
+//   • 'payment' — Webpay return + MercadoPago IPN + Apple SSN webhook.
+//
+// Cardinality is still bounded (9 modules total). Each new module surfaces
+// latency + errors as its own row in Sentry's filter sidebar so an operator
+// can scope an outage to a specific subsystem.
 export type ObservabilityModule =
   | 'gemini'
   | 'webpay'
   | 'khipu'
   | 'prediction'
-  | 'zettelkasten';
+  | 'zettelkasten'
+  | 'auth'
+  | 'sos'
+  | 'kms'
+  | 'payment';
 
 /** Free-form structured context shown on the Sentry issue page. */
 export type SentryContextPayload = Record<string, unknown>;

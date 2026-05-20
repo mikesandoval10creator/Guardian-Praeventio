@@ -55,6 +55,12 @@ import {
   listEncryptedKeys,
   setRawEnvelope,
 } from './encryptedKvStore';
+// Bloque 5.3 (C13) — Sentry instrumentation for the KEK rotation
+// orchestrator. Rotation is a once-per-90-days workflow but when it
+// runs it touches every encrypted record on the device — latency and
+// per-record failures need to surface as `module=kms` rows in Sentry
+// so Settings UI engineers can spot a regression before users do.
+import { withSentryScope } from '../observability/sentryInstrumentation';
 
 // ────────────────────────────────────────────────────────────────────────
 // Types
@@ -237,86 +243,104 @@ export async function runKekRotation(
   input: KekRotationInput,
   nowMsFn: () => number = Date.now,
 ): Promise<KekRotationResult> {
-  if (!input.oldKek || !input.newKek) {
-    throw new KekRotationError(
-      'INVALID_INPUT',
-      'oldKek and newKek must be provided',
-    );
-  }
-  if (input.oldKek === input.newKek) {
-    throw new KekRotationError(
-      'INVALID_INPUT',
-      'oldKek and newKek are the same — rotation is a no-op',
-    );
-  }
-
-  const startedAt = nowMsFn();
-
-  // Acquire lock unless bypass (tests).
-  let lockId: string | null = null;
-  if (!input.bypassLock) {
-    lockId = tryAcquireLock(nowMsFn());
-    if (!lockId) {
-      return {
-        total: 0,
-        processed: 0,
-        failed: 0,
-        alreadyMigrated: 0,
-        failures: [],
-        aborted: true,
-        abortedReason: 'lock_busy',
-        latencyMs: nowMsFn() - startedAt,
-      };
-    }
-  }
-
-  try {
-    const allKeys = await listEncryptedKeys();
-    if (allKeys.length === 0) {
-      return {
-        total: 0,
-        processed: 0,
-        failed: 0,
-        alreadyMigrated: 0,
-        failures: [],
-        aborted: true,
-        abortedReason: 'no_records',
-        latencyMs: nowMsFn() - startedAt,
-      };
-    }
-
-    let processed = 0;
-    let failed = 0;
-    let alreadyMigrated = 0;
-    const failures: Array<{ key: string; error: string }> = [];
-
-    for (let i = 0; i < allKeys.length; i++) {
-      const key = allKeys[i]!;
-      const r = await rotatePerRecord(key, input.oldKek, input.newKek);
-      if (r.status === 'rotated') {
-        processed++;
-      } else if (r.status === 'already-migrated') {
-        alreadyMigrated++;
-      } else if (r.status === 'failed') {
-        failed++;
-        failures.push({ key, error: r.error ?? 'unknown' });
+  // Bloque 5.3 (C13) — wrap the whole rotation in
+  // `withSentryScope('kms.kek.rotate', …)`. Scope context is intentionally
+  // sparse: we don't include CryptoKey handles (they're not serializable
+  // and would surface as `[object CryptoKey]` anyway) — `bypassLock` is
+  // the only useful flag for triage (true == test-induced run). The
+  // wrapper itself captures any throw; per-record `failed` outcomes are
+  // NOT exceptions (they're tallied into the result), so a partial
+  // rotation will succeed at the Sentry layer but log per-record errors
+  // in `result.failures` for the Settings UI to surface.
+  return withSentryScope(
+    'kms',
+    {
+      action: 'kms.kek.rotate',
+      bypassLock: Boolean(input.bypassLock),
+    },
+    async () => {
+      if (!input.oldKek || !input.newKek) {
+        throw new KekRotationError(
+          'INVALID_INPUT',
+          'oldKek and newKek must be provided',
+        );
       }
-      // 'not-envelope' → simplemente skip sin contar como fail
-      input.onProgress?.(i + 1, allKeys.length);
-    }
+      if (input.oldKek === input.newKek) {
+        throw new KekRotationError(
+          'INVALID_INPUT',
+          'oldKek and newKek are the same — rotation is a no-op',
+        );
+      }
 
-    return {
-      total: allKeys.length,
-      processed,
-      failed,
-      alreadyMigrated,
-      failures,
-      aborted: false,
-      latencyMs: nowMsFn() - startedAt,
-    };
-  } finally {
-    if (lockId) releaseLock(lockId);
-  }
+      const startedAt = nowMsFn();
+
+      // Acquire lock unless bypass (tests).
+      let lockId: string | null = null;
+      if (!input.bypassLock) {
+        lockId = tryAcquireLock(nowMsFn());
+        if (!lockId) {
+          return {
+            total: 0,
+            processed: 0,
+            failed: 0,
+            alreadyMigrated: 0,
+            failures: [],
+            aborted: true,
+            abortedReason: 'lock_busy',
+            latencyMs: nowMsFn() - startedAt,
+          };
+        }
+      }
+
+      try {
+        const allKeys = await listEncryptedKeys();
+        if (allKeys.length === 0) {
+          return {
+            total: 0,
+            processed: 0,
+            failed: 0,
+            alreadyMigrated: 0,
+            failures: [],
+            aborted: true,
+            abortedReason: 'no_records',
+            latencyMs: nowMsFn() - startedAt,
+          };
+        }
+
+        let processed = 0;
+        let failed = 0;
+        let alreadyMigrated = 0;
+        const failures: Array<{ key: string; error: string }> = [];
+
+        for (let i = 0; i < allKeys.length; i++) {
+          const key = allKeys[i]!;
+          const r = await rotatePerRecord(key, input.oldKek, input.newKek);
+          if (r.status === 'rotated') {
+            processed++;
+          } else if (r.status === 'already-migrated') {
+            alreadyMigrated++;
+          } else if (r.status === 'failed') {
+            failed++;
+            failures.push({ key, error: r.error ?? 'unknown' });
+          }
+          // 'not-envelope' → simplemente skip sin contar como fail
+          input.onProgress?.(i + 1, allKeys.length);
+        }
+
+        return {
+          total: allKeys.length,
+          processed,
+          failed,
+          alreadyMigrated,
+          failures,
+          aborted: false,
+          latencyMs: nowMsFn() - startedAt,
+        };
+      } finally {
+        if (lockId) releaseLock(lockId);
+      }
+    },
+  );
 }
 
 /**
