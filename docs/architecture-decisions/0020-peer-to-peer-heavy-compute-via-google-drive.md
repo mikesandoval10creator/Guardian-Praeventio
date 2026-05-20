@@ -94,7 +94,7 @@ function calculateDeviceCapability(): number {
 
 Threshold para "capable": `score >= 70`. Refrescado en cada login (devices cambian).
 
-### Decision tree del Fase C (con C3 incluida)
+### Decision tree del Fase C (v4 — sin C2 Cloud Run)
 
 ```
 Usuario inicia captura video 30s
@@ -102,21 +102,21 @@ Usuario inicia captura video 30s
           ▼
    ¿Tu device es capable (score >= 70)?
    │
-   ├─ SÍ ─► Procesa local C1 WASM (15-30 min background) ─► mesh
+   ├─ SÍ ─► Procesa local C1 WASM en TU teléfono (15-30 min background) ─► mesh
    │
    └─ NO ─► ¿Hay otros miembros del proyecto con device capable?
             │
-            ├─ SÍ ─► Sube video a Google Drive del proyecto (C3 peer-to-peer)
+            ├─ SÍ ─► C3: Sube video a Google Drive del proyecto
             │       │
-            │       └─► User B capable claima + procesa C1
+            │       └─► Peer capable claima + procesa C1 en SU teléfono ─► mesh
             │
-            └─ NO ─► ¿Online?
+            └─ NO ─► **C1 low-resource en TU teléfono** (4-8h overnight)
                      │
-                     ├─ SÍ ─► Cloud Run COLMAP C2 (~$5/mes, escape hatch)
-                     │
-                     └─ NO ─► UI: "Tu equipo no puede procesar esto offline.
-                              Conéctate a red para usar Cloud Run." (degrade gracefully)
+                     └─► Sub-sample frames + downscale 720p + multi-pass
+                         ─► mesh (más lento pero $0)
 ```
+
+**C2 Cloud Run COLMAP eliminado (founder 2026-05-19 segunda corrección).** Cero tolerancia a costo variable: $5/mes "podía parecer poco" pero (a) si falla el upload se cobra igual, (b) escala mal con cantidad de usuarios, (c) destruye el modelo de pricing fijo.
 
 ## Seguridad — gate intra-tenant
 

@@ -115,27 +115,22 @@ Si el dispositivo del trabajador NO es capaz de procesar C1, pero el proyecto ti
 
 **Dependencia:** requiere C1 implementada primero (no tiene sentido peer-to-peer si nadie puede procesar).
 
-#### C2 — Cloud Run COLMAP CPU (ESCAPE HATCH, parcialmente implementada)
+#### C2 — Cloud Run COLMAP CPU — **DESCARTADO** (founder 2026-05-19, segunda corrección)
 
-Per `DIGITAL_TWIN_GPU_FREE_PLAN.md` §5.3:
+`infra/photogrammetry-worker/server.py` (Python Flask) + `cloud-run/photogrammetry-worker/src/index.ts` (TypeScript Sprint 38) son scaffold ya construidos, pero **el camino C2 queda descartado del plan** por decisión founder:
 
-* **Software:** COLMAP `automatic_reconstructor` (BSD-3).
-* **Infra:** Google Cloud Run CPU-only (Google ecosystem = OK).
-* **Costo cloud:** ~$0.05-0.10/captura, ~$5/mes a 50 capturas. **Por debajo del threshold $50/mes** del plan §7.
-* **Latencia:** 15-30 min Cloud Run CPU (sin GPU).
-* **Cumplimiento ADR 0019:** ✅ OSS software (COLMAP BSD-3) + Google infra (Cloud Run) + sin GPU externa.
+> "$5 dolares al mes? Que pasa si falla en subirse el archivo para que Google lo procese, deja el proceso que se haga solo en el celular, y si los dispositivos que tiene el grupo de trabajo no pueden deberán dejar que su celular procese por más tiempo el requerimiento porque no puedo gestionar 5 dolares por video si falla, tengo que considerar y reducir lo máximo posible los gastos para poder hacer rentable la aplicación."
 
-**Estado actual:** parcialmente implementada — `infra/photogrammetry-worker/server.py` (Python Flask) + duplicado `cloud-run/photogrammetry-worker/src/index.ts` (TypeScript, Sprint 38) existen como scaffold. Auth bypass hardened en Bloque 1.6 (`df5cb9e7`).
+**Razones:**
 
-**Cuándo usar C2 (NO C3 ni C1):**
+1. **Costo variable mata rentabilidad** — incluso $0.05-$0.10/captura escala mal: 100 capturas/mes/empresa × 100 empresas = $500-$1000/mes solo en SfM. No es viable sin pricing tier que cubra ese costo, y crear ese tier complica el modelo comercial.
+2. **Riesgo de cargo sin entrega** — si el upload a Cloud Run falla a la mitad del transfer, o COLMAP crashea con un video corrupto, **igual se cobró el segundo de CPU consumido**. Cero-tolerancia a este modo de falla.
+3. **El reemplazo es viable**: el teléfono del usuario tarda más, pero termina. Si su grupo de trabajo tampoco puede, **el original espera más tiempo (horas) procesando** local — la prevención de riesgos no es real-time; un mesh del sitio puede tomar horas/días sin afectar valor.
+4. **Reduce cognitive load del founder** — no hay que monitorear billing Cloud Run, no hay alertas de cuota, no hay sorpresas de mes.
 
-- C1 fallaría (dispositivo débil) **Y** C3 no aplica (proyecto sin miembros capaces ni red para coordinar) **Y** el usuario tiene red para subir a Cloud Run.
-- El usuario tiene red disponible y prefiere turnaround predecible "ahora" (vs esperar peer disponible).
-- Esquema de fallback final cuando ninguna ruta on-device/peer es viable.
+**Estado del código C2:** scaffold queda en repo pero **engine literal `cloud-run` debe rechazarse en runtime** (env var ignorada). Code path muerto, candidato a eliminación junto con Modal post-implementación C1 + C3.
 
-**C2 es el escape hatch último, NO el camino canónico.** Orden de preferencia: **C1 (mi device) → C3 (peer del proyecto) → C2 (Cloud Run)**.
-
-### Decision tree completo Fase C
+### Decision tree completo Fase C (revisado v4 — sin C2)
 
 ```
 Usuario inicia captura video 30s
@@ -143,21 +138,33 @@ Usuario inicia captura video 30s
           ▼
    ¿Mi device es capable (capability_score >= 70)?
    │
-   ├─ SÍ ─► C1: Procesa local WASM (15-30 min background) ─► mesh
+   ├─ SÍ ─► C1: Procesa local WASM en MI teléfono (15-30 min background)
+   │       ─► mesh listo
    │
    └─ NO ─► ¿Hay otros miembros del proyecto con device capable?
             │
             ├─ SÍ ─► C3: Sube video a Google Drive del proyecto
             │       │
-            │       └─► Peer claima + procesa C1 ─► mesh
+            │       └─► Peer del proyecto claima + procesa C1 en SU teléfono
+            │           ─► mesh listo
             │
-            └─ NO ─► ¿Online?
+            └─ NO ─► **Mi teléfono procesa igual, sólo más lento (horas)**
                      │
-                     ├─ SÍ ─► C2: Cloud Run COLMAP (~$5/mes, escape hatch)
-                     │
-                     └─ NO ─► UI: "Tu equipo no puede procesar esto offline.
-                              Conéctate a red para usar Cloud Run." (degrade gracefully)
+                     └─► C1 en MI teléfono con cargas reducidas
+                         (lower-res, menos features, multi-pass overnight)
+                         ─► mesh listo (puede tardar 4-8h o overnight)
 ```
+
+**Principio clarificado founder 2026-05-19:** "todo se procesa on-device". El device del usuario original NUNCA se desconecta del job; sólo lo delega temporalmente a un peer SI hay peer disponible. Si no, sigue siendo trabajo de su mismo teléfono — sólo que más lento.
+
+**Implicación técnica para C1:** el engine WASM debe soportar **modo `low-resource`** que sacrifica calidad/velocidad por viabilidad en hardware débil:
+- Sub-sampling de frames del video (5 fps en lugar de 30).
+- Resolución downscale a 720p antes de processing.
+- Multi-pass con checkpointing (puede reanudar tras reboot del teléfono).
+- Service Worker mantiene job vivo en background.
+- Notificación al usuario: "Procesando en background. Estimado: 4-8 horas. Te avisamos cuando esté listo."
+
+Este modo es **degradación graceful**, no opt-out. Garantía: el usuario SIEMPRE recibe un mesh — la pregunta es CUÁNDO y a qué calidad.
 
 ### Eliminado — Modal.run (third-party GPU rental)
 
@@ -170,23 +177,24 @@ Usuario inicia captura video 30s
 3. **Vendor lock-in** — Modal podría discontinuar, cambiar precios.
 4. **Facturación fuera del Google Cloud Billing** — complica observabilidad.
 
-**Importante:** la decisión de retirar Modal del CÓDIGO se difiere a follow-up PR **post-investigación C1**. No removemos sin tener el reemplazo claro:
+**Importante:** la decisión de retirar Modal + C2 Cloud Run del CÓDIGO se difiere a follow-up PR **post-investigación C1**. No removemos sin tener el reemplazo claro:
 
-- C2 Cloud Run COLMAP cubre el caso "necesito reconstrucción ahora con red" — ya existe.
-- C1 on-device WASM cubre el caso "offlineworks + sin costo cloud" — pendiente investigación.
+- C1 on-device WASM cubre TODOS los casos (slow path + low-resource mode + peer-to-peer delegation via C3).
+- Pero C1 requiere research previo (task #12).
 
-Mientras tanto, Modal queda en código pero **no se invoca**. El switch `PHOTOGRAMMETRY_ENGINE=modal` debe rechazarse en código (env var ignorada o error explícito).
+Mientras tanto, Modal Y Cloud Run COLMAP quedan en código pero **NO se invocan**. Los switches `PHOTOGRAMMETRY_ENGINE=modal` y `PHOTOGRAMMETRY_ENGINE=cloud-run` deben rechazarse en runtime (env var ignorada o error explícito).
 
 ### Selection logic actual
 
-`src/services/digitalTwin/photogrammetry/index.ts` debe operar así (post-ADR 0005 v3):
+`src/services/digitalTwin/photogrammetry/index.ts` debe operar así (post-ADR 0005 v4):
 
 1. **Default:** NO ejecutar SfM. El usuario indica explícitamente "necesito reconstrucción 3D del sitio".
 2. **Para 80% de casos:** Fase A (Mapa 2.5D Google Maps + Bernoulli) ya cubre.
 3. **Para sitios estables:** Fase B (Blender pre-render glTF subido por admin) cubre.
-4. **Si C1 implementada:** prioridad on-device WASM (engine cargado en Web Worker + IMU del teléfono).
-5. **Si C1 no disponible** (dispositivo no soportado o aún no implementada): fallback C2 Cloud Run COLMAP.
-6. **Nunca:** Modal (engine literal rechazada en código).
+4. **C1 device capable:** on-device WASM (engine cargado en Web Worker + IMU del teléfono).
+5. **C3 device débil + peer capable:** delegación intra-tenant via Drive (ADR 0020).
+6. **C1 low-resource:** device débil sin peer → on-device modo lento (4-8h overnight).
+7. **Nunca:** Modal NI Cloud Run COLMAP (engines literales rechazadas en código).
 
 ### Boundary
 
@@ -232,23 +240,24 @@ Bench cost/latency + cron audit pendientes antes de decidir.
 **Positive:**
 
 - Main app sigue MIT-only sin CUDA/native CV deps.
-- Cuando C1 esté implementada: zero costo cloud, zero dependencia third-party, privacy total (video nunca sale del device).
-- Mientras tanto: C2 Cloud Run COLMAP da turnaround predecible para casos urgentes (~$5/mes a 50 capturas).
+- **$0 costo variable por captura** — sin sorpresas de billing. Total predecible: $0 + Firebase Storage (~$0/mo bajo 5GB).
+- Privacy total (video nunca sale del device del usuario o del proyecto).
 - Aliñeado con ADR 0019 estrictamente.
 - Sin lock-in vendor.
+- Modelo comercial simple: no hay que cobrar "$X por captura SfM" extra al usuario; está incluido.
 
 **Negative:**
 
-- C1 está **NO IMPLEMENTADA** — research pendiente sobre qué fork OSS de OpenMVG/COLMAP/etc. funciona en WASM en 2026.
-- 15-30 min de cómputo en el teléfono drena batería; UX debe ser explícita ("background, te avisamos").
-- C2 Cloud Run COLMAP CPU es ~4x más lento que GPU (10-15 min vs 3 min Modal histórico). El UI debe ser explícito sobre el tiempo.
+- C1 está **NO IMPLEMENTADA** — research pendiente sobre qué fork OSS de OpenMVG/COLMAP/etc. funciona en WASM en 2026 con modo low-resource.
+- 15-30 min (capable) a 4-8h overnight (low-resource) drena batería; UX debe ser explícita.
+- Usuario con dispositivo MUY débil y sin peer capable enfrenta espera larga. Mitigación: copy claro "esto puede tomar horas — la app sigue corriendo en background, te avisamos cuando esté listo".
+- Si C1 nunca se vuelve viable en hardware ultra-débil, esos usuarios quedan sin la feature SfM. Se aceptan — la app sigue siendo útil sin SfM (Fase A 2.5D cubre 80% casos).
 
 **Operational:**
 
-- Runbooks: `cloud-run/photogrammetry-worker/README.md` (TS), `infra/photogrammetry-worker/README.md` (Python).
-- Job timeout: 30 min.
-- Jobs >30 min marcados stale por orchestrator.
-- C1 research debe agendarse como sprint propio (estimación: 2-3 sprints — research + prototype + integration).
+- Runbooks Cloud Run COLMAP quedan archivados como referencia histórica, NO operativos.
+- C1 research debe agendarse como sprint propio (estimación: 2-3 sprints — research + prototype + integration + modo low-resource).
+- Service Worker estrategia para resume background tras kill del browser/app.
 
 ## Alternatives considered (reaffirm)
 
@@ -275,8 +284,9 @@ Bench cost/latency + cron audit pendientes antes de decidir.
 
 ## Changelog
 
-* **v3.1 2026-05-19 (commit follow-up):** Founder agregó patrón peer-to-peer intra-tenant vía Google Drive (Fase C3 nueva). Order de preferencia: C1 (mi device) → C3 (peer) → C2 (Cloud Run). Ver ADR 0020 completo. Decision tree actualizado.
-* **v3 2026-05-19:** Founder explicó que C1 on-device WASM es el camino correcto (no C2 Cloud Run COLMAP como "primary"). C1 es meta principal aunque NO IMPLEMENTADA. C2 es escape hatch. Modal eliminado de plan pero retiro de código DIFERIDO hasta C1 investigada + C2 operativa.
+* **v4 2026-05-19 (este commit):** Founder descarta C2 Cloud Run COLMAP también. Cero costo variable. Decision tree final: C1 (capable) → C3 (peer capable) → C1 low-resource modo lento (4-8h overnight). Si dispositivo MUY débil sin peer, **el mismo teléfono sigue procesando, sólo más lento** — nunca Cloud Run pago. C1 debe soportar modo `low-resource` (sub-sample frames, downscale 720p, multi-pass checkpointing).
+* **v3.1 2026-05-19:** Founder agregó patrón peer-to-peer intra-tenant vía Google Drive (Fase C3 nueva). Decision tree v3: C1 → C3 → C2.
+* **v3 2026-05-19:** Founder explicó que C1 on-device WASM es el camino correcto (no C2 Cloud Run COLMAP como "primary"). C1 es meta principal aunque NO IMPLEMENTADA. C2 es escape hatch.
 * **v2 2026-05-19 (commit `2200214a`):** Modal descartado. COLMAP Cloud Run pasaba a canónica única. (INCORRECTO — saltó C1 on-device que es el objetivo real.)
 * **v1 2026-05-19 (commit `657e1299`):** Modal primary + COLMAP fallback. (INCORRECTO — violaba ADR 0019.)
 * **Original 2026-04-29 → 2026-05-04 (Sprint 21-38):** Implementación con Modal primary.
