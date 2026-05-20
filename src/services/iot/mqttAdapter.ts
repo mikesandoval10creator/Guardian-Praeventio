@@ -175,6 +175,7 @@ export async function createCloudIotCoreAdapter(
     throw new Error(
       'createCloudIotCoreAdapter: package "mqtt" is not installed. ' +
         'Add it to package.json or set IOT_BROKER_ADAPTER=memory for dev.',
+      { cause: err },
     );
   }
   // Stub: real implementation wires JWT short-lived password, MQTT
@@ -210,6 +211,7 @@ export async function createEmqxAdapter(_opts: EmqxAdapterOptions): Promise<Mqtt
     throw new Error(
       'createEmqxAdapter: package "mqtt" is not installed. ' +
         'Add it to package.json or set IOT_BROKER_ADAPTER=memory for dev.',
+      { cause: err },
     );
   }
   throw new Error(

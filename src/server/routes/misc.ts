@@ -313,6 +313,7 @@ router.get('/legal/check-updates', verifyAuth, async (_req, res) => {
       'Riesgos, Trabajadores, EPP, Hallazgos, Incidentes, Capacitación, Salud Ocupacional, Comité Paritario, Normativas, Proyectos, Emergencia';
     const results = await Promise.all(
       bcnKnowledgeBase.map(async (law: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type -- type narrow innecesario aquí
         const analysis = await (geminiBackend.scanLegalUpdates as Function)(
           law.title,
           law.content,

@@ -426,6 +426,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
       const result = await tracedAsync(
         'gemini.dispatch',
         { tenantId, action },
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type -- dispatch dinámico sobre módulo geminiBackend, type narrow no factible
         () => (geminiBackend[action as keyof typeof geminiBackend] as Function)(...args),
       );
       res.json({ result });

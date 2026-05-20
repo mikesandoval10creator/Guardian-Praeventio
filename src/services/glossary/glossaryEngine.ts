@@ -228,7 +228,8 @@ export function searchFaq(
   const results: GlossarySearchResult<FaqEntry>[] = [];
   for (const f of faqs) {
     if (options.topic && f.topic !== options.topic) continue;
-    let { score, matched } = scoreFaq(f, queryTokens);
+    const { score: initialScore, matched } = scoreFaq(f, queryTokens);
+    let score = initialScore;
     // Context boost
     if (options.contextHint && f.contextHint?.includes(options.contextHint)) {
       score += 15;

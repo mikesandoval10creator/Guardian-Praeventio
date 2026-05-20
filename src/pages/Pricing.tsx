@@ -979,7 +979,7 @@ function PricingInner() {
     // get a payment.checkout.started event, but include the actual
     // provider in the event payload via plan_code suffix once dashboards
     // need iOS-specific funnels (TODO: extend analytics.types.PaymentGateway).
-    const analyticsGateway: 'google_play' = 'google_play';
+    const analyticsGateway = 'google_play' as const;
     try {
       analytics.track('payment.checkout.started', {
         gateway: analyticsGateway,

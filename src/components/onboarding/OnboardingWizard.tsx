@@ -151,8 +151,10 @@ export function validateStep(state: OnboardingState): string | null {
     case 'team':
       // Team invitations are optional but if any provided they must be valid.
       if (state.inviteEmails.length === 0) return null;
-      const bad = state.inviteEmails.find((e) => !isValidEmail(e));
-      return bad ? `Email inválido: ${bad}` : null;
+      {
+        const bad = state.inviteEmails.find((e) => !isValidEmail(e));
+        return bad ? `Email inválido: ${bad}` : null;
+      }
     case 'project':
       return state.projectName.trim().length >= 2
         ? null

@@ -71,6 +71,7 @@ async function defaultHasher(bytes: Uint8Array): Promise<string> {
       `slmIntegrityCheck: no SHA-256 implementation available (browser SubtleCrypto and node:crypto both unavailable): ${
         err instanceof Error ? err.message : String(err)
       }`,
+      { cause: err },
     );
   }
 }

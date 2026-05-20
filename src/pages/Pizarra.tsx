@@ -255,7 +255,7 @@ export function Pizarra() {
 
         {/* Smart connections side panel — always visible on sm+, toggleable on mobile */}
         <AnimatePresence>
-          {(showPanel || true) && (
+          {showPanel && (
             <motion.div
               initial={false}
               className={`${showPanel ? 'flex' : 'hidden'} sm:flex flex-col w-72 shrink-0 border-l border-white/5 overflow-y-auto bg-zinc-900/40 absolute sm:relative inset-y-0 right-0 z-10`}

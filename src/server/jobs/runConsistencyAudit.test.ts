@@ -37,6 +37,7 @@ class FakeCollection extends FakeQuery {
     super(docs);
   }
   doc(id: string) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- alias necesario para acceso desde métodos anidados que rebindean this
     const self = this;
     return {
       collection(subname: string): FakeCollection {

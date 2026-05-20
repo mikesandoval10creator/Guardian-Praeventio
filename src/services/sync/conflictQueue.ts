@@ -11,6 +11,8 @@
 // Pure compute + Firestore write. NO incluye UI ni hook React (eso
 // queda en consumer-side).
 
+import { sha256 } from '@noble/hashes/sha2.js';
+import { utf8ToBytes, bytesToHex } from '@noble/hashes/utils.js';
 import type { Conflict } from './conflictResolver.js';
 import { requiresHumanResolution } from './conflictResolver.js';
 
@@ -61,11 +63,9 @@ function deterministicQueueId(
   // Determinístico para idempotencia: si el mismo conflicto se intenta
   // enqueue dos veces (por reintento de red), produce el mismo queueId.
   const payload = `${conflict.collection}|${conflict.docId}|${conflict.docType}|${conflict.localUpdatedAt}|${conflict.serverUpdatedAt}|${localAuthorUid}|${enqueuedAt}`;
-  // SHA-256 via @noble/hashes (no Buffer/Node-only dep).
-  // Importamos lazy para que el módulo siga siendo cross-env (jsdom + node).
-   
-  const { sha256 } = require('@noble/hashes/sha2.js');
-  const { utf8ToBytes, bytesToHex } = require('@noble/hashes/utils.js');
+  // SHA-256 via @noble/hashes (no Buffer/Node-only dep). Top-level
+  // import: @noble/hashes es cross-env (jsdom + node) sin necesidad de
+  // lazy require.
   return bytesToHex(sha256(utf8ToBytes(payload))).slice(0, QUEUE_ID_LENGTH);
 }
 
