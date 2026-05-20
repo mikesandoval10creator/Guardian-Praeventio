@@ -31,7 +31,7 @@ import { useSLM, SLM_ENQUEUED_EVENT } from '../slm/SLMProvider';
 // para sangrado, evacuación, gas, RCP, etc., aunque el modelo SLM no
 // esté descargado todavía.
 import { GuardianOfflineService } from '../../services/slm/guardianOffline';
-// Sprint 20 17th-wave (Bucket D — title= â†’ <Tooltip>): WCAG 1.4.13
+// Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
 // compliant tooltip replaces the native `title=` on the per-message
 // thumbs up/down feedback buttons (icon-only).
 import { Tooltip } from './Tooltip';

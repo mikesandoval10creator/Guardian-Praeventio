@@ -99,7 +99,7 @@ router.post('/telemetry/ingest', async (req, res) => {
   // `x-iot-signature: sha256=<hex>`. Env fallback: legacy x-iot-secret
   // header (or deprecated body.secretKey).
   //
-  // Round 18 R6 (R6â†’R17 MEDIUM #2): the signing input is now the RFC 8785
+  // Round 18 R6 (R6→R17 MEDIUM #2): the signing input is now the RFC 8785
   // canonical-JSON form of the parsed body (sorted keys, no whitespace,
   // shortest numeric form). Producers in any language MUST canonicalise
   // before HMACing or signatures will diverge. This is the documented,

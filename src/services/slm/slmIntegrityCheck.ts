@@ -7,11 +7,11 @@
 // declarado en su `ModelDescriptor`. Modelo de seguridad:
 //
 //   - Si descriptor.expectedSha256 está definido:
-//       - sha256 coincide â†’ âœ… accept
-//       - sha256 NO coincide â†’ âŒ fail-closed (modelo rechazado)
+//       - sha256 coincide → âœ… accept
+//       - sha256 NO coincide → âŒ fail-closed (modelo rechazado)
 //   - Si descriptor.expectedSha256 está undefined:
-//       - production â†’ âŒ fail-closed con error claro
-//       - non-production â†’ âš ï¸ warn pero pasa
+//       - production → âŒ fail-closed con error claro
+//       - non-production → ⚠️ warn pero pasa
 //
 // El SHA-256 se computa sobre el blob completo del weight file (no del
 // archivo cifrado / no del bundle ZIP). Usa Web Crypto SubtleCrypto en
@@ -91,11 +91,11 @@ function bufferToHex(buf: Uint8Array): string {
  * into the ONNX session.
  *
  * Política production:
- *   - status='mismatch' â†’ caller MUST NOT load (riesgo de modelo
+ *   - status='mismatch' → caller MUST NOT load (riesgo de modelo
  *     comprometido o corrupto)
- *   - status='rejected' (no hash in prod) â†’ caller MUST NOT load
- *   - status='unverified' â†’ solo OK fuera de production
- *   - status='verified' â†’ safe to load
+ *   - status='rejected' (no hash in prod) → caller MUST NOT load
+ *   - status='unverified' → solo OK fuera de production
+ *   - status='verified' → safe to load
  */
 export async function verifyModelIntegrity(
   descriptor: ModelDescriptor,

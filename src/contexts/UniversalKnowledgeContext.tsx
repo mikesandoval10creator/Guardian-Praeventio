@@ -82,7 +82,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       return undefined;
     }
 
-    // No project selected â†’ don't subscribe yet. We surface an empty list
+    // No project selected → don't subscribe yet. We surface an empty list
     // and `loading=false` so consumers can render their "select a project"
     // empty states. Without this guard we would issue a wide-open
     // collection query that the security rules would reject (and hammer

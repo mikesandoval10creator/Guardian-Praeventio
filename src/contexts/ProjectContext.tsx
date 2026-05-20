@@ -70,7 +70,7 @@ interface ProjectContextType {
 }
 
 /**
- * Map free-text industry names (Spanish UI) â†’ catalog `IndustryCode`
+ * Map free-text industry names (Spanish UI) → catalog `IndustryCode`
  * enum (TRACKING_PLAN property-glossary). The product UI offers Spanish
  * labels; analytics dashboards key off the closed-set English codes so
  * cardinality stays bounded. Unknown labels collapse to `other`.

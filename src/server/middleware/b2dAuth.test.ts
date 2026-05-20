@@ -36,14 +36,14 @@ beforeEach(() => {
 });
 
 describe('b2dAuth middleware', () => {
-  it('rejects requests with no Authorization header â†’ 401 missing_api_key', async () => {
+  it('rejects requests with no Authorization header → 401 missing_api_key', async () => {
     const res = await request(makeApp()).get('/probe');
     expect(res.status).toBe(401);
     expect(res.body).toEqual({ error: 'missing_api_key' });
     expect(verifyApiKeyMock).not.toHaveBeenCalled();
   });
 
-  it('rejects requests with malformed scheme â†’ 401 missing_api_key', async () => {
+  it('rejects requests with malformed scheme → 401 missing_api_key', async () => {
     const res = await request(makeApp())
       .get('/probe')
       .set('Authorization', 'Basic some:thing');
@@ -51,7 +51,7 @@ describe('b2dAuth middleware', () => {
     expect(res.body).toEqual({ error: 'missing_api_key' });
   });
 
-  it('rejects unknown keys â†’ 401 invalid_api_key', async () => {
+  it('rejects unknown keys → 401 invalid_api_key', async () => {
     verifyApiKeyMock.mockResolvedValue(null);
     const res = await request(makeApp())
       .get('/probe')
@@ -60,7 +60,7 @@ describe('b2dAuth middleware', () => {
     expect(res.body).toEqual({ error: 'invalid_api_key' });
   });
 
-  it('rejects keys missing the required scope â†’ 403 scope_required', async () => {
+  it('rejects keys missing the required scope → 403 scope_required', async () => {
     verifyApiKeyMock.mockResolvedValue({
       id: 'k1',
       customerId: 'c1',
@@ -78,7 +78,7 @@ describe('b2dAuth middleware', () => {
     expect(res.body).toEqual({ error: 'scope_required', required: 'climate.read' });
   });
 
-  it('blocks when quota is exceeded â†’ 429 with rate-limit headers', async () => {
+  it('blocks when quota is exceeded → 429 with rate-limit headers', async () => {
     verifyApiKeyMock.mockResolvedValue({
       id: 'k2',
       customerId: 'c2',

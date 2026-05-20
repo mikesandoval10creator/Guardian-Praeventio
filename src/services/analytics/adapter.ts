@@ -217,11 +217,11 @@ export class AnalyticsAdapter {
    * Emit one event.
    *
    * Steps in order:
-   *   1. Opt-out check â†’ resolve.
-   *   2. PII guard on input props â†’ drop + warn â†’ resolve.
-   *   3. Merge with common props â†’ typed `Event<N>`.
-   *   4. If offline â†’ enqueue â†’ resolve.
-   *   5. Else â†’ fan out to every sink (errors swallowed per sink).
+   *   1. Opt-out check → resolve.
+   *   2. PII guard on input props → drop + warn → resolve.
+   *   3. Merge with common props → typed `Event<N>`.
+   *   4. If offline → enqueue → resolve.
+   *   5. Else → fan out to every sink (errors swallowed per sink).
    *
    * Never throws to the caller.
    */

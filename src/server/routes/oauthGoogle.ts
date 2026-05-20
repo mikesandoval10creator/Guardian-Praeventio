@@ -4,8 +4,8 @@
 // Closes the OAuth surface migration alongside curriculum + projects.
 //
 // Mount strategy (in server.ts):
-//   • app.use('/api', oauthGoogleApiRouter)        â† /api/* paths
-//   • app.use('/auth', oauthGoogleAuthRouter)      â† /auth/google/callback
+//   • app.use('/api', oauthGoogleApiRouter)        ← /api/* paths
+//   • app.use('/auth', oauthGoogleAuthRouter)      ← /auth/google/callback
 //
 // TWO routers because `/auth/google/callback` is the redirect URI registered
 // in the Google Cloud Console for the app's OAuth client. Changing the path

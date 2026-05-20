@@ -8,9 +8,9 @@
  *
  *   • Subscribes to weather (window CustomEvent broadcast by WeatherBulletin)
  *     and pushes snapshots into `pushWeatherSnapshot`.
- *   • Mirrors `useEmergency().isEmergencyActive` â†’ `pushCompanyEmergency`.
+ *   • Mirrors `useEmergency().isEmergencyActive` → `pushCompanyEmergency`.
  *   • Subscribes to DeviceMotion (browser) or `Capacitor Motion`
- *     (native, when `Capacitor.isNative` is true) â†’ `ingestAccelerationSample`.
+ *     (native, when `Capacitor.isNative` is true) → `ingestAccelerationSample`.
  *
  * Mounted from RootLayout; renders nothing.
  *

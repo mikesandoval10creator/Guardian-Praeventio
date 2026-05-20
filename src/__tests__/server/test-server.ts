@@ -253,7 +253,7 @@ export interface TestServerDeps {
   webpayConfigured?: boolean;
   /**
    * Sprint 10 — mock para `fetchEnvironmentContext` (orquestador). Permite
-   * a los tests verificar el flujo "Sentidos â†’ Mente": clima + sismo se
+   * a los tests verificar el flujo "Sentidos → Mente": clima + sismo se
    * inyectan ANTES del RAG. Si no se provee, /api/ask-guardian se comporta
    * como antes (legacy RAG-only).
    */
@@ -294,7 +294,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   const firestore = overrides.firestore ?? new InMemoryFirestore();
   const auth: FakeAuth = overrides.auth ?? {
     async verifyIdToken(token: string) {
-      // Convention: token format "test:uid:email" â†’ decoded.
+      // Convention: token format "test:uid:email" → decoded.
       if (token === 'invalid') throw new Error('invalid token');
       const [, uid, email] = token.split(':');
       return { uid: uid ?? 'uid-default', email: email || `${uid}@test.com` };
@@ -362,9 +362,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // here we just need enough behavior so the route smoke test can verify
   // double-call is suppressed when the client sends the same
   // `Idempotency-Key` header. Behavior contract preserved:
-  //   • no header â†’ pass-through (handler runs every time)
-  //   • first call â†’ handler runs, response cached keyed on `uid|key`
-  //   • second call w/ same key â†’ cached response replayed, handler runs ZERO times
+  //   • no header → pass-through (handler runs every time)
+  //   • first call → handler runs, response cached keyed on `uid|key`
+  //   • second call w/ same key → cached response replayed, handler runs ZERO times
   //   • only 2xx responses cached
   // Mirror complexity is intentionally low — no fingerprint mismatch, no
   // TTL, no header allowlist. The richer cases are covered upstream.
@@ -530,7 +530,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // â”€â”€â”€ /api/billing/verify â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Sprint E backend debt (2026-05-16): `idempotencyKey()` opt-in to
   // suppress double-call from flaky mobile networks — mirrors production
-  // wiring in `src/server/routes/billing.ts:241`. Header absent â†’ no-op.
+  // wiring in `src/server/routes/billing.ts:241`. Header absent → no-op.
   app.post('/api/billing/verify', verifyAuth, idempotencyKey(), async (req, res) => {
     const { purchaseToken, productId, type } = req.body ?? {};
     const uid = req.user!.uid;

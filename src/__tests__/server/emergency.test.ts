@@ -365,7 +365,7 @@ describe('/api/emergency/sos', () => {
   // synchronized the two, so brigade phones never rang. These tests pin
   // the new behavior: union both sources, dedupe, cache user reads 5 min.
 
-  it('H7 happy path: 3 members with 1-2 tokens each â†’ multicast with dedupe', async () => {
+  it('H7 happy path: 3 members with 1-2 tokens each → multicast with dedupe', async () => {
     const app = buildSosApp({ firestore, auth, fcmSend });
     firestore.store.set('projects/p1', { createdBy: 'u1', tenantId: 't-A', members: ['u1'] });
     // Three supervisors, no legacy fcmToken on the member doc. Tokens come
@@ -412,7 +412,7 @@ describe('/api/emergency/sos', () => {
     expect(fcmSend.mock.calls[0][0].tokens).toEqual(['legacy-tok']);
   });
 
-  it('H7 empty: members exist but no tokens anywhere â†’ notified: 0 with reason', async () => {
+  it('H7 empty: members exist but no tokens anywhere → notified: 0 with reason', async () => {
     const app = buildSosApp({ firestore, auth, fcmSend });
     firestore.store.set('projects/p1', { createdBy: 'u1', tenantId: 't-A', members: ['u1'] });
     firestore.store.set('projectMembers/m1', { projectId: 'p1', role: 'supervisor', uid: 'sup-A' });

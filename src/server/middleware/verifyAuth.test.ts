@@ -59,7 +59,7 @@ describe('verifyAuth — prod-config guard (Stryker mutants line 33 / 41)', () =
     delete process.env.E2E_MODE;
 
     const mod = await import('./verifyAuth.js');
-    // Successful load â†’ middleware export is callable.
+    // Successful load → middleware export is callable.
     expect(typeof mod.verifyAuth).toBe('function');
   });
 
@@ -76,7 +76,7 @@ describe('verifyAuth — prod-config guard (Stryker mutants line 33 / 41)', () =
   });
 
   it('does NOT throw when NODE_ENV=production but E2E_MODE is empty string', async () => {
-    // Edge: empty string is NOT '1' â†’ AND right half is false â†’ no throw.
+    // Edge: empty string is NOT '1' → AND right half is false → no throw.
     // Pins that the equality check is strict against the literal '1'
     // rather than a truthy check.
     process.env.NODE_ENV = 'production';
@@ -122,7 +122,7 @@ describe('verifyAuth — prod-config guard (Stryker mutants line 33 / 41)', () =
       .get('/protected')
       .set('Authorization', 'E2E irrelevant:e2e-user-001');
 
-    // E2E header treated as non-Bearer â†’ 401.
+    // E2E header treated as non-Bearer → 401.
     expect(res.status).toBe(401);
     expect(res.body.error).toMatch(/no token provided/i);
   });
@@ -157,7 +157,7 @@ describe('verifyAuth — prod-config guard (Stryker mutants line 33 / 41)', () =
 //
 //   • verifyAuth.ts:77:7 ConditionalExpression on Bearer scheme guard
 //     (`if (!authHeader.startsWith('Bearer '))` — NO test currently
-//     asserts the POSITIVE path "valid Bearer header â†’ next() called").
+//     asserts the POSITIVE path "valid Bearer header → next() called").
 //   • verifyAuth.ts:62:28 / 62:39 / 63:25 / 63:36 sepIdx cluster
 //     (4 leftover mutants on `token.indexOf(':')` parsing — `secret:`
 //     empty-uid edge and the +1 boundary not asserted).
@@ -205,7 +205,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
 
   // â”€â”€â”€ Bearer-scheme POSITIVE path (line 77 — Run #2 priority #1) â”€â”€â”€
 
-  it('Bearer-scheme positive path: valid token â†’ req.user populated and next() called', async () => {
+  it('Bearer-scheme positive path: valid token → req.user populated and next() called', async () => {
     // Pins the FALSE branch of `if (!authHeader.startsWith('Bearer '))`.
     // A mutation that flips this to `if (true)` would 401 even on a valid
     // Bearer header — this test would fail under that mutant.
@@ -235,7 +235,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
     expect(verifyIdTokenMock).toHaveBeenCalledWith('abc123', true);
   });
 
-  it('Bearer with empty token (header value gets trimmed to "Bearer") â†’ 401 no-token rejection', async () => {
+  it('Bearer with empty token (header value gets trimmed to "Bearer") → 401 no-token rejection', async () => {
     // Note: HTTP transport (supertest/Node) strips trailing whitespace from
     // header values, so "Bearer " arrives at the middleware as "Bearer".
     // That means `startsWith('Bearer ')` is FALSE and we hit the
@@ -281,7 +281,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
   it('E2E header "secret:" (empty uid after colon) falls back to e2e-user-001 default', async () => {
     // Pins line 63: `sepIdx === -1 ? '' : token.slice(sepIdx + 1)` and
     // the `providedUid || 'e2e-user-001'` defaulting. A mutation on
-    // `+1` â†’ `-1` would slice a longer-than-empty uid back, breaking the
+    // `+1` → `-1` would slice a longer-than-empty uid back, breaking the
     // fixture default. A mutation on the empty-string default would
     // also fail this assertion.
     process.env.E2E_MODE = '1';
@@ -299,7 +299,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
       });
     });
 
-    // "shared-secret:" â†’ sepIdx === 13, providedUid === '' â†’ fallback.
+    // "shared-secret:" → sepIdx === 13, providedUid === '' → fallback.
     const res = await request(app)
       .get('/protected')
       .set('Authorization', 'E2E shared-secret:');
@@ -315,9 +315,9 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
     expect(res.body.tenantId).toBe('e2e-tenant');
   });
 
-  it('E2E header without colon (no separator) â†’ providedSecret === full token, providedUid empty â†’ uses fallback uid', async () => {
+  it('E2E header without colon (no separator) → providedSecret === full token, providedUid empty → uses fallback uid', async () => {
     // Pins line 62: `sepIdx === -1 ? token : token.slice(0, sepIdx)`.
-    // When the token contains no ':', sepIdx is -1 â†’ providedSecret is
+    // When the token contains no ':', sepIdx is -1 → providedSecret is
     // the entire token, providedUid is the empty fallback. A
     // ConditionalExpression mutant that flips the ternary would slice
     // off the secret incorrectly and break the secret comparison.
@@ -342,7 +342,7 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
 
   it('E2E header with colon at non-zero index "secret:custom-uid" parses both halves correctly (kills sepIdx +1 boundary mutant)', async () => {
     // Explicitly pins the non-(-1) branch of the ternary and the +1
-    // boundary on `slice(sepIdx + 1)`. Mutating +1 â†’ -1 would shift the
+    // boundary on `slice(sepIdx + 1)`. Mutating +1 → -1 would shift the
     // uid by one character, e.g. yielding ":custom-uid" or "custom-ui".
     process.env.E2E_MODE = '1';
     process.env.NODE_ENV = 'test';

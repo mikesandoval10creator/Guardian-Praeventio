@@ -17,10 +17,10 @@
 //     (logged as `telemetry_no_per_tenant_secret`).
 //
 // Tests:
-//   1. per-tenant secret + valid HMAC signature â†’ 200 + telemetry stored
-//   2. per-tenant secret present + WRONG signature â†’ 401
-//   3. per-tenant secret missing â†’ fall back to env secret (200)
-//   4. per-tenant secret missing + env secret missing â†’ 500
+//   1. per-tenant secret + valid HMAC signature → 200 + telemetry stored
+//   2. per-tenant secret present + WRONG signature → 401
+//   3. per-tenant secret missing → fall back to env secret (200)
+//   4. per-tenant secret missing + env secret missing → 500
 //   5. POST /api/admin/iot/rotate-secret writes new secret and audits
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -235,7 +235,7 @@ describe('POST /api/telemetry/ingest — per-tenant secret (R17 R1)', () => {
       .post('/api/telemetry/ingest')
       .set('x-iot-signature', 'sha256=deadbeef')
       .send(body);
-    // No env fallback, so wrong sig â†’ 500 (server misconfig, no path home).
+    // No env fallback, so wrong sig → 500 (server misconfig, no path home).
     // With env fallback present (next test) it's 401 because the legacy
     // header path also fails. We assert the 5xx-or-401 boundary rather
     // than coupling to one branch.

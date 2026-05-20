@@ -39,7 +39,7 @@ router.post(
     const { event } = req.body as z.infer<typeof emitBodySchema>;
 
     if (!claimTenantId) {
-      // No tenantId claim â†’ the user is an anonymous / cross-tenant role.
+      // No tenantId claim → the user is an anonymous / cross-tenant role.
       // We refuse rather than guess; the caller should get a tenant claim
       // before trying to emit on the bus.
       return res.status(403).json({ error: 'missing tenant claim' });

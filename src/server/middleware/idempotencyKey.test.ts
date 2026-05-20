@@ -3,12 +3,12 @@
 // Tests for `idempotencyKey()` middleware. Six branches mirror the
 // behavior contract pinned in idempotencyKey.ts:
 //
-//   1. Header absent           â†’ handler runs, NO cache write.
-//   2. First request with key  â†’ handler runs, response cached.
-//   3. Second request same key â†’ cached response replayed, handler NOT called.
-//   4. scope='uid' isolation   â†’ uid A's key does NOT serve uid B's request.
-//   5. TTL expired             â†’ handler re-runs, cache row refreshed.
-//   6. Concurrent first calls  â†’ only ONE write commits (transaction race).
+//   1. Header absent           → handler runs, NO cache write.
+//   2. First request with key  → handler runs, response cached.
+//   3. Second request same key → cached response replayed, handler NOT called.
+//   4. scope='uid' isolation   → uid A's key does NOT serve uid B's request.
+//   5. TTL expired             → handler re-runs, cache row refreshed.
+//   6. Concurrent first calls  → only ONE write commits (transaction race).
 //
 // We use vitest + an in-memory Firestore double — same pattern as
 // idempotency.test.ts — to keep the tests hermetic. The middleware accepts

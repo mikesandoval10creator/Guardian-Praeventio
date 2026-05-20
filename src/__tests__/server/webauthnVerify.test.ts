@@ -159,7 +159,7 @@ function buildVerifyApp(deps: VerifyTestDeps): Express {
       const cdjStr = Buffer.from(clientDataJSON, 'base64').toString('utf8');
       const cdj = JSON.parse(cdjStr);
       const chB64u = String(cdj.challenge ?? '');
-      // base64url â†’ base64
+      // base64url → base64
       const b64 = chB64u.replace(/-/g, '+').replace(/_/g, '/');
       providedChallenge = new Uint8Array(Buffer.from(b64, 'base64'));
     } catch {
@@ -727,7 +727,7 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
     expect(after?.credential.counter).toBe(6);
   });
 
-  it('returns 401 with reason=signature_invalid when verifyAuthenticationResponse â†’ verified:false', async () => {
+  it('returns 401 with reason=signature_invalid when verifyAuthenticationResponse → verified:false', async () => {
     const uid = 'uid-crypto';
     const issued = await issueChallenge(fs, uid);
     mockVerifyAuthenticationResponse.mockResolvedValueOnce({
@@ -778,7 +778,7 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
   it('returns 401 with reason=counter_replay when newCounter <= storedCounter', async () => {
     const uid = 'uid-crypto';
     const issued = await issueChallenge(fs, uid);
-    // Stored counter is 5 (seeded). Authenticator returns 5 â†’ replay.
+    // Stored counter is 5 (seeded). Authenticator returns 5 → replay.
     mockVerifyAuthenticationResponse.mockResolvedValueOnce({
       verified: true,
       authenticationInfo: { newCounter: 5, credentialID: 'cred-CRYPTO' },
@@ -929,8 +929,8 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
 // enforces single-use challenges + monotonic-counter replay prevention,
 // a brute-force flood from a compromised Bearer token would still burn
 // CPU and Firestore reads. `webauthnVerifyLimiter` caps to 5/min keyed
-// on the authenticated uid (verifyAuth runs first â†’ req.user.uid is set
-// â†’ keyGenerator can read it). Falls back to req.ip then 'anonymous'.
+// on the authenticated uid (verifyAuth runs first → req.user.uid is set
+// → keyGenerator can read it). Falls back to req.ip then 'anonymous'.
 //
 // Each test instantiates a fresh limiter (via a fresh app build) so the
 // in-memory store does not leak counts between tests.
@@ -974,7 +974,7 @@ function buildRateLimitedApp(deps: RateLimitedTestDeps): Express {
     }
   };
 
-  // Mirror src/server/middleware/limiters.ts â†’ webauthnVerifyLimiter.
+  // Mirror src/server/middleware/limiters.ts → webauthnVerifyLimiter.
   const limiter = rateLimit({
     windowMs: deps.windowMs ?? 60 * 1000,
     max: deps.max ?? 5,
@@ -1067,7 +1067,7 @@ describe('POST /api/auth/webauthn/verify — R19 R6 per-uid rate limiter', () =>
         .post('/api/auth/webauthn/verify')
         .set('Authorization', auth)
         .send(bodies[i]);
-      // Each is a fresh challenge â†’ 200 (consume succeeds).
+      // Each is a fresh challenge → 200 (consume succeeds).
       expect(res.status).toBe(200);
     }
 
@@ -1096,7 +1096,7 @@ describe('POST /api/auth/webauthn/verify — R19 R6 per-uid rate limiter', () =>
         .send(body);
       expect(res.status).toBe(200);
     }
-    // 6th from uid A â†’ 429.
+    // 6th from uid A → 429.
     const blocked = await request(app)
       .post('/api/auth/webauthn/verify')
       .set('Authorization', authA)
@@ -1131,7 +1131,7 @@ describe('POST /api/auth/webauthn/verify — R19 R6 per-uid rate limiter', () =>
       signature: 'c2ln',
     };
 
-    // First two requests reach the handler â†’ 401 unknown.
+    // First two requests reach the handler → 401 unknown.
     const r1 = await request(app).post('/api/auth/webauthn/verify').set('Authorization', auth).send(garbageBody);
     expect(r1.status).toBe(401);
     const r2 = await request(app).post('/api/auth/webauthn/verify').set('Authorization', auth).send(garbageBody);
@@ -1143,7 +1143,7 @@ describe('POST /api/auth/webauthn/verify — R19 R6 per-uid rate limiter', () =>
   });
 
   it('does NOT count requests rejected by verifyAuth (no req.user) against any uid bucket', async () => {
-    // verifyAuth rejects â†’ middleware chain stops before the limiter, so
+    // verifyAuth rejects → middleware chain stops before the limiter, so
     // unauthenticated floods cannot push a real uid past its quota. We
     // verify by hammering /verify with a missing/invalid Bearer header
     // many times, then confirm the LEGITIMATE caller still has its full

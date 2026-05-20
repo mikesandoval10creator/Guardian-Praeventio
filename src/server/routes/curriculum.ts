@@ -764,7 +764,7 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
   // Extract the challenge bytes from the WebAuthn clientDataJSON. The
   // browser embeds the original challenge (the one we issued at GET
   // /webauthn/challenge) as a base64url-encoded field inside this JSON
-  // blob. We round-trip through base64 â†’ JSON â†’ base64url-decode to
+  // blob. We round-trip through base64 → JSON → base64url-decode to
   // recover the raw bytes for the consume helper.
   let providedChallenge: Uint8Array;
   let challengeB64u: string;

@@ -55,7 +55,7 @@ function sentryCapture(
   }
 }
 
-// Sprint 10 — restablece el patrón "Portal â†’ Sentidos â†’ Mente" del prototipo
+// Sprint 10 — restablece el patrón "Portal → Sentidos → Mente" del prototipo
 // histórico (ver docs/proto/analisis_funcional.md). El orquestador inyecta
 // contexto ambiental (clima + sismicidad) ANTES del RAG normativo, de modo
 // que "El Gran Maestro" nunca razona en el vacío. Si el flag está apagado o

@@ -90,7 +90,7 @@ interface AskGuardianRateDeps {
 
 /**
  * Builds an /api/ask-guardian app that mirrors the production middleware
- * chain shape — `verifyAuth â†’ geminiLimiter â†’ handler`. The handler is
+ * chain shape — `verifyAuth → geminiLimiter → handler`. The handler is
  * minimal (no real Gemini call) but emits an audit-log row so we can
  * assert that the limiter does not break observability hooks.
  */
@@ -107,14 +107,14 @@ function buildLimitedAskGuardianApp(deps: AskGuardianRateDeps = {}): Express {
     if (token === 'invalid') {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
-    // Convention: "test:uid:email" â†’ decoded.
+    // Convention: "test:uid:email" → decoded.
     const [, uid, email] = token.split(':');
     req.user = { uid: uid ?? 'uid-default', email: email || `${uid}@test.com` };
     next();
     return undefined;
   };
 
-  // Mirror src/server/middleware/limiters.ts â†’ geminiLimiter shape.
+  // Mirror src/server/middleware/limiters.ts → geminiLimiter shape.
   const limiter = rateLimit({
     windowMs: deps.windowMs ?? 15 * 60 * 1000,
     max: deps.max ?? 3,
@@ -186,7 +186,7 @@ describe('POST /api/ask-guardian — R20 R6 R19 MEDIUM #1 per-uid rate limiter',
   });
 
   it('does NOT count pre-auth 401s against any uid bucket', async () => {
-    // verifyAuth rejects â†’ middleware chain stops before the limiter, so
+    // verifyAuth rejects → middleware chain stops before the limiter, so
     // unauthenticated floods cannot push a real uid past its quota. We
     // hammer the endpoint with a missing Bearer header many times, then
     // confirm the LEGITIMATE caller still has its full budget afterwards.

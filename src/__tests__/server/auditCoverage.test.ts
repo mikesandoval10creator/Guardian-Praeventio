@@ -3,7 +3,7 @@
 //
 // Endpoints under test (each MUST emit `audit_logs` on success):
 //   1. POST /api/oauth/unlink
-//   2. GET  /auth/google/callback        (unauthed â†’ uid recovered from session)
+//   2. GET  /auth/google/callback        (unauthed → uid recovered from session)
 //   3. POST /api/calendar/sync
 //   4. POST /api/coach/chat
 //   5. POST /api/gamification/points

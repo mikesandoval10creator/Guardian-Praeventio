@@ -1,19 +1,19 @@
 // Praeventio Guard — Google OAuth callback security suite.
 //
 // Covers the dual-router design in src/server/routes/oauthGoogle.ts:
-//   • oauthGoogleAuthRouter mounted at `/auth`     â†’ /auth/google/callback
-//   • oauthGoogleApiRouter  mounted at `/api`      â†’ /api/drive/auth/callback
+//   • oauthGoogleAuthRouter mounted at `/auth`     → /auth/google/callback
+//   • oauthGoogleApiRouter  mounted at `/api`      → /api/drive/auth/callback
 //
 // Both callbacks consume a per-flow `state` (CSRF token) that was minted by
 // the matching URL-issuance endpoint and stamped on `req.session`. The
 // tests below exercise:
 //
-//   1. State tampering (missing/invalid `state` â†’ 403).
+//   1. State tampering (missing/invalid `state` → 403).
 //   2. Cross-router CSRF (state issued for `/auth/google/callback` cannot
 //      be redeemed at `/api/drive/auth/callback`, even with a real `code`).
-//   3. Happy path: valid state + valid `code` â†’ token exchange runs and
+//   3. Happy path: valid state + valid `code` → token exchange runs and
 //      tokens are persisted via saveTokens().
-//   4. Missing access_token in token-exchange response â†’ 500 (error
+//   4. Missing access_token in token-exchange response → 500 (error
 //      propagated, no tokens saved).
 //
 // The production handlers exchange the OAuth code by calling
@@ -167,7 +167,7 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
     expect(saveTokensMock).not.toHaveBeenCalled();
   });
 
-  it('happy path: valid state + valid code â†’ token exchange runs and tokens are saved', async () => {
+  it('happy path: valid state + valid code → token exchange runs and tokens are saved', async () => {
     const app = await buildApp();
     const agent = request.agent(app);
     // Mock fetch so the token-exchange call returns a usable token bundle.
@@ -205,7 +205,7 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
     expect((callArgs[1] as any).access_token).toBe('ya29.test-access');
   });
 
-  it('missing access_token in token-exchange response â†’ 500, tokens not saved (error propagated)', async () => {
+  it('missing access_token in token-exchange response → 500, tokens not saved (error propagated)', async () => {
     const app = await buildApp();
     const agent = request.agent(app);
     // Token-exchange returns an error payload (e.g. invalid_grant, or a

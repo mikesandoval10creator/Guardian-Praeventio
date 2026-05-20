@@ -1,8 +1,8 @@
 // Praeventio Guard — Sprint 11 (writeNode coverage).
 //
 // Cubre:
-//   • happy path â†’ POST con Bearer â†’ 200
-//   • offline â†’ enrola en saveForSync, no llama a fetch
+//   • happy path → POST con Bearer → 200
+//   • offline → enrola en saveForSync, no llama a fetch
 //   • idempotencia: mismos inputs â‡’ mismo id, distintos â‡’ distinto
 //   • debounce: rebotes <2s se colapsan en una sola escritura
 //
@@ -193,7 +193,7 @@ describe('writeNodesDebounced', () => {
         [basePayload({ metadata: { forceN: 1000 + i, ratedN: 5000 } })],
         { projectId: 'proj-A' },
       );
-      vi.advanceTimersByTime(100); // <2s entre calls â†’ siguen reseteando
+      vi.advanceTimersByTime(100); // <2s entre calls → siguen reseteando
     }
     expect(fetchMock).not.toHaveBeenCalled();
     vi.advanceTimersByTime(2100); // ahora sí dispara el flush

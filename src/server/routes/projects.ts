@@ -5,8 +5,8 @@
 // `/api/projects/:id/...` and the other under `/api/invitations/...`.
 //
 // Mount strategy (in server.ts):
-//   • app.use('/api/projects', projectsRouter)           â† 4 routes
-//   • app.use('/api/invitations', invitationsRouter)     â† 2 routes
+//   • app.use('/api/projects', projectsRouter)           ← 4 routes
+//   • app.use('/api/invitations', invitationsRouter)     ← 2 routes
 //
 // Final paths preserved verbatim — DO NOT change:
 //   • POST   /api/projects/:id/invite

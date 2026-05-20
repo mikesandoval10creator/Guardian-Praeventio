@@ -166,7 +166,7 @@ export const googlePlayWebhookLimiter = rateLimit({
 // writes / 15 min comfortably; bursty test sessions or a buggy debounce
 // regression would still be capped here. Mirrors the geminiLimiter shape
 // (30 req / 15 min, keyed on uid). Mounted AFTER `verifyAuth` so the
-// keyGenerator can read `req.user.uid`. Falls back to req.ip â†’ 'anonymous'
+// keyGenerator can read `req.user.uid`. Falls back to req.ip → 'anonymous'
 // purely as a defensive default — under normal control flow `req.user.uid`
 // is always set because verifyAuth would have rejected the request first.
 export const zettelkastenWriteLimiter = rateLimit({

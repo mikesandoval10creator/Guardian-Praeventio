@@ -9,7 +9,7 @@
 // CRITICAL — privacy boundary:
 //   The coach NEVER reads the Praeventio Zettelkasten. It operates ONLY
 //   on the input the integrator passes in the request body. The coach is
-//   a pure function from `(industry, scenario, mitigations) â†’ guidance`
+//   a pure function from `(industry, scenario, mitigations) → guidance`
 //   with citations. No tenant-scoped data is ever loaded.
 //
 //   This isolation is non-negotiable: API key holders are NOT tenants;

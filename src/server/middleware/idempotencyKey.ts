@@ -211,7 +211,7 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
     const rawKey = (req.headers[IDEMPOTENCY_HEADER] ??
       (req.headers as any)['Idempotency-Key']) as string | undefined;
 
-    // Header absent â†’ request flows through normally. NO cache write.
+    // Header absent → request flows through normally. NO cache write.
     if (!rawKey || typeof rawKey !== 'string' || rawKey.trim().length === 0) {
       return next();
     }
@@ -257,7 +257,7 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
         }
       }
     } catch (err) {
-      // Cache lookup failed â†’ log+Sentry, fall through and run the handler
+      // Cache lookup failed → log+Sentry, fall through and run the handler
       // normally. Idempotency is a SAFETY net; failing it should never
       // break the actual request path.
       logger.warn?.('idempotency_cache_read_failed', {
@@ -268,7 +268,7 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
       return next();
     }
 
-    // â”€â”€ Step 2: cache hit â†’ replay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â”€â”€ Step 2: cache hit → replay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (cached) {
       if (cached.fingerprint !== fingerprint) {
         // Same key, different request body. Stripe returns 422; we mirror.
@@ -296,7 +296,7 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
       return res.status(cached.status).send(cached.body);
     }
 
-    // â”€â”€ Step 3: cache miss â†’ wrap res.json/.send to capture response â”€â”€
+    // â”€â”€ Step 3: cache miss → wrap res.json/.send to capture response â”€â”€
     // We monkey-patch `res.json` and `res.send` on a per-request basis
     // (NOT globally) so the handler stays untouched. Only 2xx responses
     // are cached: a 4xx/5xx is an error we want the client to be allowed

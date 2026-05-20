@@ -9,9 +9,9 @@
 // trazabilidad.
 //
 // Membership y validación reutilizan el patrón de audit.ts:
-//   • verifyAuth â†’ uid del token (no del body)
-//   • assertProjectMember(uid, projectId) â†’ 403 cross-tenant
-//   • zettelkastenWriteLimiter (limiters.ts) â†’ 30 req / 15 min por uid
+//   • verifyAuth → uid del token (no del body)
+//   • assertProjectMember(uid, projectId) → 403 cross-tenant
+//   • zettelkastenWriteLimiter (limiters.ts) → 30 req / 15 min por uid
 //   • Validación estricta de RiskNodePayload por nodo
 //
 // Cada documento incluye:

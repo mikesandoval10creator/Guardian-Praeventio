@@ -2,10 +2,10 @@
 //
 // Estrategia: en vez de bootear el server.ts completo (3000+ LOC, depende de
 // firebase-admin global), montamos un Express mini-app que mimetiza el
-// pipeline real (verifyAuth fake â†’ validate(zodSchema) â†’ assertProjectMember
-// fake â†’ searchIncidents). Los dos casos cubiertos:
-//   1. Zod fail (query vacío) â†’ 400 con error 'invalid_payload'.
-//   2. Happy path â†’ 200 con results + citations del incidente sembrado.
+// pipeline real (verifyAuth fake → validate(zodSchema) → assertProjectMember
+// fake → searchIncidents). Los dos casos cubiertos:
+//   1. Zod fail (query vacío) → 400 con error 'invalid_payload'.
+//   2. Happy path → 200 con results + citations del incidente sembrado.
 
 import { describe, it, expect, vi } from 'vitest';
 import express from 'express';

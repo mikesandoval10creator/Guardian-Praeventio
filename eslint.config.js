@@ -129,6 +129,10 @@ export default [
       "no-async-promise-executor": "warn",
       "no-control-regex": "off",
       "no-misleading-character-class": "warn",
+      // no-useless-assignment genera falsos positivos en patrones
+      // defensivos `let x = false; try { x = await ... } if (!x)` —
+      // el initial value SÍ se usa cuando try lanza. Desactivado.
+      "no-useless-assignment": "off",
     },
   },
 

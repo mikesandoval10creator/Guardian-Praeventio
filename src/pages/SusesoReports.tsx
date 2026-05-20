@@ -481,7 +481,7 @@ export function SusesoReports() {
                       <h3 className="text-[10px] font-black uppercase tracking-widest bg-zinc-100 inline-block px-2 py-1 rounded mb-3">A. Identificación del Empleador</h3>
                       {!selectedProject?.companyName && (
                         <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-[9px] text-amber-700 font-medium">
-                          âš ï¸ Datos del empleador incompletos — completa Razón Social, RUT y Organismo Administrador en la configuración del proyecto.
+                          ⚠️ Datos del empleador incompletos — completa Razón Social, RUT y Organismo Administrador en la configuración del proyecto.
                         </div>
                       )}
                       <div className="grid grid-cols-2 gap-4">

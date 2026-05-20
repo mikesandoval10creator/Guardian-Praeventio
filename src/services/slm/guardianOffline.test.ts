@@ -10,10 +10,10 @@
  *   6. getFAQ retorna lista no vacia
  *   7. preload no-op si ya pre-cargado (idempotente)
  *   8. AbortSignal honored — pre-aborted cae a corpus-only
- *   9. Empty corpus â†’ ask sigue funcionando con FAQ + adapter
+ *   9. Empty corpus → ask sigue funcionando con FAQ + adapter
  *  10. Corpus chunks parseo correcto desde JSON
- *  11. FAQ exact match â†’ source='faq'
- *  12. Sin adapter â†’ corpus-only
+ *  11. FAQ exact match → source='faq'
+ *  12. Sin adapter → corpus-only
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -157,7 +157,7 @@ describe('GuardianOfflineService.ask', () => {
     expect(first.source).toBe('slm');
     expect(adapter.calls).toBe(1);
 
-    // Segundo ask con mismo prompt â†’ cache hit
+    // Segundo ask con mismo prompt → cache hit
     const second = await svc.ask({ prompt: 'pregunta sin match faq xyzplugh' });
     expect(second.source).toBe('cache');
     expect(adapter.calls).toBe(1); // no se regenero
@@ -174,7 +174,7 @@ describe('GuardianOfflineService.ask', () => {
     expect(r.citations).toContain('DS 109 + Cruz Roja Chile');
   });
 
-  it('matches FAQ exact-ish question â†’ source=faq', async () => {
+  it('matches FAQ exact-ish question → source=faq', async () => {
     const adapter = makeAdapter();
     const svc = new GuardianOfflineService({
       fetchImpl: makeFakeFetch({ chunks: SAMPLE_CHUNKS }) as unknown as typeof fetch,

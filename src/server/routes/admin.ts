@@ -38,7 +38,7 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 import { serverAnalytics } from '../../services/analytics/serverAdapter.js';
 import type { Role as AnalyticsRole } from '../../services/analytics/types.js';
 // Sprint 22 Bucket W.5: hourly write-through replica for critical
-// Firestore collections (audit_logs + invoices) â†’ Cloud Storage JSONL.
+// Firestore collections (audit_logs + invoices) → Cloud Storage JSONL.
 // Endpoint exists so Cloud Scheduler can drive the job hourly without
 // owning a separate Cloud Run job; admin can also re-drive a missed hour
 // manually from the operator dashboard.
@@ -242,7 +242,7 @@ router.post('/set-role', verifyAuth, async (req, res) => {
 //   Drives the audit_logs + invoices write-through to GCS for the last
 //   hour. Idempotent: re-running for the same hour overwrites the same
 //   JSONL file with the same contents. Intended call sites:
-//     • Cloud Scheduler (hourly) â†’ admin OIDC token â†’ this endpoint
+//     • Cloud Scheduler (hourly) → admin OIDC token → this endpoint
 //     • Operator dashboard "re-drive missed hour" button
 //
 // Returns { ok, collections: [{ collection, docs, path, error? }], window }.

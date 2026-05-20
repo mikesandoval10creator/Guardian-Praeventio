@@ -492,7 +492,7 @@ export function EmergenciaAvanzada() {
                         <div className="flex items-center gap-2 shrink-0">
                           {activeEmergency ? (
                             <>
-                              {/* Sprint 20 19th-wave (Bucket C): native title= â†’ Tooltip primitive (WCAG 2.1 AA 1.4.13). aria-label provides SR semantic. */}
+                              {/* Sprint 20 19th-wave (Bucket C): native title= → Tooltip primitive (WCAG 2.1 AA 1.4.13). aria-label provides SR semantic. */}
                               <Tooltip content="Marcar seguro">
                                 <button
                                   onClick={() => markWorker(w.id, 'safe')}

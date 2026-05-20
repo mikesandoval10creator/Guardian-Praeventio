@@ -9,7 +9,7 @@
 // Contratos:
 //   • `nodeIdFor(payload, projectId)`: id determinista. Mismos inputs â‡’ mismo
 //     id (16 hex SHA-256 truncado). Mismo id â‡’ Firestore upsert idempotente.
-//   • `writeNodes(nodes, ctx)`: POST â†’ 200/4xx. Si offline o el POST tira,
+//   • `writeNodes(nodes, ctx)`: POST → 200/4xx. Si offline o el POST tira,
 //     enrola via `saveForSync` y devuelve { queued: true }.
 //   • `writeNodesDebounced(nodes, ctx)`: agrupa por (projectId+nodeKey) y
 //     vacía la cola tras 2 s sin actividad. Closure-based, sin lodash.
@@ -25,7 +25,7 @@ import { analytics } from '../../analytics';
 import type { ZkNodeKind } from '../../analytics';
 import type { RiskNodePayload } from '../types';
 
-// 13th wave analytics: domain `RiskNodePayload.type` strings â†’ analytics
+// 13th wave analytics: domain `RiskNodePayload.type` strings → analytics
 // `ZkNodeKind` enum. Anything not mapped falls to `'other'` so a new
 // generator type doesn't drop the event.
 function toZkNodeKind(rawType: unknown): ZkNodeKind {
@@ -175,7 +175,7 @@ async function writeNodesImpl(
         body: JSON.stringify({ projectId: ctx.projectId, nodes: enriched }),
       });
       if (!res.ok) {
-        // 4xx â†’ no reintentar silenciosamente; logueamos. 5xx/red caen al catch.
+        // 4xx → no reintentar silenciosamente; logueamos. 5xx/red caen al catch.
         const text = await res.text().catch(() => '');
         logger.error('zettelkasten_write_http_error', { status: res.status, text });
         return { ok: false, status: res.status, error: text };
@@ -224,7 +224,7 @@ const DEBOUNCE_MS = 2000;
 
 interface PendingEntry {
   timer: ReturnType<typeof setTimeout>;
-  nodes: Map<string, RiskNodePayload>; // key = nodeIdFor â†’ último payload gana
+  nodes: Map<string, RiskNodePayload>; // key = nodeIdFor → último payload gana
   ctx: WriteContext;
 }
 

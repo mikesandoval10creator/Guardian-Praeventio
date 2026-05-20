@@ -180,7 +180,7 @@ export function useGeofence(
 
         setActiveZones(insideZones);
 
-        // Fire alarm only on zone ENTRY (transition from outside â†’ inside)
+        // Fire alarm only on zone ENTRY (transition from outside → inside)
         const prevIds = insideZoneIdsRef.current;
         const newIds = new Set(insideZones.map((z) => z.id));
         const justEntered = insideZones.filter((z) => !prevIds.has(z.id));

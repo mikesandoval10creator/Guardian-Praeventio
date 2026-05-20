@@ -7,8 +7,8 @@
  * tree into a service-layer file.
  *
  * Bridges (set from React-side adapters):
- *   • `pushWeatherSnapshot(...)`     â†’ updates the climate cache.
- *   • `pushCompanyEmergency(active)` â†’ mirrors EmergencyContext.
+ *   • `pushWeatherSnapshot(...)`     → updates the climate cache.
+ *   • `pushCompanyEmergency(active)` → mirrors EmergencyContext.
  *   • DeviceMotion is subscribed at module load when available; the
  *     listener mutates a sliding 1s peak-acceleration window.
  *
@@ -98,7 +98,7 @@ export function pushCompanyEmergency(active: boolean): void {
 // Sismo bridge — DeviceMotion sliding 1s window
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-const G = 9.80665; // m/s² â†’ 1 g
+const G = 9.80665; // m/s² → 1 g
 // Sismic threshold rationale: most consumer phones report ~1g at rest
 // (gravity vector). A genuine MMI VI+ ground motion produces peak
 // horizontal accelerations >0.6g sustained for hundreds of ms. The
@@ -221,10 +221,10 @@ export async function checkSismo(): Promise<boolean> {
  * Política directiva:
  *   - SIEMPRE blockOperation: false (regla #1 del usuario).
  *   - El cross-check NO bloquea el trigger — solo enriquece la severity:
- *       * USGS confirma sismo Mâ‰¥3.5 en proximidad â†’ severity 'high'.
- *       * USGS responde sin coincidencia â†’ severity 'caution' (puede ser
+ *       * USGS confirma sismo Mâ‰¥3.5 en proximidad → severity 'high'.
+ *       * USGS responde sin coincidencia → severity 'caution' (puede ser
  *         false positive del DeviceMotion).
- *       * USGS timeout / adapter ausente â†’ severity 'caution' + warn log.
+ *       * USGS timeout / adapter ausente → severity 'caution' + warn log.
  *   - El recommendation body es construido externamente vía
  *     `buildCalmRecommendation`; este módulo solo provee la severity y
  *     la lista cruda de eventos.

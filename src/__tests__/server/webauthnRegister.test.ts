@@ -13,10 +13,10 @@
 //   3. 200 idempotent register — second register with the same
 //      credentialId overwrites the row (matches registerCredential
 //      contract).
-//   4. 401 when verifyRegistrationResponse â†’ verified:false
+//   4. 401 when verifyRegistrationResponse → verified:false
 //      (reason='attestation_invalid')
 //   5. 401 when verifyRegistrationResponse throws (origin mismatch,
-//      RP-id mismatch, attestation parse error â†’ reason='attestation_invalid')
+//      RP-id mismatch, attestation parse error → reason='attestation_invalid')
 //   6. 401 when the challenge has already been consumed (replay attempt
 //      on /register/verify)
 //   7. 401 when challengeId points at a never-issued challenge
@@ -207,7 +207,7 @@ function buildRegisterApp(deps: RegisterTestDeps): Express {
     }
   };
 
-  // Mirrors src/server/middleware/limiters.ts â†’ webauthnRegisterLimiter.
+  // Mirrors src/server/middleware/limiters.ts → webauthnRegisterLimiter.
   // Re-instantiated per test so the in-memory counter store does not
   // leak counts across tests.
   const registerLimiter = rateLimit({
@@ -508,7 +508,7 @@ describe('POST /api/auth/webauthn/register — R20 R5 ceremony', () => {
     expect(stored!.credential.counter).toBe(7);
   });
 
-  it('401 reason=attestation_invalid when verifyRegistrationResponse â†’ verified:false', async () => {
+  it('401 reason=attestation_invalid when verifyRegistrationResponse → verified:false', async () => {
     const uid = 'uid-bad-att';
     const auth = `Bearer test:${uid}:bad@test.com`;
     stubOptions('BAD_CH_1');
@@ -645,7 +645,7 @@ describe('POST /api/auth/webauthn/register — R20 R5 ceremony', () => {
     // We can't pass ttlMs through generateRegistrationOptions, but we
     // can drive the challenge TTL directly via storeWebAuthnChallenge
     // by simulating the options path: stub generateRegistrationOptions
-    // â†’ app stores via storeWebAuthnChallenge with the default TTL,
+    // → app stores via storeWebAuthnChallenge with the default TTL,
     // then we advance the clock past it.
     stubOptions('EXP_CH');
     await request(expiringApp)
@@ -796,7 +796,7 @@ describe('POST /api/auth/webauthn/register — R20 R5 ceremony', () => {
       .post('/api/auth/webauthn/register/options')
       .set('Authorization', authA)
       .send({});
-    // 3rd from uid A â†’ 429
+    // 3rd from uid A → 429
     const blocked = await request(limitedApp)
       .post('/api/auth/webauthn/register/options')
       .set('Authorization', authA)

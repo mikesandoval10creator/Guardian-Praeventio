@@ -23,7 +23,7 @@
 //      input — direct unit check via the exported limiter's options.
 //
 // We deliberately stop short of asserting the full bucket behavior (max
-// trips â†’ 429) because that would couple this test to the per-route
+// trips → 429) because that would couple this test to the per-route
 // `max` constant (3, 5, 30, 600) and is already covered by the
 // downstream route tests. The point of this file is solely the
 // IPv6-fallback wiring.
@@ -359,7 +359,7 @@ describe('per-route limiters — 18th wave Bucket A: windowMs / max / response s
 
       // Phase 3: advance just under one full window — still throttled.
       // This is the killer for ArithmeticOperator mutations: if the
-      // window collapsed from (e.g.) 900_000 ms to 0.9 ms (`*` â†’ `/`),
+      // window collapsed from (e.g.) 900_000 ms to 0.9 ms (`*` → `/`),
       // the limiter would have already reset by now and let us through.
       vi.setSystemTime(FAKE_NOW + cfg.windowMs - 1);
       const stillBlocked = await request(app).get('/probe');
@@ -368,7 +368,7 @@ describe('per-route limiters — 18th wave Bucket A: windowMs / max / response s
       // Phase 4: cross the window boundary — limiter resets and the next
       // request must succeed. This pins the upper bound: a window that
       // is shorter than expected would have reset earlier (Phase 3 would
-      // already have shown 200 â†’ caught above); a window that is longer
+      // already have shown 200 → caught above); a window that is longer
       // than expected would still throttle here. So the test pins both
       // sides of the windowMs ArithmeticOperator interval.
       vi.setSystemTime(FAKE_NOW + cfg.windowMs + 1);
@@ -479,7 +479,7 @@ describe('per-route limiters — 18th wave Bucket A: keyGenerator branches', () 
 
     // 11th from the same IP — throttled regardless of which uid we
     // claim. If the limiter were mutated to key on uid, alternating
-    // uids would mean each uid only saw 5 hits â†’ not throttled.
+    // uids would mean each uid only saw 5 hits → not throttled.
     const blocked = await request(
       buildLimiterApp(googlePlayWebhookLimiter, { uid: 'pubsub-fake-C', ip }),
     ).get('/probe');
@@ -516,7 +516,7 @@ describe('geminiGlobalDailyLimiter — 18th wave Bucket A: global cap, 503 statu
   // the limiter, but since the limiter is already constructed at module
   // load with the default 1000, we instead probe behaviour: drain N hits
   // and assert that a SECOND uid still increments the SAME bucket (no
-  // independent budget per uid). The exact "1000th hit â†’ 503" boundary
+  // independent budget per uid). The exact "1000th hit → 503" boundary
   // is impractical to test in CI without re-importing the module; we
   // pin it indirectly via the shared-key assertion.
 
@@ -573,7 +573,7 @@ describe('geminiGlobalDailyLimiter — 18th wave Bucket A: global cap, 503 statu
     // Drain 3 hits, then advance 18 hours (well within the 24 h window).
     // The shared bucket must STILL show 3 hits — pins the
     // `24 * 60 * 60 * 1000` ArithmeticOperator survivors. If the window
-    // collapsed (say to 60 ms via `*` â†’ `/`), the bucket would reset
+    // collapsed (say to 60 ms via `*` → `/`), the bucket would reset
     // long before 18 h.
     const app = buildLimiterApp(geminiGlobalDailyLimiter, {
       uid: 'global-uid-W',
@@ -641,7 +641,7 @@ describe('limiters constants — 18th wave Bucket A: numeric literal pins', () =
   });
 
   it('production max-request constants match the documented values', () => {
-    // These are the exact literals from limiters.ts. A `max: 30` â†’ `max: 0`
+    // These are the exact literals from limiters.ts. A `max: 30` → `max: 0`
     // mutation would surface here only via the behavioural drain test;
     // these assertions just document the numbers so the diff between
     // this test file and the source file is greppable.

@@ -14,7 +14,7 @@
 //   • NO push a SUSESO/MUTUAL/SII — el handler retorna documento al
 //     caller, jamás llama submitToOrganism / pushToSII.
 //   • Firma biométrica WebAuthn — la firma se aplica fuera de este
-//     handler (challenge â†’ cliente firma â†’ re-POST `/sign` legacy). El
+//     handler (challenge → cliente firma → re-POST `/sign` legacy). El
 //     `/emit` endpoint es generación + validación, sin tocar passkeys.
 //   • NO bloquear maquinaria — solo emite documentos.
 //
@@ -115,7 +115,7 @@ router.post('/:type', verifyAuth, async (req: Request, res: Response) => {
     });
   }
 
-  // Adapter resolution. ADR-0017: null â†’ 400 with suggestedAdapters.
+  // Adapter resolution. ADR-0017: null → 400 with suggestedAdapters.
   const adapter = getAdapter(country, type);
   if (!adapter) {
     const suggestedAdapters = getSuggestedAdapters(type);

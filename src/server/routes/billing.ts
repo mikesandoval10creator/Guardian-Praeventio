@@ -5,8 +5,8 @@
 // Webpay return handler at /billing/webpay/return.
 //
 // Mount strategy (in server.ts):
-//   • app.use('/api/billing', billingApiRouter)  â† 6 /api/billing/* routes
-//   • app.use('/billing',     billingWebpayRouter) â† Webpay return only
+//   • app.use('/api/billing', billingApiRouter)  ← 6 /api/billing/* routes
+//   • app.use('/billing',     billingWebpayRouter) ← Webpay return only
 //
 // Why TWO routers? `/billing/webpay/return` is the URL Transbank redirects
 // the cardholder's browser to after card entry. That URL is registered with
@@ -135,7 +135,7 @@ import { normalizeSubscriptionPlanId } from '../../services/pricing/subscription
 // webhook (re-fetch fresh subscription state on each notification). Init
 // at module load: lazy reads of GOOGLE_PLAY_SERVICE_ACCOUNT_JSON would race
 // the first request. `playAuth=null` is the documented unconfigured state
-// â†’ /verify returns 500 with a helpful "not configured" message.
+// → /verify returns 500 with a helpful "not configured" message.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 let playAuth: any = null;
 const playDeveloperApi = google.androidpublisher('v3');
@@ -181,7 +181,7 @@ type BillingTier = {
 };
 const BILLING_TIER_FALLBACK: Record<string, BillingTier> = {
   // Net amounts (pre-IVA) for CLP; display amounts (incl IVA) live in tiers.ts.
-  // 10075 * 1.19 = 11989.25 â†’ ceil 11990 (matches tiers.test.ts)
+  // 10075 * 1.19 = 11989.25 → ceil 11990 (matches tiers.test.ts)
   'comite-paritario': { clpRegular: 10075, clpAnual: 81504, usdRegular: 13, usdAnual: 130 },
   'departamento-prevencion': { clpRegular: 26042, clpAnual: 250416, usdRegular: 33, usdAnual: 330 },
   'plata': { clpRegular: 42849, clpAnual: 411513, usdRegular: 54, usdAnual: 540 },
@@ -198,7 +198,7 @@ function resolveBillingTier(tierId: string): BillingTier | null {
 }
 
 // Per-unit overage (CLP, net of IVA). Mirrors tiers.test.ts which uses
-// $990/worker incl IVA â†’ 990/1.19 â‰ˆ 832.
+// $990/worker incl IVA → 990/1.19 â‰ˆ 832.
 const OVERAGE_CLP_PER_WORKER_NET = 832;
 const OVERAGE_CLP_PER_PROJECT_NET = 5034; // 5990 / 1.19
 
@@ -253,7 +253,7 @@ export const billingWebpayRouter = Router();
 // `Idempotency-Key` header, the first cached 2xx response is replayed and
 // the handler runs ZERO times — preventing duplicate `transactions/*`
 // rows and duplicate `users/{uid}.subscription.*` writes. The middleware
-// is OPT-IN (no header â†’ falls through to the handler normally), so
+// is OPT-IN (no header → falls through to the handler normally), so
 // existing clients that don't send the header keep working exactly as
 // before.
 billingApiRouter.post('/verify', verifyAuth, idempotencyKey(), async (req, res) => {
@@ -744,7 +744,7 @@ billingApiRouter.post('/invoice/:id/mark-paid', verifyAuth, async (req, res) => 
 //
 //   • verifyAuth gates the request to a logged-in user (req.user.uid).
 //   • The doc must have been created by the same uid (`createdBy === uid`).
-//   • Mismatch â†’ 404 (deliberate: do NOT 403, which would leak existence).
+//   • Mismatch → 404 (deliberate: do NOT 403, which would leak existence).
 //
 // We deliberately do NOT expose: the full lineItems list (already in the
 // CheckoutResponse the client already has), webpayToken (bearer-credential),
@@ -1224,21 +1224,21 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
 //   redelivered token (browser reload, double-tap, eventual-consistency
 //   second hit) cannot double-process the commit.
 //
-//   - 'done'        â†’ replay the original outcome â†’ original redirect URL.
-//   - 'in_progress' fresh (<5 min) â†’ another worker is on it; redirect to
+//   - 'done'        → replay the original outcome → original redirect URL.
+//   - 'in_progress' fresh (<5 min) → another worker is on it; redirect to
 //                                   /pricing/success and let the SPA poll.
-//   - 'in_progress' stale (>5 min) â†’ assume the original processor died;
+//   - 'in_progress' stale (>5 min) → assume the original processor died;
 //                                   steal the lock and re-run.
-//   - absent        â†’ write 'in_progress', commit, then update to 'done'.
+//   - absent        → write 'in_progress', commit, then update to 'done'.
 //
 //   On exception we deliberately do NOT update the doc; the staleness
 //   window grants the next redelivery a fresh attempt.
 //
 // Status-mapping (matches WebpayCommitStatus + Invoice status):
-//   AUTHORIZED â†’ invoice 'paid'           â†’ /pricing/success?invoice=...
-//   REJECTED   â†’ invoice 'rejected'       â†’ /pricing/failed?invoice=...
-//                (NOT 'cancelled' — card decline â‰  user cancellation)
-//   FAILED     â†’ invoice stays 'pending-payment' â†’ /pricing/retry?invoice=...
+//   AUTHORIZED → invoice 'paid'           → /pricing/success?invoice=...
+//   REJECTED   → invoice 'rejected'       → /pricing/failed?invoice=...
+//                (NOT 'cancelled' — card decline ≠ user cancellation)
+//   FAILED     → invoice stays 'pending-payment' → /pricing/retry?invoice=...
 //                (transient infra error; same card can retry)
 //
 // PARALLEL TO RTDN (`/api/billing/webhook`): both handlers implement
@@ -1667,7 +1667,7 @@ billingApiRouter.post(
               userAgent: req.header('user-agent') ?? null,
             });
           }
-          // 'pending' / 'verifying' â†’ leave invoice as 'pending-payment';
+          // 'pending' / 'verifying' → leave invoice as 'pending-payment';
           // a later IPN will fire when the bank confirms.
 
           return { ok: true as const, status: status.status };
@@ -1720,10 +1720,10 @@ billingApiRouter.post(
 //
 // IMPORTANT — these endpoints DO NOT grant the subscription benefit on
 // their own. The authoritative grant flow is:
-//   • Google Play â†’ RTDN webhook at POST /api/billing/webhook (this file
+//   • Google Play → RTDN webhook at POST /api/billing/webhook (this file
 //     line 278) which re-fetches the canonical subscription state from
 //     the Google Play Developer API (`purchases.subscriptions.get`).
-//   • App Store â†’ App Store Server Notifications (SSN) v2 webhook
+//   • App Store → App Store Server Notifications (SSN) v2 webhook
 //     (TODO: ship in a follow-up bucket alongside the App Store Connect
 //     entitlement flow).
 //

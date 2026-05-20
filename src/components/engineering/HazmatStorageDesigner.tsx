@@ -52,7 +52,7 @@ export const HazmatStorageDesigner: React.FC = () => {
   const [inletAreaA1, setInletAreaA1] = useState<number | ''>(0.4);
   const [throatAreaA2, setThroatAreaA2] = useState<number | ''>(0.1);
   const [deltaPPa, setDeltaPPa] = useState<number | ''>(50);
-  // Bucket B.4 — misting dust suppression (PM10 ambient â†’ recommended nozzles).
+  // Bucket B.4 — misting dust suppression (PM10 ambient → recommended nozzles).
   const [pm10UgM3, setPm10UgM3] = useState<number | ''>(80);
   // Sprint 25 Bucket NN — Gas dispersion cloud (Pasquill-Gifford).
   const [leakRateKgS, setLeakRateKgS] = useState<number | ''>(0.05);
