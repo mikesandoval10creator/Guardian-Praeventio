@@ -96,6 +96,25 @@ Per `DIGITAL_TWIN_GPU_FREE_PLAN.md` §5.3, **dos sub-opciones**:
 
 **ADR 0005 v3 — meta objetivo C1 como path canónico cuando esté implementado.**
 
+#### C3 — Peer-to-peer intra-tenant vía Google Drive (NUEVA, idea founder 2026-05-19)
+
+**Ver ADR 0020 completo.** Resumen:
+
+Si el dispositivo del trabajador NO es capaz de procesar C1, pero el proyecto tiene OTROS miembros con teléfonos capaces:
+
+1. User A graba video → sube a Google Drive del proyecto (folder restringido a miembros).
+2. Cloud Function publica notification FCM al topic project-photogrammetry-capable.
+3. User B (mismo proyecto, device capable) recibe notify, claima el job (Firestore transaction), descarga video, procesa con C1 WASM local, sube mesh a Firebase Storage.
+4. User A recibe notification: "Tu reconstrucción 3D del sitio X está lista, generada por [User B]".
+
+**Cumplimiento ADR 0019:** ✅ **TRIPLE** — OSS WASM en device de User B + Google Drive (Workspace) + Firebase + FCM, todo Google ecosystem.
+
+**Costo cloud:** $0 (zero — Drive ya está en plan Workspace, mesh ~8 MB cabe en Spark plan Firebase Storage 5GB).
+
+**Gate intra-tenant:** Firestore rules + Drive ACL + Storage rules enforzan que solo miembros del proyecto pueden claimar/procesar. Usuario externo no puede.
+
+**Dependencia:** requiere C1 implementada primero (no tiene sentido peer-to-peer si nadie puede procesar).
+
 #### C2 — Cloud Run COLMAP CPU (ESCAPE HATCH, parcialmente implementada)
 
 Per `DIGITAL_TWIN_GPU_FREE_PLAN.md` §5.3:
@@ -108,14 +127,37 @@ Per `DIGITAL_TWIN_GPU_FREE_PLAN.md` §5.3:
 
 **Estado actual:** parcialmente implementada — `infra/photogrammetry-worker/server.py` (Python Flask) + duplicado `cloud-run/photogrammetry-worker/src/index.ts` (TypeScript, Sprint 38) existen como scaffold. Auth bypass hardened en Bloque 1.6 (`df5cb9e7`).
 
-**Cuándo usar C2 en lugar de C1:**
+**Cuándo usar C2 (NO C3 ni C1):**
 
-- El móvil del trabajador no soporta WebAssembly o tiene <2 GB RAM.
-- El video es >30 s (C1 no escala bien por encima).
-- El usuario tiene red disponible y prefiere turnaround predecible.
-- Sitio remoto donde el teléfono no carga la batería suficiente para 15-30 min de cómputo intenso.
+- C1 fallaría (dispositivo débil) **Y** C3 no aplica (proyecto sin miembros capaces ni red para coordinar) **Y** el usuario tiene red para subir a Cloud Run.
+- El usuario tiene red disponible y prefiere turnaround predecible "ahora" (vs esperar peer disponible).
+- Esquema de fallback final cuando ninguna ruta on-device/peer es viable.
 
-**C2 es el escape hatch, NO el camino canónico.** C1 es la meta cuando esté implementada.
+**C2 es el escape hatch último, NO el camino canónico.** Orden de preferencia: **C1 (mi device) → C3 (peer del proyecto) → C2 (Cloud Run)**.
+
+### Decision tree completo Fase C
+
+```
+Usuario inicia captura video 30s
+          │
+          ▼
+   ¿Mi device es capable (capability_score >= 70)?
+   │
+   ├─ SÍ ─► C1: Procesa local WASM (15-30 min background) ─► mesh
+   │
+   └─ NO ─► ¿Hay otros miembros del proyecto con device capable?
+            │
+            ├─ SÍ ─► C3: Sube video a Google Drive del proyecto
+            │       │
+            │       └─► Peer claima + procesa C1 ─► mesh
+            │
+            └─ NO ─► ¿Online?
+                     │
+                     ├─ SÍ ─► C2: Cloud Run COLMAP (~$5/mes, escape hatch)
+                     │
+                     └─ NO ─► UI: "Tu equipo no puede procesar esto offline.
+                              Conéctate a red para usar Cloud Run." (degrade gracefully)
+```
 
 ### Eliminado — Modal.run (third-party GPU rental)
 
@@ -233,7 +275,8 @@ Bench cost/latency + cron audit pendientes antes de decidir.
 
 ## Changelog
 
-* **v3 2026-05-19 (este commit):** Founder explicó que C1 on-device WASM es el camino correcto (no C2 Cloud Run COLMAP como "primary"). C1 es meta principal aunque NO IMPLEMENTADA. C2 es escape hatch. Modal eliminado de plan pero retiro de código DIFERIDO hasta C1 investigada + C2 operativa.
+* **v3.1 2026-05-19 (commit follow-up):** Founder agregó patrón peer-to-peer intra-tenant vía Google Drive (Fase C3 nueva). Order de preferencia: C1 (mi device) → C3 (peer) → C2 (Cloud Run). Ver ADR 0020 completo. Decision tree actualizado.
+* **v3 2026-05-19:** Founder explicó que C1 on-device WASM es el camino correcto (no C2 Cloud Run COLMAP como "primary"). C1 es meta principal aunque NO IMPLEMENTADA. C2 es escape hatch. Modal eliminado de plan pero retiro de código DIFERIDO hasta C1 investigada + C2 operativa.
 * **v2 2026-05-19 (commit `2200214a`):** Modal descartado. COLMAP Cloud Run pasaba a canónica única. (INCORRECTO — saltó C1 on-device que es el objetivo real.)
 * **v1 2026-05-19 (commit `657e1299`):** Modal primary + COLMAP fallback. (INCORRECTO — violaba ADR 0019.)
 * **Original 2026-04-29 → 2026-05-04 (Sprint 21-38):** Implementación con Modal primary.
