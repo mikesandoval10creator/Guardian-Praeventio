@@ -25,7 +25,7 @@ import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 // Mirrors src/server/routes/photogrammetry.ts (Codex P2 fix on PR #88):
 // regex is relaxed to accept percent-encoded and space-containing GCS object
 // names, and videoUrl is gs://-only (worker rejects HTTPS).
-const GS_URI_REGEX = /^gs:\/\/[A-Za-z0-9_.\-]+\/[\w\-./%+ !*'()&$,:;=@~]+$/;
+const GS_URI_REGEX = /^gs:\/\/[A-Za-z0-9_.-]+\/[\w\-./%+ !*'()&$,:;=@~]+$/;
 
 const CreateJobSchema = z.object({
   projectId: z.string().min(1).max(128),

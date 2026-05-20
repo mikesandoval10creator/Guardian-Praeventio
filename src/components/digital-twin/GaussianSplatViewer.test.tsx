@@ -75,7 +75,7 @@ describe('<GaussianSplatViewer />', () => {
     expect(screen.getByTestId('splat-overlay-mp1')).toBeInTheDocument();
     // Path tiene metros + segundos
     const ev1 = screen.getByTestId('splat-overlay-ev1');
-    expect(ev1.textContent).toMatch(/m \· /);
+    expect(ev1.textContent).toMatch(/m · /);
   });
 
   it('muestra issues si calidad baja', () => {

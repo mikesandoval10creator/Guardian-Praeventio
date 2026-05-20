@@ -169,6 +169,7 @@ describe('countAvailableRecoveryCodes', () => {
     });
     let record = confirmEnrollment({ draft, userCode: code, now });
     for (let i = 0; i < 3; i++) {
+      // eslint-disable-next-line react-hooks/rules-of-hooks -- useRecoveryCode es función pura TOTP, no React hook
       const r = useRecoveryCode(record, draft.recoveryCodesPlaintext[i]!);
       record = r.updatedRecord!;
     }

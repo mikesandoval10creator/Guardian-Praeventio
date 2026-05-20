@@ -59,6 +59,20 @@ export function SafeDriving() {
   const [showChecklistDetail, setShowChecklistDetail] = useState(false);
   const [showActiveMode, setShowActiveMode] = useState(false);
 
+  // rules-of-hooks (2026-05-20): hooks llamados ANTES del early return.
+  const { addNode } = useRiskEngine();
+  const { selectedProject } = useProject();
+  const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
+
+  const onLoad = useCallback(function callback(map: google.maps.Map) {
+    setMap(map);
+  }, []);
+
+  const onUnmount = useCallback(function callback(_map: google.maps.Map) {
+    setMap(null);
+  }, []);
+
+  // Early return DESPUÉS de todos los hooks (rules-of-hooks compliance).
   if (showActiveMode) {
     return <ActiveDrivingOverlay onExit={() => setShowActiveMode(false)} />;
   }
@@ -73,19 +87,6 @@ export function SafeDriving() {
     'Botiquín de primeros auxilios',
     'Triángulos de emergencia',
   ];
-  
-  const { addNode } = useRiskEngine();
-  const { selectedProject } = useProject();
-
-  const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
-
-  const onLoad = useCallback(function callback(map: google.maps.Map) {
-    setMap(map);
-  }, []);
-
-  const onUnmount = useCallback(function callback(_map: google.maps.Map) {
-    setMap(null);
-  }, []);
 
   const handleSendReport = async () => {
     if (!incidentType || !description || !selectedProject) return;

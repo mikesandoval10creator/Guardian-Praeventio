@@ -57,7 +57,7 @@ export function DocumentOCRManager() {
   const extractStructuredData = (text: string) => {
     // Basic offline regex extraction for common permit fields
     const nameMatch = text.match(/(?:nombre|trabajador|solicitante)[\s:]+([A-Za-z\s]+)/i);
-    const dateMatch = text.match(/(?:fecha)[\s:]+([\d]{1,2}[\/\-][\d]{1,2}[\/\-][\d]{2,4})/i);
+    const dateMatch = text.match(/(?:fecha)[\s:]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
     
     let type = 'Documento General';
     if (text.toLowerCase().includes('permiso de trabajo') || text.toLowerCase().includes('ptw')) {

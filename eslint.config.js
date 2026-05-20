@@ -132,7 +132,34 @@ export default [
     },
   },
 
-  // 3. Files to ignore globally
+  // 3. CommonJS scripts (.cjs) — node globals + require permitido
+  {
+    files: ["**/*.cjs", "scripts/**/*.{cjs,mjs}"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: {
+        require: "readonly",
+        module: "readonly",
+        exports: "writable",
+        process: "readonly",
+        Buffer: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+        global: "readonly",
+        console: "readonly",
+        setTimeout: "readonly",
+        setInterval: "readonly",
+        clearTimeout: "readonly",
+        clearInterval: "readonly",
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+      "no-undef": "off",
+    },
+  },
+
+  // 4. Files to ignore globally
   {
     ignores: [
       "dist/**",

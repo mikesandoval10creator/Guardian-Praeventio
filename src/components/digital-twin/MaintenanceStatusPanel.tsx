@@ -98,10 +98,12 @@ export function MaintenanceStatusPanel({
   projectId,
   onClose,
 }: MaintenanceStatusPanelProps) {
-  if (!placedObject) return null;
-
-  const center = placedObject.geo ?? { lat: 0, lng: 0 };
-  const hasGeo = !!placedObject.geo;
+  // ESLint rules-of-hooks fix (2026-05-20): los hooks DEBEN llamarse en
+  // el mismo orden cada render. El early return `if (!placedObject)` movido
+  // DESPUÉS de los hooks. Cuando placedObject es null, los hooks reciben
+  // sentinel inert (`projectId: ''`) que no dispara queries.
+  const center = placedObject?.geo ?? { lat: 0, lng: 0 };
+  const hasGeo = !!placedObject?.geo;
 
   // Histórico — sólo si tenemos geo. Sin geo (objeto en planning sobre
   // un mesh sin geoAnchor), el bounding box no tiene sentido y mostramos
@@ -118,10 +120,13 @@ export function MaintenanceStatusPanel({
       : { projectId: '', center, radiusM: 0 }, // hook devuelve vacío
   );
 
-  // Calendar — query directa por relatedObjectId.
+  // Calendar — query directa por relatedObjectId. Cuando placedObject es
+  // null usamos un id sentinel que nunca matchea (mantiene el hook llamado
+  // siempre en mismo orden para rules-of-hooks).
+  const effectiveObjectId = placedObject?.id ?? '__none__';
   const { data: rawEvents, loading: loadingEvents } = useFirestoreCollection<CalendarEventRow>(
     'calendar_events',
-    [where('relatedObjectId', '==', placedObject.id), orderBy('startIso', 'asc')],
+    [where('relatedObjectId', '==', effectiveObjectId), orderBy('startIso', 'asc')],
   );
 
   const events = useMemo(
@@ -137,6 +142,9 @@ export function MaintenanceStatusPanel({
       return Number(bT) - Number(aT);
     });
   }, [history.nodes]);
+
+  // Early return DESPUÉS de todos los hooks (rules-of-hooks compliance).
+  if (!placedObject) return null;
 
   const lifecycleClass =
     LIFECYCLE_BADGE[placedObject.lifecycle] ??

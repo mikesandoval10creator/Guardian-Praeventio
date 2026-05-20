@@ -143,7 +143,7 @@ export function AIPostureAnalysisModal({
       reader.onloadend = () => {
         const base64String = reader.result as string;
         setImagePreview(base64String);
-        const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        const matches = base64String.match(/^data:([A-Za-z-+/]+);base64,(.+)$/);
         if (matches && matches.length === 3) {
           setImageMimeType(matches[1]);
           setImageBase64(matches[2]);

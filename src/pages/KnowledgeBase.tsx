@@ -156,6 +156,7 @@ export function KnowledgeBase() {
   const handleUseEntry = async (entryId: string) => {
     if (!projectId) return;
     try {
+      // eslint-disable-next-line react-hooks/rules-of-hooks -- useKbEntry es función async normal, no React hook (naming legacy)
       await useKbEntry(projectId, entryId);
       setMutationError(null);
       refetch();
