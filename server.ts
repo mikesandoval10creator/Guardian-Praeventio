@@ -339,6 +339,11 @@ import restrictedZonesRouter from "./src/server/routes/restrictedZones.js";
 import hazmatInventoryRouter from "./src/server/routes/hazmatInventory.js";
 import externalAuditPortalRouter from "./src/server/routes/externalAuditPortal.js";
 import equipmentQrRouter from "./src/server/routes/equipmentQr.js";
+import industryRulesRouter from "./src/server/routes/industryRules.js";
+import legalObligationsRouter from "./src/server/routes/legalObligations.js";
+import preventionCostRouter from "./src/server/routes/preventionCost.js";
+import operationalChangeRouter from "./src/server/routes/operationalChange.js";
+import shiftHandoverRouter from "./src/server/routes/shiftHandover.js";
 // Soft-blocking requirement gate — directive #2 compliant (never blocks machinery).
 import softBlockingRouter from "./src/server/routes/softBlocking.js";
 // Role-based dashboard views — Sprint 39 J.4 (worker / site_chief / prevention / management).
@@ -1060,6 +1065,11 @@ app.use('/api/risk-ranking', riskRankingRouter);
 app.use('/api/zones', restrictedZonesRouter);
 app.use('/api/sprint-k', hazmatInventoryRouter);
 app.use('/api/sprint-k', equipmentQrRouter);
+app.use('/api/sprint-k', industryRulesRouter);
+app.use('/api/sprint-k', legalObligationsRouter);
+app.use('/api/sprint-k', preventionCostRouter);
+app.use('/api/sprint-k', operationalChangeRouter);
+app.use('/api/sprint-k', shiftHandoverRouter);
 // TODO(Bloque 3.7 follow-up): public route /api/audit-portal/public/:token
 // should get its own IP-keyed rate limiter (mirror healthVaultViewLimiter).
 // Current mount inherits the per-uid limiter at line 684, suboptimal for
