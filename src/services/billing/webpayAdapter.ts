@@ -189,9 +189,11 @@ const WEBPAY_TRANSIENT_RESPONSE_CODES: ReadonlySet<number> = new Set([
  *     defensively. Preserves the retry path; never silently treats a
  *     malformed response as a hard card decline.
  */
-function mapCommitResponse(response: any): WebpayCommitResult {
-  const responseCode: unknown = response?.response_code;
-  const responseStatus: unknown = response?.status;
+function mapCommitResponse(response: unknown): WebpayCommitResult {
+  // Narrowing defensivo — Transbank a veces devuelve JSON parcial.
+  const r = (response ?? {}) as Record<string, unknown>;
+  const responseCode: unknown = r.response_code;
+  const responseStatus: unknown = r.status;
   let status: WebpayCommitStatus;
 
   if (responseCode === 0 && responseStatus === 'AUTHORIZED') {
@@ -210,31 +212,33 @@ function mapCommitResponse(response: any): WebpayCommitResult {
     status = 'FAILED';
   }
 
+  const cardDetail = r.card_detail as { card_number?: unknown } | undefined;
   return {
     status,
-    authorizationCode: response?.authorization_code ?? undefined,
-    buyOrder: response?.buy_order ?? '',
-    amount: typeof response?.amount === 'number' ? response.amount : 0,
+    authorizationCode: (r.authorization_code as string | undefined) ?? undefined,
+    buyOrder: (r.buy_order as string | undefined) ?? '',
+    amount: typeof r.amount === 'number' ? r.amount : 0,
     cardLast4:
-      typeof response?.card_detail?.card_number === 'string'
-        ? response.card_detail.card_number.slice(-4)
+      typeof cardDetail?.card_number === 'string'
+        ? cardDetail.card_number.slice(-4)
         : undefined,
     raw: response,
   };
 }
 
-function mapRefundResponse(response: any, requestedAmount: number): WebpayRefundResult {
-  const rawType = (response?.type ?? '').toString().toUpperCase();
+function mapRefundResponse(response: unknown, requestedAmount: number): WebpayRefundResult {
+  const r = (response ?? {}) as Record<string, unknown>;
+  const rawType = (r.type ?? '').toString().toUpperCase();
   const type: WebpayRefundResult['type'] =
     rawType === 'REVERSED' ? 'REVERSED' : 'NULLIFIED';
   return {
     type,
-    authorizationCode: response?.authorization_code ?? undefined,
+    authorizationCode: (r.authorization_code as string | undefined) ?? undefined,
     authorizedAmount:
-      typeof response?.nullified_amount === 'number'
-        ? response.nullified_amount
+      typeof r.nullified_amount === 'number'
+        ? (r.nullified_amount as number)
         : requestedAmount,
-    balance: typeof response?.balance === 'number' ? response.balance : undefined,
+    balance: typeof r.balance === 'number' ? (r.balance as number) : undefined,
     raw: response,
   };
 }

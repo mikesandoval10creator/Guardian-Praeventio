@@ -185,7 +185,7 @@ export async function validateGooglePlaySubscription(
       packageName,
       token: purchaseToken,
     })) as unknown as { data: androidpublisher_v3.Schema$SubscriptionPurchaseV2 };
-  } catch (err: any) {
+  } catch (err) {
     return classifyGoogleApiError(err);
   }
 
@@ -286,14 +286,23 @@ export async function validateGooglePlaySubscription(
 // route handler can pick the right HTTP status and ops can grep on the
 // reason.
 // ───────────────────────────────────────────────────────────────────────────
-function classifyGoogleApiError(err: any): GooglePlayValidationFailure {
-  const status: number | undefined = err?.code ?? err?.response?.status;
+function classifyGoogleApiError(err: unknown): GooglePlayValidationFailure {
+  const e = (err ?? {}) as {
+    code?: number;
+    response?: {
+      status?: number;
+      data?: { error?: { errors?: Array<{ reason?: string }>; message?: string } };
+    };
+    errors?: Array<{ reason?: string }>;
+    message?: string;
+  };
+  const status: number | undefined = e.code ?? e.response?.status;
   const reasonStr: string =
-    err?.errors?.[0]?.reason ??
-    err?.response?.data?.error?.errors?.[0]?.reason ??
+    e.errors?.[0]?.reason ??
+    e.response?.data?.error?.errors?.[0]?.reason ??
     '';
   const message: string =
-    err?.message ?? err?.response?.data?.error?.message ?? 'unknown';
+    e.message ?? e.response?.data?.error?.message ?? 'unknown';
 
   if (status === 404) {
     return {
