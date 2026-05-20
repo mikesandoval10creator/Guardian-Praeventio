@@ -385,6 +385,35 @@ Estos items no se pueden destrabar con código — requieren acción del usuario
 
 > Decisión usuario: mergear pendientes primero, luego cerrar deuda crítica antes de seguir features.
 
+### 6.0. 🎯 Criterios de éxito Day-1 (D-KPI, integrado 2026-05-19)
+
+KPIs comerciales tomados del informe del usuario (taxonomía 255+). Estos definen "estamos listos para escalar":
+
+| Métrica | Target 2025 | Target 2026 |
+|---|---|---|
+| Clientes activos (tenants) | 500 | 2500 |
+| ARR | $500K USD | $5M USD |
+| Retention 12-mes | >85% | >90% |
+| NPS (Net Promoter Score) | >50 | >70 |
+| Trabajadores protegidos (usuarios finales) | 50.000 | 250.000 |
+| Accidentes prevenidos (estimado) | 500 | 2.500 |
+| Horas de capacitación dictadas | 100.000 | 500.000 |
+
+KPIs técnicos Day-1 (ver `STRYKER_BASELINE.md` + `docs/audits/AUDIT_EXHAUSTIVA_2026-05-19.md`):
+
+| Métrica técnica | Target |
+|---|---|
+| Uptime | 99.9% |
+| Response p95 | <200ms |
+| Error rate | <0.1% |
+| Test coverage | >80% |
+| Mutation score (global) | >75% |
+| Lighthouse (a11y / best-practices / performance) | >90 / >90 / >80 |
+| E2E ponderado real | >95% |
+| CI verde consecutivo | 7 días |
+
+**Reality check 2026-05-19:** la app actual cumple seguramente los técnicos (10029 tests passing, mutation orchestrator.ts 78.21%, KMS preflight + WebAuthn server-side). Los comerciales son metas, no estado actual — esperan validación con prospectos reales después del primer despliegue público.
+
 ### Sprint inmediato (esta semana) — reflejando verificación 2026-05-19
 
 > §3 (Codex), §4 (CI), §2.11 (tests fallidos) **ya están refutados/cerrados**. El plan se redirige a items realmente abiertos.
