@@ -569,5 +569,369 @@ export const INDUSTRY_IPER_BASE: Record<string, IPERBaseNode[]> = {
       controles: "Protocolo de actuación violencia escolar (Ley Aula Segura), botón pánico in situ, sala separación con visibilidad, contención emocional post-incidente, denuncia formal MINEDUC.",
       tags: ["educacion", "violencia", "iper"]
     }
+  ],
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Bloque 8.5 D-IND wave 2 — 10 industrias adicionales (16→26, +63%)
+  // ──────────────────────────────────────────────────────────────────────
+
+  'GP-MIN-NOM: Minería no metálica (salitre, litio, yodo)': [
+    {
+      title: "Inhalación de polvo nitrato/litio",
+      actividad: "Trituración y procesamiento mineral",
+      description: "Polvo respirable + sales higroscópicas",
+      riesgo: "Silicosis / dermatitis / irritación respiratoria",
+      consecuencia: "Enfermedad profesional progresiva",
+      probabilidad: 4,
+      severidad: 4,
+      controles: "Ventilación local extractora ≥0.5 m/s, EPP respirador P3 + lentes herméticos, monitoreo cuantitativo polvo trimestral (DS 594 art. 64), rotación tareas alta exposición.",
+      tags: ["mineria", "polvo", "iper"]
+    },
+    {
+      title: "Trabajo en altura geográfica >3000 msnm",
+      actividad: "Faenas en salares cordilleranos",
+      description: "Hipoxia + radiación UV intensa + viento helado",
+      riesgo: "Mal de altura crónico / lesiones agudas",
+      consecuencia: "Edema pulmonar/cerebral, muerte",
+      probabilidad: 3,
+      severidad: 4,
+      controles: "Aclimatación 48-72h obligatoria, examen pre-ocupacional altura geográfica (DS 28/2012), SPF50+, ropa térmica capas, O2 portátil disponible, evacuación helicóptero <90min.",
+      tags: ["mineria", "altura-geografica", "iper"]
+    },
+    {
+      title: "Manipulación de soluciones químicas concentradas",
+      actividad: "Extracción solar / refinación",
+      description: "Salmueras con concentraciones altas + reactivos pH extremos",
+      riesgo: "Quemadura química / inhalación tóxica",
+      consecuencia: "Lesiones cutáneas graves, daño respiratorio",
+      probabilidad: 2,
+      severidad: 4,
+      controles: "EPP químico nivel B, sistema cerrado bombeo, FDS por planta, ducha emergencia <15s, ventilación forzada áreas confinadas.",
+      tags: ["mineria", "quimico", "iper"]
+    }
+  ],
+
+  'GP-CONS-OBR: Obras civiles (caminos, puentes, túneles)': [
+    {
+      title: "Trabajo cerca de tráfico vehicular",
+      actividad: "Mantención caminos abiertos al tráfico",
+      description: "Vehículos a velocidad operacional pasando junto al obrero",
+      riesgo: "Atropellamiento por tránsito",
+      consecuencia: "Politraumatismo, muerte",
+      probabilidad: 3,
+      severidad: 5,
+      controles: "Señalización vial conforme manual MOP, supervisor de tránsito, barreras físicas + paletero, EPP alta visibilidad Clase 3, capacitación obrero vial.",
+      tags: ["obra-civil", "trafico", "iper"]
+    },
+    {
+      title: "Exposición a sílice en pavimentación",
+      actividad: "Aserrado / pulido de hormigón fraguado",
+      description: "Polvo respirable rico en cuarzo cristalino",
+      riesgo: "Silicosis acelerada",
+      consecuencia: "Enfermedad profesional irreversible Ley 16.744",
+      probabilidad: 3,
+      severidad: 5,
+      controles: "Aserrado húmedo siempre, EPP respirador P3 + careta, programa PLANESI MINSAL, evaluación cuantitativa cuarzo, exámenes Rx pulmonar bianuales.",
+      tags: ["obra-civil", "silice", "iper"]
+    },
+    {
+      title: "Operación de maquinaria pesada confinada",
+      actividad: "Excavación de túneles + retroexcavadoras subterráneo",
+      description: "Espacio reducido + gases de combustión",
+      riesgo: "Aplastamiento / intoxicación CO",
+      consecuencia: "Muerte, lesiones graves",
+      probabilidad: 2,
+      severidad: 5,
+      controles: "Distancia mínima maquinaria-personal 3m, alarma de retroceso, ventilación forzada extracción CO, monitor portátil O2/CO/CO2, plan rescate subterráneo.",
+      tags: ["obra-civil", "tunel", "iper"]
+    }
+  ],
+
+  'GP-MANU-TEXT: Textil y confección': [
+    {
+      title: "Cortes con máquinas industriales",
+      actividad: "Corte de tela con cortadora circular / banda",
+      description: "Cuchillas rotativas en movimiento + telas resbaladizas",
+      riesgo: "Corte profundo de dedos / manos",
+      consecuencia: "Amputación, lesión tendinosa",
+      probabilidad: 3,
+      severidad: 4,
+      controles: "Resguardo fijo cuchilla, foto-celdas paro emergencia, guante anti-corte malla acero, capacitación operario máquina cortadora, mantención predictiva.",
+      tags: ["textil", "cortes", "iper"]
+    },
+    {
+      title: "Exposición a tinturas y solventes",
+      actividad: "Teñido + acabado textil",
+      description: "Vapores formaldehído, anilinas, solventes",
+      riesgo: "Dermatitis / cáncer ocupacional",
+      consecuencia: "Enfermedades profesionales largo plazo",
+      probabilidad: 3,
+      severidad: 4,
+      controles: "Ventilación local extractora, EPP guantes nitrilo + respirador vapores orgánicos, monitoreo biológico anual, sustitución de químicos cancerígenos cuando posible.",
+      tags: ["textil", "quimico", "iper"]
+    },
+    {
+      title: "Trastornos musculoesqueléticos por costura",
+      actividad: "Confección manual + máquinas planas",
+      description: "Postura estática prolongada + movimientos repetitivos",
+      riesgo: "Síndrome túnel carpiano / cervicalgia",
+      consecuencia: "Enfermedad profesional Ley 16.744",
+      probabilidad: 4,
+      severidad: 3,
+      controles: "Silla ergonómica ajustable, mesa adecuada altura codo, pausas activas cada 50min, evaluación MAC/REBA semestral, rotación de tareas.",
+      tags: ["textil", "ergonomia", "iper"]
+    }
+  ],
+
+  'GP-MANU-METAL: Industria metalmecánica': [
+    {
+      title: "Soldadura: humos metálicos + radiación UV",
+      actividad: "Soldadura MIG/TIG/arco",
+      description: "Humos óxido metálicos + radiación intensa",
+      riesgo: "Fiebre fundidor / queratoconjuntivitis / cáncer",
+      consecuencia: "Enfermedad respiratoria, daño ocular permanente",
+      probabilidad: 4,
+      severidad: 3,
+      controles: "Cabina extracción humos, máscara soldar tono 11+ auto-oscurecimiento, EPP cuero, ventilación local 0.5 m/s, examen pre-ocupacional ocupado.",
+      tags: ["metal", "soldadura", "iper"]
+    },
+    {
+      title: "Atrapamiento en torno / fresa CNC",
+      actividad: "Mecanizado metales",
+      description: "Husillos rotativos + virutas a alta velocidad",
+      riesgo: "Atrapamiento / proyección viruta",
+      consecuencia: "Amputación, lesiones oculares",
+      probabilidad: 3,
+      severidad: 4,
+      controles: "Resguardo cierre máquina, sensor puerta vinculado paro emergencia, prohibición ropa suelta + cabello, lentes seguridad obligatorios, capacitación operador CNC.",
+      tags: ["metal", "atrapamiento", "iper"]
+    },
+    {
+      title: "Exposición a ruido (>85 dB)",
+      actividad: "Estampado / corte plasma / amolado",
+      description: "Niveles sonoros sostenidos >85 dB",
+      riesgo: "Hipoacusia neurosensorial",
+      consecuencia: "Enfermedad profesional Ley 16.744",
+      probabilidad: 4,
+      severidad: 3,
+      controles: "Aislamiento acústico equipos, EPP tapones SLC80 dual con orejeras, dosimetría anual, plan PREXOR vigente (DS 594 + GES MINSAL).",
+      tags: ["metal", "ruido", "iper"]
+    }
+  ],
+
+  'GP-MANU-MAD: Madera y muebles': [
+    {
+      title: "Polvo de madera (cancerígeno IARC 1)",
+      actividad: "Aserrado, lijado y pulido",
+      description: "Polvo fino respirable (especialmente roble, haya)",
+      riesgo: "Cáncer naso-sinusal",
+      consecuencia: "Enfermedad profesional Ley 16.744",
+      probabilidad: 3,
+      severidad: 5,
+      controles: "Ventilación local cada equipo, captación punto generación, EPP respirador P2, monitoreo cuantitativo polvo (DS 594 anexo IV), prohibición sopleteo aire comprimido.",
+      tags: ["madera", "cancer", "iper"]
+    },
+    {
+      title: "Atrapamiento en sierra / cepilladora",
+      actividad: "Aserrado + cepillado tablones",
+      description: "Hojas rotativas sin resguardo adecuado",
+      riesgo: "Amputación de dedos",
+      consecuencia: "Lesión permanente",
+      probabilidad: 3,
+      severidad: 5,
+      controles: "Resguardo automático tipo lampe, push-stick obligatorio, anti-retroceso (kickback) certificado, capacitación operario sierra circular.",
+      tags: ["madera", "atrapamiento", "iper"]
+    },
+    {
+      title: "Incendio por chispas + polvo combustible",
+      actividad: "Bodegas mueblería con polvo madera",
+      description: "Polvo + chispa = explosión polvo (Ley Boyle)",
+      riesgo: "Explosión polvo combustible",
+      consecuencia: "Quemaduras graves, muerte, pérdida total",
+      probabilidad: 2,
+      severidad: 5,
+      controles: "Limpieza diaria polvo, prohibición fumar/llama abierta, equipos clase Ex en bodegas, sistema supresión chispas, rociadores agua.",
+      tags: ["madera", "incendio", "iper"]
+    }
+  ],
+
+  'GP-AGR-FRU: Fruticultura y agroindustria': [
+    {
+      title: "Exposición a plaguicidas",
+      actividad: "Aplicación de fitosanitarios",
+      description: "Plaguicidas organofosforados / carbamatos",
+      riesgo: "Intoxicación aguda / crónica",
+      consecuencia: "Síndrome colinérgico, cáncer largo plazo",
+      probabilidad: 3,
+      severidad: 4,
+      controles: "Plan REPLA SAG vigente, EPP traje Tyvek + careta + guantes nitrilo, periodo reentrada respetado, monitoreo colinesterasa pre/post temporada, ducha lavaojos terreno.",
+      tags: ["agricultura", "plaguicida", "iper"]
+    },
+    {
+      title: "Caída desde escalera en cosecha",
+      actividad: "Recolección de frutos altura >1.8m",
+      description: "Escaleras tijera en suelo irregular",
+      riesgo: "Caída a distinto nivel",
+      consecuencia: "Fracturas, traumatismos",
+      probabilidad: 4,
+      severidad: 3,
+      controles: "Escalera triple certificada, base firme + 2 trabajadores en alturas, EPP arnés con anclaje en cosecha mecanizada, capacitación trabajo en altura agrícola.",
+      tags: ["agricultura", "altura", "iper"]
+    },
+    {
+      title: "Golpe de calor en faenas verano",
+      actividad: "Trabajo en huertos T>32°C",
+      description: "Exposición solar directa prolongada",
+      riesgo: "Hipertermia / deshidratación",
+      consecuencia: "Golpe de calor, daño orgánico, muerte",
+      probabilidad: 3,
+      severidad: 4,
+      controles: "Plan PREMAES MINSAL, rotación 50min trabajo + 10min sombra, hidratación 250ml cada 20min, gorro ala ancha + SPF50+, suspensión faena T>38°C calor humedad.",
+      tags: ["agricultura", "termico", "iper"]
+    }
+  ],
+
+  'GP-TIC-SOFT: Tecnología, software y telecomunicaciones': [
+    {
+      title: "Trastorno musculoesquelético oficina",
+      actividad: "Programación + soporte técnico",
+      description: "Postura estática prolongada + uso mouse/teclado",
+      riesgo: "Tendinitis / síndrome túnel carpiano",
+      consecuencia: "Enfermedad profesional Ley 16.744",
+      probabilidad: 4,
+      severidad: 2,
+      controles: "Estación trabajo ergonómica ISO 9241, monitor a altura ojos, silla ajustable, pausas activas cada 50min, evaluación postural anual (DS 594 art. 110 Bis).",
+      tags: ["tecnologia", "ergonomia", "iper"]
+    },
+    {
+      title: "Síndrome visual computacional",
+      actividad: "Trabajo prolongado en pantallas",
+      description: "Luz azul + fatiga acomodativa",
+      riesgo: "Astenopia / sequedad ocular / miopía progresiva",
+      consecuencia: "Disconfort + reducción productividad",
+      probabilidad: 4,
+      severidad: 2,
+      controles: "Regla 20-20-20 (cada 20min, 20s, 20 pies), filtro luz azul, iluminación ambiente 300-500 lux, examen oftalmológico anual.",
+      tags: ["tecnologia", "visual", "iper"]
+    },
+    {
+      title: "Estrés crónico y burnout (sector alta demanda)",
+      actividad: "Desarrollo software + DevOps on-call",
+      description: "Carga cognitiva alta + jornadas extendidas + on-call",
+      riesgo: "Síndrome burnout / depresión / cardiopatía",
+      consecuencia: "Enfermedad profesional Ley 16.744",
+      probabilidad: 4,
+      severidad: 3,
+      controles: "Protocolo CEAL-SM SUSESO obligatorio, política on-call con descanso compensatorio, control jornada Estatuto Trabajador, EAP (Employee Assistance Program).",
+      tags: ["tecnologia", "psicosocial", "iper"]
+    }
+  ],
+
+  'GP-FIN-BAN: Banca y servicios financieros': [
+    {
+      title: "Asalto + violencia armada",
+      actividad: "Atención cliente sucursales bancarias",
+      description: "Robo con intimidación / violencia",
+      riesgo: "Trauma psicológico / lesiones físicas",
+      consecuencia: "Estrés post-traumático crónico",
+      probabilidad: 2,
+      severidad: 4,
+      controles: "Vidrio antibala caja, alarma silenciosa botón pánico, capacitación protocolo asalto (NO resistir), debriefing psicológico post-incidente obligatorio, cámara CCTV.",
+      tags: ["banca", "violencia", "iper"]
+    },
+    {
+      title: "Estrés laboral cliente difícil",
+      actividad: "Cobranza + reclamos + atención presencial",
+      description: "Carga emocional + clientes agresivos",
+      riesgo: "Burnout / depresión",
+      consecuencia: "Enfermedad profesional Ley 16.744",
+      probabilidad: 4,
+      severidad: 2,
+      controles: "Protocolo CEAL-SM, rotación tareas alta exposición, capacitación atención cliente difícil, supervisor soporte inmediato, ratio máximo casos/día.",
+      tags: ["banca", "psicosocial", "iper"]
+    },
+    {
+      title: "Sobrecarga visual y postural cajeros",
+      actividad: "Operación caja prolongada",
+      description: "Postura sentada estática + pantalla + conteo billetes",
+      riesgo: "Cervicalgia / lumbalgia / fatiga visual",
+      consecuencia: "Disconfort + ausentismo",
+      probabilidad: 4,
+      severidad: 2,
+      controles: "Silla ergonómica con apoyo lumbar, pausas activas cada hora, monitor a altura ojos, iluminación 500 lux, contadora automática billetes.",
+      tags: ["banca", "ergonomia", "iper"]
+    }
+  ],
+
+  'GP-AERO-AVIA: Aviación civil y aeropuertos': [
+    {
+      title: "Atropello por aeronave en pista",
+      actividad: "Servicios rampa (handling)",
+      description: "Aeronaves con motores en marcha + ruido masking",
+      riesgo: "Aspiración por turbina / atropello",
+      consecuencia: "Muerte instantánea",
+      probabilidad: 1,
+      severidad: 5,
+      controles: "Distancia mínima 5m motor encendido (manual DGAC), vest alta visibilidad + protección auditiva 35dB+, comunicación VHF, walkway dedicado, capacitación rampa anual.",
+      tags: ["aviacion", "atropello", "iper"]
+    },
+    {
+      title: "Lesión por manipulación de carga aérea",
+      actividad: "Carga/descarga bodega aeronave",
+      description: "Sobrepeso bulto + posturas forzadas + tiempos justos",
+      riesgo: "Lumbalgia aguda / hernia",
+      consecuencia: "Incapacidad laboral",
+      probabilidad: 4,
+      severidad: 3,
+      controles: "Aplicación DS 63 (max 25kg manual), cinta transportadora, capacitación técnica, evaluación ergonómica (MAC), 2 personas para bultos >18kg.",
+      tags: ["aviacion", "ergonomia", "iper"]
+    },
+    {
+      title: "Exposición a ruido aeronáutico (>120 dB)",
+      actividad: "Operaciones cerca aeronaves jet",
+      description: "Nivel sonoro extremo cerca despegue",
+      riesgo: "Hipoacusia / barotrauma",
+      consecuencia: "Enfermedad profesional permanente",
+      probabilidad: 4,
+      severidad: 4,
+      controles: "Protección auditiva dual (tapones + orejeras SLC80) obligatoria, distancia segura motor, dosimetría temporal, programa PREXOR, exámenes audiometría semestral.",
+      tags: ["aviacion", "ruido", "iper"]
+    }
+  ],
+
+  'GP-RES-DOM: Servicios de residuos y reciclaje': [
+    {
+      title: "Exposición a residuos biopeligrosos",
+      actividad: "Recolección + clasificación residuos",
+      description: "Agujas, fluidos, materia orgánica descompuesta",
+      riesgo: "Infección VHB/VHC/VIH / leptospirosis",
+      consecuencia: "Enfermedades infecciosas graves",
+      probabilidad: 3,
+      severidad: 5,
+      controles: "EPP completo (traje + guantes corte+infección + careta), vacunación VHB + tétanos, contenedores rígidos corto-punzantes, protocolo post-exposición ≤2h.",
+      tags: ["residuos", "biologico", "iper"]
+    },
+    {
+      title: "Atrapamiento en compactador / triturador",
+      actividad: "Operación equipo procesamiento",
+      description: "Maquinaria pesada con partes móviles aplastantes",
+      riesgo: "Amputación / aplastamiento",
+      consecuencia: "Muerte, lesiones catastróficas",
+      probabilidad: 2,
+      severidad: 5,
+      controles: "Resguardo fijo + paro emergencia accesible, LOTO antes mantención, prohibición ingreso mientras opera, capacitación operario, sensor presencia.",
+      tags: ["residuos", "atrapamiento", "iper"]
+    },
+    {
+      title: "Exposición a gas metano + H2S vertedero",
+      actividad: "Operación de relleno sanitario",
+      description: "Descomposición anaeróbica genera gases tóxicos",
+      riesgo: "Asfixia / explosión",
+      consecuencia: "Muerte instantánea",
+      probabilidad: 1,
+      severidad: 5,
+      controles: "Sistema captación + venteo metano, monitor portátil 4-gases (O2/CO/H2S/LEL), espacio confinado procedimiento, EPP autónomo en zonas críticas.",
+      tags: ["residuos", "gases", "iper"]
+    }
   ]
 };
