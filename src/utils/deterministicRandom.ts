@@ -111,7 +111,7 @@ export function useRngForRandom(seed: number): () => void {
  */
 export function withSeed(seed: number, hooks?: { beforeEach: (fn: () => void) => void; afterEach: (fn: () => void) => void }): void {
   // Si vitest's globals están disponibles, los usamos directamente.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const g = globalThis as any;
   const beforeEach = hooks?.beforeEach ?? g.beforeEach;
   const afterEach = hooks?.afterEach ?? g.afterEach;

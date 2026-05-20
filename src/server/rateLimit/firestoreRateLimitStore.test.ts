@@ -95,7 +95,7 @@ function makeFakeDb() {
 }
 
 describe('FirestoreRateLimitStore', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let db: any;
   let store: FirestoreRateLimitStore;
 
@@ -248,7 +248,7 @@ describe('FirestoreRateLimitStore', () => {
       }),
     };
     const failingStore = new FirestoreRateLimitStore({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       db: failingDb as any,
     });
     failingStore.init({ windowMs: 60_000 });

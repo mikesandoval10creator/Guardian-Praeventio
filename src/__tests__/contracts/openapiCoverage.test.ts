@@ -30,7 +30,7 @@ function listOpenApiPaths(): string[] {
       continue;
     }
     if (inPaths) {
-      const m = line.match(/^  (\/[^\s:]+):\s*$/);
+      const m = line.match(/^ {2}(\/[^\s:]+):\s*$/);
       if (m) matches.push(m[1]);
     }
   }

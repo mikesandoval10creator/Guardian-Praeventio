@@ -67,8 +67,8 @@ export const useGeolocationTracking = () => {
 
       const buffer = selectedProject.trackCommute ? 1 : 0; // 1 hour buffer
 
-      let start = shiftStart - buffer;
-      let end = shiftEnd + buffer;
+      const start = shiftStart - buffer;
+      const end = shiftEnd + buffer;
 
       // Handle overnight shifts
       if (end < start) {

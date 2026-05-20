@@ -6,7 +6,7 @@
 
 export interface ThemeAdapterOptions { tenantId: string }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export function useThemeContextAdapter(_opts: ThemeAdapterOptions): void {
   // Intentionally empty.
 }

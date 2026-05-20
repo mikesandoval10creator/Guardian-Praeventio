@@ -246,7 +246,7 @@ const slmWorkerApi: SlmWorkerApi = {
       // IO names the model expects (Phi-3 ONNX exposes `input_ids`,
       // `attention_mask`, `position_ids`, plus per-layer KV caches).
       try {
-        // eslint-disable-next-line no-console
+         
         console.info('[slmWorker] session ready', {
           model: model.id,
           backend: activeBackend,
@@ -260,7 +260,7 @@ const slmWorkerApi: SlmWorkerApi = {
       // Don't rethrow — the worker contract is "init never blocks
       // a future generate()". The stub fallback in `generate()` keeps
       // the call chain alive while we surface the error to stderr.
-      // eslint-disable-next-line no-console
+       
       console.error('[slmWorker] InferenceSession.create failed', err);
       activeSession = null;
       activeBackend = null;
@@ -305,7 +305,7 @@ const slmWorkerApi: SlmWorkerApi = {
         );
         activeTokenizer = tokenizer;
         try {
-          // eslint-disable-next-line no-console
+           
           console.info('[slmWorker] real tokenizer loaded', {
             model: model.id,
             tokenizerUrl: model.tokenizerUrl,
@@ -314,7 +314,7 @@ const slmWorkerApi: SlmWorkerApi = {
           // Logging must never break init.
         }
       } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.error(
           '[slmWorker] AutoTokenizer.from_pretrained failed — falling back to naïve tokenizer',
           err,
@@ -391,7 +391,7 @@ const slmWorkerApi: SlmWorkerApi = {
         const data = BigInt64Array.from(currentIds.map((n) => BigInt(n)));
         const tensor = new ort.Tensor('int64', data, [1, currentIds.length]);
 
-        // eslint-disable-next-line no-await-in-loop
+         
         const output = await session.run({ [inputName]: tensor });
         const logits = output[outputName];
 
@@ -435,7 +435,7 @@ const slmWorkerApi: SlmWorkerApi = {
           });
           if (typeof text !== 'string') text = String(text ?? '');
         } catch (decodeErr) {
-          // eslint-disable-next-line no-console
+           
           console.error(
             '[slmWorker] real tokenizer decode failed — falling back to naïve',
             decodeErr,
@@ -459,7 +459,7 @@ const slmWorkerApi: SlmWorkerApi = {
       };
     } catch (err) {
       // OOM, shape mismatch, missing IO, etc. Don't break the contract.
-      // eslint-disable-next-line no-console
+       
       console.error('[slmWorker] generate() falling back to stub', err);
       // TODO T-1.3.2: improve error recovery (typed failure reason).
       return buildStubResponse(activeModel, query, start);

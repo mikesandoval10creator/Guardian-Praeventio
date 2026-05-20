@@ -170,7 +170,7 @@ export class FirestoreRateLimitStore {
     } catch (err) {
       // Fail-soft: en error Firestore, dejar pasar el request (1 hit ficticio).
       // Mejor que tumbar la app si la DB se cae temporalmente.
-      // eslint-disable-next-line no-console
+       
       console.warn(
         '[FirestoreRateLimitStore.increment] failed, allowing request:',
         err,
@@ -199,7 +199,7 @@ export class FirestoreRateLimitStore {
         });
       });
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.warn('[FirestoreRateLimitStore.decrement] failed:', err);
     }
   }
@@ -211,7 +211,7 @@ export class FirestoreRateLimitStore {
     try {
       await this.ref(key).delete();
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.warn('[FirestoreRateLimitStore.resetKey] failed:', err);
     }
   }
@@ -226,7 +226,7 @@ export class FirestoreRateLimitStore {
       for (const doc of snap.docs) batch.delete(doc.ref);
       await batch.commit();
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.warn('[FirestoreRateLimitStore.resetAll] failed:', err);
     }
   }

@@ -7,7 +7,7 @@
 
 export interface FirebaseAdapterOptions { tenantId: string }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export function useFirebaseContextAdapter(_opts: FirebaseAdapterOptions): void {
   // Intentionally empty.
 }

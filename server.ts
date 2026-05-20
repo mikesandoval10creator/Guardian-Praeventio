@@ -660,7 +660,7 @@ app.use("/api/admin/jobs", adminJobsRouter);
 function makeRateLimitStore(prefix: string) {
   if (admin.apps.length === 0) return undefined;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return makeFirestoreRateLimitStore(admin.firestore(), { prefix }) as any;
   } catch {
     return undefined;
@@ -763,18 +763,18 @@ let sessionStore: session.Store | undefined;
 try {
   if (admin.apps.length > 0) {
     sessionStore = makeFirestoreSessionStore(admin.firestore());
-    // eslint-disable-next-line no-console
+     
     console.log('✅ Session store: Firestore (multi-instance safe)');
   } else if (process.env.NODE_ENV === 'production') {
-    // eslint-disable-next-line no-console
+     
     console.error('FATAL: Firebase Admin not initialized — cannot use MemoryStore in production.');
     process.exit(1);
   } else {
-    // eslint-disable-next-line no-console
+     
     console.warn('⚠ Session store: MemoryStore (dev only — NOT safe for multi-instance prod)');
   }
 } catch (err) {
-  // eslint-disable-next-line no-console
+   
   console.warn('Session store init failed, falling back to MemoryStore:', err);
 }
 
@@ -1331,7 +1331,7 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
   } catch (trackerError) {
     // Observability layer faulted — log via console (NOT logger, to
     // avoid recursion through observability) and keep going.
-    // eslint-disable-next-line no-console
+     
     console.warn('[observability] error tracker captureException failed:', trackerError);
   }
   try {

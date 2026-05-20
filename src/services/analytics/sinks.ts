@@ -45,7 +45,7 @@ export const consoleSink: Sink = {
   name: 'console',
   async track(event: Event<EventName>): Promise<void> {
     try {
-      // eslint-disable-next-line no-console
+       
       console.info('[analytics]', event.name, event.properties);
     } catch {
       /* never let logging faults propagate */

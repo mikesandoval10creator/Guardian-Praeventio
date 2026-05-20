@@ -45,7 +45,7 @@ describe('logEntry', () => {
   });
 
   it('rechaza entry corta', () => {
-    let s = startShift({
+    const s = startShift({
       id: 's1',
       projectId: 'p1',
       kind: 'morning',
@@ -165,7 +165,7 @@ describe('acknowledgeHandover', () => {
   });
 
   it('rechaza ack antes de end', () => {
-    let s = startShift({
+    const s = startShift({
       id: 's1',
       projectId: 'p1',
       kind: 'morning',

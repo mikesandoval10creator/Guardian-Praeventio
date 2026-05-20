@@ -7,7 +7,7 @@
 
 export interface NotificationAdapterOptions { tenantId: string }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export function useNotificationContextAdapter(_opts: NotificationAdapterOptions): void {
   // Intentionally empty — documented hook above.
 }

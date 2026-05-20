@@ -17,7 +17,7 @@ export interface SensorAdapterOptions {
   tenantId: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export function useSensorContextAdapter(_opts: SensorAdapterOptions): void {
   // intentionally empty — see file header
 }

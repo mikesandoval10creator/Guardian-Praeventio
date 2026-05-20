@@ -9,7 +9,7 @@
 
 export interface UniversalKnowledgeAdapterOptions { tenantId: string }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export function useUniversalKnowledgeContextAdapter(_opts: UniversalKnowledgeAdapterOptions): void {
   // Intentionally empty.
 }

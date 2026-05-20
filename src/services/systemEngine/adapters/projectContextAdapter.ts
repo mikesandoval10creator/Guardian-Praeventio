@@ -6,7 +6,7 @@
 
 export interface ProjectAdapterOptions { tenantId: string }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export function useProjectContextAdapter(_opts: ProjectAdapterOptions): void {
   // Intentionally empty.
 }

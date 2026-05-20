@@ -9,7 +9,7 @@ class ResizeObserverMock {
   unobserve() {}
   disconnect() {}
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 globalThis.ResizeObserver = ResizeObserverMock;
 
 function node(over: Partial<RiskMatrixNode> = {}): RiskMatrixNode {

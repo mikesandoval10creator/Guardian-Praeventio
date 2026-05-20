@@ -116,7 +116,7 @@ function base64UrlEncode(s: string): string {
     }
     return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return (Buffer as any).from(utf8Bytes).toString('base64url');
 }
 
@@ -129,7 +129,7 @@ function base64UrlDecode(s: string): string {
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return new TextDecoder().decode(bytes);
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return (Buffer as any).from(b64, 'base64').toString('utf-8');
 }
 

@@ -21,7 +21,7 @@
 // records. Erasure of those rows would break the SUSESO oversight contract
 // and is therefore explicitly opt-in (default: keep legal records).
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 
 // ---------------------------------------------------------------------------
 // Types

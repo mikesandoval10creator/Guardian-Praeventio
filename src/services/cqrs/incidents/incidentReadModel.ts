@@ -68,7 +68,7 @@ export class IncidentReadModel {
       this.lastAppliedOccurredAtIso = event.metadata.occurredAt;
       this.eventsApplied += 1;
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         `[IncidentReadModel] applyEvent skip ${event.eventId} (${event.eventType}):`,
         err instanceof Error ? err.message : String(err),

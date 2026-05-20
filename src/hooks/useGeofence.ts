@@ -206,7 +206,7 @@ export function useGeofence(
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [zonesIdHash]);
 
   return { currentLocation, activeZones };

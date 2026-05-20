@@ -626,7 +626,7 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
           // Usar `any` aquí (en lugar de `unknown`) porque la prop
           // espera la forma con TODOS los métodos del ForceGraphMethods
           // y `unknown` es demasiado restrictivo para asignar.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           ref={graph3DRef as any}
           graphData={graphData}
           nodeLabel="title"

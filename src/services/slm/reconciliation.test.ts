@@ -196,7 +196,7 @@ describe('SLM reconciliation (reconciliation.ts)', () => {
   it('handles a non-Error throw value gracefully (string thrown)', async () => {
     await enqueueSession(SAMPLE_QUERY, SAMPLE_RESPONSE);
     const writeFn: ZettelkastenWriteFn = vi.fn(async () => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
+       
       throw 'plain-string-failure';
     });
 

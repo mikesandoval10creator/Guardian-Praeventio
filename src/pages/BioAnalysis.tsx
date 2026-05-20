@@ -205,7 +205,7 @@ export function BioAnalysis() {
       let currentFatigue = 0;
       let currentPosture = 100;
       let currentAttention = 100;
-      let newAlerts: string[] = [];
+      const newAlerts: string[] = [];
 
       const startTimeMs = performance.now();
       

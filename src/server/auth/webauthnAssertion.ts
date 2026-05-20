@@ -174,7 +174,7 @@ export async function verifyWebAuthnAssertion(
           authenticatorData: input.authenticatorData,
           signature: input.signature,
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         clientExtensionResults: input.clientExtensionResults as any,
         type: 'public-key',
       },

@@ -291,7 +291,7 @@ export function Calendar() {
       });
     }
     return obligations;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [totalWorkers, currentDate, selectedProject, t]);
 
   const allEvents = [...(events || []), ...legalObligations];

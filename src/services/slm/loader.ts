@@ -110,7 +110,7 @@ export async function loadModel(
     // We allocate the final buffer at the end (single copy) rather than
     // growing a buffer per chunk — simpler and bounded by the server's
     // declared content-length anyway.
-    // eslint-disable-next-line no-constant-condition
+     
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;

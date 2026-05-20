@@ -33,7 +33,7 @@ export function ActiveDrivingOverlay({ onExit }: ActiveDrivingOverlayProps) {
   const [isListening, setIsListening] = useState(false);
   const [dictatedText, setDictatedText] = useState('');
   const [reportSaved, setReportSaved] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const recognitionRef = useRef<any>(null);
   const dictatedTextRef = useRef('');
 
@@ -54,12 +54,12 @@ export function ActiveDrivingOverlay({ onExit }: ActiveDrivingOverlayProps) {
   };
 
   const handleDictate = () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     type SpeechRecognitionCtor = new () => any;
     const SpeechRecognition: SpeechRecognitionCtor | undefined =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (window as any).SpeechRecognition ||
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
     if (isListening) {
@@ -74,9 +74,9 @@ export function ActiveDrivingOverlay({ onExit }: ActiveDrivingOverlayProps) {
     recognition.lang = 'es-CL';
     recognition.continuous = true;
     recognition.interimResults = false;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     recognition.onresult = (e: any) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join(' ');
       dictatedTextRef.current = transcript;
       setDictatedText(transcript);

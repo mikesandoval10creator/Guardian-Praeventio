@@ -3431,3 +3431,47 @@ El plan exhaustivo 2026-05-17 del usuario es **~3x más completo** que mi audito
 2. Verificar 30+ archivos marketplace/.md raíz para sweep H5 completo
 3. Atacar D2 (lint real) + D3 (backend JS prod) + D9 (WebAuthn credentialId audit)
 4. Considerar abrir local para usar skills (`superpowers`, `ui-ux-pro-max`) en items que las requieran
+
+---
+
+## §32 Catálogo industrias SII — D-IND auditado 2026-05-20
+
+> Hallazgo verificado HOY contra código real. El informe taxonomía 255+ del usuario promete "catálogo 500+ industrias con códigos SII completos". Verificación contra `main`:
+
+| Archivo | Industrias reales | Promesa | Gap |
+|---|---|---|---|
+| `src/data/industryIPER.ts` | **6** (GP-AGR-CULT, GP-COM-MEN, GP-CONS-EDI, GP-MANU-ALI, GP-MIN-MET, GP-TRANS-TER) | 500+ | -99% |
+| `src/services/industryRules/industryRuleEngine.ts` | **7 prefijos** sectoriales (GP-AGR, GP-CONS, GP-ELEC, GP-MANU, GP-MIN, GP-SAL, GP-TRANS) | 500+ | -99% |
+| `src/services/pricing/eppIndustryCatalog.ts` | **0** industrias (es catálogo de EPP por kind, no por industria) | N/A | — |
+
+**Estructura `IPERBaseNode`** verificada:
+```typescript
+interface IPERBaseNode {
+  title: string;
+  actividad: string;
+  description: string;
+  riesgo: string;
+  consecuencia: string;
+  probabilidad: number;
+  severidad: number;
+  controles: string;
+  tags: string[];
+}
+```
+
+**Falta:**
+- ~494 industrias adicionales con su `IPERBaseNode[]` por código SII
+- Códigos SII oficiales (CIIU.CL revisado 2007 = ~500 actividades)
+- Mapeo bidireccional `código SII → IPERBaseNode[]`
+- Mapeo `código SII → EPP típico` (extender `eppIndustryCatalog.ts`)
+- Mapeo `código SII → MINSAL protocolos aplicables` (extender `industryRuleEngine.ts`)
+
+**Esfuerzo estimado:** L 2-3 semanas-dev (data engineering + research SII):
+1. Descargar catálogo CIIU.CL desde SII (existe XLS público)
+2. Generar script de extracción → JSON intermediate
+3. Auto-poblar templates IPER mínimo por sector (riesgos típicos del NIOSH+OSHA+ACHS)
+4. Validar manualmente top-50 industrias con prevencionistas
+5. Tests E2E onboarding wizard con 10 industrias aleatorias
+
+**Acción TODO:** agregar item D-IND-EXP al §16 con esfuerzo L.
+

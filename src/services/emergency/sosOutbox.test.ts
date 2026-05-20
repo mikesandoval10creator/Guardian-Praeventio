@@ -98,7 +98,7 @@ describe('SosOutbox', () => {
   it('flush con send que throws lo trata como fallo (no rompe la cola)', async () => {
     const storage = new InMemorySosStorage();
     const send = vi.fn().mockRejectedValue(new Error('boom'));
-    let now = 0;
+    const now = 0;
     const outbox = new SosOutbox({ storage, send, now: () => now });
     await outbox.enqueue(makeEvent());
     const result = await outbox.flush();

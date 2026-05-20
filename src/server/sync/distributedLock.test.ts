@@ -79,7 +79,7 @@ function makeFakeDb() {
 
   return {
     // The SUT types `db` as firebase-admin Firestore; cast at the seam.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     db: { collection, runTransaction } as any,
     store,
     setSerialize: (v: boolean) => {

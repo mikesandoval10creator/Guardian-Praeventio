@@ -47,7 +47,7 @@ export function OfflineSyncManager() {
               // diverging critical field to the human supervisor via the
               // ConflictResolutionDrawer; auto-resolve non-critical fields
               // via per-field LWW and write an audit row for each.
-              let resolvedUpdate: Record<string, unknown> = { ...updateData };
+              const resolvedUpdate: Record<string, unknown> = { ...updateData };
               let manualPending = false;
               if (originalUpdatedAt) {
                 const { getDoc } = await import('firebase/firestore');

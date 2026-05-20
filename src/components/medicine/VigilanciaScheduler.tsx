@@ -85,7 +85,7 @@ export function VigilanciaScheduler() {
   };
 
   const filtered = useMemo(() => {
-    let list = filter === 'Todos' ? DEMO_EXAMS : DEMO_EXAMS.filter(e => e.program === filter);
+    const list = filter === 'Todos' ? DEMO_EXAMS : DEMO_EXAMS.filter(e => e.program === filter);
     return [...list].sort((a, b) => {
       if (sortBy === 'dueDate') return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
       const order = { overdue: 0, warning: 1, pending: 2, ok: 3 };

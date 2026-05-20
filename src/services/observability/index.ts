@@ -77,7 +77,7 @@ export function getErrorTracker(): ErrorTrackingAdapter {
   }
 
   if (!chosen.isAvailable && chosen.name !== 'noop') {
-    // eslint-disable-next-line no-console
+     
     console.warn(
       `[observability] ERROR_TRACKER='${chosen.name}' is unavailable ` +
         '(missing DSN / project config). Falling back to noop. Errors will ' +
@@ -127,7 +127,7 @@ export function getMetrics(): MetricsAdapter {
   }
 
   if (!chosen.isAvailable && chosen.name !== 'noop') {
-    // eslint-disable-next-line no-console
+     
     console.warn(
       `[observability] METRICS_ADAPTER='${chosen.name}' is unavailable. ` +
         'Falling back to noop (logger.debug). See OBSERVABILITY.md.',

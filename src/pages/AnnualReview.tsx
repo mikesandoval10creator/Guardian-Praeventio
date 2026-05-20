@@ -86,7 +86,7 @@ interface NewEvidenceDraft {
 // generic-overload mismatch while keeping the callsites readable.
 function metricLabel(
   metric: ObjectiveMetric,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   t: any,
 ): string {
   switch (metric) {

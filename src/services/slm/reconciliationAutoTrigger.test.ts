@@ -313,14 +313,14 @@ describe('reconciliationAutoTrigger — installReconciliationAutoTrigger', () =>
   it('rejects construction without projectId or runner', () => {
     expect(() =>
       installReconciliationAutoTrigger(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         { projectId: '', runner: vi.fn() as any },
         new EventTarget(),
       ),
     ).toThrow(/projectId/);
     expect(() =>
       installReconciliationAutoTrigger(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         { projectId: 'p', runner: undefined as any },
         new EventTarget(),
       ),

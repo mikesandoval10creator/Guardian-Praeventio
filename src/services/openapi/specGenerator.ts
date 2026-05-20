@@ -57,7 +57,7 @@ function zodToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
   // z.toJSONSchema returns a `$schema`-tagged object. Strip the meta key
   // so it can be embedded in OpenAPI components without polluting the
   // doc with redundant `$schema` fields.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const raw = (z as any).toJSONSchema(schema) as Record<string, unknown>;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { $schema, ...rest } = raw;
@@ -218,7 +218,7 @@ function readPackageVersion(): string {
   try {
     // Lazy + best-effort. If anything fails we fall back to the package
     // version we know at code-write time (1.0.0 in package.json).
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+     
     return process.env.npm_package_version || '1.0.0';
   } catch {
     return '1.0.0';

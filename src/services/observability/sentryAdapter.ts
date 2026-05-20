@@ -143,7 +143,7 @@ class SentryAdapter implements ErrorTrackingAdapter {
   init(options: ErrorTrackingInitOptions): void {
     const dsn = options.dsn ?? process.env.SENTRY_DSN ?? '';
     if (!dsn) {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         '[observability] sentryAdapter.init called without a DSN. Sentry will NOT be initialized; ' +
           'errors will continue to flow through logger.error(). See OBSERVABILITY.md §1.',
@@ -189,7 +189,7 @@ class SentryAdapter implements ErrorTrackingAdapter {
       });
       this.initialized = true;
     } catch (error) {
-      // eslint-disable-next-line no-console
+       
       console.warn('[observability] Sentry.init failed:', error);
     }
   }
@@ -203,7 +203,7 @@ class SentryAdapter implements ErrorTrackingAdapter {
       });
       return typeof id === 'string' ? id : '';
     } catch (sdkError) {
-      // eslint-disable-next-line no-console
+       
       console.warn('[observability] Sentry.captureException failed:', sdkError);
       return '';
     }
@@ -223,7 +223,7 @@ class SentryAdapter implements ErrorTrackingAdapter {
       });
       return typeof id === 'string' ? id : '';
     } catch (sdkError) {
-      // eslint-disable-next-line no-console
+       
       console.warn('[observability] Sentry.captureMessage failed:', sdkError);
       return '';
     }

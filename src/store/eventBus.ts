@@ -135,7 +135,7 @@ export function emit<E extends GuardianEvent>(event: E): void {
     try {
       fn(event);
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error('[eventBus] subscriber threw', event.type, err);
     }
   }
@@ -143,7 +143,7 @@ export function emit<E extends GuardianEvent>(event: E): void {
     try {
       fn(event);
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error('[eventBus] wildcard subscriber threw', event.type, err);
     }
   }

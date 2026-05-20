@@ -211,7 +211,7 @@ export function getKmsAdapter(): KmsAdapter {
     default:
       // Unknown values fall back to in-memory-dev (dev safety) but log so
       // the operator notices the misconfiguration.
-      // eslint-disable-next-line no-console
+       
       console.warn(`[kmsAdapter] Unknown KMS_ADAPTER='${choice}', falling back to in-memory-dev.`);
       return inMemoryKmsAdapter;
   }

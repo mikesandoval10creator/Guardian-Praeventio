@@ -1160,7 +1160,7 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
                   status: 'paid' as const,
                   paidAt: new Date().toISOString(),
                 };
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                 
                 const issueResult = await tryAutoIssueDte(invoiceForDte as any);
                 logger.info('dte_autoissue_result', {
                   source: 'mercadopago-ipn',
@@ -1444,7 +1444,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
                 status: 'paid' as const,
                 paidAt: new Date().toISOString(),
               };
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+               
               const result = await tryAutoIssueDte(invoiceForDte as any);
               logger.info('dte_autoissue_result', {
                 source: 'webpay-return',

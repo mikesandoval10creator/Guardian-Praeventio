@@ -129,7 +129,7 @@ router.post(
       );
       await adapter.save({
         ...artifact,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         ...({ linkageKeys } as any),
       });
       return res.status(201).json({ artifact });

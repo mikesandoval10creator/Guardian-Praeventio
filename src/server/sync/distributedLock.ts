@@ -142,7 +142,7 @@ function captureError(err: unknown, op: string, tenantId: string, resourceKey: s
   try {
     getErrorTracker().captureException(
       err instanceof Error ? err : new Error(String(err)),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       { trigger: 'distributedLock', tags: { op, tenantId, resourceKey } } as any,
     );
   } catch {

@@ -8,7 +8,7 @@
 
 export interface AppModeAdapterOptions { tenantId: string }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export function useAppModeContextAdapter(_opts: AppModeAdapterOptions): void {
   // Intentionally empty.
 }

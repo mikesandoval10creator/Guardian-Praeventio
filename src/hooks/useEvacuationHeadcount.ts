@@ -159,7 +159,7 @@ export function subscribeToDrill(
 
   let metadata: Omit<EvacuationDrill, 'scans'> | null = null;
   let scans: EvacuationScan[] = [];
-  let initialized = { meta: false, scans: false };
+  const initialized = { meta: false, scans: false };
 
   const emit = () => {
     if (!metadata) {

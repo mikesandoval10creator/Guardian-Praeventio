@@ -320,7 +320,7 @@ describe('isSentrySetupError heuristic (Run #2 #1/#2/#3 — exercised via withSe
     // String thrown by withScope mock. `'foo' instanceof Error === false`,
     // so isSentrySetupError must return false → outer catch rethrows.
     (Sentry.withScope as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw 'string error not Error instance';
     });
     await expect(
@@ -330,7 +330,7 @@ describe('isSentrySetupError heuristic (Run #2 #1/#2/#3 — exercised via withSe
 
   it('non-Error throwable (null) → heuristic returns false → original value rethrows', async () => {
     (Sentry.withScope as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw null;
     });
     // `null instanceof Error === false` → guard returns false → rethrow.

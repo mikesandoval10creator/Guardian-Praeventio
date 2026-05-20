@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 // @ts-expect-error: legacy untyped CJS subpath — fake-indexeddb doesn't expose types via package.json exports for /lib subpaths
 import FDBFactory from 'fake-indexeddb/lib/FDBFactory';
 

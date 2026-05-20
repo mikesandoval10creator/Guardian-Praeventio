@@ -224,7 +224,7 @@ export function LanguageProvider({
         await loadLocale(language);
       } catch (err) {
         // Swallow — fallback chain will still serve the right text.
-        // eslint-disable-next-line no-console
+         
         console.warn('[LanguageProvider] loadLocale failed:', err);
       }
       if (cancelled) return;
@@ -252,7 +252,7 @@ export function LanguageProvider({
         applyHtmlDir(lang);
       } catch (err) {
         // i18next can fail to load a locale chunk — log but don't throw.
-        // eslint-disable-next-line no-console
+         
         console.warn('[LanguageProvider] i18n.changeLanguage failed:', err);
       }
       if (onLanguagePersist) {
@@ -261,7 +261,7 @@ export function LanguageProvider({
         } catch (err) {
           // Firestore write failure must not break the UI; localStorage
           // already has the latest value so the next boot will be correct.
-          // eslint-disable-next-line no-console
+           
           console.warn('[LanguageProvider] onLanguagePersist failed:', err);
         }
       }
