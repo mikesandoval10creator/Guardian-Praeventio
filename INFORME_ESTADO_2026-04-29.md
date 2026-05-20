@@ -271,7 +271,7 @@ Cada cálculo:
 | # | Item | Tu acción | SLA externa |
 |---|------|-----------|-------------|
 | 1 | **Verificación dominio praeventio.net** (Search Console) | 1 día tu trabajo | inmediato Google |
-| 2 | **Mailboxes**: contacto@/privacidad@/security@/dev@ | 1 día tu trabajo | inmediato |
+| 2 | **Mailbox `contacto@praeventio.net`** (único correo empresa per directiva 2026-05-17/19; enrutamiento interno para privacy/security/dev sobre el mismo buzón) | 1 día tu trabajo | inmediato |
 | 3 | **/privacy + /terms hosted pages** | 1-2 días redacción + deploy | inmediato |
 | 4 | **OAuth Consent Screen** submit en Google Cloud Console | después de #1-#3 | **5-15 días Google review** |
 | 5 | **Marketplace listing** submit | después de #4 | **5-15 días Google review** |

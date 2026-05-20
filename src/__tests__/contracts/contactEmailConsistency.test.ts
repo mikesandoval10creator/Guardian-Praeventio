@@ -25,6 +25,12 @@ const FILES_TO_CHECK = [
   'MARKETPLACE_SUBMISSION.md',
   'src/services/legal/termsContent.ts',
   'public/.well-known/security.txt',
+  // Directiva usuario 2026-05-19 reforzada: "contacto@ para TODO" —
+  // el PGP key file también debe enlazar al canonical, no a security@.
+  'public/.well-known/pgp-key.asc',
+  // Documento operativo del DPO Ley 19.628 — punto crítico de contacto
+  // para data subject requests, debe usar el canonical también.
+  'docs/compliance/LEY_19628.md',
 ];
 
 const PROHIBITED_EMAILS = [
