@@ -147,7 +147,7 @@ vi.mock('../../server/middleware/idempotencyKey.js', () => ({
   idempotencyKey: () => (_req: Request, _res: Response, next: NextFunction) => next(),
 }));
 
-const auditServerEventMock = vi.fn(async () => true);
+const auditServerEventMock = vi.fn(async (..._args: unknown[]) => true);
 vi.mock('../../server/middleware/auditLog.js', () => ({
   auditServerEvent: auditServerEventMock,
 }));

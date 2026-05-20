@@ -195,7 +195,7 @@ export function FirstAidCards() {
                   <div className="p-6 space-y-6">
                     <ol className="space-y-4">
                       {guide.steps.map((step, index) => (
-                        <li key={index} className="flex gap-4">
+                        <li key={`${guide.id}-step-${index}`} className="flex gap-4">
                           <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${guide.bgColor} ${guide.color}`}>
                             {index + 1}
                           </span>

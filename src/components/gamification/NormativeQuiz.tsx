@@ -270,7 +270,7 @@ export function NormativeQuiz({ onComplete, onClose, userLevel = 'beginner' }: N
 
                   return (
                     <button
-                      key={index}
+                      key={`q${currentQuestionIndex}-opt-${index}`}
                       onClick={() => handleOptionSelect(index)}
                       disabled={isAnswered}
                       className={`w-full text-left p-4 rounded-xl border transition-all flex items-center justify-between ${buttonClass}`}

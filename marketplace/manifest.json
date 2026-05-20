@@ -70,12 +70,22 @@
     "_form_section_promoBannerUrl": "Branding → Promo banner (220×140). See assets-spec.md."
   },
 
+  "pricing": {
+    "model": "external",
+    "externalUrl": "https://praeventio.net/pricing",
+    "currency": "USD",
+    "freeTier": true,
+    "_form_section_model": "Pricing → Pricing model. Decision Bloque 8.2 (C4) 2026-05-20: Google Marketplace SDK no soporta nuestro modelo 10-tier híbrido (Free + Comité + Departamento + Enterprise + verticales). Usamos 'external' (External pricing) y linkeamos al pricing canónico en praeventio.net/pricing — el cliente firma+entrega su Webpay/MercadoPago en nuestra app, no en Google Marketplace.",
+    "_form_section_externalUrl": "URL pública de pricing. Debe responder 200 OK HTTPS, contener tabla comparativa con 10 tiers + sección 'Empezar gratis' que linkee al onboarding.",
+    "_form_section_currency": "USD usado en marketing internacional; Webpay/MercadoPago en runtime convierten a CLP/peso local automáticamente.",
+    "_form_section_freeTier": "Tier Free existe (CPHS mínimo Ley 16.744). Requerido para que el listing aparezca en 'Free apps' filter del marketplace."
+  },
+
   "_unfilled_form_fields_to_complete_in_console": [
     "App Configuration → Pub/Sub topic for events (optional; needed only if we subscribe to install/uninstall webhooks). Decide at submit time.",
     "App Integration → Drive integration manifest (optional; only if we register file extensions). Skip for v1.",
     "App Integration → Gmail integration (Add-on manifest; not applicable v1).",
     "App Integration → Calendar add-on manifest (we hit Calendar API server-side, not as an add-on; skip).",
-    "Pricing → Pricing model. The form does NOT yet support our 10-tier hybrid model; pick 'External pricing' and link to https://praeventio.net/pricing.",
     "Distribution → Featured request (after first 100 installs)."
   ]
 }

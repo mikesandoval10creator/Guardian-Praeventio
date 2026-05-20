@@ -102,8 +102,8 @@ export function CompensatoryExercisesModal({ isOpen, onClose, metrics }: Compens
                 <div className="space-y-4">
                   <h4 className="text-sm font-bold text-white uppercase tracking-widest">Ejercicios Recomendados</h4>
                   {routine.exercises?.map((exercise: any, index: number) => (
-                    <div 
-                      key={index}
+                    <div
+                      key={exercise?.name ?? `exercise-${index}`}
                       className={`border rounded-2xl p-4 transition-all ${
                         activeExercise === index 
                           ? 'bg-zinc-800 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' 

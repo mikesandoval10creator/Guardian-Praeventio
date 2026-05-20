@@ -172,7 +172,7 @@ Para Firebase Admin local: descargar `firebase-applet-config.json` desde la cons
 | `npm run build` | Build de producción del frontend |
 | `npm run preview` | Servir el build localmente para verificar |
 | `npm run typecheck` | Verificación de tipos TypeScript |
-| `npm run lint` | Alias de typecheck (ESLint pendiente) |
+| `npm run lint` | ESLint sobre `firestore.rules` (cobertura `src/**/*.{ts,tsx}` pendiente — D2 Bloque 5.6) |
 | `npm run start` | Servidor en modo producción |
 | `npm run cap:android` | Sincronizar y abrir Android Studio |
 | `npm run cap:ios` | Sincronizar y abrir Xcode |
