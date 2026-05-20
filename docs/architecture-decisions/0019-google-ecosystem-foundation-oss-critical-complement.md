@@ -51,7 +51,7 @@ Los OSS aprobados como **complemento crítico** al ecosistema Google son:
 | OSS | Licencia | Reemplaza / complementa | Justificación |
 |---|---|---|---|
 | Gemma 2 2B (via `transformers.js` + ONNX Runtime Web) | Apache-2.0 | Gemini API en modo offline | El trabajador en faena minera SIN red necesita "preguntarle al asistente" igual. SLM local resuelve. Tier 4 del orchestrator. |
-| COLMAP | BSD-3 | Modal GPU en modo offline / sin GPU | Variante Cloud Run CPU para SfM (~10-15 min vs ~3 min GPU). Permite operar en regiones sin acceso a Modal o con restricciones data-residency. |
+| COLMAP | BSD-3 | Photogrammetry SfM (sin GPU externa) | Software OSS gratis, corre en Google Cloud Run CPU (~10-15 min, ~$0.40/job en infra Google). Sin dependencia de plataforma third-party GPU rental. Ver §"Distinción SW-OSS vs infra-Google" abajo. |
 | MapLibre GL JS | BSD-3 | Google Maps Platform API | Maps API cobra por carga. Para mapas internos de faena (no necesitan tráfico real-time) MapLibre + tiles OSM cubre con 2.5D extruido. |
 | OpenStreetMap tiles | ODbL | Google Maps tiles base | Para zonas mineras chilenas donde la cobertura Google Maps es escasa, OSM frecuentemente tiene más detalle de trochas + caminos faena. |
 | MediaPipe (Google sí lo mantiene OSS) | Apache-2.0 | EPP detection edge en cliente | Detección postura ergonomic + pose en el teléfono sin enviar video al cloud. Privacy + latencia + offline. |
@@ -64,6 +64,60 @@ Los OSS aprobados como **complemento crítico** al ecosistema Google son:
 | @noble/secp256k1 / @noble/ed25519 | MIT | Firmas + verificación offline | Tamper-proof audit log local sin firmar contra HSM cloud. |
 | `simplewebauthn/server` y `/browser` | MIT | (Google ofrece Identity Platform pero esto es OSS independiente) | WebAuthn signature verify estándar. |
 | `firebase-emulator` (Google lo provee como tooling) | Apache-2.0 | (No es reemplazo — es el oficial) | Tests E2E sin tocar prod. |
+
+### Distinción crítica — SW-OSS vs infra-Google vs plataforma-third-party
+
+Pregunta del founder 2026-05-19 que motivó esta sección: **"¿Modal es gratis? ¿COLMAP es gratis?"**
+
+La respuesta separa tres conceptos que frecuentemente se confunden:
+
+| Concepto | Ejemplo | ¿Cumple ADR 0019? | Costo |
+|---|---|---|---|
+| **Software OSS** (licencia libre) | COLMAP (BSD-3), MapLibre (BSD-3), Gemma 2 (Apache-2.0), MediaPipe (Apache-2.0) | ✅ Sí (Principio 2) | **$0 por usar el software**. La licencia NO cobra. |
+| **Infra Google** (compute pago en Google Cloud) | Cloud Run, Firestore, Cloud Storage, KMS, Vertex AI | ✅ Sí (Principio 1) | **Pago a Google** por uso (CPU-seconds, storage, reads/writes). Aceptable porque es Google. |
+| **Plataforma third-party** (rental cloud externo Google) | Modal.run, RunPod, Replicate, Banana, Beam, Heroku, Vercel Functions, AWS Lambda | ❌ **NO** (Principio 1 + 4) | Pago a tercero. **REJECT automático**, indiferente al precio. |
+
+**Implicaciones:**
+
+1. **COLMAP es OSS** → software licencia libre BSD-3 → cumple. **Pero ejecutar COLMAP cuesta** cuando corre en Cloud Run (~$0.40/job). El costo va a Google = aceptable.
+2. **Modal NO es OSS** ni Google. Es plataforma third-party. **REJECT** indiferente al precio (incluso si fuera gratis, sigue violando Principio 1 "Google ecosystem foundation").
+3. **MapLibre + OSM tiles** son OSS + servidos desde Google Cloud Storage/CDN → cumple doble.
+4. **Gemma 2 local en navegador** vía ONNX Runtime Web → corre en el dispositivo del trabajador, costo $0 al app, cumple Principio 2 (offline + sin GPU externa).
+
+**Regla operativa para reviews de PR:**
+
+* Si el PR introduce `import` de software OSS para correr en Cloud Run / Firebase / browser cliente → ✅ OK.
+* Si el PR introduce SDK / cliente HTTP a una plataforma cloud externa pagada (Modal, Replicate, Vercel Functions, etc.) → ❌ REJECT.
+* Si el PR introduce SDK Google nuevo (Vertex AI Agent Builder, Cloud Tasks, etc.) → ✅ OK.
+
+**Plataformas third-party explícitamente descartadas y por qué:**
+
+| Plataforma | Use-case típico | Por qué descartada | Alternativa Google |
+|---|---|---|---|
+| Modal.run | Serverless GPU para SfM/ML | Third-party + GPU externa (doble violación) | COLMAP en Cloud Run CPU |
+| RunPod | GPU rental general | Third-party + GPU externa | Vertex AI (para ML inference) o Cloud Run CPU |
+| Replicate | API ML pre-trained models | Third-party + paga | Vertex AI Model Garden (mismo concepto, Google) |
+| Vercel / Netlify Functions | Edge functions deploy | Third-party hosting | Cloud Functions / Cloud Run |
+| AWS Lambda / Azure Functions | Serverless multi-cloud | NO Google | Cloud Functions |
+| Heroku / Render / Fly.io | App hosting | NO Google | Cloud Run |
+| Cloudflare Workers / Pages | Edge compute | NO Google | Cloud Run + Cloud CDN |
+| GlitchTip | Error tracking OSS self-host | El SW es OSS pero el SaaS reemplaza Sentry, fuera de Google | Sentry (paid pero ya está en stack) o Cloud Error Reporting Google |
+| PocketBase / Supabase self-hosted | BaaS alternative | Reemplaza Firebase, fuera de Google | Firebase (canónico) |
+
+**Plataformas third-party aceptadas (legacy / pagos):**
+
+| Plataforma | Por qué se acepta | Notas |
+|---|---|---|
+| Webpay (Transbank) | Procesador de pagos Chile, sin alternativa Google equivalente | Pago per-transacción, NO suscripción mensual |
+| MercadoPago | Procesador pagos LatAm, ídem | Pago per-transacción |
+| Resend | Email transactional, podría migrarse a Google Workspace Mail | A evaluar trimestralmente: ¿Google Workspace Send API cubre? Si sí, migrar. |
+| Sentry | Error tracking, podría migrarse a Cloud Error Reporting | A evaluar trimestralmente: ¿Cloud Error Reporting + Cloud Logging cubre nuestros requisitos? Si sí, migrar. |
+| GitHub | Source hosting + Actions CI | A evaluar: ¿Cloud Source Repositories + Cloud Build cubre? GitHub tiene mejor UX dev hoy, mantener. |
+| Cloudflare CDN (si se usa) | Static CDN, podría usar Cloud CDN | A evaluar trimestralmente. |
+
+Esta lista de "aceptadas" debe REVISARSE cada 6 meses. Cualquiera de estas migraciones a Google es trabajo legítimo bajo Principio 4 ("mejorar calidad de acuerdo a lo que Google ofrece").
+
+---
 
 ### Principio 3 — Online/offline duality es DISEÑO, no duplicación
 
