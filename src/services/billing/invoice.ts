@@ -145,8 +145,9 @@ export function buildInvoice(
     },
   ];
 
-  // Overage only makes sense in CLP for now. International Stripe path
-  // assumes hard caps until we model metered billing in Stripe.
+  // Overage only makes sense in CLP por ahora. Internacional (USD via
+  // manual-transfer + MercadoPago regional) asume hard caps — Stripe
+  // está descartado oficialmente (§2.12 cierre Fase C.2, 2026-05-21).
   if (isCLP && overage.workers > 0) {
     lineItems.push({
       tierId: request.tierId,

@@ -47,6 +47,7 @@ import {
   type PreventionInvestment,
   type RoiReport,
 } from '../services/financialAnalytics/roiCalculator';
+import { generatePricingOcPdf } from '../utils/pricingOcPdf';
 
 // ────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -166,24 +167,54 @@ export const PricingCalculator: React.FC = () => {
 
   // ─── Actions ─────────────────────────────────────────────────────────
   const onGeneratePurchaseOrder = () => {
-    // TODO Sprint K §177 — generar PDF formal con plantilla SIIGO/SII.
-    // Por ahora descargamos JSON que la página `/oc-sugerida` consume.
+    // H21 cerrado (Fase A.3, 2026-05-21): emisión PDF formal con
+    // generatePricingOcPdf — reusa patrón visual ds67Certificate +
+    // jsPDF + jspdf-autotable. El JSON queda disponible vía
+    // onDownloadOcJson para integraciones programáticas (/oc-sugerida).
+    const monthlyCost = safeMonthlyCost(recommendedTier.id, workers, projects);
+    const industryLabel =
+      SUPPORTED_INDUSTRY_OPTIONS.find((o) => o.prefix === industryPrefix)?.label ??
+      industryPrefix;
+    const doc = generatePricingOcPdf({
+      industryPrefix,
+      industryLabel,
+      workers,
+      projects,
+      recommendedTier,
+      recommendedPlan,
+      monthlyCostClp: monthlyCost?.totalClp ?? null,
+      monthlyEppBudgetClp: eppBudget.totalClp,
+      roiPercent: Number.isFinite(roi.roiPercent) ? roi.roiPercent : null,
+      paybackMonths: Number.isFinite(roi.paybackMonths) ? roi.paybackMonths : null,
+      baselineIncidentsPerYear: baselineIncidents,
+      currentIncidentsPerYear: currentIncidents,
+      avgIncidentCostClp: avgIncidentCost,
+    });
+    doc.save(`praeventio-oc-${Date.now()}.pdf`);
+  };
+
+  const onDownloadOcJson = () => {
+    // Mantenemos JSON para integraciones programáticas (CRM/ERP) +
+    // testing. La página /oc-sugerida consume este shape.
+    const monthlyCost = safeMonthlyCost(recommendedTier.id, workers, projects);
     const payload = {
-      version: 'pricing-calculator-oc-draft@1',
+      version: 'pricing-calculator-oc@2',
       generatedAt: new Date().toISOString(),
       industryPrefix,
       workers,
       projects,
       recommendedTier: recommendedTier.id,
       recommendedPlan,
+      monthlyCostClp: monthlyCost?.totalClp ?? null,
       monthlyEppBudgetClp: eppBudget.totalClp,
       annualEppBudgetClp: eppBudget.totalClp * 12,
       roiPercent: Number.isFinite(roi.roiPercent) ? roi.roiPercent : null,
       paybackMonths: Number.isFinite(roi.paybackMonths) ? roi.paybackMonths : null,
-      // TODO §177: emitir PDF formal con timbre.
-      todo: 'pdf_emission_pending_sprint_k_177',
+      baselineIncidentsPerYear: baselineIncidents,
+      currentIncidentsPerYear: currentIncidents,
+      avgIncidentCostClp: avgIncidentCost,
     };
-    downloadJson(`pricing-oc-${Date.now()}.json`, payload);
+    downloadJson(`praeventio-oc-${Date.now()}.json`, payload);
   };
 
   return (
@@ -558,10 +589,19 @@ export const PricingCalculator: React.FC = () => {
           <Download className="w-4 h-4" />
           {t('pricingCalc.actions.generateOc', 'Generar Orden de Compra (.pdf)')}
         </button>
+        <button
+          type="button"
+          onClick={onDownloadOcJson}
+          data-testid="pc-download-oc-json"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-lg min-h-11 border border-slate-200 dark:border-slate-700"
+        >
+          <Download className="w-4 h-4" />
+          {t('pricingCalc.actions.downloadJson', 'Descargar JSON (integraciones)')}
+        </button>
         <span className="text-[11px] text-slate-500 dark:text-slate-400 self-center">
           {t(
-            'pricingCalc.actions.todoNote',
-            'Por ahora descarga JSON · PDF formal pendiente Sprint K §177.',
+            'pricingCalc.actions.note',
+            'El PDF es sugerido — para emisión formal de OC contactar a contacto@praeventio.net.',
           )}
         </span>
       </section>

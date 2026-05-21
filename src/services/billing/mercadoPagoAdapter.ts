@@ -2,8 +2,9 @@
 //
 // Mirrors `webpayAdapter.ts` shape so the rest of the codebase stays
 // SDK-agnostic. Wraps the official `mercadopago` Node SDK for the LATAM
-// markets we ship today: PE, AR, CO, MX, BR. Chile keeps Webpay, ROW
-// keeps Stripe; this adapter is for the MercadoPago five only.
+// markets we ship today: PE, AR, CO, MX, BR. Chile keeps Webpay; el
+// resto del mundo va a manual-transfer (Stripe descartado §2.12 cierre
+// Fase C.2, 2026-05-21). Este adapter cubre las 5 MercadoPago.
 //
 // The adapter:
 //   • Reads credentials from `MP_ACCESS_TOKEN` (required) — fails closed

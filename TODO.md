@@ -178,21 +178,24 @@ EvacuationRoutes ahora:
 - ProjectContext: `useEffect` que detecta selección de proyecto + auto-promueve todos los scratch pendientes vía `writeNodesDebounced`
 - Resultado: cálculo NUNCA se pierde. Sin UI de error. Funciona idénticamente con o sin proyecto.
 
-### 2.7 🔴 Vertex AI Trainer auto-stub (P1 documentación engañosa)
-**Archivo:** `src/services/ml/vertexTrainer.ts:2,128-132`
+### 2.7 ✅ Vertex AI Trainer DESCARTADO oficialmente (Opción A — cierre Fase C.7, 2026-05-21)
+**Archivo:** `src/services/ml/vertexTrainer.ts:1-30` (header rewrite con tombstone explícito)
 
-Línea 2 dice literalmente: *"This module is a STUB intentionally"*. Línea 128 lanza `VertexTrainerError('NOT_ENABLED')` cuando `VERTEX_TRAINING_ENABLED=true`. PERO `HONEST_STATE.md:63` y `AUDIT_BACKLOG.md` dicen "✅ Vertex AI real" — eso se refiere al **adapter de inferencia** (`vertexAdapter.ts`, que SÍ es real), no al trainer.
+**Fix aplicado (Opción A):** header del archivo ampliado a 25 líneas con ⚠️ DESCARTADO OFICIALMENTE + distinción **inferencia ≠ training**:
+- `vertexAdapter.ts` (inferencia) = REAL y se usa en prod ✅
+- `vertexTrainer.ts` (training) = STUB tombstone, solo aplica tier mega-enterprise + budget approval explícito + opt-in tenant
+- Para PYMEs Chile + LATAM el flujo IA real vive en `resilientAiOrchestrator.ts:355-396` (5-tier fallback) + `slm/*` (SLM offline)
 
-**Fix:**
-- **Opción A (recomendada):** declarar trainer DESCARTADO oficialmente — solo aplica a tier mega-enterprise, no es prioridad
-- **Opción B:** implementar branch real `JobServiceClient.createCustomJob` de `@google-cloud/aiplatform`
+Documentación HONEST_STATE.md + AUDIT_BACKLOG.md (en `docs/archive/2026-05/`) tenía claim "Vertex AI real" que se refería al adapter de inferencia — ahora el header del trainer lo deja explícito.
 
-### 2.8 🔴 assetlinks.json SHA-256 placeholder bloquea Play Store
-**Archivo:** `public/.well-known/assetlinks.json:8`
+### 2.8 ✅ assetlinks.json SHA-256 REAL cargado (cierre 2026-05-17, verificado 2026-05-21)
+**Archivo:** `public/.well-known/assetlinks.json:10`
 
-`"sha256_cert_fingerprints": ["REPLACE_WITH_REAL_SHA256_BEFORE_STORE_BUILD"]`
+`"sha256_cert_fingerprints": ["3D:AC:D9:BC:C2:CD:5C:B0:6D:5F:5D:BC:37:4A:F5:78:50:99:DA:09:BA:E8:B1:F1:05:FF:B6:A5:42:D3:A7:A0"]`
 
-Sin esto, **Android App Links no funcionan en Play Store**. Bloqueado por keystore real del usuario (§5).
+**Fix aplicado:** el usuario proporcionó el SHA-256 del keystore Play real (`com.praeventio.guard`) el 2026-05-17 — Fase 0 del plan integrado lo cableó vía PR #357 + script anti-placeholder `scripts/render-well-known.mjs` (registrado en `package.json:12` prebuild) que falla el build si detecta el placeholder histórico `REPLACE_WITH_REAL_SHA256_BEFORE_STORE_BUILD`.
+
+**Resultado:** Android App Links funcionarán en Play Store cuando se publique la app. Apple App Site Association todavía tiene placeholder `TEAMID` (bloqueado por Apple Developer Account, §5).
 
 ### 2.9 🔴 SLM Gemma 2 2B SHA-256 null
 **Archivo:** `src/services/slm/registry.ts:119`
@@ -225,18 +228,24 @@ Los 394 tests fallidos previos fueron arreglados entre 2026-05-15 y 2026-05-19, 
 
 **Riesgo cerrado:** no hay regresiones latentes en tests.
 
-### 2.12 🔴 Stripe scaffold sigue en código pese a declararse "descartado" §9
-**Archivos:**
-- `src/services/billing/stripeAdapter.ts` (95+ LOC, "TYPED STUB", sin paquete `stripe` instalado)
-- `src/services/billing/stripePreflightCheck.ts` (170+ LOC con validación de prefijos `sk_live_`/`sk_test_`)
-- `src/services/billing/stripePreflightCheck.test.ts`
-- `src/server/routes/billing.ts:84` import, `:159` comentario, `:476`, `:593-598` handler activo
-- `src/pages/Pricing.tsx:946` comentario
+### 2.12 ✅ Stripe scaffold ELIMINADO (Opción A — cierre Fase C.2, 2026-05-21)
+**Archivos borrados:**
+- `src/services/billing/stripeAdapter.ts` (DELETED)
+- `src/services/billing/stripePreflightCheck.ts` (DELETED)
+- `src/services/billing/stripePreflightCheck.test.ts` (DELETED)
 
-`stripeAdapter.isConfigured()` retorna `false` porque no hay paquete instalado, así que el branch `body.paymentMethod === 'stripe'` no se activa en runtime → **no rompe nada**, pero el drift entre TODO.md §9 ("Stripe descartado") y el código activo confunde auditorías futuras.
+**Archivos limpiados:**
+- `src/server/routes/billing.ts:84` (import stripeAdapter eliminado)
+- `src/server/routes/billing.ts:201-204` (VALID_PAYMENT_METHODS sin 'stripe')
+- `src/server/routes/billing.ts:519-523` (branch CLP+stripe eliminado; USD+webpay mensaje actualizado)
+- `src/server/routes/billing.ts:582-593` (handler stripe.createCheckoutSession eliminado entero)
+- `src/pages/Pricing.tsx:56-58,77-79,945-953,1072` (comentarios actualizados a "fallback B2B contacto@praeventio.net")
+- `src/__tests__/server/test-server.ts:273-274,620-624` (mismo set actualizado; rama CLP+stripe eliminada; USD+webpay msg)
+- `src/__tests__/server/billing.test.ts:145-160` (test renombrado a "rechaza 'stripe' como paymentMethod inválido")
+- `src/services/billing/invoice.test.ts:194` (USD test usa 'manual-transfer')
+- `src/services/billing/types.ts:17-46` (header actualizado; literal `'stripe'` queda como tombstone type-only para test fixtures legacy; runtime VALID_PAYMENT_METHODS rechaza el método)
 
-**Fix Opción A** (recomendado si Stripe sigue descartado): borrar 4 archivos `stripe*.ts` + imports + branch en `billing.ts`.
-**Fix Opción B**: revertir §9 y declarar Stripe como path internacional opcional activable post-Day-1.
+**Justificación Opción A:** la empresa está en Chile; Stripe no la considera para checkout productivo (decisión usuario 2026-05-16). Rails activos: Webpay (CLP), MercadoPago (LATAM regional), IAP nativo (mobile), manual-transfer (B2B enterprise). Si crece volumen internacional fuera de LATAM, se contacta vía `contacto@praeventio.net`.
 
 ### 2.13 🔴 IAP single SKU para todos los tiers
 **Archivo:** `src/pages/Pricing.tsx:995` → `const productId = 'praeventio_premium_monthly';`
@@ -245,14 +254,13 @@ Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** si
 
 **Fix:** mapear `tier.id` → product SKU específico antes del `iapAdapter.purchase()`. Requiere crear los SKUs en App Store Connect + Google Play Console (bloqueado por §5 cuentas).
 
-### 2.14 🔴 SusesoApiClient importado directo en frontend
-**Archivo:** `src/pages/SusesoReports.tsx:27-33` → `import { SusesoApiClient, ... } from '../services/sii/susesoApiClient'`
+### 2.14 ✅ SusesoApiClient removido del frontend (cierre Fase C.1, 2026-05-21)
+**Archivos:**
+- `src/pages/SusesoReports.tsx` — sin imports de SusesoApiClient/Diat/Diep/RoiPayload; sin `handleSusesoSubmit`; sin botón "Enviar a SUSESO" directo. Comentarios marcadores con la justificación (§2.14 + directiva 2.6).
+- `src/services/sii/susesoApiClient.ts:1-30` — header ⚠️ SERVER-ONLY + razones técnicas (process.env + bundle leak) + razón producto (directiva 2.6 no push automático).
+- `src/__tests__/contracts/noBrowserSusesoApiClient.test.ts` (NEW) — gate de regresión: si alguien re-importa SusesoApiClient/SusesoApiError/DiatPayload/DiepPayload/RoiPayload desde `src/pages/`, `src/components/` o `src/hooks/`, el test falla.
 
-`SusesoApiClient.fromEnv()` (línea 131 del adapter) usa `process.env.SUSESO_API_KEY` + `process.env.SUSESO_EMPLOYER_RUT`. En Vite browser:
-- Vars sin prefijo `VITE_` **no están disponibles** → el client siempre será `null` en producción
-- Si se renombran con prefijo `VITE_` → **los secretos quedan en el bundle del cliente**, accesibles vía DevTools
-
-**Fix:** mover a server route admin (`POST /api/admin/suseso/submit`) con verifyAuth + tenant isolation; remover import del frontend. Hallazgo P1 de `AUDIT_TRUTH_MATRIX_2026-05-07.md:178-191`.
+**Fix aplicado:** se removió la importación browser-side por completo. NO se creó wrap server-side porque colisionaba con la directiva 2.6 inviolable ("Praeventio NO envía DIAT/DIEP a SUSESO directamente; empresa imprime/firma/sube al portal mutualidad"). El flujo real vive en `src/server/routes/suseso.ts` (POST /api/suseso/form crea folio + PDF; POST /api/suseso/forms/:formId/mark-submitted confirma upload manual) — accesible via `<SusesoFormBuilder>` componente que ya se renderizaba en la página.
 
 ### 2.15 🔴 Zettelkasten dividido en 3 fuentes sin materializer
 **Archivos:**

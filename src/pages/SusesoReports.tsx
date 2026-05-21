@@ -10,7 +10,6 @@ import {
   Building2,
   User,
   Activity,
-  Send,
   HardDrive,
   Loader2,
   ArrowRight
@@ -24,14 +23,23 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { logger } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
-import {
-  SusesoApiClient,
-  SusesoApiError,
-  type DiatPayload,
-  type DiepPayload,
-  type RoiPayload,
-  type SusesoSubmissionStatus,
-} from '../services/sii/susesoApiClient';
+// §2.14 P0 SECURITY (cierre Fase C.1, 2026-05-21): el cliente
+// SusesoApiClient ya no se importa desde código browser. Razón doble:
+//   1. En Vite bundle, `process.env.SUSESO_API_KEY` siempre era undefined
+//      → `fromEnv()` retornaba null y el botón "Enviar a SUSESO" no hacía
+//      nada en producción (false completeness silenciosa).
+//   2. Si alguien renombrara las env a VITE_SUSESO_*, los secretos
+//      quedarían en el bundle del cliente accesibles vía DevTools.
+//
+// Adicional: directiva 2.6 inviolable — Praeventio NO envía DIAT/DIEP a
+// SUSESO directamente. La empresa imprime/firma/sube al portal de la
+// mutualidad. El flujo correcto vive en src/server/routes/suseso.ts
+// (POST /api/suseso/form genera folio + PDF; POST /api/suseso/forms/:id/
+// mark-submitted confirma upload manual).
+//
+// Si se requiere reintroducir un wrap server-side de SusesoApiClient,
+// debe respetar la directiva 2.6: solo para mutualidades que ofrezcan
+// API push opcional (no automático) + opt-in explícito del tenant.
 import { SusesoFormBuilder } from '../components/suseso/SusesoFormBuilder';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { RegulatoryCitation } from '../components/shared/RegulatoryCitation';
@@ -43,7 +51,6 @@ export function SusesoReports() {
   const [activeTab, setActiveTab] = useState<'DIAT' | 'DIEP' | 'ROI'>('DIAT');
   const [selectedIncidentId, setSelectedIncidentId] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isSending, setIsSending] = useState(false);
   const isOnline = useOnlineStatus();
 
   // Filter incidents for the current project
@@ -53,96 +60,10 @@ export function SusesoReports() {
   const [isSavingToDrive, setIsSavingToDrive] = useState(false);
   const [savedToDrive, setSavedToDrive] = useState(false);
 
-  // SUSESO submission state — keyed by `${activeTab}:${incidentId}` so a folio
-  // for an incident's DIAT doesn't get reused for its DIEP.
-  const [susesoStatus, setSusesoStatus] = useState<Record<string, { status: SusesoSubmissionStatus; folio?: string; reason?: string }>>({});
-  const susesoClient = SusesoApiClient.fromEnv();
-  const susesoKey = selectedIncident ? `${activeTab}:${selectedIncident.id}` : '';
-  const currentSusesoState = susesoKey ? susesoStatus[susesoKey] : undefined;
-
-  const handleSusesoSubmit = async () => {
-    if (!selectedIncident || !selectedProject || !susesoClient) return;
-    setIsSending(true);
-    try {
-      const employerName = selectedProject?.companyName ?? 'Sin configurar';
-      const employerRut = selectedProject?.companyRut ?? 'Sin configurar';
-      const mutualName = selectedProject?.mutualidad ?? 'Sin configurar';
-      const reportedAt = new Date().toISOString().slice(0, 10);
-      const accidentDate = new Date(selectedIncident.createdAt).toISOString().slice(0, 10);
-      const accidentTime = new Date(selectedIncident.createdAt).toISOString().slice(11, 16);
-
-      let folio: string | undefined;
-      if (activeTab === 'DIAT') {
-        const payload: DiatPayload = {
-          employerRut,
-          employerName,
-          mutualName,
-          workerRut: selectedIncident.metadata?.workerRut ?? '',
-          workerName: selectedIncident.metadata?.workerName ?? '',
-          workerJobTitle: selectedIncident.metadata?.workerRole ?? '',
-          accidentDate,
-          accidentTime,
-          accidentLocation: selectedIncident.metadata?.location ?? '',
-          accidentDescription: selectedIncident.description ?? '',
-          reportedAt,
-        };
-        const r = await susesoClient.submitDiat(payload);
-        folio = r.folio;
-      } else if (activeTab === 'DIEP') {
-        const payload: DiepPayload = {
-          employerRut,
-          employerName,
-          mutualName,
-          workerRut: selectedIncident.metadata?.workerRut ?? '',
-          workerName: selectedIncident.metadata?.workerName ?? '',
-          workerJobTitle: selectedIncident.metadata?.workerRole ?? '',
-          diagnosis: selectedIncident.metadata?.diagnosis ?? selectedIncident.title,
-          cieCode: selectedIncident.metadata?.cieCode ?? undefined,
-          symptomsOnsetDate: selectedIncident.metadata?.symptomsOnsetDate ?? accidentDate,
-          exposedAgents: selectedIncident.metadata?.exposedAgents ?? [],
-          reportedAt,
-        };
-        const r = await susesoClient.submitDiep(payload);
-        folio = r.folio;
-      } else {
-        const payload: RoiPayload = {
-          employerRut,
-          employerName,
-          mutualName,
-          year: new Date().getFullYear(),
-          totalIncidents: incidents.length,
-          totalLostDays: incidents.reduce((s, n) => s + (n.metadata?.lostDays ?? 0), 0),
-          accidentRate: 1.7,
-          severityRate: 0.85,
-          reportedAt,
-        };
-        const r = await susesoClient.submitRoi(payload);
-        folio = r.folio;
-      }
-
-      setSusesoStatus(prev => ({ ...prev, [susesoKey]: { status: 'received', folio } }));
-
-      // Persist folio in Firestore for traceability.
-      try {
-        const { collection, addDoc, db } = await import('../services/firebase');
-        await addDoc(collection(db, `projects/${selectedProject.id}/susesoSubmissions`), {
-          reportType: activeTab,
-          incidentId: selectedIncident.id,
-          folio,
-          submittedAt: new Date().toISOString(),
-          status: 'received',
-        });
-      } catch (firestoreErr) {
-        logger.warn('SUSESO folio persistence failed', { err: String(firestoreErr) });
-      }
-    } catch (err) {
-      const reason = err instanceof SusesoApiError ? err.message : String(err);
-      logger.error('SUSESO submission failed', { err: reason });
-      setSusesoStatus(prev => ({ ...prev, [susesoKey]: { status: 'rejected', reason } }));
-    } finally {
-      setIsSending(false);
-    }
-  };
+  // §2.14 (cierre Fase C.1, 2026-05-21): el path "Enviar a SUSESO" directo
+  // se removió. El flujo correcto vive en src/server/routes/suseso.ts y se
+  // accede vía SusesoFormBuilder (componente abajo) — empresa imprime/firma/
+  // sube manualmente al portal mutualidad (directiva 2.6 inviolable).
 
   const handleExportPDF = async () => {
     if (!selectedIncident) return;
@@ -387,42 +308,11 @@ export function SusesoReports() {
                     <Download className="w-4 h-4" />
                     {isGenerating ? 'Generando...' : 'PDF'}
                   </button>
-                  {susesoClient && (
-                    <button
-                      onClick={handleSusesoSubmit}
-                      disabled={isSending || !isOnline || currentSusesoState?.status === 'received'}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-70 shadow-lg ${
-                        currentSusesoState?.status === 'received'
-                          ? 'bg-emerald-500 text-white shadow-emerald-500/20'
-                          : currentSusesoState?.status === 'rejected'
-                            ? 'bg-rose-500 text-white shadow-rose-500/20'
-                            : 'bg-violet-500 text-white hover:bg-violet-600 shadow-violet-500/20'
-                      }`}
-                      title={currentSusesoState?.reason ?? currentSusesoState?.folio ?? 'Enviar al portal SUSESO'}
-                    >
-                      {isSending ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Enviandoâ€¦
-                        </>
-                      ) : currentSusesoState?.status === 'received' ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4" />
-                          {`Recibido · ${currentSusesoState.folio ?? ''}`}
-                        </>
-                      ) : currentSusesoState?.status === 'rejected' ? (
-                        <>
-                          <AlertTriangle className="w-4 h-4" />
-                          Rechazado
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-4 h-4" />
-                          Enviar a SUSESO
-                        </>
-                      )}
-                    </button>
-                  )}
+                  {/* §2.14 (Fase C.1, 2026-05-21): el botón "Enviar a SUSESO"
+                      directo se removió — directiva 2.6 + cierre P0 SECURITY.
+                      El flujo formal con folio + firma vive en el
+                      SusesoFormBuilder de arriba; la empresa sube manualmente
+                      al portal mutualidad. */}
                   <button
                     onClick={handleShareDocument}
                     disabled={isSavingToDrive || savedToDrive || !isOnline}

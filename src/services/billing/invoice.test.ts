@@ -191,7 +191,8 @@ describe('buildInvoice', () => {
       totalWorkers: 30,
       totalProjects: 3,
       cliente: { nombre: 'Acme Inc', email: 'ap@acme.com' },
-      paymentMethod: 'stripe',
+      // §2.12 (Fase C.2, 2026-05-21): Stripe descartado → USD usa manual-transfer.
+      paymentMethod: 'manual-transfer',
     };
     const invoice = buildInvoice(
       request,

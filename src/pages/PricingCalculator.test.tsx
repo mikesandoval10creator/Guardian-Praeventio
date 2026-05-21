@@ -7,7 +7,10 @@
 //      ROI, EPP budget.
 //   2. ROI consume `roiCalculator.computeRoi` correctamente (al menos un
 //      caso de prueba determinístico).
-//   3. El botón "Generar OC" dispara descarga (URL.createObjectURL).
+//   3. El botón "Generar OC (.pdf)" llama a generatePricingOcPdf y al
+//      .save() del documento jsPDF (H21 cerrado Fase A.3).
+//   4. El botón "Descargar JSON" dispara URL.createObjectURL (legacy
+//      integration shape).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
@@ -22,7 +25,17 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
+// Mock del renderer PDF — verificamos el wire sin ejecutar el render
+// completo (jsdom no implementa Canvas que jsPDF puede usar para fonts
+// custom; helvetica embebida del builtin sí funciona pero preferimos
+// aislar la unidad de test).
+const mockSave = vi.fn();
+vi.mock('../utils/pricingOcPdf', () => ({
+  generatePricingOcPdf: vi.fn(() => ({ save: mockSave })),
+}));
+
 import { PricingCalculator } from './PricingCalculator';
+import { generatePricingOcPdf } from '../utils/pricingOcPdf';
 
 function renderPage() {
   return render(
@@ -94,9 +107,29 @@ describe('<PricingCalculator /> Sprint K §171-179', () => {
     expect(screen.getByTestId('pc-roi-payback').textContent).toContain('No recuperable');
   });
 
-  it('downloads JSON OC draft when clicking Generar OC', () => {
+  it('generates PDF OC when clicking Generar OC (.pdf) — H21 cierre Fase A.3', () => {
     renderPage();
     const btn = screen.getByTestId('pc-generate-oc');
+    fireEvent.click(btn);
+    expect(generatePricingOcPdf).toHaveBeenCalledTimes(1);
+    // Payload mínimo verificable: industry + workers + projects + tier + plan
+    // + EPP budget + ROI campos.
+    const arg = (generatePricingOcPdf as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      industryPrefix: string;
+      workers: number;
+      projects: number;
+    };
+    expect(arg.industryPrefix).toBeTruthy();
+    expect(typeof arg.workers).toBe('number');
+    expect(typeof arg.projects).toBe('number');
+    expect(mockSave).toHaveBeenCalledTimes(1);
+    const savedName = mockSave.mock.calls[0]?.[0] as string;
+    expect(savedName).toMatch(/^praeventio-oc-\d+\.pdf$/);
+  });
+
+  it('downloads JSON via secondary button (programmatic integration shape)', () => {
+    renderPage();
+    const btn = screen.getByTestId('pc-download-oc-json');
     fireEvent.click(btn);
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);

@@ -142,7 +142,11 @@ describe('POST /api/billing/checkout', () => {
     expect(res.body.error).toMatch(/tierId/);
   });
 
-  it('returns 400 when CLP currency is paired with stripe', async () => {
+  // §2.12 (Fase C.2, 2026-05-21): Stripe descartado oficialmente. El test
+  // ahora verifica que 'stripe' es rechazado como paymentMethod inválido
+  // (antes el rechazo era por currency CLP+stripe; hoy es por método
+  // mismo no estar en VALID_PAYMENT_METHODS).
+  it('returns 400 when paymentMethod is the descartado "stripe"', async () => {
     const res = await request(handle.app)
       .post('/api/billing/checkout')
       .set('Authorization', 'Bearer test:uid-A:a@test.com')
@@ -156,7 +160,7 @@ describe('POST /api/billing/checkout', () => {
         cliente: { nombre: 'Cliente Test', email: 'c@test.com' },
       });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/CLP/);
+    expect(res.body.error).toMatch(/Invalid paymentMethod/i);
   });
 
   it('returns 400 for unknown tierId', async () => {

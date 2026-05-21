@@ -1,21 +1,31 @@
 // SPDX-License-Identifier: MIT
 // Sprint 32 Bucket VV — Vertex AI custom training scaffold.
 //
-// This module is a STUB intentionally. Vertex AutoML Tabular training jobs
-// cost real money (USD per node-hour) and we don't want a CI run, a unit
-// test, or a developer accidentally typing `npm run train` to spin one up.
+// ⚠️ §2.7 DESCARTADO OFICIALMENTE (cierre Fase C.7, 2026-05-21).
 //
-// To activate the real Vertex pipeline you need BOTH of these env vars set:
-//   • VERTEX_TRAINING_ENABLED=true
-//   • BIGQUERY_TRAINING_DATASET=<gcp project>.<dataset>.<table>
-// plus the same VERTEX_PROJECT_ID + VERTEX_LOCATION used by `vertexAdapter`.
+// Este módulo es un STUB intencional y permanece así por decisión de
+// roadmap: la calibración de modelos personalizados via Vertex AutoML
+// Tabular solo aplica a tiers mega-enterprise + presupuesto USD/node-hour
+// dedicado. Para la base de clientes actual (PYMEs Chile + LATAM) el
+// flujo IA real vive en:
 //
-// When wiring the real version (Sprint 33+) replace `runStubbedTraining`
-// with a `@google-cloud/aiplatform` `JobServiceClient.createCustomJob`
-// call, pulling the source rows from the BigQuery dataset listed above.
-// Until then this stub returns a deterministic-shape response so the
-// dashboard, the API endpoint, and the audit trail can be built and
-// tested end-to-end without burning Vertex budget.
+//   - `src/services/ai/resilientAiOrchestrator.ts:355-396` — 5-tier
+//     fallback (SLM local → ZK lookup → Firestore cache → Gemini → canned)
+//   - `src/services/ml/vertexAdapter.ts` — Vertex AI INFERENCIA real
+//     (NO trainer; este sí está wired contra `@google-cloud/aiplatform`).
+//   - `src/services/slm/*` — SLM offline (Phi-3 + Qwen + Gemma) con
+//     integrity check via SHA-256.
+//
+// La distinción clave: **inferencia ≠ training**. Vertex inferencia es
+// real y se usa en prod; Vertex trainer permanece descartado.
+//
+// Si una decisión futura activa el trainer para un cliente mega-enterprise
+// específico, reemplazar este stub con `@google-cloud/aiplatform`
+// `JobServiceClient.createCustomJob` + budget approval explícito + opt-in
+// del tenant. Hasta entonces, la función guarda forma determinística para
+// que el dashboard/API/audit trail compilen pero NUNCA gasta cuota.
+//
+// Ver TODO.md §2.7 closed + §9 Descartado.
 
 /**
  * Inputs for `trainFailureProbabilityModel`. `tenantId` is used as the

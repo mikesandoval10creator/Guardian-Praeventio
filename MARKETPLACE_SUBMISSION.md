@@ -193,14 +193,14 @@ Do not block on sibling agents for the docs — the Marketplace submission can p
 ## Operational TODOs the user must complete (cannot be done from code)
 
 1. **Verify domain `praeventio.net` and `praeventio.cl` in Google Search Console** under the submitter's Google account.
-2. **Stand up `soporte@`, `privacidad@`, `ventas@` mailboxes on `praeventio.net`** (Google Workspace mail or external IMAP). Set up forwarding rules so reviewer emails reach the human responsible.
+2. **Confirm `contacto@praeventio.net` mailbox on `praeventio.net`** (Google Workspace mail or external IMAP) — the single canonical company channel per directiva 2026-05-17. Set up forwarding/labeling rules so reviewer emails reach the responsible human (no longer split soporte/privacidad/ventas; everything goes to `contacto@`).
 3. **Publish privacy policy and terms of service pages** at `praeventio.net/privacy` and `/terms`. Include scope-by-scope disclosure per `marketplace/scope-justifications.md`.
 4. **Produce all assets per `marketplace/assets-spec.md`.** Design work, out of code scope.
 5. **Record sensitive-scope demo videos** (Loom or YouTube unlisted) for OAuth verification.
 6. **Replace `_PLACEHOLDER_` testimonials in `marketplace/listing-copy.md`** with real customer quotes before pasting into the listing form.
 7. **Time the OAuth Consent Screen "Publish App" click** — the app must be in `In production` status before opening the Marketplace SDK form, but it should not sit in production with sensitive scopes pending verification longer than necessary (Google flags long-pending verifications).
 8. **Decide promo video v0 vs v1.1** (skip is fine for v1).
-9. **Once approved:** subscribe at least one human to Marketplace email notifications for the listing (`dahosandoval@gmail.com` already covered as developer contact, but add `soporte@` for review traffic).
+9. **Once approved:** subscribe at least one human to Marketplace email notifications for the listing (`dahosandoval@gmail.com` already covered as developer contact, and add `contacto@praeventio.net` for review traffic — the canonical company channel).
 
 ---
 

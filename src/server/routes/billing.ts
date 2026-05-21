@@ -81,7 +81,11 @@ import {
   type WebpayReturnOutcome,
 } from '../../services/billing/webpayAdapter.js';
 import { KhipuAdapter } from '../../services/billing/khipuAdapter.js';
-import { stripeAdapter } from '../../services/billing/stripeAdapter.js';
+// §2.12 (Fase C.2, 2026-05-21): stripeAdapter removido. Stripe está
+// oficialmente descartado (TODO.md §9). Para internacional usamos
+// MercadoPago (LATAM PE/AR/CO/MX/BR) + IAP nativo (App Store + Google
+// Play). Si se necesita re-introducir, debe ir detrás de una decisión
+// de roadmap explícita.
 import { withIdempotency } from '../../services/billing/idempotency.js';
 // Sprint 39 P0.3 — synchronous server-to-server IAP receipt validators.
 // See file headers in each for the auth/env contract.
@@ -155,9 +159,9 @@ if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON) {
 //   not add a rule for `invoices/{id}` without an explicit threat-model
 //   review; a wrong rule there leaks tax data and PII.
 //
-// Real provider integration is NOT in this commit — `webpayAdapter` and
-// `stripeAdapter` throw on every method except `isConfigured()`. See
-// BILLING.md for the runbook to wire transbank-sdk + stripe.
+// Real provider integration: `webpayAdapter` está wired con transbank-sdk
+// (PR previo). MercadoPago via `mercadoPagoIpn` (HMAC SHA-256). Stripe
+// descartado (§2.12 cierre Fase C.2 2026-05-21). Ver BILLING.md.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Tier pricing fallback: real source of truth is
@@ -194,8 +198,11 @@ function resolveBillingTier(tierId: string): BillingTier | null {
 const OVERAGE_CLP_PER_WORKER_NET = 832;
 const OVERAGE_CLP_PER_PROJECT_NET = 5034; // 5990 / 1.19
 
+// §2.12 (Fase C.2): 'stripe' removido del set válido. Stripe descartado
+// oficialmente. Internacional: MercadoPago (LATAM) + IAP (mobile) +
+// manual-transfer (B2B enterprise).
 const VALID_PAYMENT_METHODS: ReadonlyArray<PaymentMethod> = [
-  'webpay', 'stripe', 'manual-transfer',
+  'webpay', 'manual-transfer',
 ];
 const VALID_CURRENCIES: ReadonlyArray<CurrencyCode> = ['CLP', 'USD'];
 
@@ -471,9 +478,10 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
   }
 });
 
-// POST /api/billing/checkout — create invoice + (eventually) redirect URL
-// for Webpay/Stripe. CLP must use webpay or manual-transfer; USD must use
-// stripe. Until adapters are wired, falls back to 'pending-config'.
+// POST /api/billing/checkout — create invoice + redirect URL for Webpay
+// (Chile) o manual-transfer (B2B enterprise). USD checkout pasa por
+// manual-transfer (Stripe descartado §2.12); LATAM no-Chile vía
+// MercadoPago (endpoint separado `/checkout/mp`).
 billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res) => {
   const callerUid = req.user!.uid;
   const callerEmail: string | null = req.user!.email ?? null;
@@ -510,12 +518,10 @@ billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res
       return res.status(400).json({ error: 'Invalid cliente' });
     }
 
-    // CLP must use webpay or manual-transfer. USD must use stripe.
-    if (body.currency === 'CLP' && body.paymentMethod === 'stripe') {
-      return res.status(400).json({ error: 'CLP requires webpay or manual-transfer' });
-    }
+    // §2.12 (Fase C.2): Stripe descartado. CLP usa webpay; USD usa
+    // manual-transfer (B2B). LATAM non-CL pasa por endpoint MP separado.
     if (body.currency === 'USD' && body.paymentMethod === 'webpay') {
-      return res.status(400).json({ error: 'USD requires stripe or manual-transfer' });
+      return res.status(400).json({ error: 'USD requires manual-transfer' });
     }
 
     const tier = resolveBillingTier(body.tierId);
@@ -590,27 +596,9 @@ billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res
         logger.error('webpay_create_failed', err, { invoiceId: invoice.id });
         sentryCapture(err, { endpoint: 'billing.checkout.webpay', tags: { invoiceId: invoice.id } });
       }
-    } else if (body.paymentMethod === 'stripe' && stripeAdapter.isConfigured()) {
-      try {
-        const session = await tracedAsync(
-          'billing.checkout.stripe',
-          { invoiceId: invoice.id, tierId: body.tierId, currency: body.currency },
-          () => stripeAdapter.createCheckoutSession({
-            invoiceId: invoice.id,
-            priceId: process.env[`STRIPE_PRICE_${body.tierId.toUpperCase().replace(/-/g, '_')}`] ?? '',
-            quantity: 1,
-            customerEmail: cliente.email,
-            successUrl: `${process.env.APP_BASE_URL ?? ''}/billing/success?invoice=${invoice.id}`,
-            cancelUrl: `${process.env.APP_BASE_URL ?? ''}/billing/cancel?invoice=${invoice.id}`,
-            metadata: { invoiceId: invoice.id, tierId: body.tierId },
-          }),
-        );
-        paymentUrl = session.url;
-        status = 'awaiting-payment';
-      } catch (err) {
-        logger.error('stripe_create_failed', err, { invoiceId: invoice.id });
-        sentryCapture(err, { endpoint: 'billing.checkout.stripe', tags: { invoiceId: invoice.id } });
-      }
+    // §2.12 (Fase C.2): branch Stripe removido. MercadoPago vive en su
+    // propio endpoint /checkout/mp. IAP nativo usa appleTransactionValidator
+    // + googlePlayValidator. manual-transfer es fallback B2B.
     } else if (body.paymentMethod === 'manual-transfer') {
       // No external provider — admin marks paid via /mark-paid endpoint.
       status = 'awaiting-payment';

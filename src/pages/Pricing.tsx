@@ -53,8 +53,9 @@ const isNative = () => IapAdapter.getPlatform() !== 'web';
 const getIapPlatform = () => IapAdapter.getPlatform();
 
 // LATAM countries we route through MercadoPago. Chile stays on Webpay
-// (existing path); everything else falls back to Stripe (USD). See
-// `src/services/billing/currency.ts` for the currency mapping.
+// (existing path); everything else cae a `contacto@praeventio.net`
+// como fallback B2B (Stripe descartado §2.12 cierre Fase C.2, 2026-05-21).
+// Ver `src/services/billing/currency.ts` para el mapping CLP/PEN/etc.
 const MP_COUNTRIES = ['PE', 'AR', 'CO', 'MX', 'BR'] as const;
 type MpCountry = (typeof MP_COUNTRIES)[number];
 const MP_CURRENCY_BY_COUNTRY: Record<MpCountry, 'PEN' | 'ARS' | 'COP' | 'MXN' | 'BRL'> = {
@@ -75,7 +76,7 @@ const MP_CURRENCY_BY_COUNTRY: Record<MpCountry, 'PEN' | 'ARS' | 'COP' | 'MXN' | 
  *
  * We deliberately do NOT use IP geolocation here. The user may be a
  * Chilean expat traveling abroad; routing by IP would silently switch
- * them to MP/Stripe and surprise-bill in the wrong currency. The user
+ * them to MP/manual-transfer and surprise-bill in the wrong currency. The user
  * can still override via the URL param if they want a different rail.
  */
 function detectCountry(search: string): string {
@@ -557,10 +558,10 @@ function WebpayReturnBanner() {
           <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
             {t('pricing.return_banner.timeout_body', { invoice: invoiceSuffix })}
             <a
-              href="mailto:soporte@praeventio.net"
+              href="mailto:contacto@praeventio.net"
               className="underline font-semibold"
             >
-              soporte@praeventio.net
+              contacto@praeventio.net
             </a>
             .
           </p>
@@ -583,10 +584,10 @@ function WebpayReturnBanner() {
           <p className="text-xs text-red-700 dark:text-red-400 mt-1">
             {t('pricing.return_banner.error_body', { invoice: invoiceSuffix })}
             <a
-              href="mailto:soporte@praeventio.net"
+              href="mailto:contacto@praeventio.net"
               className="underline font-semibold"
             >
-              soporte@praeventio.net
+              contacto@praeventio.net
             </a>
             {t('pricing.return_banner.error_body_suffix')}
           </p>
@@ -930,8 +931,8 @@ function PricingInner() {
     // Web (non-native) → route by country.
     //   CL              → Webpay (existing path).
     //   PE/AR/CO/MX/BR  → MercadoPago.
-    //   else            → Stripe (TODO: wire when international rollout
-    //                     ships; for now show a friendly fallback).
+    //   else            → fallback B2B contactando ventas (Stripe
+    //                     descartado §2.12 cierre Fase C.2 2026-05-21).
     if (!isNative()) {
       const country = detectCountry(window.location.search);
       if (country === 'CL') {
@@ -942,10 +943,9 @@ function PricingInner() {
         await startMercadoPagoCheckout(tier, legacyId, country as MpCountry);
         return;
       }
-      // Fallback (Stripe-eligible markets) — Stripe wiring is scaffolded
-      // in `stripeAdapter.ts` but not yet exposed via a public endpoint
-      // for non-CLP currencies. Surface a friendly error pointing to
-      // sales until the international rollout lands.
+      // Fallback B2B — el usuario contacta a contacto@praeventio.net
+      // para emisión manual de factura + transferencia. Stripe está
+      // descartado oficialmente (§2.12).
       addNotification({
         title: t('pricing.checkout.international_title'),
         message: t('pricing.checkout.international_msg'),
@@ -1069,7 +1069,9 @@ function PricingInner() {
   };
 
   const handleContactSales = (tier: Tier) => {
-    // TODO(IMP5): wire Stripe / Webpay invoice + sales CRM. For now: mailto link.
+    // §2.12 (Fase C.2): Stripe descartado. Para enterprise/B2B el flujo
+    // sigue siendo mailto a contacto@praeventio.net + emisión manual de
+    // factura. Si crece volumen suficiente, wire CRM (HubSpot/Salesforce).
     const subject = encodeURIComponent(t('pricing.checkout.mailto_subject', { tier: tier.nombre }));
     const body = encodeURIComponent(
       t('pricing.checkout.mailto_body', {
@@ -1078,7 +1080,7 @@ function PricingInner() {
         projects: tier.proyectosMax,
       }),
     );
-    window.location.href = `mailto:ventas@praeventio.cl?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:contacto@praeventio.net?subject=${subject}&body=${body}`;
   };
 
   return (

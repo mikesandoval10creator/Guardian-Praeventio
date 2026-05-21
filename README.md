@@ -6,12 +6,12 @@
 
 > Plataforma de prevención de riesgos laborales con IA para industrias críticas en Latinoamérica (minería, construcción, faenas remotas).
 
-![Coverage](https://img.shields.io/badge/end--to--end-~62%25-c08e44?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-1000%2B-4db6ac?style=flat-square)
+![Coverage](https://img.shields.io/badge/end--to--end-~70%25-4db6ac?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-10029%20passing-4db6ac?style=flat-square)
 ![Typecheck](https://img.shields.io/badge/typecheck-clean-4db6ac?style=flat-square)
-![Audit](https://img.shields.io/badge/honest--state-2026--05--05-6c5b7b?style=flat-square)
+![Audit](https://img.shields.io/badge/honest--state-2026--05--19-6c5b7b?style=flat-square)
 
-> **Estado honesto**: ~62% E2E ponderado tras la auditoría 2026-05-05. La cifra previa de 99% era optimista. Ver [docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md) y la profundización [docs/audits/AUDIT_2026-05-05_FULL.md](docs/audits/AUDIT_2026-05-05_FULL.md).
+> **Estado honesto**: ~70% E2E ponderado tras auditoría 2026-05-15 + verificación independiente 2026-05-19 (subió desde 62% del 2026-05-05 tras Sprints 39-56 + Wave F + Codex sweep). La cifra previa de 99% era optimista. Fuente única de verdad: [TODO.md](./TODO.md). Auditorías históricas en [docs/audits/](docs/audits/).
 
 **Cumplimiento:** DS 54, DS 44/2024, Ley 16.744 (Chile) — extensible a otras normativas LATAM.
 
@@ -91,9 +91,14 @@ exactamente qué falta y dónde obtenerlo.
 - **KMS rotation 90-day**: [`KMS_ROTATION.md`](./KMS_ROTATION.md).
 - **Cloud Build pipeline**: [`docs/runbooks/CLOUD_BUILD_RUNBOOK.md`](./docs/runbooks/CLOUD_BUILD_RUNBOOK.md).
 - **Disaster recovery**: [`docs/runbooks/DR_RUNBOOK.md`](./docs/runbooks/DR_RUNBOOK.md).
-- **Estado funcional actualizado**: [`STATE_OF_FUNCTIONALITY_2026-05-04.md`](./STATE_OF_FUNCTIONALITY_2026-05-04.md)
-  — 99% end-to-end; lo que queda son inputs externos (secrets), no
-  código pendiente.
+- **Estado funcional vivo**: [`TODO.md`](./TODO.md) — fuente única de
+  verdad (Regla #1: nada se marca ✅ sin file:line). Cobertura E2E
+  ponderada **~70%** verificado 2026-05-15 (subió desde 62% el
+  2026-05-05 tras Sprints 39-56 + Wave F + Codex sweep). El claim
+  histórico "99% end-to-end" del snapshot 2026-05-04 fue rectificado
+  por auditoría profunda; el snapshot queda en
+  [`docs/archive/2026-05/STATE_OF_FUNCTIONALITY_2026-05-04.md`](./docs/archive/2026-05/STATE_OF_FUNCTIONALITY_2026-05-04.md)
+  para referencia histórica.
 
 ---
 
@@ -172,7 +177,9 @@ Para Firebase Admin local: descargar `firebase-applet-config.json` desde la cons
 | `npm run build` | Build de producción del frontend |
 | `npm run preview` | Servir el build localmente para verificar |
 | `npm run typecheck` | Verificación de tipos TypeScript |
-| `npm run lint` | Alias de typecheck (ESLint pendiente) |
+| `npm run lint` | ESLint sobre `src/**/*.{ts,tsx}` + `server.ts` + `firestore.rules` (typescript-eslint + react-hooks, warnings permitidos hasta Fase F) |
+| `npm run lint:fix` | Igual que `lint` con `--fix` |
+| `npm run lint:rules` | Solo lintea `firestore.rules` (gate Firebase Security) |
 | `npm run start` | Servidor en modo producción |
 | `npm run cap:android` | Sincronizar y abrir Android Studio |
 | `npm run cap:ios` | Sincronizar y abrir Xcode |
