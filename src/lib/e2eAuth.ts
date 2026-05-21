@@ -26,6 +26,7 @@
 // ```
 
 const E2E_HEADER_KEY = 'gp.e2e.auth_header';
+const E2E_USER_KEY = 'gp.e2e.user';
 
 /**
  * Detecta si la app está corriendo bajo Playwright (`MODE=test`). Solo
@@ -52,4 +53,66 @@ export function getE2EAuthHeader(): string | null {
   if (!isE2EMode()) return null;
   if (typeof localStorage === 'undefined') return null;
   return localStorage.getItem(E2E_HEADER_KEY);
+}
+
+/**
+ * Shape mínima que el fixture `tests/e2e/fixtures/auth.ts:DEFAULT_TEST_USER`
+ * inyecta en localStorage. Mantener en sync con `TestUser` allá — usamos
+ * un type local porque este módulo se importa desde el bundle browser y
+ * `@playwright/test` no está disponible en runtime.
+ */
+export interface E2EUserFixture {
+  uid: string;
+  email: string;
+  displayName: string;
+  roles: string[];
+  projectIds: string[];
+  tenantId: string;
+}
+
+/**
+ * §2.19 fix (2026-05-21) — Resuelve el mismatch documentado en TODO.md:
+ * el fixture E2E setea `gp.e2e.user` en localStorage pero `FirebaseContext`
+ * solo escuchaba `onAuthStateChanged` de Firebase Auth real. Este helper
+ * permite que `FirebaseContext` (y otros consumidores) inicialicen su
+ * estado de "user logged-in" desde el fixture en modo test.
+ *
+ * Retorna null fuera de modo test, o cuando no hay fixture válido.
+ *
+ * **Garantía productiva:** este path está gateado por `isE2EMode()` que
+ * solo es true cuando `import.meta.env.MODE === 'test'` — es decir, solo
+ * cuando Vite arrancó con `--mode test`. La build productiva de Cloud Run
+ * (`vite build`) usa `production` por default y nunca entra acá.
+ */
+export function getE2EUser(): E2EUserFixture | null {
+  if (!isE2EMode()) return null;
+  if (typeof localStorage === 'undefined') return null;
+  const raw = localStorage.getItem(E2E_USER_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<E2EUserFixture>;
+    if (!parsed || typeof parsed.uid !== 'string' || !parsed.uid) {
+      return null;
+    }
+    return {
+      uid: parsed.uid,
+      email: typeof parsed.email === 'string' ? parsed.email : '',
+      displayName: typeof parsed.displayName === 'string' ? parsed.displayName : '',
+      roles: Array.isArray(parsed.roles) ? parsed.roles.filter((r): r is string => typeof r === 'string') : [],
+      projectIds: Array.isArray(parsed.projectIds) ? parsed.projectIds.filter((p): p is string => typeof p === 'string') : [],
+      tenantId: typeof parsed.tenantId === 'string' ? parsed.tenantId : '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * §2.19 fix (2026-05-21) — Combina `isE2EMode()` + `getE2EUser()` para
+ * uso conciso en componentes que necesitan saber "estamos en E2E con
+ * fixture inyectado". Útil para `App.tsx` (auto-set `hasEntered=true`
+ * cuando el test ya está "logged in" y queremos saltar Landing/Splash).
+ */
+export function hasE2EUserFixture(): boolean {
+  return getE2EUser() !== null;
 }
