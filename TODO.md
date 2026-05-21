@@ -262,31 +262,148 @@ Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** si
 
 **Fix aplicado:** se removió la importación browser-side por completo. NO se creó wrap server-side porque colisionaba con la directiva 2.6 inviolable ("Praeventio NO envía DIAT/DIEP a SUSESO directamente; empresa imprime/firma/sube al portal mutualidad"). El flujo real vive en `src/server/routes/suseso.ts` (POST /api/suseso/form crea folio + PDF; POST /api/suseso/forms/:formId/mark-submitted confirma upload manual) — accesible via `<SusesoFormBuilder>` componente que ya se renderizaba en la página.
 
-### 2.15 🔴 Zettelkasten dividido en 3 fuentes sin materializer
+### 2.15 ✅ Zettelkasten canonical materializer WIREADO (cierre Fase C.3, 2026-05-21)
+**Estado descubierto al auditar:** el `materializer.ts` (función pura) **YA EXISTÍA** completo desde Sprint 39 Fase D.8.c (`src/services/zettelkasten/canonical/materializer.ts`, 269 LOC, con tests). Lo que faltaba era el **wire a runtime** — nadie lo invocaba, así que un nodo creado por Bernoulli aterrizaba SOLO en `zettelkasten_nodes` global y nunca aparecía en KG/Digital Twin.
+
+**Fix aplicado (3 cambios concretos):**
+
+1. **Server route dual-write** — `src/server/routes/zettelkasten.ts:46-60,184-265`
+   - Importa `materializeNode` + `canonicalNodePath` del materializer puro.
+   - Resuelve `tenantId` del proyecto una sola vez por batch (Firestore read adicional).
+   - Por cada nodo escrito a `zettelkasten_nodes/{id}` (legacy, backwards compat), también escribe el canonical a `nodes/{tenantId}_{projectId}_{zkNodeId}` via `db.doc(canonicalPath).set(canonical, {merge: true})`.
+   - Try/catch independiente — si el canonical falla, NO bloquea la respuesta del POST; logueamos warn `zettelkasten_canonical_dual_write_failed`.
+   - Audit log incluye `canonicalMaterialized: true` + `tenantResolved: bool`.
+
+2. **Client RiskNodeMarkers migrado** — `src/components/digital-twin/RiskNodeMarkers.tsx:75-120`
+   - Antes leía `tenants/{tid}/zettelkasten_nodes` (subcolección que el server NUNCA escribía → twin mostraba 0 markers).
+   - Ahora lee `collection(db, 'nodes')` con `where('tenantId','==',tid)` + `where('projectId','==',pid)` + `orderBy('createdAt','desc')` + `limit(100)`.
+   - `UniversalKnowledgeContext.tsx:108` y `useRiskEngine.ts:44` ya leen `nodes` filtrado por `projectId` → ahora reciben automáticamente los canonicals materializados.
+
+3. **Índice compuesto Firestore** — `firestore.indexes.json`
+   - Nuevo índice `nodes` con campos `(tenantId ASC, projectId ASC, createdAt DESC)` requerido por la query de RiskNodeMarkers.
+
+**Test contract (`src/__tests__/contracts/zkMaterializerWired.test.ts`, NEW, 86 LOC):**
+- Verifica imports `materializeNode` + `canonicalNodePath` en server route.
+- Verifica dual-write pattern + try/catch defensivo.
+- Verifica RiskNodeMarkers usa `collection(db, 'nodes')` con tenantId+projectId filter (NO el path legacy).
+- Verifica índice compuesto en `firestore.indexes.json`.
+- Verifica que el materializer permanezca función pura (sin imports firebase/firebase-admin) — gate para que un consumer futuro Cloud Function trigger lo pueda usar sin dragar SDK pesado.
+
+**Resultado:** un nodo creado por calculadora Bernoulli ahora aparece automáticamente en RiskNetwork (KG global lee `nodes`), useRiskEngine (lee `nodes`), Digital Twin RiskNodeMarkers (lee `nodes` filtrado por tenantId+projectId). La inconsistencia denunciada por `AUDIT_TRUTH_MATRIX_2026-05-07.md:193-207` queda resuelta.
+
+### 2.16 ✅ B2D Climate wireado a Open-Meteo + USGS + OpenAQ reales (cierre Fase C.4, 2026-05-21)
 **Archivos:**
-- `src/server/routes/zettelkasten.ts:191` → escribe `zettelkasten_nodes` (Bernoulli server-side)
-- `src/contexts/UniversalKnowledgeContext.tsx:108, 224` → lee/escribe `nodes` (KG global)
-- `src/hooks/useRiskEngine.ts:44, 86, 96, 263` → `nodes` (risk engine)
-- `src/components/digital-twin/RiskNodeMarkers.tsx:79` → `tenants/{tenantId}/zettelkasten_nodes` (digital twin tenant-scoped)
+- `src/services/b2d/externalClimate.ts` (NEW, 297 LOC) — 3 funciones puras: `fetchOpenMeteoCurrent`, `fetchOpenMeteoForecast`, `fetchUsgsEarthquakesNearby`, `fetchOpenAqAirQuality`. Cache in-memory 1h con bucket por coords redondeadas a 2 decimales. Timeout 8s via AbortController. Cada función devuelve `{ data, source }` o `null` si la fuente falla — Regla #3: el caller decide combinar fuentes o caer a fallback.
+- `src/server/routes/b2d/climate.ts` (reescrito) — `/current` invoca las 3 fuentes en paralelo (`Promise.all`) + fallback determinístico por fuente (no solo cuando las 3 fallan; cada una cae independiente). `/forecast` invoca Open-Meteo + fallback gradient. `/risk-score` calcula sobre snapshot real si Open-Meteo responde, sobre stub si no.
+- `src/server/routes/b2d/climate.test.ts` — actualizado con `vi.stubGlobal('fetch', ...)` que fuerza fallback determinístico → tests determinísticos sin depender de red real + shape estable verificado.
 
-Un nodo creado por calculadora Bernoulli **no aparece** donde RiskNetwork/AI Hub/Digital Twin esperan. El usuario percibe inconsistencia. Hallazgo P1 de `AUDIT_TRUTH_MATRIX_2026-05-07.md:193-207`.
+**Diseño:**
+- **Open-Meteo** (https://open-meteo.com) — clima current + 14d forecast. Gratuito, sin API key. ~10k req/day per IP.
+- **USGS** (https://earthquake.usgs.gov/fdsnws) — sismos últimas 24h, radio hasta 500km. Gratuito, sin API key.
+- **OpenAQ v3** (https://api.openaq.org/v3) — PM2.5, PM10, AQI calculado con breakpoints EPA. Key opcional via `OPENAQ_API_KEY`; sin key da 401 → fallback.
+- **Privacidad B2D inviolable** — NUNCA pasa tenantId/customerId al upstream. Solo coords + radius.
+- **Provenance auditable** — cada response incluye `provenance.{weather,seismic,airQuality}` para que el cliente B2D vea qué fuentes son live vs fallback.
+- **Backward compat** — campos legacy (`weather`, `seismic`, `airQuality`, `citations`) preservados; nuevos campos (`weatherSource`, `seismic.available`, `airQuality.available`, `provenance`) agregados.
 
-**Fix:** definir collection canónica + materializer/bridge bidireccional + tests E2E (generar nodo desde calculadora → verlo en KG/RiskEngine/Twin).
+### 2.17 ✅ B2D Coach wireado a Gemini con fallback determinístico (cierre Fase C.5, 2026-05-21)
+**Archivos:**
+- `src/server/routes/b2d/suite.ts` (reescrito, +163 LOC) — handler `/api/b2d/v1/suite/coach` ahora invoca `getAiAdapter().generate(...)` con system instruction (DS 44/2024 + ISO 45001 + Ley 16.744) + prompt JSON-mode. Si el adapter es `noop` o falla, **CAE GRACEFULLY** al builder determinístico (Regla #3 inviolable). Response shape estable (cliente B2D no se entera del provider) + nuevo campo `source: 'gemini-consumer' | 'vertex-ai' | 'deterministic'` para transparencia auditable.
+- `src/server/routes/b2d/suite.test.ts` (NEW, 145 LOC) — 7 tests cubren: input inválido, Gemini happy path, fallback por adapter no disponible, fallback por JSON inválido, fallback por error upstream, fallback por shape parcial, no exposición Zettelkasten/tenant.
 
-### 2.16 🔴 B2D Climate adapter sigue deterministic-stub vs promesa "Open-Meteo/USGS/OpenAQ"
-**Archivos:** routes en `src/server/routes/b2d*.ts` (verificar) — promesa marketing dice "Open-Meteo + USGS + OpenAQ" pero endpoint retorna stub determinístico.
+**Diseño:**
+- **Privacidad inviolable preservada** — el coach NUNCA accede al Zettelkasten ni a datos del tenant. Solo procesa input del request body (industry + scenario + mitigations). System instruction explícita: "NUNCA accedes a datos del tenant ni al Zettelkasten interno".
+- **Directiva 2.6 reforzada** — system instruction: "NUNCA recomiendas invocar APIs estatales directamente — solo recomienda al usuario".
+- **Citas canónicas siempre presentes** — DS 44/2024 (no DS 40 derogado), DS 594, DS 54, ISO 45001, Ley 16.744. Las del modelo se mergean deduplicadas.
+- **Guardrail runtime backup** — `hallucinationGuard.ts:89-91` actúa como segunda línea si Gemini cita DS 40 sin anotación histórica.
 
-**Fix Regla #3** (construir, no etiquetar): wire real:
-- Open-Meteo API (gratuito sin key) para forecast meteorológico
-- USGS Earthquake API para sismos
-- OpenAQ API para calidad del aire
-- Cache 1h server-side por (lat,lng,radius)
-- Fallback determinístico solo si las 3 fuentes fallan simultáneamente
+### 2.19 🔴 Playwright full-stack E2E — 6 tests fallidos pre-existentes en `main` (DESCUBIERTO 2026-05-21)
 
-### 2.17 🔴 B2D Gemini AI Coach es determinístico, no usa Gemini
-**Archivo:** servicio coach (verificar `src/services/coach/` o similar)
+**Archivos afectados (verificados en PR #449 y #452, ambos mismos 6 tests fallidos):**
+- `tests/e2e/accessibility.spec.ts:129` — login page exposes a main landmark and labelled heading (timeout `expect.toBeVisible()` 5s)
+- `tests/e2e/fall-detection-toggle.spec.ts:11` — FallDetection toggle activa y persiste tras reload (timeout 11s)
+- `tests/e2e/offline-resilience.spec.ts:16` — hallazgo creado offline se sincroniza al recuperar la red (timeout 32s)
+- `tests/e2e/process-lifecycle.spec.ts:17` — iniciar y cerrar un proceso otorga XP a la cuadrilla (timeout 17s)
+- `tests/e2e/sos-button.spec.ts:13` — long-press de 3s dispara alerta (timeout 6s, 3 retries)
+- `tests/e2e/sos-button.spec.ts:57` — fallback a tel: cuando geolocation bloqueada (timeout 6s, 3 retries)
 
-Promesa marketing dice "Gemini AI Coach"; código retorna respuestas determinísticas pre-armadas. **Fix:** wire `geminiAdapter.generateContent()` con prompt template + RAG sobre normativa del tenant + fallback determinístico solo si Gemini API falla.
+**Estado verificado:**
+- PR #449 (mergeado por `mikesandoval10creator` 2026-05-19): 14 success / 1 neutral / 1 failure (este mismo Playwright)
+- PR #452 (en revisión 2026-05-21): mismos 6 tests fallidos en run inicial Y re-run idéntico
+- `main` no tiene branch protection (`API resp: Branch not protected`) → mergeable a pesar del check
+
+**ROOT CAUSE DEFINITIVO (debugging sistemático 2026-05-21):**
+
+Hay un **mismatch entre el fixture E2E y el código de la app** — exactamente el tipo de "funciones esperando calls diferentes" que mencionó el usuario.
+
+1. **Fixture `tests/e2e/fixtures/auth.ts:61-87` (`loginAsTestUser`)** inyecta en localStorage del browser via `page.addInitScript()`:
+   - `gp.e2e.user` (JSON del TestUser)
+   - `gp.e2e.token` (`<secret>:<uid>`)
+   - `gp.e2e.auth_header` (`E2E <secret>:<uid>`)
+   - **Asume** que el frontend lee `gp.e2e.user` y trata al usuario como autenticado.
+
+2. **Pero `src/App.tsx:246-247`** consume `const { user } = useFirebase()`, que es el `FirebaseContext` (línea 109 del context). **Este contexto solo lee Firebase Auth real** vía `onAuthStateChanged`, NO `localStorage.gp.e2e.user`.
+
+3. **Resultado**: cuando el test corre `loginAsTestUser(page)` + `page.goto('/sos')`:
+   - localStorage tiene `gp.e2e.user` ✅
+   - Pero `useFirebase()` devuelve `user = null` ❌
+   - `AppRoutes` línea 345-353 evalúa: `if (!hasEntered && !skipLanding && !needsOnboarding && !user)` → **TRUE** → renderiza `<LandingPage>` en lugar de la ruta solicitada
+   - El test espera elementos de `/sos` (botón SOS) → no aparecen → timeout 5s → fail.
+
+4. **Bug adicional**: `src/App.tsx:327-333` `skipLanding` NO incluye `/login`. Visitantes anónimos que abren link directo a `/login` ven Landing en lugar del form de login. Esto rompe específicamente `accessibility.spec.ts:129`.
+
+5. **Solo el server-side respeta el header E2E** — `src/server/middleware/verifyAuth.ts` acepta `Authorization: E2E <secret>:<uid>` cuando `E2E_MODE=1`. Pero el frontend nunca llega a llamar el API porque AppRoutes lo bloquea con Landing antes.
+
+**FIX correcto (3 cambios coordinados, NO incluidos en PR #452 — Day-1):**
+
+**A. Extender `FirebaseContext` (o `useFirebase`) para que en `MODE=test` lea `gp.e2e.user` y devuelva un user shim:**
+```ts
+// src/contexts/FirebaseContext.tsx (post-fix Day-1)
+const [user, setUser] = useState<User | null>(() => {
+  if (typeof window !== 'undefined' && import.meta.env.MODE === 'test') {
+    const fixture = window.localStorage.getItem('gp.e2e.user');
+    if (fixture) {
+      const parsed = JSON.parse(fixture);
+      return { uid: parsed.uid, email: parsed.email, displayName: parsed.displayName } as User;
+    }
+  }
+  return null;
+});
+```
+
+**B. Agregar `/login` a `skipLanding` en `src/App.tsx:327`:**
+```ts
+const skipLanding =
+  window.location.pathname.startsWith('/invite') ||
+  window.location.pathname.startsWith('/login') ||   // ← NUEVO
+  window.location.pathname.startsWith('/public') ||
+  ...
+```
+
+**C. Auto-set `hasEntered = true` en MODE=test cuando hay user-shim:**
+```ts
+const [hasEntered, setHasEntered] = useState(() => {
+  if (typeof window !== 'undefined' && import.meta.env.MODE === 'test' &&
+      window.localStorage.getItem('gp.e2e.user')) {
+    return true;
+  }
+  return false;
+});
+```
+
+Con estos 3 cambios, los 6 tests pasan sin tocar los tests mismos:
+- `accessibility.spec.ts:129` → `/login` ahora salta Landing → renderiza Login.tsx → `#login-heading` visible
+- Los otros 5 → `useFirebase()` devuelve user shim → AppRoutes deja pasar a la ruta solicitada → tests ven sus elementos
+
+**Decisión PR #452:** NO incluir el fix en este PR. Razones:
+1. El fix toca `FirebaseContext` y `App.tsx` — 2 archivos core de auth/routing. Cambio invasivo que merece su propio PR + review dedicado.
+2. PR #449 (último merged) ya mergeó con el mismo fail aceptado → precedente del proyecto.
+3. Documentación completa del root cause aquí + en PR description permite que un sprint futuro lo aborde con scope claro.
+4. Los 6 tests fallidos no son introducidos por #452 — son pre-existentes verificados con commit `cda2ef26` (antes de mi typecheck fix).
+
+**Verificación post-fix Day-1:**
+- `npx playwright test --project=chromium --grep="login page exposes" --debug` → ver que `#login-heading` aparece
+- Correr suite completa full-stack → 9 passed / 0 failed / 12 skipped (esperado)
+- Verificar que producción NO active el shim (gate `import.meta.env.MODE === 'test'` solo en Vite preview con `--mode test`)
 
 ### 2.18 🔴 EPP detection usa Gemini-vision, no Edge AI local
 **Archivos:**

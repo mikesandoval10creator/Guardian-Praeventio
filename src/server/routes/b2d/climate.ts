@@ -12,15 +12,29 @@
 //       Scope: `climate.read`
 //
 // Privacy boundary: never reads tenant Zettelkasten data. Every payload
-// is computed from public sources (Open-Meteo, USGS, OpenAQ). Until the
-// Cloud Function fan-out lands the response is structured-stub-with-real-
-// shape so downstream contracts are stable; the `provenance` field tells
-// integrators when data is real vs deterministic.
+// is computed from public sources (Open-Meteo, USGS, OpenAQ).
+//
+// §2.16 (cierre Fase C.4, 2026-05-21):
+//   Antes este endpoint era 100% determinístico (provenance:
+//   'deterministic-stub'), contradiciendo la promesa marketing "Open-Meteo
+//   + USGS + OpenAQ". Ahora invoca las 3 fuentes externas vía
+//   `services/b2d/externalClimate.ts` (cache 1h server-side, timeouts 8s,
+//   no expone tenantId/customerId al upstream). Si alguna fuente falla
+//   (timeout, 5xx, parse error), CAE GRACEFULLY a stub determinístico de
+//   ESA fuente individual — Regla #3 inviolable. El campo `provenance`
+//   reporta qué fuentes son reales vs stub para cada request.
 
 import { Router } from 'express';
 
 import { b2dAuth } from '../../middleware/b2dAuth.js';
 import { trackB2dUsage } from '../../../services/b2d/usage.js';
+import {
+  fetchOpenMeteoCurrent,
+  fetchOpenMeteoForecast,
+  fetchUsgsEarthquakesNearby,
+  fetchOpenAqAirQuality,
+  type OpenMeteoCurrent,
+} from '../../../services/b2d/externalClimate.js';
 
 const router = Router();
 
@@ -37,9 +51,11 @@ function parseLatLng(req: import('express').Request): LatLng | null {
   return { lat, lng };
 }
 
-/** Deterministic stub: real Open-Meteo proxy lives in Sprint 24 fan-out. */
-function climateSnapshot(coords: LatLng) {
-  // Latitude-derived temperature gradient — keeps shape realistic.
+/**
+ * Fallback determinístico (Regla #3) — solo cuando Open-Meteo falla.
+ * Gradient simple por latitud para que el shape sea realista.
+ */
+function climateSnapshotFallback(coords: LatLng): OpenMeteoCurrent {
   const tempC = Math.round((20 - Math.abs(coords.lat) / 3) * 10) / 10;
   return {
     tempC,
@@ -61,23 +77,46 @@ router.get('/current', b2dAuth('climate.read'), async (req, res) => {
   const customerId = req.b2dKey?.customerId as string;
   await trackB2dUsage(customerId);
 
+  // §2.16 — invocar las 3 fuentes en paralelo (cache 1h server-side).
+  // Cada Promise puede resolver con `null` si la fuente falla.
+  const [openMeteo, usgs, openAq] = await Promise.all([
+    fetchOpenMeteoCurrent(coords.lat, coords.lng),
+    fetchUsgsEarthquakesNearby(coords.lat, coords.lng, 200),
+    fetchOpenAqAirQuality(coords.lat, coords.lng, 25),
+  ]);
+
+  const weather = openMeteo?.data ?? climateSnapshotFallback(coords);
+  const weatherSource: 'openmeteo' | 'deterministic-fallback' = openMeteo
+    ? 'openmeteo'
+    : 'deterministic-fallback';
+
+  const seismic = {
+    last24hMaxMagnitude: usgs?.data.last24hMaxMagnitude ?? null,
+    nearbyEventCount: usgs?.data.nearbyEventCount ?? 0,
+    source: 'usgs' as const,
+    available: usgs !== null,
+  };
+
+  const airQuality = {
+    pm25UgM3: openAq?.data.pm25UgM3 ?? null,
+    pm10UgM3: openAq?.data.pm10UgM3 ?? null,
+    aqi: openAq?.data.aqi ?? null,
+    source: 'openaq' as const,
+    available: openAq !== null,
+  };
+
   return res.json({
     coordinates: coords,
-    weather: climateSnapshot(coords),
-    seismic: {
-      // Placeholder — USGS earthquake feed integration arrives Sprint 24.
-      last24hMaxMagnitude: null,
-      nearbyEventCount: 0,
-      source: 'usgs',
-    },
-    airQuality: {
-      pm25UgM3: null,
-      pm10UgM3: null,
-      aqi: null,
-      source: 'openaq',
-    },
+    weather,
+    weatherSource,
+    seismic,
+    airQuality,
     citations: ['Open-Meteo', 'USGS Earthquake Catalog', 'OpenAQ'],
-    provenance: 'deterministic-stub',
+    provenance: {
+      weather: weatherSource,
+      seismic: usgs ? 'usgs-live' : 'unavailable',
+      airQuality: openAq ? 'openaq-live' : 'unavailable',
+    },
     computedAt: new Date().toISOString(),
   });
 });
@@ -87,11 +126,29 @@ router.get('/forecast', b2dAuth('climate.forecast'), async (req, res) => {
   if (!coords) return res.status(400).json({ error: 'invalid_coordinates' });
 
   const days = Math.min(14, Math.max(1, Math.floor(Number(req.query.days ?? 7))));
+
+  const customerId = req.b2dKey?.customerId as string;
+  await trackB2dUsage(customerId);
+
+  // §2.16 — Open-Meteo forecast real con fallback determinístico.
+  const forecast = await fetchOpenMeteoForecast(coords.lat, coords.lng, days);
+
+  if (forecast) {
+    return res.json({
+      coordinates: coords,
+      days: forecast.data,
+      citations: ['Open-Meteo'],
+      provenance: 'openmeteo-live',
+      computedAt: new Date().toISOString(),
+    });
+  }
+
+  // Fallback determinístico — gradient simple por latitud + días.
   const today = new Date();
-  const days_data: { date: string; tempMinC: number; tempMaxC: number; precipitationMm: number; windKmh: number }[] = [];
+  const base = climateSnapshotFallback(coords);
+  const days_data = [];
   for (let i = 0; i < days; i += 1) {
     const date = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
-    const base = climateSnapshot(coords);
     days_data.push({
       date: date.toISOString().slice(0, 10),
       tempMinC: base.tempC - 4,
@@ -101,14 +158,11 @@ router.get('/forecast', b2dAuth('climate.forecast'), async (req, res) => {
     });
   }
 
-  const customerId = req.b2dKey?.customerId as string;
-  await trackB2dUsage(customerId);
-
   return res.json({
     coordinates: coords,
     days: days_data,
-    citations: ['Open-Meteo'],
-    provenance: 'deterministic-stub',
+    citations: ['Open-Meteo (fallback)', 'Praeventio climate stub'],
+    provenance: 'deterministic-fallback',
     computedAt: new Date().toISOString(),
   });
 });
@@ -123,8 +177,18 @@ router.get('/risk-score', b2dAuth('climate.read'), async (req, res) => {
     return res.status(400).json({ error: 'invalid_industry', allowed });
   }
 
-  // Industry-weighted score derived from latitude + base climate.
-  const snapshot = climateSnapshot(coords);
+  const customerId = req.b2dKey?.customerId as string;
+  await trackB2dUsage(customerId);
+
+  // §2.16 — el risk-score se calcula sobre el snapshot REAL si Open-Meteo
+  // responde. Si no, sobre el snapshot determinístico (Regla #3 — el
+  // score sigue calculándose, no se etiqueta como "no disponible").
+  const openMeteo = await fetchOpenMeteoCurrent(coords.lat, coords.lng);
+  const snapshot = openMeteo?.data ?? climateSnapshotFallback(coords);
+  const weatherSource: 'openmeteo' | 'deterministic-fallback' = openMeteo
+    ? 'openmeteo'
+    : 'deterministic-fallback';
+
   const industryWeights: Record<string, number> = {
     general: 1.0,
     mining: 1.4,
@@ -133,13 +197,11 @@ router.get('/risk-score', b2dAuth('climate.read'), async (req, res) => {
     logistics: 0.9,
   };
   const weight = industryWeights[industry] ?? 1;
+  const uv = snapshot.uvIndex ?? 4;
   const rawScore = Math.min(
     100,
-    Math.round(((snapshot.windKmh / 50) * 30 + (snapshot.uvIndex / 11) * 30) * weight),
+    Math.round(((snapshot.windKmh / 50) * 30 + (uv / 11) * 30) * weight),
   );
-
-  const customerId = req.b2dKey?.customerId as string;
-  await trackB2dUsage(customerId);
 
   return res.json({
     coordinates: coords,
@@ -147,8 +209,9 @@ router.get('/risk-score', b2dAuth('climate.read'), async (req, res) => {
     riskScore: rawScore,
     riskBand: rawScore < 25 ? 'low' : rawScore < 60 ? 'medium' : 'high',
     drivers: ['wind', 'uv'],
+    weatherSnapshot: snapshot,
     citations: ['Open-Meteo', 'Praeventio risk model v1'],
-    provenance: 'deterministic-stub',
+    provenance: weatherSource,
     computedAt: new Date().toISOString(),
   });
 });
