@@ -345,6 +345,21 @@ Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** si
 
 **Pendiente migración incremental:** 19 callers restantes — billingService, gamificationService, geminiService, auditService, etc. Pattern replicable: cambiar `Bearer ${idToken}` por `apiAuthHeader()` que devuelve string completo con prefijo correcto.
 
+### 2.23 ✅ CI E2E workflow construía con MODE=production → gates E2E nunca activaban (CERRADO 2026-05-21)
+
+**Hallazgo durante verificación CI post-§2.22:** El workflow `.github/workflows/e2e.yml:114-115` corre `npm run build` (= `vite build` default MODE=production) antes de `playwright test`. Resultado: el bundle servido por `vite preview` tiene `import.meta.env.MODE === 'production'` baked-in, así que los gates de mis fixes:
+
+- `src/lib/e2eAuth.ts:isE2EMode()` retorna false → shim no activa
+- `src/contexts/FirebaseContext.tsx:buildE2EUserShim()` nunca se llama
+- `src/App.tsx:hasEntered` no se auto-true
+- `src/services/firebase.ts:connectFirestoreEmulator` no se ejecuta
+
+Esto explica por qué §2.22 (connectFirestoreEmulator) no resolvió los 5 specs §2.21 — el gate nunca activaba.
+
+**Fix:** `e2e.yml:114-115` cambiado a `npm run build -- --mode test`. Vite ahora bakea `MODE=test` en el bundle E2E. Builds productivos siguen siendo default (este job es exclusivo de E2E full-stack).
+
+**Esperado:** los 5 specs §2.21 ahora ven el shim activado + ProjectContext conectado al emulator → mayoría debería pasar.
+
 ### 2.22 ✅ Frontend Firebase Client SDK NO conectaba al Firestore Emulator (CERRADO 2026-05-21)
 
 **Hallazgo:** `src/services/firebase.ts` inicializaba Firestore Client SDK sin `connectFirestoreEmulator()`. En E2E full-stack: `seedProject()` escribía al emulator (puerto 8080) via firebase-admin, pero ProjectContext y todas las queries del frontend iban a Firestore PRODUCTION → resultado: `selectedProject` null y los 5 specs §2.21 no encontraban sus elementos UI.

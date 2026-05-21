@@ -111,8 +111,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Build production bundle
-        run: npm run build
+      - name: Build bundle (mode=test) for E2E full-stack
+        # §2.23 fix (2026-05-21) — Build con `--mode test` para que el
+        # bundle servido por `vite preview` tenga `import.meta.env.MODE
+        # === 'test'`. Sin esto los gates de E2E shim
+        # (`isE2EMode()` en src/lib/e2eAuth.ts + connectFirestoreEmulator
+        # en src/services/firebase.ts) nunca activaban, dejando los specs
+        # E2E full-stack (sos-button, fall-detection, offline-resilience,
+        # process-lifecycle) sin frontend conectado al emulator ni shim
+        # de user state. Esta job es exclusiva del E2E full-stack;
+        # los builds productivos siguen siendo `npm run build` default.
+        run: npm run build -- --mode test
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
