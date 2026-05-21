@@ -28,22 +28,22 @@ export interface WorkPermitFirestoreDb {
 
 interface WpCollectionRef {
   doc(id: string): WpDocRef;
-  where(field: string, op: '==' | '>=' | '<=', value: any): WpQuery;
+  where(field: string, op: '==' | '>=' | '<=', value: unknown): WpQuery;
   orderBy(field: string, dir: 'asc' | 'desc'): WpQuery;
   limit(n: number): WpQuery;
 }
 
 interface WpDocRef {
-  get(): Promise<{ exists: boolean; id: string; data(): any | undefined }>;
-  set(data: any): Promise<void>;
-  update(patch: any): Promise<void>;
+  get(): Promise<{ exists: boolean; id: string; data(): Record<string, unknown> | undefined }>;
+  set(data: Record<string, unknown>): Promise<void>;
+  update(patch: Record<string, unknown>): Promise<void>;
 }
 
 interface WpQuery {
-  where(field: string, op: '==' | '>=' | '<=', value: any): WpQuery;
+  where(field: string, op: '==' | '>=' | '<=', value: unknown): WpQuery;
   orderBy(field: string, dir: 'asc' | 'desc'): WpQuery;
   limit(n: number): WpQuery;
-  get(): Promise<{ empty: boolean; docs: Array<{ id: string; data(): any }> }>;
+  get(): Promise<{ empty: boolean; docs: Array<{ id: string; data(): Record<string, unknown> }> }>;
 }
 
 const PATH = (tid: string, pid: string) =>
@@ -223,6 +223,7 @@ function serialize(p: WorkPermit): Record<string, any> {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- acceso dinámico campos Firestore
 function deserialize(data: any): WorkPermit {
   return {
     id: data.id,
