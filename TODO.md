@@ -227,18 +227,24 @@ Los 394 tests fallidos previos fueron arreglados entre 2026-05-15 y 2026-05-19, 
 
 **Riesgo cerrado:** no hay regresiones latentes en tests.
 
-### 2.12 🔴 Stripe scaffold sigue en código pese a declararse "descartado" §9
-**Archivos:**
-- `src/services/billing/stripeAdapter.ts` (95+ LOC, "TYPED STUB", sin paquete `stripe` instalado)
-- `src/services/billing/stripePreflightCheck.ts` (170+ LOC con validación de prefijos `sk_live_`/`sk_test_`)
-- `src/services/billing/stripePreflightCheck.test.ts`
-- `src/server/routes/billing.ts:84` import, `:159` comentario, `:476`, `:593-598` handler activo
-- `src/pages/Pricing.tsx:946` comentario
+### 2.12 ✅ Stripe scaffold ELIMINADO (Opción A — cierre Fase C.2, 2026-05-21)
+**Archivos borrados:**
+- `src/services/billing/stripeAdapter.ts` (DELETED)
+- `src/services/billing/stripePreflightCheck.ts` (DELETED)
+- `src/services/billing/stripePreflightCheck.test.ts` (DELETED)
 
-`stripeAdapter.isConfigured()` retorna `false` porque no hay paquete instalado, así que el branch `body.paymentMethod === 'stripe'` no se activa en runtime → **no rompe nada**, pero el drift entre TODO.md §9 ("Stripe descartado") y el código activo confunde auditorías futuras.
+**Archivos limpiados:**
+- `src/server/routes/billing.ts:84` (import stripeAdapter eliminado)
+- `src/server/routes/billing.ts:201-204` (VALID_PAYMENT_METHODS sin 'stripe')
+- `src/server/routes/billing.ts:519-523` (branch CLP+stripe eliminado; USD+webpay mensaje actualizado)
+- `src/server/routes/billing.ts:582-593` (handler stripe.createCheckoutSession eliminado entero)
+- `src/pages/Pricing.tsx:56-58,77-79,945-953,1072` (comentarios actualizados a "fallback B2B contacto@praeventio.net")
+- `src/__tests__/server/test-server.ts:273-274,620-624` (mismo set actualizado; rama CLP+stripe eliminada; USD+webpay msg)
+- `src/__tests__/server/billing.test.ts:145-160` (test renombrado a "rechaza 'stripe' como paymentMethod inválido")
+- `src/services/billing/invoice.test.ts:194` (USD test usa 'manual-transfer')
+- `src/services/billing/types.ts:17-46` (header actualizado; literal `'stripe'` queda como tombstone type-only para test fixtures legacy; runtime VALID_PAYMENT_METHODS rechaza el método)
 
-**Fix Opción A** (recomendado si Stripe sigue descartado): borrar 4 archivos `stripe*.ts` + imports + branch en `billing.ts`.
-**Fix Opción B**: revertir §9 y declarar Stripe como path internacional opcional activable post-Day-1.
+**Justificación Opción A:** la empresa está en Chile; Stripe no la considera para checkout productivo (decisión usuario 2026-05-16). Rails activos: Webpay (CLP), MercadoPago (LATAM regional), IAP nativo (mobile), manual-transfer (B2B enterprise). Si crece volumen internacional fuera de LATAM, se contacta vía `contacto@praeventio.net`.
 
 ### 2.13 🔴 IAP single SKU para todos los tiers
 **Archivo:** `src/pages/Pricing.tsx:995` → `const productId = 'praeventio_premium_monthly';`

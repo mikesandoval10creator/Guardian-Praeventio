@@ -17,31 +17,31 @@ export type CurrencyCode = 'CLP' | 'USD';
 /**
  * Supported payment rails.
  *
- * 2026-05-16 — Decisión usuario: la empresa está en Chile, Stripe no
- * la considera para checkout productivo. `stripe` queda como rail
- * SERVER-SIDE únicamente (legacy de `src/server/routes/billing.ts` y
- * `src/services/billing/stripeAdapter.ts`). El cliente NUNCA debería
- * solicitarlo, por eso lo separamos en dos tipos:
+ * 2026-05-16 — La empresa está en Chile; Stripe no la considera para
+ *   checkout productivo.
+ * 2026-05-21 — §2.12 (Fase C.2) — Stripe descartado oficialmente. Los
+ *   archivos `stripeAdapter.ts` + `stripePreflightCheck.ts` se eliminaron.
+ *   El literal 'stripe' permanece en `ServerPaymentMethod` SOLO como
+ *   tombstone para mantener tipados de tests/fixtures legacy compilando;
+ *   `VALID_PAYMENT_METHODS` runtime ya NO lo acepta.
  *
- *   - `ClientPaymentMethod`: lo que el UI puede ofrecer al usuario
- *   - `ServerPaymentMethod`: lo que el backend reconoce (incluye stripe
- *     por compatibilidad con código legacy)
- *
- * Si en el futuro Stripe acepta a Chile, podemos re-exportar:
- *   `export type ClientPaymentMethod = 'webpay' | 'stripe' | ...;`
- * Sin tener que tocar el resto del código.
- *
- * Rails activos:
+ * Rails ACTIVOS:
  * - `webpay` → Transbank Webpay Plus (CLP, Chilean issuers)
- * - `mercadopago` → MercadoPago Checkout Pro (CLP/ARS regional)
+ * - `mercadopago` → MercadoPago Checkout Pro (LATAM regional, endpoint
+ *   `/checkout/mp` separado, HMAC SHA-256 IPN verify)
  * - `manual-transfer` → Transferencia bancaria; admin marks invoice paid
- *   manually via `POST /api/billing/invoice/:id/mark-paid`.
+ *   manually via `POST /api/billing/invoice/:id/mark-paid`. Es el rail
+ *   usado para USD enterprise + LATAM no soportado por MP.
+ *
+ * Rail DESCARTADO (tombstone solo para compatibilidad de tipos):
+ * - `stripe` → ver TODO.md §9 + §2.12 closed.
  */
 export type ClientPaymentMethod = 'webpay' | 'mercadopago' | 'manual-transfer';
 
 /**
- * Server-side method type — incluye 'stripe' por compatibilidad con
- * código legacy del backend. NO usar en código cliente.
+ * Server-side method type. El literal 'stripe' es un tombstone tipo-only
+ * — el runtime lo rechaza (no está en VALID_PAYMENT_METHODS). NO usar
+ * en código nuevo.
  */
 export type ServerPaymentMethod = ClientPaymentMethod | 'stripe';
 

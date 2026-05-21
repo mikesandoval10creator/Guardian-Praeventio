@@ -270,7 +270,8 @@ export interface TestServerHandle {
 const VALID_ROLES = ['admin', 'gerente', 'supervisor', 'prevencionista', 'operario', 'visualizador'];
 const ADMIN_ROLES = ['admin', 'gerente'];
 const UID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
-const VALID_PAYMENT_METHODS = ['webpay', 'stripe', 'manual-transfer'] as const;
+// §2.12 (Fase C.2, 2026-05-21): 'stripe' removido (Stripe descartado).
+const VALID_PAYMENT_METHODS = ['webpay', 'manual-transfer'] as const;
 const VALID_CURRENCIES = ['CLP', 'USD'] as const;
 const BILLING_TIER_FALLBACK: Record<string, any> = {
   'comite-paritario': { clpRegular: 10075, clpAnual: 81504, usdRegular: 13, usdAnual: 130 },
@@ -616,11 +617,11 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     ) {
       return res.status(400).json({ error: 'Invalid cliente' });
     }
-    if (body.currency === 'CLP' && body.paymentMethod === 'stripe') {
-      return res.status(400).json({ error: 'CLP requires webpay or manual-transfer' });
-    }
+    // §2.12 (Fase C.2): Stripe descartado. CLP usa webpay; USD usa
+    // manual-transfer. (El check de 'stripe' como paymentMethod inválido
+    // ya ocurre antes en la validación VALID_PAYMENT_METHODS.)
     if (body.currency === 'USD' && body.paymentMethod === 'webpay') {
-      return res.status(400).json({ error: 'USD requires stripe or manual-transfer' });
+      return res.status(400).json({ error: 'USD requires manual-transfer' });
     }
     const tier = BILLING_TIER_FALLBACK[body.tierId];
     if (!tier) {
