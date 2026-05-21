@@ -41,12 +41,16 @@ export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
  */
 async function notifyServerLogout(): Promise<void> {
   try {
-    const user = auth.currentUser;
-    if (!user) return;
-    const token = await user.getIdToken();
+    // §2.20 (2026-05-21) — usa apiAuthHeader() que prefiere
+    // E2E header sobre Bearer cuando MODE=test. Antes este call-site
+    // hardcodeaba `Bearer ${token}` y fallaba en E2E full-stack
+    // (backend verifyAuth.ts:67 espera `E2E ...` en E2E_MODE).
+    const { apiAuthHeader } = await import('../lib/apiAuth');
+    const authHeader = await apiAuthHeader();
+    if (!authHeader) return;
     await fetch('/api/oauth/unlink', {
       method: 'POST',
-      headers: { Authorization: 'Bearer ' + token },
+      headers: { Authorization: authHeader },
       credentials: 'include',
     });
   } catch (err) {
