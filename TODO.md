@@ -247,14 +247,13 @@ Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** si
 
 **Fix:** mapear `tier.id` → product SKU específico antes del `iapAdapter.purchase()`. Requiere crear los SKUs en App Store Connect + Google Play Console (bloqueado por §5 cuentas).
 
-### 2.14 🔴 SusesoApiClient importado directo en frontend
-**Archivo:** `src/pages/SusesoReports.tsx:27-33` → `import { SusesoApiClient, ... } from '../services/sii/susesoApiClient'`
+### 2.14 ✅ SusesoApiClient removido del frontend (cierre Fase C.1, 2026-05-21)
+**Archivos:**
+- `src/pages/SusesoReports.tsx` — sin imports de SusesoApiClient/Diat/Diep/RoiPayload; sin `handleSusesoSubmit`; sin botón "Enviar a SUSESO" directo. Comentarios marcadores con la justificación (§2.14 + directiva 2.6).
+- `src/services/sii/susesoApiClient.ts:1-30` — header ⚠️ SERVER-ONLY + razones técnicas (process.env + bundle leak) + razón producto (directiva 2.6 no push automático).
+- `src/__tests__/contracts/noBrowserSusesoApiClient.test.ts` (NEW) — gate de regresión: si alguien re-importa SusesoApiClient/SusesoApiError/DiatPayload/DiepPayload/RoiPayload desde `src/pages/`, `src/components/` o `src/hooks/`, el test falla.
 
-`SusesoApiClient.fromEnv()` (línea 131 del adapter) usa `process.env.SUSESO_API_KEY` + `process.env.SUSESO_EMPLOYER_RUT`. En Vite browser:
-- Vars sin prefijo `VITE_` **no están disponibles** → el client siempre será `null` en producción
-- Si se renombran con prefijo `VITE_` → **los secretos quedan en el bundle del cliente**, accesibles vía DevTools
-
-**Fix:** mover a server route admin (`POST /api/admin/suseso/submit`) con verifyAuth + tenant isolation; remover import del frontend. Hallazgo P1 de `AUDIT_TRUTH_MATRIX_2026-05-07.md:178-191`.
+**Fix aplicado:** se removió la importación browser-side por completo. NO se creó wrap server-side porque colisionaba con la directiva 2.6 inviolable ("Praeventio NO envía DIAT/DIEP a SUSESO directamente; empresa imprime/firma/sube al portal mutualidad"). El flujo real vive en `src/server/routes/suseso.ts` (POST /api/suseso/form crea folio + PDF; POST /api/suseso/forms/:formId/mark-submitted confirma upload manual) — accesible via `<SusesoFormBuilder>` componente que ya se renderizaba en la página.
 
 ### 2.15 🔴 Zettelkasten dividido en 3 fuentes sin materializer
 **Archivos:**

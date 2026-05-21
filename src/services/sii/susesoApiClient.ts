@@ -1,18 +1,35 @@
 // Praeventio Guard — SUSESO API client (DIAT / DIEP / ROI submission).
 //
+// ⚠️ SERVER-ONLY (§2.14 cierre Fase C.1, 2026-05-21). NO IMPORTAR DESDE
+// CÓDIGO BROWSER (`src/pages/`, `src/components/`, `src/hooks/`). Razones:
+//
+//   1. `fromEnv()` lee `process.env.SUSESO_API_KEY` + `SUSESO_EMPLOYER_RUT`.
+//      En Vite browser bundle esas vars no existen → retorna `null` y la
+//      UI queda en false completeness silenciosa. Si alguien renombrara
+//      con prefijo `VITE_*` los secretos quedarían en el bundle accesibles
+//      via DevTools — P0 SECURITY leak.
+//
+//   2. Directiva 2.6 inviolable de producto: Praeventio NO envía DIAT/DIEP
+//      a SUSESO directamente. La empresa imprime/firma/sube al portal de
+//      la mutualidad. Este cliente sólo existe para mutualidades futuras
+//      que ofrezcan API push opcional + opt-in explícito del tenant — y
+//      en ese caso debe usarse desde un endpoint server-side autenticado
+//      con verifyAuth + assertProjectMember + role gate.
+//
 // Marco normativo:
 //  - Ley N° 16.744 art. 76 — obligación del empleador de denunciar accidentes
 //    y enfermedades profesionales.
 //  - Circular SUSESO N° 3656/2021 — instrucciones sobre presentación
 //    electrónica de DIAT y DIEP.
 //
-// Esta clase es un cliente fino sobre `fetch` con autenticación por API key +
-// RUT del empleador. La URL base por defecto es `https://api.suseso.cl/v1`,
-// pero es configurable vía variable de entorno (la URL real debe verificarse
+// Cliente fino sobre `fetch` con autenticación por API key + RUT del
+// empleador. La URL base por defecto es `https://api.suseso.cl/v1`, pero
+// es configurable vía variable de entorno (la URL real debe verificarse
 // contra la documentación vigente de SUSESO antes de ir a producción).
 //
-// `fromEnv()` retorna `null` si las variables no están configuradas para
-// permitir UI fallback (botón deshabilitado + mensaje "configurar credenciales").
+// `fromEnv()` retorna `null` si las variables no están configuradas — el
+// caller server-side debe degradar gracefully a "submission no disponible"
+// sin tirar.
 
 export interface DiatPayload {
   /** RUT del empleador (con dígito verificador, ej: "76543210-K"). */
