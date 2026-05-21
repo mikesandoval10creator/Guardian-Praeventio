@@ -517,6 +517,32 @@ Con estos 3 cambios, los 6 tests pasan sin tocar los tests mismos:
 **Fix Opción A** (alinear claim): cambiar marketing/UI a "EPP detection vía Gemini Vision (cloud)" + manejo offline degradado.
 **Fix Opción B** (cumplir promesa): entrenar/usar modelo TFLite de detección de EPP local (yolo-tiny + 7 clases: casco/chaleco/gafas/guantes/arnés/botas/respirador). Modal en `AIPostureAnalysisModal` ya carga MediaPipe; añadir branch EPP.
 
+### 2.27 ✅ Tier 1 paralelo — audit verificado (mostly DONE) 2026-05-21
+
+**Hallazgo durante audit Tier 1 (user request "sigue con el plan"):** El plan integrado 2026-05-17 listaba 4 items como pendientes mayores. Verificación 2026-05-21 con `find`/`grep` muestra que la mayoría está completo.
+
+| Item plan original | Estado real verificado |
+|--------------------|------------------------|
+| **2.A WebXR `immersive-ar` end-to-end** | 🟢 ~85% DONE. 11 archivos en `src/services/ar/`: arAnchorService, arAnchorFirestoreAdapter, arHitTest, arPlatformPolicy, arQuickLookFallback, arSceneOrchestrator, posterCatalog/Matcher/Embeddings, usdzConverter, webXrCapabilities. `DigitalTwinFaena.tsx:884` wireado con "Ver en AR (WebXR)" button + ArViewLink (iOS Quick Look). `useArPlacement.ts:53` placeholder por design (state coordinator — actual session lo arma el componente). Gap residual: tuning posibles refinamientos. |
+| **2.B Photogrammetry COLMAP + Modal deploy** | 🟢 ~95% DONE. `cloud-run/photogrammetry-worker/` con Dockerfile + cloudbuild.yaml + src/index.ts (COLMAP + ffmpeg) listo. `src/services/digitalTwin/photogrammetry/`: colmapAdapter.ts + modalAdapter.ts + mockAdapter.ts. Deploy.yml referencia secrets `PHOTOGRAMMETRY_WORKER_URL` + `PHOTOGRAMMETRY_WORKER_TOKEN`. **Falta solo OPS:** `gcloud builds submit cloudbuild.yaml` (manual one-time) + setear secrets. |
+| **2.C MQTT IoT productivo** | 🟢 ~90% DONE. `src/services/iot/`: mqttClient.ts real (MQTT.js v5.15 over WebSocket, QoS, edge filter, reconnect), mqttAdapter.ts, edgeFilter.ts, firestoreBridge.ts, ingestRuleEngine.ts. `topicHierarchy.ts` no encontrado — posible gap menor. **Falta OPS:** broker prod (EMQX/HiveMQ) + X.509 device certs (KMS). |
+| **2.D CalculatorHub 12 Bernoulli** | ✅ 100% DONE. `src/pages/CalculatorHub.tsx` (Sprint 29 Bucket AA F-A) wireado en `routes/AIRoutes.tsx:26` (`/calculators`). 15 generators en `src/services/zettelkasten/bernoulli/`: pulmonaryAltitude, respiratorFatigue, gasLeakDetection, confinedSpaceHVAC, mistingDustSuppression, hidranteFireNetwork, microWindEnergy, scaffoldWindSuction, dikeHydrostaticMonitor, gasDispersionCloud, slopeStabilityAfterRain, slamPhotogrammetryNode + hazmatPipePressure + miningVenturi + structuralWindLoad. |
+
+**Sprint K wire UI vidas críticas (Fase 3.E plan):**
+- ✅ `loneWorkerService` + `src/components/loneWorker/` existen
+- ⚠️ `evacuationHeadcount` service existe sin UI consumer (NO `src/components/evacuation/`)
+- ✅ `stoppageEngine` + `src/components/stoppage/` existen
+- ✅ `criticalControlsLibrary` + `src/components/criticalControls/` + routes
+- ✅ `fatigueMonitor` service + `src/components/fatigue/FatigueAssessmentCard.tsx` existen — **falta wire en Dashboard/page**
+- ✅ `rootCauseClassifier` + `src/components/rootCause/` + routes
+
+**Gaps reales verificados (2026-05-21):**
+1. `evacuationHeadcount` sin UI consumer — needs `<EvacuationDashboard />`
+2. `FatigueAssessmentCard.tsx` existe pero NO está referenciado en ningún page/route/App.tsx
+3. 2.B + 2.C requieren OPS (gcloud + broker setup)
+
+**Conclusión:** la fricción del plan a estado real era info desactualizada del 2026-05-17. La mayoría del trabajo Tier 1 ya estaba mergeado en sprints intermedios.
+
 ### 2.26 ✅ UX anonymous browsing — public collections Instagram-style (CERRADO 2026-05-21)
 
 **Directiva usuario 2026-05-21:** *"La app la pueda usar cualquier persona... login solo cuando quiera gestionar su info. Como Instagram que te dejan ver perfiles/publicaciones públicas... datos privados de empresas y personas con estándares de banco."*
