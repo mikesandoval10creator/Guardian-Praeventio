@@ -273,15 +273,19 @@ Un nodo creado por calculadora Bernoulli **no aparece** donde RiskNetwork/AI Hub
 
 **Fix:** definir collection canónica + materializer/bridge bidireccional + tests E2E (generar nodo desde calculadora → verlo en KG/RiskEngine/Twin).
 
-### 2.16 🔴 B2D Climate adapter sigue deterministic-stub vs promesa "Open-Meteo/USGS/OpenAQ"
-**Archivos:** routes en `src/server/routes/b2d*.ts` (verificar) — promesa marketing dice "Open-Meteo + USGS + OpenAQ" pero endpoint retorna stub determinístico.
+### 2.16 ✅ B2D Climate wireado a Open-Meteo + USGS + OpenAQ reales (cierre Fase C.4, 2026-05-21)
+**Archivos:**
+- `src/services/b2d/externalClimate.ts` (NEW, 297 LOC) — 3 funciones puras: `fetchOpenMeteoCurrent`, `fetchOpenMeteoForecast`, `fetchUsgsEarthquakesNearby`, `fetchOpenAqAirQuality`. Cache in-memory 1h con bucket por coords redondeadas a 2 decimales. Timeout 8s via AbortController. Cada función devuelve `{ data, source }` o `null` si la fuente falla — Regla #3: el caller decide combinar fuentes o caer a fallback.
+- `src/server/routes/b2d/climate.ts` (reescrito) — `/current` invoca las 3 fuentes en paralelo (`Promise.all`) + fallback determinístico por fuente (no solo cuando las 3 fallan; cada una cae independiente). `/forecast` invoca Open-Meteo + fallback gradient. `/risk-score` calcula sobre snapshot real si Open-Meteo responde, sobre stub si no.
+- `src/server/routes/b2d/climate.test.ts` — actualizado con `vi.stubGlobal('fetch', ...)` que fuerza fallback determinístico → tests determinísticos sin depender de red real + shape estable verificado.
 
-**Fix Regla #3** (construir, no etiquetar): wire real:
-- Open-Meteo API (gratuito sin key) para forecast meteorológico
-- USGS Earthquake API para sismos
-- OpenAQ API para calidad del aire
-- Cache 1h server-side por (lat,lng,radius)
-- Fallback determinístico solo si las 3 fuentes fallan simultáneamente
+**Diseño:**
+- **Open-Meteo** (https://open-meteo.com) — clima current + 14d forecast. Gratuito, sin API key. ~10k req/day per IP.
+- **USGS** (https://earthquake.usgs.gov/fdsnws) — sismos últimas 24h, radio hasta 500km. Gratuito, sin API key.
+- **OpenAQ v3** (https://api.openaq.org/v3) — PM2.5, PM10, AQI calculado con breakpoints EPA. Key opcional via `OPENAQ_API_KEY`; sin key da 401 → fallback.
+- **Privacidad B2D inviolable** — NUNCA pasa tenantId/customerId al upstream. Solo coords + radius.
+- **Provenance auditable** — cada response incluye `provenance.{weather,seismic,airQuality}` para que el cliente B2D vea qué fuentes son live vs fallback.
+- **Backward compat** — campos legacy (`weather`, `seismic`, `airQuality`, `citations`) preservados; nuevos campos (`weatherSource`, `seismic.available`, `airQuality.available`, `provenance`) agregados.
 
 ### 2.17 ✅ B2D Coach wireado a Gemini con fallback determinístico (cierre Fase C.5, 2026-05-21)
 **Archivos:**

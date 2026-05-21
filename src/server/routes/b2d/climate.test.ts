@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Sprint 23 Bucket BB.9 — Climate API integration tests.
+//
+// §2.16 (Fase C.4, 2026-05-21): tras wirear Open-Meteo + USGS + OpenAQ
+// reales, mockeamos `fetch` global para que el test no dependa de red
+// y se ejecute determinístico. El handler cae al fallback en cada
+// fuente — el shape de la response sigue estable, que es lo que estos
+// tests validan.
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
+import { __resetExternalClimateCache } from '../../../services/b2d/externalClimate.js';
 
 vi.mock('../../middleware/b2dAuth.js', () => ({
   b2dAuth: () => (req: any, _res: any, next: any) => {
@@ -25,7 +32,28 @@ vi.mock('../../../services/b2d/usage.js', () => ({
   trackB2dUsage: vi.fn(),
 }));
 
+vi.mock('../../../utils/logger.js', () => ({
+  logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
+
 import climateRouter from './climate.js';
+
+beforeEach(() => {
+  // §2.16: forzar fallback en TODAS las fuentes externas para que el
+  // test sea determinístico. fetch siempre rejecta → externalClimate.ts
+  // catch → null → handler usa stub determinístico.
+  __resetExternalClimateCache();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      throw new Error('test: external network disabled');
+    }),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function makeApp() {
   const app = express();
