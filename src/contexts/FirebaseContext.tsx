@@ -3,6 +3,7 @@ import { auth, db, User, onAuthStateChanged, doc, getDoc, setDoc, collection, ge
 import { risks } from '../data/risks';
 import { NodeType } from '../types';
 import { logger } from '../utils/logger';
+import { isE2EMode, getE2EUser } from '../lib/e2eAuth';
 
 interface FirebaseContextType {
   user: User | null;
@@ -20,16 +21,83 @@ interface FirebaseContextType {
 
 const FirebaseContext = createContext<FirebaseContextType | undefined>(undefined);
 
+/**
+ * §2.19 fix (2026-05-21) — Construye un User shim mínimo desde el fixture
+ * E2E para que `useFirebase().user` no sea null en tests Playwright. Solo
+ * se invoca cuando `isE2EMode() === true`. Cumple la shape mínima que
+ * `App.tsx`/hooks consumen (`uid`, `email`, `displayName`).
+ *
+ * NO se usa `auth.currentUser?.getIdToken()` en este path — los fetch
+ * wrappers ya tienen un fallback a `getE2EAuthHeader()` (ver
+ * `src/lib/e2eAuth.ts`) que devuelve el header sintético `E2E <secret>:<uid>`.
+ */
+function buildE2EUserShim(): User | null {
+  const fixture = getE2EUser();
+  if (!fixture) return null;
+  // Cast a `User` para evitar arrastrar la dependencia de los métodos
+  // internos de `firebase.User` (getIdToken, reload, etc.) que React no
+  // consume directamente. Si algún consumidor llama getIdToken explícito
+  // bajo MODE=test, refactorizar a getE2EAuthHeader().
+  return {
+    uid: fixture.uid,
+    email: fixture.email,
+    displayName: fixture.displayName,
+    photoURL: null,
+    emailVerified: true,
+    isAnonymous: false,
+    providerData: [],
+    metadata: {
+      creationTime: undefined,
+      lastSignInTime: undefined,
+    },
+    tenantId: fixture.tenantId || null,
+    refreshToken: '',
+    providerId: 'e2e-shim',
+    delete: async () => undefined,
+    getIdToken: async () => 'e2e-shim-token',
+    getIdTokenResult: async () => ({
+      token: 'e2e-shim-token',
+      authTime: new Date().toISOString(),
+      issuedAtTime: new Date().toISOString(),
+      expirationTime: new Date(Date.now() + 3600_000).toISOString(),
+      signInProvider: 'e2e-shim',
+      signInSecondFactor: null,
+      claims: {},
+    }),
+    reload: async () => undefined,
+    toJSON: () => ({ uid: fixture.uid, email: fixture.email }),
+  } as unknown as User;
+}
+
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userRole, setUserRole] = useState<string>('client');
+  // §2.19 fix — lazy init lee fixture en MODE=test para que el primer
+  // render ya tenga el user "logged in" y AppRoutes no muestre Landing.
+  const [user, setUser] = useState<User | null>(() => buildE2EUserShim());
+  const [loading, setLoading] = useState(() => !isE2EMode() || !getE2EUser());
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    const f = getE2EUser();
+    return f ? f.roles.includes('admin') || f.roles.includes('gerente') : false;
+  });
+  const [userRole, setUserRole] = useState<string>(() => {
+    const f = getE2EUser();
+    return f && f.roles.length > 0 ? f.roles[0] : 'client';
+  });
   const [userIndustry, setUserIndustry] = useState<string>('General');
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(() => isE2EMode() && !!getE2EUser());
+  // En E2E asumimos onboarded=true (tests no exercen el wizard salvo specs
+  // explícitos de onboarding, que sobre-escriben con su propio fixture).
+  const [onboarded, setOnboarded] = useState<boolean | null>(() => {
+    return isE2EMode() && !!getE2EUser() ? true : null;
+  });
 
   useEffect(() => {
+    // §2.19 fix — En MODE=test con fixture E2E inyectado, saltamos la
+    // suscripción a Firebase Auth real. El state ya quedó inicializado
+    // arriba via lazy init. Producción nunca entra acá (gate isE2EMode).
+    if (isE2EMode() && getE2EUser()) {
+      return;
+    }
+
     // Test connection on mount
     testConnection();
 
