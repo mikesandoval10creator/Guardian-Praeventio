@@ -95,10 +95,10 @@ exactamente qué falta y dónde obtenerlo.
   verdad (Regla #1: nada se marca ✅ sin file:line). Cobertura E2E
   ponderada **~70%** verificado 2026-05-15 (subió desde 62% el
   2026-05-05 tras Sprints 39-56 + Wave F + Codex sweep). El claim
-  histórico "99% end-to-end" de `STATE_OF_FUNCTIONALITY_2026-05-04.md`
-  fue rectificado por auditoría profunda — ese documento queda como
-  snapshot histórico hasta que se archive en `docs/archive/2026-05/`
-  (Fase B del plan integrado).
+  histórico "99% end-to-end" del snapshot 2026-05-04 fue rectificado
+  por auditoría profunda; el snapshot queda en
+  [`docs/archive/2026-05/STATE_OF_FUNCTIONALITY_2026-05-04.md`](./docs/archive/2026-05/STATE_OF_FUNCTIONALITY_2026-05-04.md)
+  para referencia histórica.
 
 ---
 
