@@ -345,6 +345,30 @@ Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** si
 
 **Pendiente migración incremental:** 19 callers restantes — billingService, gamificationService, geminiService, auditService, etc. Pattern replicable: cambiar `Bearer ${idToken}` por `apiAuthHeader()` que devuelve string completo con prefijo correcto.
 
+### 2.24 🟡 Firestore Client SDK queries fallan firestore.rules en E2E (DESCUBIERTO 2026-05-21)
+
+**Root cause architectural del §2.21 (5 specs)** identificado por audit sistemático post-CI #455 commit `31ed41a0`:
+
+- `firestore.rules:24-25` requiere `request.auth != null` para todas las queries protegidas.
+- Mi `FirebaseContext` shim (§2.19) setea `user` state en React PERO NO firma al usuario en Firebase Auth SDK (`auth.currentUser` sigue null).
+- Resultado: cuando `ProjectContext.tsx:247` o cualquier hook hace una query Firestore desde el cliente, `request.auth` es null → rules deniegan → spec ve "no project loaded" → UI no renderiza elementos esperados (botón SOS, toggle fall-detection, etc).
+- El backend `/api/*` endpoints SI funcionan porque `verifyAuth.ts:67` acepta `E2E <secret>:<uid>` header. Pero los specs no usan los endpoints — usan client SDK directo.
+
+**Fix arquitectural (PR siguiente):**
+1. `e2e.yml:88` cambiar `--only firestore` → `--only firestore,auth` (start Firebase Auth Emulator en CI).
+2. `firebase.ts` agregar `connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true })` gated por MODE=test (similar a connectFirestoreEmulator §2.22).
+3. `tests/e2e/fixtures/auth.ts:loginAsTestUser` después de `page.addInitScript()`, hacer:
+   - `page.evaluate()` que llame `signInAnonymously(auth)` o `signInWithCustomToken(auth, customToken)` donde customToken sea generado por el emulator.
+   - Esperar `auth.currentUser` a poblar.
+4. (Opcional pero recomendado) actualizar `firestore.rules` con un branch de excepción para `request.auth.token.email == 'e2e@praeventio.test'` si necesario (defensive).
+
+**Alternativa MENOS invasiva:**
+- Cambiar `ProjectContext` y los hooks a llamar `/api/projects/list` en lugar de `getDocs(collection(db,'projects'))`. Resp: estos endpoints SI usan `verifyAuth` que acepta E2E header.
+- Pro: no requiere Auth Emulator setup.
+- Con: cambio invasivo de UI patterns en muchos archivos.
+
+Recomendación: **Opción 1 (Auth Emulator)** porque preserva la arquitectura UI=Firestore SDK y solo añade infrastructure de test.
+
 ### 2.23 ✅ CI E2E workflow construía con MODE=production → gates E2E nunca activaban (CERRADO 2026-05-21)
 
 **Hallazgo durante verificación CI post-§2.22:** El workflow `.github/workflows/e2e.yml:114-115` corre `npm run build` (= `vite build` default MODE=production) antes de `playwright test`. Resultado: el bundle servido por `vite preview` tiene `import.meta.env.MODE === 'production'` baked-in, así que los gates de mis fixes:
