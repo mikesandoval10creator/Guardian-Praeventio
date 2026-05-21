@@ -20,6 +20,13 @@ firebase-applet-config.json
 # (per Garry Tan team-mode pattern). Local outputs stay private.
 .claude/agents-output/
 .claude/launch.json
+# §2.28 (2026-05-21) — más Claude local state que caía al staging por
+# accident. Lock + per-user settings nunca van al repo.
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+# Per-user Claude PR-templates + superpowers plan drafts (notes, no project).
+docs/.pr-templates/
+docs/superpowers/
 # Reports from canary/security/retro scripts — local-only output
 reports/canary/
 reports/security/
