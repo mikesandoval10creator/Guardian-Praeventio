@@ -345,6 +345,14 @@ Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** si
 
 **Pendiente migración incremental:** 19 callers restantes — billingService, gamificationService, geminiService, auditService, etc. Pattern replicable: cambiar `Bearer ${idToken}` por `apiAuthHeader()` que devuelve string completo con prefijo correcto.
 
+### 2.22 ✅ Frontend Firebase Client SDK NO conectaba al Firestore Emulator (CERRADO 2026-05-21)
+
+**Hallazgo:** `src/services/firebase.ts` inicializaba Firestore Client SDK sin `connectFirestoreEmulator()`. En E2E full-stack: `seedProject()` escribía al emulator (puerto 8080) via firebase-admin, pero ProjectContext y todas las queries del frontend iban a Firestore PRODUCTION → resultado: `selectedProject` null y los 5 specs §2.21 no encontraban sus elementos UI.
+
+**Fix:** `src/services/firebase.ts` agregado bloque gated por `import.meta.env.MODE === 'test'` que llama `connectFirestoreEmulator(db, 'localhost', 8080)`. Producción nunca entra (gate Vite `--mode test`).
+
+**Esperado:** sos-button, fall-detection-toggle, offline-resilience, process-lifecycle ahora ven el data seedeado por fixture.
+
 ### 2.21 🟡 Playwright full-stack E2E — 5 specs restantes post-§2.19 (DESCUBIERTO 2026-05-21)
 
 **Specs failing pendientes (verificadas tras PR #454 merge):**
