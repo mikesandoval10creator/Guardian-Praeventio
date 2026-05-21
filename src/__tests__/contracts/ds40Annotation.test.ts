@@ -36,14 +36,22 @@ const FILES_TO_AUDIT = [
 ];
 
 // Palabras que indican "anotación histórica" en español/inglés.
+// 2026-05-21: agregadas variantes femeninas + sin acento para tolerar
+// "anotación histórica" (feminine — "anotación" es feminine) además del
+// masculino "DS 40 derogado/histórico". Antes el regex tropezaba con
+// formas legítimas como "DS 40 sin anotación histórica" (en docs sobre
+// el propio guardrail).
 const ANNOTATION_KEYWORDS = [
   'derogado',
   'derogada',
   'histórico',
   'historico',
+  'histórica',
+  'historica',
   'historical',
   'reemplaza',
   'reemplazado',
+  'reemplazada',
   'replaced',
   'antes de',
   'pre-2025',

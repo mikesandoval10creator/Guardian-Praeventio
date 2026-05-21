@@ -155,8 +155,13 @@ async function writeNodesImpl(
   const online = typeof navigator === 'undefined' ? true : navigator.onLine;
   if (online) {
     try {
-      const user = auth.currentUser;
-      if (!user) {
+      // §2.20 fix (2026-05-21) — usa apiAuthHeader() helper que prefiere
+      // E2E header (MODE=test) sobre Bearer ${idToken}. Antes este call-site
+      // tiraba 401 silencioso en E2E full-stack offline-resilience spec
+      // (el spec hace fetch /api/zettelkasten/nodes para sync post-offline).
+      const { apiAuthHeader } = await import('../../../lib/apiAuth');
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) {
         // Sin sesión, encolamos para que el flujo offline lo recupere.
         await saveForSync({
           type: 'create',
@@ -165,12 +170,11 @@ async function writeNodesImpl(
         });
         return { ok: true, queued: true, ids };
       }
-      const token = await user.getIdToken();
       const res = await fetch('/api/zettelkasten/nodes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          Authorization: authHeader,
         },
         body: JSON.stringify({ projectId: ctx.projectId, nodes: enriched }),
       });

@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocFromServer, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocFromServer, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -9,10 +9,63 @@ import { logger } from '../utils/logger';
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
 
+// §2.25 (2026-05-21) — Override databaseId a default cuando MODE=test.
+// firebase-applet-config.json apunta a un databaseId no-default
+// `ai-studio-d2437df8-...` (Firebase AI Studio scratch DB). PERO el
+// fixture E2E `tests/e2e/fixtures/seed.ts` usa firebase-admin sin
+// especificar databaseId → escribe al default `(default)`. Sin override,
+// el cliente queries `ai-studio-...` (vacío en emulator) mientras la
+// seed queda en default → ProjectContext nunca encuentra el proyecto
+// seedeado → 5 specs §2.21 ven UI sin proyecto.
+//
+// Production usa el databaseId real porque allí existe (creado en
+// Firebase AI Studio). Test/E2E usa default que es lo que el emulator
+// provee por defecto.
+let firestoreDbId: string | undefined = firebaseConfig.firestoreDatabaseId;
+try {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
+    firestoreDbId = undefined; // emulator default DB
+  }
+} catch {
+  // import.meta.env not available — usa el config real (production).
+}
+
 // Initialize Firestore with persistent cache
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
-}, firebaseConfig.firestoreDatabaseId);
+}, firestoreDbId);
+
+// §2.22 fix (2026-05-21) — En MODE=test (Vite preview con `--mode test`)
+// conectamos el client SDK al Firestore Emulator local (puerto 8080) para
+// que las queries del frontend (ProjectContext, hooks, pages) vean el
+// mismo data set que el fixture `seedProject()` siembra via firebase-admin.
+//
+// Sin esto: seedProject escribía al emulator pero ProjectContext leía de
+// production → resultado: selectedProject null y la UI de los 5 specs E2E
+// (sos-button, fall-detection, offline-resilience, process-lifecycle)
+// no encontraba sus elementos.
+//
+// Producción nunca entra acá (gate `import.meta.env.MODE === 'test'`,
+// solo activado por `vite --mode test`).
+try {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
+    // connectFirestoreEmulator tira si el host ya está bound; lo
+    // envolvemos en try/catch para soportar HMR (re-import del módulo
+    // durante hot reload no debe romper la página).
+    try {
+      connectFirestoreEmulator(db, 'localhost', 8080);
+      logger.debug('[firebase] Firestore client connected to emulator localhost:8080 (MODE=test)');
+    } catch (err) {
+      // Already connected — safe to ignore. Other errors are warning-worthy
+      // but not fatal (the queries will simply fail with auth/network if
+      // emulator is down).
+      logger.debug('[firebase] connectFirestoreEmulator skipped (already connected or no emulator)', { err });
+    }
+  }
+} catch {
+  // import.meta.env access may throw in some sandbox environments — safe
+  // to ignore. Production path doesn't depend on this.
+}
 
 export const auth = getAuth(app);
 export const storage = getStorage(app);
@@ -41,12 +94,16 @@ export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
  */
 async function notifyServerLogout(): Promise<void> {
   try {
-    const user = auth.currentUser;
-    if (!user) return;
-    const token = await user.getIdToken();
+    // §2.20 (2026-05-21) — usa apiAuthHeader() que prefiere
+    // E2E header sobre Bearer cuando MODE=test. Antes este call-site
+    // hardcodeaba `Bearer ${token}` y fallaba en E2E full-stack
+    // (backend verifyAuth.ts:67 espera `E2E ...` en E2E_MODE).
+    const { apiAuthHeader } = await import('../lib/apiAuth');
+    const authHeader = await apiAuthHeader();
+    if (!authHeader) return;
     await fetch('/api/oauth/unlink', {
       method: 'POST',
-      headers: { Authorization: 'Bearer ' + token },
+      headers: { Authorization: authHeader },
       credentials: 'include',
     });
   } catch (err) {

@@ -316,7 +316,110 @@ Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** si
 - **Citas canónicas siempre presentes** — DS 44/2024 (no DS 40 derogado), DS 594, DS 54, ISO 45001, Ley 16.744. Las del modelo se mergean deduplicadas.
 - **Guardrail runtime backup** — `hallucinationGuard.ts:89-91` actúa como segunda línea si Gemini cita DS 40 sin anotación histórica.
 
-### 2.19 🔴 Playwright full-stack E2E — 6 tests fallidos pre-existentes en `main` (DESCUBIERTO 2026-05-21)
+### 2.19 ✅ Playwright full-stack E2E — fix parcial aplicado (PR #454 mergeado 2026-05-21)
+
+**Status:** 1/6 specs resuelto. Restantes 5 documentados en §2.21.
+
+**Cambios aplicados (PR #454, squash `3db2c370`):**
+- `src/lib/e2eAuth.ts` — `getE2EUser()` + `hasE2EUserFixture()` + 13 tests
+- `src/contexts/FirebaseContext.tsx` — `buildE2EUserShim()` + lazy init + skip onAuthStateChanged en E2E
+- `src/App.tsx` — `/login`, `/pricing`, `/help`, `/privacy`, `/terms` agregados a `skipLanding` + `hasEntered` auto-true en E2E
+- `tests/e2e/fixtures/seed.ts` — `seedProject()` popula `members:[supervisorUid]`
+
+**Resultado CI Playwright full-stack:**
+- ANTES: 6 specs failed
+- DESPUÉS: 5 specs failed — `accessibility.spec.ts:129` (login page exposes main + heading) PASA ✅
+
+**Restantes 5 specs:** ver §2.21 — requieren `apiAuthHeader()` adopción (§2.20) + ProjectContext/Firestore emulator setup.
+
+### 2.20 🟡 Fetch wrappers — getE2EAuthHeader nunca se usaba (DESCUBIERTO 2026-05-21)
+
+**Hallazgo durante audit §2.19:** 20+ archivos en `src/services/` + `src/pages/` + `src/hooks/` construyen el header `Authorization` manualmente con `await user.getIdToken()` + `Bearer ${token}`. PERO ningún caller checkea `getE2EAuthHeader()` PRIMERO. El backend `verifyAuth.ts:67` SÍ acepta el formato `E2E <secret>:<uid>` cuando `E2E_MODE=1`, pero el frontend nunca lo envía → requests autenticados en E2E full-stack reciben 401 silencioso.
+
+**Pattern exactamente lo que el usuario predijo 2026-05-21:** *"funciones con diferente nombre pero relacionado y que están esperando calls diferentes"*. `getE2EAuthHeader()` existe (Sprint 19) pero nadie llama.
+
+**Fix introducido (PR #455 en curso):**
+- `src/lib/apiAuth.ts` (NEW) — `apiAuthHeader()`, `apiAuthHeaderOrThrow()`, `apiAuthHeaders()`, `detectAuthSource()`. Unifica E2E preference + Bearer fallback.
+- `src/lib/apiAuth.test.ts` (NEW, 12 tests).
+- `src/services/firebase.ts:notifyServerLogout` — primera migración proof-of-concept.
+
+**Pendiente migración incremental:** 19 callers restantes — billingService, gamificationService, geminiService, auditService, etc. Pattern replicable: cambiar `Bearer ${idToken}` por `apiAuthHeader()` que devuelve string completo con prefijo correcto.
+
+### 2.25 ✅ firestoreDatabaseId no-default rompía emulator queries (CERRADO 2026-05-21)
+
+**Hallazgo:** `firebase-applet-config.json:6` apunta a `firestoreDatabaseId: "ai-studio-d2437df8-..."` (Firebase AI Studio scratch DB, non-default). PERO `tests/e2e/fixtures/seed.ts` usa firebase-admin SIN especificar databaseId → escribe a `(default)`. Sin override, cuando `connectFirestoreEmulator()` activa, el client SDK queries la DB `ai-studio-...` que está vacía en el emulator, mientras la seed quedó en `(default)`. Mismatch silencioso.
+
+**Fix:** `src/services/firebase.ts:9-30` agregado override que setea `firestoreDbId = undefined` cuando MODE=test → el SDK usa el default DB del emulator (que es donde la seed siembra).
+
+**Producción:** mantiene `firestoreDatabaseId: "ai-studio-..."` (existe allí — creado en Firebase AI Studio). Gate `import.meta.env.MODE === 'test'` aísla.
+
+### 2.24 🟡 Firestore Client SDK queries fallan firestore.rules en E2E (DESCUBIERTO 2026-05-21)
+
+**Root cause architectural del §2.21 (5 specs)** identificado por audit sistemático post-CI #455 commit `31ed41a0`:
+
+- `firestore.rules:24-25` requiere `request.auth != null` para todas las queries protegidas.
+- Mi `FirebaseContext` shim (§2.19) setea `user` state en React PERO NO firma al usuario en Firebase Auth SDK (`auth.currentUser` sigue null).
+- Resultado: cuando `ProjectContext.tsx:247` o cualquier hook hace una query Firestore desde el cliente, `request.auth` es null → rules deniegan → spec ve "no project loaded" → UI no renderiza elementos esperados (botón SOS, toggle fall-detection, etc).
+- El backend `/api/*` endpoints SI funcionan porque `verifyAuth.ts:67` acepta `E2E <secret>:<uid>` header. Pero los specs no usan los endpoints — usan client SDK directo.
+
+**Fix arquitectural (PR siguiente):**
+1. `e2e.yml:88` cambiar `--only firestore` → `--only firestore,auth` (start Firebase Auth Emulator en CI).
+2. `firebase.ts` agregar `connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true })` gated por MODE=test (similar a connectFirestoreEmulator §2.22).
+3. `tests/e2e/fixtures/auth.ts:loginAsTestUser` después de `page.addInitScript()`, hacer:
+   - `page.evaluate()` que llame `signInAnonymously(auth)` o `signInWithCustomToken(auth, customToken)` donde customToken sea generado por el emulator.
+   - Esperar `auth.currentUser` a poblar.
+4. (Opcional pero recomendado) actualizar `firestore.rules` con un branch de excepción para `request.auth.token.email == 'e2e@praeventio.test'` si necesario (defensive).
+
+**Alternativa MENOS invasiva:**
+- Cambiar `ProjectContext` y los hooks a llamar `/api/projects/list` en lugar de `getDocs(collection(db,'projects'))`. Resp: estos endpoints SI usan `verifyAuth` que acepta E2E header.
+- Pro: no requiere Auth Emulator setup.
+- Con: cambio invasivo de UI patterns en muchos archivos.
+
+Recomendación: **Opción 1 (Auth Emulator)** porque preserva la arquitectura UI=Firestore SDK y solo añade infrastructure de test.
+
+### 2.23 ✅ CI E2E workflow construía con MODE=production → gates E2E nunca activaban (CERRADO 2026-05-21)
+
+**Hallazgo durante verificación CI post-§2.22:** El workflow `.github/workflows/e2e.yml:114-115` corre `npm run build` (= `vite build` default MODE=production) antes de `playwright test`. Resultado: el bundle servido por `vite preview` tiene `import.meta.env.MODE === 'production'` baked-in, así que los gates de mis fixes:
+
+- `src/lib/e2eAuth.ts:isE2EMode()` retorna false → shim no activa
+- `src/contexts/FirebaseContext.tsx:buildE2EUserShim()` nunca se llama
+- `src/App.tsx:hasEntered` no se auto-true
+- `src/services/firebase.ts:connectFirestoreEmulator` no se ejecuta
+
+Esto explica por qué §2.22 (connectFirestoreEmulator) no resolvió los 5 specs §2.21 — el gate nunca activaba.
+
+**Fix:** `e2e.yml:114-115` cambiado a `npm run build -- --mode test`. Vite ahora bakea `MODE=test` en el bundle E2E. Builds productivos siguen siendo default (este job es exclusivo de E2E full-stack).
+
+**Esperado:** los 5 specs §2.21 ahora ven el shim activado + ProjectContext conectado al emulator → mayoría debería pasar.
+
+### 2.22 ✅ Frontend Firebase Client SDK NO conectaba al Firestore Emulator (CERRADO 2026-05-21)
+
+**Hallazgo:** `src/services/firebase.ts` inicializaba Firestore Client SDK sin `connectFirestoreEmulator()`. En E2E full-stack: `seedProject()` escribía al emulator (puerto 8080) via firebase-admin, pero ProjectContext y todas las queries del frontend iban a Firestore PRODUCTION → resultado: `selectedProject` null y los 5 specs §2.21 no encontraban sus elementos UI.
+
+**Fix:** `src/services/firebase.ts` agregado bloque gated por `import.meta.env.MODE === 'test'` que llama `connectFirestoreEmulator(db, 'localhost', 8080)`. Producción nunca entra (gate Vite `--mode test`).
+
+**Esperado:** sos-button, fall-detection-toggle, offline-resilience, process-lifecycle ahora ven el data seedeado por fixture.
+
+### 2.21 🟡 Playwright full-stack E2E — 5 specs restantes post-§2.19 (DESCUBIERTO 2026-05-21)
+
+**Specs failing pendientes (verificadas tras PR #454 merge):**
+- `tests/e2e/fall-detection-toggle.spec.ts:11` — toggle switch no aparece (sidebar?)
+- `tests/e2e/offline-resilience.spec.ts:16` — hallazgo offline sync
+- `tests/e2e/process-lifecycle.spec.ts:17` — XP a cuadrilla post-process-close
+- `tests/e2e/sos-button.spec.ts:13` — botón SOS no visible en `/projects/{id}/emergency`
+- `tests/e2e/sos-button.spec.ts:57` — fallback `tel:` no visible
+
+**Causas hipotéticas:**
+1. **API calls fallan 401** porque fetch wrappers usan `Bearer` sin checkear `E2E header` (§2.20). Fix: migración incremental.
+2. **ProjectContext.tsx:247** query Firestore client SDK vs seed.ts Firebase Admin SDK — ambos apuntan al emulador pero la query del client puede no estar conectada correctamente al emulator. Verificar `connectFirestoreEmulator()` activado en MODE=test.
+3. **Lazy chunks de páginas (sos-button → /projects/:id/emergency)** pueden no resolver en E2E si la auth shim no provee suficiente contexto para que el route lazy load.
+
+**Estrategia siguiente sprint:**
+- Migrar `BillingService`, `gamificationService`, `firebase.ts` (parcialmente hecho) al apiAuthHeader() — esto debería resolver al menos los specs que dependen de API calls.
+- Verificar `connectFirestoreEmulator()` está activo en `src/services/firebase.ts` cuando MODE=test.
+- Debugging individual de cada spec con `npx playwright test --debug` local + emulator stack.
+
+### 2.19-historical 🔴 Playwright full-stack E2E — root cause original (DESCUBIERTO 2026-05-21)
 
 **Archivos afectados (verificados en PR #449 y #452, ambos mismos 6 tests fallidos):**
 - `tests/e2e/accessibility.spec.ts:129` — login page exposes a main landmark and labelled heading (timeout `expect.toBeVisible()` 5s)

@@ -1,10 +1,14 @@
-import { auth } from './firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 
 async function authHeaders(): Promise<Record<string, string>> {
-  const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+  // §2.20 fix (2026-05-21) — usa apiAuthHeaders() helper unificado que
+  // prefiere `E2E <secret>:<uid>` (MODE=test) sobre `Bearer ${idToken}`
+  // productivo. Antes este authHeaders local hardcodeaba Bearer y
+  // fallaba 401 silencioso en E2E full-stack (process-lifecycle spec
+  // dependía de awardPoints para incrementar XP de la cuadrilla).
   return {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(await apiAuthHeaders()),
   };
 }
 
