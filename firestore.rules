@@ -427,7 +427,17 @@ service cloud.firestore {
     }
 
     match /normatives/{normativeId} {
-      allow read: if isEmailVerified(); // Note: Global normative data may be public for verified users
+      // §UX-anonymous (2026-05-21) — Datos normativos son regulación
+      // PÚBLICA chilena/internacional (DS 44/2024, DS 594, DS 54, ISO
+      // 45001, Ley 16.744, etc.). No contienen PII ni data privada de
+      // empresa. Filosofía Instagram-style declarada por el usuario:
+      // contenido público navegable sin login; login solo para SAVE.
+      // Permitimos lectura anónima — gente buscando normativa SST
+      // chilena (e.g. via Google) llega directo sin gating.
+      //
+      // Banking-grade: write sigue admin-only (auditable + immutable a
+      // nivel app — `audit_logs` registran cambios).
+      allow read: if true;
       allow write: if isAdmin();
     }
 
@@ -473,9 +483,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Community glossary — global shared knowledge, writable only by admins/supervisors
+    // Community glossary — global shared knowledge, writable only by admins/supervisors.
+    // §UX-anonymous (2026-05-21): glosario es contenido público (terminología
+    // ocupacional, definiciones SST estándar). Lectura anónima OK — Instagram
+    // model. Banking-grade: writes siguen admin/supervisor only.
     match /community_glossary/{termId} {
-      allow read: if isEmailVerified();
+      allow read: if true;
       allow write: if isAdmin() || isSupervisor();
     }
 
@@ -496,9 +509,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Global templates — seed data, read-only for all authenticated users
+    // Global templates — seed data, read-only for all users.
+    // §UX-anonymous (2026-05-21): templates de IPER, PTS, PREXOR son
+    // referencia técnica pública. Permitir lectura anónima — usuarios
+    // pueden inspirarse antes de registrarse (Instagram model).
+    // Banking-grade: writes siguen admin-only.
     match /global_templates/{templateId} {
-      allow read: if isEmailVerified();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
