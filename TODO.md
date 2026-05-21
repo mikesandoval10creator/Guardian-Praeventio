@@ -283,10 +283,16 @@ Un nodo creado por calculadora Bernoulli **no aparece** donde RiskNetwork/AI Hub
 - Cache 1h server-side por (lat,lng,radius)
 - Fallback determinístico solo si las 3 fuentes fallan simultáneamente
 
-### 2.17 🔴 B2D Gemini AI Coach es determinístico, no usa Gemini
-**Archivo:** servicio coach (verificar `src/services/coach/` o similar)
+### 2.17 ✅ B2D Coach wireado a Gemini con fallback determinístico (cierre Fase C.5, 2026-05-21)
+**Archivos:**
+- `src/server/routes/b2d/suite.ts` (reescrito, +163 LOC) — handler `/api/b2d/v1/suite/coach` ahora invoca `getAiAdapter().generate(...)` con system instruction (DS 44/2024 + ISO 45001 + Ley 16.744) + prompt JSON-mode. Si el adapter es `noop` o falla, **CAE GRACEFULLY** al builder determinístico (Regla #3 inviolable). Response shape estable (cliente B2D no se entera del provider) + nuevo campo `source: 'gemini-consumer' | 'vertex-ai' | 'deterministic'` para transparencia auditable.
+- `src/server/routes/b2d/suite.test.ts` (NEW, 145 LOC) — 7 tests cubren: input inválido, Gemini happy path, fallback por adapter no disponible, fallback por JSON inválido, fallback por error upstream, fallback por shape parcial, no exposición Zettelkasten/tenant.
 
-Promesa marketing dice "Gemini AI Coach"; código retorna respuestas determinísticas pre-armadas. **Fix:** wire `geminiAdapter.generateContent()` con prompt template + RAG sobre normativa del tenant + fallback determinístico solo si Gemini API falla.
+**Diseño:**
+- **Privacidad inviolable preservada** — el coach NUNCA accede al Zettelkasten ni a datos del tenant. Solo procesa input del request body (industry + scenario + mitigations). System instruction explícita: "NUNCA accedes a datos del tenant ni al Zettelkasten interno".
+- **Directiva 2.6 reforzada** — system instruction: "NUNCA recomiendas invocar APIs estatales directamente — solo recomienda al usuario".
+- **Citas canónicas siempre presentes** — DS 44/2024 (no DS 40 derogado), DS 594, DS 54, ISO 45001, Ley 16.744. Las del modelo se mergean deduplicadas.
+- **Guardrail runtime backup** — `hallucinationGuard.ts:89-91` actúa como segunda línea si Gemini cita DS 40 sin anotación histórica.
 
 ### 2.18 🔴 EPP detection usa Gemini-vision, no Edge AI local
 **Archivos:**
