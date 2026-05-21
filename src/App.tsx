@@ -242,11 +242,18 @@ const Accessibility = lazy(() => import('./pages/Accessibility').then(module => 
 // Sprint 24 Bucket KK.4 — onboarded-flag hook (self-contained, does not
 // touch FirebaseContext to keep that file's surface area small).
 import { useOnboardingStatus } from './components/onboarding/useOnboardingStatus';
+// §2.19 fix (2026-05-21) — detectar fixture E2E inyectado para saltar
+// Landing/Splash sin tocar UX de usuarios reales anónimos.
+import { isE2EMode, hasE2EUserFixture } from './lib/e2eAuth';
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
   const onboarded = useOnboardingStatus(user?.uid);
-  const [hasEntered, setHasEntered] = useState(false);
+  // §2.19 fix — auto-hasEntered cuando estamos en MODE=test con fixture
+  // E2E. Producción nunca entra acá (gate import.meta.env.MODE === 'test').
+  const [hasEntered, setHasEntered] = useState<boolean>(
+    () => isE2EMode() && hasE2EUserFixture(),
+  );
 
   // Initialize auto-logout for enterprise security
   useAutoLogout();
@@ -324,11 +331,33 @@ function AppRoutes() {
 
   // Skip landing/splash for direct deep-links (invite, public node,
   // curriculum referee co-sign — Round 14 R5).
+  //
+  // UX intent (2026-05-21 — directiva usuario): la app la puede usar
+  // CUALQUIERA; el login solo se pide cuando el visitante quiere crear/
+  // gestionar un proyecto. Por eso `/` y la mayoría de rutas muestran
+  // Landing primero para visitantes anónimos. Pero cuando un visitante
+  // navega directamente a una URL específica de propósito explícito
+  // (`/login`, `/pricing`, `/help`), Landing es ruido — saltamos directo.
   const skipLanding = window.location.pathname.startsWith('/invite') ||
     window.location.pathname.startsWith('/public') ||
     window.location.pathname.startsWith('/curriculum/referee') ||
     window.location.pathname.startsWith('/vault/share') ||
     window.location.pathname.startsWith('/onboarding') ||
+    // §2.19 fix (2026-05-21) — `/login` ya no debe pasar por Landing.
+    // Antes: visitantes a `/login` veían marketing → click "Entrar" →
+    // Login. Ahora: directo al form. Resuelve también el fail E2E
+    // `accessibility.spec.ts:129` (login page exposes main + heading).
+    window.location.pathname.startsWith('/login') ||
+    // UX mejora (2026-05-21) — visitantes anónimos que llegan vía links
+    // externos (marketing emails, SEO, comparativas competencia,
+    // referidos) a páginas públicas específicas saltan Landing y van
+    // directo a su destino. Landing sigue siendo front-door para `/`.
+    // Pricing/Help/Privacy/Terms son páginas legales o de marketing
+    // independientes que ya cuentan su propia historia.
+    window.location.pathname.startsWith('/pricing') ||
+    window.location.pathname.startsWith('/help') ||
+    window.location.pathname.startsWith('/privacy') ||
+    window.location.pathname.startsWith('/terms') ||
     // Sprint 30 Bucket LL — public demo page accessible without auth.
     window.location.pathname.startsWith('/demo');
 

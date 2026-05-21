@@ -67,11 +67,18 @@ export async function seedProject(
   ensureAdmin();
   const db = admin.firestore();
 
+  // §2.19 fix (2026-05-21) — `members: [supervisorUid]` requerido por
+  // `ProjectContext.tsx:247` que filtra `where('members','array-contains',
+  // user.uid)` para non-admin users. Sin esto, `selectedProject` queda
+  // null en E2E aunque el doc se haya seedeado, y la UI rendera estado
+  // "sin proyecto" en lugar del flujo testeado.
+  const supervisorUid = options.supervisorUid ?? 'e2e-user-001';
   const projectRef = db.collection('projects').doc();
   await projectRef.set({
     name: options.projectName ?? 'E2E Project',
     tenantId: options.tenantId ?? 'e2e-tenant',
-    supervisorUid: options.supervisorUid ?? 'e2e-user-001',
+    supervisorUid,
+    members: [supervisorUid],
     location: options.location ?? null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     isEmergencyActive: false,
