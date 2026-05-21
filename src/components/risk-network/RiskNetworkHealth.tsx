@@ -11,7 +11,23 @@ export function RiskNetworkHealth() {
   const { nodes, stats, loading: nodesLoading } = useUniversalKnowledge();
   const { addConnection } = useRiskEngine();
   const [analyzing, setAnalyzing] = useState(false);
-  const [insights, setInsights] = useState<any>(null);
+  interface MissingSynapse {
+    sourceId: string;
+    targetId: string;
+    reason?: string;
+    confidence?: number;
+  }
+  interface KnowledgeGap {
+    topic?: string;
+    description?: string;
+    suggestedNodes?: string[];
+  }
+  interface HealthInsights {
+    missingSynapses: MissingSynapse[];
+    knowledgeGaps: KnowledgeGap[];
+    healthScore?: number;
+  }
+  const [insights, setInsights] = useState<HealthInsights | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
   const isOnline = useOnlineStatus();
 
@@ -34,7 +50,7 @@ export function RiskNetworkHealth() {
     try {
       await addConnection(sourceId, targetId);
       // Remove from insights locally
-      setInsights((prev: any) => ({
+      setInsights((prev) => prev && ({
         ...prev,
         missingSynapses: prev.missingSynapses.filter((s: any) => `${s.sourceId}-${s.targetId}` !== synapseId)
       }));
@@ -106,7 +122,7 @@ export function RiskNetworkHealth() {
                   stroke="currentColor"
                   strokeWidth="8"
                   strokeDasharray={226}
-                  strokeDashoffset={226 - (226 * insights.healthScore) / 100}
+                  strokeDashoffset={226 - (226 * (insights.healthScore ?? 0)) / 100}
                   className="text-emerald-500 transition-all duration-1000"
                 />
               </svg>
