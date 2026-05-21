@@ -144,8 +144,9 @@ if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON) {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON);
     playAuth = google.auth.fromJSON(credentials);
-    // @ts-ignore
-    playAuth.scopes = ['https://www.googleapis.com/auth/androidpublisher'];
+    (playAuth as { scopes?: string[] }).scopes = [
+      'https://www.googleapis.com/auth/androidpublisher',
+    ];
     logger.info('google_play_api_initialized');
   } catch (error) {
     logger.error('google_play_api_init_failed', error);

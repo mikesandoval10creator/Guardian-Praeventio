@@ -1275,3 +1275,83 @@ Podar **214 branches** en `origin/` (claude/* 10-17d + dev/sprint-* 10-53 + feat
 ---
 
 **Próxima revisión profunda:** post-merge de #267 + #268 + cleanup §2 (estimada 2026-05-22).
+
+---
+
+## §17 — Cross-check estado real §16 (verificado 2026-05-21)
+
+> Verificación contra código HOY de las 50 propuestas re-incorporadas §16 desde docs archive. Muchos items ya están cerrados por trabajo previo + sesión cloud-móvil 2026-05-19/20.
+
+### ✅ Items §16 YA CERRADOS verificados HOY
+
+| ID | Item | Evidencia |
+|---|---|---|
+| §12.1.10 | OpenAPI spec | `docs/api/openapi.yaml` existe + contract test |
+| §12.2.1 | sensorBus event bus | `src/services/sensorBus/sensorBus.ts` + tests |
+| §12.2.2 | conflict_queue safety docs | `src/services/sync/conflictQueue.ts` + tests |
+| §12.2.3 | safeNormativeQuery | `src/services/rag/safeNormativeQuery.ts` + tests |
+| §12.2.8 | Battery-aware polling | `src/services/battery/batteryAdvisor.ts` + tests |
+| §12.2.9 | Session expiration 8h | `verifyAuth.ts:52-58` MAX_SESSION_HOURS + 8 refs |
+| §12.2.10 | MediaPipe local bundle | `public/models/mediapipe/{pose_landmarker_lite.task, vision_wasm_*}` |
+| §12.3.2 | @ts-ignore prod (2 restantes) | billingService.ts + billing.ts (HOY fixed con narrow type) |
+| §12.4.2 | Custom claim assignedSiteIds[] | `src/services/auth/customClaims.ts` + tests |
+| §12.7.6 | Threshold alerting CPHS 25 workers DS 54 | `legalRuleEngine.ts:80` ruleId 'cphs_25_workers' + tests |
+
+### ❌ Items §16 confirmados PENDIENTES
+
+| ID | Item | Prioridad | Esfuerzo |
+|---|---|---|---|
+| §12.1.1 | Gemini function-calling REAL (no prefix injection) | ALTA | L 1-2 semanas |
+| §12.1.2 | Blender → glTF pipeline (3 assets) | MEDIA | L 1-2 sem (input externo) |
+| §12.1.3 | MaestrIA pipeline 4-agentes foto→hallazgo | ALTA | XL 2-3 sem |
+| §12.1.4 | ARIA 5 agentes Vertex AI Agent Builder | ALTA | XL Vertex AI workshop |
+| §12.1.5 | MCP servers internos (gp-zettelkasten/iper/bernoulli/environment) | MEDIA | L 1-2 sem |
+| §12.1.6 | 5 smart actions Proto-1 useZettelkastenIntelligence | MEDIA | M 3-5 días |
+| §12.1.7 | AcademicContentProcessor pipeline real (695 LOC) | BAJA | L 1 sem |
+| §12.1.8 | Recovery legacy docs (`analisis_funcional.md` + `auditoria01.md`) | BAJA | S |
+| §12.1.9 | CLAUDE.md raíz | BAJA | M 30min (skill init) |
+| §12.1.11 | Canva brand kit HSE (12 plantillas) | BAJA | M (input usuario) |
+| §12.2.4 | Sync predictiva ZK (buildPrefetchPlan) | ALTA | L 1 sem |
+| §12.2.5 | Outbox 3-capas alertas (voice fallback decisión) | ALTA | DECISIÓN USUARIO + M |
+| §12.2.6 | Test de campo 10 escenarios pre-piloto | ALTA | L 2 sem (input externo) |
+| §12.2.7 | Pilot fase 1-4 protocolizado (2-3 empresas) | MEDIA | L (input usuario empresas) |
+| §12.2.11 | AIPostureAnalysisModal LIVE (mediapipePoseWorker.ts) | MEDIA | L 1 sem |
+| §12.3.1 | SLM Worker errores tipados (4 puntos) | MEDIA | S 2-4h |
+| §12.3.3 | WebXR immersive-ar real | MEDIA | XL multi-mes |
+| §12.4.1 | Workshop scoping nodos 321-512 | DECISIÓN USUARIO | Workshop |
+| §12.4.3 | audit_log normativa mutaciones | MEDIA | S 4h |
+| §12.5.1 | geminiBackend.ts split (2924 LOC → 12 modules) | MEDIA | L 1 sem (skill code-architect) |
+| §12.6.1 | GeminiChat persona técnica legal | BAJA | S 3h |
+| §12.6.2 | ManDown UI completa (timer + mapa + ACK) | MEDIA | M 6h |
+| §12.6.3 | Geofence visual rico (polygon-on-map) | MEDIA | M 4h |
+| §12.6.4 | AfichesSeguridad descarga PDF (14 templates) | BAJA | L 2 sem |
+| §12.6.5 | HumanBodyViewer rutinas auto-generadas | BAJA | M 4h |
+| §12.7.1 | Wake Word "Hey Guardián" (Capacitor native) | DECISIÓN USUARIO | L |
+| §12.7.2 | Acciones contextuales nodos del grafo (PTS/normativa/capacitación) | BAJA | M 1 día |
+| §12.7.3 | Reconocimiento social Muro Dinámico | BAJA | M 1 día |
+| §12.7.4 | Telemetría IoT ↔ Probabilidad Falla (aristas rojas) | BAJA | M 1 día |
+| §12.7.5 | Dashboard Cumplimiento SUSESO (reemplazo scraping) | MEDIA | L 1 sem |
+| §12.8.1 | 9 generadores Bernoulli sin UI dedicada | MEDIA | L 2 sem |
+| §12.8.2 | Pinecone API key real (vs in-memory fallback) | DECISIÓN USUARIO | S |
+| §12.8.3 | Khipu adapter wire (existe pero no wireado Pricing) | DECISIÓN USUARIO | M 4h |
+
+### Resumen cross-check
+- **§16 propuestas:** ~50 items
+- **Verificadas YA cerradas HOY:** **10 items** (20% completitud sin que estuviera en plan principal)
+- **Pendientes confirmadas:** **33 items**
+- **Decisiones usuario:** 5 items
+- **Resto:** mix de archivos legacy / docs reference (~2)
+
+### Items rapid wins desde móvil HOY:
+- §12.3.1 SLM Worker errores tipados (4 puntos, 2-4h)
+- §12.6.1 GeminiChat persona técnica legal (3h)
+- §12.4.3 audit_log normativa mutaciones (4h)
+
+### Items para escritorio con skills:
+- §12.5.1 geminiBackend split → `code-architect`
+- §12.1.1 Gemini function-calling → `superpowers:tdd` + `everything-claude-code:multi-frontend`
+- §12.2.11 AIPostureAnalysisModal LIVE → `ui-ux-pro-max` + `superpowers:tdd`
+
+---
+
+**Última actualización TODO.md:** 2026-05-21 — agregado §17 cross-check §16 propuestas verificadas (10 YA cerradas, 33 pendientes confirmadas).
