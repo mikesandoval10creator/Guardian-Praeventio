@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude mcp *)",
+      "Bash(git fetch *)",
+      "Bash(git checkout *)",
+      "Bash(git pull *)",
+      "Bash(gh auth *)",
+      "Bash(git log *)",
+      "Read(//tmp/**)",
+      "Bash(Get-ChildItem -Path \".\" -Filter \"*.md\" -File)",
+      "Bash(Select-Object Name)",
+      "Bash(Sort-Object Name)",
+      "Bash(git config *)",
+      "Bash(git credential *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('repo:', d.get\\('full_name'\\), '| private:', d.get\\('private'\\), '| permissions:', d.get\\('permissions'\\)\\)\")",
+      "Bash(jq --version)",
+      "Bash(node -e ' *)",
+      "Bash(git add *)",
+      "Bash(git -c user.name=mikesandoval10creator -c user.email=dahosandoval@gmail.com commit -m 'fix\\(pricing-oc\\): typecheck — usar o.prefix \\(no o.value\\) en IndustryOption lookup *)",
+      "Bash(git push *)",
+      "Bash(git stash *)",
+      "Bash(git rebase *)"
+    ]
+  }
+}

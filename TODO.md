@@ -517,6 +517,75 @@ Con estos 3 cambios, los 6 tests pasan sin tocar los tests mismos:
 **Fix Opción A** (alinear claim): cambiar marketing/UI a "EPP detection vía Gemini Vision (cloud)" + manejo offline degradado.
 **Fix Opción B** (cumplir promesa): entrenar/usar modelo TFLite de detección de EPP local (yolo-tiny + 7 clases: casco/chaleco/gafas/guantes/arnés/botas/respirador). Modal en `AIPostureAnalysisModal` ya carga MediaPipe; añadir branch EPP.
 
+### 2.28 🟡 Digital Twin / Maqueta 3D ON-DEVICE — directiva usuario 2026-05-21 (NEW)
+
+**Directiva inviolable usuario 2026-05-21:**
+
+> "Debes considerar que NO usaré GPU externa ni COLMAP porque son de pago. Ya había comentado que el digital twin y la producción de la maqueta 3D debe ser EN EL CELULAR del usuario, así reducimos costos y reinvertimos los futuros ingresos en otras cosas."
+
+**Implicaciones:**
+- Sin Cloud Run con COLMAP (alto CPU/RAM = costo Cloud)
+- Sin Modal serverless GPU (paid tier)
+- Sin Vertex AI training (ya descartado §2.7)
+- Procesamiento 100% en device del usuario (smartphone Android/iOS)
+
+**Stack on-device alternativa correcta:**
+- **WebXR `immersive-ar` con depth sensing** — Android Chrome ≥ 90 + ARCore expone depth maps del device
+- **MediaPipe Pose/Hand/Face** — runtime browser/Capacitor, OSS Apache-2
+- **Three.js mesh generation** — Marching Cubes / Poisson sampling client-side
+- **TFLite (TensorFlow Lite)** — modelos cuantizados <50MB para EPP detection (§2.18 Opción B)
+- **WebGL/WebGPU shaders** — render del 3D, usa GPU del propio dispositivo (gratis)
+- **`gltf-transform` (client-side)** — convertir mesh a glTF/USDZ para Quick Look iOS
+
+**Archivos ON-DEVICE existentes (verificados 2026-05-21):**
+- `src/services/ar/webXrCapabilities.ts` — detecta `depth-sensing` feature
+- `src/services/ar/arSceneOrchestrator.ts` — Three.js scene orchestration
+- `src/services/ar/usdzConverter.ts` — conversión gltf → usdz on-device
+- `src/components/ai/VisionAnalyzer.tsx` — vision AI (actualmente Gemini cloud — §2.18 plantea TFLite local)
+- `src/hooks/useMediaPipePose.ts` (verificable) — pose tracking client-side
+- `src/services/zettelkasten/bernoulli/slamPhotogrammetryNode.ts` — SLAM scaffolding ZK
+
+**Plan ON-DEVICE (PR siguiente):**
+1. Eliminar `cloud-run/photogrammetry-worker/` (todo el directorio)
+2. Eliminar `src/services/digitalTwin/photogrammetry/colmapAdapter.ts` + `modalAdapter.ts` (+ tests)
+3. Conservar `mockAdapter.ts` (útil para tests UI sin device)
+4. Quitar refs en `.github/workflows/deploy.yml` (`PHOTOGRAMMETRY_WORKER_URL`, `PHOTOGRAMMETRY_WORKER_TOKEN`, `MODAL_*_URL`)
+5. Agregar gate test `noServerSidePhotogrammetry.test.ts` (similar a §2.14 SusesoApi gate)
+6. Crear `src/services/digitalTwin/photogrammetry/onDeviceAdapter.ts` — WebXR depth + Three.js mesh
+7. Documentar en `docs/ARCHITECTURE_ON_DEVICE.md` el por qué + cómo
+
+**Restricciones de calidad on-device:**
+- Aceptar menor calidad de mesh vs COLMAP cloud (densidad puntos / texture quality)
+- UX: progress bar mientras device procesa (puede tomar 1-3 min en celular)
+- Fallback degradado para devices sin depth sensing (ARCore solo en Pixel 4+, iPhone 12 Pro+)
+- Mostrar al usuario "Procesando en tu celular — no se sube nada a servidores" — privacy win
+
+### 2.27 ✅ Tier 1 paralelo — audit verificado (mostly DONE) 2026-05-21
+
+**Hallazgo durante audit Tier 1 (user request "sigue con el plan"):** El plan integrado 2026-05-17 listaba 4 items como pendientes mayores. Verificación 2026-05-21 con `find`/`grep` muestra que la mayoría está completo.
+
+| Item plan original | Estado real verificado |
+|--------------------|------------------------|
+| **2.A WebXR `immersive-ar` end-to-end** | 🟢 ~85% DONE. 11 archivos en `src/services/ar/`: arAnchorService, arAnchorFirestoreAdapter, arHitTest, arPlatformPolicy, arQuickLookFallback, arSceneOrchestrator, posterCatalog/Matcher/Embeddings, usdzConverter, webXrCapabilities. `DigitalTwinFaena.tsx:884` wireado con "Ver en AR (WebXR)" button + ArViewLink (iOS Quick Look). `useArPlacement.ts:53` placeholder por design (state coordinator — actual session lo arma el componente). Gap residual: tuning posibles refinamientos. |
+| **2.B Photogrammetry COLMAP + Modal deploy** | 🔴 **DESCARTADO 2026-05-21 por directiva usuario**: "no usaré GPU externa ni COLMAP porque son de pago. El digital twin y la producción de la maqueta 3D debe ser EN EL CELULAR del usuario, así reducimos costos y reinvertimos los futuros ingresos en otras cosas". Mismo pattern que §2.7 Vertex Trainer descartado, §2.12 Stripe descartado. **Path correcto:** on-device — WebXR depth sensing + MediaPipe + Three.js + TFLite. Ver §2.28 NEW abajo para roadmap on-device. Archivos a eliminar en PR siguiente: `cloud-run/photogrammetry-worker/`, `colmapAdapter.ts`, `modalAdapter.ts`. Conservar `mockAdapter.ts` para tests. Quitar refs en `deploy.yml`. |
+| **2.C MQTT IoT productivo** | 🟢 ~90% DONE. `src/services/iot/`: mqttClient.ts real (MQTT.js v5.15 over WebSocket, QoS, edge filter, reconnect), mqttAdapter.ts, edgeFilter.ts, firestoreBridge.ts, ingestRuleEngine.ts. `topicHierarchy.ts` no encontrado — posible gap menor. **Falta OPS:** broker prod (EMQX/HiveMQ) + X.509 device certs (KMS). |
+| **2.D CalculatorHub 12 Bernoulli** | ✅ 100% DONE. `src/pages/CalculatorHub.tsx` (Sprint 29 Bucket AA F-A) wireado en `routes/AIRoutes.tsx:26` (`/calculators`). 15 generators en `src/services/zettelkasten/bernoulli/`: pulmonaryAltitude, respiratorFatigue, gasLeakDetection, confinedSpaceHVAC, mistingDustSuppression, hidranteFireNetwork, microWindEnergy, scaffoldWindSuction, dikeHydrostaticMonitor, gasDispersionCloud, slopeStabilityAfterRain, slamPhotogrammetryNode + hazmatPipePressure + miningVenturi + structuralWindLoad. |
+
+**Sprint K wire UI vidas críticas (Fase 3.E plan):**
+- ✅ `loneWorkerService` + `src/components/loneWorker/` existen
+- ⚠️ `evacuationHeadcount` service existe sin UI consumer (NO `src/components/evacuation/`)
+- ✅ `stoppageEngine` + `src/components/stoppage/` existen
+- ✅ `criticalControlsLibrary` + `src/components/criticalControls/` + routes
+- ✅ `fatigueMonitor` service + `src/components/fatigue/FatigueAssessmentCard.tsx` existen — **falta wire en Dashboard/page**
+- ✅ `rootCauseClassifier` + `src/components/rootCause/` + routes
+
+**Gaps reales verificados (2026-05-21):**
+1. `evacuationHeadcount` sin UI consumer — needs `<EvacuationDashboard />`
+2. `FatigueAssessmentCard.tsx` existe pero NO está referenciado en ningún page/route/App.tsx
+3. 2.B + 2.C requieren OPS (gcloud + broker setup)
+
+**Conclusión:** la fricción del plan a estado real era info desactualizada del 2026-05-17. La mayoría del trabajo Tier 1 ya estaba mergeado en sprints intermedios.
+
 ### 2.26 ✅ UX anonymous browsing — public collections Instagram-style (CERRADO 2026-05-21)
 
 **Directiva usuario 2026-05-21:** *"La app la pueda usar cualquier persona... login solo cuando quiera gestionar su info. Como Instagram que te dejan ver perfiles/publicaciones públicas... datos privados de empresas y personas con estándares de banco."*

@@ -61,8 +61,11 @@ import { cspReportHandler } from "./src/server/routes/cspReport.js";
 import healthRouter from "./src/server/routes/health.js";
 // Sprint 26 Bucket VV — HealthVault QR sharing (ADR 0012).
 import healthVaultRouter from "./src/server/routes/healthVault.js";
-// Sprint 38 Brecha C — photogrammetry job orchestration (COLMAP via Cloud Run).
-import photogrammetryRouter from "./src/server/routes/photogrammetry.js";
+// §2.28 (2026-05-21) — Server-side photogrammetry (COLMAP/Modal) DESCARTADO
+// por directiva usuario: digital twin + maqueta 3D deben procesarse ON-DEVICE
+// (celular del usuario) para reducir costos. Stack on-device:
+// WebXR depth-sensing + MediaPipe + Three.js + TFLite. Ver TODO.md §2.28.
+// El router /api/photogrammetry se removió junto con cloud-run/photogrammetry-worker/.
 // Sprint 27 (audit H20) — overdue-maintenance reaper, called by Cloud
 // Scheduler. Gated by verifySchedulerToken at the route level.
 import maintenanceRouter from "./src/server/routes/maintenance.js";
@@ -578,10 +581,11 @@ app.use("/api", healthRouter);
 // por IP. Mount BEFORE el limiter global de /api/* para no consumir el
 // presupuesto compartido del paciente.
 app.use("/api/health-vault", healthVaultRouter);
-// Sprint 38 Brecha C — photogrammetry router. Mounts BEFORE the global
-// /api/ limiter so worker-token-authenticated callbacks can stream
-// progress updates without sharing the per-IP user budget.
-app.use("/api/photogrammetry", photogrammetryRouter);
+// §2.28 (2026-05-21) — `/api/photogrammetry` removido (server-side COLMAP
+// descartado). Toda la lógica de mesh generation vive ahora on-device
+// (WebXR + Three.js client-side). Si futuro un cliente B2D enterprise
+// solicita server-side photogrammetry con budget propio, reintroducir
+// este router como add-on opt-in, NUNCA en core.
 // Sprint 27 (audit H20) — mount the maintenance reaper. The handler is
 // gated by SCHEDULER_SHARED_SECRET (constant-time bearer compare) so
 // public ingress can't trigger it without the secret.
