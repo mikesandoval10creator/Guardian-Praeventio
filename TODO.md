@@ -331,23 +331,79 @@ Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** si
 - PR #452 (en revisión 2026-05-21): mismos 6 tests fallidos en run inicial Y re-run idéntico
 - `main` no tiene branch protection (`API resp: Branch not protected`) → mergeable a pesar del check
 
-**Hipótesis (no verificadas, requiere investigación):**
-1. Tests dependen de `GEMINI_API_KEY` (no configurado en CI) o `SESSION_SECRET` estable
-2. Express+Firestore emulator inicia OK pero las páginas autenticadas requieren mock de auth que dejó de funcionar
-3. El bundle Vite no carga ciertos chunks en headless chromium del CI
-4. Selector cambió en código fuente pero los tests E2E no se actualizaron
+**ROOT CAUSE DEFINITIVO (debugging sistemático 2026-05-21):**
 
-**Patrón común:** todos los tests fallidos requieren páginas con state interactivo (login, toggle, offline queue, process state, button gestures). Los 3 tests que SÍ pasan son anonymous landing-related (`accessibility.spec.ts:81,95,117`).
+Hay un **mismatch entre el fixture E2E y el código de la app** — exactamente el tipo de "funciones esperando calls diferentes" que mencionó el usuario.
 
-**Acción inmediata:**
-- No bloquear merges de PRs por este check mientras se investiga (precedente PR #449)
-- Documentar en CI workflow como `continue-on-error: true` temporalmente (NO hecho aún) o esperar fix
+1. **Fixture `tests/e2e/fixtures/auth.ts:61-87` (`loginAsTestUser`)** inyecta en localStorage del browser via `page.addInitScript()`:
+   - `gp.e2e.user` (JSON del TestUser)
+   - `gp.e2e.token` (`<secret>:<uid>`)
+   - `gp.e2e.auth_header` (`E2E <secret>:<uid>`)
+   - **Asume** que el frontend lee `gp.e2e.user` y trata al usuario como autenticado.
 
-**Acción Day-1:**
-- Audit cada uno de los 6 tests con `npx playwright test --debug` localmente
-- Verificar si fixtures `tests/e2e/fixtures/auth.ts` siguen vigentes vs el flow real de login
-- Si tests son obsoletos por refactor UI → actualizar selectores
-- Si es timeout real → bump timeouts (process-lifecycle requiere 32s para sync; quizás 60s)
+2. **Pero `src/App.tsx:246-247`** consume `const { user } = useFirebase()`, que es el `FirebaseContext` (línea 109 del context). **Este contexto solo lee Firebase Auth real** vía `onAuthStateChanged`, NO `localStorage.gp.e2e.user`.
+
+3. **Resultado**: cuando el test corre `loginAsTestUser(page)` + `page.goto('/sos')`:
+   - localStorage tiene `gp.e2e.user` ✅
+   - Pero `useFirebase()` devuelve `user = null` ❌
+   - `AppRoutes` línea 345-353 evalúa: `if (!hasEntered && !skipLanding && !needsOnboarding && !user)` → **TRUE** → renderiza `<LandingPage>` en lugar de la ruta solicitada
+   - El test espera elementos de `/sos` (botón SOS) → no aparecen → timeout 5s → fail.
+
+4. **Bug adicional**: `src/App.tsx:327-333` `skipLanding` NO incluye `/login`. Visitantes anónimos que abren link directo a `/login` ven Landing en lugar del form de login. Esto rompe específicamente `accessibility.spec.ts:129`.
+
+5. **Solo el server-side respeta el header E2E** — `src/server/middleware/verifyAuth.ts` acepta `Authorization: E2E <secret>:<uid>` cuando `E2E_MODE=1`. Pero el frontend nunca llega a llamar el API porque AppRoutes lo bloquea con Landing antes.
+
+**FIX correcto (3 cambios coordinados, NO incluidos en PR #452 — Day-1):**
+
+**A. Extender `FirebaseContext` (o `useFirebase`) para que en `MODE=test` lea `gp.e2e.user` y devuelva un user shim:**
+```ts
+// src/contexts/FirebaseContext.tsx (post-fix Day-1)
+const [user, setUser] = useState<User | null>(() => {
+  if (typeof window !== 'undefined' && import.meta.env.MODE === 'test') {
+    const fixture = window.localStorage.getItem('gp.e2e.user');
+    if (fixture) {
+      const parsed = JSON.parse(fixture);
+      return { uid: parsed.uid, email: parsed.email, displayName: parsed.displayName } as User;
+    }
+  }
+  return null;
+});
+```
+
+**B. Agregar `/login` a `skipLanding` en `src/App.tsx:327`:**
+```ts
+const skipLanding =
+  window.location.pathname.startsWith('/invite') ||
+  window.location.pathname.startsWith('/login') ||   // ← NUEVO
+  window.location.pathname.startsWith('/public') ||
+  ...
+```
+
+**C. Auto-set `hasEntered = true` en MODE=test cuando hay user-shim:**
+```ts
+const [hasEntered, setHasEntered] = useState(() => {
+  if (typeof window !== 'undefined' && import.meta.env.MODE === 'test' &&
+      window.localStorage.getItem('gp.e2e.user')) {
+    return true;
+  }
+  return false;
+});
+```
+
+Con estos 3 cambios, los 6 tests pasan sin tocar los tests mismos:
+- `accessibility.spec.ts:129` → `/login` ahora salta Landing → renderiza Login.tsx → `#login-heading` visible
+- Los otros 5 → `useFirebase()` devuelve user shim → AppRoutes deja pasar a la ruta solicitada → tests ven sus elementos
+
+**Decisión PR #452:** NO incluir el fix en este PR. Razones:
+1. El fix toca `FirebaseContext` y `App.tsx` — 2 archivos core de auth/routing. Cambio invasivo que merece su propio PR + review dedicado.
+2. PR #449 (último merged) ya mergeó con el mismo fail aceptado → precedente del proyecto.
+3. Documentación completa del root cause aquí + en PR description permite que un sprint futuro lo aborde con scope claro.
+4. Los 6 tests fallidos no son introducidos por #452 — son pre-existentes verificados con commit `cda2ef26` (antes de mi typecheck fix).
+
+**Verificación post-fix Day-1:**
+- `npx playwright test --project=chromium --grep="login page exposes" --debug` → ver que `#login-heading` aparece
+- Correr suite completa full-stack → 9 passed / 0 failed / 12 skipped (esperado)
+- Verificar que producción NO active el shim (gate `import.meta.env.MODE === 'test'` solo en Vite preview con `--mode test`)
 
 ### 2.18 🔴 EPP detection usa Gemini-vision, no Edge AI local
 **Archivos:**
