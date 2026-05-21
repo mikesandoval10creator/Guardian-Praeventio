@@ -178,14 +178,15 @@ EvacuationRoutes ahora:
 - ProjectContext: `useEffect` que detecta selección de proyecto + auto-promueve todos los scratch pendientes vía `writeNodesDebounced`
 - Resultado: cálculo NUNCA se pierde. Sin UI de error. Funciona idénticamente con o sin proyecto.
 
-### 2.7 🔴 Vertex AI Trainer auto-stub (P1 documentación engañosa)
-**Archivo:** `src/services/ml/vertexTrainer.ts:2,128-132`
+### 2.7 ✅ Vertex AI Trainer DESCARTADO oficialmente (Opción A — cierre Fase C.7, 2026-05-21)
+**Archivo:** `src/services/ml/vertexTrainer.ts:1-30` (header rewrite con tombstone explícito)
 
-Línea 2 dice literalmente: *"This module is a STUB intentionally"*. Línea 128 lanza `VertexTrainerError('NOT_ENABLED')` cuando `VERTEX_TRAINING_ENABLED=true`. PERO `HONEST_STATE.md:63` y `AUDIT_BACKLOG.md` dicen "✅ Vertex AI real" — eso se refiere al **adapter de inferencia** (`vertexAdapter.ts`, que SÍ es real), no al trainer.
+**Fix aplicado (Opción A):** header del archivo ampliado a 25 líneas con ⚠️ DESCARTADO OFICIALMENTE + distinción **inferencia ≠ training**:
+- `vertexAdapter.ts` (inferencia) = REAL y se usa en prod ✅
+- `vertexTrainer.ts` (training) = STUB tombstone, solo aplica tier mega-enterprise + budget approval explícito + opt-in tenant
+- Para PYMEs Chile + LATAM el flujo IA real vive en `resilientAiOrchestrator.ts:355-396` (5-tier fallback) + `slm/*` (SLM offline)
 
-**Fix:**
-- **Opción A (recomendada):** declarar trainer DESCARTADO oficialmente — solo aplica a tier mega-enterprise, no es prioridad
-- **Opción B:** implementar branch real `JobServiceClient.createCustomJob` de `@google-cloud/aiplatform`
+Documentación HONEST_STATE.md + AUDIT_BACKLOG.md (en `docs/archive/2026-05/`) tenía claim "Vertex AI real" que se refería al adapter de inferencia — ahora el header del trainer lo deja explícito.
 
 ### 2.8 ✅ assetlinks.json SHA-256 REAL cargado (cierre 2026-05-17, verificado 2026-05-21)
 **Archivo:** `public/.well-known/assetlinks.json:10`
