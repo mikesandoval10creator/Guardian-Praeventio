@@ -557,10 +557,10 @@ function WebpayReturnBanner() {
           <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
             {t('pricing.return_banner.timeout_body', { invoice: invoiceSuffix })}
             <a
-              href="mailto:soporte@praeventio.net"
+              href="mailto:contacto@praeventio.net"
               className="underline font-semibold"
             >
-              soporte@praeventio.net
+              contacto@praeventio.net
             </a>
             .
           </p>
@@ -583,10 +583,10 @@ function WebpayReturnBanner() {
           <p className="text-xs text-red-700 dark:text-red-400 mt-1">
             {t('pricing.return_banner.error_body', { invoice: invoiceSuffix })}
             <a
-              href="mailto:soporte@praeventio.net"
+              href="mailto:contacto@praeventio.net"
               className="underline font-semibold"
             >
-              soporte@praeventio.net
+              contacto@praeventio.net
             </a>
             {t('pricing.return_banner.error_body_suffix')}
           </p>
@@ -1078,7 +1078,7 @@ function PricingInner() {
         projects: tier.proyectosMax,
       }),
     );
-    window.location.href = `mailto:ventas@praeventio.cl?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:contacto@praeventio.net?subject=${subject}&body=${body}`;
   };
 
   return (

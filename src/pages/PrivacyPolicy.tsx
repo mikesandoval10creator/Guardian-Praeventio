@@ -41,7 +41,7 @@ export function PrivacyPolicy() {
             <p>
               Guardian Praeventio ("nosotros", "la aplicación") es una plataforma de prevención de riesgos laborales
               desarrollada y operada a través del dominio <strong className="text-white">praeventio.net</strong>.
-              Para consultas sobre privacidad, puede contactarnos en: <strong className="text-emerald-400">privacidad@praeventio.net</strong>
+              Para consultas sobre privacidad, puede contactarnos en: <strong className="text-emerald-400">contacto@praeventio.net</strong>
             </p>
           </section>
 
@@ -122,7 +122,7 @@ export function PrivacyPolicy() {
               <li>Portar sus datos en formato estructurado.</li>
             </ul>
             <p className="mt-3">
-              Para ejercer estos derechos, escríbanos a <strong className="text-emerald-400">privacidad@praeventio.net</strong>.
+              Para ejercer estos derechos, escríbanos a <strong className="text-emerald-400">contacto@praeventio.net</strong>.
               Responderemos en un plazo máximo de 15 días hábiles.
             </p>
           </section>
@@ -148,7 +148,7 @@ export function PrivacyPolicy() {
           <section>
             <h2 className="text-white font-black text-lg mb-3">11. Contacto</h2>
             <p>
-              Guardian Praeventio · <strong className="text-emerald-400">privacidad@praeventio.net</strong> · praeventio.net
+              Guardian Praeventio · <strong className="text-emerald-400">contacto@praeventio.net</strong> · praeventio.net
             </p>
           </section>
 

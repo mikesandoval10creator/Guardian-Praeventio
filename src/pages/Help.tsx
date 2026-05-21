@@ -88,7 +88,7 @@ export function Help() {
         <p className="text-zinc-400 mb-6">{t('help.support247', 'Nuestro equipo de soporte técnico está disponible 24/7 para asistirte.')}</p>
         <div className="flex flex-wrap justify-center gap-4">
           <a
-            href="mailto:soporte@praeventio.cl?subject=Ticket%20de%20Soporte%20Guardian%20Praeventio"
+            href="mailto:contacto@praeventio.net?subject=Ticket%20de%20Soporte%20Guardian%20Praeventio"
             className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20"
           >
             <Mail className="w-5 h-5" />

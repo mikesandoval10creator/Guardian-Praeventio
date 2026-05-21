@@ -186,8 +186,8 @@ export function generateOpenApiSpec(opts: GenerateOpts = {}): OpenApiSpec {
         'See PRICING.md for tiers and quotas. The Zettelkasten is NEVER exposed.',
       contact: {
         name: 'Praeventio Guard',
-        url: 'https://praeventio.guard',
-        email: 'soporte@praeventio.guard',
+        url: 'https://praeventio.net',
+        email: 'contacto@praeventio.net',
       },
       license: { name: 'Proprietary — see EULA' },
     },
