@@ -48,6 +48,27 @@ import {
   searchIncidents,
   type IncidentRagDeps,
 } from '../../services/incidents/incidentRagService.js';
+// §2.15 (cierre Fase C.3, 2026-05-21) — wire del canonical materializer.
+// Antes el server escribía SOLO a `zettelkasten_nodes/{id}` (legacy global),
+// mientras `UniversalKnowledgeContext` + `useRiskEngine` leían `nodes/{id}` y
+// `RiskNodeMarkers` leía `tenants/{tid}/zettelkasten_nodes/{id}`. Tres
+// colecciones competing → un nodo creado por Bernoulli no aparecía en KG ni
+// Digital Twin. El materializer (Sprint 39 Fase D.8.c) ya existía como
+// función pura pero NO estaba wireado a runtime.
+//
+// Ahora el server hace **dual-write transitorio**:
+//   1. `zettelkasten_nodes/{id}` — legacy, sin cambio (backwards compat).
+//   2. `nodes/{tenantId}_{projectId}_{zkNodeId}` — canonical materializado.
+//
+// `UniversalKnowledgeContext.tsx:108` ya lee `nodes` filtrando por
+// projectId → recibe automáticamente los canonicals. `RiskNodeMarkers.tsx`
+// se migra en commit aparte (mismo PR) para leer `nodes` con filtro
+// tenantId+projectId en lugar de la subcolección anidada legacy.
+import {
+  materializeNode,
+  canonicalNodePath,
+} from '../../services/zettelkasten/canonical/materializer.js';
+import type { RiskNodePayload } from '../../services/zettelkasten/types.js';
 
 const router = Router();
 
@@ -182,6 +203,26 @@ router.post(
 
     try {
       const db = admin.firestore();
+      // §2.15: resolver tenantId del proyecto una sola vez para el batch
+      // entero. Si el proyecto doc no tiene tenantId (legacy), el
+      // materializer cae al path sin tenant prefix (nodes/{projectId}_{id}).
+      let projectTenantId: string | undefined;
+      try {
+        const projectSnap = await db.collection('projects').doc(projectId).get();
+        if (projectSnap.exists) {
+          const projectData = projectSnap.data() as { tenantId?: string } | undefined;
+          if (typeof projectData?.tenantId === 'string' && projectData.tenantId.length > 0) {
+            projectTenantId = projectData.tenantId;
+          }
+        }
+      } catch (tenantErr) {
+        logger.warn('zettelkasten_tenant_resolve_failed', {
+          projectId,
+          err: tenantErr instanceof Error ? tenantErr.message : String(tenantErr),
+        });
+        // Continúa sin tenantId — el materializer maneja el caso legacy.
+      }
+
       const written: string[] = await tracedAsync(
         'zettelkasten.nodes.write',
         { projectId, nodeCount: nodes.length, uid: callerUid },
@@ -206,6 +247,45 @@ router.post(
           },
           { merge: true },
         );
+
+        // §2.15 — dual-write canonical. El materializer es función pura
+        // (sin I/O); aquí persistimos el resultado en `nodes/{path}`.
+        // Si materializer/persistence falla, NO bloqueamos la respuesta
+        // del POST original — backwards compat es prioridad. Logueamos
+        // como warning para que el equipo lo investigue sin alertar 5xx.
+        try {
+          const payload: RiskNodePayload = {
+            title: node.title,
+            description: node.description,
+            type: node.type as RiskNodePayload['type'],
+            severity: node.severity as RiskNodePayload['severity'],
+            metadata: node.metadata as RiskNodePayload['metadata'],
+            connections: node.connections,
+            references: node.references,
+          };
+          const canonical = materializeNode({
+            zkNodeId: node.idempotencyKey,
+            payload,
+            projectId,
+            tenantId: projectTenantId,
+            extraTags: ['server-dual-write'],
+          });
+          const canonicalPath = canonicalNodePath({
+            tenantId: projectTenantId,
+            projectId,
+            zkNodeId: node.idempotencyKey,
+          });
+          await db.doc(canonicalPath).set(canonical, { merge: true });
+        } catch (canonicalErr) {
+          logger.warn('zettelkasten_canonical_dual_write_failed', {
+            zkNodeId: node.idempotencyKey,
+            projectId,
+            tenantId: projectTenantId ?? null,
+            err: canonicalErr instanceof Error ? canonicalErr.message : String(canonicalErr),
+          });
+          // Continuar — el doc legacy se escribió OK.
+        }
+
         await db.collection('audit_logs').add({
           action: 'zettelkasten.node.write',
           module: 'zettelkasten',
@@ -213,6 +293,8 @@ router.post(
             nodeId: node.idempotencyKey,
             type: node.type,
             severity: node.severity,
+            canonicalMaterialized: true,
+            tenantResolved: projectTenantId !== undefined,
           },
           userId: callerUid,
           userEmail: callerEmail,

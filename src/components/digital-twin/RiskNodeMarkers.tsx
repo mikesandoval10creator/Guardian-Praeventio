@@ -1,10 +1,17 @@
 // Sprint 13 — Digital Twin Phase A
-// Risk node markers: subscribes to `tenants/{}/zettelkasten_nodes` filtered
-// by projectId (limit 100, ordered by createdAt desc). Severity-coloured
-// pins with click → bottom-sheet description.
+// Risk node markers: subscribes to the canonical `nodes` collection filtered
+// by tenantId + projectId (limit 100, ordered by createdAt desc). Severity-
+// coloured pins with click → bottom-sheet description.
 //
-// If the Sprint 11 zettelkasten_nodes collection isn't populated yet, this
-// renders nothing and logs a debug message. No fake data fallback.
+// §2.15 (cierre Fase C.3, 2026-05-21): antes este componente leía la
+// subcolección `tenants/{tenantId}/zettelkasten_nodes/*` que el server
+// route NUNCA escribía (server escribe `zettelkasten_nodes` global). El
+// resultado: digital twin mostraba 0 markers aunque hubiera nodos creados
+// por Bernoulli/incident postmortem. Ahora lee la collection canónica
+// `nodes` que el server materializa server-side via dual-write desde
+// `src/server/routes/zettelkasten.ts` (Sprint 11 + §2.15 wire).
+//
+// Si todavía no hay nodos materializados, renderiza nada (sin fake data).
 
 import React, { useEffect, useState } from 'react';
 import { Marker, InfoWindow } from '@react-google-maps/api';
@@ -73,14 +80,19 @@ export function RiskNodeMarkers({ tenantId, projectId }: Props): React.ReactElem
   const [active, setActive] = useState<RiskNodeDoc | null>(null);
 
   useEffect(() => {
-    // TODO(sprint-11): once the persistence wiring lands, we may need to
-    // adjust the path to include tenantId as a prefix. For now we follow
-    // the spec exactly: `tenants/{tenantId}/zettelkasten_nodes`.
-    const ref = collection(db, `tenants/${tenantId}/zettelkasten_nodes`);
+    // §2.15 (cierre Fase C.3, 2026-05-21): lee de la collection canónica
+    // `nodes` (materializada por el server via dual-write) en lugar de la
+    // subcolección anidada `tenants/{tid}/zettelkasten_nodes/*` que NUNCA
+    // se escribía. Filtro compuesto tenantId + projectId requiere un índice
+    // Firestore — ver `firestore.indexes.json`. Si el índice no existe,
+    // Firestore devolverá error en la query y caemos al estado vacío
+    // (degradación silenciosa, no fake data).
+    const ref = collection(db, 'nodes');
     let q;
     try {
       q = query(
         ref,
+        where('tenantId', '==', tenantId),
         where('projectId', '==', projectId),
         orderBy('createdAt', 'desc'),
         limit(100),
@@ -99,9 +111,14 @@ export function RiskNodeMarkers({ tenantId, projectId }: Props): React.ReactElem
         setNodes(arr);
       },
       (err) => {
-        // Sprint 11 may not have shipped persistence yet — degrade silently.
-        logger.debug?.('zettelkasten_nodes subscription empty/error', {
+        // Cuando el índice tenantId+projectId+createdAt no existe todavía,
+        // Firestore devuelve 'failed-precondition' con link para crearlo.
+        // Logueamos a debug en lugar de error para no alertar mientras se
+        // crea el índice.
+        logger.debug?.('canonical_nodes subscription empty/error', {
           err: String(err),
+          path: 'nodes',
+          filter: { tenantId, projectId },
         });
         setNodes([]);
       },

@@ -262,16 +262,34 @@ Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** si
 
 **Fix aplicado:** se removió la importación browser-side por completo. NO se creó wrap server-side porque colisionaba con la directiva 2.6 inviolable ("Praeventio NO envía DIAT/DIEP a SUSESO directamente; empresa imprime/firma/sube al portal mutualidad"). El flujo real vive en `src/server/routes/suseso.ts` (POST /api/suseso/form crea folio + PDF; POST /api/suseso/forms/:formId/mark-submitted confirma upload manual) — accesible via `<SusesoFormBuilder>` componente que ya se renderizaba en la página.
 
-### 2.15 🔴 Zettelkasten dividido en 3 fuentes sin materializer
-**Archivos:**
-- `src/server/routes/zettelkasten.ts:191` → escribe `zettelkasten_nodes` (Bernoulli server-side)
-- `src/contexts/UniversalKnowledgeContext.tsx:108, 224` → lee/escribe `nodes` (KG global)
-- `src/hooks/useRiskEngine.ts:44, 86, 96, 263` → `nodes` (risk engine)
-- `src/components/digital-twin/RiskNodeMarkers.tsx:79` → `tenants/{tenantId}/zettelkasten_nodes` (digital twin tenant-scoped)
+### 2.15 ✅ Zettelkasten canonical materializer WIREADO (cierre Fase C.3, 2026-05-21)
+**Estado descubierto al auditar:** el `materializer.ts` (función pura) **YA EXISTÍA** completo desde Sprint 39 Fase D.8.c (`src/services/zettelkasten/canonical/materializer.ts`, 269 LOC, con tests). Lo que faltaba era el **wire a runtime** — nadie lo invocaba, así que un nodo creado por Bernoulli aterrizaba SOLO en `zettelkasten_nodes` global y nunca aparecía en KG/Digital Twin.
 
-Un nodo creado por calculadora Bernoulli **no aparece** donde RiskNetwork/AI Hub/Digital Twin esperan. El usuario percibe inconsistencia. Hallazgo P1 de `AUDIT_TRUTH_MATRIX_2026-05-07.md:193-207`.
+**Fix aplicado (3 cambios concretos):**
 
-**Fix:** definir collection canónica + materializer/bridge bidireccional + tests E2E (generar nodo desde calculadora → verlo en KG/RiskEngine/Twin).
+1. **Server route dual-write** — `src/server/routes/zettelkasten.ts:46-60,184-265`
+   - Importa `materializeNode` + `canonicalNodePath` del materializer puro.
+   - Resuelve `tenantId` del proyecto una sola vez por batch (Firestore read adicional).
+   - Por cada nodo escrito a `zettelkasten_nodes/{id}` (legacy, backwards compat), también escribe el canonical a `nodes/{tenantId}_{projectId}_{zkNodeId}` via `db.doc(canonicalPath).set(canonical, {merge: true})`.
+   - Try/catch independiente — si el canonical falla, NO bloquea la respuesta del POST; logueamos warn `zettelkasten_canonical_dual_write_failed`.
+   - Audit log incluye `canonicalMaterialized: true` + `tenantResolved: bool`.
+
+2. **Client RiskNodeMarkers migrado** — `src/components/digital-twin/RiskNodeMarkers.tsx:75-120`
+   - Antes leía `tenants/{tid}/zettelkasten_nodes` (subcolección que el server NUNCA escribía → twin mostraba 0 markers).
+   - Ahora lee `collection(db, 'nodes')` con `where('tenantId','==',tid)` + `where('projectId','==',pid)` + `orderBy('createdAt','desc')` + `limit(100)`.
+   - `UniversalKnowledgeContext.tsx:108` y `useRiskEngine.ts:44` ya leen `nodes` filtrado por `projectId` → ahora reciben automáticamente los canonicals materializados.
+
+3. **Índice compuesto Firestore** — `firestore.indexes.json`
+   - Nuevo índice `nodes` con campos `(tenantId ASC, projectId ASC, createdAt DESC)` requerido por la query de RiskNodeMarkers.
+
+**Test contract (`src/__tests__/contracts/zkMaterializerWired.test.ts`, NEW, 86 LOC):**
+- Verifica imports `materializeNode` + `canonicalNodePath` en server route.
+- Verifica dual-write pattern + try/catch defensivo.
+- Verifica RiskNodeMarkers usa `collection(db, 'nodes')` con tenantId+projectId filter (NO el path legacy).
+- Verifica índice compuesto en `firestore.indexes.json`.
+- Verifica que el materializer permanezca función pura (sin imports firebase/firebase-admin) — gate para que un consumer futuro Cloud Function trigger lo pueda usar sin dragar SDK pesado.
+
+**Resultado:** un nodo creado por calculadora Bernoulli ahora aparece automáticamente en RiskNetwork (KG global lee `nodes`), useRiskEngine (lee `nodes`), Digital Twin RiskNodeMarkers (lee `nodes` filtrado por tenantId+projectId). La inconsistencia denunciada por `AUDIT_TRUTH_MATRIX_2026-05-07.md:193-207` queda resuelta.
 
 ### 2.16 ✅ B2D Climate wireado a Open-Meteo + USGS + OpenAQ reales (cierre Fase C.4, 2026-05-21)
 **Archivos:**

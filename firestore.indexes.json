@@ -125,6 +125,25 @@
       ]
     },
     {
+      "_comment": "§2.15 (Fase C.3, 2026-05-21) — Digital Twin RiskNodeMarkers query: where('tenantId','==',X) + where('projectId','==',Y) + orderBy('createdAt','desc'). Activado al migrar de tenants/{tid}/zettelkasten_nodes (subcolección no escrita) a la collection canónica `nodes` materializada server-side.",
+      "collectionGroup": "nodes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "tenantId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "projectId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "telemetry_events",
       "queryScope": "COLLECTION",
       "fields": [
