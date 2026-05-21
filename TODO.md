@@ -316,6 +316,39 @@ Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** si
 - **Citas canónicas siempre presentes** — DS 44/2024 (no DS 40 derogado), DS 594, DS 54, ISO 45001, Ley 16.744. Las del modelo se mergean deduplicadas.
 - **Guardrail runtime backup** — `hallucinationGuard.ts:89-91` actúa como segunda línea si Gemini cita DS 40 sin anotación histórica.
 
+### 2.19 🔴 Playwright full-stack E2E — 6 tests fallidos pre-existentes en `main` (DESCUBIERTO 2026-05-21)
+
+**Archivos afectados (verificados en PR #449 y #452, ambos mismos 6 tests fallidos):**
+- `tests/e2e/accessibility.spec.ts:129` — login page exposes a main landmark and labelled heading (timeout `expect.toBeVisible()` 5s)
+- `tests/e2e/fall-detection-toggle.spec.ts:11` — FallDetection toggle activa y persiste tras reload (timeout 11s)
+- `tests/e2e/offline-resilience.spec.ts:16` — hallazgo creado offline se sincroniza al recuperar la red (timeout 32s)
+- `tests/e2e/process-lifecycle.spec.ts:17` — iniciar y cerrar un proceso otorga XP a la cuadrilla (timeout 17s)
+- `tests/e2e/sos-button.spec.ts:13` — long-press de 3s dispara alerta (timeout 6s, 3 retries)
+- `tests/e2e/sos-button.spec.ts:57` — fallback a tel: cuando geolocation bloqueada (timeout 6s, 3 retries)
+
+**Estado verificado:**
+- PR #449 (mergeado por `mikesandoval10creator` 2026-05-19): 14 success / 1 neutral / 1 failure (este mismo Playwright)
+- PR #452 (en revisión 2026-05-21): mismos 6 tests fallidos en run inicial Y re-run idéntico
+- `main` no tiene branch protection (`API resp: Branch not protected`) → mergeable a pesar del check
+
+**Hipótesis (no verificadas, requiere investigación):**
+1. Tests dependen de `GEMINI_API_KEY` (no configurado en CI) o `SESSION_SECRET` estable
+2. Express+Firestore emulator inicia OK pero las páginas autenticadas requieren mock de auth que dejó de funcionar
+3. El bundle Vite no carga ciertos chunks en headless chromium del CI
+4. Selector cambió en código fuente pero los tests E2E no se actualizaron
+
+**Patrón común:** todos los tests fallidos requieren páginas con state interactivo (login, toggle, offline queue, process state, button gestures). Los 3 tests que SÍ pasan son anonymous landing-related (`accessibility.spec.ts:81,95,117`).
+
+**Acción inmediata:**
+- No bloquear merges de PRs por este check mientras se investiga (precedente PR #449)
+- Documentar en CI workflow como `continue-on-error: true` temporalmente (NO hecho aún) o esperar fix
+
+**Acción Day-1:**
+- Audit cada uno de los 6 tests con `npx playwright test --debug` localmente
+- Verificar si fixtures `tests/e2e/fixtures/auth.ts` siguen vigentes vs el flow real de login
+- Si tests son obsoletos por refactor UI → actualizar selectores
+- Si es timeout real → bump timeouts (process-lifecycle requiere 32s para sync; quizás 60s)
+
 ### 2.18 🔴 EPP detection usa Gemini-vision, no Edge AI local
 **Archivos:**
 - Promesa: "Edge AI verifica EPP local"
