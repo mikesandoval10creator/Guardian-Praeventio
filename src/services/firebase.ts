@@ -9,10 +9,31 @@ import { logger } from '../utils/logger';
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
 
+// §2.25 (2026-05-21) — Override databaseId a default cuando MODE=test.
+// firebase-applet-config.json apunta a un databaseId no-default
+// `ai-studio-d2437df8-...` (Firebase AI Studio scratch DB). PERO el
+// fixture E2E `tests/e2e/fixtures/seed.ts` usa firebase-admin sin
+// especificar databaseId → escribe al default `(default)`. Sin override,
+// el cliente queries `ai-studio-...` (vacío en emulator) mientras la
+// seed queda en default → ProjectContext nunca encuentra el proyecto
+// seedeado → 5 specs §2.21 ven UI sin proyecto.
+//
+// Production usa el databaseId real porque allí existe (creado en
+// Firebase AI Studio). Test/E2E usa default que es lo que el emulator
+// provee por defecto.
+let firestoreDbId: string | undefined = firebaseConfig.firestoreDatabaseId;
+try {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
+    firestoreDbId = undefined; // emulator default DB
+  }
+} catch {
+  // import.meta.env not available — usa el config real (production).
+}
+
 // Initialize Firestore with persistent cache
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
-}, firebaseConfig.firestoreDatabaseId);
+}, firestoreDbId);
 
 // §2.22 fix (2026-05-21) — En MODE=test (Vite preview con `--mode test`)
 // conectamos el client SDK al Firestore Emulator local (puerto 8080) para

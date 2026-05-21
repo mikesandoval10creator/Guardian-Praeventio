@@ -345,6 +345,14 @@ Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** si
 
 **Pendiente migración incremental:** 19 callers restantes — billingService, gamificationService, geminiService, auditService, etc. Pattern replicable: cambiar `Bearer ${idToken}` por `apiAuthHeader()` que devuelve string completo con prefijo correcto.
 
+### 2.25 ✅ firestoreDatabaseId no-default rompía emulator queries (CERRADO 2026-05-21)
+
+**Hallazgo:** `firebase-applet-config.json:6` apunta a `firestoreDatabaseId: "ai-studio-d2437df8-..."` (Firebase AI Studio scratch DB, non-default). PERO `tests/e2e/fixtures/seed.ts` usa firebase-admin SIN especificar databaseId → escribe a `(default)`. Sin override, cuando `connectFirestoreEmulator()` activa, el client SDK queries la DB `ai-studio-...` que está vacía en el emulator, mientras la seed quedó en `(default)`. Mismatch silencioso.
+
+**Fix:** `src/services/firebase.ts:9-30` agregado override que setea `firestoreDbId = undefined` cuando MODE=test → el SDK usa el default DB del emulator (que es donde la seed siembra).
+
+**Producción:** mantiene `firestoreDatabaseId: "ai-studio-..."` (existe allí — creado en Firebase AI Studio). Gate `import.meta.env.MODE === 'test'` aísla.
+
 ### 2.24 🟡 Firestore Client SDK queries fallan firestore.rules en E2E (DESCUBIERTO 2026-05-21)
 
 **Root cause architectural del §2.21 (5 specs)** identificado por audit sistemático post-CI #455 commit `31ed41a0`:
