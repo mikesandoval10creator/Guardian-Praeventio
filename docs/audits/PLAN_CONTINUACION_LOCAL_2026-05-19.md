@@ -1,6 +1,23 @@
-# Plan continuación Guardian-Praeventio — v3 post-sesión móvil
+# Plan continuación Guardian-Praeventio — v4 sesión móvil completa
 
-> **Versión 3 — 2026-05-20 tarde.** Sesión cloud-móvil avanzó 12+ items adicionales sobre v2. Bloque 1+4+6 al 100%, Bloque 2/3/8 al 86%+, lint real funcional, AUDIT §32 catálogo industrias. Reemplaza v2.
+> **Versión 4 — 2026-05-20→21 madrugada.** Sesión cloud-móvil 60+ commits. 7 bloques significativamente avanzados. Bloque 7 frontend esqueletos creados, D-IND wave 1+2 (6→26 industrias), C11 sweep targeted billing+iot+catches, D5 PDF OC. Reemplaza v3.
+
+## ⏩ Resumen avance final sesión móvil (60+ commits desde `c2f391f7`)
+
+| Tipo | Acción | Resultado |
+|---|---|---|
+| **Merge** | Cherry-pick 11 commits recovery/local-main | ✅ trabajo preservado |
+| **Bloque 3.5** | useLegalObligations hook (Sprint J 10/10) | ✅ |
+| **Bloque 4** | 3 flujos ZK flagship | ✅ COMPLETO |
+| **Bloque 5.6 D2** | Lint real TS/TSX (deps+config) | ✅ 110→5 errors (-95%) |
+| **Bloque 5.x** | hooks-of-rules + escape + mojibake (148) | ✅ |
+| **Bloque 5.1 C11** | Sweep `any` billing + catch + components | ✅ 353→230 (-123, -35%) |
+| **Bloque 6.1 D12** | manualChunks verificado completo | ✅ |
+| **Bloque 7** | 6 esqueletos compliance multi-país | ✅ UK/CA/AU/JP/KR/IN |
+| **Bloque 8.3 C5** | landing.spec gate condicional | ✅ |
+| **Bloque 8.4 D5** | Pricing OC PDF formal | ✅ |
+| **Bloque 8.5 D-IND** | 6 → **26 industrias IPER** (+333%) | ✅ ~85% PIB Chile |
+| **Bloque 8.6 D-KPI** | KPIs Day-1 integrados | ✅ |
 
 ## ⏩ AVANCE SESIÓN MÓVIL 2026-05-20 (commits c2f391f7..7cae0834, 48 commits)
 
