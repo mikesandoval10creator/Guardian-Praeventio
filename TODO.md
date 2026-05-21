@@ -187,12 +187,14 @@ Línea 2 dice literalmente: *"This module is a STUB intentionally"*. Línea 128 
 - **Opción A (recomendada):** declarar trainer DESCARTADO oficialmente — solo aplica a tier mega-enterprise, no es prioridad
 - **Opción B:** implementar branch real `JobServiceClient.createCustomJob` de `@google-cloud/aiplatform`
 
-### 2.8 🔴 assetlinks.json SHA-256 placeholder bloquea Play Store
-**Archivo:** `public/.well-known/assetlinks.json:8`
+### 2.8 ✅ assetlinks.json SHA-256 REAL cargado (cierre 2026-05-17, verificado 2026-05-21)
+**Archivo:** `public/.well-known/assetlinks.json:10`
 
-`"sha256_cert_fingerprints": ["REPLACE_WITH_REAL_SHA256_BEFORE_STORE_BUILD"]`
+`"sha256_cert_fingerprints": ["3D:AC:D9:BC:C2:CD:5C:B0:6D:5F:5D:BC:37:4A:F5:78:50:99:DA:09:BA:E8:B1:F1:05:FF:B6:A5:42:D3:A7:A0"]`
 
-Sin esto, **Android App Links no funcionan en Play Store**. Bloqueado por keystore real del usuario (§5).
+**Fix aplicado:** el usuario proporcionó el SHA-256 del keystore Play real (`com.praeventio.guard`) el 2026-05-17 — Fase 0 del plan integrado lo cableó vía PR #357 + script anti-placeholder `scripts/render-well-known.mjs` (registrado en `package.json:12` prebuild) que falla el build si detecta el placeholder histórico `REPLACE_WITH_REAL_SHA256_BEFORE_STORE_BUILD`.
+
+**Resultado:** Android App Links funcionarán en Play Store cuando se publique la app. Apple App Site Association todavía tiene placeholder `TEAMID` (bloqueado por Apple Developer Account, §5).
 
 ### 2.9 🔴 SLM Gemma 2 2B SHA-256 null
 **Archivo:** `src/services/slm/registry.ts:119`
