@@ -40,21 +40,21 @@ export interface SiteBookFirestoreDb {
 
 interface SbCollectionRef {
   doc(id: string): SbDocRef;
-  add(data: any): Promise<{ id: string }>;
-  where(field: string, op: '==' | '>=' | '<=' | 'array-contains', value: any): SbQuery;
+  add(data: Record<string, unknown>): Promise<{ id: string }>;
+  where(field: string, op: '==' | '>=' | '<=' | 'array-contains', value: unknown): SbQuery;
   orderBy(field: string, dir: 'asc' | 'desc'): SbQuery;
   limit(n: number): SbQuery;
   get(): Promise<SbQuerySnapshot>;
 }
 
 interface SbDocRef {
-  get(): Promise<{ exists: boolean; id: string; data(): any | undefined }>;
-  set(data: any): Promise<void>;
-  update(patch: any): Promise<void>;
+  get(): Promise<{ exists: boolean; id: string; data(): Record<string, unknown> | undefined }>;
+  set(data: Record<string, unknown>): Promise<void>;
+  update(patch: Record<string, unknown>): Promise<void>;
 }
 
 interface SbQuery {
-  where(field: string, op: '==' | '>=' | '<=' | 'array-contains', value: any): SbQuery;
+  where(field: string, op: '==' | '>=' | '<=' | 'array-contains', value: unknown): SbQuery;
   orderBy(field: string, dir: 'asc' | 'desc'): SbQuery;
   limit(n: number): SbQuery;
   get(): Promise<SbQuerySnapshot>;
@@ -62,13 +62,13 @@ interface SbQuery {
 
 interface SbQuerySnapshot {
   empty: boolean;
-  docs: Array<{ id: string; data(): any }>;
+  docs: Array<{ id: string; data(): Record<string, unknown> }>;
 }
 
 interface SbTransaction {
-  get(ref: SbDocRef): Promise<{ exists: boolean; data(): any | undefined }>;
-  set(ref: SbDocRef, data: any): void;
-  update(ref: SbDocRef, patch: any): void;
+  get(ref: SbDocRef): Promise<{ exists: boolean; data(): Record<string, unknown> | undefined }>;
+  set(ref: SbDocRef, data: Record<string, unknown>): void;
+  update(ref: SbDocRef, patch: Record<string, unknown>): void;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -325,6 +325,7 @@ function serializeCrdt(crdt: CrdtSiteBookEntry): Record<string, any> {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- deserialize requiere acceso dinámico a campos Firestore
 function deserializeCrdt(data: any): CrdtSiteBookEntry {
   return {
     id: data.id,
@@ -360,6 +361,7 @@ function deserializeCrdt(data: any): CrdtSiteBookEntry {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- deserialize requiere acceso dinámico a campos Firestore
 function deserialize(data: any): SiteBookEntry {
   return {
     id: data.id,
