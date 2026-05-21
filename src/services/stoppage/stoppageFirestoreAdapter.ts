@@ -7,16 +7,23 @@
 
 import type { Stoppage, StoppageStatus } from './stoppageEngine.js';
 
+interface StoppageQuery {
+  where(field: string, op: '==' | '>=' | '<=', value: unknown): StoppageQuery;
+  orderBy(field: string, dir: 'asc' | 'desc'): StoppageQuery;
+  limit(n: number): StoppageQuery;
+  get(): Promise<{ docs: Array<{ id: string; data(): Record<string, unknown> }> }>;
+}
+
 export interface StoppageFirestoreDb {
   collection(path: string): {
     doc(id: string): {
-      get(): Promise<{ exists: boolean; data(): any }>;
-      set(data: any): Promise<void>;
-      update(patch: any): Promise<void>;
+      get(): Promise<{ exists: boolean; data(): Record<string, unknown> | undefined }>;
+      set(data: Record<string, unknown>): Promise<void>;
+      update(patch: Record<string, unknown>): Promise<void>;
     };
-    where(field: string, op: '==' | '>=' | '<=', value: any): any;
-    orderBy(field: string, dir: 'asc' | 'desc'): any;
-    limit(n: number): any;
+    where(field: string, op: '==' | '>=' | '<=', value: unknown): StoppageQuery;
+    orderBy(field: string, dir: 'asc' | 'desc'): StoppageQuery;
+    limit(n: number): StoppageQuery;
   };
 }
 
@@ -38,7 +45,7 @@ export class StoppageAdapter {
 
   async getById(id: string): Promise<Stoppage | null> {
     const snap = await this.db.collection(PATH(this.tenantId, this.projectId)).doc(id).get();
-    return snap.exists ? (snap.data() as Stoppage) : null;
+    return snap.exists ? (snap.data() as unknown as Stoppage) : null;
   }
 
   async update(id: string, patch: Partial<Stoppage>): Promise<void> {
@@ -52,7 +59,7 @@ export class StoppageAdapter {
       .orderBy('declaredAt', 'desc')
       .limit(100);
     const snap = await q.get();
-    return snap.docs.map((d: any) => d.data() as Stoppage);
+    return snap.docs.map((d) => d.data() as unknown as Stoppage);
   }
 
   private toFirestore(s: Stoppage): Record<string, any> {
