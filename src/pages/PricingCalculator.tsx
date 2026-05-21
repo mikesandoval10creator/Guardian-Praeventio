@@ -173,7 +173,7 @@ export const PricingCalculator: React.FC = () => {
     // onDownloadOcJson para integraciones programáticas (/oc-sugerida).
     const monthlyCost = safeMonthlyCost(recommendedTier.id, workers, projects);
     const industryLabel =
-      SUPPORTED_INDUSTRY_OPTIONS.find((o) => o.value === industryPrefix)?.label ??
+      SUPPORTED_INDUSTRY_OPTIONS.find((o) => o.prefix === industryPrefix)?.label ??
       industryPrefix;
     const doc = generatePricingOcPdf({
       industryPrefix,
