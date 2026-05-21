@@ -8,7 +8,7 @@ export interface IoTEvent {
   metric: string;
   value: number;
   unit: string;
-  timestamp: any;
+  timestamp: { toDate?: () => Date; toMillis?: () => number } | number | string | Date;
   status: 'normal' | 'warning' | 'critical';
 }
 
@@ -95,7 +95,9 @@ export function IoTEventsFeed({
                       {event.status === 'critical' ? 'Crítico' : event.status === 'warning' ? 'Advertencia' : 'Normal'}
                     </span>
                     <span className="text-[10px] font-medium text-zinc-500">
-                      {event.timestamp?.toDate ? event.timestamp.toDate().toLocaleTimeString() : 'Ahora'}
+                      {typeof event.timestamp === 'object' && event.timestamp !== null && 'toDate' in event.timestamp && typeof event.timestamp.toDate === 'function'
+                        ? event.timestamp.toDate().toLocaleTimeString()
+                        : 'Ahora'}
                     </span>
                   </div>
                 </div>
