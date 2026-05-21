@@ -348,6 +348,16 @@ function AppRoutes() {
     // Login. Ahora: directo al form. Resuelve también el fail E2E
     // `accessibility.spec.ts:129` (login page exposes main + heading).
     window.location.pathname.startsWith('/login') ||
+    // UX mejora (2026-05-21) — visitantes anónimos que llegan vía links
+    // externos (marketing emails, SEO, comparativas competencia,
+    // referidos) a páginas públicas específicas saltan Landing y van
+    // directo a su destino. Landing sigue siendo front-door para `/`.
+    // Pricing/Help/Privacy/Terms son páginas legales o de marketing
+    // independientes que ya cuentan su propia historia.
+    window.location.pathname.startsWith('/pricing') ||
+    window.location.pathname.startsWith('/help') ||
+    window.location.pathname.startsWith('/privacy') ||
+    window.location.pathname.startsWith('/terms') ||
     // Sprint 30 Bucket LL — public demo page accessible without auth.
     window.location.pathname.startsWith('/demo');
 
