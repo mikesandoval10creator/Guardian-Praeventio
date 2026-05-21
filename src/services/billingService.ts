@@ -32,9 +32,9 @@ export const verifyGooglePlayPurchase = async (
 
     const data = await response.json();
     return { success: true, data: data.data };
-  } catch (error: any) {
+  } catch (error) {
     logger.error("Billing Service Error:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 };
 

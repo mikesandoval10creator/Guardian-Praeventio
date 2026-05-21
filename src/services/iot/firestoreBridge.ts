@@ -95,7 +95,7 @@ export async function bridgeMqttToFirestore(
           deviceTimestamp: sample.timestamp,
         });
       result.telemetryId = telRef.id;
-    } catch (err: any) {
+    } catch (err) {
       logger.error('iot_bridge_telemetry_write_failed', err, {
         tenantId: ctx.tenantId,
         deviceId: sample.deviceId,
@@ -131,7 +131,7 @@ export async function bridgeMqttToFirestore(
         deviceTimestamp: sample.timestamp,
       });
     result.alertId = alertRef.id;
-  } catch (err: any) {
+  } catch (err) {
     logger.error('iot_bridge_alert_write_failed', err, {
       tenantId: ctx.tenantId,
       deviceId: sample.deviceId,
@@ -167,7 +167,7 @@ export async function bridgeMqttToFirestore(
     );
     result.notified = fan.notified;
     result.failed = fan.failed;
-  } catch (err: any) {
+  } catch (err) {
     logger.error('iot_bridge_fcm_fanout_failed', err, {
       tenantId: ctx.tenantId,
       projectId: ctx.projectId,
@@ -201,7 +201,7 @@ export async function bridgeMqttToFirestore(
       projectId: ctx.projectId,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
-  } catch (err: any) {
+  } catch (err) {
     logger.error('iot_bridge_audit_write_failed', err, {
       tenantId: ctx.tenantId,
       deviceId: sample.deviceId,

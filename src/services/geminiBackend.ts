@@ -175,8 +175,9 @@ const withExponentialBackoff = async <T>(
   while (true) {
     try {
       return await operation();
-    } catch (error: any) {
-      if (retries >= maxRetries || (error.status !== 429 && error.status !== 503)) {
+    } catch (error) {
+      const status = (error as { status?: number } | null)?.status;
+      if (retries >= maxRetries || (status !== 429 && status !== 503)) {
         throw error;
       }
       const delay = baseDelay * Math.pow(2, retries);

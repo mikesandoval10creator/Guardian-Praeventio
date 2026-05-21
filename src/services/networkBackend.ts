@@ -187,9 +187,9 @@ export const syncBatchToNetwork = async (operations: any[], authorUid: string) =
 
         results.push({ id: nodeId, status: 'deleted' });
       }
-    } catch (e: any) {
+    } catch (e) {
       logger.error(`[NetworkBackend] Error in batch op for ${op.id}:`, e);
-      results.push({ id: op.id, status: 'error', error: e.message });
+      results.push({ id: op.id, status: 'error', error: e instanceof Error ? e.message : String(e) });
     }
   }
 

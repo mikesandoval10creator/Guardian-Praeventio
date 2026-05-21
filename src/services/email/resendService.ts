@@ -140,8 +140,8 @@ export class EmailService {
         return { ok: false, error: 'missing_message_id' };
       }
       return { ok: true, id };
-    } catch (err: any) {
-      return { ok: false, error: err?.message ?? String(err) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
 
