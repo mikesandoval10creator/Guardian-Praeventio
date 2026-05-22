@@ -297,11 +297,44 @@ export function buildEppInspectionNode(
 }
 
 /**
- * Factory que decide qué detector usar. En 2026-05-22 retorna siempre
- * MockEppDetector (no hay modelo real disponible). Cuando DevOps ponga
- * `public/models/epp/epp-yolo-v1.tflite` + npm install @tensorflow/tfjs-tflite,
- * cambiar esta función para retornar el real loader.
+ * Factory que decide qué detector usar.
+ *
+ * 2026-05-22: retorna `ColorBasedEppDetector` por default — detector
+ * real que analiza el pixel data del usuario con heurística HSV por
+ * clase EPP (calibrado para casco, chaleco_reflectivo, gafas, guantes,
+ * arnes, botas, respirador). NO es ML pero SÍ procesa la imagen.
+ *
+ * Cuando DevOps tenga el modelo TFLite real:
+ *   1. Subir `epp-yolo-v1.tflite` a `public/models/epp/`
+ *   2. npm install @tensorflow/tfjs + @tensorflow/tfjs-tflite
+ *   3. Reemplazar el branch `auto` con el TFLite loader
+ *   4. `ColorBasedEppDetector` queda como fallback secundario si el
+ *      modelo TFLite falla en cargar (offline / inicio cold-start).
+ *
+ * `kind` permite forzar un detector específico (útil para tests):
+ *   - 'auto' (default) → mejor disponible (hoy: color-based)
+ *   - 'color' → ColorBasedEppDetector
+ *   - 'mock' → MockEppDetector (determinístico para tests)
+ *
+ * Import dinámico para evitar circular dep en bundlers que cargan
+ * colorBasedEppDetector → este archivo → factory que importa color
+ * → loop. Top-level dynamic resuelve después de que ambos módulos
+ * existen.
  */
-export function getEppDetectorImpl(): EppDetector {
+export async function getEppDetectorImpl(
+  kind: 'auto' | 'color' | 'mock' = 'auto',
+): Promise<EppDetector> {
+  if (kind === 'mock') return new MockEppDetector();
+  // Dynamic import — devuelve cuando colorBasedEppDetector está cargado.
+  const mod = await import('./colorBasedEppDetector');
+  return mod.createColorBasedEppDetector();
+}
+
+/**
+ * Sync variant — devuelve `MockEppDetector` si no hay tiempo para
+ * resolver el import dinámico (ej. tests síncronos). Caller debe
+ * preferir `getEppDetectorImpl()` async cuando sea posible.
+ */
+export function getEppDetectorImplSync(): EppDetector {
   return new MockEppDetector();
 }

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, Upload, Shield, AlertTriangle, Loader2, X, CheckCircle2, Info, Sparkles, Save, WifiOff } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
+import { useFirebase } from '../../contexts/FirebaseContext';
 import { NodeType } from '../../types';
 import { analyzeVisionImage } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
@@ -12,6 +13,16 @@ import { respiratorPressureDrop } from '../../services/physics/bernoulliEngine';
 import { generateRespiratorFatigueNode } from '../../services/zettelkasten/bernoulli';
 import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
 import { MedicalIcon } from '../medical/MedicalIcon';
+// §2.18 (2026-05-22) — Detector EPP on-device (color-based heuristic).
+// Procesa el pixel data del usuario sin enviarlo a Gemini. La imagen
+// NUNCA sale del browser cuando se usa este path. Cloud Gemini sigue
+// disponible como camino enriquecedor opcional (cuando isOnline).
+import {
+  getEppDetectorImpl,
+  inspectImage,
+  buildEppInspectionNode,
+  type EppInspectionResult,
+} from '../../services/ai/eppDetectorOnDevice';
 
 // NIOSH 42 CFR Part 84 — typical N95 filter resistance and resting breathing flow.
 const N95_FILTER_RESISTANCE_PA_S_PER_M3 = 800;
@@ -98,6 +109,7 @@ export function VisionAnalyzer() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
+  const { user } = useFirebase();
   const isOnline = useOnlineStatus();
   const { addNotification } = useNotifications();
 
@@ -114,28 +126,133 @@ export function VisionAnalyzer() {
     }
   };
 
+  /**
+   * §2.18 (2026-05-22) — Análisis EPP on-device REAL.
+   *
+   * Convierte el base64 a Blob + corre el detector heurístico de color
+   * sobre el pixel data del usuario. La imagen NUNCA sale del browser.
+   *
+   * Devuelve un `EppInspectionResult` con detected / missing / lowConfidence
+   * + métricas. El caller lo merge con el análisis cloud (Gemini) si
+   * isOnline, o lo usa solo si offline.
+   */
+  const runOnDeviceEppAnalysis = async (
+    base64Image: string,
+  ): Promise<EppInspectionResult | null> => {
+    try {
+      // Convert base64 → Blob para el detector.
+      const res = await fetch(base64Image);
+      const blob = await res.blob();
+      const detector = await getEppDetectorImpl('auto');
+      const inspection = await inspectImage(blob, detector);
+      return inspection;
+    } catch (err) {
+      logger.warn('[VisionAnalyzer] on-device EPP analysis failed', { err: String(err) });
+      return null;
+    }
+  };
+
+  const [onDeviceEppResult, setOnDeviceEppResult] = useState<EppInspectionResult | null>(null);
+
   const analyzeImage = async () => {
-    if (!image || !isOnline) return;
+    if (!image) return;
     setIsAnalyzing(true);
     setSaved(false);
+    setOnDeviceEppResult(null);
     try {
-      // Compress image before sending to save bandwidth and memory
+      // Compress image before any further processing.
       const compressedBase64 = await compressImage(image);
-      const base64Data = compressedBase64.split(',')[1];
-      
-      const analysis = await analyzeVisionImage(base64Data);
-      setResult(analysis);
+
+      // §2.18 (2026-05-22) — PASO 1: on-device EPP detection.
+      // Esto SIEMPRE corre primero, online u offline. La imagen permanece
+      // en el browser. Output: detected / missing / lowConfidence + bbox.
+      const onDeviceResult = await runOnDeviceEppAnalysis(compressedBase64);
+      if (onDeviceResult) {
+        setOnDeviceEppResult(onDeviceResult);
+      }
+
+      // §2.18 — PASO 2 (opcional, online): Gemini cloud enrichment.
+      // Cloud Gemini analiza riesgos contextuales + recomendaciones que
+      // la heurística de color no puede inferir. Si offline, skip.
+      if (isOnline) {
+        const base64Data = compressedBase64.split(',')[1];
+        try {
+          const cloudAnalysis = await analyzeVisionImage(base64Data);
+          // Merge cloud + on-device: cloud reporta riesgos y recomendaciones
+          // textuales; on-device aporta EPP detectado/faltante calibrado
+          // por color. La lista final de EPP detected viene del on-device
+          // (más confiable porque el threshold está calibrado), pero
+          // unimos con cloud si éste agregó EPPs no detectados localmente.
+          const onDeviceEppNames = onDeviceResult
+            ? onDeviceResult.detected.map((d) => d.class)
+            : [];
+          const mergedEpp = Array.from(
+            new Set([...onDeviceEppNames, ...cloudAnalysis.eppDetected]),
+          );
+          setResult({
+            ...cloudAnalysis,
+            eppDetected: mergedEpp,
+          });
+        } catch (cloudErr) {
+          // Si Gemini falla, usamos sólo el on-device — sin pop-up de error.
+          logger.warn('[VisionAnalyzer] cloud Gemini failed, using on-device only', {
+            err: String(cloudErr),
+          });
+          if (onDeviceResult) {
+            setResult({
+              eppDetected: onDeviceResult.detected.map((d) => d.class),
+              risksDetected:
+                onDeviceResult.missing.length > 0
+                  ? [`EPP requerido faltante: ${onDeviceResult.missing.join(', ')}`]
+                  : [],
+              recommendations:
+                onDeviceResult.missing.length > 0
+                  ? [
+                      `Asegurar uso de ${onDeviceResult.missing.join(', ')} antes de iniciar tareas (DS 594 art. 53-55).`,
+                    ]
+                  : ['No se detectaron EPP faltantes (heurística on-device).'],
+              summary: `Análisis on-device — ${onDeviceResult.detected.length} EPP detectado(s), ${onDeviceResult.missing.length} faltante(s). Confianza promedio: ${Math.round(onDeviceResult.averageConfidence * 100)}%.`,
+            });
+          }
+        }
+      } else if (onDeviceResult) {
+        // Offline: usamos exclusivamente el resultado on-device.
+        setResult({
+          eppDetected: onDeviceResult.detected.map((d) => d.class),
+          risksDetected:
+            onDeviceResult.missing.length > 0
+              ? [`EPP requerido faltante: ${onDeviceResult.missing.join(', ')}`]
+              : [],
+          recommendations:
+            onDeviceResult.missing.length > 0
+              ? [
+                  `Asegurar uso de ${onDeviceResult.missing.join(', ')} antes de iniciar tareas (DS 594 art. 53-55).`,
+                ]
+              : ['No se detectaron EPP faltantes (heurística on-device).'],
+          summary: `Análisis on-device (offline) — ${onDeviceResult.detected.length} EPP detectado(s), ${onDeviceResult.missing.length} faltante(s). Confianza promedio: ${Math.round(onDeviceResult.averageConfidence * 100)}%.`,
+        });
+      } else {
+        addNotification({
+          title: 'Sin análisis disponible',
+          message: 'No hay conexión y el detector on-device no pudo procesar la imagen.',
+          type: 'error',
+        });
+        return;
+      }
+
       addNotification({
         title: 'Análisis Completado',
-        message: 'La imagen ha sido procesada exitosamente.',
-        type: 'success'
+        message: isOnline
+          ? 'On-device + cloud Gemini procesados.'
+          : 'Análisis on-device (offline) completo.',
+        type: 'success',
       });
     } catch (err) {
       logger.error('Error analyzing image:', err);
       addNotification({
-        title: 'Error de Conexión',
-        message: 'Hubo una interferencia al analizar la imagen. Por favor, intenta de nuevo.',
-        type: 'error'
+        title: 'Error de análisis',
+        message: 'No se pudo procesar la imagen. Probá otra foto.',
+        type: 'error',
       });
     } finally {
       setIsAnalyzing(false);
@@ -146,6 +263,7 @@ export function VisionAnalyzer() {
     if (!result || !selectedProject) return;
     setIsSaving(true);
     try {
+      // PASO 1 — guardar el hallazgo Vision AI como NodeType.FINDING (legacy).
       await addNode({
         type: NodeType.FINDING,
         title: `Hallazgo IA: ${result.risksDetected[0]?.slice(0, 30) || 'Análisis de Visión'}...`,
@@ -159,6 +277,27 @@ export function VisionAnalyzer() {
           timestamp: new Date().toISOString()
         }
       });
+      // §2.18 (2026-05-22) — PASO 2: si el on-device detector arrojó un
+      // resultado, además persistimos un ZK node tipo `epp_inspection`
+      // via writeNodesDebounced. Esto vincula la inspección visual con
+      // el sistema Zettelkasten (relaciones requires/mitigates EPP).
+      //
+      // Privacy: `buildEppInspectionNode` jamás incluye la imagen en el
+      // RiskNodePayload — solo classifications + bbox + métricas. Es el
+      // contrato del módulo.
+      if (onDeviceEppResult && user?.uid) {
+        try {
+          const eppNode = buildEppInspectionNode(onDeviceEppResult, {
+            workerUid: user.uid, // self-inspection si supervisor toma foto propia
+            projectId: selectedProject.id,
+            authorUid: user.uid,
+          });
+          writeNodesDebounced([eppNode], { projectId: selectedProject.id });
+        } catch (zkErr) {
+          // ZK persistence no debe bloquear el save principal.
+          logger.warn('[VisionAnalyzer] EPP ZK node write failed', { err: String(zkErr) });
+        }
+      }
       setSaved(true);
     } catch (error) {
       logger.error('Error saving vision finding:', error);
@@ -211,30 +350,41 @@ export function VisionAnalyzer() {
             />
           </div>
 
+          {/* §2.18 (2026-05-22) — el botón ya NO requiere `isOnline`. El
+              detector on-device corre offline; cloud Gemini es enrichment
+              opcional. Offline el botón sigue activo. */}
           <button
             onClick={analyzeImage}
-            disabled={!image || isAnalyzing || !isOnline}
+            disabled={!image || isAnalyzing}
             className={`w-full py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${
-              !isOnline ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : isAnalyzing ? 'bg-blue-600/50 text-white cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/20'
+              isAnalyzing ? 'bg-blue-600/50 text-white cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/20'
             }`}
           >
-            {!isOnline ? (
-              <>
-                <WifiOff className="w-5 h-5" />
-                <span>Requiere Conexión</span>
-              </>
-            ) : isAnalyzing ? (
+            {isAnalyzing ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Analizando con Gemini...</span>
+                <span>{isOnline ? 'On-device + Gemini…' : 'Procesando on-device…'}</span>
               </>
             ) : (
               <>
                 <Sparkles className="w-5 h-5" />
-                <span>Iniciar Análisis AI</span>
+                <span>Iniciar Análisis EPP</span>
               </>
             )}
           </button>
+          {/* §2.18 — Badge informativo del modo del análisis. */}
+          <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-medium">
+            {isOnline ? (
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                Online: on-device + Gemini (enrichment)
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                <WifiOff className="w-3 h-3" />
+                Offline: solo on-device (la imagen no sale del dispositivo)
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Results Section */}
