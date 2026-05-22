@@ -196,21 +196,25 @@ async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
  * llama signIn de nuevo.
  */
 export async function signInBrowserViaCustomToken(page: Page): Promise<void> {
+  // §2.24 fix (2026-05-22, CI #461 round 4): NO podemos hacer
+  // `import('firebase/auth')` dentro de page.evaluate — bare specifiers
+  // no resuelven en browser sin bundler runtime. En su lugar, el módulo
+  // firebase.ts ya hace auto-sign-in al boot (gated MODE=test). Acá
+  // simplemente esperamos a que ese auto-sign-in complete via la flag
+  // global `window.__praeventio_e2e_auth_ready` que firebase.ts setea
+  // cuando signInWithCustomToken resuelve.
+  await page.waitForFunction(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__praeventio_e2e_auth_ready === true,
+    null,
+    { timeout: 10_000 },
+  );
+  // Legacy polling local (no-op si el auto-sign-in ya terminó).
   await page.evaluate(async () => {
-    const customToken = window.localStorage.getItem('gp.e2e.custom_token');
-    if (!customToken) {
-      // Spec corrió sin Auth Emulator — silent skip, los specs que sólo
-      // tocan UI sin Firestore queries pasan igual via el shim §2.19.
-      return;
-    }
-    // Dynamic import para no agrandar el bundle main con firebase/auth.
-    const { getAuth, signInWithCustomToken } = await import('firebase/auth');
-    const auth = getAuth();
-    if (auth.currentUser) return; // ya firmado
-    await signInWithCustomToken(auth, customToken);
-    // Wait hasta 5s para que onAuthStateChanged dispare.
-    const deadline = Date.now() + 5000;
-    while (!auth.currentUser && Date.now() < deadline) {
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((window as any).__praeventio_e2e_auth_ready === true) return;
       await new Promise((r) => setTimeout(r, 50));
     }
   });

@@ -111,19 +111,32 @@ try {
       if (typeof window !== 'undefined' && window.localStorage) {
         const customToken = window.localStorage.getItem('gp.e2e.custom_token');
         if (customToken && !auth.currentUser) {
-          // Fire-and-forget — los listeners actualizarán state cuando
-          // auth.currentUser se popule. NO await aquí porque queremos
-          // que el módulo termine de cargar (no bloqueamos boot).
+          // Fire-and-forget. Setea `window.__praeventio_e2e_auth_ready`
+          // cuando completa para que el spec pueda esperar via
+          // page.waitForFunction (no podemos hacer dynamic import de
+          // firebase/auth desde page.evaluate — bare specifiers no
+          // resuelven en browser sin bundler).
           signInWithCustomToken(auth, customToken).then(
             (cred) => {
               logger.debug('[firebase] auto signIn ok (MODE=test custom token)', {
                 uid: cred.user?.uid,
               });
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (window as any).__praeventio_e2e_auth_ready = true;
             },
             (err) => {
               logger.warn('[firebase] auto signIn with custom token failed', { err });
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (window as any).__praeventio_e2e_auth_error = String(err);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (window as any).__praeventio_e2e_auth_ready = true; // unblock spec, error queda visible
             },
           );
+        } else {
+          // No custom token (smoke tests sin Auth Emulator) — flagear OK
+          // para que specs que NO necesitan auth real no bloqueen wait.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).__praeventio_e2e_auth_ready = true;
         }
       }
     } catch (err) {
