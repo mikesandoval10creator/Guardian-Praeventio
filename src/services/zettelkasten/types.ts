@@ -28,7 +28,13 @@ export type BernoulliNodeType =
  * strict so `bernoulliNodeRegistry` (a `Record<BernoulliNodeType, ...>`)
  * remains exhaustive.
  */
-export type RiskNodeType = BernoulliNodeType | 'safety-learning';
+export type RiskNodeType =
+  | BernoulliNodeType
+  | 'safety-learning'
+  // §2.18 (2026-05-22) — EPP inspection on-device. Detección TFLite local
+  // (privacy: imagen NUNCA sale del device, solo classification result).
+  // Ver `src/services/ai/eppDetectorOnDevice.ts`.
+  | 'epp_inspection';
 
 export interface RiskNodePayload {
   /** Node title (Spanish, short). */
