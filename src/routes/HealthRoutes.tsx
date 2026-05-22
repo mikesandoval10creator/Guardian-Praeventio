@@ -8,6 +8,12 @@ const Psychosocial = lazy(() => import('../pages/Psychosocial').then(module => (
 const BioAnalysis = lazy(() => import('../pages/BioAnalysis').then(module => ({ default: module.BioAnalysis })));
 const HumanBodyViewer = lazy(() => import('../pages/HumanBodyViewer').then(module => ({ default: module.HumanBodyViewer })));
 const SunTracker = lazy(() => import('../pages/SunTracker').then(module => ({ default: module.SunTracker })));
+// Sprint K vidas críticas (Fase 3.E del plan, audit TODO §2.27) — wire UI
+// FatigueMonitor. El service `src/services/fatigue/fatigueMonitor.ts`
+// + componente `src/components/fatigue/FatigueAssessmentCard.tsx` existían
+// pero el componente no estaba wireado a ninguna page. Esta route cierra
+// el gap. Anonymous-friendly (idb-keyval); login para sync entre devices.
+const FatigueMonitor = lazy(() => import('../pages/FatigueMonitor').then(module => ({ default: module.FatigueMonitor })));
 
 export const HealthRoutes = [
   <Route key="hygiene" path="hygiene" element={<Hygiene />} />,
@@ -17,4 +23,5 @@ export const HealthRoutes = [
   <Route key="bio-analysis" path="bio-analysis" element={<BioAnalysis />} />,
   <Route key="human-body" path="human-body" element={<HumanBodyViewer />} />,
   <Route key="sun-tracker" path="sun-tracker" element={<SunTracker />} />,
+  <Route key="fatigue" path="fatigue" element={<FatigueMonitor />} />,
 ];
