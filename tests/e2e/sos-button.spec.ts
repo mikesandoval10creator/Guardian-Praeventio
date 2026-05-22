@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsTestUser } from './fixtures/auth';
+import { loginAsTestUser, signInBrowserViaCustomToken } from './fixtures/auth';
 import { seedProject } from './fixtures/seed';
 
 /**
@@ -21,6 +21,10 @@ test.describe('SOSButton long-press', () => {
 
     try {
       await page.goto(`/projects/${seed.projectId}/emergency`);
+      // §2.24 fix (2026-05-22) — wait barrier: signa al user en Firebase
+      // Auth real (via Auth Emulator) ANTES de buscar elementos UI que
+      // dependen de Firestore queries (firestore.rules:25 require auth).
+      await signInBrowserViaCustomToken(page);
 
       const sos = page.getByRole('button', { name: /^SOS$/i });
       await expect(sos).toBeVisible();
@@ -67,6 +71,10 @@ test.describe('SOSButton long-press', () => {
 
     try {
       await page.goto(`/projects/${seed.projectId}/emergency`);
+      // §2.24 fix (2026-05-22) — wait barrier: signa al user en Firebase
+      // Auth real (via Auth Emulator) ANTES de buscar elementos UI que
+      // dependen de Firestore queries (firestore.rules:25 require auth).
+      await signInBrowserViaCustomToken(page);
 
       const telLink = page.getByRole('link', { name: /Llamar emergencia/i });
       await expect(telLink).toBeVisible();

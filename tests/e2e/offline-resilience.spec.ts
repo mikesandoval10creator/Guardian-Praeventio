@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsTestUser } from './fixtures/auth';
+import { loginAsTestUser, signInBrowserViaCustomToken } from './fixtures/auth';
 import { seedProject } from './fixtures/seed';
 
 /**
@@ -29,6 +29,8 @@ test.describe('Offline-first sync', () => {
       // test corre rápido; si no, el poll espera hasta 12s con
       // intervalos exponenciales en lugar de un sleep ciego.
       await page.goto(`/projects/${seed.projectId}/findings/new`);
+      // §2.24 fix (2026-05-22) — wait barrier auth real antes de UI checks.
+      await signInBrowserViaCustomToken(page);
 
       await context.setOffline(true);
 

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsTestUser } from './fixtures/auth';
+import { loginAsTestUser, signInBrowserViaCustomToken } from './fixtures/auth';
 
 /**
  * FallDetection opt-in (Sprint 17b → Sprint 19 unskip):
@@ -20,6 +20,8 @@ test.describe('FallDetection toggle preference', () => {
     // collapsable de Settings no expande, en vez de quedar flaky.
     await loginAsTestUser(page);
     await page.goto('/settings');
+    // §2.24 fix (2026-05-22) — wait barrier auth real antes de UI checks.
+    await signInBrowserViaCustomToken(page);
 
     // Sprint 36 — locator robusto post-Sprint 34 E7 refactor.
     // El sidebar ahora usa IDs estables (`activeSection: SettingsSectionId`)
