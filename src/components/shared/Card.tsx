@@ -32,7 +32,11 @@ export function Card({ children, className, interactive = true, ...props }: Card
           motionOK: '(prefers-reduced-motion: no-preference)',
           motionReduced: '(prefers-reduced-motion: reduce)',
         },
-        (ctx) => {
+        // gsap matchMedia callback. El context (`ctx`) trae `conditions`
+        // que evalúa cada query — tipamos el shape mínimo para no
+        // depender de los typings de gsap/react que a veces no exportan
+        // el tipo MatchMediaContext.
+        (ctx: { conditions: Record<string, boolean> }) => {
           const { motionOK } = ctx.conditions as { motionOK: boolean };
 
           // Force GPU compositing layer up-front to avoid first-hover jank.

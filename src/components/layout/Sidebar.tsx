@@ -200,6 +200,14 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Conocimiento reutilizable derivado de incidentes cerrados;
         // hace navegable lo que ya vivía como nodos LESSON en el grafo.
         { title: t("nav.lessons_learned", "Lecciones Aprendidas"), icon: BookOpen, path: "/lessons", color: "text-amber-500" },
+        // Sprint K vidas críticas wire (2026-05-22) — Controles críticos (HCA).
+        // Service criticalControlsLibrary.ts + card BarrierAnalysisCard
+        // existían; page /critical-controls cierra el gap. ISO 45001 §8.1.2.
+        { title: t("nav.critical_controls", "Controles Críticos"), icon: ShieldCheck, path: "/critical-controls", color: "text-emerald-500" },
+        // Sprint K vidas críticas wire (2026-05-22) — Causa raíz no-blame.
+        // Service rootCauseClassifier.ts (5 porqués + ILO taxonomía) +
+        // card RootCauseClassifierCard existían sin page. ISO 45001 §10.2.
+        { title: t("nav.root_cause", "Causa Raíz"), icon: Network, path: "/root-cause", color: "text-indigo-500" },
         // Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno).
         // Supervisor lo abre ANTES de iniciar el turno para ver score
         // global + factores trazables + top recomendaciones.
