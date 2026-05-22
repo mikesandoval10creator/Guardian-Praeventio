@@ -2,7 +2,6 @@
 // (5 stateless mutators over the engines under
 // `services/vendorOnboarding/`).
 
-import { auth } from '../services/firebase';
 import type {
   OnboardingStage,
   VendorOnboardingState,
@@ -13,19 +12,21 @@ import type {
   AccreditationObservation,
   AccreditationStatus,
 } from '../services/vendorOnboarding/vendorAccreditationTracker';
+import { apiAuthHeaders } from '../lib/apiAuth';
 
 async function authedFetch(
   path: string,
   init: RequestInit = {},
+
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 migration (2026-05-21) — usa apiAuthHeaders() unificado:
+  // prefiere E2E header en MODE=test, fallback a Bearer productivo.
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }

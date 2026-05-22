@@ -1,24 +1,25 @@
 // Praeventio Guard — Evacuation headcount client hook (4 mutators).
 
-import { auth } from '../services/firebase';
 import type {
   EvacuationDrill,
   EvacuationStatus,
   EvacuationPostmortem,
 } from '../services/evacuation/evacuationHeadcount';
+import { apiAuthHeaders } from '../lib/apiAuth';
 
 async function authedFetch(
   path: string,
   init: RequestInit = {},
+
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 migration (2026-05-21) — usa apiAuthHeaders() unificado:
+  // prefiere E2E header en MODE=test, fallback a Bearer productivo.
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }

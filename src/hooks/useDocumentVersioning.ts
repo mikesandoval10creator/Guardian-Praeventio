@@ -5,7 +5,6 @@
 // versions, and transition status (in_review → approved → superseded).
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { auth } from '../services/firebase';
 import type {
   BumpKind,
   ChangelogEntry,
@@ -13,6 +12,7 @@ import type {
   VersionChain,
   VersionStatus,
 } from '../services/documents/documentVersioning';
+import { apiAuthHeaders } from '../lib/apiAuth';
 
 interface FetchState<T> {
   data: T | null;
@@ -23,15 +23,16 @@ interface FetchState<T> {
 async function authedFetch(
   path: string,
   init: RequestInit = {},
+
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 migration (2026-05-21) — usa apiAuthHeaders() unificado:
+  // prefiere E2E header en MODE=test, fallback a Bearer productivo.
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }
