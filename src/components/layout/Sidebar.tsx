@@ -67,6 +67,7 @@ import {
   WifiOff,
   LayoutDashboard,
   Stethoscope,
+  OctagonAlert,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ProjectSelector } from "./ProjectSelector";
@@ -222,6 +223,12 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // FALTANTES con last known location, botón "Marcar seguro" prominente.
         // Service evacuationHeadcount.ts + route /api/evacuation/* ya existían.
         { title: t("nav.evacuation_dashboard", "Tablero Evacuación"), icon: AlertTriangle, path: "/evacuation-dashboard", color: "text-rose-500" },
+        // Sprint K vidas críticas wire (2026-05-22) — Paralizaciones / stop-work
+        // authority + reanudación controlada. Service `stoppage/stoppageEngine.ts`
+        // + adapter Firestore + card `StoppageSummaryCard` ya existían. Page
+        // /stoppages cierra el gap. Cualquier worker puede declarar
+        // detencion_voluntaria; categorías superiores exigen role superior.
+        { title: t("nav.stoppages", "Paralizaciones"), icon: OctagonAlert, path: "/stoppages", color: "text-rose-500" },
         // Sprint K §276-277 — Bitácora de Decisiones de Supervisión + Ranking
         // de Impacto. Liderazgo preventivo trazable (NO castiga, mide qué
         // decisiones evitan más riesgo). Auditoría real para el SGSST.

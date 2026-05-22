@@ -21,6 +21,11 @@ const ClimateRoutes = lazy(() => import('../pages/ClimateRoutes').then(module =>
 // route `src/server/routes/evacuation.ts` (4 endpoints) existían PERO el
 // componente UI consumidor faltaba. Esta page cierra el gap.
 const EvacuationDashboard = lazy(() => import('../pages/EvacuationDashboard').then(module => ({ default: module.EvacuationDashboard })));
+// 2026-05-22: wire StoppageMonitor. El service `src/services/stoppage/
+// stoppageEngine.ts` + adapter Firestore + card `StoppageSummaryCard`
+// existían pero faltaba la page que los wireara. Esta page expone
+// `/stoppages` con declare/resume + lista activa + historial.
+const StoppageMonitor = lazy(() => import('../pages/StoppageMonitor').then(module => ({ default: module.StoppageMonitor })));
 
 export const EmergencyRoutes = [
   <Route key="emergency" path="emergency" element={<Emergency />} />,
@@ -38,4 +43,5 @@ export const EmergencyRoutes = [
   <Route key="evacuation-routes" path="evacuation-routes" element={<EvacuationRoutes />} />,
   <Route key="climate-routes" path="climate-routes" element={<ClimateRoutes />} />,
   <Route key="evacuation-dashboard" path="evacuation-dashboard" element={<EvacuationDashboard />} />,
+  <Route key="stoppages" path="stoppages" element={<StoppageMonitor />} />,
 ];
