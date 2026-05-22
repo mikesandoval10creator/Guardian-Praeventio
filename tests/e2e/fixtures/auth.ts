@@ -150,8 +150,16 @@ export async function loginAsTestUser(
  * lo cargamos en smoke tests que solo usan localStorage header).
  */
 async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const admin = require('firebase-admin');
+  // §2.24 fix (2026-05-22, post-CI #461) — dynamic ESM import. Playwright
+  // tests corren bajo ESM (`type: module` via tsx loader), entonces
+  // `require()` NO está definido. `import()` resuelve a la default export
+  // de firebase-admin con CJS-interop.
+  const adminModule = await import('firebase-admin');
+  // firebase-admin exporta default O namespace (depende de cómo Node lo
+  // resuelve). Soportamos ambos shapes.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const admin: any =
+    (adminModule as unknown as { default?: unknown }).default ?? adminModule;
   if (!admin.apps?.length) {
     admin.initializeApp({
       projectId: process.env.GOOGLE_CLOUD_PROJECT ?? 'demo-test',
