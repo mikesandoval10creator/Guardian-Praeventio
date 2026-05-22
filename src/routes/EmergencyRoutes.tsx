@@ -15,6 +15,12 @@ const CoastalEmergencyMap = lazy(() => import('../pages/CoastalEmergencyMap').th
 const EmergenciaAvanzada = lazy(() => import('../pages/EmergenciaAvanzada').then(module => ({ default: module.EmergenciaAvanzada })));
 const EvacuationRoutes = lazy(() => import('../pages/EvacuationRoutes').then(module => ({ default: module.EvacuationRoutes })));
 const ClimateRoutes = lazy(() => import('../pages/ClimateRoutes').then(module => ({ default: module.ClimateRoutes })));
+// Sprint K vidas críticas (Fase 3.E del plan, audit TODO §2.27) — wire UI
+// EvacuationDashboard. El service `src/services/evacuation/evacuationHeadcount.ts`
+// (compute-status, record-scan, end-drill, build-postmortem) + el server
+// route `src/server/routes/evacuation.ts` (4 endpoints) existían PERO el
+// componente UI consumidor faltaba. Esta page cierra el gap.
+const EvacuationDashboard = lazy(() => import('../pages/EvacuationDashboard').then(module => ({ default: module.EvacuationDashboard })));
 
 export const EmergencyRoutes = [
   <Route key="emergency" path="emergency" element={<Emergency />} />,
@@ -31,4 +37,5 @@ export const EmergencyRoutes = [
   <Route key="emergencia-avanzada" path="emergencia-avanzada" element={<EmergenciaAvanzada />} />,
   <Route key="evacuation-routes" path="evacuation-routes" element={<EvacuationRoutes />} />,
   <Route key="climate-routes" path="climate-routes" element={<ClimateRoutes />} />,
+  <Route key="evacuation-dashboard" path="evacuation-dashboard" element={<EvacuationDashboard />} />,
 ];
