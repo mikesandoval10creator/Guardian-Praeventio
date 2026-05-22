@@ -217,6 +217,11 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // + extintores / AED / lavaojos / botiquines con QR + countdown
         // de inspección. Determinístico, sin push a SUSESO/MINSAL.
         { title: t("nav.emergency_brigade", "Brigada Emergencia"), icon: ShieldAlert, path: "/emergency-brigade", color: "text-amber-500" },
+        // Sprint K vidas críticas wire (#459, 2026-05-21) — Tablero de Evacuación
+        // live durante drills/emergencias reales. Coverage % grande, lista
+        // FALTANTES con last known location, botón "Marcar seguro" prominente.
+        // Service evacuationHeadcount.ts + route /api/evacuation/* ya existían.
+        { title: t("nav.evacuation_dashboard", "Tablero Evacuación"), icon: AlertTriangle, path: "/evacuation-dashboard", color: "text-rose-500" },
         // Sprint K §276-277 — Bitácora de Decisiones de Supervisión + Ranking
         // de Impacto. Liderazgo preventivo trazable (NO castiga, mide qué
         // decisiones evitan más riesgo). Auditoría real para el SGSST.
@@ -309,6 +314,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: t("nav.medicine", "Medicina"), icon: HeartPulse, path: "/medicine", color: "text-rose-400" },
         { title: t("nav.hygiene", "Higiene Industrial"), icon: Droplets, path: "/hygiene", color: "text-blue-400" },
         { title: t("nav.ergonomics", "Ergonomía"), icon: UserCheck, path: "/ergonomics", color: "text-amber-400" },
+        // Sprint K vidas críticas wire (#459, 2026-05-21) — Monitor de Fatiga
+        // según DS 594 art. 102 + Código del Trabajo art. 38 + MINSAL nocturnos.
+        // Anonymous-friendly (idb-keyval local + banner login para sync).
+        { title: t("nav.fatigue", "Monitor de Fatiga"), icon: Moon, path: "/fatigue", color: "text-violet-500" },
       ],
     },
     {
