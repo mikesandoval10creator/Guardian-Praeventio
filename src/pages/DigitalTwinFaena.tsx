@@ -17,12 +17,17 @@ const Site25DPanel = React.lazy(() =>
 );
 import { TwinAccessGuard } from '../components/digital-twin/TwinAccessGuard';
 import { isDemoProject } from '../data/demoProject';
-// §2.28 (2026-05-21) — `auth/storage/storageRef/uploadBytes` se usaban en
-// el flujo de upload+POST /api/photogrammetry. Tras descartar la pipeline
-// server-side (server.ts:64-68 + 584-587), el handler local muestra solo
-// un toast informativo. Dejamos `db/doc/getDoc` porque el TwinAccessGuard
-// los necesita para verificar membership.
+// §2.28 (2026-05-22) — Tras descartar la pipeline server-side (server.ts:64-68
+// + 584-587), el handler local ejecuta la reconstrucción ON-DEVICE
+// vía `OnDeviceReconstructionAdapter`. Conservamos `db/doc/getDoc` para
+// el TwinAccessGuard (verificar membership).
 import { db, doc, getDoc } from '../services/firebase';
+import { createOnDeviceReconstructionAdapter } from '../services/digitalTwin/photogrammetry/onDeviceAdapter';
+import {
+  subscribeReconstructionJobs,
+} from '../services/digitalTwin/photogrammetry/reconstructionJobStore';
+import type { PhotogrammetryJobResult } from '../services/digitalTwin/photogrammetry/types';
+import type { ReconstructionStage } from '../services/digitalTwin/onDeviceReconstruction';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { EmptyState } from '../components/shared/EmptyState';
@@ -159,10 +164,15 @@ export function DigitalTwinFaena() {
   const [mode, setMode] = useState<ProcessingMode>('cpu');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [notes, setNotes] = useState('');
-  // §2.28 (2026-05-21) — `uploading`/`submitting` quedaron sin caller tras
-  // descartar el upload server-side. Cuando el wire on-device reaparezca,
-  // restablecer junto con la sesión WebXR (estado "capturando", "mallando",
-  // "subiendo mesh GLB").
+  // §2.28 (2026-05-22) — UI states del pipeline on-device:
+  //   - submitting: la pipeline está corriendo (extract → cloud → export → upload)
+  //   - progress: 0-1, progreso macro de la pipeline
+  //   - stage: etapa actual ('extract' | 'point-cloud' | 'export' | 'done')
+  //   - abortController: permite al usuario cancelar la reconstrucción
+  const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [stage, setStage] = useState<ReconstructionStage | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [jobs, setJobs] = useState<ReconstructionJob[]>([]);
   const [activeJob, setActiveJob] = useState<ReconstructionJob | null>(null);
   const [loadingJobs, setLoadingJobs] = useState(true);
@@ -315,48 +325,64 @@ export function DigitalTwinFaena() {
     ? placedObjects.find((o) => o.id === selectedObjectId) ?? null
     : null;
 
-  // §2.28 (2026-05-21) — el helper `apiCall` quedó sin caller después
-  // del descarte del backend de photogrammetría. Cuando el flujo
-  // on-device persista jobs vía Firestore directo no necesitamos el
-  // wrapper HTTP; si en el futuro reaparece un endpoint REST (p.ej. un
-  // sidecar para enriquecer ZK nodes desde el server), restablecer con
-  // `apiAuthHeader()` en vez de Bearer directo.
+  // §2.28 (2026-05-22) — Pipeline ON-DEVICE.
+  //
+  // Reemplazamos el polling vía `/api/photogrammetry/jobs` (descartado) con
+  // una suscripción Firestore real-time a `projects/{projectId}/reconstruction_jobs`.
+  // Cuando la pipeline on-device actualiza el status del job (processing →
+  // completed → failed), la UI refresca automáticamente sin polling.
+  //
+  // Mapper: `PhotogrammetryJobResult` (canónico) → `ReconstructionJob` (UI legacy).
+  // Mantenemos el shape de la UI para no romper el resto del rendering.
+  const mapJob = React.useCallback((job: PhotogrammetryJobResult): ReconstructionJob => {
+    return {
+      jobId: job.jobId,
+      status: job.status === 'cancelled' ? 'failed' : job.status,
+      // progress se infiere: queued=0, processing=50, completed=100, failed=0
+      progress:
+        job.status === 'completed'
+          ? 100
+          : job.status === 'processing'
+            ? 50
+            : 0,
+      resultUrl: job.meshUri ?? null,
+      pointCount: job.metrics?.pointsReconstructed,
+      // boundingBox no está en PhotogrammetryJobResult del adapter on-device;
+      // se omite en V1. El visor 3D usa Float32Array del GLB directamente.
+      createdAt: job.createdAt ? { seconds: Math.floor(job.createdAt / 1000) } : undefined,
+      error: job.errorMessage,
+      metrics: job.metrics
+        ? { framesExtracted: job.metrics.framesExtracted ?? 0 }
+        : undefined,
+    };
+  }, []);
 
-  const refreshJobs = async () => {
-    if (!selectedProject) return;
-    setLoadingJobs(true);
-    try {
-      // §2.28 (2026-05-21) — Server-side photogrammetry (COLMAP/Modal)
-      // DESCARTADO por directiva usuario "digital twin ON-DEVICE only".
-      // El endpoint `/api/photogrammetry/jobs` ya no existe en `server.ts`
-      // (ver comment server.ts:64-68 + 584-587). Mantenemos la UI de jobs
-      // list para cuando el stack on-device (WebXR + MediaPipe + Three.js
-      // Marching Cubes) reemplace COLMAP. Mientras tanto retornamos lista
-      // vacía — sin 404 ni red flag al usuario.
-      //
-      // Cuando llegue la pipeline on-device, el "job" será una sesión
-      // WebXR local que produce un mesh GLB persistido vía Firebase
-      // Storage (igual que antes). El `ReconstructionJob` puede mantener
-      // la misma forma; lo único que cambia es quién PRODUCE el resultado.
+  // Subscription Firestore — sin polling, hidrata desde la fuente de verdad.
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    if (!projectId) {
       setJobs([]);
-    } catch (err) {
-      logger.error('refreshJobs failed', { err: String(err) });
-    } finally {
       setLoadingJobs(false);
+      return undefined;
     }
-  };
-
-  useEffect(() => {
-    refreshJobs();
-  }, [selectedProject?.id]);
-
-  // Polling: refresh active processing job every 4s (skipped when user prefers reduced motion)
-  useEffect(() => {
-    const hasProcessing = jobs.some(j => j.status === 'queued' || j.status === 'processing');
-    if (!hasProcessing || reducedMotion) return undefined;
-    const interval = setInterval(refreshJobs, 4000);
-    return () => clearInterval(interval);
-  }, [jobs.map(j => `${j.jobId}:${j.status}`).join(','), reducedMotion]);
+    setLoadingJobs(true);
+    const unsub = subscribeReconstructionJobs(
+      projectId,
+      (remoteJobs) => {
+        const mapped = remoteJobs.map(mapJob);
+        setJobs(mapped);
+        // Auto-select first completed job si no hay uno activo seleccionado.
+        const firstCompleted = mapped.find((j) => j.status === 'completed');
+        setActiveJob((prev) => prev ?? firstCompleted ?? null);
+        setLoadingJobs(false);
+      },
+      (err) => {
+        logger.warn('reconstruction_jobs_subscription_error', { err: String(err) });
+        setLoadingJobs(false);
+      },
+    );
+    return () => unsub();
+  }, [selectedProject?.id, mapJob]);
 
   // Bucket B.1 — emit Zettelkasten `slam-mesh` node for completed reconstruction jobs.
   // Uses the keyframe count from `job.metrics.framesExtracted` (falls back to 0). Generator
@@ -393,30 +419,72 @@ export function DigitalTwinFaena() {
 
   const handleSubmit = async () => {
     if (!videoFile || !selectedProject || !user) return;
-    // §2.28 (2026-05-21) — Server-side photogrammetry DESCARTADO. La
-    // submisión ya no llega al backend (no existe `/api/photogrammetry/
-    // jobs`, ver server.ts:64-68 + 584-587). En vez de hacer un POST
-    // que 404a, mostramos un toast honesto explicando que la pipeline
-    // on-device reemplaza COLMAP y todavía no está wireada.
+    if (submitting) return; // re-entry guard
+    // §2.28 (2026-05-22) — Pipeline ON-DEVICE.
     //
-    // Cuando el stack on-device esté listo, este handler:
-    //   1. Inicia una sesión WebXR immersive-ar con depth-sensing
-    //   2. Procesa frames con MediaPipe + Marching Cubes en device
-    //   3. Genera un mesh GLB local (Three.js)
-    //   4. Sube SOLO el mesh resultante a Firebase Storage (no el video)
-    //   5. Persiste un `ReconstructionJob` con status='completed' +
-    //      escribe ZK node `slam-mesh` (igual que ahora, ver
-    //      generateSlamMeshNode arriba)
+    // Steps:
+    //   1. Construye `OnDeviceReconstructionAdapter` (no requiere config).
+    //   2. Llama `submitJob` con el File del usuario + un AbortController
+    //      para que el usuario pueda cancelar.
+    //   3. El adapter:
+    //      - Crea el job en Firestore con status='processing'.
+    //      - Ejecuta extractFramesFromVideo + buildPointCloud + GLB export
+    //        ON-DEVICE (sin upload del video).
+    //      - Sube SOLO el GLB resultante a Storage.
+    //      - Marca el job 'completed' o 'failed' en Firestore.
+    //   4. La suscripción Firestore del useEffect refresca la UI live.
     //
-    // La diferencia clave vs COLMAP: el video NUNCA sale del device.
-    // El handler dispara la sesión AR; no hace network upload del video.
-    //
-    // Mientras tanto, el usuario puede usar el tab "Mapa 2.5D del sitio"
-    // (Google Maps tilted 45°) o el "Modo AR" del header.
-    show(
-      'Reconstrucción 3D on-device próximamente. Mientras tanto, usa el tab "Mapa 2.5D del sitio" o el "Modo AR" arriba.',
-      'success',
-    );
+    // El usuario ve:
+    //   - Toast de inicio.
+    //   - Progress bar que avanza con `onProgress`.
+    //   - Toast final (success o error).
+    //   - Job aparece en la lista con su nuevo estado.
+    setSubmitting(true);
+    setProgress(0);
+    setStage('extract');
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      const adapter = createOnDeviceReconstructionAdapter();
+      const { jobId } = await adapter.submitJob({
+        videoFile,
+        projectId: selectedProject.id,
+        userId: user.uid,
+        outputFormat: 'glb',
+        videoMeta: {
+          durationS: 0, // se derive en el adapter; placeholder
+          fileSizeBytes: videoFile.size,
+        },
+        onProgress: (ratio, currentStage) => {
+          setProgress(ratio);
+          setStage(currentStage);
+        },
+        abortSignal: controller.signal,
+      });
+      show(`Reconstrucción on-device iniciada (job ${jobId.slice(0, 12)})`, 'success');
+      // Limpiamos el File después de delegar al adapter — el blob queda
+      // referenciado por el job en background. Si el usuario sube otro
+      // video, no hay confusión.
+      setVideoFile(null);
+      setNotes('');
+    } catch (err) {
+      logger.error('handleSubmit on-device failed', { err: String(err) });
+      if ((err as Error)?.name === 'AbortError') {
+        show('Reconstrucción cancelada.', 'success');
+      } else {
+        show(`No se pudo iniciar la reconstrucción: ${(err as Error).message}`, 'error');
+      }
+    } finally {
+      setSubmitting(false);
+      setProgress(0);
+      setStage(null);
+      abortRef.current = null;
+    }
+  };
+
+  /** Aborta el procesamiento on-device si el usuario presiona "Cancelar". */
+  const handleCancel = () => {
+    abortRef.current?.abort();
   };
 
   const totalNodes = activeJob?.pointCount ?? 0;
@@ -453,14 +521,17 @@ export function DigitalTwinFaena() {
             <span aria-hidden="true">🥽</span>
             <span>{t('digitalTwin.openAr', 'Modo AR')}</span>
           </a>
-          <button
-            onClick={refreshJobs}
-            disabled={loadingJobs}
-            aria-label="Refrescar lista de jobs"
-            className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+          {/* §2.28 (2026-05-22) — el botón "Refrescar" quedó conservado por
+              consistencia visual. La lista de jobs ahora hidrata vía
+              `subscribeReconstructionJobs` (Firestore live), por lo que no
+              necesita refresh manual. Lo dejamos como indicador visual del
+              loading state (spin mientras está cargando inicial). */}
+          <div
+            aria-label="Estado de carga de jobs"
+            className="p-2 rounded-xl bg-zinc-800 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             <RefreshCw className={`w-4 h-4 text-zinc-400 ${loadingJobs ? 'animate-spin' : ''}`} aria-hidden="true" />
-          </button>
+          </div>
         </div>
       </div>
 
@@ -552,15 +623,17 @@ export function DigitalTwinFaena() {
             <div className="flex items-start gap-2 mt-3 p-2 bg-zinc-800/40 rounded-lg">
               <Info className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" aria-hidden="true" />
               <p className="text-[10px] text-zinc-500 leading-relaxed">
-                §2.28 — La pipeline server-side (COLMAP/Modal) se descartó por costo y privacidad. La
-                reconstrucción 3D pasa a ejecutarse <strong>on-device</strong> (WebXR + MediaPipe + Three.js
-                Marching Cubes); el video nunca sale del celular del usuario.
+                §2.28 — Pipeline <strong>on-device</strong>: extracción de frames + nube de puntos +
+                exportación a GLB en tu propio dispositivo. El video <strong>nunca</strong> sale
+                del celular; solo el mesh resultante se guarda en Storage. Tiempo típico 10-60 s
+                según largo del video.
               </p>
             </div>
             {mode === 'cpu' && (
-              <div className="mt-2 p-3 rounded-lg bg-amber-900/30 border border-amber-600/40 text-amber-200 text-xs">
-                <strong>Reconstrucción on-device:</strong> en preparación. Mientras se wirea el stack WebXR,
-                el tab <em>Mapa 2.5D del sitio</em> y el botón <em>Modo AR</em> arriba siguen activos.
+              <div className="mt-2 p-3 rounded-lg bg-emerald-900/20 border border-emerald-600/30 text-emerald-200 text-xs">
+                <strong>Reconstrucción on-device activa:</strong> usa tu CPU/GPU del browser. La
+                nube de puntos preserva color y estructura del video. Próxima iteración sumará
+                MiDaS (depth estimation) para mejorar calidad — sigue corriendo on-device.
               </div>
             )}
           </div>
@@ -627,18 +700,59 @@ export function DigitalTwinFaena() {
               className="w-full mt-3 bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-500/50"
             />
 
+            {/* §2.28 (2026-05-22) — pipeline ON-DEVICE real (video → frames →
+                point cloud → GLB → Storage + Firestore). */}
             <button
               onClick={handleSubmit}
-              disabled={!videoFile || !selectedProject}
-              aria-disabled={!videoFile || !selectedProject}
-              title="Reconstrucción on-device — en preparación"
+              disabled={!videoFile || !selectedProject || submitting}
+              aria-disabled={!videoFile || !selectedProject || submitting}
               className="w-full mt-3 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-black uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
-              <Upload className="w-4 h-4" aria-hidden="true" />
-              {/* §2.28 — el handler ya no sube nada; muestra toast informativo
-                  hasta que el wire on-device (WebXR + Marching Cubes) entre. */}
-              <span>Reconstrucción on-device · próximamente</span>
+              {submitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  <span>
+                    {stage === 'extract' && 'Extrayendo frames…'}
+                    {stage === 'point-cloud' && 'Generando nube de puntos…'}
+                    {stage === 'export' && 'Exportando GLB…'}
+                    {stage === 'done' && 'Subiendo mesh…'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" aria-hidden="true" />
+                  <span>Reconstruir on-device</span>
+                </>
+              )}
             </button>
+            {/* Progress bar visible mientras la pipeline corre. */}
+            {submitting && (
+              <div className="mt-2 space-y-1">
+                <div
+                  className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden"
+                  role="progressbar"
+                  aria-valuenow={Math.round(progress * 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="Progreso de la reconstrucción on-device"
+                >
+                  <div
+                    className="h-full bg-cyan-500 transition-all duration-200"
+                    style={{ width: `${Math.round(progress * 100)}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                  <span>{Math.round(progress * 100)}%</span>
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="text-rose-400 hover:text-rose-300 font-bold uppercase tracking-widest"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Brecha C: place objects menu — solo visible cuando hay reconstrucción completa */}
