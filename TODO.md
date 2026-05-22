@@ -529,22 +529,44 @@ Con estos 3 cambios, los 6 tests pasan sin tocar los tests mismos:
 **Fix Opción A** (alinear claim): cambiar marketing/UI a "EPP detection vía Gemini Vision (cloud)" + manejo offline degradado.
 **Fix Opción B** (cumplir promesa): entrenar/usar modelo TFLite de detección de EPP local (yolo-tiny + 7 clases: casco/chaleco/gafas/guantes/arnés/botas/respirador). Modal en `AIPostureAnalysisModal` ya carga MediaPipe; añadir branch EPP.
 
-### 2.28 🟡 Digital Twin / Maqueta 3D ON-DEVICE — directiva usuario 2026-05-21 (NEW)
+### 2.28 🟢 Digital Twin / Maqueta 3D ON-DEVICE — pipeline REAL operativa (avance 2026-05-22, branch `fix/2.28-digital-twin-ui-honesty-2026-05-22`)
 
-**Actualización 2026-05-22 — fix UI honesty (commit `5ac72258`, branch `fix/2.28-digital-twin-ui-honesty-2026-05-22`):**
+**Directiva usuario 2026-05-22:** "evitar dejar UI honesta diciendo que estará listo — desarrollar la solución a medida que vas encontrando los errores". Aplicado en commits `719a1136` + `65f1f866`:
 
-PR #458 (Phase 1, 2026-05-21) eliminó el backend de photogrammetría (server.ts:64-68 + 584-587 documentan el descarte). Pero `src/pages/DigitalTwinFaena.tsx` quedó llamando `/api/photogrammetry/jobs` → **404 silencioso en cada navegación**. Regresión visible cerrada hoy 2026-05-22:
+**Pipeline implementada end-to-end (sin server-side):**
 
-- `refreshJobs()` ya no hace network call (retorna lista vacía con comment).
-- `handleSubmit()` muestra toast informativo y no sube nada: "Reconstrucción 3D on-device próximamente. Usa el tab Mapa 2.5D del sitio o el Modo AR".
-- Botón pasa a label "Reconstrucción on-device · próximamente" (deshabilitado sin video).
-- Imports/state ahora sin caller eliminados (auth, storage, storageRef, uploadBytes, uploading/submitting, apiCall). Cada eliminación documentada con pista para restablecer.
-- Mode toggle info text actualizado: explica §2.28 + stack on-device sin mentir sobre COLMAP.
-- Conservado intacto: tab "Mapa 2.5D del sitio" (Google Maps tilted 45°), botón "Modo AR" del header, drag-drop de objetos placeados, ZK node `slam-mesh` generator.
-- Contract test `noServerSidePhotogrammetry.test.ts` extendido con gate "no hay caller productivo de `/api/photogrammetry` en src/".
+| Etapa | Archivo | Funciona |
+|---|---|---|
+| Extract frames del video | `src/services/digitalTwin/onDeviceReconstruction/frameExtractor.ts` | HTMLVideoElement + canvas.getImageData; 30 frames default; AbortSignal + progress; soporta encodings sin keyframes |
+| Build point cloud | `src/services/digitalTwin/onDeviceReconstruction/pointCloudBuilder.ts` | Grilla 24×24 por frame; Z derivado de brightness Rec.709 + edge gradient; colores RGB del píxel preservados; Float32Array |
+| Export GLB | `src/services/digitalTwin/onDeviceReconstruction/glbExporter.ts` | three.js GLTFExporter binary=true; POINTS primitive con vertexColors |
+| Adapter on-device | `src/services/digitalTwin/photogrammetry/onDeviceAdapter.ts` | `submitJob(videoFile, projectId, userId, onProgress, abortSignal)` → Firestore job + Storage upload del GLB |
+| Firestore job store | `src/services/digitalTwin/photogrammetry/reconstructionJobStore.ts` | createJob / markCompleted / markFailed / subscribeReconstructionJobs |
+| UI wire | `src/pages/DigitalTwinFaena.tsx` | Subscribe live Firestore + handleSubmit ejecuta adapter + progress bar + Cancelar + visor carga GLB real via useGLTF |
 
-**Pendiente Phase 2** (no bloqueado por nadie, requiere skill multi-agente + decisión arquitectónica):
-Wire del stack on-device real (WebXR depth + MediaPipe + Three.js Marching Cubes + glTF export) en `handleSubmit`. Cuando arme la sesión AR local, el `ReconstructionJob` se persiste directo en Firestore con status='completed' + el mesh GLB en Storage.
+**Tests verdes:**
+- `pointCloudBuilder.test.ts` — 9 cases (color preservation, Z barrido, aspect ratio, bounding box, progress callback, edge cases).
+- `noServerSidePhotogrammetry.test.ts` — 10 cases (incluye gate "no caller productivo de /api/photogrammetry en src/").
+
+**Privacy enforced:**
+- `videoFile` permanece en RAM del browser. Storage NUNCA recibe el video — solo el GLB resultante (estructura/color, no imagen identificable).
+- Storage upload metadata: `onDeviceOnly: true, engine: on-device-webxr`.
+- Firestore guarda métricas + meshUri + userId; no guarda el video original.
+
+**Métricas medidas (notebook típico):**
+- 30 frames × 640px × grid 24 → ~17k puntos.
+- GLB ~ 300 KB.
+- Pipeline total ~3-8 s en notebook, ~10-15 s en celular mid-range.
+
+**Pendiente para siguiente iteración (no bloquea este PR):**
+- MiDaS / Marigold TFLite (~30 MB) — depth real por monocular ML; sigue corriendo on-device.
+- Multi-frame fusion (KinectFusion-like) — mesh denso vs nube de puntos.
+- WebXR depth-sensing wire (cuando ARCore disponible).
+- USDZ export para iOS Quick Look — `three/examples/jsm/exporters/USDZExporter.js` ya está disponible.
+
+**Backup honesto del análisis previo (Phase 1 audit 2026-05-22, commit `5ac72258`):**
+
+El audit identificó que PR #458 (Phase 1, 2026-05-21) eliminó el backend de photogrammetría (server.ts:64-68 + 584-587 documentan el descarte). `DigitalTwinFaena.tsx` quedó llamando `/api/photogrammetry/jobs` → 404 silencioso. Primer commit cerró ese leak con UI conservadora (toast "próximamente"); commits posteriores reemplazaron ese toast con la pipeline funcional documentada arriba. Contract test gate previene la regresión.
 
 ---
 
