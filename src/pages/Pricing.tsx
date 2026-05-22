@@ -989,10 +989,22 @@ function PricingInner() {
     } catch {}
 
     try {
-      // SKU id mapping: tier id → store SKU. For now we use a single
-      // monthly product; future rounds may add per-tier SKUs once Play
-      // Console / App Store Connect entries are configured.
-      const productId = 'praeventio_premium_monthly';
+      // §2.13 fix (2026-05-22) — SKU mapping por tier+cycle (no más single
+      // SKU para todos). Cada tier ahora tiene su propio productId
+      // (`praeventio_<slug>_<cycle>`) que Play Console + App Store Connect
+      // deben tener configurado. Esto permite:
+      //   - Cobrar el precio correcto por tier en el store
+      //   - Reverse lookup tier desde receipt productId (revenue tracking)
+      //   - Detectar manipulación del receipt (assertSkuMatchesTier
+      //     server-side)
+      //
+      // Bloqueador externo §5 TODO.md: el SKU debe existir en Play Console
+      // antes de que el checkout funcione productivamente. Si no existe,
+      // iapAdapter.purchase devuelve error claro al user.
+      const { iapSkuForTier } = await import('../services/pricing/iapSkus');
+      // Pricing.tsx UI actualmente solo hace checkout monthly (annual es
+      // info-only). Cuando se agregue toggle annual, pasar el cycle real.
+      const productId = iapSkuForTier(tier.id, 'monthly');
       const result = await iapAdapter.purchase(productId, provider);
 
       if (!result.success || !result.receiptId) {
