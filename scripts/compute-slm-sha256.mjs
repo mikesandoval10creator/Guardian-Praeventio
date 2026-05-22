@@ -83,13 +83,27 @@ function updateRegistry(modelId, sha256) {
     'slm',
     'registry.ts',
   );
+  // §2.9 fix (2026-05-22, CodeQL HIGH alert "Regular expression injection"):
+  // modelId viene de argv → si alguien pasa `.*` o `(.+)` causa regex
+  // injection / ReDoS. Doble-validamos:
+  //   1. Whitelist: solo [a-zA-Z0-9._-] (slug format)
+  //   2. Escape de TODOS los chars regex meta antes de interpolar
+  if (typeof modelId !== 'string' || modelId.length === 0 || modelId.length > 100) {
+    throw new Error(`Invalid modelId: must be 1-100 char string, got: ${typeof modelId}`);
+  }
+  if (!/^[a-zA-Z0-9._-]+$/.test(modelId)) {
+    throw new Error(
+      `Invalid modelId '${modelId}': must match [a-zA-Z0-9._-]+ (slug format).`,
+    );
+  }
+  const escapedId = modelId.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
   let content = readFileSync(registryPath, 'utf8');
 
   // Find the model block by id, then replace its expectedSha256.
   // Match: `id: 'gemma-2-2b-it',` followed (within ~20 lines) by
   // `expectedSha256: null,`
   const modelRe = new RegExp(
-    `(id:\\s*['"]${modelId.replace(/[-/]/g, '[-/]')}['"][\\s\\S]{0,2000}?expectedSha256:\\s*)null`,
+    `(id:\\s*['"]${escapedId}['"][\\s\\S]{0,2000}?expectedSha256:\\s*)null`,
     'm',
   );
   if (!modelRe.test(content)) {
