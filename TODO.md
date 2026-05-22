@@ -345,6 +345,18 @@ Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** si
 
 **Pendiente migración incremental:** 19 callers restantes — billingService, gamificationService, geminiService, auditService, etc. Pattern replicable: cambiar `Bearer ${idToken}` por `apiAuthHeader()` que devuelve string completo con prefijo correcto.
 
+**2026-05-22 nota sobre los 81 hooks migrados (PR #462):** la pregunta del usuario "que es eso de los 81 hook que no son utilizados?" tiene respuesta clara tras audit Phase 1 (systematic-debugging):
+
+| Pregunta | Respuesta verificada |
+|---|---|
+| ¿La migración (#462) creó hooks dead-code? | NO. Los 81 hooks ya existían — fueron creados en PRs #379-#448 (wire HTTP surface Sprint K) ANTES de mi migración. |
+| ¿Hay un UI consumer para cada hook? | NO actualmente. Los hooks son scaffolding HTTP esperando su `<Component/>` page (ver tabla "Sprint K wire UI restante" en el plan integrado — ~25 servicios pendientes). |
+| ¿La migración rompió algo activo? | NO. Era cambio preventivo: cuando el UI consumer aterrice, ya estará en formato `apiAuthHeader()` correcto para E2E + producción. |
+| ¿Hay que borrarlos? | NO. Son infraestructura aprobada del refactor Sprint K (monolito → dominios). Borrarlos sería regresar el monolito. La progresión correcta es agregar el UI consumer arriba (vidas críticas primero: stoppageEngine, criticalControlsLibrary, rootCauseClassifier, etc.). |
+| ¿Mostraré evidencia de algún hook activo? | Sí, ej: `useFatigue` (creado PR #428) → wireado en Sprint K UI commits #459 + #460 (FatigueMonitor page + sidebar). Pattern repetible. |
+
+Mensaje al usuario: la migración no introdujo deuda — la dejó visible. El próximo paso natural es activar hooks vidas-críticas uno por uno, cada PR atómico con su UI page + tests.
+
 ### 2.25 ✅ firestoreDatabaseId no-default rompía emulator queries (CERRADO 2026-05-21)
 
 **Hallazgo:** `firebase-applet-config.json:6` apunta a `firestoreDatabaseId: "ai-studio-d2437df8-..."` (Firebase AI Studio scratch DB, non-default). PERO `tests/e2e/fixtures/seed.ts` usa firebase-admin SIN especificar databaseId → escribe a `(default)`. Sin override, cuando `connectFirestoreEmulator()` activa, el client SDK queries la DB `ai-studio-...` que está vacía en el emulator, mientras la seed quedó en `(default)`. Mismatch silencioso.
@@ -518,6 +530,24 @@ Con estos 3 cambios, los 6 tests pasan sin tocar los tests mismos:
 **Fix Opción B** (cumplir promesa): entrenar/usar modelo TFLite de detección de EPP local (yolo-tiny + 7 clases: casco/chaleco/gafas/guantes/arnés/botas/respirador). Modal en `AIPostureAnalysisModal` ya carga MediaPipe; añadir branch EPP.
 
 ### 2.28 🟡 Digital Twin / Maqueta 3D ON-DEVICE — directiva usuario 2026-05-21 (NEW)
+
+**Actualización 2026-05-22 — fix UI honesty (commit `5ac72258`, branch `fix/2.28-digital-twin-ui-honesty-2026-05-22`):**
+
+PR #458 (Phase 1, 2026-05-21) eliminó el backend de photogrammetría (server.ts:64-68 + 584-587 documentan el descarte). Pero `src/pages/DigitalTwinFaena.tsx` quedó llamando `/api/photogrammetry/jobs` → **404 silencioso en cada navegación**. Regresión visible cerrada hoy 2026-05-22:
+
+- `refreshJobs()` ya no hace network call (retorna lista vacía con comment).
+- `handleSubmit()` muestra toast informativo y no sube nada: "Reconstrucción 3D on-device próximamente. Usa el tab Mapa 2.5D del sitio o el Modo AR".
+- Botón pasa a label "Reconstrucción on-device · próximamente" (deshabilitado sin video).
+- Imports/state ahora sin caller eliminados (auth, storage, storageRef, uploadBytes, uploading/submitting, apiCall). Cada eliminación documentada con pista para restablecer.
+- Mode toggle info text actualizado: explica §2.28 + stack on-device sin mentir sobre COLMAP.
+- Conservado intacto: tab "Mapa 2.5D del sitio" (Google Maps tilted 45°), botón "Modo AR" del header, drag-drop de objetos placeados, ZK node `slam-mesh` generator.
+- Contract test `noServerSidePhotogrammetry.test.ts` extendido con gate "no hay caller productivo de `/api/photogrammetry` en src/".
+
+**Pendiente Phase 2** (no bloqueado por nadie, requiere skill multi-agente + decisión arquitectónica):
+Wire del stack on-device real (WebXR depth + MediaPipe + Three.js Marching Cubes + glTF export) en `handleSubmit`. Cuando arme la sesión AR local, el `ReconstructionJob` se persiste directo en Firestore con status='completed' + el mesh GLB en Storage.
+
+---
+
 
 **Directiva inviolable usuario 2026-05-21:**
 
