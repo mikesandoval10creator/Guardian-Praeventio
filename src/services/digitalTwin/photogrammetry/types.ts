@@ -26,16 +26,31 @@
 export type MeshFormat = 'gltf' | 'glb' | 'obj' | 'ply';
 
 /**
- * Engine usado para procesar el video. Cada uno tiene trade-offs de
- * licencia, costo, calidad. Decisión final en
- * `docs/sprints/SPRINT_20_SPEC.md` Brecha C.
+ * Engine usado para procesar el video.
+ *
+ * §2.28 fix (2026-05-21) — Directiva usuario: digital twin + maqueta 3D
+ * deben procesarse ON-DEVICE (celular del usuario) para reducir costos.
+ * Los engines server-side ('colmap', 'reality-capture', 'hyper3d', 'meshroom')
+ * fueron DESCARTADOS y removidos. Quedan tombstones como type literals
+ * para no romper tests/fixtures legacy que tipan estos valores, pero el
+ * único path productivo es 'on-device-webxr'.
+ *
+ * Stack on-device:
+ *   - WebXR `immersive-ar` con depth-sensing (ARCore Android, AR Quick Look iOS)
+ *   - MediaPipe Pose/Hand/Face (OSS Apache-2)
+ *   - Three.js mesh generation (Marching Cubes client-side)
+ *   - WebGL/WebGPU del propio device (gratis)
+ *
+ * Path productivo único: `on-device-webxr` + fallback `mock` para tests.
  */
 export type PhotogrammetryEngine =
-  | 'meshroom' // MPL2 license, free, CPU intensivo (Cloud Run worker)
-  | 'colmap' // BSD license, COLMAP open source en Cloud Run worker (CPU-only)
-  | 'reality-capture' // CapturingReality cloud API, paid per minute
-  | 'hyper3d' // MCP-mediated (text-to-3d / image-to-3d, beta)
-  | 'mock'; // for tests + development sin internet
+  | 'on-device-webxr' // ACTIVO — WebXR depth + Three.js mesh, gratis on-device
+  | 'mock' // ACTIVO — for tests + development sin device
+  // Tombstones (descartados §2.28 2026-05-21 — kept for type-compat only):
+  | 'meshroom' // DESCARTADO — Cloud Run paid CPU
+  | 'colmap' // DESCARTADO — Cloud Run paid CPU
+  | 'reality-capture' // DESCARTADO — CapturingReality cloud API paid
+  | 'hyper3d'; // DESCARTADO — MCP cloud paid
 
 export type PhotogrammetryJobStatus =
   | 'queued' // upload completo, esperando worker
