@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Grid, Environment } from '@react-three/drei';
+import { OrbitControls, Grid, Environment, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   Layers, Upload, Loader2, CheckCircle2, AlertTriangle, Cpu, Zap,
@@ -81,6 +81,20 @@ const STATUS_STYLE: Record<ReconstructionJob['status'], { bg: string; text: stri
   completed:  { bg: 'bg-emerald-500/15 border-emerald-500/40', text: 'text-emerald-300', Icon: CheckCircle2 },
   failed:     { bg: 'bg-rose-500/15 border-rose-500/40', text: 'text-rose-300', Icon: AlertTriangle },
 };
+
+// §2.28 (2026-05-22) — Visor del GLB REAL producido por la pipeline
+// on-device (`OnDeviceReconstructionAdapter`). Carga el archivo desde
+// `meshUri` (URL firmada de Firebase Storage) usando three.js drei
+// `useGLTF`. Si la carga falla, cae al `PointCloudViewer` procedural
+// como fallback visual no-bloqueante.
+function OnDeviceGlbViewer({ url }: { url: string }) {
+  // useGLTF gestiona caché + suspends durante la carga. El Canvas ya
+  // viene envuelto en Suspense más arriba, así que no necesitamos un
+  // boundary local. Si el GLB es un POINTS primitive, three.js lo
+  // renderiza como puntos directamente (vertexColors preservados).
+  const gltf = useGLTF(url);
+  return <primitive object={gltf.scene} />;
+}
 
 // Procedural point cloud generated from boundingBox + pointCount (visualization fallback for demo mode)
 function PointCloudViewer({ pointCount, boundingBox }: { pointCount: number; boundingBox: ReconstructionJob['boundingBox'] }) {
@@ -919,7 +933,15 @@ export function DigitalTwinFaena() {
                     sectionColor="#06b6d4"
                     fadeDistance={50}
                   />
-                  <PointCloudViewer pointCount={totalNodes} boundingBox={activeJob.boundingBox} />
+                  {/* §2.28 — si el job tiene resultUrl (GLB real subido por el
+                      adapter on-device), cargamos el mesh directamente. El
+                      fallback procedural sigue activo para jobs sin mesh
+                      (debug/legacy) — la nube random vive en bbox del job. */}
+                  {activeJob.resultUrl ? (
+                    <OnDeviceGlbViewer url={activeJob.resultUrl} />
+                  ) : (
+                    <PointCloudViewer pointCount={totalNodes} boundingBox={activeJob.boundingBox} />
+                  )}
                   <RiskMarkers />
                   <PlacedObjectsLayer
                     objects={placedObjects}
