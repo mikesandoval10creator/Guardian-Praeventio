@@ -17,7 +17,12 @@ const Site25DPanel = React.lazy(() =>
 );
 import { TwinAccessGuard } from '../components/digital-twin/TwinAccessGuard';
 import { isDemoProject } from '../data/demoProject';
-import { auth, storage, db, doc, getDoc, ref as storageRef, uploadBytes } from '../services/firebase';
+// §2.28 (2026-05-21) — `auth/storage/storageRef/uploadBytes` se usaban en
+// el flujo de upload+POST /api/photogrammetry. Tras descartar la pipeline
+// server-side (server.ts:64-68 + 584-587), el handler local muestra solo
+// un toast informativo. Dejamos `db/doc/getDoc` porque el TwinAccessGuard
+// los necesita para verificar membership.
+import { db, doc, getDoc } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { EmptyState } from '../components/shared/EmptyState';
@@ -154,8 +159,10 @@ export function DigitalTwinFaena() {
   const [mode, setMode] = useState<ProcessingMode>('cpu');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [notes, setNotes] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  // §2.28 (2026-05-21) — `uploading`/`submitting` quedaron sin caller tras
+  // descartar el upload server-side. Cuando el wire on-device reaparezca,
+  // restablecer junto con la sesión WebXR (estado "capturando", "mallando",
+  // "subiendo mesh GLB").
   const [jobs, setJobs] = useState<ReconstructionJob[]>([]);
   const [activeJob, setActiveJob] = useState<ReconstructionJob | null>(null);
   const [loadingJobs, setLoadingJobs] = useState(true);
@@ -308,31 +315,30 @@ export function DigitalTwinFaena() {
     ? placedObjects.find((o) => o.id === selectedObjectId) ?? null
     : null;
 
-  const apiBase = (import.meta.env.VITE_APP_URL as string) || '';
-
-  const apiCall = async <T,>(path: string, init?: RequestInit): Promise<T> => {
-    const idToken = await auth.currentUser?.getIdToken();
-    if (!idToken) throw new Error('No autenticado');
-    const res = await fetch(`${apiBase}${path}`, {
-      ...init,
-      headers: {
-        ...(init?.headers || {}),
-        'Authorization': `Bearer ${idToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    if (!res.ok) throw new Error(`API ${path}: ${res.status}`);
-    return res.json();
-  };
+  // §2.28 (2026-05-21) — el helper `apiCall` quedó sin caller después
+  // del descarte del backend de photogrammetría. Cuando el flujo
+  // on-device persista jobs vía Firestore directo no necesitamos el
+  // wrapper HTTP; si en el futuro reaparece un endpoint REST (p.ej. un
+  // sidecar para enriquecer ZK nodes desde el server), restablecer con
+  // `apiAuthHeader()` en vez de Bearer directo.
 
   const refreshJobs = async () => {
     if (!selectedProject) return;
     setLoadingJobs(true);
     try {
-      const list = await apiCall<ReconstructionJob[]>(`/api/photogrammetry/jobs?projectId=${selectedProject.id}`);
-      setJobs(list);
-      const completed = list.find(j => j.status === 'completed');
-      if (completed && !activeJob) setActiveJob(completed);
+      // §2.28 (2026-05-21) — Server-side photogrammetry (COLMAP/Modal)
+      // DESCARTADO por directiva usuario "digital twin ON-DEVICE only".
+      // El endpoint `/api/photogrammetry/jobs` ya no existe en `server.ts`
+      // (ver comment server.ts:64-68 + 584-587). Mantenemos la UI de jobs
+      // list para cuando el stack on-device (WebXR + MediaPipe + Three.js
+      // Marching Cubes) reemplace COLMAP. Mientras tanto retornamos lista
+      // vacía — sin 404 ni red flag al usuario.
+      //
+      // Cuando llegue la pipeline on-device, el "job" será una sesión
+      // WebXR local que produce un mesh GLB persistido vía Firebase
+      // Storage (igual que antes). El `ReconstructionJob` puede mantener
+      // la misma forma; lo único que cambia es quién PRODUCE el resultado.
+      setJobs([]);
     } catch (err) {
       logger.error('refreshJobs failed', { err: String(err) });
     } finally {
@@ -387,38 +393,30 @@ export function DigitalTwinFaena() {
 
   const handleSubmit = async () => {
     if (!videoFile || !selectedProject || !user) return;
-    setUploading(true);
-    try {
-      // 1. Upload to Firebase Storage
-      const path = `digital_twin/${selectedProject.id}/${Date.now()}_${videoFile.name}`;
-      const sRef = storageRef(storage, path);
-      await uploadBytes(sRef, videoFile);
-      const videoUrl = sRef.toString();
-      setUploading(false);
-
-      // 2. Submit reconstruction job to the real photogrammetry API.
-      // GPU/Modal is not wired into this UI yet; production uses the CPU
-      // COLMAP worker when PHOTOGRAMMETRY_WORKER_URL/TOKEN are configured.
-      setSubmitting(true);
-      const result = await apiCall<{ jobId: string; status: string }>('/api/photogrammetry/jobs', {
-        method: 'POST',
-        body: JSON.stringify({
-          projectId: selectedProject.id,
-          videoUrl,
-          name: notes.trim() || videoFile.name,
-        }),
-      });
-      show(`Job ${result.jobId.slice(0, 8)} encolado (~10-15 min CPU)`, 'success');
-      setVideoFile(null);
-      setNotes('');
-      await refreshJobs();
-    } catch (err) {
-      logger.error('DigitalTwin submit failed', { err: String(err) });
-      show('Error al subir video o crear job', 'error');
-    } finally {
-      setUploading(false);
-      setSubmitting(false);
-    }
+    // §2.28 (2026-05-21) — Server-side photogrammetry DESCARTADO. La
+    // submisión ya no llega al backend (no existe `/api/photogrammetry/
+    // jobs`, ver server.ts:64-68 + 584-587). En vez de hacer un POST
+    // que 404a, mostramos un toast honesto explicando que la pipeline
+    // on-device reemplaza COLMAP y todavía no está wireada.
+    //
+    // Cuando el stack on-device esté listo, este handler:
+    //   1. Inicia una sesión WebXR immersive-ar con depth-sensing
+    //   2. Procesa frames con MediaPipe + Marching Cubes en device
+    //   3. Genera un mesh GLB local (Three.js)
+    //   4. Sube SOLO el mesh resultante a Firebase Storage (no el video)
+    //   5. Persiste un `ReconstructionJob` con status='completed' +
+    //      escribe ZK node `slam-mesh` (igual que ahora, ver
+    //      generateSlamMeshNode arriba)
+    //
+    // La diferencia clave vs COLMAP: el video NUNCA sale del device.
+    // El handler dispara la sesión AR; no hace network upload del video.
+    //
+    // Mientras tanto, el usuario puede usar el tab "Mapa 2.5D del sitio"
+    // (Google Maps tilted 45°) o el "Modo AR" del header.
+    show(
+      'Reconstrucción 3D on-device próximamente. Mientras tanto, usa el tab "Mapa 2.5D del sitio" o el "Modo AR" arriba.',
+      'success',
+    );
   };
 
   const totalNodes = activeJob?.pointCount ?? 0;
@@ -554,13 +552,15 @@ export function DigitalTwinFaena() {
             <div className="flex items-start gap-2 mt-3 p-2 bg-zinc-800/40 rounded-lg">
               <Info className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" aria-hidden="true" />
               <p className="text-[10px] text-zinc-500 leading-relaxed">
-                Procesamiento CPU con COLMAP. Modal.run/GPU queda pendiente hasta coordinar credenciales y despliegue.
+                §2.28 — La pipeline server-side (COLMAP/Modal) se descartó por costo y privacidad. La
+                reconstrucción 3D pasa a ejecutarse <strong>on-device</strong> (WebXR + MediaPipe + Three.js
+                Marching Cubes); el video nunca sale del celular del usuario.
               </p>
             </div>
             {mode === 'cpu' && (
               <div className="mt-2 p-3 rounded-lg bg-amber-900/30 border border-amber-600/40 text-amber-200 text-xs">
-                <strong>Modo CPU local:</strong> la reconstrucción toma 10–30 min en el servidor
-                usando COLMAP (sin GPU, sin costo). El resultado aparecerá automáticamente al terminar.
+                <strong>Reconstrucción on-device:</strong> en preparación. Mientras se wirea el stack WebXR,
+                el tab <em>Mapa 2.5D del sitio</em> y el botón <em>Modo AR</em> arriba siguen activos.
               </div>
             )}
           </div>
@@ -629,12 +629,15 @@ export function DigitalTwinFaena() {
 
             <button
               onClick={handleSubmit}
-              disabled={!videoFile || uploading || submitting || !selectedProject}
+              disabled={!videoFile || !selectedProject}
+              aria-disabled={!videoFile || !selectedProject}
+              title="Reconstrucción on-device — en preparación"
               className="w-full mt-3 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-black uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
-              {uploading ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />Subiendo video</>
-               : submitting ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />Encolando job</>
-               : <><Upload className="w-4 h-4" aria-hidden="true" />Iniciar reconstrucción</>}
+              <Upload className="w-4 h-4" aria-hidden="true" />
+              {/* §2.28 — el handler ya no sube nada; muestra toast informativo
+                  hasta que el wire on-device (WebXR + Marching Cubes) entre. */}
+              <span>Reconstrucción on-device · próximamente</span>
             </button>
           </div>
 

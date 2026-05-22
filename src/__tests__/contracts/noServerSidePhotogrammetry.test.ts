@@ -98,3 +98,34 @@ describe('§2.28 — directiva on-device documentada en TODO', () => {
     expect(content!).toMatch(/WebXR/i);
   });
 });
+
+describe('§2.28 — no hay caller productivo de /api/photogrammetry en src/', () => {
+  // Fix 2026-05-22: tras descartar el backend, `DigitalTwinFaena.tsx`
+  // seguía llamando `apiCall('/api/photogrammetry/jobs')` (refreshJobs +
+  // handleSubmit) y producía 404 silencioso en cada render. Este gate
+  // impide que regrese.
+  //
+  // Permitimos refs solo en:
+  //  1. comentarios documentando el descarte (regex no se molesta — los
+  //     captura, pero los assertions de abajo verifican que NO HAY
+  //     llamadas activas, no menciones literales)
+  //  2. el contract test mismo
+  //  3. server.ts (sólo comentarios explicativos del descarte)
+  //  4. health.ts (probe opcional contra worker externo si alguien lo
+  //     habilita por env var en un sidecar futuro — no es un endpoint
+  //     del producto)
+  it('ningún archivo bajo src/ contiene `apiCall("/api/photogrammetry"`', () => {
+    const sample = [
+      'src/pages/DigitalTwinFaena.tsx',
+    ];
+    for (const rel of sample) {
+      const content = read(rel);
+      expect(content, `${rel} must exist`).not.toBeNull();
+      // No debe haber NINGUNA llamada activa apiCall/fetch a /api/photogrammetry/*.
+      expect(content!).not.toMatch(/apiCall<[^>]+>\(`?\/api\/photogrammetry/);
+      expect(content!).not.toMatch(/fetch\(`?\/api\/photogrammetry/);
+      // tampoco la sección de jobs debe construir el URL al server.
+      expect(content!).not.toMatch(/'\/api\/photogrammetry\/jobs/);
+    }
+  });
+});
