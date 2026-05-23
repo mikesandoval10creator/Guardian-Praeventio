@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { auth, db, User, onAuthStateChanged, doc, getDoc, setDoc, collection, getDocs, testConnection } from '../services/firebase';
 import { risks } from '../data/risks';
 import { NodeType } from '../types';
@@ -173,8 +173,20 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
+  // Plan 2026-05-23 perf — memoize el value para evitar re-render
+  // de cascada: este Provider envuelve casi toda la app (Router root),
+  // así que un re-render del Provider invalida ~todos los useContext
+  // del codebase. Con useMemo, los consumers solo re-renderizan cuando
+  // un campo efectivamente cambia (user firma/cierra, role updates, etc.).
+  // Todos los campos del value son state primitives (sin callbacks
+  // regenerados) — memoización es 100% segura.
+  const contextValue = useMemo(
+    () => ({ user, loading, isAdmin, isAuthReady, userRole, userIndustry, onboarded }),
+    [user, loading, isAdmin, isAuthReady, userRole, userIndustry, onboarded],
+  );
+
   return (
-    <FirebaseContext.Provider value={{ user, loading, isAdmin, isAuthReady, userRole, userIndustry, onboarded }}>
+    <FirebaseContext.Provider value={contextValue}>
       {children}
     </FirebaseContext.Provider>
   );

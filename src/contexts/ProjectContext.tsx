@@ -7,6 +7,7 @@ import { ToastContainer } from '../components/shared/ToastContainer';
 import { GuestSaveModal } from '../components/shared/GuestSaveModal';
 import { analytics } from '../services/analytics';
 import type { IndustryCode, ProjectTier } from '../services/analytics';
+import { logger } from '../utils/logger';
 
 interface Project {
   id: string;
@@ -112,8 +113,22 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       } else {
         window.localStorage.removeItem(ACTIVE_PROJECT_STORAGE_KEY);
       }
-    } catch {
-      /* private mode / quota — no-op; bridge degrades gracefully */
+    } catch (err) {
+      // Audit code-reviewer 2026-05-23 finding #7 — antes era catch silente.
+      // Modos privados / quota exceeded: degrade graceful con session fallback
+      // + log para observabilidad (sin esto, EmergencyAutoBridge perdía estado
+      // silently y nadie se enteraba).
+      try {
+        if (window.sessionStorage && selectedProject?.id) {
+          window.sessionStorage.setItem(ACTIVE_PROJECT_STORAGE_KEY, selectedProject.id);
+        }
+      } catch {
+        /* sessionStorage también puede tirar — fallback final es in-memory */
+      }
+      logger.warn('[ProjectContext] localStorage write failed (quota/private mode), fallback session', {
+        err: err instanceof Error ? err.message : String(err),
+        projectId: selectedProject?.id ? selectedProject.id.substring(0, 8) : null,
+      });
     }
   }, [selectedProject?.id]);
 
@@ -137,8 +152,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         if (promoted.length > 0) {
           writeNodesDebounced(promoted, { projectId });
         }
-      } catch {
-        // Best-effort — scratch storage no es crítico para el flujo principal.
+      } catch (err) {
+        // Audit code-reviewer 2026-05-23 finding #5 — antes era catch silente.
+        // Best-effort: scratch storage no es crítico, pero el log permite
+        // detectar regresiones del flujo de promoción cuando un user reporta
+        // "perdí mis cálculos al crear proyecto". Sin esto, debug es ciego.
+        logger.warn('[ProjectContext] promoteAllScratchToProject failed (best-effort)', {
+          err: err instanceof Error ? err.message : String(err),
+          projectId: projectId.substring(0, 8),
+        });
       }
     })();
     // Solo dispara cuando cambia el proyecto seleccionado o el user, no en cada render.
@@ -269,10 +291,32 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [isAuthReady, user]);
+    // `isAdmin` se usa dentro del effect (línea 244 — toggle de query
+    // admin-unfiltered vs member-filtered). Sin estar en deps, una
+    // promoción de rol durante la sesión (custom claim updated +
+    // getIdToken refresh) no triggerea re-subscription al query
+    // correcto — el user quedaba viendo solo "sus" proyectos hasta
+    // re-login. Audit code-reviewer 2026-05-23 finding #10.
+  }, [isAuthReady, user, isAdmin]);
+
+  // Plan 2026-05-23 perf — memoize el value para evitar re-render de
+  // TODOS los consumers (10+ pages + hooks) en cada render del Provider.
+  // Antes: `value={{ ... }}` creaba un objeto nuevo en cada render del
+  // ProjectProvider → todos los useContext(ProjectContext) re-renderizaban
+  // aunque los datos no cambiaran. Con useMemo, los consumers solo
+  // re-renderizan cuando una propiedad efectivamente muta.
+  const contextValue = useMemo(
+    () => ({ projects, selectedProject, setSelectedProject, createProject, loading, error }),
+    // setSelectedProject es estable (useState setter); createProject es
+    // estable porque depende de `user` que está deps de useEffect arriba.
+    // Pero por seguridad incluímos createProject explícito — si user
+    // cambia, regenerar la closure es correcto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projects, selectedProject, loading, error],
+  );
 
   return (
-    <ProjectContext.Provider value={{ projects, selectedProject, setSelectedProject, createProject, loading, error }}>
+    <ProjectContext.Provider value={contextValue}>
       {children}
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
       <GuestSaveModal

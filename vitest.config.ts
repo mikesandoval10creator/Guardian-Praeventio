@@ -49,7 +49,16 @@ export default defineConfig({
     // file (Vitest docs → "Environment" → per-file).
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
-    exclude: ['src/rules-tests/**', 'node_modules/**', 'dist/**', 'coverage/**'],
+    // `*.firestore.test.ts` corre via `vitest.firestore.config.ts` contra
+    // el emulator. Excluido acá para que `npm test` (sweep general) no
+    // intente correrlos sin emulator. Plan 2026-05-23 Fase C.1.
+    exclude: [
+      'src/rules-tests/**',
+      'src/**/*.firestore.test.ts',
+      'node_modules/**',
+      'dist/**',
+      'coverage/**',
+    ],
     setupFiles: ['./src/test/setup.ts'],
     globals: false,
   },

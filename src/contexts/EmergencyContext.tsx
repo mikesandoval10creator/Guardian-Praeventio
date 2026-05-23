@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback, useMemo } from 'react';
 import { db, auth, serverTimestamp } from '../services/firebase';
 import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
 import { logger } from '../utils/logger';
@@ -99,7 +99,11 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
   // Tracks the Firestore doc created by triggerEmergency so resolveEmergency can update it
   const activeEventRef = useRef<{ projectId: string; docId: string } | null>(null);
 
-  const triggerEmergency = async (type: string, projectId?: string) => {
+  // Plan 2026-05-23 perf — useCallback para ref estable. Esta closure
+  // solo lee module-level imports (auth, db, serverTimestamp, etc.) y
+  // useState setters (estables) + activeEventRef (estable). Empty deps
+  // array es correcto: nada del scope React cambia entre renders.
+  const triggerEmergency = useCallback(async (type: string, projectId?: string) => {
     setEmergencyType(type);
     setIsEmergencyActive(true);
 
@@ -178,9 +182,9 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
         captureEmergencyError(err, { trigger: type, projectId, path: 'mesh_fallback' });
       }
     });
-  };
+  }, []);
 
-  const resolveEmergency = () => {
+  const resolveEmergency = useCallback(() => {
     setIsEmergencyActive(false);
     setEmergencyType(null);
 
@@ -199,10 +203,21 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
       resolvedByName: user?.displayName ?? null,
       resolvedAt: serverTimestamp(),
     }).catch((err) => logger.error('EmergencyContext: failed to resolve event', { err }));
-  };
+  }, []);
+
+  // Plan 2026-05-23 perf — memoize value. triggerEmergency + resolveEmergency
+  // ahora son useCallback (refs estables). Consumers: AppModeContext (mode
+  // auto-switching), EmergencyOverlay (root mount), Sidebar (survival mode
+  // botón), FallDetectionMonitor, ManDownDetector, varios sensores. Sin
+  // esta memoización, cada render del Provider invalidaba toda la cadena
+  // de monitoreo de emergencia.
+  const contextValue = useMemo(
+    () => ({ isEmergencyActive, emergencyType, triggerEmergency, resolveEmergency }),
+    [isEmergencyActive, emergencyType, triggerEmergency, resolveEmergency],
+  );
 
   return (
-    <EmergencyContext.Provider value={{ isEmergencyActive, emergencyType, triggerEmergency, resolveEmergency }}>
+    <EmergencyContext.Provider value={contextValue}>
       {children}
     </EmergencyContext.Provider>
   );

@@ -21,10 +21,28 @@
 if (typeof globalThis.document !== 'undefined') {
   await import('@testing-library/jest-dom/vitest');
   const { afterEach } = await import('vitest');
-  const { cleanup } = await import('@testing-library/react');
-  afterEach(() => {
-    cleanup();
-  });
+  // Sprint Plan 2026-05-23 Fase B.2 — `@testing-library/dom` peer del
+  // paquete `@testing-library/react` está declarado en package.json + lock,
+  // pero faltó en algunos `npm install` parciales (offline / sin
+  // --legacy-peer-deps). Cuando falta, todo el suite de hook tests muere
+  // con "Cannot find module '@testing-library/dom'". Para no romper tests
+  // que NO usan cleanup (ej. hand-rolled renderHook con react-dom/client
+  // directo), envolvemos el import en try/catch. Si la lib carga, cleanup
+  // queda registrado. Si no, los tests siguen corriendo sin cleanup
+  // (cada test es responsable de su propio unmount).
+  try {
+    const { cleanup } = await import('@testing-library/react');
+    afterEach(() => {
+      cleanup();
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[test/setup] @testing-library/react no disponible (peer @testing-library/dom faltante). ' +
+      'cleanup() global desactivado — los tests deben unmount manualmente.',
+      err,
+    );
+  }
 
   // jsdom (>= v22) ships without `window.matchMedia`. GSAP's gsap-core
   // (v4) calls `_win.matchMedia(query)` inside `MatchMedia.add()` when

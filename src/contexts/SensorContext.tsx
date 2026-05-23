@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { Motion } from '@capacitor/motion';
 import { Capacitor } from '@capacitor/core';
 import { logger } from '../utils/logger';
@@ -108,11 +108,23 @@ export function SensorProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isListening]);
 
-  const startListening = () => setIsListening(true);
-  const stopListening = () => setIsListening(false);
+  // Plan 2026-05-23 perf — useCallback para refs estables. Wraps de
+  // setIsListening (useState setter, ya estable) — el useCallback es
+  // para que el value memoizado abajo no se invalide en cada render.
+  const startListening = useCallback(() => setIsListening(true), []);
+  const stopListening = useCallback(() => setIsListening(false), []);
+
+  // Memoize el value. Consumers: useAccelerometer, useFallDetection,
+  // useManDownDetection, useFrequencyAnalysis, fatigueMonitor — todos
+  // hooks que leen sensorData continuously a 50-100Hz. Sin memo, cada
+  // render del SensorProvider re-rendereaba toda la cadena de sensores.
+  const contextValue = useMemo(
+    () => ({ sensorData, isListening, startListening, stopListening }),
+    [sensorData, isListening, startListening, stopListening],
+  );
 
   return (
-    <SensorContext.Provider value={{ sensorData, isListening, startListening, stopListening }}>
+    <SensorContext.Provider value={contextValue}>
       {children}
     </SensorContext.Provider>
   );
