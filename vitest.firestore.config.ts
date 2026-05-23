@@ -43,12 +43,11 @@ export default defineConfig({
     globals: false,
     // El emulator es de proceso único — paralelización por threads
     // generaba write-conflicts intermitentes en runs anteriores. Forks
-    // es serial pero estable.
+    // serial es estable. (vitest 4 movió poolOptions a top-level del
+    // test config — los nested `poolOptions.forks` fueron deprecados.)
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
+    forks: {
+      singleFork: true,
     },
     testTimeout: 30_000,
     hookTimeout: 30_000,
