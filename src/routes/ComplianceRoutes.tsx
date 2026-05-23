@@ -19,6 +19,10 @@ const CphsModule = lazy(() => import('../pages/CphsModule'));
 // determinístico desde incidentes + acciones + capacitaciones +
 // inspecciones). El comité revisa y firma desde el módulo CPHS principal.
 const CphsDraftMinute = lazy(() => import('../pages/CphsDraftMinute').then(m => ({ default: m.CphsDraftMinute })));
+// Sprint K wire UI (2026-05-23) — Excepciones documentadas. Service
+// exceptionEngine.ts + panel ExceptionsAuditPanel.tsx existían sin
+// page consumidor. Cierra el gap del plan §Sprint K wire UI restante.
+const ExceptionsAudit = lazy(() => import('../pages/ExceptionsAudit').then(m => ({ default: m.ExceptionsAudit })));
 
 export const ComplianceRoutes = [
   <Route key="normatives" path="normatives" element={<Normatives />} />,
@@ -31,4 +35,5 @@ export const ComplianceRoutes = [
   <Route key="cphs-draft-minute" path="cphs/draft-minute" element={<CphsDraftMinute />} />,
   <Route key="suseso" path="suseso" element={<SusesoReports />} />,
   <Route key="reglamentos" path="reglamentos" element={<Reglamentos />} />,
+  <Route key="exceptions" path="exceptions" element={<ExceptionsAudit />} />,
 ];

@@ -200,6 +200,11 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Conocimiento reutilizable derivado de incidentes cerrados;
         // hace navegable lo que ya vivía como nodos LESSON en el grafo.
         { title: t("nav.lessons_learned", "Lecciones Aprendidas"), icon: BookOpen, path: "/lessons", color: "text-amber-500" },
+        // Sprint K wire UI (2026-05-23) — Excepciones documentadas.
+        // Service exceptionEngine.ts + panel ExceptionsAuditPanel.tsx
+        // existían sin page. Cada excepción a un control normal requiere
+        // mitigación alternativa + duración máx 168h + aprobador role-gate.
+        { title: t("nav.exceptions", "Excepciones"), icon: AlertOctagon, path: "/exceptions", color: "text-amber-500" },
         // Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno).
         // Supervisor lo abre ANTES de iniciar el turno para ver score
         // global + factores trazables + top recomendaciones.
