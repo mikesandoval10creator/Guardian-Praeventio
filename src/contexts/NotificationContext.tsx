@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getMessagingInstance } from '../services/firebase';
 import { getToken, onMessage } from 'firebase/messaging';
 import { useProject } from './ProjectContext';
@@ -147,7 +147,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     };
   }, [selectedProject?.id]);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // Memoize el conteo no-leído para evitar recompute O(n) en cada render
+  // del Provider (notifications puede tener hasta 20 items según el limit
+  // del listener en línea 121).
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications],
+  );
 
   const addNotification = useCallback((n: Omit<Notification, 'id' | 'time' | 'read' | 'createdAt'>) => {
     if (isCrisisMode) return; // Radio silence mode
@@ -179,8 +185,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     setNotifications([]);
   }, []);
 
+  // Plan 2026-05-23 perf — memoize el value. Las 4 callbacks ya estaban
+  // en useCallback (líneas 152-180); unreadCount lo memoizé arriba.
+  // Consumers: ToastContainer (root), Sidebar (badge), Header bell icon —
+  // todos re-renderizaban en cada render del Provider sin esto.
+  const contextValue = useMemo(
+    () => ({ notifications, unreadCount, addNotification, markAsRead, markAllAsRead, clearAll }),
+    [notifications, unreadCount, addNotification, markAsRead, markAllAsRead, clearAll],
+  );
+
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, addNotification, markAsRead, markAllAsRead, clearAll }}>
+    <NotificationContext.Provider value={contextValue}>
       {children}
     </NotificationContext.Provider>
   );
