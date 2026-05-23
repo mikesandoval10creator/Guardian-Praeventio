@@ -3,70 +3,12 @@ import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
-  Shield,
-  Zap,
-  Map,
-  FileText,
-  Layout,
-  LayoutGrid,
-  Home,
-  Book,
-  User,
-  Users,
-  Settings,
-  HelpCircle,
-  LogOut,
-  Bell,
-  Activity,
-  AlertTriangle,
-  ShieldAlert,
-  ClipboardCheck,
-  ShieldCheck,
-  Briefcase,
-  Truck,
-  Clock,
-  Network,
-  ClipboardList,
-  UserCheck,
-  BookOpen,
-  Calendar,
-  Folder,
-  AlertOctagon,
-  Grid,
-  Droplets,
-  HeartPulse,
-  Award,
-  BarChart3,
-  Brain,
-  ListChecks,
-  ScanLine,
-  Inbox as InboxIcon,
   ChevronDown,
-  ChevronRight,
-  Wrench,
-  Car,
-  MessageSquare,
-  Mountain,
-  TreePine,
-  Route,
-  Gamepad2,
-  Scan,
-  Cloud,
-  Database,
-  Printer,
-  Box,
-  Watch,
-  Cpu,
-  Server,
-  Key,
-  Layers,
-  Waves,
+  LogOut,
+  ShieldAlert,
   Sun,
   Moon,
-  Droplet,
   WifiOff,
-  LayoutDashboard,
-  Stethoscope,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ProjectSelector } from "./ProjectSelector";
@@ -78,6 +20,10 @@ import { NormativaSwitch } from "../normativa/NormativaSwitch";
 
 import { SurvivalMode } from "../emergency/SurvivalMode";
 import { logger } from '../../utils/logger';
+// Plan 2026-05-23 §P2 — la lista de menuGroups (227 LOC de data) se
+// extrajo a un módulo aparte para reducir este archivo de 609 → ~380 LOC
+// y dejar la estructura de navegación testeable en isolation.
+import { buildSidebarMenuGroups } from "./sidebarMenuGroups";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -85,20 +31,6 @@ interface SidebarProps {
   isDarkMode?: boolean;
   toggleTheme?: () => void;
 }
-
-type MenuItem = {
-  title: string;
-  icon: any;
-  path: string;
-  color: string;
-  isBeta?: boolean;
-};
-
-type MenuGroup = {
-  title: string;
-  icon: any;
-  items: MenuItem[];
-};
 
 export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarProps) {
   const { t } = useTranslation();
@@ -115,234 +47,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
   const { isAdmin } = useFirebase();
   const [showSurvivalMode, setShowSurvivalMode] = useState(false);
 
-  const menuGroups: MenuGroup[] = [
-    {
-      title: t("nav.command_center", "Centro de Mando"),
-      icon: Home,
-      items: [
-        { title: t("nav.dashboard", "Inicio"), icon: Home, path: "/", color: "text-[#4db6ac]" },
-        // Sprint 40 Fase F.8 — Bandeja del Prevencionista. Pendientes
-        // de hoy agregados de múltiples feeds (corrective actions, SIF,
-        // exceptions, etc.) en una vista única ordenada por urgencia.
-        { title: t("nav.inbox", "Bandeja"), icon: InboxIcon, path: "/inbox", color: "text-teal-500" },
-        { title: "Safe Driving", icon: Car, path: "/safe-driving", color: "text-blue-500" },
-        { title: t("nav.safety_feed", "Muro Social"), icon: Users, path: "/safety-feed", color: "text-[#4db6ac]" },
-        { title: t("nav.projects", "Proyectos"), icon: Briefcase, path: "/projects", color: "text-blue-500" },
-        { title: t("nav.cuadrillas", "Cuadrillas"), icon: Users, path: "/cuadrillas", color: "text-[#4db6ac]" },
-        // Sprint 41 Fase F.16 — Score de Preparación del Trabajador.
-        // Asistente NO bloqueante; muestra training/EPP/fatiga/historial
-        // del trabajador para que el supervisor decida con criterio.
-        { title: t("nav.worker_readiness", "Preparación Trabajador"), icon: UserCheck, path: "/worker-readiness", color: "text-teal-500" },
-        // Sprint 28 Bucket B5 — CPHS formal module (audit hallazgo H29 P1).
-        // Apunta a /cphs (registro formal con quórum DS 54 + firmas WebAuthn).
-        // El link legacy a /comite-paritario sigue disponible en ModuleHub para
-        // las actas en formato libre hasta que la migración del próximo
-        // sprint consolide ambos en /cphs.
-        { title: t("nav.cphs", "Comité Paritario (CPHS)"), icon: ShieldCheck, path: "/cphs", color: "text-[#4db6ac]" },
-        // Sprint 40 Fase F.7 — sub-link al borrador mensual automático.
-        { title: t("nav.cphs_draft", "Minuta CPHS"), icon: FileText, path: "/cphs/draft-minute", color: "text-teal-500" },
-        { title: t("nav.mining_contractors", "Contratistas Mineros"), icon: Mountain, path: "/mining-contractors", color: "text-amber-500" },
-        { title: t("nav.analytics", "Reportabilidad"), icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
-        // Sprint 40 Fase F.4 — Centro de Acciones Correctivas (PDCA).
-        // Acceso directo desde Cumplimiento — cierra ISO 45001 §10.2.
-        { title: t("nav.corrective_actions", "Acciones Correctivas"), icon: ListChecks, path: "/corrective-actions", color: "text-teal-500" },
-        // Sprint K §131-138 — Cierre de Proyecto + Lecciones Transferibles +
-        // Decisiones Críticas + Resúmenes Multi-Rol. Cierra el ciclo
-        // completo: extrae lecciones publicables (scope='industry'),
-        // registra decisiones críticas, y genera resúmenes adaptados al rol.
-        { title: t("nav.project_closure", "Cierre de Proyecto"), icon: Briefcase, path: "/closure", color: "text-violet-500" },
-        // Sprint K §195-200 — Módulo PDCA + No Conformidades (ISO 45001 §10.2).
-        // Kanban Plan/Do/Check/Act sobre ciclos vinculados a NCs.
-        { title: t("nav.pdca", "PDCA + No Conformidades"), icon: Activity, path: "/pdca", color: "text-teal-500" },
-        // Sprint K §291-295 — Revisión Anual del SGI (ISO 45001 §9.3 + DS 76).
-        // Cierra el ciclo PDCA a nivel anual: objetivos preventivos,
-        // evidencias y conclusiones firmadas por la dirección.
-        { title: t("nav.annual_review", "Revisión Anual SGI"), icon: ClipboardCheck, path: "/annual-review", color: "text-violet-500" },
-        // Sprint K §296-301 — Riesgo Residual + Aceptación Formal +
-        // Detector de Criticidad Sospechosa. ISO 31000 risk-flow:
-        // residual >= alto requiere firma de gerencia, drift sospechoso
-        // se marca para revisión humana sin bloquear operación.
-        { title: t("nav.residual_risk", "Riesgo Residual"), icon: AlertOctagon, path: "/residual-risk", color: "text-rose-500" },
-        // Sprint K §90-91 — Calidad de Proveedores + Ranking de Riesgo.
-        // Motor determinístico (supplierScoring 4-dim) ya vivía; este link
-        // hace visible el ranking para decisiones de adjudicación.
-        { title: t("nav.suppliers", "Proveedores"), icon: Truck, path: "/suppliers", color: "text-blue-500" },
-        // Sprint K §214-215 — Observaciones Positivas + Balance.
-        // Contrapunto cultural a las CA: reconocer comportamientos
-        // seguros + ideas de mejora. El widget de balance pinta la
-        // salud cultural (cultura punitiva si solo hay correctivas).
-        { title: t("nav.positive_observations", "Observaciones Positivas"), icon: Award, path: "/positive-observations", color: "text-teal-500" },
-        // Sprint 42 Fase F.6 — Modo Sin Señal para Inspecciones.
-        // Offline-first daily ops: inspector captura hallazgos en
-        // terreno sin conexión, sync diferido cuando vuelve la red.
-        { title: t("nav.inspections", "Inspecciones"), icon: ClipboardCheck, path: "/inspections", color: "text-blue-500" },
-        // §42-44 — Inventario Controles de Ingeniería + Jerarquía ISO 31000.
-        // Audita la jerarquía de controles aplicados (elimination >
-        // substitution > engineering > administrative > epp) y la
-        // vigencia de cada verificación (verde/ámbar/rojo).
-        { title: t("nav.engineering_controls", "Controles de Ingeniería"), icon: Layers, path: "/engineering-controls", color: "text-violet-500" },
-        // Sprint K §61-63 — Cultura Preventiva (encuesta + índice).
-        // Pulso periódico anónimo (Likert 1-5) que mide percepción y
-        // detecta cultura punitiva. Cierra la fase de "Detección
-        // Predictiva" del Flow Infinito para liderazgo.
-        { title: t("nav.culture_pulse", "Cultura Preventiva"), icon: HeartPulse, path: "/culture-pulse", color: "text-rose-500" },
-        // Sprint 40 Fase F.5 — Firma QR de Recepción (EPP, charlas, docs).
-        // Genera challenge HMAC + TTL corto; firma del trabajador queda
-        // como comprobante interno (no se empuja a SUSESO/SII/MINSAL).
-        { title: t("nav.qr_signature", "Firma QR"), icon: ScanLine, path: "/qr-signature", color: "text-violet-500" },
-        // Sprint 41 Fase F.26 — Índice de Madurez Preventiva.
-        // Score 1..5 con palancas para subir de nivel (marketing + upsell).
-        { title: t("nav.maturity_index", "Índice de Madurez"), icon: Award, path: "/maturity-index", color: "text-violet-500" },
-        // Sprint 42 Fase F.15 — Centro de Permisos de Trabajo.
-        // LOTO / altura / caliente / confinado / excavación / izaje — DS 594, DS 132, DS 109.
-        { title: t("nav.work_permits", "Permisos de Trabajo"), icon: ShieldCheck, path: "/work-permits", color: "text-amber-500" },
-        // Sprint 40 Fase F.12 — Biblioteca de Lecciones Aprendidas.
-        // Conocimiento reutilizable derivado de incidentes cerrados;
-        // hace navegable lo que ya vivía como nodos LESSON en el grafo.
-        { title: t("nav.lessons_learned", "Lecciones Aprendidas"), icon: BookOpen, path: "/lessons", color: "text-amber-500" },
-        // Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno).
-        // Supervisor lo abre ANTES de iniciar el turno para ver score
-        // global + factores trazables + top recomendaciones.
-        { title: t("nav.pre_shift_risk", "Pre-turno"), icon: Sun, path: "/pre-shift-risk", color: "text-amber-500" },
-        // Sprint 40 Fase F.13 — Radar de Riesgos Repetidos (patrones
-        // determinísticos sobre incidentes, sin ML). Sólo asiste — nunca
-        // bloquea operación. Acompaña Acciones Correctivas: el radar
-        // detecta el patrón, las CA lo cierran.
-        { title: t("nav.repeating_risks", "Patrones de Riesgo"), icon: AlertTriangle, path: "/repeating-risks", color: "text-rose-500" },
-        // Sprint 41 Fase F.20 — Gestor de Simulacros (DS 132 / DS 594).
-        // Planifica + ejecuta + reporta preparación (excellent → critical).
-        { title: t("nav.drills", "Gestor de Simulacros"), icon: ShieldAlert, path: "/drills", color: "text-amber-500" },
-        // Sprint K §74-78 — Brigada de Emergencia + Inventario de Recursos.
-        // Brigadistas por rol (líder / fuego / primeros aux / evac / comms)
-        // + extintores / AED / lavaojos / botiquines con QR + countdown
-        // de inspección. Determinístico, sin push a SUSESO/MINSAL.
-        { title: t("nav.emergency_brigade", "Brigada Emergencia"), icon: ShieldAlert, path: "/emergency-brigade", color: "text-amber-500" },
-        // Sprint K vidas críticas wire (#459, 2026-05-21) — Tablero de Evacuación
-        // live durante drills/emergencias reales. Coverage % grande, lista
-        // FALTANTES con last known location, botón "Marcar seguro" prominente.
-        // Service evacuationHeadcount.ts + route /api/evacuation/* ya existían.
-        { title: t("nav.evacuation_dashboard", "Tablero Evacuación"), icon: AlertTriangle, path: "/evacuation-dashboard", color: "text-rose-500" },
-        // Sprint K §276-277 — Bitácora de Decisiones de Supervisión + Ranking
-        // de Impacto. Liderazgo preventivo trazable (NO castiga, mide qué
-        // decisiones evitan más riesgo). Auditoría real para el SGSST.
-        { title: t("nav.leadership_decisions", "Decisiones Supervisión"), icon: User, path: "/leadership-decisions", color: "text-blue-500" },
-        // Sprint K §69-71 — Conducción Segura + Rutas Críticas + Alertas Ruta.
-        // Score de conductor (incidentes + fatiga + speeding + licencia) +
-        // rutas con hazards + alertas en tiempo real (icy/fog/debris). No
-        // bloquea operación, asiste al supervisor con criterio.
-        { title: t("nav.driving_safety", "Conducción Segura"), icon: Car, path: "/driving-safety", color: "text-blue-500" },
-        // Sprint K §211-213 — Reportes Confidenciales (Ley Karin 21.643) +
-        // Canal de Denuncias + Detector de Represalias. Privacy-by-design:
-        // anónimo por defecto, hash one-way del autor que detecta patrones
-        // de represalia sin de-anonimizar. Color rose-500 = sensibilidad
-        // legal (consistente con Riesgo Residual y Patrones de Riesgo).
-        { title: t("nav.confidential_reports", "Reportes Confidenciales"), icon: ShieldAlert, path: "/confidential-reports", color: "text-rose-500" },
-        // Sprint 55 Fase F.14 — Mapa de Calor de Hallazgos. Distribución
-        // espacial por celda con filtros de período + severidad. SVG
-        // top-down, sin Maps API (offline-safe).
-        { title: t("nav.findings_heatmap", "Mapa Calor Hallazgos"), icon: Map, path: "/findings-heatmap", color: "text-rose-500" },
-        // Sprint 55 Fase F.17 — Centro de Bloqueos Soft. Recomienda
-        // fuertemente sin bloquear; override con audit log obligatorio
-        // (UID supervisor + razón ≥20 chars). Directiva 2.
-        { title: t("nav.soft_blocks", "Bloqueos Soft"), icon: ShieldAlert, path: "/soft-blocks", color: "text-amber-500" },
-        // Sprint 55 Fase F.24 — Cadena de Custodia. Timeline inmutable
-        // por evidencia (hash SHA-256 + audit log). NO empuja a APIs
-        // externas (SUSESO/SII/MINSAL etc.) — directiva 3.
-        { title: t("nav.custody_chain", "Cadena de Custodia"), icon: Shield, path: "/custody-chain", color: "text-violet-500" },
-        // Sprint 55 Fase F.27 — Comparador de Proyectos. KPIs side-by-side
-        // de hasta 4 proyectos seleccionables. Asiste con datos sin
-        // recomendar cierre (directiva 2).
-        { title: t("nav.projects_compare", "Comparar Proyectos"), icon: BarChart3, path: "/projects-compare", color: "text-blue-500" },
-        // F.29 — Tendencia de Incidentes + Leading Indicators (near-miss
-        // ratio, closure rate, días promedio abierto). Read-only sobre la
-        // colección de incidents. Acompaña Repeating Risks: el radar
-        // detecta patrones, esta página muestra la dirección agregada.
-        { title: t("nav.incident_trends", "Tendencia Incidentes"), icon: BarChart3, path: "/incident-trends", color: "text-amber-500" },
-        // Sprint K §244-250 — Aprendices + Mentoría + Autorización Progresiva
-        // + Exposición a Tareas. NO bloquea operación; trazea el avance del
-        // aprendiz hacia autonomía (observer → supervised → autonomous), la
-        // carga del mentor (max 3 simultáneos §245), y alerta sobreexposición
-        // a tareas repetitivas (riesgo músculo-esquelético §246-247).
-        { title: t("nav.apprenticeship", "Aprendices y Mentores"), icon: UserCheck, path: "/apprenticeship", color: "text-teal-500" },
-        // Sprint 42 Fase F.18 — Historial Profesional Portátil del Trabajador
-        // (Ley 19.628). El trabajador es dueño absoluto de su cartera
-        // profesional y decide qué se exporta. Praeventio NO push-a a
-        // organismos externos: el trabajador (o admin) descarga JSON/PDF
-        // y lo entrega manualmente.
-        { title: t("nav.portable_history", "Historial Portátil"), icon: User, path: "/portable-history", color: "text-blue-500" },
-        ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
-      ],
-    },
-    {
-      title: t("nav.ai_group", "Inteligencia Artificial"),
-      icon: Brain,
-      items: [
-        { title: t("nav.ai_hub", "AI Hub"), icon: Zap, path: "/ai-hub", color: "text-violet-500" },
-        { title: "Coach de Seguridad", icon: Brain, path: "/safety-coach", color: "text-[#4db6ac]" },
-        { title: t("nav.zettelkasten", "Zettelkasten"), icon: Database, path: "/zettelkasten", color: "text-blue-500" },
-        { title: t("nav.knowledge_base", "Base de Conocimiento"), icon: Database, path: "/knowledge-base", color: "text-violet-500" },
-        // Sprint K §104 — Panel de Confianza de Datos (calidad para IA).
-        // Score 0-100 + bandera roja si cualquier dimensión <50.
-        { title: t("nav.data_confidence", "Confianza de Datos"), icon: Database, path: "/data-confidence", color: "text-violet-500" },
-        { title: "Pizarra", icon: LayoutDashboard, path: "/pizarra", color: "text-indigo-400" },
-        { title: t("nav.academic_processor", "Procesador Académico"), icon: BookOpen, path: "/academic-processor", color: "text-violet-500" },
-        { title: t("nav.ocr_motor", "Motor OCR"), icon: Scan, path: "/document-ocr", color: "text-violet-400" },
-        { title: "Rastreador Solar", icon: Sun, path: "/sun-tracker", color: "text-amber-500" },
-        // Sprint 29 Bucket AA F-A — hub de las 12 calculadoras Bernoulli/Euler.
-        { title: "Calculadoras Especializadas", icon: Wrench, path: "/calculators", color: "text-[#4db6ac]" },
-      ],
-    },
-    {
-      title: t("nav.ops_group", "Módulos Operativos"),
-      icon: LayoutGrid,
-      items: [
-        { title: t("nav.ops_mgmt", "Gestión Operativa"), icon: Briefcase, path: "/hub/operations", color: "text-blue-500" },
-        { title: t("nav.risk_network", "Prevención y Riesgos"), icon: ShieldAlert, path: "/hub/risks", color: "text-violet-500" },
-        { title: t("nav.health", "Salud y Bienestar"), icon: HeartPulse, path: "/hub/health", color: "text-rose-500" },
-        { title: t("nav.emergencies", "Entorno y Emergencias"), icon: AlertTriangle, path: "/hub/emergencies", color: "text-amber-500" },
-        { title: t("nav.compliance", "Cumplimiento Legal"), icon: ClipboardCheck, path: "/hub/compliance", color: "text-[#4db6ac]" },
-        { title: t("nav.culture", "Talento y Cultura"), icon: Users, path: "/hub/training", color: "text-indigo-500" },
-        { title: t("nav.afiches", "Afiches de Seguridad"), icon: Printer, path: "/afiches-seguridad", color: "text-blue-400" },
-        { title: t("nav.digital_twin", "Gemelo Digital 3D"), icon: Layers, path: "/hub/operations/digital-twin", color: "text-cyan-400" },
-      ],
-    },
-    {
-      title: t("nav.occupational_health_group", "Salud Ocupacional"),
-      icon: Stethoscope,
-      items: [
-        { title: t("nav.human_body_viewer", "Visor Corporal DIAT"), icon: Activity, path: "/human-body", color: "text-rose-500" },
-        { title: t("nav.medicine", "Medicina"), icon: HeartPulse, path: "/medicine", color: "text-rose-400" },
-        { title: t("nav.hygiene", "Higiene Industrial"), icon: Droplets, path: "/hygiene", color: "text-blue-400" },
-        { title: t("nav.ergonomics", "Ergonomía"), icon: UserCheck, path: "/ergonomics", color: "text-amber-400" },
-        // Sprint K vidas críticas wire (#459, 2026-05-21) — Monitor de Fatiga
-        // según DS 594 art. 102 + Código del Trabajo art. 38 + MINSAL nocturnos.
-        // Anonymous-friendly (idb-keyval local + banner login para sync).
-        { title: t("nav.fatigue", "Monitor de Fatiga"), icon: Moon, path: "/fatigue", color: "text-violet-500" },
-      ],
-    },
-    {
-      title: t("nav.settings_group", "Configuración"),
-      icon: Settings,
-      items: [
-        { title: t("nav.profile", "Mi Perfil"), icon: User, path: "/profile", color: "text-zinc-400" },
-        // Sprint 23 Bucket FF — Ley 19.628 data-subject control center.
-        { title: t("nav.my_data", "Mis datos"), icon: ShieldCheck, path: "/my-data", color: "text-[#4db6ac]" },
-        { title: t("nav.settings", "Ajustes"), icon: Settings, path: "/settings", color: "text-zinc-400" },
-        { title: t("nav.pricing", "Planes y Facturación"), icon: Key, path: "/pricing", color: "text-zinc-400" },
-        { title: t("nav.help", "Ayuda y Soporte"), icon: HelpCircle, path: "/help", color: "text-zinc-400" },
-      ],
-    },
-    // Sprint 23 Bucket CC — Admin group, only visible to admin role.
-    ...(isAdmin
-      ? [{
-          title: t("nav.admin_group", "Admin"),
-          icon: ShieldCheck,
-          items: [
-            { title: t("nav.b2d_admin", "Panel B2D"), icon: Key, path: "/admin/b2d", color: "text-[#d4af37]" },
-          ],
-        }]
-      : []),
-  ];
+  const menuGroups = buildSidebarMenuGroups(t, features, isAdmin);
 
   const [openGroup, setOpenGroup] = useState<string | null>(() => {
     const activeGroup = menuGroups.find((group) =>
@@ -569,7 +274,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
               {t("nav.survival_mode", "Modo Supervivencia")}
             </span>
           </button>
-          
+
           {toggleTheme && (
             <button
               onClick={toggleTheme}
