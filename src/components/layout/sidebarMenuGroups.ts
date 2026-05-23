@@ -49,6 +49,7 @@ import {
   LayoutGrid,
   ListChecks,
   Map,
+  MessageSquare,
   Moon,
   Mountain,
   Network,
@@ -190,6 +191,14 @@ export function buildSidebarMenuGroups(
     // Cada cambio operacional registra rationale + impacto + workers
     // afectados + ack flow. Revertible con motivo documentado.
     { title: t('nav.operational_changes', 'Gestión de Cambios'), icon: Network, path: '/operational-changes', color: 'text-violet-500' },
+    // Sprint K wire UI (2026-05-23) — Charlas diarias determinísticas.
+    // suggestTalks scoring por triggers (riesgos, tareas, incidentes,
+    // clima, newWorkers). Sin LLM, top 3 con rationale citando triggers.
+    { title: t('nav.safety_talks', 'Charlas Diarias'), icon: MessageSquare, path: '/safety-talks', color: 'text-sky-500' },
+    // Sprint K wire UI (2026-05-23) — Portales auditor externo.
+    // Token 64-char hex + TTL 1-90d + scope modulos + revocable.
+    // SUSESO / mutualidad / ISO / SEREMI / DT / mandante / cliente.
+    { title: t('nav.audit_portals', 'Portales Auditor'), icon: ShieldCheck, path: '/audit-portals', color: 'text-emerald-500' },
     // Sprint K vidas críticas wire (2026-05-22) — Controles críticos (HCA).
     // Service criticalControlsLibrary.ts + card BarrierAnalysisCard existían;
     // page /critical-controls cierra el gap. ISO 45001 §8.1.2.
