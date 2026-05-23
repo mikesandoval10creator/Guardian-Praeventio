@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { get, set } from 'idb-keyval';
 
 type ThemeMode = 'light' | 'dark' | 'system' | 'auto';
@@ -97,8 +97,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     await setThemeMode(newMode);
   }, [isDarkMode, setThemeMode]);
 
+  // Plan 2026-05-23 perf — memoize el value. ToggleTheme y setThemeMode
+  // ya están en useCallback (líneas 89-98) así que sus refs son estables
+  // mientras isDarkMode no cambia → useMemo solo invalida cuando un
+  // campo del value efectivamente muta. Sin esto, todos los useContext
+  // del ThemeContext (sidebar, topbar, varias pages) re-renderizaban
+  // cuando *cualquier ancestor* del Provider re-renderizaba.
+  const contextValue = useMemo(
+    () => ({ isDarkMode, isDayTime, themeMode, toggleTheme, setThemeMode }),
+    [isDarkMode, isDayTime, themeMode, toggleTheme, setThemeMode],
+  );
+
   return (
-    <ThemeContext.Provider value={{ isDarkMode, isDayTime, themeMode, toggleTheme, setThemeMode }}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );

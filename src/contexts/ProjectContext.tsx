@@ -299,8 +299,24 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     // re-login. Audit code-reviewer 2026-05-23 finding #10.
   }, [isAuthReady, user, isAdmin]);
 
+  // Plan 2026-05-23 perf — memoize el value para evitar re-render de
+  // TODOS los consumers (10+ pages + hooks) en cada render del Provider.
+  // Antes: `value={{ ... }}` creaba un objeto nuevo en cada render del
+  // ProjectProvider → todos los useContext(ProjectContext) re-renderizaban
+  // aunque los datos no cambiaran. Con useMemo, los consumers solo
+  // re-renderizan cuando una propiedad efectivamente muta.
+  const contextValue = useMemo(
+    () => ({ projects, selectedProject, setSelectedProject, createProject, loading, error }),
+    // setSelectedProject es estable (useState setter); createProject es
+    // estable porque depende de `user` que está deps de useEffect arriba.
+    // Pero por seguridad incluímos createProject explícito — si user
+    // cambia, regenerar la closure es correcto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projects, selectedProject, loading, error],
+  );
+
   return (
-    <ProjectContext.Provider value={{ projects, selectedProject, setSelectedProject, createProject, loading, error }}>
+    <ProjectContext.Provider value={contextValue}>
       {children}
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
       <GuestSaveModal

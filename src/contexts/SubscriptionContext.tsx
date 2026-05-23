@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useFirebase } from './FirebaseContext';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -169,29 +169,35 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Webpay y MP IPN actualizan el plan automáticamente al confirmar pago
   // (billing.ts AUTHORIZED branch + mercadoPagoIpn.ts approved branch).
   // Este método queda como fallback para refresh post-payment desde la UI.
-  const upgradePlan = async (newPlan: SubscriptionPlan) => {
-    if (!user) throw new Error('not_authenticated');
+  // Plan 2026-05-23 perf — useCallback para que upgradePlan tenga ref
+  // estable; sin esto, el useMemo del contextValue (más abajo) se
+  // invalidaría en cada render del Provider y la memoización sería inútil.
+  const upgradePlan = useCallback(
+    async (newPlan: SubscriptionPlan) => {
+      if (!user) throw new Error('not_authenticated');
 
-    const token = await user.getIdToken();
-    const res = await fetch('/api/subscription/upgrade', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ planId: newPlan }),
-    });
+      const token = await user.getIdToken();
+      const res = await fetch('/api/subscription/upgrade', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ planId: newPlan }),
+      });
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      const msg = errData?.error ?? `upgrade_failed_${res.status}`;
-      console.error('Error upgrading subscription:', msg);
-      throw new Error(msg);
-    }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const msg = errData?.error ?? `upgrade_failed_${res.status}`;
+        console.error('Error upgrading subscription:', msg);
+        throw new Error(msg);
+      }
 
-    // Optimistic update local state — backend ya validó el pago
-    setPlan(newPlan);
-  };
+      // Optimistic update local state — backend ya validó el pago
+      setPlan(newPlan);
+    },
+    [user],
+  );
 
   const isPremium = plan !== 'free';
   const isEnterprise = ['empresarial', 'corporativo', 'ilimitado'].includes(plan);
@@ -200,8 +206,13 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // tighter feature flag (oro+ instead of any-paid).
   const canAccessExecutiveDashboard = features.canUseExecutiveDashboard;
 
-  return (
-    <SubscriptionContext.Provider value={{
+  // Plan 2026-05-23 perf — memoize el value. Sidebar.tsx + ProjectSelector
+  // + varias pages consumen useSubscription(); sin esta memoización un
+  // render del Provider re-renderizaba TODA la cascada aunque el plan
+  // no cambiara. `upgradePlan` ya está en useCallback arriba; `features`
+  // está en useMemo (línea 198). Los demás son state primitives.
+  const contextValue = useMemo(
+    () => ({
       plan,
       isPremium,
       isEnterprise,
@@ -211,8 +222,24 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       loading,
       totalWorkers,
       recommendedPlan,
-      requiresUpgrade
-    }}>
+      requiresUpgrade,
+    }),
+    [
+      plan,
+      isPremium,
+      isEnterprise,
+      canAccessExecutiveDashboard,
+      features,
+      upgradePlan,
+      loading,
+      totalWorkers,
+      recommendedPlan,
+      requiresUpgrade,
+    ],
+  );
+
+  return (
+    <SubscriptionContext.Provider value={contextValue}>
       {children}
     </SubscriptionContext.Provider>
   );
