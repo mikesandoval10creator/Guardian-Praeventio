@@ -199,6 +199,10 @@ export function buildSidebarMenuGroups(
     // Token 64-char hex + TTL 1-90d + scope modulos + revocable.
     // SUSESO / mutualidad / ISO / SEREMI / DT / mandante / cliente.
     { title: t('nav.audit_portals', 'Portales Auditor'), icon: ShieldCheck, path: '/audit-portals', color: 'text-emerald-500' },
+    // Sprint K wire UI (2026-05-23) — Confirmación de lectura de documentos
+    // críticos. Service readReceiptService.ts + card DocumentReadConfirmCard
+    // existían sin page consumidor.
+    { title: t('nav.document_read', 'Lectura de Documentos'), icon: FileText, path: '/document-read', color: 'text-sky-500' },
     // Sprint K vidas críticas wire (2026-05-22) — Controles críticos (HCA).
     // Service criticalControlsLibrary.ts + card BarrierAnalysisCard existían;
     // page /critical-controls cierra el gap. ISO 45001 §8.1.2.

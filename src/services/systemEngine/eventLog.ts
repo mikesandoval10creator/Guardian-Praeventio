@@ -172,10 +172,13 @@ export async function emit(
 async function mirrorToAuditLogs(event: SystemEvent): Promise<void> {
   const user = auth.currentUser;
   if (!user) return;
-  const token = await user.getIdToken();
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const { apiAuthHeader } = await import('../../lib/apiAuth');
+  const authHeader = await apiAuthHeader();
+  if (!authHeader) return;
   await fetch('/api/audit-log', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: { 'Content-Type': 'application/json', Authorization: authHeader },
     credentials: 'include',
     body: JSON.stringify({
       action: `systemEngine.${event.type}`,
