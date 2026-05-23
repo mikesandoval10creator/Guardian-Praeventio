@@ -21,6 +21,11 @@ const ClimateRoutes = lazy(() => import('../pages/ClimateRoutes').then(module =>
 // route `src/server/routes/evacuation.ts` (4 endpoints) existían PERO el
 // componente UI consumidor faltaba. Esta page cierra el gap.
 const EvacuationDashboard = lazy(() => import('../pages/EvacuationDashboard').then(module => ({ default: module.EvacuationDashboard })));
+// 2026-05-23: wire LoneWorkerMonitor. Service loneWorkerService.ts +
+// card LoneWorkerCard.tsx existían pero faltaba page consumidor.
+// Vidas críticas: trabajador remoto/aislado con check-in periódico +
+// escalamiento automático supervisor → brigada → emergencia.
+const LoneWorkerMonitor = lazy(() => import('../pages/LoneWorkerMonitor').then(module => ({ default: module.LoneWorkerMonitor })));
 
 export const EmergencyRoutes = [
   <Route key="emergency" path="emergency" element={<Emergency />} />,
@@ -38,4 +43,5 @@ export const EmergencyRoutes = [
   <Route key="evacuation-routes" path="evacuation-routes" element={<EvacuationRoutes />} />,
   <Route key="climate-routes" path="climate-routes" element={<ClimateRoutes />} />,
   <Route key="evacuation-dashboard" path="evacuation-dashboard" element={<EvacuationDashboard />} />,
+  <Route key="lone-worker" path="lone-worker" element={<LoneWorkerMonitor />} />,
 ];
