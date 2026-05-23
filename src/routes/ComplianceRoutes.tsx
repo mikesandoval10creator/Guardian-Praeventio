@@ -23,6 +23,9 @@ const CphsDraftMinute = lazy(() => import('../pages/CphsDraftMinute').then(m => 
 const ExceptionsAudit = lazy(() => import('../pages/ExceptionsAudit').then(m => ({ default: m.ExceptionsAudit })));
 // Sprint K wire UI (2026-05-23) — Auditor de consistencia entre módulos.
 const ConsistencyAudit = lazy(() => import('../pages/ConsistencyAudit').then(m => ({ default: m.ConsistencyAudit })));
+// Sprint K wire UI (2026-05-23) — Calendario legal + Gestión de cambios MOC.
+const LegalCalendar = lazy(() => import('../pages/LegalCalendar').then(m => ({ default: m.LegalCalendar })));
+const OperationalChanges = lazy(() => import('../pages/OperationalChanges').then(m => ({ default: m.OperationalChanges })));
 
 export const ComplianceRoutes = [
   <Route key="normatives" path="normatives" element={<Normatives />} />,
@@ -37,4 +40,6 @@ export const ComplianceRoutes = [
   <Route key="reglamentos" path="reglamentos" element={<Reglamentos />} />,
   <Route key="exceptions" path="exceptions" element={<ExceptionsAudit />} />,
   <Route key="consistency-audit" path="consistency-audit" element={<ConsistencyAudit />} />,
+  <Route key="legal-calendar" path="legal-calendar" element={<LegalCalendar />} />,
+  <Route key="operational-changes" path="operational-changes" element={<OperationalChanges />} />,
 ];

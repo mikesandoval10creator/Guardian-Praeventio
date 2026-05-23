@@ -61,7 +61,7 @@ const RECURRENCE_DAYS: Record<RecurrencePattern, number> = {
 // Catalog de obligaciones canónicas chilenas
 // ────────────────────────────────────────────────────────────────────────
 
-interface ObligationTemplate {
+export interface ObligationTemplate {
   kind: ObligationKind;
   label: string;
   legalCitation: string;

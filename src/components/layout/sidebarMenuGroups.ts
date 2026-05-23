@@ -32,6 +32,7 @@ import {
   Car,
   ClipboardCheck,
   ClipboardList,
+  Clock,
   Database,
   Droplet,
   Droplets,
@@ -134,6 +135,12 @@ export function buildSidebarMenuGroups(
     { title: t('nav.worker_readiness', 'Preparación Trabajador'), icon: UserCheck, path: '/worker-readiness', color: 'text-teal-500' },
     // Sprint 28 Bucket B5 — CPHS formal module (audit hallazgo H29 P1).
     { title: t('nav.cphs', 'Comité Paritario (CPHS)'), icon: ShieldCheck, path: '/cphs', color: 'text-[#4db6ac]' },
+    // Sprint K wire UI (2026-05-23) — Bitácora de Obra DS 76 con
+    // folios consecutivos year-based + 12 kinds + status open→signed.
+    { title: t('nav.site_book', 'Bitácora de Obra'), icon: Book, path: '/site-book', color: 'text-amber-600' },
+    // Sprint K wire UI (2026-05-23) — Cambio de Turno + Handover.
+    // Log cronológico + notas categorizadas con severidad + ack flow.
+    { title: t('nav.shift_handover', 'Cambio de Turno'), icon: Clock, path: '/shift-handover', color: 'text-indigo-500' },
     // Sprint 40 Fase F.7 — sub-link al borrador mensual automático.
     { title: t('nav.cphs_draft', 'Minuta CPHS'), icon: FileText, path: '/cphs/draft-minute', color: 'text-teal-500' },
     { title: t('nav.mining_contractors', 'Contratistas Mineros'), icon: Mountain, path: '/mining-contractors', color: 'text-amber-500' },
@@ -175,6 +182,14 @@ export function buildSidebarMenuGroups(
     // Service consistencyAuditor.ts (12 reglas determinísticas) + card
     // ConsistencyAuditCard.tsx existían sin page consumidor.
     { title: t('nav.consistency_audit', 'Auditor Consistencia'), icon: ShieldAlert, path: '/consistency-audit', color: 'text-rose-500' },
+    // Sprint K wire UI (2026-05-23) — Calendario legal recurrente.
+    // STANDARD_OBLIGATIONS: auditorías, mediciones, CPHS, simulacros,
+    // exámenes ocupacionales, renovaciones documentos/permisos.
+    { title: t('nav.legal_calendar', 'Calendario Legal'), icon: Calendar, path: '/legal-calendar', color: 'text-teal-500' },
+    // Sprint K wire UI (2026-05-23) — Gestión de Cambios (MOC ISO 45001 §8.1.3).
+    // Cada cambio operacional registra rationale + impacto + workers
+    // afectados + ack flow. Revertible con motivo documentado.
+    { title: t('nav.operational_changes', 'Gestión de Cambios'), icon: Network, path: '/operational-changes', color: 'text-violet-500' },
     // Sprint K vidas críticas wire (2026-05-22) — Controles críticos (HCA).
     // Service criticalControlsLibrary.ts + card BarrierAnalysisCard existían;
     // page /critical-controls cierra el gap. ISO 45001 §8.1.2.
