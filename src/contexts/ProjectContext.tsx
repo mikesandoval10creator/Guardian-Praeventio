@@ -269,7 +269,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [isAuthReady, user]);
+    // `isAdmin` se usa dentro del effect (línea 244 — toggle de query
+    // admin-unfiltered vs member-filtered). Sin estar en deps, una
+    // promoción de rol durante la sesión (custom claim updated +
+    // getIdToken refresh) no triggerea re-subscription al query
+    // correcto — el user quedaba viendo solo "sus" proyectos hasta
+    // re-login. Audit code-reviewer 2026-05-23 finding #10.
+  }, [isAuthReady, user, isAdmin]);
 
   return (
     <ProjectContext.Provider value={{ projects, selectedProject, setSelectedProject, createProject, loading, error }}>
