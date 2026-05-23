@@ -7,6 +7,7 @@ import { ToastContainer } from '../components/shared/ToastContainer';
 import { GuestSaveModal } from '../components/shared/GuestSaveModal';
 import { analytics } from '../services/analytics';
 import type { IndustryCode, ProjectTier } from '../services/analytics';
+import { logger } from '../utils/logger';
 
 interface Project {
   id: string;
@@ -112,8 +113,22 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       } else {
         window.localStorage.removeItem(ACTIVE_PROJECT_STORAGE_KEY);
       }
-    } catch {
-      /* private mode / quota — no-op; bridge degrades gracefully */
+    } catch (err) {
+      // Audit code-reviewer 2026-05-23 finding #7 — antes era catch silente.
+      // Modos privados / quota exceeded: degrade graceful con session fallback
+      // + log para observabilidad (sin esto, EmergencyAutoBridge perdía estado
+      // silently y nadie se enteraba).
+      try {
+        if (window.sessionStorage && selectedProject?.id) {
+          window.sessionStorage.setItem(ACTIVE_PROJECT_STORAGE_KEY, selectedProject.id);
+        }
+      } catch {
+        /* sessionStorage también puede tirar — fallback final es in-memory */
+      }
+      logger.warn('[ProjectContext] localStorage write failed (quota/private mode), fallback session', {
+        err: err instanceof Error ? err.message : String(err),
+        projectId: selectedProject?.id ? selectedProject.id.substring(0, 8) : null,
+      });
     }
   }, [selectedProject?.id]);
 
@@ -137,8 +152,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         if (promoted.length > 0) {
           writeNodesDebounced(promoted, { projectId });
         }
-      } catch {
-        // Best-effort — scratch storage no es crítico para el flujo principal.
+      } catch (err) {
+        // Audit code-reviewer 2026-05-23 finding #5 — antes era catch silente.
+        // Best-effort: scratch storage no es crítico, pero el log permite
+        // detectar regresiones del flujo de promoción cuando un user reporta
+        // "perdí mis cálculos al crear proyecto". Sin esto, debug es ciego.
+        logger.warn('[ProjectContext] promoteAllScratchToProject failed (best-effort)', {
+          err: err instanceof Error ? err.message : String(err),
+          projectId: projectId.substring(0, 8),
+        });
       }
     })();
     // Solo dispara cuando cambia el proyecto seleccionado o el user, no en cada render.
