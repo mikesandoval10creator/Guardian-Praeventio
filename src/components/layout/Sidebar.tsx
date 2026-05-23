@@ -200,6 +200,14 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Conocimiento reutilizable derivado de incidentes cerrados;
         // hace navegable lo que ya vivía como nodos LESSON en el grafo.
         { title: t("nav.lessons_learned", "Lecciones Aprendidas"), icon: BookOpen, path: "/lessons", color: "text-amber-500" },
+        // Sprint K wire UI (2026-05-23) — Charlas diarias determinísticas.
+        // suggestTalks scoring por triggers (riesgos, tareas, incidentes,
+        // clima, newWorkers). Sin LLM, top 3 con rationale citando triggers.
+        { title: t("nav.safety_talks", "Charlas Diarias"), icon: MessageSquare, path: "/safety-talks", color: "text-sky-500" },
+        // Sprint K wire UI (2026-05-23) — Portales auditor externo.
+        // Token 64-char hex + TTL 1-90d + scope modulos + revocable.
+        // SUSESO / mutualidad / ISO / SEREMI / DT / mandante / cliente.
+        { title: t("nav.audit_portals", "Portales Auditor"), icon: ShieldCheck, path: "/audit-portals", color: "text-emerald-500" },
         // Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno).
         // Supervisor lo abre ANTES de iniciar el turno para ver score
         // global + factores trazables + top recomendaciones.

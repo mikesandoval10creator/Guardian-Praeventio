@@ -19,6 +19,11 @@ const CphsModule = lazy(() => import('../pages/CphsModule'));
 // determinístico desde incidentes + acciones + capacitaciones +
 // inspecciones). El comité revisa y firma desde el módulo CPHS principal.
 const CphsDraftMinute = lazy(() => import('../pages/CphsDraftMinute').then(m => ({ default: m.CphsDraftMinute })));
+// Sprint K wire UI (2026-05-23) — Charlas + Portales auditor externo.
+// Servicios talkTopicSuggester.ts + externalAuditPortal.ts + cards
+// DailyTalkSuggestion.tsx + ExternalAuditPortalCard.tsx existían sin page.
+const SafetyTalks = lazy(() => import('../pages/SafetyTalks').then(m => ({ default: m.SafetyTalks })));
+const AuditPortals = lazy(() => import('../pages/AuditPortals').then(m => ({ default: m.AuditPortals })));
 
 export const ComplianceRoutes = [
   <Route key="normatives" path="normatives" element={<Normatives />} />,
@@ -31,4 +36,6 @@ export const ComplianceRoutes = [
   <Route key="cphs-draft-minute" path="cphs/draft-minute" element={<CphsDraftMinute />} />,
   <Route key="suseso" path="suseso" element={<SusesoReports />} />,
   <Route key="reglamentos" path="reglamentos" element={<Reglamentos />} />,
+  <Route key="safety-talks" path="safety-talks" element={<SafetyTalks />} />,
+  <Route key="audit-portals" path="audit-portals" element={<AuditPortals />} />,
 ];
