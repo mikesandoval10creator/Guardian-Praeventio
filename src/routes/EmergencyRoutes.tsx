@@ -26,6 +26,11 @@ const EvacuationDashboard = lazy(() => import('../pages/EvacuationDashboard').th
 // existían pero faltaba la page que los wireara. Esta page expone
 // `/stoppages` con declare/resume + lista activa + historial.
 const StoppageMonitor = lazy(() => import('../pages/StoppageMonitor').then(module => ({ default: module.StoppageMonitor })));
+// 2026-05-23: wire LoneWorkerMonitor. Service loneWorkerService.ts +
+// card LoneWorkerCard.tsx existían pero faltaba page consumidor.
+// Vidas críticas: trabajador remoto/aislado con check-in periódico +
+// escalamiento automático supervisor → brigada → emergencia.
+const LoneWorkerMonitor = lazy(() => import('../pages/LoneWorkerMonitor').then(module => ({ default: module.LoneWorkerMonitor })));
 
 export const EmergencyRoutes = [
   <Route key="emergency" path="emergency" element={<Emergency />} />,
@@ -44,4 +49,5 @@ export const EmergencyRoutes = [
   <Route key="climate-routes" path="climate-routes" element={<ClimateRoutes />} />,
   <Route key="evacuation-dashboard" path="evacuation-dashboard" element={<EvacuationDashboard />} />,
   <Route key="stoppages" path="stoppages" element={<StoppageMonitor />} />,
+  <Route key="lone-worker" path="lone-worker" element={<LoneWorkerMonitor />} />,
 ];

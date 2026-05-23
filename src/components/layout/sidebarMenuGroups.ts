@@ -190,6 +190,10 @@ export function buildSidebarMenuGroups(
     // /stoppages cierra el gap. Cualquier worker puede declarar
     // detencion_voluntaria; categorías superiores exigen role superior.
     { title: t('nav.stoppages', 'Paralizaciones'), icon: OctagonAlert, path: '/stoppages', color: 'text-rose-500' },
+    // Sprint K vidas críticas wire (2026-05-23) — Trabajo solitario.
+    // Service loneWorkerService.ts + card LoneWorkerCard.tsx existían
+    // pero faltaba la page. Check-in periódico + escalamiento.
+    { title: t('nav.lone_worker', 'Trabajo Solitario'), icon: UserCheck, path: '/lone-worker', color: 'text-teal-500' },
     // Sprint K §276-277 — Bitácora de Decisiones de Supervisión.
     { title: t('nav.leadership_decisions', 'Decisiones Supervisión'), icon: User, path: '/leadership-decisions', color: 'text-blue-500' },
     // Sprint K §69-71 — Conducción Segura + Rutas Críticas.
