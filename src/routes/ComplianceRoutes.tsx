@@ -19,6 +19,11 @@ const CphsModule = lazy(() => import('../pages/CphsModule'));
 // determinístico desde incidentes + acciones + capacitaciones +
 // inspecciones). El comité revisa y firma desde el módulo CPHS principal.
 const CphsDraftMinute = lazy(() => import('../pages/CphsDraftMinute').then(m => ({ default: m.CphsDraftMinute })));
+// Sprint K wire UI (2026-05-23) — Calendario legal + Gestión de cambios MOC.
+// Servicios legalObligationsCalendar.ts + operationalChangeService.ts +
+// cards LegalCalendarView.tsx + OperationalChangeCard.tsx existían sin page.
+const LegalCalendar = lazy(() => import('../pages/LegalCalendar').then(m => ({ default: m.LegalCalendar })));
+const OperationalChanges = lazy(() => import('../pages/OperationalChanges').then(m => ({ default: m.OperationalChanges })));
 
 export const ComplianceRoutes = [
   <Route key="normatives" path="normatives" element={<Normatives />} />,
@@ -31,4 +36,6 @@ export const ComplianceRoutes = [
   <Route key="cphs-draft-minute" path="cphs/draft-minute" element={<CphsDraftMinute />} />,
   <Route key="suseso" path="suseso" element={<SusesoReports />} />,
   <Route key="reglamentos" path="reglamentos" element={<Reglamentos />} />,
+  <Route key="legal-calendar" path="legal-calendar" element={<LegalCalendar />} />,
+  <Route key="operational-changes" path="operational-changes" element={<OperationalChanges />} />,
 ];

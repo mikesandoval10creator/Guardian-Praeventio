@@ -200,6 +200,14 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Conocimiento reutilizable derivado de incidentes cerrados;
         // hace navegable lo que ya vivía como nodos LESSON en el grafo.
         { title: t("nav.lessons_learned", "Lecciones Aprendidas"), icon: BookOpen, path: "/lessons", color: "text-amber-500" },
+        // Sprint K wire UI (2026-05-23) — Calendario legal recurrente.
+        // STANDARD_OBLIGATIONS: auditorías, mediciones, CPHS, simulacros,
+        // exámenes ocupacionales, renovaciones documentos/permisos.
+        { title: t("nav.legal_calendar", "Calendario Legal"), icon: Calendar, path: "/legal-calendar", color: "text-teal-500" },
+        // Sprint K wire UI (2026-05-23) — Gestión de Cambios (MOC ISO 45001 §8.1.3).
+        // Cada cambio operacional registra rationale + impacto + workers
+        // afectados + ack flow. Revertible con motivo documentado.
+        { title: t("nav.operational_changes", "Gestión de Cambios"), icon: Network, path: "/operational-changes", color: "text-violet-500" },
         // Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno).
         // Supervisor lo abre ANTES de iniciar el turno para ver score
         // global + factores trazables + top recomendaciones.
