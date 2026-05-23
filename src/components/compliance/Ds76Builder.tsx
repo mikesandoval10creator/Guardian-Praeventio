@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { auth } from '../../services/firebase';
 import { ds76FolioToDocId } from '../../services/compliance/ds76/ds76Service';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 interface BuilderState {
   principalCompanyName: string;
@@ -94,8 +95,9 @@ export const Ds76Builder: React.FC<Props> = ({ tenantId, reportedBy }) => {
     setBusy(true);
     setError(null);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error('No estás autenticado.');
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) throw new Error('No estás autenticado.');
       const payload = {
         tenantId,
         principalCompanyName: state.principalCompanyName,
@@ -114,7 +116,7 @@ export const Ds76Builder: React.FC<Props> = ({ tenantId, reportedBy }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify(payload),
       });
@@ -133,8 +135,9 @@ export const Ds76Builder: React.FC<Props> = ({ tenantId, reportedBy }) => {
     setBusy(true);
     setError(null);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error('No estás autenticado.');
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) throw new Error('No estás autenticado.');
       const sig = await requestSignature(
         result.payloadHashHex,
         reportedBy.uid,
@@ -147,7 +150,7 @@ export const Ds76Builder: React.FC<Props> = ({ tenantId, reportedBy }) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
+            ...(authHeader ? { 'Authorization': authHeader } : {}),
           },
           body: JSON.stringify({ tenantId, signature: sig }),
         },

@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { Search, Loader2, FileWarning, BookOpen } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { logger } from '../../utils/logger';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 interface IncidentSearchHit {
   incidentId: string;
@@ -25,10 +26,10 @@ async function postNlQuery(payload: {
   projectId: string;
   topK: number;
 }): Promise<NlQueryResponse> {
-  const { auth } = await import('../../services/firebase');
-  const token = await auth.currentUser?.getIdToken?.();
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (authHeader) headers.Authorization = authHeader;
   const res = await fetch('/api/zettelkasten/nl-query', {
     method: 'POST',
     headers,

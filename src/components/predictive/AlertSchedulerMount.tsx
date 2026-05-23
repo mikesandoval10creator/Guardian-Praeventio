@@ -19,6 +19,7 @@ import { evaluateProbes, buildPushPayload, type GeneratorProbe, type ScheduledAl
 import { auth } from '../../services/firebase';
 import { analytics } from '../../services/analytics';
 import type { DetectorKind, RiskClass, Severity } from '../../services/analytics';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 const POLL_MS = 60_000;
 const MIN_LEAD_TIME_MIN = 5;
@@ -87,14 +88,15 @@ export async function ackPredictiveAlert(args: {
   crewId: string;
   generatorId: string;
 }): Promise<number> {
-  const idToken = await auth.currentUser?.getIdToken();
-  if (!idToken) return 0;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
+  if (!authHeader) return 0;
   try {
     const res = await fetch('/api/predictive-alerts/ack', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(args),
     });

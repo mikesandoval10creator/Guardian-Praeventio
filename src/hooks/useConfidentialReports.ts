@@ -5,6 +5,7 @@
 
 import { auth } from '../services/firebase';
 import { useEndpoint } from './_fetchUtils';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 // Codex P1 fix: enums alineados al server (Codex P1 sesión 2026-05-18).
 // Antes eran labels en español (acoso_laboral, baja/media/...); el server
@@ -97,13 +98,13 @@ export interface SubmitConfidentialReportPayload {
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(path, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
     body: JSON.stringify(body),
   });

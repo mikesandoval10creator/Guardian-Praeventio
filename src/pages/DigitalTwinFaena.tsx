@@ -9,6 +9,7 @@ import {
   Layers, Upload, Loader2, CheckCircle2, AlertTriangle, Cpu, Zap,
   Video, Clock, Eye, RefreshCw, Trash2, Info, Map as MapIcon
 } from 'lucide-react';
+import { apiAuthHeader } from '../lib/apiAuth';
 // Sprint 29 Bucket BB H24 — lazy split: Site25DPanel hosts the 2.5D
 // canvas (three.js + r3f). Defer to keep the Digital Twin route
 // shell snappy.
@@ -311,13 +312,14 @@ export function DigitalTwinFaena() {
   const apiBase = (import.meta.env.VITE_APP_URL as string) || '';
 
   const apiCall = async <T,>(path: string, init?: RequestInit): Promise<T> => {
-    const idToken = await auth.currentUser?.getIdToken();
-    if (!idToken) throw new Error('No autenticado');
+    // §2.20 (2026-05-23) — apiAuthHeader unified.
+    const authHeader = await apiAuthHeader();
+    if (!authHeader) throw new Error('No autenticado');
     const res = await fetch(`${apiBase}${path}`, {
       ...init,
       headers: {
         ...(init?.headers || {}),
-        'Authorization': `Bearer ${idToken}`,
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
         'Content-Type': 'application/json',
       },
     });

@@ -16,6 +16,7 @@ import confetti from 'canvas-confetti';
 import type { Process } from '../../types/organic';
 import { computeProcessCloseXp, baseXpForProcessType } from '../../services/organic/processService';
 import { auth } from '../../services/firebase';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 export interface CloseProcessModalProps {
   isOpen: boolean;
@@ -50,8 +51,9 @@ export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseP
     setError(null);
     setSubmitting(true);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) {
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) {
         setError(t('processes.error_no_session_short', 'Sesión no disponible.'));
         setSubmitting(false);
         return;
@@ -60,7 +62,7 @@ export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseP
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({ complianceScore: auto }),
       });

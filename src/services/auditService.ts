@@ -1,5 +1,6 @@
 import { collection, addDoc, serverTimestamp, db, auth, handleFirestoreError, OperationType } from './firebase';
 import { logger } from '../utils/logger';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 /**
  * Shape of the `details` payload on audit_logs.
@@ -53,12 +54,13 @@ export const logAuditAction = async (
     const user = auth.currentUser;
     if (!user) return; // Don't log if not authenticated
 
-    const token = await user.getIdToken();
+    // §2.20 (2026-05-23) — apiAuthHeader unified.
+    const authHeader = await apiAuthHeader();
     await fetch('/api/audit-log', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify({ action, module, details, projectId }),
     });

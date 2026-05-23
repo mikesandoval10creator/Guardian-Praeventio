@@ -102,7 +102,12 @@ export function SOSButton(): React.ReactElement | null {
     setSubmitting(true);
     try {
       const geo = await captureGeo();
-      const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+      // §2.20 (2026-05-23) — usar apiAuthHeader unified (prefiere E2E
+      // header en MODE=test, cae a Bearer del idToken en producción).
+      // SOSButton es vidas-críticas: el botón debe funcionar incluso si
+      // el user está anónimo (sin auth) → no tiramos si authHeader es null.
+      const { apiAuthHeader } = await import('../../lib/apiAuth');
+      const authHeader = await apiAuthHeader();
       const projectId = selectedProject?.id ?? null;
       const body = {
         type: 'sos' as const,
@@ -115,7 +120,7 @@ export function SOSButton(): React.ReactElement | null {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+          ...(authHeader ? { Authorization: authHeader } : {}),
         },
         body: JSON.stringify(body),
       });

@@ -36,6 +36,7 @@ import type {
   SleepSample,
   StepsSample,
 } from './types';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 interface FitDatasetPoint {
   startTimeNanos?: string;
@@ -94,14 +95,14 @@ async function fetchFitSync(): Promise<FitSyncResponse | null> {
   const fetchImpl = deps.fetchImpl ?? (globalThis as { fetch?: FetchLike }).fetch;
   if (!fetchImpl) return null;
 
-  const idToken = deps.idTokenProvider ? await deps.idTokenProvider.getIdToken() : null;
-  if (!idToken) return null;
+  const authHeader = deps.idTokenProvider ? await deps.idTokenProvider.getIdToken() : null;
+  if (!authHeader) return null;
 
   const base = deps.baseUrl ?? '';
   const res = await fetchImpl(`${base}/api/fitness/sync`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${idToken}`,
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
       'Content-Type': 'application/json',
     },
     body: '{}',

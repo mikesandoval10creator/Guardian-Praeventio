@@ -52,13 +52,16 @@ async function notifyBrigadeServer(
   try {
     const user = auth.currentUser;
     if (!user) return 'ok'; // sin usuario no podemos firmar; no es fallo de red
-    const idToken = await user.getIdToken();
+    // §2.20 (2026-05-23) — usar apiAuthHeader unified (E2E + Bearer fallback).
+    const { apiAuthHeader } = await import('../lib/apiAuth');
+    const authHeader = await apiAuthHeader();
+    if (!authHeader) return 'ok';
     const res = await fetch('/api/emergency/notify-brigada', {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify({
         projectId,

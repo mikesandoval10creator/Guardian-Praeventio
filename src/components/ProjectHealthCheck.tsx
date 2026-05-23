@@ -4,6 +4,7 @@ import { ShieldCheck, AlertTriangle, CheckCircle2, Loader2, RefreshCw, ChevronDo
 import { useProject } from '../contexts/ProjectContext';
 import { auth, db } from '../services/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 interface HealthResult {
   complianceScore?: number;
@@ -62,12 +63,13 @@ export function ProjectHealthCheck() {
     setRunning(true);
     setError(null);
     try {
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
       const res = await fetch(`/api/projects/${selectedProject.id}/health-check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(authHeader ? { Authorization: authHeader } : {}),
         },
       });
       if (!res.ok) throw new Error(await res.text());

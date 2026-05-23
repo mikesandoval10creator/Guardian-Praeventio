@@ -27,19 +27,21 @@ import {
   type ConsentRecord,
   type DataAccessRequest,
 } from '../services/compliance/ley19628';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 const CONSENT_TEXT_VERSION = 'consent_v1.0';
 
 type ConsentMap = Record<string, ConsentRecord>;
 
 async function authedFetch(input: string, init: RequestInit = {}) {
-  const idToken = await auth.currentUser?.getIdToken();
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   return fetch(input, {
     ...init,
     headers: {
       ...(init.headers || {}),
       'Content-Type': 'application/json',
-      Authorization: idToken ? `Bearer ${idToken}` : '',
+      Authorization: authHeader ? `Bearer ${authHeader}` : '',
     },
   });
 }

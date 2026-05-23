@@ -6,6 +6,7 @@
 import { auth } from '../services/firebase';
 import { useEndpoint } from './_fetchUtils';
 import type { ScoreBreakdown } from '../services/suppliers/supplierScoring';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export type SupplierRiskLevel = 'low' | 'medium' | 'high';
 export type SupplierRiskFilter = SupplierRiskLevel | 'all';
@@ -103,13 +104,13 @@ export async function registerSupplier(
   projectId: string,
   payload: RegisterSupplierPayload,
 ): Promise<SupplierView> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(`/api/sprint-k/${projectId}/suppliers`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
     body: JSON.stringify(payload),
   });
@@ -133,15 +134,15 @@ export async function recordSupplierIncident(
   supplierId: string,
   payload: RecordSupplierIncidentPayload,
 ): Promise<SupplierIncidentRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/suppliers/${supplierId}/incidents`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },
@@ -171,15 +172,15 @@ export async function recordSupplierAudit(
   supplierId: string,
   payload: RecordSupplierAuditPayload,
 ): Promise<SupplierAuditRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/suppliers/${supplierId}/audits`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },

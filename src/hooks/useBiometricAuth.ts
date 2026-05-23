@@ -71,6 +71,7 @@ import { BiometricAuth } from '@aparajita/capacitor-biometric-auth';
 // instead of using `useTranslation`. Keys live under `biometric`.
 import i18n from '../i18n';
 import { auth } from '../services/firebase';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 type Platform = 'web' | 'ios' | 'android';
 
@@ -130,9 +131,11 @@ async function fetchServerChallenge(): Promise<{ challengeId: string; challenge:
   try {
     const user = auth.currentUser;
     if (!user) return null;
-    const idToken = await user.getIdToken();
+    // §2.20 (2026-05-23) — apiAuthHeader unified.
+    const authHeader = await apiAuthHeader();
+    if (!authHeader) return null;
     const res = await fetch('/api/auth/webauthn/challenge', {
-      headers: { Authorization: `Bearer ${idToken}` },
+      headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) },
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -165,7 +168,9 @@ async function verifyAssertionWithServer(
   try {
     const user = auth.currentUser;
     if (!user) return false;
-    const idToken = await user.getIdToken();
+    // §2.20 (2026-05-23) — apiAuthHeader unified.
+    const authHeader = await apiAuthHeader();
+    if (!authHeader) return false;
     const response = assertion.response as AuthenticatorAssertionResponse;
     const toB64 = (buf: ArrayBuffer): string => {
       const bytes = new Uint8Array(buf);
@@ -179,7 +184,7 @@ async function verifyAssertionWithServer(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify({
         challengeId,
@@ -422,14 +427,15 @@ export const useBiometricAuth = () => {
       try {
         const user = auth.currentUser;
         if (!user) return { success: false };
-        const idToken = await user.getIdToken();
-
+        // §2.20 (2026-05-23) — apiAuthHeader unified.
+        const authHeader = await apiAuthHeader();
+        if (!authHeader) return { success: false };
         // Step 1: ask the server for the registration options.
         const optionsRes = await fetch('/api/auth/webauthn/register/options', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
+            ...(authHeader ? { 'Authorization': authHeader } : {}),
           },
           body: JSON.stringify({}),
         });
@@ -503,7 +509,7 @@ export const useBiometricAuth = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
+            ...(authHeader ? { 'Authorization': authHeader } : {}),
           },
           body: JSON.stringify({
             challengeId: optionsData.challengeId,

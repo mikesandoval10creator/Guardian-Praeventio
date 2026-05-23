@@ -5,6 +5,7 @@
 
 import { auth } from '../services/firebase';
 import { useEndpoint, type FetchState } from './_fetchUtils';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export type InspectionStatusAPI = 'in_progress' | 'completed';
 
@@ -79,13 +80,13 @@ export async function startInspection(
   projectId: string,
   payload: InspectionStartPayload,
 ): Promise<InspectionRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(`/api/sprint-k/${projectId}/inspections`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
     body: JSON.stringify(payload),
   });
@@ -114,15 +115,15 @@ export async function addObservation(
   inspectionId: string,
   payload: InspectionObservationPayload,
 ): Promise<InspectionObservationRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/inspections/${inspectionId}/observations`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },
@@ -143,15 +144,15 @@ export async function completeInspection(
   inspectionId: string,
   completedAt?: string,
 ): Promise<InspectionRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/inspections/${inspectionId}/complete`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(completedAt ? { completedAt } : {}),
     },

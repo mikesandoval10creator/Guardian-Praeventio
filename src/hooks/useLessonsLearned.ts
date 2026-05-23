@@ -13,6 +13,7 @@ import type {
   Lesson,
   LessonScope,
 } from '../services/lessonsLearned/lessonsLibrary';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export interface LessonsResponse {
   lessons: Lesson[];
@@ -50,13 +51,13 @@ export async function createLesson(
   projectId: string,
   payload: LessonPayload,
 ): Promise<{ ok: true }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(`/api/sprint-k/${projectId}/lessons`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
     body: JSON.stringify(payload),
   });

@@ -5,6 +5,7 @@
 
 import { auth } from '../services/firebase';
 import { useEndpoint } from './_fetchUtils';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export type KbCategory =
   | 'glossary'
@@ -76,13 +77,13 @@ export async function createKbEntry(
   projectId: string,
   payload: KbEntryCreatePayload,
 ): Promise<{ entry: KnowledgeEntry }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(`/api/sprint-k/${projectId}/knowledge-base`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
     body: JSON.stringify(payload),
   });
@@ -97,13 +98,13 @@ export async function useKbEntry(
   projectId: string,
   entryId: string,
 ): Promise<void> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/knowledge-base/${entryId}/use`,
     {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: authHeader ? { Authorization: authHeader } : undefined,
     },
   );
   if (!res.ok) {
@@ -117,15 +118,15 @@ export async function flagKbObsolete(
   entryId: string,
   reason: string,
 ): Promise<void> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/knowledge-base/${entryId}/flag-obsolete`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify({ reason }),
     },

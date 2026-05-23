@@ -12,6 +12,7 @@ import type {
   BrigadeCoverageReport,
   ResourceReadinessReport,
 } from '../services/emergencyBrigade/emergencyBrigadeService';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export interface EmergencyBrigadeSnapshotResponse {
   members: (BrigadeMember & { id: string })[];
@@ -39,15 +40,15 @@ export async function addBrigadeMember(
   projectId: string,
   payload: AddBrigadeMemberPayload,
 ): Promise<{ ok: true; id: string }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/emergency-brigade/members`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },
@@ -71,15 +72,15 @@ export async function addBrigadeResource(
   projectId: string,
   payload: AddBrigadeResourcePayload,
 ): Promise<{ ok: true; id: string }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/emergency-brigade/resources`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },
@@ -103,15 +104,15 @@ export async function inspectResource(
   resourceId: string,
   payload: InspectResourcePayload,
 ): Promise<{ ok: true; inspectionId: string }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/emergency-brigade/resources/${resourceId}/inspect`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },

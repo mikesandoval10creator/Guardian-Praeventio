@@ -25,6 +25,7 @@ import {
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { logger } from '../utils/logger';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 const containerStyle = {
   width: '100%',
@@ -104,12 +105,13 @@ export function CoastalEmergencyMap() {
       // Llamada REAL al endpoint que dispara FCM a todos los supervisores
       // del proyecto + escribe audit_log. Esto reemplaza el setInterval
       // fake que solo simulaba progreso sin contactar a nadie.
-      const idToken = await user.getIdToken();
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
       const res = await fetch('/api/emergency/notify-brigada', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
           'X-Idempotency-Key': `tsunami-${selectedProject.id}-${Date.now()}`,
         },
         body: JSON.stringify({

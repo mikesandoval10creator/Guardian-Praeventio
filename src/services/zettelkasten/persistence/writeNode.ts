@@ -24,6 +24,7 @@ import { withSentryScope } from '../../observability/sentryInstrumentation';
 import { analytics } from '../../analytics';
 import type { ZkNodeKind } from '../../analytics';
 import type { RiskNodePayload } from '../types';
+import { apiAuthHeader } from '../../../lib/apiAuth';
 
 // 13th wave analytics: domain `RiskNodePayload.type` strings â†’ analytics
 // `ZkNodeKind` enum. Anything not mapped falls to `'other'` so a new
@@ -156,7 +157,7 @@ async function writeNodesImpl(
   if (online) {
     try {
       // §2.20 fix (2026-05-21) — usa apiAuthHeader() helper que prefiere
-      // E2E header (MODE=test) sobre Bearer ${idToken}. Antes este call-site
+      // E2E header (MODE=test) sobre Bearer ${authHeader}. Antes este call-site
       // tiraba 401 silencioso en E2E full-stack offline-resilience spec
       // (el spec hace fetch /api/zettelkasten/nodes para sync post-offline).
       const { apiAuthHeader } = await import('../../../lib/apiAuth');
@@ -174,7 +175,7 @@ async function writeNodesImpl(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: authHeader,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({ projectId: ctx.projectId, nodes: enriched }),
       });
