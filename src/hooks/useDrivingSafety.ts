@@ -6,6 +6,7 @@
 
 import { auth } from '../services/firebase';
 import { useEndpoint } from './_fetchUtils';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export type DrivingRouteCriticality = 'low' | 'medium' | 'high' | 'extreme';
 export type DrivingRouteHazard =
@@ -132,13 +133,13 @@ export async function registerRoute(
   projectId: string,
   payload: DrivingRoutePayload,
 ): Promise<DrivingRoute> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(`/api/sprint-k/${projectId}/driving/routes`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
     body: JSON.stringify(payload),
   });
@@ -161,15 +162,15 @@ export async function flagRouteAlert(
   routeId: string,
   payload: DrivingRouteAlertPayload,
 ): Promise<DrivingRouteAlert | null> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/driving/routes/${routeId}/alert`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },
@@ -201,15 +202,15 @@ export async function recordJourney(
   workerUid: string,
   payload: DrivingJourneyPayload,
 ): Promise<DrivingDriver> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/driving/drivers/${workerUid}/journey`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },

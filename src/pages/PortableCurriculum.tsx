@@ -16,6 +16,7 @@ import {
   type GamificationScoreRow,
 } from '../services/curriculum/historyAggregator';
 import { logger } from '../utils/logger';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 // ── Round 17 (R5) — wires the Firestore reads documented in Round 16 (R1).
 //
@@ -225,9 +226,9 @@ export function PortableCurriculum() {
     setClaimsLoading(true);
     setClaimsError(null);
     try {
-      const idToken = await auth.currentUser.getIdToken();
+      const authHeader = await auth.currentUser.getIdToken();
       const res = await fetch('/api/curriculum/claims', {
-        headers: { Authorization: `Bearer ${idToken}` },
+        headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) },
       });
       if (!res.ok) throw new Error('No se pudieron cargar los claims.');
       const data = await res.json();

@@ -40,6 +40,7 @@ import { QRScannerModal } from '../components/QRScannerModal';
 import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
 import type { Visitor } from '../services/visitorControl/visitorRegistry';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 // ────────────────────────────────────────────────────────────────────────
 // Types
@@ -235,14 +236,15 @@ function NewVisitorForm({ projectId, onClose, onRegistered }: NewVisitorFormProp
         setSubmitting(false);
         return;
       }
-      const token = await user.getIdToken();
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
       const result = await fetchJson<{ ok: true; visitor: Visitor }>(
         '/api/visitors/check-in',
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            ...(authHeader ? { 'Authorization': authHeader } : {}),
             'Idempotency-Key': newIdempotencyKey('vis-checkin'),
           },
           body: JSON.stringify({
@@ -435,7 +437,8 @@ function InductionAck({
         setSubmitting(false);
         return;
       }
-      const token = await user.getIdToken();
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
       const result = await fetchJson<{
         ok: true;
         inductionVersionId: string;
@@ -444,7 +447,7 @@ function InductionAck({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
           'Idempotency-Key': newIdempotencyKey('vis-ack'),
         },
         body: JSON.stringify({
@@ -629,10 +632,11 @@ export function Visitors() {
       try {
         const user = auth.currentUser;
         if (!user) return;
-        const token = await user.getIdToken();
+        // §2.20 (2026-05-23) — apiAuthHeader unified.
+        const authHeader = await apiAuthHeader();
         const result = await fetchJson<{ ok: true; visitors: Visitor[] }>(
           `/api/visitors?projectId=${encodeURIComponent(projectId)}`,
-          { headers: { Authorization: `Bearer ${token}` } },
+          { headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) } },
         );
         if (!cancelled) setLocalVisitors(result.visitors);
       } catch (err) {
@@ -661,14 +665,15 @@ export function Visitors() {
     try {
       const user = auth.currentUser;
       if (!user) return;
-      const token = await user.getIdToken();
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
       await fetchJson<{ ok: true; checkOutAt: string }>(
         `/api/visitors/${encodeURIComponent(visitorId)}/check-out`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            ...(authHeader ? { 'Authorization': authHeader } : {}),
             'Idempotency-Key': newIdempotencyKey('vis-out'),
           },
           body: JSON.stringify({ projectId }),

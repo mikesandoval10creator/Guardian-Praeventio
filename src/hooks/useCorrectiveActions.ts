@@ -9,6 +9,7 @@ import type {
   CorrectiveAction,
   CorrectiveActionLevel,
 } from '../services/correctiveActions/weakActionDetector';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 interface FetchState<T> {
   data: T | null;
@@ -20,11 +21,11 @@ async function authedFetch(
   path: string,
   signal: AbortSignal,
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   return fetch(path, {
     signal,
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: authHeader ? { Authorization: authHeader } : undefined,
   });
 }
 
@@ -108,13 +109,13 @@ export async function createCorrectiveAction(
   projectId: string,
   payload: CorrectiveActionPayload,
 ): Promise<{ ok: true }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(`/api/sprint-k/${projectId}/corrective-actions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
     body: JSON.stringify(payload),
   });
@@ -130,15 +131,15 @@ export async function scheduleCorrectiveActionEffectivenessReview(
   actionId: string,
   reviewAt: string,
 ): Promise<void> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/corrective-actions/${actionId}/effectiveness-review`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify({ actionId, reviewAt }),
     },

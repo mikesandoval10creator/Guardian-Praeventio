@@ -3,6 +3,7 @@ import { db, auth } from './firebase';
 import { INDUSTRY_IPER_BASE } from '../data/industryIPER';
 import { NodeType } from '../types';
 import { logger } from '../utils/logger';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export const seedCommunityGlossary = async () => {
   // Round 14 (A5 audit) — `/api/seed-glossary` is gated by verifyAuth on the
@@ -18,12 +19,13 @@ export const seedCommunityGlossary = async () => {
   }
   try {
     logger.info('Iniciando poblamiento del Grand Line (Community Glossary)...');
-    const token = await user.getIdToken();
+    // §2.20 (2026-05-23) — apiAuthHeader unified.
+    const authHeader = await apiAuthHeader();
     const response = await fetch('/api/seed-glossary', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
     });
 

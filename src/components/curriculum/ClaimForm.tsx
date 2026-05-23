@@ -24,6 +24,7 @@ import { useFirebase } from '../../contexts/FirebaseContext';
 import { auth } from '../../services/firebase';
 import { useBiometricAuth } from '../../hooks/useBiometricAuth';
 import type { ClaimCategory } from '../../services/curriculum/claims';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 const CATEGORY_LABELS: Record<ClaimCategory, string> = {
   experience: 'Experiencia laboral',
@@ -99,12 +100,14 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
       }
 
       // Step 2: POST to backend.
-      const idToken = await auth.currentUser.getIdToken();
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) throw new Error('No estás autenticado.');
       const res = await fetch('/api/curriculum/claim', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({
           claim: claim.trim(),

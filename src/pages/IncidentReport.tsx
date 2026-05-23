@@ -33,6 +33,7 @@ import {
 import { useProject } from '../contexts/ProjectContext';
 import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 type IncidentEventType = 'near_miss' | 'incident' | 'post_mortem';
 type IncidentSeverity = 'low' | 'med' | 'high' | 'critical';
@@ -119,7 +120,8 @@ export function IncidentReport() {
         setSubmitting(false);
         return;
       }
-      const token = await user.getIdToken();
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
       const witnesses = witnessesText
         .split(',')
         .map((s) => s.trim())
@@ -129,7 +131,7 @@ export function IncidentReport() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
           'Idempotency-Key': idempotencyKey,
         },
         body: JSON.stringify({

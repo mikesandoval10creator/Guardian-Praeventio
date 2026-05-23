@@ -10,6 +10,7 @@ import { logger } from '../utils/logger';
 // menos días — usamos climatología chilena REAL (DMC normales 30-año) como
 // fallback determinístico. El forecast SIEMPRE tiene 3 días.
 import { getClimatologyForecast } from '../services/environment/chileClimatology';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 // Codex fake fix §2.5 (2026-05-15): antes el pronóstico Día 2 y Día 3 se
 // fabricaba con `weatherData.temp + (Math.random() * 4 - 2)` — decisiones
@@ -72,12 +73,13 @@ export function NationalParksEmergency() {
         setWeatherData(data);
 
         // Forecast 3 días — primero intentamos OpenWeather (predicción real)
-        const token = await auth.currentUser?.getIdToken();
+        // §2.20 (2026-05-23) — apiAuthHeader unified.
+        const authHeader = await apiAuthHeader();
         let backendForecast: ForecastDay[] = [];
-        if (token) {
+        if (authHeader) {
           try {
             const res = await fetch('/api/environment/forecast?days=3', {
-              headers: { Authorization: `Bearer ${token}` },
+              headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) },
             });
             if (res.ok) {
               const json = (await res.json()) as { forecast?: ForecastDay[] };

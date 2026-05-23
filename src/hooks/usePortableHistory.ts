@@ -7,6 +7,7 @@
 
 import { auth } from '../services/firebase';
 import { useEndpoint } from './_fetchUtils';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export type PortableHistoryFormat = 'json' | 'pdf';
 
@@ -94,15 +95,15 @@ export async function updatePortableConsent(
   workerUid: string,
   flags: { allowsPortableExport: boolean; includesIncidents: boolean },
 ): Promise<PortableHistoryConsent> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/workers/${workerUid}/portable-history/consent`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(flags),
     },
@@ -120,13 +121,13 @@ export async function exportPortableHistory(
   workerUid: string,
   format: PortableHistoryFormat = 'json',
 ): Promise<{ blob: Blob; filename: string; checksum: string | null }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/workers/${workerUid}/portable-history/export?format=${encodeURIComponent(format)}`,
     {
       method: 'GET',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: authHeader ? { Authorization: authHeader } : undefined,
     },
   );
   if (!res.ok) {

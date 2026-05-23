@@ -41,6 +41,7 @@ import { WearablesPanel, type FitnessData } from '../components/telemetry/Wearab
 import { WebhookModal } from '../components/telemetry/WebhookModal';
 import { mapIoTEventsToTwinState } from '../components/telemetry/twinStateMapper';
 import { buildWebhookCurlCommand } from '../components/telemetry/webhookCommand';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export function Telemetry() {
   const { t } = useTranslation();
@@ -225,10 +226,11 @@ export function Telemetry() {
     }
 
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error('Not authenticated');
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) throw new Error('Not authenticated');
       const response = await fetch(`${import.meta.env.VITE_APP_URL || ''}/api/auth/google/url`, {
-        headers: { 'Authorization': `Bearer ${idToken}` }
+        headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) }
       });
       if (!response.ok) throw new Error('Failed to get auth URL');
       const { url } = await response.json();
@@ -298,12 +300,13 @@ export function Telemetry() {
     // OAuth popup branch in handleConnectGoogleFit. Sunset: 2026-12-31.
 
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error('Not authenticated');
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) throw new Error('Not authenticated');
       const response = await fetch(`${import.meta.env.VITE_APP_URL || ''}/api/fitness/sync`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
           'Content-Type': 'application/json',
         },
         body: '{}',
@@ -390,12 +393,13 @@ export function Telemetry() {
       // Route through /api/telemetry/ingest so autoValidateTelemetry runs on the backend.
       if (eventData.status === 'warning' || eventData.status === 'critical') {
         try {
-          const token = await auth.currentUser?.getIdToken();
+          // §2.20 (2026-05-23) — apiAuthHeader unified.
+          const authHeader = await apiAuthHeader();
           await fetch('/api/telemetry/ingest', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              ...(authHeader ? { 'Authorization': authHeader } : {}),
             },
             body: JSON.stringify({
               ...eventData,

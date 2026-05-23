@@ -7,6 +7,7 @@ import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export function ERPIntegration() {
   const { t } = useTranslation();
@@ -21,7 +22,8 @@ export function ERPIntegration() {
     setSyncMode(null);
     setSyncReason(null);
     try {
-      const token = await auth.currentUser?.getIdToken();
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
       // Codex P1 fix (PR #266, 2026-05-15): NO mandar `erpType` desde el
       // frontend — el backend lee `ERP_ADAPTER` env y decide el adapter.
       // Si el frontend hardcodea 'mock', prod con ERP_ADAPTER=sap siempre
@@ -31,7 +33,7 @@ export function ERPIntegration() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({
           action: 'manual_sync'

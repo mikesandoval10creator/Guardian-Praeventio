@@ -20,6 +20,7 @@ import type { Process, Task as OrganicTask } from '../../types/organic';
 import { db, auth } from '../../services/firebase';
 import { CloseProcessModal } from './CloseProcessModal';
 import { analytics } from '../../services/analytics';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 export interface ProcessDetailModalProps {
   isOpen: boolean;
@@ -92,8 +93,9 @@ export function ProcessDetailModal({ isOpen, process, onClose, onStatusChanged }
     setBusy(next === 'paused' ? 'pause' : 'resume');
     setError(null);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) {
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) {
         setError('Sesión no disponible.');
         setBusy(null);
         return;
@@ -102,7 +104,7 @@ export function ProcessDetailModal({ isOpen, process, onClose, onStatusChanged }
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({ status: next }),
       });

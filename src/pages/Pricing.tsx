@@ -44,6 +44,7 @@ import { useInvoicePolling } from '../hooks/useInvoicePolling';
 import { logger } from '../utils/logger';
 import { analytics } from '../services/analytics';
 import { IapAdapter, iapAdapter, type BillingProvider } from '../services/billing/iapAdapter';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 // Sprint 21 Bucket T — payments now route through `IapAdapter`. Web keeps the
 // existing Webpay/MP/Khipu surface; Android/iOS hit the store rails (Google
@@ -703,13 +704,13 @@ function PricingInner() {
     try { analytics.track('payment.checkout.started', { gateway: 'webpay', plan_code: tier.id, amount_clp: tier.clpRegular }); } catch {}
     try {
       const totalProjects = projects.length;
-      const idToken = await user.getIdToken();
-
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
       const response = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({
           tierId: tier.id,
@@ -799,13 +800,14 @@ function PricingInner() {
     } catch {}
     try { analytics.track('payment.checkout.started', { gateway: 'mercadopago', plan_code: tier.id, amount_clp: tier.clpRegular }); } catch {}
     try {
-      const idToken = await user.getIdToken();
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
       const currency = MP_CURRENCY_BY_COUNTRY[country];
       const response = await fetch('/api/billing/checkout/mercadopago', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({
           tierKey: tier.id,
@@ -1035,7 +1037,8 @@ function PricingInner() {
       // try/catch and the success flow ran anyway.
       if (user) {
         try {
-          const idToken = await user.getIdToken();
+          // §2.20 (2026-05-23) — apiAuthHeader unified.
+          const authHeader = await apiAuthHeader();
           const endpoint =
             provider === 'google-play'
               ? '/api/billing/google-play/validate-receipt'
@@ -1044,7 +1047,7 @@ function PricingInner() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${idToken}`,
+              ...(authHeader ? { 'Authorization': authHeader } : {}),
             },
             body: JSON.stringify({
               productId,

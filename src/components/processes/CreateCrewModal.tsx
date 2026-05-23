@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { X, Users } from 'lucide-react';
 import { auth } from '../../services/firebase';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 export interface CreateCrewModalProps {
   isOpen: boolean;
@@ -36,8 +37,9 @@ export function CreateCrewModal({ isOpen, projectId, onClose, onCreated }: Creat
     }
     setSubmitting(true);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) {
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) {
         setError(t('crews.error_no_session', 'Sesión no disponible. Reintenta en un momento.'));
         setSubmitting(false);
         return;
@@ -46,7 +48,7 @@ export function CreateCrewModal({ isOpen, projectId, onClose, onCreated }: Creat
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({
           projectId,

@@ -6,6 +6,7 @@
 import { auth } from '../services/firebase';
 import { useEndpoint } from './_fetchUtils';
 import type { PreventiveObjective } from '../services/annualReview/annualSgiReview';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export interface AnnualReviewEvidence {
   objectiveId: string;
@@ -62,15 +63,15 @@ async function annualReviewPost<T>(
   segment: string,
   payload: Record<string, unknown>,
 ): Promise<T> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/annual-review/${segment}`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },

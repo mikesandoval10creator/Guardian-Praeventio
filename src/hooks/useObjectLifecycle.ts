@@ -21,6 +21,7 @@ import {
 import type { PlacedObject } from '../services/digitalTwin/photogrammetry/types';
 import { db, auth, collection, addDoc, updateDoc, serverTimestamp } from '../services/firebase';
 import { logger } from '../utils/logger';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export type UseObjectLifecycleCallback = (
   previous: PlacedObject | null,
@@ -102,13 +103,14 @@ export function useObjectLifecycle(projectId: string): UseObjectLifecycleCallbac
           // Si no hay token Google linked, el endpoint devuelve 401 y el
           // doc queda 'pending' — comportamiento aceptable para Ola 3.
           try {
-            const idToken = await auth.currentUser?.getIdToken();
-            if (idToken) {
+            // §2.20 (2026-05-23) — apiAuthHeader unified.
+            const authHeader = await apiAuthHeader();
+            if (authHeader) {
               const res = await fetch('/api/calendar/sync', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  Authorization: `Bearer ${idToken}`,
+                  ...(authHeader ? { 'Authorization': authHeader } : {}),
                 },
                 body: JSON.stringify({
                   event: data,

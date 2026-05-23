@@ -11,6 +11,7 @@ import type {
   RiskSeverity as ResidualRiskSeverity,
   AppliedControl as ResidualAppliedControl,
 } from '../services/residualRisk/residualRiskEngine';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export type ResidualControlEffectiveness =
   ResidualAppliedControl['effectiveness'];
@@ -79,13 +80,13 @@ export async function registerResidualRisk(
   projectId: string,
   payload: ResidualRiskPayload,
 ): Promise<{ ok: true; risk: StoredResidualRisk }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(`/api/sprint-k/${projectId}/residual-risk`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
     body: JSON.stringify(payload),
   });
@@ -101,15 +102,15 @@ export async function acceptResidualRisk(
   riskId: string,
   reason: string,
 ): Promise<void> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/residual-risk/${riskId}/accept`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify({ reason }),
     },
