@@ -268,8 +268,19 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
     };
   }, [nodes]);
 
+  // Plan 2026-05-23 perf — memoize value. createNode + createEdge ya
+  // están en useCallback (líneas 222-242), stats ya en useMemo (línea 244),
+  // projectClusters + graph + communityGlossary están en useMemo arriba.
+  // Consumers: Zettelkasten page, KnowledgeGraph, SafetyCoach, varios
+  // hooks que leen nodes para RAG. Sin esta memo, cada render del
+  // Provider re-rendereaba toda la cadena de UI del grafo de conocimiento.
+  const contextValue = useMemo(
+    () => ({ nodes, loading, projectClusters, environment, communityGlossary, graph, stats, createNode, createEdge }),
+    [nodes, loading, projectClusters, environment, communityGlossary, graph, stats, createNode, createEdge],
+  );
+
   return (
-    <UniversalKnowledgeContext.Provider value={{ nodes, loading, projectClusters, environment, communityGlossary, graph, stats, createNode, createEdge }}>
+    <UniversalKnowledgeContext.Provider value={contextValue}>
       {children}
     </UniversalKnowledgeContext.Provider>
   );
