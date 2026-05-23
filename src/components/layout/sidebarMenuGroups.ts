@@ -166,6 +166,15 @@ export function buildSidebarMenuGroups(
     { title: t('nav.work_permits', 'Permisos de Trabajo'), icon: ShieldCheck, path: '/work-permits', color: 'text-amber-500' },
     // Sprint 40 Fase F.12 — Biblioteca de Lecciones Aprendidas.
     { title: t('nav.lessons_learned', 'Lecciones Aprendidas'), icon: BookOpen, path: '/lessons', color: 'text-amber-500' },
+    // Sprint K wire UI (2026-05-23) — Excepciones documentadas.
+    // Service exceptionEngine.ts + panel ExceptionsAuditPanel.tsx existían
+    // sin page. Cada excepción a un control normal requiere mitigación
+    // alternativa + duración máx 168h + aprobador role-gate.
+    { title: t('nav.exceptions', 'Excepciones'), icon: AlertOctagon, path: '/exceptions', color: 'text-amber-500' },
+    // Sprint K wire UI (2026-05-23) — Auditor de consistencia entre módulos.
+    // Service consistencyAuditor.ts (12 reglas determinísticas) + card
+    // ConsistencyAuditCard.tsx existían sin page consumidor.
+    { title: t('nav.consistency_audit', 'Auditor Consistencia'), icon: ShieldAlert, path: '/consistency-audit', color: 'text-rose-500' },
     // Sprint K vidas críticas wire (2026-05-22) — Controles críticos (HCA).
     // Service criticalControlsLibrary.ts + card BarrierAnalysisCard existían;
     // page /critical-controls cierra el gap. ISO 45001 §8.1.2.
