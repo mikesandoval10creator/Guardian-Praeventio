@@ -50,14 +50,15 @@ interface B2dEvent {
 }
 
 async function authedFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-  const user = auth?.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified (E2E + Bearer fallback).
+  const { apiAuthHeader } = await import('../lib/apiAuth');
+  const authHeader = await apiAuthHeader();
   return fetch(input, {
     ...init,
     headers: {
       ...(init?.headers ?? {}),
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { Authorization: authHeader } : {}),
     },
   });
 }

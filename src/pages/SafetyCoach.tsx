@@ -68,12 +68,14 @@ export function SafetyCoach() {
     setLoading(true);
 
     try {
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const { apiAuthHeader } = await import('../lib/apiAuth');
+      const authHeader = await apiAuthHeader();
       const res = await fetch('/api/coach/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(authHeader ? { Authorization: authHeader } : {}),
         },
         body: JSON.stringify({
           message: text,

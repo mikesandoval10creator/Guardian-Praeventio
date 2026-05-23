@@ -617,10 +617,12 @@ export function Settings() {
                 onClick={async () => {
                   setAdminActionStatus(t('settings.admin.saving', 'Guardando...'));
                   try {
-                    const token = await user?.getIdToken();
+                    // §2.20 (2026-05-23) — apiAuthHeader unified.
+                    const { apiAuthHeaderOrThrow } = await import('../lib/apiAuth');
+                    const authHeader = await apiAuthHeaderOrThrow();
                     const res = await fetch('/api/admin/set-role', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      headers: { 'Content-Type': 'application/json', Authorization: authHeader },
                       body: JSON.stringify({ uid: adminTargetUid.trim(), role: adminTargetRole }),
                     });
                     const data = await res.json();
@@ -642,10 +644,12 @@ export function Settings() {
                 onClick={async () => {
                   setAdminActionStatus(t('settings.admin.revoking', 'Revocando...'));
                   try {
-                    const token = await user?.getIdToken();
+                    // §2.20 (2026-05-23) — apiAuthHeader unified.
+                    const { apiAuthHeaderOrThrow } = await import('../lib/apiAuth');
+                    const authHeader = await apiAuthHeaderOrThrow();
                     const res = await fetch('/api/admin/revoke-access', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      headers: { 'Content-Type': 'application/json', Authorization: authHeader },
                       body: JSON.stringify({ targetUid: adminTargetUid.trim() }),
                     });
                     const data = await res.json();

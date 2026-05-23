@@ -19,6 +19,10 @@ const CphsModule = lazy(() => import('../pages/CphsModule'));
 // determinístico desde incidentes + acciones + capacitaciones +
 // inspecciones). El comité revisa y firma desde el módulo CPHS principal.
 const CphsDraftMinute = lazy(() => import('../pages/CphsDraftMinute').then(m => ({ default: m.CphsDraftMinute })));
+// Sprint K wire UI (2026-05-23) — Confirmación de lectura de documentos
+// críticos. Service readReceiptService.ts + card DocumentReadConfirmCard.tsx
+// existían sin page consumidor.
+const DocumentReadConfirm = lazy(() => import('../pages/DocumentReadConfirm').then(m => ({ default: m.DocumentReadConfirm })));
 
 export const ComplianceRoutes = [
   <Route key="normatives" path="normatives" element={<Normatives />} />,
@@ -31,4 +35,5 @@ export const ComplianceRoutes = [
   <Route key="cphs-draft-minute" path="cphs/draft-minute" element={<CphsDraftMinute />} />,
   <Route key="suseso" path="suseso" element={<SusesoReports />} />,
   <Route key="reglamentos" path="reglamentos" element={<Reglamentos />} />,
+  <Route key="document-read" path="document-read" element={<DocumentReadConfirm />} />,
 ];

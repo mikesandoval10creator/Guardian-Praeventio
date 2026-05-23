@@ -152,11 +152,21 @@ export async function runInvoicePoll(args: RunInvoicePollArgs): Promise<void> {
 
     let response: Response;
     try {
+      // §2.20 (2026-05-23) — el `token` viene de `deps.getToken()`
+      // (DI pattern; tests inyectan su propia función). Detectamos si
+      // ya viene con prefix `E2E ...` o `Bearer ...` (header completo)
+      // vs raw token. Esto permite que getToken devuelva el header
+      // completo via apiAuthHeader() en producción sin romper tests
+      // legacy que pasan el raw idToken.
+      const authValue =
+        token.startsWith('E2E ') || token.startsWith('Bearer ')
+          ? token
+          : `Bearer ${token}`;
       response = await deps.fetchImpl(
         `/api/billing/invoice/${encodeURIComponent(invoiceId)}`,
         {
           method: 'GET',
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: authValue },
           signal,
         },
       );
