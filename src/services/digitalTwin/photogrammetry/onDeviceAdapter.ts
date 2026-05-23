@@ -119,13 +119,14 @@ export class OnDeviceReconstructionAdapter {
    */
   private async executeJob(jobId: string, input: OnDeviceJobInput): Promise<void> {
     try {
-      // 1. Reconstrucción on-device (video → GLB blob).
-      const { glb, metrics } = await reconstructFromVideo(input.videoFile, {
+      // 1. Reconstrucción on-device (video → GLB + USDZ blobs).
+      const { glb, usdz, metrics } = await reconstructFromVideo(input.videoFile, {
+        // §2.28 (2026-05-23) — emitir USDZ en paralelo al GLB para que
+        // iOS Quick Look pueda mostrar el mesh sin proceso server-side
+        // adicional. Costo: ~30% más tiempo de export + ~100 KB extra.
+        emitUsdz: true,
         onProgress: (ratio, stage) => {
           input.onProgress?.(ratio, stage);
-          // Persist intermediate metrics so the UI can show "75% — mallando"
-          // sin esperar al final. updateReconstructionJobProgress es
-          // best-effort: si falla la red, el progreso sigue local.
           void updateReconstructionJobProgress(input.projectId, jobId, {
             metrics: {
               framesExtracted: stage === 'extract' ? Math.round(ratio * 30) : 30,
@@ -136,32 +137,72 @@ export class OnDeviceReconstructionAdapter {
       });
 
       // 2. Subir el GLB a Storage. Path determinista por (projectId, jobId).
-      const path = `reconstructions/${input.projectId}/${jobId}.glb`;
-      const ref = storageRef(storage, path);
-      await uploadBytes(ref, glb, {
+      const glbPath = `reconstructions/${input.projectId}/${jobId}.glb`;
+      const glbRef = storageRef(storage, glbPath);
+      await uploadBytes(glbRef, glb, {
         contentType: 'model/gltf-binary',
         customMetadata: {
           onDeviceOnly: 'true',
-          // Marca que solo el resultado se subió (no el video).
           engine: 'on-device-webxr',
           userId: input.userId,
         },
       });
-      const downloadUrl = await getDownloadURL(ref);
+      const glbUrl = await getDownloadURL(glbRef);
+
+      // 2.b §2.28 (2026-05-23) — subir USDZ para iOS Quick Look (si la
+      // pipeline lo emitió). El path es paralelo al GLB para que el
+      // UI pueda derivarlo cambiando solo la extensión cuando detecta iOS.
+      let usdzUrl: string | undefined;
+      let usdzSizeBytes: number | undefined;
+      if (usdz) {
+        const usdzPath = `reconstructions/${input.projectId}/${jobId}.usdz`;
+        const usdzRef = storageRef(storage, usdzPath);
+        await uploadBytes(usdzRef, usdz, {
+          contentType: 'model/vnd.usdz+zip',
+          customMetadata: {
+            onDeviceOnly: 'true',
+            engine: 'on-device-webxr',
+            userId: input.userId,
+            companionTo: glbPath,
+          },
+        });
+        usdzUrl = await getDownloadURL(usdzRef);
+        usdzSizeBytes = metrics.usdzSizeBytes;
+      }
 
       // 3. Marcar el job completo en Firestore con métricas finales.
-      await markJobCompleted(input.projectId, jobId, downloadUrl, 'glb', metrics.glbSizeBytes, {
+      // El meshUri principal sigue siendo el GLB (compatible everywhere);
+      // el USDZ se guarda en `metrics.usdzUrl` (custom field) para que
+      // ArViewLink pueda usarlo cuando detecta iOS.
+      await markJobCompleted(input.projectId, jobId, glbUrl, 'glb', metrics.glbSizeBytes, {
         framesExtracted: metrics.framesExtracted,
         pointsReconstructed: metrics.pointsReconstructed,
-        trianglesGenerated: 0, // point cloud puro, sin meshing
+        trianglesGenerated: usdz ? metrics.pointsReconstructed * 2 : 0,
         processingDurationS: metrics.durationMs / 1000,
       });
+
+      // Persistimos usdzUrl + usdzSizeBytes en un patch separado porque
+      // markJobCompleted no acepta esos campos. Firestore acepta campos
+      // extra fuera del shape canónico; el UI los lee vía cast en
+      // DigitalTwinFaena.tsx. Best-effort: si falla, el job sigue
+      // completo solo con GLB.
+      if (usdzUrl) {
+        const extraPatch = { usdzUri: usdzUrl, usdzSizeBytes } as unknown as Parameters<
+          typeof updateReconstructionJobProgress
+        >[2];
+        await updateReconstructionJobProgress(input.projectId, jobId, extraPatch).catch(
+          (err) => {
+            logger.warn('[OnDeviceAdapter] usdz patch failed', { err: String(err) });
+          },
+        );
+      }
 
       logger.info('[OnDeviceAdapter] reconstruction completed', {
         jobId,
         projectId: input.projectId,
         durationMs: metrics.durationMs,
-        sizeBytes: metrics.glbSizeBytes,
+        glbSizeBytes: metrics.glbSizeBytes,
+        usdzSizeBytes,
       });
     } catch (err) {
       // Cualquier error abort/extract/export/upload llega acá → marcar failed.

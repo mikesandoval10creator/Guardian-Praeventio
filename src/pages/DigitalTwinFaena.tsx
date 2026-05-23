@@ -43,6 +43,9 @@ import { MaintenanceStatusPanel } from '../components/digital-twin/MaintenanceSt
 import { ARObjectOverlay } from '../components/digital-twin/ARObjectOverlay';
 // Sprint 30 Bucket JJ — iOS Quick Look + Android Scene Viewer fallback.
 import { ArViewLink, type ArKind } from '../components/ar/ArViewLink';
+// §2.28 (2026-05-23) — AR launcher para el mesh reconstruido on-device
+// (acepta URLs arbitrarias del job, no del catálogo).
+import { ReconstructionArLink } from '../components/digital-twin/ReconstructionArLink';
 import { useObjectLifecycle } from '../hooks/useObjectLifecycle';
 import type { PlacedObject, PlacedObjectKind } from '../services/digitalTwin/photogrammetry/types';
 import { runComplianceCheck } from '../services/digitalTwin/objectPlacement/normativaRules';
@@ -59,6 +62,8 @@ interface ReconstructionJob {
   videoUrl?: string;
   notes?: string;
   resultUrl?: string | null;
+  /** §2.28 (2026-05-23) — URL del USDZ para iOS Quick Look (si emitida). */
+  usdzUrl?: string | null;
   pointCount?: number;
   boundingBox?: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number };
   createdAt?: { seconds: number };
@@ -360,6 +365,10 @@ export function DigitalTwinFaena() {
             ? 50
             : 0,
       resultUrl: job.meshUri ?? null,
+      // §2.28 (2026-05-23) — el adapter persiste `usdzUri` como campo
+      // extra fuera del shape canónico de PhotogrammetryJobResult. Lo
+      // accedemos via cast porque Firestore acepta campos adicionales.
+      usdzUrl: (job as unknown as { usdzUri?: string }).usdzUri ?? null,
       pointCount: job.metrics?.pointsReconstructed,
       // boundingBox no está en PhotogrammetryJobResult del adapter on-device;
       // se omite en V1. El visor 3D usa Float32Array del GLB directamente.
@@ -772,6 +781,33 @@ export function DigitalTwinFaena() {
           {/* Brecha C: place objects menu — solo visible cuando hay reconstrucción completa */}
           {activeJob?.status === 'completed' && (
             <PlaceObjectMenu />
+          )}
+
+          {/* §2.28 (2026-05-23) — Botones AR del mesh reconstruido.
+              GLB → Android Scene Viewer / WebXR / model-viewer.
+              USDZ → iOS AR Quick Look (cuando la pipeline lo emitió).
+              ReconstructionArLink detecta la plataforma + usa el blob
+              correcto. */}
+          {activeJob?.status === 'completed' && activeJob.resultUrl && (
+            <div className="bg-zinc-900/60 border border-cyan-500/20 rounded-2xl p-4 space-y-2">
+              <p className="text-[10px] font-black text-cyan-300 uppercase tracking-widest">
+                Ver mesh en AR
+              </p>
+              <ReconstructionArLink
+                glbUrl={activeJob.resultUrl}
+                usdzUrl={activeJob.usdzUrl ?? undefined}
+                title={`Mesh ${activeJob.jobId.slice(0, 12)}`}
+              />
+              {activeJob.usdzUrl ? (
+                <p className="text-[9px] text-zinc-500">
+                  GLB + USDZ disponibles. iOS abre Quick Look, Android abre Scene Viewer.
+                </p>
+              ) : (
+                <p className="text-[9px] text-zinc-500">
+                  Solo GLB disponible (Android/WebXR). iOS Quick Look se generará en la próxima reconstrucción.
+                </p>
+              )}
+            </div>
           )}
 
           {/* Jobs list */}

@@ -25,6 +25,7 @@ import {
   type BuildPointCloudOptions,
 } from './pointCloudBuilder';
 import { exportPointCloudToGlb, type ExportGlbResult } from './glbExporter';
+import { exportPointCloudToUsdz, type ExportUsdzResult } from './usdzExporter';
 import { logger } from '../../../utils/logger';
 
 export interface ReconstructionMetrics {
@@ -36,6 +37,8 @@ export interface ReconstructionMetrics {
   boundingBox: PointCloud['boundingBox'];
   /** Tamaño del GLB en bytes. */
   glbSizeBytes: number;
+  /** Tamaño del USDZ en bytes (solo si emitUsdz=true). */
+  usdzSizeBytes?: number;
   /** Duración total del pipeline (ms). */
   durationMs: number;
   /** Cuánto duró cada etapa (ms). */
@@ -43,6 +46,8 @@ export interface ReconstructionMetrics {
     extractMs: number;
     pointCloudMs: number;
     exportMs: number;
+    /** Solo presente si emitUsdz=true. */
+    usdzExportMs?: number;
   };
 }
 
@@ -52,24 +57,42 @@ export interface ReconstructFromVideoOptions {
   /** Pasado a buildPointCloudFromFrames. */
   pointCloud?: BuildPointCloudOptions;
   /**
+   * §2.28 (2026-05-23) — Emitir también USDZ para iOS Quick Look. El USDZ
+   * convierte el point cloud a quads (2 triángulos por punto), porque
+   * AR Quick Look no soporta POINTS primitive. Add ~30% al tiempo de
+   * export. Default true — agrega ~100 KB pero da acceso iOS AR.
+   */
+  emitUsdz?: boolean;
+  /** Tamaño del quad por punto en metros, default 0.05. */
+  quadSize?: number;
+  /**
    * Callback de progreso macro (0-1) con stage label opcional.
    * El caller lo usa para mostrar UI bar:
    *
    *   onProgress(0.0, 'extract')
    *   onProgress(0.4, 'extract')
    *   onProgress(0.6, 'point-cloud')
-   *   onProgress(1.0, 'export')
+   *   onProgress(0.85, 'export-glb')
+   *   onProgress(1.0, 'export-usdz')
    */
   onProgress?: (ratio: number, stage: ReconstructionStage) => void;
   /** Cancel signal. Aborta la pipeline en cualquier etapa. */
   abortSignal?: AbortSignal;
 }
 
-export type ReconstructionStage = 'extract' | 'point-cloud' | 'export' | 'done';
+export type ReconstructionStage =
+  | 'extract'
+  | 'point-cloud'
+  | 'export'
+  | 'export-glb'
+  | 'export-usdz'
+  | 'done';
 
 export interface ReconstructionResult {
-  /** GLB blob listo para upload o save local. */
+  /** GLB blob listo para upload o save local (Android + WebXR + model-viewer). */
   glb: Blob;
+  /** USDZ blob para iOS AR Quick Look (solo si emitUsdz=true). */
+  usdz?: Blob;
   /** Métricas detalladas del proceso. */
   metrics: ReconstructionMetrics;
 }
@@ -132,8 +155,9 @@ export async function reconstructFromVideo(
     throw new DOMException('reconstructFromVideo aborted', 'AbortError');
   }
 
-  // Stage 3: export GLB.
-  const exportStart = performance.now();
+  // Stage 3: export GLB (always).
+  const emitUsdz = options.emitUsdz !== false;
+  const glbStart = performance.now();
   let glb: ExportGlbResult;
   try {
     glb = await exportPointCloudToGlb(cloud);
@@ -141,24 +165,48 @@ export async function reconstructFromVideo(
     logger.error('[reconstructFromVideo] glbExport failed', { err: String(err) });
     throw err;
   }
-  const exportMs = performance.now() - exportStart;
-  onProgress?.(1, 'done');
+  const exportMs = performance.now() - glbStart;
+  onProgress?.(emitUsdz ? 0.85 : 1, emitUsdz ? 'export-glb' : 'done');
+
+  // Stage 4 (opcional): export USDZ.
+  let usdz: ExportUsdzResult | null = null;
+  let usdzExportMs: number | undefined;
+  if (emitUsdz) {
+    if (abortSignal?.aborted) {
+      throw new DOMException('reconstructFromVideo aborted', 'AbortError');
+    }
+    const usdzStart = performance.now();
+    try {
+      usdz = await exportPointCloudToUsdz(cloud, { quadSize: options.quadSize });
+    } catch (err) {
+      // Si el USDZ falla, seguimos con GLB-only (no es fatal — Android +
+      // model-viewer pueden usar el GLB; solo iOS Quick Look se ve afectado).
+      logger.warn('[reconstructFromVideo] usdzExport failed — continuing with GLB only', {
+        err: String(err),
+      });
+    }
+    usdzExportMs = Math.round(performance.now() - usdzStart);
+    onProgress?.(1, 'done');
+  }
 
   const totalMs = performance.now() - startedAt;
 
   return {
     glb: glb.blob,
+    usdz: usdz?.blob,
     metrics: {
       framesExtracted: frames.length,
       pointsReconstructed: cloud.pointCount,
       gridResolution: cloud.gridResolution,
       boundingBox: cloud.boundingBox,
       glbSizeBytes: glb.sizeBytes,
+      usdzSizeBytes: usdz?.sizeBytes,
       durationMs: Math.round(totalMs),
       stageDurations: {
         extractMs: Math.round(extractMs),
         pointCloudMs: Math.round(pointCloudMs),
         exportMs: Math.round(exportMs),
+        usdzExportMs,
       },
     },
   };
