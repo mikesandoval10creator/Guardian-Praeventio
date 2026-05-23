@@ -127,9 +127,14 @@ jobs:
 
       - name: Run Playwright full-stack tests
         # E2E_FULL_STACK=1 wires playwright.config.ts to spawn preview +
-        # Express (E2E_MODE=1) + firestore emulator simultaneously, and
-        # un-skips the 4 lifecycle/SOS/fall-detection/offline specs.
-        run: npx cross-env E2E_FULL_STACK=1 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 GOOGLE_CLOUD_PROJECT=demo-test E2E_TEST_SECRET=e2e-test-secret-do-not-use-in-prod playwright test --project=chromium
+        # Express (E2E_MODE=1) + firestore+auth emulators simultaneously,
+        # and un-skips the 4 lifecycle/SOS/fall-detection/offline specs.
+        # §2.24 fix (2026-05-21) — agregado FIREBASE_AUTH_EMULATOR_HOST
+        # para que firebase-admin (en seed.ts) + fixture loginAsTestUser
+        # detecten el Auth Emulator y firmen un custom token real. Sin
+        # este env var, firebase-admin defaultea a production y signInWith
+        # CustomToken intenta verificar contra prod (no es el caso E2E).
+        run: npx cross-env E2E_FULL_STACK=1 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GOOGLE_CLOUD_PROJECT=demo-test E2E_TEST_SECRET=e2e-test-secret-do-not-use-in-prod playwright test --project=chromium
         env:
           CI: 'true'
 

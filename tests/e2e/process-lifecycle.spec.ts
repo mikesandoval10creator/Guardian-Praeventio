@@ -32,6 +32,8 @@ test.describe('Process lifecycle (start → close → XP)', () => {
       // emulador frío) y waitFor en los botones evita race conditions
       // con los listeners de Firestore que pintan el modal.
       await page.goto(`/projects/${seed.projectId}/gantt`);
+      // §2.24 fix (2026-05-22) — wait barrier auth real antes de UI checks.
+      await signInBrowserViaCustomToken(page);
 
       const startBtn = page.getByRole('button', { name: /Iniciar proceso/i });
       await startBtn.waitFor({ state: 'visible', timeout: 15_000 });
