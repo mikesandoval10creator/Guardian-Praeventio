@@ -139,6 +139,12 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // las actas en formato libre hasta que la migración del próximo
         // sprint consolide ambos en /cphs.
         { title: t("nav.cphs", "Comité Paritario (CPHS)"), icon: ShieldCheck, path: "/cphs", color: "text-[#4db6ac]" },
+        // Sprint K wire UI (2026-05-23) — Bitácora de Obra DS 76 con
+        // folios consecutivos year-based + 12 kinds + status open→signed.
+        { title: t("nav.site_book", "Bitácora de Obra"), icon: Book, path: "/site-book", color: "text-amber-600" },
+        // Sprint K wire UI (2026-05-23) — Cambio de Turno + Handover.
+        // Log cronológico + notas categorizadas con severidad + ack flow.
+        { title: t("nav.shift_handover", "Cambio de Turno"), icon: Clock, path: "/shift-handover", color: "text-indigo-500" },
         // Sprint 40 Fase F.7 — sub-link al borrador mensual automático.
         { title: t("nav.cphs_draft", "Minuta CPHS"), icon: FileText, path: "/cphs/draft-minute", color: "text-teal-500" },
         { title: t("nav.mining_contractors", "Contratistas Mineros"), icon: Mountain, path: "/mining-contractors", color: "text-amber-500" },
