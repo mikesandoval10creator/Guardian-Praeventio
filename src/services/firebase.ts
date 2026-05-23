@@ -153,38 +153,41 @@ export interface FirestoreErrorInfo {
   operationType: OperationType;
   path: string | null;
   authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
+    /** Solo prefijo del uid (8 chars) — suficiente para correlacionar
+     *  con audit_logs sin exponer el uid completo en logs. */
+    userIdPrefix: string | undefined;
+    /** Boolean flags solo — los valores PII (email, displayName,
+     *  photoUrl) están explícitamente excluidos por LPD Chile
+     *  Ley 19.628. */
     emailVerified: boolean | undefined;
     isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
+    /** providerIds sin PII (ej. "google.com", "password"). */
+    providerIds: string[];
   }
 }
 
+/**
+ * Redacta PII del payload del logger según Ley 19.628 (LPD Chile).
+ * Antes de 2026-05-23 incluía email, displayName, photoUrl del user;
+ * esos campos quedaban impresos en console.error + reenviados a
+ * Sentry/Bugsnag/server logs. Ahora solo se loguea el prefijo del uid
+ * + flags booleanos + providerIds.
+ *
+ * Audit code-reviewer 2026-05-23 finding #9 (P2 → security).
+ */
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const uid = auth.currentUser?.uid;
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
+      userIdPrefix: uid ? uid.substring(0, 8) : undefined,
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
+      providerIds:
+        auth.currentUser?.providerData.map((p) => p.providerId) ?? [],
     },
     operationType,
-    path
+    path,
   };
   logger.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));

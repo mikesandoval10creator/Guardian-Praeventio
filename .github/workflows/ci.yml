@@ -109,6 +109,42 @@ jobs:
         # files found" porque vitest aplica el exclude antes que el filter.
         run: firebase emulators:exec --only firestore --project praeventio-rules-test "npx vitest run --config vitest.rules.config.ts"
 
+  firestore-stores:
+    # Plan 2026-05-23 §Fase C — tests de stores client-side (factory
+    # `createProjectScopedStore<T>` + 14 stores Sprint K migrados en B.4)
+    # contra el Firestore Emulator real. Decisión usuario 2026-05-23:
+    # emulator real (lento, fiel) en vez de mocks.
+    #
+    # Distinto del `rules-tests` job: usa `firebase-admin` (bypass de
+    # rules) porque testea LÓGICA de stores, no las security rules.
+    name: Firestore stores tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install firebase-tools (provides Firestore emulator)
+        run: npm install -g firebase-tools
+
+      - name: Run firestore-stores tests against emulator
+        # PROJECT_ID = 'praeventio-test' coincide con el default de
+        # `src/test/firestore-emulator-setup.ts`. La config dedicada
+        # `vitest.firestore.config.ts` incluye SOLO `*.firestore.test.ts`
+        # (la default los excluye porque requieren emulator).
+        run: firebase emulators:exec --only firestore --project praeventio-test "npx vitest run --config vitest.firestore.config.ts"
+
   adr-0012-enforcement:
     # Sprint 26 Bucket XX — ADR 0012 (no diagnosis) automated enforcement.
     # Replays the pre-commit hook against changed files in the PR so a contributor
