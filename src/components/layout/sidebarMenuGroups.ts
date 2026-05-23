@@ -50,6 +50,8 @@ import {
   Map,
   Moon,
   Mountain,
+  Network,
+  OctagonAlert,
   Printer,
   ScanLine,
   Scan,
@@ -164,6 +166,14 @@ export function buildSidebarMenuGroups(
     { title: t('nav.work_permits', 'Permisos de Trabajo'), icon: ShieldCheck, path: '/work-permits', color: 'text-amber-500' },
     // Sprint 40 Fase F.12 — Biblioteca de Lecciones Aprendidas.
     { title: t('nav.lessons_learned', 'Lecciones Aprendidas'), icon: BookOpen, path: '/lessons', color: 'text-amber-500' },
+    // Sprint K vidas críticas wire (2026-05-22) — Controles críticos (HCA).
+    // Service criticalControlsLibrary.ts + card BarrierAnalysisCard existían;
+    // page /critical-controls cierra el gap. ISO 45001 §8.1.2.
+    { title: t('nav.critical_controls', 'Controles Críticos'), icon: ShieldCheck, path: '/critical-controls', color: 'text-emerald-500' },
+    // Sprint K vidas críticas wire (2026-05-22) — Causa raíz no-blame.
+    // Service rootCauseClassifier.ts (5 porqués + ILO taxonomía) +
+    // card RootCauseClassifierCard existían sin page. ISO 45001 §10.2.
+    { title: t('nav.root_cause', 'Causa Raíz'), icon: Network, path: '/root-cause', color: 'text-indigo-500' },
     // Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno).
     { title: t('nav.pre_shift_risk', 'Pre-turno'), icon: Sun, path: '/pre-shift-risk', color: 'text-amber-500' },
     // Sprint 40 Fase F.13 — Radar de Riesgos Repetidos.
@@ -174,6 +184,12 @@ export function buildSidebarMenuGroups(
     { title: t('nav.emergency_brigade', 'Brigada Emergencia'), icon: ShieldAlert, path: '/emergency-brigade', color: 'text-amber-500' },
     // Sprint K vidas críticas wire — Tablero de Evacuación.
     { title: t('nav.evacuation_dashboard', 'Tablero Evacuación'), icon: AlertTriangle, path: '/evacuation-dashboard', color: 'text-rose-500' },
+    // Sprint K vidas críticas wire (2026-05-22) — Paralizaciones / stop-work
+    // authority + reanudación controlada. Service stoppage/stoppageEngine.ts
+    // + adapter Firestore + card StoppageSummaryCard ya existían. Page
+    // /stoppages cierra el gap. Cualquier worker puede declarar
+    // detencion_voluntaria; categorías superiores exigen role superior.
+    { title: t('nav.stoppages', 'Paralizaciones'), icon: OctagonAlert, path: '/stoppages', color: 'text-rose-500' },
     // Sprint K §276-277 — Bitácora de Decisiones de Supervisión.
     { title: t('nav.leadership_decisions', 'Decisiones Supervisión'), icon: User, path: '/leadership-decisions', color: 'text-blue-500' },
     // Sprint K §69-71 — Conducción Segura + Rutas Críticas.
