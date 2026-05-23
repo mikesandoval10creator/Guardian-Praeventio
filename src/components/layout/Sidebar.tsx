@@ -200,6 +200,9 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Conocimiento reutilizable derivado de incidentes cerrados;
         // hace navegable lo que ya vivía como nodos LESSON en el grafo.
         { title: t("nav.lessons_learned", "Lecciones Aprendidas"), icon: BookOpen, path: "/lessons", color: "text-amber-500" },
+        // Sprint K wire UI (2026-05-23) — Auditor de consistencia (12 reglas).
+        // Service consistencyAuditor.ts + card existían sin page.
+        { title: t("nav.consistency_audit", "Auditor Consistencia"), icon: ShieldAlert, path: "/consistency-audit", color: "text-rose-500" },
         // Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno).
         // Supervisor lo abre ANTES de iniciar el turno para ver score
         // global + factores trazables + top recomendaciones.

@@ -19,6 +19,10 @@ const CphsModule = lazy(() => import('../pages/CphsModule'));
 // determinístico desde incidentes + acciones + capacitaciones +
 // inspecciones). El comité revisa y firma desde el módulo CPHS principal.
 const CphsDraftMinute = lazy(() => import('../pages/CphsDraftMinute').then(m => ({ default: m.CphsDraftMinute })));
+// Sprint K wire UI (2026-05-23) — Auditor de consistencia entre módulos.
+// Service consistencyAuditor.ts (12 reglas determinísticas) + card
+// ConsistencyAuditCard.tsx existían sin page consumidor.
+const ConsistencyAudit = lazy(() => import('../pages/ConsistencyAudit').then(m => ({ default: m.ConsistencyAudit })));
 
 export const ComplianceRoutes = [
   <Route key="normatives" path="normatives" element={<Normatives />} />,
@@ -31,4 +35,5 @@ export const ComplianceRoutes = [
   <Route key="cphs-draft-minute" path="cphs/draft-minute" element={<CphsDraftMinute />} />,
   <Route key="suseso" path="suseso" element={<SusesoReports />} />,
   <Route key="reglamentos" path="reglamentos" element={<Reglamentos />} />,
+  <Route key="consistency-audit" path="consistency-audit" element={<ConsistencyAudit />} />,
 ];
