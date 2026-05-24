@@ -2459,5 +2459,79 @@
       "audit_trail_hint_prefix": "For complete history of finalized or cancelled stoppages, see ",
       "audit_trail_link": "Audit Trail"
     }
+  },
+  "critical_controls": {
+    "title": "Critical controls by risk",
+    "subtitle": "HCA (Hierarchy of Controls) catalog ISO 45001 § 8.1.2. Mark controls present on-site; the system validates coverage + hierarchy balance before authorizing task start.",
+    "filter_label": "Risk type",
+    "empty": {
+      "select_project": "Select a project to register validations."
+    },
+    "risk": {
+      "altura": "Working at heights",
+      "electric": "Electrical hazard",
+      "confinado": "Confined space",
+      "caliente": "Hot work",
+      "quimico": "Chemicals / Hazmat"
+    },
+    "level": {
+      "elimination": "Elimination",
+      "substitution": "Substitution",
+      "engineering": "Engineering",
+      "administrative": "Administrative",
+      "epp": "PPE"
+    },
+    "result": {
+      "authorized": "Authorized to start",
+      "not_authorized": "NOT authorized",
+      "hierarchy_unbalanced": "Unbalanced hierarchy: only low-level controls (PPE) are reported. Add engineering or elimination controls before starting.",
+      "missing_label": "Missing:"
+    },
+    "catalog": {
+      "heading": "HCA Catalog — {{category}}",
+      "present": "Present",
+      "mark": "Mark"
+    }
+  },
+  "root_cause": {
+    "title": "Root cause (no-blame)",
+    "subtitle": "ILO/ANSI Z10 taxonomy + 5 whys. The analysis does NOT seek culprits — it identifies system conditions that allowed the incident in order to correct them. The supervisor who closes the analysis signs it with their UID.",
+    "cta_new": "New analysis",
+    "empty": {
+      "select_project": "Select a project to register analyses."
+    },
+    "factor": {
+      "condicion_subestandar": "Sub-standard condition",
+      "acto_subestandar": "Sub-standard act",
+      "falla_supervision": "Supervision failure",
+      "falla_procedimiento": "Procedure failure",
+      "falla_mantenimiento": "Maintenance failure",
+      "factor_ambiental": "Environmental factor",
+      "factor_organizacional": "Organizational factor",
+      "falla_capacitacion": "Training failure",
+      "falla_epp": "PPE failure",
+      "falla_diseno": "Design failure"
+    },
+    "form": {
+      "heading": "New analysis",
+      "field_incident_id": "Incident ID (empty = auto-generated)",
+      "incident_id_placeholder": "e.g.: inc-2026-05-22-001",
+      "factors_label": "Present factors",
+      "primary_factor": "Primary factor",
+      "five_whys_label": "5 whys (min 15 characters per line, leave non-applicable empty)",
+      "why_placeholder": "Why {{n}}…",
+      "actions_label": "Suggested corrective actions (one per line, min 1)",
+      "actions_placeholder": "E.g.: Train team on harness use every 6 months\nInstall permanent lifeline in zone X",
+      "submit": "Save"
+    },
+    "feedback": {
+      "need_project": "You need an active project and to be authenticated.",
+      "saved": "Analysis saved for incident {{id}}."
+    },
+    "history": {
+      "heading": "History ({{count}})",
+      "empty": "No root-cause analyses in this project yet.",
+      "select_hint": "Select an analysis on the left to view the detail."
+    }
   }
 }

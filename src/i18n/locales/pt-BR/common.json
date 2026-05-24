@@ -2110,5 +2110,79 @@
       "audit_trail_hint_prefix": "Para histórico completo de paralisações finalizadas ou canceladas, consulte ",
       "audit_trail_link": "Audit Trail"
     }
+  },
+  "critical_controls": {
+    "title": "Controles críticos por risco",
+    "subtitle": "Catálogo HCA (Hierarchy of Controls) ISO 45001 § 8.1.2. Marque os controles presentes em campo; o sistema valida cobertura + balanço hierárquico antes de autorizar início de tarefa.",
+    "filter_label": "Tipo de risco",
+    "empty": {
+      "select_project": "Selecione um projeto para registrar validações."
+    },
+    "risk": {
+      "altura": "Trabalho em altura",
+      "electric": "Risco elétrico",
+      "confinado": "Espaço confinado",
+      "caliente": "Trabalho a quente",
+      "quimico": "Produtos químicos / Hazmat"
+    },
+    "level": {
+      "elimination": "Eliminação",
+      "substitution": "Substituição",
+      "engineering": "Engenharia",
+      "administrative": "Administrativo",
+      "epp": "EPI"
+    },
+    "result": {
+      "authorized": "Autorizado para iniciar",
+      "not_authorized": "NÃO autorizado",
+      "hierarchy_unbalanced": "Hierarquia desequilibrada: apenas controles de baixo nível (EPI) reportados. Adicione controles de engenharia ou eliminação antes de iniciar.",
+      "missing_label": "Faltantes:"
+    },
+    "catalog": {
+      "heading": "Catálogo HCA — {{category}}",
+      "present": "Presente",
+      "mark": "Marcar"
+    }
+  },
+  "root_cause": {
+    "title": "Causa raiz (no-blame)",
+    "subtitle": "Taxonomia ILO/ANSI Z10 + 5 porquês. A análise NÃO busca culpados — identifica condições do sistema que permitiram o incidente para corrigi-las. O supervisor que encerra a análise a assina com seu UID.",
+    "cta_new": "Nova análise",
+    "empty": {
+      "select_project": "Selecione um projeto para registrar análises."
+    },
+    "factor": {
+      "condicion_subestandar": "Condição sub-padrão",
+      "acto_subestandar": "Ato sub-padrão",
+      "falla_supervision": "Falha de supervisão",
+      "falla_procedimiento": "Falha de procedimento",
+      "falla_mantenimiento": "Falha de manutenção",
+      "factor_ambiental": "Fator ambiental",
+      "factor_organizacional": "Fator organizacional",
+      "falla_capacitacion": "Falha de capacitação",
+      "falla_epp": "Falha de EPI",
+      "falla_diseno": "Falha de design"
+    },
+    "form": {
+      "heading": "Nova análise",
+      "field_incident_id": "ID do incidente (vazio = auto-gerado)",
+      "incident_id_placeholder": "ex.: inc-2026-05-22-001",
+      "factors_label": "Fatores presentes",
+      "primary_factor": "Fator principal",
+      "five_whys_label": "5 porquês (mín 15 caracteres por linha, deixar vazias as não aplicáveis)",
+      "why_placeholder": "Porquê {{n}}…",
+      "actions_label": "Ações corretivas sugeridas (uma por linha, mín 1)",
+      "actions_placeholder": "Ex.: Capacitar equipe no uso de cinto a cada 6 meses\nInstalar linha de vida permanente na zona X",
+      "submit": "Salvar"
+    },
+    "feedback": {
+      "need_project": "Você precisa de um projeto ativo e estar autenticado.",
+      "saved": "Análise salva para incidente {{id}}."
+    },
+    "history": {
+      "heading": "Histórico ({{count}})",
+      "empty": "Ainda não há análises de causa raiz neste projeto.",
+      "select_hint": "Selecione uma análise à esquerda para ver o detalhe."
+    }
   }
 }
