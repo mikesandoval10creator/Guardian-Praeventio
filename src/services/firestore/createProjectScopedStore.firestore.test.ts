@@ -124,3 +124,89 @@ describe('createProjectScopedStore — emulator smoke', () => {
     ).toThrow(/activeFilter no configurado/);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// activeFilter + subscribeFiltered — Plan §B.5 server-side where
+// ────────────────────────────────────────────────────────────────────────
+
+describe('createProjectScopedStore — activeFilter (emulator)', () => {
+  const FILTERED_COL = 'sample_filtered';
+
+  it('subscribeFiltered: solo emite docs que matchean el where', async () => {
+    const filteredStore = createProjectScopedStore<Sample>(FILTERED_COL, {
+      orderByField: 'createdAt',
+      activeFilter: { field: 'status', op: '==', value: 'active' },
+    });
+
+    // Sembramos 2 active + 1 closed.
+    await filteredStore.save(PROJECT_ID, {
+      id: 'a1',
+      status: 'active',
+      label: 'Activo 1',
+      createdAt: 1_700_000_010_000,
+    });
+    await filteredStore.save(PROJECT_ID, {
+      id: 'a2',
+      status: 'active',
+      label: 'Activo 2',
+      createdAt: 1_700_000_011_000,
+    });
+    await filteredStore.save(PROJECT_ID, {
+      id: 'c1',
+      status: 'closed',
+      label: 'Cerrado',
+      createdAt: 1_700_000_012_000,
+    });
+
+    // subscribe sin filtro → 3 docs
+    const allReceived: Sample[][] = [];
+    const unsubAll = filteredStore.subscribe(PROJECT_ID, (items) =>
+      allReceived.push(items),
+    );
+    // Esperar primer snapshot (event loop tick).
+    await new Promise((r) => setTimeout(r, 200));
+    unsubAll();
+    const allLast = allReceived[allReceived.length - 1] ?? [];
+    expect(allLast).toHaveLength(3);
+
+    // subscribeFiltered → solo 2 active
+    const filteredReceived: Sample[][] = [];
+    const unsubF = filteredStore.subscribeFiltered(PROJECT_ID, (items) =>
+      filteredReceived.push(items),
+    );
+    await new Promise((r) => setTimeout(r, 200));
+    unsubF();
+    const filteredLast = filteredReceived[filteredReceived.length - 1] ?? [];
+    expect(filteredLast).toHaveLength(2);
+    expect(filteredLast.every((s) => s.status === 'active')).toBe(true);
+    expect(filteredLast.map((s) => s.id).sort()).toEqual(['a1', 'a2']);
+  });
+
+  it('subscribe live: emite update cuando cambia un doc relevante', async () => {
+    const liveStore = createProjectScopedStore<Sample>('sample_live', {
+      orderByField: 'createdAt',
+    });
+
+    const snapshots: Sample[][] = [];
+    const unsub = liveStore.subscribe(PROJECT_ID, (items) => snapshots.push(items));
+
+    // Esperar primer snapshot vacío
+    await new Promise((r) => setTimeout(r, 150));
+    expect(snapshots.length).toBeGreaterThanOrEqual(1);
+    expect(snapshots[0]).toEqual([]);
+
+    // Escribir un doc → debería trigger nuevo snapshot
+    await liveStore.save(PROJECT_ID, {
+      id: 'live-1',
+      status: 'active',
+      label: 'Live',
+      createdAt: 1_700_000_020_000,
+    });
+    await new Promise((r) => setTimeout(r, 250));
+
+    unsub();
+    const lastSnap = snapshots[snapshots.length - 1] ?? [];
+    expect(lastSnap).toHaveLength(1);
+    expect(lastSnap[0].id).toBe('live-1');
+  });
+});
