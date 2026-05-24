@@ -2316,6 +2316,41 @@
     "fgs_no_plugin": "Plugin not available in this build.",
     "fgs_error_unknown": "unknown"
   },
+  "lone_worker_page": {
+    "title": "Lone worker",
+    "subtitle": "Control of workers operating in remote or isolated zones. Mandatory periodic check-in; without response, escalation is automatic (supervisor → brigade → emergency services).",
+    "cta_start": "Start session",
+    "empty": {
+      "select_project": "Select a project to start lone-worker sessions."
+    },
+    "form": {
+      "heading": "New session",
+      "interval_label": "Check-in interval (minutes)",
+      "interval_minutes": "{{n}} min",
+      "geo_note": "If you enable geolocation, the check-in will include coordinates. Session is self-tracking (you are the worker).",
+      "submit": "Start"
+    },
+    "feedback": {
+      "help_recorded": "Help request recorded.",
+      "checkin_recorded": "Check-in recorded.",
+      "session_ended": "Session {{id}} ended."
+    },
+    "active": {
+      "heading": "Active sessions ({{count}})",
+      "empty": "No active lone workers in this project."
+    },
+    "action": {
+      "checkin_ok": "Check-in OK",
+      "help": "Request help",
+      "end": "End",
+      "close_supervisor": "Close (supervisor)"
+    },
+    "history": {
+      "heading": "Recent history",
+      "closed_badge": "Closed",
+      "row_summary": "Worker {{uid}} · {{count}} check-ins"
+    }
+  },
   "stoppages": {
     "title": "Work stoppages (stop-work)",
     "subtitle": "Every stoppage is logged with authorship, reason, and resumption preconditions. Resumption is NOT automatic — it requires verification.",

@@ -2329,6 +2329,41 @@
     "fgs_no_plugin": "Plugin no disponible en este build.",
     "fgs_error_unknown": "desconocido"
   },
+  "lone_worker_page": {
+    "title": "Trabajo solitario",
+    "subtitle": "Control de trabajadores operando en zonas remotas o aisladas. Check-in periódico obligatorio; sin respuesta se escala automáticamente (supervisor → brigada → servicios de emergencia).",
+    "cta_start": "Iniciar sesión",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para iniciar sesiones de trabajo solitario."
+    },
+    "form": {
+      "heading": "Nueva sesión",
+      "interval_label": "Intervalo de check-in (minutos)",
+      "interval_minutes": "{{n}} min",
+      "geo_note": "Si activás la geolocalización, el check-in incluirá las coordenadas. La sesión es self-tracking (vos sos el worker).",
+      "submit": "Iniciar"
+    },
+    "feedback": {
+      "help_recorded": "Solicitud de ayuda registrada.",
+      "checkin_recorded": "Check-in registrado.",
+      "session_ended": "Sesión {{id}} finalizada."
+    },
+    "active": {
+      "heading": "Sesiones activas ({{count}})",
+      "empty": "No hay trabajadores solitarios activos en este proyecto."
+    },
+    "action": {
+      "checkin_ok": "Check-in OK",
+      "help": "Pedir ayuda",
+      "end": "Finalizar",
+      "close_supervisor": "Cerrar (supervisor)"
+    },
+    "history": {
+      "heading": "Historial reciente",
+      "closed_badge": "Cerrada",
+      "row_summary": "Worker {{uid}} · {{count}} check-ins"
+    }
+  },
   "stoppages": {
     "title": "Paralizaciones (stop-work)",
     "subtitle": "Toda paralización queda registrada con autoría, motivo y precondiciones para reanudar. La reanudación NO es automática — exige verificación.",
