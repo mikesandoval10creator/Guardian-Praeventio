@@ -1,37 +1,27 @@
 // SPDX-License-Identifier: MIT
 // Praeventio Guard — Sprint K wire UI (2026-05-23) exception store.
+// Plan 2026-05-23 §Fase B.4 — refactor: usa factory.
 //
 // CRUD client-side simplificado para `ExceptionRecord` con path
-// `projects/{projectId}/exceptions/{id}` (consistente con otros stores
-// que hice). El adapter formal (`exceptionFirestoreAdapter.ts`) usa
-// `tenants/{tid}/projects/{pid}/...` y queda disponible para flujos
-// server-side / cron jobs.
+// `projects/{projectId}/exceptions/{id}`. El adapter formal
+// (`exceptionFirestoreAdapter.ts`) usa `tenants/{tid}/projects/{pid}/...`
+// y queda disponible para flujos server-side / cron jobs.
+//
+// activeFilter habilita subscribeActiveExceptions (where status==active).
 
-import {
-  db,
-  collection,
-  doc,
-  setDoc,
-  updateDoc,
-  onSnapshot,
-  query,
-  orderBy,
-  limit,
-} from '../firebase';
+import { createProjectScopedStore } from '../firestore/createProjectScopedStore';
 import type { ExceptionRecord } from './exceptionEngine';
 
-function exceptionsPath(projectId: string): string {
-  return `projects/${projectId}/exceptions`;
-}
+const store = createProjectScopedStore<ExceptionRecord>('exceptions', {
+  orderByField: 'approvedAt',
+  activeFilter: { field: 'status', op: '==', value: 'active' },
+});
 
 export async function saveException(
   projectId: string,
   record: ExceptionRecord,
 ): Promise<void> {
-  if (!projectId) throw new Error('saveException: projectId vacío');
-  if (!record?.id) throw new Error('saveException: record.id vacío');
-  const ref = doc(db, exceptionsPath(projectId), record.id);
-  await setDoc(ref, { ...record, updatedAt: Date.now() }, { merge: true });
+  await store.save(projectId, record);
 }
 
 export async function patchException(
@@ -39,40 +29,9 @@ export async function patchException(
   recordId: string,
   patch: Partial<ExceptionRecord>,
 ): Promise<void> {
-  if (!projectId || !recordId) throw new Error('patchException: ids vacíos');
-  const ref = doc(db, exceptionsPath(projectId), recordId);
-  await updateDoc(ref, { ...patch, updatedAt: Date.now() });
+  await store.patch(projectId, recordId, patch);
 }
 
-export function subscribeExceptions(
-  projectId: string,
-  onSnap: (records: ExceptionRecord[]) => void,
-  onError?: (err: Error) => void,
-  limitCount: number = 100,
-): () => void {
-  if (!projectId) {
-    onSnap([]);
-    return () => {};
-  }
-  const col = collection(db, exceptionsPath(projectId));
-  const q = query(col, orderBy('approvedAt', 'desc'), limit(Math.max(1, Math.min(limitCount, 500))));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const out: ExceptionRecord[] = [];
-      snap.forEach((d) => {
-        try {
-          const data = d.data() as ExceptionRecord;
-          out.push({ ...data, id: d.id });
-        } catch {
-          /* skip */
-        }
-      });
-      onSnap(out);
-    },
-    (err) => {
-      onError?.(err as Error);
-      onSnap([]);
-    },
-  );
-}
+export const subscribeExceptions = store.subscribe;
+export const subscribeActiveExceptions = store.subscribeFiltered;
+export const listExceptions = store.list;

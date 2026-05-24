@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Praeventio Guard — Sprint K wire UI (2026-05-23) read-receipt store.
+// Plan 2026-05-23 §Fase B.4 — refactor: usa factory para DocumentForRead.
 //
-// CRUD client-side para `DocumentForRead` + `ReadReceipt`.
+// `ReadReceipt` mantiene su lógica custom porque usa composite id
+// (documentId__workerUid) — no encaja con el factory genérico que asume
+// `T.id` como key Firestore.
+//
 // Schema:
-//   projects/{projectId}/documents_for_read/{documentId}
-//   projects/{projectId}/read_receipts/{documentId__workerUid}
+//   projects/{projectId}/documents_for_read/{documentId}   (factory)
+//   projects/{projectId}/read_receipts/{documentId__workerUid}  (custom)
 
 import {
   db,
@@ -13,18 +17,31 @@ import {
   setDoc,
   updateDoc,
   onSnapshot,
-  query,
-  orderBy,
-  limit,
 } from '../firebase';
+import { createProjectScopedStore } from '../firestore/createProjectScopedStore';
 import type {
   DocumentForRead,
   ReadReceipt,
 } from './readReceiptService';
 
-function docsPath(projectId: string): string {
-  return `projects/${projectId}/documents_for_read`;
+// ─── DocumentForRead via factory ────────────────────────────────────────
+
+const docsStore = createProjectScopedStore<DocumentForRead>('documents_for_read', {
+  defaultLimit: 50,
+  orderByField: 'publishedAt',
+});
+
+export async function saveDocumentForRead(
+  projectId: string,
+  document: DocumentForRead,
+): Promise<void> {
+  await docsStore.save(projectId, document);
 }
+
+export const subscribeDocumentsForRead = docsStore.subscribe;
+export const listDocumentsForRead = docsStore.list;
+
+// ─── ReadReceipt custom (composite id) ──────────────────────────────────
 
 function receiptsPath(projectId: string): string {
   return `projects/${projectId}/read_receipts`;
@@ -32,16 +49,6 @@ function receiptsPath(projectId: string): string {
 
 function receiptDocId(documentId: string, workerUid: string): string {
   return `${documentId}__${workerUid}`;
-}
-
-export async function saveDocumentForRead(
-  projectId: string,
-  document: DocumentForRead,
-): Promise<void> {
-  if (!projectId) throw new Error('saveDocumentForRead: projectId vacío');
-  if (!document?.id) throw new Error('saveDocumentForRead: id vacío');
-  const ref = doc(db, docsPath(projectId), document.id);
-  await setDoc(ref, { ...document, updatedAt: Date.now() }, { merge: true });
 }
 
 export async function saveReceipt(
@@ -70,38 +77,6 @@ export async function acknowledgeReceiptInFirestore(
     status: 'acknowledged',
     updatedAt: Date.now(),
   });
-}
-
-export function subscribeDocumentsForRead(
-  projectId: string,
-  onSnap: (documents: DocumentForRead[]) => void,
-  onError?: (err: Error) => void,
-  limitCount: number = 50,
-): () => void {
-  if (!projectId) {
-    onSnap([]);
-    return () => {};
-  }
-  const col = collection(db, docsPath(projectId));
-  const q = query(col, orderBy('publishedAt', 'desc'), limit(Math.max(1, Math.min(limitCount, 200))));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const out: DocumentForRead[] = [];
-      snap.forEach((d) => {
-        try {
-          out.push({ ...(d.data() as DocumentForRead), id: d.id });
-        } catch {
-          /* skip */
-        }
-      });
-      onSnap(out);
-    },
-    (err) => {
-      onError?.(err as Error);
-      onSnap([]);
-    },
-  );
 }
 
 export function subscribeReceiptsForDocument(
