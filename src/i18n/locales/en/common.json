@@ -2533,5 +2533,177 @@
       "empty": "No root-cause analyses in this project yet.",
       "select_hint": "Select an analysis on the left to view the detail."
     }
+  },
+  "consistency_audit": {
+    "title": "Cross-module consistency",
+    "subtitle": "Automatic internal auditor that detects contradictions between modules: workers assigned without valid training, PPE that doesn't match the role, documents approved without signature, actions closed without evidence, permits whose approver no longer exists, etc. 12 deterministic rules (no LLM).",
+    "cta_run": "Run audit",
+    "cta_running": "Auditing…",
+    "auto_refresh": "Auto every 60s",
+    "re_run": "Re-run",
+    "empty": {
+      "select_project": "Select a project to run the audit."
+    },
+    "feedback": {
+      "need_project": "Select a project to run the audit.",
+      "error": "Error running audit: {{msg}}"
+    },
+    "severity": {
+      "critical": "Critical",
+      "warning": "Warnings",
+      "info": "Info"
+    },
+    "stats": {
+      "last_run": "Last run: {{date}}",
+      "summary": "Workers: {{w}} · Tasks: {{ta}} · Docs: {{d}} · CAs: {{ca}} · Permits: {{p}} · Trainings: {{tr}}"
+    },
+    "no_issues": {
+      "title": "No inconsistencies detected",
+      "subtitle": "The 12 audit rules found no contradictions between project modules in this run."
+    }
+  },
+  "site_book": {
+    "title": "Site book",
+    "subtitle": "Digital site book with year-based consecutive folios (DS 76). Entries immutable after signature; corrections require a new entry with its own folio referencing the corrected one.",
+    "cta_new_entry": "New entry",
+    "empty": {
+      "select_project": "Select a project to view / add entries.",
+      "no_entries": "No entries yet. Create the first one with \"New entry\"."
+    },
+    "feedback": {
+      "need_project": "Select a project and valid authentication.",
+      "created": "Entry {{folio}} recorded."
+    },
+    "summary": {
+      "heading": "Summary ({{count}} entries)",
+      "pending_signature": "Pending signature",
+      "signed": "Signed",
+      "corrections": "Corrections",
+      "by_kind": "By kind"
+    }
+  },
+  "shift_handover": {
+    "title": "Shift handover",
+    "subtitle": "Formal outgoing → incoming supervisor handover. Chronological log during the shift + categorized notes with severity so the incoming supervisor prioritizes upon receipt.",
+    "cta_start": "Start shift",
+    "cta_end": "End shift",
+    "empty": {
+      "select_project": "Select a project to start shifts."
+    },
+    "feedback": {
+      "ack_ok": "Handover {{id}} acknowledged."
+    },
+    "kind": {
+      "morning": "Morning",
+      "afternoon": "Afternoon",
+      "night": "Night",
+      "extended": "Extended"
+    },
+    "category": {
+      "open_incidents": "Open incidents",
+      "equipment_down": "Equipment down",
+      "pending_controls": "Pending controls",
+      "absent_workers": "Absences",
+      "restricted_zones": "Restricted zones",
+      "active_permits": "Active permits",
+      "admin_pending": "Administrative",
+      "weather_alert": "Weather",
+      "observation": "Observation"
+    },
+    "severity": {
+      "info": "Info",
+      "attention": "Attention",
+      "urgent": "Urgent"
+    },
+    "pending_ack": {
+      "heading": "Pending handover to receive",
+      "summary": "The outgoing supervisor closed the {{kind}} shift with {{notes}} note(s) and {{followups}} follow-up(s). Confirm receipt to take the incoming shift.",
+      "notes_placeholder": "Optional notes from incoming supervisor (what you prioritize from the handover)…",
+      "confirm": "Confirm shift receipt"
+    },
+    "active": {
+      "heading": "Active shift: {{kind}}"
+    },
+    "log": {
+      "heading": "Add log entry ({{count}} entries)",
+      "placeholder": "What happened (min 5 chars)…",
+      "requires_followup": "Requires follow-up by next shift",
+      "submit": "Add entry"
+    },
+    "note": {
+      "heading": "Handover note ({{count}} notes)",
+      "placeholder": "Note for incoming supervisor (min 5 chars)…",
+      "submit": "Add note"
+    },
+    "start": {
+      "heading": "Start shift"
+    },
+    "history": {
+      "heading": "Recent history",
+      "received": "Received",
+      "not_received": "Not received",
+      "row_summary": "{{kind}} · {{entries}} entries · {{notes}} notes"
+    }
+  },
+  "operational_changes": {
+    "title": "Management of change (MOC)",
+    "subtitle": "Each operational change (supervisor, procedure, PPE, equipment, critical control, applicable rule) is logged with rationale, impact, and read receipt by affected workers. ISO 45001 §8.1.3 — Management of Change.",
+    "cta_declare": "Declare change",
+    "empty": {
+      "select_project": "Select a project.",
+      "no_changes": "No changes recorded."
+    },
+    "feedback": {
+      "need_project": "You need an active project and valid authentication.",
+      "declared": "Change declared ({{id}}). {{n}} workers must confirm reading.",
+      "ack_ok": "Reading confirmed.",
+      "revert_cancelled": "Revert cancelled or reason too short (min 15 chars).",
+      "reverted": "Change reverted."
+    },
+    "kind": {
+      "supervisor": "Supervisor",
+      "procedure": "Procedure",
+      "equipment": "Equipment",
+      "shift": "Shift",
+      "work_zone": "Work zone",
+      "mandatory_epp": "Mandatory PPE",
+      "applicable_norm": "Applicable rule",
+      "critical_control": "Critical control",
+      "other": "Other"
+    },
+    "impact": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "form": {
+      "heading": "New change",
+      "field_kind": "Kind",
+      "field_impact": "Impact",
+      "field_what_changed": "What changed",
+      "what_changed_placeholder": "E.g.: Lifting procedure in north zone",
+      "field_before": "Before",
+      "before_placeholder": "Previous value",
+      "field_after": "After",
+      "after_placeholder": "New value",
+      "field_rationale": "Rationale (min 20 chars)",
+      "rationale_placeholder": "Why the change was necessary",
+      "field_affected_uids": "Affected worker UIDs (comma- or newline-separated)",
+      "affected_uids_placeholder": "worker-001, worker-002, worker-003",
+      "submit": "Declare"
+    },
+    "revoke": {
+      "prompt": "Reason for revert (min 15 chars):"
+    },
+    "revert": {
+      "prompt": "Reason for revert (min 15 chars):"
+    },
+    "action": {
+      "acknowledge": "Confirm reading",
+      "revert": "Revert"
+    },
+    "footer": {
+      "summary": "{{active}} active changes · {{reverted}} reverted"
+    }
   }
 }

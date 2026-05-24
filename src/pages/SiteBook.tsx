@@ -13,6 +13,7 @@
 //   - Resumen lateral: total por kind, por status
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Book, Plus, Loader2, AlertTriangle } from 'lucide-react';
 
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -31,7 +32,9 @@ import {
 } from '../services/siteBook/siteBookStore';
 import { logger } from '../utils/logger';
 
+// Plan 2026-05-24 §Fase B.6 batch3 — i18n sweep SiteBook (DS 76).
 export function SiteBook() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
 
@@ -67,7 +70,7 @@ export function SiteBook() {
   const handleCreate = useCallback(
     async (payload: NewEntryFormPayload) => {
       if (!user || !selectedProject) {
-        setFeedback('Seleccioná un proyecto y autenticación válida.');
+        setFeedback(t('site_book.feedback.need_project', 'Seleccioná un proyecto y autenticación válida.'));
         return;
       }
       try {
@@ -86,7 +89,12 @@ export function SiteBook() {
           involvedWorkerUids: payload.involvedWorkerUids,
         });
         await saveSiteBookEntry(selectedProject.id, entry);
-        setFeedback(`Entrada ${entry.folio} registrada.`);
+        setFeedback(
+          t('site_book.feedback.created', {
+            defaultValue: 'Entrada {{folio}} registrada.',
+            folio: entry.folio,
+          }),
+        );
         setShowForm(false);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -104,12 +112,13 @@ export function SiteBook() {
         <header className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
-              <Book className="w-6 h-6 text-amber-600" /> Bitácora de obra
+              <Book className="w-6 h-6 text-amber-600" /> {t('site_book.title', 'Bitácora de obra')}
             </h1>
             <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
-              Libro de obra digital con folios consecutivos year-based (DS 76).
-              Entradas inmutables tras firma; correcciones requieren nueva
-              entrada con folio propio que referencia la corregida.
+              {t(
+                'site_book.subtitle',
+                'Libro de obra digital con folios consecutivos year-based (DS 76). Entradas inmutables tras firma; correcciones requieren nueva entrada con folio propio que referencia la corregida.',
+              )}
             </p>
           </div>
           <button
@@ -119,13 +128,13 @@ export function SiteBook() {
             className="rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white px-3 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Nueva entrada
+            {t('site_book.cta_new_entry', 'Nueva entrada')}
           </button>
         </header>
 
         {!selectedProject ? (
           <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-            Seleccioná un proyecto para ver / agregar entradas.
+            {t('site_book.empty.select_project', 'Seleccioná un proyecto para ver / agregar entradas.')}
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-500">
@@ -156,23 +165,23 @@ export function SiteBook() {
             <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
               <aside className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-3 space-y-3">
                 <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
-                  Resumen ({entries.length} entradas)
+                  {t('site_book.summary.heading', { defaultValue: 'Resumen ({{count}} entradas)', count: entries.length })}
                 </h2>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-600 dark:text-zinc-400">Pendientes firma</span>
+                    <span className="text-zinc-600 dark:text-zinc-400">{t('site_book.summary.pending_signature', 'Pendientes firma')}</span>
                     <span className="font-mono font-bold text-zinc-900 dark:text-white">
                       {summary.pendingSignatureCount}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-600 dark:text-zinc-400">Firmadas</span>
+                    <span className="text-zinc-600 dark:text-zinc-400">{t('site_book.summary.signed', 'Firmadas')}</span>
                     <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
                       {summary.signedCount}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-600 dark:text-zinc-400">Correcciones</span>
+                    <span className="text-zinc-600 dark:text-zinc-400">{t('site_book.summary.corrections', 'Correcciones')}</span>
                     <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
                       {summary.correctionsCount}
                     </span>
@@ -181,7 +190,7 @@ export function SiteBook() {
                 {summary.byKind && Object.keys(summary.byKind).length > 0 && (
                   <>
                     <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-3">
-                      Por tipo
+                      {t('site_book.summary.by_kind', 'Por tipo')}
                     </h3>
                     <ul className="space-y-1 text-[11px]">
                       {Object.entries(summary.byKind)
@@ -200,7 +209,7 @@ export function SiteBook() {
               <div>
                 {entries.length === 0 ? (
                   <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-                    Sin entradas todavía. Crear la primera con "Nueva entrada".
+                    {t('site_book.empty.no_entries', 'Sin entradas todavía. Crear la primera con "Nueva entrada".')}
                   </div>
                 ) : (
                   <SiteBookViewer entries={entries} />

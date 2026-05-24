@@ -2546,5 +2546,177 @@
       "empty": "Aún no hay análisis de causa raíz en este proyecto.",
       "select_hint": "Seleccioná un análisis a la izquierda para ver el detalle."
     }
+  },
+  "consistency_audit": {
+    "title": "Consistencia entre módulos",
+    "subtitle": "Auditor interno automático que detecta contradicciones entre módulos: trabajadores asignados sin capacitación vigente, EPP que no corresponde al cargo, documentos aprobados sin firma, acciones cerradas sin evidencia, permisos cuyo aprobador ya no existe, etc. 12 reglas determinísticas (sin LLM).",
+    "cta_run": "Ejecutar auditoría",
+    "cta_running": "Auditando…",
+    "auto_refresh": "Auto cada 60s",
+    "re_run": "Re-ejecutar",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para correr la auditoría."
+    },
+    "feedback": {
+      "need_project": "Seleccioná un proyecto para correr la auditoría.",
+      "error": "Error al ejecutar auditoría: {{msg}}"
+    },
+    "severity": {
+      "critical": "Críticas",
+      "warning": "Advertencias",
+      "info": "Info"
+    },
+    "stats": {
+      "last_run": "Última corrida: {{date}}",
+      "summary": "Workers: {{w}} · Tareas: {{ta}} · Docs: {{d}} · CAs: {{ca}} · Permits: {{p}} · Capacitaciones: {{tr}}"
+    },
+    "no_issues": {
+      "title": "Sin inconsistencias detectadas",
+      "subtitle": "Las 12 reglas de auditoría no encontraron contradicciones entre los módulos del proyecto en esta corrida."
+    }
+  },
+  "site_book": {
+    "title": "Bitácora de obra",
+    "subtitle": "Libro de obra digital con folios consecutivos year-based (DS 76). Entradas inmutables tras firma; correcciones requieren nueva entrada con folio propio que referencia la corregida.",
+    "cta_new_entry": "Nueva entrada",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para ver / agregar entradas.",
+      "no_entries": "Sin entradas todavía. Crear la primera con \"Nueva entrada\"."
+    },
+    "feedback": {
+      "need_project": "Seleccioná un proyecto y autenticación válida.",
+      "created": "Entrada {{folio}} registrada."
+    },
+    "summary": {
+      "heading": "Resumen ({{count}} entradas)",
+      "pending_signature": "Pendientes firma",
+      "signed": "Firmadas",
+      "corrections": "Correcciones",
+      "by_kind": "Por tipo"
+    }
+  },
+  "shift_handover": {
+    "title": "Cambio de turno",
+    "subtitle": "Handover formal supervisor saliente → supervisor entrante. Log cronológico durante el turno + notas categorizadas con severidad para que el entrante priorice al recibir.",
+    "cta_start": "Iniciar turno",
+    "cta_end": "Cerrar turno",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para iniciar turnos."
+    },
+    "feedback": {
+      "ack_ok": "Handover de {{id}} confirmado."
+    },
+    "kind": {
+      "morning": "Mañana",
+      "afternoon": "Tarde",
+      "night": "Noche",
+      "extended": "Extendido"
+    },
+    "category": {
+      "open_incidents": "Incidentes abiertos",
+      "equipment_down": "Equipo fuera",
+      "pending_controls": "Controles pendientes",
+      "absent_workers": "Ausencias",
+      "restricted_zones": "Zonas restringidas",
+      "active_permits": "Permisos activos",
+      "admin_pending": "Administrativo",
+      "weather_alert": "Clima",
+      "observation": "Observación"
+    },
+    "severity": {
+      "info": "Info",
+      "attention": "Atención",
+      "urgent": "Urgente"
+    },
+    "pending_ack": {
+      "heading": "Handover pendiente de recibir",
+      "summary": "El supervisor saliente cerró el turno {{kind}} con {{notes}} nota(s) y {{followups}} follow-up(s). Confirmá la recepción para tomar el turno entrante.",
+      "notes_placeholder": "Notas opcionales del supervisor entrante (qué priorizás del handover)…",
+      "confirm": "Confirmar recepción del turno"
+    },
+    "active": {
+      "heading": "Turno activo: {{kind}}"
+    },
+    "log": {
+      "heading": "Agregar entrada al log ({{count}} entradas)",
+      "placeholder": "Descripción de lo que pasó (min 5 chars)…",
+      "requires_followup": "Requiere follow-up del próximo turno",
+      "submit": "Agregar entrada"
+    },
+    "note": {
+      "heading": "Nota para handover ({{count}} notas)",
+      "placeholder": "Nota para el supervisor entrante (min 5 chars)…",
+      "submit": "Agregar nota"
+    },
+    "start": {
+      "heading": "Iniciar turno"
+    },
+    "history": {
+      "heading": "Historial reciente",
+      "received": "Recibido",
+      "not_received": "Sin recibir",
+      "row_summary": "{{kind}} · {{entries}} entradas · {{notes}} notas"
+    }
+  },
+  "operational_changes": {
+    "title": "Gestión de cambios (MOC)",
+    "subtitle": "Cada cambio operacional (supervisor, procedimiento, EPP, equipo, control crítico, norma aplicable) queda registrado con justificación, impacto y lectura confirmada por los trabajadores afectados. ISO 45001 §8.1.3 — Management of Change.",
+    "cta_declare": "Declarar cambio",
+    "empty": {
+      "select_project": "Seleccioná un proyecto.",
+      "no_changes": "Sin cambios registrados."
+    },
+    "feedback": {
+      "need_project": "Necesitás un proyecto y autenticación válida.",
+      "declared": "Cambio declarado ({{id}}). {{n}} workers deben confirmar lectura.",
+      "ack_ok": "Lectura confirmada.",
+      "revert_cancelled": "Reversión cancelada o motivo demasiado corto (mín 15 chars).",
+      "reverted": "Cambio revertido."
+    },
+    "kind": {
+      "supervisor": "Supervisor",
+      "procedure": "Procedimiento",
+      "equipment": "Equipo",
+      "shift": "Turno",
+      "work_zone": "Zona de trabajo",
+      "mandatory_epp": "EPP obligatorio",
+      "applicable_norm": "Norma aplicable",
+      "critical_control": "Control crítico",
+      "other": "Otro"
+    },
+    "impact": {
+      "low": "Bajo",
+      "medium": "Medio",
+      "high": "Alto"
+    },
+    "form": {
+      "heading": "Nuevo cambio",
+      "field_kind": "Tipo",
+      "field_impact": "Impacto",
+      "field_what_changed": "Qué cambió",
+      "what_changed_placeholder": "Ej: Procedimiento de izaje en zona norte",
+      "field_before": "Antes",
+      "before_placeholder": "Valor previo",
+      "field_after": "Después",
+      "after_placeholder": "Valor nuevo",
+      "field_rationale": "Justificación (mín 20 chars)",
+      "rationale_placeholder": "Por qué fue necesario el cambio",
+      "field_affected_uids": "UIDs de trabajadores afectados (separados por coma o salto de línea)",
+      "affected_uids_placeholder": "worker-001, worker-002, worker-003",
+      "submit": "Declarar"
+    },
+    "revoke": {
+      "prompt": "Motivo de la reversión (mín 15 chars):"
+    },
+    "revert": {
+      "prompt": "Motivo de la reversión (mín 15 chars):"
+    },
+    "action": {
+      "acknowledge": "Confirmo lectura",
+      "revert": "Revertir"
+    },
+    "footer": {
+      "summary": "{{active}} cambios activos · {{reverted}} revertidos"
+    }
   }
 }

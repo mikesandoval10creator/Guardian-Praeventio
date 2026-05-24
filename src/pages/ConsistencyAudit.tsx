@@ -14,6 +14,7 @@
 //   - Auto-refresh opcional cada 60s.
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   CheckCircle2,
   Loader2,
@@ -34,7 +35,9 @@ import {
 import { buildConsistencyStateFromFirestore } from '../services/consistency/consistencyStateBuilder';
 import { logger } from '../utils/logger';
 
+// Plan 2026-05-24 §Fase B.6 batch3 — i18n sweep ConsistencyAudit.
 export function ConsistencyAudit() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
 
   const [issues, setIssues] = useState<Inconsistency[]>([]);
@@ -46,7 +49,7 @@ export function ConsistencyAudit() {
 
   const runAudit = useCallback(async () => {
     if (!selectedProject?.id) {
-      setFeedback('Seleccioná un proyecto para correr la auditoría.');
+      setFeedback(t('consistency_audit.feedback.need_project', 'Seleccioná un proyecto para correr la auditoría.'));
       return;
     }
     setLoading(true);
@@ -62,7 +65,12 @@ export function ConsistencyAudit() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.warn('consistency_audit_failed', { err: msg });
-      setFeedback(`Error al ejecutar auditoría: ${msg}`);
+      setFeedback(
+        t('consistency_audit.feedback.error', {
+          defaultValue: 'Error al ejecutar auditoría: {{msg}}',
+          msg,
+        }),
+      );
     } finally {
       setLoading(false);
     }
@@ -95,14 +103,13 @@ export function ConsistencyAudit() {
         <header className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
-              <ShieldAlert className="w-6 h-6 text-rose-500" /> Consistencia entre módulos
+              <ShieldAlert className="w-6 h-6 text-rose-500" /> {t('consistency_audit.title', 'Consistencia entre módulos')}
             </h1>
             <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
-              Auditor interno automático que detecta contradicciones entre
-              módulos: trabajadores asignados sin capacitación vigente, EPP
-              que no corresponde al cargo, documentos aprobados sin firma,
-              acciones cerradas sin evidencia, permisos cuyo aprobador ya
-              no existe, etc. 12 reglas determinísticas (sin LLM).
+              {t(
+                'consistency_audit.subtitle',
+                'Auditor interno automático que detecta contradicciones entre módulos: trabajadores asignados sin capacitación vigente, EPP que no corresponde al cargo, documentos aprobados sin firma, acciones cerradas sin evidencia, permisos cuyo aprobador ya no existe, etc. 12 reglas determinísticas (sin LLM).',
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -113,7 +120,9 @@ export function ConsistencyAudit() {
               className="rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white px-3 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-2"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-              {loading ? 'Auditando…' : 'Ejecutar auditoría'}
+              {loading
+                ? t('consistency_audit.cta_running', 'Auditando…')
+                : t('consistency_audit.cta_run', 'Ejecutar auditoría')}
             </button>
             <label className="flex items-center gap-1 text-[10px] font-bold text-zinc-700 dark:text-zinc-300 cursor-pointer">
               <input
@@ -122,14 +131,14 @@ export function ConsistencyAudit() {
                 onChange={(e) => setAutoRefresh(e.target.checked)}
                 className="rounded"
               />
-              Auto cada 60s
+              {t('consistency_audit.auto_refresh', 'Auto cada 60s')}
             </label>
           </div>
         </header>
 
         {!selectedProject ? (
           <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-            Seleccioná un proyecto para correr la auditoría.
+            {t('consistency_audit.empty.select_project', 'Seleccioná un proyecto para correr la auditoría.')}
           </div>
         ) : (
           <>
@@ -145,7 +154,7 @@ export function ConsistencyAudit() {
               <section className="grid grid-cols-3 gap-3">
                 <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/15 p-3">
                   <p className="text-[10px] font-black text-rose-700 dark:text-rose-300 uppercase tracking-widest">
-                    Críticas
+                    {t('consistency_audit.severity.critical', 'Críticas')}
                   </p>
                   <p className="text-2xl font-black text-rose-900 dark:text-rose-100">
                     {summary.bySeverity.critical}
@@ -153,7 +162,7 @@ export function ConsistencyAudit() {
                 </div>
                 <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/15 p-3">
                   <p className="text-[10px] font-black text-amber-700 dark:text-amber-300 uppercase tracking-widest">
-                    Advertencias
+                    {t('consistency_audit.severity.warning', 'Advertencias')}
                   </p>
                   <p className="text-2xl font-black text-amber-900 dark:text-amber-100">
                     {summary.bySeverity.warning}
@@ -161,7 +170,7 @@ export function ConsistencyAudit() {
                 </div>
                 <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-900/15 p-3">
                   <p className="text-[10px] font-black text-sky-700 dark:text-sky-300 uppercase tracking-widest">
-                    Info
+                    {t('consistency_audit.severity.info', 'Info')}
                   </p>
                   <p className="text-2xl font-black text-sky-900 dark:text-sky-100">
                     {summary.bySeverity.info}
@@ -174,10 +183,22 @@ export function ConsistencyAudit() {
             {lastRunAt && state && (
               <div className="flex items-center justify-between text-[10px] text-zinc-500 font-mono">
                 <span>
-                  Última corrida: {lastRunAt.toLocaleString('es-CL')}
+                  {t('consistency_audit.stats.last_run', {
+                    defaultValue: 'Última corrida: {{date}}',
+                    date: lastRunAt.toLocaleString('es-CL'),
+                  })}
                 </span>
                 <span>
-                  Workers: {state.workers.length} · Tareas: {state.taskAssignments.length} · Docs: {state.documents.length} · CAs: {state.correctiveActions.length} · Permits: {state.workPermits.length} · Capacitaciones: {state.trainings.length}
+                  {t('consistency_audit.stats.summary', {
+                    defaultValue:
+                      'Workers: {{w}} · Tareas: {{ta}} · Docs: {{d}} · CAs: {{ca}} · Permits: {{p}} · Capacitaciones: {{tr}}',
+                    w: state.workers.length,
+                    ta: state.taskAssignments.length,
+                    d: state.documents.length,
+                    ca: state.correctiveActions.length,
+                    p: state.workPermits.length,
+                    tr: state.trainings.length,
+                  })}
                 </span>
               </div>
             )}
@@ -187,10 +208,14 @@ export function ConsistencyAudit() {
               <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 p-6 flex items-center gap-3 text-emerald-700 dark:text-emerald-300">
                 <CheckCircle2 className="w-6 h-6 shrink-0" />
                 <div>
-                  <p className="text-sm font-black">Sin inconsistencias detectadas</p>
+                  <p className="text-sm font-black">
+                    {t('consistency_audit.no_issues.title', 'Sin inconsistencias detectadas')}
+                  </p>
                   <p className="text-xs opacity-80 mt-0.5">
-                    Las 12 reglas de auditoría no encontraron contradicciones
-                    entre los módulos del proyecto en esta corrida.
+                    {t(
+                      'consistency_audit.no_issues.subtitle',
+                      'Las 12 reglas de auditoría no encontraron contradicciones entre los módulos del proyecto en esta corrida.',
+                    )}
                   </p>
                 </div>
               </div>
@@ -207,7 +232,7 @@ export function ConsistencyAudit() {
                   className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-600 flex items-center gap-1.5"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  Re-ejecutar
+                  {t('consistency_audit.re_run', 'Re-ejecutar')}
                 </button>
               </div>
             )}

@@ -13,6 +13,7 @@
 //   - Lista historial de los últimos shifts con badge urgentes/pending.
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Clock,
   Plus,
@@ -44,28 +45,30 @@ import {
 } from '../services/shiftHandover/shiftHandoverStore';
 import { logger } from '../utils/logger';
 
-const SHIFT_KIND_LABELS: Record<ShiftKind, string> = {
-  morning: 'Mañana',
-  afternoon: 'Tarde',
-  night: 'Noche',
-  extended: 'Extendido',
-};
-
-const CATEGORY_LABELS: Record<HandoverCategory, string> = {
-  open_incidents: 'Incidentes abiertos',
-  equipment_down: 'Equipo fuera',
-  pending_controls: 'Controles pendientes',
-  absent_workers: 'Ausencias',
-  restricted_zones: 'Zonas restringidas',
-  active_permits: 'Permisos activos',
-  admin_pending: 'Administrativo',
-  weather_alert: 'Clima',
-  observation: 'Observación',
-};
-
+// Plan 2026-05-24 §Fase B.6 batch3 — i18n sweep ShiftHandover.
 export function ShiftHandover() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
+
+  const SHIFT_KIND_LABELS: Record<ShiftKind, string> = {
+    morning: t('shift_handover.kind.morning', 'Mañana'),
+    afternoon: t('shift_handover.kind.afternoon', 'Tarde'),
+    night: t('shift_handover.kind.night', 'Noche'),
+    extended: t('shift_handover.kind.extended', 'Extendido'),
+  };
+
+  const CATEGORY_LABELS: Record<HandoverCategory, string> = {
+    open_incidents: t('shift_handover.category.open_incidents', 'Incidentes abiertos'),
+    equipment_down: t('shift_handover.category.equipment_down', 'Equipo fuera'),
+    pending_controls: t('shift_handover.category.pending_controls', 'Controles pendientes'),
+    absent_workers: t('shift_handover.category.absent_workers', 'Ausencias'),
+    restricted_zones: t('shift_handover.category.restricted_zones', 'Zonas restringidas'),
+    active_permits: t('shift_handover.category.active_permits', 'Permisos activos'),
+    admin_pending: t('shift_handover.category.admin_pending', 'Administrativo'),
+    weather_alert: t('shift_handover.category.weather_alert', 'Clima'),
+    observation: t('shift_handover.category.observation', 'Observación'),
+  };
 
   const [shifts, setShifts] = useState<ShiftRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -209,7 +212,12 @@ export function ShiftHandover() {
         acknowledgmentNotes: acked.acknowledgmentNotes,
       });
       setAckNotes('');
-      setFeedback(`Handover de ${pendingAck.id.slice(0, 12)} confirmado.`);
+      setFeedback(
+        t('shift_handover.feedback.ack_ok', {
+          defaultValue: 'Handover de {{id}} confirmado.',
+          id: pendingAck.id.slice(0, 12),
+        }),
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setFeedback(msg);
@@ -221,18 +229,19 @@ export function ShiftHandover() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header>
           <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
-            <Clock className="w-6 h-6 text-indigo-500" /> Cambio de turno
+            <Clock className="w-6 h-6 text-indigo-500" /> {t('shift_handover.title', 'Cambio de turno')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
-            Handover formal supervisor saliente → supervisor entrante.
-            Log cronológico durante el turno + notas categorizadas con
-            severidad para que el entrante priorice al recibir.
+            {t(
+              'shift_handover.subtitle',
+              'Handover formal supervisor saliente → supervisor entrante. Log cronológico durante el turno + notas categorizadas con severidad para que el entrante priorice al recibir.',
+            )}
           </p>
         </header>
 
         {!selectedProject ? (
           <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-            Seleccioná un proyecto para iniciar turnos.
+            {t('shift_handover.empty.select_project', 'Seleccioná un proyecto para iniciar turnos.')}
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-500">
@@ -251,20 +260,22 @@ export function ShiftHandover() {
             {pendingAck && (
               <section className="rounded-2xl border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-900/20 p-4 space-y-3">
                 <h2 className="text-sm font-black text-rose-700 dark:text-rose-300 uppercase tracking-widest flex items-center gap-2">
-                  <ArrowDownToLine className="w-4 h-4" /> Handover pendiente de recibir
+                  <ArrowDownToLine className="w-4 h-4" /> {t('shift_handover.pending_ack.heading', 'Handover pendiente de recibir')}
                 </h2>
                 <p className="text-xs text-rose-700 dark:text-rose-300">
-                  El supervisor saliente cerró el turno {SHIFT_KIND_LABELS[pendingAck.kind]} con
-                  {' '}{pendingAck.handoverNotes.length} nota(s) y{' '}
-                  {pendingAck.logEntries.filter((e) => e.requiresFollowUp).length} follow-up(s).
-                  Confirmá la recepción para tomar el turno entrante.
+                  {t('shift_handover.pending_ack.summary', {
+                    defaultValue: 'El supervisor saliente cerró el turno {{kind}} con {{notes}} nota(s) y {{followups}} follow-up(s). Confirmá la recepción para tomar el turno entrante.',
+                    kind: SHIFT_KIND_LABELS[pendingAck.kind],
+                    notes: pendingAck.handoverNotes.length,
+                    followups: pendingAck.logEntries.filter((e) => e.requiresFollowUp).length,
+                  })}
                 </p>
                 <ShiftQualityCard shift={pendingAck} />
                 <textarea
                   value={ackNotes}
                   onChange={(e) => setAckNotes(e.target.value)}
                   rows={2}
-                  placeholder="Notas opcionales del supervisor entrante (qué priorizás del handover)…"
+                  placeholder={t('shift_handover.pending_ack.notes_placeholder', 'Notas opcionales del supervisor entrante (qué priorizás del handover)…')}
                   className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
                 />
                 <button
@@ -273,7 +284,7 @@ export function ShiftHandover() {
                   className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-2"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  Confirmar recepción del turno
+                  {t('shift_handover.pending_ack.confirm', 'Confirmar recepción del turno')}
                 </button>
               </section>
             )}
@@ -283,20 +294,26 @@ export function ShiftHandover() {
               <section className="rounded-2xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-900/15 p-4 space-y-4">
                 <h2 className="text-sm font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest flex items-center gap-2">
                   {myActiveShift.kind === 'night' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                  Turno activo: {SHIFT_KIND_LABELS[myActiveShift.kind]}
+                  {t('shift_handover.active.heading', {
+                    defaultValue: 'Turno activo: {{kind}}',
+                    kind: SHIFT_KIND_LABELS[myActiveShift.kind],
+                  })}
                 </h2>
                 <ShiftQualityCard shift={myActiveShift} />
 
                 {/* Log entry form. */}
                 <div className="space-y-2">
                   <h3 className="text-xs font-black text-zinc-700 dark:text-zinc-300">
-                    Agregar entrada al log ({myActiveShift.logEntries.length} entradas)
+                    {t('shift_handover.log.heading', {
+                      defaultValue: 'Agregar entrada al log ({{count}} entradas)',
+                      count: myActiveShift.logEntries.length,
+                    })}
                   </h3>
                   <input
                     type="text"
                     value={logText}
                     onChange={(e) => setLogText(e.target.value)}
-                    placeholder="Descripción de lo que pasó (min 5 chars)…"
+                    placeholder={t('shift_handover.log.placeholder', 'Descripción de lo que pasó (min 5 chars)…')}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
                   />
                   <label className="flex items-center gap-2 text-[10px] text-zinc-600 dark:text-zinc-400">
@@ -305,7 +322,7 @@ export function ShiftHandover() {
                       checked={logRequiresFollowUp}
                       onChange={(e) => setLogRequiresFollowUp(e.target.checked)}
                     />
-                    Requiere follow-up del próximo turno
+                    {t('shift_handover.log.requires_followup', 'Requiere follow-up del próximo turno')}
                   </label>
                   <button
                     type="button"
@@ -313,14 +330,17 @@ export function ShiftHandover() {
                     disabled={logText.trim().length < 5}
                     className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white"
                   >
-                    Agregar entrada
+                    {t('shift_handover.log.submit', 'Agregar entrada')}
                   </button>
                 </div>
 
                 {/* Handover note form. */}
                 <div className="space-y-2 pt-3 border-t border-indigo-200 dark:border-indigo-800">
                   <h3 className="text-xs font-black text-zinc-700 dark:text-zinc-300">
-                    Nota para handover ({myActiveShift.handoverNotes.length} notas)
+                    {t('shift_handover.note.heading', {
+                      defaultValue: 'Nota para handover ({{count}} notas)',
+                      count: myActiveShift.handoverNotes.length,
+                    })}
                   </h3>
                   <div className="grid grid-cols-2 gap-2">
                     <select
@@ -337,16 +357,16 @@ export function ShiftHandover() {
                       onChange={(e) => setNoteSeverity(e.target.value as 'info' | 'attention' | 'urgent')}
                       className="rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
                     >
-                      <option value="info">Info</option>
-                      <option value="attention">Atención</option>
-                      <option value="urgent">Urgente</option>
+                      <option value="info">{t('shift_handover.severity.info', 'Info')}</option>
+                      <option value="attention">{t('shift_handover.severity.attention', 'Atención')}</option>
+                      <option value="urgent">{t('shift_handover.severity.urgent', 'Urgente')}</option>
                     </select>
                   </div>
                   <input
                     type="text"
                     value={noteText}
                     onChange={(e) => setNoteText(e.target.value)}
-                    placeholder="Nota para el supervisor entrante (min 5 chars)…"
+                    placeholder={t('shift_handover.note.placeholder', 'Nota para el supervisor entrante (min 5 chars)…')}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
                   />
                   <button
@@ -355,7 +375,7 @@ export function ShiftHandover() {
                     disabled={noteText.trim().length < 5}
                     className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white"
                   >
-                    Agregar nota
+                    {t('shift_handover.note.submit', 'Agregar nota')}
                   </button>
                 </div>
 
@@ -365,14 +385,14 @@ export function ShiftHandover() {
                     onClick={handleEnd}
                     className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest bg-zinc-700 hover:bg-zinc-600 text-white"
                   >
-                    Cerrar turno
+                    {t('shift_handover.cta_end', 'Cerrar turno')}
                   </button>
                 </div>
               </section>
             ) : (
               <section className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 space-y-3">
                 <h2 className="text-sm font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-widest">
-                  Iniciar turno
+                  {t('shift_handover.start.heading', 'Iniciar turno')}
                 </h2>
                 <div className="flex flex-wrap gap-2">
                   {(Object.entries(SHIFT_KIND_LABELS) as Array<[ShiftKind, string]>).map(([k, v]) => (
@@ -396,7 +416,7 @@ export function ShiftHandover() {
                   disabled={!user}
                   className="rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-3 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-2"
                 >
-                  <Plus className="w-4 h-4" /> Iniciar turno
+                  <Plus className="w-4 h-4" /> {t('shift_handover.cta_start', 'Iniciar turno')}
                 </button>
               </section>
             )}
@@ -405,7 +425,7 @@ export function ShiftHandover() {
             {shifts.filter((s) => s.endedAt).length > 0 && (
               <section className="space-y-2">
                 <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
-                  Historial reciente
+                  {t('shift_handover.history.heading', 'Historial reciente')}
                 </h2>
                 <ul className="space-y-1.5">
                   {shifts
@@ -421,10 +441,17 @@ export function ShiftHandover() {
                             ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
                             : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
                         }`}>
-                          {s.acknowledgedAt ? 'Recibido' : 'Sin recibir'}
+                          {s.acknowledgedAt
+                            ? t('shift_handover.history.received', 'Recibido')
+                            : t('shift_handover.history.not_received', 'Sin recibir')}
                         </span>
                         <span className="text-zinc-700 dark:text-zinc-300 flex-1 truncate">
-                          {SHIFT_KIND_LABELS[s.kind]} · {s.logEntries.length} entradas · {s.handoverNotes.length} notas
+                          {t('shift_handover.history.row_summary', {
+                            defaultValue: '{{kind}} · {{entries}} entradas · {{notes}} notas',
+                            kind: SHIFT_KIND_LABELS[s.kind],
+                            entries: s.logEntries.length,
+                            notes: s.handoverNotes.length,
+                          })}
                         </span>
                         <span className="text-[10px] text-zinc-500">
                           {new Date(s.startedAt).toLocaleDateString('es-CL')}
