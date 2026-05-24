@@ -14,6 +14,7 @@
 // próximo snapshot.
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   UserCheck,
   Plus,
@@ -44,6 +45,7 @@ import { logger } from '../utils/logger';
 const INTERVAL_PRESETS = [15, 30, 60, 120];
 
 export function LoneWorkerMonitor() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
 
@@ -167,7 +169,11 @@ export function LoneWorkerMonitor() {
           lastKnownLocation: updated.lastKnownLocation,
           status: updated.status,
         });
-        setFeedback(status === 'help' ? 'Solicitud de ayuda registrada.' : 'Check-in registrado.');
+        setFeedback(
+          status === 'help'
+            ? t('lone_worker_page.feedback.help_recorded', 'Solicitud de ayuda registrada.')
+            : t('lone_worker_page.feedback.checkin_recorded', 'Check-in registrado.'),
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn('checkIn failed', { err: msg });
@@ -186,7 +192,12 @@ export function LoneWorkerMonitor() {
           endedAt: ended.endedAt,
           status: ended.status,
         });
-        setFeedback(`Sesión ${session.id.slice(0, 12)} finalizada.`);
+        setFeedback(
+          t('lone_worker_page.feedback.session_ended', {
+            defaultValue: 'Sesión {{id}} finalizada.',
+            id: session.id.slice(0, 12),
+          }),
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn('endSession failed', { err: msg });
@@ -202,12 +213,13 @@ export function LoneWorkerMonitor() {
         <header className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
-              <UserCheck className="w-6 h-6 text-teal-500" /> Trabajo solitario
+              <UserCheck className="w-6 h-6 text-teal-500" /> {t('lone_worker_page.title', 'Trabajo solitario')}
             </h1>
             <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
-              Control de trabajadores operando en zonas remotas o aisladas. Check-in
-              periódico obligatorio; sin respuesta se escala automáticamente
-              (supervisor → brigada → servicios de emergencia).
+              {t(
+                'lone_worker_page.subtitle',
+                'Control de trabajadores operando en zonas remotas o aisladas. Check-in periódico obligatorio; sin respuesta se escala automáticamente (supervisor → brigada → servicios de emergencia).',
+              )}
             </p>
           </div>
           <button
@@ -217,13 +229,13 @@ export function LoneWorkerMonitor() {
             className="rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white px-3 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Iniciar sesión
+            {t('lone_worker_page.cta_start', 'Iniciar sesión')}
           </button>
         </header>
 
         {!selectedProject ? (
           <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-            Seleccioná un proyecto para iniciar sesiones de trabajo solitario.
+            {t('lone_worker_page.empty.select_project', 'Seleccioná un proyecto para iniciar sesiones de trabajo solitario.')}
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-500">
@@ -241,11 +253,11 @@ export function LoneWorkerMonitor() {
             {showForm && (
               <section className="rounded-2xl border border-teal-200 dark:border-teal-800 bg-teal-50/40 dark:bg-teal-900/10 p-4 space-y-3">
                 <h2 className="text-sm font-black text-teal-700 dark:text-teal-300 uppercase tracking-widest">
-                  Nueva sesión
+                  {t('lone_worker_page.form.heading', 'Nueva sesión')}
                 </h2>
                 <div className="space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Intervalo de check-in (minutos)
+                    {t('lone_worker_page.form.interval_label', 'Intervalo de check-in (minutos)')}
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {INTERVAL_PRESETS.map((min) => (
@@ -259,14 +271,16 @@ export function LoneWorkerMonitor() {
                             : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                         }`}
                       >
-                        {min} min
+                        {t('lone_worker_page.form.interval_minutes', { defaultValue: '{{n}} min', n: min })}
                       </button>
                     ))}
                   </div>
                 </div>
                 <p className="text-[10px] text-zinc-500">
-                  Si activás la geolocalización, el check-in incluirá las
-                  coordenadas. La sesión es self-tracking (vos sos el worker).
+                  {t(
+                    'lone_worker_page.form.geo_note',
+                    'Si activás la geolocalización, el check-in incluirá las coordenadas. La sesión es self-tracking (vos sos el worker).',
+                  )}
                 </p>
                 <div className="flex items-center justify-end gap-2">
                   <button
@@ -274,7 +288,7 @@ export function LoneWorkerMonitor() {
                     onClick={() => setShowForm(false)}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
-                    Cancelar
+                    {t('common.cancel', 'Cancelar')}
                   </button>
                   <button
                     type="button"
@@ -283,7 +297,7 @@ export function LoneWorkerMonitor() {
                     className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white flex items-center gap-2"
                   >
                     {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserCheck className="w-3.5 h-3.5" />}
-                    Iniciar
+                    {t('lone_worker_page.form.submit', 'Iniciar')}
                   </button>
                 </div>
               </section>
@@ -291,12 +305,15 @@ export function LoneWorkerMonitor() {
 
             <section className="space-y-3">
               <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
-                Sesiones activas ({activeSessions.length})
+                {t('lone_worker_page.active.heading', {
+                  defaultValue: 'Sesiones activas ({{count}})',
+                  count: activeSessions.length,
+                })}
               </h2>
               {activeSessions.length === 0 ? (
                 <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 p-4 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4" />
-                  No hay trabajadores solitarios activos en este proyecto.
+                  {t('lone_worker_page.active.empty', 'No hay trabajadores solitarios activos en este proyecto.')}
                 </div>
               ) : (
                 <ul className="space-y-3">
@@ -317,7 +334,7 @@ export function LoneWorkerMonitor() {
                               className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              Check-in OK
+                              {t('lone_worker_page.action.checkin_ok', 'Check-in OK')}
                             </button>
                             <button
                               type="button"
@@ -325,7 +342,7 @@ export function LoneWorkerMonitor() {
                               className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-1.5"
                             >
                               <Siren className="w-3.5 h-3.5" />
-                              Pedir ayuda
+                              {t('lone_worker_page.action.help', 'Pedir ayuda')}
                             </button>
                             <button
                               type="button"
@@ -333,7 +350,7 @@ export function LoneWorkerMonitor() {
                               className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-zinc-300 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-400 dark:hover:bg-zinc-600 flex items-center gap-1.5"
                             >
                               <Square className="w-3.5 h-3.5" />
-                              Finalizar
+                              {t('lone_worker_page.action.end', 'Finalizar')}
                             </button>
                           </>
                         )}
@@ -344,7 +361,7 @@ export function LoneWorkerMonitor() {
                             onClick={() => handleEndSession(session)}
                             className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-zinc-300 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-400 dark:hover:bg-zinc-600"
                           >
-                            Cerrar (supervisor)
+                            {t('lone_worker_page.action.close_supervisor', 'Cerrar (supervisor)')}
                           </button>
                         )}
                       </div>
@@ -357,7 +374,7 @@ export function LoneWorkerMonitor() {
             {endedSessions.length > 0 && (
               <section className="space-y-2">
                 <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
-                  Historial reciente
+                  {t('lone_worker_page.history.heading', 'Historial reciente')}
                 </h2>
                 <ul className="space-y-1">
                   {endedSessions.map(({ session }) => (
@@ -366,10 +383,14 @@ export function LoneWorkerMonitor() {
                       className="rounded-lg border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/40 p-2 text-xs flex items-center gap-2"
                     >
                       <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300">
-                        Cerrada
+                        {t('lone_worker_page.history.closed_badge', 'Cerrada')}
                       </span>
                       <span className="text-zinc-700 dark:text-zinc-300 flex-1 truncate">
-                        Worker {session.workerUid.slice(0, 12)} · {session.checkIns.length} check-ins
+                        {t('lone_worker_page.history.row_summary', {
+                          defaultValue: 'Worker {{uid}} · {{count}} check-ins',
+                          uid: session.workerUid.slice(0, 12),
+                          count: session.checkIns.length,
+                        })}
                       </span>
                       <span className="text-[10px] text-zinc-500">
                         {new Date(session.startedAt).toLocaleDateString('es-CL')}
