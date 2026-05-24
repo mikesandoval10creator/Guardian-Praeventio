@@ -21,11 +21,13 @@ import {
 } from './frameExtractor';
 import {
   buildPointCloudFromFrames,
+  buildPointCloudFromFramesAsync,
   type PointCloud,
   type BuildPointCloudOptions,
 } from './pointCloudBuilder';
 import { exportPointCloudToGlb, type ExportGlbResult } from './glbExporter';
 import { exportPointCloudToUsdz, type ExportUsdzResult } from './usdzExporter';
+import { tryCreateMidasEstimator, type DepthEstimator } from './midasDepthEstimator';
 import { logger } from '../../../utils/logger';
 
 export interface ReconstructionMetrics {
@@ -65,6 +67,15 @@ export interface ReconstructFromVideoOptions {
   emitUsdz?: boolean;
   /** Tamaño del quad por punto en metros, default 0.05. */
   quadSize?: number;
+  /**
+   * §Fase D.1 (2026-05-23) — Si true, intenta cargar MiDaS depth ML
+   * on-device para reemplazar la heurística brightness/edge por
+   * inferencia ONNX real. Si el modelo no está disponible
+   * (`/models/midas/midas-small.onnx` 404), la pipeline degrada
+   * automáticamente al fallback heurístico SIN error. Default true —
+   * usuarios con el modelo bundled ganan calidad gratis.
+   */
+  useMidasDepth?: boolean;
   /**
    * Callback de progreso macro (0-1) con stage label opcional.
    * El caller lo usa para mostrar UI bar:
@@ -136,17 +147,42 @@ export async function reconstructFromVideo(
     throw new DOMException('reconstructFromVideo aborted', 'AbortError');
   }
 
-  // Stage 2: point cloud.
+  // Stage 2: point cloud — usa MiDaS si disponible (Fase D.1), sino heurística.
   const pcStart = performance.now();
+  let depthEstimator: DepthEstimator | null = null;
+  if (options.useMidasDepth !== false) {
+    try {
+      depthEstimator = await tryCreateMidasEstimator();
+      if (depthEstimator) {
+        logger.info('[reconstructFromVideo] MiDaS depth ML activo', {
+          estimatorId: depthEstimator.id,
+        });
+      }
+    } catch (err) {
+      logger.warn('[reconstructFromVideo] MiDaS init falló, usando heurística', {
+        err: String(err),
+      });
+    }
+  }
+
   let cloud: PointCloud;
   try {
-    cloud = buildPointCloudFromFrames(frames, {
+    const pcOptions: BuildPointCloudOptions = {
       ...options.pointCloud,
       onProgress: (r) => onProgress?.(0.4 + r * 0.4, 'point-cloud'),
-    });
+      depthEstimator: depthEstimator ?? undefined,
+    };
+    cloud = depthEstimator
+      ? await buildPointCloudFromFramesAsync(frames, pcOptions)
+      : buildPointCloudFromFrames(frames, pcOptions);
   } catch (err) {
     logger.error('[reconstructFromVideo] pointCloud failed', { err: String(err) });
     throw err;
+  } finally {
+    // Liberar recursos ORT incluso si tiramos
+    if (depthEstimator) {
+      void depthEstimator.dispose().catch(() => {});
+    }
   }
   const pointCloudMs = performance.now() - pcStart;
   onProgress?.(0.8, 'point-cloud');

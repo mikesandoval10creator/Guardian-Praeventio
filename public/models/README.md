@@ -37,6 +37,26 @@ git commit -m "feat(release): pre-package Qwen 2.5 0.5B SLM (483 MB)"
 | Qwen 2.5 0.5B (q4f16) | 483 MB | Android Asset Pack (Play Asset Delivery, install-time) + iOS asset catalog |
 | Phi-3 mini (q4 split) | 2.72 GB | NOT bundle-friendly — keep as HF download path |
 | Gemma 2 2B (gated) | 1.4 GB | NOT bundle-friendly + gated license |
+| MiDaS-small (depth ML) | ~30 MB | **Bundle-friendly** — drop at `public/models/midas/midas-small.onnx` |
+
+## MiDaS depth estimator (§Fase D.1)
+
+The Digital Twin pipeline (`src/services/digitalTwin/onDeviceReconstruction/`)
+automatically upgrades from heuristic depth (brightness/edge) to **real
+monocular depth ML inference** when the MiDaS ONNX model is present.
+
+```bash
+# Drop the model here:
+mkdir -p public/models/midas
+curl -L "https://huggingface.co/Intel/dpt-hybrid-midas/resolve/main/onnx/model.onnx" \
+  -o public/models/midas/midas-small.onnx
+```
+
+When the file is missing, `tryCreateMidasEstimator()` returns `null` and
+the pipeline degrades gracefully to the brightness/edge heuristic. No
+runtime error — the Digital Twin still works, just with lower-quality
+depth structure. This means dev environments without the model file ship
+fine; only production builds need the file copied at release time.
 
 ## Why not commit the binary to git?
 
