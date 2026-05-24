@@ -1,27 +1,25 @@
 // SPDX-License-Identifier: MIT
 // Praeventio Guard — Sprint K wire UI (2026-05-23) site book store.
+// Plan 2026-05-23 §Fase B.4 — refactor: usa factory + counter custom.
 //
 // CRUD client-side para `SiteBookEntry`s. Schema:
 //   projects/{projectId}/site_book/{entry.id}
 //   projects/{projectId}/site_book_counters/{year}  — counter atómico
+//
+// El counter NO va por el factory porque es un singleton path con shape
+// distinto al doc/{id}/{id} estándar. Se mantiene como helper custom.
+//
+// activeFilter habilita subscribeOpenSiteBookEntries (status==open).
 
-import {
-  db,
-  collection,
-  doc,
-  setDoc,
-  updateDoc,
-  onSnapshot,
-  query,
-  orderBy,
-  limit,
-  getDoc,
-} from '../firebase';
+import { db, doc, setDoc, getDoc } from '../firebase';
+import { createProjectScopedStore } from '../firestore/createProjectScopedStore';
 import type { SiteBookEntry } from './siteBookService';
 
-function entriesPath(projectId: string): string {
-  return `projects/${projectId}/site_book`;
-}
+const store = createProjectScopedStore<SiteBookEntry>('site_book', {
+  defaultLimit: 200,
+  orderByField: 'recordedAt',
+  activeFilter: { field: 'status', op: '==', value: 'open' },
+});
 
 function counterPath(projectId: string, year: number): string {
   return `projects/${projectId}/site_book_counters/${year}`;
@@ -48,10 +46,7 @@ export async function saveSiteBookEntry(
   projectId: string,
   entry: SiteBookEntry,
 ): Promise<void> {
-  if (!projectId) throw new Error('saveSiteBookEntry: projectId vacío');
-  if (!entry?.id) throw new Error('saveSiteBookEntry: entry.id vacío');
-  const ref = doc(db, entriesPath(projectId), entry.id);
-  await setDoc(ref, { ...entry, updatedAt: Date.now() }, { merge: true });
+  await store.save(projectId, entry);
 }
 
 export async function patchSiteBookEntry(
@@ -59,38 +54,9 @@ export async function patchSiteBookEntry(
   entryId: string,
   patch: Partial<SiteBookEntry>,
 ): Promise<void> {
-  const ref = doc(db, entriesPath(projectId), entryId);
-  await updateDoc(ref, { ...patch, updatedAt: Date.now() });
+  await store.patch(projectId, entryId, patch);
 }
 
-export function subscribeSiteBookEntries(
-  projectId: string,
-  onSnap: (entries: SiteBookEntry[]) => void,
-  onError?: (err: Error) => void,
-  limitCount: number = 200,
-): () => void {
-  if (!projectId) {
-    onSnap([]);
-    return () => {};
-  }
-  const col = collection(db, entriesPath(projectId));
-  const q = query(col, orderBy('recordedAt', 'desc'), limit(Math.max(1, Math.min(limitCount, 1000))));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const out: SiteBookEntry[] = [];
-      snap.forEach((d) => {
-        try {
-          out.push({ ...(d.data() as SiteBookEntry), id: d.id });
-        } catch {
-          /* skip */
-        }
-      });
-      onSnap(out);
-    },
-    (err) => {
-      onError?.(err as Error);
-      onSnap([]);
-    },
-  );
-}
+export const subscribeSiteBookEntries = store.subscribe;
+export const subscribeOpenSiteBookEntries = store.subscribeFiltered;
+export const listSiteBookEntries = store.list;
