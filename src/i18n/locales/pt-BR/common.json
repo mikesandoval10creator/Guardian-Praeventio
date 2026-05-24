@@ -2232,5 +2232,68 @@
       "corrections": "Correções",
       "by_kind": "Por tipo"
     }
+  },
+  "shift_handover": {
+    "title": "Troca de turno",
+    "subtitle": "Handover formal supervisor saindo → supervisor entrando. Log cronológico durante o turno + notas categorizadas com severidade para que o entrando priorize ao receber.",
+    "cta_start": "Iniciar turno",
+    "cta_end": "Encerrar turno",
+    "empty": {
+      "select_project": "Selecione um projeto para iniciar turnos."
+    },
+    "feedback": {
+      "ack_ok": "Handover {{id}} confirmado."
+    },
+    "kind": {
+      "morning": "Manhã",
+      "afternoon": "Tarde",
+      "night": "Noite",
+      "extended": "Estendido"
+    },
+    "category": {
+      "open_incidents": "Incidentes abertos",
+      "equipment_down": "Equipamento fora",
+      "pending_controls": "Controles pendentes",
+      "absent_workers": "Ausências",
+      "restricted_zones": "Zonas restritas",
+      "active_permits": "Permissões ativas",
+      "admin_pending": "Administrativo",
+      "weather_alert": "Clima",
+      "observation": "Observação"
+    },
+    "severity": {
+      "info": "Info",
+      "attention": "Atenção",
+      "urgent": "Urgente"
+    },
+    "pending_ack": {
+      "heading": "Handover pendente de receber",
+      "summary": "O supervisor que saiu encerrou o turno {{kind}} com {{notes}} nota(s) e {{followups}} follow-up(s). Confirme a recepção para assumir o turno entrante.",
+      "notes_placeholder": "Notas opcionais do supervisor entrante (o que prioriza do handover)…",
+      "confirm": "Confirmar recepção do turno"
+    },
+    "active": {
+      "heading": "Turno ativo: {{kind}}"
+    },
+    "log": {
+      "heading": "Adicionar entrada ao log ({{count}} entradas)",
+      "placeholder": "Descrição do que aconteceu (min 5 chars)…",
+      "requires_followup": "Requer follow-up do próximo turno",
+      "submit": "Adicionar entrada"
+    },
+    "note": {
+      "heading": "Nota para handover ({{count}} notas)",
+      "placeholder": "Nota para o supervisor entrante (min 5 chars)…",
+      "submit": "Adicionar nota"
+    },
+    "start": {
+      "heading": "Iniciar turno"
+    },
+    "history": {
+      "heading": "Histórico recente",
+      "received": "Recebido",
+      "not_received": "Não recebido",
+      "row_summary": "{{kind}} · {{entries}} entradas · {{notes}} notas"
+    }
   }
 }

@@ -2581,5 +2581,68 @@
       "corrections": "Corrections",
       "by_kind": "By kind"
     }
+  },
+  "shift_handover": {
+    "title": "Shift handover",
+    "subtitle": "Formal outgoing → incoming supervisor handover. Chronological log during the shift + categorized notes with severity so the incoming supervisor prioritizes upon receipt.",
+    "cta_start": "Start shift",
+    "cta_end": "End shift",
+    "empty": {
+      "select_project": "Select a project to start shifts."
+    },
+    "feedback": {
+      "ack_ok": "Handover {{id}} acknowledged."
+    },
+    "kind": {
+      "morning": "Morning",
+      "afternoon": "Afternoon",
+      "night": "Night",
+      "extended": "Extended"
+    },
+    "category": {
+      "open_incidents": "Open incidents",
+      "equipment_down": "Equipment down",
+      "pending_controls": "Pending controls",
+      "absent_workers": "Absences",
+      "restricted_zones": "Restricted zones",
+      "active_permits": "Active permits",
+      "admin_pending": "Administrative",
+      "weather_alert": "Weather",
+      "observation": "Observation"
+    },
+    "severity": {
+      "info": "Info",
+      "attention": "Attention",
+      "urgent": "Urgent"
+    },
+    "pending_ack": {
+      "heading": "Pending handover to receive",
+      "summary": "The outgoing supervisor closed the {{kind}} shift with {{notes}} note(s) and {{followups}} follow-up(s). Confirm receipt to take the incoming shift.",
+      "notes_placeholder": "Optional notes from incoming supervisor (what you prioritize from the handover)…",
+      "confirm": "Confirm shift receipt"
+    },
+    "active": {
+      "heading": "Active shift: {{kind}}"
+    },
+    "log": {
+      "heading": "Add log entry ({{count}} entries)",
+      "placeholder": "What happened (min 5 chars)…",
+      "requires_followup": "Requires follow-up by next shift",
+      "submit": "Add entry"
+    },
+    "note": {
+      "heading": "Handover note ({{count}} notes)",
+      "placeholder": "Note for incoming supervisor (min 5 chars)…",
+      "submit": "Add note"
+    },
+    "start": {
+      "heading": "Start shift"
+    },
+    "history": {
+      "heading": "Recent history",
+      "received": "Received",
+      "not_received": "Not received",
+      "row_summary": "{{kind}} · {{entries}} entries · {{notes}} notes"
+    }
   }
 }
