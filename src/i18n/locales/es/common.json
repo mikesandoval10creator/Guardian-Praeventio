@@ -2421,7 +2421,9 @@
       "mark_fulfilled": "Marcar cumplida"
     },
     "history": {
-      "heading": "Historial reciente"
+      "heading": "Historial reciente",
+      "audit_trail_hint_prefix": "Para historial completo de paralizaciones finalizadas o canceladas, consultá ",
+      "audit_trail_link": "Audit Trail"
     }
   }
 }

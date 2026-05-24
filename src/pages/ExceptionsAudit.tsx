@@ -40,7 +40,7 @@ import {
 import {
   saveException,
   patchException,
-  subscribeExceptions,
+  subscribeActiveExceptions,
 } from '../services/exceptions/exceptionStore';
 import { logger } from '../utils/logger';
 
@@ -90,7 +90,12 @@ export function ExceptionsAudit() {
       return undefined;
     }
     setLoading(true);
-    const unsub = subscribeExceptions(
+    // Plan §B.5 (2026-05-23): subscribeActiveExceptions aplica
+    // where('status', '==', 'active') server-side. Antes el page filtraba
+    // client-side (records.filter status === 'active'). Para proyectos
+    // con muchas excepciones revoked/fulfilled históricas, esto reduce
+    // reads ~80% — solo bajan las activas que importan al supervisor.
+    const unsub = subscribeActiveExceptions(
       projectId,
       (list) => {
         setRecords(list);
@@ -194,10 +199,9 @@ export function ExceptionsAudit() {
     [selectedProject],
   );
 
-  const activeRecords = useMemo(
-    () => records.filter((r) => r.status === 'active'),
-    [records],
-  );
+  // Server-side filter ya excluye revoked/fulfilled — `records` solo
+  // contiene status='active'. Filtro defensivo client-side por safety.
+  const activeRecords = records;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">

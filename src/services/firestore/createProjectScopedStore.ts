@@ -46,11 +46,25 @@ export interface ProjectScopedStoreOptions<T> {
   /**
    * Filtro server-side para el variant `subscribeFiltered`. Ejemplo típico:
    *   { field: 'status', op: '==', value: 'active' }
-   * Permite reducir reads a escala (ver §B.5 del plan 2026-05-23).
+   *   { field: 'status', op: 'in', value: ['active', 'pending_resumption'] }
+   *
+   * `in` / `not-in` / `array-contains-any` aceptan arrays (max 30 valores
+   * server-side per Firestore docs). Permite reducir reads a escala (ver
+   * §B.5 del plan 2026-05-23).
    */
   activeFilter?: {
     field: keyof T & string;
-    op: '==' | '!=' | '>' | '>=' | '<' | '<=';
+    op:
+      | '=='
+      | '!='
+      | '>'
+      | '>='
+      | '<'
+      | '<='
+      | 'in'
+      | 'not-in'
+      | 'array-contains'
+      | 'array-contains-any';
     value: unknown;
   };
 }

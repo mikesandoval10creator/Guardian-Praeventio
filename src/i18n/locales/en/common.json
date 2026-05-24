@@ -2408,7 +2408,9 @@
       "mark_fulfilled": "Mark fulfilled"
     },
     "history": {
-      "heading": "Recent history"
+      "heading": "Recent history",
+      "audit_trail_hint_prefix": "For complete history of finalized or cancelled stoppages, see ",
+      "audit_trail_link": "Audit Trail"
     }
   }
 }

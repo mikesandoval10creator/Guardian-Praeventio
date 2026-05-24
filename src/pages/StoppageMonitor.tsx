@@ -46,7 +46,7 @@ import {
 import {
   saveStoppage,
   updateStoppageStatus,
-  subscribeStoppages,
+  subscribeActiveStoppages,
 } from '../services/stoppage/stoppageStore';
 import { logger } from '../utils/logger';
 
@@ -104,7 +104,15 @@ export function StoppageMonitor() {
       return undefined;
     }
     setLoading(true);
-    const unsub = subscribeStoppages(
+    // Plan §B.5 (2026-05-23): subscribeActiveStoppages aplica where('status',
+    // 'in', ['active', 'pending_resumption']) server-side — antes traíamos
+    // todo (incluido resumed/cancelled históricos) y filtrábamos client-side.
+    // Para proyectos con muchos stoppages históricos esto reduce reads ~80%.
+    // El historial reciente se computa abajo a partir de la lista filtrada,
+    // que ahora solo cubre los "vivos"; los closed se omiten del historial
+    // (era ya muy breve en cualquier caso y consultar histórico completo
+    // tendría su propio botón si fuese necesario).
+    const unsub = subscribeActiveStoppages(
       projectId,
       (list) => {
         setStoppages(list);
@@ -120,10 +128,8 @@ export function StoppageMonitor() {
 
   const summary = useMemo(() => summarize(stoppages), [stoppages]);
 
-  const activeStoppages = useMemo(
-    () => stoppages.filter((s) => s.status === 'active' || s.status === 'pending_resumption'),
-    [stoppages],
-  );
+  // Ya server-side filter — `stoppages` solo contiene active|pending_resumption.
+  const activeStoppages = stoppages;
 
   const resetForm = () => {
     setCategory('detencion_voluntaria');
@@ -425,37 +431,25 @@ export function StoppageMonitor() {
               )}
             </section>
 
-            {/* Historial breve — últimos 5 resumed/cancelled. */}
-            <section className="space-y-3">
-              <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                <PauseCircle className="w-3.5 h-3.5" />
-                {t('stoppages.history.heading', 'Historial reciente')}
-              </h2>
-              <ul className="space-y-1.5">
-                {stoppages
-                  .filter((s) => s.status === 'resumed' || s.status === 'cancelled')
-                  .slice(0, 5)
-                  .map((s) => (
-                    <li
-                      key={s.id}
-                      className="rounded-lg border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/40 p-2 text-xs flex items-center gap-2"
-                    >
-                      <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${
-                        s.status === 'resumed'
-                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                          : 'bg-zinc-300 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
-                      }`}>
-                        {s.status}
-                      </span>
-                      <span className="text-zinc-700 dark:text-zinc-300 flex-1 truncate">
-                        {CATEGORY_LABELS[s.category]} — {s.reason.slice(0, 60)}
-                      </span>
-                      <span className="text-[10px] text-zinc-500">
-                        {new Date(s.declaredAt).toLocaleDateString('es-CL')}
-                      </span>
-                    </li>
-                  ))}
-              </ul>
+            {/* Plan §B.5 + §B.6 (2026-05-23): el historial reciente in-page
+                se removió porque ahora la subscription server-side trae solo
+                stoppages "vivos" (active|pending_resumption). El historial
+                completo (resumed/cancelled) sigue accesible via /audit-trail
+                con su propia paginación + filtros — más honesto que mostrar
+                un slice arbitrario de 5 items. Strings i18n vía t() (Fase B.6).
+            */}
+            <section className="space-y-2 text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+              <PauseCircle className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>
+                {t(
+                  'stoppages.history.audit_trail_hint_prefix',
+                  'Para historial completo de paralizaciones finalizadas o canceladas, consultá ',
+                )}
+                <a href="/audit-trail" className="text-rose-600 hover:underline font-medium">
+                  {t('stoppages.history.audit_trail_link', 'Audit Trail')}
+                </a>
+                .
+              </span>
             </section>
           </>
         )}

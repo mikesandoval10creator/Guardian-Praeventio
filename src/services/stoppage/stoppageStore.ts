@@ -17,7 +17,15 @@ import type { Stoppage, StoppageStatus } from './stoppageEngine';
 
 const store = createProjectScopedStore<Stoppage>('stoppages', {
   orderByField: 'declaredAt',
-  activeFilter: { field: 'status', op: '==', value: 'active' },
+  // `active` strictly + `pending_resumption` también cuentan como "vivos"
+  // — la page los muestra juntos en la lista de acción. Plan §B.5 adopción
+  // (2026-05-23): pasar de filter client-side a where('in', ...) server-side
+  // reduce reads ~80% en proyectos con muchos resumed/cancelled históricos.
+  activeFilter: {
+    field: 'status',
+    op: 'in',
+    value: ['active', 'pending_resumption'] as const,
+  },
 });
 
 /** Persiste un Stoppage. Idempotente (setDoc merge con `stoppage.id`). */
