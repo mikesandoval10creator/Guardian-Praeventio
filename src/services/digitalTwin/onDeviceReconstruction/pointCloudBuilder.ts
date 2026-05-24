@@ -39,6 +39,7 @@
 
 import type { ExtractedFrame } from './frameExtractor';
 import { logger } from '../../../utils/logger';
+import type { DepthEstimator, DepthMap } from './midasDepthEstimator';
 
 export interface PointCloud {
   /** Posiciones XYZ planar [x0,y0,z0,x1,y1,z1,...]. */
@@ -87,6 +88,13 @@ export interface BuildPointCloudOptions {
   depthAmplitude?: number;
   /** Callback de progreso (0-1). */
   onProgress?: (ratio: number) => void;
+  /**
+   * §Fase D.1 (2026-05-23) — Depth estimator opcional (MiDaS ML on-device).
+   * Si está, reemplaza la heurística brightness/edge por inferencia real
+   * por frame. Fallback automático a heurística si `estimate()` tira.
+   * Ver `midasDepthEstimator.ts > tryCreateMidasEstimator()`.
+   */
+  depthEstimator?: DepthEstimator;
 }
 
 const DEFAULT_GRID_RES = 24;
@@ -94,6 +102,13 @@ const DEFAULT_FRAME_Z_STEP = 0.5;
 const DEFAULT_XY_SCALE = 5;
 const DEFAULT_DEPTH_AMPLITUDE = 1.5;
 
+/**
+ * Versión síncrona — usa siempre la heurística brightness/edge. Mantenida
+ * por backward-compat y porque tests + paths sin ML la consumen.
+ *
+ * Para usar MiDaS depth real, llamá `buildPointCloudFromFramesAsync` que
+ * acepta `depthEstimator` y hace la inferencia por frame.
+ */
 export function buildPointCloudFromFrames(
   frames: ExtractedFrame[],
   options: BuildPointCloudOptions = {},
@@ -227,6 +242,152 @@ export function buildPointCloudFromFrames(
       minZ,
       maxZ,
     },
+    framesContributing: frames.length,
+    gridResolution: grid,
+  };
+}
+
+/**
+ * Versión async — si `options.depthEstimator` está provisto (típicamente
+ * MiDaS via `tryCreateMidasEstimator()`), usa inferencia ML real para
+ * el componente Z; sino fallback a la heurística brightness/edge.
+ *
+ * Fallback automático SI la inferencia tira para un frame (se logea y
+ * el frame usa la heurística). Esto garantiza que la pipeline NUNCA se
+ * detiene por un error transient del modelo.
+ *
+ * §Fase D.1 — el día que `public/models/midas/midas-small.onnx` esté
+ * disponible, este path produce point clouds con depth real (no
+ * heurística), mejorando radicalmente la calidad visual del Digital Twin.
+ */
+export async function buildPointCloudFromFramesAsync(
+  frames: ExtractedFrame[],
+  options: BuildPointCloudOptions = {},
+): Promise<PointCloud> {
+  if (frames.length === 0) {
+    throw new Error('buildPointCloudFromFramesAsync: no frames to process.');
+  }
+  const estimator = options.depthEstimator;
+  if (!estimator) {
+    // Sin estimator → delegar a la versión síncrona (heurística pura).
+    return buildPointCloudFromFrames(frames, options);
+  }
+
+  const grid = Math.max(4, Math.min(options.gridResolution ?? DEFAULT_GRID_RES, 128));
+  const zStep = options.frameZStep ?? DEFAULT_FRAME_Z_STEP;
+  const xyScale = options.xyScale ?? DEFAULT_XY_SCALE;
+  const depthAmp = options.depthAmplitude ?? DEFAULT_DEPTH_AMPLITUDE;
+  const onProgress = options.onProgress;
+
+  const pointsPerFrame = grid * grid;
+  const totalPoints = pointsPerFrame * frames.length;
+  const positions = new Float32Array(totalPoints * 3);
+  const colors = new Float32Array(totalPoints * 3);
+
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  let writeOffset = 0;
+
+  for (let frameIdx = 0; frameIdx < frames.length; frameIdx += 1) {
+    const frame = frames[frameIdx];
+    let depthMap: DepthMap | null = null;
+    try {
+      depthMap = await estimator.estimate(frame);
+    } catch (err) {
+      // Fallback frame-level: si MiDaS falla para este frame, usamos heurística
+      // en este frame y seguimos. La pipeline NO se rompe.
+      logger.warn('[pointCloudBuilder] depth estimator falló, fallback heurístico para frame', {
+        frameIdx,
+        err: String(err),
+      });
+    }
+
+    const data = frame.imageData.data;
+    const w = frame.width;
+    const h = frame.height;
+    const aspectRatio = w / h;
+    const xHalfRange = (xyScale / 2) * aspectRatio;
+    const yHalfRange = xyScale / 2;
+    const zBase = -frameIdx * zStep;
+
+    for (let gy = 0; gy < grid; gy += 1) {
+      for (let gx = 0; gx < grid; gx += 1) {
+        const nx = (gx + 0.5) / grid;
+        const ny = (gy + 0.5) / grid;
+        const px = Math.min(w - 1, Math.floor(nx * w));
+        const py = Math.min(h - 1, Math.floor(ny * h));
+        const idx = (py * w + px) * 4;
+        const r = data[idx] / 255;
+        const g = data[idx + 1] / 255;
+        const b = data[idx + 2] / 255;
+
+        // Depth source: MiDaS si lo tenemos para este frame, sino heurística.
+        let depthFactor: number;
+        if (depthMap) {
+          // depthMap.data está en [0,1] alineado con (px, py).
+          depthFactor = depthMap.data[py * depthMap.width + px];
+        } else {
+          // Fallback heurística (mismo cálculo que la versión síncrona).
+          const brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          let edgeMag = 0;
+          if (px + 1 < w && py + 1 < h) {
+            const rightIdx = (py * w + (px + 1)) * 4;
+            const downIdx = ((py + 1) * w + px) * 4;
+            const dxR = (data[rightIdx] - data[idx]) / 255;
+            const dxG = (data[rightIdx + 1] - data[idx + 1]) / 255;
+            const dxB = (data[rightIdx + 2] - data[idx + 2]) / 255;
+            const dyR = (data[downIdx] - data[idx]) / 255;
+            const dyG = (data[downIdx + 1] - data[idx + 1]) / 255;
+            const dyB = (data[downIdx + 2] - data[idx + 2]) / 255;
+            edgeMag = Math.sqrt(
+              dxR * dxR + dxG * dxG + dxB * dxB + dyR * dyR + dyG * dyG + dyB * dyB,
+            );
+          }
+          depthFactor = brightness * 0.6 + Math.min(edgeMag, 1) * 0.4;
+        }
+        const dz = depthFactor * depthAmp;
+
+        const x = (nx * 2 - 1) * xHalfRange;
+        const y = (1 - ny * 2) * yHalfRange;
+        const z = zBase + dz;
+
+        positions[writeOffset * 3] = x;
+        positions[writeOffset * 3 + 1] = y;
+        positions[writeOffset * 3 + 2] = z;
+        colors[writeOffset * 3] = r;
+        colors[writeOffset * 3 + 1] = g;
+        colors[writeOffset * 3 + 2] = b;
+
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        if (z < minZ) minZ = z;
+        if (z > maxZ) maxZ = z;
+
+        writeOffset += 1;
+      }
+    }
+
+    onProgress?.((frameIdx + 1) / frames.length);
+  }
+
+  if (writeOffset === 0) {
+    throw new Error('buildPointCloudFromFramesAsync: ningún punto generado.');
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(maxZ)) {
+    logger.warn('[pointCloudBuilder] async: bounding box degenerado');
+  }
+
+  return {
+    positions,
+    colors,
+    pointCount: writeOffset,
+    boundingBox: { minX, maxX, minY, maxY, minZ, maxZ },
     framesContributing: frames.length,
     gridResolution: grid,
   };
