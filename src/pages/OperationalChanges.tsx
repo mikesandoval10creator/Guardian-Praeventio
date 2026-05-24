@@ -18,21 +18,26 @@ import {
   Plus,
   Loader2,
   AlertTriangle,
-  CheckCircle2,
-  Undo2,
 } from 'lucide-react';
 
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { OperationalChangeCard } from '../components/changeMgmt/OperationalChangeCard';
+import { ChangeWorkflowActions } from '../components/changeMgmt/ChangeWorkflowActions';
+import { ReasonModal } from '../components/changeMgmt/ReasonModal';
 import {
   declareChange,
   acknowledgeChange,
   revertChange,
+  submitForReview,
+  recordApproval,
+  activateChange,
+  verifyEffectiveness,
   summarizeAcknowledgments,
   type OperationalChange,
   type ChangeKind,
   type ChangeImpact,
+  type ApproverRole,
 } from '../services/changeMgmt/operationalChangeService';
 import {
   saveChange,
@@ -40,6 +45,13 @@ import {
   subscribeChanges,
 } from '../services/changeMgmt/operationalChangeStore';
 import { logger } from '../utils/logger';
+
+// Modal action types — qué pantalla del modal mostrar.
+type ModalAction =
+  | { kind: 'approve'; change: OperationalChange }
+  | { kind: 'reject'; change: OperationalChange }
+  | { kind: 'revert'; change: OperationalChange }
+  | { kind: 'verify'; change: OperationalChange };
 
 // Plan 2026-05-24 §Fase B.6 batch3 — i18n sweep OperationalChanges (MOC).
 export function OperationalChanges() {
@@ -62,6 +74,27 @@ export function OperationalChanges() {
   const [changes, setChanges] = useState<OperationalChange[]>([]);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [modalAction, setModalAction] = useState<ModalAction | null>(null);
+
+  // Plan 2026-05-24 §MOC — Role del user para gates del workflow.
+  // En producción se deriva de la membership del proyecto (roles
+  // multi-tenant). Acá usamos un fallback simple: si el user es el
+  // declaredByUid del change, es supervisor; sino, operador. Esto se
+  // puede mejorar wireando useProjectMembership() cuando esté disponible.
+  // Para HSE (prevencionista), el role viene del custom claim Firebase
+  // si está disponible — checkeamos display name fallback como heurística
+  // pragmática (no es prod-ready pero permite testing UX manual).
+  const userRole: ApproverRole | 'operador' = useMemo(() => {
+    if (!user) return 'operador';
+    // Heurística temporal: en prod esto vendría de useProjectMembership()
+    // o de un Firebase custom claim. El service hace el role-gate real.
+    const claim = (user as unknown as { customClaims?: { role?: string } }).customClaims?.role;
+    if (claim === 'prevencionista') return 'prevencionista';
+    if (claim === 'supervisor') return 'supervisor';
+    if (claim === 'gerente') return 'gerente';
+    if (claim === 'admin') return 'admin';
+    return 'operador';
+  }, [user]);
 
   // Form state.
   const [showForm, setShowForm] = useState(false);
@@ -168,34 +201,105 @@ export function OperationalChanges() {
     [user, selectedProject],
   );
 
-  const handleRevert = useCallback(
+  // Plan 2026-05-24 §MOC + deuda P1 — los flujos de approve/reject/revert/
+  // verify abren un modal validado en lugar de window.prompt(). El modal
+  // captura razón con counter; al confirmar se ejecuta la transición
+  // correspondiente.
+  const handleModalConfirm = useCallback(
+    async (reason: string, extra?: { effective: boolean }) => {
+      if (!user || !selectedProject || !modalAction) return;
+      const { change } = modalAction;
+      try {
+        let updated: OperationalChange | null = null;
+        if (modalAction.kind === 'approve') {
+          updated = recordApproval(change, {
+            approverUid: user.uid,
+            approverRole: userRole as ApproverRole,
+            decision: 'approved',
+            comment: reason,
+          });
+        } else if (modalAction.kind === 'reject') {
+          updated = recordApproval(change, {
+            approverUid: user.uid,
+            approverRole: userRole as ApproverRole,
+            decision: 'rejected',
+            comment: reason,
+          });
+        } else if (modalAction.kind === 'revert') {
+          updated = revertChange(change, reason);
+        } else if (modalAction.kind === 'verify') {
+          updated = verifyEffectiveness(change, {
+            verifierUid: user.uid,
+            effective: extra?.effective ?? true,
+            observations: reason,
+          });
+        }
+        if (updated) {
+          await patchChange(selectedProject.id, change.id, {
+            status: updated.status,
+            approvals: updated.approvals,
+            revertedAt: updated.revertedAt,
+            revertedReason: updated.revertedReason,
+            verification: updated.verification,
+          });
+          setFeedback(
+            t(`operational_changes.feedback.action_ok.${modalAction.kind}`, {
+              defaultValue: 'Acción registrada.',
+            }),
+          );
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn('moc modal action failed', { kind: modalAction.kind, err: msg });
+        setFeedback(msg);
+      } finally {
+        setModalAction(null);
+      }
+    },
+    [user, selectedProject, modalAction, userRole, t],
+  );
+
+  const handleSubmitForReview = useCallback(
     async (change: OperationalChange) => {
       if (!user || !selectedProject) return;
-      const reason = window.prompt(
-        t('operational_changes.revert.prompt', 'Motivo de la reversión (mín 15 chars):'),
-        '',
-      );
-      if (!reason || reason.trim().length < 15) {
-        setFeedback(t('operational_changes.feedback.revert_cancelled', 'Reversión cancelada o motivo demasiado corto (mín 15 chars).'));
-        return;
-      }
       try {
-        const reverted = revertChange(change, reason.trim());
+        const updated = submitForReview(change, user.uid);
         await patchChange(selectedProject.id, change.id, {
-          revertedAt: reverted.revertedAt,
-          revertedReason: reverted.revertedReason,
+          status: updated.status,
+          submittedForReviewAt: updated.submittedForReviewAt,
         });
-        setFeedback(t('operational_changes.feedback.reverted', 'Cambio revertido.'));
+        setFeedback(t('operational_changes.feedback.submitted', 'Cambio enviado a revisión.'));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setFeedback(msg);
       }
     },
-    [user, selectedProject],
+    [user, selectedProject, t],
   );
 
+  const handleActivate = useCallback(
+    async (change: OperationalChange) => {
+      if (!user || !selectedProject) return;
+      try {
+        const updated = activateChange(change, user.uid);
+        await patchChange(selectedProject.id, change.id, {
+          status: updated.status,
+          activatedAt: updated.activatedAt,
+        });
+        setFeedback(t('operational_changes.feedback.activated', 'Cambio activado — en vigor.'));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setFeedback(msg);
+      }
+    },
+    [user, selectedProject, t],
+  );
+
+  // Plan 2026-05-24 §MOC — "activos" = no revertidos NI rechazados.
+  // Pre-MOC: solo se chequeaba !revertedAt. Ahora también excluimos
+  // 'rejected' que es el otro estado terminal del workflow.
   const activeChanges = useMemo(
-    () => changes.filter((c) => !c.revertedAt),
+    () => changes.filter((c) => !c.revertedAt && c.status !== 'rejected'),
     [changes],
   );
 
@@ -358,32 +462,24 @@ export function OperationalChanges() {
               <ul className="space-y-3">
                 {changes.map((c) => {
                   const summary = summarizeAcknowledgments(c);
-                  const meRequired = user && c.affectedWorkerUids.includes(user.uid);
-                  const meAcked = user && c.acknowledgments.some((a) => a.workerUid === user.uid);
+                  const hasAcked = !!user && c.acknowledgments.some((a) => a.workerUid === user.uid);
                   return (
                     <li key={c.id} className="space-y-2">
                       <OperationalChangeCard change={c} summary={summary} />
-                      {!c.revertedAt && (
-                        <div className="flex flex-wrap gap-2">
-                          {meRequired && !meAcked && (
-                            <button
-                              type="button"
-                              onClick={() => handleAcknowledge(c)}
-                              className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              {t('operational_changes.action.acknowledge', 'Confirmo lectura')}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleRevert(c)}
-                            className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-zinc-300 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-rose-600 hover:text-white flex items-center gap-1.5"
-                          >
-                            <Undo2 className="w-3.5 h-3.5" />
-                            {t('operational_changes.action.revert', 'Revertir')}
-                          </button>
-                        </div>
+                      {user && (
+                        <ChangeWorkflowActions
+                          change={c}
+                          userUid={user.uid}
+                          userRole={userRole}
+                          hasAcked={hasAcked}
+                          onSubmitForReview={handleSubmitForReview}
+                          onApprove={(ch) => setModalAction({ kind: 'approve', change: ch })}
+                          onReject={(ch) => setModalAction({ kind: 'reject', change: ch })}
+                          onActivate={handleActivate}
+                          onVerify={(ch) => setModalAction({ kind: 'verify', change: ch })}
+                          onAcknowledge={handleAcknowledge}
+                          onRevert={(ch) => setModalAction({ kind: 'revert', change: ch })}
+                        />
                       )}
                     </li>
                   );
@@ -403,6 +499,51 @@ export function OperationalChanges() {
           </>
         )}
       </div>
+
+      {/* Plan 2026-05-24 §MOC — Modal de razón para approve/reject/revert/verify */}
+      {modalAction && (
+        <ReasonModal
+          open={true}
+          title={
+            modalAction.kind === 'approve'
+              ? t('operational_changes.modal.approve_title', 'Aprobar cambio')
+              : modalAction.kind === 'reject'
+                ? t('operational_changes.modal.reject_title', 'Rechazar cambio')
+                : modalAction.kind === 'revert'
+                  ? t('operational_changes.modal.revert_title', 'Revertir cambio')
+                  : t('operational_changes.modal.verify_title', 'Verificar efectividad')
+          }
+          description={
+            modalAction.kind === 'approve'
+              ? t('operational_changes.modal.approve_desc', 'Comentario auditable: controles compensatorios, condiciones de aprobación, etc.')
+              : modalAction.kind === 'reject'
+                ? t('operational_changes.modal.reject_desc', 'Razón del rechazo. El cambio queda en estado terminal — para re-someter, hay que crear uno nuevo.')
+                : modalAction.kind === 'revert'
+                  ? t('operational_changes.modal.revert_desc', 'Motivo de la reversión — quedará registrado en el audit log (DS 76 + ISO 45001 §8.1.3).')
+                  : t('operational_changes.modal.verify_desc', 'Observaciones post-implementación: ¿el cambio logró su objetivo? Si no, se registra como acción correctiva pendiente.')
+          }
+          minLength={modalAction.kind === 'verify' ? 30 : 15}
+          confirmLabel={
+            modalAction.kind === 'approve'
+              ? t('common.approve', 'Aprobar')
+              : modalAction.kind === 'reject'
+                ? t('common.reject', 'Rechazar')
+                : modalAction.kind === 'revert'
+                  ? t('common.revert', 'Revertir')
+                  : t('common.verify', 'Verificar')
+          }
+          confirmColor={
+            modalAction.kind === 'approve'
+              ? 'bg-emerald-600 hover:bg-emerald-500'
+              : modalAction.kind === 'reject' || modalAction.kind === 'revert'
+                ? 'bg-rose-600 hover:bg-rose-500'
+                : 'bg-amber-600 hover:bg-amber-500'
+          }
+          showEffectiveField={modalAction.kind === 'verify'}
+          onConfirm={handleModalConfirm}
+          onCancel={() => setModalAction(null)}
+        />
+      )}
     </div>
   );
 }
