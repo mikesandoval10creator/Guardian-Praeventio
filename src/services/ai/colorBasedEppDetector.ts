@@ -48,23 +48,52 @@
 //   - Reemplazar `detect()` con la inferencia TFLite.
 //   - Eliminar este archivo o degradarlo a fallback secundario.
 
-import type { EppDetection, EppDetector, EppClass } from './eppDetectorOnDevice';
+import type {
+  EppDetection,
+  EppDetector,
+  EppDetectorInput,
+  EppClass,
+} from './eppDetectorOnDevice';
 import { logger } from '../../utils/logger';
 
 /**
- * Convierte ImageBitmap/HTMLImageElement/Blob a ImageData usando un
- * canvas off-DOM. Esta es la entrada única que la heurística por color
- * necesita.
+ * Detecta si un valor parece ser `ImageData` sin usar `instanceof` (porque
+ * jsdom y entornos polyfilled crean `ImageData`-like objects que no son
+ * instancias del constructor global). Chequea la shape: data Uint8ClampedArray
+ * + width/height numéricos.
+ */
+function isImageDataLike(x: unknown): x is ImageData {
+  return (
+    !!x &&
+    typeof x === 'object' &&
+    'data' in (x as Record<string, unknown>) &&
+    (x as ImageData).data instanceof Uint8ClampedArray &&
+    typeof (x as ImageData).width === 'number' &&
+    typeof (x as ImageData).height === 'number'
+  );
+}
+
+/**
+ * Convierte la entrada del detector a `ImageData`. Esta es la única
+ * representación que la heurística por color necesita — independizar el
+ * análisis de la fuente de imagen permite tests unitarios sin depender
+ * de `createImageBitmap` (no disponible en jsdom).
+ *
+ * Paths:
+ *  - `ImageData` → pass-through (path productivo: caller ya hizo
+ *    `getImageData`; path test: jsdom carece de createImageBitmap).
+ *  - `Blob` / `ImageBitmap` / `HTMLImageElement` → canvas pipeline normal.
  *
  * Lanza si:
- *  - No hay DOM (entorno Node/SSR).
+ *  - No hay DOM (entorno Node/SSR puro) y la entrada NO es ImageData.
  *  - El blob no se puede decodificar.
  */
-async function imageToImageData(
-  image: ImageBitmap | HTMLImageElement | Blob,
-): Promise<ImageData> {
+async function imageToImageData(image: EppDetectorInput): Promise<ImageData> {
+  // Fast path: ya viene como ImageData (caller pre-decodificó o test jsdom).
+  if (isImageDataLike(image)) return image;
+
   if (typeof document === 'undefined') {
-    throw new Error('colorBasedEppDetector requires DOM');
+    throw new Error('colorBasedEppDetector requires DOM or ImageData input');
   }
   let bitmap: ImageBitmap;
   if (image instanceof Blob) {
@@ -260,7 +289,7 @@ const HEURISTICS: Record<EppClass, ClassHeuristic> = {
 export class ColorBasedEppDetector implements EppDetector {
   readonly modelVersion = 'color-heuristic-v1';
 
-  async detect(image: ImageBitmap | HTMLImageElement | Blob): Promise<EppDetection[]> {
+  async detect(image: EppDetectorInput): Promise<EppDetection[]> {
     let imageData: ImageData;
     try {
       imageData = await imageToImageData(image);

@@ -164,6 +164,17 @@ describe('countryFromCoordsAsync', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('falls back to bbox method when API key is the literal "YOUR_GOOGLE_MAPS_API_KEY" placeholder', async () => {
+    // .env ships with this placeholder by default; readGoogleMapsApiKey
+    // must treat it as missing so dev environments don't spam Google with
+    // 400s and so prod builds without real key cleanly fall back to bbox.
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'YOUR_GOOGLE_MAPS_API_KEY');
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    expect(await countryFromCoordsAsync(-33.45, -70.66)).toBe('CL');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('falls back to bbox method when fetch throws — (-12.05, -77.04) → PE', async () => {
     vi.stubGlobal('fetch', geocodeThrows());
     expect(await countryFromCoordsAsync(-12.05, -77.04)).toBe('PE');

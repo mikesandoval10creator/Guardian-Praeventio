@@ -15,7 +15,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { act, render } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 
 // --- Mock surface --------------------------------------------------------
 
@@ -123,11 +123,16 @@ describe('EmergencyContext — Sprint 33 W10 mesh fallback wire', () => {
     await act(async () => {
       await handle.trigger('fall', 'proj-A');
     });
+    // 2026-05-24: el fan-out `void notifyBrigadeServer(...).then(...)` ahora
+    // hace `await import('../lib/apiAuth')` (§2.20 unified header). Ese
+    // dynamic import pasa por el module loader → microtasks alone no
+    // alcanzan. `waitFor` poll-asserta hasta que fetch sea invocado.
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    });
     await flushMicrotasks();
 
     expect(meshEnqueueOutboundMock).not.toHaveBeenCalled();
-    // El server SÍ fue llamado.
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('online + server 500 → mesh NO se llama (bug del backend, no offline)', async () => {

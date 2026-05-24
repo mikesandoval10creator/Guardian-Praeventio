@@ -158,14 +158,52 @@ export function mapAlpha2ToCountryCode(code: string | undefined | null): Country
  * Node-side (server.ts, tests).
  */
 function readGoogleMapsApiKey(): string | undefined {
+  // Helper: treat empty / whitespace-only OR placeholder values as "no key".
+  //
+  // ─── 2026-05-24 hardening ──────────────────────────────────────────
+  // Two pitfalls fixed here:
+  //
+  // 1. Vitest's `vi.stubEnv('VAR', '')` updates `process.env.VAR` to `''`
+  //    but does NOT always cascade to `import.meta.env.VAR` cleanly when
+  //    a previous stub set a non-empty value. The function should fall
+  //    through to bbox when EITHER env layer has empty/placeholder.
+  //
+  // 2. `.env` ships with `VITE_GOOGLE_MAPS_API_KEY="YOUR_GOOGLE_MAPS_API_KEY"`
+  //    as a dev placeholder. Vite injects this literal into `import.meta.env`
+  //    for any caller who hasn't set a real key. Sending requests with
+  //    "YOUR_GOOGLE_MAPS_API_KEY" returns 400 from Google Maps API +
+  //    pollutes logs. Treat any placeholder-shaped value (starts with
+  //    "YOUR_", contains "<>", or is "REPLACE_ME"-like) as missing.
+  //
+  // Real Google Maps API keys start with "AIza" + 35 chars (39 total),
+  // so we additionally validate that the value has at least 20 chars
+  // (rules out short test garbage) and doesn't match placeholder patterns.
+  const PLACEHOLDER_PATTERNS = [
+    /^YOUR_/i, // "YOUR_GOOGLE_MAPS_API_KEY", "YOUR_API_KEY", ...
+    /^<.*>$/, // "<paste-from-console>"
+    /^REPLACE/i, // "REPLACE_ME"
+    /^TODO/i, // "TODO_SET_KEY"
+    /^XXX/i, // "XXX_API_KEY"
+  ];
+
+  const normalize = (v: string | undefined): string | undefined => {
+    if (typeof v !== 'string') return undefined;
+    const trimmed = v.trim();
+    if (trimmed.length === 0) return undefined;
+    if (PLACEHOLDER_PATTERNS.some((p) => p.test(trimmed))) return undefined;
+    return trimmed;
+  };
+
   // In Node.js (tests, server): process.env takes priority so vi.stubEnv works.
-  if (typeof process !== 'undefined' && process.env?.VITE_GOOGLE_MAPS_API_KEY) {
-    return process.env.VITE_GOOGLE_MAPS_API_KEY;
+  if (typeof process !== 'undefined') {
+    const fromProcess = normalize(process.env?.VITE_GOOGLE_MAPS_API_KEY);
+    if (fromProcess) return fromProcess;
   }
   // In browser Vite builds: use import.meta.env.
   try {
     const viteEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
-    if (viteEnv?.VITE_GOOGLE_MAPS_API_KEY) return viteEnv.VITE_GOOGLE_MAPS_API_KEY;
+    const fromVite = normalize(viteEnv?.VITE_GOOGLE_MAPS_API_KEY);
+    if (fromVite) return fromVite;
   } catch {
     // import.meta.env unavailable in some environments.
   }

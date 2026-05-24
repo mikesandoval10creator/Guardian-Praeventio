@@ -121,6 +121,29 @@ const DEFAULT_CONFIDENCE_THRESHOLD = 0.65;
 const DEFAULT_LOW_CONFIDENCE_THRESHOLD = 0.35;
 
 /**
+ * Tipo unión de entradas que un detector EPP acepta. Cualquier path real
+ * en browser produce uno de estos:
+ *   - `ImageBitmap` — `createImageBitmap(video|canvas)` (más común).
+ *   - `HTMLImageElement` — `<img>` ya cargado.
+ *   - `Blob` — `canvas.toBlob()` o file picker.
+ *   - `ImageData` — `ctx.getImageData()` directo (también lo emiten los
+ *      tests jsdom porque jsdom no implementa `createImageBitmap`; ver
+ *      `colorBasedEppDetector.test.ts`).
+ *
+ * 2026-05-24: agregamos `ImageData` al tipo unión para que la heurística
+ * por color sea testeable sin depender de APIs de imagen del browser
+ * (jsdom carece de `createImageBitmap` y `canvas.toBlob` produce blobs
+ * que no se pueden re-decodificar dentro de jsdom). Producción sigue
+ * pasando `ImageBitmap`/`Blob`/`HTMLImageElement` — no rompe ningún
+ * call-site existente.
+ */
+export type EppDetectorInput =
+  | ImageBitmap
+  | HTMLImageElement
+  | Blob
+  | ImageData;
+
+/**
  * Contract: cualquier adapter on-device debe implementar esto. El test
  * usa MockEppDetector; producción usa RealTfliteDetector (cuando exista).
  */
@@ -132,9 +155,9 @@ export interface EppDetector {
    * required-classes filter + missing/lowConfidence logic).
    *
    * IMPORTANTE: la imagen NO sale del device. El adapter trabaja con
-   * los pixeles localmente (HTMLImageElement / ImageBitmap / Blob).
+   * los pixeles localmente.
    */
-  detect(image: ImageBitmap | HTMLImageElement | Blob): Promise<EppDetection[]>;
+  detect(image: EppDetectorInput): Promise<EppDetection[]>;
 }
 
 /**
@@ -153,7 +176,7 @@ export class MockEppDetector implements EppDetector {
     ],
   ) {}
 
-  async detect(_image: ImageBitmap | HTMLImageElement | Blob): Promise<EppDetection[]> {
+  async detect(_image: EppDetectorInput): Promise<EppDetection[]> {
     // Pretend que tardó 80 ms (typical device inference).
     await new Promise((r) => setTimeout(r, 1));
     return [...this.mockDetections];
@@ -168,7 +191,7 @@ export class MockEppDetector implements EppDetector {
  * (sin la imagen) se persiste/sincroniza.
  */
 export async function inspectImage(
-  image: ImageBitmap | HTMLImageElement | Blob,
+  image: EppDetectorInput,
   detector: EppDetector,
   config: EppInspectionConfig = {},
 ): Promise<EppInspectionResult> {
