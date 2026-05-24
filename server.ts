@@ -1217,6 +1217,15 @@ void envPollingTick();
 app.use('/api/curriculum', curriculumRouter);
 app.use('/api/auth', webauthnChallengeRouter);
 
+// Plan 2026-05-24 §D.X — SiteBook firma electrónica avanzada DS 76 via
+// WebAuthn ECDSA-P256. Endpoints: /options + /verify. La verificación
+// criptográfica reutiliza verifyWebAuthnAssertion (mismo path que el
+// step-up de Twin), con la diferencia de que el challenge se DERIVA del
+// hash del documento (no es random), bindando matemáticamente la firma
+// al contenido exacto de la entry persistida.
+const { sitebookSignRouter } = await import('./src/server/routes/sitebookSignRoutes.js');
+app.use('/api/sitebook', sitebookSignRouter);
+
 // Prototype Fusion Phase 6.1 — FCM notify-brigada endpoint
 // Sends emergency FCM push to all supervisors/gerentes/prevencionistas in a project
 //
