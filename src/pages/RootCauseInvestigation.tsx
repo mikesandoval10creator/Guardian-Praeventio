@@ -9,6 +9,7 @@
 // → card refleja stats agregados del tenant.
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Layers, Plus, Save, Loader2, AlertTriangle } from 'lucide-react';
 
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -25,24 +26,39 @@ import {
 } from '../services/rootCause/rootCauseStore';
 import { logger } from '../utils/logger';
 
-const FACTOR_LABELS: Record<CauseFactor, string> = {
-  condicion_subestandar: 'Condición sub-estándar',
-  acto_subestandar: 'Acto sub-estándar',
-  falla_supervision: 'Falla supervisión',
-  falla_procedimiento: 'Falla procedimiento',
-  falla_mantenimiento: 'Falla mantenimiento',
-  factor_ambiental: 'Factor ambiental',
-  factor_organizacional: 'Factor organizacional',
-  falla_capacitacion: 'Falla capacitación',
-  falla_epp: 'Falla EPP',
-  falla_diseno: 'Falla diseño',
-};
+// FACTOR_LIST debe permanecer top-level (lo usan checkboxes que necesitan
+// orden estable; los labels se traducen dentro del componente).
+const FACTOR_LIST: CauseFactor[] = [
+  'condicion_subestandar',
+  'acto_subestandar',
+  'falla_supervision',
+  'falla_procedimiento',
+  'falla_mantenimiento',
+  'factor_ambiental',
+  'factor_organizacional',
+  'falla_capacitacion',
+  'falla_epp',
+  'falla_diseno',
+];
 
-const FACTOR_LIST: CauseFactor[] = Object.keys(FACTOR_LABELS) as CauseFactor[];
-
+// Plan 2026-05-24 §Fase B.6 batch2 — i18n sweep RootCauseInvestigation.
 export function RootCauseInvestigation() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
+
+  const FACTOR_LABELS: Record<CauseFactor, string> = {
+    condicion_subestandar: t('root_cause.factor.condicion_subestandar', 'Condición sub-estándar'),
+    acto_subestandar: t('root_cause.factor.acto_subestandar', 'Acto sub-estándar'),
+    falla_supervision: t('root_cause.factor.falla_supervision', 'Falla supervisión'),
+    falla_procedimiento: t('root_cause.factor.falla_procedimiento', 'Falla procedimiento'),
+    falla_mantenimiento: t('root_cause.factor.falla_mantenimiento', 'Falla mantenimiento'),
+    factor_ambiental: t('root_cause.factor.factor_ambiental', 'Factor ambiental'),
+    factor_organizacional: t('root_cause.factor.factor_organizacional', 'Factor organizacional'),
+    falla_capacitacion: t('root_cause.factor.falla_capacitacion', 'Falla capacitación'),
+    falla_epp: t('root_cause.factor.falla_epp', 'Falla EPP'),
+    falla_diseno: t('root_cause.factor.falla_diseno', 'Falla diseño'),
+  };
 
   const [history, setHistory] = useState<RootCauseAnalysis[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,7 +127,7 @@ export function RootCauseInvestigation() {
 
   const handleSave = async () => {
     if (!user || !selectedProject) {
-      setFeedback('Necesitás un proyecto activo y estar autenticado.');
+      setFeedback(t('root_cause.feedback.need_project', 'Necesitás un proyecto activo y estar autenticado.'));
       return;
     }
     setSubmitting(true);
@@ -131,7 +147,12 @@ export function RootCauseInvestigation() {
         suggestedActions: actions,
       });
       await saveRootCauseAnalysis(selectedProject.id, analysis);
-      setFeedback(`Análisis guardado para incidente ${analysis.incidentId}.`);
+      setFeedback(
+        t('root_cause.feedback.saved', {
+          defaultValue: 'Análisis guardado para incidente {{id}}.',
+          id: analysis.incidentId,
+        }),
+      );
       setSelectedAnalysisId(analysis.incidentId);
       resetForm();
     } catch (err) {
@@ -149,12 +170,13 @@ export function RootCauseInvestigation() {
         <header className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
-              <Layers className="w-6 h-6 text-indigo-500" /> Causa raíz (no-blame)
+              <Layers className="w-6 h-6 text-indigo-500" /> {t('root_cause.title', 'Causa raíz (no-blame)')}
             </h1>
             <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
-              Taxonomía ILO/ANSI Z10 + 5 porqués. El análisis NO busca culpables —
-              identifica condiciones del sistema que permitieron el incidente para
-              corregirlas. El supervisor que cierra el análisis lo firma con su UID.
+              {t(
+                'root_cause.subtitle',
+                'Taxonomía ILO/ANSI Z10 + 5 porqués. El análisis NO busca culpables — identifica condiciones del sistema que permitieron el incidente para corregirlas. El supervisor que cierra el análisis lo firma con su UID.',
+              )}
             </p>
           </div>
           <button
@@ -164,13 +186,13 @@ export function RootCauseInvestigation() {
             className="rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-3 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Nuevo análisis
+            {t('root_cause.cta_new', 'Nuevo análisis')}
           </button>
         </header>
 
         {!selectedProject ? (
           <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-            Seleccioná un proyecto para registrar análisis.
+            {t('root_cause.empty.select_project', 'Seleccioná un proyecto para registrar análisis.')}
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-500">
@@ -188,23 +210,23 @@ export function RootCauseInvestigation() {
             {showForm && (
               <section className="rounded-2xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/30 dark:bg-indigo-900/10 p-4 space-y-3">
                 <h2 className="text-sm font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest">
-                  Nuevo análisis
+                  {t('root_cause.form.heading', 'Nuevo análisis')}
                 </h2>
                 <label className="block space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    ID del incidente (vacío = autogenerado)
+                    {t('root_cause.form.field_incident_id', 'ID del incidente (vacío = autogenerado)')}
                   </span>
                   <input
                     type="text"
                     value={incidentId}
                     onChange={(e) => setIncidentId(e.target.value)}
-                    placeholder="ej: inc-2026-05-22-001"
+                    placeholder={t('root_cause.form.incident_id_placeholder', 'ej: inc-2026-05-22-001')}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
 
                 <div className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">Factores presentes</span>
+                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('root_cause.form.factors_label', 'Factores presentes')}</span>
                   <div className="grid grid-cols-2 gap-2">
                     {FACTOR_LIST.map((f) => (
                       <label key={f} className="flex items-center gap-2 text-xs">
@@ -221,7 +243,7 @@ export function RootCauseInvestigation() {
                 </div>
 
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">Factor principal</span>
+                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('root_cause.form.primary_factor', 'Factor principal')}</span>
                   <select
                     value={primaryFactor}
                     onChange={(e) => setPrimaryFactor(e.target.value as CauseFactor)}
@@ -235,7 +257,7 @@ export function RootCauseInvestigation() {
 
                 <div className="space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    5 porqués (mín 15 caracteres por línea, dejar vacías las no aplicables)
+                    {t('root_cause.form.five_whys_label', '5 porqués (mín 15 caracteres por línea, dejar vacías las no aplicables)')}
                   </span>
                   {fiveWhys.map((why, idx) => (
                     <input
@@ -247,7 +269,7 @@ export function RootCauseInvestigation() {
                         next[idx] = e.target.value;
                         setFiveWhys(next);
                       }}
-                      placeholder={`Porqué ${idx + 1}…`}
+                      placeholder={t('root_cause.form.why_placeholder', { defaultValue: 'Porqué {{n}}…', n: idx + 1 })}
                       className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                     />
                   ))}
@@ -255,13 +277,16 @@ export function RootCauseInvestigation() {
 
                 <label className="block space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Acciones correctivas sugeridas (una por línea, mín 1)
+                    {t('root_cause.form.actions_label', 'Acciones correctivas sugeridas (una por línea, mín 1)')}
                   </span>
                   <textarea
                     value={suggestedActions}
                     onChange={(e) => setSuggestedActions(e.target.value)}
                     rows={3}
-                    placeholder="Ej: Capacitar al equipo en uso de arnés cada 6 meses\nInstalar línea de vida permanente en zona X"
+                    placeholder={t(
+                      'root_cause.form.actions_placeholder',
+                      'Ej: Capacitar al equipo en uso de arnés cada 6 meses\nInstalar línea de vida permanente en zona X',
+                    )}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
@@ -272,7 +297,7 @@ export function RootCauseInvestigation() {
                     onClick={resetForm}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
-                    Cancelar
+                    {t('common.cancel', 'Cancelar')}
                   </button>
                   <button
                     type="button"
@@ -281,7 +306,7 @@ export function RootCauseInvestigation() {
                     className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white flex items-center gap-2"
                   >
                     {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                    Guardar
+                    {t('root_cause.form.submit', 'Guardar')}
                   </button>
                 </div>
               </section>
@@ -289,14 +314,14 @@ export function RootCauseInvestigation() {
 
             {history.length === 0 ? (
               <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-                Aún no hay análisis de causa raíz en este proyecto.
+                {t('root_cause.history.empty', 'Aún no hay análisis de causa raíz en este proyecto.')}
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
                 {/* Lista de análisis. */}
                 <aside className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-3 space-y-1 max-h-[600px] overflow-y-auto">
                   <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
-                    Historial ({history.length})
+                    {t('root_cause.history.heading', { defaultValue: 'Historial ({{count}})', count: history.length })}
                   </h2>
                   <ul className="space-y-1">
                     {history.map((a) => (
@@ -329,7 +354,7 @@ export function RootCauseInvestigation() {
                     />
                   ) : (
                     <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-                      Seleccioná un análisis a la izquierda para ver el detalle.
+                      {t('root_cause.history.select_hint', 'Seleccioná un análisis a la izquierda para ver el detalle.')}
                     </div>
                   )}
                 </div>

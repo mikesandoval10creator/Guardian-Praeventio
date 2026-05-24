@@ -17,6 +17,7 @@
 // + auditor habilitado. El sistema FUERZA el formato.
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   GitPullRequestArrow,
   Plus,
@@ -44,17 +45,6 @@ import {
 } from '../services/exceptions/exceptionStore';
 import { logger } from '../utils/logger';
 
-const DOMAIN_LABELS: Record<ExceptionDomain, string> = {
-  training_gap: 'Falta capacitación',
-  epp_expired: 'EPP vencido',
-  permit_pending: 'Permiso pendiente',
-  document_expired: 'Documento expirado',
-  medical_fitness_pending: 'Aptitud médica pendiente',
-  equipment_inspection: 'Inspección equipo',
-  staffing_gap: 'Brecha dotación',
-  other: 'Otra',
-};
-
 const SUBJECT_KINDS: Array<ExceptionRecord['subjectRef']['kind']> = [
   'WORKER',
   'EPP',
@@ -63,9 +53,22 @@ const SUBJECT_KINDS: Array<ExceptionRecord['subjectRef']['kind']> = [
   'DOCUMENT',
 ];
 
+// Plan 2026-05-24 §Fase B.6 batch2 — i18n sweep.
 export function ExceptionsAudit() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
+
+  const DOMAIN_LABELS: Record<ExceptionDomain, string> = {
+    training_gap: t('exceptions_page.domain.training_gap', 'Falta capacitación'),
+    epp_expired: t('exceptions_page.domain.epp_expired', 'EPP vencido'),
+    permit_pending: t('exceptions_page.domain.permit_pending', 'Permiso pendiente'),
+    document_expired: t('exceptions_page.domain.document_expired', 'Documento expirado'),
+    medical_fitness_pending: t('exceptions_page.domain.medical_fitness_pending', 'Aptitud médica pendiente'),
+    equipment_inspection: t('exceptions_page.domain.equipment_inspection', 'Inspección equipo'),
+    staffing_gap: t('exceptions_page.domain.staffing_gap', 'Brecha dotación'),
+    other: t('exceptions_page.domain.other', 'Otra'),
+  };
 
   const [records, setRecords] = useState<ExceptionRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,7 +125,7 @@ export function ExceptionsAudit() {
 
   const handleCreate = async () => {
     if (!user || !selectedProject) {
-      setFeedback('Necesitás un proyecto activo y estar autenticado.');
+      setFeedback(t('exceptions_page.feedback.need_project', 'Necesitás un proyecto activo y estar autenticado.'));
       return;
     }
     setSubmitting(true);
@@ -140,7 +143,13 @@ export function ExceptionsAudit() {
         durationHours,
       });
       await saveException(selectedProject.id, record);
-      setFeedback(`Excepción creada (${record.id.slice(0, 12)}). Vence ${new Date(record.validUntil).toLocaleString('es-CL')}.`);
+      setFeedback(
+        t('exceptions_page.feedback.created', {
+          defaultValue: 'Excepción creada ({{id}}). Vence {{date}}.',
+          id: record.id.slice(0, 12),
+          date: new Date(record.validUntil).toLocaleString('es-CL'),
+        }),
+      );
       resetForm();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -155,11 +164,11 @@ export function ExceptionsAudit() {
     async (record: ExceptionRecord) => {
       if (!user || !selectedProject) return;
       const reasonInput = window.prompt(
-        'Motivo de la revocación (min 5 caracteres):',
+        t('exceptions_page.revoke.prompt', 'Motivo de la revocación (min 5 caracteres):'),
         '',
       );
       if (!reasonInput || reasonInput.trim().length < 5) {
-        setFeedback('Revocación cancelada o motivo demasiado corto.');
+        setFeedback(t('exceptions_page.feedback.revoke_cancelled', 'Revocación cancelada o motivo demasiado corto.'));
         return;
       }
       try {
@@ -170,7 +179,12 @@ export function ExceptionsAudit() {
           revokedByUid: revoked.revokedByUid,
           revokedReason: revoked.revokedReason,
         });
-        setFeedback(`Excepción ${record.id.slice(0, 12)} revocada.`);
+        setFeedback(
+          t('exceptions_page.feedback.revoked', {
+            defaultValue: 'Excepción {{id}} revocada.',
+            id: record.id.slice(0, 12),
+          }),
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn('revokeException failed', { err: msg });
@@ -189,7 +203,12 @@ export function ExceptionsAudit() {
           status: fulfilled.status,
           fulfilledAt: fulfilled.fulfilledAt,
         });
-        setFeedback(`Excepción ${record.id.slice(0, 12)} marcada como cumplida.`);
+        setFeedback(
+          t('exceptions_page.feedback.fulfilled', {
+            defaultValue: 'Excepción {{id}} marcada como cumplida.',
+            id: record.id.slice(0, 12),
+          }),
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn('markFulfilled failed', { err: msg });
@@ -209,13 +228,13 @@ export function ExceptionsAudit() {
         <header className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
-              <GitPullRequestArrow className="w-6 h-6 text-amber-500" /> Excepciones documentadas
+              <GitPullRequestArrow className="w-6 h-6 text-amber-500" /> {t('exceptions_page.title', 'Excepciones documentadas')}
             </h1>
             <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
-              Cada excepción a un control normal (capacitación faltante, EPP
-              vencido, permiso pendiente) requiere mitigación alternativa
-              por escrito + duración máx 168 h + aprobador role-gated. El
-              sistema fuerza el formato auditable.
+              {t(
+                'exceptions_page.subtitle',
+                'Cada excepción a un control normal (capacitación faltante, EPP vencido, permiso pendiente) requiere mitigación alternativa por escrito + duración máx 168 h + aprobador role-gated. El sistema fuerza el formato auditable.',
+              )}
             </p>
           </div>
           <button
@@ -225,13 +244,13 @@ export function ExceptionsAudit() {
             className="rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white px-3 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Solicitar excepción
+            {t('exceptions_page.cta_request', 'Solicitar excepción')}
           </button>
         </header>
 
         {!selectedProject ? (
           <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-            Seleccioná un proyecto para registrar excepciones.
+            {t('exceptions_page.empty.select_project', 'Seleccioná un proyecto para registrar excepciones.')}
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-500">
@@ -249,11 +268,11 @@ export function ExceptionsAudit() {
             {showForm && (
               <section className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-900/10 p-4 space-y-3">
                 <h2 className="text-sm font-black text-amber-700 dark:text-amber-300 uppercase tracking-widest">
-                  Nueva excepción
+                  {t('exceptions_page.form.heading', 'Nueva excepción')}
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">Dominio</span>
+                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('exceptions_page.form.field_domain', 'Dominio')}</span>
                     <select
                       value={domain}
                       onChange={(e) => setDomain(e.target.value as ExceptionDomain)}
@@ -265,7 +284,7 @@ export function ExceptionsAudit() {
                     </select>
                   </label>
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">Tipo de sujeto</span>
+                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('exceptions_page.form.field_subject_kind', 'Tipo de sujeto')}</span>
                     <select
                       value={subjectKind}
                       onChange={(e) => setSubjectKind(e.target.value as ExceptionRecord['subjectRef']['kind'])}
@@ -279,43 +298,49 @@ export function ExceptionsAudit() {
                 </div>
                 <label className="block space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    ID del sujeto (worker_uid, epp_id, task_id, etc.)
+                    {t('exceptions_page.form.field_subject_id', 'ID del sujeto (worker_uid, epp_id, task_id, etc.)')}
                   </span>
                   <input
                     type="text"
                     value={subjectId}
                     onChange={(e) => setSubjectId(e.target.value)}
-                    placeholder="ej: worker-123, epp-arnes-001"
+                    placeholder={t('exceptions_page.form.subject_id_placeholder', 'ej: worker-123, epp-arnes-001')}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
                 <label className="block space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Motivo (mín 20 chars) — específico, no genérico
+                    {t('exceptions_page.form.field_reason', 'Motivo (mín 20 chars) — específico, no genérico')}
                   </span>
                   <textarea
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     rows={2}
-                    placeholder="Ej: Capacitación trabajo en altura programada vence el 23/05, faena critica termina 25/05; solicitamos extender por 48h con vigía adicional."
+                    placeholder={t(
+                      'exceptions_page.form.reason_placeholder',
+                      'Ej: Capacitación trabajo en altura programada vence el 23/05, faena critica termina 25/05; solicitamos extender por 48h con vigía adicional.',
+                    )}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
                 <label className="block space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Mitigación alternativa (mín 20 chars) — qué la sustituye
+                    {t('exceptions_page.form.field_mitigation', 'Mitigación alternativa (mín 20 chars) — qué la sustituye')}
                   </span>
                   <textarea
                     value={mitigation}
                     onChange={(e) => setMitigation(e.target.value)}
                     rows={2}
-                    placeholder="Ej: Vigía permanente con experiencia certificada + 2 chequeos por turno + EPP doble redundante (arnés + línea de vida primaria + secundaria)."
+                    placeholder={t(
+                      'exceptions_page.form.mitigation_placeholder',
+                      'Ej: Vigía permanente con experiencia certificada + 2 chequeos por turno + EPP doble redundante (arnés + línea de vida primaria + secundaria).',
+                    )}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
                 <label className="block space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Duración (horas, máx 168 = 1 semana)
+                    {t('exceptions_page.form.field_duration', 'Duración (horas, máx 168 = 1 semana)')}
                   </span>
                   <input
                     type="number"
@@ -332,7 +357,7 @@ export function ExceptionsAudit() {
                     onClick={resetForm}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
-                    Cancelar
+                    {t('common.cancel', 'Cancelar')}
                   </button>
                   <button
                     type="button"
@@ -345,7 +370,7 @@ export function ExceptionsAudit() {
                     className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white flex items-center gap-2"
                   >
                     {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                    Crear
+                    {t('exceptions_page.form.submit', 'Crear')}
                   </button>
                 </div>
               </section>
@@ -359,7 +384,7 @@ export function ExceptionsAudit() {
               <section className="space-y-2">
                 <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
                   <Clock4 className="w-3.5 h-3.5" />
-                  Acciones rápidas
+                  {t('exceptions_page.quick_actions.heading', 'Acciones rápidas')}
                 </h2>
                 <ul className="space-y-1.5">
                   {activeRecords.map((r) => (
@@ -372,7 +397,10 @@ export function ExceptionsAudit() {
                         {DOMAIN_LABELS[r.domain]} · {r.subjectRef.kind}:{r.subjectRef.id.slice(0, 18)}
                       </span>
                       <span className="text-[10px] text-zinc-500">
-                        vence {new Date(r.validUntil).toLocaleDateString('es-CL')}
+                        {t('exceptions_page.quick_actions.expires', {
+                          defaultValue: 'vence {{date}}',
+                          date: new Date(r.validUntil).toLocaleDateString('es-CL'),
+                        })}
                       </span>
                       <button
                         type="button"
@@ -380,7 +408,7 @@ export function ExceptionsAudit() {
                         className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1"
                       >
                         <CheckCircle2 className="w-3 h-3" />
-                        Cumplida
+                        {t('exceptions_page.quick_actions.fulfill', 'Cumplida')}
                       </button>
                       <button
                         type="button"
@@ -388,7 +416,7 @@ export function ExceptionsAudit() {
                         className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-1"
                       >
                         <XCircle className="w-3 h-3" />
-                        Revocar
+                        {t('exceptions_page.quick_actions.revoke', 'Revocar')}
                       </button>
                     </li>
                   ))}

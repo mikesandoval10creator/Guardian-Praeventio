@@ -2364,6 +2364,53 @@
       "row_summary": "Worker {{uid}} · {{count}} check-ins"
     }
   },
+  "exceptions_page": {
+    "title": "Excepciones documentadas",
+    "subtitle": "Cada excepción a un control normal (capacitación faltante, EPP vencido, permiso pendiente) requiere mitigación alternativa por escrito + duración máx 168 h + aprobador role-gated. El sistema fuerza el formato auditable.",
+    "cta_request": "Solicitar excepción",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para registrar excepciones."
+    },
+    "domain": {
+      "training_gap": "Falta capacitación",
+      "epp_expired": "EPP vencido",
+      "permit_pending": "Permiso pendiente",
+      "document_expired": "Documento expirado",
+      "medical_fitness_pending": "Aptitud médica pendiente",
+      "equipment_inspection": "Inspección equipo",
+      "staffing_gap": "Brecha dotación",
+      "other": "Otra"
+    },
+    "form": {
+      "heading": "Nueva excepción",
+      "field_domain": "Dominio",
+      "field_subject_kind": "Tipo de sujeto",
+      "field_subject_id": "ID del sujeto (worker_uid, epp_id, task_id, etc.)",
+      "subject_id_placeholder": "ej: worker-123, epp-arnes-001",
+      "field_reason": "Motivo (mín 20 chars) — específico, no genérico",
+      "reason_placeholder": "Ej: Capacitación trabajo en altura programada vence el 23/05, faena critica termina 25/05; solicitamos extender por 48h con vigía adicional.",
+      "field_mitigation": "Mitigación alternativa (mín 20 chars) — qué la sustituye",
+      "mitigation_placeholder": "Ej: Vigía permanente con experiencia certificada + 2 chequeos por turno + EPP doble redundante (arnés + línea de vida primaria + secundaria).",
+      "field_duration": "Duración (horas, máx 168 = 1 semana)",
+      "submit": "Crear"
+    },
+    "feedback": {
+      "need_project": "Necesitás un proyecto activo y estar autenticado.",
+      "created": "Excepción creada ({{id}}). Vence {{date}}.",
+      "revoke_cancelled": "Revocación cancelada o motivo demasiado corto.",
+      "revoked": "Excepción {{id}} revocada.",
+      "fulfilled": "Excepción {{id}} marcada como cumplida."
+    },
+    "revoke": {
+      "prompt": "Motivo de la revocación (min 5 caracteres):"
+    },
+    "quick_actions": {
+      "heading": "Acciones rápidas",
+      "expires": "vence {{date}}",
+      "fulfill": "Cumplida",
+      "revoke": "Revocar"
+    }
+  },
   "stoppages": {
     "title": "Paralizaciones (stop-work)",
     "subtitle": "Toda paralización queda registrada con autoría, motivo y precondiciones para reanudar. La reanudación NO es automática — exige verificación.",
@@ -2424,6 +2471,80 @@
       "heading": "Historial reciente",
       "audit_trail_hint_prefix": "Para historial completo de paralizaciones finalizadas o canceladas, consultá ",
       "audit_trail_link": "Audit Trail"
+    }
+  },
+  "critical_controls": {
+    "title": "Controles críticos por riesgo",
+    "subtitle": "Catálogo HCA (Hierarchy of Controls) ISO 45001 § 8.1.2. Marca los controles presentes en terreno; el sistema valida cobertura + balance jerárquico antes de autorizar inicio de tarea.",
+    "filter_label": "Tipo de riesgo",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para registrar validaciones."
+    },
+    "risk": {
+      "altura": "Trabajo en altura",
+      "electric": "Riesgo eléctrico",
+      "confinado": "Espacio confinado",
+      "caliente": "Trabajo en caliente",
+      "quimico": "Productos químicos / Hazmat"
+    },
+    "level": {
+      "elimination": "Eliminación",
+      "substitution": "Sustitución",
+      "engineering": "Ingeniería",
+      "administrative": "Administrativo",
+      "epp": "EPP"
+    },
+    "result": {
+      "authorized": "Autorizado para iniciar",
+      "not_authorized": "NO autorizado",
+      "hierarchy_unbalanced": "Jerarquía desequilibrada: solo se reportan controles de bajo nivel (EPP). Sumá controles de ingeniería o eliminación antes de iniciar.",
+      "missing_label": "Faltantes:"
+    },
+    "catalog": {
+      "heading": "Catálogo HCA — {{category}}",
+      "present": "Presente",
+      "mark": "Marcar"
+    }
+  },
+  "root_cause": {
+    "title": "Causa raíz (no-blame)",
+    "subtitle": "Taxonomía ILO/ANSI Z10 + 5 porqués. El análisis NO busca culpables — identifica condiciones del sistema que permitieron el incidente para corregirlas. El supervisor que cierra el análisis lo firma con su UID.",
+    "cta_new": "Nuevo análisis",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para registrar análisis."
+    },
+    "factor": {
+      "condicion_subestandar": "Condición sub-estándar",
+      "acto_subestandar": "Acto sub-estándar",
+      "falla_supervision": "Falla supervisión",
+      "falla_procedimiento": "Falla procedimiento",
+      "falla_mantenimiento": "Falla mantenimiento",
+      "factor_ambiental": "Factor ambiental",
+      "factor_organizacional": "Factor organizacional",
+      "falla_capacitacion": "Falla capacitación",
+      "falla_epp": "Falla EPP",
+      "falla_diseno": "Falla diseño"
+    },
+    "form": {
+      "heading": "Nuevo análisis",
+      "field_incident_id": "ID del incidente (vacío = autogenerado)",
+      "incident_id_placeholder": "ej: inc-2026-05-22-001",
+      "factors_label": "Factores presentes",
+      "primary_factor": "Factor principal",
+      "five_whys_label": "5 porqués (mín 15 caracteres por línea, dejar vacías las no aplicables)",
+      "why_placeholder": "Porqué {{n}}…",
+      "actions_label": "Acciones correctivas sugeridas (una por línea, mín 1)",
+      "actions_placeholder": "Ej: Capacitar al equipo en uso de arnés cada 6 meses\nInstalar línea de vida permanente en zona X",
+      "submit": "Guardar"
+    },
+    "feedback": {
+      "need_project": "Necesitás un proyecto activo y estar autenticado.",
+      "saved": "Análisis guardado para incidente {{id}}."
+    },
+    "history": {
+      "heading": "Historial ({{count}})",
+      "empty": "Aún no hay análisis de causa raíz en este proyecto.",
+      "select_hint": "Seleccioná un análisis a la izquierda para ver el detalle."
     }
   }
 }

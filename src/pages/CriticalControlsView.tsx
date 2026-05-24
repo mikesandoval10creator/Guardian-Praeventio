@@ -10,6 +10,7 @@
 // y ve el resultado de `validatePreTask` + análisis de barreras (HCA).
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Shield,
   CheckCircle2,
@@ -34,25 +35,27 @@ import {
 } from '../services/criticalControls/controlValidationsStore';
 import { logger } from '../utils/logger';
 
-const RISK_CATEGORIES: Array<{ id: string; label: string }> = [
-  { id: 'altura', label: 'Trabajo en altura' },
-  { id: 'electric', label: 'Riesgo eléctrico' },
-  { id: 'confinado', label: 'Espacio confinado' },
-  { id: 'caliente', label: 'Trabajo en caliente' },
-  { id: 'quimico', label: 'Productos químicos / Hazmat' },
-];
-
-const LEVEL_LABELS: Record<string, string> = {
-  elimination: 'Eliminación',
-  substitution: 'Sustitución',
-  engineering: 'Ingeniería',
-  administrative: 'Administrativo',
-  epp: 'EPP',
-};
-
+// Plan 2026-05-24 §Fase B.6 batch2 — i18n sweep CriticalControlsView.
 export function CriticalControlsView() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
+
+  const RISK_CATEGORIES: Array<{ id: string; label: string }> = [
+    { id: 'altura', label: t('critical_controls.risk.altura', 'Trabajo en altura') },
+    { id: 'electric', label: t('critical_controls.risk.electric', 'Riesgo eléctrico') },
+    { id: 'confinado', label: t('critical_controls.risk.confinado', 'Espacio confinado') },
+    { id: 'caliente', label: t('critical_controls.risk.caliente', 'Trabajo en caliente') },
+    { id: 'quimico', label: t('critical_controls.risk.quimico', 'Productos químicos / Hazmat') },
+  ];
+
+  const LEVEL_LABELS: Record<string, string> = {
+    elimination: t('critical_controls.level.elimination', 'Eliminación'),
+    substitution: t('critical_controls.level.substitution', 'Sustitución'),
+    engineering: t('critical_controls.level.engineering', 'Ingeniería'),
+    administrative: t('critical_controls.level.administrative', 'Administrativo'),
+    epp: t('critical_controls.level.epp', 'EPP'),
+  };
 
   const [riskCategory, setRiskCategory] = useState<string>('altura');
   const [validations, setValidations] = useState<ControlValidation[]>([]);
@@ -129,12 +132,13 @@ export function CriticalControlsView() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header>
           <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
-            <Shield className="w-6 h-6 text-emerald-500" /> Controles críticos por riesgo
+            <Shield className="w-6 h-6 text-emerald-500" /> {t('critical_controls.title', 'Controles críticos por riesgo')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
-            Catálogo HCA (Hierarchy of Controls) ISO 45001 § 8.1.2. Marca los controles
-            presentes en terreno; el sistema valida cobertura + balance jerárquico antes
-            de autorizar inicio de tarea.
+            {t(
+              'critical_controls.subtitle',
+              'Catálogo HCA (Hierarchy of Controls) ISO 45001 § 8.1.2. Marca los controles presentes en terreno; el sistema valida cobertura + balance jerárquico antes de autorizar inicio de tarea.',
+            )}
           </p>
         </header>
 
@@ -142,7 +146,7 @@ export function CriticalControlsView() {
         <section className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4">
           <div className="flex items-center gap-2 mb-3 text-xs font-black text-zinc-500 uppercase tracking-widest">
             <Filter className="w-3.5 h-3.5" />
-            Tipo de riesgo
+            {t('critical_controls.filter_label', 'Tipo de riesgo')}
           </div>
           <div className="flex flex-wrap gap-2">
             {RISK_CATEGORIES.map((cat) => (
@@ -164,7 +168,7 @@ export function CriticalControlsView() {
 
         {!selectedProject ? (
           <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-            Seleccioná un proyecto para registrar validaciones.
+            {t('critical_controls.empty.select_project', 'Seleccioná un proyecto para registrar validaciones.')}
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-500">
@@ -193,12 +197,16 @@ export function CriticalControlsView() {
                     {preTaskResult.authorizedToStart ? (
                       <>
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span className="text-emerald-700 dark:text-emerald-300">Autorizado para iniciar</span>
+                        <span className="text-emerald-700 dark:text-emerald-300">
+                          {t('critical_controls.result.authorized', 'Autorizado para iniciar')}
+                        </span>
                       </>
                     ) : (
                       <>
                         <AlertTriangle className="w-4 h-4 text-rose-600" />
-                        <span className="text-rose-700 dark:text-rose-300">NO autorizado</span>
+                        <span className="text-rose-700 dark:text-rose-300">
+                          {t('critical_controls.result.not_authorized', 'NO autorizado')}
+                        </span>
                       </>
                     )}
                   </h2>
@@ -208,13 +216,15 @@ export function CriticalControlsView() {
                 </header>
                 {!preTaskResult.isHierarchyBalanced && (
                   <p className="text-xs text-rose-700 dark:text-rose-300">
-                    Jerarquía desequilibrada: solo se reportan controles de bajo nivel (EPP).
-                    Sumá controles de ingeniería o eliminación antes de iniciar.
+                    {t(
+                      'critical_controls.result.hierarchy_unbalanced',
+                      'Jerarquía desequilibrada: solo se reportan controles de bajo nivel (EPP). Sumá controles de ingeniería o eliminación antes de iniciar.',
+                    )}
                   </p>
                 )}
                 {preTaskResult.missing.length > 0 && (
                   <div className="text-xs text-zinc-700 dark:text-zinc-300">
-                    <strong>Faltantes:</strong>
+                    <strong>{t('critical_controls.result.missing_label', 'Faltantes:')}</strong>
                     <ul className="mt-1 space-y-0.5 ml-4 list-disc">
                       {preTaskResult.missing.map((m) => (
                         <li key={m.id}>
@@ -230,7 +240,10 @@ export function CriticalControlsView() {
             {/* Tabla de controles del catálogo con toggle de presencia. */}
             <section className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 space-y-2">
               <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">
-                Catálogo HCA — {RISK_CATEGORIES.find((c) => c.id === riskCategory)?.label}
+                {t('critical_controls.catalog.heading', {
+                  defaultValue: 'Catálogo HCA — {{category}}',
+                  category: RISK_CATEGORIES.find((c) => c.id === riskCategory)?.label ?? '',
+                })}
               </h2>
               <ul className="space-y-1">
                 {controlsForCategory.map((control) => {
@@ -263,9 +276,9 @@ export function CriticalControlsView() {
                         {savingControlId === control.id ? (
                           <Loader2 className="w-3 h-3 animate-spin mx-auto" />
                         ) : isPresent ? (
-                          'Presente'
+                          t('critical_controls.catalog.present', 'Presente')
                         ) : (
-                          'Marcar'
+                          t('critical_controls.catalog.mark', 'Marcar')
                         )}
                       </button>
                     </li>

@@ -2002,6 +2002,53 @@
       "row_summary": "Worker {{uid}} · {{count}} check-ins"
     }
   },
+  "exceptions_page": {
+    "title": "Exceções documentadas",
+    "subtitle": "Cada exceção a um controle normal (capacitação faltante, EPI vencido, permissão pendente) exige mitigação alternativa por escrito + duração máx 168 h + aprovador role-gated. O sistema força o formato auditável.",
+    "cta_request": "Solicitar exceção",
+    "empty": {
+      "select_project": "Selecione um projeto para registrar exceções."
+    },
+    "domain": {
+      "training_gap": "Capacitação faltante",
+      "epp_expired": "EPI vencido",
+      "permit_pending": "Permissão pendente",
+      "document_expired": "Documento expirado",
+      "medical_fitness_pending": "Aptidão médica pendente",
+      "equipment_inspection": "Inspeção equipamento",
+      "staffing_gap": "Brecha de equipe",
+      "other": "Outra"
+    },
+    "form": {
+      "heading": "Nova exceção",
+      "field_domain": "Domínio",
+      "field_subject_kind": "Tipo de sujeito",
+      "field_subject_id": "ID do sujeito (worker_uid, epp_id, task_id, etc.)",
+      "subject_id_placeholder": "ex.: worker-123, epp-arnes-001",
+      "field_reason": "Motivo (mín 20 chars) — específico, não genérico",
+      "reason_placeholder": "Ex.: Capacitação trabalho em altura vence 23/05, faena crítica termina 25/05; solicitamos estender 48h com vigia adicional.",
+      "field_mitigation": "Mitigação alternativa (mín 20 chars) — o que a substitui",
+      "mitigation_placeholder": "Ex.: Vigia permanente com experiência certificada + 2 verificações por turno + EPI duplo redundante (cinto + linha de vida primária + secundária).",
+      "field_duration": "Duração (horas, máx 168 = 1 semana)",
+      "submit": "Criar"
+    },
+    "feedback": {
+      "need_project": "Você precisa de um projeto ativo e estar autenticado.",
+      "created": "Exceção criada ({{id}}). Vence {{date}}.",
+      "revoke_cancelled": "Revogação cancelada ou motivo curto demais.",
+      "revoked": "Exceção {{id}} revogada.",
+      "fulfilled": "Exceção {{id}} marcada como cumprida."
+    },
+    "revoke": {
+      "prompt": "Motivo da revogação (mín 5 caracteres):"
+    },
+    "quick_actions": {
+      "heading": "Ações rápidas",
+      "expires": "vence {{date}}",
+      "fulfill": "Cumprida",
+      "revoke": "Revogar"
+    }
+  },
   "stoppages": {
     "title": "Paralisações (stop-work)",
     "subtitle": "Toda paralisação fica registrada com autoria, motivo e precondições para retomada. A retomada NÃO é automática — exige verificação.",
@@ -2062,6 +2109,80 @@
       "heading": "Histórico recente",
       "audit_trail_hint_prefix": "Para histórico completo de paralisações finalizadas ou canceladas, consulte ",
       "audit_trail_link": "Audit Trail"
+    }
+  },
+  "critical_controls": {
+    "title": "Controles críticos por risco",
+    "subtitle": "Catálogo HCA (Hierarchy of Controls) ISO 45001 § 8.1.2. Marque os controles presentes em campo; o sistema valida cobertura + balanço hierárquico antes de autorizar início de tarefa.",
+    "filter_label": "Tipo de risco",
+    "empty": {
+      "select_project": "Selecione um projeto para registrar validações."
+    },
+    "risk": {
+      "altura": "Trabalho em altura",
+      "electric": "Risco elétrico",
+      "confinado": "Espaço confinado",
+      "caliente": "Trabalho a quente",
+      "quimico": "Produtos químicos / Hazmat"
+    },
+    "level": {
+      "elimination": "Eliminação",
+      "substitution": "Substituição",
+      "engineering": "Engenharia",
+      "administrative": "Administrativo",
+      "epp": "EPI"
+    },
+    "result": {
+      "authorized": "Autorizado para iniciar",
+      "not_authorized": "NÃO autorizado",
+      "hierarchy_unbalanced": "Hierarquia desequilibrada: apenas controles de baixo nível (EPI) reportados. Adicione controles de engenharia ou eliminação antes de iniciar.",
+      "missing_label": "Faltantes:"
+    },
+    "catalog": {
+      "heading": "Catálogo HCA — {{category}}",
+      "present": "Presente",
+      "mark": "Marcar"
+    }
+  },
+  "root_cause": {
+    "title": "Causa raiz (no-blame)",
+    "subtitle": "Taxonomia ILO/ANSI Z10 + 5 porquês. A análise NÃO busca culpados — identifica condições do sistema que permitiram o incidente para corrigi-las. O supervisor que encerra a análise a assina com seu UID.",
+    "cta_new": "Nova análise",
+    "empty": {
+      "select_project": "Selecione um projeto para registrar análises."
+    },
+    "factor": {
+      "condicion_subestandar": "Condição sub-padrão",
+      "acto_subestandar": "Ato sub-padrão",
+      "falla_supervision": "Falha de supervisão",
+      "falla_procedimiento": "Falha de procedimento",
+      "falla_mantenimiento": "Falha de manutenção",
+      "factor_ambiental": "Fator ambiental",
+      "factor_organizacional": "Fator organizacional",
+      "falla_capacitacion": "Falha de capacitação",
+      "falla_epp": "Falha de EPI",
+      "falla_diseno": "Falha de design"
+    },
+    "form": {
+      "heading": "Nova análise",
+      "field_incident_id": "ID do incidente (vazio = auto-gerado)",
+      "incident_id_placeholder": "ex.: inc-2026-05-22-001",
+      "factors_label": "Fatores presentes",
+      "primary_factor": "Fator principal",
+      "five_whys_label": "5 porquês (mín 15 caracteres por linha, deixar vazias as não aplicáveis)",
+      "why_placeholder": "Porquê {{n}}…",
+      "actions_label": "Ações corretivas sugeridas (uma por linha, mín 1)",
+      "actions_placeholder": "Ex.: Capacitar equipe no uso de cinto a cada 6 meses\nInstalar linha de vida permanente na zona X",
+      "submit": "Salvar"
+    },
+    "feedback": {
+      "need_project": "Você precisa de um projeto ativo e estar autenticado.",
+      "saved": "Análise salva para incidente {{id}}."
+    },
+    "history": {
+      "heading": "Histórico ({{count}})",
+      "empty": "Ainda não há análises de causa raiz neste projeto.",
+      "select_hint": "Selecione uma análise à esquerda para ver o detalhe."
     }
   }
 }
