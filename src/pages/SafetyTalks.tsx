@@ -12,6 +12,7 @@
 //   - Historial reciente de charlas dadas.
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   MessageCircle,
   Loader2,
@@ -43,7 +44,9 @@ const DEFAULT_SIGNALS: ContextSignals = {
   weather: { uvIndex: 5, temperatureC: 18, windSpeedKmh: 20, rainProbabilityPercent: 10 },
 };
 
+// Plan 2026-05-24 §Fase B.6 batch4 — i18n sweep SafetyTalks.
 export function SafetyTalks() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
 
@@ -139,7 +142,13 @@ export function SafetyTalks() {
           notes: sug.rationale.join(' · '),
         };
         await saveTalk(selectedProject.id, record);
-        setFeedback(`Charla "${sug.title}" registrada para ${todayKey}.`);
+        setFeedback(
+          t('safety_talks.feedback.recorded', {
+            defaultValue: 'Charla "{{title}}" registrada para {{date}}.',
+            title: sug.title,
+            date: todayKey,
+          }),
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setFeedback(msg);
@@ -158,18 +167,19 @@ export function SafetyTalks() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header>
           <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
-            <MessageCircle className="w-6 h-6 text-sky-500" /> Charlas de seguridad
+            <MessageCircle className="w-6 h-6 text-sky-500" /> {t('safety_talks.title', 'Charlas de seguridad')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
-            Sugeridor determinístico de tema diario según señales contextuales
-            (riesgos activos, tareas del día, incidentes recientes, clima).
-            Sin LLM — top 3 sugerencias con rationale citando los disparadores.
+            {t(
+              'safety_talks.subtitle',
+              'Sugeridor determinístico de tema diario según señales contextuales (riesgos activos, tareas del día, incidentes recientes, clima). Sin LLM — top 3 sugerencias con rationale citando los disparadores.',
+            )}
           </p>
         </header>
 
         {!selectedProject ? (
           <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-            Seleccioná un proyecto.
+            {t('safety_talks.empty.select_project', 'Seleccioná un proyecto.')}
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-500">
@@ -188,61 +198,61 @@ export function SafetyTalks() {
             <section className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 space-y-3">
               <h2 className="text-sm font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-widest flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-sky-500" />
-                Señales contextuales
+                {t('safety_talks.signals.heading', 'Señales contextuales')}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Riesgos activos (coma)
+                    {t('safety_talks.signals.active_risks', 'Riesgos activos (coma)')}
                   </span>
                   <input
                     type="text"
                     value={activeRisksRaw}
                     onChange={(e) => setActiveRisksRaw(e.target.value)}
-                    placeholder="altura, eléctrico, confinado, químico"
+                    placeholder={t('safety_talks.signals.active_risks_placeholder', 'altura, eléctrico, confinado, químico')}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
                 <label className="space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Tareas hoy (coma)
+                    {t('safety_talks.signals.todays_tasks', 'Tareas hoy (coma)')}
                   </span>
                   <input
                     type="text"
                     value={todaysTasksRaw}
                     onChange={(e) => setTodaysTasksRaw(e.target.value)}
-                    placeholder="altura, soldadura, izaje"
+                    placeholder={t('safety_talks.signals.todays_tasks_placeholder', 'altura, soldadura, izaje')}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
                 <label className="space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Incidentes recientes (coma)
+                    {t('safety_talks.signals.recent_incidents', 'Incidentes recientes (coma)')}
                   </span>
                   <input
                     type="text"
                     value={recentIncidentsRaw}
                     onChange={(e) => setRecentIncidentsRaw(e.target.value)}
-                    placeholder="caida_altura, contacto_electrico"
+                    placeholder={t('safety_talks.signals.recent_incidents_placeholder', 'caida_altura, contacto_electrico')}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
                 <label className="space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Hallazgos abiertos (coma)
+                    {t('safety_talks.signals.findings', 'Hallazgos abiertos (coma)')}
                   </span>
                   <input
                     type="text"
                     value={findingsRaw}
                     onChange={(e) => setFindingsRaw(e.target.value)}
-                    placeholder="orden_aseo, epp_faltante"
+                    placeholder={t('safety_talks.signals.findings_placeholder', 'orden_aseo, epp_faltante')}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
               </div>
               <div className="grid grid-cols-4 gap-3">
                 <label className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">UV Index</span>
+                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('safety_talks.signals.uv_index', 'UV Index')}</span>
                   <input
                     type="number"
                     min={0}
@@ -253,7 +263,7 @@ export function SafetyTalks() {
                   />
                 </label>
                 <label className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">Temp °C</span>
+                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('safety_talks.signals.temp', 'Temp °C')}</span>
                   <input
                     type="number"
                     value={temperatureC}
@@ -262,7 +272,7 @@ export function SafetyTalks() {
                   />
                 </label>
                 <label className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">Viento km/h</span>
+                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('safety_talks.signals.wind', 'Viento km/h')}</span>
                   <input
                     type="number"
                     min={0}
@@ -272,7 +282,7 @@ export function SafetyTalks() {
                   />
                 </label>
                 <label className="space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">Workers nuevos</span>
+                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('safety_talks.signals.new_workers', 'Workers nuevos')}</span>
                   <input
                     type="number"
                     min={0}
@@ -292,7 +302,10 @@ export function SafetyTalks() {
               <section className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-900/15 p-4 space-y-2">
                 <h2 className="text-sm font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-widest flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4" />
-                  Charlas dadas hoy ({todayKey})
+                  {t('safety_talks.today.heading', {
+                    defaultValue: 'Charlas dadas hoy ({{date}})',
+                    date: todayKey,
+                  })}
                 </h2>
                 <ul className="space-y-1">
                   {todayTalks.map((t) => (
@@ -309,7 +322,7 @@ export function SafetyTalks() {
             {talks.length > todayTalks.length && (
               <section className="space-y-2">
                 <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
-                  Historial reciente
+                  {t('safety_talks.history.heading', 'Historial reciente')}
                 </h2>
                 <ul className="space-y-1">
                   {talks

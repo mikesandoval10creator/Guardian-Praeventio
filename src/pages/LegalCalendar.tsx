@@ -14,6 +14,7 @@
 //   - Summary cards: total / overdue / en ventana de alerta.
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   CalendarDays,
   Loader2,
@@ -38,7 +39,9 @@ import {
 } from '../services/legalCalendar/legalCalendarStore';
 import { logger } from '../utils/logger';
 
+// Plan 2026-05-24 §Fase B.6 batch4 — i18n sweep LegalCalendar.
 export function LegalCalendar() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const [obligations, setObligations] = useState<LegalObligation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,8 +81,11 @@ export function LegalCalendar() {
       );
       setFeedback(
         written > 0
-          ? `Inicializadas ${written} obligaciones estándar (DS 76, DS 132, DS 54, etc.).`
-          : 'El calendario ya estaba inicializado.',
+          ? t('legal_calendar.feedback.bootstrap_ok', {
+              defaultValue: 'Inicializadas {{n}} obligaciones estándar (DS 76, DS 132, DS 54, etc.).',
+              n: written,
+            })
+          : t('legal_calendar.feedback.already_init', 'El calendario ya estaba inicializado.'),
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -95,7 +101,12 @@ export function LegalCalendar() {
       try {
         const advanced = advanceObligation(entry);
         await saveObligation(selectedProject.id, advanced);
-        setFeedback(`"${entry.label}" avanzada al próximo ciclo.`);
+        setFeedback(
+          t('legal_calendar.feedback.advanced', {
+            defaultValue: '"{{label}}" avanzada al próximo ciclo.',
+            label: entry.label,
+          }),
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setFeedback(msg);
@@ -112,19 +123,19 @@ export function LegalCalendar() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header>
           <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
-            <CalendarDays className="w-6 h-6 text-teal-500" /> Calendario legal
+            <CalendarDays className="w-6 h-6 text-teal-500" /> {t('legal_calendar.title', 'Calendario legal')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
-            Obligaciones legales recurrentes: auditorías, mediciones ambientales,
-            renovaciones de capacitación, reuniones CPHS, reportes mutualidad,
-            simulacros, exámenes ocupacionales, renovación de documentos y
-            permisos. DS 76 / DS 132 / DS 54 / Ley 16.744.
+            {t(
+              'legal_calendar.subtitle',
+              'Obligaciones legales recurrentes: auditorías, mediciones ambientales, renovaciones de capacitación, reuniones CPHS, reportes mutualidad, simulacros, exámenes ocupacionales, renovación de documentos y permisos. DS 76 / DS 132 / DS 54 / Ley 16.744.',
+            )}
           </p>
         </header>
 
         {!selectedProject ? (
           <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-            Seleccioná un proyecto.
+            {t('legal_calendar.empty.select_project', 'Seleccioná un proyecto.')}
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-500">
@@ -144,7 +155,7 @@ export function LegalCalendar() {
               <section className="grid grid-cols-4 gap-3">
                 <div className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-3">
                   <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
-                    Total
+                    {t('legal_calendar.summary.total', 'Total')}
                   </p>
                   <p className="text-2xl font-black text-zinc-900 dark:text-white">
                     {summary.totalObligations}
@@ -152,7 +163,7 @@ export function LegalCalendar() {
                 </div>
                 <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/15 p-3">
                   <p className="text-[10px] font-black text-rose-700 dark:text-rose-300 uppercase tracking-widest">
-                    Vencidas
+                    {t('legal_calendar.summary.overdue', 'Vencidas')}
                   </p>
                   <p className="text-2xl font-black text-rose-900 dark:text-rose-100">
                     {summary.overdue}
@@ -160,7 +171,7 @@ export function LegalCalendar() {
                 </div>
                 <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/15 p-3">
                   <p className="text-[10px] font-black text-amber-700 dark:text-amber-300 uppercase tracking-widest">
-                    Alerta
+                    {t('legal_calendar.summary.alert', 'Alerta')}
                   </p>
                   <p className="text-2xl font-black text-amber-900 dark:text-amber-100">
                     {summary.inAlertWindow}
@@ -168,7 +179,7 @@ export function LegalCalendar() {
                 </div>
                 <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/15 p-3">
                   <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-widest">
-                    OK
+                    {t('legal_calendar.summary.ok', 'OK')}
                   </p>
                   <p className="text-2xl font-black text-emerald-900 dark:text-emerald-100">
                     {summary.totalObligations - summary.overdue - summary.inAlertWindow}
@@ -181,12 +192,13 @@ export function LegalCalendar() {
             {entries.length === 0 && !loading && (
               <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 space-y-3 text-center">
                 <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                  Sin obligaciones cargadas para este proyecto.
+                  {t('legal_calendar.bootstrap.title', 'Sin obligaciones cargadas para este proyecto.')}
                 </p>
                 <p className="text-xs text-zinc-500">
-                  Bootstrap inicializa el calendario con las obligaciones
-                  estándar (auditorías anuales, mediciones semestrales, CPHS
-                  mensual, simulacros, etc.) con fechas calculadas desde hoy.
+                  {t(
+                    'legal_calendar.bootstrap.hint',
+                    'Bootstrap inicializa el calendario con las obligaciones estándar (auditorías anuales, mediciones semestrales, CPHS mensual, simulacros, etc.) con fechas calculadas desde hoy.',
+                  )}
                 </p>
                 <button
                   type="button"
@@ -195,7 +207,7 @@ export function LegalCalendar() {
                   className="rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white px-3 py-2 text-xs font-black uppercase tracking-widest inline-flex items-center gap-2"
                 >
                   {bootstrapping ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                  Inicializar calendario estándar
+                  {t('legal_calendar.bootstrap.cta', 'Inicializar calendario estándar')}
                 </button>
               </div>
             )}
@@ -208,7 +220,7 @@ export function LegalCalendar() {
                 {/* Quick action: marcar cumplida la más próxima. */}
                 <section className="space-y-2">
                   <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
-                    Acciones rápidas
+                    {t('legal_calendar.quick_actions.heading', 'Acciones rápidas')}
                   </h2>
                   <ul className="space-y-1.5">
                     {entries.slice(0, 5).map((e) => (
@@ -229,8 +241,14 @@ export function LegalCalendar() {
                           }`}
                         >
                           {e.daysUntilDue < 0
-                            ? `${-e.daysUntilDue}d vencida`
-                            : `en ${e.daysUntilDue}d`}
+                            ? t('legal_calendar.due.overdue', {
+                                defaultValue: '{{n}}d vencida',
+                                n: -e.daysUntilDue,
+                              })
+                            : t('legal_calendar.due.in_days', {
+                                defaultValue: 'en {{n}}d',
+                                n: e.daysUntilDue,
+                              })}
                         </span>
                         <button
                           type="button"
@@ -238,7 +256,7 @@ export function LegalCalendar() {
                           className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1"
                         >
                           <CheckCircle2 className="w-3 h-3" />
-                          Cumplida
+                          {t('legal_calendar.quick_actions.complete', 'Cumplida')}
                         </button>
                       </li>
                     ))}

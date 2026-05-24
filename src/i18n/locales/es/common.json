@@ -2718,5 +2718,156 @@
     "footer": {
       "summary": "{{active}} cambios activos · {{reverted}} revertidos"
     }
+  },
+  "legal_calendar": {
+    "title": "Calendario legal",
+    "subtitle": "Obligaciones legales recurrentes: auditorías, mediciones ambientales, renovaciones de capacitación, reuniones CPHS, reportes mutualidad, simulacros, exámenes ocupacionales, renovación de documentos y permisos. DS 76 / DS 132 / DS 54 / Ley 16.744.",
+    "empty": {
+      "select_project": "Seleccioná un proyecto."
+    },
+    "feedback": {
+      "bootstrap_ok": "Inicializadas {{n}} obligaciones estándar (DS 76, DS 132, DS 54, etc.).",
+      "already_init": "El calendario ya estaba inicializado.",
+      "advanced": "\"{{label}}\" avanzada al próximo ciclo."
+    },
+    "summary": {
+      "total": "Total",
+      "overdue": "Vencidas",
+      "alert": "Alerta",
+      "ok": "OK"
+    },
+    "bootstrap": {
+      "title": "Sin obligaciones cargadas para este proyecto.",
+      "hint": "Bootstrap inicializa el calendario con las obligaciones estándar (auditorías anuales, mediciones semestrales, CPHS mensual, simulacros, etc.) con fechas calculadas desde hoy.",
+      "cta": "Inicializar calendario estándar"
+    },
+    "due": {
+      "overdue": "{{n}}d vencida",
+      "in_days": "en {{n}}d"
+    },
+    "quick_actions": {
+      "heading": "Acciones rápidas",
+      "complete": "Cumplida"
+    }
+  },
+  "safety_talks": {
+    "title": "Charlas de seguridad",
+    "subtitle": "Sugeridor determinístico de tema diario según señales contextuales (riesgos activos, tareas del día, incidentes recientes, clima). Sin LLM — top 3 sugerencias con rationale citando los disparadores.",
+    "empty": {
+      "select_project": "Seleccioná un proyecto."
+    },
+    "feedback": {
+      "recorded": "Charla \"{{title}}\" registrada para {{date}}."
+    },
+    "signals": {
+      "heading": "Señales contextuales",
+      "active_risks": "Riesgos activos (coma)",
+      "active_risks_placeholder": "altura, eléctrico, confinado, químico",
+      "todays_tasks": "Tareas hoy (coma)",
+      "todays_tasks_placeholder": "altura, soldadura, izaje",
+      "recent_incidents": "Incidentes recientes (coma)",
+      "recent_incidents_placeholder": "caida_altura, contacto_electrico",
+      "findings": "Hallazgos abiertos (coma)",
+      "findings_placeholder": "orden_aseo, epp_faltante",
+      "uv_index": "UV Index",
+      "temp": "Temp °C",
+      "wind": "Viento km/h",
+      "new_workers": "Workers nuevos"
+    },
+    "today": {
+      "heading": "Charlas dadas hoy ({{date}})"
+    },
+    "history": {
+      "heading": "Historial reciente"
+    }
+  },
+  "audit_portals": {
+    "title": "Portales de auditor",
+    "subtitle": "Acceso temporal con scope limitado para auditores externos (SUSESO, mutualidad, ISO certifier, mandante, SEREMI, DT). Token de 64 chars hex; TTL 1-90 días; módulos seleccionables. Revocable manualmente antes del vencimiento.",
+    "cta_create": "Crear portal",
+    "empty": {
+      "select_project": "Seleccioná un proyecto."
+    },
+    "feedback": {
+      "need_project": "Necesitás un proyecto y autenticación válida.",
+      "created": "Portal creado. Token: {{token}}…",
+      "revoke_cancelled": "Revocación cancelada o motivo demasiado corto.",
+      "revoked": "Portal {{id}} revocado.",
+      "token_copied": "Token copiado al portapapeles.",
+      "copy_failed": "No se pudo copiar — copialo manualmente."
+    },
+    "affiliation": {
+      "mandante": "Mandante",
+      "suseso": "SUSESO",
+      "mutualidad": "Mutualidad (ACHS/IST/Mutual/ISL)",
+      "iso": "Certificadora ISO",
+      "seremi": "SEREMI Salud",
+      "dt": "Dirección del Trabajo",
+      "cliente": "Cliente comercial",
+      "other": "Otra"
+    },
+    "module": {
+      "documents": "Documentos",
+      "iper_matrix": "Matriz IPER",
+      "trainings": "Capacitaciones",
+      "epp": "EPP",
+      "incidents": "Incidentes",
+      "corrective_actions": "Acciones correctivas",
+      "evidences": "Evidencias",
+      "compliance_snapshot": "Snapshot cumplimiento"
+    },
+    "form": {
+      "heading": "Nuevo portal",
+      "field_name": "Nombre auditor (mín 3 chars)",
+      "name_placeholder": "Ej: Juan Pérez Bureau Veritas",
+      "field_affiliation": "Afiliación",
+      "field_email": "Email (opcional)",
+      "email_placeholder": "auditor@institucion.cl",
+      "field_ttl": "TTL en días (1-90)",
+      "field_modules": "Módulos accesibles (mín 1)",
+      "field_notes": "Notas internas (opcional, no visibles al auditor)",
+      "submit": "Crear portal"
+    },
+    "revoke": {
+      "prompt": "Motivo de la revocación (mín 5 chars):"
+    },
+    "action": {
+      "copy_token": "Copiar token",
+      "revoke": "Revocar"
+    },
+    "list": {
+      "heading": "Portales activos ({{active}}) · Total ({{total}})",
+      "empty": "Sin portales creados."
+    }
+  },
+  "document_read": {
+    "title": "Confirmación de lectura",
+    "subtitle": "Documentos críticos (protocolos, RIOHS, procedimientos nuevos) cuya lectura por parte del personal debe quedar trazada. El sistema marca como overdue los receipts no confirmados tras el deadline.",
+    "cta_publish": "Publicar documento",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para gestionar confirmaciones de lectura.",
+      "no_docs": "Aún no hay documentos publicados.",
+      "select_doc": "Seleccioná un documento."
+    },
+    "feedback": {
+      "need_project": "Seleccioná un proyecto.",
+      "title_required": "Título obligatorio.",
+      "published": "Documento publicado ({{id}}). Workers verán el aviso de lectura.",
+      "ack_ok": "Lectura confirmada."
+    },
+    "form": {
+      "heading": "Publicar documento",
+      "field_title": "Título",
+      "title_placeholder": "Ej: Procedimiento nuevo trabajo en altura — v2",
+      "field_deadline": "Días para confirmar lectura (1-90)",
+      "audience_note": "Audiencia default: todos los workers activos del proyecto. Para audiencias específicas (roles, training, etc.), usá el API server-side directo.",
+      "submit": "Publicar"
+    },
+    "list": {
+      "heading": "Documentos ({{count}})"
+    },
+    "action": {
+      "acknowledge": "Confirmo lectura"
+    }
   }
 }

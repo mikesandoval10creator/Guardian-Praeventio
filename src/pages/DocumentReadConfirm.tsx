@@ -11,6 +11,7 @@
 //   - El sistema deriva pending → overdue cuando deadlineAt pasa.
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FileText,
   Plus,
@@ -38,7 +39,9 @@ import {
 } from '../services/readReceipts/readReceiptStore';
 import { logger } from '../utils/logger';
 
+// Plan 2026-05-24 §Fase B.6 batch4 — i18n sweep DocumentReadConfirm.
 export function DocumentReadConfirm() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
 
@@ -108,11 +111,11 @@ export function DocumentReadConfirm() {
 
   const handleCreate = async () => {
     if (!selectedProject) {
-      setFeedback('Seleccioná un proyecto.');
+      setFeedback(t('document_read.feedback.need_project', 'Seleccioná un proyecto.'));
       return;
     }
     if (!title.trim()) {
-      setFeedback('Título obligatorio.');
+      setFeedback(t('document_read.feedback.title_required', 'Título obligatorio.'));
       return;
     }
     setSubmitting(true);
@@ -146,7 +149,12 @@ export function DocumentReadConfirm() {
           await saveReceipt(selectedProject.id, r);
         }
       }
-      setFeedback(`Documento publicado (${docId.slice(0, 12)}). Workers verán el aviso de lectura.`);
+      setFeedback(
+        t('document_read.feedback.published', {
+          defaultValue: 'Documento publicado ({{id}}). Workers verán el aviso de lectura.',
+          id: docId.slice(0, 12),
+        }),
+      );
       setSelectedDocId(docId);
       setShowForm(false);
       setTitle('');
@@ -184,7 +192,7 @@ export function DocumentReadConfirm() {
       } else {
         await saveReceipt(selectedProject.id, acked);
       }
-      setFeedback('Lectura confirmada.');
+      setFeedback(t('document_read.feedback.ack_ok', 'Lectura confirmada.'));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.warn('acknowledge failed', { err: msg });
@@ -198,13 +206,13 @@ export function DocumentReadConfirm() {
         <header className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
-              <FileText className="w-6 h-6 text-sky-500" /> Confirmación de lectura
+              <FileText className="w-6 h-6 text-sky-500" /> {t('document_read.title', 'Confirmación de lectura')}
             </h1>
             <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
-              Documentos críticos (protocolos, RIOHS, procedimientos nuevos)
-              cuya lectura por parte del personal debe quedar trazada. El
-              sistema marca como <em>overdue</em> los receipts no confirmados
-              tras el deadline.
+              {t(
+                'document_read.subtitle',
+                'Documentos críticos (protocolos, RIOHS, procedimientos nuevos) cuya lectura por parte del personal debe quedar trazada. El sistema marca como overdue los receipts no confirmados tras el deadline.',
+              )}
             </p>
           </div>
           <button
@@ -214,13 +222,13 @@ export function DocumentReadConfirm() {
             className="rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white px-3 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Publicar documento
+            {t('document_read.cta_publish', 'Publicar documento')}
           </button>
         </header>
 
         {!selectedProject ? (
           <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-            Seleccioná un proyecto para gestionar confirmaciones de lectura.
+            {t('document_read.empty.select_project', 'Seleccioná un proyecto para gestionar confirmaciones de lectura.')}
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-500">
@@ -238,21 +246,21 @@ export function DocumentReadConfirm() {
             {showForm && (
               <section className="rounded-2xl border border-sky-200 dark:border-sky-800 bg-sky-50/40 dark:bg-sky-900/10 p-4 space-y-3">
                 <h2 className="text-sm font-black text-sky-700 dark:text-sky-300 uppercase tracking-widest">
-                  Publicar documento
+                  {t('document_read.form.heading', 'Publicar documento')}
                 </h2>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">Título</span>
+                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('document_read.form.field_title', 'Título')}</span>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Ej: Procedimiento nuevo trabajo en altura — v2"
+                    placeholder={t('document_read.form.title_placeholder', 'Ej: Procedimiento nuevo trabajo en altura — v2')}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
                 <label className="block space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Días para confirmar lectura (1-90)
+                    {t('document_read.form.field_deadline', 'Días para confirmar lectura (1-90)')}
                   </span>
                   <input
                     type="number"
@@ -264,9 +272,10 @@ export function DocumentReadConfirm() {
                   />
                 </label>
                 <p className="text-[10px] text-zinc-500">
-                  Audiencia default: todos los workers activos del proyecto.
-                  Para audiencias específicas (roles, training, etc.), usá el
-                  API server-side directo.
+                  {t(
+                    'document_read.form.audience_note',
+                    'Audiencia default: todos los workers activos del proyecto. Para audiencias específicas (roles, training, etc.), usá el API server-side directo.',
+                  )}
                 </p>
                 <div className="flex items-center justify-end gap-2">
                   <button
@@ -274,7 +283,7 @@ export function DocumentReadConfirm() {
                     onClick={() => setShowForm(false)}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
-                    Cancelar
+                    {t('common.cancel', 'Cancelar')}
                   </button>
                   <button
                     type="button"
@@ -283,7 +292,7 @@ export function DocumentReadConfirm() {
                     className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white flex items-center gap-2"
                   >
                     {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                    Publicar
+                    {t('document_read.form.submit', 'Publicar')}
                   </button>
                 </div>
               </section>
@@ -291,14 +300,14 @@ export function DocumentReadConfirm() {
 
             {documents.length === 0 ? (
               <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-                Aún no hay documentos publicados.
+                {t('document_read.empty.no_docs', 'Aún no hay documentos publicados.')}
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
                 {/* Lista de documentos */}
                 <aside className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-3 space-y-1 max-h-[600px] overflow-y-auto">
                   <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
-                    Documentos ({documents.length})
+                    {t('document_read.list.heading', { defaultValue: 'Documentos ({{count}})', count: documents.length })}
                   </h2>
                   <ul className="space-y-1">
                     {documents.map((d) => (
@@ -339,13 +348,13 @@ export function DocumentReadConfirm() {
                           className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2"
                         >
                           <CheckCircle2 className="w-4 h-4" />
-                          Confirmo lectura
+                          {t('document_read.action.acknowledge', 'Confirmo lectura')}
                         </button>
                       )}
                     </>
                   ) : (
                     <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-                      Seleccioná un documento.
+                      {t('document_read.empty.select_doc', 'Seleccioná un documento.')}
                     </div>
                   )}
                 </div>

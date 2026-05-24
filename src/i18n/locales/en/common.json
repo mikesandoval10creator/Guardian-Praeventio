@@ -2705,5 +2705,156 @@
     "footer": {
       "summary": "{{active}} active changes · {{reverted}} reverted"
     }
+  },
+  "legal_calendar": {
+    "title": "Legal calendar",
+    "subtitle": "Recurring legal obligations: audits, environmental measurements, training renewals, CPHS meetings, mutual reports, drills, occupational exams, document and permit renewals. DS 76 / DS 132 / DS 54 / Law 16.744.",
+    "empty": {
+      "select_project": "Select a project."
+    },
+    "feedback": {
+      "bootstrap_ok": "Initialized {{n}} standard obligations (DS 76, DS 132, DS 54, etc.).",
+      "already_init": "Calendar was already initialized.",
+      "advanced": "\"{{label}}\" advanced to next cycle."
+    },
+    "summary": {
+      "total": "Total",
+      "overdue": "Overdue",
+      "alert": "Alert",
+      "ok": "OK"
+    },
+    "bootstrap": {
+      "title": "No obligations loaded for this project.",
+      "hint": "Bootstrap initializes the calendar with standard obligations (annual audits, semestral measurements, monthly CPHS, drills, etc.) with dates computed from today.",
+      "cta": "Initialize standard calendar"
+    },
+    "due": {
+      "overdue": "{{n}}d overdue",
+      "in_days": "in {{n}}d"
+    },
+    "quick_actions": {
+      "heading": "Quick actions",
+      "complete": "Done"
+    }
+  },
+  "safety_talks": {
+    "title": "Safety talks",
+    "subtitle": "Deterministic daily topic suggester based on contextual signals (active risks, today's tasks, recent incidents, weather). No LLM — top 3 suggestions with rationale citing triggers.",
+    "empty": {
+      "select_project": "Select a project."
+    },
+    "feedback": {
+      "recorded": "Talk \"{{title}}\" recorded for {{date}}."
+    },
+    "signals": {
+      "heading": "Contextual signals",
+      "active_risks": "Active risks (comma)",
+      "active_risks_placeholder": "heights, electrical, confined, chemical",
+      "todays_tasks": "Today's tasks (comma)",
+      "todays_tasks_placeholder": "heights, welding, lifting",
+      "recent_incidents": "Recent incidents (comma)",
+      "recent_incidents_placeholder": "fall_height, electrical_contact",
+      "findings": "Open findings (comma)",
+      "findings_placeholder": "housekeeping, missing_ppe",
+      "uv_index": "UV Index",
+      "temp": "Temp °C",
+      "wind": "Wind km/h",
+      "new_workers": "New workers"
+    },
+    "today": {
+      "heading": "Talks delivered today ({{date}})"
+    },
+    "history": {
+      "heading": "Recent history"
+    }
+  },
+  "audit_portals": {
+    "title": "Auditor portals",
+    "subtitle": "Temporary scoped access for external auditors (SUSESO, mutualidad, ISO certifier, mandante, SEREMI, DT). 64-char hex token; TTL 1-90 days; selectable modules. Manually revocable before expiration.",
+    "cta_create": "Create portal",
+    "empty": {
+      "select_project": "Select a project."
+    },
+    "feedback": {
+      "need_project": "You need an active project and valid authentication.",
+      "created": "Portal created. Token: {{token}}…",
+      "revoke_cancelled": "Revocation cancelled or reason too short.",
+      "revoked": "Portal {{id}} revoked.",
+      "token_copied": "Token copied to clipboard.",
+      "copy_failed": "Could not copy — please copy manually."
+    },
+    "affiliation": {
+      "mandante": "Principal client",
+      "suseso": "SUSESO",
+      "mutualidad": "Mutual (ACHS/IST/Mutual/ISL)",
+      "iso": "ISO Certifier",
+      "seremi": "SEREMI Health",
+      "dt": "Labor Directorate",
+      "cliente": "Commercial client",
+      "other": "Other"
+    },
+    "module": {
+      "documents": "Documents",
+      "iper_matrix": "IPER matrix",
+      "trainings": "Trainings",
+      "epp": "PPE",
+      "incidents": "Incidents",
+      "corrective_actions": "Corrective actions",
+      "evidences": "Evidences",
+      "compliance_snapshot": "Compliance snapshot"
+    },
+    "form": {
+      "heading": "New portal",
+      "field_name": "Auditor name (min 3 chars)",
+      "name_placeholder": "E.g.: John Smith Bureau Veritas",
+      "field_affiliation": "Affiliation",
+      "field_email": "Email (optional)",
+      "email_placeholder": "auditor@institution.com",
+      "field_ttl": "TTL in days (1-90)",
+      "field_modules": "Accessible modules (min 1)",
+      "field_notes": "Internal notes (optional, not visible to auditor)",
+      "submit": "Create portal"
+    },
+    "revoke": {
+      "prompt": "Reason for revocation (min 5 chars):"
+    },
+    "action": {
+      "copy_token": "Copy token",
+      "revoke": "Revoke"
+    },
+    "list": {
+      "heading": "Active portals ({{active}}) · Total ({{total}})",
+      "empty": "No portals created."
+    }
+  },
+  "document_read": {
+    "title": "Read confirmation",
+    "subtitle": "Critical documents (protocols, RIOHS, new procedures) whose reading by personnel must be traced. The system marks as overdue receipts not confirmed past the deadline.",
+    "cta_publish": "Publish document",
+    "empty": {
+      "select_project": "Select a project to manage read confirmations.",
+      "no_docs": "No documents published yet.",
+      "select_doc": "Select a document."
+    },
+    "feedback": {
+      "need_project": "Select a project.",
+      "title_required": "Title is required.",
+      "published": "Document published ({{id}}). Workers will see the read notice.",
+      "ack_ok": "Reading confirmed."
+    },
+    "form": {
+      "heading": "Publish document",
+      "field_title": "Title",
+      "title_placeholder": "E.g.: New working-at-heights procedure — v2",
+      "field_deadline": "Days to confirm reading (1-90)",
+      "audience_note": "Default audience: all active workers in the project. For specific audiences (roles, training, etc.) use the server-side API directly.",
+      "submit": "Publish"
+    },
+    "list": {
+      "heading": "Documents ({{count}})"
+    },
+    "action": {
+      "acknowledge": "Confirm reading"
+    }
   }
 }
