@@ -2328,5 +2328,65 @@
     "fgs_not_native": "Plataforma web — foreground service no aplica.",
     "fgs_no_plugin": "Plugin no disponible en este build.",
     "fgs_error_unknown": "desconocido"
+  },
+  "stoppages": {
+    "title": "Paralizaciones (stop-work)",
+    "subtitle": "Toda paralización queda registrada con autoría, motivo y precondiciones para reanudar. La reanudación NO es automática — exige verificación.",
+    "cta_declare": "Declarar paralización",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para ver paralizaciones."
+    },
+    "category": {
+      "incidente_grave": "Incidente grave",
+      "hallazgo_critico": "Hallazgo crítico",
+      "condicion_climatica": "Condición climática",
+      "falla_equipo_critico": "Falla equipo crítico",
+      "observacion_fiscalizador": "Observación fiscalizador",
+      "falta_supervision": "Falta supervisión",
+      "detencion_voluntaria": "Detención voluntaria (stop-work)"
+    },
+    "scope": {
+      "project": "Todo el proyecto",
+      "zone": "Zona",
+      "task": "Tarea",
+      "equipment": "Equipo"
+    },
+    "precondition": {
+      "inspect": "Inspección visual completa",
+      "authorize": "Autorización supervisor SST",
+      "document": "Registro fotográfico + ZK node"
+    },
+    "form": {
+      "heading": "Nueva paralización",
+      "field_category": "Categoría",
+      "field_scope": "Alcance",
+      "field_scope_target": "Identificador del alcance (zona/tarea/equipo) — vacío = proyecto entero",
+      "scope_target_placeholder": "(opcional) ej: zona-norte-2, task-12345",
+      "field_reason": "Motivo (mín 15 caracteres)",
+      "reason_placeholder": "Describí el riesgo identificado, condiciones observadas, normativa aplicable…",
+      "preconditions_note": "Precondiciones por defecto: inspección visual + autorización SST + registro fotográfico. Podés editarlas después por stoppage individual.",
+      "submit": "Declarar"
+    },
+    "feedback": {
+      "need_project": "Necesitás un proyecto activo y estar autenticado.",
+      "declared_success": "Paralización declarada ({{id}}). Aparece en lista activa.",
+      "declare_failed": "No se pudo declarar: {{msg}}"
+    },
+    "list": {
+      "active_heading": "Paralizaciones activas ({{count}})",
+      "empty_active": "No hay paralizaciones activas en este proyecto.",
+      "declared_by": "Declarada por {{uid}} · {{date}}"
+    },
+    "status": {
+      "active": "Activa",
+      "pending_resumption": "Pendiente reanudar"
+    },
+    "preconditions": {
+      "heading": "Precondiciones para reanudar",
+      "mark_fulfilled": "Marcar cumplida"
+    },
+    "history": {
+      "heading": "Historial reciente"
+    }
   }
 }

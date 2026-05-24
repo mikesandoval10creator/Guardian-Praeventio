@@ -50,31 +50,36 @@ import {
 } from '../services/stoppage/stoppageStore';
 import { logger } from '../utils/logger';
 
-const CATEGORY_LABELS: Record<StoppageCategory, string> = {
-  incidente_grave: 'Incidente grave',
-  hallazgo_critico: 'Hallazgo crítico',
-  condicion_climatica: 'Condición climática',
-  falla_equipo_critico: 'Falla equipo crítico',
-  observacion_fiscalizador: 'Observación fiscalizador',
-  falta_supervision: 'Falta supervisión',
-  detencion_voluntaria: 'Detención voluntaria (stop-work)',
-};
-
-const SCOPE_LABELS: Record<StoppageScope, string> = {
-  project: 'Todo el proyecto',
-  zone: 'Zona',
-  task: 'Tarea',
-  equipment: 'Equipo',
-};
-
-const DEFAULT_PRECONDITIONS: Array<{ id: string; label: string }> = [
-  { id: 'inspect', label: 'Inspección visual completa' },
-  { id: 'authorize', label: 'Autorización supervisor SST' },
-  { id: 'document', label: 'Registro fotográfico + ZK node' },
-];
+// Plan 2026-05-23 §Fase B.6 — i18n sweep. Strings derivados via t() con
+// fallback Spanish (que sigue siendo el default visible si no hay locale
+// override). Sirve de template para las 11 pages Sprint K restantes.
 
 export function StoppageMonitor() {
-  useTranslation();
+  const { t } = useTranslation();
+
+  const CATEGORY_LABELS: Record<StoppageCategory, string> = {
+    incidente_grave: t('stoppages.category.incidente_grave', 'Incidente grave'),
+    hallazgo_critico: t('stoppages.category.hallazgo_critico', 'Hallazgo crítico'),
+    condicion_climatica: t('stoppages.category.condicion_climatica', 'Condición climática'),
+    falla_equipo_critico: t('stoppages.category.falla_equipo_critico', 'Falla equipo crítico'),
+    observacion_fiscalizador: t('stoppages.category.observacion_fiscalizador', 'Observación fiscalizador'),
+    falta_supervision: t('stoppages.category.falta_supervision', 'Falta supervisión'),
+    detencion_voluntaria: t('stoppages.category.detencion_voluntaria', 'Detención voluntaria (stop-work)'),
+  };
+
+  const SCOPE_LABELS: Record<StoppageScope, string> = {
+    project: t('stoppages.scope.project', 'Todo el proyecto'),
+    zone: t('stoppages.scope.zone', 'Zona'),
+    task: t('stoppages.scope.task', 'Tarea'),
+    equipment: t('stoppages.scope.equipment', 'Equipo'),
+  };
+
+  const DEFAULT_PRECONDITIONS: Array<{ id: string; label: string }> = [
+    { id: 'inspect', label: t('stoppages.precondition.inspect', 'Inspección visual completa') },
+    { id: 'authorize', label: t('stoppages.precondition.authorize', 'Autorización supervisor SST') },
+    { id: 'document', label: t('stoppages.precondition.document', 'Registro fotográfico + ZK node') },
+  ];
+
   const { user } = useFirebase();
   const { selectedProject } = useProject();
 
@@ -131,7 +136,7 @@ export function StoppageMonitor() {
 
   const handleDeclare = async () => {
     if (!selectedProject || !user) {
-      setFeedback('Necesitás un proyecto activo y estar autenticado.');
+      setFeedback(t('stoppages.feedback.need_project', 'Necesitás un proyecto activo y estar autenticado.'));
       return;
     }
     setSubmitting(true);
@@ -152,12 +157,22 @@ export function StoppageMonitor() {
         resumptionPreconditions: DEFAULT_PRECONDITIONS,
       });
       await saveStoppage(stoppage, selectedProject.id);
-      setFeedback(`Paralización declarada (${stoppage.id.slice(0, 12)}). Aparece en lista activa.`);
+      setFeedback(
+        t('stoppages.feedback.declared_success', {
+          defaultValue: 'Paralización declarada ({{id}}). Aparece en lista activa.',
+          id: stoppage.id.slice(0, 12),
+        }),
+      );
       resetForm();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.warn('declareStoppage failed', { err: msg });
-      setFeedback(`No se pudo declarar: ${msg}`);
+      setFeedback(
+        t('stoppages.feedback.declare_failed', {
+          defaultValue: 'No se pudo declarar: {{msg}}',
+          msg,
+        }),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -201,11 +216,13 @@ export function StoppageMonitor() {
         <header className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
-              Paralizaciones (stop-work)
+              {t('stoppages.title', 'Paralizaciones (stop-work)')}
             </h1>
             <p className="text-xs text-zinc-500 mt-1 max-w-xl">
-              Toda paralización queda registrada con autoría, motivo y precondiciones
-              para reanudar. La reanudación NO es automática — exige verificación.
+              {t(
+                'stoppages.subtitle',
+                'Toda paralización queda registrada con autoría, motivo y precondiciones para reanudar. La reanudación NO es automática — exige verificación.',
+              )}
             </p>
           </div>
           <button
@@ -215,13 +232,13 @@ export function StoppageMonitor() {
             className="rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white px-3 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-colors"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
-            Declarar paralización
+            {t('stoppages.cta_declare', 'Declarar paralización')}
           </button>
         </header>
 
         {!selectedProject ? (
           <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-            Seleccioná un proyecto para ver paralizaciones.
+            {t('stoppages.empty.select_project', 'Seleccioná un proyecto para ver paralizaciones.')}
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-500">
@@ -241,11 +258,13 @@ export function StoppageMonitor() {
             {showForm && (
               <section className="rounded-2xl border border-rose-200 bg-rose-50/40 dark:bg-rose-900/10 dark:border-rose-800 p-4 space-y-3">
                 <h2 className="text-sm font-black text-rose-700 dark:text-rose-300 uppercase tracking-widest">
-                  Nueva paralización
+                  {t('stoppages.form.heading', 'Nueva paralización')}
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">Categoría</span>
+                    <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                      {t('stoppages.form.field_category', 'Categoría')}
+                    </span>
                     <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value as StoppageCategory)}
@@ -257,7 +276,9 @@ export function StoppageMonitor() {
                     </select>
                   </label>
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">Alcance</span>
+                    <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                      {t('stoppages.form.field_scope', 'Alcance')}
+                    </span>
                     <select
                       value={scope}
                       onChange={(e) => setScope(e.target.value as StoppageScope)}
@@ -271,31 +292,42 @@ export function StoppageMonitor() {
                 </div>
                 <label className="block space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Identificador del alcance (zona/tarea/equipo) — vacío = proyecto entero
+                    {t(
+                      'stoppages.form.field_scope_target',
+                      'Identificador del alcance (zona/tarea/equipo) — vacío = proyecto entero',
+                    )}
                   </span>
                   <input
                     type="text"
                     value={scopeTargetId}
                     onChange={(e) => setScopeTargetId(e.target.value)}
-                    placeholder="(opcional) ej: zona-norte-2, task-12345"
+                    placeholder={t(
+                      'stoppages.form.scope_target_placeholder',
+                      '(opcional) ej: zona-norte-2, task-12345',
+                    )}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
                 <label className="block space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Motivo (mín 15 caracteres)
+                    {t('stoppages.form.field_reason', 'Motivo (mín 15 caracteres)')}
                   </span>
                   <textarea
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     rows={3}
-                    placeholder="Describí el riesgo identificado, condiciones observadas, normativa aplicable…"
+                    placeholder={t(
+                      'stoppages.form.reason_placeholder',
+                      'Describí el riesgo identificado, condiciones observadas, normativa aplicable…',
+                    )}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
                 <div className="text-[10px] text-zinc-500">
-                  Precondiciones por defecto: inspección visual + autorización SST + registro fotográfico.
-                  Podés editarlas después por stoppage individual.
+                  {t(
+                    'stoppages.form.preconditions_note',
+                    'Precondiciones por defecto: inspección visual + autorización SST + registro fotográfico. Podés editarlas después por stoppage individual.',
+                  )}
                 </div>
                 <div className="flex items-center justify-end gap-2">
                   <button
@@ -303,7 +335,7 @@ export function StoppageMonitor() {
                     onClick={resetForm}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
-                    Cancelar
+                    {t('common.cancel', 'Cancelar')}
                   </button>
                   <button
                     type="button"
@@ -312,7 +344,7 @@ export function StoppageMonitor() {
                     className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white flex items-center gap-2"
                   >
                     {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <OctagonAlert className="w-3.5 h-3.5" />}
-                    Declarar
+                    {t('stoppages.form.submit', 'Declarar')}
                   </button>
                 </div>
               </section>
@@ -321,12 +353,15 @@ export function StoppageMonitor() {
             {/* Lista de paralizaciones activas + pending. */}
             <section className="space-y-3">
               <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
-                Paralizaciones activas ({activeStoppages.length})
+                {t('stoppages.list.active_heading', {
+                  defaultValue: 'Paralizaciones activas ({{count}})',
+                  count: activeStoppages.length,
+                })}
               </h2>
               {activeStoppages.length === 0 ? (
                 <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 p-4 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4" />
-                  No hay paralizaciones activas en este proyecto.
+                  {t('stoppages.list.empty_active', 'No hay paralizaciones activas en este proyecto.')}
                 </div>
               ) : (
                 <ul className="space-y-3">
@@ -342,7 +377,11 @@ export function StoppageMonitor() {
                           </p>
                           <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">{s.reason}</p>
                           <p className="text-[10px] text-zinc-500 mt-1">
-                            Declarada por {s.declaredByUid.slice(0, 12)} · {new Date(s.declaredAt).toLocaleString('es-CL')}
+                            {t('stoppages.list.declared_by', {
+                              defaultValue: 'Declarada por {{uid}} · {{date}}',
+                              uid: s.declaredByUid.slice(0, 12),
+                              date: new Date(s.declaredAt).toLocaleString('es-CL'),
+                            })}
                           </p>
                         </div>
                         <span
@@ -352,12 +391,14 @@ export function StoppageMonitor() {
                               : 'bg-amber-600 text-white'
                           }`}
                         >
-                          {s.status === 'active' ? 'Activa' : 'Pendiente reanudar'}
+                          {s.status === 'active'
+                            ? t('stoppages.status.active', 'Activa')
+                            : t('stoppages.status.pending_resumption', 'Pendiente reanudar')}
                         </span>
                       </header>
                       <div className="space-y-1">
                         <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                          Precondiciones para reanudar
+                          {t('stoppages.preconditions.heading', 'Precondiciones para reanudar')}
                         </p>
                         <ul className="space-y-1">
                           {s.resumptionPreconditions.map((p) => (
@@ -371,7 +412,7 @@ export function StoppageMonitor() {
                                   onClick={() => handleFulfillPrecondition(s, p.id)}
                                   className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white"
                                 >
-                                  Marcar cumplida
+                                  {t('stoppages.preconditions.mark_fulfilled', 'Marcar cumplida')}
                                 </button>
                               )}
                             </li>
@@ -388,7 +429,7 @@ export function StoppageMonitor() {
             <section className="space-y-3">
               <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
                 <PauseCircle className="w-3.5 h-3.5" />
-                Historial reciente
+                {t('stoppages.history.heading', 'Historial reciente')}
               </h2>
               <ul className="space-y-1.5">
                 {stoppages

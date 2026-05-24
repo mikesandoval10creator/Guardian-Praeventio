@@ -1966,5 +1966,65 @@
     "driving_wildfire_banner": "Considerar rota alternativa por evento natural na zona",
     "driving_wildfire_normative": "Referência normativa: DS 594 + diretrizes de direção segura.",
     "driving_wildfire_dismiss": "Ocultar aviso"
+  },
+  "stoppages": {
+    "title": "Paralisações (stop-work)",
+    "subtitle": "Toda paralisação fica registrada com autoria, motivo e precondições para retomada. A retomada NÃO é automática — exige verificação.",
+    "cta_declare": "Declarar paralisação",
+    "empty": {
+      "select_project": "Selecione um projeto para ver paralisações."
+    },
+    "category": {
+      "incidente_grave": "Incidente grave",
+      "hallazgo_critico": "Achado crítico",
+      "condicion_climatica": "Condição climática",
+      "falla_equipo_critico": "Falha equipamento crítico",
+      "observacion_fiscalizador": "Observação fiscalizador",
+      "falta_supervision": "Falta de supervisão",
+      "detencion_voluntaria": "Parada voluntária (stop-work)"
+    },
+    "scope": {
+      "project": "Todo o projeto",
+      "zone": "Zona",
+      "task": "Tarefa",
+      "equipment": "Equipamento"
+    },
+    "precondition": {
+      "inspect": "Inspeção visual completa",
+      "authorize": "Autorização supervisor SST",
+      "document": "Registro fotográfico + nó ZK"
+    },
+    "form": {
+      "heading": "Nova paralisação",
+      "field_category": "Categoria",
+      "field_scope": "Escopo",
+      "field_scope_target": "Identificador do escopo (zona/tarefa/equipamento) — vazio = projeto inteiro",
+      "scope_target_placeholder": "(opcional) ex.: zona-norte-2, task-12345",
+      "field_reason": "Motivo (mín 15 caracteres)",
+      "reason_placeholder": "Descreva o risco identificado, condições observadas, norma aplicável…",
+      "preconditions_note": "Precondições padrão: inspeção visual + autorização SST + registro fotográfico. Você pode editá-las depois por stoppage individual.",
+      "submit": "Declarar"
+    },
+    "feedback": {
+      "need_project": "Você precisa de um projeto ativo e estar autenticado.",
+      "declared_success": "Paralisação declarada ({{id}}). Aparece na lista ativa.",
+      "declare_failed": "Não foi possível declarar: {{msg}}"
+    },
+    "list": {
+      "active_heading": "Paralisações ativas ({{count}})",
+      "empty_active": "Não há paralisações ativas neste projeto.",
+      "declared_by": "Declarada por {{uid}} · {{date}}"
+    },
+    "status": {
+      "active": "Ativa",
+      "pending_resumption": "Pendente retomar"
+    },
+    "preconditions": {
+      "heading": "Precondições para retomar",
+      "mark_fulfilled": "Marcar cumprida"
+    },
+    "history": {
+      "heading": "Histórico recente"
+    }
   }
 }

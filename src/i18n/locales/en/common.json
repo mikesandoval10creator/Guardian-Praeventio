@@ -2315,5 +2315,65 @@
     "fgs_not_native": "Web platform — foreground service does not apply.",
     "fgs_no_plugin": "Plugin not available in this build.",
     "fgs_error_unknown": "unknown"
+  },
+  "stoppages": {
+    "title": "Work stoppages (stop-work)",
+    "subtitle": "Every stoppage is logged with authorship, reason, and resumption preconditions. Resumption is NOT automatic — it requires verification.",
+    "cta_declare": "Declare stoppage",
+    "empty": {
+      "select_project": "Select a project to view stoppages."
+    },
+    "category": {
+      "incidente_grave": "Serious incident",
+      "hallazgo_critico": "Critical finding",
+      "condicion_climatica": "Weather condition",
+      "falla_equipo_critico": "Critical equipment failure",
+      "observacion_fiscalizador": "Inspector observation",
+      "falta_supervision": "Lack of supervision",
+      "detencion_voluntaria": "Voluntary stop (stop-work)"
+    },
+    "scope": {
+      "project": "Entire project",
+      "zone": "Zone",
+      "task": "Task",
+      "equipment": "Equipment"
+    },
+    "precondition": {
+      "inspect": "Complete visual inspection",
+      "authorize": "OHS supervisor authorization",
+      "document": "Photo record + ZK node"
+    },
+    "form": {
+      "heading": "New stoppage",
+      "field_category": "Category",
+      "field_scope": "Scope",
+      "field_scope_target": "Scope identifier (zone/task/equipment) — empty = whole project",
+      "scope_target_placeholder": "(optional) e.g.: north-zone-2, task-12345",
+      "field_reason": "Reason (min 15 characters)",
+      "reason_placeholder": "Describe the identified risk, conditions observed, applicable regulation…",
+      "preconditions_note": "Default preconditions: visual inspection + OHS authorization + photo record. You can edit them later per individual stoppage.",
+      "submit": "Declare"
+    },
+    "feedback": {
+      "need_project": "You need an active project and to be authenticated.",
+      "declared_success": "Stoppage declared ({{id}}). Appears in active list.",
+      "declare_failed": "Could not declare: {{msg}}"
+    },
+    "list": {
+      "active_heading": "Active stoppages ({{count}})",
+      "empty_active": "No active stoppages in this project.",
+      "declared_by": "Declared by {{uid}} · {{date}}"
+    },
+    "status": {
+      "active": "Active",
+      "pending_resumption": "Pending resumption"
+    },
+    "preconditions": {
+      "heading": "Preconditions to resume",
+      "mark_fulfilled": "Mark fulfilled"
+    },
+    "history": {
+      "heading": "Recent history"
+    }
   }
 }
