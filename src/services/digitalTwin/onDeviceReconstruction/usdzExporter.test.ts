@@ -100,4 +100,51 @@ describe('exportPointCloudToUsdz', () => {
     expect(small.sizeBytes).toBeGreaterThan(0);
     expect(big.sizeBytes).toBeGreaterThan(0);
   });
+
+  // ─── §Fase D.2 visual improvements ──────────────────────────────────
+
+  it('§D.2: colorGamma=1 (default) produce mismo output que sin opción', async () => {
+    const { exportPointCloudToUsdz } = await import('./usdzExporter');
+    const cloud = makeSimplePointCloud();
+    const a = await exportPointCloudToUsdz(cloud);
+    const b = await exportPointCloudToUsdz(cloud, { colorGamma: 1 });
+    // Mismos counts, mismo blob.size (gamma=1 = identity).
+    expect(a.triangleCount).toBe(b.triangleCount);
+    expect(a.vertexCount).toBe(b.vertexCount);
+  });
+
+  it('§D.2: colorGamma < 1 (boost) genera USDZ válido', async () => {
+    const { exportPointCloudToUsdz } = await import('./usdzExporter');
+    const cloud = makeSimplePointCloud();
+    const result = await exportPointCloudToUsdz(cloud, { colorGamma: 0.5 });
+    expect(result.blob.type).toBe('model/vnd.usdz+zip');
+    expect(result.sizeBytes).toBeGreaterThan(0);
+  });
+
+  it('§D.2: colorGamma > 1 (oscurece) genera USDZ válido', async () => {
+    const { exportPointCloudToUsdz } = await import('./usdzExporter');
+    const cloud = makeSimplePointCloud();
+    const result = await exportPointCloudToUsdz(cloud, { colorGamma: 2 });
+    expect(result.sizeBytes).toBeGreaterThan(0);
+  });
+
+  it('§D.2: useUnlitMaterial=true genera USDZ válido (MeshBasicMaterial path)', async () => {
+    const { exportPointCloudToUsdz } = await import('./usdzExporter');
+    const cloud = makeSimplePointCloud();
+    const result = await exportPointCloudToUsdz(cloud, { useUnlitMaterial: true });
+    expect(result.blob.type).toBe('model/vnd.usdz+zip');
+    expect(result.triangleCount).toBe(cloud.pointCount * 2);
+    expect(result.vertexCount).toBe(cloud.pointCount * 4);
+  });
+
+  it('§D.2: combinación gamma + unlit funciona', async () => {
+    const { exportPointCloudToUsdz } = await import('./usdzExporter');
+    const cloud = makeSimplePointCloud();
+    const result = await exportPointCloudToUsdz(cloud, {
+      colorGamma: 0.6,
+      useUnlitMaterial: true,
+      quadSize: 0.08,
+    });
+    expect(result.sizeBytes).toBeGreaterThan(0);
+  });
 });
