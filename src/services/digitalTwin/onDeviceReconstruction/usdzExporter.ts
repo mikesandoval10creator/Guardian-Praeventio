@@ -36,9 +36,23 @@ export interface ExportUsdzResult {
  *
  * Helper interno; el caller usa `exportPointCloudToUsdz`.
  */
+/**
+ * Aplica gamma correction a un componente de color [0,1]. Gamma < 1
+ * "boostea" (claros más claros, oscuros se oscurecen menos); gamma > 1
+ * oscurece globalmente. Default 1 = sin cambio. Plan §Fase D.2 — los
+ * point clouds tienden a verse muted en iOS Quick Look porque su
+ * default rendering aplica tone mapping; gamma 0.5-0.7 compensa.
+ */
+function gammaCorrect(channel: number, gamma: number): number {
+  if (gamma === 1) return channel;
+  // Evitamos NaN si channel < 0 (no debería pasar pero defensivo).
+  return Math.max(0, Math.min(1, Math.pow(Math.max(0, channel), gamma)));
+}
+
 function buildQuadMeshFromPointCloud(
   cloud: PointCloud,
   quadSize: number = 0.05,
+  colorGamma: number = 1,
 ): THREE.Mesh {
   const n = cloud.pointCount;
   const half = quadSize / 2;
@@ -52,9 +66,10 @@ function buildQuadMeshFromPointCloud(
     const px = cloud.positions[i * 3];
     const py = cloud.positions[i * 3 + 1];
     const pz = cloud.positions[i * 3 + 2];
-    const r = cloud.colors[i * 3];
-    const g = cloud.colors[i * 3 + 1];
-    const b = cloud.colors[i * 3 + 2];
+    // §Fase D.2: gamma correction opcional para compensar tone-map iOS QL.
+    const r = gammaCorrect(cloud.colors[i * 3], colorGamma);
+    const g = gammaCorrect(cloud.colors[i * 3 + 1], colorGamma);
+    const b = gammaCorrect(cloud.colors[i * 3 + 2], colorGamma);
 
     // 4 vertices del quad — counter-clockwise mirando desde +Z.
     //  bl(0)──br(1)
@@ -122,6 +137,28 @@ function buildQuadMeshFromPointCloud(
 }
 
 /**
+ * Versión "unlit" del mesh — usa MeshBasicMaterial (sin lighting). Plan
+ * §Fase D.2: cuando el usuario quiere ver el point cloud con colores
+ * fieles al video original (sin que el lighting de iOS Quick Look los
+ * oscurezca), este material es mejor. USDZExporter mapea MeshBasicMaterial
+ * a un USDPreviewSurface con emissive color → bypassa el tone mapping.
+ */
+function buildUnlitQuadMeshFromPointCloud(
+  cloud: PointCloud,
+  quadSize: number = 0.05,
+  colorGamma: number = 1,
+): THREE.Mesh {
+  const mesh = buildQuadMeshFromPointCloud(cloud, quadSize, colorGamma);
+  // Swap material — el geometry queda igual.
+  (mesh.material as THREE.Material).dispose();
+  mesh.material = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    side: THREE.DoubleSide,
+  });
+  return mesh;
+}
+
+/**
  * Exporta un PointCloud a Blob USDZ listo para iOS AR Quick Look.
  *
  * Lanza si:
@@ -133,15 +170,43 @@ function buildQuadMeshFromPointCloud(
  * garantiza compatibilidad con iOS 13+. El observador podrá rotar +
  * "pegar" el mesh a un plano horizontal en AR.
  */
+export interface ExportUsdzOptions {
+  /** Tamaño del quad por punto en metros. Default 0.05. */
+  quadSize?: number;
+  /**
+   * §Fase D.2 (2026-05-23) — Gamma correction sobre vertex colors antes
+   * de exportar. Default 1 (sin cambio). Valores 0.5-0.7 compensan el
+   * tone mapping que iOS Quick Look aplica por defecto y hace los colores
+   * "pop" más vívidos. > 1 oscurece globalmente. Rango sano: [0.4, 2].
+   */
+  colorGamma?: number;
+  /**
+   * §Fase D.2 (2026-05-23) — Si true, usa MeshBasicMaterial (unlit) en
+   * vez de MeshStandardMaterial. Default false. Unlit produce colores
+   * más vívidos en iOS Quick Look porque NO interactúa con el ambient
+   * lighting del Quick Look (los puntos se ven como en el video original
+   * en vez de "sombreados"). Trade-off: pierde sensación 3D (ningún
+   * vértice se oscurece según el ángulo) — útil para visualización
+   * indicativa, no para inspección estructural.
+   */
+  useUnlitMaterial?: boolean;
+}
+
 export async function exportPointCloudToUsdz(
   cloud: PointCloud,
-  options: { quadSize?: number } = {},
+  options: ExportUsdzOptions = {},
 ): Promise<ExportUsdzResult> {
   if (cloud.pointCount === 0) {
     throw new Error('exportPointCloudToUsdz: empty cloud.');
   }
 
-  const mesh = buildQuadMeshFromPointCloud(cloud, options.quadSize ?? 0.05);
+  const quadSize = options.quadSize ?? 0.05;
+  const colorGamma = options.colorGamma ?? 1;
+  const useUnlit = options.useUnlitMaterial ?? false;
+
+  const mesh = useUnlit
+    ? buildUnlitQuadMeshFromPointCloud(cloud, quadSize, colorGamma)
+    : buildQuadMeshFromPointCloud(cloud, quadSize, colorGamma);
   mesh.name = 'praeventio-on-device-reconstruction-ios';
   const scene = new THREE.Scene();
   scene.add(mesh);
