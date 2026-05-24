@@ -2351,6 +2351,53 @@
       "row_summary": "Worker {{uid}} · {{count}} check-ins"
     }
   },
+  "exceptions_page": {
+    "title": "Documented exceptions",
+    "subtitle": "Each exception to a normal control (training gap, expired PPE, pending permit) requires written alternative mitigation + max 168 h duration + role-gated approver. The system enforces an auditable format.",
+    "cta_request": "Request exception",
+    "empty": {
+      "select_project": "Select a project to register exceptions."
+    },
+    "domain": {
+      "training_gap": "Training gap",
+      "epp_expired": "PPE expired",
+      "permit_pending": "Permit pending",
+      "document_expired": "Document expired",
+      "medical_fitness_pending": "Medical fitness pending",
+      "equipment_inspection": "Equipment inspection",
+      "staffing_gap": "Staffing gap",
+      "other": "Other"
+    },
+    "form": {
+      "heading": "New exception",
+      "field_domain": "Domain",
+      "field_subject_kind": "Subject kind",
+      "field_subject_id": "Subject ID (worker_uid, epp_id, task_id, etc.)",
+      "subject_id_placeholder": "e.g.: worker-123, epp-harness-001",
+      "field_reason": "Reason (min 20 chars) — specific, not generic",
+      "reason_placeholder": "E.g.: Working-at-heights training expires 05/23, critical task ends 05/25; request 48h extension with additional watcher.",
+      "field_mitigation": "Alternative mitigation (min 20 chars) — what replaces it",
+      "mitigation_placeholder": "E.g.: Permanent certified watcher + 2 shift checks + double-redundant PPE (harness + primary + secondary lifelines).",
+      "field_duration": "Duration (hours, max 168 = 1 week)",
+      "submit": "Create"
+    },
+    "feedback": {
+      "need_project": "You need an active project and to be authenticated.",
+      "created": "Exception created ({{id}}). Expires {{date}}.",
+      "revoke_cancelled": "Revocation cancelled or reason too short.",
+      "revoked": "Exception {{id}} revoked.",
+      "fulfilled": "Exception {{id}} marked fulfilled."
+    },
+    "revoke": {
+      "prompt": "Reason for revocation (min 5 characters):"
+    },
+    "quick_actions": {
+      "heading": "Quick actions",
+      "expires": "expires {{date}}",
+      "fulfill": "Fulfilled",
+      "revoke": "Revoke"
+    }
+  },
   "stoppages": {
     "title": "Work stoppages (stop-work)",
     "subtitle": "Every stoppage is logged with authorship, reason, and resumption preconditions. Resumption is NOT automatic — it requires verification.",

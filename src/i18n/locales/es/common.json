@@ -2364,6 +2364,53 @@
       "row_summary": "Worker {{uid}} · {{count}} check-ins"
     }
   },
+  "exceptions_page": {
+    "title": "Excepciones documentadas",
+    "subtitle": "Cada excepción a un control normal (capacitación faltante, EPP vencido, permiso pendiente) requiere mitigación alternativa por escrito + duración máx 168 h + aprobador role-gated. El sistema fuerza el formato auditable.",
+    "cta_request": "Solicitar excepción",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para registrar excepciones."
+    },
+    "domain": {
+      "training_gap": "Falta capacitación",
+      "epp_expired": "EPP vencido",
+      "permit_pending": "Permiso pendiente",
+      "document_expired": "Documento expirado",
+      "medical_fitness_pending": "Aptitud médica pendiente",
+      "equipment_inspection": "Inspección equipo",
+      "staffing_gap": "Brecha dotación",
+      "other": "Otra"
+    },
+    "form": {
+      "heading": "Nueva excepción",
+      "field_domain": "Dominio",
+      "field_subject_kind": "Tipo de sujeto",
+      "field_subject_id": "ID del sujeto (worker_uid, epp_id, task_id, etc.)",
+      "subject_id_placeholder": "ej: worker-123, epp-arnes-001",
+      "field_reason": "Motivo (mín 20 chars) — específico, no genérico",
+      "reason_placeholder": "Ej: Capacitación trabajo en altura programada vence el 23/05, faena critica termina 25/05; solicitamos extender por 48h con vigía adicional.",
+      "field_mitigation": "Mitigación alternativa (mín 20 chars) — qué la sustituye",
+      "mitigation_placeholder": "Ej: Vigía permanente con experiencia certificada + 2 chequeos por turno + EPP doble redundante (arnés + línea de vida primaria + secundaria).",
+      "field_duration": "Duración (horas, máx 168 = 1 semana)",
+      "submit": "Crear"
+    },
+    "feedback": {
+      "need_project": "Necesitás un proyecto activo y estar autenticado.",
+      "created": "Excepción creada ({{id}}). Vence {{date}}.",
+      "revoke_cancelled": "Revocación cancelada o motivo demasiado corto.",
+      "revoked": "Excepción {{id}} revocada.",
+      "fulfilled": "Excepción {{id}} marcada como cumplida."
+    },
+    "revoke": {
+      "prompt": "Motivo de la revocación (min 5 caracteres):"
+    },
+    "quick_actions": {
+      "heading": "Acciones rápidas",
+      "expires": "vence {{date}}",
+      "fulfill": "Cumplida",
+      "revoke": "Revocar"
+    }
+  },
   "stoppages": {
     "title": "Paralizaciones (stop-work)",
     "subtitle": "Toda paralización queda registrada con autoría, motivo y precondiciones para reanudar. La reanudación NO es automática — exige verificación.",

@@ -2002,6 +2002,53 @@
       "row_summary": "Worker {{uid}} · {{count}} check-ins"
     }
   },
+  "exceptions_page": {
+    "title": "Exceções documentadas",
+    "subtitle": "Cada exceção a um controle normal (capacitação faltante, EPI vencido, permissão pendente) exige mitigação alternativa por escrito + duração máx 168 h + aprovador role-gated. O sistema força o formato auditável.",
+    "cta_request": "Solicitar exceção",
+    "empty": {
+      "select_project": "Selecione um projeto para registrar exceções."
+    },
+    "domain": {
+      "training_gap": "Capacitação faltante",
+      "epp_expired": "EPI vencido",
+      "permit_pending": "Permissão pendente",
+      "document_expired": "Documento expirado",
+      "medical_fitness_pending": "Aptidão médica pendente",
+      "equipment_inspection": "Inspeção equipamento",
+      "staffing_gap": "Brecha de equipe",
+      "other": "Outra"
+    },
+    "form": {
+      "heading": "Nova exceção",
+      "field_domain": "Domínio",
+      "field_subject_kind": "Tipo de sujeito",
+      "field_subject_id": "ID do sujeito (worker_uid, epp_id, task_id, etc.)",
+      "subject_id_placeholder": "ex.: worker-123, epp-arnes-001",
+      "field_reason": "Motivo (mín 20 chars) — específico, não genérico",
+      "reason_placeholder": "Ex.: Capacitação trabalho em altura vence 23/05, faena crítica termina 25/05; solicitamos estender 48h com vigia adicional.",
+      "field_mitigation": "Mitigação alternativa (mín 20 chars) — o que a substitui",
+      "mitigation_placeholder": "Ex.: Vigia permanente com experiência certificada + 2 verificações por turno + EPI duplo redundante (cinto + linha de vida primária + secundária).",
+      "field_duration": "Duração (horas, máx 168 = 1 semana)",
+      "submit": "Criar"
+    },
+    "feedback": {
+      "need_project": "Você precisa de um projeto ativo e estar autenticado.",
+      "created": "Exceção criada ({{id}}). Vence {{date}}.",
+      "revoke_cancelled": "Revogação cancelada ou motivo curto demais.",
+      "revoked": "Exceção {{id}} revogada.",
+      "fulfilled": "Exceção {{id}} marcada como cumprida."
+    },
+    "revoke": {
+      "prompt": "Motivo da revogação (mín 5 caracteres):"
+    },
+    "quick_actions": {
+      "heading": "Ações rápidas",
+      "expires": "vence {{date}}",
+      "fulfill": "Cumprida",
+      "revoke": "Revogar"
+    }
+  },
   "stoppages": {
     "title": "Paralisações (stop-work)",
     "subtitle": "Toda paralisação fica registrada com autoria, motivo e precondições para retomada. A retomada NÃO é automática — exige verificação.",
