@@ -2644,5 +2644,66 @@
       "not_received": "Not received",
       "row_summary": "{{kind}} · {{entries}} entries · {{notes}} notes"
     }
+  },
+  "operational_changes": {
+    "title": "Management of change (MOC)",
+    "subtitle": "Each operational change (supervisor, procedure, PPE, equipment, critical control, applicable rule) is logged with rationale, impact, and read receipt by affected workers. ISO 45001 §8.1.3 — Management of Change.",
+    "cta_declare": "Declare change",
+    "empty": {
+      "select_project": "Select a project.",
+      "no_changes": "No changes recorded."
+    },
+    "feedback": {
+      "need_project": "You need an active project and valid authentication.",
+      "declared": "Change declared ({{id}}). {{n}} workers must confirm reading.",
+      "ack_ok": "Reading confirmed.",
+      "revert_cancelled": "Revert cancelled or reason too short (min 15 chars).",
+      "reverted": "Change reverted."
+    },
+    "kind": {
+      "supervisor": "Supervisor",
+      "procedure": "Procedure",
+      "equipment": "Equipment",
+      "shift": "Shift",
+      "work_zone": "Work zone",
+      "mandatory_epp": "Mandatory PPE",
+      "applicable_norm": "Applicable rule",
+      "critical_control": "Critical control",
+      "other": "Other"
+    },
+    "impact": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "form": {
+      "heading": "New change",
+      "field_kind": "Kind",
+      "field_impact": "Impact",
+      "field_what_changed": "What changed",
+      "what_changed_placeholder": "E.g.: Lifting procedure in north zone",
+      "field_before": "Before",
+      "before_placeholder": "Previous value",
+      "field_after": "After",
+      "after_placeholder": "New value",
+      "field_rationale": "Rationale (min 20 chars)",
+      "rationale_placeholder": "Why the change was necessary",
+      "field_affected_uids": "Affected worker UIDs (comma- or newline-separated)",
+      "affected_uids_placeholder": "worker-001, worker-002, worker-003",
+      "submit": "Declare"
+    },
+    "revoke": {
+      "prompt": "Reason for revert (min 15 chars):"
+    },
+    "revert": {
+      "prompt": "Reason for revert (min 15 chars):"
+    },
+    "action": {
+      "acknowledge": "Confirm reading",
+      "revert": "Revert"
+    },
+    "footer": {
+      "summary": "{{active}} active changes · {{reverted}} reverted"
+    }
   }
 }

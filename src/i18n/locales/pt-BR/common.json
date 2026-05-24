@@ -2295,5 +2295,66 @@
       "not_received": "Não recebido",
       "row_summary": "{{kind}} · {{entries}} entradas · {{notes}} notas"
     }
+  },
+  "operational_changes": {
+    "title": "Gestão de mudanças (MOC)",
+    "subtitle": "Cada mudança operacional (supervisor, procedimento, EPI, equipamento, controle crítico, norma aplicável) fica registrada com justificativa, impacto e leitura confirmada pelos trabalhadores afetados. ISO 45001 §8.1.3 — Management of Change.",
+    "cta_declare": "Declarar mudança",
+    "empty": {
+      "select_project": "Selecione um projeto.",
+      "no_changes": "Sem mudanças registradas."
+    },
+    "feedback": {
+      "need_project": "Você precisa de um projeto ativo e autenticação válida.",
+      "declared": "Mudança declarada ({{id}}). {{n}} workers devem confirmar leitura.",
+      "ack_ok": "Leitura confirmada.",
+      "revert_cancelled": "Reversão cancelada ou motivo curto demais (mín 15 chars).",
+      "reverted": "Mudança revertida."
+    },
+    "kind": {
+      "supervisor": "Supervisor",
+      "procedure": "Procedimento",
+      "equipment": "Equipamento",
+      "shift": "Turno",
+      "work_zone": "Zona de trabalho",
+      "mandatory_epp": "EPI obrigatório",
+      "applicable_norm": "Norma aplicável",
+      "critical_control": "Controle crítico",
+      "other": "Outro"
+    },
+    "impact": {
+      "low": "Baixo",
+      "medium": "Médio",
+      "high": "Alto"
+    },
+    "form": {
+      "heading": "Nova mudança",
+      "field_kind": "Tipo",
+      "field_impact": "Impacto",
+      "field_what_changed": "O que mudou",
+      "what_changed_placeholder": "Ex.: Procedimento de içamento na zona norte",
+      "field_before": "Antes",
+      "before_placeholder": "Valor anterior",
+      "field_after": "Depois",
+      "after_placeholder": "Valor novo",
+      "field_rationale": "Justificativa (mín 20 chars)",
+      "rationale_placeholder": "Por que a mudança foi necessária",
+      "field_affected_uids": "UIDs dos trabalhadores afetados (separados por vírgula ou quebra de linha)",
+      "affected_uids_placeholder": "worker-001, worker-002, worker-003",
+      "submit": "Declarar"
+    },
+    "revoke": {
+      "prompt": "Motivo da reversão (mín 15 chars):"
+    },
+    "revert": {
+      "prompt": "Motivo da reversão (mín 15 chars):"
+    },
+    "action": {
+      "acknowledge": "Confirmo leitura",
+      "revert": "Reverter"
+    },
+    "footer": {
+      "summary": "{{active}} mudanças ativas · {{reverted}} revertidas"
+    }
   }
 }

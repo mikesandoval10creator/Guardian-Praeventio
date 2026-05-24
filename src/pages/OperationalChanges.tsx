@@ -12,6 +12,7 @@
 //   - Card muestra coverage % de acknowledgments.
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   GitCompare,
   Plus,
@@ -40,21 +41,23 @@ import {
 } from '../services/changeMgmt/operationalChangeStore';
 import { logger } from '../utils/logger';
 
-const KIND_LABELS: Record<ChangeKind, string> = {
-  supervisor: 'Supervisor',
-  procedure: 'Procedimiento',
-  equipment: 'Equipo',
-  shift: 'Turno',
-  work_zone: 'Zona de trabajo',
-  mandatory_epp: 'EPP obligatorio',
-  applicable_norm: 'Norma aplicable',
-  critical_control: 'Control crítico',
-  other: 'Otro',
-};
-
+// Plan 2026-05-24 §Fase B.6 batch3 — i18n sweep OperationalChanges (MOC).
 export function OperationalChanges() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
+
+  const KIND_LABELS: Record<ChangeKind, string> = {
+    supervisor: t('operational_changes.kind.supervisor', 'Supervisor'),
+    procedure: t('operational_changes.kind.procedure', 'Procedimiento'),
+    equipment: t('operational_changes.kind.equipment', 'Equipo'),
+    shift: t('operational_changes.kind.shift', 'Turno'),
+    work_zone: t('operational_changes.kind.work_zone', 'Zona de trabajo'),
+    mandatory_epp: t('operational_changes.kind.mandatory_epp', 'EPP obligatorio'),
+    applicable_norm: t('operational_changes.kind.applicable_norm', 'Norma aplicable'),
+    critical_control: t('operational_changes.kind.critical_control', 'Control crítico'),
+    other: t('operational_changes.kind.other', 'Otro'),
+  };
 
   const [changes, setChanges] = useState<OperationalChange[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,7 +110,7 @@ export function OperationalChanges() {
 
   const handleDeclare = useCallback(async () => {
     if (!user || !selectedProject) {
-      setFeedback('Necesitás un proyecto y autenticación válida.');
+      setFeedback(t('operational_changes.feedback.need_project', 'Necesitás un proyecto y autenticación válida.'));
       return;
     }
     setSubmitting(true);
@@ -131,7 +134,13 @@ export function OperationalChanges() {
         effectiveFrom: new Date().toISOString(),
       });
       await saveChange(selectedProject.id, change);
-      setFeedback(`Cambio declarado (${change.id.slice(0, 12)}). ${affectedWorkerUids.length} workers deben confirmar lectura.`);
+      setFeedback(
+        t('operational_changes.feedback.declared', {
+          defaultValue: 'Cambio declarado ({{id}}). {{n}} workers deben confirmar lectura.',
+          id: change.id.slice(0, 12),
+          n: affectedWorkerUids.length,
+        }),
+      );
       resetForm();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -150,7 +159,7 @@ export function OperationalChanges() {
         await patchChange(selectedProject.id, change.id, {
           acknowledgments: updated.acknowledgments,
         });
-        setFeedback('Lectura confirmada.');
+        setFeedback(t('operational_changes.feedback.ack_ok', 'Lectura confirmada.'));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setFeedback(msg);
@@ -162,9 +171,12 @@ export function OperationalChanges() {
   const handleRevert = useCallback(
     async (change: OperationalChange) => {
       if (!user || !selectedProject) return;
-      const reason = window.prompt('Motivo de la reversión (mín 15 chars):', '');
+      const reason = window.prompt(
+        t('operational_changes.revert.prompt', 'Motivo de la reversión (mín 15 chars):'),
+        '',
+      );
       if (!reason || reason.trim().length < 15) {
-        setFeedback('Reversión cancelada o motivo demasiado corto (mín 15 chars).');
+        setFeedback(t('operational_changes.feedback.revert_cancelled', 'Reversión cancelada o motivo demasiado corto (mín 15 chars).'));
         return;
       }
       try {
@@ -173,7 +185,7 @@ export function OperationalChanges() {
           revertedAt: reverted.revertedAt,
           revertedReason: reverted.revertedReason,
         });
-        setFeedback('Cambio revertido.');
+        setFeedback(t('operational_changes.feedback.reverted', 'Cambio revertido.'));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setFeedback(msg);
@@ -193,13 +205,13 @@ export function OperationalChanges() {
         <header className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
-              <GitCompare className="w-6 h-6 text-violet-500" /> Gestión de cambios (MOC)
+              <GitCompare className="w-6 h-6 text-violet-500" /> {t('operational_changes.title', 'Gestión de cambios (MOC)')}
             </h1>
             <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
-              Cada cambio operacional (supervisor, procedimiento, EPP, equipo,
-              control crítico, norma aplicable) queda registrado con justificación,
-              impacto y lectura confirmada por los trabajadores afectados.
-              ISO 45001 §8.1.3 — Management of Change.
+              {t(
+                'operational_changes.subtitle',
+                'Cada cambio operacional (supervisor, procedimiento, EPP, equipo, control crítico, norma aplicable) queda registrado con justificación, impacto y lectura confirmada por los trabajadores afectados. ISO 45001 §8.1.3 — Management of Change.',
+              )}
             </p>
           </div>
           <button
@@ -209,13 +221,13 @@ export function OperationalChanges() {
             className="rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white px-3 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Declarar cambio
+            {t('operational_changes.cta_declare', 'Declarar cambio')}
           </button>
         </header>
 
         {!selectedProject ? (
           <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-            Seleccioná un proyecto.
+            {t('operational_changes.empty.select_project', 'Seleccioná un proyecto.')}
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-500">
@@ -233,11 +245,11 @@ export function OperationalChanges() {
             {showForm && (
               <section className="rounded-2xl border border-violet-200 dark:border-violet-800 bg-violet-50/40 dark:bg-violet-900/15 p-4 space-y-3">
                 <h2 className="text-sm font-black text-violet-700 dark:text-violet-300 uppercase tracking-widest">
-                  Nuevo cambio
+                  {t('operational_changes.form.heading', 'Nuevo cambio')}
                 </h2>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">Tipo</span>
+                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('operational_changes.form.field_kind', 'Tipo')}</span>
                     <select
                       value={kind}
                       onChange={(e) => setKind(e.target.value as ChangeKind)}
@@ -249,71 +261,71 @@ export function OperationalChanges() {
                     </select>
                   </label>
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">Impacto</span>
+                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('operational_changes.form.field_impact', 'Impacto')}</span>
                     <select
                       value={impact}
                       onChange={(e) => setImpact(e.target.value as ChangeImpact)}
                       className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                     >
-                      <option value="low">Bajo</option>
-                      <option value="medium">Medio</option>
-                      <option value="high">Alto</option>
+                      <option value="low">{t('operational_changes.impact.low', 'Bajo')}</option>
+                      <option value="medium">{t('operational_changes.impact.medium', 'Medio')}</option>
+                      <option value="high">{t('operational_changes.impact.high', 'Alto')}</option>
                     </select>
                   </label>
                 </div>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">Qué cambió</span>
+                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('operational_changes.form.field_what_changed', 'Qué cambió')}</span>
                   <input
                     type="text"
                     value={whatChanged}
                     onChange={(e) => setWhatChanged(e.target.value)}
-                    placeholder="Ej: Procedimiento de izaje en zona norte"
+                    placeholder={t('operational_changes.form.what_changed_placeholder', 'Ej: Procedimiento de izaje en zona norte')}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">Antes</span>
+                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('operational_changes.form.field_before', 'Antes')}</span>
                     <input
                       type="text"
                       value={previousValue}
                       onChange={(e) => setPreviousValue(e.target.value)}
-                      placeholder="Valor previo"
+                      placeholder={t('operational_changes.form.before_placeholder', 'Valor previo')}
                       className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                     />
                   </label>
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">Después</span>
+                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('operational_changes.form.field_after', 'Después')}</span>
                     <input
                       type="text"
                       value={newValue}
                       onChange={(e) => setNewValue(e.target.value)}
-                      placeholder="Valor nuevo"
+                      placeholder={t('operational_changes.form.after_placeholder', 'Valor nuevo')}
                       className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                     />
                   </label>
                 </div>
                 <label className="block space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    Justificación (mín 20 chars)
+                    {t('operational_changes.form.field_rationale', 'Justificación (mín 20 chars)')}
                   </span>
                   <textarea
                     value={rationale}
                     onChange={(e) => setRationale(e.target.value)}
                     rows={2}
-                    placeholder="Por qué fue necesario el cambio"
+                    placeholder={t('operational_changes.form.rationale_placeholder', 'Por qué fue necesario el cambio')}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
                 <label className="block space-y-1 text-xs">
                   <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                    UIDs de trabajadores afectados (separados por coma o salto de línea)
+                    {t('operational_changes.form.field_affected_uids', 'UIDs de trabajadores afectados (separados por coma o salto de línea)')}
                   </span>
                   <textarea
                     value={affectedUidsRaw}
                     onChange={(e) => setAffectedUidsRaw(e.target.value)}
                     rows={2}
-                    placeholder="worker-001, worker-002, worker-003"
+                    placeholder={t('operational_changes.form.affected_uids_placeholder', 'worker-001, worker-002, worker-003')}
                     className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                   />
                 </label>
@@ -323,7 +335,7 @@ export function OperationalChanges() {
                     onClick={resetForm}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
-                    Cancelar
+                    {t('common.cancel', 'Cancelar')}
                   </button>
                   <button
                     type="button"
@@ -332,7 +344,7 @@ export function OperationalChanges() {
                     className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white flex items-center gap-2"
                   >
                     {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                    Declarar
+                    {t('operational_changes.form.submit', 'Declarar')}
                   </button>
                 </div>
               </section>
@@ -340,7 +352,7 @@ export function OperationalChanges() {
 
             {changes.length === 0 ? (
               <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
-                Sin cambios registrados.
+                {t('operational_changes.empty.no_changes', 'Sin cambios registrados.')}
               </div>
             ) : (
               <ul className="space-y-3">
@@ -360,7 +372,7 @@ export function OperationalChanges() {
                               className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              Confirmo lectura
+                              {t('operational_changes.action.acknowledge', 'Confirmo lectura')}
                             </button>
                           )}
                           <button
@@ -369,7 +381,7 @@ export function OperationalChanges() {
                             className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-zinc-300 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-rose-600 hover:text-white flex items-center gap-1.5"
                           >
                             <Undo2 className="w-3.5 h-3.5" />
-                            Revertir
+                            {t('operational_changes.action.revert', 'Revertir')}
                           </button>
                         </div>
                       )}
@@ -381,7 +393,11 @@ export function OperationalChanges() {
 
             {activeChanges.length > 0 && (
               <div className="text-[10px] text-zinc-500 text-right">
-                {activeChanges.length} cambios activos · {changes.length - activeChanges.length} revertidos
+                {t('operational_changes.footer.summary', {
+                  defaultValue: '{{active}} cambios activos · {{reverted}} revertidos',
+                  active: activeChanges.length,
+                  reverted: changes.length - activeChanges.length,
+                })}
               </div>
             )}
           </>
