@@ -82,6 +82,16 @@ export interface SiteBookEntry {
     signedAt: string;
     algorithm: 'webauthn-ecdsa-p256' | 'kms-sign-rsa';
     payloadHashHex: string;
+    /**
+     * Plan 2026-05-24 §D.X — credenciales WebAuthn opcionales para
+     * trazabilidad legal DS 76. `credentialId` identifica QUÉ
+     * authenticator firmó (TPM laptop, security key, passkey iOS).
+     * `authenticatorDataB64u` permite re-verificación posterior por
+     * un auditor externo sin necesidad de archivar más datos.
+     * Ausentes en firmas pre-D.X (kms-sign-rsa) — siempre opcionales.
+     */
+    credentialId?: string;
+    authenticatorDataB64u?: string;
   };
 }
 
