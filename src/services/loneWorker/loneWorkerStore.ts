@@ -12,7 +12,14 @@ import type { LoneWorkerSession } from './loneWorkerService';
 
 const store = createProjectScopedStore<LoneWorkerSession>('lone_worker_sessions', {
   orderByField: 'startedAt',
-  activeFilter: { field: 'status', op: '==', value: 'active' },
+  // Plan §B.5 (2026-05-23): activeFilter = todos los status "vivos" (no
+  // 'ended'). Reduce reads ~80% en proyectos con muchas sesiones cerradas.
+  // not-in es soportado nativo por Firestore where().
+  activeFilter: {
+    field: 'status',
+    op: 'in',
+    value: ['active', 'overdue_warning', 'overdue_critical', 'help_requested'] as const,
+  },
 });
 
 export async function saveLoneWorkerSession(

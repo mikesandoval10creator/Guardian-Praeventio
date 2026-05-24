@@ -38,7 +38,7 @@ import {
 import {
   saveLoneWorkerSession,
   patchLoneWorkerSession,
-  subscribeLoneWorkerSessions,
+  subscribeActiveLoneWorkerSessions,
 } from '../services/loneWorker/loneWorkerStore';
 import { logger } from '../utils/logger';
 
@@ -74,7 +74,12 @@ export function LoneWorkerMonitor() {
       return undefined;
     }
     setLoading(true);
-    const unsub = subscribeLoneWorkerSessions(
+    // Plan §B.5 (2026-05-23): subscribeActiveLoneWorkerSessions trae solo
+    // sesiones "vivas" (active|overdue_*|help_requested) — reduce reads
+    // ~80% en proyectos con muchas sesiones ended. El historial reciente
+    // de cerradas se removió de esta page (ya estaba slice de 5; el
+    // audit-trail tiene el flujo completo con paginación).
+    const unsub = subscribeActiveLoneWorkerSessions(
       projectId,
       (list) => {
         setSessions(list);
@@ -99,15 +104,19 @@ export function LoneWorkerMonitor() {
     }));
   }, [sessions, tickSec]);
 
+  // Server-side filter ya excluye 'ended' — `sessions` solo contiene
+  // active|overdue_*|help_requested. El filter client-side se mantiene
+  // como guard defensivo por si el status del client deriva 'ended'
+  // (deriveLoneWorkerStatus puede marcar ended por timeout local antes
+  // del próximo write Firestore).
   const activeSessions = useMemo(
     () => sessionsWithStatus.filter((x) => x.status !== 'ended'),
     [sessionsWithStatus],
   );
 
-  const endedSessions = useMemo(
-    () => sessionsWithStatus.filter((x) => x.status === 'ended').slice(0, 5),
-    [sessionsWithStatus],
-  );
+  // §B.5 — historial in-page removido (server filter excluye ended). Para
+  // ver finalizadas usar /audit-trail (con paginación + filtros).
+  const endedSessions: typeof sessionsWithStatus = [];
 
   // Geolocalización opcional — el check-in graba lat/lng si el browser
   // tiene permiso. Si no, graba check-in sin coords (sigue válido).
