@@ -2533,5 +2533,53 @@
       "empty": "No root-cause analyses in this project yet.",
       "select_hint": "Select an analysis on the left to view the detail."
     }
+  },
+  "consistency_audit": {
+    "title": "Cross-module consistency",
+    "subtitle": "Automatic internal auditor that detects contradictions between modules: workers assigned without valid training, PPE that doesn't match the role, documents approved without signature, actions closed without evidence, permits whose approver no longer exists, etc. 12 deterministic rules (no LLM).",
+    "cta_run": "Run audit",
+    "cta_running": "Auditing…",
+    "auto_refresh": "Auto every 60s",
+    "re_run": "Re-run",
+    "empty": {
+      "select_project": "Select a project to run the audit."
+    },
+    "feedback": {
+      "need_project": "Select a project to run the audit.",
+      "error": "Error running audit: {{msg}}"
+    },
+    "severity": {
+      "critical": "Critical",
+      "warning": "Warnings",
+      "info": "Info"
+    },
+    "stats": {
+      "last_run": "Last run: {{date}}",
+      "summary": "Workers: {{w}} · Tasks: {{ta}} · Docs: {{d}} · CAs: {{ca}} · Permits: {{p}} · Trainings: {{tr}}"
+    },
+    "no_issues": {
+      "title": "No inconsistencies detected",
+      "subtitle": "The 12 audit rules found no contradictions between project modules in this run."
+    }
+  },
+  "site_book": {
+    "title": "Site book",
+    "subtitle": "Digital site book with year-based consecutive folios (DS 76). Entries immutable after signature; corrections require a new entry with its own folio referencing the corrected one.",
+    "cta_new_entry": "New entry",
+    "empty": {
+      "select_project": "Select a project to view / add entries.",
+      "no_entries": "No entries yet. Create the first one with \"New entry\"."
+    },
+    "feedback": {
+      "need_project": "Select a project and valid authentication.",
+      "created": "Entry {{folio}} recorded."
+    },
+    "summary": {
+      "heading": "Summary ({{count}} entries)",
+      "pending_signature": "Pending signature",
+      "signed": "Signed",
+      "corrections": "Corrections",
+      "by_kind": "By kind"
+    }
   }
 }

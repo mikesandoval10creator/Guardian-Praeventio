@@ -2546,5 +2546,53 @@
       "empty": "Aún no hay análisis de causa raíz en este proyecto.",
       "select_hint": "Seleccioná un análisis a la izquierda para ver el detalle."
     }
+  },
+  "consistency_audit": {
+    "title": "Consistencia entre módulos",
+    "subtitle": "Auditor interno automático que detecta contradicciones entre módulos: trabajadores asignados sin capacitación vigente, EPP que no corresponde al cargo, documentos aprobados sin firma, acciones cerradas sin evidencia, permisos cuyo aprobador ya no existe, etc. 12 reglas determinísticas (sin LLM).",
+    "cta_run": "Ejecutar auditoría",
+    "cta_running": "Auditando…",
+    "auto_refresh": "Auto cada 60s",
+    "re_run": "Re-ejecutar",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para correr la auditoría."
+    },
+    "feedback": {
+      "need_project": "Seleccioná un proyecto para correr la auditoría.",
+      "error": "Error al ejecutar auditoría: {{msg}}"
+    },
+    "severity": {
+      "critical": "Críticas",
+      "warning": "Advertencias",
+      "info": "Info"
+    },
+    "stats": {
+      "last_run": "Última corrida: {{date}}",
+      "summary": "Workers: {{w}} · Tareas: {{ta}} · Docs: {{d}} · CAs: {{ca}} · Permits: {{p}} · Capacitaciones: {{tr}}"
+    },
+    "no_issues": {
+      "title": "Sin inconsistencias detectadas",
+      "subtitle": "Las 12 reglas de auditoría no encontraron contradicciones entre los módulos del proyecto en esta corrida."
+    }
+  },
+  "site_book": {
+    "title": "Bitácora de obra",
+    "subtitle": "Libro de obra digital con folios consecutivos year-based (DS 76). Entradas inmutables tras firma; correcciones requieren nueva entrada con folio propio que referencia la corregida.",
+    "cta_new_entry": "Nueva entrada",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para ver / agregar entradas.",
+      "no_entries": "Sin entradas todavía. Crear la primera con \"Nueva entrada\"."
+    },
+    "feedback": {
+      "need_project": "Seleccioná un proyecto y autenticación válida.",
+      "created": "Entrada {{folio}} registrada."
+    },
+    "summary": {
+      "heading": "Resumen ({{count}} entradas)",
+      "pending_signature": "Pendientes firma",
+      "signed": "Firmadas",
+      "corrections": "Correcciones",
+      "by_kind": "Por tipo"
+    }
   }
 }
