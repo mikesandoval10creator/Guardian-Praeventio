@@ -10,6 +10,7 @@ import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export function GoogleDriveIntegrationManager() {
   const { t } = useTranslation();
@@ -50,10 +51,11 @@ export function GoogleDriveIntegrationManager() {
   const handleLinkAccount = async () => {
     setIsSyncing(true);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error('Not authenticated');
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) throw new Error('Not authenticated');
       const response = await fetch('/api/drive/auth/url', {
-        headers: { 'Authorization': `Bearer ${idToken}` }
+        headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) }
       });
       if (!response.ok) throw new Error('Failed to get auth URL');
       const { url } = await response.json();

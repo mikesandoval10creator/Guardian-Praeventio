@@ -28,6 +28,7 @@ import type {
   SusesoSignature,
 } from '../../services/suseso/types';
 import { folioToDocId } from '../../services/suseso/susesoService';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 interface BuilderState {
   kind: SusesoFormKind;
@@ -112,8 +113,9 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
     setBusy(true);
     setError(null);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error('No estás autenticado.');
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) throw new Error('No estás autenticado.');
       const payload = {
         tenantId,
         kind: state.kind,
@@ -146,7 +148,7 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify(payload),
       });
@@ -166,8 +168,9 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
     setBusy(true);
     setError(null);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error('No estás autenticado.');
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) throw new Error('No estás autenticado.');
       const sig = await requestSignature(
         result.payloadHashHex,
         reportedBy.uid,
@@ -178,7 +181,7 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({ tenantId, signature: sig }),
       });

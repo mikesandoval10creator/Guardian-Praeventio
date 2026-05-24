@@ -9,6 +9,7 @@ import type {
   SignedAcknowledgement,
   SignatureItemKind,
 } from '../services/qrSignature/qrSignatureService';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export async function requestQrSignatureChallenge(
   projectId: string,
@@ -16,15 +17,15 @@ export async function requestQrSignatureChallenge(
   kind: SignatureItemKind,
   ttlMinutes?: number,
 ): Promise<QrSignatureChallenge> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/qr-signature/challenge`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify({ itemId, kind, ttlMinutes }),
     },
@@ -48,15 +49,15 @@ export async function persistQrAcknowledgement(
   projectId: string,
   payload: QrAcknowledgementPayload,
 ): Promise<SignedAcknowledgement> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/qr-signature/acknowledge`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },

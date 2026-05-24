@@ -9,6 +9,7 @@ import {
   Layers, Upload, Loader2, CheckCircle2, AlertTriangle, Cpu, Zap,
   Video, Clock, Eye, RefreshCw, Trash2, Info, Map as MapIcon
 } from 'lucide-react';
+import { apiAuthHeader } from '../lib/apiAuth';
 // Sprint 29 Bucket BB H24 — lazy split: Site25DPanel hosts the 2.5D
 // canvas (three.js + r3f). Defer to keep the Digital Twin route
 // shell snappy.
@@ -381,6 +382,10 @@ export function DigitalTwinFaena() {
   }, []);
 
   // Subscription Firestore — sin polling, hidrata desde la fuente de verdad.
+  // §2.28 (2026-05-22) reemplazó el apiCall / refreshJobs pattern por una
+  // subscription directa a `subscribeReconstructionJobs`. La migración
+  // §2.20 a apiAuthHeader sigue aplicando al resto de fetch() del page
+  // (handleSubmit, etc.) pero acá ya no hay fetch — Firestore live data.
   useEffect(() => {
     const projectId = selectedProject?.id;
     if (!projectId) {

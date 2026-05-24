@@ -60,10 +60,12 @@ export function InviteAccept() {
     setAccepting(true);
     setAcceptError(null);
     try {
-      const idToken = await auth.currentUser!.getIdToken();
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const { apiAuthHeaderOrThrow } = await import('../lib/apiAuth');
+      const authHeader = await apiAuthHeaderOrThrow();
       const res = await fetch(`/api/invitations/${token}/accept`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${idToken}` },
+        headers: { Authorization: authHeader },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al aceptar la invitación');

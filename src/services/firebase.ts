@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, signInWithCustomToken, onAuthStateChanged, connectAuthEmulator, User } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocFromServer, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
@@ -68,6 +68,85 @@ try {
 }
 
 export const auth = getAuth(app);
+
+// §2.24 fix (2026-05-21) — Conectar Auth Emulator en MODE=test.
+// Razón: firestore.rules requiere `request.auth != null` + `email_verified`.
+// Sin Auth Emulator, el shim §2.19 (que solo setea React state) NO logra que
+// `auth.currentUser` se popule → Firestore client queries fallan denied →
+// los 5 specs §2.21 (sos-button, fall-detection, offline-resilience,
+// process-lifecycle) no encuentran proyectos seedeados.
+//
+// Aprobado por usuario 2026-05-21: "auth emulador si es necesario para que
+// la logica de negocio funcione".
+//
+// Producción NUNCA entra (gate `import.meta.env.MODE === 'test'` — Vite
+// preview con --mode test, único forma de bakear MODE=test en el bundle).
+// Backend `verifyAuth.ts:49` tiene gate redundante fatal si NODE_ENV=
+// production && E2E_MODE=1 (defense in depth).
+//
+// El fixture `tests/e2e/fixtures/auth.ts:loginAsTestUser` después de
+// page.addInitScript mintará un custom token vía firebase-admin (Auth
+// Emulator REST API auto-detectado por FIREBASE_AUTH_EMULATOR_HOST) +
+// signInWithCustomToken en el browser → auth.currentUser se popula →
+// request.auth no es null → firestore.rules permite queries.
+try {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
+    try {
+      connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+      logger.debug('[firebase] Auth client connected to emulator localhost:9099 (MODE=test)');
+    } catch (err) {
+      // Already connected — safe to ignore (HMR re-import).
+      logger.debug('[firebase] connectAuthEmulator skipped (already connected or no emulator)', { err });
+    }
+
+    // §2.24 (2026-05-21) — Auto sign-in con custom token cuando el
+    // fixture E2E lo dejó en localStorage. Esto popula `auth.currentUser`
+    // sin que el spec tenga que invocar explícito `signInBrowserViaCustom
+    // Token`. Transparent for existing specs. Race-safe: si el sign-in
+    // tarda, `onAuthStateChanged` listener (en FirebaseContext) capta
+    // el cambio y re-renderiza los componentes que dependen de user.
+    //
+    // Producción jamás entra (gate MODE=test).
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const customToken = window.localStorage.getItem('gp.e2e.custom_token');
+        if (customToken && !auth.currentUser) {
+          // Fire-and-forget. Setea `window.__praeventio_e2e_auth_ready`
+          // cuando completa para que el spec pueda esperar via
+          // page.waitForFunction (no podemos hacer dynamic import de
+          // firebase/auth desde page.evaluate — bare specifiers no
+          // resuelven en browser sin bundler).
+          signInWithCustomToken(auth, customToken).then(
+            (cred) => {
+              logger.debug('[firebase] auto signIn ok (MODE=test custom token)', {
+                uid: cred.user?.uid,
+              });
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (window as any).__praeventio_e2e_auth_ready = true;
+            },
+            (err) => {
+              logger.warn('[firebase] auto signIn with custom token failed', { err });
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (window as any).__praeventio_e2e_auth_error = String(err);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (window as any).__praeventio_e2e_auth_ready = true; // unblock spec, error queda visible
+            },
+          );
+        } else {
+          // No custom token (smoke tests sin Auth Emulator) — flagear OK
+          // para que specs que NO necesitan auth real no bloqueen wait.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).__praeventio_e2e_auth_ready = true;
+        }
+      }
+    } catch (err) {
+      logger.debug('[firebase] custom token auto-sign-in skipped', { err });
+    }
+  }
+} catch {
+  // import.meta.env not available — production path, never enter.
+}
+
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 

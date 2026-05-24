@@ -32,6 +32,7 @@ import {
   Car,
   ClipboardCheck,
   ClipboardList,
+  Clock,
   Database,
   Droplet,
   Droplets,
@@ -48,8 +49,11 @@ import {
   LayoutGrid,
   ListChecks,
   Map,
+  MessageSquare,
   Moon,
   Mountain,
+  Network,
+  OctagonAlert,
   Printer,
   ScanLine,
   Scan,
@@ -132,6 +136,12 @@ export function buildSidebarMenuGroups(
     { title: t('nav.worker_readiness', 'Preparación Trabajador'), icon: UserCheck, path: '/worker-readiness', color: 'text-teal-500' },
     // Sprint 28 Bucket B5 — CPHS formal module (audit hallazgo H29 P1).
     { title: t('nav.cphs', 'Comité Paritario (CPHS)'), icon: ShieldCheck, path: '/cphs', color: 'text-[#4db6ac]' },
+    // Sprint K wire UI (2026-05-23) — Bitácora de Obra DS 76 con
+    // folios consecutivos year-based + 12 kinds + status open→signed.
+    { title: t('nav.site_book', 'Bitácora de Obra'), icon: Book, path: '/site-book', color: 'text-amber-600' },
+    // Sprint K wire UI (2026-05-23) — Cambio de Turno + Handover.
+    // Log cronológico + notas categorizadas con severidad + ack flow.
+    { title: t('nav.shift_handover', 'Cambio de Turno'), icon: Clock, path: '/shift-handover', color: 'text-indigo-500' },
     // Sprint 40 Fase F.7 — sub-link al borrador mensual automático.
     { title: t('nav.cphs_draft', 'Minuta CPHS'), icon: FileText, path: '/cphs/draft-minute', color: 'text-teal-500' },
     { title: t('nav.mining_contractors', 'Contratistas Mineros'), icon: Mountain, path: '/mining-contractors', color: 'text-amber-500' },
@@ -164,6 +174,43 @@ export function buildSidebarMenuGroups(
     { title: t('nav.work_permits', 'Permisos de Trabajo'), icon: ShieldCheck, path: '/work-permits', color: 'text-amber-500' },
     // Sprint 40 Fase F.12 — Biblioteca de Lecciones Aprendidas.
     { title: t('nav.lessons_learned', 'Lecciones Aprendidas'), icon: BookOpen, path: '/lessons', color: 'text-amber-500' },
+    // Sprint K wire UI (2026-05-23) — Excepciones documentadas.
+    // Service exceptionEngine.ts + panel ExceptionsAuditPanel.tsx existían
+    // sin page. Cada excepción a un control normal requiere mitigación
+    // alternativa + duración máx 168h + aprobador role-gate.
+    { title: t('nav.exceptions', 'Excepciones'), icon: AlertOctagon, path: '/exceptions', color: 'text-amber-500' },
+    // Sprint K wire UI (2026-05-23) — Auditor de consistencia entre módulos.
+    // Service consistencyAuditor.ts (12 reglas determinísticas) + card
+    // ConsistencyAuditCard.tsx existían sin page consumidor.
+    { title: t('nav.consistency_audit', 'Auditor Consistencia'), icon: ShieldAlert, path: '/consistency-audit', color: 'text-rose-500' },
+    // Sprint K wire UI (2026-05-23) — Calendario legal recurrente.
+    // STANDARD_OBLIGATIONS: auditorías, mediciones, CPHS, simulacros,
+    // exámenes ocupacionales, renovaciones documentos/permisos.
+    { title: t('nav.legal_calendar', 'Calendario Legal'), icon: Calendar, path: '/legal-calendar', color: 'text-teal-500' },
+    // Sprint K wire UI (2026-05-23) — Gestión de Cambios (MOC ISO 45001 §8.1.3).
+    // Cada cambio operacional registra rationale + impacto + workers
+    // afectados + ack flow. Revertible con motivo documentado.
+    { title: t('nav.operational_changes', 'Gestión de Cambios'), icon: Network, path: '/operational-changes', color: 'text-violet-500' },
+    // Sprint K wire UI (2026-05-23) — Charlas diarias determinísticas.
+    // suggestTalks scoring por triggers (riesgos, tareas, incidentes,
+    // clima, newWorkers). Sin LLM, top 3 con rationale citando triggers.
+    { title: t('nav.safety_talks', 'Charlas Diarias'), icon: MessageSquare, path: '/safety-talks', color: 'text-sky-500' },
+    // Sprint K wire UI (2026-05-23) — Portales auditor externo.
+    // Token 64-char hex + TTL 1-90d + scope modulos + revocable.
+    // SUSESO / mutualidad / ISO / SEREMI / DT / mandante / cliente.
+    { title: t('nav.audit_portals', 'Portales Auditor'), icon: ShieldCheck, path: '/audit-portals', color: 'text-emerald-500' },
+    // Sprint K wire UI (2026-05-23) — Confirmación de lectura de documentos
+    // críticos. Service readReceiptService.ts + card DocumentReadConfirmCard
+    // existían sin page consumidor.
+    { title: t('nav.document_read', 'Lectura de Documentos'), icon: FileText, path: '/document-read', color: 'text-sky-500' },
+    // Sprint K vidas críticas wire (2026-05-22) — Controles críticos (HCA).
+    // Service criticalControlsLibrary.ts + card BarrierAnalysisCard existían;
+    // page /critical-controls cierra el gap. ISO 45001 §8.1.2.
+    { title: t('nav.critical_controls', 'Controles Críticos'), icon: ShieldCheck, path: '/critical-controls', color: 'text-emerald-500' },
+    // Sprint K vidas críticas wire (2026-05-22) — Causa raíz no-blame.
+    // Service rootCauseClassifier.ts (5 porqués + ILO taxonomía) +
+    // card RootCauseClassifierCard existían sin page. ISO 45001 §10.2.
+    { title: t('nav.root_cause', 'Causa Raíz'), icon: Network, path: '/root-cause', color: 'text-indigo-500' },
     // Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno).
     { title: t('nav.pre_shift_risk', 'Pre-turno'), icon: Sun, path: '/pre-shift-risk', color: 'text-amber-500' },
     // Sprint 40 Fase F.13 — Radar de Riesgos Repetidos.
@@ -174,6 +221,16 @@ export function buildSidebarMenuGroups(
     { title: t('nav.emergency_brigade', 'Brigada Emergencia'), icon: ShieldAlert, path: '/emergency-brigade', color: 'text-amber-500' },
     // Sprint K vidas críticas wire — Tablero de Evacuación.
     { title: t('nav.evacuation_dashboard', 'Tablero Evacuación'), icon: AlertTriangle, path: '/evacuation-dashboard', color: 'text-rose-500' },
+    // Sprint K vidas críticas wire (2026-05-22) — Paralizaciones / stop-work
+    // authority + reanudación controlada. Service stoppage/stoppageEngine.ts
+    // + adapter Firestore + card StoppageSummaryCard ya existían. Page
+    // /stoppages cierra el gap. Cualquier worker puede declarar
+    // detencion_voluntaria; categorías superiores exigen role superior.
+    { title: t('nav.stoppages', 'Paralizaciones'), icon: OctagonAlert, path: '/stoppages', color: 'text-rose-500' },
+    // Sprint K vidas críticas wire (2026-05-23) — Trabajo solitario.
+    // Service loneWorkerService.ts + card LoneWorkerCard.tsx existían
+    // pero faltaba la page. Check-in periódico + escalamiento.
+    { title: t('nav.lone_worker', 'Trabajo Solitario'), icon: UserCheck, path: '/lone-worker', color: 'text-teal-500' },
     // Sprint K §276-277 — Bitácora de Decisiones de Supervisión.
     { title: t('nav.leadership_decisions', 'Decisiones Supervisión'), icon: User, path: '/leadership-decisions', color: 'text-blue-500' },
     // Sprint K §69-71 — Conducción Segura + Rutas Críticas.

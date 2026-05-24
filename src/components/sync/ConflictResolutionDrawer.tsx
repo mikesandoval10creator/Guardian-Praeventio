@@ -1,21 +1,42 @@
 // Sprint 34 — Manual conflict-resolution drawer.
+// §2.9 update (2026-05-22) — Role gate: solo "superior" (admin/gerente)
+// puede resolver conflictos críticos. Directiva usuario:
+//   "para no sobreescribir informacion importante que los dos supervisores
+//    podrian subir estando offline, por lo que debe aprobar un superior".
 //
 // Surfaces a side-by-side view of "Tu versión offline" vs "Versión
 // actual del servidor" for each critical field that diverged during
 // the offline-sync flush. Per product rule, the app NEVER auto-decides
-// a critical field; the supervisor picks one of:
+// a critical field; el SUPERIOR (admin/gerente) picks one of:
 //   - "Mantener mía"        → local value wins
 //   - "Aceptar servidor"    → remote value wins
 //   - "Combinar manualmente" → free-form text input
 //
-// Wiring: OfflineSyncManager dispatches `sync-critical-conflict` with
-// a `Conflict` payload; this drawer subscribes, queues the conflicts,
-// and emits `sync-critical-conflict-resolved` when the supervisor
-// completes a doc. The manager listens for that event and applies the
-// resolved field set to Firestore.
+// Si el usuario actual es un supervisor regular (rol 'supervisor',
+// 'prevencionista', 'director_obra', 'medico_ocupacional'), ve un mensaje
+// "Espera la decisión de tu gerente" — el conflicto queda en queue hasta
+// que un usuario con rol admin/gerente abra la app y resuelva.
+//
+// Wiring: OfflineSyncManager dispatches `sync-critical-conflict` con un
+// `Conflict` payload; este drawer subscribe, queues los conflictos, y
+// emite `sync-critical-conflict-resolved` cuando el SUPERIOR completa
+// el doc. El manager listens for that event y aplica el resolved field
+// set a Firestore.
 
 import React, { useEffect, useRef, useState } from 'react';
 import type { Conflict, ResolutionChoice } from '../../services/sync/conflictResolver';
+import { useFirebase } from '../../contexts/FirebaseContext';
+
+/**
+ * §2.9 fix (2026-05-22) — Roles que pueden APROBAR resolución de
+ * conflictos críticos. Supervisores regulares ven el conflicto pero
+ * NO pueden decidir — solo gerente/admin (directiva usuario).
+ */
+const APPROVER_ROLES: ReadonlySet<string> = new Set(['admin', 'gerente']);
+
+function canApproveConflict(userRole: string): boolean {
+  return APPROVER_ROLES.has(userRole);
+}
 
 export interface ConflictResolutionDrawerProps {
   /**
@@ -57,6 +78,10 @@ export function ConflictResolutionDrawer({
   const [queue, setQueue] = useState<Conflict[]>(initialConflicts ?? []);
   const [resolution, setResolution] = useState<InProgressResolution>({});
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  // §2.9 (2026-05-22) — role gate: solo admin/gerente puede aprobar.
+  // useFirebase devuelve userRole; defaultea a 'worker' (no approver).
+  const { userRole } = useFirebase();
+  const isApprover = canApproveConflict(userRole);
 
   // Subscribe to manager-emitted critical conflicts.
   useEffect(() => {
@@ -146,6 +171,73 @@ export function ConflictResolutionDrawer({
     setQueue((prev) => prev.slice(1));
   };
 
+  // §2.9 fix (2026-05-22) — Si el usuario actual NO es approver (admin/
+  // gerente), mostramos un mensaje claro de "esperar superior" en lugar
+  // del UI de resolución. El conflicto permanece en queue hasta que un
+  // approver abra la app y lo resuelva.
+  //
+  // Directiva usuario: "para no sobreescribir información importante que
+  // los dos supervisores podrian subir estando offline, por lo que debe
+  // aprobar un superior".
+  if (!isApprover) {
+    return (
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="conflict-drawer-pending-title"
+        tabIndex={-1}
+        data-testid="conflict-resolution-drawer-pending-approval"
+        className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 outline-none"
+      >
+        <div className="w-full max-w-2xl rounded-t-2xl bg-white dark:bg-neutral-900 p-5 shadow-xl">
+          <header className="mb-3">
+            <h2
+              id="conflict-drawer-pending-title"
+              className="text-sm font-bold text-amber-700 dark:text-amber-400"
+            >
+              ⚠️ Conflicto crítico — esperando aprobación de superior
+            </h2>
+            <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-1">
+              {head.docType} · {head.docId} · {head.fields.length} campo(s) divergente(s)
+              {queue.length > 1 ? ` · ${queue.length - 1} más en cola` : ''}
+            </p>
+          </header>
+          <div className="text-xs text-neutral-700 dark:text-neutral-300 space-y-2 mb-4">
+            <p>
+              Dos personas editaron este registro estando offline y los valores
+              críticos divergen. Por seguridad, <strong>la decisión debe ser
+              aprobada por un gerente o administrador</strong> antes de
+              sobreescribir la información.
+            </p>
+            <p>
+              Avisa a tu gerente que abra la app — al hacerlo verá este
+              conflicto y podrá decidir qué versión queda. Mientras tanto:
+            </p>
+            <ul className="list-disc list-inside space-y-1 pl-2">
+              <li>El cambio queda en la cola de sincronización (no se pierde).</li>
+              <li>El servidor mantiene su última versión vigente.</li>
+              <li>Tú puedes seguir trabajando en otros registros.</li>
+            </ul>
+            <p className="text-[10px] text-neutral-500 dark:text-neutral-400 pt-2 border-t border-neutral-200 dark:border-neutral-700">
+              Tu rol actual: <code>{userRole}</code>. Solo los roles{' '}
+              <code>admin</code> / <code>gerente</code> pueden aprobar
+              conflictos críticos.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setQueue((prev) => prev.slice(1))}
+            className="w-full px-4 py-2.5 rounded-xl border border-neutral-300 dark:border-neutral-600 text-sm font-bold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            data-testid="conflict-drawer-pending-dismiss"
+          >
+            Entendido — esperar al gerente
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={dialogRef}
@@ -163,7 +255,7 @@ export function ConflictResolutionDrawer({
               id="conflict-drawer-title"
               className="text-sm font-bold text-neutral-900 dark:text-neutral-50"
             >
-              Conflicto crítico — revisión humana requerida
+              Conflicto crítico — revisión humana requerida (rol superior)
             </h2>
             <p className="text-xs text-neutral-600 dark:text-neutral-300">
               {head.docType} · {head.docId} · campos críticos divergentes:{' '}

@@ -15,6 +15,7 @@ import {
 } from '../../services/firebase';
 import { awardPoints } from '../../services/gamificationService';
 import { useProject } from '../../contexts/ProjectContext';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 /**
  * Sprint 25 — Bucket SS.3: persist a morning check-in summary at
@@ -159,12 +160,13 @@ export function MorningRoutine() {
       if (!selectedProject?.id) return;
       setCapsuleLoading(true);
       try {
-        const idToken = await auth.currentUser?.getIdToken();
-        if (!idToken) return;
+        // §2.20 (2026-05-23) — apiAuthHeader unified.
+        const authHeader = await apiAuthHeader();
+        if (!authHeader) return;
         const today = new Date().toISOString().slice(0, 10);
         const res = await fetch(
           `/api/wisdom-capsule/today?projectId=${encodeURIComponent(selectedProject.id)}&date=${today}`,
-          { headers: { Authorization: `Bearer ${idToken}` } }
+          { headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) } }
         );
         if (!res.ok) return;
         const j = await res.json();
@@ -184,14 +186,15 @@ export function MorningRoutine() {
   const ackCapsule = async () => {
     if (!selectedProject?.id || capsuleAcked) return;
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) return;
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) return;
       const today = new Date().toISOString().slice(0, 10);
       const res = await fetch('/api/wisdom-capsule/ack', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({ projectId: selectedProject.id, date: today }),
       });

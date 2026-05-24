@@ -13,6 +13,7 @@ import type {
   LinkedNodeKind,
   PhotoEvidencePayload,
 } from '../services/photoEvidence/photoEvidenceEngine';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 interface FetchState<T> {
   data: T | null;
@@ -24,13 +25,13 @@ async function authedFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   return fetch(path, {
     ...init,
     headers: {
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
   });
 }

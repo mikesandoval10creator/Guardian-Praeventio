@@ -2,7 +2,7 @@ import { apiAuthHeaders } from '../lib/apiAuth';
 
 async function authHeaders(): Promise<Record<string, string>> {
   // §2.20 fix (2026-05-21) — usa apiAuthHeaders() helper unificado que
-  // prefiere `E2E <secret>:<uid>` (MODE=test) sobre `Bearer ${idToken}`
+  // prefiere `E2E <secret>:<uid>` (MODE=test) sobre `Bearer ${authHeader}`
   // productivo. Antes este authHeaders local hardcodeaba Bearer y
   // fallaba 401 silencioso en E2E full-stack (process-lifecycle spec
   // dependía de awardPoints para incrementar XP de la cuadrilla).

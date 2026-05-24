@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { auth } from '../../services/firebase';
 import { PROCESSING_ACTIVITIES } from '../../services/compliance/ley19628';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 const CONSENT_TEXT_VERSION = 'consent_v1.0';
 const LOCAL_FLAG_KEY = 'pg.consentBanner.dismissed.v1';
@@ -43,10 +44,11 @@ export function ConsentBanner() {
     let cancelled = false;
     (async () => {
       try {
-        const idToken = await auth.currentUser?.getIdToken();
-        if (!idToken) return;
+        // §2.20 (2026-05-23) — apiAuthHeader unified.
+        const authHeader = await apiAuthHeader();
+        if (!authHeader) return;
         const res = await fetch('/api/compliance/consent', {
-          headers: { Authorization: `Bearer ${idToken}` },
+          headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) },
         });
         if (!res.ok) return;
         const body = await res.json();
@@ -73,8 +75,9 @@ export function ConsentBanner() {
   const handleAccept = async () => {
     setSubmitting(true);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) {
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) {
         // Not logged in — let the auth flow run; don't block UI.
         setOpen(false);
         return;
@@ -94,7 +97,7 @@ export function ConsentBanner() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
+            ...(authHeader ? { 'Authorization': authHeader } : {}),
           },
           body: JSON.stringify({ ...s, textVersion: CONSENT_TEXT_VERSION }),
         });

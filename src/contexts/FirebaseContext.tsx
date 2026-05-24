@@ -91,12 +91,15 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    // §2.19 fix — En MODE=test con fixture E2E inyectado, saltamos la
-    // suscripción a Firebase Auth real. El state ya quedó inicializado
-    // arriba via lazy init. Producción nunca entra acá (gate isE2EMode).
-    if (isE2EMode() && getE2EUser()) {
-      return;
-    }
+    // §2.24 fix (2026-05-21) — actualizado §2.19: NO saltamos el listener
+    // en E2E mode. El shim provee state INICIAL (fast first render sin
+    // flash de Landing). Cuando `signInWithCustomToken` (en firebase.ts
+    // auto-sign-in) firma al user real en Auth Emulator,
+    // `onAuthStateChanged` dispara y `setUser(currentUser)` reemplaza
+    // el shim con el user real. Esto popula `auth.currentUser` que
+    // Firestore queries necesitan para satisfacer firestore.rules.
+    //
+    // Producción nunca activa el shim (gate isE2EMode + MODE=test).
 
     // Test connection on mount
     testConnection();

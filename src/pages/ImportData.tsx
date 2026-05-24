@@ -122,12 +122,14 @@ export function ImportData() {
     setError(null);
     try {
       const base64 = await fileToBase64(file);
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const { apiAuthHeader } = await import('../lib/apiAuth');
+      const authHeader = await apiAuthHeader();
       const res = await fetch('/api/import/excel', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(authHeader ? { Authorization: authHeader } : {}),
         },
         body: JSON.stringify({
           kind,
@@ -164,12 +166,14 @@ export function ImportData() {
     setLoading(true);
     setError(null);
     try {
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const { apiAuthHeader } = await import('../lib/apiAuth');
+      const authHeader = await apiAuthHeader();
       const res = await fetch('/api/import/commit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(authHeader ? { Authorization: authHeader } : {}),
         },
         body: JSON.stringify({
           kind: summary.kind,

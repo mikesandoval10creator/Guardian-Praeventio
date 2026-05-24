@@ -14,6 +14,7 @@ import type { ProcessType } from '../../types/organic';
 import { auth } from '../../services/firebase';
 import { analytics } from '../../services/analytics';
 import type { ProcesoTemplate } from '../../services/analytics';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 // NOTE: ProcessType values are stable identifiers persisted to Firestore.
 // Only the display labels are localised via processTypeLabel below.
@@ -76,8 +77,9 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
     }
     setSubmitting(true);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) {
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) {
         setError(t('processes.error_no_session', 'Sesión no disponible. Reintenta en un momento.'));
         setSubmitting(false);
         return;
@@ -86,7 +88,7 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({
           projectId,

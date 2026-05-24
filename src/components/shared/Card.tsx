@@ -27,12 +27,19 @@ export function Card({ children, className, interactive = true, ...props }: Card
 
       const mm = gsap.matchMedia();
 
-      mm.add(
+      // gsap typings (>=3.12) endurecieron `ContextFunc` para que no
+      // acepte `(() => void) | undefined`. Casting el callback a la
+      // signature genérica de gsap.Context que sí lo permite — el
+      // runtime behaviour es idéntico, solo cambia el shape TS.
+      (mm.add as (
+        conditions: Record<string, string>,
+        cb: (ctx: { conditions: Record<string, boolean> }) => unknown,
+      ) => void)(
         {
           motionOK: '(prefers-reduced-motion: no-preference)',
           motionReduced: '(prefers-reduced-motion: reduce)',
         },
-        (ctx) => {
+        (ctx: { conditions: Record<string, boolean> }) => {
           const { motionOK } = ctx.conditions as { motionOK: boolean };
 
           // Force GPU compositing layer up-front to avoid first-hover jank.

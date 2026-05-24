@@ -5,6 +5,7 @@
 
 import { auth } from '../services/firebase';
 import { useEndpoint } from './_fetchUtils';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export type PdcaStage = 'plan' | 'do' | 'check' | 'act';
 export type PdcaOrigin = 'audit' | 'incident' | 'finding' | 'inspection';
@@ -103,13 +104,13 @@ export async function createPdcaCycle(
   projectId: string,
   payload: PdcaCreatePayload,
 ): Promise<PdcaCycleRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(`/api/sprint-k/${projectId}/pdca/cycles`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
     body: JSON.stringify(payload),
   });
@@ -132,15 +133,15 @@ export async function advancePdcaPhase(
   cycleId: string,
   payload: PdcaAdvancePayload,
 ): Promise<PdcaCycleRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/pdca/cycles/${cycleId}/advance`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },
@@ -171,15 +172,15 @@ export async function createPdcaNonConformity(
   projectId: string,
   payload: PdcaNonConformityPayload,
 ): Promise<PdcaNonConformityRecord> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/pdca/non-conformities`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },

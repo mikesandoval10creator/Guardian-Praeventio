@@ -30,6 +30,11 @@ const LoneWorker = lazy(() => import('../pages/LoneWorker').then(module => ({ de
 // ser interrumpido. Core wave: vista semanal + form de creación; las
 // futuras añaden recurrencia y drag-resize.
 const FocusAgenda = lazy(() => import('../pages/FocusAgenda').then(module => ({ default: module.FocusAgenda })));
+// Sprint K wire UI (2026-05-23) — Bitácora de obra DS 76 + Cambio de turno.
+// Servicios siteBookService.ts + shiftHandoverService.ts + cards existían
+// sin page consumidor.
+const SiteBook = lazy(() => import('../pages/SiteBook').then(module => ({ default: module.SiteBook })));
+const ShiftHandover = lazy(() => import('../pages/ShiftHandover').then(module => ({ default: module.ShiftHandover })));
 
 export const OperationsRoutes = [
   <Route key="projects" path="projects" element={<Projects />} />,
@@ -51,4 +56,6 @@ export const OperationsRoutes = [
   <Route key="dev-poster-seeder" path="dev/poster-seeder" element={<DevPosterSeeder />} />,
   <Route key="lone-worker" path="lone-worker" element={<LoneWorker />} />,
   <Route key="focus-agenda" path="focus-agenda" element={<FocusAgenda />} />,
+  <Route key="site-book" path="site-book" element={<SiteBook />} />,
+  <Route key="shift-handover" path="shift-handover" element={<ShiftHandover />} />,
 ];

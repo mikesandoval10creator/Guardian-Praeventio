@@ -1,5 +1,6 @@
 import { auth } from './firebase';
 import { logger } from '../utils/logger';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export interface PurchaseResult {
   success: boolean;
@@ -13,14 +14,15 @@ export const verifyGooglePlayPurchase = async (
   type: 'subscription' | 'one_time' = 'subscription'
 ): Promise<PurchaseResult> => {
   try {
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) throw new Error("No authenticated user");
+    // §2.20 (2026-05-23) — apiAuthHeader unified.
+    const authHeader = await apiAuthHeader();
+    if (!authHeader) throw new Error("No authenticated user");
 
     const response = await fetch('/api/billing/verify', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify({ purchaseToken, productId, type })
     });

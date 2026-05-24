@@ -6,6 +6,23 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
+
+// §2.9 (2026-05-22) — Drawer ahora gate by role (admin/gerente only).
+// Mock useFirebase para que el test simule un approver (admin) — sin esto
+// el drawer renderiza el UI "pending approval" en lugar del UI de
+// resolución y los asserts del flujo fallan.
+vi.mock('../../contexts/FirebaseContext', () => ({
+  useFirebase: () => ({
+    user: { uid: 'test-admin', email: 'admin@test' },
+    loading: false,
+    isAdmin: true,
+    isAuthReady: true,
+    userRole: 'admin', // approver role
+    userIndustry: 'General',
+    onboarded: true,
+  }),
+}));
+
 import { ConflictResolutionDrawer } from './ConflictResolutionDrawer';
 import type { Conflict } from '../../services/sync/conflictResolver';
 

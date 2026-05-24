@@ -10,6 +10,7 @@ import type {
   SupervisionDecisionKind,
   SupervisorRanking,
 } from '../services/leadership/supervisionDecisionTrail';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export type LeadershipPeriod = '30d' | '90d' | 'all';
 
@@ -72,15 +73,15 @@ export async function recordLeadershipDecision(
   projectId: string,
   payload: LeadershipDecisionPayload,
 ): Promise<SupervisionDecision> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/leadership/decisions`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },

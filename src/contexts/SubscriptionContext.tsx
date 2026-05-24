@@ -176,11 +176,13 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     async (newPlan: SubscriptionPlan) => {
       if (!user) throw new Error('not_authenticated');
 
-      const token = await user.getIdToken();
+      // §2.20 (2026-05-23) — apiAuthHeader unified (E2E + Bearer fallback).
+      const { apiAuthHeaderOrThrow } = await import('../lib/apiAuth');
+      const authHeader = await apiAuthHeaderOrThrow();
       const res = await fetch('/api/subscription/upgrade', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ planId: newPlan }),

@@ -19,6 +19,18 @@ const CphsModule = lazy(() => import('../pages/CphsModule'));
 // determinístico desde incidentes + acciones + capacitaciones +
 // inspecciones). El comité revisa y firma desde el módulo CPHS principal.
 const CphsDraftMinute = lazy(() => import('../pages/CphsDraftMinute').then(m => ({ default: m.CphsDraftMinute })));
+// Sprint K wire UI (2026-05-23) — Excepciones documentadas.
+const ExceptionsAudit = lazy(() => import('../pages/ExceptionsAudit').then(m => ({ default: m.ExceptionsAudit })));
+// Sprint K wire UI (2026-05-23) — Auditor de consistencia entre módulos.
+const ConsistencyAudit = lazy(() => import('../pages/ConsistencyAudit').then(m => ({ default: m.ConsistencyAudit })));
+// Sprint K wire UI (2026-05-23) — Calendario legal + Gestión de cambios MOC.
+const LegalCalendar = lazy(() => import('../pages/LegalCalendar').then(m => ({ default: m.LegalCalendar })));
+const OperationalChanges = lazy(() => import('../pages/OperationalChanges').then(m => ({ default: m.OperationalChanges })));
+// Sprint K wire UI (2026-05-23) — Charlas + Portales auditor externo.
+const SafetyTalks = lazy(() => import('../pages/SafetyTalks').then(m => ({ default: m.SafetyTalks })));
+const AuditPortals = lazy(() => import('../pages/AuditPortals').then(m => ({ default: m.AuditPortals })));
+// Sprint K wire UI (2026-05-23) — Confirmación de lectura de documentos críticos.
+const DocumentReadConfirm = lazy(() => import('../pages/DocumentReadConfirm').then(m => ({ default: m.DocumentReadConfirm })));
 
 export const ComplianceRoutes = [
   <Route key="normatives" path="normatives" element={<Normatives />} />,
@@ -31,4 +43,11 @@ export const ComplianceRoutes = [
   <Route key="cphs-draft-minute" path="cphs/draft-minute" element={<CphsDraftMinute />} />,
   <Route key="suseso" path="suseso" element={<SusesoReports />} />,
   <Route key="reglamentos" path="reglamentos" element={<Reglamentos />} />,
+  <Route key="exceptions" path="exceptions" element={<ExceptionsAudit />} />,
+  <Route key="consistency-audit" path="consistency-audit" element={<ConsistencyAudit />} />,
+  <Route key="legal-calendar" path="legal-calendar" element={<LegalCalendar />} />,
+  <Route key="operational-changes" path="operational-changes" element={<OperationalChanges />} />,
+  <Route key="safety-talks" path="safety-talks" element={<SafetyTalks />} />,
+  <Route key="audit-portals" path="audit-portals" element={<AuditPortals />} />,
+  <Route key="document-read" path="document-read" element={<DocumentReadConfirm />} />,
 ];

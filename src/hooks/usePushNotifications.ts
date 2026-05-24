@@ -55,11 +55,18 @@ export async function registerTokenToServer(
   if (!idToken) return { ok: false, error: 'no_auth' };
 
   try {
+    // §2.20 (2026-05-23) — el `idToken` viene de `deps.getIdToken()`
+    // (DI pattern). Para soportar el flow E2E donde el header completo
+    // (`E2E <secret>:<uid>`) reemplaza al Bearer, detectamos shape:
+    const authValue =
+      idToken.startsWith('E2E ') || idToken.startsWith('Bearer ')
+        ? idToken
+        : `Bearer ${idToken}`;
     const res = await deps.fetchImpl('/api/push/register-token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
+        Authorization: authValue,
       },
       body: JSON.stringify({ token, platform }),
     });
@@ -85,11 +92,13 @@ export function usePushNotifications() {
   const reportTokenToServer = async (token: string) => {
     const platform = Capacitor.getPlatform();
     const result = await registerTokenToServer(token, platform, {
+      // §2.20 (2026-05-23) — prefiero apiAuthHeader (E2E + Bearer
+      // fallback) y devuelvo el header completo. registerTokenToServer
+      // ya detecta si vino con prefix o no.
       getIdToken: async () => {
-        const u = auth.currentUser;
-        if (!u) return null;
         try {
-          return await u.getIdToken();
+          const { apiAuthHeader } = await import('../lib/apiAuth');
+          return await apiAuthHeader();
         } catch {
           return null;
         }

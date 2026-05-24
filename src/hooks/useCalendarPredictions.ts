@@ -13,6 +13,7 @@ import {
   type ClimateRiskAssessment,
 } from '../services/zettelkasten/climateRiskCoupling';
 import { logger } from '../utils/logger';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 interface UseCalendarPredictionsResult {
   predictions: PredictedActivity[];
@@ -60,10 +61,11 @@ export function useCalendarPredictions(): UseCalendarPredictionsResult {
       let events: CalendarEvent[] = [];
       try {
         if (user) {
-          const idToken = await user.getIdToken();
+          // §2.20 (2026-05-23) — apiAuthHeader unified.
+          const authHeader = await apiAuthHeader();
           const res = await fetch('/api/calendar/list', {
             method: 'GET',
-            headers: { Authorization: `Bearer ${idToken}` },
+            headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) },
           });
           if (res.ok) {
             const data = await res.json();

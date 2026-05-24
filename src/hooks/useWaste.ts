@@ -10,6 +10,7 @@ import type {
   WasteManifest,
   EnvironmentalPermit,
 } from '../services/environmental/environmentalCompliance';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 interface FetchState<T> {
   data: T | null;
@@ -21,11 +22,11 @@ async function authedFetch(
   path: string,
   signal: AbortSignal,
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   return fetch(path, {
     signal,
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: authHeader ? { Authorization: authHeader } : undefined,
   });
 }
 

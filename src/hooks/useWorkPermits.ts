@@ -10,6 +10,7 @@ import type {
   WorkPermitKind,
   WorkPermitStatus,
 } from '../services/workPermits/workPermitEngine';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export interface WorkPermitsResponse {
   permits: WorkPermit[];
@@ -59,13 +60,13 @@ export async function createWorkPermit(
   projectId: string,
   payload: WorkPermitCreatePayload,
 ): Promise<{ permit: WorkPermit }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(`/api/sprint-k/${projectId}/work-permits`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
     body: JSON.stringify(payload),
   });
@@ -81,15 +82,15 @@ export async function signWorkPermit(
   permitId: string,
   attestation?: WorkPermitSignPayload,
 ): Promise<{ permit: WorkPermit }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/work-permits/${permitId}/sign`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(attestation ?? {}),
     },
@@ -107,15 +108,15 @@ export async function closeWorkPermit(
   reason: string,
   outcome: 'fulfill' | 'cancel' = 'fulfill',
 ): Promise<{ permit: WorkPermit }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/work-permits/${permitId}/close`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify({ reason, outcome }),
     },

@@ -12,6 +12,7 @@ import QRCode from 'react-qr-code';
 import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
 import { useFirebase } from '../contexts/FirebaseContext';
 import type { VaultShareScope } from '../services/health/vaultShare';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 interface CreatedShare {
   tokenId: string;
@@ -89,12 +90,12 @@ export function HealthVaultShare() {
     setError(null);
     setSubmitting(true);
     try {
-      const idToken = await user?.getIdToken();
+      const authHeader = await user?.getIdToken();
       const res = await fetch('/api/health-vault/share', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({
           scope,
@@ -117,10 +118,10 @@ export function HealthVaultShare() {
 
   async function handleRevoke(tokenId: string) {
     try {
-      const idToken = await user?.getIdToken();
+      const authHeader = await user?.getIdToken();
       await fetch(`/api/health-vault/share/${tokenId}/revoke`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${idToken}` },
+        headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) },
       });
       setActive((prev) =>
         prev.map((s) =>

@@ -14,6 +14,7 @@ import { Card } from '../shared/Card';
 import { CheckCircle2, Clock, AlertTriangle, XCircle, Mail, Send, Loader2 } from 'lucide-react';
 import { auth } from '../../services/firebase';
 import type { CurriculumClaim, RefereeSlot, ClaimStatus as TStatus } from '../../services/curriculum/claims';
+import { apiAuthHeader } from '../../lib/apiAuth';
 
 const STATUS_META: Record<TStatus, { tone: string; Icon: React.ComponentType<{ className?: string }> }> = {
   pending_referees: {
@@ -62,12 +63,14 @@ export function ClaimStatus({ claim }: ClaimStatusProps) {
     setResendIndex(idx);
     try {
       if (!auth.currentUser) throw new Error(t('curriculum.error_inactive_session_short', 'Sesión inactiva.'));
-      const idToken = await auth.currentUser.getIdToken();
+      // §2.20 (2026-05-23) — apiAuthHeader unified.
+      const authHeader = await apiAuthHeader();
+      if (!authHeader) throw new Error(t('curriculum.error_inactive_session_short', 'Sesión inactiva.'));
       const res = await fetch(`/api/curriculum/claim/${claim.id}/resend`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
         body: JSON.stringify({ refereeIndex: idx }),
       });

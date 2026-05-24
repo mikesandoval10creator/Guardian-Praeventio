@@ -5,6 +5,7 @@
 
 import { auth } from '../services/firebase';
 import { useEndpoint } from './_fetchUtils';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export type EngineeringControlLevelAPI =
   | 'elimination'
@@ -80,15 +81,15 @@ export async function createEngineeringControl(
   projectId: string,
   payload: EngineeringControlCreatePayload,
 ): Promise<{ ok: true; control: EngineeringControlAPI }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/engineering-controls`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
     },
@@ -112,8 +113,8 @@ export async function verifyControl(
   id: string,
   payload: EngineeringControlVerifyPayload,
 ): Promise<{ ok: true; entry: EngineeringControlVerificationAPI }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const { verifierUid: _ignored, ...wirePayload } = payload;
   void _ignored;
   const res = await fetch(
@@ -122,7 +123,7 @@ export async function verifyControl(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(wirePayload),
     },

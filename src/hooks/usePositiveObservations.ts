@@ -10,6 +10,7 @@ import type {
   PositiveObservation,
   BalanceReport,
 } from '../services/positiveObservations/positiveObservationsService';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export interface PositiveObservationsResponse {
   observations: PositiveObservation[];
@@ -40,13 +41,13 @@ export async function createPositiveObservation(
   projectId: string,
   payload: PositiveObservationPayload,
 ): Promise<void> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(`/api/sprint-k/${projectId}/positive-observations`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
     body: JSON.stringify(payload),
   });

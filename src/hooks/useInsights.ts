@@ -23,6 +23,7 @@ import type {
 import type { SafetyTalkSuggestion } from '../services/safetyTalks/talkTopicSuggester';
 import type { RoleViewState, RoleCard } from '../services/roleViews/roleViewBuilder';
 import type { SiteBookEntry } from '../services/siteBook/siteBookService';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 interface FetchState<T> {
   data: T | null;
@@ -31,11 +32,11 @@ interface FetchState<T> {
 }
 
 async function authedFetch(path: string, signal: AbortSignal): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   return fetch(path, {
     signal,
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: authHeader ? { Authorization: authHeader } : undefined,
   });
 }
 
@@ -149,13 +150,13 @@ export async function createSiteBookEntry(
   projectId: string,
   input: CreateSiteBookEntryInput,
 ): Promise<SiteBookEntry> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(`/api/sitebook/${projectId}/entries`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authHeader ? { 'Authorization': authHeader } : {}),
     },
     body: JSON.stringify(input),
   });
@@ -169,11 +170,11 @@ export async function createSiteBookEntry(
 export async function requestAuditExpressBundle(
   projectId: string,
 ): Promise<{ downloadUrl: string; expiresAt: string }> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  const authHeader = await apiAuthHeader();
   const res = await fetch(`/api/audit/express-bundle?projectId=${encodeURIComponent(projectId)}`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: authHeader ? { Authorization: authHeader } : undefined,
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };

@@ -6,6 +6,7 @@ import { Card, Button } from '../components/shared/Card';
 import { auth } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
 import { logger } from '../utils/logger';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 // Codex fake fix §2.2 (2026-05-15): antes esta página mostraba 5 entradas
 // hardcoded tras `setTimeout(1500)`. Esto era false-completeness peligrosa
@@ -37,8 +38,9 @@ export function AuditTrail() {
       setIsLoading(true);
       setError(null);
       try {
-        const token = await auth.currentUser?.getIdToken();
-        if (!token) {
+        // §2.20 (2026-05-23) — apiAuthHeader unified.
+        const authHeader = await apiAuthHeader();
+        if (!authHeader) {
           setError(
             t(
               'audit.errors.notAuthenticated',
@@ -51,7 +53,7 @@ export function AuditTrail() {
           ? `?projectId=${encodeURIComponent(selectedProject.id)}&limit=100`
           : '?limit=100';
         const res = await fetch(`/api/audit-log${projectQuery}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) },
         });
         if (res.status === 403) {
           setError(

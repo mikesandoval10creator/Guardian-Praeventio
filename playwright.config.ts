@@ -80,12 +80,21 @@ export default defineConfig({
             timeout: 150_000,
           },
           {
-            // Firestore Emulator — tests que escriben docs reales.
+            // Firestore + Auth Emulator — tests que escriben docs reales +
+            // necesitan auth real para satisfacer firestore.rules.
+            //
+            // §2.24 fix (2026-05-21) — agregamos `,auth` al --only para que
+            // el Auth Emulator corra en :9099. firestore.rules:25 requiere
+            // `request.auth != null`; sin Auth Emulator, signInWithCustomToken
+            // del fixture E2E falla y los 5 specs §2.21 quedan denied.
             //
             // 2026-05-18: emulator cold start en CI ubuntu-latest mide
             // ~40-80s tras descarga JAR + JVM init (Java 17 + firebase-tools).
             // Bumpeamos 90→150s consistente con Express webServer arriba.
-            command: 'npx firebase emulators:start --only firestore --project demo-test',
+            //
+            // playwright-config waits sólo en :8080 (Firestore) porque el Auth
+            // Emulator arranca casi simultáneo y el fixture maneja retry.
+            command: 'npx firebase emulators:start --only firestore,auth --project demo-test',
             url: 'http://localhost:8080',
             reuseExistingServer: !process.env.CI,
             timeout: 150_000,

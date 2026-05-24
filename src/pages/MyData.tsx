@@ -27,19 +27,29 @@ import {
   type ConsentRecord,
   type DataAccessRequest,
 } from '../services/compliance/ley19628';
+import { apiAuthHeader } from '../lib/apiAuth';
+// ADR 0012 — Vista que toca consentimientos médicos (health vault, examen
+// ocupacional, etc.) DEBE renderizar el disclaimer "Praeventio nunca
+// diagnostica" en banner/card/compact.
+import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
 
 const CONSENT_TEXT_VERSION = 'consent_v1.0';
 
 type ConsentMap = Record<string, ConsentRecord>;
 
 async function authedFetch(input: string, init: RequestInit = {}) {
-  const idToken = await auth.currentUser?.getIdToken();
+  // §2.20 (2026-05-23) — apiAuthHeader unified. NOTA: apiAuthHeader() ya
+  // devuelve el header COMPLETO ('Bearer xyz' o 'E2E secret:uid'), NO
+  // prependear 'Bearer ' otra vez — eso rompía el path E2E. Fix integrado
+  // durante merge batch2 cuando se detectó el doble-prefix en la
+  // migración original.
+  const authHeader = await apiAuthHeader();
   return fetch(input, {
     ...init,
     headers: {
       ...(init.headers || {}),
       'Content-Type': 'application/json',
-      Authorization: idToken ? `Bearer ${idToken}` : '',
+      ...(authHeader ? { Authorization: authHeader } : {}),
     },
   });
 }
@@ -139,6 +149,9 @@ export function MyData() {
       transition={{ duration: 0.25 }}
       className="mx-auto max-w-4xl p-4 sm:p-6"
     >
+      {/* ADR 0012 — disclaimer no-diagnosis siempre visible en vistas que
+          tocan datos médicos / consentimientos de salud. */}
+      <MedicalDisclaimer variant="compact" className="mb-4" />
       <header className="mb-6">
         <div className="flex items-center gap-3">
           <ShieldCheck className="h-7 w-7 text-[#4db6ac]" />
