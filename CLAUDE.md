@@ -133,7 +133,7 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
 9. **Safety calc engines are pure functions** under `src/services/{ergonomics,
    protocols,safety}/*`. No side effects, no Firestore reads, deterministic.
    They are mutation-tested — keep mutation score ≥ baseline (see
-   `STRYKER_BASELINE.md`).
+   `docs/testing/MUTATION_BASELINE.md`).
 10. **No diagnosis (ADR 0012).** Code under `src/services/health/`,
     `src/services/medicine/`, `src/components/health/`,
     `src/components/medicine/`, `src/pages/Health*.tsx`, `src/pages/MyData.tsx`,
