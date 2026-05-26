@@ -42,6 +42,7 @@ import { getErrorTracker } from "./src/services/observability/index.js";
 // billing, curriculum/projects/oauth.
 import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
 import { securityHeaders } from "./src/server/middleware/securityHeaders.js";
+import { stampCspNonce } from "./src/server/middleware/stampCspNonce.js";
 import { verifyAuth } from "./src/server/middleware/verifyAuth.js";
 // Sprint 28 Bucket B3 — transversal Zod validation factory. Closes audit
 // hallazgo H17. Each opt-in route mounts `validate(schema)` as the FIRST
@@ -1121,10 +1122,13 @@ if (process.env.NODE_ENV !== "production") {
       return res.status(503).type('text/plain').send('SPA bundle missing');
     }
     const nonce = (res.locals.cspNonce as string | undefined) ?? '';
-    // Global replace: even though there's only one __CSP_NONCE__ hit
-    // today, future template additions can include the placeholder
-    // anywhere and still get substituted in a single pass.
-    const html = INDEX_HTML_TEMPLATE.replace(/__CSP_NONCE__/g, nonce);
+    // F8/H16 (audit P3) — usamos `stampCspNonce` (helper testeable) en
+    // lugar de un inline `template.replace(regex, nonce)`. El helper
+    // pasa el replacement como callback para que tokens `$&`, `$$`, etc.
+    // en el nonce NO se interpreten como special tokens de
+    // `String.prototype.replace`. Ver `stampCspNonce.test.ts` para la
+    // suite de regresión.
+    const html = stampCspNonce(INDEX_HTML_TEMPLATE, nonce);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(html);
   });
