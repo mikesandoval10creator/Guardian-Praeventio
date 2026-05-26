@@ -561,8 +561,18 @@ router.post(
         // tenantId desde el doc del proyecto; fallback a projectId si el
         // campo no existe (legacy projects, mismo pattern que
         // `routes/emergency.ts:243` para tenants/emergency_alerts).
-        const projectData = projectDoc.data() as { tenantId?: string };
-        const tenantId = projectData?.tenantId ?? projectId;
+        //
+        // Codex round-5 P2 (PR #483 follow-up) — nullish coalescing trataba
+        // `""` como valor válido, produciendo `tenants//projects/...` que
+        // Firestore rechaza en query → auto-expire fallaba para cada
+        // proyecto con `tenantId: ""`. Guard explícito: string no-vacía o
+        // fallback a projectId.
+        const projectData = projectDoc.data() as { tenantId?: unknown };
+        const rawTenantId = projectData?.tenantId;
+        const tenantId =
+          typeof rawTenantId === 'string' && rawTenantId.trim().length > 0
+            ? rawTenantId.trim()
+            : projectId;
 
         try {
           const r = await runWorkPermitAutoExpire({
