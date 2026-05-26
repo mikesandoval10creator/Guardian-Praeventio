@@ -59,6 +59,12 @@ export async function apiAuthHeader(): Promise<string | null> {
 
   try {
     const token = await user.getIdToken();
+    // Plan v2 B3 — guard contra token vacío. `getIdToken()` puede
+    // resolver a "" si el refresh token expiró o el user fue eliminado;
+    // emitir `Bearer ` (sin token) hace que el server responda 401 sin
+    // forma de distinguir "user signed out" de "auth bug". El test
+    // `orchestrator.test.ts` documenta este comportamiento esperado.
+    if (typeof token !== 'string' || token.length === 0) return null;
     return `Bearer ${token}`;
   } catch (err) {
     // `getIdToken()` puede tirar si el refresh token está expirado o

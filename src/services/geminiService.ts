@@ -1,16 +1,19 @@
 import { auth } from './firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import { logger } from '../utils/logger';
 
 const callGeminiAPI = async (action: string, args: any[]) => {
   try {
-    const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+    // Plan v2 B3 — usar apiAuthHeaders() en lugar de construir Bearer
+    // manualmente, para que el path E2E (MODE=test) inyecte el header
+    // sintético `E2E <secret>:<uid>` que `verifyAuth` acepta. Antes:
+    // los specs de Playwright full-stack con `getIdToken()` en E2E
+    // recibían 401 silencioso.
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      ...(await apiAuthHeaders()),
     };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
+
     const response = await fetch('/api/gemini', {
       method: 'POST',
       headers,
