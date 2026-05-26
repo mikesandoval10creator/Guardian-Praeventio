@@ -407,10 +407,20 @@ router.post(
           // surface so the cron skips the idempotency marker and the next
           // 5-minute pass retries — otherwise a transient FCM outage marks
           // the escalation as "delivered" with zero successful sends.
-          if (result.errorCount > 0) {
+          //
+          // PR #482 codex P1 (round 4): also fail when ALL tokens failed
+          // delivery (successCount=0 with failures>0). `sendEachForMulticast`
+          // never throws on per-token failures; it just returns
+          // failureCount=N, which would otherwise mark the escalation as
+          // delivered with zero recipients reached. Vidas dependen.
+          if (
+            result.errorCount > 0 ||
+            (result.attempted > 0 && result.successCount === 0)
+          ) {
             throw new Error(
-              `fcm_multicast_chunk_errors: chunks=${result.errorCount}/${result.chunkCount} ` +
-                `(delivered=${result.successCount}, failed=${result.failureCount})`,
+              `fcm_multicast_no_delivery: chunks=${result.errorCount}/${result.chunkCount} ` +
+                `(attempted=${result.attempted}, delivered=${result.successCount}, ` +
+                `failed=${result.failureCount})`,
             );
           }
         };
@@ -545,10 +555,19 @@ router.post(
           exceptions.errors += 1;
         }
 
+        // PR #482 codex P1 (round 4): work_permits viven tenant-scoped en
+        // `tenants/{tenantId}/projects/{pid}/work_permits` (ver
+        // `services/workPermits/workPermitFirestoreAdapter.ts:49`). Resolver
+        // tenantId desde el doc del proyecto; fallback a projectId si el
+        // campo no existe (legacy projects, mismo pattern que
+        // `routes/emergency.ts:243` para tenants/emergency_alerts).
+        const projectData = projectDoc.data() as { tenantId?: string };
+        const tenantId = projectData?.tenantId ?? projectId;
+
         try {
           const r = await runWorkPermitAutoExpire({
             db,
-            collectionPath: `projects/${projectId}/work_permits`,
+            collectionPath: `tenants/${tenantId}/projects/${projectId}/work_permits`,
           });
           workPermits.scanned += r.scanned;
           workPermits.expired += r.expired;
@@ -607,10 +626,17 @@ router.post(
               // el marker idempotente para que el próximo run reintente.
               // Plazos regulatorios (DS 54, Ley 16.744) no toleran "marked
               // sent" sin entrega.
-              if (dispatched.errorCount > 0) {
+              //
+              // PR #482 codex P1 (round 4): además, all-failed multicast
+              // (successCount=0 + failureCount>0) también es no-delivery.
+              if (
+                dispatched.errorCount > 0 ||
+                (dispatched.attempted > 0 && dispatched.successCount === 0)
+              ) {
                 throw new Error(
-                  `fcm_multicast_chunk_errors: chunks=${dispatched.errorCount}/${dispatched.chunkCount} ` +
-                    `(delivered=${dispatched.successCount}, failed=${dispatched.failureCount})`,
+                  `fcm_multicast_no_delivery: chunks=${dispatched.errorCount}/${dispatched.chunkCount} ` +
+                    `(attempted=${dispatched.attempted}, delivered=${dispatched.successCount}, ` +
+                    `failed=${dispatched.failureCount})`,
                 );
               }
             },

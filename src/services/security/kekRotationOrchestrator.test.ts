@@ -4,6 +4,7 @@ import { IDBFactory as FDBFactory } from 'fake-indexeddb';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  __generateLockIdForTests,
   forceReleaseRotationLock,
   inspectRotationLock,
   KekRotationError,
@@ -308,6 +309,50 @@ describe('inspectRotationLock + forceReleaseRotationLock', () => {
     forceReleaseRotationLock();
     forceReleaseRotationLock();
     expect(inspectRotationLock().held).toBe(false);
+  });
+});
+
+describe('generateLockId — Web Crypto guard (PR #482 codex round-4 P2)', () => {
+  it('genera lock id con Web Crypto disponible (caso normal)', () => {
+    expect(typeof globalThis.crypto?.getRandomValues).toBe('function');
+    const id = __generateLockIdForTests();
+    expect(id).toMatch(/^[0-9a-z]+-[0-9a-f]{12}$/);
+  });
+
+  // JSDOM define globalThis.crypto via getter — usamos Object.defineProperty
+  // para overridearlo en el test sin tocar la prop original.
+  it('NO throw cuando globalThis.crypto está undefined (SSR/older Node)', () => {
+    const desc = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    try {
+      Object.defineProperty(globalThis, 'crypto', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+      const id1 = __generateLockIdForTests();
+      const id2 = __generateLockIdForTests();
+      expect(id1).toMatch(/^[0-9a-z]+-[0-9a-f]{12}$/);
+      expect(id2).toMatch(/^[0-9a-z]+-[0-9a-f]{12}$/);
+      // Counter monotonic → consecutive ids differ.
+      expect(id1).not.toBe(id2);
+    } finally {
+      if (desc) Object.defineProperty(globalThis, 'crypto', desc);
+    }
+  });
+
+  it('NO throw cuando crypto.getRandomValues es undefined', () => {
+    const desc = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    try {
+      // Fake crypto sin getRandomValues
+      Object.defineProperty(globalThis, 'crypto', {
+        value: {},
+        configurable: true,
+        writable: true,
+      });
+      expect(() => __generateLockIdForTests()).not.toThrow();
+    } finally {
+      if (desc) Object.defineProperty(globalThis, 'crypto', desc);
+    }
   });
 });
 
