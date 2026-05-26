@@ -707,12 +707,10 @@ webauthnChallengeRouter.get('/webauthn/challenge', verifyAuth, async (req, res) 
 //      includes a monotonic counter. If the new counter is â‰¤ stored, the
 //      assertion is treated as a clone/replay attempt and rejected.
 //
-// TODO Round 20+: implement POST /api/auth/webauthn/register which
-// finalizes a WebAuthn create() ceremony and stores the public key via
-// `registerCredential()`. For MVP the credentials are seeded manually
-// via the Firebase Admin SDK / a one-shot script. The /verify endpoint
-// fails 401 with reason='unknown_credential' until a credential is
-// registered for the asserting `id`.
+// Registration ceremony (implementado en este mismo archivo, file:line):
+//   POST /api/auth/webauthn/register/options (~línea 920) — challenge
+//   POST /api/auth/webauthn/register/verify (~línea 971)  — attestation
+// Verificado plan v2 K11 (2026-05-26).
 //
 // R19 R6 hardening: `webauthnVerifyLimiter` (5/min/uid) is mounted AFTER
 // verifyAuth so its keyGenerator can read `req.user.uid`. Caps brute-force
