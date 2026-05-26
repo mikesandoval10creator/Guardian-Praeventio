@@ -28,13 +28,30 @@ export type BernoulliNodeType =
  * strict so `bernoulliNodeRegistry` (a `Record<BernoulliNodeType, ...>`)
  * remains exhaustive.
  */
+/**
+ * Horometro/Maintenance flow node types (Sprint K Bloque 3 §3.6).
+ * Cuando un equipo (excavadora, compresor, generador) acumula horas
+ * de operación que cruzan un threshold de mantención, el flujo
+ * `horometroMaintenanceFlow` materializa el ciclo:
+ *   - 'horometro-reading': supervisor registra horas operadas
+ *   - 'maintenance-threshold-reached': sistema detecta cruce de umbral
+ *   - 'maintenance-task-created': task técnico asignado
+ *   - 'maintenance-task-completed': cierre con evidencia + RUT mecánico
+ */
+export type HorometroMaintenanceNodeType =
+  | 'horometro-reading'
+  | 'maintenance-threshold-reached'
+  | 'maintenance-task-created'
+  | 'maintenance-task-completed';
+
 export type RiskNodeType =
   | BernoulliNodeType
   | 'safety-learning'
   // §2.18 (2026-05-22) — EPP inspection on-device. Detección TFLite local
   // (privacy: imagen NUNCA sale del device, solo classification result).
   // Ver `src/services/ai/eppDetectorOnDevice.ts`.
-  | 'epp_inspection';
+  | 'epp_inspection'
+  | HorometroMaintenanceNodeType;
 
 export interface RiskNodePayload {
   /** Node title (Spanish, short). */
