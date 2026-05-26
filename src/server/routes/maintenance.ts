@@ -361,14 +361,26 @@ router.post(
           bodyPrefix: string,
         ): Promise<void> => {
           const roles = LONE_WORKER_ROLE_BUCKETS[decision.level];
+          // PR #482 codex P1 (round 3): `resolveProjectMemberTokens` throws
+          // `ProjectTokenLookupError` on Firestore read failures; the cron's
+          // try/catch around notifyHook ensures the marker is NOT written
+          // and the next 5-minute pass retries. Vidas dependen.
           const { tokens } = await resolveProjectMemberTokens(projectId, roles, db);
           if (tokens.length === 0) {
+            // No throw on "lookup succeeded but no recipients" — but ALSO
+            // do not mark this escalation as delivered. Throw so the cron
+            // skips the idempotency marker and retries next pass. The
+            // operator must then provision the role; until they do, the
+            // cron will log this warning every 5 minutes (acceptable noise
+            // for a safety-critical hole).
             logger.warn('[maintenance] lone-worker no tokens for project/level', {
               projectId,
               sessionId,
               level: decision.level,
             });
-            return;
+            throw new Error(
+              `no_recipients_for_level: project=${projectId} level=${decision.level}`,
+            );
           }
           const result = await sendMulticastChunked(messaging, tokens, {
             notification: {
@@ -552,6 +564,12 @@ router.post(
             db,
             collectionPath: `projects/${projectId}/legal_obligations`,
             notifyResponsible: async (obligationId, obligation, daysUntil) => {
+              // PR #482 codex P1 (round 3): same retry semantics as lone-worker.
+              // Token-lookup failure → throw via ProjectTokenLookupError.
+              // Empty recipient set → throw too: marker not written, next
+              // daily run retries. For legal reminders the noise floor is
+              // 1×/day so a missing supervisor provisioning generates one
+              // warn per obligation per day until the operator fixes it.
               const { tokens } = await resolveProjectMemberTokens(projectId, responsibleRoles, db);
               if (tokens.length === 0) {
                 logger.warn('[maintenance] legal-reminder no responsible tokens', {
@@ -559,12 +577,9 @@ router.post(
                   obligationId,
                   kind: obligation.kind,
                 });
-                // No marker write — el cron interpreta esto como notify
-                // exitoso (sin recipients). Para legal reminders esto es
-                // ACEPTABLE: el marker idempotente evita ruido diario al
-                // operador, y la ausencia de roles supervisor en el proyecto
-                // es un problema de provisioning que requiere fix manual.
-                return;
+                throw new Error(
+                  `no_responsible_recipients: project=${projectId} obligation=${obligationId}`,
+                );
               }
               const dispatched = await sendMulticastChunked(messaging, tokens, {
                 notification: {

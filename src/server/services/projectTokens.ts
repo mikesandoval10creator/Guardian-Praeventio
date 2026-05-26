@@ -25,25 +25,40 @@ export function __clearProjectTokenCache(): void {
   userTokenCache.clear();
 }
 
+/**
+ * Read `users/{uid}.fcmTokens` (array) with a TTL cache.
+ *
+ * PR #482 codex P1 (round 3): cache SUCCESSFUL reads only — including
+ * legitimate empty arrays (user exists but has no registered devices) and
+ * missing-doc reads (user has never registered). Do NOT cache transient
+ * read failures as `[]`: that turns a 1-second outage into a 5-minute
+ * silent escalation hole where the per-project recipient set collapses
+ * to empty across multiple cron runs.
+ *
+ * Returns `null` on read failure so the caller can distinguish "empty
+ * roster" (legit) from "could not check" (must propagate as error).
+ */
 async function getUserTokensCached(
   uid: string,
   db: FirebaseFirestore.Firestore,
-): Promise<string[]> {
+): Promise<string[] | null> {
   const now = Date.now();
   const hit = userTokenCache.get(uid);
   if (hit && hit.expiresAt > now) return hit.tokens;
-  let tokens: string[] = [];
+  let tokens: string[];
   try {
     const snap = await db.collection('users').doc(uid).get();
     if (snap.exists) {
       const raw = (snap.data() as { fcmTokens?: unknown })?.fcmTokens;
-      if (Array.isArray(raw)) {
-        tokens = raw.filter((t): t is string => typeof t === 'string' && t.length > 0);
-      }
+      tokens = Array.isArray(raw)
+        ? raw.filter((t): t is string => typeof t === 'string' && t.length > 0)
+        : [];
+    } else {
+      tokens = [];
     }
   } catch (err) {
     logger.warn?.('project_tokens.user_lookup_failed', { uid, err: String(err) });
-    tokens = [];
+    return null;
   }
   userTokenCache.set(uid, { tokens, expiresAt: now + USER_TOKEN_CACHE_TTL_MS });
   return tokens;
@@ -61,6 +76,26 @@ export interface ResolvedProjectTokens {
 }
 
 /**
+ * Thrown when a Firestore read fails while resolving project tokens.
+ * Callers in safety-critical paths (lone-worker escalation, legal-reminders)
+ * MUST treat this as "could not verify recipients" and abort their
+ * idempotency-marker write so the next cron run retries.
+ *
+ * PR #482 codex P1 (round 3) — before, the helper swallowed read errors
+ * and returned `[]`, indistinguishable from "no recipients configured".
+ */
+export class ProjectTokenLookupError extends Error {
+  readonly projectId: string;
+  override readonly cause: unknown;
+  constructor(projectId: string, cause: unknown) {
+    super(`project_tokens lookup failed for project ${projectId}: ${String(cause)}`);
+    this.name = 'ProjectTokenLookupError';
+    this.projectId = projectId;
+    this.cause = cause;
+  }
+}
+
+/**
  * Resolve FCM tokens + emails for project members whose `role` is in `roles`.
  * Mirrors the cross-collection pattern used in `sendToProjectSupervisors`:
  *
@@ -68,7 +103,13 @@ export interface ResolvedProjectTokens {
  *   2. for each member matching `roles`, union legacy `members/{uid}.fcmToken`
  *      (singular) with canonical `users/{uid}.fcmTokens[]` (array, TTL-cached)
  *
- * Never throws — read failures degrade to empty arrays + a warn log.
+ * PR #482 codex P1 (round 3): throws `ProjectTokenLookupError` on Firestore
+ * read failures (either the members listing or a per-member user-doc read).
+ * Empty result is still valid and returned — it means "no members matched
+ * the role filter and none of the matching members had registered tokens".
+ * The caller distinguishes "0 tokens, lookup succeeded" (legit, but in
+ * safety contexts should still trigger a warn + no-marker policy) from
+ * "lookup failed" (transient outage, MUST retry next run).
  */
 export async function resolveProjectMemberTokens(
   projectId: string,
@@ -85,7 +126,7 @@ export async function resolveProjectMemberTokens(
     membersSnap = await db.collection('projects').doc(projectId).collection('members').get();
   } catch (err) {
     logger.warn?.('project_tokens.members_read_failed', { projectId, err: String(err) });
-    return { tokens: [], emails: [], memberCount: 0, matchedCount: 0 };
+    throw new ProjectTokenLookupError(projectId, err);
   }
 
   for (const memberDoc of membersSnap.docs) {
@@ -107,6 +148,15 @@ export async function resolveProjectMemberTokens(
 
     const memberUid = memberDoc.id;
     const userTokens = await getUserTokensCached(memberUid, db);
+    if (userTokens === null) {
+      // PR #482 codex P1 (round 3): per-user read failure must propagate.
+      // Caller cannot tell from an empty token set whether the user has
+      // no devices or whether Firestore was unreachable.
+      throw new ProjectTokenLookupError(
+        projectId,
+        new Error(`user doc read failed for member ${memberUid}`),
+      );
+    }
     for (const tok of userTokens) tokenSet.add(tok);
   }
 

@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   LONE_WORKER_ROLE_BUCKETS,
+  ProjectTokenLookupError,
   __clearProjectTokenCache,
   iterateAllProjects,
   resolveProjectMemberTokens,
@@ -126,14 +127,17 @@ describe('resolveProjectMemberTokens', () => {
     expect(r.emails).toEqual(['a@example.com', 'c@example.com']);
   });
 
-  it('fallo al leer members → empty result, no throw', async () => {
+  // PR #482 codex P1 (round 3): read failures must propagate (no "empty
+  // tokens = success" silent path that would let the cron persist the
+  // idempotency marker without delivering any safety alert).
+  it('fallo al leer members → throws ProjectTokenLookupError', async () => {
     const db = buildDb({ members: [], membersReadShouldFail: true });
-    const r = await resolveProjectMemberTokens('p1', new Set(['supervisor']), db);
-    expect(r.tokens).toEqual([]);
-    expect(r.memberCount).toBe(0);
+    await expect(
+      resolveProjectMemberTokens('p1', new Set(['supervisor']), db),
+    ).rejects.toBeInstanceOf(ProjectTokenLookupError);
   });
 
-  it('fallo al leer user doc → ese member contribuye solo el legacy token (si lo hay)', async () => {
+  it('fallo al leer user doc de un member matched → throws ProjectTokenLookupError', async () => {
     const db = buildDb({
       members: [
         {
@@ -144,8 +148,39 @@ describe('resolveProjectMemberTokens', () => {
         },
       ],
     });
-    const r = await resolveProjectMemberTokens('p1', new Set(['supervisor']), db);
-    expect(r.tokens).toEqual(['legacy-only']);
+    await expect(
+      resolveProjectMemberTokens('p1', new Set(['supervisor']), db),
+    ).rejects.toBeInstanceOf(ProjectTokenLookupError);
+  });
+
+  it('NO cachea read failures: tras un fallo, un retry exitoso ve tokens reales', async () => {
+    // Setup: primer call falla en users/u1 read. Tras clear-cache implícito
+    // (cache solo guarda éxitos), un segundo call con db "saludable" debería
+    // ver los tokens reales — no quedar atascado en el `[]` cacheado.
+    const failingDb = buildDb({
+      members: [
+        {
+          uid: 'u1',
+          role: 'supervisor',
+          userReadShouldFail: true,
+        },
+      ],
+    });
+    await expect(
+      resolveProjectMemberTokens('p1', new Set(['supervisor']), failingDb),
+    ).rejects.toBeInstanceOf(ProjectTokenLookupError);
+
+    const healthyDb = buildDb({
+      members: [
+        {
+          uid: 'u1',
+          role: 'supervisor',
+          userFcmTokens: ['recovered-token'],
+        },
+      ],
+    });
+    const r = await resolveProjectMemberTokens('p1', new Set(['supervisor']), healthyDb);
+    expect(r.tokens).toEqual(['recovered-token']);
   });
 
   it('bucket emergency_services incluye supervisor + brigade roles', () => {
