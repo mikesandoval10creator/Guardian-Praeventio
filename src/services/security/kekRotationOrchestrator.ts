@@ -113,11 +113,40 @@ interface LockValue {
   acquiredBy: string;
 }
 
+// PR #482 codex round-4 P2: counter monotónico de fallback cuando Web
+// Crypto no está disponible (SSR / older Node / restricted webview).
+// El lock id no es cryptographic — solo necesita unicidad inter-tab.
+let lockIdFallbackCounter = 0;
+
+/** Exported for tests only — covers the Web-Crypto-missing branch. */
+export function __generateLockIdForTests(): string {
+  return generateLockId();
+}
+
 function generateLockId(): string {
-  // Random ID por tab para detectar reentry. Web Crypto CSPRNG.
+  // Random ID por tab para detectar reentry. Prefiere Web Crypto CSPRNG;
+  // cae a counter monotónico cuando crypto.getRandomValues no existe.
   const ts = Date.now().toString(36);
   const bytes = new Uint8Array(6);
-  globalThis.crypto.getRandomValues(bytes);
+  const cryptoApi = (globalThis as { crypto?: { getRandomValues?(b: Uint8Array): void } })
+    .crypto;
+  if (cryptoApi && typeof cryptoApi.getRandomValues === 'function') {
+    cryptoApi.getRandomValues(bytes);
+  } else {
+    // Fallback determinístico: counter + tail del timestamp. Suficiente
+    // para distinguir locks entre tabs concurrentes; en SSR no hay tabs
+    // paralelas, así que el determinismo no impacta la corrección del
+    // lock. NO se usa para crypto: las DEKs reales viven en
+    // kmsEnvelope/kmsAdapter con node:crypto.randomBytes.
+    lockIdFallbackCounter = (lockIdFallbackCounter + 1) >>> 0;
+    const ms = Date.now();
+    bytes[0] = (lockIdFallbackCounter >>> 24) & 0xff;
+    bytes[1] = (lockIdFallbackCounter >>> 16) & 0xff;
+    bytes[2] = (lockIdFallbackCounter >>> 8) & 0xff;
+    bytes[3] = lockIdFallbackCounter & 0xff;
+    bytes[4] = (ms >>> 8) & 0xff;
+    bytes[5] = ms & 0xff;
+  }
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   return `${ts}-${hex}`;
 }
