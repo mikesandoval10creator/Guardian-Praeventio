@@ -162,8 +162,11 @@ describe('runLoneWorkerEscalationCron', () => {
     expect(writes).toHaveLength(0);
   });
 
-  it('errores de notify NO rompen el cron — siguen contando como emitted', async () => {
-    const { db } = buildDb({
+  // PR #482 codex P1 (round 2): notify failure NO debe persistir el marker
+  // idempotente — el cron corre cada 5 min y debe reintentar hasta entregar.
+  // Vidas dependen: marcar "ya escalado" sin entrega real es el peor caso.
+  it('error de notify → escalation NO se marca, errors=1, próximo run reintenta', async () => {
+    const { db, writes } = buildDb({
       sessions: [
         {
           id: 's1',
@@ -173,7 +176,9 @@ describe('runLoneWorkerEscalationCron', () => {
     });
     const notifySupervisor = vi.fn().mockRejectedValue(new Error('FCM down'));
     const r = await runLoneWorkerEscalationCron({ db, now: NOW, notifySupervisor });
-    expect(r.escalationsEmitted).toBe(1);
+    expect(r.escalationsEmitted).toBe(0);
+    expect(r.errors).toBe(1);
+    expect(writes).toHaveLength(0);
   });
 
   // PR #482 codex P1 — sesiones reales viven en projects/{pid}/lone_worker_sessions,

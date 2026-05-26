@@ -1,9 +1,11 @@
-import { afterEach, describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   LONE_WORKER_ROLE_BUCKETS,
   __clearProjectTokenCache,
+  iterateAllProjects,
   resolveProjectMemberTokens,
 } from './projectTokens.js';
+import { SUPERVISOR_ROLES, ADMIN_ROLES, DOCTOR_ROLES } from '../../types/roles.js';
 
 afterEach(() => {
   __clearProjectTokenCache();
@@ -153,7 +155,158 @@ describe('resolveProjectMemberTokens', () => {
   });
 
   it('bucket brigade NO incluye emergency-only roles (escalación monotonica)', () => {
+    expect(LONE_WORKER_ROLE_BUCKETS.brigade.has('emergency')).toBe(false);
     expect(LONE_WORKER_ROLE_BUCKETS.brigade.has('emergency_services')).toBe(false);
     expect(LONE_WORKER_ROLE_BUCKETS.brigade.has('supervisor')).toBe(true);
+  });
+
+  // PR #482 codex P1 (round 2) — los buckets antes hardcoded omitían
+  // director_obra + medico_ocupacional, que firestore.rules considera
+  // supervisores. Sourceo canónico evita drift cuando se agreguen roles.
+  it('bucket supervisor cubre TODOS los SUPERVISOR_ROLES canónicos de types/roles.ts', () => {
+    for (const role of SUPERVISOR_ROLES) {
+      expect(
+        LONE_WORKER_ROLE_BUCKETS.supervisor.has(role),
+        `bucket.supervisor debe contener "${role}"`,
+      ).toBe(true);
+    }
+  });
+
+  it('bucket supervisor cubre TODOS los ADMIN_ROLES + DOCTOR_ROLES', () => {
+    for (const role of [...ADMIN_ROLES, ...DOCTOR_ROLES]) {
+      expect(
+        LONE_WORKER_ROLE_BUCKETS.supervisor.has(role),
+        `bucket.supervisor debe contener "${role}"`,
+      ).toBe(true);
+    }
+  });
+
+  it('cubre explícitamente director_obra y medico_ocupacional (regresión del round 2)', () => {
+    expect(LONE_WORKER_ROLE_BUCKETS.supervisor.has('director_obra')).toBe(true);
+    expect(LONE_WORKER_ROLE_BUCKETS.supervisor.has('medico_ocupacional')).toBe(true);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// iterateAllProjects — pagination
+// ────────────────────────────────────────────────────────────────────────
+
+function buildProjectsDb(opts: {
+  totalProjects: number;
+  observePages?: (pageNo: number, fromAfter: string | null, limit: number) => void;
+}) {
+  const projectIds = Array.from({ length: opts.totalProjects }, (_, i) =>
+    `p${String(i).padStart(4, '0')}`,
+  );
+  let pageCount = 0;
+
+  function makeQuery(state: { limit: number; after: string | null }) {
+    return {
+      orderBy(_field: string) {
+        return this;
+      },
+      limit(n: number) {
+        return makeQuery({ ...state, limit: n });
+      },
+      startAfter(cursorDoc: { id: string }) {
+        return makeQuery({ ...state, after: cursorDoc.id });
+      },
+      async get() {
+        pageCount += 1;
+        opts.observePages?.(pageCount, state.after, state.limit);
+        const startIdx = state.after === null ? 0 : projectIds.indexOf(state.after) + 1;
+        const slice = projectIds.slice(startIdx, startIdx + state.limit);
+        return {
+          empty: slice.length === 0,
+          size: slice.length,
+          docs: slice.map((id) => ({ id, data: () => ({}) })),
+        };
+      },
+    } as any;
+  }
+
+  const db = {
+    collection(name: string) {
+      if (name !== 'projects') throw new Error(`unexpected collection ${name}`);
+      return {
+        orderBy(_field: string) {
+          return {
+            limit(n: number) {
+              return makeQuery({ limit: n, after: null });
+            },
+          };
+        },
+      };
+    },
+  } as any;
+  return { db, getPageCount: () => pageCount };
+}
+
+describe('iterateAllProjects', () => {
+  it('itera 0 proyectos sin pegarle a Firestore con cursor', async () => {
+    const { db } = buildProjectsDb({ totalProjects: 0 });
+    const visited: string[] = [];
+    const total = await iterateAllProjects(db, 100, async (doc) => {
+      visited.push(doc.id);
+    });
+    expect(total).toBe(0);
+    expect(visited).toEqual([]);
+  });
+
+  it('itera proyectos en una sola página cuando total ≤ pageSize', async () => {
+    const { db, getPageCount } = buildProjectsDb({ totalProjects: 7 });
+    const visited: string[] = [];
+    const total = await iterateAllProjects(db, 100, async (doc) => {
+      visited.push(doc.id);
+    });
+    expect(total).toBe(7);
+    expect(visited).toHaveLength(7);
+    expect(getPageCount()).toBe(1);
+  });
+
+  it('pagina con cursor cuando total > pageSize (501 proyectos, page=100 → 6 páginas)', async () => {
+    const cursors: Array<string | null> = [];
+    const { db, getPageCount } = buildProjectsDb({
+      totalProjects: 501,
+      observePages: (_n, after) => cursors.push(after),
+    });
+    const visited: string[] = [];
+    const total = await iterateAllProjects(db, 100, async (doc) => {
+      visited.push(doc.id);
+    });
+    expect(total).toBe(501);
+    expect(visited).toHaveLength(501);
+    // 5 full pages (100 each) + 1 trailing partial page (1) = 6 pages
+    expect(getPageCount()).toBe(6);
+    expect(cursors[0]).toBeNull();
+    expect(cursors[1]).toBe('p0099');
+    expect(cursors[2]).toBe('p0199');
+  });
+
+  it('no se detiene en el primer 500 (regresión P1 paginación)', async () => {
+    const { db } = buildProjectsDb({ totalProjects: 1200 });
+    const visited: string[] = [];
+    await iterateAllProjects(db, 500, async (doc) => {
+      visited.push(doc.id);
+    });
+    expect(visited).toHaveLength(1200);
+    expect(visited[1199]).toBe('p1199');
+  });
+
+  it('propaga el throw del callback (caller decide aislamiento per-project)', async () => {
+    const { db } = buildProjectsDb({ totalProjects: 3 });
+    const seen: string[] = [];
+    await expect(
+      iterateAllProjects(db, 100, async (doc) => {
+        seen.push(doc.id);
+        if (doc.id === 'p0001') throw new Error('per-project boom');
+      }),
+    ).rejects.toThrow('per-project boom');
+    expect(seen).toEqual(['p0000', 'p0001']);
+  });
+
+  it('rechaza pageSize ≤ 0', async () => {
+    const { db } = buildProjectsDb({ totalProjects: 1 });
+    await expect(iterateAllProjects(db, 0, vi.fn())).rejects.toThrow(/pageSize/);
   });
 });

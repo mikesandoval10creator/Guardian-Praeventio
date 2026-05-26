@@ -116,6 +116,9 @@ export async function runLoneWorkerEscalationCron(
             ? deps.notifyBrigade
             : deps.notifyEmergency;
 
+      // PR #482 codex P1 (round 2): si notify falla, NO persistir el marker
+      // idempotente. Vidas dependen — el próximo run (cada 5 min) debe
+      // reintentar hasta que alguien sea efectivamente notificado.
       if (notifyHook) {
         try {
           await notifyHook(doc.id, decision);
@@ -125,6 +128,8 @@ export async function runLoneWorkerEscalationCron(
             level: decision.level,
             err: String(e),
           });
+          result.errors += 1;
+          continue;
         }
       }
 

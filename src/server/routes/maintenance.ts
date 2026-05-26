@@ -62,8 +62,17 @@ import { runLegalCalendarReminders } from '../jobs/runLegalCalendarReminders.js'
 // legal_obligations viven project-scoped (`projects/{pid}/<col>`), no en root.
 // Estos helpers resuelven tokens por role + chunkean envíos FCM en lotes
 // de 500 para no perder entregas en brigadas grandes.
-import { resolveProjectMemberTokens, LONE_WORKER_ROLE_BUCKETS } from '../services/projectTokens.js';
+import {
+  iterateAllProjects,
+  resolveProjectMemberTokens,
+  LONE_WORKER_ROLE_BUCKETS,
+} from '../services/projectTokens.js';
 import { sendMulticastChunked } from '../utils/fcmMulticast.js';
+
+// PR #482 codex P1 (round 2) — page size for project enumeration. 500 is
+// a safe per-call Firestore limit; deployments with more than 500 projects
+// require pagination (cursor) rather than a hard cap.
+const PROJECT_PAGE_SIZE = 500;
 
 const router = Router();
 
@@ -339,9 +348,9 @@ router.post(
         },
       };
 
-      const projectsSnap = await db.collection('projects').limit(500).get();
-
-      for (const projectDoc of projectsSnap.docs) {
+      const perProject = async (
+        projectDoc: FirebaseFirestore.QueryDocumentSnapshot,
+      ): Promise<void> => {
         const projectId = projectDoc.id;
         aggregated.projectsScanned += 1;
 
@@ -382,52 +391,66 @@ router.post(
           aggregated.notifications.failed += result.failureCount;
           aggregated.notifications.chunks += result.chunkCount;
           aggregated.notifications.chunkErrors += result.errorCount;
+          // PR #482 codex P1 (round 2): chunk-level transport failures must
+          // surface so the cron skips the idempotency marker and the next
+          // 5-minute pass retries — otherwise a transient FCM outage marks
+          // the escalation as "delivered" with zero successful sends.
+          if (result.errorCount > 0) {
+            throw new Error(
+              `fcm_multicast_chunk_errors: chunks=${result.errorCount}/${result.chunkCount} ` +
+                `(delivered=${result.successCount}, failed=${result.failureCount})`,
+            );
+          }
         };
 
-        try {
-          const r = await runLoneWorkerEscalationCron({
-            db,
-            collectionPath: `projects/${projectId}/lone_worker_sessions`,
-            notifySupervisor: (sessionId, decision) =>
-              notifyForLevel(
-                sessionId,
-                decision,
-                'Trabajador solo — revisar check-in',
-                'Sin check-in dentro del intervalo',
-              ),
-            notifyBrigade: (sessionId, decision) =>
-              notifyForLevel(
-                sessionId,
-                decision,
-                '⚠️ Trabajador solo — sin check-in prolongado',
-                'Activar brigada — revisión presencial',
-              ),
-            notifyEmergency: (sessionId, decision) =>
-              notifyForLevel(
-                sessionId,
-                decision,
-                '🚨 Trabajador solo — solicitó ayuda',
-                'EMERGENCIA — coordinar servicios externos',
-              ),
-          });
-          aggregated.sessionsScanned += r.sessionsScanned;
-          aggregated.escalationsEmitted += r.escalationsEmitted;
-          aggregated.escalationsSkippedIdempotent += r.escalationsSkippedIdempotent;
-          aggregated.byLevel.supervisor += r.byLevel.supervisor;
-          aggregated.byLevel.brigade += r.byLevel.brigade;
-          aggregated.byLevel.emergency_services += r.byLevel.emergency_services;
-          aggregated.errors += r.errors;
-        } catch (err) {
-          logger.error('[maintenance] lone-worker per-project failed', {
-            projectId,
-            err: String(err),
-          });
-          captureRouteError(err, 'maintenance.lone-worker-escalation.project', {
-            projectId,
-          });
-          aggregated.errors += 1;
-        }
-      }
+        await runLoneWorkerEscalationCron({
+          db,
+          collectionPath: `projects/${projectId}/lone_worker_sessions`,
+          notifySupervisor: (sessionId, decision) =>
+            notifyForLevel(
+              sessionId,
+              decision,
+              'Trabajador solo — revisar check-in',
+              'Sin check-in dentro del intervalo',
+            ),
+          notifyBrigade: (sessionId, decision) =>
+            notifyForLevel(
+              sessionId,
+              decision,
+              '⚠️ Trabajador solo — sin check-in prolongado',
+              'Activar brigada — revisión presencial',
+            ),
+          notifyEmergency: (sessionId, decision) =>
+            notifyForLevel(
+              sessionId,
+              decision,
+              '🚨 Trabajador solo — solicitó ayuda',
+              'EMERGENCIA — coordinar servicios externos',
+            ),
+        }).then(
+          (r) => {
+            aggregated.sessionsScanned += r.sessionsScanned;
+            aggregated.escalationsEmitted += r.escalationsEmitted;
+            aggregated.escalationsSkippedIdempotent += r.escalationsSkippedIdempotent;
+            aggregated.byLevel.supervisor += r.byLevel.supervisor;
+            aggregated.byLevel.brigade += r.byLevel.brigade;
+            aggregated.byLevel.emergency_services += r.byLevel.emergency_services;
+            aggregated.errors += r.errors;
+          },
+          (err) => {
+            logger.error('[maintenance] lone-worker per-project failed', {
+              projectId,
+              err: String(err),
+            });
+            captureRouteError(err, 'maintenance.lone-worker-escalation.project', {
+              projectId,
+            });
+            aggregated.errors += 1;
+          },
+        );
+      };
+
+      await iterateAllProjects(db, PROJECT_PAGE_SIZE, perProject);
 
       logger.info('[maintenance] lone-worker-escalation done', {
         ...aggregated,
@@ -470,118 +493,150 @@ router.post(
   verifySchedulerToken,
   async (_req, res) => {
     const start = Date.now();
-    const db = admin.firestore();
-    const messaging = admin.messaging();
+    // PR #482 codex P2 (round 2): top-level try/catch — antes el
+    // `projects/{}` initial get() podía rechazarse fuera del catch
+    // per-project, dejando una unhandled rejection y al scheduler sin
+    // respuesta estructurada para reintentar.
+    try {
+      const db = admin.firestore();
+      const messaging = admin.messaging();
 
-    const exceptions = { scanned: 0, expired: 0, errors: 0 };
-    const workPermits = { scanned: 0, expired: 0, errors: 0 };
-    const legalReminders = {
-      scanned: 0,
-      remindersEmitted: 0,
-      skipped: 0,
-      errors: 0,
-      notifications: { attempted: 0, delivered: 0, failed: 0 },
-    };
+      const exceptions = { scanned: 0, expired: 0, errors: 0 };
+      const workPermits = { scanned: 0, expired: 0, errors: 0 };
+      const legalReminders = {
+        scanned: 0,
+        remindersEmitted: 0,
+        skipped: 0,
+        errors: 0,
+        notifications: { attempted: 0, delivered: 0, failed: 0, chunks: 0, chunkErrors: 0 },
+      };
+      let projectsScanned = 0;
+      const responsibleRoles = LONE_WORKER_ROLE_BUCKETS.supervisor;
 
-    const projectsSnap = await db.collection('projects').limit(500).get();
-    let projectsScanned = 0;
+      const perProject = async (
+        projectDoc: FirebaseFirestore.QueryDocumentSnapshot,
+      ): Promise<void> => {
+        const projectId = projectDoc.id;
+        projectsScanned += 1;
 
-    const responsibleRoles = LONE_WORKER_ROLE_BUCKETS.supervisor;
+        try {
+          const r = await runExceptionAutoExpire({
+            db,
+            collectionPath: `projects/${projectId}/exceptions`,
+          });
+          exceptions.scanned += r.scanned;
+          exceptions.expired += r.expired;
+          exceptions.errors += r.errors;
+        } catch (err) {
+          logger.error('[maintenance] exception-auto-expire failed', { projectId, err: String(err) });
+          captureRouteError(err, 'maintenance.exception-auto-expire', { projectId });
+          exceptions.errors += 1;
+        }
 
-    for (const projectDoc of projectsSnap.docs) {
-      const projectId = projectDoc.id;
-      projectsScanned += 1;
+        try {
+          const r = await runWorkPermitAutoExpire({
+            db,
+            collectionPath: `projects/${projectId}/work_permits`,
+          });
+          workPermits.scanned += r.scanned;
+          workPermits.expired += r.expired;
+          workPermits.errors += r.errors;
+        } catch (err) {
+          logger.error('[maintenance] work-permit-auto-expire failed', { projectId, err: String(err) });
+          captureRouteError(err, 'maintenance.work-permit-auto-expire', { projectId });
+          workPermits.errors += 1;
+        }
 
-      try {
-        const r = await runExceptionAutoExpire({
-          db,
-          collectionPath: `projects/${projectId}/exceptions`,
-        });
-        exceptions.scanned += r.scanned;
-        exceptions.expired += r.expired;
-        exceptions.errors += r.errors;
-      } catch (err) {
-        logger.error('[maintenance] exception-auto-expire failed', { projectId, err: String(err) });
-        captureRouteError(err, 'maintenance.exception-auto-expire', { projectId });
-        exceptions.errors += 1;
-      }
-
-      try {
-        const r = await runWorkPermitAutoExpire({
-          db,
-          collectionPath: `projects/${projectId}/work_permits`,
-        });
-        workPermits.scanned += r.scanned;
-        workPermits.expired += r.expired;
-        workPermits.errors += r.errors;
-      } catch (err) {
-        logger.error('[maintenance] work-permit-auto-expire failed', { projectId, err: String(err) });
-        captureRouteError(err, 'maintenance.work-permit-auto-expire', { projectId });
-        workPermits.errors += 1;
-      }
-
-      try {
-        const r = await runLegalCalendarReminders({
-          db,
-          collectionPath: `projects/${projectId}/legal_obligations`,
-          notifyResponsible: async (obligationId, obligation, daysUntil) => {
-            const { tokens } = await resolveProjectMemberTokens(projectId, responsibleRoles, db);
-            if (tokens.length === 0) {
-              logger.warn('[maintenance] legal-reminder no responsible tokens', {
-                projectId,
-                obligationId,
-                kind: obligation.kind,
+        try {
+          const r = await runLegalCalendarReminders({
+            db,
+            collectionPath: `projects/${projectId}/legal_obligations`,
+            notifyResponsible: async (obligationId, obligation, daysUntil) => {
+              const { tokens } = await resolveProjectMemberTokens(projectId, responsibleRoles, db);
+              if (tokens.length === 0) {
+                logger.warn('[maintenance] legal-reminder no responsible tokens', {
+                  projectId,
+                  obligationId,
+                  kind: obligation.kind,
+                });
+                // No marker write — el cron interpreta esto como notify
+                // exitoso (sin recipients). Para legal reminders esto es
+                // ACEPTABLE: el marker idempotente evita ruido diario al
+                // operador, y la ausencia de roles supervisor en el proyecto
+                // es un problema de provisioning que requiere fix manual.
+                return;
+              }
+              const dispatched = await sendMulticastChunked(messaging, tokens, {
+                notification: {
+                  title: `Obligación legal: ${obligation.label}`,
+                  body: `Vence en ${daysUntil} día(s) — ${obligation.legalCitation}`,
+                },
+                data: {
+                  kind: 'legal_obligation_reminder',
+                  obligationId,
+                  projectId,
+                  obligationKind: obligation.kind,
+                  legalCitation: obligation.legalCitation,
+                  daysUntil: String(daysUntil),
+                  nextDueAt: obligation.nextDueAt ?? '',
+                },
+                android: { priority: 'high' },
+                apns: { headers: { 'apns-priority': '10' } },
               });
-              return;
-            }
-            const dispatched = await sendMulticastChunked(messaging, tokens, {
-              notification: {
-                title: `Obligación legal: ${obligation.label}`,
-                body: `Vence en ${daysUntil} día(s) — ${obligation.legalCitation}`,
-              },
-              data: {
-                kind: 'legal_obligation_reminder',
-                obligationId,
-                projectId,
-                obligationKind: obligation.kind,
-                legalCitation: obligation.legalCitation,
-                daysUntil: String(daysUntil),
-                nextDueAt: obligation.nextDueAt ?? '',
-              },
-              android: { priority: 'high' },
-              apns: { headers: { 'apns-priority': '10' } },
-            });
-            legalReminders.notifications.attempted += dispatched.attempted;
-            legalReminders.notifications.delivered += dispatched.successCount;
-            legalReminders.notifications.failed += dispatched.failureCount;
-          },
-        });
-        legalReminders.scanned += r.scanned;
-        legalReminders.remindersEmitted += r.remindersEmitted;
-        legalReminders.skipped += r.skippedNotDue + r.skippedIdempotent;
-        legalReminders.errors += r.errors;
-      } catch (err) {
-        logger.error('[maintenance] legal-calendar-reminders failed', { projectId, err: String(err) });
-        captureRouteError(err, 'maintenance.legal-calendar-reminders', { projectId });
-        legalReminders.errors += 1;
-      }
-    }
+              legalReminders.notifications.attempted += dispatched.attempted;
+              legalReminders.notifications.delivered += dispatched.successCount;
+              legalReminders.notifications.failed += dispatched.failureCount;
+              legalReminders.notifications.chunks += dispatched.chunkCount;
+              legalReminders.notifications.chunkErrors += dispatched.errorCount;
+              // PR #482 codex P1 (round 2): chunk-level errors deben abortar
+              // el marker idempotente para que el próximo run reintente.
+              // Plazos regulatorios (DS 54, Ley 16.744) no toleran "marked
+              // sent" sin entrega.
+              if (dispatched.errorCount > 0) {
+                throw new Error(
+                  `fcm_multicast_chunk_errors: chunks=${dispatched.errorCount}/${dispatched.chunkCount} ` +
+                    `(delivered=${dispatched.successCount}, failed=${dispatched.failureCount})`,
+                );
+              }
+            },
+          });
+          legalReminders.scanned += r.scanned;
+          legalReminders.remindersEmitted += r.remindersEmitted;
+          legalReminders.skipped += r.skippedNotDue + r.skippedIdempotent;
+          legalReminders.errors += r.errors;
+        } catch (err) {
+          logger.error('[maintenance] legal-calendar-reminders failed', { projectId, err: String(err) });
+          captureRouteError(err, 'maintenance.legal-calendar-reminders', { projectId });
+          legalReminders.errors += 1;
+        }
+      };
 
-    logger.info('[maintenance] daily-housekeeping done', {
-      projectsScanned,
-      exceptions,
-      workPermits,
-      legalReminders,
-      tookMs: Date.now() - start,
-    });
-    return res.status(200).json({
-      ok: true,
-      projectsScanned,
-      exceptions,
-      workPermits,
-      legalReminders,
-      tookMs: Date.now() - start,
-    });
+      await iterateAllProjects(db, PROJECT_PAGE_SIZE, perProject);
+
+      logger.info('[maintenance] daily-housekeeping done', {
+        projectsScanned,
+        exceptions,
+        workPermits,
+        legalReminders,
+        tookMs: Date.now() - start,
+      });
+      return res.status(200).json({
+        ok: true,
+        projectsScanned,
+        exceptions,
+        workPermits,
+        legalReminders,
+        tookMs: Date.now() - start,
+      });
+    } catch (err) {
+      logger.error('[maintenance] daily-housekeeping failed', err);
+      captureRouteError(err, 'maintenance.daily-housekeeping');
+      return res.status(500).json({
+        ok: false,
+        error: 'internal_error',
+        message: 'daily-housekeeping failed',
+      });
+    }
   },
 );
 

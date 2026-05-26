@@ -134,14 +134,19 @@ describe('runLegalCalendarReminders', () => {
     expect(r.remindersEmitted).toBe(0);
   });
 
-  it('error de notify NO incrementa errors counter', async () => {
-    const { db } = buildDb({
+  // PR #482 codex P1 (round 2): notify failure NO debe persistir el marker
+  // idempotente — al día siguiente el cron debe reintentar. Antes de este
+  // fix los reminders se marcaban como "ya enviados" aunque la entrega FCM
+  // hubiera fallado (regulatorio: DS 54, Ley 16.744).
+  it('error de notify → reminder NO se emite, errors=1, no se escribe marker (permite retry)', async () => {
+    const { db, writes } = buildDb({
       obligations: [{ id: 'ob1', data: obligation() }],
     });
     const notify = vi.fn().mockRejectedValue(new Error('FCM down'));
     const r = await runLegalCalendarReminders({ db, now: NOW, notifyResponsible: notify });
-    expect(r.remindersEmitted).toBe(1);
-    expect(r.errors).toBe(0);
+    expect(r.remindersEmitted).toBe(0);
+    expect(r.errors).toBe(1);
+    expect(writes).toHaveLength(0);
   });
 
   // PR #482 codex P1 — legal_obligations vive project-scoped en
