@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsTestUser } from './fixtures/auth';
+import { loginAsTestUser, signInBrowserViaCustomToken } from './fixtures/auth';
 import { seedProject } from './fixtures/seed';
 
 /**
