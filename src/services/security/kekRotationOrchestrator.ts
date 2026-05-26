@@ -125,7 +125,8 @@ export function __generateLockIdForTests(): string {
 
 function generateLockId(): string {
   // Random ID por tab para detectar reentry. Prefiere Web Crypto CSPRNG;
-  // cae a counter monotónico cuando crypto.getRandomValues no existe.
+  // cae a Math.random + counter + ms cuando crypto.getRandomValues no
+  // existe (SSR / older Node / restricted webview).
   const ts = Date.now().toString(36);
   const bytes = new Uint8Array(6);
   const cryptoApi = (globalThis as { crypto?: { getRandomValues?(b: Uint8Array): void } })
@@ -133,19 +134,32 @@ function generateLockId(): string {
   if (cryptoApi && typeof cryptoApi.getRandomValues === 'function') {
     cryptoApi.getRandomValues(bytes);
   } else {
-    // Fallback determinístico: counter + tail del timestamp. Suficiente
-    // para distinguir locks entre tabs concurrentes; en SSR no hay tabs
-    // paralelas, así que el determinismo no impacta la corrección del
-    // lock. NO se usa para crypto: las DEKs reales viven en
-    // kmsEnvelope/kmsAdapter con node:crypto.randomBytes.
+    // Codex round-5 P1 (PR #483 follow-up) — el fallback previo era
+    // counter + ms únicamente. Dos tabs del mismo origin ambos arrancan
+    // `lockIdFallbackCounter = 0`, así que si llamaban en el mismo ms
+    // generaban el mismo `acquiredBy` → `tryAcquireLock` los daba ambos
+    // por ganadores → KEK rotation corría concurrente. Rompía el mutex
+    // precisamente en el entorno que el fallback target (webview).
+    //
+    // Math.random() tiene un seed inicial distinto por tab (V8/Spider
+    // Monkey inicializan con time + PID + pointer addr), entonces el r32
+    // de cada tab es independiente. NO es CSPRNG — pero acá no hace falta:
+    // el lock no es secreto, solo necesita unicidad inter-tab. Las DEKs
+    // reales viven en kmsEnvelope/kmsAdapter con node:crypto.randomBytes.
+    //
+    // Counter monotónico se mantiene en bytes[4..5] para resolver el caso
+    // raro donde Math.random colisiona dentro del mismo tab en el mismo
+    // ms (Math.random no garantiza no-repetición consecutiva).
+    const r32 = Math.floor(Math.random() * 0x100000000) >>> 0;
     lockIdFallbackCounter = (lockIdFallbackCounter + 1) >>> 0;
-    const ms = Date.now();
-    bytes[0] = (lockIdFallbackCounter >>> 24) & 0xff;
-    bytes[1] = (lockIdFallbackCounter >>> 16) & 0xff;
-    bytes[2] = (lockIdFallbackCounter >>> 8) & 0xff;
-    bytes[3] = lockIdFallbackCounter & 0xff;
-    bytes[4] = (ms >>> 8) & 0xff;
-    bytes[5] = ms & 0xff;
+    const ms16 = Date.now() & 0xffff;
+    const mix = (lockIdFallbackCounter ^ ms16) >>> 0;
+    bytes[0] = (r32 >>> 24) & 0xff;
+    bytes[1] = (r32 >>> 16) & 0xff;
+    bytes[2] = (r32 >>> 8) & 0xff;
+    bytes[3] = r32 & 0xff;
+    bytes[4] = (mix >>> 8) & 0xff;
+    bytes[5] = mix & 0xff;
   }
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   return `${ts}-${hex}`;

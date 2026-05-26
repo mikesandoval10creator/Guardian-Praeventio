@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory as FDBFactory } from 'fake-indexeddb';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   __generateLockIdForTests,
   forceReleaseRotationLock,
@@ -350,6 +350,55 @@ describe('generateLockId — Web Crypto guard (PR #482 codex round-4 P2)', () =>
         writable: true,
       });
       expect(() => __generateLockIdForTests()).not.toThrow();
+    } finally {
+      if (desc) Object.defineProperty(globalThis, 'crypto', desc);
+    }
+  });
+
+  // Codex round-5 P1 (PR #483 follow-up) — verifica que dos tabs con
+  // counter+ms idénticos (simulado vía Math.random distinto) generen IDs
+  // distintos. Antes del fix: bytes[0..3] eran counter big-endian +
+  // bytes[4..5] eran ms tail → dos tabs en el mismo ms con counter=1
+  // producían bytes IDÉNTICOS → mutex roto.
+  it('IDs distintos entre llamadas con mismo counter+ms (fix entropy P1)', () => {
+    const cryptoDesc = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    const originalRandom = Math.random;
+    try {
+      Object.defineProperty(globalThis, 'crypto', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+      // Mock Math.random para simular dos tabs con seeds distintos.
+      // Si el fallback IGNORA Math.random, los IDs serán iguales (counter
+      // y ms son idénticos dentro del mismo tick) → test falla.
+      const rng = vi.fn().mockReturnValueOnce(0.123).mockReturnValueOnce(0.987);
+      Math.random = rng;
+      const id1 = __generateLockIdForTests();
+      const id2 = __generateLockIdForTests();
+      expect(rng).toHaveBeenCalledTimes(2);
+      // El timestamp prefix puede coincidir si el tick es idéntico, pero
+      // el sufijo hex DEBE diferir gracias a Math.random.
+      const [, hex1] = id1.split('-');
+      const [, hex2] = id2.split('-');
+      expect(hex1).not.toBe(hex2);
+    } finally {
+      Math.random = originalRandom;
+      if (cryptoDesc) Object.defineProperty(globalThis, 'crypto', cryptoDesc);
+    }
+  });
+
+  it('no genera duplicados en 1000 iteraciones consecutivas (fallback path)', () => {
+    const desc = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    try {
+      Object.defineProperty(globalThis, 'crypto', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+      const ids = new Set<string>();
+      for (let i = 0; i < 1000; i++) ids.add(__generateLockIdForTests());
+      expect(ids.size).toBe(1000);
     } finally {
       if (desc) Object.defineProperty(globalThis, 'crypto', desc);
     }
