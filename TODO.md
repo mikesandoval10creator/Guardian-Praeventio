@@ -903,8 +903,10 @@ Mantener: tests verdes (HOY 10029/10029 ✅), CI workflow estable, no agregar nu
 - **Per-country emission adapters** (doc-only, no push) — solo Chile cerrado; pendiente: US OSHA, UK RIDDOR, EU OSHA + Delt@/INAIL, MX NOM-019, BR NR-5, AU WHS, CN GB/T 33000, RU 152-FZ
 
 ### i18n
-- **10 páginas restantes sin `useTranslation`** — verificar cuáles con `grep -L useTranslation src/pages/*.tsx` y wirearlas
-- **Traducciones humanas** fr/de/it/ja/zh-CN/ar/ko/hi (hoy stubs ~40 keys) — bloqueado §5
+- **Páginas productivas sin `useTranslation`: 0 (verificado 2026-05-26).** El grep histórico contaba 10 archivos pero 9 son `*.test.tsx` (que no requieren i18n) y 1 es `src/pages/Onboarding.tsx` — wrapper sin strings propios, delega copy al `<OnboardingWizard>` interno que sí usa i18n.
+- **pt-BR 87%** — completar 375 keys faltantes (Bloque N)
+- **es-AR, es-MX, es-PE 5-8%** — completar core flows o documentar fallback `es-CL` en selector UI
+- **Traducciones humanas** fr/de/it/ja/zh-CN/ar/ko/hi/ru (hoy shells ~1-2% keys) — bloqueado por traductores humanos profesionales
 
 ### Roadmap features pendientes (Sprint 29-32 candidato)
 - **F-A CalculatorHub** — 12 generadores Bernoulli sin UI consumer (gas dispersion, confined-space HVAC, respirator fatigue, pulmonary altitude, slope stability, dike hydrostatic, gas leak, misting dust, micro-wind, SLAM photogrammetry, hidrante fire network, scaffold wind suction)

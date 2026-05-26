@@ -1,9 +1,10 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, MapPin } from 'lucide-react';
+import { AlertTriangle, MapPin, MapPinOff } from 'lucide-react';
 import { useGeofence, GeofenceZone } from '../../hooks/useGeofence';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import { db, serverTimestamp } from '../../services/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { logger } from '../../utils/logger';
@@ -45,10 +46,55 @@ export function GeofenceAlert() {
     }).catch((err) => logger.error('GeofenceAlert: failed to log zone violation', { err }));
   }, [selectedProject, user]);
 
-  const { activeZones } = useGeofence(activeProjectZones, handleZoneEntry);
+  const { activeZones, permissionState } = useGeofence(
+    activeProjectZones,
+    handleZoneEntry,
+  );
+
+  const permissionToastFiredRef = useRef(false);
+  const { addNotification } = useNotifications();
+  useEffect(() => {
+    if (permissionState === 'denied' && !permissionToastFiredRef.current) {
+      permissionToastFiredRef.current = true;
+      addNotification({
+        title: 'Geocerca desactivada',
+        message:
+          'Concede permiso de ubicación para que Praeventio Guard te avise al entrar a una zona restringida.',
+        type: 'warning',
+      });
+    }
+    if (permissionState === 'unavailable' && !permissionToastFiredRef.current) {
+      permissionToastFiredRef.current = true;
+      addNotification({
+        title: 'Geolocalización no disponible',
+        message:
+          'Tu dispositivo no permite ubicación en este momento. La geocerca no está activa.',
+        type: 'error',
+      });
+    }
+  }, [permissionState, addNotification]);
 
   return (
     <AnimatePresence>
+      {permissionState === 'denied' && (
+        <motion.div
+          key="geofence-permission-denied"
+          initial={{ opacity: 0, y: -50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -50 }}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[150] w-[90%] max-w-md"
+        >
+          <div className="bg-amber-600 text-white p-3 rounded-2xl shadow-xl flex items-start gap-3 border border-amber-400">
+            <MapPinOff className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-bold leading-tight">Geocerca desactivada</p>
+              <p className="text-amber-100 text-xs mt-0.5">
+                Concede permiso de ubicación para activar la alerta de zonas restringidas.
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
       {activeZones.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -50 }}

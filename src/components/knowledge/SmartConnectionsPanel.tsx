@@ -116,7 +116,7 @@ export function SmartConnectionsPanel() {
                   <li key={action.id}>
                     <button
                       onClick={() => {
-                        console.log('[SmartAction]', action.id, action.label);
+                        // Smart action wiring pendiente — ver Bloque L (Zettelkasten capacity expansion).
                       }}
                       className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-left group
                         bg-zinc-50 dark:bg-zinc-800/60
