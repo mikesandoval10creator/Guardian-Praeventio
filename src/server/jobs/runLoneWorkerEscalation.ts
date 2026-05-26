@@ -25,6 +25,13 @@ export interface LoneWorkerCronDeps {
   db: admin.firestore.Firestore;
   /** Override clock para tests. */
   now?: () => Date;
+  /**
+   * Collection path. Default `'lone_worker_sessions'` (legacy root).
+   * Production data is project-scoped: `projects/{projectId}/lone_worker_sessions`
+   * (ver `services/loneWorker/loneWorkerStore.ts`). El caller debe enumerar
+   * proyectos e invocar el cron una vez por proyecto pasando el path scoped.
+   */
+  collectionPath?: string;
   /** Hook de notificación supervisor (FCM/Resend). */
   notifySupervisor?: (sessionId: string, decision: EscalationDecision) => Promise<void>;
   /** Hook de notificación brigada (cuando level=brigade). */
@@ -43,7 +50,7 @@ export interface LoneWorkerCronResult {
   errors: number;
 }
 
-const COLLECTION = 'lone_worker_sessions';
+const DEFAULT_COLLECTION = 'lone_worker_sessions';
 
 /**
  * Idempotency key persistido en el doc para no re-escalar el mismo nivel.
@@ -56,6 +63,7 @@ export async function runLoneWorkerEscalationCron(
   deps: LoneWorkerCronDeps,
 ): Promise<LoneWorkerCronResult> {
   const now = deps.now ?? (() => new Date());
+  const collectionPath = deps.collectionPath ?? DEFAULT_COLLECTION;
   const startedAt = now();
   const result: LoneWorkerCronResult = {
     sessionsScanned: 0,
@@ -69,9 +77,9 @@ export async function runLoneWorkerEscalationCron(
 
   let snap: admin.firestore.QuerySnapshot;
   try {
-    snap = await deps.db.collection(COLLECTION).where('status', '!=', 'ended').get();
+    snap = await deps.db.collection(collectionPath).where('status', '!=', 'ended').get();
   } catch (e) {
-    logger.warn?.('lone_worker_cron.scan_failed', { err: String(e) });
+    logger.warn?.('lone_worker_cron.scan_failed', { collectionPath, err: String(e) });
     result.errors += 1;
     result.finishedAtIso = now().toISOString();
     return result;
@@ -89,7 +97,7 @@ export async function runLoneWorkerEscalationCron(
 
       // Check if this exact (session, level, day) already emitted
       const escalationDocRef = deps.db
-        .collection(COLLECTION)
+        .collection(collectionPath)
         .doc(doc.id)
         .collection('escalations')
         .doc(key);
@@ -108,6 +116,9 @@ export async function runLoneWorkerEscalationCron(
             ? deps.notifyBrigade
             : deps.notifyEmergency;
 
+      // PR #482 codex P1 (round 2): si notify falla, NO persistir el marker
+      // idempotente. Vidas dependen — el próximo run (cada 5 min) debe
+      // reintentar hasta que alguien sea efectivamente notificado.
       if (notifyHook) {
         try {
           await notifyHook(doc.id, decision);
@@ -117,6 +128,8 @@ export async function runLoneWorkerEscalationCron(
             level: decision.level,
             err: String(e),
           });
+          result.errors += 1;
+          continue;
         }
       }
 

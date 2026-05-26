@@ -208,6 +208,8 @@ const Terms = lazy(() => import('./pages/Terms').then(module => ({ default: modu
 const CuadrillasDashboard = lazy(() => import('./pages/CuadrillasDashboard').then(module => ({ default: module.CuadrillasDashboard })));
 // Sprint 23 Bucket CC — B2D admin panel (key management + MRR/ARR/churn).
 const B2dAdminPanel = lazy(() => import('./pages/B2dAdminPanel').then(module => ({ default: module.B2dAdminPanel })));
+// Sprint 24 Bucket MM.3 — SLO Error Budget dashboard (admin only).
+const SloErrorBudget = lazy(() => import('./pages/SloErrorBudget'));
 // Sprint 23 Bucket FF — Ley 19.628 data-subject control center.
 const MyData = lazy(() => import('./pages/MyData').then(module => ({ default: module.MyData })));
 // Sprint 24 Bucket KK — self-service onboarding wizard.
@@ -506,6 +508,7 @@ function AppRoutes() {
                     <Route path="accessibility" element={<Accessibility />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
                     <Route path="admin/b2d" element={<B2dAdminPanel />} />
+                    <Route path="admin/slo" element={<SloErrorBudget />} />
                     <Route path="my-data" element={<MyData />} />
                     <Route path="my-data/share" element={<HealthVaultShare />} />
                     <Route path="cuadrillas" element={<CuadrillasDashboard />} />

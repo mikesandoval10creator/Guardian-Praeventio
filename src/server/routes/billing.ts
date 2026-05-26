@@ -140,7 +140,6 @@ if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON) {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON);
     playAuth = google.auth.fromJSON(credentials);
-    // @ts-ignore
     playAuth.scopes = ['https://www.googleapis.com/auth/androidpublisher'];
     logger.info('google_play_api_initialized');
   } catch (error) {
@@ -392,8 +391,17 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
       db,
       { collection: 'processed_pubsub', key: messageId },
       async () => {
-        const decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
-        const { subscriptionNotification } = decodedData;
+        let decodedData: { subscriptionNotification?: { notificationType?: number; subscriptionId?: string; purchaseToken?: string }; packageName?: string };
+        try {
+          decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
+        } catch (parseErr) {
+          logger.warn('rtdn_malformed_message_data', {
+            messageId,
+            reason: parseErr instanceof Error ? parseErr.name : 'parse_error',
+          });
+          return { ok: false as const, malformed: true as const };
+        }
+        const subscriptionNotification = decodedData.subscriptionNotification;
         const packageName = decodedData.packageName;
 
         // Log only non-sensitive metadata. NEVER log purchaseToken — it's a

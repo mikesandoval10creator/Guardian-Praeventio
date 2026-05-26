@@ -11,6 +11,7 @@
 //   POST /:projectId/apprentices/:uid/expose         → registrar exposición
 //   GET  /:projectId/mentors/availability            → carga actual mentores
 
+import { randomBytes } from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import admin from 'firebase-admin';
@@ -269,7 +270,7 @@ router.post(
       // Codex P2 fix: persistir authorization en subcollection para
       // audit trail (signedByUid, evidence, recordedBy por cada
       // cambio de nivel).
-      const authId = `auth_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const authId = `auth_${Date.now()}_${randomBytes(4).toString('hex')}`;
       await apprenticeRef.collection('authorizations').doc(authId).set({
         id: authId,
         taskKind: body.taskKind,

@@ -1,4 +1,4 @@
-// Praeventio Guard — GCP Cloud Error Reporting adapter (STUB ONLY).
+// Praeventio Guard — GCP Cloud Error Reporting adapter (STUB INTENCIONAL).
 //
 // Cloud Error Reporting is GCP's native error aggregation service. It groups
 // stack traces into "error events", auto-detects regressions, and integrates
@@ -6,8 +6,11 @@
 // per-event cost — a strong default for GCP-resident workloads like Praeventio
 // (Cloud Run / Firestore / KMS already on GCP).
 //
-// This is a stub matching the shape of every other adapter in the codebase.
-// Round 2 will:
+// **Status:** STUB intencional — el adapter productivo es `sentryAdapter`.
+// La presencia de este adapter es opcional como path de migración futuro
+// si el stack se mueve a GCP-only observability. Plan v2 K9 (2026-05-26):
+// **decisión = DEFER** (mantener stub, no duplicar con Sentry). Si en
+// algún sprint posterior se decide migrar:
 //   1. `npm install @google-cloud/error-reporting`
 //   2. Grant the Cloud Run service account the
 //      `roles/errorreporting.writer` role.

@@ -43,7 +43,7 @@ export function EmergencyCheckIn() {
 
     // Listen to check-ins (last 24h, capped at 100)
     // Note: doc creation must set timestamp=serverTimestamp() for this listener to surface it.
-    // TODO Firestore: composite index needed for emergency_checkins (timestamp DESC) — Firestore auto-creates this single-field index, no manual entry required.
+    // Firestore single-field index on `timestamp` is auto-created (verificado plan v2 F9).
     const last24h = Date.now() - 24 * 60 * 60 * 1000;
     const checkinsQuery = query(
       collection(db, `projects/${selectedProject.id}/emergency_checkins`),

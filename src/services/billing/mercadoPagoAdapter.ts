@@ -19,11 +19,11 @@
 //     parsing.
 //
 // IMPORTANT (PCI scope): never log full payer email, MP access tokens,
-// or raw SDK payloads in production. Round 16 will add an IPN webhook
-// handler at `POST /api/billing/webhook/mercadopago` (file:line —
-// server.ts TBD) with OIDC verification similar to RTDN.
-// TODO(round-16): wire MercadoPago IPN webhook (`/api/billing/webhook/
-// mercadopago`) — see this file's header for the contract.
+// or raw SDK payloads in production. The IPN webhook handler is live at
+// `POST /api/billing/webhook/mercadopago` (`src/server/routes/billing.ts:1016`)
+// con verificación OIDC + HMAC fallback + replay protection +
+// idempotency en `processed_mp_ipn/{paymentId}` + audit logs
+// (billing.webhook.success / replay). Plan v2 K10 verificado 2026-05-26.
 
 import {
   MercadoPagoConfig,

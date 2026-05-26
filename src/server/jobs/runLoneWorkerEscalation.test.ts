@@ -8,8 +8,11 @@ import type { LoneWorkerSession } from '../../services/loneWorker/loneWorkerServ
 
 function buildDb(opts: {
   sessions: Array<{ id: string; session: LoneWorkerSession; existingEscalationKey?: string }>;
+  /** Path expected by the caller. Defaults to root (legacy default). */
+  expectedCollectionPath?: string;
 }) {
   const writes: Array<{ path: string; data: unknown }> = [];
+  const expected = opts.expectedCollectionPath ?? 'lone_worker_sessions';
 
   const sessionsCol = {
     where(_field: string, _op: string, _val: unknown) {
@@ -39,7 +42,7 @@ function buildDb(opts: {
                   return { exists: Boolean(existing) };
                 },
                 async set(data: unknown) {
-                  writes.push({ path: `lone_worker_sessions/${sessionId}/escalations/${key}`, data });
+                  writes.push({ path: `${expected}/${sessionId}/escalations/${key}`, data });
                 },
               };
             },
@@ -51,7 +54,7 @@ function buildDb(opts: {
 
   const db = {
     collection(name: string) {
-      if (name === 'lone_worker_sessions') return sessionsCol;
+      if (name === expected) return sessionsCol;
       throw new Error(`unexpected collection ${name}`);
     },
   };
@@ -159,8 +162,11 @@ describe('runLoneWorkerEscalationCron', () => {
     expect(writes).toHaveLength(0);
   });
 
-  it('errores de notify NO rompen el cron — siguen contando como emitted', async () => {
-    const { db } = buildDb({
+  // PR #482 codex P1 (round 2): notify failure NO debe persistir el marker
+  // idempotente — el cron corre cada 5 min y debe reintentar hasta entregar.
+  // Vidas dependen: marcar "ya escalado" sin entrega real es el peor caso.
+  it('error de notify → escalation NO se marca, errors=1, próximo run reintenta', async () => {
+    const { db, writes } = buildDb({
       sessions: [
         {
           id: 's1',
@@ -170,6 +176,34 @@ describe('runLoneWorkerEscalationCron', () => {
     });
     const notifySupervisor = vi.fn().mockRejectedValue(new Error('FCM down'));
     const r = await runLoneWorkerEscalationCron({ db, now: NOW, notifySupervisor });
+    expect(r.escalationsEmitted).toBe(0);
+    expect(r.errors).toBe(1);
+    expect(writes).toHaveLength(0);
+  });
+
+  // PR #482 codex P1 — sesiones reales viven en projects/{pid}/lone_worker_sessions,
+  // no en la raíz. El job debe aceptar un path scoped y escribir la subcolección
+  // `escalations` debajo del mismo path.
+  it('scopea la query y los markers al collectionPath provisto', async () => {
+    const projectScopedPath = 'projects/proj-A/lone_worker_sessions';
+    const { db, writes } = buildDb({
+      sessions: [
+        {
+          id: 's1',
+          session: session({ startedAt: '2026-05-12T11:30:00Z' }),
+        },
+      ],
+      expectedCollectionPath: projectScopedPath,
+    });
+    const notifySupervisor = vi.fn().mockResolvedValue(undefined);
+    const r = await runLoneWorkerEscalationCron({
+      db,
+      now: NOW,
+      collectionPath: projectScopedPath,
+      notifySupervisor,
+    });
     expect(r.escalationsEmitted).toBe(1);
+    expect(writes).toHaveLength(1);
+    expect(writes[0].path).toBe(`${projectScopedPath}/s1/escalations/s1_supervisor_2026-05-12`);
   });
 });

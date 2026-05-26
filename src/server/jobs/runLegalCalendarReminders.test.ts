@@ -7,8 +7,11 @@ const NOW = () => new Date('2026-05-12T12:00:00Z');
 function buildDb(opts: {
   obligations: Array<{ id: string; data: LegalObligation; existingReminderKey?: string }>;
   scanShouldFail?: boolean;
+  /** Path expected by the caller. Defaults to root (legacy default). */
+  expectedCollectionPath?: string;
 }) {
   const writes: Array<{ path: string; data: unknown }> = [];
+  const expected = opts.expectedCollectionPath ?? 'legal_obligations';
 
   const obligationsCol = {
     async get() {
@@ -36,7 +39,7 @@ function buildDb(opts: {
                 },
                 async set(data: unknown) {
                   writes.push({
-                    path: `legal_obligations/${obligationId}/reminders_sent/${key}`,
+                    path: `${expected}/${obligationId}/reminders_sent/${key}`,
                     data,
                   });
                 },
@@ -51,7 +54,7 @@ function buildDb(opts: {
   return {
     db: {
       collection(name: string) {
-        if (name === 'legal_obligations') return obligationsCol;
+        if (name === expected) return obligationsCol;
         throw new Error(`unexpected collection ${name}`);
       },
     } as any,
@@ -131,13 +134,39 @@ describe('runLegalCalendarReminders', () => {
     expect(r.remindersEmitted).toBe(0);
   });
 
-  it('error de notify NO incrementa errors counter', async () => {
-    const { db } = buildDb({
+  // PR #482 codex P1 (round 2): notify failure NO debe persistir el marker
+  // idempotente — al día siguiente el cron debe reintentar. Antes de este
+  // fix los reminders se marcaban como "ya enviados" aunque la entrega FCM
+  // hubiera fallado (regulatorio: DS 54, Ley 16.744).
+  it('error de notify → reminder NO se emite, errors=1, no se escribe marker (permite retry)', async () => {
+    const { db, writes } = buildDb({
       obligations: [{ id: 'ob1', data: obligation() }],
     });
     const notify = vi.fn().mockRejectedValue(new Error('FCM down'));
     const r = await runLegalCalendarReminders({ db, now: NOW, notifyResponsible: notify });
+    expect(r.remindersEmitted).toBe(0);
+    expect(r.errors).toBe(1);
+    expect(writes).toHaveLength(0);
+  });
+
+  // PR #482 codex P1 — legal_obligations vive project-scoped en
+  // projects/{pid}/legal_obligations. El job debe aceptar collectionPath
+  // y reflejarlo también en la subcolección `reminders_sent`.
+  it('scopea query y markers al collectionPath provisto', async () => {
+    const scoped = 'projects/proj-A/legal_obligations';
+    const { db, writes } = buildDb({
+      obligations: [{ id: 'ob1', data: obligation() }],
+      expectedCollectionPath: scoped,
+    });
+    const notify = vi.fn().mockResolvedValue(undefined);
+    const r = await runLegalCalendarReminders({
+      db,
+      now: NOW,
+      collectionPath: scoped,
+      notifyResponsible: notify,
+    });
     expect(r.remindersEmitted).toBe(1);
-    expect(r.errors).toBe(0);
+    expect(writes).toHaveLength(1);
+    expect(writes[0].path).toBe(`${scoped}/ob1/reminders_sent/ob1_2026-05-17`);
   });
 });

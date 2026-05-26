@@ -44,6 +44,5 @@ export const verifyGooglePlayPurchase = async (
  * Helper to check if running inside Capacitor
  */
 export const isNative = (): boolean => {
-  // @ts-ignore
-  return !!window.Capacitor;
+  return !!(window as Window & { Capacitor?: unknown }).Capacitor;
 };

@@ -42,6 +42,37 @@ import { fcmAdapter } from '../../services/notifications/fcmAdapter.js';
 // solo aparece el punto del mes actual. Endpoint dedicado para Cloud
 // Scheduler corriendo día 1 de cada mes a 00:30 UTC.
 import { runB2dMrrSnapshot } from '../jobs/runB2dMrrSnapshot.js';
+// Plan v2 Bloque A20 — wire critical safety cron: lone-worker escalation.
+// Vidas dependen: si un trabajador solo no hace check-in o pulsa "ayuda",
+// este job escala (supervisor → brigade → emergency_services).
+import { runLoneWorkerEscalationCron } from '../jobs/runLoneWorkerEscalation.js';
+import type {
+  EscalationDecision,
+} from '../../services/loneWorker/loneWorkerService.js';
+// Plan v2 Bloque F6 — wire 3 jobs implementados pero no montados (Sprint 39):
+// excepciones expiradas, work_permits expirados, recordatorios obligaciones
+// legales. El motor puro deriva el estado, pero hasta que el cron materialize
+// el campo `status='expired'` las queries UI (where status=='active') van a
+// retornar registros stale. FCM reminders por obligaciones legales son la
+// única vía para que el responsable se entere antes del vencimiento.
+import { runExceptionAutoExpire } from '../jobs/runExceptionAutoExpire.js';
+import { runWorkPermitAutoExpire } from '../jobs/runWorkPermitAutoExpire.js';
+import { runLegalCalendarReminders } from '../jobs/runLegalCalendarReminders.js';
+// PR #482 codex P1 — los datos de lone_worker / exceptions / work_permits /
+// legal_obligations viven project-scoped (`projects/{pid}/<col>`), no en root.
+// Estos helpers resuelven tokens por role + chunkean envíos FCM en lotes
+// de 500 para no perder entregas en brigadas grandes.
+import {
+  iterateAllProjects,
+  resolveProjectMemberTokens,
+  LONE_WORKER_ROLE_BUCKETS,
+} from '../services/projectTokens.js';
+import { sendMulticastChunked } from '../utils/fcmMulticast.js';
+
+// PR #482 codex P1 (round 2) — page size for project enumeration. 500 is
+// a safe per-call Firestore limit; deployments with more than 500 projects
+// require pagination (cursor) rather than a hard cap.
+const PROJECT_PAGE_SIZE = 500;
 
 const router = Router();
 
@@ -272,6 +303,357 @@ router.post('/run-b2d-mrr-snapshot', verifySchedulerToken, async (_req, res) => 
       .json({ ok: false, error: 'internal_error', message: 'b2d-mrr-snapshot failed' });
   }
 });
+
+// Plan v2 Bloque A20 — lone-worker escalation cron.
+//
+//   POST /api/maintenance/run-lone-worker-escalation
+//
+// Cloud Scheduler debería correr esto CADA 5 MINUTOS sobre las sesiones
+// activas en `projects/{pid}/lone_worker_sessions`. El pure decide engine
+// (`loneWorker/loneWorkerService.ts`) determina cuándo escalar y a qué
+// nivel; este endpoint enumera proyectos, invoca el cron por cada uno con
+// el path project-scoped, y emite FCM (chunkeado a 500 tokens por call)
+// a supervisor/brigade/emergency_services del proyecto. Idempotente por
+// (sessionId, level, día).
+//
+// PR #482 codex P1 — antes de este fix el job se invocaba con path raíz
+// (`lone_worker_sessions/*`) y tokens leídos del doc de sesión; ambas vías
+// devuelven vacío en producción porque la data real es project-scoped y los
+// docs no contienen arrays de tokens. Resultado: cron OK con cero entregas.
+//
+// Auth: `verifySchedulerToken` middleware — Cloud Scheduler envía el
+// shared secret en el header `X-Scheduler-Token`.
+router.post(
+  '/run-lone-worker-escalation',
+  verifySchedulerToken,
+  async (_req, res) => {
+    const start = Date.now();
+    try {
+      const db = admin.firestore();
+      const messaging = admin.messaging();
+
+      const aggregated = {
+        projectsScanned: 0,
+        sessionsScanned: 0,
+        escalationsEmitted: 0,
+        escalationsSkippedIdempotent: 0,
+        byLevel: { supervisor: 0, brigade: 0, emergency_services: 0 },
+        errors: 0,
+        notifications: {
+          attempted: 0,
+          delivered: 0,
+          failed: 0,
+          chunks: 0,
+          chunkErrors: 0,
+        },
+      };
+
+      const perProject = async (
+        projectDoc: FirebaseFirestore.QueryDocumentSnapshot,
+      ): Promise<void> => {
+        const projectId = projectDoc.id;
+        aggregated.projectsScanned += 1;
+
+        const notifyForLevel = async (
+          sessionId: string,
+          decision: EscalationDecision,
+          title: string,
+          bodyPrefix: string,
+        ): Promise<void> => {
+          const roles = LONE_WORKER_ROLE_BUCKETS[decision.level];
+          // PR #482 codex P1 (round 3): `resolveProjectMemberTokens` throws
+          // `ProjectTokenLookupError` on Firestore read failures; the cron's
+          // try/catch around notifyHook ensures the marker is NOT written
+          // and the next 5-minute pass retries. Vidas dependen.
+          const { tokens } = await resolveProjectMemberTokens(projectId, roles, db);
+          if (tokens.length === 0) {
+            // No throw on "lookup succeeded but no recipients" — but ALSO
+            // do not mark this escalation as delivered. Throw so the cron
+            // skips the idempotency marker and retries next pass. The
+            // operator must then provision the role; until they do, the
+            // cron will log this warning every 5 minutes (acceptable noise
+            // for a safety-critical hole).
+            logger.warn('[maintenance] lone-worker no tokens for project/level', {
+              projectId,
+              sessionId,
+              level: decision.level,
+            });
+            throw new Error(
+              `no_recipients_for_level: project=${projectId} level=${decision.level}`,
+            );
+          }
+          const result = await sendMulticastChunked(messaging, tokens, {
+            notification: {
+              title,
+              body: `${bodyPrefix} (sesión ${sessionId}, proyecto ${projectId}).`,
+            },
+            data: {
+              kind: 'lone_worker_escalation',
+              sessionId,
+              projectId,
+              level: decision.level,
+              message: decision.message,
+              triggeredAt: decision.triggeredAt,
+            },
+            android: { priority: 'high' },
+            apns: { headers: { 'apns-priority': '10' } },
+          });
+          aggregated.notifications.attempted += result.attempted;
+          aggregated.notifications.delivered += result.successCount;
+          aggregated.notifications.failed += result.failureCount;
+          aggregated.notifications.chunks += result.chunkCount;
+          aggregated.notifications.chunkErrors += result.errorCount;
+          // PR #482 codex P1 (round 2): chunk-level transport failures must
+          // surface so the cron skips the idempotency marker and the next
+          // 5-minute pass retries — otherwise a transient FCM outage marks
+          // the escalation as "delivered" with zero successful sends.
+          if (result.errorCount > 0) {
+            throw new Error(
+              `fcm_multicast_chunk_errors: chunks=${result.errorCount}/${result.chunkCount} ` +
+                `(delivered=${result.successCount}, failed=${result.failureCount})`,
+            );
+          }
+        };
+
+        await runLoneWorkerEscalationCron({
+          db,
+          collectionPath: `projects/${projectId}/lone_worker_sessions`,
+          notifySupervisor: (sessionId, decision) =>
+            notifyForLevel(
+              sessionId,
+              decision,
+              'Trabajador solo — revisar check-in',
+              'Sin check-in dentro del intervalo',
+            ),
+          notifyBrigade: (sessionId, decision) =>
+            notifyForLevel(
+              sessionId,
+              decision,
+              '⚠️ Trabajador solo — sin check-in prolongado',
+              'Activar brigada — revisión presencial',
+            ),
+          notifyEmergency: (sessionId, decision) =>
+            notifyForLevel(
+              sessionId,
+              decision,
+              '🚨 Trabajador solo — solicitó ayuda',
+              'EMERGENCIA — coordinar servicios externos',
+            ),
+        }).then(
+          (r) => {
+            aggregated.sessionsScanned += r.sessionsScanned;
+            aggregated.escalationsEmitted += r.escalationsEmitted;
+            aggregated.escalationsSkippedIdempotent += r.escalationsSkippedIdempotent;
+            aggregated.byLevel.supervisor += r.byLevel.supervisor;
+            aggregated.byLevel.brigade += r.byLevel.brigade;
+            aggregated.byLevel.emergency_services += r.byLevel.emergency_services;
+            aggregated.errors += r.errors;
+          },
+          (err) => {
+            logger.error('[maintenance] lone-worker per-project failed', {
+              projectId,
+              err: String(err),
+            });
+            captureRouteError(err, 'maintenance.lone-worker-escalation.project', {
+              projectId,
+            });
+            aggregated.errors += 1;
+          },
+        );
+      };
+
+      await iterateAllProjects(db, PROJECT_PAGE_SIZE, perProject);
+
+      logger.info('[maintenance] lone-worker-escalation done', {
+        ...aggregated,
+        tookMs: Date.now() - start,
+      });
+      return res.status(200).json({
+        ok: true,
+        ...aggregated,
+        tookMs: Date.now() - start,
+      });
+    } catch (err) {
+      logger.error('[maintenance] lone-worker-escalation failed', err);
+      captureRouteError(err, 'maintenance.lone-worker-escalation');
+      return res.status(500).json({
+        ok: false,
+        error: 'internal_error',
+        message: 'lone-worker-escalation failed',
+      });
+    }
+  },
+);
+
+// Plan v2 Bloque F6 — daily housekeeping: expire stale exceptions +
+// work_permits, dispatch legal calendar reminders. Cloud Scheduler
+// invoca a diario 00:00 UTC.
+//
+//   POST /api/maintenance/run-daily-housekeeping
+//
+// Tres pasos independientes + idempotentes; failure de uno no aborta
+// los otros (catch + log + continue).
+//
+// PR #482 codex P1 — los tres jobs solían invocarse con `{ db }` solamente,
+// lo que apuntaba a colecciones raíz inexistentes en producción (la data
+// real vive en `projects/{pid}/{exceptions,work_permits,legal_obligations}`).
+// Esta versión enumera proyectos y aplica cada job con `collectionPath`
+// scoped, además de pasar `notifyResponsible` real (sin él los reminders
+// legales se persistían sin disparar FCM).
+router.post(
+  '/run-daily-housekeeping',
+  verifySchedulerToken,
+  async (_req, res) => {
+    const start = Date.now();
+    // PR #482 codex P2 (round 2): top-level try/catch — antes el
+    // `projects/{}` initial get() podía rechazarse fuera del catch
+    // per-project, dejando una unhandled rejection y al scheduler sin
+    // respuesta estructurada para reintentar.
+    try {
+      const db = admin.firestore();
+      const messaging = admin.messaging();
+
+      const exceptions = { scanned: 0, expired: 0, errors: 0 };
+      const workPermits = { scanned: 0, expired: 0, errors: 0 };
+      const legalReminders = {
+        scanned: 0,
+        remindersEmitted: 0,
+        skipped: 0,
+        errors: 0,
+        notifications: { attempted: 0, delivered: 0, failed: 0, chunks: 0, chunkErrors: 0 },
+      };
+      let projectsScanned = 0;
+      const responsibleRoles = LONE_WORKER_ROLE_BUCKETS.supervisor;
+
+      const perProject = async (
+        projectDoc: FirebaseFirestore.QueryDocumentSnapshot,
+      ): Promise<void> => {
+        const projectId = projectDoc.id;
+        projectsScanned += 1;
+
+        try {
+          const r = await runExceptionAutoExpire({
+            db,
+            collectionPath: `projects/${projectId}/exceptions`,
+          });
+          exceptions.scanned += r.scanned;
+          exceptions.expired += r.expired;
+          exceptions.errors += r.errors;
+        } catch (err) {
+          logger.error('[maintenance] exception-auto-expire failed', { projectId, err: String(err) });
+          captureRouteError(err, 'maintenance.exception-auto-expire', { projectId });
+          exceptions.errors += 1;
+        }
+
+        try {
+          const r = await runWorkPermitAutoExpire({
+            db,
+            collectionPath: `projects/${projectId}/work_permits`,
+          });
+          workPermits.scanned += r.scanned;
+          workPermits.expired += r.expired;
+          workPermits.errors += r.errors;
+        } catch (err) {
+          logger.error('[maintenance] work-permit-auto-expire failed', { projectId, err: String(err) });
+          captureRouteError(err, 'maintenance.work-permit-auto-expire', { projectId });
+          workPermits.errors += 1;
+        }
+
+        try {
+          const r = await runLegalCalendarReminders({
+            db,
+            collectionPath: `projects/${projectId}/legal_obligations`,
+            notifyResponsible: async (obligationId, obligation, daysUntil) => {
+              // PR #482 codex P1 (round 3): same retry semantics as lone-worker.
+              // Token-lookup failure → throw via ProjectTokenLookupError.
+              // Empty recipient set → throw too: marker not written, next
+              // daily run retries. For legal reminders the noise floor is
+              // 1×/day so a missing supervisor provisioning generates one
+              // warn per obligation per day until the operator fixes it.
+              const { tokens } = await resolveProjectMemberTokens(projectId, responsibleRoles, db);
+              if (tokens.length === 0) {
+                logger.warn('[maintenance] legal-reminder no responsible tokens', {
+                  projectId,
+                  obligationId,
+                  kind: obligation.kind,
+                });
+                throw new Error(
+                  `no_responsible_recipients: project=${projectId} obligation=${obligationId}`,
+                );
+              }
+              const dispatched = await sendMulticastChunked(messaging, tokens, {
+                notification: {
+                  title: `Obligación legal: ${obligation.label}`,
+                  body: `Vence en ${daysUntil} día(s) — ${obligation.legalCitation}`,
+                },
+                data: {
+                  kind: 'legal_obligation_reminder',
+                  obligationId,
+                  projectId,
+                  obligationKind: obligation.kind,
+                  legalCitation: obligation.legalCitation,
+                  daysUntil: String(daysUntil),
+                  nextDueAt: obligation.nextDueAt ?? '',
+                },
+                android: { priority: 'high' },
+                apns: { headers: { 'apns-priority': '10' } },
+              });
+              legalReminders.notifications.attempted += dispatched.attempted;
+              legalReminders.notifications.delivered += dispatched.successCount;
+              legalReminders.notifications.failed += dispatched.failureCount;
+              legalReminders.notifications.chunks += dispatched.chunkCount;
+              legalReminders.notifications.chunkErrors += dispatched.errorCount;
+              // PR #482 codex P1 (round 2): chunk-level errors deben abortar
+              // el marker idempotente para que el próximo run reintente.
+              // Plazos regulatorios (DS 54, Ley 16.744) no toleran "marked
+              // sent" sin entrega.
+              if (dispatched.errorCount > 0) {
+                throw new Error(
+                  `fcm_multicast_chunk_errors: chunks=${dispatched.errorCount}/${dispatched.chunkCount} ` +
+                    `(delivered=${dispatched.successCount}, failed=${dispatched.failureCount})`,
+                );
+              }
+            },
+          });
+          legalReminders.scanned += r.scanned;
+          legalReminders.remindersEmitted += r.remindersEmitted;
+          legalReminders.skipped += r.skippedNotDue + r.skippedIdempotent;
+          legalReminders.errors += r.errors;
+        } catch (err) {
+          logger.error('[maintenance] legal-calendar-reminders failed', { projectId, err: String(err) });
+          captureRouteError(err, 'maintenance.legal-calendar-reminders', { projectId });
+          legalReminders.errors += 1;
+        }
+      };
+
+      await iterateAllProjects(db, PROJECT_PAGE_SIZE, perProject);
+
+      logger.info('[maintenance] daily-housekeeping done', {
+        projectsScanned,
+        exceptions,
+        workPermits,
+        legalReminders,
+        tookMs: Date.now() - start,
+      });
+      return res.status(200).json({
+        ok: true,
+        projectsScanned,
+        exceptions,
+        workPermits,
+        legalReminders,
+        tookMs: Date.now() - start,
+      });
+    } catch (err) {
+      logger.error('[maintenance] daily-housekeeping failed', err);
+      captureRouteError(err, 'maintenance.daily-housekeeping');
+      return res.status(500).json({
+        ok: false,
+        error: 'internal_error',
+        message: 'daily-housekeeping failed',
+      });
+    }
+  },
+);
 
 // Re-export `admin` access through this module so the test harness can
 // inject a fake; defensively imported here to keep this file the single

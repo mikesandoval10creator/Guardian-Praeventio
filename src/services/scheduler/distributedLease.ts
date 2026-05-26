@@ -27,6 +27,7 @@
 // extend their hold (renew before expiry) or release early (clean up
 // for the next tick instead of waiting for TTL to expire).
 
+import { randomBytes } from 'crypto';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getErrorTracker } from '../observability/index.js';
 
@@ -64,7 +65,7 @@ export interface LeaseDeps {
   getDb?: () => Firestore;
   /** Override of "now" — tests pin time. Default `Date.now`. */
   now?: () => number;
-  /** Random nonce generator. Default `Math.random().toString(36)…`. */
+  /** Random nonce generator. Default uses `crypto.randomBytes` (CSPRNG). */
   nonce?: () => string;
 }
 
@@ -72,9 +73,7 @@ const COLLECTION = 'system';
 const SUBCOLLECTION = 'leases';
 
 function defaultNonce(): string {
-  return (
-    Date.now().toString(36) + Math.random().toString(36).slice(2, 10)
-  );
+  return Date.now().toString(36) + '-' + randomBytes(6).toString('hex');
 }
 
 async function getDefaultDb(): Promise<Firestore> {

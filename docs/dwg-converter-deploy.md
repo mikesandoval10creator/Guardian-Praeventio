@@ -1,4 +1,4 @@
-# DWG Converter — Deploy Runbook (Sprint 21 Bucket Q)
+# DWG Converter — Deploy Runbook (Sprint 21 Bucket Q · verificado 2026-05-26)
 
 The DWG → DXF converter runs as an isolated Cloud Run service so the
 GPL-3.0-licensed LibreDWG binary stays scoped to its own image. See

@@ -114,8 +114,12 @@ interface LockValue {
 }
 
 function generateLockId(): string {
-  // Random ID por tab para detectar reentry.
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  // Random ID por tab para detectar reentry. Web Crypto CSPRNG.
+  const ts = Date.now().toString(36);
+  const bytes = new Uint8Array(6);
+  globalThis.crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${ts}-${hex}`;
 }
 
 function tryAcquireLock(nowMs: number): string | null {

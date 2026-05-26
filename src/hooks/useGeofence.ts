@@ -109,12 +109,20 @@ export function buildZonesGeometryHash(zones: GeofenceZone[]): string {
   );
 }
 
+export type GeofencePermissionState =
+  | 'granted'
+  | 'denied'
+  | 'unavailable'
+  | 'pending';
+
 export function useGeofence(
   zones: GeofenceZone[],
   onZoneEntry?: (zones: GeofenceZone[]) => void,
 ) {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [activeZones, setActiveZones] = useState<GeofenceZone[]>([]);
+  const [permissionState, setPermissionState] =
+    useState<GeofencePermissionState>('pending');
   const onZoneEntryRef = useRef(onZoneEntry);
   onZoneEntryRef.current = onZoneEntry;
   // Track which zone IDs the worker is currently inside to avoid repeated alarms
@@ -159,12 +167,16 @@ export function useGeofence(
   const zonesIdHash = useMemo(() => buildZonesGeometryHash(zones), [zones]);
 
   useEffect(() => {
-    if (!('geolocation' in navigator)) return undefined;
+    if (!('geolocation' in navigator)) {
+      setPermissionState('unavailable');
+      return undefined;
+    }
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
         setCurrentLocation({ lat: latitude, lng: longitude });
+        setPermissionState('granted');
 
         const userPoint = point([longitude, latitude]);
         const currentZones = zonesRef.current;
@@ -192,12 +204,20 @@ export function useGeofence(
         }
       },
       (err) => {
-        // Sprint 29 (audit H27) — surface PERMISSION_DENIED so the
-        // worker doesn't believe protection is active when it isn't.
-        // Use console.warn (no NotificationContext dep to keep the
-        // hook decoupled); UI consumers can subscribe via setError.
-        if (err && typeof err === 'object' && 'code' in err && err.code === 1) {
-          console.warn('[useGeofence] Geolocalización denegada — protección desactivada.');
+        // Sprint 29 (audit H27) — surface PERMISSION_DENIED so el trabajador
+        // no crea que tiene protección activa cuando no la tiene. Exponemos
+        // `permissionState='denied'` en el return para que el UI consumer
+        // muestre un toast (no toast aquí — el hook está desacoplado de
+        // NotificationContext).
+        if (err && typeof err === 'object' && 'code' in err) {
+          if (err.code === 1) {
+            setPermissionState('denied');
+            logger.warn(
+              '[useGeofence] Geolocalización denegada — protección desactivada.',
+            );
+          } else if (err.code === 2) {
+            setPermissionState('unavailable');
+          }
         }
       },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 },
@@ -209,5 +229,5 @@ export function useGeofence(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zonesIdHash]);
 
-  return { currentLocation, activeZones };
+  return { currentLocation, activeZones, permissionState };
 }

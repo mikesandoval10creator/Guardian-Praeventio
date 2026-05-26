@@ -34,7 +34,10 @@ export type CurrencyCode = 'CLP' | 'USD';
  *   usado para USD enterprise + LATAM no soportado por MP.
  *
  * Rail DESCARTADO (tombstone solo para compatibilidad de tipos):
- * - `stripe` → ver TODO.md §9 + §2.12 closed.
+ * - `stripe` → eliminado oficialmente Fase C.2 (cierre 2026-05-21, ver
+ *   TODO.md §2.12). El literal se mantiene en `ServerPaymentMethod` solo
+ *   para que fixtures legacy compilen; `VALID_PAYMENT_METHODS` (runtime)
+ *   ya lo rechaza. NO usar en código nuevo.
  */
 export type ClientPaymentMethod = 'webpay' | 'mercadopago' | 'manual-transfer';
 

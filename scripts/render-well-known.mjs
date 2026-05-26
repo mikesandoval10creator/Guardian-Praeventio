@@ -70,11 +70,19 @@ if (appleTeamId && appleTeamId !== 'TEAMID' && /^[A-Z0-9]{10}$/i.test(appleTeamI
   const aasaRaw = await fs.readFile(aasaPath, 'utf8').catch(() => null);
   if (aasaRaw) {
     const aasa = JSON.parse(aasaRaw);
+    const fullAppId = `${appleTeamId.toUpperCase()}.com.praeventio.guard`;
     if (aasa.applinks?.details?.[0]) {
-      aasa.applinks.details[0].appID = `${appleTeamId.toUpperCase()}.com.praeventio.guard`;
-      await fs.writeFile(aasaPath, JSON.stringify(aasa, null, 2) + '\n');
-      console.log(`[render-well-known] apple-app-site-association rendered (TEAM_ID=${appleTeamId.toUpperCase()}).`);
+      aasa.applinks.details[0].appID = fullAppId;
     }
+    if (Array.isArray(aasa.webcredentials?.apps)) {
+      aasa.webcredentials.apps = aasa.webcredentials.apps.map((appId) =>
+        appId === 'TEAMID.com.praeventio.guard' ? fullAppId : appId,
+      );
+    }
+    await fs.writeFile(aasaPath, JSON.stringify(aasa, null, 2) + '\n');
+    console.log(
+      `[render-well-known] apple-app-site-association rendered (TEAM_ID=${appleTeamId.toUpperCase()}).`,
+    );
   }
 } else {
   console.warn(
