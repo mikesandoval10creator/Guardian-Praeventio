@@ -250,6 +250,8 @@ import adminBurdenRouter from "./src/server/routes/adminBurden.js";
 import eventReplayRouter from "./src/server/routes/eventReplay.js";
 // Tamper-Proof Audit Hash Chain — fatal investigations, Ley Karin, ISO 45001 §10.2.
 import auditChainRouter from "./src/server/routes/auditChain.js";
+// EPP Flow (inspection fail → stock low → purchase order → sign).
+import eppFlowRouter from "./src/server/routes/eppFlow.js";
 // Auditoría Express Bundle — Sprint 39 Fase F.1 (PDF index for fiscalización folder).
 import expressBundleRouter from "./src/server/routes/expressBundle.js";
 // Research Mode — Sprint K §191-194 (root cause investigation: tree + comparator + failed control detector).
@@ -1007,6 +1009,7 @@ app.use('/api/sprint-k', roiScenarioRouter);
 app.use('/api/sprint-k', adminBurdenRouter);
 app.use('/api/sprint-k', eventReplayRouter);
 app.use('/api/sprint-k', auditChainRouter);
+app.use('/api/sprint-k', eppFlowRouter);
 app.use('/api/sprint-k', expressBundleRouter);
 app.use('/api/sprint-k', researchModeRouter);
 app.use('/api/sprint-k', orgMetricsRouter);
