@@ -12,11 +12,18 @@ import type admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
 import type { LegalObligation } from '../../services/legalCalendar/legalObligationsCalendar.js';
 
-const COLLECTION_OBLIGATIONS = 'legal_obligations';
+const DEFAULT_COLLECTION = 'legal_obligations';
 
 export interface LegalCalendarRemindersDeps {
   db: admin.firestore.Firestore;
   now?: () => Date;
+  /**
+   * Collection path. Default `'legal_obligations'` (legacy root). Production
+   * data lives under `projects/{projectId}/legal_obligations`
+   * (`services/legalCalendar/legalCalendarStore.ts`). El caller debe
+   * enumerar proyectos e invocar el cron una vez por proyecto.
+   */
+  collectionPath?: string;
   notifyResponsible?: (obligationId: string, obligation: LegalObligation, daysUntil: number) => Promise<void>;
 }
 
@@ -42,6 +49,7 @@ export async function runLegalCalendarReminders(
   deps: LegalCalendarRemindersDeps,
 ): Promise<LegalCalendarRemindersResult> {
   const now = deps.now ?? (() => new Date());
+  const collectionPath = deps.collectionPath ?? DEFAULT_COLLECTION;
   const startedAt = now();
   const result: LegalCalendarRemindersResult = {
     scanned: 0,
@@ -55,9 +63,9 @@ export async function runLegalCalendarReminders(
 
   let snap: admin.firestore.QuerySnapshot;
   try {
-    snap = await deps.db.collection(COLLECTION_OBLIGATIONS).get();
+    snap = await deps.db.collection(collectionPath).get();
   } catch (e) {
-    logger.warn?.('legal_reminders.scan_failed', { err: String(e) });
+    logger.warn?.('legal_reminders.scan_failed', { collectionPath, err: String(e) });
     result.errors += 1;
     result.finishedAtIso = now().toISOString();
     return result;
@@ -88,7 +96,7 @@ export async function runLegalCalendarReminders(
 
       const key = reminderKey(doc.id, obligation.nextDueAt);
       const remRef = deps.db
-        .collection(COLLECTION_OBLIGATIONS)
+        .collection(collectionPath)
         .doc(doc.id)
         .collection('reminders_sent')
         .doc(key);

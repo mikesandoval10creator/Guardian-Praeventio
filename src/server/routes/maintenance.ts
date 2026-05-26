@@ -58,6 +58,12 @@ import type {
 import { runExceptionAutoExpire } from '../jobs/runExceptionAutoExpire.js';
 import { runWorkPermitAutoExpire } from '../jobs/runWorkPermitAutoExpire.js';
 import { runLegalCalendarReminders } from '../jobs/runLegalCalendarReminders.js';
+// PR #482 codex P1 — los datos de lone_worker / exceptions / work_permits /
+// legal_obligations viven project-scoped (`projects/{pid}/<col>`), no en root.
+// Estos helpers resuelven tokens por role + chunkean envíos FCM en lotes
+// de 500 para no perder entregas en brigadas grandes.
+import { resolveProjectMemberTokens, LONE_WORKER_ROLE_BUCKETS } from '../services/projectTokens.js';
+import { sendMulticastChunked } from '../utils/fcmMulticast.js';
 
 const router = Router();
 
@@ -294,10 +300,17 @@ router.post('/run-b2d-mrr-snapshot', verifySchedulerToken, async (_req, res) => 
 //   POST /api/maintenance/run-lone-worker-escalation
 //
 // Cloud Scheduler debería correr esto CADA 5 MINUTOS sobre las sesiones
-// activas en `lone_worker_sessions`. El pure decide engine
+// activas en `projects/{pid}/lone_worker_sessions`. El pure decide engine
 // (`loneWorker/loneWorkerService.ts`) determina cuándo escalar y a qué
-// nivel; este endpoint sólo orquesta y emite FCM a supervisores/brigada/
-// emergency_services. Idempotente por (sessionId, level, día).
+// nivel; este endpoint enumera proyectos, invoca el cron por cada uno con
+// el path project-scoped, y emite FCM (chunkeado a 500 tokens por call)
+// a supervisor/brigade/emergency_services del proyecto. Idempotente por
+// (sessionId, level, día).
+//
+// PR #482 codex P1 — antes de este fix el job se invocaba con path raíz
+// (`lone_worker_sessions/*`) y tokens leídos del doc de sesión; ambas vías
+// devuelven vacío en producción porque la data real es project-scoped y los
+// docs no contienen arrays de tokens. Resultado: cron OK con cero entregas.
 //
 // Auth: `verifySchedulerToken` middleware — Cloud Scheduler envía el
 // shared secret en el header `X-Scheduler-Token`.
@@ -310,107 +323,119 @@ router.post(
       const db = admin.firestore();
       const messaging = admin.messaging();
 
-      // Recolecta FCM tokens del supervisor/brigada/emergency a partir del
-      // doc de sesión. Esquema esperado en `lone_worker_sessions/{id}`:
-      //   { projectId, supervisorTokens: string[], brigadeTokens: string[],
-      //     emergencyTokens: string[], ... }
-      // Si no están presentes, hacemos best-effort lookup contra la
-      // colección `users` por role (similar a resilience-health).
-      async function loadTokensForSession(
-        sessionId: string,
-        level: EscalationDecision['level'],
-      ): Promise<string[]> {
+      const aggregated = {
+        projectsScanned: 0,
+        sessionsScanned: 0,
+        escalationsEmitted: 0,
+        escalationsSkippedIdempotent: 0,
+        byLevel: { supervisor: 0, brigade: 0, emergency_services: 0 },
+        errors: 0,
+        notifications: {
+          attempted: 0,
+          delivered: 0,
+          failed: 0,
+          chunks: 0,
+          chunkErrors: 0,
+        },
+      };
+
+      const projectsSnap = await db.collection('projects').limit(500).get();
+
+      for (const projectDoc of projectsSnap.docs) {
+        const projectId = projectDoc.id;
+        aggregated.projectsScanned += 1;
+
+        const notifyForLevel = async (
+          sessionId: string,
+          decision: EscalationDecision,
+          title: string,
+          bodyPrefix: string,
+        ): Promise<void> => {
+          const roles = LONE_WORKER_ROLE_BUCKETS[decision.level];
+          const { tokens } = await resolveProjectMemberTokens(projectId, roles, db);
+          if (tokens.length === 0) {
+            logger.warn('[maintenance] lone-worker no tokens for project/level', {
+              projectId,
+              sessionId,
+              level: decision.level,
+            });
+            return;
+          }
+          const result = await sendMulticastChunked(messaging, tokens, {
+            notification: {
+              title,
+              body: `${bodyPrefix} (sesión ${sessionId}, proyecto ${projectId}).`,
+            },
+            data: {
+              kind: 'lone_worker_escalation',
+              sessionId,
+              projectId,
+              level: decision.level,
+              message: decision.message,
+              triggeredAt: decision.triggeredAt,
+            },
+            android: { priority: 'high' },
+            apns: { headers: { 'apns-priority': '10' } },
+          });
+          aggregated.notifications.attempted += result.attempted;
+          aggregated.notifications.delivered += result.successCount;
+          aggregated.notifications.failed += result.failureCount;
+          aggregated.notifications.chunks += result.chunkCount;
+          aggregated.notifications.chunkErrors += result.errorCount;
+        };
+
         try {
-          const doc = await db.collection('lone_worker_sessions').doc(sessionId).get();
-          const data = doc.data() as
-            | {
-                supervisorTokens?: string[];
-                brigadeTokens?: string[];
-                emergencyTokens?: string[];
-              }
-            | undefined;
-          if (!data) return [];
-          if (level === 'supervisor') return data.supervisorTokens ?? [];
-          if (level === 'brigade') return data.brigadeTokens ?? [];
-          return data.emergencyTokens ?? [];
+          const r = await runLoneWorkerEscalationCron({
+            db,
+            collectionPath: `projects/${projectId}/lone_worker_sessions`,
+            notifySupervisor: (sessionId, decision) =>
+              notifyForLevel(
+                sessionId,
+                decision,
+                'Trabajador solo — revisar check-in',
+                'Sin check-in dentro del intervalo',
+              ),
+            notifyBrigade: (sessionId, decision) =>
+              notifyForLevel(
+                sessionId,
+                decision,
+                '⚠️ Trabajador solo — sin check-in prolongado',
+                'Activar brigada — revisión presencial',
+              ),
+            notifyEmergency: (sessionId, decision) =>
+              notifyForLevel(
+                sessionId,
+                decision,
+                '🚨 Trabajador solo — solicitó ayuda',
+                'EMERGENCIA — coordinar servicios externos',
+              ),
+          });
+          aggregated.sessionsScanned += r.sessionsScanned;
+          aggregated.escalationsEmitted += r.escalationsEmitted;
+          aggregated.escalationsSkippedIdempotent += r.escalationsSkippedIdempotent;
+          aggregated.byLevel.supervisor += r.byLevel.supervisor;
+          aggregated.byLevel.brigade += r.byLevel.brigade;
+          aggregated.byLevel.emergency_services += r.byLevel.emergency_services;
+          aggregated.errors += r.errors;
         } catch (err) {
-          logger.warn('[maintenance] lone-worker tokens load failed', {
-            sessionId,
-            level,
+          logger.error('[maintenance] lone-worker per-project failed', {
+            projectId,
             err: String(err),
           });
-          return [];
-        }
-      }
-
-      async function notify(
-        sessionId: string,
-        decision: EscalationDecision,
-        title: string,
-        bodyPrefix: string,
-      ): Promise<void> {
-        const tokens = await loadTokensForSession(sessionId, decision.level);
-        if (tokens.length === 0) {
-          logger.warn('[maintenance] lone-worker no tokens for level', {
-            sessionId,
-            level: decision.level,
+          captureRouteError(err, 'maintenance.lone-worker-escalation.project', {
+            projectId,
           });
-          return;
+          aggregated.errors += 1;
         }
-        await messaging.sendEachForMulticast({
-          tokens,
-          notification: {
-            title,
-            body: `${bodyPrefix} (sesión ${sessionId}).`,
-          },
-          data: {
-            kind: 'lone_worker_escalation',
-            sessionId,
-            level: decision.level,
-            message: decision.message,
-            triggeredAt: decision.triggeredAt,
-          },
-          android: { priority: 'high' },
-          apns: { headers: { 'apns-priority': '10' } },
-        });
       }
-
-      const result = await runLoneWorkerEscalationCron({
-        db,
-        notifySupervisor: (sessionId, decision) =>
-          notify(
-            sessionId,
-            decision,
-            'Trabajador solo — revisar check-in',
-            'Sin check-in dentro del intervalo',
-          ),
-        notifyBrigade: (sessionId, decision) =>
-          notify(
-            sessionId,
-            decision,
-            '⚠️ Trabajador solo — sin check-in prolongado',
-            'Activar brigada — revisión presencial',
-          ),
-        notifyEmergency: (sessionId, decision) =>
-          notify(
-            sessionId,
-            decision,
-            '🚨 Trabajador solo — solicitó ayuda',
-            'EMERGENCIA — coordinar servicios externos',
-          ),
-      });
 
       logger.info('[maintenance] lone-worker-escalation done', {
-        sessionsScanned: result.sessionsScanned,
-        escalationsEmitted: result.escalationsEmitted,
-        skipped: result.escalationsSkippedIdempotent,
-        byLevel: result.byLevel,
-        errors: result.errors,
+        ...aggregated,
         tookMs: Date.now() - start,
       });
       return res.status(200).json({
         ok: true,
-        ...result,
+        ...aggregated,
         tookMs: Date.now() - start,
       });
     } catch (err) {
@@ -433,59 +458,117 @@ router.post(
 //
 // Tres pasos independientes + idempotentes; failure de uno no aborta
 // los otros (catch + log + continue).
+//
+// PR #482 codex P1 — los tres jobs solían invocarse con `{ db }` solamente,
+// lo que apuntaba a colecciones raíz inexistentes en producción (la data
+// real vive en `projects/{pid}/{exceptions,work_permits,legal_obligations}`).
+// Esta versión enumera proyectos y aplica cada job con `collectionPath`
+// scoped, además de pasar `notifyResponsible` real (sin él los reminders
+// legales se persistían sin disparar FCM).
 router.post(
   '/run-daily-housekeeping',
   verifySchedulerToken,
   async (_req, res) => {
     const start = Date.now();
     const db = admin.firestore();
+    const messaging = admin.messaging();
 
-    let exceptions: { scanned: number; expired: number; errors: number } = {
+    const exceptions = { scanned: 0, expired: 0, errors: 0 };
+    const workPermits = { scanned: 0, expired: 0, errors: 0 };
+    const legalReminders = {
       scanned: 0,
-      expired: 0,
+      remindersEmitted: 0,
+      skipped: 0,
       errors: 0,
+      notifications: { attempted: 0, delivered: 0, failed: 0 },
     };
-    try {
-      const r = await runExceptionAutoExpire({ db });
-      exceptions = { scanned: r.scanned, expired: r.expired, errors: r.errors };
-    } catch (err) {
-      logger.error('[maintenance] exception-auto-expire failed', err);
-      captureRouteError(err, 'maintenance.exception-auto-expire');
-    }
 
-    let workPermits: { scanned: number; expired: number; errors: number } = {
-      scanned: 0,
-      expired: 0,
-      errors: 0,
-    };
-    try {
-      const r = await runWorkPermitAutoExpire({ db });
-      workPermits = { scanned: r.scanned, expired: r.expired, errors: r.errors };
-    } catch (err) {
-      logger.error('[maintenance] work-permit-auto-expire failed', err);
-      captureRouteError(err, 'maintenance.work-permit-auto-expire');
-    }
+    const projectsSnap = await db.collection('projects').limit(500).get();
+    let projectsScanned = 0;
 
-    let legalReminders: {
-      scanned: number;
-      remindersEmitted: number;
-      skipped: number;
-      errors: number;
-    } = { scanned: 0, remindersEmitted: 0, skipped: 0, errors: 0 };
-    try {
-      const r = await runLegalCalendarReminders({ db });
-      legalReminders = {
-        scanned: r.scanned,
-        remindersEmitted: r.remindersEmitted,
-        skipped: r.skippedNotDue + r.skippedIdempotent,
-        errors: r.errors,
-      };
-    } catch (err) {
-      logger.error('[maintenance] legal-calendar-reminders failed', err);
-      captureRouteError(err, 'maintenance.legal-calendar-reminders');
+    const responsibleRoles = LONE_WORKER_ROLE_BUCKETS.supervisor;
+
+    for (const projectDoc of projectsSnap.docs) {
+      const projectId = projectDoc.id;
+      projectsScanned += 1;
+
+      try {
+        const r = await runExceptionAutoExpire({
+          db,
+          collectionPath: `projects/${projectId}/exceptions`,
+        });
+        exceptions.scanned += r.scanned;
+        exceptions.expired += r.expired;
+        exceptions.errors += r.errors;
+      } catch (err) {
+        logger.error('[maintenance] exception-auto-expire failed', { projectId, err: String(err) });
+        captureRouteError(err, 'maintenance.exception-auto-expire', { projectId });
+        exceptions.errors += 1;
+      }
+
+      try {
+        const r = await runWorkPermitAutoExpire({
+          db,
+          collectionPath: `projects/${projectId}/work_permits`,
+        });
+        workPermits.scanned += r.scanned;
+        workPermits.expired += r.expired;
+        workPermits.errors += r.errors;
+      } catch (err) {
+        logger.error('[maintenance] work-permit-auto-expire failed', { projectId, err: String(err) });
+        captureRouteError(err, 'maintenance.work-permit-auto-expire', { projectId });
+        workPermits.errors += 1;
+      }
+
+      try {
+        const r = await runLegalCalendarReminders({
+          db,
+          collectionPath: `projects/${projectId}/legal_obligations`,
+          notifyResponsible: async (obligationId, obligation, daysUntil) => {
+            const { tokens } = await resolveProjectMemberTokens(projectId, responsibleRoles, db);
+            if (tokens.length === 0) {
+              logger.warn('[maintenance] legal-reminder no responsible tokens', {
+                projectId,
+                obligationId,
+                kind: obligation.kind,
+              });
+              return;
+            }
+            const dispatched = await sendMulticastChunked(messaging, tokens, {
+              notification: {
+                title: `Obligación legal: ${obligation.label}`,
+                body: `Vence en ${daysUntil} día(s) — ${obligation.legalCitation}`,
+              },
+              data: {
+                kind: 'legal_obligation_reminder',
+                obligationId,
+                projectId,
+                obligationKind: obligation.kind,
+                legalCitation: obligation.legalCitation,
+                daysUntil: String(daysUntil),
+                nextDueAt: obligation.nextDueAt ?? '',
+              },
+              android: { priority: 'high' },
+              apns: { headers: { 'apns-priority': '10' } },
+            });
+            legalReminders.notifications.attempted += dispatched.attempted;
+            legalReminders.notifications.delivered += dispatched.successCount;
+            legalReminders.notifications.failed += dispatched.failureCount;
+          },
+        });
+        legalReminders.scanned += r.scanned;
+        legalReminders.remindersEmitted += r.remindersEmitted;
+        legalReminders.skipped += r.skippedNotDue + r.skippedIdempotent;
+        legalReminders.errors += r.errors;
+      } catch (err) {
+        logger.error('[maintenance] legal-calendar-reminders failed', { projectId, err: String(err) });
+        captureRouteError(err, 'maintenance.legal-calendar-reminders', { projectId });
+        legalReminders.errors += 1;
+      }
     }
 
     logger.info('[maintenance] daily-housekeeping done', {
+      projectsScanned,
       exceptions,
       workPermits,
       legalReminders,
@@ -493,6 +576,7 @@ router.post(
     });
     return res.status(200).json({
       ok: true,
+      projectsScanned,
       exceptions,
       workPermits,
       legalReminders,
