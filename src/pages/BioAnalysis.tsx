@@ -67,9 +67,9 @@ export function BioAnalysis() {
     let drop = respiratorPressureDrop(PEF_FILTER_RESISTANCE_PA_S_PER_M3, flowM3PerS);
     const altitudeAdjusted = altitudeMasl > ALTITUDE_THRESHOLD_MASL;
     if (altitudeAdjusted) drop *= ALTITUDE_THIN_AIR_MULTIPLIER;
-    // TODO Sprint 10+: persist this pulmonary-altitude node via addNode() once the
-    // worker context is bound to the camera session. For now we emit to logger so the
-    // Bernoulli wiring is observable in the dev console.
+    // Sprint 11 + Regla #3: el pulmonary-altitude node se persiste a
+    // Firestore (debounce 2 s) cuando hay proyecto activo. El logger
+    // queda como debug aid auditeable.
     const node = generatePulmonaryNode(
       { id: 'bio-worker', pefLMin },
       { masl: altitudeMasl },
