@@ -6,7 +6,7 @@
 // (permite que un mismo control se valide independientemente por tarea).
 // Verifica el save + subscribe con composite keys reales.
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getEmulatorAdminFirestore } from '../../test/firestore-emulator-setup';
 import {
   saveControlValidation,
@@ -114,7 +114,15 @@ describe('controlValidationsStore — emulator round-trip', () => {
     const unsub = subscribeControlValidations(PROJECT_ID, (items) =>
       snaps.push(items),
     );
-    await new Promise((r) => setTimeout(r, 250));
+    // CI fix: el setTimeout fijo de 250ms era flaky bajo carga del emulator.
+    // Polling con timeout amplio espera hasta tener los 2 docs sembrados.
+    await vi.waitFor(
+      () => {
+        const cur = snaps[snaps.length - 1] ?? [];
+        expect(cur).toHaveLength(2);
+      },
+      { timeout: 5_000, interval: 50 },
+    );
     unsub();
 
     const last = snaps[snaps.length - 1] ?? [];

@@ -10,7 +10,7 @@
 // requests on unmount to prevent setState-after-unmount.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { auth } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 
 export interface FetchState<T> {
   data: T | null;
@@ -19,11 +19,14 @@ export interface FetchState<T> {
 }
 
 export async function authedFetch(path: string, signal: AbortSignal): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  // Plan v2 B3 — `apiAuthHeaders()` resuelve el header correcto en cada
+  // modo: `E2E <secret>:<uid>` cuando MODE=test (Playwright full-stack),
+  // `Bearer <idToken>` en producción. Antes: en E2E mode los hooks de
+  // Sprint K (useInsights, etc.) recibían 401 porque el server `verifyAuth`
+  // espera el prefijo `E2E ` cuando el shim de fixture está activo.
   return fetch(path, {
     signal,
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: await apiAuthHeaders(),
   });
 }
 

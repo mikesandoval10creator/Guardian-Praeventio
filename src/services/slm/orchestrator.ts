@@ -84,30 +84,6 @@ function shouldUseOffline(opts: OrchestratorOptions): boolean {
   return false;
 }
 
-/**
- * Best-effort Firebase ID token retrieval.
- *
- * Mirrors the call sites in `Asesor.tsx` / `AsesorChat.tsx`: we want a
- * Bearer token if the user is signed in, but we tolerate the unauthed
- * case (the endpoint will 401 and we'll fall back to the SLM). The
- * import is dynamic so this module stays import-safe under SSR / unit
- * tests that don't bootstrap Firebase.
- */
-async function tryGetIdToken(): Promise<string | null> {
-  try {
-    // Dynamic import avoids pulling Firebase into worker / SSR bundles
-    // that don't need it, and keeps the orchestrator unit-testable
-    // without a Firebase mock (the import simply never runs because
-    // `forceOnline` tests stub `fetch` before reaching this branch, and
-    // `navigator.onLine===false` tests never enter this code path).
-    const mod = await import('../firebase');
-    const token = await mod.auth.currentUser?.getIdToken();
-    return typeof token === 'string' && token.length > 0 ? token : null;
-  } catch {
-    // No Firebase available (SSR / test env) — proceed without auth.
-    return null;
-  }
-}
 
 /**
  * Issue one POST to `/api/ask-guardian` and translate the JSON shape
@@ -129,13 +105,15 @@ async function callOnlineBackend(
 ): Promise<SLMResponse | null> {
   const start = Date.now();
   try {
-    const token = await tryGetIdToken();
+    // Plan v2 B3 — apiAuthHeaders() inyecta `E2E ...` o `Bearer ...`
+    // según MODE. Dynamic import mantiene el módulo import-safe en SSR
+    // / unit tests que no bootstrap Firebase (mismo motivo que
+    // tryGetIdToken antes; ahora delegado a `lib/apiAuth`).
+    const { apiAuthHeaders } = await import('../../lib/apiAuth');
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      ...(await apiAuthHeaders()),
     };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
 
     const res = await fetch(ASK_GUARDIAN_ENDPOINT, {
       method: 'POST',
