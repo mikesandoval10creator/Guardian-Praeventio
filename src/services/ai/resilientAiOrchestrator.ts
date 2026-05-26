@@ -382,10 +382,19 @@ export async function answer(
   }
 
   // All tiers failed — canned fallback.
+  // Plan v2 F12 — prefix con disclaimer claro para que el usuario sepa que
+  // esta es una respuesta de respaldo (no de la IA principal). El banner
+  // `degraded:true` del UI puede no estar visible en todos los renderers
+  // (asistente embebido, voz, mobile shell); el disclaimer inline asegura
+  // visibilidad universal.
   const canned = cannedFallback(query);
   const latencyMs = now() - startedAt;
+  const FALLBACK_DISCLAIMER =
+    '[Respuesta de respaldo — la IA principal no está disponible. ' +
+    'Esta información es genérica; para casos específicos consulta a tu ' +
+    'supervisor o departamento de prevención.]\n\n';
   return {
-    text: canned.text,
+    text: FALLBACK_DISCLAIMER + canned.text,
     tier: 'canned',
     confidence: canned.confidence,
     citations: canned.citations ?? [],

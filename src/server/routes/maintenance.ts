@@ -42,6 +42,13 @@ import { fcmAdapter } from '../../services/notifications/fcmAdapter.js';
 // solo aparece el punto del mes actual. Endpoint dedicado para Cloud
 // Scheduler corriendo día 1 de cada mes a 00:30 UTC.
 import { runB2dMrrSnapshot } from '../jobs/runB2dMrrSnapshot.js';
+// Plan v2 Bloque A20 — wire critical safety cron: lone-worker escalation.
+// Vidas dependen: si un trabajador solo no hace check-in o pulsa "ayuda",
+// este job escala (supervisor → brigade → emergency_services).
+import { runLoneWorkerEscalationCron } from '../jobs/runLoneWorkerEscalation.js';
+import type {
+  EscalationDecision,
+} from '../../services/loneWorker/loneWorkerService.js';
 
 const router = Router();
 
@@ -272,6 +279,142 @@ router.post('/run-b2d-mrr-snapshot', verifySchedulerToken, async (_req, res) => 
       .json({ ok: false, error: 'internal_error', message: 'b2d-mrr-snapshot failed' });
   }
 });
+
+// Plan v2 Bloque A20 — lone-worker escalation cron.
+//
+//   POST /api/maintenance/run-lone-worker-escalation
+//
+// Cloud Scheduler debería correr esto CADA 5 MINUTOS sobre las sesiones
+// activas en `lone_worker_sessions`. El pure decide engine
+// (`loneWorker/loneWorkerService.ts`) determina cuándo escalar y a qué
+// nivel; este endpoint sólo orquesta y emite FCM a supervisores/brigada/
+// emergency_services. Idempotente por (sessionId, level, día).
+//
+// Auth: `verifySchedulerToken` middleware — Cloud Scheduler envía el
+// shared secret en el header `X-Scheduler-Token`.
+router.post(
+  '/run-lone-worker-escalation',
+  verifySchedulerToken,
+  async (_req, res) => {
+    const start = Date.now();
+    try {
+      const db = admin.firestore();
+      const messaging = admin.messaging();
+
+      // Recolecta FCM tokens del supervisor/brigada/emergency a partir del
+      // doc de sesión. Esquema esperado en `lone_worker_sessions/{id}`:
+      //   { projectId, supervisorTokens: string[], brigadeTokens: string[],
+      //     emergencyTokens: string[], ... }
+      // Si no están presentes, hacemos best-effort lookup contra la
+      // colección `users` por role (similar a resilience-health).
+      async function loadTokensForSession(
+        sessionId: string,
+        level: EscalationDecision['level'],
+      ): Promise<string[]> {
+        try {
+          const doc = await db.collection('lone_worker_sessions').doc(sessionId).get();
+          const data = doc.data() as
+            | {
+                supervisorTokens?: string[];
+                brigadeTokens?: string[];
+                emergencyTokens?: string[];
+              }
+            | undefined;
+          if (!data) return [];
+          if (level === 'supervisor') return data.supervisorTokens ?? [];
+          if (level === 'brigade') return data.brigadeTokens ?? [];
+          return data.emergencyTokens ?? [];
+        } catch (err) {
+          logger.warn('[maintenance] lone-worker tokens load failed', {
+            sessionId,
+            level,
+            err: String(err),
+          });
+          return [];
+        }
+      }
+
+      async function notify(
+        sessionId: string,
+        decision: EscalationDecision,
+        title: string,
+        bodyPrefix: string,
+      ): Promise<void> {
+        const tokens = await loadTokensForSession(sessionId, decision.level);
+        if (tokens.length === 0) {
+          logger.warn('[maintenance] lone-worker no tokens for level', {
+            sessionId,
+            level: decision.level,
+          });
+          return;
+        }
+        await messaging.sendEachForMulticast({
+          tokens,
+          notification: {
+            title,
+            body: `${bodyPrefix} (sesión ${sessionId}).`,
+          },
+          data: {
+            kind: 'lone_worker_escalation',
+            sessionId,
+            level: decision.level,
+            message: decision.message,
+            triggeredAt: decision.triggeredAt,
+          },
+          android: { priority: 'high' },
+          apns: { headers: { 'apns-priority': '10' } },
+        });
+      }
+
+      const result = await runLoneWorkerEscalationCron({
+        db,
+        notifySupervisor: (sessionId, decision) =>
+          notify(
+            sessionId,
+            decision,
+            'Trabajador solo — revisar check-in',
+            'Sin check-in dentro del intervalo',
+          ),
+        notifyBrigade: (sessionId, decision) =>
+          notify(
+            sessionId,
+            decision,
+            '⚠️ Trabajador solo — sin check-in prolongado',
+            'Activar brigada — revisión presencial',
+          ),
+        notifyEmergency: (sessionId, decision) =>
+          notify(
+            sessionId,
+            decision,
+            '🚨 Trabajador solo — solicitó ayuda',
+            'EMERGENCIA — coordinar servicios externos',
+          ),
+      });
+
+      logger.info('[maintenance] lone-worker-escalation done', {
+        sessionsScanned: result.sessionsScanned,
+        escalationsEmitted: result.escalationsEmitted,
+        skipped: result.escalationsSkippedIdempotent,
+        byLevel: result.byLevel,
+        errors: result.errors,
+        tookMs: Date.now() - start,
+      });
+      return res.status(200).json({
+        ok: true,
+        ...result,
+        tookMs: Date.now() - start,
+      });
+    } catch (err) {
+      logger.error('[maintenance] lone-worker-escalation failed', err);
+      captureRouteError(err, 'maintenance.lone-worker-escalation');
+      return res.status(500).json({
+        ok: false,
+        error: 'internal_error',
+        message: 'lone-worker-escalation failed',
+      });
+    }
+  },
+);
 
 // Re-export `admin` access through this module so the test harness can
 // inject a fake; defensively imported here to keep this file the single
