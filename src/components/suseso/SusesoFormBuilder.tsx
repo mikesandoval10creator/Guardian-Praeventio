@@ -82,15 +82,10 @@ async function requestSignature(
   signerUid: string,
   signerRut: string,
 ): Promise<SusesoSignature> {
-  return {
-    signerUid,
-    signerRut,
-    signedAt: new Date().toISOString(),
-    algorithm: 'webauthn-ecdsa-p256',
-    // Placeholder — real flow returns the signed assertion.
-    signatureB64: 'STUB_REPLACE_WITH_WEBAUTHN_ASSERTION',
-    payloadHashHex,
-  };
+  const { requestComplianceSignature } = await import(
+    '../../services/auth/webauthnComplianceSign'
+  );
+  return requestComplianceSignature(payloadHashHex, signerUid, signerRut);
 }
 
 interface Props {
