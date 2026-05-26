@@ -49,6 +49,15 @@ import { runLoneWorkerEscalationCron } from '../jobs/runLoneWorkerEscalation.js'
 import type {
   EscalationDecision,
 } from '../../services/loneWorker/loneWorkerService.js';
+// Plan v2 Bloque F6 — wire 3 jobs implementados pero no montados (Sprint 39):
+// excepciones expiradas, work_permits expirados, recordatorios obligaciones
+// legales. El motor puro deriva el estado, pero hasta que el cron materialize
+// el campo `status='expired'` las queries UI (where status=='active') van a
+// retornar registros stale. FCM reminders por obligaciones legales son la
+// única vía para que el responsable se entere antes del vencimiento.
+import { runExceptionAutoExpire } from '../jobs/runExceptionAutoExpire.js';
+import { runWorkPermitAutoExpire } from '../jobs/runWorkPermitAutoExpire.js';
+import { runLegalCalendarReminders } from '../jobs/runLegalCalendarReminders.js';
 
 const router = Router();
 
@@ -413,6 +422,82 @@ router.post(
         message: 'lone-worker-escalation failed',
       });
     }
+  },
+);
+
+// Plan v2 Bloque F6 — daily housekeeping: expire stale exceptions +
+// work_permits, dispatch legal calendar reminders. Cloud Scheduler
+// invoca a diario 00:00 UTC.
+//
+//   POST /api/maintenance/run-daily-housekeeping
+//
+// Tres pasos independientes + idempotentes; failure de uno no aborta
+// los otros (catch + log + continue).
+router.post(
+  '/run-daily-housekeeping',
+  verifySchedulerToken,
+  async (_req, res) => {
+    const start = Date.now();
+    const db = admin.firestore();
+
+    let exceptions: { scanned: number; expired: number; errors: number } = {
+      scanned: 0,
+      expired: 0,
+      errors: 0,
+    };
+    try {
+      const r = await runExceptionAutoExpire({ db });
+      exceptions = { scanned: r.scanned, expired: r.expired, errors: r.errors };
+    } catch (err) {
+      logger.error('[maintenance] exception-auto-expire failed', err);
+      captureRouteError(err, 'maintenance.exception-auto-expire');
+    }
+
+    let workPermits: { scanned: number; expired: number; errors: number } = {
+      scanned: 0,
+      expired: 0,
+      errors: 0,
+    };
+    try {
+      const r = await runWorkPermitAutoExpire({ db });
+      workPermits = { scanned: r.scanned, expired: r.expired, errors: r.errors };
+    } catch (err) {
+      logger.error('[maintenance] work-permit-auto-expire failed', err);
+      captureRouteError(err, 'maintenance.work-permit-auto-expire');
+    }
+
+    let legalReminders: {
+      scanned: number;
+      remindersEmitted: number;
+      skipped: number;
+      errors: number;
+    } = { scanned: 0, remindersEmitted: 0, skipped: 0, errors: 0 };
+    try {
+      const r = await runLegalCalendarReminders({ db });
+      legalReminders = {
+        scanned: r.scanned,
+        remindersEmitted: r.remindersEmitted,
+        skipped: r.skippedNotDue + r.skippedIdempotent,
+        errors: r.errors,
+      };
+    } catch (err) {
+      logger.error('[maintenance] legal-calendar-reminders failed', err);
+      captureRouteError(err, 'maintenance.legal-calendar-reminders');
+    }
+
+    logger.info('[maintenance] daily-housekeeping done', {
+      exceptions,
+      workPermits,
+      legalReminders,
+      tookMs: Date.now() - start,
+    });
+    return res.status(200).json({
+      ok: true,
+      exceptions,
+      workPermits,
+      legalReminders,
+      tookMs: Date.now() - start,
+    });
   },
 );
 

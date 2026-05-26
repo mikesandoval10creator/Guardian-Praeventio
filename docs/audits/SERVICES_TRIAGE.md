@@ -35,21 +35,34 @@ y referencia `file:line`. Nada se borra sin investigación.
   `.env.example` cuando se active. Wirearlo en `server.ts` detrás del flag
   en Bloque L10.
 
-## Jobs sin caller scheduler (2)
+## Jobs sin caller scheduler (5 → 1 deferred + 4 wired)
 
 ### `runLoneWorkerEscalationCron`
 - **File:** `src/server/jobs/runLoneWorkerEscalation.ts:55`
-- **Hallazgo:** función exportada pero no invocada por ninguna route ni
-  scheduler.
-- **Decisión:** **WIRE (URGENTE).**
-- **Razón:** este job ejecuta CADA 5 MIN sobre `lone_worker_sessions` activas
-  y escala (supervisor → brigada → emergency_services) cuando un trabajador
-  solo no hace check-in o pulsa "ayuda". **Es código de seguridad crítica —
-  vidas dependen.** Sin scheduler montado, la escalación nunca dispara en
-  producción.
-- **Acción:** agregar route `POST /api/scheduler/lone-worker-escalation`
-  gated por `verifySchedulerToken` middleware. Cloud Scheduler invoca cada
-  5 min. Tracker en Bloque F6.
+- **Decisión:** **WIRED 2026-05-26.**
+- **Acción ejecutada:** route `POST /api/maintenance/run-lone-worker-escalation`
+  agregada en `src/server/routes/maintenance.ts` con `verifySchedulerToken`
+  middleware. FCM hooks supervisor/brigada/emergency wirados con
+  `messaging.sendEachForMulticast`. Cadencia recomendada Cloud Scheduler:
+  cada 5 min. Documentado en `docs/runbooks/SCHEDULER_INVENTORY.md`.
+
+### `runExceptionAutoExpire`
+- **File:** `src/server/jobs/runExceptionAutoExpire.ts`
+- **Hallazgo previo:** sin caller scheduler (Sprint 39 huérfano).
+- **Decisión:** **WIRED 2026-05-26.**
+- **Acción ejecutada:** parte de `POST /api/maintenance/run-daily-housekeeping`
+  agrupado con WorkPermit + LegalCalendar. Cadencia: diario 00:00 UTC.
+
+### `runWorkPermitAutoExpire`
+- **File:** `src/server/jobs/runWorkPermitAutoExpire.ts`
+- **Decisión:** **WIRED 2026-05-26.**
+- **Acción ejecutada:** parte de `POST /api/maintenance/run-daily-housekeeping`.
+
+### `runLegalCalendarReminders`
+- **File:** `src/server/jobs/runLegalCalendarReminders.ts`
+- **Decisión:** **WIRED 2026-05-26.**
+- **Acción ejecutada:** parte de `POST /api/maintenance/run-daily-housekeeping`.
+  FCM reminders por obligación legal.
 
 ### `consolidateZettelkasten`
 - **File:** `src/server/jobs/consolidateZettelkasten.ts:71`
