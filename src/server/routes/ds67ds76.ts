@@ -172,25 +172,20 @@ router.post('/ds67', verifyAuth, validate(ds67Schema), async (req, res) => {
       formStore: buildDs67FormStore(),
     });
     // P0 fix: previously this was `void auditServerEvent(...)` — fire-and-forget
-    // discarded the Firestore write promise, so any audit failure (network,
-    // throttle, Firestore outage) silently dropped the compliance row. For DS
-    // 67 / DS 76 that is a SUSESO audit-trail gap, not "observability noise".
-    // Now we await + capture: the data is already persisted by createDs67Form
-    // above, so we never block the response, but we DO surface the gap to
-    // Sentry so on-call sees the trail is incomplete.
-    try {
-      await auditServerEvent(req, 'compliance.ds67_created', 'compliance', {
-        folio: result.form.folio,
-        tenantId: input.tenantId,
-      });
-    } catch (auditErr) {
-      logger.error('audit_event_failed', {
-        event: 'compliance.ds67_created',
-        folio: result.form.folio,
-        tenantId: input.tenantId,
-        err: String(auditErr),
-      });
-      captureRouteError(auditErr, 'ds67.audit', {
+    // discarded the audit write so the response could ship before the row
+    // landed in Firestore. For DS 67 / DS 76 that is a SUSESO audit-trail
+    // gap risk. Now we `await` to guarantee the write attempt completes
+    // before responding. Codex P2 3308579646: auditServerEvent catches its
+    // own Firestore failures and resolves `false` (never rejects), so the
+    // earlier try/catch never ran — we branch on the boolean return and
+    // surface a Sentry breadcrumb so on-call sees the compliance gap (the
+    // helper already logs to logger.error).
+    const auditOk = await auditServerEvent(req, 'compliance.ds67_created', 'compliance', {
+      folio: result.form.folio,
+      tenantId: input.tenantId,
+    });
+    if (!auditOk) {
+      captureRouteError(new Error('audit_write_failed'), 'ds67.audit', {
         audit_event: 'compliance.ds67_created',
         folio: result.form.folio,
         tenantId: input.tenantId,
@@ -262,21 +257,16 @@ router.post('/ds76', verifyAuth, validate(ds76Schema), async (req, res) => {
       folioStore: buildFolioStore(),
       formStore: buildDs76FormStore(),
     });
-    // P0 fix — see ds67 above. Audit row failure must surface to Sentry so
-    // compliance gaps are observable rather than silently dropped.
-    try {
-      await auditServerEvent(req, 'compliance.ds76_created', 'compliance', {
-        folio: result.form.folio,
-        tenantId: input.tenantId,
-      });
-    } catch (auditErr) {
-      logger.error('audit_event_failed', {
-        event: 'compliance.ds76_created',
-        folio: result.form.folio,
-        tenantId: input.tenantId,
-        err: String(auditErr),
-      });
-      captureRouteError(auditErr, 'ds76.audit', {
+    // P0 fix — see ds67 above. Codex P2 3308579646 contract: branch on the
+    // helper's boolean return, not on a thrown error (the helper never
+    // throws). On `false` we add a Sentry breadcrumb so compliance gaps
+    // are observable on top of the helper's own logger.error.
+    const auditOk = await auditServerEvent(req, 'compliance.ds76_created', 'compliance', {
+      folio: result.form.folio,
+      tenantId: input.tenantId,
+    });
+    if (!auditOk) {
+      captureRouteError(new Error('audit_write_failed'), 'ds76.audit', {
         audit_event: 'compliance.ds76_created',
         folio: result.form.folio,
         tenantId: input.tenantId,

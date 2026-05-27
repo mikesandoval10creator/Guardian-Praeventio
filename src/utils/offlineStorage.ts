@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacitor-community/sqlite';
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { logger } from './logger';
-import { getOrGenerateSqlitePassphrase } from './sqliteEncryption';
+import { ensureSqliteEncryptionSecret } from './sqliteEncryption';
 
 // Keep IDB as fallback for web
 interface PraeventioDB extends DBSchema {
@@ -67,22 +67,26 @@ const initSQLite = async () => {
   if (!sqliteDB) {
     try {
       // P0 security fix: data-at-rest encryption MUST be enabled on mobile.
-      // The passphrase is generated once per device and persisted in the
-      // platform secure store via @capacitor/preferences (Keychain on iOS,
-      // EncryptedSharedPreferences on Android). MUST be set BEFORE
-      // createConnection — CapacitorSQLite resolves the secret from the
-      // global connection rather than per-DB.
+      // ensureSqliteEncryptionSecret coordinates the one-time secret setup
+      // through the SQLite plugin's OWN secure store (Keychain on iOS, the
+      // plugin's secret-storage on Android). We never persist the passphrase
+      // ourselves — Codex P1 3308579640 caught the earlier @capacitor/
+      // preferences approach as effectively plaintext on a rooted device.
       // NOTE: existing dev installs with unencrypted data will NOT open
       // and must be reinstalled. Production user base is 0 so this is fine.
-      const passphrase = await getOrGenerateSqlitePassphrase();
-      await sqliteConnection.setEncryptionSecret(passphrase);
+      const mode = await ensureSqliteEncryptionSecret(sqliteConnection);
 
       const ret = await sqliteConnection.checkConnectionsConsistency();
       const isConn = (await sqliteConnection.isConnection("praeventio_bunker", false)).result;
       if (ret.result && isConn) {
         sqliteDB = await sqliteConnection.retrieveConnection("praeventio_bunker", false);
       } else {
-        sqliteDB = await sqliteConnection.createConnection("praeventio_bunker", false, "encryption", 1, false);
+        // 2nd arg `encrypted: true` was the Codex P1 3308579631 fix —
+        // previously `false` silently created a plaintext DB despite the
+        // secret being set. Mode follows the helper's contract: 'secret'
+        // binds the newly-set passphrase to a fresh DB on first run,
+        // 'encryption' reuses an existing secret on subsequent runs.
+        sqliteDB = await sqliteConnection.createConnection("praeventio_bunker", true, mode, 1, false);
       }
       await sqliteDB.open();
       
