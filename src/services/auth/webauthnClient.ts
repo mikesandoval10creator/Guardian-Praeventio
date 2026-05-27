@@ -140,8 +140,14 @@ export function encodeRegistrationCredential(
 }
 
 export interface RegisterOptions {
-  /** OAuth bearer for the current Firebase user. */
-  authToken: string;
+  /**
+   * Full `Authorization` header value — `Bearer <idToken>` in production,
+   * `E2E <secret>:<uid>` in E2E mode. Use `apiAuthHeader()` from
+   * `src/lib/apiAuth` to construct this; do NOT pass the raw idToken.
+   * Plan v2 B3 — migrated from `authToken` (raw token) so MODE=test E2E
+   * works without callers having to special-case.
+   */
+  authHeader: string;
   /** Optional human nickname. Threaded into the verify call as metadata. */
   nickname?: string;
   /** Override fetch for tests. Defaults to global fetch. */
@@ -170,7 +176,7 @@ export async function registerNewAuthenticator(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${opts.authToken}`,
+      Authorization: opts.authHeader,
     },
     body: JSON.stringify({ nickname: opts.nickname }),
   });
@@ -202,7 +208,7 @@ export async function registerNewAuthenticator(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${opts.authToken}`,
+      Authorization: opts.authHeader,
     },
     body: JSON.stringify({ credential: encoded, nickname: opts.nickname }),
   });
