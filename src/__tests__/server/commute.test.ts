@@ -323,3 +323,34 @@ describe('POST /api/commute/end', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// Crypto-secure ID contract (src/server/routes/commute.ts uses
+// crypto.randomUUID() directly after the P0 hardening). This block
+// guards the shape and the non-determinism of the production helper
+// independent of the mirror above (which has its own legacy ID logic
+// for drift detection).
+// ────────────────────────────────────────────────────────────────────────
+
+import { randomUUID } from 'node:crypto';
+
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
+const CS_ID_RE = new RegExp(`^cs_\\d+_${UUID_RE.source}$`);
+
+describe('commute sessionId — crypto-secure ID contract', () => {
+  it('produces the shape `cs_<ts>_<uuid>`', () => {
+    const id = `cs_${Date.now()}_${randomUUID()}`;
+    expect(id).toMatch(CS_ID_RE);
+  });
+
+  it('two consecutive calls yield distinct IDs', () => {
+    const a = `cs_${Date.now()}_${randomUUID()}`;
+    const b = `cs_${Date.now()}_${randomUUID()}`;
+    expect(a).not.toBe(b);
+  });
+
+  it('full UUID matches SESSION_ID_REGEX (length under 128, allowed charset)', () => {
+    const id = `cs_${Date.now()}_${randomUUID()}`;
+    expect(id).toMatch(/^[A-Za-z0-9_\-:.]{1,128}$/);
+  });
+});

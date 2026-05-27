@@ -33,6 +33,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
+import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   registerVisitor,
@@ -96,11 +97,9 @@ function visitorsCollection(
 }
 
 function newVisitorId(): string {
-  // Crypto.randomUUID is available in Node 18+ (server runtime).
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return `vis_${crypto.randomUUID()}`;
-  }
-  return `vis_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  // crypto.randomUUID() returns an RFC-4122 v4 UUID (128 bits of entropy).
+  // Date.now() prefix preserves sort order for log/audit scanners.
+  return `vis_${Date.now()}_${randomUUID()}`;
 }
 
 // ────────────────────────────────────────────────────────────────────────

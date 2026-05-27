@@ -22,6 +22,7 @@ import { createHash } from 'node:crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
+import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   assertProjectMember,
@@ -212,7 +213,11 @@ router.post(
     try {
       const db = admin.firestore();
       const now = new Date().toISOString();
-      const id = `cr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      // Ley 21.643 + ISO 45001 §5.4 — denuncia receipt IDs must be
+      // unpredictable so anonymous reporters cannot be enumerated by an
+      // attacker scanning ID space. crypto.randomUUID() provides 128 bits
+      // of entropy per RFC-4122 v4.
+      const id = `cr_${Date.now()}_${randomUUID()}`;
       const firstResponseDueAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
       const resolveDueAt = new Date(Date.now() + 30 * 86_400_000).toISOString();
       const reporterAnonHash = hashReporterAnon(callerUid, g.tenantId);
@@ -325,7 +330,7 @@ router.post(
         existing.status === 'open' ? 'investigating' : existing.status;
       // Codex P2 fix: preservar history en subcollection (cada response
       // se appendea como audit event, no se sobreescribe).
-      const auditId = `resp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const auditId = `resp_${Date.now()}_${randomUUID()}`;
       await docRef.collection('audit').doc(auditId).set({
         id: auditId,
         kind: 'response',
@@ -389,7 +394,7 @@ router.post(
       const newStatus: ConfidentialReportStatus =
         body.outcome === 'substantiated' ? 'resolved' : 'closed';
       // Codex P2 fix: append closure event to history subcollection.
-      const auditId = `close_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const auditId = `close_${Date.now()}_${randomUUID()}`;
       await docRef.collection('audit').doc(auditId).set({
         id: auditId,
         kind: 'close',

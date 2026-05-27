@@ -18,6 +18,7 @@ import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
+import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   assertProjectMember,
@@ -336,7 +337,7 @@ router.post(
       if (!snap.exists) {
         return res.status(404).json({ error: 'apprentice_not_found' });
       }
-      const id = `exp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const id = `exp_${Date.now()}_${randomUUID()}`;
       const exposure: StoredExposure = {
         id,
         workerUid: uid,
