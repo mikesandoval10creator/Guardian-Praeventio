@@ -60,12 +60,27 @@ export class ProjectMembershipError extends Error {
  *
  * Firestore errors (network, permissions) are NOT swallowed — they
  * propagate out so the caller's error handler can map them to 5xx.
+ *
+ * §12.4.2 fast-path: si el caller pasa un `decodedToken` con el claim
+ * `assignedSiteIds` que cubre el projectId, retorna sin tocar Firestore.
+ * Si el claim no cubre (puede estar stale), cae al check Firestore.
  */
 export async function assertProjectMember(
   callerUid: string,
   projectId: string,
   db: MinimalProjectsDb,
+  decodedToken?: Record<string, unknown>,
 ): Promise<void> {
+  // §12.4.2 — fast-path via custom claim. Solo positivo; nunca rechaza
+  // por ausencia del claim (compat con tenants pre-migración).
+  if (decodedToken) {
+    const { resolveAssignedSitesCheck } = await import('./customClaims.js');
+    const r = resolveAssignedSitesCheck(decodedToken, projectId);
+    if (r.resolved && r.member) {
+      return; // claim authoritative, no Firestore I/O necesario
+    }
+  }
+
   const snap = await db.collection('projects').doc(projectId).get();
   if (!snap.exists) {
     throw new ProjectMembershipError(
