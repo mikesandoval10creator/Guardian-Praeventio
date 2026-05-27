@@ -121,3 +121,124 @@ export async function summarizeShiftApi(
   );
   return json<{ summary: ShiftSummary }>(res);
 }
+
+// ──────────────────────────────────────────────────────────────────────
+// Aliases + stubs expected by orphan UI consumers (rescue-450 PR #501)
+// ──────────────────────────────────────────────────────────────────────
+//
+// `src/components/shiftHandover/ShiftHandoverPanel.tsx` and
+// `src/components/shiftHandover/ShiftHandoverHistoryList.tsx` are NOT
+// mounted in any route yet — they were wired ahead of the API surface
+// being finalised. The exports below let typecheck pass; real impl
+// (especially `fetchShiftHandoverHistory` which needs a new GET endpoint
+// and `addShiftHandoverDiscrepancy` which needs a new POST endpoint) is
+// tracked in TODO §13 + `docs/stubs-inventory.md`.
+
+/**
+ * Quality breakdown produced by the future `GET /api/sprint-k/{projectId}/
+ * shift-handover/history` endpoint. Computed server-side from the shift's
+ * note count, urgent severity flags, and acknowledged status.
+ */
+export interface ShiftHandoverQuality {
+  totalNotes: number;
+  urgentNotes: number;
+  qualityScore: number;
+  level: 'excellent' | 'good' | 'fair' | 'poor';
+}
+
+/**
+ * Historical handover record returned by the future history endpoint.
+ * Wraps the underlying `ShiftRecord` with derived quality metrics so the
+ * UI doesn't need to recompute on every render.
+ */
+export interface ShiftHandoverEntry {
+  shift: ShiftRecord;
+  quality: ShiftHandoverQuality;
+}
+
+/**
+ * Shape of the history endpoint's response body. Wraps the array so a
+ * future addition (paging, totals) doesn't force a breaking change.
+ */
+export interface ShiftHandoverHistoryResponse {
+  shifts: ShiftHandoverEntry[];
+}
+
+/**
+ * Stub — needs new `GET /api/sprint-k/{projectId}/shift-handover/history`
+ * endpoint. Returns `{ shifts: [] }` so the orphan
+ * `ShiftHandoverHistoryList.tsx` renders its empty-state branch. Tracked
+ * TODO §13.
+ */
+export async function fetchShiftHandoverHistory(
+  _projectId: string,
+  _opts?: { days?: number },
+): Promise<ShiftHandoverHistoryResponse> {
+  return { shifts: [] };
+}
+
+/**
+ * Stub — `ShiftHandoverPanel.tsx` calls this as
+ * `createShiftHandover(projectId, { id, kind, startedAt, ... }, idempotencyKey)`,
+ * which is a richer signature than {@link startShiftApi}. Until the
+ * panel is mounted in a route, the stub just echoes a minimal shift
+ * with the provided id so the optimistic UI path completes. Tracked
+ * TODO §13.
+ */
+export async function createShiftHandover(
+  _projectId: string,
+  input: {
+    id: string;
+    kind: ShiftKind;
+    startedAt: string;
+    supervisorUid: string;
+    // `at` is server-stamped in the real endpoint, so the panel passes
+    // entries without it — we accept the relaxed shape here for parity.
+    logEntries: Array<Omit<ShiftLogEntry, 'at'> & { at?: string }>;
+    handoverNotes: ShiftHandoverNote[];
+  },
+  _idempotencyKey: string,
+): Promise<ShiftPayload> {
+  return {
+    shift: {
+      id: input.id,
+      projectId: _projectId,
+      kind: input.kind,
+      startedAt: input.startedAt,
+      supervisorUid: input.supervisorUid,
+      logEntries: input.logEntries as ShiftLogEntry[],
+      handoverNotes: input.handoverNotes,
+    } as ShiftRecord,
+  };
+}
+
+/**
+ * Stub — `ShiftHandoverPanel.tsx` calls this as
+ * `acknowledgeShiftHandover(projectId, shiftId, { notes? }, idempotencyKey)`.
+ * The existing {@link acknowledgeShiftApi} takes `{ shift, notes? }`
+ * instead of `(shiftId, opts)`, so we can't simple-alias. Stub returns
+ * an empty-but-typed payload. Tracked TODO §13.
+ */
+export async function acknowledgeShiftHandover(
+  _projectId: string,
+  shiftId: string,
+  _opts: { notes?: string },
+  _idempotencyKey: string,
+): Promise<ShiftPayload> {
+  return { shift: { id: shiftId } as ShiftRecord };
+}
+
+/**
+ * Stub — needs new `POST /api/sprint-k/{projectId}/shift-handover/{shiftId}/
+ * discrepancy` endpoint. `ShiftHandoverPanel.tsx` calls this as
+ * `addShiftHandoverDiscrepancy(projectId, shiftId, { text }, idempotencyKey)`.
+ * Tracked TODO §13.
+ */
+export async function addShiftHandoverDiscrepancy(
+  _projectId: string,
+  shiftId: string,
+  _input: { text: string },
+  _idempotencyKey: string,
+): Promise<ShiftPayload> {
+  return { shift: { id: shiftId } as ShiftRecord };
+}
