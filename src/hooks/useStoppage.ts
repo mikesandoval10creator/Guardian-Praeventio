@@ -84,6 +84,28 @@ export async function resumeStoppageApi(
   return json<{ stoppage: Stoppage }>(res);
 }
 
+/**
+ * Stub — orphan UI consumer `src/components/stoppage/StoppageResumeModal.tsx`
+ * calls this as `resumeStoppage(projectId, { stoppage, justification,
+ * measuresAdopted, resumedByRole, signatureAttested }, idempotencyKey)`,
+ * with a richer payload than {@link resumeStoppageApi} accepts. Until the
+ * modal is mounted in a route, the stub echoes back the input stoppage.
+ * Tracked TODO §13.
+ */
+export async function resumeStoppage(
+  _projectId: string,
+  input: {
+    stoppage: Stoppage;
+    justification: string;
+    measuresAdopted: string[];
+    resumedByRole: string;
+    signatureAttested: boolean;
+  },
+  _idempotencyKey: string,
+): Promise<{ stoppage: Stoppage }> {
+  return { stoppage: input.stoppage };
+}
+
 // ── 4. cancel ─────────────────────────────────────────────────────────
 
 export async function cancelStoppageApi(
