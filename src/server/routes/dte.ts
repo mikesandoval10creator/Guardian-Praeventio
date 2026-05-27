@@ -361,42 +361,36 @@ dteRouter.post('/generate', verifyAuth, idempotencyKey(), async (req: Request, r
       xmlOut = signed.signedXml;
       signedAt = signed.signedAt;
       // P0 fix: previously `.catch(() => {})` silently swallowed audit
-      // failures. The DTE itself is already signed — the response will
-      // ship — but a dropped audit row is a SII compliance gap. Surface
-      // the failure to logger + Sentry instead of swallowing.
+      // failures. The DTE itself is already signed — the response ships.
+      // Codex P2 3308579646: auditServerEvent returns boolean (never
+      // throws), so .catch() never fires. Branch on .then(ok).
       auditServerEvent(req, 'dte.signed', 'dte', {
         dteId: generated.dteId,
         type: body.type,
         folio: body.folio,
         credentialId: body.biometric.credentialId,
-      }).catch((auditErr: unknown) => {
-        logger.error('audit_event_failed', {
-          event: 'dte.signed',
-          dteId: generated.dteId,
-          err: String(auditErr),
-        });
-        dteSentryCapture(auditErr, {
-          endpoint: 'POST /api/dte/generate',
-          tags: { audit_event: 'dte.signed', stage: 'audit' },
-        });
+      }).then((ok: boolean) => {
+        if (!ok) {
+          dteSentryCapture(new Error('audit_write_failed'), {
+            endpoint: 'POST /api/dte/generate',
+            tags: { audit_event: 'dte.signed', stage: 'audit' },
+          });
+        }
       });
     } catch (err) {
       logger.warn('dte.sign failed', { message: (err as Error).message });
       dteSentryCapture(err, { endpoint: 'POST /api/dte/generate', tags: { stage: 'sign' } });
-      // P0 fix — same as dte.signed above.
+      // Codex P2 3308579646: branch on boolean return; helper logs internally.
       auditServerEvent(req, 'dte.sign_failed', 'dte', {
         dteId: generated.dteId,
         reason: (err as Error).message,
-      }).catch((auditErr: unknown) => {
-        logger.error('audit_event_failed', {
-          event: 'dte.sign_failed',
-          dteId: generated.dteId,
-          err: String(auditErr),
-        });
-        dteSentryCapture(auditErr, {
-          endpoint: 'POST /api/dte/generate',
-          tags: { audit_event: 'dte.sign_failed', stage: 'audit' },
-        });
+      }).then((ok: boolean) => {
+        if (!ok) {
+          dteSentryCapture(new Error('audit_write_failed'), {
+            endpoint: 'POST /api/dte/generate',
+            tags: { audit_event: 'dte.sign_failed', stage: 'audit' },
+          });
+        }
       });
       return res.status(401).json({ error: 'dte_sign_failed', message: (err as Error).message });
     }
@@ -417,23 +411,20 @@ dteRouter.post('/generate', verifyAuth, idempotencyKey(), async (req: Request, r
     return res.status(500).json({ error: 'dte_pdf_failed' });
   }
 
-  // P0 fix — surface audit failures to logger + Sentry instead of swallowing.
+  // Codex P2 3308579646: branch on boolean return; helper logs internally.
   auditServerEvent(req, 'dte.generated', 'dte', {
     dteId: generated.dteId,
     type: body.type,
     folio: body.folio,
     total: generated.summary.total,
     signed: !!body.biometric,
-  }).catch((auditErr: unknown) => {
-    logger.error('audit_event_failed', {
-      event: 'dte.generated',
-      dteId: generated.dteId,
-      err: String(auditErr),
-    });
-    dteSentryCapture(auditErr, {
-      endpoint: 'POST /api/dte/generate',
-      tags: { audit_event: 'dte.generated', stage: 'audit' },
-    });
+  }).then((ok: boolean) => {
+    if (!ok) {
+      dteSentryCapture(new Error('audit_write_failed'), {
+        endpoint: 'POST /api/dte/generate',
+        tags: { audit_event: 'dte.generated', stage: 'audit' },
+      });
+    }
   });
 
   return res.json({
