@@ -74,27 +74,50 @@
 - **Why stub**: BLE GATT real requiere Android `BluetoothLeAdvertiser/Scanner/GattServer` + iOS `CBPeripheralManager/CBCentralManager`. Wi-Fi Direct requiere Android `WifiP2pManager` + iOS `MultipeerConnectivity`. Trabajo no trivial.
 - **Removal criteria**: ADR 0013 cubre split engine/transport. Sprint 31/32 implementan.
 
-## Componentes huérfanos en src/components/ root (audit F2 corregido 2026-05-27)
-- **Confirmed orphan (no imports anywhere)** — ~10 files pending wire:
-  `OfflineIndicator.tsx`, `ProjectHealthCheck.tsx`, `SurvivalPing.tsx`,
-  `FastCheckModal.tsx`, `QRScannerModal.tsx`, `BunkerManager.tsx`,
-  `SunTrackerContainer.tsx`, `GeolocationTracker.tsx`,
-  `OfflineSyncManager.tsx`, `LocalePicker.tsx`.
-- **Not actually orphan** (audit F2 mis-classification, verified 2026-05-27):
-  - `WeatherBulletin.tsx` (root version) → wired in `SafeDrivingMode.tsx:10`.
-    There is ALSO a `src/components/dashboard/WeatherBulletin.tsx` wired in
-    `Dashboard.tsx:43` — two intentional variants for different audiences.
-- **Wired by Sprint A PR #514** (this PR, 2026-05-27):
-  - `WeatherSafetyRecommendations.tsx` → wired in `Dashboard.tsx` next to
-    `WeatherBulletin`. Renders DS 594 / Ley 16.744 contextual safety
-    recommendations from `environment?.weather`. Uses Gemini AI fallback
-    pattern with deterministic baseline.
-- **Owner**: F2 (remaining 10)
-- **Sprint target**: Sprint A incremental (one PR per bucket of related components)
-- **User-visible?**: NO for remaining orphans — shipped in bundle but 0 imports
-- **Removal criteria (WIRE)**: per-component placement decided by domain bucket
-  in plan Sprint A (e.g., `OfflineIndicator` → `RootLayout` header,
-  `BunkerManager` → SettingsAdvanced, `QRScannerModal` → AccessControl/Visitors).
+## Componentes huérfanos en src/components/ root (audit F2 RE-VERIFICADO ×2 2026-05-27)
+
+**Audit F2 fue corregido dos veces.** Codex P2 3309059273 (PR #516 revisión 2)
+detectó que mi grep `from.*components/X` MISS dynamic imports
+`lazy(() => import('./components/X'))` — `SurvivalPing` y
+`OfflineSyncManager` SÍ están wired vía `lazy` en `App.tsx:26-27,554-555`,
+no orphan.
+
+### Wired vía lazy() en App.tsx (audit miss de batch grep original)
+- `OfflineSyncManager.tsx` → `App.tsx:26,554` — escucha onlineStatus y
+  sincroniza outbox pending actions con Firebase. Background side-effect.
+- `SurvivalPing.tsx` → `App.tsx:27,555` — wrapper null-renderer de
+  `useSurvivalPing()` hook. Lone-worker / SOS heartbeat background.
+
+### Wired en PR #514 (mergeado 2026-05-27)
+- `WeatherSafetyRecommendations.tsx` → `Dashboard.tsx` (boletín climático
+  directiva usuario). Renders DS 594 / Ley 16.744 contextual safety
+  recommendations + Codex P2 fixes (unavailable gate, uv field map, auth header).
+
+### Wired en PR #516 (este, pendiente merge)
+- `SunTrackerContainer.tsx` → `Dashboard.tsx` (visual companion al
+  WeatherBulletin, sun/moon tracker 24h + fase lunar + elevación solar).
+  Reads `selectedProject.coordinates.lat` (canonical project geo field) con
+  fallback Santiago.
+
+### Ya estaban wired (audit F2 mis-classification original)
+| Componente | Consumer real |
+|---|---|
+| `OfflineIndicator.tsx` | 1 consumer (RootLayout-style) |
+| `ProjectHealthCheck.tsx` | 1 consumer |
+| `FastCheckModal.tsx` | 1 consumer (Dashboard probablemente) |
+| `QRScannerModal.tsx` | 2 consumers |
+| `BunkerManager.tsx` | 1 consumer |
+| `GeolocationTracker.tsx` | 1 consumer |
+| `LocalePicker.tsx` | `Settings.tsx:571` — language picker ya activo |
+| `WeatherBulletin.tsx` (root) | `SafeDrivingMode.tsx:10` (variante separada de la versión dashboard) |
+
+### Orphans reales actualmente en main: 0 (post #514 + #516 merge)
+
+La deuda fantasma F2 era **100%** — los 12 listados originalmente o ya
+estaban wired (10 estáticos + 2 lazy) o quedan wired por PRs en curso
+(2 vía #514 y #516). Audit F2 completamente refutado. Para futuro: usar
+herramienta tipo `knip` o `ts-unused-exports` que entienda dynamic
+imports en vez de batch-grep.
 
 ## "Próximamente" UI placeholders
 - **Files**: `src/pages/MuralDinamico.tsx:42`, `src/pages/AutoCADViewer.tsx`
