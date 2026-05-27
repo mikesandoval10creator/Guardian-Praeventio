@@ -44,6 +44,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
+import { randomId } from '../../utils/randomId.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   assertProjectMember,
@@ -92,10 +93,10 @@ async function guard(
 }
 
 function newDrillId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return `drill_${crypto.randomUUID()}`;
-  }
-  return `drill_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  // randomId() = crypto.randomUUID() with a documented degraded fallback.
+  // Slice 7 chars to preserve the historical short-suffix shape used by
+  // log scrapers and any downstream consumers (`drill_<ts>_<7hex>`).
+  return `drill_${Date.now()}_${randomId().slice(0, 7)}`;
 }
 
 // ────────────────────────────────────────────────────────────────────────

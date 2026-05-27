@@ -323,3 +323,32 @@ describe('POST /api/commute/end', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// Crypto-secure ID contract (src/server/routes/commute.ts uses randomId()
+// from src/utils/randomId.ts after the P0 hardening that removed
+// Math.random()-keyed session IDs). This block guards the shape and the
+// non-determinism of the production helper independent of the mirror
+// above (which still uses the legacy PRNG for drift detection).
+// ────────────────────────────────────────────────────────────────────────
+
+import { randomId } from '../../utils/randomId.js';
+
+describe('commute sessionId — crypto-secure ID contract', () => {
+  it('produces the legacy short-suffix shape `cs_<ts>_<6hex>`', () => {
+    const id = `cs_${Date.now()}_${randomId().slice(0, 6)}`;
+    expect(id).toMatch(/^cs_\d+_[a-f0-9]{6}$/);
+  });
+
+  it('two consecutive calls yield distinct IDs', () => {
+    const a = `cs_${Date.now()}_${randomId().slice(0, 6)}`;
+    const b = `cs_${Date.now()}_${randomId().slice(0, 6)}`;
+    expect(a).not.toBe(b);
+  });
+
+  it('does not fall back to the documented non-secure path under Node 20+', () => {
+    // randomId() returns `fallback-…` only when crypto.randomUUID is
+    // missing. In the test runtime (Node 20+) it must use crypto.
+    expect(randomId().startsWith('fallback-')).toBe(false);
+  });
+});

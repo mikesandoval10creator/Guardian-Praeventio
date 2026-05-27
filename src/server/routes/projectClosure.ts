@@ -28,6 +28,7 @@ import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
+import { randomId } from '../../utils/randomId.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   assertProjectMember,
@@ -376,9 +377,7 @@ router.post(
       }
 
       const now = new Date().toISOString();
-      const lessonId = `cl_${Date.now()}_${Math.random()
-        .toString(36)
-        .slice(2, 9)}`;
+      const lessonId = `cl_${Date.now()}_${randomId().slice(0, 7)}`;
 
       // Publish to global library F.12 with scope='industry'.
       const adapter = new LessonsAdapter(
@@ -462,9 +461,7 @@ router.post(
       }
 
       const now = new Date().toISOString();
-      const decisionId = `cd_${Date.now()}_${Math.random()
-        .toString(36)
-        .slice(2, 9)}`;
+      const decisionId = `cd_${Date.now()}_${randomId().slice(0, 7)}`;
       const stored: StoredCriticalDecision = {
         id: decisionId,
         decidedAt: body.decidedAt,

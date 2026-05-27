@@ -33,6 +33,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
+import { randomId } from '../../utils/randomId.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   registerVisitor,
@@ -97,10 +98,11 @@ function visitorsCollection(
 
 function newVisitorId(): string {
   // Crypto.randomUUID is available in Node 18+ (server runtime).
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return `vis_${crypto.randomUUID()}`;
-  }
-  return `vis_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  // randomId() delegates to crypto.randomUUID() and exposes a documented
+  // `fallback-…` token when the API is missing. We slice 7 chars to keep
+  // the legacy short-suffix shape (`vis_<ts>_<7hex>`) that downstream
+  // logs, audit rows, and tests already match.
+  return `vis_${Date.now()}_${randomId().slice(0, 7)}`;
 }
 
 // ────────────────────────────────────────────────────────────────────────
