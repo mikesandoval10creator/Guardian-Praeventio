@@ -64,7 +64,7 @@ Decisiones clave:
 ### Frontend (`src/`)
 ```
 src/
-├── pages/                  # 87+ páginas, una por feature top-level
+├── pages/                  # 219 páginas, una por feature top-level
 ├── components/             # UI compartida (modales, wizards, charts)
 ├── contexts/               # Providers globales (8 contextos)
 │   ├── FirebaseContext.tsx        # auth + db + storage
@@ -88,7 +88,7 @@ src/
 
 ### Backend (server-side)
 ```
-server.ts                   # 3242 LOC — entry point monolítico
+server.ts                   # 1411 LOC — entry point monolítico
                             # Migración en marcha hacia src/server/*
 src/server/                 # destino post-R5/R17/R18
 ├── routes/                 # un archivo por dominio (ver §4)
@@ -107,7 +107,7 @@ src/data/normativa/         # corpus de leyes (BCN, ISO, NCh)
 
 ### AI (`src/services/ai`, `src/services/gemini*`)
 ```
-src/services/geminiBackend.ts   # 2666 LOC — god-file en migración (R18)
+src/services/geminiBackend.ts   # 2923 LOC — god-file en migración (R18)
 src/services/geminiService.ts   # cliente HTTP que llama /api/gemini
 src/services/ragService.ts      # vector search sobre normativa
 src/services/ai/                # destino post-split (gemini/{domain}.ts)
@@ -218,9 +218,9 @@ re-enviar — el viejo queda inerte.
 
 ## 4. Server.ts split strategy
 
-`server.ts` (3242 LOC al cierre de R16) viola el guideline de "un módulo,
-una responsabilidad". El split es incremental para mantener la suite de
-tests verde en cada paso.
+`server.ts` (1411 LOC al 2026-05-27, reducido desde 3242 LOC en R16) viola
+el guideline de "un módulo, una responsabilidad". El split es incremental
+para mantener la suite de tests verde en cada paso.
 
 ### Estado actual
 - **R5 (en progreso)**: extraer middleware (`verifyAuth`,
@@ -269,8 +269,9 @@ Cada PR de migración:
 
 ## 5. GeminiBackend.ts split strategy (R18)
 
-`src/services/geminiBackend.ts` exporta ~85 funciones para el proxy
-`/api/gemini`. Split propuesto en `src/services/gemini/`:
+`src/services/geminiBackend.ts` exporta 72 funciones (60 directas + 12
+barrel re-exports) para el proxy `/api/gemini`. Split propuesto en
+`src/services/gemini/`:
 
 | Módulo | Funciones | Dominio |
 |---|---|---|

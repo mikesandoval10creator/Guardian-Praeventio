@@ -355,10 +355,11 @@ de cada scope OAuth.
 ## Gemini proxy
 
 ### `POST /api/gemini` — invocador whitelist
-- **server.ts:1680** · `verifyAuth` + `geminiLimiter` (30 req/15min/uid).
+- **`src/server/routes/gemini.ts`** · `verifyAuth` + `geminiLimiter` (30 req/15min/uid).
 - **Body**: `{ action: string, args: any[] }`.
-- **Whitelist**: 85 acciones en `ALLOWED_GEMINI_ACTIONS`
-  (server.ts:1593-1678). Cualquier otra → 403.
+- **Whitelist**: 72 acciones (60 directas + 12 barrel re-exports) en
+  `ALLOWED_GEMINI_ACTIONS` dentro de `src/server/routes/gemini.ts` (verify
+  línea exacta antes de editar). Cualquier otra → 403.
 - **Response 200**: `{ result: any }` (shape depende de la acción).
 - **Errors**: 400 acción no encontrada en módulo · 403 acción no whitelisted · 500.
 - **Cost note**: el rate limit per-uid es la única protección — un usuario
