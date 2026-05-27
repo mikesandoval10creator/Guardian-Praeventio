@@ -52,14 +52,10 @@ async function requestSignature(
   signerUid: string,
   signerRut: string,
 ) {
-  return {
-    signerUid,
-    signerRut,
-    signedAt: new Date().toISOString(),
-    algorithm: 'webauthn-ecdsa-p256' as const,
-    signatureB64: 'STUB_REPLACE_WITH_WEBAUTHN_ASSERTION',
-    payloadHashHex,
-  };
+  const { requestComplianceSignature } = await import(
+    '../../services/auth/webauthnComplianceSign'
+  );
+  return requestComplianceSignature(payloadHashHex, signerUid, signerRut);
 }
 
 /**

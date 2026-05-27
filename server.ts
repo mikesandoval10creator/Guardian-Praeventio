@@ -252,6 +252,8 @@ import eventReplayRouter from "./src/server/routes/eventReplay.js";
 import auditChainRouter from "./src/server/routes/auditChain.js";
 // Horometro / Maintenance (equipos pesados — Sprint K Bloque 3 §3.6).
 import horometroRouter from "./src/server/routes/horometro.js";
+// External Audit Portal — Wire-orphan Bloque 3 §3.7 (token-based audit access).
+import externalAuditPortalRouter from "./src/server/routes/externalAuditPortal.js";
 // Auditoría Express Bundle — Sprint 39 Fase F.1 (PDF index for fiscalización folder).
 import expressBundleRouter from "./src/server/routes/expressBundle.js";
 // Research Mode — Sprint K §191-194 (root cause investigation: tree + comparator + failed control detector).
@@ -274,6 +276,12 @@ import fiveSRouter from "./src/server/routes/fiveS.js";
 import hygieneRouter from "./src/server/routes/hygiene.js";
 // Mental Load (NASA-TLX) + per-worker Admin Burden — Sprint K §258-260.
 import mentalLoadRouter from "./src/server/routes/mentalLoad.js";
+// Regulatory Framework — ISO 45001 + 14 jurisdicciones (ADR 0014).
+import regulatoryFrameworkRouter from "./src/server/routes/regulatoryFramework.js";
+// Medical Catalogs (diagnoses ICD-10 + drugs ATC + anatomy DS 594) — Sprint 21 R.
+import medicalCatalogsRouter from "./src/server/routes/medicalCatalogs.js";
+// PIN Sign (firma por PIN sin biometría) — Sprint K F.25.
+import pinSignRouter from "./src/server/routes/pinSign.js";
 // Coach IA RAG — Bucket HH #90 (search / list-chunks / domain-prompt).
 import coachRagRouter from "./src/server/routes/coachRag.js";
 // QR Acknowledgement Sessions — Sprint 43 F.5 (HMAC + Firestore replay defense).
@@ -1010,6 +1018,7 @@ app.use('/api/sprint-k', adminBurdenRouter);
 app.use('/api/sprint-k', eventReplayRouter);
 app.use('/api/sprint-k', auditChainRouter);
 app.use('/api/sprint-k', horometroRouter);
+app.use('/api', externalAuditPortalRouter);
 app.use('/api/sprint-k', expressBundleRouter);
 app.use('/api/sprint-k', researchModeRouter);
 app.use('/api/sprint-k', orgMetricsRouter);
@@ -1021,6 +1030,9 @@ app.use('/api/sprint-k', commsRouter);
 app.use('/api/sprint-k', fiveSRouter);
 app.use('/api/sprint-k', hygieneRouter);
 app.use('/api/sprint-k', mentalLoadRouter);
+app.use('/api/sprint-k', regulatoryFrameworkRouter);
+app.use('/api/sprint-k', medicalCatalogsRouter);
+app.use('/api/sprint-k', pinSignRouter);
 app.use('/api/sprint-k', coachRagRouter);
 app.use('/api/sprint-k', qrAckRouter);
 app.use('/api/sprint-k', aiGuardrailsRouter);

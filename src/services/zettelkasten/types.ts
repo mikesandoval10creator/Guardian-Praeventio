@@ -29,20 +29,23 @@ export type BernoulliNodeType =
  * remains exhaustive.
  */
 /**
- * Horometro/Maintenance flow node types (Sprint K Bloque 3 §3.6).
- * Cuando un equipo (excavadora, compresor, generador) acumula horas
- * de operación que cruzan un threshold de mantención, el flujo
- * `horometroMaintenanceFlow` materializa el ciclo:
- *   - 'horometro-reading': supervisor registra horas operadas
- *   - 'maintenance-threshold-reached': sistema detecta cruce de umbral
- *   - 'maintenance-task-created': task técnico asignado
- *   - 'maintenance-task-completed': cierre con evidencia + RUT mecánico
+ * Incident-Lesson-Training flow node types (Sprint K Bloque 3 §3.5).
+ * Cada incidente reportado materializa una vuelta completa del PDCA
+ * org-wide: Plan = investigation opened, Do = root cause identificada,
+ * Check = lesson published, Act = microtraining assigned/completed →
+ * investigation closed. El orquestador (`incidentLessonTrainingFlow.ts`)
+ * wirea los nodos con `derived_from` / `causes` / `references` edges
+ * para que el trail completo de aprendizaje sea un sub-grafo navegable
+ * desde `RiskNetwork.tsx` y el `PDCAClosePanel` UI.
  */
-export type HorometroMaintenanceNodeType =
-  | 'horometro-reading'
-  | 'maintenance-threshold-reached'
-  | 'maintenance-task-created'
-  | 'maintenance-task-completed';
+export type IncidentLessonTrainingNodeType =
+  | 'incident-reported'
+  | 'investigation-opened'
+  | 'root-cause-identified'
+  | 'lesson-published'
+  | 'microtraining-assigned'
+  | 'microtraining-completed'
+  | 'incident-investigation-closed';
 
 export type RiskNodeType =
   | BernoulliNodeType
@@ -51,7 +54,7 @@ export type RiskNodeType =
   // (privacy: imagen NUNCA sale del device, solo classification result).
   // Ver `src/services/ai/eppDetectorOnDevice.ts`.
   | 'epp_inspection'
-  | HorometroMaintenanceNodeType;
+  | IncidentLessonTrainingNodeType;
 
 export interface RiskNodePayload {
   /** Node title (Spanish, short). */
