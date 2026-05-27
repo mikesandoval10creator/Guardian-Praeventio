@@ -41,6 +41,7 @@ import {
   type ChallengePeriod,
 } from '../components/dashboard/challengeUtils';
 import { WeatherBulletin } from '../components/dashboard/WeatherBulletin';
+import { WeatherSafetyRecommendations } from '../components/WeatherSafetyRecommendations';
 import { ComplianceCard } from '../components/dashboard/ComplianceCard';
 import { DashboardQuickActions } from '../components/dashboard/DashboardQuickActions';
 import { EPPRequiredWidget } from '../components/dashboard/EPPRequiredWidget';
@@ -263,6 +264,20 @@ export function Dashboard() {
           onClick={() => setIsComplianceModalOpen(true)}
         />
       </div>
+
+      {/* Recomendaciones SST contextuales — DS 594, Ley 16.744. Sprint A wire
+          (PR #514) — antes era huérfano. Renderiza solo cuando hay datos
+          climáticos para evitar ruido visual en cold-start. */}
+      {weather && (
+        <WeatherSafetyRecommendations
+          weather={{
+            temp: weather.temp,
+            windSpeed: weather.windSpeed,
+            humidity: weather.humidity,
+            description: weather.condition,
+          }}
+        />
+      )}
 
       {/* Daily safety tip — industry-aware */}
       <AdviceBanner />
