@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacitor-community/sqlite';
 import { openDB, IDBPDatabase } from 'idb';
 import { logger } from './logger';
+import { getOrGenerateSqlitePassphrase } from './sqliteEncryption';
 
 const DB_NAME = 'praeventio-offline';
 const STORE_NAME = 'pending-sync';
@@ -54,12 +55,23 @@ const initSQLite = async () => {
   }
   if (!sqliteDB) {
     try {
+      // P0 security fix: data-at-rest encryption MUST be enabled on mobile.
+      // The passphrase is generated once per device and persisted in the
+      // platform secure store via @capacitor/preferences (Keychain on iOS,
+      // EncryptedSharedPreferences on Android). MUST be set BEFORE
+      // createConnection — CapacitorSQLite resolves the secret from the
+      // global connection rather than per-DB.
+      // NOTE: existing dev installs with unencrypted data will NOT open
+      // and must be reinstalled. Production user base is 0 so this is fine.
+      const passphrase = await getOrGenerateSqlitePassphrase();
+      await sqliteConnection.setEncryptionSecret(passphrase);
+
       const ret = await sqliteConnection.checkConnectionsConsistency();
       const isConn = (await sqliteConnection.isConnection("praeventio_offline", false)).result;
       if (ret.result && isConn) {
         sqliteDB = await sqliteConnection.retrieveConnection("praeventio_offline", false);
       } else {
-        sqliteDB = await sqliteConnection.createConnection("praeventio_offline", false, "no-encryption", 1, false);
+        sqliteDB = await sqliteConnection.createConnection("praeventio_offline", false, "encryption", 1, false);
       }
       await sqliteDB.open();
       

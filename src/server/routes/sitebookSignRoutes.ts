@@ -33,6 +33,24 @@ import type { SiteBookEntry } from '../../services/siteBook/siteBookService.js';
 import { verifyWebAuthnAssertion } from '../auth/webauthnAssertion.js';
 import { logger } from '../../utils/logger.js';
 
+/**
+ * P0 security fix: previously this file read `process.env.WEBAUTHN_RPID`
+ * (missing underscore) with a hardcoded `'app.praeventio.net'` fallback. The
+ * typo silently masked the bug in production — every assertion verified
+ * against `app.praeventio.net` regardless of what the env said. The rest of
+ * the codebase (curriculum.ts, suseso.ts) reads the correct
+ * `WEBAUTHN_RP_ID`. This helper aligns sitebook with that contract and
+ * fails fast in production rather than papering over a missing env var.
+ */
+function getWebAuthnRpId(): string {
+  const value = process.env.WEBAUTHN_RP_ID;
+  if (value && value.length > 0) return value;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('WEBAUTHN_RP_ID required in production');
+  }
+  return 'localhost';
+}
+
 // Status codes — map handler error reasons to HTTP semantics.
 const STATUS_FOR_REASON: Record<SignErrorReason, number> = {
   invalid_hash_format: 400,
@@ -93,7 +111,7 @@ sitebookSignRouter.post('/sign/options', verifyAuth, async (req: Request, res: R
       challengesDb: buildWebAuthnDb(),
       credentialsDb: buildWebAuthnCredentialsDb(),
       loadEntry: loadSiteBookEntry,
-      rpId: process.env.WEBAUTHN_RPID ?? 'app.praeventio.net',
+      rpId: getWebAuthnRpId(),
     };
     const result = await handleSignOptionsRequest(
       { uid: callerUid, entryId, projectId, payloadHashHex },
@@ -132,7 +150,7 @@ sitebookSignRouter.post('/sign/verify', verifyAuth, async (req: Request, res: Re
       verifyAssertion: verifyWebAuthnAssertion,
       expectedOrigin:
         process.env.WEBAUTHN_ORIGIN ?? 'https://app.praeventio.net',
-      expectedRpId: process.env.WEBAUTHN_RPID ?? 'app.praeventio.net',
+      expectedRpId: getWebAuthnRpId(),
       now: () => new Date(),
     };
     const result = await handleSignVerifyRequest(
