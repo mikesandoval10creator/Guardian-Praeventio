@@ -1,16 +1,19 @@
 // P0 security fix tests: ds67ds76 router must await auditServerEvent and
-// route failures to logger + Sentry (captureRouteError) without breaking
-// the response. Verifies the regression fix for the previous fire-and-
-// forget pattern that silently dropped compliance trail rows on Firestore
-// outages.
+// route failures (helper returns false) to Sentry via captureRouteError
+// without breaking the response. Verifies the regression fix for the
+// previous fire-and-forget pattern that silently dropped compliance trail
+// rows on Firestore outages.
 //
-// We mock auditServerEvent to REJECT, then verify:
+// Codex P2 3308579646 fix applied: auditServerEvent returns boolean (never
+// throws), so we mock with mockResolvedValue(false) — not mockRejectedValue.
+// The helper logs its own failures internally, so the route only adds a
+// Sentry breadcrumb via captureRouteError.
+//
+// We verify:
 //   - The endpoint still returns 200 (response not blocked).
-//   - logger.error was called with 'audit_event_failed'.
-//   - captureRouteError was called (Sentry surface).
-//
-// Sister test verifies the happy path: audit resolves → no error log
-// → no Sentry capture.
+//   - captureRouteError was called with a synthetic 'audit_write_failed'
+//     error tagged to the audit event.
+// Happy path: audit resolves true → no Sentry capture.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
@@ -51,7 +54,6 @@ vi.mock('../../utils/logger.js', () => ({
   },
 }));
 
-// Stub the ds67/ds76 services so the route reaches the audit path.
 vi.mock('../../services/compliance/ds67/ds67Service.js', () => ({
   createDs67Form: vi.fn(async () => ({
     form: { folio: 'DS67-2026-000001', signature: null },
@@ -77,7 +79,6 @@ vi.mock('../../utils/ds76Certificate.js', () => ({
   generateDs76Pdf: () => new Uint8Array([0x25, 0x50, 0x44, 0x46]),
 }));
 
-// Stub firebase-admin so the router doesn't need a live SDK.
 vi.mock('firebase-admin', () => ({
   default: {
     firestore: () => ({
@@ -126,7 +127,7 @@ const validDs76Body = {
   susesoFiscalizationRecord: 'last visit 2026-03',
 };
 
-describe('ds67ds76 router — audit failure surfacing (P0 fix)', () => {
+describe('ds67ds76 router — audit failure surfacing (P0 fix, Codex P2 contract)', () => {
   beforeEach(() => {
     auditMock.mockReset();
     captureRouteErrorMock.mockReset();
@@ -137,78 +138,60 @@ describe('ds67ds76 router — audit failure surfacing (P0 fix)', () => {
   });
 
   describe('POST /api/compliance/ds67', () => {
-    it('responds 200 even when auditServerEvent rejects', async () => {
-      auditMock.mockRejectedValue(new Error('firestore_unavailable'));
+    it('responds 200 even when auditServerEvent returns false', async () => {
+      auditMock.mockResolvedValue(false);
       const app = buildApp();
       const res = await request(app).post('/api/compliance/ds67').send(validDs67Body);
       expect(res.status).toBe(200);
       expect(res.body.form.folio).toBe('DS67-2026-000001');
     });
 
-    it('logs audit_event_failed when auditServerEvent rejects', async () => {
-      auditMock.mockRejectedValue(new Error('firestore_unavailable'));
+    it('captures audit failure via captureRouteError when helper returns false', async () => {
+      auditMock.mockResolvedValue(false);
       const app = buildApp();
       await request(app).post('/api/compliance/ds67').send(validDs67Body);
-      const matched = loggerErrorMock.mock.calls.find(
-        ([msg]) => msg === 'audit_event_failed',
-      );
-      expect(matched, 'expected logger.error("audit_event_failed", ...)').toBeDefined();
-      expect(matched?.[1]).toMatchObject({
-        event: 'compliance.ds67_created',
+      expect(captureRouteErrorMock).toHaveBeenCalledTimes(1);
+      const [errArg, endpointArg, extrasArg] = captureRouteErrorMock.mock.calls[0];
+      expect(errArg).toBeInstanceOf(Error);
+      expect((errArg as Error).message).toBe('audit_write_failed');
+      expect(endpointArg).toBe('ds67.audit');
+      expect(extrasArg).toMatchObject({
+        audit_event: 'compliance.ds67_created',
         folio: 'DS67-2026-000001',
       });
     });
 
-    it('captures the audit failure via captureRouteError (Sentry surface)', async () => {
-      const auditError = new Error('firestore_unavailable');
-      auditMock.mockRejectedValue(auditError);
-      const app = buildApp();
-      await request(app).post('/api/compliance/ds67').send(validDs67Body);
-      expect(captureRouteErrorMock).toHaveBeenCalled();
-      const [errArg, endpointArg, extrasArg] = captureRouteErrorMock.mock.calls[0];
-      expect(errArg).toBe(auditError);
-      expect(endpointArg).toBe('ds67.audit');
-      expect(extrasArg).toMatchObject({ audit_event: 'compliance.ds67_created' });
-    });
-
-    it('emits no error log when auditServerEvent resolves (happy path)', async () => {
+    it('does not capture when auditServerEvent returns true (happy path)', async () => {
       auditMock.mockResolvedValue(true);
       const app = buildApp();
       const res = await request(app).post('/api/compliance/ds67').send(validDs67Body);
       expect(res.status).toBe(200);
-      const audit_failed = loggerErrorMock.mock.calls.find(
-        ([msg]) => msg === 'audit_event_failed',
-      );
-      expect(audit_failed).toBeUndefined();
       expect(captureRouteErrorMock).not.toHaveBeenCalled();
     });
   });
 
   describe('POST /api/compliance/ds76', () => {
-    it('responds 200 even when auditServerEvent rejects', async () => {
-      auditMock.mockRejectedValue(new Error('firestore_unavailable'));
+    it('responds 200 even when auditServerEvent returns false', async () => {
+      auditMock.mockResolvedValue(false);
       const app = buildApp();
       const res = await request(app).post('/api/compliance/ds76').send(validDs76Body);
       expect(res.status).toBe(200);
       expect(res.body.form.folio).toBe('DS76-2026-000001');
     });
 
-    it('logs + captures the audit failure', async () => {
-      const auditError = new Error('firestore_unavailable');
-      auditMock.mockRejectedValue(auditError);
+    it('captures audit failure via captureRouteError when helper returns false', async () => {
+      auditMock.mockResolvedValue(false);
       const app = buildApp();
       await request(app).post('/api/compliance/ds76').send(validDs76Body);
-      const matched = loggerErrorMock.mock.calls.find(
-        ([msg]) => msg === 'audit_event_failed',
-      );
-      expect(matched?.[1]).toMatchObject({
-        event: 'compliance.ds76_created',
+      expect(captureRouteErrorMock).toHaveBeenCalledTimes(1);
+      const [errArg, endpointArg, extrasArg] = captureRouteErrorMock.mock.calls[0];
+      expect(errArg).toBeInstanceOf(Error);
+      expect((errArg as Error).message).toBe('audit_write_failed');
+      expect(endpointArg).toBe('ds76.audit');
+      expect(extrasArg).toMatchObject({
+        audit_event: 'compliance.ds76_created',
         folio: 'DS76-2026-000001',
       });
-      expect(captureRouteErrorMock).toHaveBeenCalled();
-      const [, endpointArg, extrasArg] = captureRouteErrorMock.mock.calls[0];
-      expect(endpointArg).toBe('ds76.audit');
-      expect(extrasArg).toMatchObject({ audit_event: 'compliance.ds76_created' });
     });
   });
 });

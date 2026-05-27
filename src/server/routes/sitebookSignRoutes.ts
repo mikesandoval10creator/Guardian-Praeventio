@@ -39,14 +39,25 @@ import { logger } from '../../utils/logger.js';
  * typo silently masked the bug in production — every assertion verified
  * against `app.praeventio.net` regardless of what the env said. The rest of
  * the codebase (curriculum.ts, suseso.ts) reads the correct
- * `WEBAUTHN_RP_ID`. This helper aligns sitebook with that contract and
- * fails fast in production rather than papering over a missing env var.
+ * `WEBAUTHN_RP_ID`. This helper aligns sitebook with that contract.
+ *
+ * Codex P2 3308579656: the previous "throw in production" version broke
+ * worker signing at runtime if ops forgot to set the env (deploy passed
+ * validate-env.cjs because the variable isn't in the prod contract yet,
+ * then 500'd on first signature attempt). We keep the legitimate
+ * production domain `app.praeventio.net` as the safe fallback and log a
+ * warning so ops sees the missing env var in observability — signing
+ * keeps working with the actual prod RP ID either way.
  */
 function getWebAuthnRpId(): string {
   const value = process.env.WEBAUTHN_RP_ID;
   if (value && value.length > 0) return value;
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('WEBAUTHN_RP_ID required in production');
+    logger.warn('webauthn_rp_id_using_fallback', {
+      fallback: 'app.praeventio.net',
+      hint: 'Set WEBAUTHN_RP_ID in Secret Manager + Cloud Run env for explicit config',
+    });
+    return 'app.praeventio.net';
   }
   return 'localhost';
 }

@@ -161,25 +161,17 @@ router.post('/form', verifyAuth, validate(createFormSchema), async (req, res) =>
       folioStore: buildFolioStore(),
       formStore: buildFormStore(),
     });
-    // P0 fix: previously `void auditServerEvent(...)` discarded the
-    // Firestore write promise — any audit failure silently dropped the
-    // SUSESO compliance row. Now we await + capture so on-call sees a
-    // gap rather than a silent miss. Form is already persisted upstream
-    // by createSusesoForm, so we never block the response.
-    try {
-      await auditServerEvent(req, 'suseso.form_created', 'suseso', {
-        folio: result.form.folio,
-        kind: result.form.kind,
-        tenantId: input.tenantId,
-      });
-    } catch (auditErr) {
-      logger.error('audit_event_failed', {
-        event: 'suseso.form_created',
-        folio: result.form.folio,
-        tenantId: input.tenantId,
-        err: String(auditErr),
-      });
-      captureRouteError(auditErr, 'suseso.audit', {
+    // P0 fix: Codex P2 3308579646 — auditServerEvent returns boolean,
+    // never throws. Branch on the return; helper already logs failures.
+    // Form is already persisted upstream by createSusesoForm, so we
+    // never block the response.
+    const auditOk = await auditServerEvent(req, 'suseso.form_created', 'suseso', {
+      folio: result.form.folio,
+      kind: result.form.kind,
+      tenantId: input.tenantId,
+    });
+    if (!auditOk) {
+      captureRouteError(new Error('audit_write_failed'), 'suseso.audit', {
         audit_event: 'suseso.form_created',
         folio: result.form.folio,
         tenantId: input.tenantId,
@@ -272,20 +264,14 @@ router.post(
         signature as SusesoSignature,
         { formStore: buildFormStore() },
       );
-      // P0 fix — see form-created above. Same compliance-gap rationale.
-      try {
-        await auditServerEvent(req, 'suseso.form_signed', 'suseso', {
-          folio: updated.folio,
-          algorithm: signature.algorithm,
-          webauthnVerified: signature.algorithm === 'webauthn-ecdsa-p256',
-        });
-      } catch (auditErr) {
-        logger.error('audit_event_failed', {
-          event: 'suseso.form_signed',
-          folio: updated.folio,
-          err: String(auditErr),
-        });
-        captureRouteError(auditErr, 'suseso.audit', {
+      // Codex P2 3308579646: branch on boolean return; helper logs internally.
+      const auditOk = await auditServerEvent(req, 'suseso.form_signed', 'suseso', {
+        folio: updated.folio,
+        algorithm: signature.algorithm,
+        webauthnVerified: signature.algorithm === 'webauthn-ecdsa-p256',
+      });
+      if (!auditOk) {
+        captureRouteError(new Error('audit_write_failed'), 'suseso.audit', {
           audit_event: 'suseso.form_signed',
           folio: updated.folio,
         });
@@ -376,21 +362,14 @@ router.post(
         status: 'submitted_by_company',
         submittedByCompanyAt: nowIso,
       });
-      // P0 fix — see form-created above. Same compliance-gap rationale.
-      try {
-        await auditServerEvent(req, 'suseso.form.marked_submitted', 'suseso', {
-          tenantId,
-          formId,
-          markedAt: nowIso,
-        });
-      } catch (auditErr) {
-        logger.error('audit_event_failed', {
-          event: 'suseso.form.marked_submitted',
-          tenantId,
-          formId,
-          err: String(auditErr),
-        });
-        captureRouteError(auditErr, 'suseso.audit', {
+      // Codex P2 3308579646: branch on boolean return; helper logs internally.
+      const auditOk = await auditServerEvent(req, 'suseso.form.marked_submitted', 'suseso', {
+        tenantId,
+        formId,
+        markedAt: nowIso,
+      });
+      if (!auditOk) {
+        captureRouteError(new Error('audit_write_failed'), 'suseso.audit', {
           audit_event: 'suseso.form.marked_submitted',
           tenantId,
           formId,
