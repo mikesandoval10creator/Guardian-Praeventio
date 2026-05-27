@@ -42,6 +42,7 @@ import { getErrorTracker } from "./src/services/observability/index.js";
 // billing, curriculum/projects/oauth.
 import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
 import { securityHeaders } from "./src/server/middleware/securityHeaders.js";
+import { stampCspNonce } from "./src/server/middleware/stampCspNonce.js";
 import { verifyAuth } from "./src/server/middleware/verifyAuth.js";
 // Sprint 28 Bucket B3 — transversal Zod validation factory. Closes audit
 // hallazgo H17. Each opt-in route mounts `validate(schema)` as the FIRST
