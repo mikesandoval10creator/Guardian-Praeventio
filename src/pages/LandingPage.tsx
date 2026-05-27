@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { GuardianMascot } from '../components/shared/GuardianMascot';
 import {
   ShieldAlert, Zap, BookOpen, BarChart3, Users, Brain,
   CheckCircle2, ArrowRight, Play, Star, Globe, Lock,
@@ -199,6 +200,17 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           transition={{ duration: 0.7 }}
           className="relative z-10 max-w-4xl mx-auto"
         >
+          {/* Guardián mascot — Sprint B PR #520 wire. Brand presence for
+              anonymous visitors landing on the marketing page. Default mood
+              (calm professional shield) is the right tone for first contact;
+              `useAppMode()` is unlikely to be 'emergency' here since that
+              state is set by authenticated flows. Mascot hides in driving
+              mode by design. xl size (192×192) so it's the visual anchor
+              above the regulatory badge + headline. */}
+          <div className="flex justify-center mb-6">
+            <GuardianMascot mood="default" size="xl" />
+          </div>
+
           <div className="inline-flex items-center gap-2 bg-teal-400/10 border border-teal-400/30 rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-widest text-teal-400 mb-6">
             <Star className="w-3 h-3 fill-current" aria-hidden="true" />
             {t('landing.hero.compliance_badge')}
