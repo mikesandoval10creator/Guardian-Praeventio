@@ -32,6 +32,13 @@ vi.mock('firebase/firestore', () => ({
 }));
 vi.mock('../services/firebase', () => ({ db: {} }));
 
+// Plan v2 B3 — el component ahora usa apiAuthHeaderOrThrow vía dynamic
+// import. Mockeamos el módulo para evitar tocar `auth.currentUser` y
+// poder asertar el header que termina en registerNewAuthenticator.
+vi.mock('../lib/apiAuth', () => ({
+  apiAuthHeaderOrThrow: vi.fn(async () => 'Bearer mock-token'),
+}));
+
 import { WebAuthnKeysSection } from '../components/settings/WebAuthnKeysSection';
 import * as webauthnClient from '../services/auth/webauthnClient';
 
@@ -108,7 +115,7 @@ describe('Settings WebAuthn UI', () => {
 
     expect(registerSpy).toHaveBeenCalledTimes(1);
     expect(registerSpy.mock.calls[0][0].nickname).toBe('iPhone');
-    expect(registerSpy.mock.calls[0][0].authToken).toBe('mock-token');
+    expect(registerSpy.mock.calls[0][0].authHeader).toBe('Bearer mock-token');
 
     // After refresh, the new credential should appear.
     await findByTestId('webauthn-credential-new-cred');
