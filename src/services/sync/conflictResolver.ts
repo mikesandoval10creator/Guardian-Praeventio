@@ -15,18 +15,52 @@ export type DocType =
   | 'RiskNode'
   | 'Incident'
   | 'ErgonomicAssessment'
+  | 'Inspection'
+  | 'IncidentReport'
+  | 'EmergencyAlert'
+  | 'MedicalRecord'
+  | 'TrainingCompletion'
   | string;
 
 /**
  * Per-doc-type list of fields that REQUIRE human resolution on
  * divergence. Extensible — callers can pass an override map to
  * `detectConflicts` if a vertical needs different semantics.
+ *
+ * TODO.md §12.2.2: para los 5 doc types de seguridad crítica
+ * (Inspection / IncidentReport / EmergencyAlert / MedicalRecord /
+ * TrainingCompletion), NUNCA se aplica last-writer-wins; SIEMPRE se
+ * exige resolución humana explícita en `conflict_queue`.
  */
 export const CRITICAL_FIELDS_BY_TYPE: Record<string, readonly string[]> = {
   RiskNode: ['severity', 'priority', 'status', 'assignedTo', 'controls', 'iperScore'],
   Incident: ['severity', 'rootCause', 'status', 'closedAt', 'mitigation'],
   ErgonomicAssessment: ['rebaScore', 'rulaScore', 'recommendation', 'workerUid'],
+  // §12.2.2 — Inspection: findings + actions + status son legally binding.
+  Inspection: ['findings', 'actions', 'status', 'inspectorUid', 'completedAt', 'severity'],
+  // §12.2.2 — IncidentReport: información oficial que viaja a mutualidad.
+  IncidentReport: ['severity', 'rootCause', 'status', 'witnessUids', 'injuries', 'mitigation', 'reportedToMutualidadAt'],
+  // §12.2.2 — EmergencyAlert: cualquier divergencia es peligrosa.
+  EmergencyAlert: ['severity', 'status', 'location', 'triggeredAt', 'acknowledgedByUid', 'responderUids', 'resolvedAt'],
+  // §12.2.2 — MedicalRecord: PII sensible + Ley 19.628 + ADR 0012.
+  MedicalRecord: ['restrictionTags', 'aptitudeStatus', 'evaluatedByUid', 'evaluatedAt', 'expiresAt', 'workerUid'],
+  // §12.2.3 — TrainingCompletion: certificación legal.
+  TrainingCompletion: ['workerUid', 'trainingId', 'completedAt', 'score', 'certifierUid', 'expiresAt', 'documentUrl'],
 };
+
+/**
+ * Doc types que SIEMPRE requieren resolución humana — incluso para
+ * fields que no están en `CRITICAL_FIELDS_BY_TYPE`. Estos doc types
+ * tienen significado legal/médico crítico y un last-writer-wins
+ * silencioso podría enmascarar pérdida de evidencia.
+ */
+export const ALWAYS_REQUIRES_HUMAN_RESOLUTION: readonly DocType[] = [
+  'Inspection',
+  'IncidentReport',
+  'EmergencyAlert',
+  'MedicalRecord',
+  'TrainingCompletion',
+];
 
 /**
  * Subset of a `SyncAction` payload relevant to conflict detection. Kept
@@ -108,8 +142,6 @@ export interface AuditRow {
 /** Map a Firestore collection name to a DocType for CRITICAL_FIELDS lookup. */
 function inferDocType(action: { collection: string; docType?: DocType }): DocType {
   if (action.docType) return action.docType;
-  // Convention used across the repo: `nodes` are RiskNode, `incidents`
-  // are Incident, `ergonomic_assessments` are ErgonomicAssessment.
   switch (action.collection) {
     case 'nodes':
       return 'RiskNode';
@@ -118,9 +150,37 @@ function inferDocType(action: { collection: string; docType?: DocType }): DocTyp
     case 'ergonomic_assessments':
     case 'ergonomicAssessments':
       return 'ErgonomicAssessment';
+    // §12.2.2 — mapeos para los 5 doc types siempre-humano.
+    case 'inspections':
+      return 'Inspection';
+    case 'incident_reports':
+    case 'incidentReports':
+      return 'IncidentReport';
+    case 'emergency_alerts':
+    case 'emergencyAlerts':
+    case 'sos_events':
+      return 'EmergencyAlert';
+    case 'medical_records':
+    case 'medicalRecords':
+    case 'medical_exams':
+    case 'medicalExams':
+      return 'MedicalRecord';
+    case 'training_completions':
+    case 'trainingCompletions':
+    case 'training_records':
+      return 'TrainingCompletion';
     default:
       return action.collection;
   }
+}
+
+/**
+ * §12.2.2 — devuelve true si este doc type NUNCA puede resolver por
+ * last-writer-wins automático. Cualquier divergencia debe ir a
+ * `conflict_queue` Firestore para resolución por supervisor.
+ */
+export function requiresHumanResolution(docType: DocType): boolean {
+  return ALWAYS_REQUIRES_HUMAN_RESOLUTION.includes(docType);
 }
 
 function isCriticalField(
@@ -224,11 +284,19 @@ export function detectConflicts(
       // additive merge. Test 4 covers this.
       if (remoteValue === undefined) continue;
       if (valuesEqual(localValue, remoteValue)) continue;
+      // §12.2.2: para doc types siempre-humano, TODOS los fields son
+      // críticos (no solo los listados en CRITICAL_FIELDS_BY_TYPE).
+      // Esto bloquea cualquier last-writer-wins silencioso sobre
+      // inspecciones, reportes de incidente, alertas de emergencia,
+      // registros médicos y certificaciones de capacitación.
+      const critical =
+        requiresHumanResolution(docType) ||
+        isCriticalField(docType, field, options?.overrides);
       fieldConflicts.push({
         field,
         localValue,
         remoteValue,
-        critical: isCriticalField(docType, field, options?.overrides),
+        critical,
       });
     }
 

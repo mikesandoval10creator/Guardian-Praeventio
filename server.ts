@@ -251,6 +251,10 @@ import adminBurdenRouter from "./src/server/routes/adminBurden.js";
 import eventReplayRouter from "./src/server/routes/eventReplay.js";
 // Tamper-Proof Audit Hash Chain — fatal investigations, Ley Karin, ISO 45001 §10.2.
 import auditChainRouter from "./src/server/routes/auditChain.js";
+// Horometro / Maintenance (equipos pesados — Sprint K Bloque 3 §3.6).
+import horometroRouter from "./src/server/routes/horometro.js";
+// External Audit Portal — Wire-orphan Bloque 3 §3.7 (token-based audit access).
+import externalAuditPortalRouter from "./src/server/routes/externalAuditPortal.js";
 // Auditoría Express Bundle — Sprint 39 Fase F.1 (PDF index for fiscalización folder).
 import expressBundleRouter from "./src/server/routes/expressBundle.js";
 // Research Mode — Sprint K §191-194 (root cause investigation: tree + comparator + failed control detector).
@@ -273,6 +277,12 @@ import fiveSRouter from "./src/server/routes/fiveS.js";
 import hygieneRouter from "./src/server/routes/hygiene.js";
 // Mental Load (NASA-TLX) + per-worker Admin Burden — Sprint K §258-260.
 import mentalLoadRouter from "./src/server/routes/mentalLoad.js";
+// Regulatory Framework — ISO 45001 + 14 jurisdicciones (ADR 0014).
+import regulatoryFrameworkRouter from "./src/server/routes/regulatoryFramework.js";
+// Medical Catalogs (diagnoses ICD-10 + drugs ATC + anatomy DS 594) — Sprint 21 R.
+import medicalCatalogsRouter from "./src/server/routes/medicalCatalogs.js";
+// PIN Sign (firma por PIN sin biometría) — Sprint K F.25.
+import pinSignRouter from "./src/server/routes/pinSign.js";
 // Coach IA RAG — Bucket HH #90 (search / list-chunks / domain-prompt).
 import coachRagRouter from "./src/server/routes/coachRag.js";
 // QR Acknowledgement Sessions — Sprint 43 F.5 (HMAC + Firestore replay defense).
@@ -1008,6 +1018,8 @@ app.use('/api/sprint-k', roiScenarioRouter);
 app.use('/api/sprint-k', adminBurdenRouter);
 app.use('/api/sprint-k', eventReplayRouter);
 app.use('/api/sprint-k', auditChainRouter);
+app.use('/api/sprint-k', horometroRouter);
+app.use('/api', externalAuditPortalRouter);
 app.use('/api/sprint-k', expressBundleRouter);
 app.use('/api/sprint-k', researchModeRouter);
 app.use('/api/sprint-k', orgMetricsRouter);
@@ -1019,6 +1031,9 @@ app.use('/api/sprint-k', commsRouter);
 app.use('/api/sprint-k', fiveSRouter);
 app.use('/api/sprint-k', hygieneRouter);
 app.use('/api/sprint-k', mentalLoadRouter);
+app.use('/api/sprint-k', regulatoryFrameworkRouter);
+app.use('/api/sprint-k', medicalCatalogsRouter);
+app.use('/api/sprint-k', pinSignRouter);
 app.use('/api/sprint-k', coachRagRouter);
 app.use('/api/sprint-k', qrAckRouter);
 app.use('/api/sprint-k', aiGuardrailsRouter);
@@ -1088,7 +1103,11 @@ app.use('/models/slm', (_req, res, next) => {
   next();
 });
 
-// Vite middleware for development
+// Vite middleware for development. In production, dist/ is served as static
+// + an SPA fallback gets registered at the END of the middleware chain
+// (search for "SPA catch-all fallback" below) so it doesn't shadow API mounts
+// declared after this block (#506 contract test serverMountOrder caught this).
+let INDEX_HTML_TEMPLATE: string | null = null;
 if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
   const vite = await createViteServer({
@@ -1107,7 +1126,6 @@ if (process.env.NODE_ENV !== "production") {
   const distPath = path.join(process.cwd(), 'dist');
   app.use(express.static(distPath, { index: false }));
 
-  let INDEX_HTML_TEMPLATE: string | null = null;
   try {
     INDEX_HTML_TEMPLATE = fs.readFileSync(
       path.join(distPath, 'index.html'),
@@ -1116,22 +1134,6 @@ if (process.env.NODE_ENV !== "production") {
   } catch (err) {
     console.warn('[boot] dist/index.html not readable; SPA fallback will 503:', err);
   }
-
-  app.get('*', (_req, res) => {
-    if (!INDEX_HTML_TEMPLATE) {
-      return res.status(503).type('text/plain').send('SPA bundle missing');
-    }
-    const nonce = (res.locals.cspNonce as string | undefined) ?? '';
-    // F8/H16 (audit P3) — usamos `stampCspNonce` (helper testeable) en
-    // lugar de un inline `template.replace(regex, nonce)`. El helper
-    // pasa el replacement como callback para que tokens `$&`, `$$`, etc.
-    // en el nonce NO se interpreten como special tokens de
-    // `String.prototype.replace`. Ver `stampCspNonce.test.ts` para la
-    // suite de regresión.
-    const html = stampCspNonce(INDEX_HTML_TEMPLATE, nonce);
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.send(html);
-  });
 }
 
 // Billing routes — extracted to src/server/routes/billing.ts in Round 17 R2
@@ -1256,6 +1258,25 @@ app.use('/api/sitebook', sitebookSignRouter);
 //   • Does NOT call `next(err)` — this is the terminal handler. Calling
 //     next would defer to Express's default handler which writes an HTML
 //     error page; the JSON shape we emit here is what callers expect.
+// SPA catch-all fallback — MUST be the last `app.get` before the error
+// handler so it doesn't shadow any /api/* mount above. Production-only
+// (Vite middlewareMode handles the SPA in dev). #506 contract test
+// `serverMountOrder` enforces this ordering.
+if (process.env.NODE_ENV === "production") {
+  app.get('*', (_req, res) => {
+    if (!INDEX_HTML_TEMPLATE) {
+      return res.status(503).type('text/plain').send('SPA bundle missing');
+    }
+    const nonce = (res.locals.cspNonce as string | undefined) ?? '';
+    // Global replace: even though there's only one __CSP_NONCE__ hit
+    // today, future template additions can include the placeholder
+    // anywhere and still get substituted in a single pass.
+    const html = INDEX_HTML_TEMPLATE.replace(/__CSP_NONCE__/g, nonce);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
+  });
+}
+
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   try {
     getErrorTracker().captureException(

@@ -1,0 +1,614 @@
+openapi: 3.1.0
+info:
+  title: Praeventio Guard API
+  version: 1.0.0
+  description: |
+    Praeventio Guard — REST API para integraciones B2B (ERP / HRM /
+    BI / mutualidades / portales auditoría externa).
+
+    **TODO.md §12.1.10**: Esta es la spec OpenAPI v1 cubriendo el subset
+    de endpoints estables. Total endpoints en el servidor: ~536; este
+    documento crece progresivamente con cada release. Endpoints no
+    listados son INTERNOS y pueden cambiar sin notice.
+
+    ### Autenticación
+
+    Todos los endpoints autenticados aceptan `Authorization: Bearer
+    <Firebase-ID-Token>`. El token se valida con
+    `firebase-admin.verifyIdToken(token, checkRevoked=true)`. Sesión
+    máxima 8h desde `auth_time` — al expirar retorna 401 con
+    `reason: session_age_exceeded`.
+
+    ### Rate limiting
+
+    - `/api/*` global: 600 req/min/IP (Firestore-backed, multi-pod).
+    - Endpoints específicos de cómputo: limits por dominio.
+
+    ### Errores estándar
+
+    Todas las respuestas de error usan el schema `Error`:
+    `{ error: string, reason?: string, ...detalles }`.
+
+    ### Sprint K
+
+    Los endpoints bajo `/api/sprint-k/{projectId}/...` son
+    computaciones puras: el caller envía los datos, el server razona
+    determinísticamente y devuelve el resultado. No persisten estado.
+  contact:
+    name: Praeventio Guard
+    email: contacto@praeventio.net
+    url: https://praeventio.net
+  license:
+    name: MIT
+    url: https://github.com/mikesandoval10creator/Guardian-Praeventio/blob/main/LICENSE
+
+servers:
+  - url: https://api.praeventio.app
+    description: Producción
+  - url: https://staging.api.praeventio.app
+    description: Staging
+  - url: http://localhost:3000
+    description: Local dev
+
+tags:
+  - name: health
+    description: Probes operacionales
+  - name: auth
+    description: Firebase Auth + WebAuthn
+  - name: billing
+    description: Webpay / MercadoPago / Google Play Billing / Khipu webhooks
+  - name: regulatory
+    description: ISO 45001 + 14 jurisdicciones nacionales
+  - name: safety-metrics
+    description: TRIR / LTIFR / DART / SIFR (OSHA + ICMM)
+  - name: medical-catalogs
+    description: ICD-10 + WHO ATC + anatomía DS 594 (read-only)
+  - name: pin-sign
+    description: Firma por PIN sin biometría (F.25)
+  - name: shift-handover
+    description: Bitácora cambio de turno (Sprint J.8)
+  - name: stoppage
+    description: Paralización + reanudación controlada (Sprint I.1)
+
+paths:
+  /api/health:
+    get:
+      tags: [health]
+      summary: Health check
+      description: Probe simple usado por Cloud Run + Playwright + monitoring externo.
+      responses:
+        '200':
+          description: Server up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  uptimeSeconds:
+                    type: number
+                  version:
+                    type: string
+
+  /api/sprint-k/{projectId}/safety-metrics/build-report:
+    post:
+      tags: [safety-metrics]
+      summary: Build full safety metrics report (TRIR/LTIFR/DART/SIFR + benchmarks)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [counts, exposure]
+              properties:
+                counts:
+                  $ref: '#/components/schemas/IncidentCounts'
+                exposure:
+                  $ref: '#/components/schemas/ExposureInput'
+                periodLabel:
+                  type: string
+                  example: 2026-Q1
+                  maxLength: 200
+      responses:
+        '200':
+          description: Report computed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [report]
+                properties:
+                  report:
+                    $ref: '#/components/schemas/SafetyMetricsReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/sprint-k/{projectId}/safety-metrics/compare-vs-industry:
+    post:
+      tags: [safety-metrics]
+      summary: Compare TRIR or LTIFR vs industry benchmark
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [metric, value, industry]
+              properties:
+                metric:
+                  type: string
+                  enum: [trir, ltifr]
+                value:
+                  type: number
+                  minimum: 0
+                industry:
+                  type: string
+                  enum:
+                    - construction_cl
+                    - mining_cl
+                    - manufacturing_us
+                    - oil_gas_us
+                    - agriculture_us
+                    - transport_cl
+                    - all_industries_us
+      responses:
+        '200':
+          description: Comparison computed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [comparison]
+                properties:
+                  comparison:
+                    $ref: '#/components/schemas/BenchmarkComparison'
+
+  /api/sprint-k/{projectId}/regulatory/active-jurisdictions:
+    post:
+      tags: [regulatory]
+      summary: Compute active jurisdictions (ISO 45001 baseline + country)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ctx]
+              properties:
+                ctx:
+                  $ref: '#/components/schemas/TenantRegulatoryContext'
+                tier:
+                  type: string
+                  description: Tier ID (limita extraCountries)
+      responses:
+        '200':
+          description: Active jurisdictions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [jurisdictions]
+                properties:
+                  jurisdictions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/JurisdictionCode'
+
+  /api/sprint-k/{projectId}/regulatory/cite:
+    post:
+      tags: [regulatory]
+      summary: Cite normas para un control HSE en jurisdicciones dadas
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [controlId, jurisdictions]
+              properties:
+                controlId:
+                  type: string
+                  example: WORKER_PARTICIPATION
+                jurisdictions:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: '#/components/schemas/JurisdictionCode'
+                format:
+                  type: string
+                  enum: [short, long]
+                  default: short
+      responses:
+        '200':
+          description: Citations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [citations]
+                properties:
+                  citations:
+                    type: array
+                    items:
+                      type: string
+
+  /api/sprint-k/{projectId}/medical-catalogs/diagnoses/search:
+    post:
+      tags: [medical-catalogs]
+      summary: Search ICD-10 diagnoses + DS 109/Ley 16.744 occupational set
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                occupationalOnly:
+                  type: boolean
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 50
+      responses:
+        '200':
+          description: Diagnoses matching
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalSearchResults'
+
+  /api/sprint-k/{projectId}/pin-sign/sign-item:
+    post:
+      tags: [pin-sign]
+      summary: Sign an item with PIN (verify + build acknowledgement atomic)
+      description: |
+        F.25 — fallback signature cuando worker no tiene biometría.
+        Body incluye `credential` (cargada desde Firestore por caller),
+        `pin` 4-6 dígitos, `itemId`, `kind`. Server verifica con
+        timing-safe PBKDF2 comparison + lockout 5 fallos. Si ok,
+        retorna SignedAcknowledgement con HMAC attestation.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credential, pin, itemId, kind]
+              properties:
+                credential:
+                  $ref: '#/components/schemas/PinCredential'
+                pin:
+                  type: string
+                  pattern: '^\d{4,6}$'
+                itemId:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                kind:
+                  type: string
+                  enum:
+                    - epp_delivery
+                    - safety_talk
+                    - document_read
+                    - training_completion
+                    - permit_acknowledgement
+                    - inspection_handover
+                location:
+                  type: object
+                  properties:
+                    lat:
+                      type: number
+                      minimum: -90
+                      maximum: 90
+                    lng:
+                      type: number
+                      minimum: -180
+                      maximum: 180
+      responses:
+        '200':
+          description: Sign OK with acknowledgement
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, credential]
+                properties:
+                  ok:
+                    type: boolean
+                  acknowledgement:
+                    $ref: '#/components/schemas/PinSignedAcknowledgement'
+                  credential:
+                    $ref: '#/components/schemas/PinCredential'
+        '401':
+          description: PIN incorrecto o cuenta bloqueada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    enum: [false]
+                  justLockedOut:
+                    type: boolean
+                  remainingLockoutMinutes:
+                    type: number
+                  credential:
+                    $ref: '#/components/schemas/PinCredential'
+
+components:
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: Praeventio project ID (caller must be member)
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+
+  responses:
+    Unauthorized:
+      description: Token missing/invalid/expired
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Caller is not member of project
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase-ID-Token
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: forbidden
+        reason:
+          type: string
+          example: session_age_exceeded
+        maxSessionHours:
+          type: number
+          example: 8
+
+    IncidentCounts:
+      type: object
+      required:
+        - totalRecordable
+        - lostTime
+        - restrictedOrTransferred
+        - seriousInjuriesAndFatalities
+        - fatalities
+        - totalLostDays
+      properties:
+        totalRecordable:
+          type: number
+          minimum: 0
+          description: OSHA 1904 — death, day-lost, restriction, transfer, medical >first-aid.
+        lostTime:
+          type: number
+          minimum: 0
+        restrictedOrTransferred:
+          type: number
+          minimum: 0
+        seriousInjuriesAndFatalities:
+          type: number
+          minimum: 0
+          description: ICMM SIF classification
+        fatalities:
+          type: number
+          minimum: 0
+        totalLostDays:
+          type: number
+          minimum: 0
+
+    ExposureInput:
+      type: object
+      required: [totalHoursWorked]
+      properties:
+        totalHoursWorked:
+          type: number
+          minimum: 0
+          description: Suma de horas trabajadas en el período (todos los workers)
+
+    SafetyMetricsReport:
+      type: object
+      required: [trir, ltifr, dart, sifr, severityRate, frequencyIndex, fatalityRate, totalHoursWorked]
+      properties:
+        trir:
+          type: number
+          description: Total Recordable Incident Rate (OSHA 200k base)
+        ltifr:
+          type: number
+          description: Lost Time Injury Frequency Rate (ICMM/ILO 1M base)
+        dart:
+          type: number
+        sifr:
+          type: number
+        severityRate:
+          type: number
+        frequencyIndex:
+          type: number
+        fatalityRate:
+          type: number
+        totalHoursWorked:
+          type: number
+        periodLabel:
+          type: string
+
+    BenchmarkComparison:
+      type: object
+      required: [metric, value, benchmark, industry, betterThanBenchmark, percentOfBenchmark]
+      properties:
+        metric:
+          type: string
+          enum: [trir, ltifr]
+        value:
+          type: number
+        benchmark:
+          type: number
+        industry:
+          type: string
+        betterThanBenchmark:
+          type: boolean
+        percentOfBenchmark:
+          type: number
+
+    TenantRegulatoryContext:
+      type: object
+      properties:
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2 o alias
+        dataResidency:
+          type: string
+        extraCountries:
+          type: array
+          items:
+            type: string
+
+    JurisdictionCode:
+      type: string
+      enum:
+        - ISO-45001
+        - CL
+        - US-OSHA
+        - EU
+        - MX
+        - BR
+        - UK
+        - CA
+        - AU
+        - JP
+        - KR
+        - IN
+        - CN
+        - TW
+        - RU
+
+    MedicalSearchResults:
+      type: object
+      required: [results, total]
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+        total:
+          type: integer
+
+    PinCredential:
+      type: object
+      required:
+        - workerUid
+        - saltHex
+        - hashHex
+        - iterations
+        - createdAt
+        - consecutiveFailures
+      description: |
+        Credencial PIN stored en Firestore. `hashHex` es PBKDF2-SHA256
+        600k iter sobre `pin || saltHex`. NUNCA contiene el PIN raw.
+      properties:
+        workerUid:
+          type: string
+        saltHex:
+          type: string
+          minLength: 32
+        hashHex:
+          type: string
+          minLength: 32
+        iterations:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        consecutiveFailures:
+          type: integer
+        lockedUntil:
+          type: string
+          format: date-time
+
+    PinSignedAcknowledgement:
+      type: object
+      required:
+        - itemId
+        - kind
+        - projectId
+        - signedByUid
+        - signedAt
+        - attestationHex
+        - biometricUsed
+      properties:
+        itemId:
+          type: string
+        kind:
+          type: string
+        projectId:
+          type: string
+        signedByUid:
+          type: string
+        signedAt:
+          type: string
+          format: date-time
+        attestationHex:
+          type: string
+          description: HMAC server-side para detección de tampering
+        biometricUsed:
+          type: boolean
+          enum: [false]
+        location:
+          type: object
+          properties:
+            lat:
+              type: number
+            lng:
+              type: number
