@@ -250,6 +250,8 @@ import adminBurdenRouter from "./src/server/routes/adminBurden.js";
 import eventReplayRouter from "./src/server/routes/eventReplay.js";
 // Tamper-Proof Audit Hash Chain — fatal investigations, Ley Karin, ISO 45001 §10.2.
 import auditChainRouter from "./src/server/routes/auditChain.js";
+// Horometro / Maintenance (equipos pesados — Sprint K Bloque 3 §3.6).
+import horometroRouter from "./src/server/routes/horometro.js";
 // External Audit Portal — Wire-orphan Bloque 3 §3.7 (token-based audit access).
 import externalAuditPortalRouter from "./src/server/routes/externalAuditPortal.js";
 // Auditoría Express Bundle — Sprint 39 Fase F.1 (PDF index for fiscalización folder).
@@ -1015,6 +1017,7 @@ app.use('/api/sprint-k', roiScenarioRouter);
 app.use('/api/sprint-k', adminBurdenRouter);
 app.use('/api/sprint-k', eventReplayRouter);
 app.use('/api/sprint-k', auditChainRouter);
+app.use('/api/sprint-k', horometroRouter);
 app.use('/api', externalAuditPortalRouter);
 app.use('/api/sprint-k', expressBundleRouter);
 app.use('/api/sprint-k', researchModeRouter);
