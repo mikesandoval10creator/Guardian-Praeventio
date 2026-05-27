@@ -32,7 +32,7 @@ import {
   type ResilienceHealthReport,
 } from '../../services/observability/resilienceHealthMonitor.js';
 import { logger } from '../../utils/logger.js';
-import { randomId } from '../../utils/randomId.js';
+import { randomUUID } from 'node:crypto';
 
 export interface ResilienceHealthAlertDeps {
   db: admin.firestore.Firestore;
@@ -94,12 +94,11 @@ export async function runResilienceHealthAlertCron(
     try {
       // ID: timestamp UTC ordenable + suffix random para evitar colisión
       // entre corridas en el mismo segundo (no usamos auto-id porque
-      // queremos sort lexicográfico por timestamp). Original suffix era
-      // 6 chars base36 vía PRNG no-seguro; ahora 6 chars hex vía
-      // randomId() (crypto.randomUUID con fallback documentado),
-      // preservando la shape histórica `<iso>_<6hex>` usada por
-      // el grep de logs.
-      const id = `${startedAt.toISOString().replace(/[:.]/g, '-')}_${randomId().slice(0, 6)}`;
+      // queremos sort lexicográfico por timestamp). crypto.randomUUID()
+      // provides 128 bits of entropy per RFC-4122 v4 (suffix has hyphens
+      // but the surrounding timestamp keeps lexicographic ordering by
+      // arrival time).
+      const id = `${startedAt.toISOString().replace(/[:.]/g, '-')}_${randomUUID()}`;
       await deps.db.collection(REPORTS_COLLECTION).doc(id).set({
         ...report,
         // Firestore no permite undefined a fondo — clean opcionales

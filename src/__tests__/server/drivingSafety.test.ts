@@ -1,27 +1,27 @@
-// Praeventio Guard — P0 security hardening.
+// Praeventio Guard — P0 security hardening contract test.
 //
-// Driving-route IDs in src/server/routes/drivingSafety.ts were keyed by
-// a non-secure PRNG. Route records are referenced by alert fan-outs and
-// commute-session joins, so predictable IDs would let an attacker
-// poison-pill an alert path. This file locks the crypto-secure
-// replacement (randomId() from src/utils/randomId.ts).
+// Driving route IDs (`route_<ts>_<uuid>`) record fleet/driver trip
+// telemetry. The production implementation in
+// src/server/routes/drivingSafety.ts uses crypto.randomUUID()
+// (RFC-4122 v4, 128 bits of entropy).
+//
+// This file locks the ID-shape contract.
 
 import { describe, it, expect } from 'vitest';
-import { randomId } from '../../utils/randomId.js';
+import { randomUUID } from 'node:crypto';
 
-describe('drivingSafety — routeId crypto-secure contract', () => {
-  it('produces the historical short-suffix shape `route_<ts>_<7hex>`', () => {
-    const id = `route_${Date.now()}_${randomId().slice(0, 7)}`;
-    expect(id).toMatch(/^route_\d+_[a-f0-9]{7}$/);
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
+const ROUTE_ID_RE = new RegExp(`^route_\\d+_${UUID_RE.source}$`);
+
+describe('drivingSafety — route ID crypto-secure contract', () => {
+  it('produces the shape `route_<ts>_<uuid>`', () => {
+    const id = `route_${Date.now()}_${randomUUID()}`;
+    expect(id).toMatch(ROUTE_ID_RE);
   });
 
-  it('two consecutive calls yield distinct IDs', () => {
-    const a = `route_${Date.now()}_${randomId().slice(0, 7)}`;
-    const b = `route_${Date.now()}_${randomId().slice(0, 7)}`;
+  it('two consecutive route IDs differ', () => {
+    const a = `route_${Date.now()}_${randomUUID()}`;
+    const b = `route_${Date.now()}_${randomUUID()}`;
     expect(a).not.toBe(b);
-  });
-
-  it('never returns the documented non-secure `fallback-` path on Node 20+', () => {
-    expect(randomId().startsWith('fallback-')).toBe(false);
   });
 });

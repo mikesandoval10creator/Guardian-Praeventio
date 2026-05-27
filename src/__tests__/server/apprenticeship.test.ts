@@ -1,27 +1,27 @@
-// Praeventio Guard — P0 security hardening.
+// Praeventio Guard — P0 security hardening contract test.
 //
-// Apprentice exposure-session IDs in src/server/routes/apprenticeship.ts
-// were keyed by a non-secure PRNG. Exposure records track the
-// supervised tasks an apprentice has performed; predictable IDs would
-// let an attacker enumerate apprenticeship history. This file locks
-// the crypto-secure replacement (randomId() from src/utils/randomId.ts).
+// Apprenticeship exposure IDs (`exp_<ts>_<uuid>`) are attached to a
+// trainee's learning record. The production implementation in
+// src/server/routes/apprenticeship.ts uses crypto.randomUUID()
+// (RFC-4122 v4, 128 bits of entropy).
+//
+// This file locks the ID-shape contract.
 
 import { describe, it, expect } from 'vitest';
-import { randomId } from '../../utils/randomId.js';
+import { randomUUID } from 'node:crypto';
 
-describe('apprenticeship — exposureId crypto-secure contract', () => {
-  it('produces the historical short-suffix shape `exp_<ts>_<7hex>`', () => {
-    const id = `exp_${Date.now()}_${randomId().slice(0, 7)}`;
-    expect(id).toMatch(/^exp_\d+_[a-f0-9]{7}$/);
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
+const EXP_ID_RE = new RegExp(`^exp_\\d+_${UUID_RE.source}$`);
+
+describe('apprenticeship — exposure ID crypto-secure contract', () => {
+  it('produces the shape `exp_<ts>_<uuid>`', () => {
+    const id = `exp_${Date.now()}_${randomUUID()}`;
+    expect(id).toMatch(EXP_ID_RE);
   });
 
-  it('two consecutive calls yield distinct IDs', () => {
-    const a = `exp_${Date.now()}_${randomId().slice(0, 7)}`;
-    const b = `exp_${Date.now()}_${randomId().slice(0, 7)}`;
+  it('two consecutive exposure IDs differ', () => {
+    const a = `exp_${Date.now()}_${randomUUID()}`;
+    const b = `exp_${Date.now()}_${randomUUID()}`;
     expect(a).not.toBe(b);
-  });
-
-  it('never returns the documented non-secure `fallback-` path on Node 20+', () => {
-    expect(randomId().startsWith('fallback-')).toBe(false);
   });
 });

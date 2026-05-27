@@ -1,27 +1,27 @@
-// Praeventio Guard — P0 security hardening.
+// Praeventio Guard — P0 security hardening contract test.
 //
-// Restricted-zone entry/exit event IDs in src/server/routes/restrictedZones.ts
-// were previously keyed by a non-cryptographically-secure PRNG. This
-// file locks the crypto-secure replacement (randomId() from
-// src/utils/randomId.ts) and the historical short-suffix shape used
-// by Firestore doc paths, log scrapers, and downstream BI consumers.
+// Restricted-zone entry-event IDs (`zev_<ts>_<uuid>`) are logged for
+// every worker entry/denial. The production implementation in
+// src/server/routes/restrictedZones.ts uses crypto.randomUUID()
+// (RFC-4122 v4, 128 bits of entropy) so the IDs cannot be enumerated.
+//
+// This file locks the ID-shape contract for newEventId().
 
 import { describe, it, expect } from 'vitest';
-import { randomId } from '../../utils/randomId.js';
+import { randomUUID } from 'node:crypto';
+
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
+const ZEV_ID_RE = new RegExp(`^zev_\\d+_${UUID_RE.source}$`);
 
 describe('restrictedZones — newEventId crypto-secure contract', () => {
-  it('produces the historical short-suffix shape `zev_<ts>_<7hex>`', () => {
-    const id = `zev_${Date.now()}_${randomId().slice(0, 7)}`;
-    expect(id).toMatch(/^zev_\d+_[a-f0-9]{7}$/);
+  it('produces the shape `zev_<ts>_<uuid>`', () => {
+    const id = `zev_${Date.now()}_${randomUUID()}`;
+    expect(id).toMatch(ZEV_ID_RE);
   });
 
   it('two consecutive calls yield distinct IDs', () => {
-    const a = `zev_${Date.now()}_${randomId().slice(0, 7)}`;
-    const b = `zev_${Date.now()}_${randomId().slice(0, 7)}`;
+    const a = `zev_${Date.now()}_${randomUUID()}`;
+    const b = `zev_${Date.now()}_${randomUUID()}`;
     expect(a).not.toBe(b);
-  });
-
-  it('never returns the documented non-secure `fallback-` path on Node 20+', () => {
-    expect(randomId().startsWith('fallback-')).toBe(false);
   });
 });

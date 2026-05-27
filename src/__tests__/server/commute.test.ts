@@ -325,30 +325,32 @@ describe('POST /api/commute/end', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────
-// Crypto-secure ID contract (src/server/routes/commute.ts uses randomId()
-// from src/utils/randomId.ts after the P0 hardening that removed
-// Math.random()-keyed session IDs). This block guards the shape and the
-// non-determinism of the production helper independent of the mirror
-// above (which still uses the legacy PRNG for drift detection).
+// Crypto-secure ID contract (src/server/routes/commute.ts uses
+// crypto.randomUUID() directly after the P0 hardening). This block
+// guards the shape and the non-determinism of the production helper
+// independent of the mirror above (which has its own legacy ID logic
+// for drift detection).
 // ────────────────────────────────────────────────────────────────────────
 
-import { randomId } from '../../utils/randomId.js';
+import { randomUUID } from 'node:crypto';
+
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
+const CS_ID_RE = new RegExp(`^cs_\\d+_${UUID_RE.source}$`);
 
 describe('commute sessionId — crypto-secure ID contract', () => {
-  it('produces the legacy short-suffix shape `cs_<ts>_<6hex>`', () => {
-    const id = `cs_${Date.now()}_${randomId().slice(0, 6)}`;
-    expect(id).toMatch(/^cs_\d+_[a-f0-9]{6}$/);
+  it('produces the shape `cs_<ts>_<uuid>`', () => {
+    const id = `cs_${Date.now()}_${randomUUID()}`;
+    expect(id).toMatch(CS_ID_RE);
   });
 
   it('two consecutive calls yield distinct IDs', () => {
-    const a = `cs_${Date.now()}_${randomId().slice(0, 6)}`;
-    const b = `cs_${Date.now()}_${randomId().slice(0, 6)}`;
+    const a = `cs_${Date.now()}_${randomUUID()}`;
+    const b = `cs_${Date.now()}_${randomUUID()}`;
     expect(a).not.toBe(b);
   });
 
-  it('does not fall back to the documented non-secure path under Node 20+', () => {
-    // randomId() returns `fallback-…` only when crypto.randomUUID is
-    // missing. In the test runtime (Node 20+) it must use crypto.
-    expect(randomId().startsWith('fallback-')).toBe(false);
+  it('full UUID matches SESSION_ID_REGEX (length under 128, allowed charset)', () => {
+    const id = `cs_${Date.now()}_${randomUUID()}`;
+    expect(id).toMatch(/^[A-Za-z0-9_\-:.]{1,128}$/);
   });
 });

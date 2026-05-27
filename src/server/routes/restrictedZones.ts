@@ -42,7 +42,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
-import { randomId } from '../../utils/randomId.js';
+import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   assertProjectMember,
@@ -200,10 +200,9 @@ async function guard(
 }
 
 function newEventId(): string {
-  // randomId() = crypto.randomUUID() with a documented degraded fallback.
-  // Slice 7 chars to preserve the historical short-suffix shape used by
-  // log scrapers and rules tests (`zev_<ts>_<7hex>`).
-  return `zev_${Date.now()}_${randomId().slice(0, 7)}`;
+  // crypto.randomUUID() returns an RFC-4122 v4 UUID (128 bits of entropy).
+  // Date.now() prefix preserves sort order for log/audit scanners.
+  return `zev_${Date.now()}_${randomUUID()}`;
 }
 
 // ────────────────────────────────────────────────────────────────────────

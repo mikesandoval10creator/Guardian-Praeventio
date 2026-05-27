@@ -29,7 +29,7 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
-import { randomId } from '../../utils/randomId.js';
+import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 
 const router = Router();
@@ -86,11 +86,10 @@ router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Project missing tenantId' });
   }
 
-  // Legacy ID shape was a 6-char base36 suffix from a non-secure PRNG
-  // (see PR replacing this with crypto). randomId() returns a hex-only
-  // UUID, so we slice 6 chars to preserve the historical short-suffix
-  // shape consumed by SESSION_ID_REGEX in this route's tests.
-  const sessionId = `cs_${Date.now()}_${randomId().slice(0, 6)}`;
+  // crypto.randomUUID() provides 128 bits of entropy per RFC-4122 v4.
+  // SESSION_ID_REGEX (line 37) allows up to 128 chars of [A-Za-z0-9_\-:.],
+  // which accommodates the full UUID (with its hyphens) plus the prefix.
+  const sessionId = `cs_${Date.now()}_${randomUUID()}`;
   try {
     await db
       .collection(`tenants/${tenantId}/commute_sessions`)

@@ -1,45 +1,34 @@
-// Praeventio Guard — P0 security hardening.
+// Praeventio Guard — P0 security hardening contract test.
 //
-// Visitor pass IDs are exposed to anyone scanning the visitor QR. The
-// previous implementation in src/server/routes/visitors.ts (newVisitorId)
-// generated them from a non-cryptographically-secure PRNG, which made the
-// short ID space (`vis_<13-digit-ts>_<7-char-base36>`) trivially
-// enumerable for an attacker who could observe the timestamp prefix.
+// Visitor pass IDs (`vis_<ts>_<uuid>`) are exposed on the visitor QR code.
+// The production implementation in src/server/routes/visitors.ts uses
+// crypto.randomUUID() (RFC-4122 v4, 128 bits of entropy) so the IDs
+// cannot be enumerated by an attacker who observes the timestamp prefix.
 //
-// This file locks the ID-shape contract and the non-determinism of the
-// crypto-secure replacement (randomId() from src/utils/randomId.ts).
-// Following the existing test-server.ts mirror convention, we do NOT
-// import the real Express route (which couples to firebase-admin) —
-// we exercise the same template the production code applies.
+// This file locks the ID-shape contract for newVisitorId().
 
-import { describe, it, expect, vi } from 'vitest';
-import { randomId } from '../../utils/randomId.js';
+import { describe, it, expect } from 'vitest';
+import { randomUUID } from 'node:crypto';
+
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
+const VIS_ID_RE = new RegExp(`^vis_\\d+_${UUID_RE.source}$`);
 
 describe('visitors — newVisitorId crypto-secure contract', () => {
-  it('produces the historical short-suffix shape `vis_<ts>_<7hex>`', () => {
-    const id = `vis_${Date.now()}_${randomId().slice(0, 7)}`;
-    expect(id).toMatch(/^vis_\d+_[a-f0-9]{7}$/);
+  it('produces the shape `vis_<ts>_<uuid>`', () => {
+    const id = `vis_${Date.now()}_${randomUUID()}`;
+    expect(id).toMatch(VIS_ID_RE);
   });
 
   it('two consecutive calls yield distinct IDs', () => {
-    const a = `vis_${Date.now()}_${randomId().slice(0, 7)}`;
-    const b = `vis_${Date.now()}_${randomId().slice(0, 7)}`;
+    const a = `vis_${Date.now()}_${randomUUID()}`;
+    const b = `vis_${Date.now()}_${randomUUID()}`;
     expect(a).not.toBe(b);
   });
 
-  it('honours a mocked randomId for deterministic round-trip tests', () => {
-    const spy = vi
-      .spyOn({ randomId }, 'randomId')
-      .mockReturnValue('00000000-aaaa-bbbb-cccc-000000000000');
-    // Call through the wrapper so the spy can intercept.
-    const fakeRandomId: typeof randomId = ((): string => spy()) as any;
-    const id = `vis_1700000000000_${fakeRandomId().slice(0, 7)}`;
-    // 7 chars of the mocked UUID '00000000-aaaa-…' = '0000000'.
-    expect(id).toBe('vis_1700000000000_0000000');
-    spy.mockRestore();
-  });
-
-  it('never returns the documented non-secure `fallback-` path on Node 20+', () => {
-    expect(randomId().startsWith('fallback-')).toBe(false);
+  it('honours a deterministic UUID for round-trip tests', () => {
+    const fixed = '00000000-aaaa-bbbb-cccc-000000000000';
+    const id = `vis_1700000000000_${fixed}`;
+    expect(id).toBe('vis_1700000000000_00000000-aaaa-bbbb-cccc-000000000000');
+    expect(id).toMatch(VIS_ID_RE);
   });
 });

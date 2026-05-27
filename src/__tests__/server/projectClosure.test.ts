@@ -1,41 +1,39 @@
-// Praeventio Guard — P0 security hardening.
+// Praeventio Guard — P0 security hardening contract test.
 //
-// Project-closure lesson and decision IDs in
-// src/server/routes/projectClosure.ts were keyed by a non-secure PRNG.
-// Closure tokens land in Firestore at
-// `tenants/{tenantId}/projects/{projectId}/closure/lessons/items/{id}` and
-// at `…/decisions/{id}`; predictable IDs would let an attacker who
-// observed any single closure timestamp enumerate the other lessons or
-// decisions in the same minute window. This file locks the crypto-secure
-// replacement (randomId() from src/utils/randomId.ts).
+// Project closure publishes lesson IDs (`cl_<ts>_<uuid>`) and critical
+// decision IDs (`cd_<ts>_<uuid>`) into the global library. The
+// implementation in src/server/routes/projectClosure.ts uses
+// crypto.randomUUID() (RFC-4122 v4, 128 bits of entropy).
+//
+// This file locks the ID-shape contracts for both callsites.
 
 import { describe, it, expect } from 'vitest';
-import { randomId } from '../../utils/randomId.js';
+import { randomUUID } from 'node:crypto';
 
-describe('projectClosure — lessonId/decisionId crypto-secure contract', () => {
-  it('produces the historical short-suffix shape for lessons (`cl_<ts>_<7hex>`)', () => {
-    const id = `cl_${Date.now()}_${randomId().slice(0, 7)}`;
-    expect(id).toMatch(/^cl_\d+_[a-f0-9]{7}$/);
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
+const CL_ID_RE = new RegExp(`^cl_\\d+_${UUID_RE.source}$`);
+const CD_ID_RE = new RegExp(`^cd_\\d+_${UUID_RE.source}$`);
+
+describe('projectClosure — crypto-secure ID contracts', () => {
+  it('publishes lesson IDs as `cl_<ts>_<uuid>`', () => {
+    const id = `cl_${Date.now()}_${randomUUID()}`;
+    expect(id).toMatch(CL_ID_RE);
   });
 
-  it('produces the historical short-suffix shape for decisions (`cd_<ts>_<7hex>`)', () => {
-    const id = `cd_${Date.now()}_${randomId().slice(0, 7)}`;
-    expect(id).toMatch(/^cd_\d+_[a-f0-9]{7}$/);
+  it('publishes critical-decision IDs as `cd_<ts>_<uuid>`', () => {
+    const id = `cd_${Date.now()}_${randomUUID()}`;
+    expect(id).toMatch(CD_ID_RE);
   });
 
-  it('two consecutive lesson IDs differ', () => {
-    const a = `cl_${Date.now()}_${randomId().slice(0, 7)}`;
-    const b = `cl_${Date.now()}_${randomId().slice(0, 7)}`;
+  it('consecutive lesson IDs differ', () => {
+    const a = `cl_${Date.now()}_${randomUUID()}`;
+    const b = `cl_${Date.now()}_${randomUUID()}`;
     expect(a).not.toBe(b);
   });
 
-  it('two consecutive decision IDs differ', () => {
-    const a = `cd_${Date.now()}_${randomId().slice(0, 7)}`;
-    const b = `cd_${Date.now()}_${randomId().slice(0, 7)}`;
+  it('consecutive decision IDs differ', () => {
+    const a = `cd_${Date.now()}_${randomUUID()}`;
+    const b = `cd_${Date.now()}_${randomUUID()}`;
     expect(a).not.toBe(b);
-  });
-
-  it('never returns the documented non-secure `fallback-` path on Node 20+', () => {
-    expect(randomId().startsWith('fallback-')).toBe(false);
   });
 });

@@ -1,28 +1,27 @@
-// Praeventio Guard — P0 security hardening.
+// Praeventio Guard — P0 security hardening contract test.
 //
-// Leadership decision IDs in src/server/routes/leadership.ts were keyed
-// by a non-secure PRNG. Leadership entries are surfaced in supervisor
-// dashboards and audit exports; predictable IDs would let an attacker
-// who guessed one supervisor's session time iterate sibling entries.
-// This file locks the crypto-secure replacement (randomId() from
-// src/utils/randomId.ts).
+// Leadership decision IDs (`ld_<ts>_<uuid>`) attach to a tenant's
+// strategic decision audit trail. The production implementation in
+// src/server/routes/leadership.ts uses crypto.randomUUID() (RFC-4122
+// v4, 128 bits of entropy) to guarantee unpredictability.
+//
+// This file locks the ID-shape contract.
 
 import { describe, it, expect } from 'vitest';
-import { randomId } from '../../utils/randomId.js';
+import { randomUUID } from 'node:crypto';
 
-describe('leadership — decisionId crypto-secure contract', () => {
-  it('produces the historical short-suffix shape `ld_<ts>_<7hex>`', () => {
-    const id = `ld_${Date.now()}_${randomId().slice(0, 7)}`;
-    expect(id).toMatch(/^ld_\d+_[a-f0-9]{7}$/);
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
+const LD_ID_RE = new RegExp(`^ld_\\d+_${UUID_RE.source}$`);
+
+describe('leadership — decision ID crypto-secure contract', () => {
+  it('produces the shape `ld_<ts>_<uuid>`', () => {
+    const id = `ld_${Date.now()}_${randomUUID()}`;
+    expect(id).toMatch(LD_ID_RE);
   });
 
-  it('two consecutive calls yield distinct IDs', () => {
-    const a = `ld_${Date.now()}_${randomId().slice(0, 7)}`;
-    const b = `ld_${Date.now()}_${randomId().slice(0, 7)}`;
+  it('two consecutive IDs differ', () => {
+    const a = `ld_${Date.now()}_${randomUUID()}`;
+    const b = `ld_${Date.now()}_${randomUUID()}`;
     expect(a).not.toBe(b);
-  });
-
-  it('never returns the documented non-secure `fallback-` path on Node 20+', () => {
-    expect(randomId().startsWith('fallback-')).toBe(false);
   });
 });

@@ -28,7 +28,7 @@ import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
-import { randomId } from '../../utils/randomId.js';
+import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   assertProjectMember,
@@ -299,7 +299,7 @@ router.post(
       const now = new Date().toISOString();
       const id =
         body.id ??
-        `route_${Date.now()}_${randomId().slice(0, 7)}`;
+        `route_${Date.now()}_${randomUUID()}`;
       const payload: StoredDrivingRoute = {
         id,
         name: body.name,

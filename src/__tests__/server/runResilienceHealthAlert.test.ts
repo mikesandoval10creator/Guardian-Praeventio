@@ -1,47 +1,42 @@
-// Praeventio Guard — P0 security hardening.
+// Praeventio Guard — P0 security hardening contract test.
 //
-// Resilience health-report alert IDs in
-// src/server/jobs/runResilienceHealthAlert.ts were keyed by a non-secure
-// PRNG. Alert IDs are written to `health_reports/` with a lexicographic
-// timestamp-first shape `<iso>_<6hex>`. Predictable suffixes would let
-// an attacker who knew the cron schedule iterate sibling docs in the
-// same second. This file locks the crypto-secure replacement (randomId()
-// from src/utils/randomId.ts) and the historical short-suffix shape
-// preserved for sort stability.
+// Resilience health-report IDs use shape `<iso-ts>_<uuid>` where the
+// ISO timestamp has `:` and `.` replaced with `-` to keep them
+// filesystem-safe and lexicographically sortable by arrival time.
+// The production implementation in
+// src/server/jobs/runResilienceHealthAlert.ts uses crypto.randomUUID()
+// (RFC-4122 v4, 128 bits of entropy).
+//
+// This file locks the ID-shape contract.
 
 import { describe, it, expect } from 'vitest';
-import { randomId } from '../../utils/randomId.js';
+import { randomUUID } from 'node:crypto';
 
-const ISO_SAFE = (d: Date): string =>
-  d.toISOString().replace(/[:.]/g, '-');
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
+// ISO timestamp with `:` and `.` replaced by `-`, followed by `_<uuid>`.
+const REPORT_ID_RE = new RegExp(
+  `^\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}-\\d{3}Z_${UUID_RE.source}$`,
+);
 
-describe('runResilienceHealthAlert — reportId crypto-secure contract', () => {
-  it('produces the historical lexicographic shape `<iso>_<6hex>`', () => {
-    const id = `${ISO_SAFE(new Date())}_${randomId().slice(0, 6)}`;
-    // ISO-8601 with `:.` → `-`: YYYY-MM-DDTHH-MM-SS-mmmZ
-    expect(id).toMatch(
-      /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z_[a-f0-9]{6}$/,
-    );
+function makeId(now: Date): string {
+  return `${now.toISOString().replace(/[:.]/g, '-')}_${randomUUID()}`;
+}
+
+describe('runResilienceHealthAlert — report ID crypto-secure contract', () => {
+  it('produces the shape `<iso-ts>_<uuid>`', () => {
+    const id = makeId(new Date('2026-05-27T12:34:56.789Z'));
+    expect(id).toMatch(REPORT_ID_RE);
   });
 
-  it('two consecutive calls yield distinct IDs even within the same millisecond', () => {
-    const ts = ISO_SAFE(new Date('2026-05-27T12:00:00.000Z'));
-    const a = `${ts}_${randomId().slice(0, 6)}`;
-    const b = `${ts}_${randomId().slice(0, 6)}`;
+  it('two consecutive IDs differ', () => {
+    const a = makeId(new Date());
+    const b = makeId(new Date());
     expect(a).not.toBe(b);
   });
 
-  it('preserves lexicographic ordering by timestamp prefix', () => {
-    const t1 = ISO_SAFE(new Date('2026-05-27T12:00:00.000Z'));
-    const t2 = ISO_SAFE(new Date('2026-05-27T12:00:01.000Z'));
-    const a = `${t1}_${randomId().slice(0, 6)}`;
-    const b = `${t2}_${randomId().slice(0, 6)}`;
-    // Lexicographic comparison must agree with time ordering — that's
-    // why we re-use the timestamp prefix instead of an auto-id.
-    expect([a, b].sort()).toEqual([a, b]);
-  });
-
-  it('never returns the documented non-secure `fallback-` path on Node 20+', () => {
-    expect(randomId().startsWith('fallback-')).toBe(false);
+  it('IDs sort lexicographically by arrival timestamp', () => {
+    const a = makeId(new Date('2026-05-27T00:00:00.000Z'));
+    const b = makeId(new Date('2026-05-27T01:00:00.000Z'));
+    expect(a < b).toBe(true);
   });
 });
