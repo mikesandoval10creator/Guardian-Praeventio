@@ -56,6 +56,16 @@ if (process.env.NODE_ENV === 'production' && process.env.E2E_MODE === '1') {
 const isE2EModeEnabled = (): boolean =>
   process.env.E2E_MODE === '1' && process.env.NODE_ENV !== 'production';
 
+// TODO.md §12.2.9 — Session expiration absoluta (8h).
+// Override por env para tests (1h en CI, 8h por defecto en prod).
+export const MAX_SESSION_HOURS = (() => {
+  const raw = process.env.MAX_SESSION_HOURS;
+  if (!raw) return 8;
+  const n = parseFloat(raw);
+  return Number.isFinite(n) && n > 0 && n <= 24 ? n : 8;
+})();
+export const MAX_SESSION_MS = MAX_SESSION_HOURS * 3_600_000;
+
 export const verifyAuth = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
 
@@ -103,6 +113,34 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
     // expiración natural de 1h. Cierra IMPLEMENTATION_ROADMAP 0.6 (riesgo
     // activo: ex-empleados con acceso por hasta 1h post-desactivación).
     const decodedToken = await admin.auth().verifyIdToken(token, true);
+
+    // TODO.md §12.2.9 — Session expiration absoluta (8h). El check
+    // built-in de Firebase solo valida que el TOKEN no esté expirado
+    // (1h por defecto) ni revocado. Pero un usuario puede sostener una
+    // sesión indefinidamente refrescando tokens cada hora — perdiendo
+    // re-auth cuando alguien deja el dispositivo desbloqueado en una
+    // faena. Forzamos MAX_SESSION_HOURS desde `auth_time` (cuándo el
+    // usuario ingresó password/biometría originalmente).
+    const authTimeSec =
+      typeof (decodedToken as { auth_time?: number }).auth_time === 'number'
+        ? (decodedToken as { auth_time: number }).auth_time
+        : null;
+    if (authTimeSec !== null) {
+      const sessionAgeMs = Date.now() - authTimeSec * 1000;
+      if (sessionAgeMs > MAX_SESSION_MS) {
+        logger.warn('auth_session_expired', {
+          endpoint: req.url,
+          method: req.method,
+          ageHours: Math.round(sessionAgeMs / 3_600_000),
+        });
+        return res.status(401).json({
+          error: 'Unauthorized: Session expired — please re-authenticate',
+          reason: 'session_age_exceeded',
+          maxSessionHours: MAX_SESSION_HOURS,
+        });
+      }
+    }
+
     // DecodedIdToken has many fields (iat, auth_time, firebase, …). We
     // narrow into our PraeventioAuthUser shape (declared in
     // src/server/types/express.d.ts) so downstream handlers see the

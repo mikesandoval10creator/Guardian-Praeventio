@@ -417,4 +417,51 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
     expect(res.status).toBe(401);
     expect(res.body.error).toMatch(/invalid token/i);
   });
+
+  // ─── TODO.md §12.2.9: Session expiration absoluta 8h ───
+  it('Session age <8h: deja pasar', async () => {
+    const recentAuthSec = Math.floor((Date.now() - 2 * 3_600_000) / 1000); // 2h atrás
+    verifyIdTokenMock.mockResolvedValueOnce({
+      uid: 'u-recent',
+      email: 'recent@test',
+      auth_time: recentAuthSec,
+    });
+    const { verifyAuth } = await import('./verifyAuth.js');
+    const app = express();
+    app.get('/p', verifyAuth, (req, res) => res.json({ uid: req.user!.uid }));
+    const res = await request(app).get('/p').set('Authorization', 'Bearer tok');
+    expect(res.status).toBe(200);
+    expect(res.body.uid).toBe('u-recent');
+  });
+
+  it('Session age >8h: 401 session_age_exceeded', async () => {
+    const oldAuthSec = Math.floor((Date.now() - 10 * 3_600_000) / 1000); // 10h atrás
+    verifyIdTokenMock.mockResolvedValueOnce({
+      uid: 'u-old',
+      email: 'old@test',
+      auth_time: oldAuthSec,
+    });
+    const { verifyAuth } = await import('./verifyAuth.js');
+    const app = express();
+    app.get('/p', verifyAuth, (req, res) => res.json({ uid: req.user!.uid }));
+    const res = await request(app).get('/p').set('Authorization', 'Bearer tok');
+    expect(res.status).toBe(401);
+    expect(res.body.reason).toBe('session_age_exceeded');
+    expect(res.body.maxSessionHours).toBe(8);
+  });
+
+  it('Session sin auth_time: deja pasar (Firebase token sin claim)', async () => {
+    verifyIdTokenMock.mockResolvedValueOnce({
+      uid: 'u-no-auth-time',
+      email: 'noauth@test',
+      // sin auth_time
+    });
+    const { verifyAuth } = await import('./verifyAuth.js');
+    const app = express();
+    app.get('/p', verifyAuth, (req, res) => res.json({ uid: req.user!.uid }));
+    const res = await request(app).get('/p').set('Authorization', 'Bearer tok');
+    // Cuando el token no incluye auth_time (edge case), no podemos
+    // calcular session age — degradamos a comportamiento legacy.
+    expect(res.status).toBe(200);
+  });
 });

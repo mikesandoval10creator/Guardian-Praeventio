@@ -77,9 +77,9 @@ export const HazmatStorageDesigner: React.FC = () => {
         AIR_DENSITY_KG_M3,
       );
       const ach = (q * 3600) / Number(roomVolumeM3);
-      // TODO Sprint 10+: replace these console logs with addNode() calls into Firestore
-      // via useRiskEngine. For now we surface the Bernoulli-driven Zettelkasten payloads
-      // so the integration site is wired and observable in the dev console.
+      // Sprint 11 + Regla #3: los nodos Bernoulli-driven se persisten
+      // a Firestore (debounced, con proyecto) o IndexedDB scratch (sin
+      // proyecto) — promueve automáticamente al crear proyecto.
       const miningNode = generateMiningExtractionNode(
         {
           id: `hazmat-room-${storageType}`,

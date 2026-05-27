@@ -88,9 +88,9 @@ export const StructuralCalculator: React.FC = () => {
     WIND_PRESSURE_COEFF,
   );
 
-  // TODO Sprint 10+: replace this console emission with addNode() into Firestore via
-  // useRiskEngine. For now we wire the Bernoulli-driven scaffold-uplift generator so
-  // its output is observable in the engineer's dev console.
+  // Sprint 11 + Regla #3 (2026-05-15): el output del scaffold-uplift
+  // generator se persiste tanto a Firestore (debounced cuando hay
+  // proyecto) como a scratch local (cuando no), nunca se pierde.
   const scaffoldUpliftNode = generateScaffoldUpliftNode(
     { id: 'structural-surface', areaM2: windAreaM2, pressureCoefficient: -1.0 },
     { windKmh: windSpeedKmh },
