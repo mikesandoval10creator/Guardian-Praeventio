@@ -42,6 +42,7 @@ import {
 } from '../components/dashboard/challengeUtils';
 import { WeatherBulletin } from '../components/dashboard/WeatherBulletin';
 import { WeatherSafetyRecommendations } from '../components/WeatherSafetyRecommendations';
+import { SunTrackerContainer } from '../components/SunTrackerContainer';
 import { ComplianceCard } from '../components/dashboard/ComplianceCard';
 import { DashboardQuickActions } from '../components/dashboard/DashboardQuickActions';
 import { EPPRequiredWidget } from '../components/dashboard/EPPRequiredWidget';
@@ -266,17 +267,11 @@ export function Dashboard() {
       </div>
 
       {/* Recomendaciones SST contextuales — DS 594, Ley 16.744. Sprint A wire
-          (PR #514) — antes era huérfano. Codex P2 fixes applied:
-          - Gate on `!weather.unavailable` (3308925937): when OPENWEATHER key
-            is missing or fetch fails, WeatherData has unavailable:true with
-            placeholder zeros — rendering would show false "Condiciones
-            normales" which is dishonest.
-          - Map `weather.uv` → `uvIndex` (3308925944): the component reads
-            uvIndex internally; environment.weather exposes the value as
-            `uv`. Without this mapping, high-UV readings silently render as
-            zero and the critical UV warning is omitted.
-          - Pass `altitude` so altitude-tier recommendations (DS 594 §53,
-            Mountain icon) render correctly. */}
+          merged via PR #514. Gates on `!weather.unavailable` to avoid the
+          false "Condiciones normales" branch when OPENWEATHER key is missing.
+          Maps `weather.uv` → `uvIndex` (component reads uvIndex internally;
+          environment.weather exposes it as `uv`). Altitude passed through
+          for DS 594 §53 altitude-tier recommendations. */}
       {weather && !weather.unavailable && (
         <WeatherSafetyRecommendations
           weather={{
@@ -289,6 +284,17 @@ export function Dashboard() {
           }}
         />
       )}
+
+      {/* Sun/moon ambient tracker — Sprint A PR #516 wire. Visual companion
+          to the weather bulletin showing 24h solar state + lunar phase +
+          solar elevation arc. Codex P2 3309059265 fix: reads
+          `selectedProject.coordinates.lat` (canonical project geo field per
+          types/index.ts:155 + ProjectContext:17 — also consumed by
+          EmergenciaAvanzada and SiteMap). Santiago (-33.4489) is the safe
+          fallback when no project is selected or project lacks coordinates. */}
+      <SunTrackerContainer
+        lat={selectedProject?.coordinates?.lat ?? -33.4489}
+      />
 
       {/* Daily safety tip — industry-aware */}
       <AdviceBanner />
