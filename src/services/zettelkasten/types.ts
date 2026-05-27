@@ -28,13 +28,33 @@ export type BernoulliNodeType =
  * strict so `bernoulliNodeRegistry` (a `Record<BernoulliNodeType, ...>`)
  * remains exhaustive.
  */
+/**
+ * Incident-Lesson-Training flow node types (Sprint K Bloque 3 §3.5).
+ * Cada incidente reportado materializa una vuelta completa del PDCA
+ * org-wide: Plan = investigation opened, Do = root cause identificada,
+ * Check = lesson published, Act = microtraining assigned/completed →
+ * investigation closed. El orquestador (`incidentLessonTrainingFlow.ts`)
+ * wirea los nodos con `derived_from` / `causes` / `references` edges
+ * para que el trail completo de aprendizaje sea un sub-grafo navegable
+ * desde `RiskNetwork.tsx` y el `PDCAClosePanel` UI.
+ */
+export type IncidentLessonTrainingNodeType =
+  | 'incident-reported'
+  | 'investigation-opened'
+  | 'root-cause-identified'
+  | 'lesson-published'
+  | 'microtraining-assigned'
+  | 'microtraining-completed'
+  | 'incident-investigation-closed';
+
 export type RiskNodeType =
   | BernoulliNodeType
   | 'safety-learning'
   // §2.18 (2026-05-22) — EPP inspection on-device. Detección TFLite local
   // (privacy: imagen NUNCA sale del device, solo classification result).
   // Ver `src/services/ai/eppDetectorOnDevice.ts`.
-  | 'epp_inspection';
+  | 'epp_inspection'
+  | IncidentLessonTrainingNodeType;
 
 export interface RiskNodePayload {
   /** Node title (Spanish, short). */
