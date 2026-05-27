@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { GuardianMascot } from '../components/shared/GuardianMascot';
 import {
   ShieldAlert, Zap, BookOpen, BarChart3, Users, Brain,
   CheckCircle2, ArrowRight, Play, Star, Globe, Lock,
@@ -200,15 +199,23 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           transition={{ duration: 0.7 }}
           className="relative z-10 max-w-4xl mx-auto"
         >
-          {/* Guardián mascot — Sprint B PR #520 wire. Brand presence for
-              anonymous visitors landing on the marketing page. Default mood
-              (calm professional shield) is the right tone for first contact;
-              `useAppMode()` is unlikely to be 'emergency' here since that
-              state is set by authenticated flows. Mascot hides in driving
-              mode by design. xl size (192×192) so it's the visual anchor
-              above the regulatory badge + headline. */}
+          {/* Guardián mascot — Sprint B PR #520 wire.
+              Codex P1 3311249150 fix: anonymous landing renders OUTSIDE
+              <AppProviders> (App.tsx:378-381) so <GuardianMascot> would
+              throw via its useAppMode() call (AppModeContext.tsx:254
+              throws when context is null). Solution: render the same
+              asset as a raw <img> here, bypassing context entirely.
+              Hardcoded default mood (calm professional shield — the
+              right tone for first contact) and the xl 192×192 size that
+              matches GuardianMascot's SIZE_MAP['xl']. No emergency/
+              driving edge cases apply on anon landing. */}
           <div className="flex justify-center mb-6">
-            <GuardianMascot mood="default" size="xl" />
+            <img
+              src="/mascots/guardian-default.png"
+              alt="Guardian Praeventio"
+              className="w-48 h-48 object-contain select-none"
+              draggable={false}
+            />
           </div>
 
           <div className="inline-flex items-center gap-2 bg-teal-400/10 border border-teal-400/30 rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-widest text-teal-400 mb-6">
