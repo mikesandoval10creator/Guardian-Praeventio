@@ -1102,7 +1102,11 @@ app.use('/models/slm', (_req, res, next) => {
   next();
 });
 
-// Vite middleware for development
+// Vite middleware for development. In production, dist/ is served as static
+// + an SPA fallback gets registered at the END of the middleware chain
+// (search for "SPA catch-all fallback" below) so it doesn't shadow API mounts
+// declared after this block (#506 contract test serverMountOrder caught this).
+let INDEX_HTML_TEMPLATE: string | null = null;
 if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
   const vite = await createViteServer({
@@ -1121,7 +1125,6 @@ if (process.env.NODE_ENV !== "production") {
   const distPath = path.join(process.cwd(), 'dist');
   app.use(express.static(distPath, { index: false }));
 
-  let INDEX_HTML_TEMPLATE: string | null = null;
   try {
     INDEX_HTML_TEMPLATE = fs.readFileSync(
       path.join(distPath, 'index.html'),
@@ -1130,19 +1133,6 @@ if (process.env.NODE_ENV !== "production") {
   } catch (err) {
     console.warn('[boot] dist/index.html not readable; SPA fallback will 503:', err);
   }
-
-  app.get('*', (_req, res) => {
-    if (!INDEX_HTML_TEMPLATE) {
-      return res.status(503).type('text/plain').send('SPA bundle missing');
-    }
-    const nonce = (res.locals.cspNonce as string | undefined) ?? '';
-    // Global replace: even though there's only one __CSP_NONCE__ hit
-    // today, future template additions can include the placeholder
-    // anywhere and still get substituted in a single pass.
-    const html = INDEX_HTML_TEMPLATE.replace(/__CSP_NONCE__/g, nonce);
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.send(html);
-  });
 }
 
 // Billing routes — extracted to src/server/routes/billing.ts in Round 17 R2
@@ -1267,6 +1257,25 @@ app.use('/api/sitebook', sitebookSignRouter);
 //   • Does NOT call `next(err)` — this is the terminal handler. Calling
 //     next would defer to Express's default handler which writes an HTML
 //     error page; the JSON shape we emit here is what callers expect.
+// SPA catch-all fallback — MUST be the last `app.get` before the error
+// handler so it doesn't shadow any /api/* mount above. Production-only
+// (Vite middlewareMode handles the SPA in dev). #506 contract test
+// `serverMountOrder` enforces this ordering.
+if (process.env.NODE_ENV === "production") {
+  app.get('*', (_req, res) => {
+    if (!INDEX_HTML_TEMPLATE) {
+      return res.status(503).type('text/plain').send('SPA bundle missing');
+    }
+    const nonce = (res.locals.cspNonce as string | undefined) ?? '';
+    // Global replace: even though there's only one __CSP_NONCE__ hit
+    // today, future template additions can include the placeholder
+    // anywhere and still get substituted in a single pass.
+    const html = INDEX_HTML_TEMPLATE.replace(/__CSP_NONCE__/g, nonce);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
+  });
+}
+
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   try {
     getErrorTracker().captureException(
