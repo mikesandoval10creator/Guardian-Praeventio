@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mountain, Wind, Thermometer, Droplets, AlertTriangle, Loader2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { logger } from '../utils/logger';
+import { apiAuthHeaders } from '../lib/apiAuth';
 // Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
 // compliant tooltip on the icon-only "Update with AI" refresh button.
 import { Tooltip } from './shared/Tooltip';
@@ -139,9 +140,16 @@ export function WeatherSafetyRecommendations({ weather, className = '' }: Props)
     setLoading(true);
     try {
       const prompt = `Eres un experto en seguridad laboral chilena (DS 594, Ley 16.744). Genera EXACTAMENTE 3 recomendaciones de seguridad breves (máx 25 palabras cada una) para trabajadores de campo con estas condiciones: Temperatura ${weather.temp ?? '--'}°C, Humedad ${weather.humidity ?? '--'}%, Viento ${weather.windSpeed ?? '--'} km/h, UV ${weather.uvIndex ?? '--'}, Altitud ${altitude}m. Formato: JSON array de strings ["rec1","rec2","rec3"].`;
+      // Codex P2 3308925949 fix: /api/ask-guardian is behind verifyAuth in
+      // production, so the request MUST carry the Bearer (or E2E) header.
+      // apiAuthHeaders() unifies the Firebase Auth + E2E fixture flows that
+      // the rest of the codebase uses (see src/lib/apiAuth.ts, PR #462+).
       const res = await fetch('/api/ask-guardian', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(await apiAuthHeaders()),
+        },
         body: JSON.stringify({ query: prompt, stream: false }),
       });
       if (!res.ok) throw new Error('API error');

@@ -41,6 +41,7 @@ import {
   type ChallengePeriod,
 } from '../components/dashboard/challengeUtils';
 import { WeatherBulletin } from '../components/dashboard/WeatherBulletin';
+import { WeatherSafetyRecommendations } from '../components/WeatherSafetyRecommendations';
 import { ComplianceCard } from '../components/dashboard/ComplianceCard';
 import { DashboardQuickActions } from '../components/dashboard/DashboardQuickActions';
 import { EPPRequiredWidget } from '../components/dashboard/EPPRequiredWidget';
@@ -263,6 +264,31 @@ export function Dashboard() {
           onClick={() => setIsComplianceModalOpen(true)}
         />
       </div>
+
+      {/* Recomendaciones SST contextuales — DS 594, Ley 16.744. Sprint A wire
+          (PR #514) — antes era huérfano. Codex P2 fixes applied:
+          - Gate on `!weather.unavailable` (3308925937): when OPENWEATHER key
+            is missing or fetch fails, WeatherData has unavailable:true with
+            placeholder zeros — rendering would show false "Condiciones
+            normales" which is dishonest.
+          - Map `weather.uv` → `uvIndex` (3308925944): the component reads
+            uvIndex internally; environment.weather exposes the value as
+            `uv`. Without this mapping, high-UV readings silently render as
+            zero and the critical UV warning is omitted.
+          - Pass `altitude` so altitude-tier recommendations (DS 594 §53,
+            Mountain icon) render correctly. */}
+      {weather && !weather.unavailable && (
+        <WeatherSafetyRecommendations
+          weather={{
+            temp: weather.temp,
+            windSpeed: weather.windSpeed,
+            humidity: weather.humidity,
+            uvIndex: weather.uv,
+            altitude: weather.altitude ?? undefined,
+            description: weather.condition,
+          }}
+        />
+      )}
 
       {/* Daily safety tip — industry-aware */}
       <AdviceBanner />

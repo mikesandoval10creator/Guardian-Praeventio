@@ -74,13 +74,27 @@
 - **Why stub**: BLE GATT real requiere Android `BluetoothLeAdvertiser/Scanner/GattServer` + iOS `CBPeripheralManager/CBCentralManager`. Wi-Fi Direct requiere Android `WifiP2pManager` + iOS `MultipeerConnectivity`. Trabajo no trivial.
 - **Removal criteria**: ADR 0013 cubre split engine/transport. Sprint 31/32 implementan.
 
-## 12 componentes huérfanos src/components/ root
-- **Files**: `OfflineIndicator.tsx`, `ProjectHealthCheck.tsx`, `WeatherSafetyRecommendations.tsx`, `SurvivalPing.tsx`, `FastCheckModal.tsx`, `QRScannerModal.tsx`, `WeatherBulletin.tsx`, `BunkerManager.tsx`, `SunTrackerContainer.tsx`, `GeolocationTracker.tsx`, `OfflineSyncManager.tsx`, `LocalePicker.tsx`
-- **Owner**: F2
-- **Sprint target**: Sprint A futuro (wire huérfanos directiva usuario)
-- **User-visible?**: NO — shipped en bundle pero 0 imports = no render
-- **Why orphan**: componentes listos sin wire UI (~3000 LOC dead, bundle bloat)
-- **Removal criteria (WIRE)**: cada uno tiene candidate placement documented en plan Sprint A — `WeatherBulletin`/`WeatherSafetyRecommendations` en home (directiva boletín climático), `OfflineIndicator` en RootLayout, etc.
+## Componentes huérfanos en src/components/ root (audit F2 corregido 2026-05-27)
+- **Confirmed orphan (no imports anywhere)** — ~10 files pending wire:
+  `OfflineIndicator.tsx`, `ProjectHealthCheck.tsx`, `SurvivalPing.tsx`,
+  `FastCheckModal.tsx`, `QRScannerModal.tsx`, `BunkerManager.tsx`,
+  `SunTrackerContainer.tsx`, `GeolocationTracker.tsx`,
+  `OfflineSyncManager.tsx`, `LocalePicker.tsx`.
+- **Not actually orphan** (audit F2 mis-classification, verified 2026-05-27):
+  - `WeatherBulletin.tsx` (root version) → wired in `SafeDrivingMode.tsx:10`.
+    There is ALSO a `src/components/dashboard/WeatherBulletin.tsx` wired in
+    `Dashboard.tsx:43` — two intentional variants for different audiences.
+- **Wired by Sprint A PR #514** (this PR, 2026-05-27):
+  - `WeatherSafetyRecommendations.tsx` → wired in `Dashboard.tsx` next to
+    `WeatherBulletin`. Renders DS 594 / Ley 16.744 contextual safety
+    recommendations from `environment?.weather`. Uses Gemini AI fallback
+    pattern with deterministic baseline.
+- **Owner**: F2 (remaining 10)
+- **Sprint target**: Sprint A incremental (one PR per bucket of related components)
+- **User-visible?**: NO for remaining orphans — shipped in bundle but 0 imports
+- **Removal criteria (WIRE)**: per-component placement decided by domain bucket
+  in plan Sprint A (e.g., `OfflineIndicator` → `RootLayout` header,
+  `BunkerManager` → SettingsAdvanced, `QRScannerModal` → AccessControl/Visitors).
 
 ## "Próximamente" UI placeholders
 - **Files**: `src/pages/MuralDinamico.tsx:42`, `src/pages/AutoCADViewer.tsx`
