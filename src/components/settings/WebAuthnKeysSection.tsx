@@ -120,9 +120,14 @@ export function WebAuthnKeysSection({
     setRegistering(true);
     setError(null);
     try {
-      const token = await user.getIdToken();
+      // Plan v2 B3 — apiAuthHeader unified (Bearer ${idToken} en prod,
+      // E2E <secret>:<uid> en MODE=test). El refactor de
+      // registerNewAuthenticator a `authHeader` permite que los specs E2E
+      // ejerciten este flow sin minteo de custom token.
+      const { apiAuthHeaderOrThrow } = await import('../../lib/apiAuth');
+      const authHeader = await apiAuthHeaderOrThrow();
       await registerNewAuthenticator({
-        authToken: token,
+        authHeader,
         nickname: nickname.trim() || undefined,
         fetchImpl,
       });

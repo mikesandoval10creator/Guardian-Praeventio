@@ -33,7 +33,7 @@
 // by reviewing both files in the same PR + by the `expectedOrigin`
 // fail-fast test which boots the REAL module via dynamic import.
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import rateLimit from 'express-rate-limit';
@@ -829,49 +829,31 @@ describe('POST /api/auth/webauthn/register — R20 R5 ceremony', () => {
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('curriculum module-load — expectedOrigin prod fail-fast', () => {
-  const ORIGINAL = {
-    NODE_ENV: process.env.NODE_ENV,
-    APP_BASE_URL: process.env.APP_BASE_URL,
-    APP_URL: process.env.APP_URL,
-  };
-  const RESEND_KEY = process.env.RESEND_API_KEY;
-
   beforeEach(() => {
-    // The module instantiates a Resend client at load — give it a stub
-    // value so that side-effect doesn't fail for an unrelated reason.
-    if (!process.env.RESEND_API_KEY) process.env.RESEND_API_KEY = 're_test_stub';
-    // firebase-admin's default app instantiation won't happen because
-    // curriculum.ts doesn't call admin.initializeApp() at module load
-    // — it only calls admin.firestore() lazily inside handlers. The
-    // import itself is safe.
+    // vi.stubEnv garantiza restore automático en afterEach via
+    // vi.unstubAllEnvs (vitest 4). No interferencia con otros suites.
+    if (!process.env.RESEND_API_KEY) vi.stubEnv('RESEND_API_KEY', 're_test_stub');
   });
 
-  function restore() {
-    if (ORIGINAL.NODE_ENV === undefined) delete process.env.NODE_ENV;
-    else process.env.NODE_ENV = ORIGINAL.NODE_ENV;
-    if (ORIGINAL.APP_BASE_URL === undefined) delete process.env.APP_BASE_URL;
-    else process.env.APP_BASE_URL = ORIGINAL.APP_BASE_URL;
-    if (ORIGINAL.APP_URL === undefined) delete process.env.APP_URL;
-    else process.env.APP_URL = ORIGINAL.APP_URL;
-    if (RESEND_KEY === undefined) delete process.env.RESEND_API_KEY;
-    else process.env.RESEND_API_KEY = RESEND_KEY;
-  }
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
 
   it('throws at module-load when NODE_ENV=production AND APP_BASE_URL/APP_URL are unset', async () => {
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('APP_BASE_URL', '');
+    vi.stubEnv('APP_URL', '');
+    // Empty-string env vars must be treated like unset by curriculum.ts.
     delete process.env.APP_BASE_URL;
     delete process.env.APP_URL;
 
-    // Drop any cached copy of the module so the boot guard runs fresh.
     vi.resetModules();
     let captured: unknown = null;
     try {
       await import('../../server/routes/curriculum.js');
     } catch (err) {
       captured = err;
-    } finally {
-      restore();
-      vi.resetModules();
     }
     expect(captured).toBeInstanceOf(Error);
     expect((captured as Error).message).toMatch(/FATAL|APP_BASE_URL|APP_URL/);

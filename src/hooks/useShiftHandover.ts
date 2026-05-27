@@ -1,26 +1,17 @@
-// Praeventio Guard — Shift Handover client hook.
+// Praeventio Guard — Shift Handover client hook (6 mutators).
 //
-// Wraps `src/server/routes/shiftHandover.ts`. Firebase ID-token auth,
-// JSON-only. Mirrors the loneWorker / stoppage client patterns.
-//
-// 5 functions:
-//   1. createShiftHandover         — turno saliente registra estado
-//   2. acknowledgeShiftHandover    — turno entrante acusa recibo
-//   3. addShiftHandoverDiscrepancy — entrante reporta discrepancia
-//   4. fetchActiveShiftHandovers   — handovers pendientes de acuse
-//   5. fetchShiftHandoverHistory   — listado histórico paginado por días
+// Sprint 39 J.8. supervisorUid / authorUid / incomingSupervisorUid are
+// forced server-side from the authenticated caller, so they are not part
+// of the client input.
 
 import { auth } from '../services/firebase';
 import type {
   ShiftRecord,
-  ShiftKind,
   ShiftHandoverNote,
   ShiftLogEntry,
   ShiftSummary,
+  ShiftKind,
 } from '../services/shiftHandover/shiftHandoverService';
-import type {
-  HandoverQualityReport,
-} from '../services/shiftHandover/shiftHandoverInsights';
 
 async function authedFetch(
   path: string,
@@ -40,142 +31,93 @@ async function authedFetch(
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      message?: string;
-      code?: string;
-    };
-    throw new Error(body.message ?? body.error ?? `http_${res.status}`);
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
   }
   return (await res.json()) as T;
 }
 
-// ── 1. create ──────────────────────────────────────────────────────────
-
-export interface CreateShiftHandoverInput {
-  id: string;
-  kind: ShiftKind;
-  startedAt: string;
-  supervisorUid: string;
-  logEntries?: Array<Omit<ShiftLogEntry, 'at'> & { at?: string }>;
-  handoverNotes?: ShiftHandoverNote[];
-  endedAt?: string;
-}
-
-export interface CreateShiftHandoverResponse {
-  shift: ShiftRecord;
-  quality: HandoverQualityReport;
-  summary: ShiftSummary;
-}
-
-export async function createShiftHandover(
-  projectId: string,
-  input: CreateShiftHandoverInput,
-  idempotencyKey?: string,
-): Promise<CreateShiftHandoverResponse> {
-  const headers: Record<string, string> = {};
-  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
-  const res = await authedFetch(
-    `/api/sprint-k/${projectId}/shift-handover/create`,
-    { method: 'POST', body: JSON.stringify(input), headers },
-  );
-  return json<CreateShiftHandoverResponse>(res);
-}
-
-// ── 2. acknowledge ─────────────────────────────────────────────────────
-
-export interface AcknowledgeShiftHandoverInput {
-  notes?: string;
-  now?: string;
-}
-
-export interface AcknowledgeShiftHandoverResponse {
+interface ShiftPayload {
   shift: ShiftRecord;
 }
 
-export async function acknowledgeShiftHandover(
+// ── 1. start ──────────────────────────────────────────────────────────
+
+export async function startShiftApi(
   projectId: string,
-  hoId: string,
-  input: AcknowledgeShiftHandoverInput = {},
-  idempotencyKey?: string,
-): Promise<AcknowledgeShiftHandoverResponse> {
-  const headers: Record<string, string> = {};
-  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  input: { id: string; kind: ShiftKind },
+): Promise<ShiftPayload> {
   const res = await authedFetch(
-    `/api/sprint-k/${projectId}/shift-handover/${encodeURIComponent(hoId)}/acknowledge`,
-    { method: 'POST', body: JSON.stringify(input), headers },
+    `/api/sprint-k/${projectId}/shift-handover/start`,
+    { method: 'POST', body: JSON.stringify(input) },
   );
-  return json<AcknowledgeShiftHandoverResponse>(res);
+  return json<ShiftPayload>(res);
 }
 
-// ── 3. add-discrepancy ─────────────────────────────────────────────────
+// ── 2. log-entry ──────────────────────────────────────────────────────
 
-export interface AddShiftHandoverDiscrepancyInput {
-  text: string;
-  now?: string;
-}
-
-export interface AddShiftHandoverDiscrepancyResponse {
-  shift: ShiftRecord;
-}
-
-export async function addShiftHandoverDiscrepancy(
+export async function logShiftEntryApi(
   projectId: string,
-  hoId: string,
-  input: AddShiftHandoverDiscrepancyInput,
-  idempotencyKey?: string,
-): Promise<AddShiftHandoverDiscrepancyResponse> {
-  const headers: Record<string, string> = {};
-  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  input: {
+    shift: ShiftRecord;
+    entry: Omit<ShiftLogEntry, 'authorUid' | 'at'> & { at?: string };
+  },
+): Promise<ShiftPayload> {
   const res = await authedFetch(
-    `/api/sprint-k/${projectId}/shift-handover/${encodeURIComponent(hoId)}/add-discrepancy`,
-    { method: 'POST', body: JSON.stringify(input), headers },
+    `/api/sprint-k/${projectId}/shift-handover/log-entry`,
+    { method: 'POST', body: JSON.stringify(input) },
   );
-  return json<AddShiftHandoverDiscrepancyResponse>(res);
+  return json<ShiftPayload>(res);
 }
 
-// ── 4. active ──────────────────────────────────────────────────────────
+// ── 3. add-note ───────────────────────────────────────────────────────
 
-export interface ShiftHandoverEntry {
-  shift: ShiftRecord;
-  quality: HandoverQualityReport;
-  summary: ShiftSummary;
-}
-
-export interface ActiveShiftHandoversResponse {
-  shifts: ShiftHandoverEntry[];
-}
-
-export async function fetchActiveShiftHandovers(
+export async function addShiftNoteApi(
   projectId: string,
-): Promise<ActiveShiftHandoversResponse> {
+  input: { shift: ShiftRecord; note: ShiftHandoverNote },
+): Promise<ShiftPayload> {
   const res = await authedFetch(
-    `/api/sprint-k/${projectId}/shift-handover/active`,
-    { method: 'GET' },
+    `/api/sprint-k/${projectId}/shift-handover/add-note`,
+    { method: 'POST', body: JSON.stringify(input) },
   );
-  return json<ActiveShiftHandoversResponse>(res);
+  return json<ShiftPayload>(res);
 }
 
-// ── 5. history ─────────────────────────────────────────────────────────
+// ── 4. end ────────────────────────────────────────────────────────────
 
-export interface ShiftHandoverHistoryQuery {
-  days?: number;
-}
-
-export interface ShiftHandoverHistoryResponse {
-  shifts: ShiftHandoverEntry[];
-  days: number;
-}
-
-export async function fetchShiftHandoverHistory(
+export async function endShiftApi(
   projectId: string,
-  q: ShiftHandoverHistoryQuery = {},
-): Promise<ShiftHandoverHistoryResponse> {
-  const qs =
-    q.days !== undefined ? `?days=${encodeURIComponent(q.days)}` : '';
+  input: { shift: ShiftRecord },
+): Promise<ShiftPayload> {
   const res = await authedFetch(
-    `/api/sprint-k/${projectId}/shift-handover/history${qs}`,
-    { method: 'GET' },
+    `/api/sprint-k/${projectId}/shift-handover/end`,
+    { method: 'POST', body: JSON.stringify(input) },
   );
-  return json<ShiftHandoverHistoryResponse>(res);
+  return json<ShiftPayload>(res);
+}
+
+// ── 5. acknowledge ────────────────────────────────────────────────────
+
+export async function acknowledgeShiftApi(
+  projectId: string,
+  input: { shift: ShiftRecord; notes?: string },
+): Promise<ShiftPayload> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/shift-handover/acknowledge`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+  return json<ShiftPayload>(res);
+}
+
+// ── 6. summarize ──────────────────────────────────────────────────────
+
+export async function summarizeShiftApi(
+  projectId: string,
+  input: { shift: ShiftRecord },
+): Promise<{ summary: ShiftSummary }> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/shift-handover/summarize`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+  return json<{ summary: ShiftSummary }>(res);
 }

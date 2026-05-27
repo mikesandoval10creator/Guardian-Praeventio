@@ -1,19 +1,14 @@
-// Praeventio Guard — Stoppage client hook.
+// Praeventio Guard — Stoppage client hook (5 mutators).
 //
-// Wraps `src/server/routes/stoppage.ts`. Firebase ID-token auth, JSON-only.
-// Mirrors the readReceipts / loneWorker client patterns.
-//
-// Directiva founder: el sistema RECOMIENDA paro, nunca lo ejecuta. La
-// firma biométrica del resume ocurre en el componente, no aquí; este
-// hook solo transporta la attestation booleana acordada con el route.
+// declaredByUid / verifierUid / resumedByUid / cancelledByUid are forced
+// server-side from the authenticated caller, so they are NOT part of the
+// client input.
 
 import { auth } from '../services/firebase';
 import type {
   Stoppage,
   StoppageCategory,
   StoppageScope,
-  StoppageStatus,
-  StoppageSummary,
 } from '../services/stoppage/stoppageEngine';
 
 async function authedFetch(
@@ -34,19 +29,15 @@ async function authedFetch(
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      message?: string;
-      code?: string;
-    };
-    throw new Error(body.message ?? body.error ?? `http_${res.status}`);
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
   }
   return (await res.json()) as T;
 }
 
-// ── 1. recommend ───────────────────────────────────────────────────────
+// ── 1. declare ────────────────────────────────────────────────────────
 
-export interface RecommendStoppageInput {
+export interface DeclareStoppageClientInput {
   id: string;
   category: StoppageCategory;
   scope: StoppageScope;
@@ -54,120 +45,76 @@ export interface RecommendStoppageInput {
   reason: string;
   declaredByRole: string;
   resumptionPreconditions: Array<{ id: string; label: string }>;
-  now?: string;
-}
-export interface RecommendStoppageResponse {
-  stoppage: Stoppage;
 }
 
-export async function recommendStoppage(
+export async function declareStoppageApi(
   projectId: string,
-  input: RecommendStoppageInput,
-  idempotencyKey?: string,
-): Promise<RecommendStoppageResponse> {
-  const headers: Record<string, string> = {};
-  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  input: DeclareStoppageClientInput,
+): Promise<{ stoppage: Stoppage }> {
   const res = await authedFetch(
-    `/api/sprint-k/${projectId}/stoppage/recommend`,
-    { method: 'POST', body: JSON.stringify(input), headers },
+    `/api/sprint-k/${projectId}/stoppage/declare`,
+    { method: 'POST', body: JSON.stringify(input) },
   );
-  return json<RecommendStoppageResponse>(res);
+  return json<{ stoppage: Stoppage }>(res);
 }
 
-// ── 2. active ──────────────────────────────────────────────────────────
+// ── 2. mark-precondition-fulfilled ────────────────────────────────────
 
-export interface ActiveStoppagesResponse {
-  stoppages: Stoppage[];
-  summary: StoppageSummary;
-}
-
-export async function fetchActiveStoppages(
+export async function markStoppagePreconditionFulfilledApi(
   projectId: string,
-): Promise<ActiveStoppagesResponse> {
+  input: { stoppage: Stoppage; preconditionId: string; evidenceUrl?: string },
+): Promise<{ stoppage: Stoppage }> {
   const res = await authedFetch(
-    `/api/sprint-k/${projectId}/stoppage/active`,
-    { method: 'GET' },
+    `/api/sprint-k/${projectId}/stoppage/mark-precondition-fulfilled`,
+    { method: 'POST', body: JSON.stringify(input) },
   );
-  return json<ActiveStoppagesResponse>(res);
+  return json<{ stoppage: Stoppage }>(res);
 }
 
-// ── 3. acknowledge ─────────────────────────────────────────────────────
+// ── 3. resume ─────────────────────────────────────────────────────────
 
-export interface AcknowledgeStoppageInput {
-  stoppage: Stoppage;
-  preconditionId: string;
-  evidenceUrl?: string;
-  now?: string;
-}
-export interface AcknowledgeStoppageResponse {
-  stoppage: Stoppage;
-}
-
-export async function acknowledgeStoppage(
+export async function resumeStoppageApi(
   projectId: string,
-  input: AcknowledgeStoppageInput,
-  idempotencyKey?: string,
-): Promise<AcknowledgeStoppageResponse> {
-  const headers: Record<string, string> = {};
-  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
-  const res = await authedFetch(
-    `/api/sprint-k/${projectId}/stoppage/acknowledge`,
-    { method: 'POST', body: JSON.stringify(input), headers },
-  );
-  return json<AcknowledgeStoppageResponse>(res);
-}
-
-// ── 4. resume (justification + signature attestation) ──────────────────
-
-export interface ResumeStoppageInput {
-  stoppage: Stoppage;
-  justification: string;
-  measuresAdopted: string[];
-  resumedByRole: string;
-  signatureAttested: true;
-  now?: string;
-}
-export interface ResumeStoppageResponse {
-  stoppage: Stoppage;
-  audit: {
-    justification: string;
-    measuresAdopted: string[];
-    signatureAttested: true;
-  };
-}
-
-export async function resumeStoppage(
-  projectId: string,
-  input: ResumeStoppageInput,
-  idempotencyKey?: string,
-): Promise<ResumeStoppageResponse> {
-  const headers: Record<string, string> = {};
-  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  input: { stoppage: Stoppage; resumedByRole: string },
+): Promise<{ stoppage: Stoppage }> {
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/stoppage/resume`,
-    { method: 'POST', body: JSON.stringify(input), headers },
+    { method: 'POST', body: JSON.stringify(input) },
   );
-  return json<ResumeStoppageResponse>(res);
+  return json<{ stoppage: Stoppage }>(res);
 }
 
-// ── 5. history ─────────────────────────────────────────────────────────
+// ── 4. cancel ─────────────────────────────────────────────────────────
 
-export interface StoppageHistoryQuery {
-  status?: StoppageStatus;
-}
-export interface StoppageHistoryResponse {
-  stoppages: Stoppage[];
-  summary: StoppageSummary;
-}
-
-export async function fetchStoppageHistory(
+export async function cancelStoppageApi(
   projectId: string,
-  q: StoppageHistoryQuery = {},
-): Promise<StoppageHistoryResponse> {
-  const qs = q.status ? `?status=${encodeURIComponent(q.status)}` : '';
+  input: { stoppage: Stoppage; reason: string },
+): Promise<{ stoppage: Stoppage }> {
   const res = await authedFetch(
-    `/api/sprint-k/${projectId}/stoppage/history${qs}`,
-    { method: 'GET' },
+    `/api/sprint-k/${projectId}/stoppage/cancel`,
+    { method: 'POST', body: JSON.stringify(input) },
   );
-  return json<StoppageHistoryResponse>(res);
+  return json<{ stoppage: Stoppage }>(res);
+}
+
+// ── 5. summarize ──────────────────────────────────────────────────────
+
+export interface StoppageSummary {
+  total: number;
+  active: number;
+  pendingResumption: number;
+  resumed: number;
+  cancelled: number;
+  longestActiveHours: number;
+}
+
+export async function summarizeStoppagesApi(
+  projectId: string,
+  input: { stoppages: Stoppage[] },
+): Promise<{ summary: StoppageSummary }> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/stoppage/summarize`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+  return json<{ summary: StoppageSummary }>(res);
 }
