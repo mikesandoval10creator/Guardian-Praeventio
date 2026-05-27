@@ -171,13 +171,30 @@ router.post('/ds67', verifyAuth, validate(ds67Schema), async (req, res) => {
       folioStore: buildFolioStore(),
       formStore: buildDs67FormStore(),
     });
+    // P0 fix: previously this was `void auditServerEvent(...)` — fire-and-forget
+    // discarded the Firestore write promise, so any audit failure (network,
+    // throttle, Firestore outage) silently dropped the compliance row. For DS
+    // 67 / DS 76 that is a SUSESO audit-trail gap, not "observability noise".
+    // Now we await + capture: the data is already persisted by createDs67Form
+    // above, so we never block the response, but we DO surface the gap to
+    // Sentry so on-call sees the trail is incomplete.
     try {
-      void auditServerEvent(req, 'compliance.ds67_created', 'compliance', {
+      await auditServerEvent(req, 'compliance.ds67_created', 'compliance', {
         folio: result.form.folio,
         tenantId: input.tenantId,
       });
-    } catch {
-      /* observability never breaks the response */
+    } catch (auditErr) {
+      logger.error('audit_event_failed', {
+        event: 'compliance.ds67_created',
+        folio: result.form.folio,
+        tenantId: input.tenantId,
+        err: String(auditErr),
+      });
+      captureRouteError(auditErr, 'ds67.audit', {
+        audit_event: 'compliance.ds67_created',
+        folio: result.form.folio,
+        tenantId: input.tenantId,
+      });
     }
     res.json({
       form: result.form,
@@ -245,13 +262,25 @@ router.post('/ds76', verifyAuth, validate(ds76Schema), async (req, res) => {
       folioStore: buildFolioStore(),
       formStore: buildDs76FormStore(),
     });
+    // P0 fix — see ds67 above. Audit row failure must surface to Sentry so
+    // compliance gaps are observable rather than silently dropped.
     try {
-      void auditServerEvent(req, 'compliance.ds76_created', 'compliance', {
+      await auditServerEvent(req, 'compliance.ds76_created', 'compliance', {
         folio: result.form.folio,
         tenantId: input.tenantId,
       });
-    } catch {
-      /* noop */
+    } catch (auditErr) {
+      logger.error('audit_event_failed', {
+        event: 'compliance.ds76_created',
+        folio: result.form.folio,
+        tenantId: input.tenantId,
+        err: String(auditErr),
+      });
+      captureRouteError(auditErr, 'ds76.audit', {
+        audit_event: 'compliance.ds76_created',
+        folio: result.form.folio,
+        tenantId: input.tenantId,
+      });
     }
     res.json({
       form: result.form,

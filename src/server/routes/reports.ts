@@ -93,17 +93,29 @@ router.post('/reports/generate-pdf', verifyAuth, validate(reportsGeneratePdfSche
       );
       res.setHeader('Content-Length', pdfData.length.toString());
       res.end(pdfData);
-      // Round 17 R1 — emit audit row on successful generation. Wrapped so an
-      // audit-write failure can't taint a response we already sent.
-      try {
-        void auditServerEvent(req, 'reports.pdf_generated', 'reports', {
+      // P0 fix (was Round 17 R1): emit audit row on successful generation.
+      // Previously `void auditServerEvent(...)` discarded the Firestore
+      // write promise — any audit failure silently dropped the reports
+      // compliance row. The `doc.on('end', ...)` handler is sync so we
+      // can't `await`; instead we chain .catch() to surface the failure
+      // to logger + Sentry. The response has already been ended, so this
+      // path never blocks delivery — it only ensures the gap is visible.
+      auditServerEvent(req, 'reports.pdf_generated', 'reports', {
+        type,
+        incidentId: incidentId ?? null,
+        bytes: pdfData.length,
+      }).catch((auditErr: unknown) => {
+        logger.error('audit_event_failed', {
+          event: 'reports.pdf_generated',
           type,
           incidentId: incidentId ?? null,
-          bytes: pdfData.length,
+          err: String(auditErr),
         });
-      } catch {
-        /* observability never breaks request path */
-      }
+        sentryCapture(auditErr, {
+          endpoint: 'POST /api/reports/generate-pdf',
+          tags: { audit_event: 'reports.pdf_generated' },
+        });
+      });
     });
 
     // --- PDF Construction ---

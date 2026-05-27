@@ -13,6 +13,12 @@ vi.mock('@capacitor/core', () => ({
 vi.mock('@capacitor-community/sqlite', () => ({
   CapacitorSQLite: {},
   SQLiteConnection: class {
+    // P0 fix: pwa-offline.ts now calls setEncryptionSecret before any
+    // connection. The mock just no-ops; the encryption helper itself is
+    // exercised in sqliteEncryption.test.ts.
+    async setEncryptionSecret(_passphrase: string) {
+      return undefined;
+    }
     async checkConnectionsConsistency() {
       return { result: true };
     }
@@ -27,6 +33,23 @@ vi.mock('@capacitor-community/sqlite', () => ({
     }
   },
   SQLiteDBConnection: class {},
+}));
+
+// P0 fix: getOrGenerateSqlitePassphrase() reads/writes @capacitor/preferences.
+// Provide an in-memory shim so the SQLite init under test doesn't fail.
+const __prefStore = new Map<string, string>();
+vi.mock('@capacitor/preferences', () => ({
+  Preferences: {
+    async get({ key }: { key: string }) {
+      return { value: __prefStore.get(key) ?? null };
+    },
+    async set({ key, value }: { key: string; value: string }) {
+      __prefStore.set(key, value);
+    },
+    async remove({ key }: { key: string }) {
+      __prefStore.delete(key);
+    },
+  },
 }));
 
 vi.mock('idb', () => ({

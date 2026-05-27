@@ -87,8 +87,14 @@ medicalAptitudeRouter.post(
 
     try {
       const result = await generateAptitudeCert(parsed.data);
+      // P0 fix: audit emit is now awaited + Sentry-captured on failure.
+      // Previously a Firestore outage would silently drop the row and the
+      // medical-aptitude-cert generation event would not appear in
+      // audit_logs at all — a compliance gap for the operational health
+      // service. The cert itself is already persisted; we never block the
+      // response, but we DO surface the gap so on-call sees it.
       try {
-        void auditServerEvent(req, 'medical.aptitude_cert.generated', 'medical', {
+        await auditServerEvent(req, 'medical.aptitude_cert.generated', 'medical', {
           certId: result.certId,
           certHash: result.certHash,
           workerUid: result.json.worker.uid,
@@ -96,8 +102,13 @@ medicalAptitudeRouter.post(
           projectId: result.json.employer.projectId,
           fitness: result.json.verdict.fitness,
         });
-      } catch {
-        /* audit failure never breaks the response */
+      } catch (auditErr) {
+        logger.error('audit_event_failed', {
+          event: 'medical.aptitude_cert.generated',
+          certId: result.certId,
+          err: String(auditErr),
+        });
+        captureStage(auditErr, 'audit_generate', req);
       }
       return res.json({
         certId: result.certId,
@@ -231,14 +242,21 @@ medicalAptitudeRouter.post(
           verifyWebAuthnAssertion: deps.verifyWebAuthnAssertion,
         },
       );
+      // P0 fix — see /generate above. Sign-event audit must surface
+      // failures to Sentry (compliance gap), not be silently dropped.
       try {
-        void auditServerEvent(req, 'medical.aptitude_cert.signed', 'medical', {
+        await auditServerEvent(req, 'medical.aptitude_cert.signed', 'medical', {
           certId: signed.json.certId,
           certHash: signed.certHash,
           signerUid: signed.json.signature.signerUid,
         });
-      } catch {
-        /* never break */
+      } catch (auditErr) {
+        logger.error('audit_event_failed', {
+          event: 'medical.aptitude_cert.signed',
+          certId: signed.json.certId,
+          err: String(auditErr),
+        });
+        captureStage(auditErr, 'audit_sign', req);
       }
       return res.json({
         certId: signed.json.certId,
