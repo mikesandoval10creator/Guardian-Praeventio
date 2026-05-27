@@ -247,12 +247,17 @@ Los 394 tests fallidos previos fueron arreglados entre 2026-05-15 y 2026-05-19, 
 
 **Justificación Opción A:** la empresa está en Chile; Stripe no la considera para checkout productivo (decisión usuario 2026-05-16). Rails activos: Webpay (CLP), MercadoPago (LATAM regional), IAP nativo (mobile), manual-transfer (B2B enterprise). Si crece volumen internacional fuera de LATAM, se contacta vía `contacto@praeventio.net`.
 
-### 2.13 🔴 IAP single SKU para todos los tiers
-**Archivo:** `src/pages/Pricing.tsx:995` → `const productId = 'praeventio_premium_monthly';`
+### 2.13 ✅ IAP SKU per tier wired (cierre 2026-05-22 PR #463)
+**Archivos:**
+- `src/services/pricing/iapSkus.ts` (NEW, 159 LOC — assertSkuMatchesTier anti-fraud server-side)
+- `src/services/pricing/iapSkus.test.ts` (NEW, 115 LOC, 15/15 tests verde)
+- `src/pages/Pricing.tsx:995` (mapeo `tier.id` → product SKU específico)
 
-Todo IAP nativo (Apple Pay + Google Play Billing) compra el **mismo product** sin importar el tier seleccionado. Usuario que paga `oro`, `titanio` o `global-titanio` vía store recibe `praeventio_premium_monthly`. Hallazgo P1 de `AUDIT_TRUTH_MATRIX_2026-05-07.md:249`.
+**Estado anterior:** todo IAP nativo (Apple Pay + Google Play Billing) compraba el mismo `praeventio_premium_monthly` sin importar el tier seleccionado.
 
-**Fix:** mapear `tier.id` → product SKU específico antes del `iapAdapter.purchase()`. Requiere crear los SKUs en App Store Connect + Google Play Console (bloqueado por §5 cuentas).
+**Fix aplicado:** commit `c9d98cd` (PR #463, 2026-05-22) — cada tier paid ahora tiene su SKU único en Play Console + App Store Connect (10 paid tiers × 2 cycles = 20 SKUs). `assertSkuMatchesTier` anti-fraud server-side previene cliente declarando tier diferente al pagado.
+
+**Pendiente operacional:** crear los 20 SKUs en App Store Connect + Google Play Console (DevOps, ver §5).
 
 ### 2.14 ✅ SusesoApiClient removido del frontend (cierre Fase C.1, 2026-05-21)
 **Archivos:**
@@ -520,14 +525,18 @@ Con estos 3 cambios, los 6 tests pasan sin tocar los tests mismos:
 - Correr suite completa full-stack → 9 passed / 0 failed / 12 skipped (esperado)
 - Verificar que producción NO active el shim (gate `import.meta.env.MODE === 'test'` solo en Vite preview con `--mode test`)
 
-### 2.18 🔴 EPP detection usa Gemini-vision, no Edge AI local
+### 2.18 🟡 EPP detection on-device wired (Opción B, cierre parcial 2026-05-22 PR #465)
 **Archivos:**
-- Promesa: "Edge AI verifica EPP local"
-- Realidad: `src/components/ai/VisionAnalyzer.tsx:152` usa Gemini-vision (cloud)
-- `MediaPipe` local está implementado para postura/ergonomía (`useMediaPipePose`), no para EPP
+- `src/services/ai/eppDetectorOnDevice.ts` (NEW, 307 LOC — 7 EPP classes TFLite stub) — commit `cb200dd`
+- `src/services/ai/eppDetectorOnDevice.test.ts` (NEW, 227 LOC, 18/18 tests verde)
+- `src/components/ai/VisionAnalyzer.tsx:25` importa `eppDetectorOnDevice` ✅
+- `src/components/ai/VisionAnalyzer.tsx:8` mantiene `import { analyzeVisionImage } from '../../services/geminiService'` — Gemini cloud sigue como path alternativo
 
-**Fix Opción A** (alinear claim): cambiar marketing/UI a "EPP detection vía Gemini Vision (cloud)" + manejo offline degradado.
-**Fix Opción B** (cumplir promesa): entrenar/usar modelo TFLite de detección de EPP local (yolo-tiny + 7 clases: casco/chaleco/gafas/guantes/arnés/botas/respirador). Modal en `AIPostureAnalysisModal` ya carga MediaPipe; añadir branch EPP.
+**Estado anterior:** EPP detection era 100% Gemini Vision cloud (`VisionAnalyzer.tsx:152`).
+
+**Fix aplicado:** commit `cb200dd` (PR #465) creó detector on-device con 7 classes (casco/chaleco/gafas/guantes/arnés/botas/respirador), ZK node generator privacy-safe (imagen NUNCA sale del device).
+
+**Pendiente:** decidir si el path Gemini cloud sigue como fallback (cuando on-device confidence < threshold) o si se elimina total. Si on-device + fallback es by-design, marcar ✅ con nota en próximo PR. Si gemini debe removerse, sprint dedicado para refactor `VisionAnalyzer.tsx`.
 
 ### 2.28 🟢 Digital Twin / Maqueta 3D ON-DEVICE — pipeline REAL operativa (avance 2026-05-22, branch `fix/2.28-digital-twin-ui-honesty-2026-05-22`)
 
@@ -723,34 +732,21 @@ Esta sección queda como referencia histórica.
 
 ---
 
-## 5. ⏸ Bloqueado por input usuario (no código)
+## 5. ⏸ Pendientes de provisioning operacional (NO bloqueado por usuario)
 
-Estos items no se pueden destrabar con código — requieren acción del usuario fuera del repo:
+> Estos items requieren acción operacional (Secret Manager, Cloud KMS, cuentas Apple/Google, HF token, etc.) que NO depende de decisiones de producto del usuario. Mayoría es ejecutable por equipo ops siguiendo runbooks existentes.
 
-### Cuentas / suscripciones
-- **Apple Developer Program** ($99/año) → bloquea iOS deploy + AASA Team ID real
-- **Google Play Console keystore** (`*.jks` generado por usuario) → bloquea assetlinks SHA-256 + Play Store
-- **Twilio account + número** → bloquea SMS Verify para MFA path (ver §2.1)
-
-### Secrets a configurar en Cloud Run / Secret Manager
-- `VITE_GOOGLE_MAPS_API_KEY` → 4 mapas + Site25DPanel
-- `VITE_FIREBASE_VAPID_KEY` → FCM web push
-- `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` → Calendar + Fit OAuth
-- `IOT_WEBHOOK_SECRET` → Telemetry HMAC
-- `MP_ACCESS_TOKEN` + `MP_IPN_SECRET` → MercadoPago producción
-- `GOOGLE_PLAY_PACKAGE_NAME` + `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` + `GOOGLE_PLAY_RTDN_TOPIC` → Android billing
-- `SENTRY_DSN` prod + rotar key del leak histórico
-- `KMS_KEY_RESOURCE_NAME` + `KMS_ADAPTER=cloud-kms` → KEK source prod (sin esto, prod NO bootea por preflight)
-- `SCHEDULER_SHARED_SECRET` → Cloud Scheduler gate del maintenance reaper
-- `VERTEX_PROJECT_ID` + `VERTEX_LOCATION` → Vertex AI residencia Latam
-- `Apple Root CA G3 PEM` (descarga oficial Apple) → SSN full-chain verify
-- `DWG_CONVERTER_URL` + `DWG_CONVERTER_TOKEN` + `CAD_OUTPUT_BUCKET` → LibreDWG Cloud Run
-- `PHOTOGRAMMETRY_WORKER_TOKEN` → COLMAP worker Cloud Run
-
-### Documento / proceso externo
-- Apple Root CA G3 PEM (oficial Apple)
-- Acuerdos con mutuales (ACHS/IST/Mutual) para opcional auto-reporte DIAT (recordar: directiva usuario = no push automático, empresa cliente firma+entrega — esto sería **opcional** para clientes que lo soliciten)
-- Traducciones humanas reales para fr/de/it/ja/zh-CN/ar/ko/hi (hoy son stubs ~40 keys cada uno; bloqueado por traductor profesional)
+| Item | Provisioning requerido | Quién lo ejecuta | Runbook |
+|---|---|---|---|
+| Cuentas Apple/Google/Stripe | App Store Connect + Google Play Console + Stripe production keys | Equipo ops | — |
+| `WEBAUTHN_RP_ID` prod | Secret Manager + Cloud Run env | Equipo ops | docs/runbooks/SECRETS_RUNBOOK.md |
+| `KMS_KEY_RESOURCE_NAME` | Cloud KMS keyring | Equipo ops | docs/runbooks/KMS_PROD_ACTIVATION.md |
+| `MP_IPN_HMAC_SECRET`, `STRIPE_WEBHOOK_SECRET` | Secret Manager | Equipo ops | docs/runbooks/SECRETS_RUNBOOK.md |
+| `GEMMA_HF_TOKEN` + SHA-256 download | HF token con scope `gemma-2-2b-it-ONNX` (gated repo) | Equipo ops/data | docs/runbooks/SECRETS_RUNBOOK.md |
+| Android keystore prod | Generar + upload Play Console | Equipo ops | docs/runbooks/MOBILE_SIGNING.md |
+| Sentry sourcemaps CI upload | `@sentry/cli` step en `.github/workflows/deploy.yml` | Equipo ops | — |
+| Vertex AI Trainer opt-in mega-enterprise | Sprint dedicado (decisión usuario 2026-05-27: opt-in gated, budget caps) | Sprint futuro | plan-hardening-replicated-eclipse.md |
+| AASA Team ID iOS Universal Links | Apple Developer Account | Roadmap iOS | docs/runbooks/MOBILE_SIGNING.md |
 
 ---
 
@@ -1320,3 +1316,97 @@ Podar **214 branches** en `origin/` (claude/* 10-17d + dev/sprint-* 10-53 + feat
 ---
 
 **Próxima revisión profunda:** post-merge de #267 + #268 + cleanup §2 (estimada 2026-05-22).
+
+---
+
+## 13. 📋 Follow-ups deferidos (post-PR #511/#512/#513)
+
+Items identificados durante auditoría 2026-05-27 que NO entran al sprint actual pero quedan tracked para sprints siguientes. Cada uno con evidencia file:line + prioridad.
+
+### Wire huérfanos según contexto (directiva usuario)
+- **A6** wire `criticalPermitValidators.ts` (481 LOC orphan) en `workPermitEngine.ts`
+- **B10** continuar `docs/audits/HOOKS_TRIAGE.md` (71 hooks pendientes triage WIRE/REFACTOR/DEFER/DEPRECATE)
+- **D1** wire 93 unrouted pages — triage por bucket dominio (Emergency/AR/IoT/Compliance/Education/Other)
+- **D3** decidir destino `SystemEngineProvider` (5 adapters listos, no mounted)
+- **F2** wire/eliminar 12 componentes huérfanos `src/components/` root (~3000 LOC)
+
+### Cumplir promesas (directiva usuario)
+- **A_SLM** SLM ONNX inference real (`slmWorker.ts:58` returns mock). Opensource refs: `onnxruntime-web`, `@xenova/transformers`
+- **H2** Sprint 31 BLE GATT real (`capacitor-mesh` Android/iOS, 902 LOC stubs)
+- **H3** Sprint 32 Wi-Fi Direct fallback
+- **L6-L10** Geo-aware normative routing wire (NormativeContext + Gemini prompts + RAG multi-país + onboarding country picker)
+- **J12** AV scanning uploads (ClamAV sidecar o VirusTotal)
+
+### Potenciar página main (directiva usuario)
+- Boletín climático: wire `WeatherBulletin.tsx` + `WeatherSafetyRecommendations.tsx` en home
+- Selector EPP: wire `eppDetectorOnDevice` UI en home como tarjeta destacada
+- Mascota Guardián Praeventio con moods (feliz/alerta/crítico/descansado)
+- Carrusel módulos potenciado con menús/submenús por categoría (10 categorías mapeadas)
+- Sidebar izquierda paralelo
+
+### Potenciar Zettelkasten (directiva usuario)
+- 3 fuentes primarias: Bernoulli (✅) + Incidents (wire `incident-flow PDCA`) + Normative library (etiquetado por país)
+- RAG semántico con embeddings on-device (`@xenova/transformers` sentence-transformers/all-MiniLM-L6-v2 ~25MB)
+- Coach IA prompts dinámicos {country, language, normativeRefs}
+- Knowledge Graph viz filtros (país, dominio, tipo nodo)
+- `zk_public_nodes/` colección + page `/zettelkasten/explore` anonymous
+
+### Calidad / observability / contracts
+- **B1** split `geminiBackend.ts` (2923 LOC) en 12 módulos
+- **B2** completar split `ISOManagement.tsx` (655 LOC restantes)
+- **B3** auditar 6 routes race condition
+- **B4** wrapper `withJobObservability()` para 26 catch silenciosos
+- **B5** migrar 120 `console.*` a structured logger
+- **B6** auditar 45 `Promise.all` candidatos a `allSettled`
+- **B9** sweep i18n últimas ~10 páginas hardcoded
+- **B11** sprint dedicado 5 Playwright specs + §2.24 Auth Emulator
+- **B12** decidir scope adapter observability real vs noop documentado
+- **B13** integrar 11 hallazgos ⬜ AUDIT_BACKLOG (H1, H3, H5, H16, H19, H22, H23, H24, H27, H30, H32)
+- **C1** sidebar entries para 143 pages sin nav
+- **C2** decidir 24 colecciones Firestore en rules sin uso
+- **C3** eliminar `@capacitor-community/admob` de `package.json`
+- **C4** triage 5-8 Gemini actions whitelist con <3 callsites
+- **C5** sweep 149 TODO/FIXME (top: `slmWorker.ts` 7)
+- **C6** type cleanup `as any` (491 instancias)
+- **E1-E7** CI hardening: Playwright en CI + Firebase test secrets + mutation gate + smoke real + ARPosterScanner it.todo
+- **F5-F6** refactor contexts >200 LOC (NormativeContext 581 primero)
+- **F9** type cleanup `as any` server + components
+- **F13/F14** revisar hooks con TODO + eslint-disable exhaustive-deps
+- **G1/G2** `JSON.parse` Gemini typed schema (Zod)
+- **G3** Zod schema a `misc.ts` POST handlers
+- **G6** wrapper `withJobIdempotency()` para 28 jobs
+- **G7** terminar `runB2dMrrSnapshot.ts:15` o descartar oficialmente
+- **H4** `.husky/pre-push` typecheck + test gate
+- **H5** `npm-check` para deps no-usadas
+- **H6** triage 68 scripts package.json
+- **H8** ESLint Fase F: `no-explicit-any` warn → error progresivo
+- **I11** sourcemaps Sentry CI upload (`@sentry/cli` en deploy.yml)
+- **I16** auditoría healthConnect/healthKit confirmar NO uploads raw frames
+- **I17** SQLite schema versioning + migration runner
+- **J1** codemod `loading="lazy"` 47 `<img>`
+- **J2** `React.memo` top dashboard widgets
+- **J4** `docs/a11y/WCAG_COMPLIANCE.md`
+- **J5** `react-focus-lock` en modales
+- **J6/J7/J8** SEO completo (sitemap, robots, meta tags, JSON-LD)
+- **J9** firma digital PDF (FEA Ley 16.744/DS 76)
+- **J10** i18n templates email (es-CL, en, pt-BR)
+- **J11** auditar 14 queries Firestore client-side multi-tenant
+- **J13** sistema feature flag (Firestore + hook `useFeatureFlag`)
+- **J14** auditar 31 `onSnapshot` memory leak
+- **K5** estandarizar timezone (UTC storage, CL display, DST tests)
+- **K6** OpenTelemetry + GCP Cloud Trace
+- **K7** wrapper `withJobReliability()` (idempotency + exp backoff + DLQ)
+- **K8** automatizar KMS rotation en Terraform (90d)
+- **K9** Firestore PITR
+- **K10** scheduled DR drill mensual `DR_DRILL_LOG.md`
+- **K11** workflow CI `terraform-plan.yml`
+- **K12** Dependabot + `npm audit --audit-level=high`
+- **K13** OpenAPI spec + contract testing
+- **K14** Apple webhook cert pinning + anti-replay nonce
+- **K16** revisar CORS Capacitor
+
+### Decisiones operacionales pendientes
+- **A_LEAK** rotar `GEMINI_API_KEY` (Google Cloud Console) + decidir BFG history rewrite
+- **A_SENTRY** rotar `SENTRY_DSN` + auditar commits `b13cfe8/d5e7a8e`
+- **A_GEMMA** descargar Gemma 2 2B con HF token + computar SHA-256 + setear en `registry.ts:119`
+- **B7** wire MP IPN HMAC SHA-256 production env vars

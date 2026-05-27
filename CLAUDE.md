@@ -10,7 +10,7 @@ them.
 in Latin America (mining, construction, remote operations). Compliance target:
 Chile (Ley 16.744, DS 54, DS 44/2024); extensible to other LATAM regimes.
 
-- Frontend: React 19 + Vite + TypeScript + Tailwind 4, React Router 7, ~87
+- Frontend: React 19 + Vite + TypeScript + Tailwind 4, React Router 7, 219
   lazy-loaded pages under `src/pages/`.
 - Backend: a single Express process (`server.ts` + `src/server/`) booted with
   `tsx`. Vite runs in `middlewareMode` inside the same process — **do not
@@ -52,7 +52,7 @@ src/
 ├── components/                 # Shared UI (modals, wizards, charts)
 ├── routes/                     # React Router 7 route groups (lazy chunks)
 ├── contexts/                   # Global providers (Firebase, Project, Subscription, Emergency, …)
-├── hooks/                      # ~50 custom hooks (data fetching, sensors, AI)
+├── hooks/                      # 176 custom hooks (data fetching, sensors, AI)
 ├── store/                      # Zustand stores (migrating via createProjectScopedStore factory)
 ├── services/                   # Domain services + clients
 │   ├── geminiBackend.ts        # Server-side Gemini actions (split in progress → src/services/gemini/*)
@@ -116,10 +116,10 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
    (c) an entry in `security_spec.md` (Dirty Dozen). PII/medical collections
    also need a KMS rotation entry.
 5. **/api/gemini whitelist.** New Gemini actions MUST be added to
-   `ALLOWED_GEMINI_ACTIONS` (around `server.ts:1593` — verify line before
-   editing) AND exported from `geminiBackend.ts` (or `src/services/gemini/*`
-   post-split). Wrap `JSON.parse(response.text)` in try/catch with a typed
-   fallback or 502.
+   `ALLOWED_GEMINI_ACTIONS` (around `src/server/routes/gemini.ts` — verify
+   line before editing) AND exported from `geminiBackend.ts` (or
+   `src/services/gemini/*` post-split). Wrap `JSON.parse(response.text)` in
+   try/catch with a typed fallback or 502.
 6. **No new server route without `verifyAuth`** unless deliberately public
    (health, signed webhooks, magic-link tokens) — and even then, document why
    inline. Routes accepting `projectId` MUST call
@@ -149,6 +149,48 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
     `users/{uid}.subscription.planId` and comparing against `RANK_*`.
 12. **Biometric processing is 100% on-device** (MediaPipe Vision, Health
     Connect, HealthKit). No camera frames or heart rate leave the device.
+13. **Anti-stub-disfrazado.** Code that returns mock data or throws
+    `NotImplementedError` MUST: (a) have an inline `// TODO(sprint-N):
+    <owner>` comment, (b) be invisible to end users (feature flag gate or
+    return HTTP 503), (c) have a test that pins the placeholder's shape,
+    (d) be registered in `docs/stubs-inventory.md`. Enforced by
+    `scripts/precommit-stub-guard.cjs` (wired in PR #514).
+14. **Audit log calls MUST be `await`ed.** `void auditServerEvent(...)`
+    is banned because Firestore failures silently break the compliance
+    trail. Pattern: `try { await auditServerEvent(...); } catch (err) {
+    logger.error('audit_event_failed', ...); Sentry.captureException(err);
+    }`. The original response must still succeed — audit failure is
+    severe but non-blocking for the user-facing action.
+15. **`Math.random()` banned in `src/server/` and any ID-generation
+    code.** Use `randomId()` from `src/utils/randomId.ts` (which wraps
+    `crypto.randomUUID()` with a documented fallback). Exception: test
+    files with seeded determinism. Enforced by ESLint custom rule +
+    `scripts/precommit-stub-guard.cjs`.
+16. **SQLite on-device encryption is mandatory.**
+    `sqliteConnection.createConnection(name, false, "encryption", 1,
+    false)` with passphrase ≥32 bytes from Keychain/Keystore via
+    `@capacitor/preferences`. Never use `"no-encryption"`. Smoke test:
+    raw DB file bytes 16+ should not start with the ASCII `S` SQLite
+    plaintext header.
+17. **Android `allowBackup="false"` by default.** `adb backup` allows
+    data extraction without root. If you have a legitimate reason to set
+    it `"true"`, add an inline XML comment explaining why. Enforced by
+    `scripts/precommit-allowbackup-guard.cjs` (wired in PR #514).
+18. **Locale parity.** Every `t('key')` call in code MUST have a
+    corresponding entry in `src/i18n/locales/{es-CL,en,pt-BR}/*.json`.
+    `scripts/validate-i18n.cjs` already exists — promote to CI gate.
+    Missing locale = build fail.
+19. **Read-modify-write in server requires `runTransaction`.** If a
+    handler does ≥2 `get()` calls AND ≥1 `set()`/`update()` call on the
+    same document path, it MUST wrap them in `db.runTransaction(...)`.
+    Candidates flagged for audit: `incidentTrends.ts`, `visitors.ts`,
+    `apprenticeship.ts`, `culturePulse.ts`, `cphsMinute.ts`,
+    `knowledgeBase.ts`.
+20. **Doc-vs-code sync.** Any PR that modifies `src/services/<X>.ts` by
+    more than 50 LOC MUST update the LOC count in `ARCHITECTURE.md` if
+    that file is referenced there. Avoids the doc drift that produced
+    "geminiBackend.ts 2666 LOC" in ARCHITECTURE.md when the real number
+    was 2923.
 
 ## Testing notes specific to this repo
 
