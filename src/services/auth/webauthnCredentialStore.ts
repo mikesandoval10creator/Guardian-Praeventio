@@ -87,6 +87,30 @@ export interface RegisterCredentialInput {
 }
 
 /**
+ * Validate that a credentialId is a well-formed unpadded base64url string.
+ *
+ * Why this matters (H25b.1 audit, 2026-05-19): both ends of the WebAuthn
+ * register→assert roundtrip use base64url WITHOUT padding (the browser's
+ * `PublicKeyCredential.id` and `@simplewebauthn/server`'s
+ * `isoBase64URL.fromBuffer`). If a malformed id ever sneaks in (padding
+ * `=`, regular base64 `+`/`/`, or whitespace), Firestore's doc-id lookup
+ * `findByCredentialId` would silently miss the registered credential on
+ * subsequent assertions — an opaque "unknown_credential" failure with no
+ * clue at the registration boundary that anything was wrong.
+ *
+ * This validator fails LOUD at register time so the problem is caught
+ * once, at the registration boundary, instead of at every later sign-in.
+ */
+function assertBase64UrlCredentialId(credentialId: string): void {
+  // Spec: base64url alphabet is [A-Z][a-z][0-9]\-_  (RFC 4648 §5), no padding.
+  if (!/^[A-Za-z0-9_-]+$/.test(credentialId)) {
+    throw new Error(
+      'credentialId must be unpadded base64url (RFC 4648 §5) — got non-conforming characters',
+    );
+  }
+}
+
+/**
  * Persist a freshly-registered authenticator. Idempotent: if a credential
  * with the same id already exists, we overwrite it (registration ceremony
  * is the source of truth — a re-registration replaces the prior key).
@@ -102,6 +126,7 @@ export async function registerCredential(
   if (typeof credential.credentialId !== 'string' || credential.credentialId.length === 0) {
     throw new Error('credentialId is required');
   }
+  assertBase64UrlCredentialId(credential.credentialId);
   if (!(credential.publicKey instanceof Uint8Array) || credential.publicKey.byteLength === 0) {
     throw new Error('publicKey must be a non-empty Uint8Array');
   }

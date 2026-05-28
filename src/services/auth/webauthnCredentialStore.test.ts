@@ -163,6 +163,83 @@ describe('registerCredential', () => {
     expect(doc!.data.publicKey).toBe(Buffer.from([2, 2, 2]).toString('base64'));
     expect(doc!.data.counter).toBe(0);
   });
+
+  // H25b.1 audit (2026-05-19) — pin base64url-without-padding contract.
+  // Catches encoding drift between register-time (simplewebauthn output) and
+  // assert-time (browser PublicKeyCredential.id) that would otherwise show
+  // up as opaque "unknown_credential" 401s on every later sign-in.
+  describe('credentialId base64url contract', () => {
+    it('rejects credentialId with base64 standard "+" character', async () => {
+      const { db } = makeFakeDb();
+      await expect(
+        registerCredential(
+          'uid-1',
+          { credentialId: 'cred+plus', publicKey: new Uint8Array([1]), counter: 0 },
+          db,
+        ),
+      ).rejects.toThrow(/base64url/);
+    });
+
+    it('rejects credentialId with base64 standard "/" character', async () => {
+      const { db } = makeFakeDb();
+      await expect(
+        registerCredential(
+          'uid-1',
+          { credentialId: 'cred/slash', publicKey: new Uint8Array([1]), counter: 0 },
+          db,
+        ),
+      ).rejects.toThrow(/base64url/);
+    });
+
+    it('rejects credentialId with padding "="', async () => {
+      const { db } = makeFakeDb();
+      await expect(
+        registerCredential(
+          'uid-1',
+          { credentialId: 'credPadded==', publicKey: new Uint8Array([1]), counter: 0 },
+          db,
+        ),
+      ).rejects.toThrow(/base64url/);
+    });
+
+    it('rejects credentialId with leading/trailing whitespace', async () => {
+      const { db } = makeFakeDb();
+      await expect(
+        registerCredential(
+          'uid-1',
+          { credentialId: ' credA ', publicKey: new Uint8Array([1]), counter: 0 },
+          db,
+        ),
+      ).rejects.toThrow(/base64url/);
+    });
+
+    it('accepts realistic base64url credentialIds (alphanumeric + - + _)', async () => {
+      const { db } = makeFakeDb();
+      // Mirrors what @simplewebauthn/server returns via isoBase64URL.fromBuffer.
+      const realistic = 'AQIDBAUGBwgJ-_AwMTIzNDU2Nzg5';
+      await expect(
+        registerCredential(
+          'uid-1',
+          { credentialId: realistic, publicKey: new Uint8Array([1, 2, 3]), counter: 0 },
+          db,
+        ),
+      ).resolves.not.toThrow();
+    });
+
+    it('roundtrips: id used at register === id queried at assert', async () => {
+      const { db } = makeFakeDb();
+      const id = 'roundtrip_id-test_AQIDBA';
+      await registerCredential(
+        'uid-1',
+        { credentialId: id, publicKey: new Uint8Array([9, 8, 7]), counter: 0 },
+        db,
+      );
+      const found = await findByCredentialId(id, db);
+      expect(found).not.toBeNull();
+      expect(found!.uid).toBe('uid-1');
+      expect(found!.credential.credentialId).toBe(id);
+    });
+  });
 });
 
 describe('getCredentialsByUid', () => {
