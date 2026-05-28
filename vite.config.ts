@@ -34,6 +34,54 @@ function cspNoncePlaceholder(): Plugin {
   };
 }
 
+/*
+ * Bloque 1.8 (2026-05-19) — FCM service-worker config injector.
+ * `public/firebase-messaging-sw.js` ships with `__VITE_FIREBASE_*__`
+ * placeholders rather than hardcoded keys. On `vite build` this plugin
+ * substitutes them in `dist/firebase-messaging-sw.js` from the VITE_FIREBASE_*
+ * env vars. In dev (vite serve) it's a no-op and the SW logs a warning then
+ * skips initializeApp — push notifications are a prod-only concern.
+ *
+ * Required prod env vars: VITE_FIREBASE_PROJECT_ID, VITE_FIREBASE_APP_ID,
+ * VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_STORAGE_BUCKET,
+ * VITE_FIREBASE_MESSAGING_SENDER_ID.
+ */
+function fcmSwConfigInjector(env: Record<string, string>): Plugin {
+  const KEYS = [
+    'VITE_FIREBASE_PROJECT_ID',
+    'VITE_FIREBASE_APP_ID',
+    'VITE_FIREBASE_API_KEY',
+    'VITE_FIREBASE_AUTH_DOMAIN',
+    'VITE_FIREBASE_STORAGE_BUCKET',
+    'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  ];
+  return {
+    name: 'fcm-sw-config-injector',
+    apply: 'build',
+    enforce: 'post',
+    closeBundle: async () => {
+      const fsMod = await import('node:fs/promises');
+      const pathMod = await import('node:path');
+      const swPath = pathMod.join(process.cwd(), 'dist', 'firebase-messaging-sw.js');
+      let content: string;
+      try {
+        content = await fsMod.readFile(swPath, 'utf8');
+      } catch {
+        return;
+      }
+      let substituted = content;
+      for (const key of KEYS) {
+        const token = `__${key}__`;
+        const value = env[key];
+        if (value) {
+          substituted = substituted.split(token).join(value);
+        }
+      }
+      await fsMod.writeFile(swPath, substituted, 'utf8');
+    },
+  };
+}
+
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
@@ -41,6 +89,7 @@ export default defineConfig(({mode}) => {
       react(),
       tailwindcss(),
       cspNoncePlaceholder(),
+      fcmSwConfigInjector(env),
       viteCompression({
         algorithm: 'brotliCompress',
         ext: '.br',
