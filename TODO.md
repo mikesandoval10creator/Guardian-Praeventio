@@ -671,6 +671,30 @@ El audit identificó que PR #458 (Phase 1, 2026-05-21) eliminó el backend de ph
 - `GuestSaveModal` (`ProjectContext.tsx:179`) sigue gating SAVE — convierte al momento de querer guardar.
 - Header `RootLayout.tsx:349-356` muestra CTA "Iniciar sesión" para anonymous (Instagram-style).
 
+### 2.26 ✅ UX anonymous browsing — public collections Instagram-style (CERRADO 2026-05-21)
+
+**Directiva usuario 2026-05-21:** *"La app la pueda usar cualquier persona... login solo cuando quiera gestionar su info. Como Instagram que te dejan ver perfiles/publicaciones públicas... datos privados de empresas y personas con estándares de banco."*
+
+**Fix aplicado en `firestore.rules`:**
+
+| Colección | Antes | Después | Razón |
+|-----------|-------|---------|-------|
+| `normatives/` | `isEmailVerified()` | `true` | DS 44/2024, ISO 45001, Ley 16.744 son regulaciones PÚBLICAS chilenas/internacionales. Sin PII. |
+| `community_glossary/` | `isEmailVerified()` | `true` | Glosario terminología SST, definiciones estándar. Sin PII. |
+| `global_templates/` | `isEmailVerified()` | `true` | Templates IPER/PTS/PREXOR son referencia técnica pública. Sin PII. |
+
+**Banking-grade preserved:**
+- Writes en las 3 siguen `admin/supervisor` only (no anonymous write).
+- `audit_logs` siguen admin-only read + Admin SDK-only writes (immutable).
+- `oauth_tokens` siguen `read,write: false` (server-only).
+- `projects/`, `workers/`, `nodes/` private (project-scoped via `members array-contains user.uid`).
+- `firestore.rules:25` default-deny si `request.auth == null` para todo lo NO listado explícitamente arriba.
+
+**Resultado UX:**
+- Anonymous puede leer normativa SST y glosario directamente desde Google SEO → mejor conversión.
+- `GuestSaveModal` (`ProjectContext.tsx:179`) sigue gating SAVE — convierte al momento de querer guardar.
+- Header `RootLayout.tsx:349-356` muestra CTA "Iniciar sesión" para anonymous (Instagram-style).
+
 ---
 
 ## 3. ✅ Codex review pendings — TODOS MERGEADOS (verificación 2026-05-19)
