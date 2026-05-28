@@ -120,194 +120,18 @@ export {
   cosineSimilarity,
 } from './gemini/embeddings';
 
-export const analyzeFastCheck = async (observation: string) => {
-  // Sprint 20 Bucket Mu — wrap with Sentry scope. We DO NOT pass the
-  // raw `observation` text into the Sentry context: it can contain
-  // worker names, site coordinates, or PII the operator typed into the
-  // field. We pass only its length so we can correlate failures by
-  // input size without leaking the content.
-  return withSentryScope(
-    'gemini',
-    { action: 'analyzeFastCheck', observationLength: observation?.length ?? 0 },
-    async () => {
-      if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-
-      const ai = new GoogleGenAI({ apiKey: API_KEY });
-      const fastCheckPrompt = `Analiza la siguiente observación de seguridad en terreno (Fast Check):
-    "${observation}"
-
-    Clasifica la observación y proporciona:
-    1. Tipo de nodo (RISK, FINDING, o MITIGATION).
-    2. Un título corto y descriptivo.
-    3. Nivel de criticidad (Alta, Media, Baja).
-    4. Acción inmediata recomendada.
-    5. Lista de etiquetas (tags) relevantes.`;
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: redactPromptForVertex(fastCheckPrompt, 'analyzeFastCheck'),
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              tipo: { type: Type.STRING, enum: ["RISK", "FINDING", "MITIGATION"] },
-              titulo: { type: Type.STRING },
-              criticidad: { type: Type.STRING, enum: ["Alta", "Media", "Baja"] },
-              accionInmediata: { type: Type.STRING },
-              tags: { type: Type.ARRAY, items: { type: Type.STRING } }
-            },
-            required: ["tipo", "titulo", "criticidad", "accionInmediata", "tags"]
-          }
-        }
-      });
-
-      return parseGeminiJson(response);
-    },
-  );
-};
-
-export const predictGlobalIncidents = async (context: string, envContext: string) => {
-  return withSentryScope(
-    'gemini',
-    {
-      action: 'predictGlobalIncidents',
-      contextLength: context?.length ?? 0,
-      envContextLength: envContext?.length ?? 0,
-    },
-    async () => predictGlobalIncidentsImpl(context, envContext),
-  );
-};
-
-async function predictGlobalIncidentsImpl(context: string, envContext: string) {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Actúa como un sistema de predicción de riesgos industriales.
-    Analiza el siguiente contexto de la red de riesgos y las condiciones ambientales actuales para predecir posibles incidentes.
-    
-    CONTEXTO DE LA RED DE RIESGOS:
-    ${context}
-    
-    CONDICIONES AMBIENTALES:
-    ${envContext}
-    
-    Proporciona una lista de predicciones de incidentes, ordenadas por probabilidad y criticidad.
-    Para cada predicción, incluye:
-    1. Título del incidente.
-    2. Descripción detallada.
-    3. Nivel de criticidad (Alta, Media, Baja).
-    4. Probabilidad (Alta, Media, Baja).
-    5. Acción preventiva recomendada.`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          predicciones: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                titulo: { type: Type.STRING },
-                descripcion: { type: Type.STRING },
-                criticidad: { type: Type.STRING, enum: ["Alta", "Media", "Baja"] },
-                probabilidad: { type: Type.STRING, enum: ["Alta", "Media", "Baja"] },
-                accionPreventiva: { type: Type.STRING }
-              },
-              required: ["titulo", "descripcion", "criticidad", "probabilidad", "accionPreventiva"]
-            }
-          }
-        },
-        required: ["predicciones"]
-      }
-    }
-  });
-
-  return parseGeminiJson(response);
-}
-
-export const analyzeRiskWithAI = async (description: string, nodesContext: string, industry?: string) => {
-  // Sprint 20 Bucket Mu — Sentry scope captures `industry` (low-cardinality,
-  // useful for triage) but never the raw `description` (free-text from
-  // the user, may contain worker names / site identifiers).
-  return withSentryScope(
-    'gemini',
-    {
-      action: 'analyzeRiskWithAI',
-      industry: industry || 'general',
-      descriptionLength: description?.length ?? 0,
-      nodesContextLength: nodesContext?.length ?? 0,
-    },
-    async () => analyzeRiskWithAIImpl(description, nodesContext, industry),
-  );
-};
-
-async function analyzeRiskWithAIImpl(description: string, nodesContext: string, industry?: string) {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-
-  // Round 16 (R1) — `criticidad` is intentionally OMITTED from the prompt
-  // and the response schema. Risk level / criticidad classification is a
-  // legal output of the deterministic IPER P×S matrix (`src/services/
-  // protocols/iper.ts`) and Ley 16.744 attaches liability to that
-  // classification. The LLM is restricted to suggesting controls and
-  // citing normativa — it cannot produce a class that downstream auditors
-  // could mistake for a deterministic figure. IPERCAnalysis.tsx already
-  // discards the AI's classification today; we now harden that contract
-  // by removing it from both the prompt and the JSON schema so the model
-  // can't slip it in via Gemini's structured-output mode.
-  const prompt = `Analiza el siguiente riesgo reportado en el contexto de la industria ${industry || 'general'}.
-
-    Riesgo Reportado:
-    "${description}"
-
-    Contexto de la Red de Riesgos:
-    ${nodesContext}
-
-    Proporciona un análisis IPERC (Identificación de Peligros, Evaluación de Riesgos y Controles).
-
-    IMPORTANTE: NO devuelvas un nivel de criticidad ni una clasificación P×S.
-    La clasificación legal del riesgo viene de la matriz IPER deterministic (P×S)
-    operada por el prevencionista. Tu rol se limita a:
-    1. Lista de recomendaciones inmediatas.
-    2. Lista de controles a implementar siguiendo la Jerarquía de Controles
-       (eliminación → sustitución → ingeniería → administrativo → EPP).
-    3. Normativa aplicable (ej. DS 594, DS 44/2024, DS 54, Ley 16.744, NCh ISO 45001).`;
-
-  const safePrompt = redactPromptForVertex(prompt, 'analyzeRiskWithAI');
-
-  const fallback = async () => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: safePrompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            recomendaciones: { type: Type.ARRAY, items: { type: Type.STRING } },
-            controles: { type: Type.ARRAY, items: { type: Type.STRING } },
-            normativa: { type: Type.STRING }
-          },
-          required: ["recomendaciones", "controles", "normativa"]
-        }
-      }
-    });
-    if (!response.text) {
-      throw new Error('gemini_empty_response');
-    }
-    return response.text;
-  };
-
-  const resultString = await queryCommunityKnowledge(safePrompt, industry || 'general', fallback);
-  return JSON.parse(resultString);
-}
-
 // §12.5.1 split step 5 (2026-05-28): vision/multimodal moved to
 // `services/gemini/vision.ts`. Re-exported para backwards compat.
 export { analyzePostureWithAI, analyzeSafetyImage, analyzeBioImage } from './gemini/vision';
+
+// §12.5.1 split step 6 (2026-05-28): risk analysis moved to
+// `services/gemini/risk.ts`. Re-exported para backwards compat.
+export {
+  analyzeFastCheck,
+  predictGlobalIncidents,
+  analyzeRiskWithAI,
+  analyzeRootCauses,
+} from './gemini/risk';
 
 export const generateEmergencyPlan = async (projectName: string, context: string, industry?: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
@@ -705,50 +529,6 @@ export const enrichNodeData = async (nodeData: Partial<RiskNode>): Promise<Parti
   }
 };
 
-export const analyzeRootCauses = async (riskTitle: string, riskDescription: string, context: string) => {
-  if (!API_KEY) throw new Error("API Key no configurada");
-
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
-  const prompt = `Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard, experto en prevención de riesgos laborales en Chile y la metodología Zettelkasten.
-  
-  Se ha solicitado un análisis de causas raíz para el siguiente riesgo:
-  Riesgo: ${riskTitle}
-  Descripción: ${riskDescription}
-  
-  Contexto adicional del sistema (nodos relacionados):
-  ${context}
-  
-  Tu tarea es generar una "Ruta de Prevención" que identifique las causas principales de este riesgo y recomiende acciones específicas de revisión en terreno para evitar que se materialice.
-  
-  Devuelve un JSON con la siguiente estructura:
-  - explanation: Un breve párrafo (max 3 líneas) explicando por qué este riesgo es crítico en el contexto actual.
-  - rootCauses: Un array de strings con las 3 causas raíz más probables (ej. "Falta de mantención en equipos de izaje").
-  - recommendedActions: Un array de strings con 3 a 5 acciones concretas y verificables en terreno (ej. "Verificar certificación vigente de arneses de seguridad").`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
-      contents: redactPromptForVertex(prompt, 'analyzeRootCauses'),
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            explanation: { type: Type.STRING },
-            rootCauses: { type: Type.ARRAY, items: { type: Type.STRING } },
-            recommendedActions: { type: Type.ARRAY, items: { type: Type.STRING } }
-          },
-          required: ["explanation", "rootCauses", "recommendedActions"]
-        }
-      }
-    });
-
-    return JSON.parse(response.text || '{}');
-  } catch (error) {
-    logger.error("Error analyzing root causes:", error);
-    throw error;
-  }
-};
 
 
 
