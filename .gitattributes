@@ -1,0 +1,93 @@
+# Praeventio Guard — normalización line endings cross-platform.
+# Cierra §10.0.7 directiva 2026-05-27 (prevenir CRLF drift Windows/macOS/Linux/Linux container).
+
+* text=auto eol=lf
+
+# Código TypeScript/JavaScript
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.mjs       text eol=lf
+*.cjs       text eol=lf
+
+# Configuración + docs
+*.json      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.md        text eol=lf
+*.toml      text eol=lf
+
+# Estilos + markup
+*.css       text eol=lf
+*.scss      text eol=lf
+*.html      text eol=lf
+*.svg       text eol=lf
+
+# Bases de datos + queries
+*.sql       text eol=lf
+
+# Shell scripts (LF obligatorio en Linux container)
+*.sh        text eol=lf
+.husky/*    text eol=lf
+scripts/*.sh text eol=lf
+
+# Build + native (Android/iOS)
+*.gradle    text eol=lf
+*.xml       text eol=lf
+*.plist     text eol=lf
+*.kts       text eol=lf
+*.swift     text eol=lf
+
+# Patches y diffs
+*.patch     text eol=lf
+*.diff      text eol=lf
+
+# Firestore rules
+*.rules     text eol=lf
+
+# Binarios — NO normalizar
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.webp      binary
+*.ico       binary
+*.bmp       binary
+
+# Documentos binarios
+*.pdf       binary
+*.zip       binary
+*.tar       binary
+*.gz        binary
+*.br        binary
+*.7z        binary
+
+# Fuentes
+*.ttf       binary
+*.otf       binary
+*.woff      binary
+*.woff2     binary
+*.eot       binary
+
+# Web + ML binarios
+*.wasm      binary
+*.wbn       binary
+*.task      binary
+*.onnx      binary
+*.tflite    binary
+*.bin       binary
+
+# 3D + AR
+*.glb       binary
+*.gltf      binary
+*.usdz      binary
+*.fbx       binary
+*.obj       text eol=lf
+
+# Multimedia
+*.mp3       binary
+*.mp4       binary
+*.wav       binary
+*.webm      binary
+*.ogg       binary
