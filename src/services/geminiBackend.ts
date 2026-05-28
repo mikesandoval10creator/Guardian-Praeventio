@@ -138,54 +138,10 @@ const redactPromptForVertex = (prompt: string, action: string): string => {
   return redacted;
 };
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-/**
- * Parse the JSON body of a Gemini `generateContent` response.
- *
- * The SDK types `response.text` as `string | undefined` — `undefined`
- * happens when the model produced no text (safety-blocked, finish reason
- * non-STOP, or empty completion). We surface that as an explicit error
- * instead of letting `JSON.parse(undefined)` throw `SyntaxError`, which
- * is much harder to attribute to "the model returned nothing".
- *
- * Centralised helper for strictNullChecks Wave 4a — replaces 27 callsites
- * of the form `return JSON.parse(response.text)` scattered through this
- * file. Behaviour is preserved: same `JSON.parse` semantics, just with a
- * typed error on the empty-response path.
- */
-// Default generic is `any` (not `unknown`) to preserve the original
-// `JSON.parse(...)` return-type so downstream callers that spread the
-// result (`{ ...auditResult, compliance, timestamp }`) keep compiling
-// without each callsite having to specify a generic. Callers that want
-// stricter typing pass an explicit type parameter.
-const parseGeminiJson = <T = any>(response: { text?: string }): T => {
-  if (!response.text) {
-    throw new Error('gemini_empty_response');
-  }
-  return JSON.parse(response.text) as T;
-};
-
-const withExponentialBackoff = async <T>(
-  operation: () => Promise<T>,
-  maxRetries: number = 5,
-  baseDelay: number = 1000
-): Promise<T> => {
-  let retries = 0;
-  while (true) {
-    try {
-      return await operation();
-    } catch (error: any) {
-      if (retries >= maxRetries || (error.status !== 429 && error.status !== 503)) {
-        throw error;
-      }
-      const delay = baseDelay * Math.pow(2, retries);
-      logger.warn(`Rate limited. Retrying in ${delay}ms... (Attempt ${retries + 1}/${maxRetries})`);
-      await sleep(delay);
-      retries++;
-    }
-  }
-};
+// §12.5.1 split step 3 (2026-05-28): parsing helpers moved to
+// `services/gemini/parsing.ts`. Import re-elevated, helpers consumidos
+// in-place sin cambio de behavior.
+import { parseGeminiJson, withExponentialBackoff } from './gemini/parsing';
 
 export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[][]> => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
