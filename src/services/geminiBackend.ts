@@ -1,11 +1,13 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
-import * as Sentry from '@sentry/core';
 import { RiskNode } from '../types';
 import { searchRelevantContext, queryCommunityKnowledge } from './ragService';
 import { calculateDeterministicSafeRoute } from './routingBackend.js';
 import { logger } from '../utils/logger';
 import { withSentryScope } from './observability/sentryInstrumentation';
-import { redactPii } from './observability/piiRedactor';
+// §12.5.1 split step 2 (2026-05-28): PII redaction moved to
+// `services/gemini/pii.ts`. Import lifted; Sentry + redactPii imports
+// removed since they were only used by this helper.
+import { redactPromptForVertex } from './gemini/pii';
 // Sprint 22 prod hardening (Bucket X) — circuit breaker + per-tenant
 // quota tracking. The helpers `assertGeminiAllowed` /
 // `recordGeminiOutcome` are called from the dispatch seam in
@@ -20,6 +22,11 @@ import {
   checkQuotaLimit,
   type QuotaCheck,
 } from './observability/quotaTracker.js';
+
+// §12.5.1 split step 3 (2026-05-28): parsing helpers moved to
+// `services/gemini/parsing.ts`. Helpers consumidos in-place sin cambio
+// de behavior.
+import { parseGeminiJson, withExponentialBackoff } from './gemini/parsing';
 
 /**
  * Throws when the circuit is open for `circuitKey` or the tenant's
@@ -102,46 +109,6 @@ export async function recordGeminiOutcome(
 }
 
 const API_KEY = process.env.GEMINI_API_KEY;
-
-// Sprint 20 ninth wave (Bucket A) — single seam for PII redaction before
-// any prompt leaves the process toward Vertex AI. Closes STRIDE TM-I03.
-//
-// Vertex AI is a trusted processor (signed BAA, region selection), but
-// Ley 21.719 art. 50 still asks us to minimise PII surface area. We
-// strip Chilean RUT, email, CL phone numbers, credit-card-shaped runs,
-// and obvious API-key prefixes from the prompt. Worker names and
-// industry/diagnostic descriptions are intentionally NOT redacted —
-// the model needs them to reason. See `piiRedactor.ts` header for the
-// full rationale and pattern list.
-//
-// We log + breadcrumb only the COUNT and CATEGORIES, never the raw
-// prompt or the redacted value, so Sentry never sees the PII either.
-// The breadcrumb is best-effort; if Sentry isn't initialised we
-// swallow the error so the request path is unaffected.
-const redactPromptForVertex = (prompt: string, action: string): string => {
-  const { redacted, count, categories } = redactPii(prompt);
-  if (count > 0) {
-    logger.info(
-      `[pii.redaction] action=${action} count=${count} categories=${categories.join(',')}`,
-    );
-    try {
-      Sentry.addBreadcrumb({
-        category: 'pii.redaction',
-        level: 'info',
-        message: `Redacted ${count} PII token(s) before Vertex AI call`,
-        data: { action, count, categories },
-      });
-    } catch {
-      /* observability faults must not change control flow */
-    }
-  }
-  return redacted;
-};
-
-// §12.5.1 split step 3 (2026-05-28): parsing helpers moved to
-// `services/gemini/parsing.ts`. Import re-elevated, helpers consumidos
-// in-place sin cambio de behavior.
-import { parseGeminiJson, withExponentialBackoff } from './gemini/parsing';
 
 export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[][]> => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
