@@ -93,14 +93,14 @@ export class ErrorBoundary extends Component<Props, State> {
         : 'text-red-500';
 
       return (
-        <div className="min-h-screen flex items-center justify-center p-6 bg-zinc-50 dark:bg-zinc-950">
-          <div className="max-w-sm w-full bg-white dark:bg-zinc-900 rounded-3xl p-8 shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col items-center text-center">
+        <main className="min-h-screen flex items-center justify-center p-6 bg-zinc-50 dark:bg-zinc-950">
+          <div role="alert" className="max-w-sm w-full bg-white dark:bg-zinc-900 rounded-3xl p-8 shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col items-center text-center">
             <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-zinc-100 dark:bg-zinc-800 ${accentClass}`}>
               <Icon className="w-8 h-8" />
             </div>
-            <h2 className={`text-lg font-black uppercase tracking-tighter mb-2 ${accentClass}`}>
+            <h1 className={`text-lg font-black uppercase tracking-tighter mb-2 ${accentClass}`}>
               {i18n.t(`errors.category_${this.state.category}_title`, copy.title)}
-            </h2>
+            </h1>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-5 leading-relaxed">
               {i18n.t(`errors.category_${this.state.category}_desc`, copy.description)}
             </p>
@@ -125,7 +125,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </button>
             </div>
           </div>
-        </div>
+        </main>
       );
     }
 
