@@ -143,116 +143,15 @@ const redactPromptForVertex = (prompt: string, action: string): string => {
 // in-place sin cambio de behavior.
 import { parseGeminiJson, withExponentialBackoff } from './gemini/parsing';
 
-export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[][]> => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  if (texts.length === 0) return [];
-
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
-  const embeddings: number[][] = [];
-
-  for (const text of texts) {
-    try {
-      const response = await withExponentialBackoff(() => 
-        ai.models.embedContent({
-          model: "text-embedding-004",
-          contents: text,
-        })
-      );
-      embeddings.push(response.embeddings?.[0]?.values || []);
-    } catch (e) {
-      logger.error("Error generating embedding for text:", text, e);
-      embeddings.push([]);
-    }
-  }
-  return embeddings;
-};
-
-export const autoConnectNodes = async (newNode: Partial<RiskNode>, existingNodes: Partial<RiskNode>[]): Promise<string[]> => {
-  if (!API_KEY) return [];
-  if (existingNodes.length === 0) return [];
-
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
-  
-  const nodesContext = existingNodes.map(n => `ID: ${n.id}, Title: ${n.title}, Type: ${n.type}`).join('\n');
-  
-  const prompt = `
-  You are an AI assistant helping to build a knowledge graph for occupational safety.
-  A new node has been created:
-  ID: ${newNode.id}
-  Title: ${newNode.title}
-  Type: ${newNode.type}
-  Description: ${newNode.description || ''}
-
-  Here are the existing nodes in the graph:
-  ${nodesContext}
-
-  Based on the semantic relationship and relevance, suggest which existing nodes this new node should be connected to.
-  Return ONLY a JSON array of strings containing the IDs of the nodes to connect to.
-  Example: ["node1", "node2"]
-  If there are no relevant connections, return an empty array [].
-  `;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      }
-    });
-    
-    const result = JSON.parse(response.text || '[]');
-    if (Array.isArray(result)) {
-        return result;
-    }
-    return [];
-  } catch (error) {
-    logger.error("Error auto-connecting nodes:", error);
-    return [];
-  }
-};
-
-export const semanticSearch = async (query: string, nodes: Partial<RiskNode>[], topK: number = 3, projectId?: string): Promise<Partial<RiskNode>[]> => {
-  // Hybrid: metadata filter first, then semantic similarity
-  const candidates = projectId ? nodes.filter(n => (n as any).projectId === projectId) : nodes;
-  if (!API_KEY) return candidates.slice(0, topK);
-  if (candidates.length === 0) return [];
-
-  try {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
-    const queryResponse = await ai.models.embedContent({
-      model: "text-embedding-004",
-      contents: query,
-    });
-    const queryEmbedding = queryResponse.embeddings?.[0]?.values;
-
-    if (!queryEmbedding) return candidates.slice(0, topK);
-
-    const nodesWithScores = candidates.map(node => {
-      let score = 0;
-      if (node.embedding && node.embedding.length > 0) {
-        let dotProduct = 0;
-        let normA = 0;
-        let normB = 0;
-        for (let i = 0; i < queryEmbedding.length; i++) {
-          dotProduct += queryEmbedding[i] * node.embedding[i];
-          normA += queryEmbedding[i] * queryEmbedding[i];
-          normB += node.embedding[i] * node.embedding[i];
-        }
-        if (normA > 0 && normB > 0) {
-          score = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-        }
-      }
-      return { node, score };
-    });
-
-    nodesWithScores.sort((a, b) => b.score - a.score);
-    return nodesWithScores.slice(0, topK).map(n => n.node);
-  } catch (error) {
-    logger.error("Error in semantic search:", error);
-    return candidates.slice(0, topK);
-  }
-};
+// §12.5.1 split step 4 (2026-05-28): embeddings + semantic search moved
+// to `services/gemini/embeddings.ts`. Re-exported para backwards compat
+// (consumers existentes: backgroundTriggers, ragService, etc).
+export {
+  generateEmbeddingsBatch,
+  autoConnectNodes,
+  semanticSearch,
+  cosineSimilarity,
+} from './gemini/embeddings';
 
 export const analyzeFastCheck = async (observation: string) => {
   // Sprint 20 Bucket Mu — wrap with Sentry scope. We DO NOT pass the
