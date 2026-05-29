@@ -1,13 +1,24 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, signInWithCustomToken, onAuthStateChanged, connectAuthEmulator, User } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocFromServer, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, connectFirestoreEmulator, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocFromServer, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { logger } from '../utils/logger';
 
-// Initialize Firebase SDK
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase SDK. In the Node emulator-test runner (firestore-stores)
+// the client MUST use the same GCP project as the emulator (--project) and the
+// suite's REST clear (GCLOUD_PROJECT). Otherwise the out-of-band clear targets a
+// different project bucket and data bleeds across tests — `singleProjectMode`
+// does NOT unify the `/emulator/v1/projects/{id}/...` clear endpoint. Gated on
+// FIRESTORE_EMULATOR_HOST (Node test/CI only); browser/prod use the real config.
+const emulatorProjectId = (() => {
+  const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+  return proc?.env?.FIRESTORE_EMULATOR_HOST ? proc.env.GCLOUD_PROJECT : undefined;
+})();
+const app = initializeApp(
+  emulatorProjectId ? { ...firebaseConfig, projectId: emulatorProjectId } : firebaseConfig,
+);
 
 // §2.25 (2026-05-21) — Override databaseId a default cuando MODE=test.
 // firebase-applet-config.json apunta a un databaseId no-default
@@ -30,9 +41,21 @@ try {
   // import.meta.env not available — usa el config real (production).
 }
 
-// Initialize Firestore with persistent cache
+// Cache strategy. Production/browser uses the persistent (offline) multi-tab
+// cache. The Node emulator-test runner (`firestore-stores`) uses the MEMORY
+// cache instead: the persistent cache served STALE `getDocs` results after the
+// suite's out-of-band REST clear between tests (the SDK can't observe a server
+// wipe it didn't perform), which bled data across tests (`expected 2, got 4`).
+// Memory cache + online emulator → each `getDocs` reads fresh from the emulator.
+// Gated on FIRESTORE_EMULATOR_HOST (Node test/CI only); browser/prod unaffected.
+const isNodeEmulatorTest = (() => {
+  const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+  return Boolean(proc?.env?.FIRESTORE_EMULATOR_HOST);
+})();
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
+  localCache: isNodeEmulatorTest
+    ? memoryLocalCache()
+    : persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 }, firestoreDbId);
 
 // §2.22 fix (2026-05-21) — En MODE=test (Vite preview con `--mode test`)

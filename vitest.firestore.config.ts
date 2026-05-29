@@ -46,9 +46,21 @@ export default defineConfig({
     // serial es estable. (vitest 4 movió poolOptions a top-level del
     // test config — los nested `poolOptions.forks` fueron deprecados.)
     pool: 'forks',
+    // Per-file isolation, run sequentially (maxForks:1). singleFork:true
+    // (previous) ran ALL *.firestore.test.ts in ONE process, so the
+    // `services/firebase.ts` client `db` singleton (cache + connection state)
+    // bled data ACROSS FILES: each file passed alone but failed when run
+    // together (`expected 2, got 4` — leftovers from another file's tests; the
+    // afterEach REST clear wipes the SERVER but the shared client kept stale
+    // state). A fresh fork per file isolates the client; maxForks:1 keeps them
+    // sequential so there are no concurrent writes on the single-process
+    // emulator (the original reason singleFork was chosen). 2026-05-29.
     forks: {
-      singleFork: true,
+      singleFork: false,
+      minForks: 1,
+      maxForks: 1,
     },
+    fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 30_000,
   },
