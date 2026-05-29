@@ -51,6 +51,16 @@ import {
   type WorkPermitKind,
   type WorkPermitStatus,
 } from '../../services/workPermits/workPermitEngine.js';
+// Wire (2026-05-29): surface the deep per-kind critical validators
+// (izaje/excavación/LOTO — DS 132). They were implemented + unit-tested
+// (criticalPermitValidators.test.ts) but never reachable from the API.
+// ADVISORY ONLY — returns severity-tagged issues for the supervisor; never
+// blocks issuance (the validators explicitly "no toma decisiones" and the
+// product directive is recommend-not-block).
+import {
+  validateCriticalPermit,
+  type CriticalMetadata,
+} from '../../services/workPermits/criticalPermitValidators.js';
 
 const router = Router();
 
@@ -326,6 +336,54 @@ router.post(
       captureRouteError(err, 'workPermits.create');
       return res.status(500).json({ error: 'internal_error' });
     }
+  },
+);
+
+// ── POST /:projectId/work-permits/validate-critical ───────────────────
+// Advisory deep-validation for critical permit kinds (izaje/excavación/LOTO).
+// Wires criticalPermitValidators (DS 132 + ISO 12480-1 + NCh 349). Read-only:
+// surfaces blocking/advisory/info issues so the supervisor can resolve blockers
+// or override advisories with a documented reason. NEVER blocks issuance here.
+
+const criticalValidateSchema = z.object({
+  kind: z.enum(['izaje_critico', 'excavacion', 'loto']),
+  data: z.record(z.string(), z.unknown()),
+});
+
+router.post(
+  '/:projectId/work-permits/validate-critical',
+  verifyAuth,
+  validate(criticalValidateSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof criticalValidateSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    const ctx = resolveCallerRoleContext(req.user!);
+    if (!ctx.canIssuePermits) {
+      return res.status(403).json({
+        error: 'forbidden',
+        reason: 'caller_lacks_permit_issuer_role',
+      });
+    }
+    let result;
+    try {
+      result = validateCriticalPermit({
+        kind: body.kind,
+        data: body.data,
+      } as unknown as CriticalMetadata);
+    } catch {
+      // The pure validator throws only on incomplete/malformed metadata
+      // (e.g. a missing required array like `identifiedSources`/`locks`) —
+      // that's bad client input, not a server fault. Return 400 so the UI
+      // can prompt for the missing fields instead of seeing a 500.
+      logger.warn?.('workPermits.validateCritical.invalid_metadata', {
+        kind: body.kind,
+      });
+      return res.status(400).json({ error: 'invalid_metadata', kind: body.kind });
+    }
+    return res.json({ result });
   },
 );
 
