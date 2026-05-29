@@ -52,11 +52,8 @@ import {
   type CreateEdgeFn,
 } from '../../services/zettelkasten/flows/horometroMaintenanceFlow.js';
 import { writeNodes } from '../../services/zettelkasten/persistence/writeNode.js';
-import {
-  createEdge,
-  type EdgeStore,
-  type ZkEdge,
-} from '../../services/zettelkasten/edges.js';
+import { createEdge } from '../../services/zettelkasten/edges.js';
+import { buildEdgeStore } from '../../services/zettelkasten/edgeStoreFirestore.js';
 
 const router = Router();
 
@@ -120,7 +117,6 @@ const HOROMETRO_PATH = (tid: string, pid: string, eqId: string) =>
   `tenants/${tid}/projects/${pid}/equipment/${eqId}/horometro_readings`;
 const TASK_PATH = (tid: string, pid: string) =>
   `tenants/${tid}/projects/${pid}/maintenance_tasks`;
-const EDGE_PATH = (tid: string) => `tenants/${tid}/zettelkasten_edges`;
 
 function buildHorometroStore(
   db: admin.firestore.Firestore,
@@ -185,33 +181,6 @@ function buildTaskStore(
       q = q.limit(limit ?? 100);
       const snap = await q.get();
       return snap.docs.map((d: any) => d.data() as MaintenanceTask);
-    },
-  };
-}
-
-function buildEdgeStore(db: admin.firestore.Firestore): EdgeStore {
-  return {
-    async saveEdge(edge: ZkEdge) {
-      await db.collection(EDGE_PATH(edge.tenantId)).doc(edge.id).set(edge, { merge: true });
-    },
-    async deleteEdgeById(id: string, tenantId: string) {
-      await db.collection(EDGE_PATH(tenantId)).doc(id).delete();
-    },
-    async findOutgoing(nodeId, tenantId, type) {
-      let q: any = db
-        .collection(EDGE_PATH(tenantId))
-        .where('fromNodeId', '==', nodeId);
-      if (type) q = q.where('type', '==', type);
-      const snap = await q.get();
-      return snap.docs.map((d: any) => d.data() as ZkEdge);
-    },
-    async findIncoming(nodeId, tenantId, type) {
-      let q: any = db
-        .collection(EDGE_PATH(tenantId))
-        .where('toNodeId', '==', nodeId);
-      if (type) q = q.where('type', '==', type);
-      const snap = await q.get();
-      return snap.docs.map((d: any) => d.data() as ZkEdge);
     },
   };
 }
