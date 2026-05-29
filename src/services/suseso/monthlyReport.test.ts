@@ -221,6 +221,11 @@ describe('determinismo', () => {
         manHoursWorked: 200_000,
       },
       metadata: baseMeta,
+      // Inject a fixed generatedAtIso (the service's documented determinism
+      // hook). Without it both calls fall back to new Date().toISOString();
+      // under CI load the two calls can straddle a millisecond boundary →
+      // different timestamps → flaky toEqual failure. (Fixes chronic CI flake.)
+      generatedAtIso: '2026-06-01T00:00:00.000Z',
     };
     const a = buildMonthlyReport(input);
     const b = buildMonthlyReport(input);
