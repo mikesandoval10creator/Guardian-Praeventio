@@ -46,7 +46,7 @@ function deleteField(target: DocData, path: string): void {
 
 interface FV { __fv: string; items?: unknown[]; n?: number }
 function isFV(v: unknown): v is FV {
-  return isPlainObject(v) && typeof (v as FV).__fv === 'string';
+  return isPlainObject(v) && typeof (v as { __fv?: unknown }).__fv === 'string';
 }
 
 export const FieldValue = {

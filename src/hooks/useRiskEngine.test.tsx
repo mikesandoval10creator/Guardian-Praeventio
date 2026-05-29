@@ -18,15 +18,15 @@ const h = vi.hoisted(() => ({
   pendingActions: [] as unknown[],
   syncOps: [] as unknown[],
   sync: {
-    subscribe: vi.fn(() => () => {}),
-    getPendingOperations: vi.fn(() => [] as unknown[]),
-    setNodesProvider: vi.fn(),
-    enqueueSet: vi.fn(),
-    enqueueUpdate: vi.fn(),
-    enqueueDelete: vi.fn(),
+    subscribe: vi.fn((_cb?: () => void): (() => void) => () => {}),
+    getPendingOperations: vi.fn((): unknown[] => []),
+    setNodesProvider: vi.fn((_fn?: unknown): void => {}),
+    enqueueSet: vi.fn((_n?: unknown): void => {}),
+    enqueueUpdate: vi.fn((_id?: string, _d?: unknown): void => {}),
+    enqueueDelete: vi.fn((_id?: string): void => {}),
   },
   enrichNodeData: vi.fn(async (n: unknown) => n),
-  generateEmbeddingsBatch: vi.fn(async () => [[] as number[]]),
+  generateEmbeddingsBatch: vi.fn(async (_t?: unknown) => [[] as number[]]),
   handleFirestoreError: vi.fn(),
 }));
 
