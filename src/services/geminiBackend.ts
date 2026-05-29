@@ -28,85 +28,16 @@ import {
 // de behavior.
 import { parseGeminiJson, withExponentialBackoff } from './gemini/parsing';
 
-/**
- * Throws when the circuit is open for `circuitKey` or the tenant's
- * daily quota has been exceeded. Callers should invoke this BEFORE any
- * `ai.models.generateContent(...)` call in a request path that has an
- * authenticated tenant.
- *
- * Server-side jobs without a tenant context can pass `tenantId='system'`
- * + `tier='diamond'` so only the circuit gate applies.
- */
-export async function assertGeminiAllowed(
-  tenantId: string,
-  tier: string,
-  circuitKey = 'gemini',
-): Promise<QuotaCheck | null> {
-  if (geminiCircuit.isOpen(circuitKey)) {
-    const err = new Error('circuit_open');
-    (err as any).code = 'gemini_circuit_open';
-    throw err;
-  }
-  // System / internal calls skip the per-tenant ceiling.
-  if (tenantId === 'system') return null;
-  const check = await checkQuotaLimit(tenantId, tier);
-  if (!check.allowed) {
-    const err = new Error(`quota_exceeded:${check.reason ?? 'requests_exceeded'}`);
-    (err as any).code = 'gemini_quota_exceeded';
-    (err as any).quota = check;
-    throw err;
-  }
-  return check;
-}
-
-/**
- * Estimate USD cost for a Gemini call given approximate input/output
- * tokens. Numbers track Gemini 2.0 Flash + 3.1 Pro public pricing
- * (Vertex AI region us-central1 — same SKU we provision for prod).
- * The estimator intentionally rounds up so quota gating errs on the
- * side of throttling rather than over-spending.
- */
-export function estimateGeminiCostUsd(model: string, tokensIn: number, tokensOut: number): number {
-  // Per-1M-token rates. Updated 2026-05-04 from the Vertex AI pricing
-  // page; revisit when model SKUs change. Anything we can't classify
-  // falls back to Pro pricing so we never under-bill.
-  const rates: Record<string, { in: number; out: number }> = {
-    'gemini-2.0-flash': { in: 0.075, out: 0.30 },
-    'gemini-2.5-flash': { in: 0.10, out: 0.40 },
-    'gemini-3.1-flash-preview': { in: 0.10, out: 0.40 },
-    'gemini-3.1-pro-preview': { in: 1.25, out: 5.00 },
-  };
-  const rate = rates[model] ?? rates['gemini-3.1-pro-preview'];
-  const usd = (tokensIn / 1_000_000) * rate.in + (tokensOut / 1_000_000) * rate.out;
-  return Math.round(usd * 1_000_000) / 1_000_000;
-}
-
-/**
- * Post-call hook: record success on the breaker AND increment the
- * tenant's quota row. Best-effort — if Firestore is down the breaker
- * still moves to closed so the next caller doesn't fast-fail.
- */
-export async function recordGeminiOutcome(
-  tenantId: string,
-  outcome: 'success' | 'failure',
-  options: { tokens?: number; costUsd?: number; circuitKey?: string; idempotencyKey?: string } = {},
-): Promise<void> {
-  const key = options.circuitKey ?? 'gemini';
-  if (outcome === 'failure') {
-    geminiCircuit.recordFailure(key);
-    return;
-  }
-  geminiCircuit.recordSuccess(key);
-  if (tenantId === 'system') return;
-  try {
-    await trackGeminiUsage(tenantId, options.tokens ?? 0, options.costUsd ?? 0, {
-      idempotencyKey: options.idempotencyKey,
-    });
-  } catch (err) {
-    // Quota tracking must never break the response path.
-    logger.warn('[quota.track_failed]', { tenantId, err: (err as Error).message });
-  }
-}
+// §12.5.1 split step 1 (2026-05-28): governance helpers moved to
+// `services/gemini/governance.ts`. Re-exported here for backwards
+// compat — existing consumers (`src/server/routes/gemini.ts`) keep
+// importing from `geminiBackend.ts` without changes. Migrate
+// consumers to the direct path as part of follow-up cleanup.
+export {
+  assertGeminiAllowed,
+  estimateGeminiCostUsd,
+  recordGeminiOutcome,
+} from './gemini/governance';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
