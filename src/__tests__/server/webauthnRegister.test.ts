@@ -857,5 +857,10 @@ describe('curriculum module-load — expectedOrigin prod fail-fast', () => {
     }
     expect(captured).toBeInstanceOf(Error);
     expect((captured as Error).message).toMatch(/FATAL|APP_BASE_URL|APP_URL/);
-  });
+    // 60s: `vi.resetModules()` + `await import(curriculum)` rebuilds the full
+    // curriculum module graph from scratch. Fast in isolation, but in the
+    // 11k-test suite the rebuild exceeds the 5s default → it timed out and
+    // aborted Stryker's initial dry-run (blocking local mutation runs). It is
+    // SLOW, not hung — a generous timeout is the correct fix.
+  }, 60_000);
 });

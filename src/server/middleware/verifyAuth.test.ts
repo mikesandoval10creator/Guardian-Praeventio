@@ -465,3 +465,77 @@ describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral p
     expect(res.status).toBe(200);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// MAX_SESSION_HOURS parsing (Stryker lines 63/65/67 — were NoCoverage).
+//
+// The IIFE `Number.isFinite(n) && n > 0 && n <= 24 ? n : 8` was completely
+// untested: every boundary mutant (n>0→n>=0, n<=24→n<24/n>24, the !raw guard,
+// isFinite, the `? n : 8` ternary, and MAX_SESSION_MS = hours * 3_600_000)
+// survived. We re-import the module per case (vi.resetModules) so the IIFE
+// re-evaluates against the stubbed env — same pattern as the prod-guard suite.
+// ─────────────────────────────────────────────────────────────────────────
+describe('verifyAuth — MAX_SESSION_HOURS parsing (Stryker lines 63/65/67)', () => {
+  const ORIGINAL_ENV = { ...process.env };
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    vi.resetModules();
+  });
+
+  async function loadMaxSessionHours(raw: string | undefined): Promise<number> {
+    vi.resetModules();
+    if (raw === undefined) delete process.env.MAX_SESSION_HOURS;
+    else process.env.MAX_SESSION_HOURS = raw;
+    const mod = await import('./verifyAuth.js');
+    return mod.MAX_SESSION_HOURS;
+  }
+
+  it('defaults to 8 when MAX_SESSION_HOURS is unset (kills the !raw guard)', async () => {
+    expect(await loadMaxSessionHours(undefined)).toBe(8);
+  });
+
+  it('defaults to 8 for an empty string (empty is falsy → !raw)', async () => {
+    expect(await loadMaxSessionHours('')).toBe(8);
+  });
+
+  it('uses a valid in-range integer (kills the `? n : 8` ternary)', async () => {
+    expect(await loadMaxSessionHours('12')).toBe(12);
+  });
+
+  it('accepts a fractional in-range value', async () => {
+    expect(await loadMaxSessionHours('0.5')).toBe(0.5);
+  });
+
+  it('accepts the upper boundary 24 (kills n<=24 → n<24)', async () => {
+    expect(await loadMaxSessionHours('24')).toBe(24);
+  });
+
+  it('rejects 0 → 8 (kills n>0 → n>=0)', async () => {
+    expect(await loadMaxSessionHours('0')).toBe(8);
+  });
+
+  it('rejects a negative value → 8', async () => {
+    expect(await loadMaxSessionHours('-5')).toBe(8);
+  });
+
+  it('rejects above the 24h cap → 8 (kills n<=24 → n>24)', async () => {
+    expect(await loadMaxSessionHours('25')).toBe(8);
+  });
+
+  it('rejects a non-numeric value → 8 (kills Number.isFinite)', async () => {
+    expect(await loadMaxSessionHours('abc')).toBe(8);
+  });
+
+  it('MAX_SESSION_MS = MAX_SESSION_HOURS * 3_600_000 (kills the arithmetic op)', async () => {
+    vi.resetModules();
+    process.env.MAX_SESSION_HOURS = '3';
+    const mod = await import('./verifyAuth.js');
+    expect(mod.MAX_SESSION_HOURS).toBe(3);
+    expect(mod.MAX_SESSION_MS).toBe(3 * 3_600_000);
+  });
+});
