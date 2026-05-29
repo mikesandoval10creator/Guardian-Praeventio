@@ -51,12 +51,14 @@
 - **Removal criteria**: cuando B2D billing se active productivamente.
 
 ## SystemEngineProvider orphan (no mounted)
-- **File**: `src/contexts/SystemEngineProvider.tsx:65-76` (5 adapters definidos: themeContext, sensorContext, subscriptionContext, languageProvider, emergencyContext + executor.ts + README)
+- **File**: `src/contexts/SystemEngineProvider.tsx` (3 context adapters REALES: emergency, subscription, sensor + executor.ts + decisionEngine + 2 policies: geofenceToSos, tierChangeReactivity)
 - **Owner**: D3
 - **Sprint target**: post-PR #513
 - **User-visible?**: NO — triggers system engine no llegan al frontend
-- **Why orphan**: provider definido pero `App.tsx`/`AppProviders.tsx` no lo envuelven
-- **Removal criteria (WIRE)**: envolver en `AppProviders.tsx` después de `EmergencyProvider`. O DEPRECATE si se decide.
+- **Why orphan**: provider definido pero `AppProviders.tsx` no lo envuelve.
+- **Blocker real (verificado 2026-05-29, sin asumir)**: el provider exige un prop `tenantId` ("usually fetched from the verified user claim" per su docstring) PERO el claim NO lo lleva — `tenantId` es server-resolved per-project (`resolveTenantId()` en `workPermits.ts:59` lee `projects/{id}.tenantId`). NO existe client-side: ni en el `User` de FirebaseContext (`tenantId` ahí es el campo Firebase-Auth nativo = null) ni en el `Project` type. **Montarlo requiere PRIMERO una fuente client-side de tenantId** (custom claim nuevo + `getIdTokenResult().claims`, o endpoint `/api/me`, o añadir `tenantId` al fetch del project doc).
+- **Bug FIXED 2026-05-29 (PR fix/system-engine-active-emergency-bug)**: `hasActiveEmergency` estaba hardcoded `() => false` (líneas 129+147 del decide-context), lo que anulaba el anti-cascade guard de geofenceToSos (re-disparaba un SOS aun con emergencia activa). Ahora lee el estado real vía `emergencyActiveRef` ← `useEmergency().isEmergencyActive`. El guard en sí ya está tested en `__tests__/policies/geofenceToSos.test.ts`.
+- **Removal criteria (WIRE)**: (1) resolver fuente client-side de `tenantId`, (2) envolver en `AppProviders.tsx` dentro de `SensorProvider` (junto a `MeshProvider` — ahí todos los deps: emergency/subscription/notification/sensor/project/firebase están presentes), (3) integration test del provider montado. O DEPRECATE si se decide.
 
 ## useGeofenceWithEvents wire pendiente
 - **File**: `src/hooks/useGeofenceWithEvents.ts`
