@@ -143,7 +143,14 @@ jobs:
         # `src/test/firestore-emulator-setup.ts`. La config dedicada
         # `vitest.firestore.config.ts` incluye SOLO `*.firestore.test.ts`
         # (la default los excluye porque requieren emulator).
-        run: firebase emulators:exec --only firestore --project praeventio-test "npx vitest run --config vitest.firestore.config.ts"
+        #
+        # `--config firebase.emulator-tests.json` arranca el emulador con
+        # reglas ABIERTAS (firestore.test.rules) porque estos stores usan el
+        # CLIENT SDK (sujeto a reglas) y el cliente de test NO está autenticado
+        # → con las reglas de prod (default-deny) toda op daba 7 PERMISSION_
+        # DENIED. Acá testeamos la LÓGICA del store, no las reglas (esas tienen
+        # su propio job `Firestore rules tests` contra firestore.rules real).
+        run: firebase emulators:exec --config firebase.emulator-tests.json --only firestore --project praeventio-test "npx vitest run --config vitest.firestore.config.ts"
 
   adr-0012-enforcement:
     # Sprint 26 Bucket XX — ADR 0012 (no diagnosis) automated enforcement.
