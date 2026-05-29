@@ -72,6 +72,13 @@ import type { RiskNodePayload } from '../../services/zettelkasten/types.js';
 // §B.8 wire (2026-05-29) — advisory Risk→EPP→Training control suggestions.
 // suggestEdgesForRisk es PURO/determinístico (tabla regulatoria, no LLM).
 import { suggestEdgesForRisk } from '../../services/zettelkasten/riskOrchestrator.js';
+// §ZK-1 wire (2026-05-29) — advisory backlinks summary + hub-detection.
+import { buildEdgeStore } from '../../services/zettelkasten/edgeStoreFirestore.js';
+import { getRelatedNodes } from '../../services/zettelkasten/edges.js';
+import {
+  summarizeBacklinks,
+  topReferencingNodes,
+} from '../../services/zettelkasten/backlinks.js';
 
 const router = Router();
 
@@ -434,6 +441,81 @@ router.post(
       assignedWorkers,
     });
     return res.json({ advisory: true, suggestions });
+  },
+);
+
+// ── POST /backlinks ───────────────────────────────────────────────────
+//
+// Advisory wire (§ZK-1, 2026-05-29) del aggregator de backlinks que estaba
+// huérfano (0 consumers). Dado un nodeId devuelve el resumen de backlinks
+// bidireccionales (incoming/outgoing + breakdown por tipo de edge) y el
+// ranking de nodos que más lo referencian (hub-detection). Read-only: lee
+// edges vía el EdgeStore compartido, no escribe nada. Surfacea el panel
+// "Referenciado por" + métricas de centralidad para la UI Risk Network.
+const backlinksSchema = z.object({
+  projectId: z.string().min(1).max(256),
+  nodeId: z.string().min(1).max(256),
+  topK: z.number().int().min(1).max(50).optional(),
+});
+
+router.post(
+  '/backlinks',
+  verifyAuth,
+  validate(backlinksSchema),
+  async (req, res) => {
+    const callerUid = req.user?.uid;
+    if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
+
+    const { projectId, nodeId, topK } = req.body as z.infer<
+      typeof backlinksSchema
+    >;
+
+    try {
+      await assertProjectMember(callerUid, projectId, admin.firestore());
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+
+    // Edges are tenant-scoped; resolve the logical tenant from the project doc.
+    const db = admin.firestore();
+    let tenantId: string | null = null;
+    try {
+      const snap = await db.collection('projects').doc(projectId).get();
+      const data = snap.exists
+        ? (snap.data() as { tenantId?: string } | undefined)
+        : undefined;
+      if (typeof data?.tenantId === 'string' && data.tenantId.length > 0) {
+        tenantId = data.tenantId;
+      }
+    } catch (err) {
+      logger.warn('zettelkasten_backlinks_tenant_resolve_failed', {
+        err: String(err),
+      });
+    }
+    if (!tenantId) return res.status(404).json({ error: 'tenant_not_found' });
+
+    try {
+      const store = buildEdgeStore(db);
+      const related = await getRelatedNodes(store, nodeId, tenantId, {
+        direction: 'both',
+      });
+      return res.json({
+        nodeId,
+        summary: summarizeBacklinks(related),
+        topReferencing: topReferencingNodes(related, topK ?? 10),
+        related: related.map((r) => ({
+          nodeId: r.nodeId,
+          via: r.via,
+          direction: r.direction,
+        })),
+      });
+    } catch (err) {
+      logger.error?.('zettelkasten_backlinks_failed', { err: String(err) });
+      return res.status(500).json({ error: 'internal_error' });
+    }
   },
 );
 
