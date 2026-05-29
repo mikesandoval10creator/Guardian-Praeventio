@@ -135,6 +135,7 @@ interface FakeQuery {
   orderBy(field: string, dir?: 'asc' | 'desc'): FakeQuery;
   limit(n: number): FakeQuery;
   get(): Promise<FakeQuerySnap>;
+  count(): { get(): Promise<{ data(): { count: number } }> };
 }
 interface FakeCollectionRef extends FakeQuery {
   doc(id?: string): FakeDocRef;
@@ -236,6 +237,9 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
       orderBy: (field, dir = 'asc') => query(colPath, filters, { field, dir }, lim),
       limit: (n) => query(colPath, filters, order, n),
       get: async () => runQuery(colPath, filters, order, lim),
+      count: () => ({
+        get: async () => ({ data: () => ({ count: runQuery(colPath, filters, null, null).size }) }),
+      }),
     };
   }
 
