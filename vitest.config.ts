@@ -61,5 +61,33 @@ export default defineConfig({
     ],
     setupFiles: ['./src/test/setup.ts'],
     globals: false,
+    // Coverage instrumentation (Plan v3 Fase 1.0 — 2026-05-29). Provider
+    // pinned to the exact vitest version. `all: true` counts source files
+    // with NO importing test too, so the denominator is the honest "what
+    // the app actually has", not just files a test happened to touch.
+    // Thresholds are intentionally absent here — they get added as a
+    // ratchet (scripts/check-coverage-ratchet.cjs) AFTER the baseline is
+    // measured, so this run never fails for being below an aspirational 90.
+    coverage: {
+      provider: 'v8',
+      // Emit the report even when some tests fail — during the coverage-lift
+      // work the suite is occasionally red mid-edit, and we still want to see
+      // the number move. (vitest defaults this to false.)
+      reportOnFailure: true,
+      all: true,
+      include: ['src/**/*.{ts,tsx}', 'server.ts'],
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/__tests__/**',
+        'src/test/**',
+        'src/rules-tests/**',
+        'src/**/*.firestore.test.ts',
+        'src/**/__mocks__/**',
+        'src/**/*.d.ts',
+        'src/vite-env.d.ts',
+      ],
+      reporter: ['text-summary', 'json-summary', 'html', 'lcov'],
+      reportsDirectory: './coverage',
+    },
   },
 });
