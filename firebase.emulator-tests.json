@@ -1,0 +1,11 @@
+{
+  "_comment": "TEST-ONLY Firebase config for the `firestore-stores` CI job (.github/workflows/ci.yml). Points the Firestore emulator at OPEN rules (firestore.test.rules) so client-SDK store-LOGIC tests are not blocked by production default-deny rules (which would 7 PERMISSION_DENIED an unauthenticated client). Production and the `Firestore rules tests` job keep using firebase.json -> firestore.rules. Do NOT use this config anywhere else.",
+  "firestore": {
+    "rules": "firestore.test.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "firestore": { "host": "127.0.0.1", "port": 8080 },
+    "singleProjectMode": true
+  }
+}

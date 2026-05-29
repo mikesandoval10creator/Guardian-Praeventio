@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// TEST-ONLY open rules for the `firestore-stores` CI job (store-LOGIC suite).
+//
+// The 14 Sprint-K stores under `src/services/**/*Store.ts` use the Firebase
+// CLIENT SDK, so they are subject to security rules. This suite tests their
+// CRUD / subscribe / ordering / merge LOGIC against the real emulator — it
+// does NOT test the rules. Rules have a dedicated job (`Firestore rules
+// tests`, ci.yml) that runs against the real `firestore.rules`.
+//
+// The store test client is unauthenticated (the setup seeds via firebase-admin
+// which bypasses rules, but the stores themselves run as the client SDK).
+// Against production default-deny rules that means every client op fails with
+// `7 PERMISSION_DENIED`. These open rules let the store logic exercise the
+// emulator. Loaded ONLY via `firebase.emulator-tests.json` (the
+// `firestore-stores` job) — never in production nor in the rules-tests job.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
