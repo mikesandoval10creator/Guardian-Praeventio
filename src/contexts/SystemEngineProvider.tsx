@@ -86,7 +86,7 @@ function SystemEngineInner({
 
   const { user } = useFirebase();
   const { selectedProject } = useProject();
-  const { triggerEmergency } = useEmergency();
+  const { triggerEmergency, isEmergencyActive } = useEmergency();
   const { addNotification } = useNotifications();
   const sub = useSubscription();
 
@@ -115,6 +115,13 @@ function SystemEngineInner({
   // Closure-stable: cb captures latest tenantId/projectId from refs.
   const projectRef = useRef(selectedProject?.id);
   projectRef.current = selectedProject?.id;
+  // Live emergency state via ref so the decide-context callbacks (which are
+  // closure-stable across renders) always read the CURRENT value. This was
+  // previously hardcoded `() => false`, which defeated geofenceToSos's
+  // anti-cascade guard — the policy would re-trigger an SOS even while an
+  // emergency was already active. Reading the real state fixes that.
+  const emergencyActiveRef = useRef(isEmergencyActive);
+  emergencyActiveRef.current = isEmergencyActive;
   useSystemEvent(
     {
       tenantId,
@@ -126,7 +133,7 @@ function SystemEngineInner({
         tenantId,
         projectId: projectRef.current,
         isFeatureEnabled: () => true,
-        hasActiveEmergency: () => false,
+        hasActiveEmergency: () => emergencyActiveRef.current,
       })
         .then((result) => execute(result.actions))
         .catch((err) =>
@@ -144,7 +151,7 @@ function SystemEngineInner({
         tenantId,
         projectId: projectRef.current,
         isFeatureEnabled: () => true,
-        hasActiveEmergency: () => false,
+        hasActiveEmergency: () => emergencyActiveRef.current,
       })
         .then((result) => execute(result.actions))
         .catch((err) =>
