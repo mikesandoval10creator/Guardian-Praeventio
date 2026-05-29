@@ -71,9 +71,18 @@ import { buildInvoice } from '../../services/billing/invoice.js';
 import type {
   CheckoutRequest,
   CheckoutResponse,
-  CurrencyCode,
-  PaymentMethod,
 } from '../../services/billing/types.js';
+// §billing split step 1 (2026-05-29) — pricing constants extracted to
+// `./billing/pricing.ts`. Pure data + lookup; behavior unchanged.
+import {
+  BILLING_TIER_FALLBACK,
+  resolveBillingTier,
+  OVERAGE_CLP_PER_WORKER_NET,
+  OVERAGE_CLP_PER_PROJECT_NET,
+  VALID_PAYMENT_METHODS,
+  VALID_CURRENCIES,
+  type BillingTier,
+} from './billing/pricing.js';
 import {
   webpayAdapter,
   acquireWebpayIdempotencyLock,
@@ -163,47 +172,8 @@ if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON) {
 // descartado (§2.12 cierre Fase C.2 2026-05-21). Ver BILLING.md.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// Tier pricing fallback: real source of truth is
-// `src/services/pricing/tiers.ts` (IMP1's territory). Until that lands, we
-// read from a small inline table mirroring `tiers.test.ts` so this endpoint
-// type-checks and serves a 5xx with a helpful message for unknown tiers
-// rather than crashing on import.
-type BillingTier = {
-  clpRegular: number;
-  clpAnual: number;
-  usdRegular: number;
-  usdAnual: number;
-};
-const BILLING_TIER_FALLBACK: Record<string, BillingTier> = {
-  // Net amounts (pre-IVA) for CLP; display amounts (incl IVA) live in tiers.ts.
-  // 10075 * 1.19 = 11989.25 â†’ ceil 11990 (matches tiers.test.ts)
-  'comite-paritario': { clpRegular: 10075, clpAnual: 81504, usdRegular: 13, usdAnual: 130 },
-  'departamento-prevencion': { clpRegular: 26042, clpAnual: 250416, usdRegular: 33, usdAnual: 330 },
-  'plata': { clpRegular: 42849, clpAnual: 411513, usdRegular: 54, usdAnual: 540 },
-  'oro': { clpRegular: 76462, clpAnual: 734040, usdRegular: 96, usdAnual: 960 },
-  'titanio': { clpRegular: 210076, clpAnual: 2016720, usdRegular: 263, usdAnual: 2630 },
-  'diamante': { clpRegular: 420160, clpAnual: 4033536, usdRegular: 526, usdAnual: 5260 },
-  'empresarial': { clpRegular: 1260496, clpAnual: 12099960, usdRegular: 1578, usdAnual: 15780 },
-  'corporativo': { clpRegular: 2521000, clpAnual: 24201600, usdRegular: 3158, usdAnual: 31580 },
-  'ilimitado': { clpRegular: 5042008, clpAnual: 48403252, usdRegular: 6315, usdAnual: 63150 },
-};
-
-function resolveBillingTier(tierId: string): BillingTier | null {
-  return BILLING_TIER_FALLBACK[tierId] ?? null;
-}
-
-// Per-unit overage (CLP, net of IVA). Mirrors tiers.test.ts which uses
-// $990/worker incl IVA â†’ 990/1.19 â‰ˆ 832.
-const OVERAGE_CLP_PER_WORKER_NET = 832;
-const OVERAGE_CLP_PER_PROJECT_NET = 5034; // 5990 / 1.19
-
-// §2.12 (Fase C.2): 'stripe' removido del set válido. Stripe descartado
-// oficialmente. Internacional: MercadoPago (LATAM) + IAP (mobile) +
-// manual-transfer (B2B enterprise).
-const VALID_PAYMENT_METHODS: ReadonlyArray<PaymentMethod> = [
-  'webpay', 'manual-transfer',
-];
-const VALID_CURRENCIES: ReadonlyArray<CurrencyCode> = ['CLP', 'USD'];
+// Tier pricing, overage rates, payment/currency validation → `./billing/pricing.js`
+// (2026-05-29 billing split step 1). Pure constants, byte-identical.
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Round 15 — MercadoPago checkout (LATAM: PE/AR/CO/MX/BR).
