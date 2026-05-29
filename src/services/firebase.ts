@@ -47,24 +47,54 @@ export const db = initializeFirestore(app, {
 //
 // Producción nunca entra acá (gate `import.meta.env.MODE === 'test'`,
 // solo activado por `vite --mode test`).
-try {
-  if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
-    // connectFirestoreEmulator tira si el host ya está bound; lo
-    // envolvemos en try/catch para soportar HMR (re-import del módulo
-    // durante hot reload no debe romper la página).
-    try {
-      connectFirestoreEmulator(db, 'localhost', 8080);
-      logger.debug('[firebase] Firestore client connected to emulator localhost:8080 (MODE=test)');
-    } catch (err) {
-      // Already connected — safe to ignore. Other errors are warning-worthy
-      // but not fatal (the queries will simply fail with auth/network if
-      // emulator is down).
-      logger.debug('[firebase] connectFirestoreEmulator skipped (already connected or no emulator)', { err });
-    }
+// Resolución del emulador Firestore para el CLIENT SDK. Dos contextos:
+//   1. Node (vitest `firestore-stores` + CI `firebase emulators:exec`): la
+//      señal canónica es `FIRESTORE_EMULATOR_HOST` (ej. `127.0.0.1:8080`),
+//      seteada por `src/test/firestore-emulator-setup.ts` y el wrapper CI.
+//      `import.meta.env.MODE` NO es confiable en ese runner Node, por eso
+//      antes el client apuntaba a producción y la 1ª op hacía timeout (~4s)
+//      → todos los `*.firestore.test.ts` fallaban (job `Firestore stores`).
+//      Forzamos `127.0.0.1` (NO `localhost`) para evitar que el resolver
+//      elija IPv6 (`::1`) y deje el emulador IPv4 inalcanzable.
+//   2. Browser E2E (`vite --mode test`): no hay `process`; la señal es
+//      `import.meta.env.MODE === 'test'` → `localhost:8080` (sin cambios).
+// Producción jamás conecta (ninguna señal presente).
+function resolveFirestoreEmulator(): { host: string; port: number } | null {
+  // Acceso a `process` via globalThis para que el bundle browser siga
+  // type-safe (no hay `process` global allí).
+  const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+  const envHost = proc?.env?.FIRESTORE_EMULATOR_HOST;
+  if (envHost) {
+    const [rawHost, rawPort] = envHost.split(':');
+    return {
+      host: !rawHost || rawHost === 'localhost' ? '127.0.0.1' : rawHost,
+      port: Number(rawPort) || 8080,
+    };
   }
-} catch {
-  // import.meta.env access may throw in some sandbox environments — safe
-  // to ignore. Production path doesn't depend on this.
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
+      return { host: 'localhost', port: 8080 };
+    }
+  } catch {
+    // import.meta.env access may throw in some sandbox environments — safe.
+  }
+  return null;
+}
+
+const firestoreEmulator = resolveFirestoreEmulator();
+if (firestoreEmulator) {
+  // connectFirestoreEmulator tira si el host ya está bound (HMR / re-import);
+  // lo envolvemos para no romper la página ni el test.
+  try {
+    connectFirestoreEmulator(db, firestoreEmulator.host, firestoreEmulator.port);
+    logger.debug(
+      `[firebase] Firestore client connected to emulator ${firestoreEmulator.host}:${firestoreEmulator.port}`,
+    );
+  } catch (err) {
+    // Already connected — safe to ignore (queries fail with network/auth if
+    // the emulator is down, which surfaces clearly in test output).
+    logger.debug('[firebase] connectFirestoreEmulator skipped (already connected or no emulator)', { err });
+  }
 }
 
 export const auth = getAuth(app);
