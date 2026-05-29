@@ -38,6 +38,15 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   // Rolling acceleration history for jerk-based movement detection (H-mandown fix).
   const accHistoryRef = useRef<number[]>([]);
 
+  // Live mirror of `isAlerting` for the interval closures below. CRITICAL: the
+  // inactivity effect must NOT list `isAlerting` in its deps. Doing so tore the
+  // effect down the instant the alert was raised, and its cleanup cleared the
+  // freshly created countdown interval before it could reach 0 — so
+  // triggerAlert() NEVER fired and the alert silently never escalated. Reading
+  // a ref keeps the 1s timer current without re-subscribing the effect. Bug
+  // found by the first-ever test of this hook (2026-05-29); it had 0% coverage.
+  const isAlertingRef = useRef<boolean>(false);
+
   // Dynamic thresholds from project settings or defaults
   const INACTIVITY_THRESHOLD = selectedProject?.settings?.manDownInactivityThreshold || 30000;
   const MOVEMENT_THRESHOLD = selectedProject?.settings?.manDownMovementThreshold || 0.5;
@@ -286,6 +295,11 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     }
   };
 
+  // Keep the alerting ref in sync with state for the interval closures.
+  useEffect(() => {
+    isAlertingRef.current = isAlerting;
+  }, [isAlerting]);
+
   useEffect(() => {
     if (!isActive) return;
 
@@ -334,8 +348,11 @@ export function useManDownDetection(options: ManDownOptions = {}) {
 
     timerRef.current = setInterval(() => {
       const now = Date.now();
-      if (now - lastMovementTime.current > INACTIVITY_THRESHOLD && !isAlerting) {
+      if (now - lastMovementTime.current > INACTIVITY_THRESHOLD && !isAlertingRef.current) {
         setIsAlerting(true);
+        // Mirror immediately so the next 1s tick (before React commits the
+        // state) doesn't stack a second countdown.
+        isAlertingRef.current = true;
         // Start countdown
         countdownRef.current = setInterval(() => {
           setCountdown(prev => {
@@ -354,7 +371,10 @@ export function useManDownDetection(options: ManDownOptions = {}) {
       if (timerRef.current) clearInterval(timerRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
-  }, [isActive, isAlerting, selectedProject, user, INACTIVITY_THRESHOLD]);
+    // NOTE: `isAlerting` is intentionally NOT a dependency — see isAlertingRef
+    // above. Listing it here destroyed the countdown the moment the alert
+    // raised, so the escalation never fired.
+  }, [isActive, selectedProject, user, INACTIVITY_THRESHOLD]);
 
   // Clean teardown on unmount: kill any pending alarm pulses, intervals, and
   // close the AudioContext so we don't leak audio nodes between sessions.
