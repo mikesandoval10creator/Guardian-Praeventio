@@ -69,6 +69,7 @@ import {
   erpSyncLimiter,
   geminiGlobalDailyLimiter,
   susesoVerifyLimiter,
+  aiFeedbackLimiter,
   // Aliased: the file already has a local 2-arg `uidOrIpKey(uid, ip)` mirror
   // (used to compute expected keys for resetKey()). This is the real exported
   // production function (Request → string) that the mutation-coverage tests
@@ -290,6 +291,27 @@ const LIMITER_TABLE = [
     expectedErrorMsg: 'rate_limited',
     statusOn429: 429,
   },
+  {
+    name: 'aiFeedbackLimiter',
+    limiter: aiFeedbackLimiter,
+    windowMs: 5 * 60 * 1000,
+    max: 30,
+    keyKind: 'uid' as const,
+    expectedErrorMsg: 'ai_feedback_rate_limited',
+    statusOn429: 429,
+  },
+  {
+    name: 'susesoVerifyLimiter',
+    limiter: susesoVerifyLimiter,
+    windowMs: 60_000,
+    max: 30,
+    keyKind: 'ip' as const,
+    // suseso returns a domain-shaped body { valid:false, reason } rather than
+    // the { error } discriminator used by the other limiters — override.
+    expectedErrorMsg: 'verify_rate_limited',
+    expectedBody: { valid: false, reason: 'verify_rate_limited' } as Record<string, unknown>,
+    statusOn429: 429,
+  },
 ] as const;
 
 // Anchor epoch — far enough in the past that real Date.now() during test
@@ -352,10 +374,12 @@ describe('per-route limiters — 18th wave Bucket A: windowMs / max / response s
       // most, 503 for `geminiGlobalDailyLimiter` — see Group E below).
       const blocked = await request(app).get('/probe');
       expect(blocked.status).toBe(cfg.statusOn429);
-      // Body shape pin — kills `message: {}` mutation.
-      expect(blocked.body).toEqual(
-        expect.objectContaining({ error: cfg.expectedErrorMsg }),
-      );
+      // Body shape pin — kills `message: {}` mutation. Most limiters use an
+      // `{ error }` discriminator; suseso uses a domain `{ valid, reason }`
+      // body (overridden via `expectedBody`).
+      const expectedBody =
+        'expectedBody' in cfg ? cfg.expectedBody : { error: cfg.expectedErrorMsg };
+      expect(blocked.body).toEqual(expect.objectContaining(expectedBody));
       // standardHeaders=true — the RateLimit-* headers MUST exist. This
       // pins the `standardHeaders: true` boolean literal mutation.
       expect(blocked.headers['ratelimit-limit']).toBeDefined();
