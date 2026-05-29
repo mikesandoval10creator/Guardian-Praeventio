@@ -69,6 +69,9 @@ import {
   canonicalNodePath,
 } from '../../services/zettelkasten/canonical/materializer.js';
 import type { RiskNodePayload } from '../../services/zettelkasten/types.js';
+// §B.8 wire (2026-05-29) — advisory Risk→EPP→Training control suggestions.
+// suggestEdgesForRisk es PURO/determinístico (tabla regulatoria, no LLM).
+import { suggestEdgesForRisk } from '../../services/zettelkasten/riskOrchestrator.js';
 
 const router = Router();
 
@@ -373,6 +376,64 @@ router.post(
         details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
       });
     }
+  },
+);
+
+// ── POST /risk-control-suggestions ────────────────────────────────────
+//
+// Advisory wire (Sprint 39 Fase B.8, 2026-05-29) del riskOrchestrator que
+// estaba huérfano (0 consumers). Dado un descriptor de riesgo devuelve el
+// EPP + capacitación que ese riesgo REQUIERE según DS 594 / DS 132 / DS 78
+// / Ley 16.744 / Ley 20.949 + protocolos MINSAL, más los gaps de
+// capacitación de los trabajadores asignados. Cada sugerencia trae su
+// `rationale` (explicabilidad: es regla determinística, no LLM). NO escribe
+// en Firestore y NO bloquea — sólo recomienda; el caller decide si
+// materializa los edges vía POST /nodes. Por eso no lleva audit log
+// (operación de sólo lectura) ni write-limiter.
+const riskControlsSuggestSchema = z.object({
+  projectId: z.string().min(1).max(256),
+  riskType: z.string().min(1).max(512),
+  industryPrefix: z.string().max(64).optional(),
+  riskNodeId: z.string().max(256).optional(),
+  assignedWorkers: z
+    .array(
+      z.object({
+        uid: z.string().min(1).max(256),
+        activeTrainings: z.array(z.string().max(128)).max(200),
+      }),
+    )
+    .max(500)
+    .optional(),
+});
+
+router.post(
+  '/risk-control-suggestions',
+  verifyAuth,
+  validate(riskControlsSuggestSchema),
+  async (req, res) => {
+    const callerUid = req.user?.uid;
+    if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
+
+    const { projectId, riskType, industryPrefix, riskNodeId, assignedWorkers } =
+      req.body as z.infer<typeof riskControlsSuggestSchema>;
+
+    try {
+      await assertProjectMember(callerUid, projectId, admin.firestore());
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+
+    // Pure, deterministic compute — no Firestore write, no LLM.
+    const suggestions = suggestEdgesForRisk({
+      riskNodeId: riskNodeId ?? 'advisory',
+      riskType,
+      industryPrefix,
+      assignedWorkers,
+    });
+    return res.json({ advisory: true, suggestions });
   },
 );
 
