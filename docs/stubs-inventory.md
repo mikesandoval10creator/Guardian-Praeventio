@@ -34,13 +34,11 @@
 - **Why stub**: catalog adapter para futura integración OTel/Prometheus/Datadog
 - **Removal criteria**: cuando K6 active OpenTelemetry, implementar real.
 
-## criticalPermitValidators orphan
-- **File**: `src/services/workPermits/criticalPermitValidators.ts` (481 LOC, 0 imports producción — solo `.test.ts` + `TODO.md`)
-- **Owner**: A6 (workPermitEngine integration)
-- **Sprint target**: post-PR #513
-- **User-visible?**: NO — código no se ejecuta en runtime
-- **Why orphan**: 6 validadores regulatorios (izaje, excavación, LOTO, confined spaces, hot work, alturas) listos pero `workPermitEngine.ts` no los invoca
-- **Removal criteria (WIRE)**: agregar invocación en `workPermitEngine.evaluatePermit()`. NO eliminar — son compliance Chile DS 132 (minería) + altura.
+## criticalPermitValidators — ✅ WIRED 2026-05-29 (ya no es huérfano)
+- **File**: `src/services/workPermits/criticalPermitValidators.ts` (481 LOC + 36 unit tests)
+- **Estado**: **CABLEADO** vía `POST /:projectId/work-permits/validate-critical` en `src/server/routes/workPermits.ts` (cobertura real-router en `workPermits.criticalValidate.test.ts`). Los 3 validadores implementados (izaje_critico/excavacion/loto, los del dispatcher `validateCriticalPermit`) ahora son alcanzables desde la API.
+- **User-visible?**: SÍ ahora — endpoint advisory (devuelve issues blocking/advisory/info; NUNCA bloquea la emisión — el supervisor resuelve/override). Metadata incompleta → 400 honesto (no 500).
+- **Pendiente (no-stub, feature futura)**: validadores deep para los otros 3 kinds (confined/hot_work/altura) no existen aún como funciones; el endpoint los rechaza vía enum. Cuando se implementen, agregarlos al dispatcher + al enum.
 
 ## B2D MRR snapshot job Sprint E deferido
 - **File**: `src/server/jobs/runB2dMrrSnapshot.ts:15`
