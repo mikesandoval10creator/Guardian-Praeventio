@@ -12,6 +12,8 @@
   "coverageAnalysis": "perTest",
   "concurrency": 4,
   "timeoutMS": 60000,
+  "_notes_ignoreStatic": "ignoreStatic:true (2026-05-29) — con coverageAnalysis=perTest los mutantes ESTÁTICOS (código a nivel de módulo) no se aíslan por test, así que cada uno re-corre la suite completa (2255 tests × ~3min). 166 static mutants (9% del total) consumían ~96% del tiempo → la run completa tomaba ~8h y el job mutation.yml (timeout 60min) quedaba crónicamente rojo. Skipearlos restaura una run de ~15min manteniendo los mutantes a nivel de función (mayor señal); los static suelen sobrevivir espuriamente (mutaciones de constantes top-level sin test directo).",
+  "ignoreStatic": true,
   "thresholds": { "high": 80, "low": 60, "break": 50 },
   "mutator": {
     "excludedMutations": ["ArrayDeclaration"]

@@ -69,6 +69,15 @@ import {
   erpSyncLimiter,
   geminiGlobalDailyLimiter,
   susesoVerifyLimiter,
+  aiFeedbackLimiter,
+  // Aliased: the file already has a local 2-arg `uidOrIpKey(uid, ip)` mirror
+  // (used to compute expected keys for resetKey()). This is the real exported
+  // production function (Request → string) that the mutation-coverage tests
+  // below exercise directly.
+  uidOrIpKey as prodUidOrIpKey,
+  ipOnlyKey,
+  googlePlayWebhookKey,
+  b2dFreeKey,
 } from '../../server/middleware/limiters.js';
 
 function buildAppWithLimiter(limiter: express.RequestHandler): Express {
@@ -282,6 +291,27 @@ const LIMITER_TABLE = [
     expectedErrorMsg: 'rate_limited',
     statusOn429: 429,
   },
+  {
+    name: 'aiFeedbackLimiter',
+    limiter: aiFeedbackLimiter,
+    windowMs: 5 * 60 * 1000,
+    max: 30,
+    keyKind: 'uid' as const,
+    expectedErrorMsg: 'ai_feedback_rate_limited',
+    statusOn429: 429,
+  },
+  {
+    name: 'susesoVerifyLimiter',
+    limiter: susesoVerifyLimiter,
+    windowMs: 60_000,
+    max: 30,
+    keyKind: 'ip' as const,
+    // suseso returns a domain-shaped body { valid:false, reason } rather than
+    // the { error } discriminator used by the other limiters — override.
+    expectedErrorMsg: 'verify_rate_limited',
+    expectedBody: { valid: false, reason: 'verify_rate_limited' } as Record<string, unknown>,
+    statusOn429: 429,
+  },
 ] as const;
 
 // Anchor epoch — far enough in the past that real Date.now() during test
@@ -344,10 +374,12 @@ describe('per-route limiters — 18th wave Bucket A: windowMs / max / response s
       // most, 503 for `geminiGlobalDailyLimiter` — see Group E below).
       const blocked = await request(app).get('/probe');
       expect(blocked.status).toBe(cfg.statusOn429);
-      // Body shape pin — kills `message: {}` mutation.
-      expect(blocked.body).toEqual(
-        expect.objectContaining({ error: cfg.expectedErrorMsg }),
-      );
+      // Body shape pin — kills `message: {}` mutation. Most limiters use an
+      // `{ error }` discriminator; suseso uses a domain `{ valid, reason }`
+      // body (overridden via `expectedBody`).
+      const expectedBody =
+        'expectedBody' in cfg ? cfg.expectedBody : { error: cfg.expectedErrorMsg };
+      expect(blocked.body).toEqual(expect.objectContaining(expectedBody));
       // standardHeaders=true — the RateLimit-* headers MUST exist. This
       // pins the `standardHeaders: true` boolean literal mutation.
       expect(blocked.headers['ratelimit-limit']).toBeDefined();
@@ -740,5 +772,76 @@ describe('susesoVerifyLimiter — Sprint E backend debt', () => {
 
     susesoVerifyLimiter.resetKey(keyA);
     susesoVerifyLimiter.resetKey(keyB);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// keyGenerator strategy unit tests (2026-05-29) — direct per-branch coverage
+// of the extracted key functions. These kill the OptionalChaining /
+// LogicalOperator / StringLiteral / slice mutants that survived while the
+// logic was inlined inside each rateLimit() config (express-rate-limit closes
+// over the inline arrows, so unit tests could never reach them). Pure
+// functions → fast, no supertest / fake timers.
+// ─────────────────────────────────────────────────────────────────────────
+describe('limiters — keyGenerator strategies (mutation coverage)', () => {
+  function req(opts: { user?: { uid?: string }; ip?: string; auth?: string }): Request {
+    return {
+      user: opts.user,
+      ip: opts.ip,
+      header: (name: string) =>
+        name.toLowerCase() === 'authorization' ? opts.auth : undefined,
+    } as unknown as Request;
+  }
+
+  describe('uidOrIpKey', () => {
+    it('returns the uid when present (uid wins over ip)', () => {
+      expect(prodUidOrIpKey(req({ user: { uid: 'u1' }, ip: '1.2.3.4' }))).toBe('u1');
+    });
+    it('falls back to the IPv6-safe IP key when there is no user', () => {
+      expect(prodUidOrIpKey(req({ ip: '1.2.3.4' }))).toBe('1.2.3.4');
+    });
+    it("returns 'anonymous' when neither uid nor ip is present", () => {
+      expect(prodUidOrIpKey(req({}))).toBe('anonymous');
+    });
+    it('treats an empty-string uid as absent (falls through to ip)', () => {
+      expect(prodUidOrIpKey(req({ user: { uid: '' }, ip: '1.2.3.4' }))).toBe('1.2.3.4');
+    });
+  });
+
+  describe('ipOnlyKey', () => {
+    it('returns the IP key for a present ip', () => {
+      expect(ipOnlyKey(req({ ip: '1.2.3.4' }))).toBe('1.2.3.4');
+    });
+    it("defaults to 'anonymous' when ip is absent", () => {
+      expect(ipOnlyKey(req({}))).toBe('anonymous');
+    });
+    it('ignores req.user (IP-only endpoint)', () => {
+      expect(ipOnlyKey(req({ user: { uid: 'u1' }, ip: '1.2.3.4' }))).toBe('1.2.3.4');
+    });
+  });
+
+  describe('googlePlayWebhookKey', () => {
+    it('returns the IP key for a present ip', () => {
+      expect(googlePlayWebhookKey(req({ ip: '1.2.3.4' }))).toBe('1.2.3.4');
+    });
+    it("defaults to 'unknown' when ip is absent", () => {
+      expect(googlePlayWebhookKey(req({}))).toBe('unknown');
+    });
+  });
+
+  describe('b2dFreeKey', () => {
+    it('returns the 12-char key prefix for a `Bearer pk_` key', () => {
+      // 'Bearer ' (7) + next 12 chars → 'pk_abc123def'
+      expect(b2dFreeKey(req({ auth: 'Bearer pk_abc123def456ghi' }))).toBe('pk_abc123def');
+    });
+    it('falls back to the IP key for a non-pk Bearer token', () => {
+      expect(b2dFreeKey(req({ auth: 'Bearer somethingelse', ip: '1.2.3.4' }))).toBe('1.2.3.4');
+    });
+    it('falls back to the IP key when there is no Authorization header', () => {
+      expect(b2dFreeKey(req({ ip: '1.2.3.4' }))).toBe('1.2.3.4');
+    });
+    it("defaults to 'b2d-anonymous' with no key and no ip", () => {
+      expect(b2dFreeKey(req({}))).toBe('b2d-anonymous');
+    });
   });
 });

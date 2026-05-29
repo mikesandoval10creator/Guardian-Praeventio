@@ -26,11 +26,48 @@
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
 
+// ─────────────────────────────────────────────────────────────────────────
+// Shared keyGenerator strategies. Extracted (2026-05-29) from the inline
+// copies that were repeated verbatim across the limiters below. Behavior is
+// byte-identical — this is a pure DRY extraction whose only purpose is to make
+// the branch logic (`req.user?.uid ||`, the IPv6-safe IP fallback, and the
+// constant default) directly unit-testable. Inline arrows are invisible to
+// unit tests because express-rate-limit closes over them; named exports are
+// not. See limiters.test.ts for the per-branch coverage.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Per-uid bucket key; falls back to an IPv6-safe IP key, then 'anonymous'.
+ *  Used by limiters mounted AFTER verifyAuth (uid is normally present). */
+export function uidOrIpKey(req: Request): string {
+  return req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous';
+}
+
+/** IP-only bucket key (unauthenticated endpoints), default 'anonymous'. */
+export function ipOnlyKey(req: Request): string {
+  return ipKeyGenerator(req.ip ?? '') || 'anonymous';
+}
+
+/** IP-only bucket key for the Google Play webhook; default 'unknown'. */
+export function googlePlayWebhookKey(req: Request): string {
+  return ipKeyGenerator(req.ip ?? '') || 'unknown';
+}
+
+/** B2D free-tier bucket key: the 12-char API-key prefix when a `Bearer pk_`
+ *  key is present (keeps the bucket out of plaintext-secret territory while
+ *  staying stable per key), otherwise the IPv6-safe IP key, then a default. */
+export function b2dFreeKey(req: Request): string {
+  const auth = req.header('authorization') ?? '';
+  if (auth.startsWith('Bearer pk_')) {
+    return auth.slice('Bearer '.length, 'Bearer '.length + 12);
+  }
+  return ipKeyGenerator(req.ip ?? '') || 'b2d-anonymous';
+}
+
 // Stricter per-user rate limit for expensive AI calls
 export const geminiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
-  keyGenerator: (req: Request) => req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  keyGenerator: uidOrIpKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Límite de consultas IA alcanzado. Intenta de nuevo en 15 minutos.' },
@@ -44,7 +81,7 @@ export const geminiLimiter = rateLimit({
 export const invoiceStatusLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 600,
-  keyGenerator: (req: Request) => req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  keyGenerator: uidOrIpKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Polling muy frecuente. Intenta de nuevo en unos segundos.' },
@@ -81,7 +118,7 @@ export const refereeLimiter = rateLimit({
 export const webauthnVerifyLimiter = rateLimit({
   windowMs: 60 * 1000, // 1-minute sliding window
   max: 5, // 5 verify attempts per uid per window
-  keyGenerator: (req: Request) => req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  keyGenerator: uidOrIpKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'too_many_verify_attempts', retryAfterMs: 60_000 },
@@ -106,7 +143,7 @@ export const webauthnVerifyLimiter = rateLimit({
 export const webauthnRegisterLimiter = rateLimit({
   windowMs: 60 * 1000, // 1-minute sliding window
   max: 3, // 3 register attempts per uid per window — tighter than verify
-  keyGenerator: (req: Request) => req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  keyGenerator: uidOrIpKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'too_many_register_attempts', retryAfterMs: 60_000 },
@@ -135,7 +172,7 @@ export const webauthnRegisterLimiter = rateLimit({
 export const susesoVerifyLimiter = rateLimit({
   windowMs: 60_000, // 1 minute
   max: 30,
-  keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  keyGenerator: ipOnlyKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: { valid: false, reason: 'verify_rate_limited' },
@@ -152,7 +189,7 @@ export const susesoVerifyLimiter = rateLimit({
 export const googlePlayWebhookLimiter = rateLimit({
   windowMs: 60_000,
   max: 10,
-  keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? '') || 'unknown',
+  keyGenerator: googlePlayWebhookKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'rate_limited' },
@@ -172,7 +209,7 @@ export const googlePlayWebhookLimiter = rateLimit({
 export const zettelkastenWriteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
-  keyGenerator: (req: Request) => req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  keyGenerator: uidOrIpKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiadas escrituras de nodos. Intenta de nuevo en 15 minutos.' },
@@ -192,7 +229,7 @@ export const zettelkastenWriteLimiter = rateLimit({
 export const aiFeedbackLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
   max: 30,
-  keyGenerator: (req: Request) => req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  keyGenerator: uidOrIpKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'ai_feedback_rate_limited', retryAfterMs: 5 * 60 * 1000 },
@@ -206,7 +243,7 @@ export const aiFeedbackLimiter = rateLimit({
 export const erpSyncLimiter = rateLimit({
   windowMs: 60_000,
   max: 30,
-  keyGenerator: (req: Request) => req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  keyGenerator: uidOrIpKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'rate_limited' },
@@ -245,16 +282,7 @@ export const erpSyncLimiter = rateLimit({
 export const b2dFreeLimiter = rateLimit({
   windowMs: 24 * 24 * 60 * 60 * 1000, // 24-day rolling window — see note above
   max: parseInt(process.env.B2D_FREE_CAP ?? '1000', 10),
-  keyGenerator: (req: Request) => {
-    const auth = req.header('authorization') ?? '';
-    if (auth.startsWith('Bearer pk_')) {
-      // Bucket per key prefix — matches the `keyPrefix` shape stored in
-      // Firestore. Using just the prefix (12 chars) keeps the bucket key
-      // out of plaintext-secret territory while staying stable per key.
-      return auth.slice('Bearer '.length, 'Bearer '.length + 12);
-    }
-    return ipKeyGenerator(req.ip ?? '') || 'b2d-anonymous';
-  },
+  keyGenerator: b2dFreeKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'b2d_free_cap_reached', resetAfterDays: 30 },
