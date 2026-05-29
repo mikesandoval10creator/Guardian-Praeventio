@@ -10,6 +10,7 @@ jobs:
   verify-roles:
     name: RBAC roles sync
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -23,6 +24,7 @@ jobs:
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +44,12 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
+    # Global safety cap (2026-05-29): a flaky vitest hang previously ran to
+    # GitHub's 6h default, hogging a runner and saturating the queue so that
+    # green-but-for-Tests PRs could not merge. 30 min is well above the
+    # healthy runtime (~12-15 min) so it only fires on a genuine hang.
+    # Applied to every job below as defensive hygiene.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -66,6 +74,7 @@ jobs:
     # "start" path consuming "validate:env" without --mode test.
     name: Validate env
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -79,6 +88,7 @@ jobs:
   rules-tests:
     name: Firestore rules tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -119,6 +129,7 @@ jobs:
     # rules) porque testea LÓGICA de stores, no las security rules.
     name: Firestore stores tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -158,6 +169,7 @@ jobs:
     # who used --no-verify can't sneak diagnostic code past review.
     name: "ADR 0012 — no diagnosis enforcement"
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -190,6 +202,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: typecheck
     steps:
       - uses: actions/checkout@v4
