@@ -12,88 +12,39 @@ interface LandingPageProps {
   onEnter: () => void;
 }
 
+// Feature cards. User-facing copy lives in i18n under `landing.features.<id>.{title,desc}`.
 const FEATURES = [
-  {
-    icon: ShieldAlert,
-    color: 'text-rose-400',
-    bg: 'bg-rose-500/10 border-rose-500/20',
-    title: 'Respuesta a Emergencias',
-    desc: 'Botón de pánico, geolocalización en tiempo real y alertas masivas a todo el equipo en segundos.',
-  },
-  {
-    icon: Brain,
-    color: 'text-violet-400',
-    bg: 'bg-violet-500/10 border-violet-500/20',
-    title: 'Inteligencia Artificial',
-    desc: 'Gemini Pro genera PTS automáticos, evalúa riesgos y te guía con normativa DS 54, DS 44/2024 (reemplaza DS 40/1969) y Ley 16.744.',
-  },
-  {
-    icon: BookOpen,
-    color: 'text-amber-400',
-    bg: 'bg-amber-500/10 border-amber-500/20',
-    title: 'Capacitaciones',
-    desc: 'Videos, quizzes y gamificación. Registra capacitaciones y obtén certificados digitales automáticamente.',
-  },
-  {
-    icon: BarChart3,
-    color: 'text-blue-400',
-    bg: 'bg-blue-500/10 border-blue-500/20',
-    title: 'Auditorías ISO',
-    desc: 'Checklist ISO 45001, OHSAS 18001 y reportes SUSESO generados en PDF con un clic.',
-  },
-  {
-    icon: Users,
-    color: 'text-[#d4af37]',
-    bg: 'bg-[#4db6ac]/10 border-[#4db6ac]/20',
-    title: 'Gestión de Equipos',
-    desc: 'Roles por proyecto (gerente, prevencionista, supervisor), invitaciones por email y multi-empresa.',
-  },
-  {
-    icon: Zap,
-    color: 'text-orange-400',
-    bg: 'bg-orange-500/10 border-orange-500/20',
-    title: 'Dashboard Ejecutivo',
-    desc: 'KPIs en tiempo real, accidentabilidad, tasa de siniestralidad y cumplimiento por proyecto.',
-  },
+  { icon: ShieldAlert, color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20', id: 'emergency' },
+  { icon: Brain, color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20', id: 'ai' },
+  { icon: BookOpen, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', id: 'training' },
+  { icon: BarChart3, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20', id: 'iso' },
+  { icon: Users, color: 'text-[#d4af37]', bg: 'bg-[#4db6ac]/10 border-[#4db6ac]/20', id: 'teams' },
+  { icon: Zap, color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', id: 'dashboard' },
 ];
 
 interface Plan {
-  name: string;
+  id: string;
   workers: string;
-  price: string;
   color: string;
   popular?: boolean;
   recommended?: boolean;
 }
 
+// Plan name + price copy in i18n under `landing.pricing.plans.<id>.{name,price}`.
 const PLANS: Plan[] = [
-  { name: 'Gratuito', workers: '10', price: '$0', color: 'border-zinc-700' },
-  { name: 'Comité', workers: '25', price: '$10/mes', color: 'border-[#4db6ac]', popular: true },
-  { name: 'Departamento', workers: '100', price: '$30/mes', color: 'border-blue-500', recommended: true },
-  { name: 'Enterprise', workers: '250+', price: 'Desde $50/mes', color: 'border-violet-500' },
+  { id: 'free', workers: '10', color: 'border-zinc-700' },
+  { id: 'committee', workers: '25', color: 'border-[#4db6ac]', popular: true },
+  { id: 'department', workers: '100', color: 'border-blue-500', recommended: true },
+  { id: 'enterprise', workers: '250+', color: 'border-violet-500' },
 ];
 
 const COMPLIANCE_BADGES = ['DS 54', 'DS 44/2024', 'Ley 16.744', 'ISO 45001', 'OHSAS 18001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
 
+// Steps. Copy in i18n under `landing.how.<id>.{title,desc}`.
 const HOW_STEPS = [
-  {
-    n: 1,
-    title: 'Registra',
-    desc: 'Reporta riesgos e incidentes desde cualquier dispositivo. Web, móvil, voz.',
-    icon: Mic,
-  },
-  {
-    n: 2,
-    title: 'La IA analiza',
-    desc: 'El asistente Guardian con Gemini AI detecta patrones, sugiere medidas correctivas y prioriza por severidad.',
-    icon: Brain,
-  },
-  {
-    n: 3,
-    title: 'Cumplimiento automático',
-    desc: 'DIAT, libros de obra, actas CPHS y reportes SUSESO generados en segundos.',
-    icon: FileText,
-  },
+  { n: 1, id: 'step1', icon: Mic },
+  { n: 2, id: 'step2', icon: Brain },
+  { n: 3, id: 'step3', icon: FileText },
 ];
 
 const sectionMotion = {
@@ -292,30 +243,30 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" aria-hidden="true" />
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-widest text-teal-400 mb-3">El problema</p>
+            <p className="text-[11px] font-black uppercase tracking-widest text-teal-400 mb-3">{t('landing.problem.eyebrow')}</p>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter mb-5 leading-tight">
-              Por qué Guardian
+              {t('landing.problem.title')}
             </h2>
             <p className="text-base sm:text-lg text-zinc-300 leading-relaxed">
-              La prevención de riesgos en Chile sigue atrapada en hojas de cálculo y papeleo. Guardian digitiza el reporte de incidentes, las capacitaciones del equipo, y usa IA para detectar patrones antes de que ocurran accidentes.
+              {t('landing.problem.body')}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             {/* BEFORE */}
             <div className="bg-zinc-900/60 border border-white/5 rounded-2xl p-5 opacity-70">
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">Antes</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">{t('landing.problem.before_label')}</p>
               <ul className="space-y-3 list-none p-0">
                 {[
-                  { icon: FileSpreadsheet, label: 'Excel' },
-                  { icon: FileText, label: 'Papeleo' },
-                  { icon: Mail, label: 'Email' },
+                  { icon: FileSpreadsheet, id: 'excel' },
+                  { icon: FileText, id: 'paperwork' },
+                  { icon: Mail, id: 'email' },
                 ].map(item => (
-                  <li key={item.label} className="flex items-center gap-2.5 text-zinc-500">
+                  <li key={item.id} className="flex items-center gap-2.5 text-zinc-500">
                     <div className="w-7 h-7 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center">
                       <item.icon className="w-3.5 h-3.5" aria-hidden="true" />
                     </div>
-                    <span className="text-sm font-bold line-through decoration-zinc-600">{item.label}</span>
+                    <span className="text-sm font-bold line-through decoration-zinc-600">{t(`landing.problem.before_${item.id}`)}</span>
                   </li>
                 ))}
               </ul>
@@ -323,10 +274,10 @@ export function LandingPage({ onEnter }: LandingPageProps) {
 
             {/* AFTER */}
             <div className="bg-teal-400/5 border border-teal-400/30 rounded-2xl p-5 shadow-lg shadow-teal-400/5">
-              <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-4">Con Guardian</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-4">{t('landing.problem.after_label')}</p>
               <div className="flex items-center gap-2 mb-3">
                 <CheckCircle2 className="w-4 h-4 text-teal-400" aria-hidden="true" />
-                <span className="text-sm font-black text-white">Tiempo real</span>
+                <span className="text-sm font-black text-white">{t('landing.problem.realtime')}</span>
               </div>
               {/* mini mock chart */}
               <div className="flex items-end gap-1 h-14 mb-3" aria-hidden="true">
@@ -340,7 +291,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
               </div>
               <div className="flex items-center gap-2 text-zinc-300">
                 <Activity className="w-3.5 h-3.5 text-teal-400" aria-hidden="true" />
-                <span className="text-xs font-bold">Patrones detectados por IA</span>
+                <span className="text-xs font-bold">{t('landing.problem.ai_patterns')}</span>
               </div>
             </div>
           </div>
@@ -352,17 +303,17 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter mb-3">
-              Todo lo que necesitas para cumplir la ley
+              {t('landing.features.title')}
             </h2>
             <p className="text-zinc-400 max-w-xl mx-auto">
-              Diseñado para empresas chilenas. Todas las herramientas que exige la normativa, sin papel.
+              {t('landing.features.subtitle')}
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {FEATURES.map((f, i) => (
               <motion.div
-                key={f.title}
+                key={f.id}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -372,8 +323,8 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                 <div className={`w-11 h-11 rounded-xl border ${f.bg} flex items-center justify-center mb-4`} aria-hidden="true">
                   <f.icon className={`w-5 h-5 ${f.color}`} />
                 </div>
-                <h3 className="font-black text-lg mb-2 tracking-tight">{f.title}</h3>
-                <p className="text-sm text-zinc-400 leading-relaxed">{f.desc}</p>
+                <h3 className="font-black text-lg mb-2 tracking-tight">{t(`landing.features.${f.id}.title`)}</h3>
+                <p className="text-sm text-zinc-400 leading-relaxed">{t(`landing.features.${f.id}.desc`)}</p>
               </motion.div>
             ))}
           </div>
@@ -384,12 +335,12 @@ export function LandingPage({ onEnter }: LandingPageProps) {
       <motion.section {...sectionMotion} className="py-20 px-5 sm:px-10 bg-zinc-900/30 border-y border-white/5">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
-            <p className="text-[11px] font-black uppercase tracking-widest text-teal-400 mb-3">Flujo simple</p>
+            <p className="text-[11px] font-black uppercase tracking-widest text-teal-400 mb-3">{t('landing.how.eyebrow')}</p>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter mb-3">
-              Cómo funciona
+              {t('landing.how.title')}
             </h2>
             <p className="text-zinc-400 max-w-xl mx-auto">
-              Del reporte al cumplimiento en tres pasos.
+              {t('landing.how.subtitle')}
             </p>
           </div>
 
@@ -414,8 +365,8 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                     <ArrowRight className="hidden md:block w-5 h-5 text-teal-400/40 ml-auto" aria-hidden="true" />
                   )}
                 </div>
-                <h3 className="font-black text-xl tracking-tight mt-2">{s.title}</h3>
-                <p className="text-sm text-zinc-400 leading-relaxed">{s.desc}</p>
+                <h3 className="font-black text-xl tracking-tight mt-2">{t(`landing.how.${s.id}.title`)}</h3>
+                <p className="text-sm text-zinc-400 leading-relaxed">{t(`landing.how.${s.id}.desc`)}</p>
               </div>
             ))}
           </div>
@@ -427,42 +378,42 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter mb-3">
-              Planes para cada empresa
+              {t('landing.pricing.title')}
             </h2>
-            <p className="text-zinc-400">Escala cuando tu empresa crezca. Empieza gratis hoy.</p>
+            <p className="text-zinc-400">{t('landing.pricing.subtitle')}</p>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {PLANS.map((p) => (
               <a
-                key={p.name}
+                key={p.id}
                 href="/login"
                 onClick={(e) => { e.preventDefault(); handleLogin(); }}
                 className={`relative bg-zinc-900 border rounded-2xl p-5 flex flex-col gap-3 ${p.color} ${p.popular ? 'ring-2 ring-[#4db6ac] ring-offset-2 ring-offset-zinc-950' : ''} hover:border-white/30 transition-colors`}
-                aria-label={`Elegir plan ${p.name}`}
+                aria-label={t('landing.pricing.choose_plan', { name: t(`landing.pricing.plans.${p.id}.name`) })}
               >
                 {p.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#4db6ac] text-zinc-950 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
-                    Popular
+                    {t('landing.pricing.popular_badge')}
                   </div>
                 )}
                 {p.recommended && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gold-400 text-petroleum-900 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
-                    Recomendado
+                    {t('landing.pricing.recommended_badge')}
                   </div>
                 )}
-                <p className="font-black text-sm">{p.name}</p>
-                <p className="text-2xl font-black tracking-tighter">{p.price}</p>
+                <p className="font-black text-sm">{t(`landing.pricing.plans.${p.id}.name`)}</p>
+                <p className="text-2xl font-black tracking-tighter">{t(`landing.pricing.plans.${p.id}.price`)}</p>
                 <div className="flex items-center gap-1.5 text-zinc-400">
                   <Users className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span className="text-xs font-bold">{p.workers} trabajadores</span>
+                  <span className="text-xs font-bold">{p.workers} {t('landing.pricing.workers_suffix')}</span>
                 </div>
               </a>
             ))}
           </div>
 
           <p className="text-center text-xs text-zinc-600 mt-6 font-bold">
-            Planes enterprise hasta 5,000 trabajadores · Precios en USD
+            {t('landing.pricing.footnote')}
           </p>
         </div>
       </motion.section>
@@ -474,10 +425,10 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             <ShieldAlert className="w-8 h-8 text-teal-400" />
           </div>
           <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
-            Empieza hoy.<br />Es gratis.
+            {t('landing.final_cta.title_line_1')}<br />{t('landing.final_cta.title_line_2')}
           </h2>
           <p className="text-zinc-400 mb-8">
-            Crea tu cuenta, agrega tu empresa y cumple la normativa chilena desde el primer día.
+            {t('landing.final_cta.subtitle')}
           </p>
           <motion.button
             whileHover={{ scale: 1.03 }}
@@ -486,7 +437,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             className="inline-flex items-center gap-3 bg-teal-400 hover:bg-teal-500 text-zinc-950 px-10 py-4 rounded-2xl text-base font-black uppercase tracking-widest shadow-xl shadow-teal-400/20 transition-all"
           >
             <Play className="w-4 h-4 fill-current" aria-hidden="true" />
-            Abrir Guardian Praeventio
+            {t('landing.final_cta.button')}
           </motion.button>
         </div>
       </motion.section>
@@ -504,7 +455,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
               <span className="text-xs font-black text-zinc-300">GUARDIAN PRAEVENTIO</span>
             </div>
             <p className="text-xs text-zinc-600 leading-relaxed">
-              Prevención de riesgos en la palma de la mano.
+              {t('landing.footer.tagline')}
             </p>
           </div>
 
@@ -518,7 +469,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                   rel="noopener noreferrer"
                   className="text-xs font-bold text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
-                  Historia
+                  {t('landing.footer.link_history')}
                 </a>
               </li>
               <li>
@@ -528,7 +479,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                   rel="noopener noreferrer"
                   className="text-xs font-bold text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
-                  Equipo
+                  {t('landing.footer.link_team')}
                 </a>
               </li>
               <li>
@@ -545,7 +496,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           </div>
 
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">Contacto</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">{t('landing.footer.col_contact')}</p>
             <ul className="space-y-2 list-none p-0">
               <li>
                 <a
@@ -555,23 +506,23 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                   <Mail className="w-3 h-3" aria-hidden="true" />contacto@praeventio.net
                 </a>
               </li>
-              <li className="text-xs font-bold text-zinc-600">Santiago, Chile</li>
+              <li className="text-xs font-bold text-zinc-600">{t('landing.footer.location')}</li>
             </ul>
           </div>
 
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">Legal</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">{t('landing.footer.col_legal')}</p>
             <ul className="space-y-2 list-none p-0">
               <li>
                 <button
                   onClick={() => navigate('/privacidad')}
                   className="text-xs font-bold text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
-                  Privacidad
+                  {t('landing.footer.link_privacy')}
                 </button>
               </li>
               <li className="text-xs font-bold text-zinc-600 inline-flex items-center gap-1">
-                <Lock className="w-3 h-3" aria-hidden="true" />Datos seguros · Firebase
+                <Lock className="w-3 h-3" aria-hidden="true" />{t('landing.footer.data_secure')}
               </li>
             </ul>
           </div>
@@ -579,10 +530,10 @@ export function LandingPage({ onEnter }: LandingPageProps) {
 
         <div className="max-w-6xl mx-auto pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-zinc-700 font-bold">
-            © 2026 Praeventio · Chile
+            {t('landing.footer.copyright')}
           </p>
           <p className="text-[10px] text-zinc-700 font-bold uppercase tracking-widest">
-            Hecho en Chile
+            {t('landing.footer.made_in')}
           </p>
         </div>
       </footer>
