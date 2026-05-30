@@ -1076,6 +1076,8 @@ Mantener: tests verdes (HOY 10029/10029 ✅), CI workflow estable, no agregar nu
 | **Bloqueo de maquinaria** | Directiva 2 usuario: NUNCA bloquear maquinaria, solo recomendar científicamente. |
 | **ODA File Converter binary** | License comercial — pivotamos a LibreDWG Cloud Run (proxy real existe). |
 | **Fatiga Humana → reasignar tareas automáticamente** | Solo notificar al supervisor (directiva: no bloquear, no decidir por humano). |
+| **Pinecone (vector DB cloud)** | Descartado (usuario 2026-05-30). El RAG usa el fallback in-memory/interno (ya gated por env). Referencias en `coachRag.ts` / `chemicalBackend.ts` / `coach/normativeRag.ts` / `networkBackend.ts` quedan como código gated; limpiar a futuro. |
+| **COLMAP cloud / photogrammetry-worker de pago** | Descartado si implica costo (usuario 2026-05-30). La fotogrametría **INTERNA on-device ya existe COMPLETA y MIT/OSS**: `frameExtractor` → `midasDepthEstimator` (MiDaS) → `pointCloudBuilder` → `glbExporter`/`usdzExporter` (`src/services/digitalTwin/onDeviceReconstruction/`, VIDEO→MESH sin enviar bytes fuera). Eso ES lo que hace COLMAP, interno y gratis. |
 
 ---
 
@@ -1304,6 +1306,20 @@ Podar **214 branches** en `origin/` (claude/* 10-17d + dev/sprint-* 10-53 + feat
 > **Generado 2026-05-19** — cross-reference de los 13 docs movidos a `docs/archive/2026-05/` vs §1-§11. Solo items NO presentes en TODO.md, NO en §9 Descartado, NO filosóficos abstractos. Total ~50 items técnicos verificados con grep contra código real.
 >
 > **Política:** estos items son carry-over válido — directiva usuario 2026-05-19: "no puedes borrar propuestas que no estén consideradas en TODO.md". Cada item linkea al doc archive como evidencia histórica.
+
+### ⚠️ VERIFICACIÓN 2026-05-30 — §16 está EN GRAN PARTE STALE (lo "no implementado" ya está hecho)
+
+> Directiva usuario: verificar punto por punto, no asumir. Muestreo amplio de §16 contra el código → **la mayoría de los items "no implementados" ya están construidos** desde que se escribieron esos docs archive. Confirmado-hecho (Rule #1):
+>
+> - §16.2.2 `conflict_queue` (safety docs nunca last-write-wins) → `src/services/sync/conflictQueue.ts` + `conflictResolver.ts` ✅
+> - §16.2.3 `safeNormativeQuery` (SLM no alucina ley si RAG <0.75) → `src/services/rag/safeNormativeQuery.ts` (`MIN_SIMILARITY=0.75`) + tested ✅ (+ guard a nivel prompt en `chat.ts`)
+> - §16.8.4 `autoTrigger` test → `src/services/emergency/autoTrigger.test.ts` ✅ · §16.8.6 MorningRoutine SÍ persiste (`setDoc`) ✅
+> - §16.2.1 event bus / systemEngine → `services/eventBus/` + `services/systemEngine/` (foundation presente)
+> - §16.1.2 / §16.1.3 (3D, foto→hallazgo) + ARKit USDZ (#3) → **fotogrametría INTERNA on-device YA EXISTE, MIT/OSS**: `frameExtractor` → `midasDepthEstimator` (MiDaS depth ML) → `pointCloudBuilder` → `glbExporter`/`usdzExporter` (`src/services/digitalTwin/onDeviceReconstruction/`, VIDEO→MESH sin enviar bytes fuera).
+>
+> **Genuinamente pendiente (no stale):** cowork (secrets/cuentas), salud CI (hang flaky), E2E real (~8 specs), y profundidad de un par de items (correlación multi-sensor). El **#9 Coach IA por dominio se construyó** (PR #591).
+>
+> **Pinecone + COLMAP cloud → DESCARTADOS** (ver §9 — la fotogrametría interna ya cubre COLMAP). Las líneas de abajo se conservan como histórico; **este bloque las supersede.**
 
 ### 16.1 MASTER_PROPOSAL_2026-05 — Sprints 10-19 no implementados
 
