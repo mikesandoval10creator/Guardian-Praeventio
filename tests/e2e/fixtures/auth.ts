@@ -133,6 +133,31 @@ export async function loginAsTestUser(
       if (payload.customToken) {
         localStorage.setItem('gp.e2e.custom_token', payload.customToken);
       }
+      // 2026-05-30 — Suppress the first-run consent/onboarding dialogs that
+      // render at the app root and overlay every authenticated route,
+      // intercepting pointer events so the authed specs (settings/SOS/process/
+      // offline) can never click their targets. We model the E2E user as a
+      // returning, already-consented worker by pre-seeding the exact keys each
+      // gate reads (verified against the components, not guessed):
+      //   - CookieConsent.tsx        → 'praeventio_cookie_consent'
+      //   - ConsentBanner.tsx (19.628)→ 'pg.consentBanner.dismissed.v1'
+      //   - SLM model prompt         → 'praeventio:slm:acquisition:v1'
+      //     (getAcquisitionStatus returns 'declined' when the persisted
+      //      decision matches DEFAULT_MODEL_ID = 'phi-3-mini').
+      try {
+        localStorage.setItem('praeventio_cookie_consent', 'accepted');
+        localStorage.setItem('pg.consentBanner.dismissed.v1', '1');
+        localStorage.setItem(
+          'praeventio:slm:acquisition:v1',
+          JSON.stringify({
+            modelId: 'phi-3-mini',
+            kind: 'declined',
+            decidedAt: '2020-01-01T00:00:00.000Z',
+          }),
+        );
+      } catch {
+        /* localStorage unavailable (private mode) — non-fatal for the fixture. */
+      }
     },
     { userData: user, token, authHeader, customToken },
   );
