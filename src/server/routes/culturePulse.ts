@@ -10,10 +10,14 @@
 //   POST /:projectId/culture-pulse/survey/:id/respond → respond (worker, una vez)
 //   GET  /:projectId/culture-pulse/history            → últimas 6 olas
 //
-// PRIVACIDAD CRÍTICA:
+// PRIVACIDAD CRÍTICA (Ley Karín 21.643 / Ley 19.628 — anonimato de la encuesta):
 //   - Responses NUNCA persisten `responderUid`. Solo `responderHash` =
-//     SHA-256(uid + surveyId).slice(0,32) — garantiza idempotencia por
-//     respondedor sin permitir re-identificación.
+//     HMAC-SHA256(pepper, uid + surveyId).slice(0,32) — keyed con un pepper
+//     server-only (`CULTURE_PULSE_PEPPER`, si no `SESSION_SECRET`). Garantiza
+//     idempotencia por respondedor Y bloquea la re-identificación off-server:
+//     sin el pepper, un insider con read de Firestore + el roster de uids NO
+//     puede recomputar el hash de cada candidato y mapear quién respondió qué.
+//     Ver `pulseResponderHash` para el detalle + la nota de migración.
 //   - Threshold de anonimato n>=5: con menos respuestas, suprimimos TODOS
 //     los agregados derivados (cultureIndex, byQuestion, topConcerns,
 //     topStrengths, punitive flag). Devolvemos sólo metadata de existencia.
@@ -24,7 +28,7 @@
 //   - n<5 anonymity suppression con `insufficientResponses` flag
 //   - Schedule endpoint gated por role (admin/prevencionista/supervisor)
 
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import admin from 'firebase-admin';
@@ -159,7 +163,46 @@ interface StoredPulseResponse {
   submittedAt: string;
 }
 
-function pulseResponderHash(uid: string, surveyId: string): string {
+// Domain-separation label — garantiza que este hash keyed nunca colisione con
+// ningún otro consumidor de `SESSION_SECRET` (firma de sesión, etc.). Bump :vN
+// si la derivación cambia (re-keya TODOS los responder hashes → ver migración).
+const PULSE_RESPONDER_HASH_DOMAIN = 'culture-pulse:responder:v1';
+
+/**
+ * Clave anonimizante e idempotente del respondedor. HMAC-SHA256 keyed por un
+ * pepper server-only (`CULTURE_PULSE_PEPPER`, si no `SESSION_SECRET` — required
+ * to boot per CLAUDE.md / validate-env.cjs). El pepper es lo que impide la
+ * re-identificación: sin él, un insider con read de Firestore + el roster de
+ * uids podría brute-forcear `SHA-256(uid:surveyId)` sobre cada candidato y
+ * mapear los doc IDs de `responses/` → quién respondió qué. Con el pepper, los
+ * doc IDs no son reproducibles fuera del servidor. (Ley Karín 21.643 / Ley
+ * 19.628.) Defense-in-depth: el modelo de amenaza es el insider privilegiado
+ * (dueño / consola GCP), ya que firestore.rules es default-deny para usuarios
+ * normales de la app.
+ *
+ * Fallback test/dev: sin pepper configurado, degrada al SHA-256 unkeyed legacy
+ * para que la suite quede determinista. Nunca se alcanza en prod (el boot falla
+ * antes si `SESSION_SECRET` no está).
+ *
+ * MIGRACIÓN (2026-05-30): introducir el pepper cambia TODOS los outputs. Para
+ * una encuesta que quede ABIERTA cruzando este deploy, un trabajador que ya
+ * respondió (hash legacy) no es detectado por su nuevo hash peppered y podría
+ * responder una vez más → skew transitorio, de baja magnitud, sobre un agregado
+ * con umbral n>=5. Aceptado deliberadamente (opción a) en vez de dual-read; debe
+ * anotarse en las notas de deploy. Encuestas nuevas no tienen este efecto.
+ *
+ * Exportada para aserción directa en culturePulse.test.ts.
+ */
+export function pulseResponderHash(uid: string, surveyId: string): string {
+  const pepper =
+    process.env.CULTURE_PULSE_PEPPER ?? process.env.SESSION_SECRET ?? '';
+  if (pepper) {
+    return createHmac('sha256', pepper)
+      .update(`${PULSE_RESPONDER_HASH_DOMAIN}:${uid}:${surveyId}`)
+      .digest('hex')
+      .slice(0, 32);
+  }
+  // Legacy unkeyed path — test/dev only (ver doc arriba).
   return createHash('sha256')
     .update(`${uid}:${surveyId}`)
     .digest('hex')

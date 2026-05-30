@@ -8,7 +8,7 @@
 // idempotent one-response-per-worker, and the PRIVACY contract: a stored
 // response must NEVER carry the responder uid (only the anonymizing hash).
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
 import { createHash } from 'node:crypto';
@@ -45,7 +45,7 @@ vi.mock('../../services/auth/projectMembership.js', async (orig) => {
   return { ...actual, assertProjectMember: vi.fn(async () => undefined) };
 });
 
-import culturePulseRouter from '../../server/routes/culturePulse.js';
+import culturePulseRouter, { pulseResponderHash } from '../../server/routes/culturePulse.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
 
@@ -63,7 +63,14 @@ const FUTURE = '2999-01-01T00:00:00.000Z';
 const FUTURE2 = '2999-06-01T00:00:00.000Z';
 const CP_COLL = 'tenants/t1/projects/p1/culture_pulse';
 
-function responderHash(uid: string, surveyId: string): string {
+// Predict response doc IDs by reusing the PRODUCTION hash verbatim, so these
+// stay correct whether or not a pepper is configured in the test env (the
+// real-router tests below run with no pepper → the legacy unkeyed path).
+const responderHash = pulseResponderHash;
+
+// Legacy unkeyed reference (pre-pepper) — used only by the pepper tests to
+// prove the peppered output is NOT reproducible without the server secret.
+function legacyUnkeyedHash(uid: string, surveyId: string): string {
   return createHash('sha256').update(`${uid}:${surveyId}`).digest('hex').slice(0, 32);
 }
 
@@ -224,5 +231,85 @@ describe('POST /culture-pulse/survey/:id/respond', () => {
       .set('x-test-uid', 'w1')
       .send({ workerRole: 'operario', area: 'mina', answers: { ...validAnswers, felt_safe_today: 9 } });
     expect(res.status).toBe(400);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Anonymity pepper (security hardening 2026-05-30) — the responder hash must be
+// a server-keyed HMAC so a privileged insider (DB read + uid roster) cannot
+// re-identify who answered by brute-forcing SHA-256(uid:surveyId) candidates.
+// Ley Karín 21.643 / Ley 19.628 worker-survey anonymity. These drive the pure
+// `pulseResponderHash` directly, toggling the server pepper env var.
+// ───────────────────────────────────────────────────────────────────────────
+describe('pulseResponderHash — anonymity pepper', () => {
+  const PEPPER_A = 'pepper-alpha-0123456789abcdef0123456789abcdef';
+  const PEPPER_B = 'pepper-bravo-fedcba9876543210fedcba9876543210';
+  // Capture the ambient env once so each case restores cleanly and never
+  // leaks a pepper into the real-router suites above (or vice-versa).
+  const ORIGINAL_PEPPER = process.env.CULTURE_PULSE_PEPPER;
+  const ORIGINAL_SESSION = process.env.SESSION_SECRET;
+
+  beforeEach(() => {
+    delete process.env.CULTURE_PULSE_PEPPER;
+    delete process.env.SESSION_SECRET;
+  });
+  afterEach(() => {
+    if (ORIGINAL_PEPPER === undefined) delete process.env.CULTURE_PULSE_PEPPER;
+    else process.env.CULTURE_PULSE_PEPPER = ORIGINAL_PEPPER;
+    if (ORIGINAL_SESSION === undefined) delete process.env.SESSION_SECRET;
+    else process.env.SESSION_SECRET = ORIGINAL_SESSION;
+  });
+
+  it('is deterministic for the same (uid, surveyId, pepper)', () => {
+    process.env.CULTURE_PULSE_PEPPER = PEPPER_A;
+    expect(pulseResponderHash('w1', 'wv1')).toBe(pulseResponderHash('w1', 'wv1'));
+  });
+
+  it('produces a 32-char lowercase-hex digest (shape preserved)', () => {
+    process.env.CULTURE_PULSE_PEPPER = PEPPER_A;
+    expect(pulseResponderHash('w1', 'wv1')).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it('differs across surveys for the same worker (no cross-survey linkage)', () => {
+    process.env.CULTURE_PULSE_PEPPER = PEPPER_A;
+    expect(pulseResponderHash('w1', 'wv1')).not.toBe(pulseResponderHash('w1', 'wv2'));
+  });
+
+  it('differs across workers within the same survey', () => {
+    process.env.CULTURE_PULSE_PEPPER = PEPPER_A;
+    expect(pulseResponderHash('w1', 'wv1')).not.toBe(pulseResponderHash('w2', 'wv1'));
+  });
+
+  it('is NOT reproducible without the pepper (insider cannot brute-force doc IDs)', () => {
+    process.env.CULTURE_PULSE_PEPPER = PEPPER_A;
+    // An attacker who knows uid + surveyId but NOT the server pepper can only
+    // compute the legacy unkeyed SHA-256 — which must not match the stored hash.
+    expect(pulseResponderHash('w1', 'wv1')).not.toBe(legacyUnkeyedHash('w1', 'wv1'));
+  });
+
+  it('changes when the pepper is rotated (old guesses are invalidated)', () => {
+    process.env.CULTURE_PULSE_PEPPER = PEPPER_A;
+    const withA = pulseResponderHash('w1', 'wv1');
+    process.env.CULTURE_PULSE_PEPPER = PEPPER_B;
+    expect(pulseResponderHash('w1', 'wv1')).not.toBe(withA);
+  });
+
+  it('uses SESSION_SECRET as the pepper when CULTURE_PULSE_PEPPER is unset', () => {
+    process.env.SESSION_SECRET = 'session-secret-pepper-2222222222222222222222222222';
+    // Keyed by SESSION_SECRET → not the unkeyed legacy hash.
+    expect(pulseResponderHash('w1', 'wv1')).not.toBe(legacyUnkeyedHash('w1', 'wv1'));
+  });
+
+  it('prefers CULTURE_PULSE_PEPPER over SESSION_SECRET when both are set', () => {
+    process.env.SESSION_SECRET = 'session-secret-pepper-2222222222222222222222222222';
+    const withSession = pulseResponderHash('w1', 'wv1');
+    process.env.CULTURE_PULSE_PEPPER = PEPPER_A;
+    expect(pulseResponderHash('w1', 'wv1')).not.toBe(withSession);
+  });
+
+  it('falls back to a deterministic unkeyed hash when no secret is configured (test/dev)', () => {
+    // beforeEach already cleared both — assert graceful, reproducible fallback.
+    expect(pulseResponderHash('w1', 'wv1')).toBe(legacyUnkeyedHash('w1', 'wv1'));
+    expect(pulseResponderHash('w1', 'wv1')).toBe(pulseResponderHash('w1', 'wv1'));
   });
 });
