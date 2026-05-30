@@ -177,7 +177,7 @@ export function GuardianVoiceAssistant() {
     try {
       if (onlineStatus) {
         // Use geminiService for online text processing
-        const { getChatResponse, semanticSearch } = await import('../../services/geminiService');
+        const { getChatResponse, semanticSearch, detectAsesorDomain } = await import('../../services/geminiService');
         
         // Get top 5 most relevant nodes, scoped to the current project
         const relevantNodes = await semanticSearch(query, nodes, 5, selectedProject?.id);
@@ -185,7 +185,11 @@ export function GuardianVoiceAssistant() {
           ? relevantNodes.map(n => `- [${n.type}] ${n.title}: ${n.description}`).join('\n')
           : "Usuario consultando al Guardián AI."; 
         
-        const aiResponse = await getChatResponse(query, context, [], 1);
+        // Coach IA por dominio — el Asesor se especializa según la ruta actual.
+        const domain = detectAsesorDomain(
+          typeof window !== 'undefined' ? window.location.pathname : '',
+        );
+        const aiResponse = await getChatResponse(query, context, [], 1, domain);
         setResponse(aiResponse);
       } else {
         const offlineRes = getOfflineResponse(query, nodes);
