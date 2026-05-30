@@ -9,19 +9,7 @@ import { seedProject } from './fixtures/seed';
  *
  * Requiere el stack completo. Activar con `npm run test:e2e:full`.
  */
-// FIXME (2026-05-30): this full-stack spec targets the project-scoped route
-// `/projects/{id}/emergency`. ProjectContext loads the seeded project via the
-// CLIENT Firestore SDK, whose query is gated by firestore.rules
-// (request.auth != null). During the brief null-auth window on first boot the
-// onSnapshot listener is permission-denied and never recovers, so the app shows
-// the "no active project" state and the route UI never mounts (the SOS button is
-// absent → timeout). Root cause is client-side auth-timing, NOT the seed
-// (seedProject DOES set members:[e2e-user-001]). Already landed this session:
-// es-CL locale, consent-modal suppression, the Settings biometric-gate E2E
-// bypass, and the FirebaseContext shim-keep fix. Remaining: make ProjectContext
-// re-subscribe after auth.currentUser settles — needs the local Firestore+Auth
-// emulator (Java) to iterate. Un-fixme once that lands.
-test.describe.fixme('SOSButton long-press', () => {
+test.describe('SOSButton long-press', () => {
   test('long-press de 3s dispara alerta; tap corto no', async ({ page }) => {
     test.skip(
       process.env.E2E_FULL_STACK !== '1',
