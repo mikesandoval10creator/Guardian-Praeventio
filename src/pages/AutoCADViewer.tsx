@@ -13,8 +13,11 @@ import {
 
 // Sprint 17a — MIT-only CAD viewer. AutoCAD is an Autodesk trademark; we
 // drop the brand from user-facing copy and avoid GPL contamination from
-// libredwg-* by ONLY rendering DXF (text). DWG is deferred to a server-side
-// converter (ODA File Converter, Sprint 18). See ADR 0002.
+// libredwg-* by ONLY rendering DXF (text) — the open, vendor-neutral CAD
+// interchange format. DWG (binary, Autodesk-proprietary) is intentionally out
+// of scope: every permissive DXF path is OSS, while every DWG parser is GPL
+// (license-incompatible with this SaaS). Users export DWG -> DXF in any CAD
+// tool. See ADR 0002.
 //
 // File path is unchanged (`AutoCADViewer.tsx`) so existing routes/imports
 // still work; the export name is unchanged for the same reason.
@@ -59,7 +62,7 @@ export function AutoCADViewer() {
       const ext = file.name.toLowerCase().split('.').pop();
       if (ext === 'dwg') {
         throw new Error(
-          'DWG es un formato binario propietario. Próximamente lo convertiremos automáticamente server-side. Mientras tanto, exporta tu DWG a DXF (Save As → AutoCAD DXF) o usa Autodesk DWG TrueView.'
+          'DWG es un formato binario propietario. Expórtalo a DXF (Guardar como → DXF, un formato abierto) desde tu programa CAD y vuelve a subirlo para visualizarlo aquí.'
         );
       }
       if (ext !== 'dxf') {
@@ -232,9 +235,9 @@ export function AutoCADViewer() {
       <div className="p-4 rounded-2xl bg-sky-500/5 border border-sky-500/20 flex gap-3">
         <Info className="w-5 h-5 text-sky-500 shrink-0 mt-0.5" />
         <p className="text-xs sm:text-sm text-sky-700 dark:text-sky-300 leading-relaxed">
-          Soporta archivos <strong>DXF</strong> (texto). Para archivos <strong>DWG</strong> (binario), próximamente
-          añadiremos conversión automática server-side. Mientras tanto: exporta tu DWG a DXF desde tu programa CAD
-          (<em>Save As → DXF</em>) o usa el visor gratuito <strong>Autodesk DWG TrueView</strong>.
+          Visualiza archivos <strong>DXF</strong>, el formato CAD abierto y vendor-neutral. Si tu plano
+          está en <strong>DWG</strong> (binario propietario), expórtalo a DXF desde tu programa CAD
+          (<em>Guardar como → DXF</em>) y súbelo aquí.
         </p>
       </div>
 

@@ -295,7 +295,7 @@ export function MaturityIndicator(): ReactElement {
             {data.reason === 'project_too_new'
               ? t(
                   'maturity.empty.tooNew',
-                  'Necesitamos al menos 3 meses de datos para calcular madurez. Sigue registrando actividad — el primer reporte llega muy pronto.',
+                  'Necesitamos al menos 3 meses de datos para calcular el índice de madurez. El reporte se genera automáticamente al completar ese histórico — sigue registrando actividad.',
                 )
               : t(
                   'maturity.empty.notEnough',
