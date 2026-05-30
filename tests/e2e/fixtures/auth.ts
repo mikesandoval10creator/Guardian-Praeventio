@@ -220,14 +220,11 @@ async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
  * Idempotente: si auth.currentUser ya está set (re-uso de page), no
  * llama signIn de nuevo.
  */
-export async function signInBrowserViaCustomToken(page: Page): Promise<void> {
-  // §2.24 fix (2026-05-22, CI #461 round 4): NO podemos hacer
-  // `import('firebase/auth')` dentro de page.evaluate — bare specifiers
-  // no resuelven en browser sin bundler runtime. En su lugar, el módulo
-  // firebase.ts ya hace auto-sign-in al boot (gated MODE=test). Acá
-  // simplemente esperamos a que ese auto-sign-in complete via la flag
-  // global `window.__praeventio_e2e_auth_ready` que firebase.ts setea
-  // cuando signInWithCustomToken resuelve.
+/**
+ * Wait until firebase.ts' MODE=test auto-sign-in has resolved (it sets the
+ * global flag when signInWithCustomToken settles).
+ */
+async function waitForE2EAuthReady(page: Page): Promise<void> {
   await page.waitForFunction(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     () => (window as any).__praeventio_e2e_auth_ready === true,
@@ -243,4 +240,36 @@ export async function signInBrowserViaCustomToken(page: Page): Promise<void> {
       await new Promise((r) => setTimeout(r, 50));
     }
   });
+}
+
+/** Pathname of a URL, trailing slash stripped, defaulting to "/". */
+function e2ePath(url: string): string {
+  return new URL(url).pathname.replace(/\/+$/, '') || '/';
+}
+
+export async function signInBrowserViaCustomToken(page: Page): Promise<void> {
+  // §2.24 fix (2026-05-22, CI #461 round 4): NO podemos hacer
+  // `import('firebase/auth')` dentro de page.evaluate — bare specifiers no
+  // resuelven en browser sin bundler runtime. En su lugar firebase.ts hace
+  // auto-sign-in al boot (gated MODE=test) y esperamos a su flag global
+  // `window.__praeventio_e2e_auth_ready`.
+  //
+  // El spec navega a su ruta objetivo justo ANTES de llamarnos — la guardamos
+  // para recuperarla si el auth async nos rebota.
+  const intendedPath = e2ePath(page.url());
+
+  await waitForE2EAuthReady(page);
+
+  // 2026-05-30 — Carrera de auth async: `onAuthStateChanged` dispara null→user,
+  // y una ruta guardada visitada mientras el user aún es null rebota a "/" (el
+  // dashboard). Para cuando la flag auth-ready se enciende, el redirect ya
+  // ocurrió, así que la ruta objetivo nunca montó (los specs full-stack de
+  // settings/SOS/process/offline expiraban buscando UI jamás renderizada).
+  // Ahora que la sesión Firebase está establecida + persistida (IndexedDB),
+  // re-navegamos a la ruta original: el nuevo boot restaura la sesión de
+  // entrada, así la ruta guardada renderiza ya-autenticada.
+  if (intendedPath !== '/' && e2ePath(page.url()) !== intendedPath) {
+    await page.goto(intendedPath);
+    await waitForE2EAuthReady(page);
+  }
 }
