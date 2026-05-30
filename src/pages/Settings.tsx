@@ -25,6 +25,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
+import { isE2EMode } from '../lib/e2eAuth';
 import { useFallDetectionPreference } from '../hooks/useFallDetectionPreference';
 import { BunkerManager } from '../components/BunkerManager';
 // Sprint 30 Bucket KK — WebAuthn keys management UI.
@@ -92,6 +93,16 @@ export function Settings() {
 
   useEffect(() => {
     const checkAuth = async () => {
+      // E2E (2026-05-30): headless test browsers expose the WebAuthn API
+      // (window.PublicKeyCredential) so `isSupported` is true, but there is no
+      // platform authenticator — `authenticate()` rejects and the gate below
+      // would `navigate('/')`, bouncing the full-stack settings spec onto the
+      // dashboard. Skip the biometric gate under MODE=test. Prod never enters
+      // this branch (gate isE2EMode + MODE=test).
+      if (isE2EMode()) {
+        setIsAuthenticated(true);
+        return;
+      }
       if (isSupported) {
         const success = await authenticate(t('settings.auth.confirm_identity', 'Confirme su identidad para acceder a la configuración'));
         setIsAuthenticated(success);
