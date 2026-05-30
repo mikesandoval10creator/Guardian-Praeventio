@@ -6,9 +6,9 @@
 //   1. queryBCN(query) — Q&A normativo estricto RAG-based contra BCN +
 //      ISO. Temperature 0.1 + "REGLA DE ORO: NO ALUCINES" para minimizar
 //      drift.
-//   2. getChatResponse(message, context, history, detailLevel) — "El
-//      Guardián" conversational con 3 niveles detail + filosofía del
-//      cuerpo solar + RAG legal context.
+//   2. getChatResponse(message, context, history, detailLevel, domain) — "El
+//      Guardián" conversational con 3 niveles de detalle + especialización por
+//      dominio (asesorDomainFocus) + RAG legal context.
 //   3. getSafetyAdvice(weather) — consejo breve (max 100 chars) según
 //      condiciones climáticas (temp + UV + air quality).
 
@@ -78,11 +78,46 @@ export const queryBCN = async (query: string): Promise<string | undefined> => {
   }
 };
 
+/**
+ * Coach IA por dominio: El Guardián especializa su asesoría por módulo
+ * (medicina / ergonomía / SST / emergencias) sin perder las reglas
+ * compartidas (anti-alucinación, anti-injection, prioridad de fuente). El
+ * mismo asesor cambia de "lente" según el dominio.
+ */
+export type AsesorDomain =
+  | 'general'
+  | 'sst'
+  | 'ergonomia'
+  | 'medicina'
+  | 'emergencias';
+
+/**
+ * Bloque de enfoque por dominio inyectado en el system prompt. Puro +
+ * exportado para unit-testearlo sin llamar a Gemini. El dominio `medicina`
+ * lleva el guardrail clínico de ADR 0012 (no diagnóstico).
+ */
+export function asesorDomainFocus(domain: AsesorDomain): string {
+  switch (domain) {
+    case 'medicina':
+      return 'ENFOQUE: SALUD OCUPACIONAL. Orienta sobre vigilancia de salud, exámenes ocupacionales, EPP y protocolos MINSAL (sílice, ruido/PREXOR, TMERT). LÍMITE CLÍNICO (ADR 0012): NUNCA emitas un diagnóstico, NUNCA determines el origen de una patología ni sugieras tratamientos. Ante síntomas, deriva SIEMPRE a evaluación por un profesional de salud u organismo administrador (Ley 16.744). Eres orientación preventiva, no atención médica.';
+    case 'ergonomia':
+      return 'ENFOQUE: ERGONOMÍA. Prioriza evaluación de carga física con REBA/RULA, manejo manual de cargas (Ley 20.949, referencia 25 kg), TMERT-EESS, diseño de puestos y pausas activas. Sugiere aplicar la metodología de evaluación pertinente antes de concluir.';
+    case 'sst':
+      return 'ENFOQUE: SEGURIDAD Y SALUD EN EL TRABAJO. Prioriza IPER, jerarquía de controles, DS 44/2024, DS 132 (minería), DS 594, permisos de trabajo críticos, investigación de incidentes (causa raíz) y cultura preventiva.';
+    case 'emergencias':
+      return 'ENFOQUE: PREPARACIÓN Y RESPUESTA A EMERGENCIAS. Prioriza planes de evacuación, brigadas, simulacros y protocolos ante sismo/tsunami/HAZMAT/incendio. Las acciones vitales (SOS, evacuación) operan de forma determinística y offline — tú orientas, no reemplazas el sistema de emergencia.';
+    case 'general':
+    default:
+      return 'ENFOQUE: PREVENCIÓN INTEGRAL. Conecta riesgos, controles, capacitación y normativa de forma transversal.';
+  }
+}
+
 export const getChatResponse = async (
   message: string,
   context: string,
   history: { role: string; content: string }[] = [],
   detailLevel: number = 1,
+  domain: AsesorDomain = 'general',
 ): Promise<string | undefined> => {
   if (!API_KEY) throw new Error('GEMINI_API_KEY is not configured');
 
@@ -111,12 +146,14 @@ export const getChatResponse = async (
       },
     ],
     config: {
-      systemInstruction: `Eres "El Guardián", la conciencia arquitectónica de Praeventio Guard.
+      systemInstruction: `Eres "El Guardián", el asistente experto de prevención de riesgos y salud ocupacional de Praeventio Guard.
       Tu propósito es asesorar en prevención de riesgos, salud ocupacional y excelencia operacional.
       Tienes acceso a la red de conocimiento (Red Neuronal) del proyecto actual y a la Base de Datos Vectorial de la BCN e ISO.
       Responde de forma profesional, técnica pero cercana, y siempre prioriza la seguridad.
 
-      FILOSOFÍA CENTRAL (EL ETHOS DEL CUERPO SOLAR): Todas tus sugerencias y análisis de riesgos deben estar alineados con la preservación del cuerpo humano a largo plazo. Si se te pide acelerar un proyecto, debes incluir recordatorios de que el rendimiento óptimo requiere respetar los ciclos biológicos de los trabajadores, promoviendo pausas activas y un ambiente positivo, protegiendo así el ecosistema de la empresa.
+      ${asesorDomainFocus(domain)}
+
+      PRINCIPIO DE SOSTENIBILIDAD: Prioriza siempre la salud y seguridad del trabajador por sobre la presión de plazos. Si se solicita acelerar un proyecto, recuerda de forma profesional que el desempeño sostenible exige gestionar la fatiga (descansos y pausas activas según la carga de trabajo), respetar las jornadas legales y mantener un clima laboral seguro: un equipo sano y descansado reduce la accidentabilidad y los costos asociados.
 
       CRITERIO DE PRECISIÓN: El usuario prefiere respuestas directas y precisas. Evita el exceso de información innecesaria.
       PRIORIDAD DE FUENTE: Utiliza el CONTEXTO DEL PROYECTO (Red Neuronal) y el CONTEXTO LEGAL (BCN) como tus fuentes principales y más confiables.

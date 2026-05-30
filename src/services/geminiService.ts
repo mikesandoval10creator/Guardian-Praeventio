@@ -52,7 +52,21 @@ export const simulateRiskPropagation = async (nodeTitle: string, context: string
 export const enrichNodeData = async (nodeData: any) => callGeminiAPI('enrichNodeData', [nodeData]);
 export const analyzeRootCauses = async (riskTitle: string, riskDescription: string, context: string) => callGeminiAPI('analyzeRootCauses', [riskTitle, riskDescription, context]);
 export const queryBCN = async (query: string) => callGeminiAPI('queryBCN', [query]);
-export const getChatResponse = async (message: string, context: string, history: { role: string, content: string }[] = [], detailLevel: number = 1) => callGeminiAPI('getChatResponse', [message, context, history, detailLevel]);
+export const getChatResponse = async (message: string, context: string, history: { role: string, content: string }[] = [], detailLevel: number = 1, domain: string = 'general') => callGeminiAPI('getChatResponse', [message, context, history, detailLevel, domain]);
+
+/**
+ * Coach IA por dominio — deriva el dominio del Asesor desde el pathname actual,
+ * para que El Guardián especialice su lente (medicina/ergonomía/emergencias/SST).
+ * Puro + exportado para unit-testearlo. Default 'general'.
+ */
+export function detectAsesorDomain(pathname: string): string {
+  const p = (pathname || '').toLowerCase();
+  if (/\/(medicine|medicina|health|salud|vigilancia|aptitud)/.test(p)) return 'medicina';
+  if (/\/(ergonom|reba|rula|tmert)/.test(p)) return 'ergonomia';
+  if (/\/(emergenc|evacua|sos|brigad|sismic|tsunami|drill|simulacro)/.test(p)) return 'emergencias';
+  if (/\/(risk|riesgo|iper|permit|permiso|incident|control|prevenc|sst)/.test(p)) return 'sst';
+  return 'general';
+}
 export const getSafetyAdvice = async (weather: any) => callGeminiAPI('getSafetyAdvice', [weather]);
 export const generateActionPlan = async (findingTitle: string, findingDescription: string = '', severity: string = 'Media', workerProposal?: string) => callGeminiAPI('generateActionPlan', [findingTitle, findingDescription, severity, workerProposal]);
 export const generateSafetyReport = async (reportType: 'PTS' | 'PE' | 'AST', context: string) => callGeminiAPI('generateSafetyReport', [reportType, context]);
