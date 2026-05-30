@@ -119,13 +119,10 @@ estaban wired (10 estáticos + 2 lazy) o quedan wired por PRs en curso
 herramienta tipo `knip` o `ts-unused-exports` que entienda dynamic
 imports en vez de batch-grep.
 
-## "Próximamente" UI placeholders
-- **Files**: `src/pages/MuralDinamico.tsx:42`, `src/pages/AutoCADViewer.tsx`
-- **Owner**: D5
-- **Sprint target**: TBD
-- **User-visible?**: YES — usuario ve "Próximamente" message
-- **Why stub**: features parciales con UI honesta
-- **Removal criteria**: convertir en feature flag gates (ocultar entrada sidebar hasta listo) o implementar la feature.
+## ✅ "Próximamente" UI placeholders — ERRADICADOS 2026-05-30
+- **MuralDinamico.tsx**: NO era placeholder — es feature REAL (mural de seguridad estilo Instagram: Firestore `safety_posts` + onSnapshot + posts/likes/moderación). La entrada anterior estaba desactualizada.
+- **AutoCADViewer.tsx**: visor DXF REAL vía `dxf-parser` (MIT/OSS) + `dxfAdapter`. Se removió el "Próximamente lo convertiremos server-side" + la mención a "Autodesk DWG TrueView" (herramienta de tercero). Copy honesto: DXF es el formato abierto soportado; para DWG → exportar a DXF. DWG OSS no aplica (solo libredwg GPL, incompatible con SaaS comercial).
+- **Directiva usuario 2026-05-30**: la app NUNCA debe decir "próximamente"/"en mantenimiento"/"futuras actualizaciones". Todo real al lanzar. Sin licencias de terceros (OSS-first).
 
 ## Settings.tsx hardcoded aria-disabled
 - **File**: `src/pages/Settings.tsx:397` (toggle emergencia)
