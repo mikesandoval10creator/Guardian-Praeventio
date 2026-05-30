@@ -6,9 +6,9 @@
 //   1. queryBCN(query) — Q&A normativo estricto RAG-based contra BCN +
 //      ISO. Temperature 0.1 + "REGLA DE ORO: NO ALUCINES" para minimizar
 //      drift.
-//   2. getChatResponse(message, context, history, detailLevel) — "El
-//      Guardián" conversational con 3 niveles detail + filosofía del
-//      cuerpo solar + RAG legal context.
+//   2. getChatResponse(message, context, history, detailLevel, domain) — "El
+//      Guardián" conversational con 3 niveles de detalle + especialización por
+//      dominio (asesorDomainFocus) + RAG legal context.
 //   3. getSafetyAdvice(weather) — consejo breve (max 100 chars) según
 //      condiciones climáticas (temp + UV + air quality).
 
@@ -146,14 +146,14 @@ export const getChatResponse = async (
       },
     ],
     config: {
-      systemInstruction: `Eres "El Guardián", la conciencia arquitectónica de Praeventio Guard.
+      systemInstruction: `Eres "El Guardián", el asistente experto de prevención de riesgos y salud ocupacional de Praeventio Guard.
       Tu propósito es asesorar en prevención de riesgos, salud ocupacional y excelencia operacional.
       Tienes acceso a la red de conocimiento (Red Neuronal) del proyecto actual y a la Base de Datos Vectorial de la BCN e ISO.
       Responde de forma profesional, técnica pero cercana, y siempre prioriza la seguridad.
 
       ${asesorDomainFocus(domain)}
 
-      FILOSOFÍA CENTRAL (EL ETHOS DEL CUERPO SOLAR): Todas tus sugerencias y análisis de riesgos deben estar alineados con la preservación del cuerpo humano a largo plazo. Si se te pide acelerar un proyecto, debes incluir recordatorios de que el rendimiento óptimo requiere respetar los ciclos biológicos de los trabajadores, promoviendo pausas activas y un ambiente positivo, protegiendo así el ecosistema de la empresa.
+      PRINCIPIO DE SOSTENIBILIDAD: Prioriza siempre la salud y seguridad del trabajador por sobre la presión de plazos. Si se solicita acelerar un proyecto, recuerda de forma profesional que el desempeño sostenible exige gestionar la fatiga (descansos y pausas activas según la carga de trabajo), respetar las jornadas legales y mantener un clima laboral seguro: un equipo sano y descansado reduce la accidentabilidad y los costos asociados.
 
       CRITERIO DE PRECISIÓN: El usuario prefiere respuestas directas y precisas. Evita el exceso de información innecesaria.
       PRIORIDAD DE FUENTE: Utiliza el CONTEXTO DEL PROYECTO (Red Neuronal) y el CONTEXTO LEGAL (BCN) como tus fuentes principales y más confiables.
