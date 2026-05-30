@@ -6,16 +6,13 @@
  * (chemical / medicine / legal). The chunks are then injected as context
  * into Gemini prompts in the three specialized backends.
  *
- * Two execution modes:
- *   - Pinecone mode  (PINECONE_API_KEY + PINECONE_INDEX env vars present):
- *     real vector search backed by Pinecone. Uses Gemini text-embedding-004
- *     (768 dims) for both query and chunk embeddings, kept consistent with
- *     `ragService.ts`. Embeddings are persisted on `ingestChunk`.
- *   - In-memory mode (default fallback): seeded from `src/data/normativa/cl.ts`
- *     CL_PACK regulations + curated chunks. Matching uses bag-of-words
- *     overlap (a deterministic, embedding-free similarity metric so tests
- *     stay hermetic and the system never blocks on Gemini quotas during
- *     development / offline).
+ * Retrieval is hermetic in-memory: seeded from `src/data/normativa/cl.ts`
+ * CL_PACK regulations + curated chunks. Matching uses bag-of-words overlap (a
+ * deterministic, embedding-free similarity metric) so tests stay hermetic and
+ * the system never blocks on Gemini quotas during development / offline. (A
+ * Pinecone vector backend existed but was discarded 2026-05-30 by user
+ * directive; `embedText` is retained for the deterministic 768-dim hash used
+ * by `ingestChunk`.)
  *
  * Domain mapping is explicit: each chunk carries a `source` tag (BCN /
  * MINSAL / DT / SUSESO / etc.) and a list of `domains` it serves. The
@@ -45,12 +42,6 @@ export interface NormativeChunk {
   text: string; // chunk body, ~200-1000 chars
   domains: CoachDomain[];
   embedding?: number[]; // 768 dims, optional in in-memory mode
-}
-
-interface PineconeConfig {
-  apiKey: string;
-  indexName: string;
-  endpoint?: string;
 }
 
 /**
@@ -190,49 +181,35 @@ const LEGAL_DETAIL_CHUNKS: NormativeChunk[] = [
 
 export class NormativeRagService {
   private memory: NormativeChunk[];
-  private pinecone?: PineconeConfig;
 
-  constructor(opts?: { pinecone?: PineconeConfig; seed?: NormativeChunk[] }) {
+  constructor(opts?: { seed?: NormativeChunk[] }) {
     this.memory = [
       ...(opts?.seed ?? seedCorpusFromClPack()),
       ...CHEMICAL_DETAIL_CHUNKS,
       ...MEDICINE_DETAIL_CHUNKS,
       ...LEGAL_DETAIL_CHUNKS,
     ];
-    this.pinecone = opts?.pinecone;
   }
 
   /**
-   * Builds an instance from environment variables. If PINECONE_API_KEY +
-   * PINECONE_INDEX are present, configures Pinecone-backed search;
-   * otherwise returns an in-memory instance seeded from CL_PACK.
+   * Builds an in-memory instance seeded from CL_PACK. (The Pinecone vector
+   * backend was discarded 2026-05-30 — directiva usuario; the hermetic
+   * in-memory bag-of-words retrieval is now the single path. Retained as a
+   * factory so existing `fromEnv()` call sites stay unchanged.)
    */
   static fromEnv(): NormativeRagService {
-    const apiKey = process.env.PINECONE_API_KEY;
-    const indexName = process.env.PINECONE_INDEX;
-    const endpoint = process.env.PINECONE_ENDPOINT;
-    if (apiKey && indexName) {
-      return new NormativeRagService({
-        pinecone: { apiKey, indexName, endpoint },
-      });
-    }
     return new NormativeRagService();
   }
 
   /**
-   * Retrieves the top-K chunks for a query in a given domain. In Pinecone
-   * mode, queries the index with the Gemini-embedded query vector and a
-   * `domains` metadata filter. In in-memory mode, scores all chunks tagged
-   * with the domain via bag-of-words overlap.
+   * Retrieves the top-K chunks for a query in a given domain — scores all
+   * chunks tagged with the domain via hermetic bag-of-words overlap.
    */
   async searchTopK(
     query: string,
     domain: CoachDomain,
     k = 5,
   ): Promise<NormativeChunk[]> {
-    if (this.pinecone) {
-      return this.searchPinecone(query, domain, k);
-    }
     return this.searchInMemory(query, domain, k);
   }
 
@@ -251,49 +228,6 @@ export class NormativeRagService {
     const positives = scored.filter((s) => s.score > 0);
     const pool = positives.length > 0 ? positives : scored;
     return pool.slice(0, k).map((s) => s.chunk);
-  }
-
-  private async searchPinecone(
-    query: string,
-    domain: CoachDomain,
-    k: number,
-  ): Promise<NormativeChunk[]> {
-    if (!this.pinecone) return [];
-    const embedding = await this.embedText(query);
-    const endpoint =
-      this.pinecone.endpoint ??
-      `https://${this.pinecone.indexName}.svc.pinecone.io`;
-    const res = await fetch(`${endpoint}/query`, {
-      method: 'POST',
-      headers: {
-        'Api-Key': this.pinecone.apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        vector: embedding,
-        topK: k,
-        includeMetadata: true,
-        filter: { domains: { $in: [domain] } },
-      }),
-    });
-    if (!res.ok) {
-      // Fall back to in-memory on transient Pinecone failures rather than
-      // hard-failing the coach call.
-      return this.searchInMemory(query, domain, k);
-    }
-    const json = (await res.json()) as {
-      matches?: Array<{
-        id: string;
-        metadata?: Partial<NormativeChunk> & { domains?: CoachDomain[] };
-      }>;
-    };
-    return (json.matches ?? []).map((m) => ({
-      id: m.id,
-      source: (m.metadata?.source as NormativeSource) ?? 'BCN',
-      citation: m.metadata?.citation ?? m.id,
-      text: m.metadata?.text ?? '',
-      domains: m.metadata?.domains ?? [domain],
-    }));
   }
 
   /**
@@ -339,40 +273,13 @@ export class NormativeRagService {
   }
 
   /**
-   * Adds (or replaces) a chunk in the corpus. In Pinecone mode this upserts
-   * to the index; in-memory mode pushes/replaces in the local array.
+   * Adds (or replaces) a chunk in the in-memory corpus.
    */
   async ingestChunk(chunk: NormativeChunk): Promise<void> {
     const enriched: NormativeChunk = {
       ...chunk,
       embedding: chunk.embedding ?? (await this.embedText(chunk.text)),
     };
-    if (this.pinecone) {
-      const endpoint =
-        this.pinecone.endpoint ??
-        `https://${this.pinecone.indexName}.svc.pinecone.io`;
-      await fetch(`${endpoint}/vectors/upsert`, {
-        method: 'POST',
-        headers: {
-          'Api-Key': this.pinecone.apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          vectors: [
-            {
-              id: enriched.id,
-              values: enriched.embedding,
-              metadata: {
-                source: enriched.source,
-                citation: enriched.citation,
-                text: enriched.text,
-                domains: enriched.domains,
-              },
-            },
-          ],
-        }),
-      });
-    }
     const existing = this.memory.findIndex((c) => c.id === enriched.id);
     if (existing >= 0) this.memory[existing] = enriched;
     else this.memory.push(enriched);

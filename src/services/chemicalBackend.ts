@@ -5,7 +5,7 @@ import { NormativeRagService, type NormativeChunk } from "./coach/normativeRag.j
 const API_KEY = process.env.GEMINI_API_KEY;
 
 // Lazy-initialized RAG (constructed on first use). One instance is enough —
-// in-memory mode is cheap and Pinecone mode is stateless per call.
+// the hermetic in-memory retrieval is cheap and stateless per call.
 let ragSingleton: NormativeRagService | null = null;
 const getRag = (): NormativeRagService => {
   if (!ragSingleton) ragSingleton = NormativeRagService.fromEnv();

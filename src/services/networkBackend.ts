@@ -163,7 +163,7 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
 
 /**
  * Processes a batch of sync operations (set, update, delete) on nodes.
- * Ensures consistent RAG (Pinecone) state and admin-level cross-linking.
+ * Ensures consistent RAG state and admin-level cross-linking.
  */
 export const syncBatchToNetwork = async (operations: any[], authorUid: string) => {
   const db = admin.firestore();

@@ -16,11 +16,10 @@
 //     body: { domain }
 //     200:  { prompt: DomainPrompt }
 //
-// Service is instantiated per-request via fromEnv() — Pinecone-backed
-// in production (PINECONE_API_KEY + PINECONE_INDEX env vars), in-memory
-// CL_PACK fallback otherwise. Pure read at this surface: ingestChunk is
-// not exposed (no UI consumer; mutation would not survive across stateless
-// requests anyway without the Pinecone path).
+// Service is instantiated per-request via fromEnv() — hermetic in-memory
+// retrieval over the CL_PACK corpus (the Pinecone backend was discarded
+// 2026-05-30). Pure read at this surface: ingestChunk is not exposed (no UI
+// consumer; mutation would not survive across stateless requests anyway).
 
 import { Router } from 'express';
 import { z } from 'zod';
