@@ -12,13 +12,12 @@ import { seedProject } from './fixtures/seed';
  * el caso de uso. Requiere el stack completo (Express + Firestore
  * Emulator).
  */
-// FIXME (2026-05-30): full-stack spec on the project-scoped route
-// `/projects/{id}/findings`. Same root cause as sos-button.spec.ts —
-// ProjectContext's CLIENT Firestore query is permission-denied during the
-// first-boot null-auth window (firestore.rules request.auth), so its onSnapshot
-// listener dies and the "no active project" state renders instead of the route
-// UI. Needs the local emulator (Java) to fix ProjectContext re-subscribing after
-// auth.currentUser settles. Un-fixme once that lands.
+// FIXME (2026-05-30, layer 2): the auth/project root cause is fixed (see PR #601
+// / the full note in sos-button.spec.ts) — `/projects/{id}/findings` now
+// renders. What remains is feature-level: the offline finding-creation form +
+// IndexedDB→Firestore sync assertions need reconciling with the live render
+// (the "Descripción" field label drifted). Now locally-iterable (Java 21 +
+// emulator). Un-fixme once verified end-to-end.
 test.describe.fixme('Offline-first sync', () => {
   test('hallazgo creado offline se sincroniza al recuperar la red', async ({ page, context }) => {
     test.skip(
