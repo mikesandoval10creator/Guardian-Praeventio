@@ -108,10 +108,16 @@ afterEach(() => {
   else process.env.GOOGLE_CLIENT_SECRET = ORIGINAL_CLIENT_SECRET;
 });
 
+// Each test uses plain `request(app)` (ephemeral server, closed by supertest)
+// rather than `request.agent(app)`. Session continuity here is keyed by the
+// `x-test-session` HEADER (see makeSessionMiddleware), NOT cookies, so a
+// persistent agent is unnecessary — and `request.agent` left an unclosed HTTP
+// server socket after each test: an open handle that intermittently kept the
+// vitest worker from exiting (root cause of the flaky CI "Tests" hang).
 describe('Google OAuth callback security (oauthGoogle.ts)', () => {
   it('rejects /auth/google/callback when state is missing (CSRF guard)', async () => {
     const app = await buildApp();
-    const agent = request.agent(app);
+    const agent = request(app);
     // First mint a state so the session has `oauthState` set, then call the
     // callback WITHOUT the state parameter.
     await agent
@@ -129,7 +135,7 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
 
   it('rejects /auth/google/callback when state is tampered (does not match session)', async () => {
     const app = await buildApp();
-    const agent = request.agent(app);
+    const agent = request(app);
     await agent
       .get('/api/auth/google/url')
       .set('x-test-session', 'sess-B')
@@ -144,7 +150,7 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
 
   it('cross-router CSRF: state minted by /api/drive/auth/url cannot be redeemed at /auth/google/callback', async () => {
     const app = await buildApp();
-    const agent = request.agent(app);
+    const agent = request(app);
     // Mint a Drive state — populates session.driveOauthState (NOT oauthState).
     const driveUrlRes = await agent
       .get('/api/drive/auth/url')
@@ -169,7 +175,7 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
 
   it('happy path: valid state + valid code â†’ token exchange runs and tokens are saved', async () => {
     const app = await buildApp();
-    const agent = request.agent(app);
+    const agent = request(app);
     // Mock fetch so the token-exchange call returns a usable token bundle.
     global.fetch = vi.fn(async (url: any) => {
       expect(String(url)).toBe('https://oauth2.googleapis.com/token');
@@ -207,7 +213,7 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
 
   it('missing access_token in token-exchange response â†’ 500, tokens not saved (error propagated)', async () => {
     const app = await buildApp();
-    const agent = request.agent(app);
+    const agent = request(app);
     // Token-exchange returns an error payload (e.g. invalid_grant, or a
     // payload with no access_token). The handler should NOT persist
     // anything and must surface 500.
