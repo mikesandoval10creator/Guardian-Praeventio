@@ -105,8 +105,18 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     testConnection();
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      // E2E (2026-05-30): `onAuthStateChanged` fires `null` FIRST, before
+      // firebase.ts' MODE=test auto `signInWithCustomToken` resolves. Writing
+      // that transient null over the E2E shim drops the user mid-session and
+      // bounces guarded routes (/settings, SOS, process, offline) to "/" before
+      // the real sign-in lands — every full-stack auth spec then times out on a
+      // route that never mounted. Keep the shim until a REAL user arrives.
+      // Production never enters this branch (gate isE2EMode + MODE=test).
+      if (!currentUser && isE2EMode() && getE2EUser()) {
+        return;
+      }
       setUser(currentUser);
-      
+
       if (currentUser) {
         try {
           // Check if user exists in Firestore, if not create them
