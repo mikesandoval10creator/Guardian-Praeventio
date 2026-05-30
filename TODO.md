@@ -997,6 +997,20 @@ Mantener: tests verdes (HOY 10029/10029 ✅), CI workflow estable, no agregar nu
 - **es-AR, es-MX, es-PE 5-8%** — completar core flows o documentar fallback `es-CL` en selector UI
 - **Traducciones humanas** fr/de/it/ja/zh-CN/ar/ko/hi/ru (hoy shells ~1-2% keys) — bloqueado por traductores humanos profesionales
 
+### ⚠️ VERIFICACIÓN 2026-05-30 — la mayoría de "pendientes" de abajo YA ESTÁN HECHOS
+
+> Directiva usuario: **no asumir que el .md dice la verdad** — auditar punto por punto contra el código. Resultado: **~90% de los "Roadmap features" + "Productos pendientes" de abajo ya están construidos.** Estado real (Rule #1, file refs):
+>
+> **✅ HECHOS (el .md los listaba como pendientes — falso):**
+> - F-A CalculatorHub → `src/pages/CalculatorHub.tsx` (+ test + ruteado en `AIRoutes.tsx`) · F-B RAG NL → `src/components/zettelkasten/NlQueryPanel.tsx` · F-D Gamification salud → `src/components/emergency/SkillTree.tsx` · F-E Predictive Calendar → `AlertScheduler` en `RootLayout.tsx` · F-F WebAuthn UI → `src/components/settings/WebAuthnKeysSection.tsx`
+> - #5 Geo-anchored ZK → `src/hooks/useGeoAnchoredNodes.ts` (Haversine real, wired en `MaintenanceStatusPanel.tsx`) · #7 CSV ETL → `src/components/etl/CsvImportExportModal.tsx` · #8 Onboarding wizard → `src/components/industry/IndustrySelectorWizard.tsx` · #10 DS 67/76 PDF → `src/components/compliance/Ds67Builder.tsx` · #13 AnatomyLibrary → `src/components/medicine/AnatomyLibrary.tsx` · #14 VitalityMonitor → `src/components/hygiene/VitalityMonitor.tsx` · #15 MediaPipe Pose → `AIPostureAnalysisModal.tsx` ya usa `useMediaPipePose` · #16 MorningRoutine **SÍ persiste** → `setDoc`+serverTimestamp (el .md decía "falta persistir")
+>
+> **🔒 BLOQUEADO POR COWORK (código real, falta secret/cuenta — NO es trabajo de código):** #1 MQTT broker cloud (adapter+bridge reales; falta emqx/X.509) · #2/#3 WebXR/ARKit (foundation lista; falta device+ARCore/ARKit) · #6 COLMAP deploy (worker existe) · #17 Maps con keys reales
+>
+> **✗ GENUINAMENTE PENDIENTE (único item de código sin construir en este listado):** **#9 Coach IA por dominio** — hoy hay un Asesor único (`ResilientAsesorPanel`); falta especializar prompts por módulo (medicina/ergonomía/SST).
+>
+> Las líneas de abajo se conservan como histórico; **este bloque las supersede.**
+
 ### Roadmap features pendientes (Sprint 29-32 candidato)
 - **F-A CalculatorHub** — 12 generadores Bernoulli sin UI consumer (gas dispersion, confined-space HVAC, respirator fatigue, pulmonary altitude, slope stability, dike hydrostatic, gas leak, misting dust, micro-wind, SLAM photogrammetry, hidrante fire network, scaffold wind suction)
 - **F-B RAG NL sobre incidentes históricos del tenant**
