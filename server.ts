@@ -157,6 +157,8 @@ import offlineInspectionsRouter from "./src/server/routes/offlineInspections.js"
 import qrSignatureRouter from "./src/server/routes/qrSignature.js";
 import emergencyBrigadeRouter from "./src/server/routes/emergencyBrigade.js";
 import engineeringControlsRouter from "./src/server/routes/engineeringControls.js";
+import operationalChangeRouter from "./src/server/routes/operationalChange.js";
+import shiftHandoverRouter from "./src/server/routes/shiftHandover.js";
 import culturePulseRouter from "./src/server/routes/culturePulse.js";
 import knowledgeBaseRouter from "./src/server/routes/knowledgeBase.js";
 import pdcaRouter from "./src/server/routes/pdca.js";
@@ -968,6 +970,9 @@ app.use('/api/sprint-k', knowledgeBaseRouter);
 app.use('/api/sprint-k', pdcaRouter);
 app.use('/api/sprint-k', suppliersRouter);
 app.use('/api/sprint-k', annualReviewRouter);
+// Sprint 39 — built + tested but never wired (missed app.use); mounted here.
+app.use('/api/sprint-k', operationalChangeRouter); // MOC adapter-backed (/:projectId/moc/*)
+app.use('/api/sprint-k', shiftHandoverRouter);     // shift handover (/:projectId/shift-handover/*)
 app.use('/api/sprint-k', leadershipRouter);
 app.use('/api/sprint-k', projectClosureRouter);
 app.use('/api/sprint-k', drivingSafetyRouter);
