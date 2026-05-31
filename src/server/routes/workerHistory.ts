@@ -178,7 +178,9 @@ router.post(
 // 2. redact-pii
 // ────────────────────────────────────────────────────────────────────────
 
-const historySchema = z.unknown() as unknown as z.ZodType<PortableWorkerHistory>;
+// Require an object so a missing/undefined history field is a 400, not a 500.
+// z.record keeps the inner shape loose while rejecting undefined/null/primitives.
+const historySchema = z.record(z.string(), z.unknown()) as unknown as z.ZodType<PortableWorkerHistory>;
 
 const redactSchema = z.object({
   history: historySchema,
