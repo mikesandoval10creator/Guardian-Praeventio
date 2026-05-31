@@ -382,3 +382,55 @@ describe('GET /api/visitors', () => {
     expect(body.visitors).toHaveLength(0);
   });
 });
+
+// =============================================================================
+// CLAUDE.md #19 (runTransaction) + #3 (audit_logs) compliance
+// =============================================================================
+
+describe('rule #19 (transaction) + #3 (audit_logs) compliance', () => {
+  function auditRows(): Record<string, unknown>[] {
+    return Object.entries(H.db!._dump())
+      .filter(([k]) => k.startsWith('audit_logs/'))
+      .map(([, v]) => v as Record<string, unknown>);
+  }
+
+  it('check-in writes an audit_logs row', async () => {
+    seedProject(H.db!);
+    const res = await request(buildApp())
+      .post('/api/visitors/check-in')
+      .set(asUser(HOST_UID))
+      .send({ ...validCheckIn, id: 'vis-audit-ci' });
+    expect(res.status).toBe(200);
+    const a = auditRows().find((r) => r.action === 'visitors.check_in');
+    expect(a).toBeTruthy();
+    expect(a).toMatchObject({ module: 'visitors', userId: HOST_UID, projectId: PROJECT_ID });
+  });
+
+  it('check-out runs in a transaction + writes an audit_logs row', async () => {
+    seedProject(H.db!);
+    const visitorId = 'vis-audit-co';
+    seedVisitor(H.db!, visitorId);
+    const txSpy = vi.spyOn(H.db!, 'runTransaction');
+    const res = await request(buildApp())
+      .post(`/api/visitors/${visitorId}/check-out`)
+      .set(asUser(HOST_UID))
+      .send({ projectId: PROJECT_ID });
+    expect(res.status).toBe(200);
+    expect(txSpy).toHaveBeenCalledTimes(1);
+    expect(auditRows().some((r) => r.action === 'visitors.check_out')).toBe(true);
+  });
+
+  it('acknowledge-induction runs in a transaction + writes an audit_logs row', async () => {
+    seedProject(H.db!);
+    const visitorId = 'vis-audit-ack';
+    seedVisitor(H.db!, visitorId);
+    const txSpy = vi.spyOn(H.db!, 'runTransaction');
+    const res = await request(buildApp())
+      .post(`/api/visitors/${visitorId}/acknowledge-induction`)
+      .set(asUser(HOST_UID))
+      .send({ inductionVersionId: 'ind-v9', projectId: PROJECT_ID });
+    expect(res.status).toBe(200);
+    expect(txSpy).toHaveBeenCalledTimes(1);
+    expect(auditRows().some((r) => r.action === 'visitors.acknowledge_induction')).toBe(true);
+  });
+});

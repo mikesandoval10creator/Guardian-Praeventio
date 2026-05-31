@@ -35,6 +35,7 @@ import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   registerVisitor,
   acknowledgeInduction,
@@ -153,6 +154,12 @@ router.post(
       await visitorsCollection(tenantId, body.projectId)
         .doc(visitorId)
         .set(event.visitor, { merge: false });
+      // CLAUDE.md #3: state change must be audited.
+      await auditServerEvent(req, 'visitors.check_in', 'visitors', {
+        visitorId,
+        projectId: body.projectId,
+        company: body.company,
+      }, { projectId: body.projectId });
       return res.json({ ok: true, visitor: event.visitor });
     } catch (err: any) {
       logger.error('visitor_check_in_failed', err, { hostUid, visitorId });
@@ -184,29 +191,48 @@ router.post(
     }
 
     const ref = visitorsCollection(tenantId, projectIdRaw).doc(visitorId);
-    const snap = await ref.get();
-    if (!snap.exists) {
-      return res.status(404).json({ error: 'visitor_not_found' });
-    }
-
-    let event;
+    // CLAUDE.md #19: get() + update() on the same visitor doc must be atomic so
+    // two concurrent check-outs can't race on checkOutAt (lost update).
+    type R =
+      | { kind: 'not_found' }
+      | { kind: 'invalid'; code: string }
+      | { kind: 'ok'; checkOutAt: string };
+    let result: R;
     try {
-      event = checkOutVisitor(visitorId);
-    } catch (err) {
-      if (err instanceof VisitorRegistryError) {
-        return res.status(400).json({ error: err.code });
-      }
-      throw err;
-    }
-
-    try {
-      await ref.update({ checkOutAt: event.checkOutAt });
-      return res.json({ ok: true, visitorId, checkOutAt: event.checkOutAt });
+      result = await admin.firestore().runTransaction<R>(async (txn) => {
+        const snap = await txn.get(ref);
+        if (!snap.exists) return { kind: 'not_found' };
+        let event;
+        try {
+          event = checkOutVisitor(visitorId);
+        } catch (err) {
+          if (err instanceof VisitorRegistryError) {
+            return { kind: 'invalid', code: err.code };
+          }
+          throw err;
+        }
+        txn.update(ref, { checkOutAt: event.checkOutAt });
+        return { kind: 'ok', checkOutAt: event.checkOutAt };
+      });
     } catch (err: any) {
       logger.error('visitor_check_out_failed', err, { visitorId });
       captureRouteError(err, 'visitors.check_out', { visitorId });
       return res.status(500).json({ error: 'visitor_check_out_failed' });
     }
+
+    if (result.kind === 'not_found') {
+      return res.status(404).json({ error: 'visitor_not_found' });
+    }
+    if (result.kind === 'invalid') {
+      return res.status(400).json({ error: result.code });
+    }
+    // CLAUDE.md #3: state change must be audited.
+    await auditServerEvent(req, 'visitors.check_out', 'visitors', {
+      visitorId,
+      projectId: projectIdRaw,
+      checkOutAt: result.checkOutAt,
+    }, { projectId: projectIdRaw });
+    return res.json({ ok: true, visitorId, checkOutAt: result.checkOutAt });
   },
 );
 
@@ -234,37 +260,59 @@ router.post(
     }
 
     const ref = visitorsCollection(tenantId, projectIdRaw).doc(visitorId);
-    const snap = await ref.get();
-    if (!snap.exists) {
-      return res.status(404).json({ error: 'visitor_not_found' });
-    }
-
-    let event;
+    // CLAUDE.md #19: get() + update() on the same visitor doc must be atomic.
+    type R =
+      | { kind: 'not_found' }
+      | { kind: 'invalid'; code: string }
+      | { kind: 'ok'; inductionVersionId: string; inductedAt: string };
+    let result: R;
     try {
-      event = acknowledgeInduction(visitorId, inductionVersionId);
-    } catch (err) {
-      if (err instanceof VisitorRegistryError) {
-        return res.status(400).json({ error: err.code });
-      }
-      throw err;
-    }
-
-    try {
-      await ref.update({
-        inductionVersionId: event.inductionVersionId,
-        inductedAt: event.inductedAt,
-      });
-      return res.json({
-        ok: true,
-        visitorId,
-        inductionVersionId: event.inductionVersionId,
-        inductedAt: event.inductedAt,
+      result = await admin.firestore().runTransaction<R>(async (txn) => {
+        const snap = await txn.get(ref);
+        if (!snap.exists) return { kind: 'not_found' };
+        let event;
+        try {
+          event = acknowledgeInduction(visitorId, inductionVersionId);
+        } catch (err) {
+          if (err instanceof VisitorRegistryError) {
+            return { kind: 'invalid', code: err.code };
+          }
+          throw err;
+        }
+        txn.update(ref, {
+          inductionVersionId: event.inductionVersionId,
+          inductedAt: event.inductedAt,
+        });
+        return {
+          kind: 'ok',
+          inductionVersionId: event.inductionVersionId,
+          inductedAt: event.inductedAt,
+        };
       });
     } catch (err: any) {
       logger.error('visitor_ack_induction_failed', err, { visitorId });
       captureRouteError(err, 'visitors.acknowledge_induction', { visitorId });
       return res.status(500).json({ error: 'visitor_ack_induction_failed' });
     }
+
+    if (result.kind === 'not_found') {
+      return res.status(404).json({ error: 'visitor_not_found' });
+    }
+    if (result.kind === 'invalid') {
+      return res.status(400).json({ error: result.code });
+    }
+    // CLAUDE.md #3: state change must be audited.
+    await auditServerEvent(req, 'visitors.acknowledge_induction', 'visitors', {
+      visitorId,
+      projectId: projectIdRaw,
+      inductionVersionId: result.inductionVersionId,
+    }, { projectId: projectIdRaw });
+    return res.json({
+      ok: true,
+      visitorId,
+      inductionVersionId: result.inductionVersionId,
+      inductedAt: result.inductedAt,
+    });
   },
 );
 

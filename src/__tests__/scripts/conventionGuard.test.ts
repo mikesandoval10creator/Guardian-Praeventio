@@ -62,11 +62,16 @@ describe('convention-guard (CLAUDE.md #3/#19 ratchet)', () => {
     expect(guard.AUDIT_RE.test('just reads stuff')).toBe(false);
   });
 
-  it('scan() flags audit-verified mutating-without-audit routes', () => {
+  it('scan() returns a non-empty audit-missing set, all baselined', () => {
+    // Robust against campaign progress: as routes are fixed, scan() and the
+    // baseline shrink in lockstep — so we assert the relationship, not names.
     const { rule3 } = guard.scan();
-    for (const r of ['visitors', 'annualReview', 'workPermits', 'confidentialReports']) {
-      expect(rule3, `${r} should be flagged as rule#3`).toContain(r);
-    }
+    expect(rule3.length).toBeGreaterThan(0);
+    const tracked = new Set([
+      ...Object.keys(baseline.rule3_pending),
+      ...Object.keys(baseline.rule3_exempt),
+    ]);
+    expect(rule3.every((r) => tracked.has(r))).toBe(true);
   });
 
   // ── THE GATE ────────────────────────────────────────────────────────────

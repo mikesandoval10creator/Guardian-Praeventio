@@ -204,11 +204,33 @@ router.get(
         return res.status(404).json({ error: 'invalid' });
       }
 
+      const shareRef = admin
+        .firestore()
+        .collection('users')
+        .doc(record.workerUid)
+        .collection('health_vault_shares')
+        .doc(record.id);
+
+      // CLAUDE.md #19: the maxViews/expiry check (consumeShareToken) and the
+      // consumeCount increment must be atomic. findShareById uses a
+      // collectionGroup query (not transactional) only to locate workerUid+id;
+      // the enforcement re-reads + re-validates the share doc INSIDE the
+      // transaction on FRESH data, so two concurrent scans can't both pass the
+      // view limit on the last allowed view (TOCTOU).
       let result;
       try {
-        result = consumeShareToken(record, secret, {
-          name: 'Anónimo (vía QR)',
-          ipHash: hashIp(req.ip),
+        result = await admin.firestore().runTransaction(async (txn) => {
+          const snap = await txn.get(shareRef);
+          if (!snap.exists) {
+            throw new VaultShareError('Token not found', 'invalid_token');
+          }
+          const fresh = snap.data() as VaultShareToken;
+          const consumed = consumeShareToken(fresh, secret, {
+            name: 'Anónimo (vía QR)',
+            ipHash: hashIp(req.ip),
+          });
+          txn.update(shareRef, consumed.patch);
+          return consumed;
         });
       } catch (err) {
         if (err instanceof VaultShareError) {
@@ -220,15 +242,6 @@ router.get(
         }
         throw err;
       }
-
-      // Persistir incremento de consumeCount + audit
-      await admin
-        .firestore()
-        .collection('users')
-        .doc(record.workerUid)
-        .collection('health_vault_shares')
-        .doc(record.id)
-        .update(result.patch);
 
       const updated: VaultShareToken = { ...record, ...result.patch };
       await admin.firestore().collection('audit_logs').add({
