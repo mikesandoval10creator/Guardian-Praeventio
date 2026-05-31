@@ -230,73 +230,95 @@ router.post(
       const apprenticeRef = db
         .collection(`tenants/${g.tenantId}/projects/${projectId}/apprentices`)
         .doc(uid);
-      const snap = await apprenticeRef.get();
-      if (!snap.exists) {
+      // CLAUDE.md #19: this is a read-modify-write on the same apprentice — the
+      // get() of the apprentice + the two set()s (authorizations subdoc + the
+      // parent doc's taskAuthorizations/progress/currentLevel) must run inside a
+      // transaction. Otherwise two concurrent authorizes for the same apprentice
+      // could read the same base state and race to an inconsistent
+      // taskAuthorizations/progress/currentLevel. The validation reads run
+      // inside the txn and surface their outcome via a discriminated result so
+      // the 404/403 paths still map to clean HTTP responses.
+      type AuthorizeResult =
+        | { kind: 'not_found' }
+        | { kind: 'signer_mismatch' }
+        | { kind: 'ok'; currentLevel: ApprenticeAuthLevel; progress: number };
+      const result = await db.runTransaction<AuthorizeResult>(async (txn) => {
+        const snap = await txn.get(apprenticeRef);
+        if (!snap.exists) {
+          return { kind: 'not_found' };
+        }
+        const apprentice = snap.data() as StoredApprentice;
+        // Server-trusted: mentorUid debe coincidir con signedByUid claimed
+        // (anti-impersonation — el mentor está registrado en el aprendiz).
+        if (apprentice.mentorUid !== body.signedByUid) {
+          return { kind: 'signer_mismatch' };
+        }
+        const now = new Date().toISOString();
+        const updatedAuthorizations = {
+          ...apprentice.taskAuthorizations,
+          [body.taskKind]: body.toLevel,
+        };
+        // Progress: simple ratio entre tasks autorizadas y total (mínimo 5
+        // tasks para considerar el aprendizaje completo).
+        const authorizedCount = Object.values(updatedAuthorizations).filter(
+          (l) => l === 'supervised' || l === 'autonomous',
+        ).length;
+        const progress = Math.min(100, Math.round((authorizedCount / 5) * 100));
+        // Codex P2 fix: derivar currentLevel del MÁXIMO de todas las
+        // autorizaciones, no del último cambio. Una autorización lower
+        // para una tarea nueva no debe degradar el nivel global del
+        // aprendiz si ya tenía autonomous en otra tarea.
+        const levelOrder: Record<ApprenticeAuthLevel, number> = {
+          none: 0,
+          observer: 1,
+          supervised: 2,
+          autonomous: 3,
+        };
+        let maxLevel: ApprenticeAuthLevel = 'none';
+        for (const l of Object.values(updatedAuthorizations)) {
+          if (levelOrder[l as ApprenticeAuthLevel] > levelOrder[maxLevel]) {
+            maxLevel = l as ApprenticeAuthLevel;
+          }
+        }
+        const currentLevel: ApprenticeAuthLevel = maxLevel;
+        // Codex P2 fix: persistir authorization en subcollection para
+        // audit trail (signedByUid, evidence, recordedBy por cada
+        // cambio de nivel).
+        const authId = `auth_${Date.now()}_${randomBytes(4).toString('hex')}`;
+        txn.set(apprenticeRef.collection('authorizations').doc(authId), {
+          id: authId,
+          taskKind: body.taskKind,
+          toLevel: body.toLevel,
+          signedByUid: body.signedByUid,
+          evidence: body.evidence,
+          recordedBy: callerUid,
+          recordedAt: now,
+        });
+        txn.set(
+          apprenticeRef,
+          {
+            taskAuthorizations: updatedAuthorizations,
+            progress,
+            currentLevel,
+            updatedAt: now,
+          },
+          { merge: true },
+        );
+        return { kind: 'ok', currentLevel, progress };
+      });
+      if (result.kind === 'not_found') {
         return res.status(404).json({ error: 'apprentice_not_found' });
       }
-      const apprentice = snap.data() as StoredApprentice;
-      // Server-trusted: mentorUid debe coincidir con signedByUid claimed
-      // (anti-impersonation — el mentor está registrado en el aprendiz).
-      if (apprentice.mentorUid !== body.signedByUid) {
+      if (result.kind === 'signer_mismatch') {
         return res.status(403).json({ error: 'signer_not_assigned_mentor' });
       }
-      const now = new Date().toISOString();
-      const updatedAuthorizations = {
-        ...apprentice.taskAuthorizations,
-        [body.taskKind]: body.toLevel,
-      };
-      // Progress: simple ratio entre tasks autorizadas y total (mínimo 5
-      // tasks para considerar el aprendizaje completo).
-      const authorizedCount = Object.values(updatedAuthorizations).filter(
-        (l) => l === 'supervised' || l === 'autonomous',
-      ).length;
-      const progress = Math.min(100, Math.round((authorizedCount / 5) * 100));
-      // Codex P2 fix: derivar currentLevel del MÁXIMO de todas las
-      // autorizaciones, no del último cambio. Una autorización lower
-      // para una tarea nueva no debe degradar el nivel global del
-      // aprendiz si ya tenía autonomous en otra tarea.
-      const levelOrder: Record<ApprenticeAuthLevel, number> = {
-        none: 0,
-        observer: 1,
-        supervised: 2,
-        autonomous: 3,
-      };
-      let maxLevel: ApprenticeAuthLevel = 'none';
-      for (const l of Object.values(updatedAuthorizations)) {
-        if (levelOrder[l as ApprenticeAuthLevel] > levelOrder[maxLevel]) {
-          maxLevel = l as ApprenticeAuthLevel;
-        }
-      }
-      const currentLevel: ApprenticeAuthLevel = maxLevel;
-      // Codex P2 fix: persistir authorization en subcollection para
-      // audit trail (signedByUid, evidence, recordedBy por cada
-      // cambio de nivel).
-      const authId = `auth_${Date.now()}_${randomBytes(4).toString('hex')}`;
-      await apprenticeRef.collection('authorizations').doc(authId).set({
-        id: authId,
-        taskKind: body.taskKind,
-        toLevel: body.toLevel,
-        signedByUid: body.signedByUid,
-        evidence: body.evidence,
-        recordedBy: callerUid,
-        recordedAt: now,
-      });
-      await apprenticeRef.set(
-        {
-          taskAuthorizations: updatedAuthorizations,
-          progress,
-          currentLevel,
-          updatedAt: now,
-        },
-        { merge: true },
-      );
       return res.json({
         ok: true,
         workerUid: uid,
         taskKind: body.taskKind,
         toLevel: body.toLevel,
-        currentLevel,
-        progress,
+        currentLevel: result.currentLevel,
+        progress: result.progress,
       });
     } catch (err) {
       logger.error?.('sprintK.apprentices.authorize.error', err);
