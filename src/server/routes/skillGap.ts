@@ -69,12 +69,17 @@ async function guard(
 }
 
 // Engine shapes are nested enough that the HTTP layer accepts them
-// loosely via z.unknown() casts — the engine validates internally.
-const workerSkillsSchema = z.unknown() as unknown as z.ZodType<WorkerSkill[]>;
-const requirementsSchema = z.unknown() as unknown as z.ZodType<RequiredSkill[]>;
-const skillsCatalogSchema = z.unknown() as unknown as z.ZodType<SkillDefinition[]>;
-const crewSchema = z.unknown() as unknown as z.ZodType<CrewMember[]>;
-const gapsSchema = z.unknown() as unknown as z.ZodType<SkillGap[]>;
+// loosely — but must be arrays (not undefined/null) so validate() rejects
+// a missing body field with 400 instead of letting the engine dereference
+// undefined and throw a 500. Each schema requires an array; element shape
+// is still unconstrained (the engine validates internally).
+// FIX(z.unknown-bug): replaced z.unknown() → z.array(z.record(z.string(), z.unknown()))
+// for all array-typed schemas so a missing field produces 400 invalid_payload.
+const workerSkillsSchema = z.array(z.record(z.string(), z.unknown())) as unknown as z.ZodType<WorkerSkill[]>;
+const requirementsSchema = z.array(z.record(z.string(), z.unknown())) as unknown as z.ZodType<RequiredSkill[]>;
+const skillsCatalogSchema = z.array(z.record(z.string(), z.unknown())) as unknown as z.ZodType<SkillDefinition[]>;
+const crewSchema = z.array(z.record(z.string(), z.unknown())) as unknown as z.ZodType<CrewMember[]>;
+const gapsSchema = z.array(z.record(z.string(), z.unknown())) as unknown as z.ZodType<SkillGap[]>;
 
 // ────────────────────────────────────────────────────────────────────────
 // 1. analyze-gaps

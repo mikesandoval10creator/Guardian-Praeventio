@@ -58,7 +58,13 @@ async function guard(
 // The engine input is a deeply nested shape (baseline + window +
 // actions). Accept it loosely via the engine's own validation rather
 // than duplicating field-level taxonomy at the HTTP boundary.
-const verifyEfficacyInputSchema = z.unknown() as unknown as z.ZodType<VerifyEfficacyInput>;
+//
+// FIX (z.unknown→z.record): VerifyEfficacyInput is an object. A missing
+// `input` field would pass z.unknown() (accepts undefined), then
+// verifyEfficacy() would dereference input.window.windowStart → TypeError
+// → HTTP 500. z.record() requires a non-null object, so a missing field
+// correctly returns 400 invalid_payload.
+const verifyEfficacyInputSchema = z.record(z.string(), z.unknown()) as unknown as z.ZodType<VerifyEfficacyInput>;
 const windowRecurrenceSchema = z.unknown() as unknown as z.ZodType<PostActionWindow['recurrenceIncidents']>;
 const windowLeadingSchema = z.unknown() as unknown as z.ZodType<PostActionWindow['leadingIndicators']>;
 
