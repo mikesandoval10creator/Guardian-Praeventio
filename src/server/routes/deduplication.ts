@@ -69,9 +69,15 @@ const dedupRecordSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 }) as unknown as z.ZodType<DedupRecord>;
 
-// DuplicateCandidate is the engine output shape; accept loosely as input
-// for build-merge-plan.
-const duplicateCandidateSchema = z.unknown() as unknown as z.ZodType<DuplicateCandidate>;
+// DuplicateCandidate is the engine output shape; accept it as a structured
+// object for build-merge-plan so missing fields yield 400, not a 500 deref.
+const duplicateCandidateSchema = z.object({
+  primaryId: z.string().min(1).max(200),
+  duplicateIds: z.array(z.string().min(1).max(200)),
+  confidence: z.number().min(0).max(1),
+  reasons: z.array(z.string()),
+  recommendedAction: z.enum(['auto_merge', 'suggest_merge', 'review_only']),
+}) as unknown as z.ZodType<DuplicateCandidate>;
 
 // ────────────────────────────────────────────────────────────────────────
 // 1. detect
