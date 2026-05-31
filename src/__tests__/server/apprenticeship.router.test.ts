@@ -8,13 +8,13 @@
 //   POST /:projectId/apprentices/:uid/expose
 //   GET  /:projectId/mentors/availability
 //
-// runTransaction gap note: authorize endpoint does 1 get() then 2 sequential
-// set() calls (on subcollection + parent doc) WITHOUT a runTransaction — this
-// is flagged by CLAUDE.md rule #19 as a read-modify-write candidate. Reported
-// below, not fixed here (complex invariant; mentor-signed auth data + progress
-// must be atomic). No data-loss scenario in tests because fakeFirestore is
-// single-threaded in-memory, but a concurrent authorize + authorize on the
-// same apprentice doc could race in production.
+// authorize endpoint (CLAUDE.md rule #19): the get() of the apprentice + the
+// two set()s (authorizations subcollection + parent doc) are now wrapped in
+// db.runTransaction(...), so a concurrent authorize+authorize on the same
+// apprentice can't race to an inconsistent taskAuthorizations/progress/
+// currentLevel. fakeFirestore is single-threaded in-memory (it can't model a
+// real race), but the tests below verify the authorize path through the
+// transaction — including repeated authorizes accumulating correctly.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
@@ -398,6 +398,38 @@ describe('POST /api/sprint-k/:projectId/apprentices/:uid/authorize', () => {
     const body = res.body as Record<string, unknown>;
     // Codex P2 fix: currentLevel must remain 'autonomous', not regress.
     expect(body.currentLevel).toBe('autonomous');
+  });
+
+  it('200 a second authorize accumulates atomically through the transaction', async () => {
+    seedApprentice();
+    // First authorize: task A → supervised.
+    const r1 = await request(buildApp())
+      .post(`/api/sprint-k/${PROJECT_ID}/apprentices/${WORKER_UID}/authorize`)
+      .set('x-test-uid', MENTOR_UID)
+      .send({ ...authBody, taskKind: 'operacion_grua', toLevel: 'supervised' });
+    expect(r1.status).toBe(200);
+    // Second authorize (different task) → autonomous. The transaction reads the
+    // post-first state, so both authorizations accumulate (no lost update) and
+    // currentLevel is the max of the two.
+    const r2 = await request(buildApp())
+      .post(`/api/sprint-k/${PROJECT_ID}/apprentices/${WORKER_UID}/authorize`)
+      .set('x-test-uid', MENTOR_UID)
+      .send({ ...authBody, taskKind: 'izaje_cargas', toLevel: 'autonomous' });
+    expect(r2.status).toBe(200);
+    expect((r2.body as Record<string, unknown>).currentLevel).toBe('autonomous');
+    // Parent doc reflects BOTH authorizations.
+    const stored = (
+      await H.db!.collection(apprenticeCol).doc(WORKER_UID).get()
+    ).data() as Record<string, unknown>;
+    const auths = stored.taskAuthorizations as Record<string, string>;
+    expect(auths.operacion_grua).toBe('supervised');
+    expect(auths.izaje_cargas).toBe('autonomous');
+    expect(stored.currentLevel).toBe('autonomous');
+    // One authorization subdoc was written per call.
+    const authSnap = await H.db!
+      .collection(`${apprenticeCol}/${WORKER_UID}/authorizations`)
+      .get();
+    expect(authSnap.size).toBe(2);
   });
 
   it('200 progress caps at 100 with ≥5 supervised/autonomous tasks', async () => {
