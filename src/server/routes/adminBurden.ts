@@ -110,7 +110,11 @@ router.post(
 // ────────────────────────────────────────────────────────────────────────
 
 // AdminBurdenReport is the engine output shape; accept loosely as input.
-const reportEchoSchema = z.unknown() as unknown as z.ZodType<AdminBurdenReport>;
+// z.record() requires a non-null object, so a missing/undefined body field
+// correctly returns 400 instead of letting the engine dereference undefined
+// and crash with a TypeError (HTTP 500). The cast is preserved so the
+// downstream handler still types `body.report` as AdminBurdenReport.
+const reportEchoSchema = z.record(z.string(), z.unknown()) as unknown as z.ZodType<AdminBurdenReport>;
 
 const suggestSchema = z.object({
   report: reportEchoSchema,
