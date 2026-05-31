@@ -347,6 +347,7 @@ import pricingCalculatorRouter from "./src/server/routes/pricingCalculator.js";
 import rootCauseRouter from "./src/server/routes/rootCause.js";
 // Read receipts (mandatory acknowledgement) — Sprint 39 G.1.
 import readReceiptsRouter from "./src/server/routes/readReceipts.js";
+import industryRulesRouter from "./src/server/routes/industryRules.js";
 // Soft-blocking requirement gate — directive #2 compliant (never blocks machinery).
 import softBlockingRouter from "./src/server/routes/softBlocking.js";
 // Role-based dashboard views — Sprint 39 J.4 (worker / site_chief / prevention / management).
@@ -1070,6 +1071,9 @@ app.use('/api/sprint-k', workerHistoryRouter);
 app.use('/api/sprint-k', pricingCalculatorRouter);
 app.use('/api/sprint-k', rootCauseRouter);
 app.use('/api/sprint-k', readReceiptsRouter);
+// Sprint 39 Bloque 3.13 — useIndustryRules.ts already calls /api/sprint-k/:projectId/industry/*
+// but the router was never mounted (client got 404s). Wired here.
+app.use('/api/sprint-k', industryRulesRouter);
 app.use('/api/sprint-k', softBlockingRouter);
 app.use('/api/sprint-k', roleViewsRouter);
 app.use('/api/sprint-k', safetyTalksRouter);
