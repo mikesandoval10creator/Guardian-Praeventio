@@ -177,8 +177,10 @@ router.post(
 // 2. list-unprotected-threats
 // ────────────────────────────────────────────────────────────────────────
 
-// The engine's BowtieDiagram is a deep shape; accept it loosely.
-const diagramSchema = z.unknown() as unknown as z.ZodType<BowtieDiagram>;
+// The engine's BowtieDiagram is a deep shape; accept it loosely but require
+// it to BE an object — a missing/undefined diagram must fail validation (400),
+// not slip through to listUnprotectedThreats() and throw a TypeError (500).
+const diagramSchema = z.record(z.string(), z.unknown()) as unknown as z.ZodType<BowtieDiagram>;
 
 const listUnprotectedSchema = z.object({
   diagram: diagramSchema,

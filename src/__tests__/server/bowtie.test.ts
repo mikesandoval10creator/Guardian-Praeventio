@@ -493,22 +493,17 @@ describe('POST /:projectId/bowtie/list-unprotected-threats', () => {
     expect(res.status).toBe(401);
   });
 
-  // NOTE: diagramSchema is z.unknown() — it accepts any value including
-  // undefined, so sending {} cannot produce a 400. Sending an empty body
-  // with no diagram key causes the route to pass validation and then hit
-  // a TypeError inside listUnprotectedThreats → 500. This is a production
-  // bug: src/server/routes/bowtie.ts:181 — `z.unknown()` should be
-  // `z.object({...}).passthrough()` or similar to reject missing diagram.
-  // Test below pins the current (buggy) behaviour so any fix is visible.
-  it('500 when diagram key is absent (bug: z.unknown() accepts undefined)', async () => {
+  // diagramSchema is z.record(z.string(), z.unknown()) (src/server/routes/bowtie.ts:181),
+  // so it requires the diagram to BE an object. Sending {} (no diagram key) is now
+  // rejected at validation with 400 instead of slipping through to
+  // listUnprotectedThreats() and throwing a TypeError → 500.
+  it('400 when diagram key is absent (rejected by validation, not a 500)', async () => {
     const res = await request(buildApp())
       .post(url)
       .set('x-test-uid', CALLER_UID)
       .send({});
-    // z.unknown() passes validation even with undefined diagram; engine then
-    // throws TypeError → 500 internal_error. Fix would change this to 400.
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBe('internal_error');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_payload');
   });
 
   it('403 when caller is not a project member', async () => {
