@@ -55,6 +55,10 @@ vi.mock('../../server/middleware/geminiCircuit.js', () => ({
 
 import adminRouter from '../../server/routes/admin.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
+import { replicateCriticalData } from '../../server/jobs/firestoreCriticalReplicate.js';
+import { runWeeklyDigest } from '../../server/jobs/weeklyDigest.js';
+import { runDailyClimateRiskScan } from '../../server/jobs/dailyClimateRiskScan.js';
+import { resetQuota, topTenantsByUsage } from '../../services/observability/quotaTracker.js';
 
 function buildApp() {
   const app = express();
@@ -71,6 +75,11 @@ beforeEach(() => {
   H.roles = { admin1: 'admin', worker1: 'operario', gerente1: 'gerente' };
   H.setClaims.mockReset().mockResolvedValue(undefined as never);
   H.revoke.mockReset().mockResolvedValue(undefined as never);
+  vi.mocked(replicateCriticalData).mockClear();
+  vi.mocked(runWeeklyDigest).mockClear();
+  vi.mocked(runDailyClimateRiskScan).mockClear();
+  vi.mocked(resetQuota).mockClear();
+  vi.mocked(topTenantsByUsage).mockClear();
 });
 
 describe('POST /api/admin/set-role — privilege escalation guard', () => {
@@ -156,5 +165,316 @@ describe('admin observability endpoints (assertAdminCaller gate)', () => {
     const ok = await request(buildApp()).get('/api/admin/quotas?tenantId=t1').set(asUser('admin1'));
     expect(ok.status).toBe(200);
     expect(ok.body.ok).toBe(true);
+  });
+});
+
+// ===========================================================================
+// POST /api/admin/replicate-critical
+// ===========================================================================
+describe('POST /api/admin/replicate-critical', () => {
+  it('401 without token', async () => {
+    const res = await request(buildApp()).post('/api/admin/replicate-critical');
+    expect(res.status).toBe(401);
+  });
+
+  it('403 non-admin caller', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/replicate-critical')
+      .set(asUser('worker1'));
+    expect(res.status).toBe(403);
+    expect(vi.mocked(replicateCriticalData)).not.toHaveBeenCalled();
+  });
+
+  it('200 admin: replicateCriticalData called + audit_logs row written', async () => {
+    vi.mocked(replicateCriticalData).mockResolvedValueOnce({
+      collections: [{ collection: 'audit_logs', docs: 2, path: 'gs://bucket/audit_logs.jsonl' }],
+      window: '2026-05-31T00:00:00Z',
+    } as never);
+    const res = await request(buildApp())
+      .post('/api/admin/replicate-critical')
+      .set(asUser('admin1'));
+    expect(res.status).toBe(200);
+    expect((res.body as Record<string, unknown>).ok).toBe(true);
+    expect(vi.mocked(replicateCriticalData)).toHaveBeenCalledTimes(1);
+    const auditKeys = [...H.db!._store.keys()].filter((k) => k.startsWith('audit_logs/'));
+    expect(auditKeys.length).toBe(1);
+    const auditDoc = H.db!._store.get(auditKeys[0])!;
+    expect(auditDoc.action).toBe('replicate_critical');
+    expect(auditDoc.actor).toBe('admin1');
+  });
+});
+
+// ===========================================================================
+// POST /api/admin/jobs/weekly-digest
+// ===========================================================================
+describe('POST /api/admin/jobs/weekly-digest', () => {
+  it('401 without token', async () => {
+    const res = await request(buildApp()).post('/api/admin/jobs/weekly-digest');
+    expect(res.status).toBe(401);
+  });
+
+  it('403 non-admin caller', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/jobs/weekly-digest')
+      .set(asUser('worker1'));
+    expect(res.status).toBe(403);
+    expect(vi.mocked(runWeeklyDigest)).not.toHaveBeenCalled();
+  });
+
+  it('200 full run (no projectIds): calls runWeeklyDigest with undefined + audit logged', async () => {
+    vi.mocked(runWeeklyDigest).mockResolvedValueOnce({
+      windowStart: '2026-05-25T00:00:00Z',
+      windowEnd: '2026-05-31T23:59:59Z',
+      projectsProcessed: 5,
+      projectsSent: 4,
+      totalEmailsSent: 10,
+      totalEmailErrors: 0,
+    } as never);
+    const res = await request(buildApp())
+      .post('/api/admin/jobs/weekly-digest')
+      .set(asUser('admin1'))
+      .send({});
+    expect(res.status).toBe(200);
+    expect((res.body as Record<string, unknown>).ok).toBe(true);
+    expect(vi.mocked(runWeeklyDigest)).toHaveBeenCalledWith({ projectIds: undefined });
+    const auditDoc = [...H.db!._store.values()].find((d) => d.action === 'weekly_digest_run');
+    expect(auditDoc?.actor).toBe('admin1');
+  });
+
+  it('200 ad-hoc replay: non-string items filtered, string slice forwarded', async () => {
+    vi.mocked(runWeeklyDigest).mockResolvedValueOnce({} as never);
+    const res = await request(buildApp())
+      .post('/api/admin/jobs/weekly-digest')
+      .set(asUser('admin1'))
+      .send({ projectIds: ['p1', 99, null, 'p2'] });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(runWeeklyDigest)).toHaveBeenCalledWith({ projectIds: ['p1', 'p2'] });
+  });
+});
+
+// ===========================================================================
+// POST /api/admin/jobs/climate-scan
+// ===========================================================================
+describe('POST /api/admin/jobs/climate-scan', () => {
+  it('401 without token', async () => {
+    const res = await request(buildApp()).post('/api/admin/jobs/climate-scan');
+    expect(res.status).toBe(401);
+  });
+
+  it('403 non-admin caller', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/jobs/climate-scan')
+      .set(asUser('worker1'));
+    expect(res.status).toBe(403);
+    expect(vi.mocked(runDailyClimateRiskScan)).not.toHaveBeenCalled();
+  });
+
+  it('200 admin: runDailyClimateRiskScan called with wired deps', async () => {
+    vi.mocked(runDailyClimateRiskScan).mockResolvedValueOnce({
+      projectsScanned: 1, nodesWritten: 2, fcmSent: 0, fcmFailed: 0,
+    } as never);
+    const res = await request(buildApp())
+      .post('/api/admin/jobs/climate-scan')
+      .set(asUser('admin1'));
+    expect(res.status).toBe(200);
+    expect((res.body as Record<string, unknown>).ok).toBe(true);
+    expect(vi.mocked(runDailyClimateRiskScan)).toHaveBeenCalledTimes(1);
+    // deps arg is the first positional — it must be an object with the expected callbacks
+    const deps = vi.mocked(runDailyClimateRiskScan).mock.calls[0][0];
+    expect(typeof (deps as unknown as Record<string, unknown>).listActiveProjects).toBe('function');
+    expect(typeof (deps as unknown as Record<string, unknown>).audit).toBe('function');
+  });
+});
+
+// ===========================================================================
+// GET /api/admin/quotas/global
+// ===========================================================================
+describe('GET /api/admin/quotas/global', () => {
+  it('401 without token', async () => {
+    const res = await request(buildApp()).get('/api/admin/quotas/global');
+    expect(res.status).toBe(401);
+  });
+
+  it('403 non-admin caller', async () => {
+    const res = await request(buildApp()).get('/api/admin/quotas/global').set(asUser('worker1'));
+    expect(res.status).toBe(403);
+  });
+
+  it('400 invalid date format', async () => {
+    const res = await request(buildApp())
+      .get('/api/admin/quotas/global?date=not-a-date')
+      .set(asUser('admin1'));
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>).error).toMatch(/Invalid date/);
+  });
+
+  it('200 default limit=10 when omitted', async () => {
+    vi.mocked(topTenantsByUsage).mockResolvedValueOnce([{ tenantId: 't1', usd: 5 }] as never);
+    const res = await request(buildApp())
+      .get('/api/admin/quotas/global?date=2026-05-31')
+      .set(asUser('admin1'));
+    expect(res.status).toBe(200);
+    expect((res.body as Record<string, unknown>).ok).toBe(true);
+    expect(vi.mocked(topTenantsByUsage)).toHaveBeenCalledWith('2026-05-31', 10);
+  });
+
+  it('200 respects ?limit param; out-of-range (>100) falls back to 10', async () => {
+    vi.mocked(topTenantsByUsage).mockResolvedValue([] as never);
+    const r5 = await request(buildApp())
+      .get('/api/admin/quotas/global?date=2026-05-31&limit=5')
+      .set(asUser('admin1'));
+    expect(r5.status).toBe(200);
+    expect(vi.mocked(topTenantsByUsage)).toHaveBeenLastCalledWith('2026-05-31', 5);
+
+    const rBig = await request(buildApp())
+      .get('/api/admin/quotas/global?date=2026-05-31&limit=999')
+      .set(asUser('admin1'));
+    expect(rBig.status).toBe(200);
+    expect(vi.mocked(topTenantsByUsage)).toHaveBeenLastCalledWith('2026-05-31', 10);
+  });
+});
+
+// ===========================================================================
+// POST /api/admin/quotas/reset
+// ===========================================================================
+describe('POST /api/admin/quotas/reset', () => {
+  it('401 without token', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/quotas/reset')
+      .send({ tenantId: 'tenant-abc', date: '2026-05-31' });
+    expect(res.status).toBe(401);
+  });
+
+  it('403 non-admin caller', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/quotas/reset')
+      .set(asUser('worker1'))
+      .send({ tenantId: 'tenant-abc', date: '2026-05-31' });
+    expect(res.status).toBe(403);
+    expect(vi.mocked(resetQuota)).not.toHaveBeenCalled();
+  });
+
+  it('400 missing / invalid tenantId', async () => {
+    const noId = await request(buildApp())
+      .post('/api/admin/quotas/reset')
+      .set(asUser('admin1'))
+      .send({ date: '2026-05-31' });
+    expect(noId.status).toBe(400);
+    expect((noId.body as Record<string, unknown>).error).toMatch(/Invalid tenantId/);
+  });
+
+  it('400 invalid date format', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/quotas/reset')
+      .set(asUser('admin1'))
+      .send({ tenantId: 'tenant-abc', date: 'baddate' });
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>).error).toMatch(/Invalid date/);
+  });
+
+  it('200 admin: resetQuota called + audit_logs row written', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/quotas/reset')
+      .set(asUser('admin1'))
+      .send({ tenantId: 'tenant-abc', date: '2026-05-31' });
+    expect(res.status).toBe(200);
+    expect((res.body as Record<string, unknown>).ok).toBe(true);
+    expect((res.body as Record<string, unknown>).tenantId).toBe('tenant-abc');
+    expect(vi.mocked(resetQuota)).toHaveBeenCalledWith('tenant-abc', '2026-05-31');
+    const auditDoc = [...H.db!._store.values()].find((d) => d.action === 'quota_reset');
+    expect(auditDoc?.target).toBe('tenant-abc');
+    expect(auditDoc?.date).toBe('2026-05-31');
+    expect(auditDoc?.actor).toBe('admin1');
+  });
+});
+
+// ===========================================================================
+// GET /api/admin/circuit-state
+// ===========================================================================
+describe('GET /api/admin/circuit-state', () => {
+  it('401 without token', async () => {
+    const res = await request(buildApp()).get('/api/admin/circuit-state');
+    expect(res.status).toBe(401);
+  });
+
+  it('403 non-admin caller', async () => {
+    const res = await request(buildApp()).get('/api/admin/circuit-state').set(asUser('worker1'));
+    expect(res.status).toBe(403);
+  });
+
+  it('200 admin: returns thresholds + snapshot', async () => {
+    const res = await request(buildApp()).get('/api/admin/circuit-state').set(asUser('admin1'));
+    expect(res.status).toBe(200);
+    const body = res.body as Record<string, unknown>;
+    expect(body.ok).toBe(true);
+    const thresholds = body.thresholds as Record<string, unknown>;
+    expect(thresholds.threshold).toBe(5);
+    expect(thresholds.windowMs).toBe(1000);
+    expect(thresholds.openDurationMs).toBe(1000);
+    expect(body.state).toEqual({ state: 'closed' });
+  });
+});
+
+// ===========================================================================
+// POST /api/admin/sync/clear-user-queue
+// ===========================================================================
+describe('POST /api/admin/sync/clear-user-queue', () => {
+  it('401 without token', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/sync/clear-user-queue')
+      .send({ targetUid: 'user-42' });
+    expect(res.status).toBe(401);
+  });
+
+  it('403 non-admin caller', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/sync/clear-user-queue')
+      .set(asUser('worker1'))
+      .send({ targetUid: 'user-42' });
+    expect(res.status).toBe(403);
+  });
+
+  it('400 missing / invalid targetUid', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/sync/clear-user-queue')
+      .set(asUser('admin1'))
+      .send({});
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>).error).toMatch(/Invalid targetUid/);
+  });
+
+  it('200 admin: user_sync_state.clearRequested set + audit_logs row written', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/sync/clear-user-queue')
+      .set(asUser('admin1'))
+      .send({ targetUid: 'user-42' });
+    expect(res.status).toBe(200);
+    expect((res.body as Record<string, unknown>).ok).toBe(true);
+    expect((res.body as Record<string, unknown>).targetUid).toBe('user-42');
+
+    const syncDoc = H.db!._store.get('user_sync_state/user-42');
+    expect(syncDoc?.clearRequested).toBe(true);
+    expect(syncDoc?.clearRequestedBy).toBe('admin1');
+
+    const auditDoc = [...H.db!._store.values()].find((d) => d.action === 'sync_clear_user_queue');
+    expect(auditDoc?.target).toBe('user-42');
+    expect(auditDoc?.actor).toBe('admin1');
+  });
+
+  it('200 stuckUsers sorted desc by pendingCount and capped at 25', async () => {
+    // Seed 30 failed users
+    for (let i = 0; i < 30; i++) {
+      H.db!._seed(`user_sync_state/uid-fail-${i}`, {
+        pendingCount: i + 1,
+        state: 'online_failed',
+      });
+    }
+    // Trigger via sync/stats to verify the cap (clear-user-queue itself doesn't aggregate)
+    const res = await request(buildApp()).get('/api/admin/sync/stats').set(asUser('admin1'));
+    expect(res.status).toBe(200);
+    const stuck = (res.body as Record<string, unknown>).stuckUsers as Array<Record<string, unknown>>;
+    expect(stuck.length).toBe(25);
+    // Sorted descending: first entry should have highest pendingCount
+    expect((stuck[0].pendingCount as number) >= (stuck[1].pendingCount as number)).toBe(true);
   });
 });
