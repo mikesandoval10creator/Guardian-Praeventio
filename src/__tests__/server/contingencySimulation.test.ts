@@ -460,35 +460,30 @@ describe('POST /:projectId/contingency/evaluate-tabletop', () => {
     expect(res.body.error).toMatch(/Scenario mismatch/);
   });
 
-  // NOTE: evaluateTabletopSchema uses z.unknown() for both 'attempt' and
-  // 'scenario' (intentionally loose — engine validates internally). Zod does
-  // NOT reject a missing z.unknown() field because the outer object() schema
-  // still passes. Omitting attempt or scenario causes the engine to crash with
-  // a 500. This is a production code characteristic — do not modify prod code.
-  // We assert the actual behavior here.
-  it('500 — missing attempt field causes engine crash (z.unknown is loose)', async () => {
+  // evaluateTabletopSchema now validates 'attempt' and 'scenario' as
+  // z.record(z.string(), z.unknown()) (required objects), so a request omitting
+  // either field is rejected by validate() with 400 invalid_payload instead of
+  // slipping through to the engine and throwing a TypeError → 500.
+  it('400 — missing attempt field is rejected by validation (not a 500)', async () => {
     seedProject();
     const res = await request(buildApp())
       .post(EVAL_URL)
       .set('x-test-uid', CALLER_UID)
       .send({ scenario: fireScenario });
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBe('internal_error');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_payload');
   });
 
-  it('400 — invalid_payload when body is entirely empty (both fields missing via object validation)', async () => {
+  it('400 — invalid_payload when body is entirely empty (both fields missing)', async () => {
     seedProject();
-    // Sending {} fails because z.object({ attempt, scenario }) still requires
-    // both keys in the strict sense — but z.unknown() allows any value
-    // including undefined. The outer object passes even with missing keys when
-    // they are optional. Let's confirm the schema behavior is consistent.
+    // attempt + scenario are required objects (z.record), so a body with neither
+    // key fails validation with 400 instead of reaching the engine → 500.
     const res = await request(buildApp())
       .post(EVAL_URL)
       .set('x-test-uid', CALLER_UID)
       .send({});
-    // Both fields missing → attempt=undefined, scenario=undefined → engine crash
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBe('internal_error');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_payload');
   });
 
   it('200 — perfect attempt: scorePct=100, passed=true, correctResponses=3', async () => {
