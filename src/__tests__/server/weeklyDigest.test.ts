@@ -14,6 +14,12 @@ import {
 } from '../../server/jobs/weeklyDigest.js';
 import { createFakeFirestore, type FakeFirestore } from '../helpers/fakeFirestore.js';
 import type { BatchResult } from '../../services/email/resendService.js';
+import type { Firestore } from 'firebase-admin/firestore';
+import { logger } from '../../utils/logger.js';
+
+vi.mock('../../utils/logger.js', () => ({
+  logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -204,6 +210,99 @@ describe('runWeeklyDigest — Firestore unavailable', () => {
     expect(result.perProject[0].errors).toBe(1);
     expect(result.perProject[0].skippedReason).toContain('projects_query_failed');
     expect(vi.mocked(fakeEmail.sendBatch)).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runWeeklyDigest — a single source-collection query fails (per-collection
+// isolation + observable, NOT silently zero — Plan v3 Fase 2.5)
+// ---------------------------------------------------------------------------
+
+/** Wrap a fakeFirestore so the tenant subcollection `failColl` rejects on .get()
+ *  while every other collection (processes/crews/project doc) works normally —
+ *  exercises the per-collection failure path. */
+function dbWithFailingTenantCollection(real: FakeFirestore, failColl: string): Firestore {
+  const failingChain: any = {
+    where: () => failingChain,
+    orderBy: () => failingChain,
+    limit: () => failingChain,
+    get: () => Promise.reject(new Error('firestore unavailable')),
+  };
+  return {
+    ...real,
+    collection: (path: string) => {
+      const coll = real.collection(path);
+      if (path !== 'tenants') return coll;
+      return {
+        ...coll,
+        doc: (id: string) => {
+          const docRef = coll.doc(id);
+          return {
+            ...docRef,
+            collection: (sub: string) => (sub === failColl ? failingChain : docRef.collection(sub)),
+          };
+        },
+      };
+    },
+  } as unknown as Firestore;
+}
+
+describe('runWeeklyDigest — a source collection query fails', () => {
+  const NOW = makeDate('2026-05-12T09:00:00Z'); // window 2026-05-04 .. 2026-05-10
+
+  beforeEach(() => {
+    vi.mocked(logger.warn).mockClear();
+  });
+
+  it('logs the failure + flags stats.partial, still computes the other collections', async () => {
+    const db = createFakeFirestore();
+    seedProject(db, 'proj-pf', {
+      tenantId: 'tenant-pf',
+      name: 'Proyecto Parcial',
+      supervisors: [{ role: 'supervisor', email: 'sup@pf.cl' }],
+    });
+    // processes + crews ARE in-window — they must still be counted even though
+    // the findings query fails (per-collection isolation preserved).
+    seedProcess(db, 'tenant-pf', 'pr1', { projectId: 'proj-pf', status: 'completed', completedAt: '2026-05-06T12:00:00Z' });
+    seedCrew(db, 'tenant-pf', 'cr1', { projectId: 'proj-pf', weeklyXp: 70 });
+
+    const failDb = dbWithFailingTenantCollection(db, 'findings');
+    const result = await runWeeklyDigest({
+      getDb: () => failDb,
+      emailService: makeFakeEmailService() as any,
+      now: () => NOW,
+      projectIds: ['proj-pf'],
+    });
+
+    const proj = result.perProject[0];
+    // findings failed → 0, but the result is FLAGGED partial (not a silent zero).
+    expect(proj.stats?.findingsCreated).toBe(0);
+    expect(proj.stats?.partial).toBe(true);
+    // the other collections still computed — isolation preserved.
+    expect(proj.stats?.processesCompleted).toBe(1);
+    expect(proj.stats?.crewXpGained).toBe(70);
+    // and the failure was LOGGED for ops, not swallowed.
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      'weekly_digest_query_failed',
+      expect.objectContaining({ projectId: 'proj-pf', collection: 'findings' }),
+    );
+  });
+
+  it('a fully-successful run leaves stats.partial undefined + logs nothing (no false positive)', async () => {
+    const db = createFakeFirestore();
+    seedProject(db, 'proj-ok', {
+      tenantId: 'tenant-ok',
+      name: 'OK',
+      supervisors: [{ role: 'supervisor', email: 'sup@ok.cl' }],
+    });
+    const result = await runWeeklyDigest({
+      getDb: () => db as any,
+      emailService: makeFakeEmailService() as any,
+      now: () => NOW,
+      projectIds: ['proj-ok'],
+    });
+    expect(result.perProject[0].stats?.partial).toBeUndefined();
+    expect(vi.mocked(logger.warn)).not.toHaveBeenCalled();
   });
 });
 
