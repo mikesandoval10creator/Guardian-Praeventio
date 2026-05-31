@@ -68,3 +68,35 @@ final % is honest.
 `scripts/coverage-floors.json` holds the monotonic floors. Seeded at the
 baseline; raise as coverage climbs, never lower silently. `check-coverage-ratchet.cjs`
 enforces (report-only until the floors file exists).
+
+## Snapshot — 2026-05-31 (after the server-route coverage campaign #602–#615)
+
+Full `npm run test:coverage` re-run. The ~54 real-router suites + 13
+`z.unknown()` 500→400 fixes lifted lines **43.35% → 50.89%**.
+
+| Metric | % | Covered / Total |
+|---|---|---|
+| **Lines** | **50.89%** | 41256 / 81060 |
+| Statements | 49.91% | 44712 / 89573 |
+| Functions | 44.59% | 8069 / 18094 |
+| Branches | 43.81% | 25446 / 58078 |
+
+`src/server` rose **20% → 51%** (the campaign's target dir). Remaining mass:
+
+| Dir | Uncovered lines | Note |
+|---|---|---|
+| `src/components` | 10,590 (23%) | UI — jsdom, lower value/line |
+| `src/pages` | 9,386 (21%) | UI |
+| `src/server` | 8,619 (51%) | still the cleanest lever |
+| `src/services` | 4,989 (83%) | tail |
+| `src/hooks` | 4,135 (22%) | logic — second lever |
+
+Top remaining non-UI levers (next blocks): `billing.ts` (517, 0%), `server.ts`
+(343), `curriculum.ts` (293, 7%), `geminiBackend.ts` (229, 0%), then the
+mid-size server routes (`b2dAdmin`, `leadership`, `restrictedZones`,
+`aiGuardrails`, `workPermits`, `admin`, `culturePulse`, `gemini`).
+
+**Block 1 · wave 1** (this PR): emergency, dte, suseso, compliance, commute,
+apprenticeship → **+230 tests** (real-router). Finding: `apprenticeship.ts`
+`authorize` does `get` + 2 `set`s without `runTransaction` (CLAUDE.md #19) —
+flagged, not fixed.
