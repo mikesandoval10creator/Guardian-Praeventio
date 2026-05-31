@@ -66,8 +66,9 @@ async function guard(
 
 // JsaDraft is a deeply nested engine shape; accept it loosely via the
 // engine's own `validateJsa` rather than duplicating the field/hazard/
-// control taxonomy at the HTTP boundary.
-const draftSchema = z.unknown() as unknown as z.ZodType<JsaDraft>;
+// control taxonomy at the HTTP boundary. Require an object so a missing
+// or null draft is rejected with 400 rather than crashing the engine (500).
+const draftSchema = z.record(z.string(), z.unknown()) as unknown as z.ZodType<JsaDraft>;
 
 // ────────────────────────────────────────────────────────────────────────
 // 1. validate
