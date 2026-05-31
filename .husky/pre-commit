@@ -1,2 +1,3 @@
 #!/bin/sh
 node scripts/precommit-medical-guard.cjs
+node scripts/check-convention-guard.cjs
