@@ -766,6 +766,30 @@ El audit identificó que PR #458 (Phase 1, 2026-05-21) eliminó el backend de ph
 
 ---
 
+### 2.29 🔄 Audit trail silenciosamente ausente en ~20 rutas mutantes (rule #3) — campaña 2026-05-31
+
+**Hallazgo** (auditoría real `everything-claude-code` + verificación manual, HEAD `1fd2c31e`): ~20 rutas en `src/server/routes/` mutan estado (Firestore `.set/.update/.add` o adapter) **sin** escribir `audit_logs` → viola CLAUDE.md regla #3. Solo **14/197** rutas auditaban. Para una app de prevención, un audit trail con huecos es false completeness severa (la empresa cree que hay traza y no la hay).
+
+**Checklist vivo (autoritativo):** `scripts/convention-guard-baseline.json` → `rule3_pending`. El guard `scripts/check-convention-guard.cjs` (gate CI vía `src/__tests__/scripts/conventionGuard.test.ts` + pre-commit) FALLA si aparece una ruta nueva mutante sin audit; cada fix la quita del baseline (ratchet monotónico).
+
+**Prioridad verificada:** 🔴 workPermits(×3 DS132) · confidentialReports(×3 Ley Karin) · correctiveActions(×2) · restrictedZones/define · 🟠 legalObligations(×2) · operationalChange(×3 MOC) · billing(/verify+/checkout) · drivingSafety(×4) · 🟡 projectClosure(×4) · visitors(×3) · eppFlow(×3) · evacuationHeadcount(×3) · loneWorker(×2) · sitebookSign · horometro(×2) · incidentFlow(escribe path equivocado `tenants/{tid}/audit_logs`) · ⚪ preventionCost · leadership.
+
+**Cerrados:**
+- ✅ **annualReview** objectives/evidence/conclude — `src/server/routes/annualReview.ts:300,386,448` (`await auditServerEvent(req,'annualReview.*','annual_review',…)`). Test: `src/__tests__/server/annualReview.test.ts` bloque "rule #19 (transaction) + #3 (audit_logs) compliance".
+
+### 2.30 🔄 Read-modify-write sin runTransaction (rule #19) — campaña 2026-05-31
+
+**Hallazgo:** handlers que hacen `get()` + `set/update()` sobre el MISMO doc sin `db.runTransaction` → race split-brain / lost-update. Candidatos CLAUDE.md #19 + barrido real verificado.
+
+**Checklist vivo:** `convention-guard-baseline.json` → `rule19_pending`.
+
+**Verificados:** 🔴 annualReview (clobbea el doc completo, `set(merge:false)`) · 🟠 healthVault GET `/view` (TOCTOU: 2 escaneos concurrentes pasan `maxViews` en la última vista) · 🟡 visitors(check-out/ack) · knowledgeBase(/use,/flag-obsolete) · apprenticeship/expose. (incidentTrends / culturePulse / cphsMinute verificados **OK** — descartados: read-only o docs distintos.)
+
+**Cerrados:**
+- ✅ **annualReview** ×3 handlers — `src/server/routes/annualReview.ts:260,335,423` envueltos en `db.runTransaction<R>(…txn.get/txn.set…)` con result discriminado (patrón `apprenticeship.ts:245`). Test: spy `runTransaction` en `annualReview.test.ts`.
+
+---
+
 ## 3. ✅ Codex review pendings — TODOS MERGEADOS (verificación 2026-05-19)
 
 > Codex ChatGPT hizo review automática en ~16 PRs mergeados últimos 14 días. La mayoría muestran "Codex usage limits reached" (sin contenido técnico). Solo **4 PRs** tuvieron hallazgos reales — **10 hallazgos totales** (2 P1 + 8 P2), cubiertos por PRs #267 + #268.

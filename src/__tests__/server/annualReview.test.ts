@@ -663,3 +663,58 @@ describe('POST /annual-review/conclude', () => {
     expect(res.body).not.toHaveProperty('sentToOrganismo');
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// CLAUDE.md #19 (runTransaction) + #3 (audit_logs) compliance
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('rule #19 (transaction) + #3 (audit_logs) compliance', () => {
+  function auditRows(): Record<string, unknown>[] {
+    return Object.entries(H.db!._dump())
+      .filter(([k]) => k.startsWith('audit_logs/'))
+      .map(([, v]) => v as Record<string, unknown>);
+  }
+
+  it('objectives runs inside a transaction and writes an audit_logs row', async () => {
+    const txSpy = vi.spyOn(H.db!, 'runTransaction');
+    const res = await request(buildApp())
+      .post(`${BASE}/objectives`)
+      .set(AUTH)
+      .send({ year: YEAR, objectives: [minObjective] });
+    expect(res.status).toBe(200);
+    expect(txSpy).toHaveBeenCalledTimes(1);
+    const audit = auditRows().find((r) => r.action === 'annualReview.objectives');
+    expect(audit).toBeTruthy();
+    expect(audit).toMatchObject({ module: 'annual_review', userId: UID, projectId: P });
+  });
+
+  it('evidence runs inside a transaction and writes an audit_logs row', async () => {
+    seedReviewWithObjective();
+    const txSpy = vi.spyOn(H.db!, 'runTransaction');
+    const res = await request(buildApp())
+      .post(`${BASE}/evidence`)
+      .set(AUTH)
+      .send({
+        year: YEAR,
+        objectiveId: 'obj1',
+        evidenceUrl: 'https://example.com/x.pdf',
+        evidenceKind: 'document',
+        caption: 'c',
+      });
+    expect(res.status).toBe(200);
+    expect(txSpy).toHaveBeenCalledTimes(1);
+    expect(auditRows().some((r) => r.action === 'annualReview.evidence')).toBe(true);
+  });
+
+  it('conclude runs inside a transaction and writes an audit_logs row', async () => {
+    seedOpenReview();
+    const txSpy = vi.spyOn(H.db!, 'runTransaction');
+    const res = await request(buildApp())
+      .post(`${BASE}/conclude`)
+      .set(AUTH)
+      .send({ year: YEAR, conclusion: 'done', signedOffByUid: 'm1', signedOffByName: 'N' });
+    expect(res.status).toBe(200);
+    expect(txSpy).toHaveBeenCalledTimes(1);
+    expect(auditRows().some((r) => r.action === 'annualReview.conclude')).toBe(true);
+  });
+});

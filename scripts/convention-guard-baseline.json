@@ -7,7 +7,6 @@
   },
   "rule3_exempt": {},
   "rule3_pending": {
-    "annualReview": "[HIGH] also rule#19 clobber (objectives/evidence/conclude) — Ola1+2",
     "apprenticeship": "[#3+#19] authorize lacks audit; /expose get->set race — verify",
     "compliance": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "confidentialReports": "[CRIT] Ley Karin 21.643 complaint lifecycle — Ola2",
@@ -66,7 +65,6 @@
     "workerReadiness": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)"
   },
   "rule19_pending": {
-    "annualReview": "objectives/evidence/conclude: get->set(merge:false) full-doc rebuild — concurrent clobber",
     "visitors": "check-out + acknowledge-induction: get->update same ref (Fix-PR A)",
     "healthVault": "GET /view: findShareById->update(consumeCount) — TOCTOU on maxViews limit",
     "knowledgeBase": "/use + /flag-obsolete: get->update same ref",
