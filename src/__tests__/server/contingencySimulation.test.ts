@@ -130,7 +130,7 @@ describe('POST /:projectId/contingency/build-scenario', () => {
     expect(scenario.kind).toBe('fire');
     expect(scenario.severity).toBe('moderate');
     expect(typeof scenario.id).toBe('string');
-    expect(scenario.id.length).toBeGreaterThan(0);
+    expect((scenario.id as string).length).toBeGreaterThan(0);
     expect(Array.isArray(scenario.triggerEvents)).toBe(true);
     expect(Array.isArray(scenario.decisionPoints)).toBe(true);
     expect(Array.isArray(scenario.successCriteria)).toBe(true);
