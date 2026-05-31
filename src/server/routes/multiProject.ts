@@ -65,8 +65,15 @@ async function guard(
 // ProjectSnapshot + ComparisonReport are deep engine shapes; accept
 // loosely (the engine validates internally; HTTP layer doesn't
 // duplicate the IncidentCounts / ExposureInput nesting).
-const snapshotSchema = z.unknown() as unknown as z.ZodType<ProjectSnapshot>;
-const reportSchema = z.unknown() as unknown as z.ZodType<ComparisonReport>;
+//
+// FIX (systemic z.unknown() bug): z.unknown() accepts undefined, so a body
+// missing the complex field passes validate(), then the engine dereferences
+// it → TypeError → 500. z.record(z.string(), z.unknown()) forces the value
+// to be a non-null object (rejects undefined/scalars) while keeping the
+// loose structural acceptance. The `as unknown as z.ZodType<T>` casts are
+// preserved so TypeScript still sees the correct engine types downstream.
+const snapshotSchema = z.record(z.string(), z.unknown()) as unknown as z.ZodType<ProjectSnapshot>;
+const reportSchema = z.record(z.string(), z.unknown()) as unknown as z.ZodType<ComparisonReport>;
 
 // ────────────────────────────────────────────────────────────────────────
 // 1. compare

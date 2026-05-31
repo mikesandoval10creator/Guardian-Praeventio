@@ -1793,6 +1793,96 @@
       "cta_primary": "Acessar o app",
       "cta_secondary": "Comecar gratis",
       "free_tier_note": "Grátis até 10 trabalhadores · Sem cartão de crédito"
+    },
+    "problem": {
+      "eyebrow": "O problema",
+      "title": "Por que Guardian",
+      "body": "A prevenção de riscos no Chile ainda está presa em planilhas e papelada. O Guardian digitaliza o registro de incidentes e os treinamentos da equipe, e usa IA para detectar padrões antes que aconteçam acidentes.",
+      "before_label": "Antes",
+      "before_excel": "Excel",
+      "before_paperwork": "Papelada",
+      "before_email": "Email",
+      "after_label": "Com o Guardian",
+      "realtime": "Tempo real",
+      "ai_patterns": "Padrões detectados por IA"
+    },
+    "features": {
+      "title": "Tudo o que você precisa para cumprir a lei",
+      "subtitle": "Projetado para empresas chilenas. Todas as ferramentas que a regulamentação exige, sem papel.",
+      "emergency": {
+        "title": "Resposta a Emergências",
+        "desc": "Botão de pânico, geolocalização em tempo real e alertas em massa para toda a equipe em segundos."
+      },
+      "ai": {
+        "title": "Inteligência Artificial",
+        "desc": "O Gemini Pro gera APRs automáticas, avalia riscos e orienta você com as normas DS 54, DS 44/2024 (substitui o DS 40/1969) e a Lei 16.744."
+      },
+      "training": {
+        "title": "Treinamentos",
+        "desc": "Vídeos, quizzes e gamificação. Registre treinamentos e obtenha certificados digitais automaticamente."
+      },
+      "iso": {
+        "title": "Auditorias ISO",
+        "desc": "Checklists ISO 45001, OHSAS 18001 e relatórios SUSESO gerados em PDF com um clique."
+      },
+      "teams": {
+        "title": "Gestão de Equipes",
+        "desc": "Funções por projeto (gerente, técnico de segurança, supervisor), convites por email e multiempresa."
+      },
+      "dashboard": {
+        "title": "Painel Executivo",
+        "desc": "KPIs em tempo real, taxa de acidentes, taxa de sinistralidade e conformidade por projeto."
+      }
+    },
+    "how": {
+      "eyebrow": "Fluxo simples",
+      "title": "Como funciona",
+      "subtitle": "Do registro à conformidade em três passos.",
+      "step1": {
+        "title": "Registre",
+        "desc": "Reporte riscos e incidentes de qualquer dispositivo. Web, celular, voz."
+      },
+      "step2": {
+        "title": "A IA analisa",
+        "desc": "O assistente Guardian com Gemini AI detecta padrões, sugere ações corretivas e prioriza por severidade."
+      },
+      "step3": {
+        "title": "Conformidade automática",
+        "desc": "DIAT, livros de obra, atas do CPHS e relatórios SUSESO gerados em segundos."
+      }
+    },
+    "pricing": {
+      "title": "Planos para cada empresa",
+      "subtitle": "Escale conforme sua empresa crescer. Comece grátis hoje.",
+      "popular_badge": "Popular",
+      "recommended_badge": "Recomendado",
+      "workers_suffix": "trabalhadores",
+      "choose_plan": "Escolher plano {{name}}",
+      "footnote": "Planos enterprise até 5.000 trabalhadores · Preços em USD",
+      "plans": {
+        "free": { "name": "Gratuito", "price": "$0" },
+        "committee": { "name": "Comitê", "price": "$10/mês" },
+        "department": { "name": "Departamento", "price": "$30/mês" },
+        "enterprise": { "name": "Enterprise", "price": "A partir de $50/mês" }
+      }
+    },
+    "final_cta": {
+      "title_line_1": "Comece hoje.",
+      "title_line_2": "É grátis.",
+      "subtitle": "Crie sua conta, adicione sua empresa e cumpra a regulamentação chilena desde o primeiro dia.",
+      "button": "Abrir o Guardian Praeventio"
+    },
+    "footer": {
+      "tagline": "Prevenção de riscos na palma da mão.",
+      "link_history": "História",
+      "link_team": "Equipe",
+      "col_contact": "Contato",
+      "location": "Santiago, Chile",
+      "col_legal": "Jurídico",
+      "link_privacy": "Privacidade",
+      "data_secure": "Dados seguros · Firebase",
+      "copyright": "© 2026 Praeventio · Chile",
+      "made_in": "Feito no Chile"
     }
   },
   "notifications": {

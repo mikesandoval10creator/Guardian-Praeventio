@@ -116,8 +116,12 @@ router.post(
 // 2. recommend-actions
 // ────────────────────────────────────────────────────────────────────────
 
-// RetaliationRiskAssessment is the engine output shape — accept loosely.
-const assessmentSchema = z.unknown() as unknown as z.ZodType<RetaliationRiskAssessment>;
+// RetaliationRiskAssessment is the engine output shape — accept as a
+// non-empty object so that a missing / null body field fails validate()
+// with 400 instead of reaching the engine as undefined and throwing 500.
+// z.record ensures we get an actual object; the cast preserves the nominal
+// type without re-declaring every field (engine owns the shape).
+const assessmentSchema = z.record(z.string(), z.unknown()) as unknown as z.ZodType<RetaliationRiskAssessment>;
 
 const recommendActionsSchema = z.object({
   assessment: assessmentSchema,

@@ -143,6 +143,10 @@ export interface WeeklyDigestStats {
   crewXpGained: number;
   daysWithoutIncident: number;
   topRisks: { label: string; count: number }[];
+  /** True when ≥1 source-collection query failed, so these stats are computed
+   *  from PARTIAL data (each failure is logged via logger.warn). Absent when all
+   *  source queries succeeded. Lets ops distinguish a real zero from a failure. */
+  partial?: boolean;
 }
 
 export function weeklyDigestTemplate(stats: WeeklyDigestStats): string {

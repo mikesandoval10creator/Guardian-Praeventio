@@ -203,10 +203,20 @@ router.post(
 // 4. evaluate-tabletop
 // ────────────────────────────────────────────────────────────────────────
 
-// TabletopAttempt + ContingencyScenario are deep nested shapes. Accept
-// loosely — the engine validates internally.
-const tabletopAttemptSchema = z.unknown() as unknown as z.ZodType<TabletopAttempt>;
-const scenarioSchema = z.unknown() as unknown as z.ZodType<ContingencyScenario>;
+// TabletopAttempt + ContingencyScenario are deep nested shapes; the engine
+// validates the rest internally. But it dereferences attempt.scenarioId and
+// scenario.id BEFORE any of its own checks, so a missing/undefined attempt or
+// scenario used to slip past validation and throw a TypeError → 500 instead of
+// a clean 400. Require at least those keys here. `.passthrough()` keeps the
+// remaining fields and the cast preserves the engine-call types; the handler
+// reads the original `req.body` (validate() does not mutate it), so the full
+// payload still reaches evaluateTabletop().
+const tabletopAttemptSchema = z
+  .object({ scenarioId: z.string() })
+  .passthrough() as unknown as z.ZodType<TabletopAttempt>;
+const scenarioSchema = z
+  .object({ id: z.string() })
+  .passthrough() as unknown as z.ZodType<ContingencyScenario>;
 
 const evaluateTabletopSchema = z.object({
   attempt: tabletopAttemptSchema,

@@ -1927,6 +1927,96 @@
       "cta_primary": "Entrar a la app",
       "cta_secondary": "Comenzar gratis",
       "free_tier_note": "Gratis hasta 10 trabajadores · Sin tarjeta de crédito"
+    },
+    "problem": {
+      "eyebrow": "El problema",
+      "title": "Por qué Guardian",
+      "body": "La prevención de riesgos en Chile sigue atrapada en hojas de cálculo y papeleo. Guardian digitiza el reporte de incidentes, las capacitaciones del equipo, y usa IA para detectar patrones antes de que ocurran accidentes.",
+      "before_label": "Antes",
+      "before_excel": "Excel",
+      "before_paperwork": "Papeleo",
+      "before_email": "Email",
+      "after_label": "Con Guardian",
+      "realtime": "Tiempo real",
+      "ai_patterns": "Patrones detectados por IA"
+    },
+    "features": {
+      "title": "Todo lo que necesitas para cumplir la ley",
+      "subtitle": "Diseñado para empresas chilenas. Todas las herramientas que exige la normativa, sin papel.",
+      "emergency": {
+        "title": "Respuesta a Emergencias",
+        "desc": "Botón de pánico, geolocalización en tiempo real y alertas masivas a todo el equipo en segundos."
+      },
+      "ai": {
+        "title": "Inteligencia Artificial",
+        "desc": "Gemini Pro genera PTS automáticos, evalúa riesgos y te guía con normativa DS 54, DS 44/2024 (reemplaza DS 40/1969) y Ley 16.744."
+      },
+      "training": {
+        "title": "Capacitaciones",
+        "desc": "Videos, quizzes y gamificación. Registra capacitaciones y obtén certificados digitales automáticamente."
+      },
+      "iso": {
+        "title": "Auditorías ISO",
+        "desc": "Checklist ISO 45001, OHSAS 18001 y reportes SUSESO generados en PDF con un clic."
+      },
+      "teams": {
+        "title": "Gestión de Equipos",
+        "desc": "Roles por proyecto (gerente, prevencionista, supervisor), invitaciones por email y multi-empresa."
+      },
+      "dashboard": {
+        "title": "Dashboard Ejecutivo",
+        "desc": "KPIs en tiempo real, accidentabilidad, tasa de siniestralidad y cumplimiento por proyecto."
+      }
+    },
+    "how": {
+      "eyebrow": "Flujo simple",
+      "title": "Cómo funciona",
+      "subtitle": "Del reporte al cumplimiento en tres pasos.",
+      "step1": {
+        "title": "Registra",
+        "desc": "Reporta riesgos e incidentes desde cualquier dispositivo. Web, móvil, voz."
+      },
+      "step2": {
+        "title": "La IA analiza",
+        "desc": "El asistente Guardian con Gemini AI detecta patrones, sugiere medidas correctivas y prioriza por severidad."
+      },
+      "step3": {
+        "title": "Cumplimiento automático",
+        "desc": "DIAT, libros de obra, actas CPHS y reportes SUSESO generados en segundos."
+      }
+    },
+    "pricing": {
+      "title": "Planes para cada empresa",
+      "subtitle": "Escala cuando tu empresa crezca. Empieza gratis hoy.",
+      "popular_badge": "Popular",
+      "recommended_badge": "Recomendado",
+      "workers_suffix": "trabajadores",
+      "choose_plan": "Elegir plan {{name}}",
+      "footnote": "Planes enterprise hasta 5,000 trabajadores · Precios en USD",
+      "plans": {
+        "free": { "name": "Gratuito", "price": "$0" },
+        "committee": { "name": "Comité", "price": "$10/mes" },
+        "department": { "name": "Departamento", "price": "$30/mes" },
+        "enterprise": { "name": "Enterprise", "price": "Desde $50/mes" }
+      }
+    },
+    "final_cta": {
+      "title_line_1": "Empieza hoy.",
+      "title_line_2": "Es gratis.",
+      "subtitle": "Crea tu cuenta, agrega tu empresa y cumple la normativa chilena desde el primer día.",
+      "button": "Abrir Guardian Praeventio"
+    },
+    "footer": {
+      "tagline": "Prevención de riesgos en la palma de la mano.",
+      "link_history": "Historia",
+      "link_team": "Equipo",
+      "col_contact": "Contacto",
+      "location": "Santiago, Chile",
+      "col_legal": "Legal",
+      "link_privacy": "Privacidad",
+      "data_secure": "Datos seguros · Firebase",
+      "copyright": "© 2026 Praeventio · Chile",
+      "made_in": "Hecho en Chile"
     }
   },
   "notifications": {

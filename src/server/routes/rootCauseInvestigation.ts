@@ -72,10 +72,10 @@ async function guard(
 }
 
 // NodeInput is a recursive shape (each node has nested children).
-// Accept loosely via the engine's own validation (which recursively
-// validates depth ≤ 5, unique ids, non-empty fields).
-const nodeInputSchema = z.unknown() as unknown as z.ZodType<NodeInput>;
-const treeSchema = z.unknown() as unknown as z.ZodType<InvestigationTree>;
+// Require an object so a missing field is rejected with 400 (not 500).
+// The engine itself validates depth ≤ 5, unique ids, and non-empty fields.
+const nodeInputSchema = z.record(z.string(), z.unknown()) as unknown as z.ZodType<NodeInput>;
+const treeSchema = z.record(z.string(), z.unknown()) as unknown as z.ZodType<InvestigationTree>;
 
 // ────────────────────────────────────────────────────────────────────────
 // 1. build-tree

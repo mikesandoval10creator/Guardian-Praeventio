@@ -32,6 +32,10 @@ const REQUIRED_PROD = [
   { name: 'GOOGLE_CLIENT_ID', purpose: 'OAuth Calendar + Fit', mode: 'prod' },
   { name: 'GOOGLE_CLIENT_SECRET', purpose: 'OAuth Calendar + Fit', mode: 'prod' },
   { name: 'SESSION_SECRET', purpose: 'express-session signing', mode: 'prod', minLength: 32 },
+  // Optional dedicated pepper for the culture-pulse responder hash (worker-survey
+  // anonymity, Ley Karín 21.643). When absent the hash keys off SESSION_SECRET,
+  // so this is opt-in key-separation — but if set it MUST be a strong secret.
+  { name: 'CULTURE_PULSE_PEPPER', purpose: 'culture-pulse responder-hash pepper (opcional; fallback SESSION_SECRET)', mode: 'prod', optional: true, minLength: 32 },
 
   // === Maps + Push ===
   { name: 'VITE_GOOGLE_MAPS_API_KEY', purpose: '4 mapas + Site25DPanel', mode: 'prod' },

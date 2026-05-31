@@ -14,7 +14,22 @@ import { logger } from '../utils/logger';
 // FIRESTORE_EMULATOR_HOST (Node test/CI only); browser/prod use the real config.
 const emulatorProjectId = (() => {
   const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
-  return proc?.env?.FIRESTORE_EMULATOR_HOST ? proc.env.GCLOUD_PROJECT : undefined;
+  // Node emulator-test runner (firestore-stores): match the emulator --project.
+  if (proc?.env?.FIRESTORE_EMULATOR_HOST) return proc.env.GCLOUD_PROJECT;
+  // Browser E2E full-stack (--mode test, 2026-05-30): firebase-admin mints the
+  // custom token for the emulator project ('demo-test' — see playwright.config
+  // + e2e.yml + seed.ts), so the CLIENT app MUST use that same projectId.
+  // Otherwise signInWithCustomToken rejects with an audience mismatch
+  // (auth/custom-token-mismatch), auth.currentUser stays null, and every
+  // firestore.rules-gated client query (ProjectContext, …) is permission-denied
+  // → the project-scoped specs land on "no active project". `process.env` is
+  // undefined in the browser, so the Node branch above never covers this case.
+  // Prod never enters here (gate import.meta.env.MODE === 'test' = only the
+  // `vite build --mode test` bundle, never deploy.yml).
+  if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
+    return 'demo-test';
+  }
+  return undefined;
 })();
 const app = initializeApp(
   emulatorProjectId ? { ...firebaseConfig, projectId: emulatorProjectId } : firebaseConfig,
@@ -255,7 +270,7 @@ export const logOut = async () => {
   await notifyServerLogout();
   try {
     if (uid) localStorage.removeItem('praeventio_first_login_' + uid);
-  } catch {}
+  } catch { /* localStorage may be unavailable (private mode) — non-fatal */ }
   return signOut(auth);
 };
 

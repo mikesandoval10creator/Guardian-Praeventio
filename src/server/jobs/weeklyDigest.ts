@@ -26,6 +26,7 @@ import {
   weeklyDigestTemplate,
   type WeeklyDigestStats,
 } from '../../services/email/templates.js';
+import { logger } from '../../utils/logger.js';
 
 const SUPERVISOR_ROLES = new Set([
   'supervisor',
@@ -100,6 +101,11 @@ async function aggregateProjectStats(
   let processesCompleted = 0;
   let crewXpGained = 0;
   let daysWithoutIncident = 0;
+  // Per-collection isolation (one failing query must not abort the digest) WITHOUT
+  // silent failure: each catch logs + bumps queryErrors so the result can be
+  // flagged `partial` — ops can then tell a real zero from a swallowed error
+  // (Plan v3 Fase 2.5).
+  let queryErrors = 0;
   const riskCounts = new Map<string, number>();
 
   // Findings
@@ -120,7 +126,14 @@ async function aggregateProjectStats(
         riskCounts.set(data.riskLabel, (riskCounts.get(data.riskLabel) ?? 0) + 1);
       }
     }
-  } catch { /* swallow per-collection errors */ }
+  } catch (err) {
+    queryErrors++;
+    logger.warn('weekly_digest_query_failed', {
+      projectId: project.id,
+      collection: 'findings',
+      error: String(err),
+    });
+  }
 
   // Processes
   try {
@@ -138,7 +151,14 @@ async function aggregateProjectStats(
         processesCompleted++;
       }
     }
-  } catch { /* */ }
+  } catch (err) {
+    queryErrors++;
+    logger.warn('weekly_digest_query_failed', {
+      projectId: project.id,
+      collection: 'processes',
+      error: String(err),
+    });
+  }
 
   // Crew XP
   try {
@@ -154,7 +174,14 @@ async function aggregateProjectStats(
         crewXpGained += xp;
       }
     }
-  } catch { /* */ }
+  } catch (err) {
+    queryErrors++;
+    logger.warn('weekly_digest_query_failed', {
+      projectId: project.id,
+      collection: 'crews',
+      error: String(err),
+    });
+  }
 
   // Days without incident — read project doc directly.
   try {
@@ -163,7 +190,14 @@ async function aggregateProjectStats(
     if (typeof v === 'number' && Number.isFinite(v)) {
       daysWithoutIncident = Math.max(0, Math.min(999, Math.floor(v)));
     }
-  } catch { /* */ }
+  } catch (err) {
+    queryErrors++;
+    logger.warn('weekly_digest_query_failed', {
+      projectId: project.id,
+      collection: 'project_doc',
+      error: String(err),
+    });
+  }
 
   const topRisks = Array.from(riskCounts.entries())
     .sort((a, b) => b[1] - a[1])
@@ -181,6 +215,7 @@ async function aggregateProjectStats(
     crewXpGained,
     daysWithoutIncident,
     topRisks,
+    ...(queryErrors > 0 ? { partial: true } : {}),
   };
 }
 

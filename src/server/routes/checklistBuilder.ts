@@ -67,12 +67,16 @@ async function guard(
   return true;
 }
 
-// Template + response are deeply nested engine shapes. We accept them
-// loosely via z.unknown() with a cast — the engine's own
-// `validateResponse` is responsible for catching structural problems,
-// and we don't want to duplicate the field-kind taxonomy here.
-const templateSchema = z.unknown() as unknown as z.ZodType<ChecklistTemplate>;
-const responseSchema = z.unknown() as unknown as z.ZodType<ChecklistResponse>;
+// Template + response are deeply nested engine shapes. We validate them
+// as non-nullable records so that a missing/null object field is caught
+// at the validation layer (400) instead of reaching the engine and
+// producing a TypeError (500). The engine's own `validateResponse` is
+// still responsible for catching field-kind structural problems.
+// fieldValueSchema is left as z.unknown() because FieldValue is a scalar
+// (string | number | boolean | Date) and z.record would reject valid
+// scalar values; no test pinpoints a 500 from a missing newValue either.
+const templateSchema = z.record(z.string(), z.unknown()) as unknown as z.ZodType<ChecklistTemplate>;
+const responseSchema = z.record(z.string(), z.unknown()) as unknown as z.ZodType<ChecklistResponse>;
 const fieldValueSchema = z.unknown() as unknown as z.ZodType<FieldValue>;
 
 const SIGNATURE_ROLES = [

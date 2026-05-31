@@ -125,9 +125,12 @@ const driverProfileSchema = z.object({
 
 // RouteRiskProfile is the engine's own output shape. Accept it loosely
 // from clients (they'll typically pass the buildProfile response).
+// z.record(z.string(), z.unknown()) requires an object (not undefined/null),
+// so a missing `profile` field yields 400 invalid_payload instead of a
+// 500 from the engine dereferencing profile.recommendedDriverExperience.
 const evaluateDriverSchema = z.object({
   driver: driverProfileSchema,
-  profile: z.unknown() as unknown as z.ZodType<RouteRiskProfile>,
+  profile: z.record(z.string(), z.unknown()) as unknown as z.ZodType<RouteRiskProfile>,
   requiredVehicleType: z.string().min(1).max(60).optional(),
 });
 

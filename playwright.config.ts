@@ -31,6 +31,17 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     // No "headless: false" — siempre headless en Playwright config (debug usa --headed flag).
+    //
+    // Locale es-CL (2026-05-30) — sin esto el browser headless hereda el locale
+    // del runner (en-US en CI ubuntu), y como `src/i18n/index.ts` detecta por
+    // `navigator` (order: ['localStorage','navigator']) con `load:'currentOnly'`,
+    // la UI i18n'd renderiza en INGLÉS mientras el copy hardcoded del body queda
+    // en español → render mixto que rompe todo locator que asevera copy ES
+    // (landing hero/CTA, Settings "Seguridad y Privacidad", etc.). Fijamos el
+    // locale del usuario primario (Chile) para que la suite ejercite la UX real
+    // del mercado objetivo y los locators de copy español sean válidos.
+    locale: 'es-CL',
+    extraHTTPHeaders: { 'Accept-Language': 'es-CL,es;q=0.9' },
   },
 
   projects: [

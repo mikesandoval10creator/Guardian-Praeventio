@@ -1914,6 +1914,96 @@
       "cta_primary": "Enter the app",
       "cta_secondary": "Start free",
       "free_tier_note": "Free up to 10 workers . No credit card required"
+    },
+    "problem": {
+      "eyebrow": "The problem",
+      "title": "Why Guardian",
+      "body": "Risk prevention in Chile is still stuck in spreadsheets and paperwork. Guardian digitizes incident reporting and team training, and uses AI to detect patterns before accidents happen.",
+      "before_label": "Before",
+      "before_excel": "Excel",
+      "before_paperwork": "Paperwork",
+      "before_email": "Email",
+      "after_label": "With Guardian",
+      "realtime": "Real time",
+      "ai_patterns": "Patterns detected by AI"
+    },
+    "features": {
+      "title": "Everything you need to comply with the law",
+      "subtitle": "Built for Chilean companies. Every tool the regulations require, paperless.",
+      "emergency": {
+        "title": "Emergency Response",
+        "desc": "Panic button, real-time geolocation, and mass alerts to the whole team in seconds."
+      },
+      "ai": {
+        "title": "Artificial Intelligence",
+        "desc": "Gemini Pro generates automatic JSAs, assesses risks, and guides you through DS 54, DS 44/2024 (replaces DS 40/1969), and Law 16.744."
+      },
+      "training": {
+        "title": "Training",
+        "desc": "Videos, quizzes, and gamification. Log training sessions and earn digital certificates automatically."
+      },
+      "iso": {
+        "title": "ISO Audits",
+        "desc": "ISO 45001 and OHSAS 18001 checklists and SUSESO reports generated as PDF in one click."
+      },
+      "teams": {
+        "title": "Team Management",
+        "desc": "Per-project roles (manager, safety officer, supervisor), email invitations, and multi-company support."
+      },
+      "dashboard": {
+        "title": "Executive Dashboard",
+        "desc": "Real-time KPIs, accident rates, injury-frequency rate, and compliance by project."
+      }
+    },
+    "how": {
+      "eyebrow": "Simple flow",
+      "title": "How it works",
+      "subtitle": "From report to compliance in three steps.",
+      "step1": {
+        "title": "Record",
+        "desc": "Report risks and incidents from any device. Web, mobile, voice."
+      },
+      "step2": {
+        "title": "AI analyzes",
+        "desc": "The Guardian assistant, powered by Gemini AI, detects patterns, suggests corrective actions, and prioritizes by severity."
+      },
+      "step3": {
+        "title": "Automatic compliance",
+        "desc": "DIAT, site logbooks, CPHS minutes, and SUSESO reports generated in seconds."
+      }
+    },
+    "pricing": {
+      "title": "Plans for every company",
+      "subtitle": "Scale as your company grows. Start free today.",
+      "popular_badge": "Popular",
+      "recommended_badge": "Recommended",
+      "workers_suffix": "workers",
+      "choose_plan": "Choose {{name}} plan",
+      "footnote": "Enterprise plans up to 5,000 workers · Prices in USD",
+      "plans": {
+        "free": { "name": "Free", "price": "$0" },
+        "committee": { "name": "Committee", "price": "$10/mo" },
+        "department": { "name": "Department", "price": "$30/mo" },
+        "enterprise": { "name": "Enterprise", "price": "From $50/mo" }
+      }
+    },
+    "final_cta": {
+      "title_line_1": "Start today.",
+      "title_line_2": "It's free.",
+      "subtitle": "Create your account, add your company, and comply with Chilean regulations from day one.",
+      "button": "Open Guardian Praeventio"
+    },
+    "footer": {
+      "tagline": "Risk prevention in the palm of your hand.",
+      "link_history": "History",
+      "link_team": "Team",
+      "col_contact": "Contact",
+      "location": "Santiago, Chile",
+      "col_legal": "Legal",
+      "link_privacy": "Privacy",
+      "data_secure": "Secure data · Firebase",
+      "copyright": "© 2026 Praeventio · Chile",
+      "made_in": "Made in Chile"
     }
   },
   "notifications": {
