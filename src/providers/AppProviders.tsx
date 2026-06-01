@@ -11,6 +11,7 @@ import { AccessibilityProvider } from "../contexts/AccessibilityContext";
 import { NormativeProvider } from "../contexts/NormativeContext";
 import { SLMProvider } from "../components/slm/SLMProvider";
 import { MeshProvider } from "./MeshProvider";
+import { SystemEngineProvider } from "../contexts/SystemEngineProvider";
 
 // Sprint 54 perf — `<SLMShellOverlay>` only renders content when the
 // device is offline (the banner). Eager-importing it pulled framer-motion
@@ -49,11 +50,37 @@ const SlmDownloadFloatingBannerLazy = lazy(() =>
   })),
 );
 
+/**
+ * SystemEngine feature flag — OFF by default. The engine drives
+ * geofence→SOS and tier-reactivity automation; mounting it disabled is a
+ * pure passthrough (`SystemEngineProvider` early-returns before any hook
+ * runs), so this wire is behavior-neutral until ops flips
+ * `VITE_SYSTEM_ENGINE_ENABLED`. Mirrors the env-flag pattern in onnxAdapter.
+ */
+function systemEngineEnabled(): boolean {
+  try {
+    const v = (import.meta as unknown as { env?: Record<string, unknown> }).env
+      ?.VITE_SYSTEM_ENGINE_ENABLED;
+    return (
+      v === true ||
+      (typeof v === 'string' && ['1', 'true', 'yes'].includes(v.toLowerCase()))
+    );
+  } catch {
+    return false;
+  }
+}
+
 interface AppProvidersProps {
   children: ReactNode;
 }
 
 export function AppProviders({ children }: AppProvidersProps) {
+  // SystemEngine (geofence→SOS / tier-reactivity) — off by default (flag).
+  // tenantId mirrors EmergencyOverlay's source so both read the same value.
+  const engineEnabled = systemEngineEnabled();
+  const engineTenantId =
+    (typeof window !== 'undefined' && window.__GP_TENANT_ID__) || 'default';
+
   // Provider order matters here.
   //
   // `UniversalKnowledgeProvider` was previously the outermost provider, but
@@ -110,7 +137,12 @@ export function AppProviders({ children }: AppProvidersProps) {
                             until uid + projectId are available. Flow Infinito
                             Fase 2 (Adaptive Response) requires this wire live. */}
                         <MeshProvider>
-                          {children}
+                          <SystemEngineProvider
+                            tenantId={engineTenantId}
+                            enabled={engineEnabled}
+                          >
+                            {children}
+                          </SystemEngineProvider>
                         </MeshProvider>
                       </SLMProvider>
                     </SensorProvider>
