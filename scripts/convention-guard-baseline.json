@@ -9,7 +9,6 @@
   "rule3_pending": {
     "apprenticeship": "[#3+#19] authorize lacks audit; /expose get->set race — verify",
     "compliance": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "confidentialReports": "[CRIT] Ley Karin 21.643 complaint lifecycle — Ola2",
     "correctiveActions": "[CRIT] ISO 45001 corrective actions + review — Ola2",
     "cphsMinute": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "culturePulse": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
@@ -23,7 +22,6 @@
     "eppFlow": "[MED] EPP inspection + signed purchase orders — Ola4",
     "equipment": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "equipmentQr": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "evacuationHeadcount": "[MED] Fix-PR B (start/scan-qr/end) — Ola2",
     "externalAuditPortal": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "horometro": "[MED] equipment hour readings + maintenance tasks — Ola4",
     "inbox": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
