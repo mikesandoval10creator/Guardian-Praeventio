@@ -178,6 +178,12 @@ import wasteRouter from "./src/server/routes/waste.js";
 import correctiveActionsRouter from "./src/server/routes/correctiveActions.js";
 import lotoRouter from "./src/server/routes/loto.js";
 import equipmentRouter from "./src/server/routes/equipment.js";
+// EPP/Assets block (B10) — orphaned: eppFlow (EPP inspection + order sign/PDF),
+// equipmentQr (QR register + pre-use), hazmatInventory (stateless next-state
+// inventory). Consumers useEppFlow / useEquipmentQr / HazmatStorage hit 404.
+import eppFlowRouter from "./src/server/routes/eppFlow.js";
+import equipmentQrRouter from "./src/server/routes/equipmentQr.js";
+import hazmatInventoryRouter from "./src/server/routes/hazmatInventory.js";
 import dataQualityRouter from "./src/server/routes/dataQuality.js";
 import incidentBundleRouter from "./src/server/routes/incidentBundle.js";
 // Incident block (B4) — orphaned routers: incidentFlow (report → investigation
@@ -1008,6 +1014,10 @@ app.use('/api/sprint-k', wasteRouter);
 app.use('/api/sprint-k', correctiveActionsRouter);
 app.use('/api/sprint-k', lotoRouter);
 app.use('/api/sprint-k', equipmentRouter);
+// B10 — EPP flow, equipment QR, hazmat inventory (all /:projectId/<seg>/*).
+app.use('/api/sprint-k', eppFlowRouter);
+app.use('/api/sprint-k', equipmentQrRouter);
+app.use('/api/sprint-k', hazmatInventoryRouter);
 app.use('/api/sprint-k', dataQualityRouter);
 app.use('/api/sprint-k', incidentBundleRouter);
 // B4 — incident lifecycle + work-stoppage transitions.

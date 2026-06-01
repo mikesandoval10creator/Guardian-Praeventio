@@ -1896,3 +1896,38 @@ auditadas vía servicio).
 - ⬜ B8-D1: `softBlocking` write=1/audit=0 — el convention-guard lo cuenta entre
   los 14 exentos (0 pending). Confirmar que el write no es estado-cambiante
   auditable (o que el exempt está justificado).
+
+---
+
+### B9 — Inspecciones & Checklists & Observaciones · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Sin huérfanos, sin stubs disfrazados.
+`positiveObservations`, `offlineInspections`, `checklistBuilder`,
+`formBuilderAdvanced`, `bbs`, `qrSignature`, `qrAck`, `photoEvidence`, `sitebook`
++ `sitebookSign(Routes)` (WebAuthn) montados. Páginas `Findings`,
+`FindingsHeatMap`, `OfflineInspection`, `PositiveObservations`, `SiteBook`.
+
+| Nota | Estado | Evidencia |
+|---|---|---|
+| `qrAck` 2× `503` | 🔑 | gate de config honesto (`qr_ack_not_configured` si falta `QR_ACK_HMAC_SECRET`), no stub disfrazado — feature bloqueada por secret §5 |
+
+**Sin fix necesario.**
+
+---
+
+### B10 — EPP & Activos & Mantenimiento · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** `equipment`, `maintenance`, `horometro`,
+`signaletics` montados; 3 huérfanos encontrados y montados.
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| eppFlow (inspection/pending-orders/sign-order/order-pdf) | ❌→✅ | huérfano → **B10-F1**; writes=4 audit=4 |
+| equipmentQr (register/list/preuse/history) | ❌→✅ | huérfano → **B10-F1**; writes=1 audit=3 |
+| hazmatInventory (substance CRUD + compatibility/spill-plan) | ❌→✅ | huérfano → **B10-F1**; stateless next-state (cliente persiste, doc lines 26-29), no stub |
+
+**🔴 Bug B10-F1 (RESUELTO):** `eppFlow.ts`, `equipmentQr.ts`, `hazmatInventory.ts`
+nunca montados → `useEppFlow`, `useEquipmentQr`, `HazmatStorage.tsx` daban **404**.
+Todos `verifyAuth` + `assertProjectMember`, no stubs; los que escriben auditan;
+hazmat es superficie stateless offline-first (mismo patrón que loneWorker/
+readReceipts). Mount `/api/sprint-k` + 3 casos de contrato (RED→GREEN, 18/18).

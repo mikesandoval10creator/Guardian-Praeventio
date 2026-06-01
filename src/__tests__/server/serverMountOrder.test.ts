@@ -165,6 +165,24 @@ describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
       importRe: /import\s+legalObligationsRouter\s+from\s+['"`][^'"`]*legalObligations(\.js)?['"`]/,
       mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*legalObligationsRouter/,
     },
+    // B10 EPP/assets-block audit (2026-06-01): eppFlow, equipmentQr and
+    // hazmatInventory were orphaned → useEppFlow / useEquipmentQr / HazmatStorage
+    // got 404.
+    {
+      name: 'eppFlow (/:projectId/epp-flow/*) under /api/sprint-k',
+      importRe: /import\s+eppFlowRouter\s+from\s+['"`][^'"`]*eppFlow(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*eppFlowRouter/,
+    },
+    {
+      name: 'equipmentQr (/:projectId/equipment-qr/*) under /api/sprint-k',
+      importRe: /import\s+equipmentQrRouter\s+from\s+['"`][^'"`]*equipmentQr(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*equipmentQrRouter/,
+    },
+    {
+      name: 'hazmatInventory (/:projectId/hazmat/*) under /api/sprint-k',
+      importRe: /import\s+hazmatInventoryRouter\s+from\s+['"`][^'"`]*hazmatInventory(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*hazmatInventoryRouter/,
+    },
   ];
 
   it('declares the SPA catch-all (sanity)', () => {
