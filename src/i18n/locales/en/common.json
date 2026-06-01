@@ -1878,6 +1878,19 @@
       "requires_connection": "Requires Connection",
       "enable_btn": "Enable Notifications",
       "long_desc": "To receive push notifications, you must allow access in your browser. This will enable Firebase Cloud Messaging (FCM) to send you critical alerts even when the app is in the background."
+    },
+    "aria": {
+      "disable_fall_detection": "Disable fall detection",
+      "emergency_always_on": "Emergency alerts (always on for safety)",
+      "enable_fall_detection": "Enable fall detection",
+      "toggle_ai": "AI assistant notifications",
+      "toggle_dark_mode": "Toggle manual dark mode",
+      "toggle_email_alerts": "Enable email alerts",
+      "toggle_medical": "Medical exam notifications",
+      "toggle_mfa": "Enable two-factor authentication",
+      "toggle_predictive_ai": "Enable autonomous predictive analysis",
+      "toggle_push": "Enable push notifications",
+      "toggle_training": "Training notifications"
     }
   },
   "analytics": {
@@ -1981,10 +1994,22 @@
       "choose_plan": "Choose {{name}} plan",
       "footnote": "Enterprise plans up to 5,000 workers · Prices in USD",
       "plans": {
-        "free": { "name": "Free", "price": "$0" },
-        "committee": { "name": "Committee", "price": "$10/mo" },
-        "department": { "name": "Department", "price": "$30/mo" },
-        "enterprise": { "name": "Enterprise", "price": "From $50/mo" }
+        "free": {
+          "name": "Free",
+          "price": "$0"
+        },
+        "committee": {
+          "name": "Committee",
+          "price": "$10/mo"
+        },
+        "department": {
+          "name": "Department",
+          "price": "$30/mo"
+        },
+        "enterprise": {
+          "name": "Enterprise",
+          "price": "From $50/mo"
+        }
       }
     },
     "final_cta": {

@@ -176,10 +176,17 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
     data extraction without root. If you have a legitimate reason to set
     it `"true"`, add an inline XML comment explaining why. Enforced by
     `scripts/precommit-allowbackup-guard.cjs` (wired in PR #514).
-18. **Locale parity.** Every `t('key')` call in code MUST have a
-    corresponding entry in `src/i18n/locales/{es-CL,en,pt-BR}/*.json`.
-    `scripts/validate-i18n.cjs` already exists — promote to CI gate.
-    Missing locale = build fail.
+18. **Locale parity.** The launch locales (`es` reference + `en`, `pt-BR`)
+    must stay at key parity: a key present in `src/i18n/locales/es/common.json`
+    MUST also exist in `en` and `pt-BR`. Enforced by
+    `scripts/validate-i18n.cjs` (ratchet baseline
+    `scripts/i18n-parity-baseline.json`) — `npm run lint:i18n`, the husky
+    pre-commit hook, and the CI vitest gate
+    `src/__tests__/scripts/i18nParity.test.ts`. A NEW `es` key with no
+    `en`/`pt-BR` translation fails the gate. Lazy/stub locales (`fr`, `de`,
+    `it`, `ja`, `zh-CN`, `ar`, `ko`, `hi`, `zh-TW`, `ru`) are out of scope by
+    design — they are dynamically imported and covered by the `en`→`es`
+    fallback chain (`src/i18n/index.ts`).
 19. **Read-modify-write in server requires `runTransaction`.** If a
     handler does ≥2 `get()` calls AND ≥1 `set()`/`update()` call on the
     same document path, it MUST wrap them in `db.runTransaction(...)`.
