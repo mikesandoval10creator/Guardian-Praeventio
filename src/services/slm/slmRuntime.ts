@@ -68,6 +68,66 @@ import type { ModelDescriptor, SLMBackend } from './types';
 const DEFAULT_FETCH_TIMEOUT_MS = 60_000;
 
 /**
+ * Thrown by `loadModel` when running in production and asked to load a model
+ * whose expected SHA-256 is `null`/absent (e.g. a gated model whose hash the
+ * release pipeline hasn't pinned yet). Fail-closed: an unverified payload
+ * could be tampered/corrupted and there is nothing to check it against, so we
+ * refuse rather than hand unverified bytes to the inference engine
+ * (CLAUDE.md §2.9). In dev/staging the load proceeds gracefully so the
+ * pipeline can capture the real hash on first verified download.
+ */
+export class SlmUnverifiedModelError extends Error {
+  public readonly modelId: string;
+  constructor(modelId: string, detail?: string) {
+    super(
+      `SLM refused to load '${modelId}' in production: no expected SHA-256 ` +
+        `declared${detail ? ` (${detail})` : ''}. A gated/unverified model ` +
+        `cannot be loaded without an integrity hash.`,
+    );
+    this.name = 'SlmUnverifiedModelError';
+    this.modelId = modelId;
+  }
+}
+
+/**
+ * True when the SLM runtime is executing in a production build. Reads Vite's
+ * `import.meta.env.PROD` (client bundle) first, then `process.env.NODE_ENV`
+ * (Node / SSR / tests). The `import.meta.env` access is wrapped in try/catch
+ * because some Node test runners don't populate it. Mirrors the env-resolution
+ * pattern in `onnxAdapter.ts`.
+ */
+function isProductionRuntime(): boolean {
+  try {
+    const meta = (import.meta as unknown as { env?: { PROD?: boolean } }).env;
+    if (meta?.PROD === true) return true;
+  } catch {
+    // import.meta.env is not always available in Node test contexts.
+  }
+  return (
+    typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
+  );
+}
+
+/**
+ * Fail-closed gate (CLAUDE.md §2.9). In production, refuse to load a model
+ * with no declared expected SHA-256 unless the caller explicitly opts in via
+ * `allowUnverifiedHash` (used by the release pipeline, which downloads a fresh
+ * artifact precisely to compute its hash). No-op outside production.
+ */
+function assertVerifiableInProduction(
+  modelId: string,
+  expectedSha256: string | null | undefined,
+  allowUnverifiedHash: boolean | undefined,
+  detail?: string,
+): void {
+  if (allowUnverifiedHash) return;
+  if (expectedSha256 != null && expectedSha256 !== '') return;
+  if (isProductionRuntime()) {
+    throw new SlmUnverifiedModelError(modelId, detail);
+  }
+}
+
+/**
  * A loaded model handle. Opaque to callers — they only need it as the
  * first argument to `infer()` / `release()`.
  */
@@ -100,6 +160,13 @@ export interface LoadModelOptions {
    * model whose hash hasn't been written into the registry yet.
    */
   expectedSha256Override?: string | null;
+  /**
+   * §2.9 fail-closed opt-out. When a model declares no expected SHA-256,
+   * production refuses to load it UNLESS this is `true`. The release pipeline
+   * sets it because it downloads the fresh artifact specifically to compute +
+   * pin the hash. Defaults to `false` (fail-closed in production).
+   */
+  allowUnverifiedHash?: boolean;
   /**
    * Sprint 54: skip the IndexedDB cache entirely and re-fetch from
    * network. Defaults to `false` (cache-first read-through). Set true
@@ -271,6 +338,21 @@ export function createSlmRuntime(): SlmRuntime {
       if (!descriptor) {
         throw new Error(`SlmRuntime: unknown model id '${id}'.`);
       }
+
+      // CLAUDE.md §2.9 — fail-closed BEFORE any download: a model with no
+      // pinned SHA-256 (e.g. gated Gemma) must not load in production. The
+      // effective expectation is the override if provided, else the registry
+      // value. Placed ahead of the companionFiles branch so it guards both
+      // the single-file and split-bundle paths in one spot.
+      const principalExpected =
+        opts.expectedSha256Override !== undefined
+          ? opts.expectedSha256Override
+          : descriptor.expectedSha256 ?? null;
+      assertVerifiableInProduction(
+        descriptor.id,
+        principalExpected,
+        opts.allowUnverifiedHash,
+      );
 
       // Sprint 54 SLM real: when a descriptor declares companionFiles
       // (split ONNX-web models like Phi-3 with .onnx + .onnx_data), we

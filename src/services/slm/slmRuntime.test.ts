@@ -636,3 +636,72 @@ describe('resolveWeightUrl', () => {
     expect(url).toBe('https://huggingface.co/foo/bar/resolve/main/file.onnx');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// CLAUDE.md §2.9 — fail-closed on an unverified (null) SHA-256 in PRODUCTION.
+// A gated/pending model (e.g. Gemma, expectedSha256: null) must NOT load
+// without an integrity hash when running in production: an unverified payload
+// could be tampered/corrupted and there is no expectation to check it against.
+// In dev/staging the graceful path is preserved so the release pipeline can
+// capture the real hash on first verified download.
+// ─────────────────────────────────────────────────────────────────────────
+describe('slmRuntime.loadModel — fail-closed on unverified hash in production (§2.9)', () => {
+  const GEMMA_ID = MODEL_REGISTRY[2].id; // expectedSha256: null, gated
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('refuses a null-hash model in production — never fetches, never opens a session', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      arrayBuffer: async () => helloPayload(),
+    }));
+    const createSpy = vi.fn();
+    const runtime = createSlmRuntime();
+    await expect(
+      runtime.loadModel(GEMMA_ID, {
+        fetchImpl: fetchSpy as unknown as typeof fetch,
+        ortFactory: async () => buildFakeOrt({ createSpy }),
+      }),
+    ).rejects.toThrow(/refused to load|unverified|no expected SHA-256/i);
+    // Fail-closed must short-circuit BEFORE wasting bandwidth on the download.
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  it('loads a null-hash model in non-production (graceful staging path)', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const runtime = createSlmRuntime();
+    const loaded = await runtime.loadModel(GEMMA_ID, {
+      fetchImpl: buildFetchReturning(helloPayload()),
+      ortFactory: async () => buildFakeOrt({}),
+    });
+    expect(loaded.observedSha256).toBe(HELLO_SHA256);
+  });
+
+  it('loads a null-hash model in production when allowUnverifiedHash override is set', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const runtime = createSlmRuntime();
+    const loaded = await runtime.loadModel(GEMMA_ID, {
+      allowUnverifiedHash: true,
+      fetchImpl: buildFetchReturning(helloPayload()),
+      ortFactory: async () => buildFakeOrt({}),
+    });
+    expect(loaded.observedSha256).toBe(HELLO_SHA256);
+  });
+
+  it('loads a hash-pinned model in production (override present) without complaint', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const runtime = createSlmRuntime();
+    const loaded = await runtime.loadModel(QWEN_ID, {
+      expectedSha256Override: HELLO_SHA256,
+      fetchImpl: buildFetchReturning(helloPayload()),
+      ortFactory: async () => buildFakeOrt({}),
+    });
+    expect(loaded.observedSha256).toBe(HELLO_SHA256);
+  });
+});
