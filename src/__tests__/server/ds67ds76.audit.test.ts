@@ -90,6 +90,18 @@ vi.mock('firebase-admin', () => ({
   },
 }));
 
+// §2.9 — the sign handlers dynamically import these; mock them so the
+// verification gate is observable without a real WebAuthn ceremony /
+// the heavy curriculum.js module graph.
+const verifyAssertionMock = vi.fn();
+vi.mock('../../server/auth/webauthnAssertion.js', () => ({
+  verifyWebAuthnAssertion: (...args: unknown[]) => verifyAssertionMock(...args),
+}));
+vi.mock('../../server/routes/curriculum.js', () => ({
+  buildWebAuthnDb: () => ({}),
+  buildWebAuthnCredentialsDb: () => ({}),
+}));
+
 import ds67ds76Router from '../../server/routes/ds67ds76.js';
 
 function buildApp() {
@@ -194,4 +206,102 @@ describe('ds67ds76 router — audit failure surfacing (P0 fix, Codex P2 contract
       });
     });
   });
+});
+
+// §2.9 — server-side WebAuthn verification gate. Previously the sign endpoints
+// persisted any client-supplied signatureB64 with NO cryptographic check.
+describe('ds67ds76 router — WebAuthn sign verification gate (§2.9)', () => {
+  const baseSig = {
+    signerUid: 'doctor-uid', // matches the mocked verifyAuth caller
+    signerRut: '11.111.111-1',
+    signedAt: '2026-06-01T00:00:00.000Z',
+    algorithm: 'webauthn-ecdsa-p256' as const,
+    signatureB64: 'AAAA',
+    payloadHashHex: 'a'.repeat(64),
+  };
+  const assertion = {
+    challengeId: 'ch-1',
+    credentialId: 'cred-1',
+    rawId: 'raw-1',
+    clientDataJSON: 'cdj',
+    authenticatorData: 'ad',
+    signature: 'AAAA',
+    type: 'public-key' as const,
+    clientExtensionResults: {},
+  };
+
+  beforeEach(() => {
+    verifyAssertionMock.mockReset();
+    auditMock.mockResolvedValue(true);
+    captureRouteErrorMock.mockReset();
+  });
+
+  for (const ds of ['ds67', 'ds76'] as const) {
+    describe(`POST /api/compliance/${ds}/:formId/sign`, () => {
+      const url = `/api/compliance/${ds}/F-1/sign`;
+
+      it('400 when algorithm=webauthn but webauthnAssertion is absent', async () => {
+        const res = await request(buildApp())
+          .post(url)
+          .send({ tenantId: 't-1', signature: baseSig });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe(`${ds}_sign_webauthn_assertion_required`);
+        expect(verifyAssertionMock).not.toHaveBeenCalled();
+      });
+
+      it('403 when signerUid does not match the authenticated caller', async () => {
+        const res = await request(buildApp())
+          .post(url)
+          .send({
+            tenantId: 't-1',
+            signature: { ...baseSig, signerUid: 'someone-else' },
+            webauthnAssertion: assertion,
+          });
+        expect(res.status).toBe(403);
+        expect(res.body.error).toBe(`${ds}_sign_uid_mismatch`);
+        expect(verifyAssertionMock).not.toHaveBeenCalled();
+      });
+
+      it('401 when the assertion fails cryptographic verification', async () => {
+        verifyAssertionMock.mockResolvedValue({
+          verified: false,
+          reason: 'signature_invalid',
+        });
+        const res = await request(buildApp())
+          .post(url)
+          .send({ tenantId: 't-1', signature: baseSig, webauthnAssertion: assertion });
+        expect(res.status).toBe(401);
+        expect(res.body.error).toBe(`${ds}_sign_webauthn_failed`);
+        expect(res.body.reason).toBe('signature_invalid');
+        expect(verifyAssertionMock).toHaveBeenCalledTimes(1);
+      });
+
+      it('200 when the assertion verifies — persists + audits the sign', async () => {
+        verifyAssertionMock.mockResolvedValue({
+          verified: true,
+          newCounter: 1,
+          verifiedCredentialId: 'cred-1',
+        });
+        const res = await request(buildApp())
+          .post(url)
+          .send({ tenantId: 't-1', signature: baseSig, webauthnAssertion: assertion });
+        expect(res.status).toBe(200);
+        expect(verifyAssertionMock).toHaveBeenCalledTimes(1);
+        expect(auditMock).toHaveBeenCalledWith(
+          expect.anything(),
+          `compliance.${ds}_signed`,
+          'compliance',
+          expect.objectContaining({ webauthnVerified: true }),
+        );
+      });
+
+      it('200 with kms-sign-rsa requires no assertion (backward compat)', async () => {
+        const res = await request(buildApp())
+          .post(url)
+          .send({ tenantId: 't-1', signature: { ...baseSig, algorithm: 'kms-sign-rsa' } });
+        expect(res.status).toBe(200);
+        expect(verifyAssertionMock).not.toHaveBeenCalled();
+      });
+    });
+  }
 });

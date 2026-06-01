@@ -81,11 +81,16 @@ async function requestSignature(
   payloadHashHex: string,
   signerUid: string,
   signerRut: string,
-): Promise<SusesoSignature> {
+  signChallengeUrl: string,
+  authHeader: string | null,
+) {
   const { requestComplianceSignature } = await import(
     '../../services/auth/webauthnComplianceSign'
   );
-  return requestComplianceSignature(payloadHashHex, signerUid, signerRut);
+  return requestComplianceSignature(payloadHashHex, signerUid, signerRut, {
+    signChallengeUrl,
+    authHeader,
+  });
 }
 
 interface Props {
@@ -166,19 +171,25 @@ export const SusesoFormBuilder: React.FC<Props> = ({ tenantId, reportedBy }) => 
       // §2.20 (2026-05-23) — apiAuthHeader unified.
       const authHeader = await apiAuthHeader();
       if (!authHeader) throw new Error('No estás autenticado.');
+      const formId = folioToDocId(result.form.folio);
       const sig = await requestSignature(
         result.payloadHashHex,
         reportedBy.uid,
         reportedBy.rut,
+        `/api/suseso/form/${encodeURIComponent(formId)}/sign-challenge`,
+        authHeader,
       );
-      const formId = folioToDocId(result.form.folio);
       const res = await fetch(`/api/suseso/form/${encodeURIComponent(formId)}/sign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(authHeader ? { 'Authorization': authHeader } : {}),
         },
-        body: JSON.stringify({ tenantId, signature: sig }),
+        body: JSON.stringify({
+          tenantId,
+          signature: sig.signature,
+          webauthnAssertion: sig.webauthnAssertion,
+        }),
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       setSigned(true);

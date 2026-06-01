@@ -56,11 +56,16 @@ async function requestSignature(
   payloadHashHex: string,
   signerUid: string,
   signerRut: string,
+  signChallengeUrl: string,
+  authHeader: string | null,
 ) {
   const { requestComplianceSignature } = await import(
     '../../services/auth/webauthnComplianceSign'
   );
-  return requestComplianceSignature(payloadHashHex, signerUid, signerRut);
+  return requestComplianceSignature(payloadHashHex, signerUid, signerRut, {
+    signChallengeUrl,
+    authHeader,
+  });
 }
 
 export const Ds67Builder: React.FC<Props> = ({ tenantId, reportedBy }) => {
@@ -127,12 +132,14 @@ export const Ds67Builder: React.FC<Props> = ({ tenantId, reportedBy }) => {
       // §2.20 (2026-05-23) — apiAuthHeader unified.
       const authHeader = await apiAuthHeader();
       if (!authHeader) throw new Error('No estás autenticado.');
+      const formId = ds67FolioToDocId(result.form.folio);
       const sig = await requestSignature(
         result.payloadHashHex,
         reportedBy.uid,
         reportedBy.rut,
+        `/api/compliance/ds67/${encodeURIComponent(formId)}/sign-challenge`,
+        authHeader,
       );
-      const formId = ds67FolioToDocId(result.form.folio);
       const res = await fetch(
         `/api/compliance/ds67/${encodeURIComponent(formId)}/sign`,
         {
@@ -141,7 +148,11 @@ export const Ds67Builder: React.FC<Props> = ({ tenantId, reportedBy }) => {
             'Content-Type': 'application/json',
             ...(authHeader ? { 'Authorization': authHeader } : {}),
           },
-          body: JSON.stringify({ tenantId, signature: sig }),
+          body: JSON.stringify({
+            tenantId,
+            signature: sig.signature,
+            webauthnAssertion: sig.webauthnAssertion,
+          }),
         },
       );
       if (!res.ok) throw new Error(`Error ${res.status}`);
