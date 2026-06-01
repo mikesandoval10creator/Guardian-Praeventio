@@ -97,9 +97,27 @@ vi.mock('firebase-admin', () => {
     }),
   });
 
+  // Minimal runTransaction: delegates to the same docRef get/update so the
+  // route's CLAUDE.md #19 transaction works against the in-memory store.
+  const runTransaction = async (fn: any) => {
+    const txn: any = {
+      get: (ref: any) => ref.get(),
+      set: (ref: any, data: any, opts?: any) => {
+        void ref.set(data, opts);
+        return txn;
+      },
+      update: (ref: any, patch: any) => {
+        void ref.update(patch);
+        return txn;
+      },
+    };
+    return fn(txn);
+  };
+
   const firestore = () => ({
     collection,
     collectionGroup,
+    runTransaction,
   });
 
   return {
