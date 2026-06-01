@@ -22,6 +22,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import type { messaging as adminMessaging } from 'firebase-admin';
 import { tracedAsync } from '../../services/observability/tracing.js';
+import { logger } from '../../utils/logger.js';
 import {
   daysUntilDeadline,
   escalationLevel,
@@ -121,8 +122,14 @@ async function resolveRecipients(
           recipients.add(m.id);
         }
       }
-    } catch {
-      // missing project sub-collection → fall back to creator-only.
+    } catch (err) {
+      // missing project sub-collection → fall back to creator-only. Log so
+      // a transient Firestore error (which silently drops gerente/supervisor
+      // recipients) is distinguishable from a genuinely member-less project.
+      logger.warn('suseso_reminder.members_fetch_failed', {
+        projectId: form.projectId,
+        err: String(err),
+      });
     }
   }
 
@@ -236,8 +243,15 @@ async function sendSusesoRemindersInner(
             newEntries.push({ sentAt: nowIso, channel: 'email', recipientUid });
             remindedTotal += 1;
           }
-        } catch {
-          // Per-recipient failure must not abort the form (let alone the scan).
+        } catch (err) {
+          // Per-recipient failure must not abort the form (let alone the
+          // scan) — but it must be visible: a dropped SUSESO deadline
+          // reminder for a legal plazo is significant.
+          logger.warn('suseso_reminder.dispatch_failed', {
+            formId: form.formId,
+            recipientUid,
+            err: String(err),
+          });
         }
       }
 
@@ -246,10 +260,15 @@ async function sendSusesoRemindersInner(
           await formDoc.ref.update({
             remindersSent: [...remindersSent, ...newEntries],
           });
-        } catch {
+        } catch (err) {
           // Keep the audit row consistent with what was actually delivered:
           // if the update fails we'd over-report — but per-form failures
           // must not abort the scan, and the next pass will retry naturally.
+          // Log so the over-report / re-notify risk is visible to ops.
+          logger.warn('suseso_reminder.markers_update_failed', {
+            formId: form.formId,
+            err: String(err),
+          });
         }
 
         // Audit row per form (single entry, even if multiple recipients).
@@ -270,8 +289,13 @@ async function sendSusesoRemindersInner(
             projectId: form.projectId ?? null,
             timestamp: nowIso,
           });
-        } catch {
-          // observability never breaks the scan
+        } catch (err) {
+          // observability never breaks the scan — but a LOST SUSESO
+          // compliance audit row is significant, so surface it at ERROR.
+          logger.error('suseso_reminder.audit_write_failed', {
+            formId: form.formId,
+            err: String(err),
+          });
         }
       }
     }

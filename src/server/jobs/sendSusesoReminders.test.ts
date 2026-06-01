@@ -8,6 +8,15 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { sendSusesoReminders } from './sendSusesoReminders';
+import { logger } from '../../utils/logger.js';
+
+// Silent-failure fix (2026-06-01): the per-recipient / marker / audit-write
+// catches now log instead of swallowing. Mock the logger so a forced dispatch
+// failure can assert the event surfaces AND the scan still completes (the
+// non-abort invariant is preserved).
+vi.mock('../../utils/logger.js', () => ({
+  logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
+}));
 
 interface FormSeed {
   id: string;
@@ -176,6 +185,54 @@ describe('sendSusesoReminders', () => {
       action: 'suseso.deadline.reminded',
       module: 'suseso',
     });
+  });
+
+  it('logs dispatch_failed and continues the scan when a recipient send throws', async () => {
+    vi.mocked(logger.warn).mockClear();
+    const { db, auditAdded, formUpdates } = makeFakeDb([
+      {
+        id: 'tenantA',
+        projectId: 'proj1',
+        members: [{ uid: 'gerente1', role: 'gerente' }],
+        forms: [
+          {
+            id: 'form1',
+            data: {
+              kind: 'DIAT',
+              status: 'pending',
+              legalDeadline: '2026-05-08T12:00:00Z', // 3 days left
+              incidentDate: '2026-05-03T12:00:00Z',
+              workerUid: 'worker1',
+              projectId: 'proj1',
+              reportedBy: { uid: 'creator1' },
+              remindersSent: [],
+            },
+          },
+        ],
+      },
+    ]);
+    // Every per-recipient dispatch throws (e.g. FCM/email provider down).
+    const dispatcher = vi.fn(async () => {
+      throw new Error('FCM unavailable');
+    });
+
+    const result = await sendSusesoReminders({
+      getDb: () => db,
+      dispatcher,
+      now: () => NOW,
+    });
+
+    // Non-abort invariant: the scan still completes and reports the form.
+    expect(result.scanned).toBe(1);
+    // Nothing was delivered → no reminders counted, no marker update, no audit row.
+    expect(result.remindedTotal).toBe(0);
+    expect(formUpdates).toHaveLength(0);
+    expect(auditAdded).toHaveLength(0);
+    // ...but the failure is no longer silent (the whole point of the fix).
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      'suseso_reminder.dispatch_failed',
+      expect.objectContaining({ recipientUid: 'gerente1' }),
+    );
   });
 
   it('does NOT spam forms already submitted_by_company', async () => {

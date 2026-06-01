@@ -22,6 +22,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import type { messaging as adminMessaging } from 'firebase-admin';
 import { tracedAsync } from '../../services/observability/tracing.js';
+import { logger } from '../../utils/logger.js';
 
 /** Lazy accessors — keep firebase-admin out of import cycles. */
 type FirestoreFactory = () => Firestore;
@@ -195,8 +196,14 @@ async function checkExpiredPpeInner(
           messaging,
         });
         notified += pushResult.notified;
-      } catch {
-        // swallow — observability happens via the audit row
+      } catch (err) {
+        // The push is best-effort (the audit row + UI notification doc are
+        // the reliable channels), so a per-assignment failure must not abort
+        // the scan — but log it so the FCM failure rate stays observable.
+        logger.warn('ppe_expiry.notify_failed', {
+          assignmentId: assignmentDoc.id,
+          err: String(err),
+        });
       }
     }
   }
