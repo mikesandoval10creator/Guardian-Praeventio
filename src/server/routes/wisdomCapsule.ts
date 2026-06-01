@@ -28,6 +28,7 @@ import { GoogleGenAI } from '@google/genai';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
+import { logger } from '../../utils/logger.js';
 
 const router = Router();
 
@@ -282,9 +283,18 @@ router.get('/wisdom-capsule/stats', verifyAuth, async (req, res) => {
         .where('date', '<=', dateTo)
         .limit(400)
         .get()
-        .catch(() => ({ docs: [], size: 0 })) as Promise<FsQuerySnap>,
-      db.collection('crews').where('projectId', '==', projectId).limit(50).get().catch(() => ({ docs: [], size: 0 })) as Promise<FsQuerySnap>,
-      db.collection('projects').doc(projectId).get().catch(() => ({ exists: false, data: () => undefined })) as Promise<FsDocSnap>,
+        .catch((err) => {
+          logger.warn('wisdomCapsule.read.statsCapsules.failed', err);
+          return { docs: [], size: 0 };
+        }) as Promise<FsQuerySnap>,
+      db.collection('crews').where('projectId', '==', projectId).limit(50).get().catch((err) => {
+        logger.warn('wisdomCapsule.read.statsCrews.failed', err);
+        return { docs: [], size: 0 };
+      }) as Promise<FsQuerySnap>,
+      db.collection('projects').doc(projectId).get().catch((err) => {
+        logger.warn('wisdomCapsule.read.statsProject.failed', err);
+        return { exists: false, data: () => undefined };
+      }) as Promise<FsDocSnap>,
     ]);
 
     const capsules = capsulesSnap.docs.map((d) => {
@@ -345,9 +355,18 @@ router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
         .where('date', '==', yISO)
         .limit(50)
         .get()
-        .catch(() => ({ size: 0, docs: [] })) as Promise<FsQuerySnap>,
-      db.collection('crews').where('projectId', '==', projectId).limit(20).get().catch(() => ({ docs: [], size: 0 })) as Promise<FsQuerySnap>,
-      db.collection('processes').where('projectId', '==', projectId).limit(50).get().catch(() => ({ docs: [], size: 0 })) as Promise<FsQuerySnap>,
+        .catch((err) => {
+          logger.warn('wisdomCapsule.read.hallazgos.failed', err);
+          return { size: 0, docs: [] };
+        }) as Promise<FsQuerySnap>,
+      db.collection('crews').where('projectId', '==', projectId).limit(20).get().catch((err) => {
+        logger.warn('wisdomCapsule.read.todayCrews.failed', err);
+        return { docs: [], size: 0 };
+      }) as Promise<FsQuerySnap>,
+      db.collection('processes').where('projectId', '==', projectId).limit(50).get().catch((err) => {
+        logger.warn('wisdomCapsule.read.processes.failed', err);
+        return { docs: [], size: 0 };
+      }) as Promise<FsQuerySnap>,
     ]);
 
     const crewNames = crewsSnap.docs
