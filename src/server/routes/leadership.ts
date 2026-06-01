@@ -19,6 +19,7 @@ import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -251,6 +252,7 @@ router.post(
         )
         .doc(id)
         .set(cleaned, { merge: true });
+      await auditServerEvent(req, 'leadership.decisions', 'leadership', { projectId, id, kind: body.kind }, { projectId });
       return res.status(201).json({ ok: true, decision: payload });
     } catch (err) {
       logger.error?.('leadership.decisions.create.error', err);

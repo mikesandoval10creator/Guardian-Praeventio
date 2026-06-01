@@ -32,6 +32,7 @@ import {
 import type { SiteBookEntry } from '../../services/siteBook/siteBookService.js';
 import { verifyWebAuthnAssertion } from '../auth/webauthnAssertion.js';
 import { logger } from '../../utils/logger.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 
 /**
  * P0 security fix: previously this file read `process.env.WEBAUTHN_RPID`
@@ -179,6 +180,7 @@ sitebookSignRouter.post('/sign/verify', verifyAuth, async (req: Request, res: Re
       const status = STATUS_FOR_REASON[result.reason] ?? 400;
       return res.status(status).json({ verified: false, reason: result.reason });
     }
+    await auditServerEvent(req, 'sitebookSign.verify', 'sitebookSign', { projectId, entryId }, { projectId });
     return res.json(result.value);
   } catch (err) {
     logger.error('sitebook_sign_verify_failed', { uid: callerUid, err: String(err) });

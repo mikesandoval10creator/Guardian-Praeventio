@@ -98,12 +98,14 @@ describe('POST report', () => {
     expect((await request(buildApp()).post('/api/sprint-k/p1/incident-flow/report').set(uid).send(reportBody)).status).toBe(404);
   });
 
-  it('201 dispatches the flow + writes a tenant audit row', async () => {
+  it('201 dispatches the flow + writes a canonical audit_logs row', async () => {
     const res = await request(buildApp()).post('/api/sprint-k/p1/incident-flow/report').set(uid).send(reportBody);
     expect(res.status).toBe(201);
     expect(res.body.nodeIds).toEqual(['n1']);
     expect(H.onReported).toHaveBeenCalledTimes(1);
-    const auditKeys = [...H.db!._store.keys()].filter((k) => k.startsWith('tenants/t1/audit_logs/'));
+    // CLAUDE.md #3: the audit row must land in the canonical top-level
+    // audit_logs collection (append-only rules), not the tenant-scoped path.
+    const auditKeys = [...H.db!._store.keys()].filter((k) => k.startsWith('audit_logs/'));
     expect(auditKeys.length).toBe(1);
   });
 

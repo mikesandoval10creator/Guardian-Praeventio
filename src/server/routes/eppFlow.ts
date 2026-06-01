@@ -29,6 +29,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -296,6 +297,7 @@ router.post(
         }
       }
 
+      await auditServerEvent(req, 'eppFlow.inspection', 'eppFlow', { projectId, inspectionId: body.inspection.inspectionId }, { projectId });
       return res.json({
         ok: result.ok,
         nodeCount: result.nodes.length,
@@ -396,6 +398,7 @@ router.post(
       pending.signerUid = body.signerUid;
       pendingOrders.set(key, pending);
 
+      await auditServerEvent(req, 'eppFlow.sign-order', 'eppFlow', { projectId, orderId }, { projectId });
       return res.json({
         ok: signed.ok,
         signedNodeId: signed.nodeId,
@@ -483,6 +486,7 @@ router.get(
         );
       }
 
+      await auditServerEvent(req, 'eppFlow.order-pdf', 'eppFlow', { projectId, orderId }, { projectId });
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader(
         'Content-Disposition',
