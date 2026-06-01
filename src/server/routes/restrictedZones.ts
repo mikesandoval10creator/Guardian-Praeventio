@@ -44,6 +44,7 @@ import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -233,6 +234,13 @@ router.post(
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
         { merge: true },
+      );
+      await auditServerEvent(
+        req,
+        'restrictedZones.define',
+        'restrictedZones',
+        { projectId: body.projectId, tenantId, zoneId: body.zone.id },
+        { projectId: body.projectId },
       );
       return res.json({ success: true, zoneId: body.zone.id });
     } catch (err) {

@@ -298,6 +298,13 @@ billingApiRouter.post('/verify', verifyAuth, idempotencyKey(), async (req, res) 
       });
     }
 
+    await auditServerEvent(req, 'billing.verify', 'billing', {
+      uid,
+      productId,
+      type: type ?? 'subscription',
+      planId: resolvedPlan,
+      orderId: data.orderId ?? null,
+    });
     return res.json({ success: true, data });
   } catch (error: any) {
     logger.error('purchase_verification_failed', error, { uid });
@@ -588,6 +595,14 @@ billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res
       paymentUrl,
       status,
     };
+    await auditServerEvent(req, 'billing.checkout', 'billing', {
+      invoiceId: invoice.id,
+      tierId: body.tierId,
+      paymentMethod: body.paymentMethod,
+      currency: body.currency,
+      total: invoice.totals.total,
+      status,
+    });
     return res.json(response);
   } catch (error: any) {
     logger.error('billing_checkout_failed', error, { uid: callerUid });

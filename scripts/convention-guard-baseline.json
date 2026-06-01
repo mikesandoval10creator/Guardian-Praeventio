@@ -1,8 +1,8 @@
 {
   "_doc": "Ratchet baseline for scripts/check-convention-guard.cjs. rule3_pending may only SHRINK: fix a route (add auditServerEvent) -> remove its key; confirmed false positive -> move to rule3_exempt with a reason. A NEW mutating route absent from both buckets FAILS the gate.",
   "_handlerLevel_rule3_guardInvisible": {
-    "restrictedZones": "/define mutates without audit (file DOES audit /entry-event) — file-level guard cannot see it; TODO handler-level audit",
-    "billing": "/verify (transactions.add + subscription grant) + /checkout (invoices.set) lack audit (file audits webhooks) — TODO handler-level audit",
+    "restrictedZones": "RESOLVED — /define now audits (action restrictedZones.define); file already audited /entry-event",
+    "billing": "RESOLVED — /verify (billing.verify) + /checkout (billing.checkout) now audit; file already audited webhooks + mark-paid",
     "loneWorker": "check-in/end-session state changes — audit added in Ola 2 (PR #628); kept here as a guard-invisible note"
   },
   "rule3_exempt": {
