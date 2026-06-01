@@ -1757,3 +1757,34 @@ sin gap de audit-log), con `verifyAuth` + `assertProjectMember`.
 - ⬜ B2-D2: `useShiftRiskPanel` no tiene consumidor (page/componente) todavía —
   el router queda montado y listo, pero la UI no lo invoca. Verificar si es
   intencional o falta cablear una vista.
+
+---
+
+### B3 — Ergonomía & Protocolos MINSAL · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Sin bugs de wiring; sin huérfanos. Los motores de
+cálculo son funciones puras, unit + mutation-tested, y su superficie HTTP está
+montada.
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| Motor REBA | ✅ | `services/ergonomics/reba.ts` (378 LOC) puro (0 side-effects) + `reba.test.ts` + mutation |
+| Motor RULA | ✅ | `services/ergonomics/rula.ts` (284 LOC) puro + test + mutation |
+| Motor TMERT | ✅ | `services/protocols/tmert.ts` (106 LOC) puro + test |
+| Motor PREXOR | ✅ | `services/protocols/prexor.ts` (128 LOC) puro + test |
+| Pose→score on-device | ✅ | `landmarksToScore.ts`, `poseEdgeFilter.ts`, `useMediaPipePose.ts`, `AIPostureAnalysisModal.tsx` |
+| HTTP ergonomics | ✅ | `routes/ergonomics.ts` montado `/api/sprint-k`, usa reba/rula puros, 0 writes (stateless compute), `verifyAuth` + `assertProjectMember` |
+| HTTP protocols | ✅ | `routes/protocols.ts` montado, sirve `/protocols/{iper,prexor,tmert}` |
+| Biometría on-device (regla #12) | ✅ | 0 subidas de frame de cámara en `useErgonomics`/`services/ergonomics` |
+
+**Sin fix necesario** (no hay orphan ni wiring bug en B3).
+
+**Deferido (listado):**
+- ⬜ B3-D1: **PLAESI** aparece en `CLAUDE.md` (regla #10 / lista de protocolos)
+  pero **no existe en `src/`** (0 referencias). Doc-vs-code gap: o se implementa
+  o se quita de la doc (el código es source of truth, regla #1). Feature-work,
+  fuera de scope fix-as-I-go.
+- ⬜ B3-D2: `ergonomics.ts` es compute-only; si en el futuro persiste
+  `ergonomicAssessments` (CLAUDE.md menciona `services/safety/ergonomicAssessments`
+  mutation-tested), ese path SÍ requeriría `audit_logs`. Verificar dónde persiste
+  la evaluación (¿client-direct a Firestore con rules?).
