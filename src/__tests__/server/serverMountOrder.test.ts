@@ -144,6 +144,19 @@ describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
       importRe: /import\s+shiftRiskPanelRouter\s+from\s+['"`][^'"`]*shiftRiskPanel(\.js)?['"`]/,
       mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*shiftRiskPanelRouter/,
     },
+    // B4 incident-block audit (2026-06-01): incidentFlow (report→investigation→
+    // lesson→microtraining) and stoppage (stateless work-stoppage transitions)
+    // were orphaned → useIncidentFlow / useStoppage got 404.
+    {
+      name: 'incidentFlow (/:projectId/incident-flow/*) under /api/sprint-k',
+      importRe: /import\s+incidentFlowRouter\s+from\s+['"`][^'"`]*incidentFlow(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*incidentFlowRouter/,
+    },
+    {
+      name: 'stoppage (/:projectId/stoppage/*) under /api/sprint-k',
+      importRe: /import\s+stoppageRouter\s+from\s+['"`][^'"`]*stoppage(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*stoppageRouter/,
+    },
   ];
 
   it('declares the SPA catch-all (sanity)', () => {

@@ -1788,3 +1788,42 @@ montada.
   `ergonomicAssessments` (CLAUDE.md menciona `services/safety/ergonomicAssessments`
   mutation-tested), ese path SÍ requeriría `audit_logs`. Verificar dónde persiste
   la evaluación (¿client-direct a Firestore con rules?).
+
+---
+
+### B4 — Incidentes & Investigación · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Núcleo de investigación cableado; 2 huérfanos
+encontrados y montados.
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| rootCauseInvestigation / incidentTrends / incidentBundle / lessonsLearned / correctiveActions | ✅ | montados `/api/sprint-k`, con tests |
+| incidentFlow (report→investigation→lesson→microtraining→status) | ❌→✅ | `incidentFlow.ts` **estaba huérfano** → **B4-F1** |
+| stoppage (declare/precondition/resume/cancel/summarize) | ❌→✅ | `stoppage.ts` **estaba huérfano** → **B4-F1** |
+
+**🔴 Bug B4-F1 (RESUELTO):** `incidentFlow.ts` y `stoppage.ts` nunca montados →
+`useIncidentFlow` y `useStoppage`/`StoppageMonitor.tsx` daban **404**. Mount
+`/api/sprint-k` + 2 casos de contrato (RED→GREEN, 14/14).
+
+- `incidentFlow`: 6 endpoints mutantes, cada uno con `await writeAudit(...)`
+  (cobertura de auditoría completa) escribiendo a **root `audit_logs`** (correcto).
+  Persistencia vía flows zettelkasten (`incidentLessonTrainingFlow`). `verifyAuth`
+  + `assertProjectMember`.
+- `stoppage`: superficie **stateless de transición** (el cliente envía el objeto
+  `stoppage`, el server computa la siguiente transición sobre `stoppageEngine` y
+  lo devuelve). No es stub (0 `503`/`NotImplemented`). 0 writes/audit en la ruta
+  por diseño offline-first. `verifyAuth` + `assertProjectMember` + `validate`.
+
+**Corrección de hallazgo previo:** el prior audit (L795) marcaba
+`incidentFlow(escribe path equivocado tenants/{tid}/audit_logs)`. **STALE**: el
+código actual escribe a root `audit_logs` (`incidentFlow.ts:115`). El código es
+source of truth → hallazgo resuelto.
+
+**Deferido (listado):**
+- ⬜ B4-D1: verificar que la **declaración de paralización** (`stoppage`) queda
+  auditada del lado cliente (write a Firestore bajo rules append-only), ya que la
+  ruta es stateless. Una paralización es acción de cumplimiento sensible (DS).
+- ⬜ B4-D2: `incidentFlow` usa una fn `writeAudit` local con campo `actorUid` en
+  vez del helper canónico `auditServerEvent` (`userId`/`userEmail`). Unificar al
+  helper para consistencia de esquema del trail.

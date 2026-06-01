@@ -180,6 +180,11 @@ import lotoRouter from "./src/server/routes/loto.js";
 import equipmentRouter from "./src/server/routes/equipment.js";
 import dataQualityRouter from "./src/server/routes/dataQuality.js";
 import incidentBundleRouter from "./src/server/routes/incidentBundle.js";
+// Incident block (B4) — orphaned routers: incidentFlow (report → investigation
+// → lesson → microtraining lifecycle) and stoppage (stateless work-stoppage
+// transitions). Consumers useIncidentFlow / useStoppage hit 404 until mounted.
+import incidentFlowRouter from "./src/server/routes/incidentFlow.js";
+import stoppageRouter from "./src/server/routes/stoppage.js";
 import inboxRouter from "./src/server/routes/inbox.js";
 // F.19 Photo Evidence — metadata + linkage endpoints (bytes upload via Storage).
 import photoEvidenceRouter from "./src/server/routes/photoEvidence.js";
@@ -1002,6 +1007,9 @@ app.use('/api/sprint-k', lotoRouter);
 app.use('/api/sprint-k', equipmentRouter);
 app.use('/api/sprint-k', dataQualityRouter);
 app.use('/api/sprint-k', incidentBundleRouter);
+// B4 — incident lifecycle + work-stoppage transitions.
+app.use('/api/sprint-k', incidentFlowRouter);
+app.use('/api/sprint-k', stoppageRouter);
 app.use('/api/sprint-k', inboxRouter);
 app.use('/api/sprint-k', photoEvidenceRouter);
 app.use('/api/sprint-k', explainabilityRouter);
