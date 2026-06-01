@@ -1827,3 +1827,22 @@ source of truth → hallazgo resuelto.
 - ⬜ B4-D2: `incidentFlow` usa una fn `writeAudit` local con campo `actorUid` en
   vez del helper canónico `auditServerEvent` (`userId`/`userEmail`). Unificar al
   helper para consistencia de esquema del trail.
+
+---
+
+### B5 — Cumplimiento & SUSESO · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** El stack de cumplimiento (DS54/DS44/Ley 16.744,
+DTE, emisión) está cableado; 1 huérfano encontrado y montado.
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| compliance (×3 mounts) / complianceEmit / dte | ✅ | montados, con tests |
+| regulatoryFramework / industryRules / nonConformity / privacyRetention | ✅ | montados `/api/sprint-k` |
+| legalObligations (legal-calendar: upcoming/overdue/acknowledge/snooze/history) | ❌→✅ | `legalObligations.ts` **estaba huérfano** → **B5-F1** |
+
+**🔴 Bug B5-F1 (RESUELTO):** `legalObligations.ts` nunca montado →
+`useLegalCalendar` / `useLegalObligations` daban **404**. writes=2 (acknowledge/
+snooze) con audit=3 (cubiertos), `verifyAuth` + `assertProjectMember`, no stub.
+Mount `/api/sprint-k` + caso de contrato (RED→GREEN, 15/15).
+

@@ -157,6 +157,14 @@ describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
       importRe: /import\s+stoppageRouter\s+from\s+['"`][^'"`]*stoppage(\.js)?['"`]/,
       mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*stoppageRouter/,
     },
+    // B5 compliance-block audit (2026-06-01): legalObligations (legal-calendar:
+    // upcoming/overdue/acknowledge/snooze/history) was orphaned → useLegalCalendar
+    // / useLegalObligations got 404.
+    {
+      name: 'legalObligations (/:projectId/legal-calendar/*) under /api/sprint-k',
+      importRe: /import\s+legalObligationsRouter\s+from\s+['"`][^'"`]*legalObligations(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*legalObligationsRouter/,
+    },
   ];
 
   it('declares the SPA catch-all (sanity)', () => {
