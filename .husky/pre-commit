@@ -2,3 +2,4 @@
 node scripts/precommit-medical-guard.cjs
 node scripts/check-convention-guard.cjs
 node scripts/validate-i18n.cjs
+node scripts/check-any-ratchet.cjs

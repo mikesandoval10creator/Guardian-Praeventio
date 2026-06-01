@@ -59,7 +59,7 @@ router.get('/:projectId/equipment', verifyAuth, async (req, res) => {
   if (!g) return undefined;
   try {
     const adapter = new EquipmentAdapter(
-      admin.firestore() as any,
+      admin.firestore(),
       g.tenantId,
       projectId,
     );

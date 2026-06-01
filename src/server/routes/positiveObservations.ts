@@ -112,7 +112,7 @@ router.get(
     if (!g) return undefined;
     try {
       const adapter = new PositiveObservationsAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -157,7 +157,7 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new PositiveObservationsAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );

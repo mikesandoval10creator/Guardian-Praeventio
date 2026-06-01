@@ -383,7 +383,7 @@ router.post(
 
       // Publish to global library F.12 with scope='industry'.
       const adapter = new LessonsAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
       );
       const publishedLessonId = `proj_${projectId}_${lessonId}`;

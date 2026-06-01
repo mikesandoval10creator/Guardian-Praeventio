@@ -261,7 +261,7 @@ router.post(
         ttlDays: body.ttlDays,
         internalNotes: body.internalNotes,
       });
-      const adapter = new AuditPortalAdapter(admin.firestore() as any, tenantId);
+      const adapter = new AuditPortalAdapter(admin.firestore(), tenantId);
       await adapter.save(portal);
       await auditServerEvent(req, 'externalAuditPortal.create', 'externalAuditPortal', {
         portalId: portal.id,
@@ -321,7 +321,7 @@ router.get(
       if (!tenantId) {
         return res.status(404).json({ error: 'tenant_not_found' });
       }
-      const adapter = new AuditPortalAdapter(admin.firestore() as any, tenantId);
+      const adapter = new AuditPortalAdapter(admin.firestore(), tenantId);
       const now = new Date();
       let portals: StoredAuditPortal[];
       if (q.affiliation) {
@@ -372,7 +372,7 @@ router.post(
       if (!tenantId) {
         return res.status(404).json({ error: 'tenant_not_found' });
       }
-      const adapter = new AuditPortalAdapter(admin.firestore() as any, tenantId);
+      const adapter = new AuditPortalAdapter(admin.firestore(), tenantId);
       const stored = await adapter.getById(portalId);
       if (!stored) {
         return res.status(404).json({ error: 'portal_not_found' });
@@ -444,7 +444,7 @@ router.get(
       if (!tenantId) {
         return res.status(404).json({ error: 'tenant_not_found' });
       }
-      const adapter = new AuditPortalAdapter(admin.firestore() as any, tenantId);
+      const adapter = new AuditPortalAdapter(admin.firestore(), tenantId);
       // Confirm the portal exists in THIS tenant — defends against tenant id
       // forgery via the URL param (verifyAuth gives us uid, but the path's
       // :portalId is attacker-controlled).
@@ -517,7 +517,7 @@ router.get(
         // expired / revoked / out-of-scope portals.
         try {
           const adapter = new AuditPortalAdapter(
-            admin.firestore() as any,
+            admin.firestore(),
             tenantId,
           );
           // Best-effort log; never block the response.
@@ -545,7 +545,7 @@ router.get(
       // the auditor saw module X at time Y).
       try {
         const adapter = new AuditPortalAdapter(
-          admin.firestore() as any,
+          admin.firestore(),
           tenantId,
         );
         await adapter.appendAccessLog({

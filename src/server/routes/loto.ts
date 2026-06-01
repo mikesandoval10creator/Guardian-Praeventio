@@ -59,7 +59,7 @@ router.get('/:projectId/loto', verifyAuth, async (req, res) => {
   if (!g) return undefined;
   try {
     const adapter = new LotoAdapter(
-      admin.firestore() as any,
+      admin.firestore(),
       g.tenantId,
       projectId,
     );

@@ -69,10 +69,10 @@ function describeEvent(ev: CurriculumHistoryEvent): {
     project = 'Capacitación completada';
   } else if (action.startsWith('safety.iper.')) {
     project = 'Evaluación IPER';
-    incidentFree = ((ev.details as any)?.level ?? '') !== 'CRITICO';
+    incidentFree = ((ev.details as Record<string, unknown>)?.level ?? '') !== 'CRITICO';
   } else if (action.startsWith('safety.ergonomic.')) {
     project = 'Evaluación ergonómica';
-    const score = Number((ev.details as any)?.score);
+    const score = Number((ev.details as Record<string, unknown>)?.score);
     incidentFree = !(Number.isFinite(score) && score >= 11);
   } else if (action.startsWith('safety.report.')) {
     project = 'Reporte de seguridad';
@@ -154,7 +154,7 @@ export function PortableCurriculum() {
       try {
         const awardsSnap = await getDocs(collection(db, 'users', uid, 'awards'));
         awardsList = awardsSnap.docs.map((d) => {
-          const data = d.data() as any;
+          const data = d.data() as Record<string, unknown>;
           return {
             id: d.id,
             name: String(data.name ?? data.title ?? 'Medalla'),
