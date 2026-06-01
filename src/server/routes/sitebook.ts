@@ -14,6 +14,7 @@ import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -162,6 +163,7 @@ router.post(
         },
         year,
       );
+      await auditServerEvent(req, 'sitebook.create', 'sitebook', { projectId, folio: entry.folio, entryId: entry.id }, { projectId });
       return res.status(201).json(entry);
     } catch (err) {
       if (err instanceof SiteBookValidationError) {

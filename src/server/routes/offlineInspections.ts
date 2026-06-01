@@ -29,6 +29,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -242,6 +243,13 @@ router.post(
         observations: [],
       };
       await docRef.set(payload, { merge: true });
+      await auditServerEvent(
+        req,
+        'offlineInspections.start',
+        'offlineInspections',
+        { inspectionId: body.id, templateId: body.templateId },
+        { projectId },
+      );
       return res.status(201).json({ ok: true, inspection: payload });
     } catch (err) {
       logger.error?.('offlineInspections.start.error', err);
@@ -400,6 +408,15 @@ router.post(
       if (outcome.kind === 'id_conflict') {
         return res.status(409).json({ error: 'observation_id_conflict' });
       }
+      if (outcome.kind === 'created') {
+        await auditServerEvent(
+          req,
+          'offlineInspections.addObservation',
+          'offlineInspections',
+          { inspectionId, observationId: body.observationId },
+          { projectId },
+        );
+      }
       return res
         .status(outcome.status)
         .json({ ok: true, observation: outcome.observation });
@@ -449,6 +466,13 @@ router.post(
       await docRef.set(
         { status: 'completed', completedAt },
         { merge: true },
+      );
+      await auditServerEvent(
+        req,
+        'offlineInspections.complete',
+        'offlineInspections',
+        { inspectionId, completedAt },
+        { projectId },
       );
       return res.status(200).json({
         ok: true,

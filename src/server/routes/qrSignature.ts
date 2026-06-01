@@ -28,6 +28,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -194,6 +195,19 @@ router.post(
           createdAt: new Date().toISOString(),
           createdByCallerUid: callerUid,
         });
+      await auditServerEvent(
+        req,
+        'qrSignature.challenge',
+        'qrSignature',
+        {
+          challengeId: challenge.challengeId,
+          projectId,
+          tenantId: g.tenantId,
+          itemId: body.itemId,
+          kind: body.kind,
+        },
+        { projectId },
+      );
       return res.status(201).json({ challenge });
     } catch (err) {
       logger.error?.('qrSignature.challenge.error', err);
@@ -316,6 +330,18 @@ router.post(
           .status(200)
           .json({ acknowledgement: txnResult.acknowledgement });
       }
+      await auditServerEvent(
+        req,
+        'qrSignature.acknowledge',
+        'qrSignature',
+        {
+          challengeId: body.challengeId,
+          projectId,
+          tenantId: g.tenantId,
+          workerUid: body.workerUid,
+        },
+        { projectId },
+      );
       return res
         .status(201)
         .json({ acknowledgement: txnResult.acknowledgement });

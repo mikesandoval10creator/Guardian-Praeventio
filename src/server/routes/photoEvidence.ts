@@ -15,6 +15,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -132,6 +133,13 @@ router.post(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...({ linkageKeys } as any),
       });
+      await auditServerEvent(
+        req,
+        'photoEvidence.record',
+        'photoEvidence',
+        { artifactId: artifact.id, linkageKeys },
+        { projectId },
+      );
       return res.status(201).json({ artifact });
     } catch (err) {
       if (err instanceof PhotoEvidenceValidationError) {
@@ -195,6 +203,13 @@ router.post(
         projectId,
       );
       await adapter.appendLinkage(artifactId, link);
+      await auditServerEvent(
+        req,
+        'photoEvidence.appendLinkage',
+        'photoEvidence',
+        { artifactId, nodeKind: link.nodeKind, nodeId: link.nodeId },
+        { projectId },
+      );
       return res.status(204).end();
     } catch (err) {
       logger.error?.('photoEvidence.appendLinkage.error', err);

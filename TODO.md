@@ -766,7 +766,7 @@ El audit identificó que PR #458 (Phase 1, 2026-05-21) eliminó el backend de ph
 
 ---
 
-### 2.29 🔄 Audit trail silenciosamente ausente en ~20 rutas mutantes (rule #3) — campaña 2026-05-31
+### 2.29 ✅ Audit trail ausente en rutas mutantes (rule #3) — CERRADO `rule3_pending=0` (campaña 2026-05-31)
 
 **Hallazgo** (auditoría real `everything-claude-code` + verificación manual, HEAD `1fd2c31e`): ~20 rutas en `src/server/routes/` mutan estado (Firestore `.set/.update/.add` o adapter) **sin** escribir `audit_logs` → viola CLAUDE.md regla #3. Solo **14/197** rutas auditaban. Para una app de prevención, un audit trail con huecos es false completeness severa (la empresa cree que hay traza y no la hay).
 
@@ -776,8 +776,12 @@ El audit identificó que PR #458 (Phase 1, 2026-05-21) eliminó el backend de ph
 
 **Cerrados:**
 - ✅ **annualReview** objectives/evidence/conclude — `src/server/routes/annualReview.ts:300,386,448` (`await auditServerEvent(req,'annualReview.*','annual_review',…)`). Test: `src/__tests__/server/annualReview.test.ts` bloque "rule #19 (transaction) + #3 (audit_logs) compliance".
+- ✅ **Olas 1-4 + triage final → `rule3_pending = 0`.** Checklist vivo autoritativo `scripts/convention-guard-baseline.json` → `rule3_pending: {}` (machine-checked en CI por `src/__tests__/scripts/conventionGuard.test.ts`, gate PASS). **28 rutas finales auditadas** en el PR de cierre, cada una con `await auditServerEvent(req,'<mod>.<verb>','<mod>',{ids},{projectId})` tras el write (acciones grep-verificables, p.ej. `grep "correctiveActions.create" src/server/routes/correctiveActions.ts`): apprenticeship · compliance · correctiveActions · culturePulse · dataConfidence · documentVersioning · drillsManager · emergencyBrigade · engineeringControls · equipmentQr · externalAuditPortal · knowledgeBase · lessonsLearned · microtraining · misc · offlineInspections · pdca · photoEvidence · portableHistory · positiveObservations · projects · qrAck · qrSignature · residualRisk · sif · sitebook · suppliers · wisdomCapsule. Test nuevo (ruta antes sin cobertura): `src/__tests__/server/correctiveActions.router.test.ts`.
+- ✅ **14 falsas-positivas del guard coarse** (matchea `new XAdapter`/`res.set`/event-bus) → `rule3_exempt` con razón one-line (read-only/pure-compute/infra): cphsMinute, dataQuality, equipment, inbox, incidentTrends, loto, openapi, preShiftRisk, riskRadar, softBlocking, systemEvents, vulnerability, waste, workerReadiness.
+- ✅ **4 handlers derived-cache/infra** que escriben en un read-path pero no persisten registro de negocio → documentados en `_handlerLevel_rule3_derivedCacheExempt` (dataConfidence GET-snapshot, wisdomCapsule GET-today, misc /erp/sync, externalAuditPortal /public).
+- 🔄 **Pendiente handler-level (guard-invisible):** `restrictedZones`/define + `billing`/verify+/checkout — el archivo audita OTROS handlers (file-level guard ciego). Fix manual de esos 2 handlers, documentado en `_handlerLevel_rule3_guardInvisible`.
 
-### 2.30 🔄 Read-modify-write sin runTransaction (rule #19) — campaña 2026-05-31
+### 2.30 ✅ Read-modify-write sin runTransaction (rule #19) — CERRADO `rule19_pending=0` (campaña 2026-05-31)
 
 **Hallazgo:** handlers que hacen `get()` + `set/update()` sobre el MISMO doc sin `db.runTransaction` → race split-brain / lost-update. Candidatos CLAUDE.md #19 + barrido real verificado.
 

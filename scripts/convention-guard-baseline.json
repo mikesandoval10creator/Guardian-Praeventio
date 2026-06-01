@@ -1,9 +1,9 @@
 {
   "_doc": "Ratchet baseline for scripts/check-convention-guard.cjs. rule3_pending may only SHRINK: fix a route (add auditServerEvent) -> remove its key; confirmed false positive -> move to rule3_exempt with a reason. A NEW mutating route absent from both buckets FAILS the gate.",
   "_handlerLevel_rule3_guardInvisible": {
-    "restrictedZones": "/define mutates without audit (file DOES audit /entry-event) — file-level guard cannot see it",
-    "billing": "/verify (transactions.add + subscription grant) + /checkout (invoices.set) lack audit (file audits webhooks)",
-    "loneWorker": "check-in/end-session are state changes but persist nothing — add audit; guard keys on Firestore writes so it is invisible"
+    "restrictedZones": "/define mutates without audit (file DOES audit /entry-event) — file-level guard cannot see it; TODO handler-level audit",
+    "billing": "/verify (transactions.add + subscription grant) + /checkout (invoices.set) lack audit (file audits webhooks) — TODO handler-level audit",
+    "loneWorker": "check-in/end-session state changes — audit added in Ola 2 (PR #628); kept here as a guard-invisible note"
   },
   "rule3_exempt": {
     "cphsMinute": "read-only aggregation; produces an in-memory draft, never persisted (guard matched an adapter ctor)",
@@ -21,35 +21,13 @@
     "waste": "read-only GET; adapter.list* only, no writes",
     "workerReadiness": "read-only GET; joins collections + pure computeReadiness(), no writes"
   },
-  "rule3_pending": {
-    "apprenticeship": "[#3+#19] authorize lacks audit; /expose get->set race — verify",
-    "compliance": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "correctiveActions": "[CRIT] ISO 45001 corrective actions + review — Ola2",
-    "culturePulse": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "dataConfidence": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "documentVersioning": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "drillsManager": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "emergencyBrigade": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "engineeringControls": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "equipmentQr": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "externalAuditPortal": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "knowledgeBase": "[#19] use-count + flag-obsolete update — Ola4",
-    "lessonsLearned": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "microtraining": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "misc": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "offlineInspections": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "pdca": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "photoEvidence": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "portableHistory": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "positiveObservations": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "projects": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "qrAck": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "qrSignature": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "residualRisk": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "sif": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "sitebook": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "suppliers": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "wisdomCapsule": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)"
-  },
-  "rule19_pending": {}
+  "rule3_pending": {},
+  "rule19_pending": {},
+  "_handlerLevel_rule3_derivedCacheExempt": {
+    "_doc": "Handlers that write on a READ/infra path but persist only a derived projection, cache mirror, or telemetry — no NEW business record. The file passes the file-level guard via its other audited handlers; logged here so the gap is documented, not silent (TODO.md Rule #1).",
+    "dataConfidence": "GET /:projectId/data-confidence best-effort writes data_confidence_snapshots, mirroring an already-derived overallScore",
+    "wisdomCapsule": "GET /wisdom-capsule/today writes a deterministic-id cache mirror + idempotent safety-learning zettelkasten node, both derived from already-recorded findings",
+    "misc": "POST /erp/sync writes erp_sync_logs sync-attempt telemetry (infra integration), not a domain record",
+    "externalAuditPortal": "GET /audit-portal/public/:token appends to access_logs — the access-trail write IS the audit record (unauthed public endpoint)"
+  }
 }

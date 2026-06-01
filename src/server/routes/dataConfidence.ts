@@ -21,6 +21,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -493,6 +494,15 @@ router.post(
         .collection(`tenants/${g.tenantId}/projects/${projectId}/data_confidence_dismissals`)
         .doc(issueId)
         .set(cleaned, { merge: true });
+      // CLAUDE.md #3: dismissing a data-confidence issue is a deliberate,
+      // role-gated admin state change and must be audited.
+      await auditServerEvent(
+        req,
+        'dataConfidence.dismiss',
+        'dataConfidence',
+        { projectId, issueId },
+        { projectId },
+      );
       return res.status(200).json({ ok: true, dismissal: payload });
     } catch (err) {
       logger.error?.('sprintK.dataConfidence.dismiss.error', err);

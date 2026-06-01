@@ -21,6 +21,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -166,6 +167,19 @@ router.post(
         observerRole: callerRole,
         shared: body.shared ?? false,
       });
+      await auditServerEvent(
+        req,
+        'positiveObservations.create',
+        'positiveObservations',
+        {
+          observationId: body.id,
+          projectId,
+          tenantId: g.tenantId,
+          observedWorkerUid: body.observedWorkerUid,
+          kind: body.kind,
+        },
+        { projectId },
+      );
       return res.status(201).json({ ok: true });
     } catch (err) {
       logger.error?.('positiveObservations.create.error', err);

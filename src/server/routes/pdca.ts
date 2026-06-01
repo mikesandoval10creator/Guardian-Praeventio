@@ -24,6 +24,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -192,6 +193,13 @@ router.post(
         )
         .doc(body.id)
         .set(project, { merge: false });
+      await auditServerEvent(
+        req,
+        'pdca.createCycle',
+        'pdca',
+        { cycleId: body.id, nonConformityId: body.nonConformityId },
+        { projectId },
+      );
       return res.status(201).json({ ok: true, cycle: project });
     } catch (err) {
       logger.error?.('pdca.create.error', err);
@@ -301,6 +309,13 @@ router.post(
         cycleNumber: result.project.cycleNumber,
       };
       await ref.set(merged, { merge: false });
+      await auditServerEvent(
+        req,
+        'pdca.advanceCycle',
+        'pdca',
+        { cycleId: id, currentStage: merged.currentStage },
+        { projectId },
+      );
       return res.json({ ok: true, cycle: merged });
     } catch (err) {
       logger.error?.('pdca.advance.error', err);
@@ -368,6 +383,13 @@ router.post(
         )
         .doc(body.id)
         .set(nc, { merge: false });
+      await auditServerEvent(
+        req,
+        'pdca.createNonConformity',
+        'pdca',
+        { nonConformityId: body.id, severity: body.severity },
+        { projectId },
+      );
       return res.status(201).json({ ok: true, nonConformity: nc });
     } catch (err) {
       logger.error?.('pdca.nc.create.error', err);

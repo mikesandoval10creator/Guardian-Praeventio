@@ -30,6 +30,7 @@ import crypto from 'crypto';
 import { Resend } from 'resend';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 // Sprint 22 Bucket Y — centralized email service. We keep the legacy
 // `resend` instance below for backwards compatibility with any inline
 // callers, but new sends route through `EmailService` so we get a
@@ -202,6 +203,13 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
       createdAt: new Date().toISOString(),
       expiresAt,
     });
+
+    await auditServerEvent(req, 'projects.invite', 'projects', {
+      projectId,
+      inviteId: inviteRef.id,
+      invitedEmail,
+      invitedRole,
+    }, { projectId });
 
     // Send invitation email — failure does NOT block the response.
     // Sprint 22 Bucket Y: prefer the centralized `EmailService` which
@@ -384,6 +392,11 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
       [`memberRoles.${targetUid}`]: admin.firestore.FieldValue.delete(),
     });
 
+    await auditServerEvent(req, 'projects.memberRemove', 'projects', {
+      projectId,
+      targetUid,
+    }, { projectId });
+
     // 16th wave (Bucket B) analytics: `project.member.removed` — fires after
     // the Firestore arrayRemove succeeded so the analytics row reflects the
     // committed mutation rather than a hypothetical attempt. The catalog
@@ -447,6 +460,12 @@ projectsRouter.delete('/:id/invite', verifyAuth, async (req, res) => {
     }
 
     await inviteDoc.ref.delete();
+
+    await auditServerEvent(req, 'projects.inviteCancel', 'projects', {
+      projectId,
+      inviteId,
+    }, { projectId });
+
     return res.json({ success: true });
   } catch (error: any) {
     logger.error('invitation_cancel_failed', error);
@@ -583,6 +602,12 @@ invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
         acceptedAt: new Date().toISOString(),
       });
     });
+
+    await auditServerEvent(req, 'projects.inviteAccept', 'projects', {
+      projectId: invite.projectId,
+      inviteId: inviteDoc.id,
+      acceptedRole: invite.invitedRole,
+    }, { projectId: invite.projectId });
 
     // 16th wave (Bucket B) analytics: `project.member.accepted` — fires
     // after the transaction committed (so we never emit on a rolled-back

@@ -52,6 +52,7 @@ import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -262,6 +263,11 @@ router.post(
       });
       const adapter = new AuditPortalAdapter(admin.firestore() as any, tenantId);
       await adapter.save(portal);
+      await auditServerEvent(req, 'externalAuditPortal.create', 'externalAuditPortal', {
+        portalId: portal.id,
+        tenantId,
+        auditorAffiliation: portal.auditorAffiliation,
+      });
       // Plaintext token returned exactly once. Client must surface it to the
       // operator and let them copy/paste it onto the channel they'll use to
       // hand it to the external auditor — we will never echo it again.
@@ -394,6 +400,11 @@ router.post(
       if (!updated) {
         return res.status(500).json({ error: 'internal_error' });
       }
+      await auditServerEvent(req, 'externalAuditPortal.revoke', 'externalAuditPortal', {
+        portalId,
+        tenantId,
+        reason: body.reason,
+      });
       return res.json({ portal: projectToAdminView(updated, now) });
     } catch (err) {
       if (err instanceof PortalValidationError) {

@@ -30,6 +30,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -169,6 +170,11 @@ router.post(
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         })
         .catch(() => undefined);
+      await auditServerEvent(req, 'lessonsLearned.create', 'lessonsLearned', {
+        projectId,
+        lessonId: body.id,
+        scope: body.scope,
+      }, { projectId });
       return res.status(201).json({ ok: true });
     } catch (err) {
       logger.error?.('lessonsLearned.create.error', err);

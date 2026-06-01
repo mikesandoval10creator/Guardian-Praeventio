@@ -30,6 +30,7 @@ import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { erpSyncLimiter } from '../middleware/limiters.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 // Sprint 39 audit fix (2026-05-15) — ERP integration adapter HONESTO.
@@ -269,6 +270,9 @@ router.post('/seed-glossary', verifyAuth, async (req, res) => {
     }
     const { runSeed } = await import('../../services/seedBackend.js');
     await runSeed();
+    await auditServerEvent(req, 'misc.seedGlossary', 'misc', {
+      actorUid: req.user!.uid,
+    });
     return res.json({ success: true, message: 'Community glossary seeded successfully' });
   } catch (error: any) {
     logger.error('seed_glossary_failed', error);
@@ -291,6 +295,9 @@ router.post('/seed-data', verifyAuth, async (req, res) => {
     }
     const { seedInitialData } = await import('../../services/dataSeedService.js');
     await seedInitialData();
+    await auditServerEvent(req, 'misc.seedData', 'misc', {
+      actorUid: req.user!.uid,
+    });
     return res.json({ success: true, message: 'Initial project data seeded successfully' });
   } catch (error: any) {
     logger.error('seed_data_failed', error);

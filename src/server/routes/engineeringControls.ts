@@ -29,6 +29,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -284,6 +285,12 @@ router.post(
         }
         throw err;
       }
+      await auditServerEvent(req, 'engineeringControls.create', 'engineeringControls', {
+        projectId,
+        controlId: body.id,
+        level: body.level,
+        riskCategory: body.riskCategory,
+      }, { projectId });
       return res.status(201).json({ ok: true, control: doc });
     } catch (err) {
       logger.error?.('engineeringControls.create.error', err);
@@ -341,6 +348,11 @@ router.post(
         updatePayload.lastVerifiedAt = now;
       }
       await ref.update(updatePayload);
+      await auditServerEvent(req, 'engineeringControls.verify', 'engineeringControls', {
+        projectId,
+        controlId: id,
+        result: body.result,
+      }, { projectId });
       return res.status(200).json({ ok: true, entry });
     } catch (err) {
       logger.error?.('engineeringControls.verify.error', err);

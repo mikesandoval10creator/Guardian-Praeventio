@@ -12,6 +12,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -107,6 +108,7 @@ router.post(
         body.reviewedAt,
         body.reviewNotes,
       );
+      await auditServerEvent(req, 'sif.executive-review', 'sif', { projectId, precursorId: id }, { projectId });
       return res.status(204).end();
     } catch (err) {
       logger.error?.('sif.review.error', err);

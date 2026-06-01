@@ -19,6 +19,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -159,6 +160,19 @@ router.post(
         changeNotes: body.changeNotes,
       });
       await adapter.saveNewVersion(next);
+      // CLAUDE.md #3: persisting a new document version is a state-changing write.
+      await auditServerEvent(
+        req,
+        'documentVersioning.createVersion',
+        'documentVersioning',
+        {
+          projectId,
+          documentId,
+          versionId: next.versionId,
+          bumpKind: body.bumpKind,
+        },
+        { projectId },
+      );
       return res.status(201).json({ version: next });
     } catch (err) {
       if (err instanceof VersionImmutabilityError) {
@@ -218,6 +232,24 @@ router.post(
           body.supersededByVersionId,
         );
       }
+      // CLAUDE.md #3: a version status transition (approve/supersede/retire/…)
+      // is a state-changing compliance write and must be audited.
+      await auditServerEvent(
+        req,
+        'documentVersioning.setStatus',
+        'documentVersioning',
+        {
+          projectId,
+          documentId,
+          versionId,
+          status: body.status,
+          ...(approverUid ? { approverUid } : {}),
+          ...(body.supersededByVersionId
+            ? { supersededByVersionId: body.supersededByVersionId }
+            : {}),
+        },
+        { projectId },
+      );
       return res.status(204).end();
     } catch (err) {
       if (err instanceof DocumentVersionImmutabilityViolation) {

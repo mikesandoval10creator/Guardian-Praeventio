@@ -21,6 +21,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -140,6 +141,13 @@ router.post(
           },
           { merge: true },
         );
+      await auditServerEvent(
+        req,
+        'correctiveActions.scheduleReview',
+        'correctiveActions',
+        { projectId, tenantId: g.tenantId, actionId, reviewAt: body.reviewAt },
+        { projectId },
+      );
       return res.status(204).end();
     } catch (err) {
       logger.error?.('correctiveActions.scheduleReview.error', err);
@@ -185,6 +193,19 @@ router.post(
         projectId,
       );
       await adapter.save(body);
+      await auditServerEvent(
+        req,
+        'correctiveActions.create',
+        'correctiveActions',
+        {
+          projectId,
+          tenantId: g.tenantId,
+          actionId: body.id,
+          status: body.status,
+          isSystemic: body.isSystemic,
+        },
+        { projectId },
+      );
       return res.status(201).json({ ok: true });
     } catch (err) {
       logger.error?.('correctiveActions.create.error', err);

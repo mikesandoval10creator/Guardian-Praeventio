@@ -24,6 +24,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -266,6 +267,11 @@ router.post(
         .collection(`tenants/${g.tenantId}/projects/${projectId}/drills`)
         .doc(body.id)
         .set(cleaned, { merge: true });
+      await auditServerEvent(req, 'drillsManager.plan', 'drillsManager', {
+        projectId,
+        drillId: body.id,
+        kind: body.kind,
+      }, { projectId });
       return res.status(201).json({ ok: true, drill: payload });
     } catch (err) {
       logger.error?.('drillsManager.plan.error', err);
@@ -351,6 +357,11 @@ router.post(
         if (v !== undefined) cleaned[k] = v;
       }
       await docRef.set(cleaned, { merge: true });
+      await auditServerEvent(req, 'drillsManager.execute', 'drillsManager', {
+        projectId,
+        drillId,
+        level: report.level,
+      }, { projectId });
 
       const after = await docRef.get();
       const merged: StoredDrill = {

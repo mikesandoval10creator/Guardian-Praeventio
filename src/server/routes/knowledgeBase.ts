@@ -28,6 +28,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -274,6 +275,13 @@ router.post(
         createdAt: now,
       };
       await docRef.set(entry);
+      await auditServerEvent(
+        req,
+        'knowledgeBase.create',
+        'knowledgeBase',
+        { projectId, tenantId: g.tenantId, entryId: docRef.id, category: body.category },
+        { projectId },
+      );
       return res.status(201).json({ entry });
     } catch (err) {
       logger.error?.('knowledgeBase.create.error', err);
@@ -316,6 +324,13 @@ router.post(
         return { kind: 'ok' };
       });
       if (result.kind === 'not_found') return res.status(404).json({ error: 'not_found' });
+      await auditServerEvent(
+        req,
+        'knowledgeBase.use',
+        'knowledgeBase',
+        { projectId, tenantId: g.tenantId, entryId: id },
+        { projectId },
+      );
       return res.status(204).end();
     } catch (err) {
       logger.error?.('knowledgeBase.use.error', err);
@@ -360,6 +375,13 @@ router.post(
         return { kind: 'ok' };
       });
       if (result.kind === 'not_found') return res.status(404).json({ error: 'not_found' });
+      await auditServerEvent(
+        req,
+        'knowledgeBase.flagObsolete',
+        'knowledgeBase',
+        { projectId, tenantId: g.tenantId, entryId: id, reason: body.reason },
+        { projectId },
+      );
       return res.status(204).end();
     } catch (err) {
       logger.error?.('knowledgeBase.flagObsolete.error', err);
