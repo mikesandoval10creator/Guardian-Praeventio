@@ -155,25 +155,15 @@ router.post(
     try {
       const adapter = new LessonsAdapter(admin.firestore() as any, g.tenantId);
       await adapter.save(body);
-      // Audit registro (la propia adopción / publicación queda en el doc;
-      // este audit captura el actor para forensics).
-      await admin
-        .firestore()
-        .collection(`tenants/${g.tenantId}/audit_logs`)
-        .add({
-          kind: 'lessons_learned.published',
-          projectId,
-          lessonId: body.id,
-          actorUid: callerUid,
-          scope: body.scope,
-          riskCategories: body.riskCategories,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        })
-        .catch(() => undefined);
+      // Audit: canonical top-level `audit_logs` (actor stamped from the
+      // verified token). Replaces a prior hand-rolled write to the
+      // non-canonical `tenants/{tid}/audit_logs` path — same wrong-path class
+      // fixed for incidentFlow in #630; nothing ever read that path.
       await auditServerEvent(req, 'lessonsLearned.create', 'lessonsLearned', {
         projectId,
         lessonId: body.id,
         scope: body.scope,
+        riskCategories: body.riskCategories,
       }, { projectId });
       return res.status(201).json({ ok: true });
     } catch (err) {
