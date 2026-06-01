@@ -22,7 +22,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, Feather, Crown, ShieldCheck, BadgeCheck } from 'lucide-react';
-import { MODEL_REGISTRY } from '../../services/slm/registry';
+import { MODEL_REGISTRY, listModelsWithVerifiedHash } from '../../services/slm/registry';
 import type { ModelDescriptor } from '../../services/slm/types';
 
 export interface SLMModelPickerProps {
@@ -104,6 +104,13 @@ export function SLMModelPicker({
   currentModelId,
   onSelect,
 }: SLMModelPickerProps): React.ReactElement {
+  // §2.9 defense-in-depth: in production, only offer models with a pinned
+  // SHA-256. A gated/unverified model (e.g. Gemma, hash not yet published)
+  // fail-closes at load time anyway (slmRuntime.assertVerifiableInProduction),
+  // so offering an unpickable card is just confusing. Dev/staging show all.
+  const displayModels = import.meta.env.PROD
+    ? listModelsWithVerifiedHash()
+    : MODEL_REGISTRY;
   return (
     <fieldset
       data-testid="slm-model-picker"
@@ -119,7 +126,7 @@ export function SLMModelPicker({
       </legend>
 
       <div className="mt-2 grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {MODEL_REGISTRY.map((model) => {
+        {displayModels.map((model) => {
           const tag = MODEL_TAGS[model.id];
           const checked = currentModelId === model.id;
 
