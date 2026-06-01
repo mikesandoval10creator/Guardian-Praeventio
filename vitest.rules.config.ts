@@ -29,5 +29,14 @@ export default defineConfig({
     // Más timeout porque cada test del emulator hace round-trips de red.
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // 2026-06-01: estos archivos comparten UN emulador Firestore y cada uno
+    // hace `clearFirestore()` en beforeEach (borra TODA la DB). Corriendo los
+    // archivos en paralelo, el clear de un archivo borra los datos sembrados
+    // por otro a mitad de test → "Null value error" en `isProjectMember` +
+    // "Transaction lock timeout" en clearFirestore. Forzar ejecución
+    // secuencial elimina la contención (latente; lo expuso el nuevo
+    // projectScopedStores.rules.test.ts). Trade-off: más lento pero
+    // determinístico — correcto para tests con estado compartido.
+    fileParallelism: false,
   },
 });
