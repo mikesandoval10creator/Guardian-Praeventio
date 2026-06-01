@@ -60,7 +60,6 @@
     "vulnerability": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "waste": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "wisdomCapsule": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "workPermits": "[CRIT] DS132 permit lifecycle (create/sign/close) — Ola2",
     "workerReadiness": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)"
   },
   "rule19_pending": {

@@ -829,3 +829,28 @@ describe('POST /api/sprint-k/:projectId/work-permits/:permitId/close', () => {
     expect(body.code).toBe('NOT_ACTIVE');
   });
 });
+
+// =============================================================================
+// CLAUDE.md #3 (audit_logs) compliance
+// =============================================================================
+
+describe('rule #3 (audit_logs) compliance', () => {
+  function auditRows(): Record<string, unknown>[] {
+    return Object.entries(H.db!._dump())
+      .filter(([k]) => k.startsWith('audit_logs/'))
+      .map(([, v]) => v as Record<string, unknown>);
+  }
+
+  it('create writes a work_permits.create audit_logs row', async () => {
+    const res = await request(buildApp())
+      .post('/api/sprint-k/p1/work-permits')
+      .set('x-test-uid', 'sup-1')
+      .set('x-test-role', 'supervisor')
+      .send(VALID_CREATE_BODY);
+    expect(res.status).toBe(201);
+    const a = auditRows().find((r) => r.action === 'work_permits.create');
+    expect(a).toBeTruthy();
+    expect(a).toMatchObject({ module: 'work_permits', userId: 'sup-1', projectId: 'p1' });
+    expect((a!.details as Record<string, unknown>).permitId).toBe('wp-test-1');
+  });
+});
