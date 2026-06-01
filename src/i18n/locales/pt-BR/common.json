@@ -35,7 +35,11 @@
     "theme_dark": "Modo Escuro",
     "logout": "Sair",
     "workers": "Trabalhadores",
-    "audits": "Auditorias"
+    "audits": "Auditorias",
+    "findings_heatmap": "Mapa de Calor de Achados",
+    "soft_blocks": "Bloqueios Soft",
+    "custody_chain": "Cadeia de Custódia",
+    "projects_compare": "Comparar Projetos"
   },
   "auth": {
     "login": "Entrar",
@@ -1742,21 +1746,151 @@
     "danger_zone": "Zona de Perigo",
     "profile": {
       "username": "Nome de Usuário",
-      "email": "E-mail"
+      "email": "E-mail",
+      "contact_admin": "Para modificar esses dados, entre em contato com o administrador do sistema ou utilize o painel do Firebase Auth."
     },
     "security": {
       "session_timeout": "Tempo de Expiração da Sessão",
-      "fall_detection": "Detecção de Queda"
+      "fall_detection": "Detecção de Queda",
+      "fall_detection_desc": "Ativa o monitoramento contínuo do acelerômetro para detectar quedas. Recomendado apenas se o seu trabalho expõe a riscos de altura, andaimes, telhados ou espaços confinados com desnível.",
+      "fall_detection_warn": "⚠ Consome bateria em segundo plano. Mantenha desligado se a sua atividade não exigir.",
+      "mfa_title": "Autenticação de Dois Fatores (2FA)",
+      "mfa_desc": "Adiciona uma camada extra de segurança à sua conta.",
+      "password_email_title": "E-mail Enviado",
+      "password_email_msg": "Foi enviado um link para redefinir sua senha.",
+      "change_password": "Alterar Senha",
+      "privacy_title": "Dados pessoais e privacidade",
+      "privacy_desc": "Regimes de proteção de dados aplicáveis à sua conta + prazos legais para responder solicitações de acesso, retificação ou exclusão.",
+      "timeout_15": "15 minutos de inatividade",
+      "timeout_30": "30 minutos de inatividade",
+      "timeout_60": "1 hora de inatividade",
+      "timeout_never": "Nunca (Não recomendado)"
     },
     "notifications": {
       "email_alerts": "Alertas por E-mail",
-      "push": "Notificações Push"
+      "push": "Notificações Push",
+      "email_alerts_desc": "Resumos diários e alertas críticos.",
+      "push_desc": "Receba alertas instantâneos.",
+      "cat_emergencies": "🚨 Emergências (S.O.S)",
+      "cat_emergencies_desc": "Alertas de S.O.S, evacuação e clima extremo. (Não pode ser desativado por segurança)",
+      "cat_medical": "🩺 Exames Médicos",
+      "cat_medical_desc": "Lembretes de validade e novos resultados médicos.",
+      "cat_training": "📚 Treinamentos",
+      "cat_training_desc": "Atribuições de cursos, ODI e palestras programadas.",
+      "cat_ai": "🤖 Assistente IA (Guardian)",
+      "cat_ai_desc": "Conselhos preditivos e anomalias detectadas em campo."
     },
     "appearance": {
-      "theme": "Preferência de Tema"
+      "theme": "Preferência de Tema",
+      "theme_light": "Claro (Fundo #4EB5AC)",
+      "theme_dark": "Escuro",
+      "theme_auto": "Automático (Dia/Noite)",
+      "theme_system": "Sistema Operacional",
+      "dark_manual_title": "Modo Escuro Manual",
+      "dark_manual_desc": "Alternar rapidamente (sobrescreve a preferência)"
     },
     "regional": {
-      "timezone": "Fuso Horário"
+      "timezone": "Fuso Horário",
+      "ui_language": "Idioma da Interface",
+      "language_changed": "Idioma alterado para {{lang}}"
+    },
+    "danger_desc": "Estas ações são permanentes e não podem ser desfeitas. Por favor, prossiga com extrema cautela.",
+    "logout_global": "Encerrar Sessão Global",
+    "delete_account": "Excluir Conta",
+    "delete_restricted_title": "Ação Restrita",
+    "delete_restricted_msg": "Para excluir sua conta permanentemente, por favor entre em contato com o administrador do sistema.",
+    "auth": {
+      "confirm_identity": "Confirme sua identidade para acessar as configurações",
+      "failed_title": "Falha na autenticação",
+      "failed_msg": "Não foi possível verificar a identidade"
+    },
+    "sections": {
+      "profile": {
+        "label": "Perfil e Conta",
+        "desc": "Gerencie suas informações pessoais e preferências de acesso."
+      },
+      "security": {
+        "label": "Segurança e Privacidade",
+        "desc": "Configure a autenticação de dois fatores e as permissões de dados."
+      },
+      "notifications": {
+        "label": "Notificações",
+        "desc": "Personalize quais alertas você deseja receber e por quais canais."
+      },
+      "ai": {
+        "label": "Configuração de IA",
+        "desc": "Ajuste o comportamento do Gemini e da análise preditiva."
+      },
+      "database": {
+        "label": "Banco de Dados e Rede Neural",
+        "desc": "Gestão de nós, conexões e exportação de dados."
+      },
+      "appearance": {
+        "label": "Interface e Tema",
+        "desc": "Personalize a aparência visual do Praeventio Guard."
+      },
+      "regional": {
+        "label": "Idioma e Região",
+        "desc": "Ajuste o idioma da plataforma e os formatos regionais."
+      },
+      "admin": {
+        "label": "Administração de Usuários",
+        "desc": "Atribua funções e revogue o acesso de usuários da plataforma."
+      }
+    },
+    "ai": {
+      "detail_level": "Nível de Detalhe do Assistente",
+      "opt_concise": "Conciso (Respostas diretas e curtas)",
+      "opt_balanced": "Equilibrado (Recomendado)",
+      "opt_detailed": "Detalhado (Explicações completas e normativas)",
+      "predictive_title": "Análise Preditiva Autônoma",
+      "predictive_desc": "Permite que a IA analise dados em segundo plano."
+    },
+    "database": {
+      "storage": "Armazenamento",
+      "active_nodes": "Nós Ativos",
+      "export_title": "Exportação Iniciada",
+      "export_msg": "Seus dados estão sendo preparados para download.",
+      "export_btn": "Exportar Dados (JSON)",
+      "cache_title": "Cache Limpo",
+      "cache_msg": "O espaço local foi liberado com sucesso.",
+      "cache_btn": "Limpar Cache"
+    },
+    "admin": {
+      "assign_role": "Atribuir Função ao Usuário",
+      "uid_label": "UID do usuário (Firebase Auth)",
+      "role_label": "Função a atribuir",
+      "saving": "Salvando...",
+      "role_assigned": "Função atribuída",
+      "network_error": "Erro de rede",
+      "assign_role_btn": "Atribuir Função",
+      "revoke": "Revogar Acesso",
+      "revoke_desc": "Invalida imediatamente todos os tokens de sessão do usuário.",
+      "revoking": "Revogando...",
+      "revoked_ok": "Acesso revogado"
+    },
+    "fcm": {
+      "title": "Notificações Push (FCM)",
+      "desc": "Receba alertas críticos e de emergência em tempo real.",
+      "status_granted": "Ativas",
+      "status_denied": "Bloqueadas",
+      "status_pending": "Pendentes",
+      "requires_connection": "Requer Conexão",
+      "enable_btn": "Ativar Notificações",
+      "long_desc": "Para receber notificações push, você deve permitir o acesso no seu navegador. Isso habilitará o Firebase Cloud Messaging (FCM) para enviar alertas críticos mesmo quando o aplicativo estiver em segundo plano."
+    },
+    "aria": {
+      "toggle_mfa": "Ativar autenticação de dois fatores",
+      "enable_fall_detection": "Ativar detecção de queda",
+      "disable_fall_detection": "Desativar detecção de queda",
+      "toggle_email_alerts": "Ativar alertas por e-mail",
+      "toggle_push": "Ativar notificações push",
+      "emergency_always_on": "Alertas de emergência (sempre ativos por segurança)",
+      "toggle_medical": "Notificações de exames médicos",
+      "toggle_training": "Notificações de treinamentos",
+      "toggle_ai": "Notificações do assistente IA",
+      "toggle_predictive_ai": "Ativar análise preditiva autônoma",
+      "toggle_dark_mode": "Alternar modo escuro manual"
     }
   },
   "analytics": {
@@ -1860,10 +1994,22 @@
       "choose_plan": "Escolher plano {{name}}",
       "footnote": "Planos enterprise até 5.000 trabalhadores · Preços em USD",
       "plans": {
-        "free": { "name": "Gratuito", "price": "$0" },
-        "committee": { "name": "Comitê", "price": "$10/mês" },
-        "department": { "name": "Departamento", "price": "$30/mês" },
-        "enterprise": { "name": "Enterprise", "price": "A partir de $50/mês" }
+        "free": {
+          "name": "Gratuito",
+          "price": "$0"
+        },
+        "committee": {
+          "name": "Comitê",
+          "price": "$10/mês"
+        },
+        "department": {
+          "name": "Departamento",
+          "price": "$30/mês"
+        },
+        "enterprise": {
+          "name": "Enterprise",
+          "price": "A partir de $50/mês"
+        }
       }
     },
     "final_cta": {
@@ -2596,6 +2742,161 @@
     },
     "action": {
       "acknowledge": "Confirmo leitura"
+    }
+  },
+  "import": {
+    "title": "Importar dados do Excel",
+    "subtitle": "Envie sua planilha, revise os erros e confirme a importação.",
+    "kind_label": "Tipo de dado",
+    "kinds": {
+      "workers": "Trabalhadores",
+      "epp": "EPI entregues",
+      "trainings": "Treinamentos",
+      "incidents": "Incidentes",
+      "projects": "Projetos",
+      "risks": "Riscos / IPER"
+    },
+    "steps": {
+      "upload": "Enviar",
+      "review": "Revisar",
+      "done": "Concluído"
+    },
+    "dropzone": {
+      "placeholder": "Arraste seu arquivo Excel aqui ou clique para selecionar",
+      "selected": "{{name}} ({{size}} KB)",
+      "hint": "Máximo 5MB · .xlsx, .xls, .csv"
+    },
+    "actions": {
+      "validate": "Validar arquivo",
+      "validating": "Validando…",
+      "commit": "Confirmar importação ({{n}})",
+      "committing": "Importando…",
+      "back": "Voltar",
+      "new_import": "Importar outro arquivo"
+    },
+    "stats": {
+      "total": "Linhas",
+      "valid": "Válidas",
+      "invalid": "Com erros",
+      "duplicates": "Duplicadas"
+    },
+    "review": {
+      "sheet": "Planilha processada: {{sheet}}",
+      "errors_heading": "Erros detectados",
+      "sample_heading": "Amostra de linhas válidas",
+      "col_row": "Linha",
+      "col_column": "Coluna",
+      "col_message": "Mensagem"
+    },
+    "done": {
+      "success_title": "Importação concluída",
+      "partial_title": "Importação parcial",
+      "summary": "{{n}} registros importados.",
+      "failures": "{{n}} falharam — verifique os logs."
+    },
+    "errors": {
+      "no_file": "Selecione um arquivo Excel.",
+      "too_large": "O arquivo excede o limite de 5MB.",
+      "nothing_to_commit": "Não há linhas válidas para importar.",
+      "no_project": "Selecione um projeto antes de confirmar."
+    }
+  },
+  "accessibility": {
+    "title": "Modos acessíveis",
+    "subtitle": "Adapte o Praeventio Guard às suas necessidades. Cada modo é ativado de forma independente e fica salvo neste dispositivo.",
+    "preview": "Pré-visualização",
+    "reset": "Redefinir tudo",
+    "easyReading": {
+      "title": "Leitura fácil",
+      "description": "Aumenta o tamanho do texto e simplifica a tipografia para melhorar a leitura.",
+      "previewBody": "Este texto fica maior e com mais espaço entre as linhas quando o modo está ativado."
+    },
+    "highContrast": {
+      "title": "Alto contraste",
+      "description": "Inverte as cores principais para melhorar a legibilidade em condições de baixa visibilidade.",
+      "previewBody": "As cores se invertem: fundo preto com texto branco, ideal sob luz solar forte."
+    },
+    "glovesMode": {
+      "title": "Modo luvas",
+      "description": "Aumenta os botões e áreas de toque para 56px ou mais para usar o app com luvas de trabalho.",
+      "previewBody": "Cada botão fica facilmente alcançável com luvas industriais grossas."
+    },
+    "lowConnectivity": {
+      "title": "Baixa conectividade",
+      "description": "Exibe avisos amigáveis quando a rede está lenta ou intermitente e favorece o carregamento offline.",
+      "previewBody": "Em vez de spinners, você verá placeholders esqueléticos e mensagens claras sobre o estado da rede."
+    }
+  },
+  "webxr": {
+    "title": "Treinamento Interativo — Trabalho em Altura",
+    "description": "Treinamento prático sobre proteção contra quedas conforme DS 594 Art. 53. Marque cada elemento do EPI no checklist visual.",
+    "subtitle": "DS 594 Art. 53 · Marque cada elemento de EPI",
+    "start": "Iniciar treinamento",
+    "stop": "Parar",
+    "startPrompt": "Inicie o treinamento para ativar os marcadores do checklist",
+    "verified": "verificados",
+    "diagramAria": "Esquema visual de EPI para trabalho em altura",
+    "markVerified": "Marcar como verificado",
+    "checklistComplete": "Checklist completo",
+    "registerPrompt": "Registre este treinamento no seu histórico.",
+    "registerTraining": "Registrar treinamento",
+    "saving": "Salvando…",
+    "trainingRegistered": "Treinamento registrado"
+  },
+  "pricingCalc": {
+    "header": {
+      "title": "Calculadora de Preços e ROI",
+      "subtitle": "Estime seu plano recomendado, custo mensal, retorno e orçamento de EPI em um só lugar."
+    },
+    "inputs": {
+      "workers": "Trabalhadores",
+      "projects": "Projetos ativos",
+      "industry": "Indústria",
+      "currentTier": "Tier atual"
+    },
+    "recommendation": {
+      "title": "Plano recomendado",
+      "coverage": "Cobre até {{w}} trabalhadores e {{p}} projetos.",
+      "plan": "Assinatura",
+      "perMonth": "mês",
+      "upgradeHint": "Sugerimos upgrade para {{tier}} — mais barato que pagar overage."
+    },
+    "current": {
+      "title": "Custo mensal estimado (tier atual)",
+      "overCapacity": "Tier atual excede a capacidade — upgrade obrigatório.",
+      "note": "Inclui overage de trabalhadores/projetos se aplicável."
+    },
+    "compare": {
+      "title": "Custo mensal por tier",
+      "tier": "Tier",
+      "workers": "Limite de trabalhadores",
+      "projects": "Limite de projetos",
+      "cost": "Custo / mês",
+      "overCapacity": "— excede"
+    },
+    "roi": {
+      "title": "Simulador ROI — Incidentes evitados",
+      "baseline": "Incidentes / ano (baseline)",
+      "current": "Incidentes / ano (com programa)",
+      "avgCost": "Custo médio / incidente (CLP)",
+      "avoided": "Incidentes evitados / ano",
+      "totalSavings": "Economia total / ano",
+      "roi": "ROI",
+      "payback": "Payback",
+      "months": "meses",
+      "notRecoverable": "Não recuperável"
+    },
+    "epp": {
+      "title": "Orçamento de EPI estimado",
+      "monthly": "Mensal ({{n}} trabalhadores)",
+      "annual": "Anualizado",
+      "perWorker": "Por trabalhador / mês",
+      "disclaimer": "Catálogo e preços indicativos por DS 594. Para cotação real, consulte um fornecedor.",
+      "viewOc": "Ver OC sugerida com detalhe por item"
+    },
+    "actions": {
+      "generateOc": "Gerar Ordem de Compra (.pdf)",
+      "todoNote": "Por enquanto baixa JSON · PDF formal pendente Sprint K §177."
     }
   }
 }
