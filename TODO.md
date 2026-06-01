@@ -1711,6 +1711,48 @@ escriben auditan (helper o raw `audit_logs`). Cada uno se monta con su caso en
 
 ---
 
+### 🔴🔴 HALLAZGO CRÍTICO — 14 stores client-SDK sin write rules en producción (2026-06-01)
+
+**Severidad: ALTA (funcional + cumplimiento). Surgido al cerrar B4-D1.**
+
+`firebase.json` despliega **`firestore.rules`**. Los 14 stores Sprint-K creados
+con `createProjectScopedStore` usan el **Firebase CLIENT SDK** (`setDoc`/
+`updateDoc` modular) y escriben a `projects/{pid}/<colección>`. En
+`firestore.rules`, el master-gate `match /{subCollection=**}/{docId}` (línea 258)
+da **solo `read`** a project-members; ninguna de estas 14 colecciones tiene regla
+de **write** explícita → **los writes del cliente quedan default-deny en
+producción**.
+
+**Las 14 colecciones afectadas:** `stoppages`, `site_book`, `site_book_entries`,
+`legal_obligations`, `operational_changes`, `root_causes`, `lone_worker_events`,
+`lone_worker_sessions`, `exceptions`, `shifts`, `audit_portals`,
+`safety_talks_given`, `documents_for_read`, `sample_live`.
+
+**Por qué no se detectó:** existe `firestore.test.rules` (**TEST-ONLY open
+rules**) que el job CI `firestore-stores` usa para probar la LÓGICA de los stores
+(CRUD/subscribe/merge) contra el emulador — su propio header dice "does NOT test
+the rules". Los tests pasan con reglas abiertas → **enmascaran** el gap de prod.
+Páginas como `StoppageMonitor.tsx` (`saveStoppage`) y `SiteBook.tsx`
+(`saveSiteBookEntry`) llaman estos `save()` client-side → fallan con
+permission-denied en prod.
+
+**Evidencia:** `firestore.rules:258-260` (master-gate read-only) · sin match
+`stoppages`/`site_book`/… (grep=0) · `createProjectScopedStore.ts:29,147,197`
+(client `setDoc` a `projects/{pid}/{coll}`) · `firestore.test.rules` header ·
+`StoppageMonitor.tsx`→`saveStoppage`, `SiteBook.tsx`→`saveSiteBookEntry`.
+
+**Fix (gobernado por regla #4 — NO especulativo):** cada colección requiere
+regla explícita en `firestore.rules` (member-write + validación + inmutabilidad
+donde aplique) + **≥5 rules-tests** (owner-allow, non-member-deny,
+schema-deny, post-firma update-deny, server-field-spoof-deny) + entrada en
+`security_spec.md` (Dirty Dozen). Modelos de acceso **sensibles a cumplimiento**
+(paralización `stoppages`, `legal_obligations`, `operational_changes`,
+`root_causes`, firma `site_book`) → **requiere decisión del usuario sobre el
+modelo de acceso por colección** antes de escribir reglas de seguridad. Épica de
+seguridad dedicada (`/guard`). **B4-D1 es un caso de esta épica.**
+
+---
+
 ### B1 — Emergencia & Respuesta · ✅ AUDITADO (2026-06-01)
 
 **Veredicto general: mayoritariamente REAL y production-grade.**
