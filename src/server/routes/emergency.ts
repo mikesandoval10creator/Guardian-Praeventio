@@ -108,7 +108,7 @@ async function getUserTokensCached(
   try {
     const snap = await db.collection('users').doc(uid).get();
     if (snap.exists) {
-      const raw = (snap.data() as any)?.fcmTokens;
+      const raw = (snap.data() as { fcmTokens?: string[] } | undefined)?.fcmTokens;
       if (Array.isArray(raw)) {
         tokens = raw.filter((t): t is string => typeof t === 'string' && t.length > 0);
       }
@@ -132,8 +132,8 @@ interface GeoPoint {
 
 function validateGeo(g: unknown): GeoPoint | null {
   if (g == null || typeof g !== 'object') return null;
-  const lat = (g as any).lat;
-  const lng = (g as any).lng;
+  const lat = (g as { lat?: unknown }).lat;
+  const lng = (g as { lng?: unknown }).lng;
   if (!isFiniteNumber(lat) || !isFiniteNumber(lng)) return null;
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
   return { lat, lng };
@@ -240,7 +240,8 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
   try {
     const projectSnap = await db.collection('projects').doc(projectId).get();
     const tenantId: string =
-      (projectSnap.exists && (projectSnap.data() as any)?.tenantId) || projectId;
+      (projectSnap.exists && (projectSnap.data() as { tenantId?: string } | undefined)?.tenantId) ||
+      projectId;
     const alertRef = await db
       .collection('tenants')
       .doc(tenantId)
@@ -314,7 +315,8 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
         const emailService = EmailService.fromEnv();
         if (emailService) {
           const projectName: string =
-            (projectSnap.exists && (projectSnap.data() as any)?.name) || projectId;
+            (projectSnap.exists && (projectSnap.data() as { name?: string } | undefined)?.name) ||
+            projectId;
           const workerName: string =
             (req.user?.name as string | undefined) ||
             callerEmail ||

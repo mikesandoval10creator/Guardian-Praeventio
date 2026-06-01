@@ -151,9 +151,19 @@ export async function checkKms(): Promise<void> {
   // selected provider. We resolve the provider via the `getKmsAdapter`
   // factory if it exists, else fall back to a direct named export.
   // Either way we round-trip a tiny `ping` plaintext.
-  const adapter = (mod as any).getKmsAdapter
-    ? (mod as any).getKmsAdapter()
-    : (mod as any).kmsAdapter ?? (mod as any).default;
+  // The real module exports the `getKmsAdapter()` factory; the
+  // `kmsAdapter`/`default` branches are defensive fallbacks for export
+  // shapes the current module doesn't ship — typed optional so they stay
+  // resilient to a future rename without an `any` escape hatch. We only
+  // ever touch `.encrypt`, so an `encrypt?: unknown` element shape is the
+  // narrowest type that still lets the runtime callable-guard below work.
+  type MaybeKmsModule = {
+    getKmsAdapter?: () => { encrypt?: unknown } | undefined;
+    kmsAdapter?: { encrypt?: unknown };
+    default?: { encrypt?: unknown };
+  };
+  const m = mod as MaybeKmsModule;
+  const adapter = m.getKmsAdapter ? m.getKmsAdapter() : m.kmsAdapter ?? m.default;
   if (!adapter || typeof adapter.encrypt !== 'function') {
     throw new Error('kms_adapter_unavailable');
   }

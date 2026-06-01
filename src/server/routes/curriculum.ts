@@ -41,6 +41,7 @@ import {
   recordRefereeEndorsement as curriculumEndorse,
   getClaimsByWorker as curriculumGetByWorker,
   type ClaimCategory,
+  type CurriculumClaim,
   type AuditLogger as CurriculumAuditLogger,
 } from '../../services/curriculum/claims.js';
 import {
@@ -427,7 +428,7 @@ router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
   try {
     const snap = await admin.firestore().collection('curriculum_claims').doc(claimId).get();
     if (!snap.exists) return res.status(404).json({ error: 'claim not found' });
-    const claim = snap.data() as any;
+    const claim = snap.data() as CurriculumClaim;
     if (claim.workerId !== callerUid) return res.status(403).json({ error: 'not your claim' });
     if (claim.status !== 'pending_referees') return res.status(409).json({ error: 'claim is not pending' });
     const slot = claim.referees?.[refereeIndex];
@@ -592,7 +593,7 @@ router.post('/referee/:token', refereeLimiter, async (req, res) => {
       // Decline path: mark slot.declined = true and flip claim to rejected.
       const ref = admin.firestore().collection('curriculum_claims').doc(claimId);
       const snap = await ref.get();
-      const data = snap.data() as any;
+      const data = snap.data() as CurriculumClaim;
       const idx = data.referees.findIndex((r: any) => r.tokenHash === tokenHash);
       const updatedReferees = data.referees.map((r: any, i: number) =>
         i === idx
@@ -980,7 +981,7 @@ webauthnChallengeRouter.post(
     if (
       !attestationResponse ||
       typeof attestationResponse !== 'object' ||
-      typeof (attestationResponse as any).id !== 'string'
+      typeof (attestationResponse as { id?: unknown }).id !== 'string'
     ) {
       return res.status(400).json({ error: 'attestationResponse is required' });
     }

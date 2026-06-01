@@ -43,6 +43,19 @@ import {
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 
+// Custom fields this module stamps onto the express-session object. They are
+// not part of the base `SessionData` (no module augmentation exists), so we
+// narrow `req.session` to this shape at each access site instead of `as any`.
+// All fields optional so the CSRF/initiator handshake can `delete` them after
+// a successful token exchange.
+interface OAuthSessionFields {
+  oauthState?: string;
+  oauthInitiator?: { uid: string; provider: string };
+  driveOauthState?: string;
+  driveOauthInitiator?: { uid: string; provider: string };
+}
+type OAuthSession = Express.Request['session'] & OAuthSessionFields;
+
 function sentryCapture(
   err: unknown,
   context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
@@ -118,7 +131,7 @@ oauthGoogleApiRouter.get('/auth/google/url', verifyAuth, (req, res) => {
   const redirectUri = `${appUrl}/auth/google/callback`;
 
   const state = crypto.randomBytes(16).toString('hex');
-  const sess = req.session as any;
+  const sess = req.session as OAuthSession;
   sess.oauthState = state;
   // Bind this OAuth flow to the authenticated user. The callback runs in a
   // popup that shares the session cookie, so we recover the UID there
@@ -331,7 +344,7 @@ oauthGoogleApiRouter.get('/drive/auth/url', verifyAuth, (req, res) => {
   const redirectUri = `${appUrl}/api/drive/auth/callback`;
 
   const state = crypto.randomBytes(16).toString('hex');
-  const sess = req.session as any;
+  const sess = req.session as OAuthSession;
   sess.driveOauthState = state;
   sess.driveOauthInitiator = {
     uid: req.user!.uid,
@@ -357,7 +370,7 @@ oauthGoogleApiRouter.get('/drive/auth/callback', async (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/api/drive/auth/callback`;
 
-  const sess = req.session as any;
+  const sess = req.session as OAuthSession;
   if (!state || state !== sess.driveOauthState) {
     return res.status(403).send('Invalid state parameter (CSRF protection)');
   }
@@ -426,7 +439,7 @@ oauthGoogleAuthRouter.get('/google/callback', async (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/auth/google/callback`;
 
-  const sess = req.session as any;
+  const sess = req.session as OAuthSession;
   if (!state || state !== sess.oauthState) {
     return res.status(403).send('Invalid state parameter (CSRF protection)');
   }
