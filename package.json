@@ -33,6 +33,7 @@
     "security:review": "node scripts/security-review.cjs",
     "precommit:medical": "node scripts/precommit-medical-guard.cjs",
     "lint:conventions": "node scripts/check-convention-guard.cjs",
+    "lint:i18n": "node scripts/validate-i18n.cjs",
     "test:medical-guard": "node --test src/__tests__/scripts/medicalGuard.test.cjs",
     "prepare": "husky install",
     "validate:env": "node scripts/validate-env.cjs",
