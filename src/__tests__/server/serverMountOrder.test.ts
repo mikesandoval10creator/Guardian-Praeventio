@@ -123,6 +123,13 @@ describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
       importRe: /import\s+restrictedZonesRouter\s+from\s+['"`][^'"`]*restrictedZones(\.js)?['"`]/,
       mountRe: /app\.use\(\s*['"`]\/api\/zones['"`]\s*,\s*restrictedZonesRouter/,
     },
+    {
+      // B1-F2: persistent headcount CRUD surface (useEvacuationHeadcount,
+      // EvacuationQRScanner). Distinct from the stateless evacuation.ts router.
+      name: 'evacuationHeadcount (/start, /scan-qr, …) under /api/evacuation',
+      importRe: /import\s+evacuationHeadcountRouter\s+from\s+['"`][^'"`]*evacuationHeadcount(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/evacuation['"`]\s*,\s*evacuationHeadcountRouter/,
+    },
     // B2 risk-block audit (2026-06-01): riskRanking.ts (feeds RiskTimeseriesChart,
     // TopRisksDashboardCard, WeakControlsDashboardCard) and shiftRiskPanel.ts were
     // implemented + unit-tested but never mounted → useRiskRanking / useShiftRiskPanel

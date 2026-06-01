@@ -1645,6 +1645,33 @@ B9 Inspecciones · B10 EPP/Activos · B11 Contratistas/Visitas · B12 CPHS/Comit
 B13 MOC/Operaciones críticas · B14 IA/Gemini/SLM · B15 Facturación/Tier ·
 B16 Offline/PWA/Capacitor · B17 Admin/Multi-tenant/Auth · B18 Analítica/Reportes.
 
+### 🔎 Hallazgo transversal — barrido global de routers huérfanos (2026-06-01)
+
+Barrido de los 179 routers con `export default Router` vs los `app.use` de
+`server.ts`: **20 routers huérfanos** (implementados + unit-tested pero nunca
+montados → **404** para sus consumidores reales). Misma clase que PR #606. Las
+suites per-router no lo detectan porque montan en un app express fresco. El prior
+audit (§ líneas ~640-795) ya catalogó varios; este barrido lo confirma y completa.
+Roadmap por bloque (se montan **dentro de su bloque**, cadencia block-by-block):
+
+| Router huérfano | Bloque | Prefijo | Consumidor | Estado |
+|---|---|---|---|---|
+| loneWorker, refuges, restrictedZones | B1 | sprint-k / zones | useLoneWorker/useRefuges/useRestrictedZones | ✅ B1-F1 |
+| evacuationHeadcount | B1 | `/api/evacuation` | useEvacuationHeadcount, EvacuationQRScanner | ✅ B1-F2 |
+| riskRanking, shiftRiskPanel | B2 | sprint-k | useRiskRanking (3 cards), useShiftRiskPanel | ✅ B2-F1 |
+| incidentFlow | B4 | sprint-k | useIncidentFlow | ⬜ (ojo: audit a path tenant-scoped, ver L795) |
+| stoppage | B4/B8 | sprint-k | useStoppage, StoppageMonitor.tsx | ⬜ |
+| legalObligations | B5 | sprint-k | useLegalCalendar/useLegalObligations | ⬜ |
+| eppFlow, equipmentQr, hazmatInventory | B10 | sprint-k | useEppFlow/useEquipmentQr/HazmatStorage | ⬜ |
+| syncStatus | B16 | sprint-k | useSyncStatus | ⬜ |
+| pymeOnboarding, pymeWizard | B17 | sprint-k | usePymeOnboarding/usePymeWizard | ⬜ |
+| reportsAutomation, safetyMetrics, projectComparator, predictiveAlerts | B18 | sprint-k | useReportsAutomation/useSafetyMetrics/useProjectComparator/usePredictiveAlerts | ⬜ |
+| preventionCost | B15 | sprint-k | usePreventionCost | ⬜ |
+
+Todos verificados: `verifyAuth` + `assertProjectMember` presentes; los que
+escriben auditan (helper o raw `audit_logs`). Cada uno se monta con su caso en
+`serverMountOrder.test.ts` (RED→GREEN) al llegar a su bloque.
+
 ---
 
 ### B1 — Emergencia & Respuesta · ✅ AUDITADO (2026-06-01)
@@ -1655,7 +1682,8 @@ B16 Offline/PWA/Capacitor · B17 Admin/Multi-tenant/Auth · B18 Analítica/Repor
 |---|---|---|
 | SOS | ✅ | `SOSButton` → `POST /api/sos` → Firestore + FCM + email fallback, rate-limited + audited; mount `server.ts` (`/api/emergency`, `emergencyRouter:895`) |
 | Evacuación + ruteo A* | ✅ | `src/server/routes/evacuation.ts` (Haversine + grid), mount `server.ts:1060` |
-| Headcount | ✅ | `evacuationHeadcount` con `runTransaction` (regla #19 OK) |
+| Headcount (stateless: compute-status/record-scan/end-drill/postmortem) | ✅ | `evacuation.ts` (mounted `:1073`) sobre el engine puro `services/evacuation/evacuationHeadcount.ts` |
+| Headcount CRUD persistente (start/scan-qr/status/end) | ❌→✅ | `routes/evacuationHeadcount.ts` **estaba huérfano** → **B1-F2** (consumido por `useEvacuationHeadcount`, `EvacuationQRScanner.tsx`) |
 | Drills/Comms/Contingency/First-responder | ✅ | mounts `/api/sprint-k` (drillsManager, commsDrill, contingencySimulation, firstResponderMap), todos con `verifyAuth` + `audit_logs` |
 | Lone-worker (HTTP) | ❌→✅ | `loneWorker.ts` (281 LOC) **estaba huérfano** → **B1-F1** |
 | Refuges (HTTP) | ❌→✅ | `refuges.ts` (169 LOC) **estaba huérfano** → **B1-F1** |
@@ -1676,6 +1704,14 @@ per-router no lo detectaban porque montan el router en un app fresco.
   import + mount + orden vs SPA catch-all para los 3 routers (3 fallan sin el
   fix, 9/9 pasan con él).
 - **Verificación:** `typecheck` 0 errores · `lint` 0 errors.
+
+**🔴 Bug B1-F2 (RESUELTO):** `routes/evacuationHeadcount.ts` (CRUD persistente,
+complementa el stateless `evacuation.ts`) **nunca montado** → el flujo de conteo
+por QR (`useEvacuationHeadcount`, `EvacuationQRScanner.tsx`) daba **404**. 0
+writes directos (vía adapter), 4 `auditServerEvent`, `assertProjectMember` +
+`verifyAuth`. Mount nuevo `/api/evacuation` (libre, sin colisión) + caso de
+contrato (RED→GREEN, 12/12). Corrige el veredicto inicial de B1 que daba
+"Headcount ✅" sin distinguir el surface stateless del CRUD.
 
 **Deferido a fase posterior (listado, no abordado):**
 - ⬜ B1-D1: el contrato de mount sólo cubre estos routers. Considerar un

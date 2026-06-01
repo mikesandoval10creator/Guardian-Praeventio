@@ -325,6 +325,10 @@ import firstResponderMapRouter from "./src/server/routes/firstResponderMap.js";
 import contractorsRouter from "./src/server/routes/contractors.js";
 // Evacuation headcount — Sprint 39 G.12 (QR-scan based + postmortem).
 import evacuationRouter from "./src/server/routes/evacuation.js";
+// Emergency block (B1) — persistent CRUD headcount surface (start/scan-qr/
+// status/end). Complements evacuation.ts (stateless); was orphaned → the
+// QR-scan headcount flow (useEvacuationHeadcount, EvacuationQRScanner) hit 404.
+import evacuationHeadcountRouter from "./src/server/routes/evacuationHeadcount.js";
 // Exception engine — Sprint 39 G.2 (controlled rule exceptions with validUntil).
 import exceptionsRouter from "./src/server/routes/exceptions.js";
 // Critical Controls — Sprint 39 I.2 (library + robustness + barriers + energy).
@@ -1071,6 +1075,8 @@ app.use('/api/sprint-k', escalationRouter);
 app.use('/api/sprint-k', firstResponderMapRouter);
 app.use('/api/sprint-k', contractorsRouter);
 app.use('/api/sprint-k', evacuationRouter);
+// B1 — headcount CRUD at /api/evacuation (paths /start, /scan-qr, /status, /end).
+app.use('/api/evacuation', evacuationHeadcountRouter);
 app.use('/api/sprint-k', exceptionsRouter);
 app.use('/api/sprint-k', criticalControlsRouter);
 app.use('/api/sprint-k', auditPortalRouter);
