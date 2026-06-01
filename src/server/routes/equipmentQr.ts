@@ -202,7 +202,7 @@ router.post(
         requiresPreUseChecklist: body.requiresPreUseChecklist,
       };
       const adapter = new EquipmentAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -254,7 +254,7 @@ router.get(
     }
     try {
       const adapter = new EquipmentAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -283,7 +283,7 @@ router.get(
     if (!g) return undefined;
     try {
       const adapter = new EquipmentAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -332,7 +332,7 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new EquipmentAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -456,7 +456,7 @@ router.get(
     const limitN = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, 200)) : 50;
     try {
       const adapter = new EquipmentAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );

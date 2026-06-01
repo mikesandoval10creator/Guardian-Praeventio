@@ -114,7 +114,7 @@ router.get(
     if (!g) return undefined;
     try {
       const adapter = new MicrotrainingAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -176,7 +176,7 @@ router.post(
         score,
       };
       const adapter = new MicrotrainingAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -220,7 +220,7 @@ router.get('/:projectId/microtraining/certs', verifyAuth, async (req, res) => {
   if (!g) return undefined;
   try {
     const adapter = new MicrotrainingAdapter(
-      admin.firestore() as any,
+      admin.firestore(),
       g.tenantId,
       projectId,
     );

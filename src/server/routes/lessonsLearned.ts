@@ -99,7 +99,7 @@ router.get('/:projectId/lessons', verifyAuth, async (req, res) => {
   const g = await guard(callerUid, projectId, res);
   if (!g) return undefined;
   try {
-    const adapter = new LessonsAdapter(admin.firestore() as any, g.tenantId);
+    const adapter = new LessonsAdapter(admin.firestore(), g.tenantId);
     const scope = typeof req.query.scope === 'string' ? req.query.scope : null;
     const riskCategory =
       typeof req.query.riskCategory === 'string'
@@ -153,7 +153,7 @@ router.post(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const adapter = new LessonsAdapter(admin.firestore() as any, g.tenantId);
+      const adapter = new LessonsAdapter(admin.firestore(), g.tenantId);
       await adapter.save(body);
       // Audit: canonical top-level `audit_logs` (actor stamped from the
       // verified token). Replaces a prior hand-rolled write to the

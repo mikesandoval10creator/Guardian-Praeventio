@@ -139,7 +139,7 @@ router.post(
         declaredByUid: callerUid,
       });
       const adapter = new OperationalChangeAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -184,7 +184,7 @@ router.get(
     if (!g) return undefined;
     try {
       const adapter = new OperationalChangeAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -229,7 +229,7 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new OperationalChangeAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -291,7 +291,7 @@ router.get(
           ? limitParam
           : 50;
       const adapter = new OperationalChangeAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -332,7 +332,7 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new OperationalChangeAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );

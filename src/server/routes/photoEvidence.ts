@@ -118,7 +118,7 @@ router.post(
         linkages: body.linkages,
       });
       const adapter = new PhotoEvidenceAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -169,7 +169,7 @@ router.get(
     if (!g) return undefined;
     try {
       const adapter = new PhotoEvidenceAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );
@@ -198,7 +198,7 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new PhotoEvidenceAdapter(
-        admin.firestore() as any,
+        admin.firestore(),
         g.tenantId,
         projectId,
       );

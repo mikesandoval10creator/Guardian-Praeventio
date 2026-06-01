@@ -96,7 +96,7 @@ router.get(
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
-      const events = await collectEvents(admin.firestore() as any, {
+      const events = await collectEvents(admin.firestore(), {
         projectId,
         tenantId: g.tenantId,
         lookbackDays: WINDOW_DAYS_MAP[window],

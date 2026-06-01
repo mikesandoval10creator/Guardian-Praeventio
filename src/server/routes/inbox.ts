@@ -78,12 +78,12 @@ router.get('/:projectId/inbox', verifyAuth, async (req, res) => {
     );
 
     const correctiveAdapter = new CorrectiveActionsAdapter(
-      admin.firestore() as any,
+      admin.firestore(),
       g.tenantId,
       projectId,
     );
     const sifAdapter = new SIFAdapter(
-      admin.firestore() as any,
+      admin.firestore(),
       g.tenantId,
       projectId,
     );
