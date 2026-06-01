@@ -1931,3 +1931,24 @@ nunca montados → `useEppFlow`, `useEquipmentQr`, `HazmatStorage.tsx` daban **4
 Todos `verifyAuth` + `assertProjectMember`, no stubs; los que escriben auditan;
 hazmat es superficie stateless offline-first (mismo patrón que loneWorker/
 readReceipts). Mount `/api/sprint-k` + 3 casos de contrato (RED→GREEN, 18/18).
+
+---
+
+### B11–B14 · ✅ AUDITADOS (2026-06-01) — todos REAL, sin huérfanos
+
+Verdict-pass (sin bugs de wiring; todos los routers montados, sin stubs
+disfrazados):
+
+- **B11 Contratistas/Visitas**: `contractors`, `visitors`, `vendorOnboarding`,
+  `consultativeSale`, `geofencePermissions` montados. ✅
+- **B12 CPHS/Comités**: `cphsMinute`, `organic`, `culturePulse`, `agenda`,
+  `meetingPack`, `raciMatrix` montados. ✅
+- **B13 MOC/Ops-críticas**: `operationalChange` (MOC), `shiftHandover`,
+  `changeMgmt`, `commute`, `continuity`, `criticalRoles` montados (cierra el gap
+  de PR #606). ✅
+- **B14 IA/Gemini/SLM**: `gemini` (whitelist `ALLOWED_GEMINI_ACTIONS` presente,
+  regla #5 ✅; los 3 `503` son **circuit-breaker** `gemini_circuit_open`, no
+  stubs), `aiToggle`, `aiGuardrails`, `aiQuality`, `explainability`, `coachRag`,
+  `aiFeedback`, `researchMode` montados. ✅
+
+**Sin fix necesario en B11–B14.**
