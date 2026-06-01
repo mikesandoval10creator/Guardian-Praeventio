@@ -39,6 +39,7 @@ import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -143,6 +144,12 @@ router.post(
         projectId,
       );
       await adapter.save(change);
+      await auditServerEvent(req, 'moc.declare', 'operationalChange', {
+        mocId: change.id,
+        kind: change.kind,
+        impact: change.impact,
+        affectedWorkerCount: change.affectedWorkerUids.length,
+      }, { projectId });
       return res.status(201).json({ change });
     } catch (err) {
       if (err instanceof ChangeValidationError) {
@@ -235,6 +242,10 @@ router.post(
 
       const updated = await adapter.addAcknowledgment(mocId, callerUid, ackedAt);
       if (!updated) return res.status(404).json({ error: 'moc_not_found' });
+      await auditServerEvent(req, 'moc.acknowledge', 'operationalChange', {
+        mocId,
+        ackedAt,
+      }, { projectId });
       return res.json({ change: updated });
     } catch (err) {
       if (err instanceof ChangeValidationError) {
@@ -358,6 +369,11 @@ router.post(
           },
           { merge: true },
         );
+      await auditServerEvent(req, 'moc.close', 'operationalChange', {
+        mocId,
+        implementedAt: closedAt,
+        closingNote: body.closingNote ?? null,
+      }, { projectId });
       return res.json({
         ok: true,
         mocId,

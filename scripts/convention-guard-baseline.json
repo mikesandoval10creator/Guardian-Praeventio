@@ -16,7 +16,6 @@
     "dataQuality": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "documentVersioning": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "drillsManager": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "drivingSafety": "[HIGH] DS44 routes/alerts/journeys — Ola3",
     "emergencyBrigade": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "engineeringControls": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "equipment": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
@@ -25,14 +24,12 @@
     "inbox": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "incidentTrends": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "knowledgeBase": "[#19] use-count + flag-obsolete update — Ola4",
-    "legalObligations": "[HIGH] SUSESO/mutual deadlines (acknowledge/snooze) — Ola3",
     "lessonsLearned": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "loto": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "microtraining": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "misc": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "offlineInspections": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "openapi": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "operationalChange": "[HIGH] MOC DS132/ISO45001 §8.1.3 (declare/ack/close) — Ola3",
     "pdca": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "photoEvidence": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "portableHistory": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
@@ -53,8 +50,5 @@
     "wisdomCapsule": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "workerReadiness": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)"
   },
-  "rule19_pending": {
-    "knowledgeBase": "/use + /flag-obsolete: get->update same ref",
-    "apprenticeship": "/expose: get(apprenticeRef)->set(apprenticeRef) (authorize already wrapped)"
-  }
+  "rule19_pending": {}
 }

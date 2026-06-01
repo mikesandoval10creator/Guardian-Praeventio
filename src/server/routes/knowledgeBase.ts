@@ -303,14 +303,19 @@ router.post(
         .collection('knowledge_base')
         .doc(id);
 
-      const snap = await docRef.get();
-      if (!snap.exists) return res.status(404).json({ error: 'not_found' });
-
-      await docRef.update({
-        viewCount: admin.firestore.FieldValue.increment(1),
-        lastReviewedAt: new Date().toISOString(),
-        lastUsedAt: new Date().toISOString(),
+      // CLAUDE.md #19: get + update on the same doc must be atomic.
+      type R = { kind: 'not_found' } | { kind: 'ok' };
+      const result = await db.runTransaction<R>(async (txn) => {
+        const snap = await txn.get(docRef);
+        if (!snap.exists) return { kind: 'not_found' };
+        txn.update(docRef, {
+          viewCount: admin.firestore.FieldValue.increment(1),
+          lastReviewedAt: new Date().toISOString(),
+          lastUsedAt: new Date().toISOString(),
+        });
+        return { kind: 'ok' };
       });
+      if (result.kind === 'not_found') return res.status(404).json({ error: 'not_found' });
       return res.status(204).end();
     } catch (err) {
       logger.error?.('knowledgeBase.use.error', err);
@@ -342,15 +347,19 @@ router.post(
         .collection('knowledge_base')
         .doc(id);
 
-      const snap = await docRef.get();
-      if (!snap.exists) return res.status(404).json({ error: 'not_found' });
-
-      await docRef.update({
-        isObsolete: true,
-        obsoleteReason: body.reason,
-        obsoleteAt: new Date().toISOString(),
-        obsoleteByUid: callerUid,
+      type R = { kind: 'not_found' } | { kind: 'ok' };
+      const result = await db.runTransaction<R>(async (txn) => {
+        const snap = await txn.get(docRef);
+        if (!snap.exists) return { kind: 'not_found' };
+        txn.update(docRef, {
+          isObsolete: true,
+          obsoleteReason: body.reason,
+          obsoleteAt: new Date().toISOString(),
+          obsoleteByUid: callerUid,
+        });
+        return { kind: 'ok' };
       });
+      if (result.kind === 'not_found') return res.status(404).json({ error: 'not_found' });
       return res.status(204).end();
     } catch (err) {
       logger.error?.('knowledgeBase.flagObsolete.error', err);

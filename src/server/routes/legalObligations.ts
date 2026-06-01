@@ -43,6 +43,7 @@ import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -266,6 +267,11 @@ router.post(
           projectId,
         });
       }
+      await auditServerEvent(req, 'legalCalendar.acknowledge', 'legalCalendar', {
+        obligationId: body.obligation.id,
+        kind: body.obligation.kind,
+        nextDueAt: next.nextDueAt,
+      }, { projectId });
       return res.json({ obligation: next });
     } catch (err) {
       logger.error?.('legalCalendar.acknowledge.error', err);
@@ -337,6 +343,13 @@ router.post(
           projectId,
         });
       }
+      await auditServerEvent(req, 'legalCalendar.snooze', 'legalCalendar', {
+        obligationId: body.obligation.id,
+        kind: body.obligation.kind,
+        snoozeDays: body.days,
+        reason: body.reason,
+        nextDueAt: next.nextDueAt,
+      }, { projectId });
       return res.json({ obligation: next });
     } catch (err) {
       logger.error?.('legalCalendar.snooze.error', err);
