@@ -1,37 +1,32 @@
 // SPDX-License-Identifier: MIT
-// Praeventio Guard — Plan v2 B2 (2026-05-26).
+// Praeventio Guard — WebAuthn compliance signing client (DS 67 / DS 76 / SUSESO).
 //
-// Helper de firma WebAuthn para los compliance builders DS 67 / DS 76 /
-// SUSESO. Reemplaza el literal `'STUB_REPLACE_WITH_WEBAUTHN_ASSERTION'`
-// que vivía hardcoded en 3 components.
+// Full client ceremony for the HARDENED server sign flow:
+//   1. GET <signChallengeUrl> → { challengeId, challenge } — a server-issued,
+//      single-use challenge stored in `webauthn_challenges`.
+//   2. navigator.credentials.get({ challenge }) → biometric assertion.
+//   3. Return the form `signature` block PLUS the complete `webauthnAssertion`
+//      (credentialId, rawId, clientDataJSON, authenticatorData, signature,
+//      clientExtensionResults) so the server runs `verifyWebAuthnAssertion`
+//      end-to-end (consume challenge + crypto verify + counter monotonicity)
+//      before persisting.
 //
-// Estrategia simple: usa el `payloadHashHex` (SHA-256 del payload del
-// form generado por el server) directamente como WebAuthn challenge.
-// El authenticator firma `clientDataJSON || authenticatorData`, donde
-// clientDataJSON incluye el challenge re-codificado — cualquier verifier
-// puede chequear que la firma corresponde al payload exacto.
-//
-// **Bug pre-existente NO cerrado por este PR:** los endpoints server
-// `/api/compliance/ds76/:formId/sign`, `/api/compliance/ds67/:formId/sign`
-// y `/api/suseso/.../sign` aceptan el `signatureB64` sin verificarlo
-// criptográficamente — solo lo persisten en Firestore. Esto significa
-// que un atacante con credenciales válidas (ya autenticado) podría enviar
-// cualquier base64 string. Issue para PR separado:
-//
-//   1. Negociar challenge server-side (igual que sitebookSign hace via
-//      `storeWebAuthnChallenge` + `deriveSigningChallenge`).
-//   2. Verificar la assertion con `@simplewebauthn/server` antes de
-//      persistir.
-//   3. Atomicamente consumir el challenge (anti-replay).
-//
-// Este PR cierra el lado cliente (el STUB hardcoded era visible incluso
-// en producción: el signatureB64 era el string literal). El refactor
-// server-side queda como follow-up.
+// Supersedes the prior version that signed `payloadHashHex` directly and
+// returned ONLY `signatureB64`. That version is rejected by the hardened
+// endpoints, which now require the full assertion for
+// algorithm=webauthn-ecdsa-p256 (the suseso/ds67/ds76 sign routes). Until this
+// the server accepted any base64 string as a "signature" — see §2.9.
 
-import { bufferToBase64url, isWebAuthnSupported, WebAuthnCancelledError, WebAuthnNotSupportedError } from './webauthnClient';
+import {
+  bufferToBase64url,
+  isWebAuthnSupported,
+  WebAuthnCancelledError,
+  WebAuthnNotSupportedError,
+} from './webauthnClient';
 
 export type ComplianceSignAlgorithm = 'webauthn-ecdsa-p256' | 'kms-sign-rsa';
 
+/** The form `signature` block persisted on the DS/SUSESO document. */
 export interface ComplianceSignature {
   signerUid: string;
   signerRut: string;
@@ -41,46 +36,82 @@ export interface ComplianceSignature {
   payloadHashHex: string;
 }
 
-function hexToBytes(hex: string): Uint8Array {
-  if (!/^[0-9a-fA-F]+$/.test(hex) || hex.length % 2 !== 0) {
-    throw new Error('payloadHashHex inválido');
-  }
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
+/** The full WebAuthn assertion the server verifies (`verifyWebAuthnAssertion`). */
+export interface ComplianceWebAuthnAssertion {
+  challengeId: string;
+  credentialId: string;
+  rawId: string;
+  clientDataJSON: string;
+  authenticatorData: string;
+  signature: string;
+  type: 'public-key';
+  clientExtensionResults: Record<string, unknown>;
+}
+
+export interface ComplianceSignResult {
+  /** Goes into the POST body's `signature` field. */
+  signature: ComplianceSignature;
+  /** Goes into the POST body's `webauthnAssertion` field. */
+  webauthnAssertion: ComplianceWebAuthnAssertion;
+}
+
+interface SignChallengeResponse {
+  challengeId: string;
+  /** base64 (standard) of the 32 server-issued challenge bytes. */
+  challenge: string;
+  rpId?: string;
+}
+
+/** Decode base64 / base64url to bytes (browser-safe, no Buffer). */
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
 
 /**
- * Ejecuta la ceremonia WebAuthn `navigator.credentials.get()` usando
- * el `payloadHashHex` como challenge y retorna la signature lista para
- * enviar al endpoint server `/sign`.
+ * Run the WebAuthn signing ceremony against a SERVER-issued challenge and
+ * return the form `signature` block + the full `webauthnAssertion` for
+ * server-side verification.
  *
- * @throws WebAuthnNotSupportedError — browser sin platform authenticator + sin security key.
- * @throws WebAuthnCancelledError — el usuario dismisseó el prompt nativo.
+ * @throws WebAuthnNotSupportedError — no platform authenticator / security key.
+ * @throws WebAuthnCancelledError — the user dismissed the native prompt.
+ * @throws Error — the sign-challenge endpoint failed or returned a bad body.
  */
 export async function requestComplianceSignature(
   payloadHashHex: string,
   signerUid: string,
   signerRut: string,
-): Promise<ComplianceSignature> {
+  opts: { signChallengeUrl: string; authHeader: string | null },
+): Promise<ComplianceSignResult> {
   if (!isWebAuthnSupported()) {
     throw new WebAuthnNotSupportedError();
   }
 
-  const challenge = hexToBytes(payloadHashHex);
+  // 1. Fetch a single-use, server-stored challenge bound to this signing
+  //    session (consumed atomically by verifyWebAuthnAssertion afterwards).
+  const chRes = await fetch(opts.signChallengeUrl, {
+    method: 'GET',
+    headers: opts.authHeader ? { Authorization: opts.authHeader } : undefined,
+  });
+  if (!chRes.ok) {
+    throw new Error(`sign-challenge failed (HTTP ${chRes.status})`);
+  }
+  const { challengeId, challenge } = (await chRes.json()) as SignChallengeResponse;
+  if (!challengeId || !challenge) {
+    throw new Error('sign-challenge returned an incomplete response');
+  }
+  const challengeBytes = base64ToBytes(challenge);
 
+  // 2. Biometric ceremony bound to the server challenge.
   let credential: PublicKeyCredential | null;
   try {
     credential = (await navigator.credentials.get({
       publicKey: {
-        challenge: challenge as unknown as BufferSource,
-        // Empty allowCredentials → el browser muestra todos los
-        // authenticators registrados para este origin. Si en el futuro
-        // queremos filtrar por user (defense-in-depth si el browser
-        // expone múltiples cuentas), agregar un endpoint server que
-        // retorne credentialIds del uid logueado (ver sitebookSign.ts:174).
+        challenge: challengeBytes as unknown as BufferSource,
+        // Empty allowCredentials → the browser offers every authenticator
+        // registered for this origin (mirrors sitebookSign's behaviour).
         allowCredentials: [],
         userVerification: 'preferred',
         timeout: 60_000,
@@ -100,11 +131,24 @@ export async function requestComplianceSignature(
   const signatureB64 = bufferToBase64url(response.signature);
 
   return {
-    signerUid,
-    signerRut,
-    signedAt: new Date().toISOString(),
-    algorithm: 'webauthn-ecdsa-p256',
-    signatureB64,
-    payloadHashHex,
+    signature: {
+      signerUid,
+      signerRut,
+      signedAt: new Date().toISOString(),
+      algorithm: 'webauthn-ecdsa-p256',
+      signatureB64,
+      payloadHashHex,
+    },
+    webauthnAssertion: {
+      challengeId,
+      credentialId: credential.id,
+      rawId: bufferToBase64url(credential.rawId),
+      clientDataJSON: bufferToBase64url(response.clientDataJSON),
+      authenticatorData: bufferToBase64url(response.authenticatorData),
+      signature: signatureB64,
+      type: 'public-key',
+      clientExtensionResults:
+        credential.getClientExtensionResults() as Record<string, unknown>,
+    },
   };
 }

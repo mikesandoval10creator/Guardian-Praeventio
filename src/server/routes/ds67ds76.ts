@@ -160,6 +160,25 @@ const signSchema = z.object({
     signatureB64: z.string().min(1),
     payloadHashHex: z.string().regex(/^[0-9a-f]{64}$/),
   }),
+  // §2.9 (2026-06-01): full WebAuthn assertion. When
+  // algorithm === 'webauthn-ecdsa-p256' these fields are REQUIRED and the
+  // server runs the end-to-end ceremony (challenge consume + crypto verify +
+  // counter monotonicity) before persisting. Previously a shape-valid
+  // signatureB64 was persisted with NO cryptographic verification — any
+  // authenticated user could POST an arbitrary base64 string. Mirrors the
+  // hardened suseso.ts sign flow.
+  webauthnAssertion: z
+    .object({
+      challengeId: z.string().min(1),
+      credentialId: z.string().min(1),
+      rawId: z.string().min(1),
+      clientDataJSON: z.string().min(1),
+      authenticatorData: z.string().min(1),
+      signature: z.string().min(1),
+      type: z.literal('public-key'),
+      clientExtensionResults: z.record(z.string(), z.unknown()).default({}),
+    })
+    .optional(),
 });
 
 // ─── DS 67 ──────────────────────────────────────────────────────────────────
@@ -227,23 +246,107 @@ router.get('/ds67/:formId/pdf', verifyAuth, async (req, res) => {
   }
 });
 
+// §2.9 — issue a single-use WebAuthn challenge for signing this DS-67 form.
+// The client passes the returned challengeId back to /sign after the
+// biometric ceremony; verifyWebAuthnAssertion consumes it atomically.
+router.get('/ds67/:formId/sign-challenge', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  try {
+    const { generateWebAuthnChallenge, storeWebAuthnChallenge } = await import(
+      '../../services/auth/webauthnChallenge.js'
+    );
+    const { buildWebAuthnDb } = await import('./curriculum.js');
+    const { challengeId, challenge } = generateWebAuthnChallenge();
+    await storeWebAuthnChallenge(callerUid, challengeId, challenge, buildWebAuthnDb());
+    res.json({
+      challengeId,
+      challenge: Buffer.from(challenge).toString('base64'),
+      formId: req.params.formId,
+      rpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+    });
+  } catch (err) {
+    logger.error('ds67_sign_challenge_failed', { err: String(err) });
+    res.status(500).json({ error: 'ds67_sign_challenge_failed' });
+  }
+});
+
 router.post(
   '/ds67/:formId/sign',
   verifyAuth,
   validate(signSchema),
   async (req, res) => {
-    const { tenantId, signature } = req.validated as z.infer<typeof signSchema>;
+    const { tenantId, signature, webauthnAssertion } =
+      req.validated as z.infer<typeof signSchema>;
+    const callerUid = req.user!.uid;
     try {
+      // §2.9 — when the signature claims WebAuthn, run the full ceremony
+      // before persisting. A shape-valid signatureB64 is NOT trusted on its
+      // own (any authenticated user could POST arbitrary base64).
+      if (signature.algorithm === 'webauthn-ecdsa-p256') {
+        if (!webauthnAssertion) {
+          return res.status(400).json({
+            error: 'ds67_sign_webauthn_assertion_required',
+            detail:
+              'algorithm=webauthn-ecdsa-p256 requires a webauthnAssertion (challengeId/credentialId/clientDataJSON/authenticatorData/signature/rawId/type)',
+          });
+        }
+        if (signature.signerUid !== callerUid) {
+          return res.status(403).json({
+            error: 'ds67_sign_uid_mismatch',
+            detail: 'signerUid does not match the authenticated user',
+          });
+        }
+        const { verifyWebAuthnAssertion } = await import('../auth/webauthnAssertion.js');
+        const { buildWebAuthnDb, buildWebAuthnCredentialsDb } = await import('./curriculum.js');
+        const verdict = await verifyWebAuthnAssertion({
+          uid: callerUid,
+          credentialId: webauthnAssertion.credentialId,
+          rawId: webauthnAssertion.rawId,
+          clientDataJSON: webauthnAssertion.clientDataJSON,
+          authenticatorData: webauthnAssertion.authenticatorData,
+          signature: webauthnAssertion.signature,
+          clientExtensionResults: webauthnAssertion.clientExtensionResults,
+          type: webauthnAssertion.type,
+          challengeId: webauthnAssertion.challengeId,
+          expectedOrigin: process.env.APP_BASE_URL ?? 'http://localhost:5173',
+          expectedRpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+          challengesDb: buildWebAuthnDb(),
+          credentialsDb: buildWebAuthnCredentialsDb(),
+        });
+        if (!verdict.verified) {
+          logger.warn('ds67_form_sign_webauthn_failed', {
+            uid: callerUid,
+            formId: req.params.formId,
+            reason: verdict.reason,
+          });
+          return res.status(401).json({
+            error: 'ds67_sign_webauthn_failed',
+            reason: verdict.reason,
+          });
+        }
+      }
       const updated = await signDs67Form(
         tenantId,
         req.params.formId,
         signature as Ds67Signature,
         { formStore: buildDs67FormStore() },
       );
-      res.json({ form: updated });
+      const auditOk = await auditServerEvent(req, 'compliance.ds67_signed', 'compliance', {
+        tenantId,
+        formId: req.params.formId,
+        algorithm: signature.algorithm,
+        webauthnVerified: signature.algorithm === 'webauthn-ecdsa-p256',
+      });
+      if (!auditOk) {
+        captureRouteError(new Error('audit_write_failed'), 'ds67.audit', {
+          audit_event: 'compliance.ds67_signed',
+          formId: req.params.formId,
+        });
+      }
+      return res.json({ form: updated });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'unknown';
-      res.status(400).json({ error: 'ds67_sign_failed', detail: msg });
+      return res.status(400).json({ error: 'ds67_sign_failed', detail: msg });
     }
   },
 );
@@ -308,23 +411,103 @@ router.get('/ds76/:formId/pdf', verifyAuth, async (req, res) => {
   }
 });
 
+// §2.9 — single-use WebAuthn challenge for signing this DS-76 form.
+router.get('/ds76/:formId/sign-challenge', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  try {
+    const { generateWebAuthnChallenge, storeWebAuthnChallenge } = await import(
+      '../../services/auth/webauthnChallenge.js'
+    );
+    const { buildWebAuthnDb } = await import('./curriculum.js');
+    const { challengeId, challenge } = generateWebAuthnChallenge();
+    await storeWebAuthnChallenge(callerUid, challengeId, challenge, buildWebAuthnDb());
+    res.json({
+      challengeId,
+      challenge: Buffer.from(challenge).toString('base64'),
+      formId: req.params.formId,
+      rpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+    });
+  } catch (err) {
+    logger.error('ds76_sign_challenge_failed', { err: String(err) });
+    res.status(500).json({ error: 'ds76_sign_challenge_failed' });
+  }
+});
+
 router.post(
   '/ds76/:formId/sign',
   verifyAuth,
   validate(signSchema),
   async (req, res) => {
-    const { tenantId, signature } = req.validated as z.infer<typeof signSchema>;
+    const { tenantId, signature, webauthnAssertion } =
+      req.validated as z.infer<typeof signSchema>;
+    const callerUid = req.user!.uid;
     try {
+      // §2.9 — full WebAuthn ceremony before persisting a webauthn signature.
+      if (signature.algorithm === 'webauthn-ecdsa-p256') {
+        if (!webauthnAssertion) {
+          return res.status(400).json({
+            error: 'ds76_sign_webauthn_assertion_required',
+            detail:
+              'algorithm=webauthn-ecdsa-p256 requires a webauthnAssertion (challengeId/credentialId/clientDataJSON/authenticatorData/signature/rawId/type)',
+          });
+        }
+        if (signature.signerUid !== callerUid) {
+          return res.status(403).json({
+            error: 'ds76_sign_uid_mismatch',
+            detail: 'signerUid does not match the authenticated user',
+          });
+        }
+        const { verifyWebAuthnAssertion } = await import('../auth/webauthnAssertion.js');
+        const { buildWebAuthnDb, buildWebAuthnCredentialsDb } = await import('./curriculum.js');
+        const verdict = await verifyWebAuthnAssertion({
+          uid: callerUid,
+          credentialId: webauthnAssertion.credentialId,
+          rawId: webauthnAssertion.rawId,
+          clientDataJSON: webauthnAssertion.clientDataJSON,
+          authenticatorData: webauthnAssertion.authenticatorData,
+          signature: webauthnAssertion.signature,
+          clientExtensionResults: webauthnAssertion.clientExtensionResults,
+          type: webauthnAssertion.type,
+          challengeId: webauthnAssertion.challengeId,
+          expectedOrigin: process.env.APP_BASE_URL ?? 'http://localhost:5173',
+          expectedRpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+          challengesDb: buildWebAuthnDb(),
+          credentialsDb: buildWebAuthnCredentialsDb(),
+        });
+        if (!verdict.verified) {
+          logger.warn('ds76_form_sign_webauthn_failed', {
+            uid: callerUid,
+            formId: req.params.formId,
+            reason: verdict.reason,
+          });
+          return res.status(401).json({
+            error: 'ds76_sign_webauthn_failed',
+            reason: verdict.reason,
+          });
+        }
+      }
       const updated = await signDs76Form(
         tenantId,
         req.params.formId,
         signature as Ds76Signature,
         { formStore: buildDs76FormStore() },
       );
-      res.json({ form: updated });
+      const auditOk = await auditServerEvent(req, 'compliance.ds76_signed', 'compliance', {
+        tenantId,
+        formId: req.params.formId,
+        algorithm: signature.algorithm,
+        webauthnVerified: signature.algorithm === 'webauthn-ecdsa-p256',
+      });
+      if (!auditOk) {
+        captureRouteError(new Error('audit_write_failed'), 'ds76.audit', {
+          audit_event: 'compliance.ds76_signed',
+          formId: req.params.formId,
+        });
+      }
+      return res.json({ form: updated });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'unknown';
-      res.status(400).json({ error: 'ds76_sign_failed', detail: msg });
+      return res.status(400).json({ error: 'ds76_sign_failed', detail: msg });
     }
   },
 );
