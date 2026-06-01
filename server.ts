@@ -127,6 +127,10 @@ import complianceEmitRouter from "./src/server/routes/complianceEmit.js";
 import dteRouter from "./src/server/routes/dte.js";
 // Sprint 24 Bucket KK — onboarding wizard endpoint.
 import onboardingRouter from "./src/server/routes/onboarding.js";
+// Admin/onboarding block (B17) — pyme onboarding maturity + plan wizard were
+// orphaned; consumers usePymeOnboarding / usePymeWizard hit 404.
+import pymeOnboardingRouter from "./src/server/routes/pymeOnboarding.js";
+import pymeWizardRouter from "./src/server/routes/pymeWizard.js";
 // Sprint 39 PASO 2 — Wire UI bridge routes (persistence layer + insights).
 import sitebookRouter from "./src/server/routes/sitebook.js";
 import insightsRouter from "./src/server/routes/insights.js";
@@ -1097,6 +1101,9 @@ app.use('/api/sprint-k', criticalRolesRouter);
 app.use('/api/sprint-k', nonConformityRouter);
 app.use('/api/sprint-k', changeMgmtRouter);
 app.use('/api/sprint-k', adoptionRouter);
+// B17 — PyME onboarding maturity + plan wizard.
+app.use('/api/sprint-k', pymeOnboardingRouter);
+app.use('/api/sprint-k', pymeWizardRouter);
 app.use('/api/sprint-k', agendaRouter);
 app.use('/api/sprint-k', consistencyRouter);
 app.use('/api/sprint-k', costCalculatorRouter);

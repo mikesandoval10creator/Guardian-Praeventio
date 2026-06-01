@@ -1983,3 +1983,22 @@ checks `RANK_`/`subscription.planId` en `subscription.ts`, `billing.ts`,
 
 **🔴 Bug B16-F1 (RESUELTO):** `syncStatus.ts` nunca montado → `useSyncStatus`
 daba **404**. Mount `/api/sprint-k` + contrato (RED→GREEN, 20/20).
+
+---
+
+### B17 — Admin / Multi-tenant / Auth / RBAC / Audit · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Stack admin/auth sólido; 2 huérfanos montados.
+
+| Aspecto | Estado | Evidencia |
+|---|---|---|
+| admin (×4) / b2dAdmin / oauthGoogle (×2) / adminJobs | ✅ | montados |
+| audit (×3) / auditChain / auditPortal | ✅ | montados (trail de cumplimiento) |
+| Firestore default-deny | ✅ | `firestore.rules` con catch-all `match /{document=**}` + denies |
+| pymeOnboarding (maturity) | ❌→✅ | huérfano → **B17-F1** |
+| pymeWizard (build-plan) | ❌→✅ | huérfano → **B17-F1** |
+
+**🔴 Bug B17-F1 (RESUELTO):** `pymeOnboarding.ts` y `pymeWizard.ts` nunca montados
+→ `usePymeOnboarding` / `usePymeWizard` (+ `PymeMaturityWizard.tsx`) daban **404**.
+Stateless, `verifyAuth` + `assertProjectMember`. Mount `/api/sprint-k` + 2
+contratos (RED→GREEN, 22/22).

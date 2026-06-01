@@ -195,6 +195,17 @@ describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
       importRe: /import\s+syncStatusRouter\s+from\s+['"`][^'"`]*syncStatus(\.js)?['"`]/,
       mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*syncStatusRouter/,
     },
+    // B17 admin-block audit (2026-06-01): pyme onboarding + wizard orphaned.
+    {
+      name: 'pymeOnboarding (/:projectId/pyme-onboarding/*) under /api/sprint-k',
+      importRe: /import\s+pymeOnboardingRouter\s+from\s+['"`][^'"`]*pymeOnboarding(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*pymeOnboardingRouter/,
+    },
+    {
+      name: 'pymeWizard (/:projectId/pyme-wizard/*) under /api/sprint-k',
+      importRe: /import\s+pymeWizardRouter\s+from\s+['"`][^'"`]*pymeWizard(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*pymeWizardRouter/,
+    },
   ];
 
   it('declares the SPA catch-all (sanity)', () => {
