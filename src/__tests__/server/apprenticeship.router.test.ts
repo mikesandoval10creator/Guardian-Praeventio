@@ -277,6 +277,19 @@ describe('POST /api/sprint-k/:projectId/apprentices', () => {
     expect(res.status).toBe(201);
     expect((res.body as { ok: boolean }).ok).toBe(true);
   });
+
+  it('500 (fail-closed) when the mentor-load read fails — never silently skips the cap', async () => {
+    // A transient Firestore error on the load read must NOT fall through to a
+    // successful registration (that would bypass the 3-mentee cap). It must
+    // 500, and the apprentice doc must NOT be written.
+    H.db!._failReads(apprenticeCol);
+    const res = await request(buildApp())
+      .post(`/api/sprint-k/${PROJECT_ID}/apprentices`)
+      .set('x-test-uid', MENTOR_UID)
+      .send({ uid: 'w-readfail', mentorUid: MENTOR_UID, role: 'aprendiz', startDate: '2026-01-15' });
+    expect(res.status).toBe(500);
+    expect(H.db!._dump()[`${apprenticeCol}/w-readfail`]).toBeUndefined();
+  });
 });
 
 // ── POST /:projectId/apprentices/:uid/authorize ───────────────────────────────
@@ -617,6 +630,16 @@ describe('GET /api/sprint-k/:projectId/mentors/availability', () => {
     const body = res.body as { mentors: unknown[]; maxLoad: number };
     expect(body.mentors).toEqual([]);
     expect(body.maxLoad).toBe(3);
+  });
+
+  it('500 (fail-closed) when the apprentices read fails — does not fabricate "all available"', async () => {
+    // A read error must surface as 500, not a fabricated empty list that would
+    // report every mentor as available (load 0) and invite over-the-cap assigns.
+    H.db!._failReads(apprenticeCol);
+    const res = await request(buildApp())
+      .get(`/api/sprint-k/${PROJECT_ID}/mentors/availability`)
+      .set('x-test-uid', MENTOR_UID);
+    expect(res.status).toBe(500);
   });
 
   it('200 returns availability sorted: available first, then by load ascending', async () => {

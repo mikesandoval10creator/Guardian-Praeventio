@@ -163,13 +163,16 @@ router.post(
         .collection(`tenants/${g.tenantId}/projects/${projectId}/apprentices`)
         .doc(body.uid);
 
-      // §245 — mentor load cap: 3 simultáneos máximo.
+      // §245 — mentor load cap: 3 simultáneos máximo. Do NOT swallow this
+      // read: a fail-open `.catch(() => null)` would SKIP the cap on a
+      // transient Firestore error → silent mentor over-assignment. Let the
+      // error propagate to the outer catch → 500, so the write below never
+      // runs on an unverifiable load (fail-closed).
       const currentLoadSnap = await db
         .collection(`tenants/${g.tenantId}/projects/${projectId}/apprentices`)
         .where('mentorUid', '==', body.mentorUid)
-        .get()
-        .catch(() => null);
-      if (currentLoadSnap && currentLoadSnap.size >= 3) {
+        .get();
+      if (currentLoadSnap.size >= 3) {
         const alreadyAssigned = currentLoadSnap.docs.some((d) => d.id === body.uid);
         if (!alreadyAssigned) {
           return res.status(409).json({
@@ -447,17 +450,19 @@ router.get('/:projectId/mentors/availability', verifyAuth, async (req, res) => {
   if (!g) return undefined;
   try {
     const db = admin.firestore();
+    // Do NOT swallow this read with `.catch(() => null)`: fabricating an
+    // empty list would report every mentor as "available, load 0" on a
+    // Firestore error and invite assignments that exceed the cap. Let it
+    // propagate to the outer catch → 500 (an honest "couldn't load" the
+    // client can retry) rather than degrade silently to wrong data.
     const snap = await db
       .collection(`tenants/${g.tenantId}/projects/${projectId}/apprentices`)
       .limit(500)
-      .get()
-      .catch(() => null);
-    const apprentices = snap
-      ? snap.docs.map((d) => ({
-          ...(d.data() as Omit<StoredApprentice, 'workerUid'>),
-          workerUid: d.id,
-        }))
-      : [];
+      .get();
+    const apprentices = snap.docs.map((d) => ({
+      ...(d.data() as Omit<StoredApprentice, 'workerUid'>),
+      workerUid: d.id,
+    }));
 
     const byMentor = new Map<
       string,
