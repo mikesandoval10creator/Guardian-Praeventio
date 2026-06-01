@@ -5,7 +5,7 @@
 // imperative mutators for each POST step. Returns refetch handles so the
 // UI can refresh the status overview after each step.
 
-import { auth } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import { useEndpoint } from './_fetchUtils';
 import type { PdcaStatus } from '../services/zettelkasten/flows/incidentLessonTrainingFlow';
 
@@ -90,13 +90,11 @@ export interface StatusResponse {
 }
 
 async function authedPost(path: string, body: unknown): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
   return fetch(path, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
     body: JSON.stringify(body),
   });

@@ -5,7 +5,7 @@
 // Endpoint base: `/api/sprint-k/:projectId/hazmat/...` mirrors the existing
 // /api/sprint-k mount used by readReceipts + loneWorker.
 
-import { auth } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import type {
   HazmatItem,
   CompatibilityIssue,
@@ -16,14 +16,12 @@ async function authedFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }

@@ -1,7 +1,7 @@
 // Praeventio Guard — Risk Ranking client hook (4 mutators + 3 React hook stubs).
 
 import { useState, useEffect, useCallback } from 'react';
-import { auth } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import type {
   RiskRecord,
   ControlRecord,
@@ -14,14 +14,12 @@ async function authedFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }

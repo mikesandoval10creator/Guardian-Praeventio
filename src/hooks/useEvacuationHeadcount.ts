@@ -22,7 +22,8 @@ import {
   onSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
-import { auth, db } from '../services/firebase';
+import { db } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import type {
   EvacuationDrill,
   EvacuationStatus,
@@ -38,14 +39,12 @@ async function authedFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }

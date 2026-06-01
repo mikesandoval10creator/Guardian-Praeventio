@@ -339,7 +339,23 @@ Los 394 tests fallidos previos fueron arreglados entre 2026-05-15 y 2026-05-19, 
 
 **Restantes 5 specs:** ver §2.21 — requieren `apiAuthHeader()` adopción (§2.20) + ProjectContext/Firestore emulator setup.
 
-### 2.20 🟡 Fetch wrappers — getE2EAuthHeader nunca se usaba (DESCUBIERTO 2026-05-21)
+### 2.20 ✅ Fetch wrappers — apiAuthHeader migración COMPLETA (CERRADO 2026-06-01)
+
+**CIERRE 2026-06-01:** migración incremental completada. **30 hooks/components** migrados de
+`Bearer ${await user.getIdToken()}` hand-rolled a `...(await apiAuthHeaders())` (ola de 6
+subagentes paralelos + verificación central). **3 callers correctamente NO migrados**
+(criterio verificado, no blind sweep — regla `feedback_no_blind_sweeps`):
+`useInvoicePolling.ts` (DI pattern: el token controla retry/prefix logic, no solo el header),
+`usePushNotifications.ts` (DI deps + `auth.currentUser` aún usado para el Firestore mirror),
+`WebAuthnKeysSection.tsx` (ya usaba `apiAuthHeaderOrThrow`). `firebase.ts:notifyServerLogout`
+ya migrado en #455. **Verificado:** `typecheck:ci` 0 · `apiAuth.test` 12/12 · `useStreamedGuardian.test`
+7/7 (la migración más compleja: `Object.assign` + helper local borrado + streaming preservado) ·
+lint limpio. Net **−71 LOC**. Grep de callers `Bearer ${...getIdToken}` restantes = solo
+helper/E2E-source/DI legítimos. El path E2E full-stack `/api/*` ahora envía el header `E2E ...`
+correcto en MODE=test (el blocker de 401 silencioso del §2.19 queda cerrado para las llamadas
+`/api`; las queries client-SDK Firestore son el §2.24 aparte).
+
+**[histórico — hallazgo original]**
 
 **Hallazgo durante audit §2.19:** 20+ archivos en `src/services/` + `src/pages/` + `src/hooks/` construyen el header `Authorization` manualmente con `await user.getIdToken()` + `Bearer ${token}`. PERO ningún caller checkea `getE2EAuthHeader()` PRIMERO. El backend `verifyAuth.ts:67` SÍ acepta el formato `E2E <secret>:<uid>` cuando `E2E_MODE=1`, pero el frontend nunca lo envía → requests autenticados en E2E full-stack reciben 401 silencioso.
 
@@ -350,7 +366,9 @@ Los 394 tests fallidos previos fueron arreglados entre 2026-05-15 y 2026-05-19, 
 - `src/lib/apiAuth.test.ts` (NEW, 12 tests).
 - `src/services/firebase.ts:notifyServerLogout` — primera migración proof-of-concept.
 
-**Pendiente migración incremental:** 19 callers restantes — billingService, gamificationService, geminiService, auditService, etc. Pattern replicable: cambiar `Bearer ${idToken}` por `apiAuthHeader()` que devuelve string completo con prefijo correcto.
+**~~Pendiente migración incremental: 19 callers restantes~~ → COMPLETADO 2026-06-01** (ver
+nota de CIERRE arriba). El patrón se replicó a los 30 hooks/components elegibles vía
+`apiAuthHeaders()` (spread) / `apiAuthHeaderOrThrow()` (string).
 
 **2026-05-22 nota sobre los 81 hooks migrados (PR #462):** la pregunta del usuario "que es eso de los 81 hook que no son utilizados?" tiene respuesta clara tras audit Phase 1 (systematic-debugging):
 
@@ -793,6 +811,39 @@ El audit identificó que PR #458 (Phase 1, 2026-05-21) eliminó el backend de ph
 
 **Cerrados:**
 - ✅ **annualReview** ×3 handlers — `src/server/routes/annualReview.ts:260,335,423` envueltos en `db.runTransaction<R>(…txn.get/txn.set…)` con result discriminado (patrón `apprenticeship.ts:245`). Test: spy `runTransaction` en `annualReview.test.ts`.
+
+### 2.31 🟡 CI "Tests" job open-handle hang — corre 30min → kill (intermitente ~30-40%, INVESTIGADO 2026-06-01)
+
+**Hallazgo (esta sesión):** el job CI **Tests** falla ~30-40% de runs **no por una aserción** sino
+porque el proceso vitest **no termina**: corre hasta `timeout-minutes` (~30min) y lo matan
+("Worker exited unexpectedly" sin assertion surfaceable). Confirma el flake folklore de campañas
+previas (memoria `project_audit_transaction_campaign`). **Evidencia directa:** PR #638 (cambio
+data-only pt-BR, sin test dependiente) corrió **30m15s → fail**, luego **5m40s → pass** en re-run
+sin cambios de código.
+
+**Triage hecho (descarta culpables obvios):**
+- `vitest.config.ts` no setea `pool` → default `forks` (kill-able). El hang es el worker que no
+  sale por un handle abierto **post-tests**, no un test colgado (el `--test-timeout=30000` de #594
+  no aplica a este caso).
+- Los 3 timers server-side (`triggers/healthCheck.ts:94`, `emergency/autoTrigger.ts:415`,
+  `mesh/transportFacade.ts:125`) están bien diseñados (cleanup explícito `stop()`/`clearInterval`)
+  y **ningún test los arranca** (grep de starters = 0). NO son el leak.
+- No hay `setInterval` module-level en `src/server/`. El leak **no es determinista** (si lo fuera
+  colgaría 100% de runs, no 30-40%) → apunta a un test que condicionalmente deja un handle (server
+  supertest sin cerrar / connection / timer con race de cleanup).
+- `src/test/setup.ts` solo limpia jsdom (React unmount); **no hay teardown node-side** que
+  detecte/cierre handles colgados.
+
+**Próximo paso recomendado (NO hecho — requiere repro local con Java 21 + emulador o bisect):**
+correr el suite server con detección de handles — `process.getActiveResourcesInfo()` en un
+`afterAll` global gated por env `DETECT_HANDLES=1`, snapshot before/after por archivo para atribuir
+el `Timeout`/`Socket` colgado al archivo que lo filtra. Alternativa: bisect por subcarpeta de
+`src/__tests__/server/`. Mitigación vigente: re-run de PRs verificados-seguros (data-only /
+typecheck-verde).
+
+**Por qué no se cerró acá:** el hunt del handle exacto en ~10k tests es **no-acotado** y el flake
+puede no reproducir local; un fix especulativo violaría TODO.md Regla #1 (nada ✅ sin evidencia
+verificable). Registrado como **deuda evidenciada con next-step** en vez de fingir cierre.
 
 ---
 

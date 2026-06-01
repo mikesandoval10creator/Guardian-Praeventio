@@ -10,7 +10,7 @@
 // acks) y dashboards admin (list + close).
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { auth } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import type {
   OperationalChange,
   ChangeKind,
@@ -28,14 +28,12 @@ async function authedFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }
@@ -118,11 +116,9 @@ function useEndpoint<T>(
 
     (async () => {
       try {
-        const user = auth.currentUser;
-        const token = user ? await user.getIdToken() : null;
         const res = await fetch(path, {
           signal: ctl.signal,
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          headers: await apiAuthHeaders(),
         });
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as {
