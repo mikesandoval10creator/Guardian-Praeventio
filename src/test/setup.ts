@@ -73,3 +73,56 @@ if (typeof globalThis.document !== 'undefined') {
 }
 
 export {};
+
+// ── §2.31 open-handle detector (opt-in) ──────────────────────────────────
+// The CI "Tests" job intermittently (~30-40%) runs to its 30-min timeout and
+// is killed because the vitest worker never exits — a test leaves an open
+// handle (timer / socket / gRPC channel) post-run. This detector is INERT in
+// normal runs; set `DETECT_HANDLES=1` to snapshot Node's active resources at
+// file load vs `afterAll`, attributing any new lingering handle to the test
+// file that leaked it. Usage:
+//   DETECT_HANDLES=1 npx vitest run src/__tests__/server 2>&1 | grep LEAK
+if (process.env.DETECT_HANDLES === '1') {
+  const { afterAll } = await import('vitest');
+  // Resource types that legitimately persist (the worker's own plumbing) and
+  // must not be flagged as leaks.
+  const BENIGN = new Set([
+    'TTYWrap',
+    'PipeWrap',
+    'ProcessWrap',
+    'TickObject',
+    'Immediate',
+    'FSReqCallback',
+    'MessagePort',
+  ]);
+  // vitest's own worker plumbing keeps a single `Timeout` alive even for a
+  // trivial empty test — verified empirically. Treat exactly +1 Timeout as
+  // benign; +2 or more is a real app-leaked timer worth attributing.
+  const baseline = countResources();
+  afterAll(() => {
+    const after = countResources();
+    const leaks: string[] = [];
+    for (const [kind, n] of Object.entries(after)) {
+      if (BENIGN.has(kind)) continue;
+      let delta = n - (baseline[kind] ?? 0);
+      if (kind === 'Timeout') delta -= 1; // discount vitest's own heartbeat
+      if (delta > 0) leaks.push(`${kind}+${delta}`);
+    }
+    if (leaks.length > 0) {
+      // Attribute by running file-by-file (DETECT_HANDLES=1 npx vitest run <file>).
+      const worker = process.env.VITEST_WORKER_ID ?? '?';
+      // eslint-disable-next-line no-console
+      console.error(`[LEAK] worker=${worker} ${leaks.join(' ')}`);
+    }
+  });
+}
+
+function countResources(): Record<string, number> {
+  const out: Record<string, number> = {};
+  // Node 20+: getActiveResourcesInfo returns string names of active handles.
+  const info = (
+    process as unknown as { getActiveResourcesInfo?: () => string[] }
+  ).getActiveResourcesInfo?.() ?? [];
+  for (const kind of info) out[kind] = (out[kind] ?? 0) + 1;
+  return out;
+}

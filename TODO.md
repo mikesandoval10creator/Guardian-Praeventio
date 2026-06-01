@@ -812,7 +812,42 @@ El audit identificó que PR #458 (Phase 1, 2026-05-21) eliminó el backend de ph
 **Cerrados:**
 - ✅ **annualReview** ×3 handlers — `src/server/routes/annualReview.ts:260,335,423` envueltos en `db.runTransaction<R>(…txn.get/txn.set…)` con result discriminado (patrón `apprenticeship.ts:245`). Test: spy `runTransaction` en `annualReview.test.ts`.
 
-### 2.31 🟡 CI "Tests" job open-handle hang — corre 30min → kill (intermitente ~30-40%, INVESTIGADO 2026-06-01)
+### 2.31 🟡 CI "Tests" job open-handle hang — detector instrumentado 2026-06-01 (next-step del audit, HECHO)
+
+**Update 2026-06-01 (deuda residual, sesión audit B1-B18):** se implementó el
+**próximo paso recomendado** — detector de handles opt-in en `src/test/setup.ts`
+(gated por `DETECT_HANDLES=1`, inerte en runs normales). Snapshot de
+`process.getActiveResourcesInfo()` en file-load vs `afterAll`. Hallazgos
+empíricos (corriendo `src/__tests__/server`, 153 files / 3476 tests):
+
+- **`Timeout+1` es de vitest, NO de la app**: aparece hasta en un test trivial
+  vacío → es el heartbeat del worker. El detector lo descuenta (señal real =
+  `Timeout+2` o más).
+- **`TCPServerWrap`/`TCPSocketWrap`/`SimpleShutdownWrap`** aparecen en los 142
+  files que usan supertest: es el server efímero de `request(app)` con el
+  `close()` **en vuelo** (`SimpleShutdownWrap`) al momento del `afterAll` —
+  transitorio, drena solo. El suite **salió limpio en 38s** (sin repro del hang)
+  en este entorno → confirma que el hang es el caso raro (~30%) donde un
+  `close()` de supertest no alcanza a completar (probable test con
+  `request(app)` sin `await`, no determinista).
+- **Rate-limiters de producción verificados IPv6-safe**: `commute.ts:45`,
+  `incidents.ts:58`, `emergency.ts:55`, `organic.ts:43`, `healthVault.ts:72`,
+  `server.ts:699` y los compartidos en `limiters.ts` usan
+  `ipKeyGenerator(req.ip ?? '')`. La `ValidationError` de express-rate-limit en
+  el log de tests viene SOLO de 3 fixtures de test (`webauthnVerify.test.ts:981`,
+  `askGuardian.test.ts:121`, `webauthnRegister.test.ts:216`) que usan `req.ip`
+  pelado → ruido de log + inconsistencia con prod, no bug de seguridad.
+
+**Sigue abierto (genuinamente unbounded):** el handle exacto del caso raro no
+reprodujo local. Mitigación: re-run de PRs verificados-seguros. **Ahora
+instrumentado** — el próximo que vea el hang en CI corre `DETECT_HANDLES=1 npx
+vitest run <subset>` y ataca el archivo que muestra `TCPServerWrap` sin
+`SimpleShutdownWrap` o `Timeout+2`. **Deferido (listado):** ⬜ B-2.31-D1 limpiar
+los 3 fixtures de test al patrón `ipKeyGenerator`.
+
+---
+
+### 2.31-OLD 🟡 CI "Tests" job open-handle hang — corre 30min → kill (intermitente ~30-40%, INVESTIGADO 2026-06-01)
 
 **Hallazgo (esta sesión):** el job CI **Tests** falla ~30-40% de runs **no por una aserción** sino
 porque el proceso vitest **no termina**: corre hasta `timeout-minutes` (~30min) y lo matan
