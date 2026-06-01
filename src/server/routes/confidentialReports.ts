@@ -24,6 +24,7 @@ import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -241,6 +242,15 @@ router.post(
         if (v !== undefined) cleaned[k] = v;
       }
       await db.collection(CONFIDENTIAL_REPORTS_PATH(g.tenantId)).doc(id).set(cleaned);
+      // CLAUDE.md #3: Ley Karin 21.643 complaint lifecycle must land in the
+      // canonical append-only audit_logs (the per-report .audit subcollection
+      // is domain history, not the compliance trail).
+      await auditServerEvent(req, 'confidential_reports.create', 'confidential_reports', {
+        reportId: id,
+        projectId,
+        kind: body.kind,
+        severity: body.severity,
+      }, { projectId });
       return res.status(201).json({
         ok: true,
         report: payload,
@@ -350,6 +360,11 @@ router.post(
         },
         { merge: true },
       );
+      await auditServerEvent(req, 'confidential_reports.respond', 'confidential_reports', {
+        reportId: id,
+        projectId,
+        status: newStatus,
+      }, { projectId });
       return res.json({ ok: true, status: newStatus, respondedAt: now });
     } catch (err) {
       logger.error?.('sprintK.confidential.respond.error', err);
@@ -415,6 +430,12 @@ router.post(
         },
         { merge: true },
       );
+      await auditServerEvent(req, 'confidential_reports.close', 'confidential_reports', {
+        reportId: id,
+        projectId,
+        status: newStatus,
+        outcome: body.outcome,
+      }, { projectId });
       return res.json({ ok: true, status: newStatus, closedAt: now });
     } catch (err) {
       logger.error?.('sprintK.confidential.close.error', err);

@@ -26,6 +26,7 @@ import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -128,6 +129,14 @@ router.post(
     }
     try {
       const session = recordCheckIn(body.session, body.checkIn);
+      // CLAUDE.md #3: a safety-critical lone-worker check-in (esp. status:'help')
+      // must be audited even though the session itself isn't server-persisted.
+      await auditServerEvent(req, 'loneWorker.checkIn', 'loneWorker', {
+        sessionId: session.id,
+        workerUid: session.workerUid,
+        help: body.checkIn.status === 'help',
+        projectId,
+      }, { projectId });
       return res.json({ session });
     } catch (err) {
       logger.error?.('loneWorker.checkIn.error', err);
@@ -158,6 +167,11 @@ router.post(
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const session = endSession(body.session, body.endedAt);
+      await auditServerEvent(req, 'loneWorker.endSession', 'loneWorker', {
+        sessionId: session.id,
+        workerUid: session.workerUid,
+        projectId,
+      }, { projectId });
       return res.json({ session });
     } catch (err) {
       logger.error?.('loneWorker.endSession.error', err);

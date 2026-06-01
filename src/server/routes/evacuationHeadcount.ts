@@ -46,6 +46,7 @@ import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -181,6 +182,14 @@ router.post(
         body.projectId,
       );
       await adapter.startDrill(drill);
+      // CLAUDE.md #3: evacuation drill lifecycle must be audited.
+      await auditServerEvent(req, 'evacuation.drill.start', 'evacuation', {
+        drillId: drill.id,
+        projectId: body.projectId,
+        kind: body.kind,
+        meetingPointId: body.meetingPointId,
+        expectedWorkerCount: body.expectedWorkers.length,
+      }, { projectId: body.projectId });
       return res.json({ ok: true, drill });
     } catch (err) {
       logger.error?.('evacuationHeadcount.start.error', err);
@@ -241,6 +250,14 @@ router.post(
         scannedByUid: callerUid,
         scannedAt: body.scannedAt,
       });
+
+      await auditServerEvent(req, 'evacuation.scan', 'evacuation', {
+        drillId: body.drillId,
+        projectId: body.projectId,
+        workerUid: body.workerUid,
+        meetingPointId: body.meetingPointId,
+        scannedByUid: callerUid,
+      }, { projectId: body.projectId });
 
       // Devolver el drill actualizado + status calculado para UI live.
       const refreshed = await adapter.getDrill(body.drillId);
@@ -347,6 +364,11 @@ router.post(
       await adapter.endDrill(body.drillId, endedAt);
       const ended = endDrill(existing, endedAt);
       const postmortem = buildPostmortem(ended);
+      await auditServerEvent(req, 'evacuation.drill.end', 'evacuation', {
+        drillId: body.drillId,
+        projectId: body.projectId,
+        endedAt,
+      }, { projectId: body.projectId });
       return res.json({ ok: true, drill: ended, postmortem });
     } catch (err) {
       logger.error?.('evacuationHeadcount.end.error', err);
