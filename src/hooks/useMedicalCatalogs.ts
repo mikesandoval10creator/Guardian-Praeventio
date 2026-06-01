@@ -4,7 +4,7 @@
 // (ICD-10/DS 109, WHO ATC/DrugBank, Wikipedia ES/DS 594) son accesibles
 // vía HTTP para UIs que no quieran bundlear los 50+ entries.
 
-import { auth } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import type {
   DiagnosisEntry,
   DrugEntry,
@@ -15,14 +15,12 @@ async function authedFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }

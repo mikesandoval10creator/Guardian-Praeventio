@@ -339,7 +339,23 @@ Los 394 tests fallidos previos fueron arreglados entre 2026-05-15 y 2026-05-19, 
 
 **Restantes 5 specs:** ver §2.21 — requieren `apiAuthHeader()` adopción (§2.20) + ProjectContext/Firestore emulator setup.
 
-### 2.20 🟡 Fetch wrappers — getE2EAuthHeader nunca se usaba (DESCUBIERTO 2026-05-21)
+### 2.20 ✅ Fetch wrappers — apiAuthHeader migración COMPLETA (CERRADO 2026-06-01)
+
+**CIERRE 2026-06-01:** migración incremental completada. **30 hooks/components** migrados de
+`Bearer ${await user.getIdToken()}` hand-rolled a `...(await apiAuthHeaders())` (ola de 6
+subagentes paralelos + verificación central). **3 callers correctamente NO migrados**
+(criterio verificado, no blind sweep — regla `feedback_no_blind_sweeps`):
+`useInvoicePolling.ts` (DI pattern: el token controla retry/prefix logic, no solo el header),
+`usePushNotifications.ts` (DI deps + `auth.currentUser` aún usado para el Firestore mirror),
+`WebAuthnKeysSection.tsx` (ya usaba `apiAuthHeaderOrThrow`). `firebase.ts:notifyServerLogout`
+ya migrado en #455. **Verificado:** `typecheck:ci` 0 · `apiAuth.test` 12/12 · `useStreamedGuardian.test`
+7/7 (la migración más compleja: `Object.assign` + helper local borrado + streaming preservado) ·
+lint limpio. Net **−71 LOC**. Grep de callers `Bearer ${...getIdToken}` restantes = solo
+helper/E2E-source/DI legítimos. El path E2E full-stack `/api/*` ahora envía el header `E2E ...`
+correcto en MODE=test (el blocker de 401 silencioso del §2.19 queda cerrado para las llamadas
+`/api`; las queries client-SDK Firestore son el §2.24 aparte).
+
+**[histórico — hallazgo original]**
 
 **Hallazgo durante audit §2.19:** 20+ archivos en `src/services/` + `src/pages/` + `src/hooks/` construyen el header `Authorization` manualmente con `await user.getIdToken()` + `Bearer ${token}`. PERO ningún caller checkea `getE2EAuthHeader()` PRIMERO. El backend `verifyAuth.ts:67` SÍ acepta el formato `E2E <secret>:<uid>` cuando `E2E_MODE=1`, pero el frontend nunca lo envía → requests autenticados en E2E full-stack reciben 401 silencioso.
 
@@ -350,7 +366,9 @@ Los 394 tests fallidos previos fueron arreglados entre 2026-05-15 y 2026-05-19, 
 - `src/lib/apiAuth.test.ts` (NEW, 12 tests).
 - `src/services/firebase.ts:notifyServerLogout` — primera migración proof-of-concept.
 
-**Pendiente migración incremental:** 19 callers restantes — billingService, gamificationService, geminiService, auditService, etc. Pattern replicable: cambiar `Bearer ${idToken}` por `apiAuthHeader()` que devuelve string completo con prefijo correcto.
+**~~Pendiente migración incremental: 19 callers restantes~~ → COMPLETADO 2026-06-01** (ver
+nota de CIERRE arriba). El patrón se replicó a los 30 hooks/components elegibles vía
+`apiAuthHeaders()` (spread) / `apiAuthHeaderOrThrow()` (string).
 
 **2026-05-22 nota sobre los 81 hooks migrados (PR #462):** la pregunta del usuario "que es eso de los 81 hook que no son utilizados?" tiene respuesta clara tras audit Phase 1 (systematic-debugging):
 

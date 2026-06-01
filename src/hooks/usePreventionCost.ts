@@ -8,7 +8,7 @@
 //
 // Firebase ID-token auth, JSON-only. Mirror of useLoneWorker / useCostCalculator.
 
-import { auth } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import { useEndpoint } from './_fetchUtils';
 import type {
   NonComplianceInput,
@@ -87,14 +87,12 @@ async function authedFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }

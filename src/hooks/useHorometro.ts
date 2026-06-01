@@ -10,7 +10,7 @@
 //   recomendaciones viven en el grafo ZK (tareas con severidad). La UI
 //   las surface como banners; el operador sigue siendo el que decide.
 
-import { auth } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import type {
   HorometroReading,
   HorometroSource,
@@ -26,14 +26,12 @@ async function authedFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }

@@ -16,7 +16,7 @@
 // rinden el primer carácter en ~600ms vs ~12s del modo unary. Reduce
 // perceived latency 20x.
 
-import { auth } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 
 interface StreamGuardianInput {
   query: string;
@@ -43,17 +43,6 @@ export class StreamGuardianError extends Error {
   }
 }
 
-async function authHeader(): Promise<string | null> {
-  const user = auth.currentUser;
-  if (!user) return null;
-  try {
-    const token = await user.getIdToken();
-    return token ? `Bearer ${token}` : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * AsyncGenerator que yield tokens. La UI consume con:
  *
@@ -69,8 +58,7 @@ export async function* streamGuardian(
     'Content-Type': 'application/json',
     Accept: 'text/event-stream',
   };
-  const bearer = await authHeader();
-  if (bearer) headers.Authorization = bearer;
+  Object.assign(headers, await apiAuthHeaders());
 
   const res = await fetch('/api/ask-guardian', {
     method: 'POST',

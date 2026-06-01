@@ -1,6 +1,6 @@
 // Praeventio Guard — PYME Wizard client hook (1 mutator).
 
-import { auth } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import type {
   PymeOnboardingInput,
   OnboardingPlan,
@@ -10,14 +10,12 @@ async function authedFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }

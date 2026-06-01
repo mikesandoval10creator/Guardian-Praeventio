@@ -4,7 +4,7 @@
 // + salt nunca cruzan al cliente — `register` solo confirma éxito; el
 // servidor persiste la credential.
 
-import { auth } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import type {
   PinCredential,
   PinSignItemKind,
@@ -15,14 +15,12 @@ async function authedFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }

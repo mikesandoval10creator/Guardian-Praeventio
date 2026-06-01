@@ -3,7 +3,7 @@
 // Sprint 39 Fase G.11 — Wraps the HTTP surface at
 // `src/server/routes/loneWorker.ts`. Firebase ID-token auth, JSON-only.
 
-import { auth } from '../services/firebase';
+import { apiAuthHeaders } from '../lib/apiAuth';
 import type {
   LoneWorkerSession,
   LoneWorkerStatus,
@@ -14,14 +14,12 @@ async function authedFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
   return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await apiAuthHeaders()),
     },
   });
 }
