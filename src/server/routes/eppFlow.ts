@@ -78,6 +78,43 @@ async function guard(
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// Role gate — procurement signing is an ADMIN flow (see header doc lines
+// 7-11: pending-orders / sign-order / order-pdf are all marked "admin").
+// Project membership alone is NOT sufficient: a regular worker who is a
+// project member must NOT be able to sign a purchase order as themselves.
+// Defence in depth: an authorized caller must be BOTH an elevated signer
+// role AND (for sign-order) signing as themselves (signerUid === callerUid).
+// The route docs say "admin" generically (no named signer role) so we use
+// the canonical EPP/brigade signer set. Pattern copied from
+// src/server/routes/emergencyBrigade.ts (callerCanWriteBrigade).
+// NOTE: the routine worker inspection (POST .../inspection) is deliberately
+// NOT gated — the docs mark it as a worker action.
+// ────────────────────────────────────────────────────────────────────────
+
+const EPP_SIGN_ROLES = new Set(['admin', 'prevencionista', 'supervisor']);
+
+function callerCanSignEpp(req: import('express').Request): boolean {
+  const u = req.user;
+  if (!u) return false;
+  if (u.admin === true) return true;
+  if (typeof u.role === 'string' && EPP_SIGN_ROLES.has(u.role)) return true;
+  const tenants = (u as unknown as {
+    tenants?: Record<string, { role?: string }>;
+  }).tenants;
+  if (
+    tenants &&
+    typeof tenants === 'object' &&
+    typeof u.tenantId === 'string'
+  ) {
+    const t = tenants[u.tenantId];
+    if (t && typeof t.role === 'string' && EPP_SIGN_ROLES.has(t.role)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // Firestore-backed EdgeStore adapter (DI shape from edges.ts).
 // Per-tenant collection `tenants/{tenantId}/zettelkasten_edges/{edgeId}`.
 // ────────────────────────────────────────────────────────────────────────
@@ -324,6 +361,9 @@ router.get(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     if (!(await guard(callerUid, projectId, res))) return undefined;
+    if (!callerCanSignEpp(req)) {
+      return res.status(403).json({ error: 'forbidden_role' });
+    }
 
     try {
       const orders = Array.from(pendingOrders.values()).filter(
@@ -351,6 +391,10 @@ router.post(
     const { projectId, orderId } = req.params;
     const body = req.body as z.infer<typeof signOrderSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
+    // Procurement signing is an admin flow — project membership is not enough.
+    if (!callerCanSignEpp(req)) {
+      return res.status(403).json({ error: 'forbidden_role' });
+    }
 
     // Solo el admin que dice ser puede firmar. Anti-blame estilo readReceipts.
     if (body.signerUid !== callerUid) {
@@ -429,6 +473,9 @@ router.get(
       return res.status(400).json({ error: 'tenantId required' });
     }
     if (!(await guard(callerUid, projectId, res))) return undefined;
+    if (!callerCanSignEpp(req)) {
+      return res.status(403).json({ error: 'forbidden_role' });
+    }
 
     try {
       const key = pendingKey(projectId, orderId);

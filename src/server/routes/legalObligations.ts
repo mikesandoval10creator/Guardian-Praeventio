@@ -86,6 +86,39 @@ async function guard(
 }
 
 /**
+ * IDOR guard. `legal_obligations` docs are keyed by their own id — the path is
+ * NOT project-scoped (`loadProjectObligations` filters by the `projectId`
+ * field). Without this check a member of project A could `.set()` an obligation
+ * whose id belongs to project B and reassign / corrupt B's compliance calendar
+ * (Codex P1 on #650, found once the router was mounted). Before any write,
+ * confirm the existing doc (if any) belongs to THIS project. A non-existent id
+ * is allowed — the write creates it scoped to this project via the `projectId`
+ * field. Returns false + sends 403 on a cross-project hit.
+ */
+async function assertObligationInProject(
+  db: admin.firestore.Firestore,
+  obligationId: string,
+  projectId: string,
+  res: import('express').Response,
+): Promise<boolean> {
+  const snap = await db
+    .collection(COLLECTION_OBLIGATIONS)
+    .doc(obligationId)
+    .get();
+  if (snap.exists) {
+    const existing = (snap.data() ?? {}) as { projectId?: unknown };
+    if (
+      typeof existing.projectId === 'string' &&
+      existing.projectId !== projectId
+    ) {
+      res.status(403).json({ error: 'forbidden_cross_project' });
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Load obligations for the given project. The collection is shared across
  * projects (one doc per obligation) so we filter by `projectId` field.
  */
@@ -240,13 +273,15 @@ router.post(
     const { projectId } = req.params;
     const body = req.validated as z.infer<typeof acknowledgeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
+    const db = admin.firestore();
+    if (!(await assertObligationInProject(db, body.obligation.id, projectId, res)))
+      return undefined;
     try {
       const next = advanceObligation(body.obligation);
       // Persist the new nextDueAt + an audit entry. Best-effort: the engine
       // return value is the wire response even if persistence flakes —
       // matches the stoppage.recommend pattern.
       try {
-        const db = admin.firestore();
         await db
           .collection(COLLECTION_OBLIGATIONS)
           .doc(body.obligation.id)
@@ -307,6 +342,9 @@ router.post(
     const { projectId } = req.params;
     const body = req.validated as z.infer<typeof snoozeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
+    const db = admin.firestore();
+    if (!(await assertObligationInProject(db, body.obligation.id, projectId, res)))
+      return undefined;
     try {
       const dueMs = Date.parse(body.obligation.nextDueAt);
       if (Number.isNaN(dueMs)) {
@@ -321,7 +359,6 @@ router.post(
         nextDueAt: new Date(nextMs).toISOString(),
       };
       try {
-        const db = admin.firestore();
         await db
           .collection(COLLECTION_OBLIGATIONS)
           .doc(body.obligation.id)
