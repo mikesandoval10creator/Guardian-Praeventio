@@ -1678,10 +1678,46 @@ per-router no lo detectaban porque montan el router en un app fresco.
 - **Verificación:** `typecheck` 0 errores · `lint` 0 errors.
 
 **Deferido a fase posterior (listado, no abordado):**
-- ⬜ B1-D1: el contrato de mount sólo cubre estos 3 routers. Considerar un
+- ⬜ B1-D1: el contrato de mount sólo cubre estos routers. Considerar un
   contrato genérico que cruce `src/server/routes/*.ts` contra los `app.use` de
   `server.ts` para detectar TODOS los huérfanos futuros de un saque.
 - ⬜ B1-D2: verificar lone-worker nativo (Foreground Service Android) en
   `packages/`/Capacitor.
 - ⬜ B1-D3: los specs E2E `sos-button.spec` están en `describe.fixme` — reconciliar
   aserciones al render real (fase E2E separada).
+
+---
+
+### B2 — Riesgo & IPER · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** El motor IPER y la mayoría de routers del dominio
+están cableados; se encontraron 2 huérfanos más (mismo patrón B1).
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| Motor IPER | ✅ | `src/services/protocols/iper.ts` (135 LOC) función pura, 0 side-effects, unit + mutation-tested |
+| riskRadar / residualRisk / maturity | ✅ | montados `server.ts` `/api/sprint-k` (961-964), con tests |
+| bowtie / jsa / criticalControls / raciMatrix / preShiftRisk | ✅ | montados `/api/sprint-k`, con `*.test.ts` |
+| riskRanking (POST risks/weak-controls/zones/tasks) | ❌→✅ | `riskRanking.ts` (211 LOC) **estaba huérfano** → **B2-F1** |
+| shiftRiskPanel (POST compose) | ❌→✅ | `shiftRiskPanel.ts` (126 LOC) **estaba huérfano** → **B2-F1** |
+| riskRanking GET timeseries/top-risks/weak-controls | 🔵 | stubs honestos documentados en `useRiskRanking.ts:135-172` (return idle, tracked) — endpoints **aún no existen** |
+
+**🔴 Bug B2-F1 (RESUELTO fix-as-I-go):** `riskRanking.ts` y `shiftRiskPanel.ts`
+implementados + unit-tested pero **nunca montados** → `useRiskRanking.ts` (que
+alimenta `RiskTimeseriesChart`, `TopRisksDashboardCard`, `WeakControlsDashboardCard`)
+y `useShiftRiskPanel.ts` recibían **404**. Ambos son compute-only (0 writes →
+sin gap de audit-log), con `verifyAuth` + `assertProjectMember`.
+
+- **Fix:** `server.ts` — 2 imports + `app.use('/api/sprint-k', riskRankingRouter)`
+  + `app.use('/api/sprint-k', shiftRiskPanelRouter)`.
+- **Test:** extendido el contrato `serverMountOrder.test.ts` (RED→GREEN: 2 fallan
+  sin el fix, 11/11 con él).
+
+**Deferido (listado, no abordado):**
+- ⬜ B2-D1: faltan 3 endpoints **GET** que los dashboard cards consumen
+  (`risk-ranking/timeseries|top-risks|weak-controls`). Hoy los hooks devuelven
+  idle (stub honesto). Es feature-work (nuevos handlers + tests), no wiring →
+  fuera del scope fix-as-I-go.
+- ⬜ B2-D2: `useShiftRiskPanel` no tiene consumidor (page/componente) todavía —
+  el router queda montado y listo, pero la UI no lo invoca. Verificar si es
+  intencional o falta cablear una vista.

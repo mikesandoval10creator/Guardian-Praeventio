@@ -93,7 +93,7 @@ describe('server.ts route mount ordering (B1 contract)', () => {
 // wiring: each router must be imported AND mounted under its expected prefix,
 // before the SPA catch-all (otherwise the catch-all would swallow the request
 // and return SPA HTML).
-describe('server.ts emergency-block mounts (B1 contract)', () => {
+describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
   const source = readFileSync(join(process.cwd(), 'server.ts'), 'utf8');
   const lines = source.split('\n');
 
@@ -122,6 +122,20 @@ describe('server.ts emergency-block mounts (B1 contract)', () => {
       name: 'restrictedZones (/define, /check, …) under /api/zones',
       importRe: /import\s+restrictedZonesRouter\s+from\s+['"`][^'"`]*restrictedZones(\.js)?['"`]/,
       mountRe: /app\.use\(\s*['"`]\/api\/zones['"`]\s*,\s*restrictedZonesRouter/,
+    },
+    // B2 risk-block audit (2026-06-01): riskRanking.ts (feeds RiskTimeseriesChart,
+    // TopRisksDashboardCard, WeakControlsDashboardCard) and shiftRiskPanel.ts were
+    // implemented + unit-tested but never mounted → useRiskRanking / useShiftRiskPanel
+    // got 404. Same orphan class as B1.
+    {
+      name: 'riskRanking (/:projectId/risk-ranking/*) under /api/sprint-k',
+      importRe: /import\s+riskRankingRouter\s+from\s+['"`][^'"`]*riskRanking(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*riskRankingRouter/,
+    },
+    {
+      name: 'shiftRiskPanel (/:projectId/shift-risk-panel/*) under /api/sprint-k',
+      importRe: /import\s+shiftRiskPanelRouter\s+from\s+['"`][^'"`]*shiftRiskPanel(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*shiftRiskPanelRouter/,
     },
   ];
 

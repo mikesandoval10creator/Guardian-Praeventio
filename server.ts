@@ -148,6 +148,10 @@ import riskRadarRouter from "./src/server/routes/riskRadar.js";
 import positiveObservationsRouter from "./src/server/routes/positiveObservations.js";
 import residualRiskRouter from "./src/server/routes/residualRisk.js";
 import maturityRouter from "./src/server/routes/maturity.js";
+// Risk block (B2) — implemented + unit-tested but never mounted (orphans).
+// riskRanking feeds 3 dashboard cards; shiftRiskPanel composes the shift panel.
+import riskRankingRouter from "./src/server/routes/riskRanking.js";
+import shiftRiskPanelRouter from "./src/server/routes/shiftRiskPanel.js";
 import drillsManagerRouter from "./src/server/routes/drillsManager.js";
 import workerReadinessRouter from "./src/server/routes/workerReadiness.js";
 import workPermitsRouter from "./src/server/routes/workPermits.js";
@@ -962,6 +966,10 @@ app.use('/api/sprint-k', riskRadarRouter);
 app.use('/api/sprint-k', positiveObservationsRouter);
 app.use('/api/sprint-k', residualRiskRouter);
 app.use('/api/sprint-k', maturityRouter);
+// Risk block (B2) — paths /:projectId/risk-ranking/* and
+// /:projectId/shift-risk-panel/* (compute-only; verifyAuth + assertProjectMember).
+app.use('/api/sprint-k', riskRankingRouter);
+app.use('/api/sprint-k', shiftRiskPanelRouter);
 app.use('/api/sprint-k', drillsManagerRouter);
 app.use('/api/sprint-k', workerReadinessRouter);
 app.use('/api/sprint-k', workPermitsRouter);
