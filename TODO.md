@@ -812,6 +812,39 @@ El audit identificó que PR #458 (Phase 1, 2026-05-21) eliminó el backend de ph
 **Cerrados:**
 - ✅ **annualReview** ×3 handlers — `src/server/routes/annualReview.ts:260,335,423` envueltos en `db.runTransaction<R>(…txn.get/txn.set…)` con result discriminado (patrón `apprenticeship.ts:245`). Test: spy `runTransaction` en `annualReview.test.ts`.
 
+### 2.31 🟡 CI "Tests" job open-handle hang — corre 30min → kill (intermitente ~30-40%, INVESTIGADO 2026-06-01)
+
+**Hallazgo (esta sesión):** el job CI **Tests** falla ~30-40% de runs **no por una aserción** sino
+porque el proceso vitest **no termina**: corre hasta `timeout-minutes` (~30min) y lo matan
+("Worker exited unexpectedly" sin assertion surfaceable). Confirma el flake folklore de campañas
+previas (memoria `project_audit_transaction_campaign`). **Evidencia directa:** PR #638 (cambio
+data-only pt-BR, sin test dependiente) corrió **30m15s → fail**, luego **5m40s → pass** en re-run
+sin cambios de código.
+
+**Triage hecho (descarta culpables obvios):**
+- `vitest.config.ts` no setea `pool` → default `forks` (kill-able). El hang es el worker que no
+  sale por un handle abierto **post-tests**, no un test colgado (el `--test-timeout=30000` de #594
+  no aplica a este caso).
+- Los 3 timers server-side (`triggers/healthCheck.ts:94`, `emergency/autoTrigger.ts:415`,
+  `mesh/transportFacade.ts:125`) están bien diseñados (cleanup explícito `stop()`/`clearInterval`)
+  y **ningún test los arranca** (grep de starters = 0). NO son el leak.
+- No hay `setInterval` module-level en `src/server/`. El leak **no es determinista** (si lo fuera
+  colgaría 100% de runs, no 30-40%) → apunta a un test que condicionalmente deja un handle (server
+  supertest sin cerrar / connection / timer con race de cleanup).
+- `src/test/setup.ts` solo limpia jsdom (React unmount); **no hay teardown node-side** que
+  detecte/cierre handles colgados.
+
+**Próximo paso recomendado (NO hecho — requiere repro local con Java 21 + emulador o bisect):**
+correr el suite server con detección de handles — `process.getActiveResourcesInfo()` en un
+`afterAll` global gated por env `DETECT_HANDLES=1`, snapshot before/after por archivo para atribuir
+el `Timeout`/`Socket` colgado al archivo que lo filtra. Alternativa: bisect por subcarpeta de
+`src/__tests__/server/`. Mitigación vigente: re-run de PRs verificados-seguros (data-only /
+typecheck-verde).
+
+**Por qué no se cerró acá:** el hunt del handle exacto en ~10k tests es **no-acotado** y el flake
+puede no reproducir local; un fix especulativo violaría TODO.md Regla #1 (nada ✅ sin evidencia
+verificable). Registrado como **deuda evidenciada con next-step** en vez de fingir cierre.
+
 ---
 
 ## 3. ✅ Codex review pendings — TODOS MERGEADOS (verificación 2026-05-19)
