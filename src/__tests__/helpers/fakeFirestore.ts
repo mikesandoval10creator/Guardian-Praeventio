@@ -119,6 +119,13 @@ export interface FakeFirestore {
   _seed(path: string, data: DocData): void;
   _dump(): Record<string, DocData>;
   _store: Map<string, DocData>;
+  /**
+   * Test hook: make subsequent `.get()` calls (doc + query) REJECT for any
+   * path containing `pathSubstring` (default `''` = every read fails). Enables
+   * testing fail-closed / read-degradation handlers. Resets when a fresh
+   * instance is created in `beforeEach`.
+   */
+  _failReads(pathSubstring?: string): void;
 }
 interface FakeDocSnap { id: string; exists: boolean; ref: FakeDocRef; data(): DocData | undefined; get(field: string): unknown }
 interface FakeDocRef {
@@ -166,6 +173,7 @@ let autoCounter = 0;
 
 export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFirestore {
   const store = new Map<string, DocData>();
+  let failReadsMatch: string | null = null;
   for (const [k, v] of Object.entries(seed)) store.set(k, { ...v });
 
   function docRef(path: string): FakeDocRef {
@@ -174,6 +182,9 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
       id,
       path,
       async get(): Promise<FakeDocSnap> {
+        if (failReadsMatch !== null && path.includes(failReadsMatch)) {
+          throw new Error(`fakeFirestore: forced read failure at ${path}`);
+        }
         return snapOf(path);
       },
       async set(data, opts) {
@@ -236,7 +247,12 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
       where: (field, op, value) => query(colPath, [...filters, { field, op, value }], order, lim),
       orderBy: (field, dir = 'asc') => query(colPath, filters, { field, dir }, lim),
       limit: (n) => query(colPath, filters, order, n),
-      get: async () => runQuery(colPath, filters, order, lim),
+      get: async () => {
+        if (failReadsMatch !== null && colPath.includes(failReadsMatch)) {
+          throw new Error(`fakeFirestore: forced read failure at ${colPath}`);
+        }
+        return runQuery(colPath, filters, order, lim);
+      },
       count: () => ({
         get: async () => ({ data: () => ({ count: runQuery(colPath, filters, null, null).size }) }),
       }),
@@ -288,6 +304,9 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
   return {
     collection: (path) => collectionRef(path),
     doc: (path) => docRef(path),
+    _failReads(pathSubstring = '') {
+      failReadsMatch = pathSubstring;
+    },
     async getAll(...refs) {
       return refs.map((r) => snapOf(r.path));
     },
