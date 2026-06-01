@@ -1749,9 +1749,15 @@ contrato (RED→GREEN, 12/12). Corrige el veredicto inicial de B1 que daba
 "Headcount ✅" sin distinguir el surface stateless del CRUD.
 
 **Deferido a fase posterior (listado, no abordado):**
-- ⬜ B1-D1: el contrato de mount sólo cubre estos routers. Considerar un
-  contrato genérico que cruce `src/server/routes/*.ts` contra los `app.use` de
-  `server.ts` para detectar TODOS los huérfanos futuros de un saque.
+- ✅ **B1-D1 HECHO (2026-06-01):** guard genérico
+  `src/__tests__/contracts/routerMountCoverage.test.ts` — cruza TODOS los
+  módulos de `src/server/routes/*.ts` con `export default Router` contra los
+  `import` + `app.use` de `server.ts`. Falla si cualquier router queda
+  importado-pero-sin-montar o sin importar. Baseline: **0 huérfanos** (179
+  routers). Detectó además un caso que el barrido manual no veía
+  (imported-but-not-mounted, p.ej. import combinado default+named de
+  `curriculum`). `INTENTIONALLY_UNMOUNTED` allowlist (vacía) para excepciones
+  futuras justificadas. RED→GREEN verificado.
 - ⬜ B1-D2: verificar lone-worker nativo (Foreground Service Android) en
   `packages/`/Capacitor.
 - ⬜ B1-D3: los specs E2E `sos-button.spec` están en `describe.fixme` — reconciliar
