@@ -57,7 +57,6 @@
     "softBlocking": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "suppliers": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "systemEvents": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
-    "visitors": "[MED] check-in/out/ack; also Fix-PR A #19 — Ola1+4",
     "vulnerability": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "waste": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "wisdomCapsule": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
@@ -65,8 +64,6 @@
     "workerReadiness": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)"
   },
   "rule19_pending": {
-    "visitors": "check-out + acknowledge-induction: get->update same ref (Fix-PR A)",
-    "healthVault": "GET /view: findShareById->update(consumeCount) — TOCTOU on maxViews limit",
     "knowledgeBase": "/use + /flag-obsolete: get->update same ref",
     "apprenticeship": "/expose: get(apprenticeRef)->set(apprenticeRef) (authorize already wrapped)"
   }
