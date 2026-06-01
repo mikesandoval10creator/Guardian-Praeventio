@@ -103,7 +103,7 @@ export async function bridgeMqttToFirestore(
       try {
         getErrorTracker().captureException(
           err instanceof Error ? err : new Error(String(err)),
-          { tags: { service: 'iot.firestoreBridge', step: 'telemetry' } } as any,
+          { tags: { service: 'iot.firestoreBridge', step: 'telemetry' } },
         );
       } catch {
         /* observability never breaks the bridge */
@@ -139,7 +139,7 @@ export async function bridgeMqttToFirestore(
     try {
       getErrorTracker().captureException(
         err instanceof Error ? err : new Error(String(err)),
-        { tags: { service: 'iot.firestoreBridge', step: 'alert' } } as any,
+        { tags: { service: 'iot.firestoreBridge', step: 'alert' } },
       );
     } catch {
       /* swallow */
@@ -175,7 +175,7 @@ export async function bridgeMqttToFirestore(
     try {
       getErrorTracker().captureException(
         err instanceof Error ? err : new Error(String(err)),
-        { tags: { service: 'iot.firestoreBridge', step: 'fcm' } } as any,
+        { tags: { service: 'iot.firestoreBridge', step: 'fcm' } },
       );
     } catch {
       /* swallow */
@@ -209,7 +209,7 @@ export async function bridgeMqttToFirestore(
     try {
       getErrorTracker().captureException(
         err instanceof Error ? err : new Error(String(err)),
-        { tags: { service: 'iot.firestoreBridge', step: 'audit' } } as any,
+        { tags: { service: 'iot.firestoreBridge', step: 'audit' } },
       );
     } catch {
       /* swallow */

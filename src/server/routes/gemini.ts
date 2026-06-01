@@ -348,7 +348,8 @@ ${envBlock}
       // Bucket X: post-call accounting. Prefer SDK-reported token usage
       // when available (Gemini 2.0+ surfaces `usageMetadata`), fall
       // back to char-based estimation.
-      const meta: any = (result as any).usageMetadata ?? {};
+      const meta: { promptTokenCount?: number; candidatesTokenCount?: number } =
+        result.usageMetadata ?? {};
       const tokensIn = typeof meta.promptTokenCount === 'number'
         ? meta.promptTokenCount
         : Math.ceil(prompt.length / 4);
@@ -534,8 +535,10 @@ router.post(
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     // Flush headers immediately so the browser opens the EventSource.
-    if (typeof (res as any).flushHeaders === 'function') {
-      (res as any).flushHeaders();
+    // `flushHeaders` is typed on http.ServerResponse (express Response extends
+    // it); the runtime guard stays defensive for mock `res` doubles in tests.
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
     }
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });

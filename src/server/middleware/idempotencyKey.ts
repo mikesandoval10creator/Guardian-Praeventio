@@ -116,12 +116,12 @@ interface CachedResponse {
 /** Sentry capture mirror used elsewhere in the middleware folder. */
 function sentryCapture(
   err: unknown,
-  context: { endpoint?: string; tags?: Record<string, string | number | boolean | null | undefined> },
+  context: { endpoint?: string; tags?: Record<string, string> },
 ): void {
   try {
     getErrorTracker().captureException(
       err instanceof Error ? err : new Error(String(err)),
-      context as any,
+      context,
     );
   } catch (e) {
     // Observability MUST NEVER break the request path.
@@ -209,7 +209,7 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
     next: NextFunction,
   ) {
     const rawKey = (req.headers[IDEMPOTENCY_HEADER] ??
-      (req.headers as any)['Idempotency-Key']) as string | undefined;
+      req.get('Idempotency-Key')) as string | undefined;
 
     // Header absent â†’ request flows through normally. NO cache write.
     if (!rawKey || typeof rawKey !== 'string' || rawKey.trim().length === 0) {
@@ -248,9 +248,15 @@ export function idempotencyKey(opts: IdempotencyKeyOptions = {}) {
           // we double-check on read so a TTL that hasn't run yet doesn't
           // hand back stale data.
           const expMs =
-            typeof (data.expiresAt as any).toMillis === 'function'
-              ? (data.expiresAt as any).toMillis()
-              : new Date(data.expiresAt as any).getTime();
+            typeof (data.expiresAt as { toMillis?: () => number }).toMillis === 'function'
+              ? (data.expiresAt as { toMillis: () => number }).toMillis()
+              : // legacy rows deserialized expiresAt as an ISO string / epoch
+                // even though the static type says Timestamp — widen via
+                // unknown (the toMillis guard above already handled the
+                // Timestamp case).
+                new Date(
+                  data.expiresAt as unknown as string | number | Date,
+                ).getTime();
           if (expMs > now().getTime()) {
             cached = data;
           }
