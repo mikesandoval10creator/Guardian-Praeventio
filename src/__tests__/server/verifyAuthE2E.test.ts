@@ -14,6 +14,22 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 
+// §2.31 open-handle fix: this file re-imports verifyAuth 6× via
+// `vi.resetModules()`. verifyAuth pulls in the REAL firebase-admin AND the
+// observability index (which starts the OpenTelemetry NodeSDK +
+// auto-instrumentations at `tracing.ts:120 sdk.start()`). Re-evaluating those
+// heavy modules on every re-import leaked a TCP server + sockets (found via
+// `DETECT_HANDLES=1`), which kept the forked test worker alive → the
+// intermittent 30-min CI "Tests" hang. These tests only exercise verifyAuth's
+// env-gated E2E-header logic — they never call `verifyIdToken` or the tracer —
+// so stubbing both deps is behaviour-preserving and stops the leak at the root.
+vi.mock('firebase-admin', () => ({
+  default: { auth: () => ({ verifyIdToken: vi.fn() }) },
+}));
+vi.mock('../../services/observability/index.js', () => ({
+  getErrorTracker: () => ({ captureException: vi.fn() }),
+}));
+
 describe('verifyAuth — E2E_MODE guard', () => {
   const ORIGINAL_ENV = { ...process.env };
 
