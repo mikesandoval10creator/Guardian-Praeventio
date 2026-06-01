@@ -72,4 +72,40 @@ if (typeof globalThis.document !== 'undefined') {
   }
 }
 
+// ── §2.31 open-handle diagnostic (gated, opt-in) ──────────────────────────
+// The CI "Tests" job intermittently hangs to its 30-min timeout because a
+// forked worker won't exit — a test left an open handle (timer / socket /
+// server) it never tore down. This block, enabled ONLY with DETECT_HANDLES=1,
+// snapshots `process.getActiveResourcesInfo()` before/after each test FILE and
+// warns when a file leaves a NEW timer/socket-shaped handle behind, naming the
+// file so the leak can be pinned. Zero effect on normal runs (env-gated).
+//   Usage: DETECT_HANDLES=1 npx vitest run <files> --no-file-parallelism 2>&1 | grep DETECT_HANDLES
+if (process.env.DETECT_HANDLES === '1') {
+  const { beforeAll, afterAll, expect } = await import('vitest');
+  const LEAKY = /Timeout|Immediate|TCP|Socket|Pipe|FSReq|FileHandle|Server|TTY|Worker|ChildProcess/i;
+  const tally = (arr: string[]): Record<string, number> =>
+    arr.reduce<Record<string, number>>((m, r) => ((m[r] = (m[r] ?? 0) + 1), m), {});
+  let before: Record<string, number> = {};
+  beforeAll(() => {
+    before = tally(process.getActiveResourcesInfo?.() ?? []);
+  });
+  afterAll(() => {
+    const after = tally(process.getActiveResourcesInfo?.() ?? []);
+    const leaked = Object.keys(after)
+      .map((k) => [k, after[k] - (before[k] ?? 0)] as const)
+      .filter(([k, d]) => d > 0 && LEAKY.test(k))
+      .map(([k, d]) => `${k}+${d}`);
+    if (leaked.length) {
+      let file = '?';
+      try {
+        file = String(expect.getState().testPath ?? '?').replace(/.*[\\/]/, '');
+      } catch {
+        /* testPath unavailable */
+      }
+      // eslint-disable-next-line no-console
+      console.warn(`[DETECT_HANDLES] ${file} leaked: ${leaked.join(' ')}`);
+    }
+  });
+}
+
 export {};
