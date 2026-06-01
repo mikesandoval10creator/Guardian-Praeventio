@@ -39,6 +39,13 @@ interface CapsulePayload {
   xpReward: number;
 }
 
+// Minimal structural Firestore shapes so the defensive `.catch(...)` fallbacks
+// below stay typed instead of unsafe casts. Admin SDK QuerySnapshot /
+// DocumentSnapshot are structurally compatible with these.
+type FsDoc = { id: string; data: () => Record<string, unknown> };
+type FsQuerySnap = { docs: FsDoc[]; size: number };
+type FsDocSnap = { exists: boolean; data: () => Record<string, unknown> | undefined };
+
 // ------------------------------ pure helpers ------------------------------
 
 /**
@@ -113,10 +120,15 @@ export async function summarizeWithGemini(args: {
       ai.models.generateContent({ model: 'gemini-1.5-flash', contents: prompt }),
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000)),
     ]);
+    const r = result as {
+      text?: string;
+      response?: { text?: () => string };
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
     const text =
-      (result as any)?.text ??
-      (result as any)?.response?.text?.() ??
-      (result as any)?.candidates?.[0]?.content?.parts?.[0]?.text ??
+      r.text ??
+      r.response?.text?.() ??
+      r.candidates?.[0]?.content?.parts?.[0]?.text ??
       null;
     if (typeof text !== 'string' || text.trim().length === 0) return fallback;
     return {
@@ -270,24 +282,25 @@ router.get('/wisdom-capsule/stats', verifyAuth, async (req, res) => {
         .where('date', '<=', dateTo)
         .limit(400)
         .get()
-        .catch(() => ({ docs: [] as any[] })),
-      db.collection('crews').where('projectId', '==', projectId).limit(50).get().catch(() => ({ docs: [] as any[] })),
-      db.collection('projects').doc(projectId).get().catch(() => ({ exists: false, data: () => ({}) } as any)),
+        .catch(() => ({ docs: [], size: 0 })) as Promise<FsQuerySnap>,
+      db.collection('crews').where('projectId', '==', projectId).limit(50).get().catch(() => ({ docs: [], size: 0 })) as Promise<FsQuerySnap>,
+      db.collection('projects').doc(projectId).get().catch(() => ({ exists: false, data: () => undefined })) as Promise<FsDocSnap>,
     ]);
 
-    const capsules = (capsulesSnap as any).docs.map((d: any) => {
+    const capsules = capsulesSnap.docs.map((d) => {
       const data = d.data();
       return { date: String(data.date ?? ''), ackedBy: Array.isArray(data.ackedBy) ? data.ackedBy : [] };
     });
-    const crewMembership = (crewsSnap as any).docs.map((d: any) => {
+    const crewMembership = crewsSnap.docs.map((d) => {
       const data = d.data();
       return {
         crewName: String(data.name ?? d.id),
         uids: Array.isArray(data.memberUids) ? data.memberUids : [],
       };
     });
-    const projData = (projectSnap as any).exists ? (projectSnap as any).data() : {};
-    const totalMembers = Array.isArray(projData?.members) ? projData.members.length : 0;
+    const projData = (projectSnap.exists ? projectSnap.data() : {}) ?? {};
+    const members = projData.members;
+    const totalMembers = Array.isArray(members) ? members.length : 0;
 
     const result = aggregateCapsuleStats(capsules, totalMembers, crewMembership);
     statsCache.set(cacheKey, { at: Date.now(), value: result });
@@ -332,26 +345,31 @@ router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
         .where('date', '==', yISO)
         .limit(50)
         .get()
-        .catch(() => ({ size: 0, docs: [] as any[] })),
-      db.collection('crews').where('projectId', '==', projectId).limit(20).get().catch(() => ({ docs: [] as any[] })),
-      db.collection('processes').where('projectId', '==', projectId).limit(50).get().catch(() => ({ docs: [] as any[] })),
+        .catch(() => ({ size: 0, docs: [] })) as Promise<FsQuerySnap>,
+      db.collection('crews').where('projectId', '==', projectId).limit(20).get().catch(() => ({ docs: [], size: 0 })) as Promise<FsQuerySnap>,
+      db.collection('processes').where('projectId', '==', projectId).limit(50).get().catch(() => ({ docs: [], size: 0 })) as Promise<FsQuerySnap>,
     ]);
 
-    const crewNames = (crewsSnap as any).docs.map((d: any) => d.data().name).filter(Boolean) as string[];
-    const alertasAtendidas = (processesSnap as any).docs.reduce(
-      (acc: number, d: any) => acc + (d.data().alertsResponded ?? 0),
-      0
-    );
-    const hallazgoDocs = ((hallazgosSnap as any).docs ?? []).map((d: any) => ({
-      id: d.id,
-      title: d.data()?.title,
-      description: d.data()?.description,
-    }));
-    const sourceNodes = hallazgoDocs.map((h: any) => h.id);
+    const crewNames = crewsSnap.docs
+      .map((d) => d.data().name)
+      .filter((n): n is string => typeof n === 'string' && n.length > 0);
+    const alertasAtendidas = processesSnap.docs.reduce((acc, d) => {
+      const responded = d.data().alertsResponded;
+      return acc + (typeof responded === 'number' ? responded : 0);
+    }, 0);
+    const hallazgoDocs = hallazgosSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        title: typeof data.title === 'string' ? data.title : undefined,
+        description: typeof data.description === 'string' ? data.description : undefined,
+      };
+    });
+    const sourceNodes = hallazgoDocs.map((h) => h.id);
 
     const capsule = await summarizeWithGemini({
       date,
-      hallazgosCount: (hallazgosSnap as any).size ?? sourceNodes.length,
+      hallazgosCount: hallazgosSnap.size ?? sourceNodes.length,
       alertasAtendidas,
       crewNames,
       prevDayFindings: hallazgoDocs,
