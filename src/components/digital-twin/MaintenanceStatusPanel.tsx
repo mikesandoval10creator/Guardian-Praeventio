@@ -98,16 +98,17 @@ export function MaintenanceStatusPanel({
   projectId,
   onClose,
 }: MaintenanceStatusPanelProps) {
-  if (!placedObject) return null;
-
-  const center = placedObject.geo ?? { lat: 0, lng: 0 };
-  const hasGeo = !!placedObject.geo;
+  // Rules of hooks: every hook below MUST run on every render. `placedObject`
+  // may be null (no selection), so we derive null-safe inputs and early-return
+  // AFTER the hooks (see below) instead of before them.
+  const center = placedObject?.geo ?? { lat: 0, lng: 0 };
+  const hasGeo = !!placedObject?.geo;
 
   // Histórico — sólo si tenemos geo. Sin geo (objeto en planning sobre
   // un mesh sin geoAnchor), el bounding box no tiene sentido y mostramos
   // un empty-state honesto.
   const history = useGeoAnchoredNodes(
-    hasGeo
+    hasGeo && placedObject
       ? {
           projectId,
           center,
@@ -121,7 +122,7 @@ export function MaintenanceStatusPanel({
   // Calendar — query directa por relatedObjectId.
   const { data: rawEvents, loading: loadingEvents } = useFirestoreCollection<CalendarEventRow>(
     'calendar_events',
-    [where('relatedObjectId', '==', placedObject.id), orderBy('startIso', 'asc')],
+    [where('relatedObjectId', '==', placedObject?.id ?? '__no_object__'), orderBy('startIso', 'asc')],
   );
 
   const events = useMemo(
@@ -137,6 +138,10 @@ export function MaintenanceStatusPanel({
       return Number(bT) - Number(aT);
     });
   }, [history.nodes]);
+
+  // Early-return AFTER all hooks (rules-of-hooks): nothing to show without a
+  // selected object — the hooks above already ran with null-safe empty inputs.
+  if (!placedObject) return null;
 
   const lifecycleClass =
     LIFECYCLE_BADGE[placedObject.lifecycle] ??

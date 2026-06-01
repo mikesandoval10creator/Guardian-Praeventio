@@ -79,7 +79,7 @@ vi.mock('../hooks/useKnowledgeBase', () => ({
     return mockKbState;
   },
   createKbEntry: (pid: string, payload: unknown) => createSpy(pid, payload),
-  useKbEntry: (pid: string, id: string) => useEntrySpy(pid, id),
+  recordKbEntryUse: (pid: string, id: string) => useEntrySpy(pid, id),
   flagKbObsolete: (pid: string, id: string, reason: string) =>
     flagObsoleteSpy(pid, id, reason),
 }));

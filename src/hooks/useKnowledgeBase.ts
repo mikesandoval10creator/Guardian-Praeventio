@@ -94,7 +94,10 @@ export async function createKbEntry(
   return (await res.json()) as { entry: KnowledgeEntry };
 }
 
-export async function useKbEntry(
+// NOTE: not a React hook — an async action that records an entry "use"
+// (POST /use). Named without a `use` prefix so it is callable from event
+// handlers without tripping react-hooks/rules-of-hooks.
+export async function recordKbEntryUse(
   projectId: string,
   entryId: string,
 ): Promise<void> {
