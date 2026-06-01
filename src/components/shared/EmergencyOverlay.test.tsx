@@ -141,4 +141,26 @@ describe('EmergencyOverlay', () => {
     expect(btn).toBeTruthy();
     expect(btn.tagName).toBe('BUTTON');
   });
+
+  // Regression: rules-of-hooks. The auto-monitor early-returns used to sit
+  // BEFORE the useState/useEffect hooks, so toggling `emergencyAutoEvent` on a
+  // mounted overlay changed the hook count and crashed React with "rendered
+  // fewer hooks than expected". Hooks are now hoisted above the returns; this
+  // exercises the on→off→on transition on a single instance.
+  it('does not crash when emergencyAutoEvent toggles on a mounted overlay', () => {
+    emergencyMock.isEmergencyActive = true;
+    appModeMock.emergencyAutoEvent = null;
+    const { rerender } = render(<EmergencyOverlay />);
+    expect(screen.getByText(/ALERTA DE EMERGENCIA/i)).toBeTruthy();
+
+    // Seismic auto-event takes over — must swap cleanly, not throw.
+    appModeMock.emergencyAutoEvent = { reason: 'sismo', peakG: 0.22 };
+    expect(() => rerender(<EmergencyOverlay />)).not.toThrow();
+    expect(screen.getByText(/SISMO DETECTADO/i)).toBeTruthy();
+
+    // …and back to the legacy overlay — the reverse transition is crash-free too.
+    appModeMock.emergencyAutoEvent = null;
+    expect(() => rerender(<EmergencyOverlay />)).not.toThrow();
+    expect(screen.getByText(/ALERTA DE EMERGENCIA/i)).toBeTruthy();
+  });
 });

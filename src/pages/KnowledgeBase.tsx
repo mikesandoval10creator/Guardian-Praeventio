@@ -40,7 +40,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
   useKnowledgeBase,
   createKbEntry,
-  useKbEntry,
+  recordKbEntryUse,
   flagKbObsolete,
   type KnowledgeEntry,
   type KbCategory,
@@ -156,7 +156,7 @@ export function KnowledgeBase() {
   const handleUseEntry = async (entryId: string) => {
     if (!projectId) return;
     try {
-      await useKbEntry(projectId, entryId);
+      await recordKbEntryUse(projectId, entryId);
       setMutationError(null);
       refetch();
     } catch (err) {

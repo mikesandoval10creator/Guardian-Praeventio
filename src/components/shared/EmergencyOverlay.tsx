@@ -159,33 +159,10 @@ export function EmergencyOverlay() {
   const { isEmergencyActive, emergencyType, resolveEmergency } = useEmergency();
   const { emergencyAutoEvent, dismissEmergency } = useAppMode();
 
-  // Sprint 14 — auto-monitor variants take precedence when their reason is
-  // present. The legacy `useEmergency` flow continues to drive the overlay
-  // when triggered manually or via the IoT critical path. Rendering happens
-  // BEFORE the early-returnless legacy branch so we can short-circuit.
-  if (emergencyAutoEvent) {
-    if (emergencyAutoEvent.reason === 'sismo') {
-      const tenantId =
-        (typeof window !== 'undefined' && window.__GP_TENANT_ID__) || 'default';
-      return (
-        <SismicAutoOverlay
-          peakG={emergencyAutoEvent.peakG}
-          onDismiss={dismissEmergency}
-          tenantId={String(tenantId)}
-        />
-      );
-    }
-    if (emergencyAutoEvent.reason === 'climate' && emergencyAutoEvent.climateSubType) {
-      return (
-        <ClimateAutoOverlay
-          subType={emergencyAutoEvent.climateSubType}
-          onDismiss={dismissEmergency}
-        />
-      );
-    }
-    // Reason 'company' falls through to the legacy useEmergency-driven UI.
-  }
-
+  // Rules of hooks: every hook (the useState trio + the useEffect below) runs
+  // on EVERY render. The auto-monitor early-returns were moved to AFTER the
+  // effect so a sismo/climate takeover never changes the hook count
+  // mid-render (which previously crashed with "rendered fewer hooks").
   const [isSafe, setIsSafe] = useState(false);
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [triageReported, setTriageReported] = useState<'verde' | 'amarillo' | 'rojo' | null>(null);
@@ -194,7 +171,10 @@ export function EmergencyOverlay() {
   useEffect(() => {
     let utterance: SpeechSynthesisUtterance | null = null;
 
-    if (isEmergencyActive) {
+    // `!emergencyAutoEvent`: when a sismo/climate auto-overlay takes over (the
+    // early-returns now live AFTER this effect, per rules-of-hooks), the legacy
+    // tactical-mode + speech must NOT also fire — the else/cleanup branch runs.
+    if (isEmergencyActive && !emergencyAutoEvent) {
       document.documentElement.classList.add('tactical-mode');
       // Force high contrast
       document.body.style.backgroundColor = '#000000';
@@ -269,7 +249,33 @@ export function EmergencyOverlay() {
         window.speechSynthesis.cancel();
       }
     };
-  }, [isEmergencyActive, emergencyType, isSafe]);
+  }, [isEmergencyActive, emergencyType, isSafe, emergencyAutoEvent]);
+
+  // Auto-monitor variants take precedence when their reason is present. Placed
+  // AFTER every hook (rules-of-hooks): the legacy `useEmergency` overlay drives
+  // the UI only when no sismo/climate auto-event is active.
+  if (emergencyAutoEvent) {
+    if (emergencyAutoEvent.reason === 'sismo') {
+      const tenantId =
+        (typeof window !== 'undefined' && window.__GP_TENANT_ID__) || 'default';
+      return (
+        <SismicAutoOverlay
+          peakG={emergencyAutoEvent.peakG}
+          onDismiss={dismissEmergency}
+          tenantId={String(tenantId)}
+        />
+      );
+    }
+    if (emergencyAutoEvent.reason === 'climate' && emergencyAutoEvent.climateSubType) {
+      return (
+        <ClimateAutoOverlay
+          subType={emergencyAutoEvent.climateSubType}
+          onDismiss={dismissEmergency}
+        />
+      );
+    }
+    // Reason 'company' falls through to the legacy useEmergency-driven UI.
+  }
 
   const handleSafeClick = () => {
     setIsSafe(true);
