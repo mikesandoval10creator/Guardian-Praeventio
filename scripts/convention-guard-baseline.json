@@ -57,8 +57,5 @@
     "wisdomCapsule": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)",
     "workerReadiness": "[triage] coarse file-level match — confirm it must audit OR move to rule3_exempt (snapshot/cache/derived/idempotency)"
   },
-  "rule19_pending": {
-    "knowledgeBase": "/use + /flag-obsolete: get->update same ref",
-    "apprenticeship": "/expose: get(apprenticeRef)->set(apprenticeRef) (authorize already wrapped)"
-  }
+  "rule19_pending": {}
 }

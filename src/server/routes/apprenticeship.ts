@@ -355,10 +355,6 @@ router.post(
       const apprenticeRef = db
         .collection(`tenants/${g.tenantId}/projects/${projectId}/apprentices`)
         .doc(uid);
-      const snap = await apprenticeRef.get();
-      if (!snap.exists) {
-        return res.status(404).json({ error: 'apprentice_not_found' });
-      }
       const id = `exp_${Date.now()}_${randomUUID()}`;
       const exposure: StoredExposure = {
         id,
@@ -375,9 +371,21 @@ router.post(
       for (const [k, v] of Object.entries(exposure)) {
         if (v !== undefined) cleaned[k] = v;
       }
-      await apprenticeRef.collection('exposures').doc(id).set(cleaned);
-      // Touch parent for cache invalidation.
-      await apprenticeRef.set({ updatedAt: now }, { merge: true });
+      // CLAUDE.md #19: get(apprenticeRef) + set(apprenticeRef) on the same doc
+      // must be atomic. id/exposure/cleaned derive from the body only (no read
+      // dependency), so they stay outside; the read-validate-writes move in.
+      type R = { kind: 'not_found' } | { kind: 'ok' };
+      const result = await db.runTransaction<R>(async (txn) => {
+        const snap = await txn.get(apprenticeRef);
+        if (!snap.exists) return { kind: 'not_found' };
+        txn.set(apprenticeRef.collection('exposures').doc(id), cleaned);
+        // Touch parent for cache invalidation.
+        txn.set(apprenticeRef, { updatedAt: now }, { merge: true });
+        return { kind: 'ok' };
+      });
+      if (result.kind === 'not_found') {
+        return res.status(404).json({ error: 'apprentice_not_found' });
+      }
       return res.status(201).json({ ok: true, exposure });
     } catch (err) {
       logger.error?.('sprintK.apprentices.expose.error', err);
