@@ -1968,3 +1968,18 @@ checks `RANK_`/`subscription.planId` en `subscription.ts`, `billing.ts`,
 
 **🔴 Bug B15-F1 (RESUELTO):** `preventionCost.ts` nunca montado →
 `usePreventionCost` daba **404**. Mount `/api/sprint-k` + contrato (RED→GREEN, 19/19).
+
+---
+
+### B16 — Offline / PWA / Capacitor / Mesh · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** 1 huérfano montado; cifrado SQLite OK.
+
+| Aspecto | Estado | Evidencia |
+|---|---|---|
+| Cifrado SQLite on-device (regla #16) | ✅ | `createConnection(..., true, mode, ...)` en `pwa-offline.ts:78` y `offlineStorage.ts:89`; modo centralizado en `sqliteEncryption.ts`. El único match `"no-encryption"` es un **comentario histórico** (comportamiento ya corregido), no código activo |
+| Mesh relay | ✅ | `packages/capacitor-mesh/` presente |
+| syncStatus (sync-status tracker) | ❌→✅ | huérfano → **B16-F1**; stateless, `verifyAuth` + `assertProjectMember` |
+
+**🔴 Bug B16-F1 (RESUELTO):** `syncStatus.ts` nunca montado → `useSyncStatus`
+daba **404**. Mount `/api/sprint-k` + contrato (RED→GREEN, 20/20).

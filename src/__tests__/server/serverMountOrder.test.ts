@@ -189,6 +189,12 @@ describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
       importRe: /import\s+preventionCostRouter\s+from\s+['"`][^'"`]*preventionCost(\.js)?['"`]/,
       mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*preventionCostRouter/,
     },
+    // B16 offline-block audit (2026-06-01): syncStatus tracker orphaned.
+    {
+      name: 'syncStatus (/:projectId/sync-status/*) under /api/sprint-k',
+      importRe: /import\s+syncStatusRouter\s+from\s+['"`][^'"`]*syncStatus(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*syncStatusRouter/,
+    },
   ];
 
   it('declares the SPA catch-all (sanity)', () => {

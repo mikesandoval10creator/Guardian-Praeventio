@@ -141,6 +141,9 @@ import insightsRouter from "./src/server/routes/insights.js";
 import incidentTrendsRouter from "./src/server/routes/incidentTrends.js";
 import dataConfidenceRouter from "./src/server/routes/dataConfidence.js";
 import portableHistoryRouter from "./src/server/routes/portableHistory.js";
+// Offline block (B16) — sync-status tracker was orphaned; consumer useSyncStatus
+// hit 404. Paths /:projectId/sync-status/*.
+import syncStatusRouter from "./src/server/routes/syncStatus.js";
 import confidentialReportsRouter from "./src/server/routes/confidentialReports.js";
 import apprenticeshipRouter from "./src/server/routes/apprenticeship.js";
 import lessonsLearnedRouter from "./src/server/routes/lessonsLearned.js";
@@ -979,6 +982,8 @@ app.use('/api/insights', insightsRouter);
 // (sprintK.ts) is deleted.
 app.use('/api/sprint-k', incidentTrendsRouter);
 app.use('/api/sprint-k', dataConfidenceRouter);
+// B16 — offline sync-status tracker.
+app.use('/api/sprint-k', syncStatusRouter);
 app.use('/api/sprint-k', portableHistoryRouter);
 app.use('/api/sprint-k', confidentialReportsRouter);
 app.use('/api/sprint-k', apprenticeshipRouter);
