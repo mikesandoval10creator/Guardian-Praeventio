@@ -30,6 +30,7 @@ import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -322,6 +323,11 @@ router.post(
         )
         .doc(id)
         .set(payload, { merge: true });
+      await auditServerEvent(req, 'drivingSafety.route.create', 'drivingSafety', {
+        routeId: id,
+        name: payload.name,
+        criticality: payload.criticality,
+      }, { projectId });
       return res.status(201).json({ ok: true, route: payload });
     } catch (err) {
       logger.error?.('drivingSafety.routes.create.error', err);
@@ -378,6 +384,9 @@ router.post(
           },
           { merge: true },
         );
+        await auditServerEvent(req, 'drivingSafety.route.alert.resolve', 'drivingSafety', {
+          routeId: id,
+        }, { projectId });
         return res.status(200).json({ ok: true, activeAlert: null });
       }
 
@@ -405,6 +414,11 @@ router.post(
         },
         { merge: true },
       );
+      await auditServerEvent(req, 'drivingSafety.route.alert.raise', 'drivingSafety', {
+        routeId: id,
+        kind: newAlert.kind,
+        flaggedAt: newAlert.flaggedAt,
+      }, { projectId });
       return res.status(200).json({ ok: true, activeAlert: newAlert });
     } catch (err) {
       logger.error?.('drivingSafety.routes.alert.error', err);
@@ -511,6 +525,12 @@ router.post(
         );
       }
       await docRef.set(update, { merge: true });
+      await auditServerEvent(req, 'drivingSafety.journey', 'drivingSafety', {
+        workerUid: uid,
+        action: body.action,
+        journeyId: body.journeyId ?? null,
+        hours: body.hours ?? null,
+      }, { projectId });
 
       // Audit log entry — journey-level history para forensics.
       try {
