@@ -13,7 +13,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { buildTestServer, type TestServerHandle } from './test-server.js';
 
 let handle: TestServerHandle;
@@ -118,7 +118,7 @@ function buildLimitedAskGuardianApp(deps: AskGuardianRateDeps = {}): Express {
   const limiter = rateLimit({
     windowMs: deps.windowMs ?? 15 * 60 * 1000,
     max: deps.max ?? 3,
-    keyGenerator: (req: Request) => req.user?.uid || req.ip || 'anonymous',
+    keyGenerator: (req: Request) => req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Límite de consultas IA alcanzado. Intenta de nuevo en 15 minutos.' },

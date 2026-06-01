@@ -936,7 +936,7 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
 // in-memory store does not leak counts between tests.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 interface RateLimitedTestDeps extends VerifyTestDeps {
   /** Override max to make tests faster. Defaults to 5 (production value). */
@@ -978,7 +978,7 @@ function buildRateLimitedApp(deps: RateLimitedTestDeps): Express {
   const limiter = rateLimit({
     windowMs: deps.windowMs ?? 60 * 1000,
     max: deps.max ?? 5,
-    keyGenerator: (req: any) => req.user?.uid || req.ip || 'anonymous',
+    keyGenerator: (req: any) => req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'too_many_verify_attempts', retryAfterMs: 60_000 },

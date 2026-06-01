@@ -36,7 +36,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { InMemoryFirestore, type FakeAuth } from './test-server.js';
 import {
   storeWebAuthnChallenge,
@@ -213,7 +213,7 @@ function buildRegisterApp(deps: RegisterTestDeps): Express {
   const registerLimiter = rateLimit({
     windowMs: deps.registerWindowMs ?? 60 * 1000,
     max: deps.registerMax ?? 3,
-    keyGenerator: (req: any) => req.user?.uid || req.ip || 'anonymous',
+    keyGenerator: (req: any) => req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'too_many_register_attempts', retryAfterMs: 60_000 },

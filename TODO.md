@@ -842,8 +842,10 @@ empíricos (corriendo `src/__tests__/server`, 153 files / 3476 tests):
 reprodujo local. Mitigación: re-run de PRs verificados-seguros. **Ahora
 instrumentado** — el próximo que vea el hang en CI corre `DETECT_HANDLES=1 npx
 vitest run <subset>` y ataca el archivo que muestra `TCPServerWrap` sin
-`SimpleShutdownWrap` o `Timeout+2`. **Deferido (listado):** ⬜ B-2.31-D1 limpiar
-los 3 fixtures de test al patrón `ipKeyGenerator`.
+`SimpleShutdownWrap` o `Timeout+2`. **B-2.31-D1 ✅ HECHO (2026-06-01):** los 3
+fixtures (`webauthnVerify`, `askGuardian`, `webauthnRegister`) ahora usan
+`ipKeyGenerator(req.ip ?? '')` — ruido `ValidationError` de express-rate-limit
+eliminado, 46 tests verdes.
 
 ---
 
@@ -1864,12 +1866,26 @@ código actual escribe a root `audit_logs` (`incidentFlow.ts:115`). El código e
 source of truth → hallazgo resuelto.
 
 **Deferido (listado):**
-- ⬜ B4-D1: verificar que la **declaración de paralización** (`stoppage`) queda
-  auditada del lado cliente (write a Firestore bajo rules append-only), ya que la
-  ruta es stateless. Una paralización es acción de cumplimiento sensible (DS).
-- ⬜ B4-D2: `incidentFlow` usa una fn `writeAudit` local con campo `actorUid` en
-  vez del helper canónico `auditServerEvent` (`userId`/`userEmail`). Unificar al
-  helper para consistencia de esquema del trail.
+- 🔴 **B4-D1 ESCALADO a hallazgo real (2026-06-01):** la ruta stoppage es
+  stateless → el cliente persiste vía `services/stoppage/stoppageFirestoreAdapter.ts`
+  a la colección `tenants/{tid}/projects/{pid}/stoppages/{id}` (usado por
+  `StoppageMonitor.tsx`). **PERO `firestore.rules` NO tiene entrada para
+  `stoppages`** → default-deny **bloquea** el write del cliente. Tras B4-F1 la API
+  responde, pero la persistencia queda bloqueada por rules. **Fix gobernado por
+  regla #4** (rules explícitas + ≥5 rules-tests + entrada `security_spec.md`).
+  Semántica append-only/transición de una paralización (DS) es sensible a
+  cumplimiento → **requiere decisión del modelo de acceso antes de escribir las
+  rules** (¿inmutable tras declarar? ¿quién resume/cancela? ¿folio?). NO se fija
+  especulativamente. Candidato a PR de seguridad dedicado (`/guard`).
+- ✅ **B4-D2 CERRADO como no-defecto (2026-06-01):** investigado — NO unificar en
+  aislamiento. `actorUid`/`kind` es una **convención de campo compartida** por ≥5
+  routers (`systemEvents`, `misc`, `confidentialReports`, `incidentBundle`,
+  `eventReplay`) y leída por UI (`CustodyChainTimelineCard`,
+  `useGeofenceWithEvents`). El test de `incidentFlow` solo exige que la fila caiga
+  en root `audit_logs` (cumple). Forzar `auditServerEvent` (`userId`/`userEmail`)
+  lo volvería **inconsistente** con ese patrón. El codebase tiene 2 esquemas de
+  audit conviviendo; unificarlos es una migración coordinada de esquema (esfuerzo
+  aparte), no un cambio por-router. Sin gap de cumplimiento (audita a root).
 
 ---
 
