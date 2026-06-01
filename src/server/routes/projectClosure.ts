@@ -30,6 +30,7 @@ import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -338,6 +339,7 @@ router.post(
         finalizedByUid: null,
       };
       await writeClosureState(db, g.tenantId, projectId, next);
+      await auditServerEvent(req, 'projectClosure.initiate', 'projectClosure', { projectId }, { projectId });
       return res.status(200).json({ ok: true, state: next });
     } catch (err) {
       logger.error?.('projectClosure.initiate.error', err);
@@ -421,7 +423,7 @@ router.post(
         )
         .doc(lessonId)
         .set(stored);
-
+      await auditServerEvent(req, 'projectClosure.lessons', 'projectClosure', { projectId, lessonId }, { projectId });
       return res.status(201).json({ ok: true, lesson: stored });
     } catch (err) {
       logger.error?.('projectClosure.lessons.error', err);
@@ -478,7 +480,7 @@ router.post(
         )
         .doc(decisionId)
         .set(stored);
-
+      await auditServerEvent(req, 'projectClosure.decisions', 'projectClosure', { projectId, decisionId }, { projectId });
       return res.status(201).json({ ok: true, decision: stored });
     } catch (err) {
       logger.error?.('projectClosure.decisions.error', err);
@@ -526,6 +528,7 @@ router.post(
         finalizedByUid: callerUid,
       };
       await writeClosureState(db, g.tenantId, projectId, next);
+      await auditServerEvent(req, 'projectClosure.finalize', 'projectClosure', { projectId }, { projectId });
       return res.status(200).json({ ok: true, state: next });
     } catch (err) {
       logger.error?.('projectClosure.finalize.error', err);

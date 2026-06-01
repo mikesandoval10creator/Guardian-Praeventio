@@ -33,6 +33,7 @@ import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -314,6 +315,7 @@ router.post(
         )
         .doc(body.id)
         .set(payload, { merge: true });
+      await auditServerEvent(req, 'preventionCost.save-scenario', 'preventionCost', { projectId, scenarioId: body.id }, { projectId });
       return res.status(201).json({ ok: true, scenario: payload });
     } catch (err) {
       logger.error?.('preventionCost.saveScenario.error', err);

@@ -112,7 +112,7 @@ async function writeAudit(
   try {
     await admin
       .firestore()
-      .collection(`tenants/${tenantId}/audit_logs`)
+      .collection('audit_logs')
       .add({
         kind: action,
         projectId,

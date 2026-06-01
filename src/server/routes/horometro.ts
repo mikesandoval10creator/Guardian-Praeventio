@@ -25,6 +25,7 @@ import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -302,6 +303,7 @@ router.post(
           logger,
         },
       );
+      await auditServerEvent(req, 'horometro.reading', 'horometro', { projectId, equipmentId: body.equipmentId, hours: body.hours }, { projectId });
       return res.status(201).json({
         reading,
         flow: flowResult,
@@ -413,6 +415,7 @@ router.post(
           logger,
         },
       );
+      await auditServerEvent(req, 'horometro.complete', 'horometro', { projectId, taskId }, { projectId });
       return res.json({
         task: updated,
         flow: flowResult,
