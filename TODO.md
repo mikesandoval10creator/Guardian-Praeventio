@@ -2002,3 +2002,63 @@ daba **404**. Mount `/api/sprint-k` + contrato (RED→GREEN, 20/20).
 → `usePymeOnboarding` / `usePymeWizard` (+ `PymeMaturityWizard.tsx`) daban **404**.
 Stateless, `verifyAuth` + `assertProjectMember`. Mount `/api/sprint-k` + 2
 contratos (RED→GREEN, 22/22).
+
+---
+
+### B18 — Analítica / Reportes / Dashboards · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Stack de analítica montado; 4 huérfanos montados.
+
+| Aspecto | Estado | Evidencia |
+|---|---|---|
+| aggregateTelemetry / orgMetrics / dataConfidence / portableHistory / safetyPerformance / explainability | ✅ | montados |
+| reportsAutomation (validate/build) | ❌→✅ | huérfano → **B18-F1** |
+| safetyMetrics (build-report) | ❌→✅ | huérfano → **B18-F1** |
+| projectComparator (compare) | ❌→✅ | huérfano → **B18-F1** |
+| predictiveAlerts (should-fire-windowed) | ❌→✅ | huérfano → **B18-F1** (consumido por `AlertSchedulerMount.tsx`) |
+
+**🔴 Bug B18-F1 (RESUELTO):** los 4 routers nunca montados →
+`useReportsAutomation` / `useSafetyMetrics` / `useProjectComparator` /
+`usePredictiveAlerts` daban **404**. Stateless, `verifyAuth` +
+`assertProjectMember`. Mount `/api/sprint-k` + 4 contratos (RED→GREEN, 26/26).
+
+---
+
+## 17.99 — 🏁 Cierre del barrido B1→B18 (2026-06-01)
+
+**Los 18 bloques funcionales auditados de primera mano (no desde docs).**
+
+**Resultado wiring:** **20 routers huérfanos** encontrados (implementados +
+unit-tested pero nunca montados → **404** para consumidores reales) y **los 20
+cableados** con TDD (contrato de mount `serverMountOrder.test.ts`, 26 casos,
+RED→GREEN por cada uno):
+
+- B1 (4): loneWorker, refuges, restrictedZones, evacuationHeadcount
+- B2 (2): riskRanking, shiftRiskPanel
+- B4 (2): incidentFlow, stoppage
+- B5 (1): legalObligations
+- B10 (3): eppFlow, equipmentQr, hazmatInventory
+- B15 (1): preventionCost
+- B16 (1): syncStatus
+- B17 (2): pymeOnboarding, pymeWizard
+- B18 (4): reportsAutomation, safetyMetrics, projectComparator, predictiveAlerts
+
+**Bloques sin huérfanos (verdict REAL):** B3 (Ergonomía/Protocolos), B6
+(Capacitación), B7 (Salud + ADR 0012), B8 (Permisos/LOTO), B9 (Inspecciones),
+B11 (Contratistas), B12 (CPHS), B13 (MOC), B14 (IA/Gemini).
+
+**Patrones confirmados como honestos (no bugs):** superficies stateless
+offline-first (cliente persiste el doc; el server devuelve next-state — hazmat,
+stoppage, loneWorker, readReceipts); gates de config `503` por secret §5 (qrAck,
+gemini circuit-breaker); cifrado SQLite on-device ON; ADR 0012 enforced.
+
+**Correcciones a docs previas:** L795 marcaba `incidentFlow` escribiendo audit a
+path tenant-scoped → STALE (hoy escribe a root `audit_logs`). Veredicto inicial
+B1 "Headcount ✅" era parcial → faltaba el CRUD persistente (B1-F2).
+
+**Deuda residual (deferida, listada en cada bloque B*-D*):** PLAESI ausente
+(B3-D1), 3 GET dashboard endpoints de riskRanking inexistentes (B2-D1),
+unificar `incidentFlow` al helper `auditServerEvent` (B4-D2), verificar audit
+client-side de paralizaciones (B4-D1), y otros checks puntuales. **Ningún bug de
+wiring abierto.** El techo §5 (secrets DevOps) sigue siendo el límite real para
+las features 🔑.

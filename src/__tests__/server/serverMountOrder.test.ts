@@ -206,6 +206,28 @@ describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
       importRe: /import\s+pymeWizardRouter\s+from\s+['"`][^'"`]*pymeWizard(\.js)?['"`]/,
       mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*pymeWizardRouter/,
     },
+    // B18 analytics-block audit (2026-06-01): reportsAutomation, safetyMetrics,
+    // projectComparator and predictiveAlerts were orphaned.
+    {
+      name: 'reportsAutomation (/:projectId/reports-automation/*) under /api/sprint-k',
+      importRe: /import\s+reportsAutomationRouter\s+from\s+['"`][^'"`]*reportsAutomation(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*reportsAutomationRouter/,
+    },
+    {
+      name: 'safetyMetrics (/:projectId/safety-metrics/*) under /api/sprint-k',
+      importRe: /import\s+safetyMetricsRouter\s+from\s+['"`][^'"`]*safetyMetrics(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*safetyMetricsRouter/,
+    },
+    {
+      name: 'projectComparator (/:projectId/project-comparator/*) under /api/sprint-k',
+      importRe: /import\s+projectComparatorRouter\s+from\s+['"`][^'"`]*projectComparator(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*projectComparatorRouter/,
+    },
+    {
+      name: 'predictiveAlerts (/:projectId/predictive-alerts/*) under /api/sprint-k',
+      importRe: /import\s+predictiveAlertsRouter\s+from\s+['"`][^'"`]*predictiveAlerts(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*predictiveAlertsRouter/,
+    },
   ];
 
   it('declares the SPA catch-all (sanity)', () => {

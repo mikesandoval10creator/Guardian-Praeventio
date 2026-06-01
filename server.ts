@@ -285,6 +285,14 @@ import expressBundleRouter from "./src/server/routes/expressBundle.js";
 import researchModeRouter from "./src/server/routes/researchMode.js";
 // Organizational Metrics — Sprint K §278-283 (silos / friction / closure / chronic / pressure).
 import orgMetricsRouter from "./src/server/routes/orgMetrics.js";
+// Analytics block (B18) — four orphaned routers: reports automation, safety
+// metrics report, project comparator, predictive alerts. Their consumers
+// (useReportsAutomation / useSafetyMetrics / useProjectComparator /
+// usePredictiveAlerts) hit 404 until mounted.
+import reportsAutomationRouter from "./src/server/routes/reportsAutomation.js";
+import safetyMetricsRouter from "./src/server/routes/safetyMetrics.js";
+import projectComparatorRouter from "./src/server/routes/projectComparator.js";
+import predictiveAlertsRouter from "./src/server/routes/predictiveAlerts.js";
 // Spaced Repetition (SM-2) — Sprint K §85-89 post-training learning retention.
 import spacedRepetitionRouter from "./src/server/routes/spacedRepetition.js";
 // Business Continuity — Sprint K §237-243 (SPOF detection / outage simulator / polyvalence plan).
@@ -1079,6 +1087,12 @@ app.use('/api', externalAuditPortalRouter);
 app.use('/api/sprint-k', expressBundleRouter);
 app.use('/api/sprint-k', researchModeRouter);
 app.use('/api/sprint-k', orgMetricsRouter);
+// B18 — analytics: reports automation, safety metrics, project comparator,
+// predictive alerts (all /:projectId/<seg>/*).
+app.use('/api/sprint-k', reportsAutomationRouter);
+app.use('/api/sprint-k', safetyMetricsRouter);
+app.use('/api/sprint-k', projectComparatorRouter);
+app.use('/api/sprint-k', predictiveAlertsRouter);
 app.use('/api/sprint-k', spacedRepetitionRouter);
 app.use('/api/sprint-k', continuityRouter);
 app.use('/api/sprint-k', circadianRouter);
