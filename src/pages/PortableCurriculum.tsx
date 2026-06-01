@@ -132,7 +132,7 @@ export function PortableCurriculum() {
           limit(200),
         );
         const auditSnap = await getDocs(auditQ);
-        auditRows = auditSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }));
+        auditRows = auditSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
       } catch (err) {
         logger.warn('curriculum_audit_logs_load_failed', {
           uid,
