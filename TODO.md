@@ -197,10 +197,12 @@ Documentación HONEST_STATE.md + AUDIT_BACKLOG.md (en `docs/archive/2026-05/`) t
 
 **Resultado:** Android App Links funcionarán en Play Store cuando se publique la app. Apple App Site Association todavía tiene placeholder `TEAMID` (bloqueado por Apple Developer Account, §5).
 
-### 2.9 🔴 SLM Gemma 2 2B SHA-256 null
-**Archivo:** `src/services/slm/registry.ts:119`
+### 2.9 🟡 SLM Gemma 2 2B SHA-256 null — loader fail-closed IMPLEMENTADO; falta hash (DevOps)
+**Archivo:** `src/services/slm/registry.ts:119` (`expectedSha256: null`, Gemma gated).
 
-`expectedSha256: null` — el modelo Gemma no tiene integrity check. Loader debe fail-closed en prod. Bloqueado por DevOps que descargue + compute SHA-256.
+**Code (HECHO 2026-06-01):** el loader **fail-closea en producción** ante un modelo sin SHA-256 pineado, ANTES de descargar. `src/services/slm/slmRuntime.ts` → `assertVerifiableInProduction()` lanza `SlmUnverifiedModelError` (el worker lo clasifica `integrity_failure`, `slmRuntimeWorkerCore.ts:389`) salvo override explícito `allowUnverifiedHash` (release pipeline). En dev/staging se preserva el camino graceful para que el pipeline capture el hash en la primera descarga verificada. Tests: `src/services/slm/slmRuntime.test.ts` describe "fail-closed on unverified hash in production (§2.9)" — 4 casos (prod+null→refuse sin fetch ni session, dev+null→graceful, prod+override→carga, prod+hash-pinned→carga).
+
+**Pendiente (DevOps, externo):** poblar el `expectedSha256` real de Gemma — repo `gemma-2-2b-it-ONNX` es GATED (HF API `/tree/main` → 401); requiere HF token con scope al repo (accept terms primero). Hasta entonces Gemma no carga en prod (fail-closed correcto, no es un bug).
 
 ### 2.10 ✅ `tryAutoIssueDte` wireado en webpay/return + mercadoPagoIpn (cierre 2026-05-15)
 **Archivos:**
