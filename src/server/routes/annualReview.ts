@@ -20,6 +20,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -252,42 +253,55 @@ router.post(
       const ref = admin
         .firestore()
         .doc(annualReviewPath(g.tenantId, projectId, body.year));
-      const snap = await ref.get();
-      const existing = snap.exists
-        ? (snap.data() as AnnualReviewSnapshot)
-        : defaultSnapshot(g.tenantId, projectId, body.year, callerUid);
-      if (existing.isConcluded) {
+      // CLAUDE.md #19: get + set(merge:false) on the same annual-review doc is a
+      // read-modify-write — two concurrent objective posts would both read the
+      // same snapshot and clobber each other. Run it in a transaction.
+      type R = { kind: 'concluded' } | { kind: 'ok'; next: AnnualReviewSnapshot };
+      const result = await admin.firestore().runTransaction<R>(async (txn) => {
+        const snap = await txn.get(ref);
+        const existing = snap.exists
+          ? (snap.data() as AnnualReviewSnapshot)
+          : defaultSnapshot(g.tenantId, projectId, body.year, callerUid);
+        if (existing.isConcluded) return { kind: 'concluded' };
+        const objectives = body.objectives.map((o) => ({
+          id: o.id,
+          fiscalYear: body.year,
+          title: o.title,
+          description: o.description,
+          metric: o.metric,
+          baseline: o.baseline,
+          target: o.target,
+          currentValue: o.currentValue,
+          deadline: o.deadline,
+          ownerUid: o.ownerUid,
+          status: o.status,
+          linkedActionIds: o.linkedActionIds,
+          evidenceUrls: o.evidenceUrls,
+        }));
+        const next: AnnualReviewSnapshot = {
+          ...existing,
+          objectives,
+          analysis:
+            typeof (req.body as Record<string, unknown>).analysis === 'string'
+              ? (
+                  (req.body as Record<string, unknown>).analysis as string
+                ).slice(0, 8000)
+              : existing.analysis,
+          updatedAt: new Date().toISOString(),
+          updatedByUid: callerUid,
+        };
+        txn.set(ref, next, { merge: false });
+        return { kind: 'ok', next };
+      });
+      if (result.kind === 'concluded') {
         return res.status(409).json({ error: 'review_already_concluded' });
       }
-      const objectives = body.objectives.map((o) => ({
-        id: o.id,
-        fiscalYear: body.year,
-        title: o.title,
-        description: o.description,
-        metric: o.metric,
-        baseline: o.baseline,
-        target: o.target,
-        currentValue: o.currentValue,
-        deadline: o.deadline,
-        ownerUid: o.ownerUid,
-        status: o.status,
-        linkedActionIds: o.linkedActionIds,
-        evidenceUrls: o.evidenceUrls,
-      }));
-      const next: AnnualReviewSnapshot = {
-        ...existing,
-        objectives,
-        analysis:
-          typeof (req.body as Record<string, unknown>).analysis === 'string'
-            ? (
-                (req.body as Record<string, unknown>).analysis as string
-              ).slice(0, 8000)
-            : existing.analysis,
-        updatedAt: new Date().toISOString(),
-        updatedByUid: callerUid,
-      };
-      await ref.set(next, { merge: false });
-      return res.status(200).json({ ok: true, snapshot: next });
+      // CLAUDE.md #3: state change must be audited.
+      await auditServerEvent(req, 'annualReview.objectives', 'annual_review', {
+        year: body.year,
+        objectiveCount: result.next.objectives.length,
+      }, { projectId });
+      return res.status(200).json({ ok: true, snapshot: result.next });
     } catch (err) {
       logger.error?.('annualReview.objectives.error', err);
       captureRouteError(err, 'annualReview.objectives');
@@ -312,52 +326,69 @@ router.post(
       const ref = admin
         .firestore()
         .doc(annualReviewPath(g.tenantId, projectId, body.year));
-      const snap = await ref.get();
-      if (!snap.exists) {
+      // CLAUDE.md #19: read-modify-write on the same doc → transaction.
+      type R =
+        | { kind: 'not_found' }
+        | { kind: 'concluded' }
+        | { kind: 'objective_not_found' }
+        | { kind: 'ok'; next: AnnualReviewSnapshot };
+      const result = await admin.firestore().runTransaction<R>(async (txn) => {
+        const snap = await txn.get(ref);
+        if (!snap.exists) return { kind: 'not_found' };
+        const existing = snap.data() as AnnualReviewSnapshot;
+        if (existing.isConcluded) return { kind: 'concluded' };
+        const obj = existing.objectives.find((o) => o.id === body.objectiveId);
+        if (!obj) return { kind: 'objective_not_found' };
+        const now = new Date().toISOString();
+        const newEvidence: AnnualReviewEvidence = {
+          objectiveId: body.objectiveId,
+          evidenceUrl: body.evidenceUrl,
+          evidenceKind: body.evidenceKind,
+          caption: body.caption,
+          attachedAt: now,
+          attachedByUid: callerUid,
+        };
+        const isDup = existing.evidences.some(
+          (e) =>
+            e.objectiveId === newEvidence.objectiveId &&
+            e.evidenceUrl === newEvidence.evidenceUrl,
+        );
+        const nextEvidences = isDup
+          ? existing.evidences
+          : [...existing.evidences, newEvidence];
+        const nextObjectives = existing.objectives.map((o) => {
+          if (o.id !== body.objectiveId) return o;
+          if (o.evidenceUrls.includes(body.evidenceUrl)) return o;
+          return {
+            ...o,
+            evidenceUrls: [...o.evidenceUrls, body.evidenceUrl],
+          };
+        });
+        const next: AnnualReviewSnapshot = {
+          ...existing,
+          objectives: nextObjectives,
+          evidences: nextEvidences,
+          updatedAt: now,
+          updatedByUid: callerUid,
+        };
+        txn.set(ref, next, { merge: false });
+        return { kind: 'ok', next };
+      });
+      if (result.kind === 'not_found') {
         return res.status(404).json({ error: 'review_not_found' });
       }
-      const existing = snap.data() as AnnualReviewSnapshot;
-      if (existing.isConcluded) {
+      if (result.kind === 'concluded') {
         return res.status(409).json({ error: 'review_already_concluded' });
       }
-      const obj = existing.objectives.find((o) => o.id === body.objectiveId);
-      if (!obj) {
+      if (result.kind === 'objective_not_found') {
         return res.status(404).json({ error: 'objective_not_found' });
       }
-      const now = new Date().toISOString();
-      const newEvidence: AnnualReviewEvidence = {
+      await auditServerEvent(req, 'annualReview.evidence', 'annual_review', {
+        year: body.year,
         objectiveId: body.objectiveId,
-        evidenceUrl: body.evidenceUrl,
         evidenceKind: body.evidenceKind,
-        caption: body.caption,
-        attachedAt: now,
-        attachedByUid: callerUid,
-      };
-      const isDup = existing.evidences.some(
-        (e) =>
-          e.objectiveId === newEvidence.objectiveId &&
-          e.evidenceUrl === newEvidence.evidenceUrl,
-      );
-      const nextEvidences = isDup
-        ? existing.evidences
-        : [...existing.evidences, newEvidence];
-      const nextObjectives = existing.objectives.map((o) => {
-        if (o.id !== body.objectiveId) return o;
-        if (o.evidenceUrls.includes(body.evidenceUrl)) return o;
-        return {
-          ...o,
-          evidenceUrls: [...o.evidenceUrls, body.evidenceUrl],
-        };
-      });
-      const next: AnnualReviewSnapshot = {
-        ...existing,
-        objectives: nextObjectives,
-        evidences: nextEvidences,
-        updatedAt: now,
-        updatedByUid: callerUid,
-      };
-      await ref.set(next, { merge: false });
-      return res.status(200).json({ ok: true, snapshot: next });
+      }, { projectId });
+      return res.status(200).json({ ok: true, snapshot: result.next });
     } catch (err) {
       logger.error?.('annualReview.evidence.error', err);
       captureRouteError(err, 'annualReview.evidence');
@@ -382,27 +413,43 @@ router.post(
       const ref = admin
         .firestore()
         .doc(annualReviewPath(g.tenantId, projectId, body.year));
-      const snap = await ref.get();
-      if (!snap.exists) {
+      // CLAUDE.md #19: read-modify-write on the same doc → transaction. The
+      // isConcluded check + the write must be atomic so two concurrent
+      // concludes can't both pass the guard.
+      type R =
+        | { kind: 'not_found' }
+        | { kind: 'concluded' }
+        | { kind: 'ok'; next: AnnualReviewSnapshot };
+      const result = await admin.firestore().runTransaction<R>(async (txn) => {
+        const snap = await txn.get(ref);
+        if (!snap.exists) return { kind: 'not_found' };
+        const existing = snap.data() as AnnualReviewSnapshot;
+        if (existing.isConcluded) return { kind: 'concluded' };
+        const now = new Date().toISOString();
+        const next: AnnualReviewSnapshot = {
+          ...existing,
+          conclusion: body.conclusion,
+          signedOffByUid: body.signedOffByUid,
+          signedOffByName: body.signedOffByName,
+          concludedAt: now,
+          isConcluded: true,
+          updatedAt: now,
+          updatedByUid: callerUid,
+        };
+        txn.set(ref, next, { merge: false });
+        return { kind: 'ok', next };
+      });
+      if (result.kind === 'not_found') {
         return res.status(404).json({ error: 'review_not_found' });
       }
-      const existing = snap.data() as AnnualReviewSnapshot;
-      if (existing.isConcluded) {
+      if (result.kind === 'concluded') {
         return res.status(409).json({ error: 'review_already_concluded' });
       }
-      const now = new Date().toISOString();
-      const next: AnnualReviewSnapshot = {
-        ...existing,
-        conclusion: body.conclusion,
+      await auditServerEvent(req, 'annualReview.conclude', 'annual_review', {
+        year: body.year,
         signedOffByUid: body.signedOffByUid,
-        signedOffByName: body.signedOffByName,
-        concludedAt: now,
-        isConcluded: true,
-        updatedAt: now,
-        updatedByUid: callerUid,
-      };
-      await ref.set(next, { merge: false });
-      return res.status(200).json({ ok: true, snapshot: next });
+      }, { projectId });
+      return res.status(200).json({ ok: true, snapshot: result.next });
     } catch (err) {
       logger.error?.('annualReview.conclude.error', err);
       captureRouteError(err, 'annualReview.conclude');
