@@ -83,3 +83,60 @@ describe('server.ts route mount ordering (B1 contract)', () => {
     expect(matches.length).toBe(1);
   });
 });
+
+// B1 emergency-block audit (2026-06-01): loneWorker.ts, refuges.ts and
+// restrictedZones.ts were implemented + unit-tested (on standalone express
+// apps) but NEVER mounted in server.ts, so the real consumers — useLoneWorker,
+// useRefuges, useRestrictedZones and their pages/components — got 404 against
+// the live server. The per-router supertest suites mount the router on a fresh
+// app, so they passed while production was broken. This contract pins the real
+// wiring: each router must be imported AND mounted under its expected prefix,
+// before the SPA catch-all (otherwise the catch-all would swallow the request
+// and return SPA HTML).
+describe('server.ts emergency-block mounts (B1 contract)', () => {
+  const source = readFileSync(join(process.cwd(), 'server.ts'), 'utf8');
+  const lines = source.split('\n');
+
+  function findLine(predicate: (line: string) => boolean): number {
+    return lines.findIndex(predicate);
+  }
+
+  const spaCatchAll = findLine((l) => /^\s*app\.get\(\s*['"`]\*['"`]/.test(l));
+
+  const cases: ReadonlyArray<{
+    name: string;
+    importRe: RegExp;
+    mountRe: RegExp;
+  }> = [
+    {
+      name: 'loneWorker (/:projectId/lone-worker/*) under /api/sprint-k',
+      importRe: /import\s+loneWorkerRouter\s+from\s+['"`][^'"`]*loneWorker(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*loneWorkerRouter/,
+    },
+    {
+      name: 'refuges (/:projectId/refuges/*) under /api/sprint-k',
+      importRe: /import\s+refugesRouter\s+from\s+['"`][^'"`]*refuges(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*refugesRouter/,
+    },
+    {
+      name: 'restrictedZones (/define, /check, …) under /api/zones',
+      importRe: /import\s+restrictedZonesRouter\s+from\s+['"`][^'"`]*restrictedZones(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/zones['"`]\s*,\s*restrictedZonesRouter/,
+    },
+  ];
+
+  it('declares the SPA catch-all (sanity)', () => {
+    expect(spaCatchAll).toBeGreaterThanOrEqual(0);
+  });
+
+  for (const c of cases) {
+    it(`imports and mounts ${c.name} before the SPA catch-all`, () => {
+      const importLine = findLine((l) => c.importRe.test(l));
+      const mountLine = findLine((l) => c.mountRe.test(l));
+
+      expect(importLine, 'router import missing').toBeGreaterThanOrEqual(0);
+      expect(mountLine, 'router never mounted (orphan)').toBeGreaterThanOrEqual(0);
+      expect(mountLine).toBeLessThan(spaCatchAll);
+    });
+  }
+});

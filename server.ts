@@ -354,6 +354,11 @@ import softBlockingRouter from "./src/server/routes/softBlocking.js";
 import roleViewsRouter from "./src/server/routes/roleViews.js";
 // Safety talks topic suggester — context-aware daily talk recommendations.
 import safetyTalksRouter from "./src/server/routes/safetyTalks.js";
+// Emergency block (B1) — three routers were implemented but never mounted,
+// so their consumers (useLoneWorker, useRefuges, useRestrictedZones) hit 404.
+import loneWorkerRouter from "./src/server/routes/loneWorker.js";
+import refugesRouter from "./src/server/routes/refuges.js";
+import restrictedZonesRouter from "./src/server/routes/restrictedZones.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -1077,6 +1082,13 @@ app.use('/api/sprint-k', industryRulesRouter);
 app.use('/api/sprint-k', softBlockingRouter);
 app.use('/api/sprint-k', roleViewsRouter);
 app.use('/api/sprint-k', safetyTalksRouter);
+// Emergency block (B1) — lone-worker + refuges live under /api/sprint-k
+// (router paths: /:projectId/lone-worker/* and /:projectId/refuges/*);
+// restricted zones mount at /api/zones (paths: /define, /by-site/:projectId,
+// /check, /entry-event, /entry-permissions/*). Previously orphaned → 404.
+app.use('/api/sprint-k', loneWorkerRouter);
+app.use('/api/sprint-k', refugesRouter);
+app.use('/api/zones', restrictedZonesRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)

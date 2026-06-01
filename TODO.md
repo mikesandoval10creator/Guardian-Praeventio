@@ -1614,3 +1614,74 @@ Items identificados durante auditoría 2026-05-27 que NO entran al sprint actual
 - **A_SENTRY** rotar `SENTRY_DSN` + auditar commits `b13cfe8/d5e7a8e`
 - **A_GEMMA** descargar Gemma 2 2B con HF token + computar SHA-256 + setear en `registry.ts:119`
 - **B7** wire MP IPN HMAC SHA-256 production env vars
+
+---
+
+## 17. 🔍 Auditoría bloque-por-bloque (B1→B18) — estado REAL del código
+
+> Deep-dive secuencial verificando **de primera mano** (no desde docs) el estado
+> de cada bloque funcional. Metodología **fix-as-I-go**: los bugs de wiring
+> seguros y acotados se arreglan con TDD en el commit del bloque; la deuda
+> profunda se lista aquí para una fase posterior. Regla #1: nada ✅ sin
+> `file:line`.
+
+### Baseline de runtime — VERIFICADO 2026-06-01 (ya no asumido)
+
+`npm ci` ✅ · `npm run typecheck` **0 errores** ✅ · `npm run build` ✅ (2m03s) ·
+`npm run lint` ✅ (0 errors, warnings preexistentes) · Java 21 disponible
+(emulador E2E viable). Esto invalida el bloqueo de verificación previo
+(node_modules ausente daba falsos "Cannot find module"). `npm run test` corre
+pero arrastra el flake §2.31 (open-handle, ~30-40% de runs).
+
+### Leyenda de veredictos
+✅ Real · 🟡 Parcial · 🔵 Stub honesto (tipado/503/flagged) · 🔑 Bloqueado-key
+(§5, usuario provee) · ❌ Huérfano/no-cableado.
+
+### Mapa de bloques (decomposición sobre 7 route-groups + 191 dominios server)
+
+B1 Emergencia · B2 Riesgo/IPER · B3 Ergonomía/Protocolos · B4 Incidentes ·
+B5 Cumplimiento/SUSESO · B6 Capacitación · B7 Salud ocupacional · B8 Permisos/LOTO ·
+B9 Inspecciones · B10 EPP/Activos · B11 Contratistas/Visitas · B12 CPHS/Comités ·
+B13 MOC/Operaciones críticas · B14 IA/Gemini/SLM · B15 Facturación/Tier ·
+B16 Offline/PWA/Capacitor · B17 Admin/Multi-tenant/Auth · B18 Analítica/Reportes.
+
+---
+
+### B1 — Emergencia & Respuesta · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: mayoritariamente REAL y production-grade.**
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| SOS | ✅ | `SOSButton` → `POST /api/sos` → Firestore + FCM + email fallback, rate-limited + audited; mount `server.ts` (`/api/emergency`, `emergencyRouter:895`) |
+| Evacuación + ruteo A* | ✅ | `src/server/routes/evacuation.ts` (Haversine + grid), mount `server.ts:1060` |
+| Headcount | ✅ | `evacuationHeadcount` con `runTransaction` (regla #19 OK) |
+| Drills/Comms/Contingency/First-responder | ✅ | mounts `/api/sprint-k` (drillsManager, commsDrill, contingencySimulation, firstResponderMap), todos con `verifyAuth` + `audit_logs` |
+| Lone-worker (HTTP) | ❌→✅ | `loneWorker.ts` (281 LOC) **estaba huérfano** → **B1-F1** |
+| Refuges (HTTP) | ❌→✅ | `refuges.ts` (169 LOC) **estaba huérfano** → **B1-F1** |
+| Restricted zones (HTTP) | ❌→✅ | `restrictedZones.ts` (506 LOC) **estaba huérfano** → **B1-F1** |
+| `emergencyBrigade` nativo FGS-Android | 🟡 | pendiente verificar lado Capacitor/Android (no bloqueante para web) |
+
+**🔴 Bug B1-F1 (RESUELTO fix-as-I-go):** 3 routers implementados + unit-tested
+(sobre apps express standalone) pero **nunca montados** en `server.ts`. Los
+consumidores `useLoneWorker.ts`, `useRefuges.ts`, `useRestrictedZones.ts` (+ sus
+páginas/componentes) recibían **404** contra el server real. Mismo patrón que
+PR #606 (MOC/shift-handover "built+tested, never mounted"). Las suites
+per-router no lo detectaban porque montan el router en un app fresco.
+
+- **Fix:** `server.ts` — 3 imports + `app.use('/api/sprint-k', loneWorkerRouter)`,
+  `app.use('/api/sprint-k', refugesRouter)`, `app.use('/api/zones', restrictedZonesRouter)`.
+- **Test (RED→GREEN verificado):** extendido
+  `src/__tests__/server/serverMountOrder.test.ts` con contrato B1 que asserta
+  import + mount + orden vs SPA catch-all para los 3 routers (3 fallan sin el
+  fix, 9/9 pasan con él).
+- **Verificación:** `typecheck` 0 errores · `lint` 0 errors.
+
+**Deferido a fase posterior (listado, no abordado):**
+- ⬜ B1-D1: el contrato de mount sólo cubre estos 3 routers. Considerar un
+  contrato genérico que cruce `src/server/routes/*.ts` contra los `app.use` de
+  `server.ts` para detectar TODOS los huérfanos futuros de un saque.
+- ⬜ B1-D2: verificar lone-worker nativo (Foreground Service Android) en
+  `packages/`/Capacitor.
+- ⬜ B1-D3: los specs E2E `sos-button.spec` están en `describe.fixme` — reconciliar
+  aserciones al render real (fase E2E separada).
