@@ -1952,3 +1952,19 @@ disfrazados):
   `aiFeedback`, `researchMode` montados. ✅
 
 **Sin fix necesario en B11–B14.**
+
+---
+
+### B15 — Facturación & Suscripciones & Tier-gating · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** `billing` (×2: `/api/billing` + `/billing` Webpay),
+`subscription`, `dte` montados. Tier-gating **server-side** presente (regla #11):
+checks `RANK_`/`subscription.planId` en `subscription.ts`, `billing.ts`,
+`onboarding.ts`. 1 huérfano montado.
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| preventionCost (cost scenarios) | ❌→✅ | huérfano → **B15-F1**; w=1 audit=2, `verifyAuth` + `assertProjectMember` |
+
+**🔴 Bug B15-F1 (RESUELTO):** `preventionCost.ts` nunca montado →
+`usePreventionCost` daba **404**. Mount `/api/sprint-k` + contrato (RED→GREEN, 19/19).

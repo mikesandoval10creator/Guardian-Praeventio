@@ -183,6 +183,12 @@ describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
       importRe: /import\s+hazmatInventoryRouter\s+from\s+['"`][^'"`]*hazmatInventory(\.js)?['"`]/,
       mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*hazmatInventoryRouter/,
     },
+    // B15 billing-block audit (2026-06-01): preventionCost (cost scenarios) orphaned.
+    {
+      name: 'preventionCost (/:projectId/cost/*) under /api/sprint-k',
+      importRe: /import\s+preventionCostRouter\s+from\s+['"`][^'"`]*preventionCost(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*preventionCostRouter/,
+    },
   ];
 
   it('declares the SPA catch-all (sanity)', () => {

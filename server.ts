@@ -327,6 +327,9 @@ import agendaRouter from "./src/server/routes/agenda.js";
 import consistencyRouter from "./src/server/routes/consistency.js";
 // Prevention Cost Calculator — Sprint 39 J.3 (§117-118 non-compliance + ROI).
 import costCalculatorRouter from "./src/server/routes/costCalculator.js";
+// Billing block (B15) — prevention-cost scenarios was orphaned; consumer
+// usePreventionCost hit 404. Paths /:projectId/cost/*.
+import preventionCostRouter from "./src/server/routes/preventionCost.js";
 // Universal expiration scanner — Sprint 39 B.9 (9 ExpirationKind buckets).
 import expirationsRouter from "./src/server/routes/expirations.js";
 // Fatigue Monitor — Sprint 39 I.4 (§65-67 DS 594 art. 102 + Ley 20.949).
@@ -1092,6 +1095,8 @@ app.use('/api/sprint-k', adoptionRouter);
 app.use('/api/sprint-k', agendaRouter);
 app.use('/api/sprint-k', consistencyRouter);
 app.use('/api/sprint-k', costCalculatorRouter);
+// B15 — prevention cost scenarios.
+app.use('/api/sprint-k', preventionCostRouter);
 app.use('/api/sprint-k', expirationsRouter);
 app.use('/api/sprint-k', fatigueRouter);
 app.use('/api/sprint-k', escalationRouter);
