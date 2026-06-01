@@ -361,6 +361,120 @@ service cloud.firestore {
           && incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt', 'answers', 'completed']);
         allow delete: if false;
       }
+
+      // ===============================================================
+      // 2026-06-01 — Sprint-K client-SDK stores (createProjectScopedStore).
+      //
+      // These 14 collections use the Firebase CLIENT SDK (setDoc/updateDoc to
+      // projects/{pid}/<coll>) but had NO write rule, so the master-gate
+      // `{subCollection=**}` granted read-only and every client save() was
+      // default-denied in production (masked by the open `firestore.test.rules`
+      // used by the firestore-stores CI job). See TODO.md §17 "HALLAZGO CRÍTICO".
+      //
+      // Access model (CONSERVATIVE — REVIEW per collection, dahosandoval@):
+      //   • create: project member; anti-spoof on the creator-uid field where
+      //     the schema has one (incoming().<field> == caller).
+      //   • update: project member; the creator-uid field is immutable; signed
+      //     records (`signedAt`) are append-only.
+      //   • delete: false for compliance records (legal evidence); admin/
+      //     supervisor for operational ones.
+      //   • read is already granted by the {subCollection=**} master-gate.
+      // `sample_live` is intentionally NOT here — it is a test-only collection.
+      // ===============================================================
+
+      // -- Compliance / append-only (no client delete) ----------------
+      // Stoppage (paralización DS): state machine declare→resume/cancel, so
+      // updates are allowed but the declarer is immutable and it can't be deleted.
+      match /stoppages/{stoppageId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().declaredByUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().declaredByUid == existing().declaredByUid;
+        allow delete: if false;
+      }
+      match /operational_changes/{changeId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().declaredByUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().declaredByUid == existing().declaredByUid;
+        allow delete: if false;
+      }
+      match /root_causes/{rcId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().analyzedByUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().analyzedByUid == existing().analyzedByUid;
+        allow delete: if false;
+      }
+      // SiteBook (libro de obras): legally-binding; immutable once signed.
+      match /site_book/{docId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().recordedByUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && (!('signedAt' in existing()) || existing().signedAt == null)
+          && incoming().recordedByUid == existing().recordedByUid;
+        allow delete: if false;
+      }
+      match /site_book_entries/{entryId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().recordedByUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && (!('signedAt' in existing()) || existing().signedAt == null)
+          && incoming().recordedByUid == existing().recordedByUid;
+        allow delete: if false;
+      }
+
+      // -- Operational (member-write; admin/supervisor delete) ---------
+      match /lone_worker_sessions/{sessionId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().workerUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().workerUid == existing().workerUid;
+        allow delete: if isAdmin() || isSupervisor();
+      }
+      match /lone_worker_events/{eventId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().workerUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().workerUid == existing().workerUid;
+        allow delete: if isAdmin() || isSupervisor();
+      }
+      match /safety_talks_given/{talkId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().givenByUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().givenByUid == existing().givenByUid;
+        allow delete: if isAdmin() || isSupervisor();
+      }
+      match /audit_portals/{portalId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().createdByUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().createdByUid == existing().createdByUid;
+        allow delete: if isAdmin() || isSupervisor();
+      }
+      match /documents_for_read/{documentId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().authorUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().authorUid == existing().authorUid;
+        allow delete: if isAdmin() || isSupervisor();
+      }
+      // TODO(review dahosandoval@): no creator-uid field confirmed in the schema
+      // for these three — anti-spoof N/A, so create/update is plain member-gated.
+      // Tighten once the owner field (if any) is settled.
+      match /exceptions/{exceptionId} {
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
+      }
+      match /legal_obligations/{obligationId} {
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
+      }
+      match /shifts/{shiftId} {
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
+      }
     }
 
     match /nodes/{nodeId} {

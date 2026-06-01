@@ -1741,15 +1741,24 @@ permission-denied en prod.
 (client `setDoc` a `projects/{pid}/{coll}`) · `firestore.test.rules` header ·
 `StoppageMonitor.tsx`→`saveStoppage`, `SiteBook.tsx`→`saveSiteBookEntry`.
 
-**Fix (gobernado por regla #4 — NO especulativo):** cada colección requiere
-regla explícita en `firestore.rules` (member-write + validación + inmutabilidad
-donde aplique) + **≥5 rules-tests** (owner-allow, non-member-deny,
-schema-deny, post-firma update-deny, server-field-spoof-deny) + entrada en
-`security_spec.md` (Dirty Dozen). Modelos de acceso **sensibles a cumplimiento**
-(paralización `stoppages`, `legal_obligations`, `operational_changes`,
-`root_causes`, firma `site_book`) → **requiere decisión del usuario sobre el
-modelo de acceso por colección** antes de escribir reglas de seguridad. Épica de
-seguridad dedicada (`/guard`). **B4-D1 es un caso de esta épica.**
+**Fix — EN PROGRESO (2026-06-01, usuario eligió "implementar las 14 ahora"):**
+- `firestore.rules`: agregadas reglas de write para las **13** colecciones reales
+  (`sample_live` es test-only, excluida) bajo `projects/{projectId}` — modelo
+  conservador: create member + anti-spoof del campo creator-uid donde existe;
+  update con creator-uid inmutable + append-only tras `signedAt` (site_book);
+  delete `false` para cumplimiento (stoppages, operational_changes, root_causes,
+  site_book[_entries]), admin/supervisor para operacionales. Cada modelo marcado
+  inline para revisión del usuario.
+- `src/rules-tests/projectScopedStores.rules.test.ts`: rules-tests parametrizados
+  (owner-allow, non-member-deny, spoof-deny, creator-immutable, post-sign-deny,
+  delete-deny) — typecheck verde.
+- `security_spec.md`: sección Sprint-K stores + payloads 13-17.
+- ⚠️ **Verificación: vía CI** (`Firestore rules tests` job) — el emulador no corre
+  en este entorno (firebase-tools no instalable). `lint:rules` 0 errores. Si CI
+  falla, autofix vía subscripción al PR.
+- **Revisar (usuario):** modelos de acceso marcados inline en `firestore.rules`
+  (especialmente `exceptions`/`legal_obligations`/`shifts` sin campo creator-uid
+  confirmado, e inmutabilidad exacta de paralización). **B4-D1 incluido en este fix.**
 
 ---
 
