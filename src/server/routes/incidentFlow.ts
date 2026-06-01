@@ -115,6 +115,7 @@ async function writeAudit(
       .collection('audit_logs')
       .add({
         kind: action,
+        tenantId,
         projectId,
         actorUid,
         details,
