@@ -32,6 +32,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -318,6 +319,12 @@ router.post(
         projectId,
       });
       await adapter.create(permit);
+      // CLAUDE.md #3: permit lifecycle (DS 132) must be audited.
+      await auditServerEvent(req, 'work_permits.create', 'work_permits', {
+        permitId: permit.id,
+        projectId,
+        kind: permit.kind,
+      }, { projectId });
       return res.status(201).json({ permit });
     } catch (err) {
       if (err instanceof WorkPermitDuplicateError) {
@@ -447,6 +454,11 @@ router.post(
           ? { ...permit, approvedAt: new Date().toISOString() }
           : attestAndIssuePermit(permit, attestation);
       await adapter.save(next);
+      await auditServerEvent(req, 'work_permits.sign', 'work_permits', {
+        permitId: next.id,
+        projectId,
+        status: next.status,
+      }, { projectId });
       return res.json({ permit: next });
     } catch (err) {
       if (err instanceof WorkPermitValidationError) {
@@ -510,6 +522,12 @@ router.post(
           ? cancelPermit(permit, body.reason, now)
           : fulfillPermit(permit, now);
       await adapter.save(next);
+      await auditServerEvent(req, 'work_permits.close', 'work_permits', {
+        permitId,
+        projectId,
+        outcome,
+        status: next.status,
+      }, { projectId });
       return res.json({ permit: next });
     } catch (err) {
       if (err instanceof WorkPermitValidationError) {
