@@ -30,6 +30,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -364,6 +365,12 @@ router.post(
         createdAt: new Date().toISOString(),
         createdBy: callerUid,
       });
+      await auditServerEvent(req, 'emergencyBrigade.addMember', 'emergencyBrigade', {
+        projectId,
+        memberId: id,
+        workerUid: body.workerUid,
+        role: body.role,
+      }, { projectId });
       return res.status(201).json({ ok: true, id });
     } catch (err) {
       logger.error?.('emergencyBrigade.addMember.error', err);
@@ -416,6 +423,11 @@ router.post(
         createdAt: new Date().toISOString(),
         createdBy: callerUid,
       });
+      await auditServerEvent(req, 'emergencyBrigade.addResource', 'emergencyBrigade', {
+        projectId,
+        resourceId: id,
+        kind: body.kind,
+      }, { projectId });
       return res.status(201).json({ ok: true, id });
     } catch (err) {
       logger.error?.('emergencyBrigade.addResource.error', err);
@@ -481,6 +493,12 @@ router.post(
         createdAt: new Date().toISOString(),
       });
       await batch.commit();
+      await auditServerEvent(req, 'emergencyBrigade.inspectResource', 'emergencyBrigade', {
+        projectId,
+        resourceId: id,
+        inspectionId: auditDoc.id,
+        operational: body.operational,
+      }, { projectId });
       return res
         .status(201)
         .json({ ok: true, inspectionId: auditDoc.id });

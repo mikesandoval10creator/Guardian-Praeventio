@@ -1,10 +1,10 @@
 {
   "_doc": "Monotonic coverage floors (Plan v3 Fase 1.2). Raise as coverage climbs; never lower silently. Enforced by scripts/check-coverage-ratchet.cjs against coverage/coverage-summary.json. Global seeded at the 2026-05-29 baseline (floored to integers; EPSILON in the checker absorbs sub-point noise). Per-file floors lock in gains on critical paths as they're improved.",
   "global": {
-    "lines": 44,
-    "statements": 43,
-    "functions": 40,
-    "branches": 39
+    "lines": 50,
+    "statements": 48,
+    "functions": 44,
+    "branches": 44
   },
   "files": {}
 }

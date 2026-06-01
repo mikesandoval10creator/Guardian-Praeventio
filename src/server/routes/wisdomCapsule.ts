@@ -26,6 +26,7 @@ import { Router } from 'express';
 import admin from 'firebase-admin';
 import { GoogleGenAI } from '@google/genai';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
 
 const router = Router();
@@ -433,6 +434,7 @@ router.post('/wisdom-capsule/ack', verifyAuth, async (req, res) => {
       );
       awarded = true;
     });
+    await auditServerEvent(req, 'wisdomCapsule.ack', 'wisdomCapsule', { projectId, date, awarded }, { projectId });
     return res.json({ success: true, xpAwarded: awarded ? 5 : 0, reason: 'wisdom_capsule_completed' });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {

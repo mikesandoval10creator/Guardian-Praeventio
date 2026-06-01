@@ -100,3 +100,26 @@ mid-size server routes (`b2dAdmin`, `leadership`, `restrictedZones`,
 apprenticeship → **+230 tests** (real-router). Finding: `apprenticeship.ts`
 `authorize` does `get` + 2 `set`s without `runTransaction` (CLAUDE.md #19) —
 flagged, not fixed.
+
+## Snapshot — 2026-06-01 (after the audit/transaction debt campaign)
+
+Full `npm run test:coverage` re-run on the rule-#3 closure branch. The
+audit-log campaign (28 routes + `correctiveActions.router.test.ts` new) plus
+the merged Olas 1–4 real-router suites lifted lines **50.89% → 54.87%**.
+
+| Metric | % | Covered / Total |
+|---|---|---|
+| **Lines** | **54.87%** | 44566 / 81211 |
+| Statements | 53.73% | 48220 / 89735 |
+| Functions | 46.73% | 8460 / 18104 |
+| Branches | 46.98% | 27311 / 58128 |
+
+Suite health: **14,626 passed / 1 failed / 1 todo** (1191 of 1194 files). The
+single failure + 2 "Worker exited unexpectedly" errors are the known
+parallel-worker open-handle flake — the same suites pass clean when run
+sequentially (`--no-file-parallelism`); not a real assertion failure.
+
+Floors bumped (monotonic, with flake headroom): global lines 44→50, statements
+43→48, functions 40→44, branches 39→44. `check-coverage-ratchet.cjs` stays
+report-only (not yet a CI gate), so the bump locks in gains without risking a
+flaky run blocking unrelated PRs.

@@ -34,6 +34,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -567,6 +568,14 @@ router.post(
         if (v !== undefined) cleaned[k] = v;
       }
       await docRef.set(cleaned, { merge: false });
+      // CLAUDE.md #3: scheduling a culture-pulse wave is a state-changing write.
+      await auditServerEvent(
+        req,
+        'culturePulse.scheduleSurvey',
+        'culturePulse',
+        { projectId, surveyId: body.surveyId, status },
+        { projectId },
+      );
       return res.status(201).json({ ok: true, survey: payload });
     } catch (err) {
       logger.error?.('culturePulse.schedule.error', err);
@@ -639,6 +648,17 @@ router.post(
         submittedAt: now,
       };
       await responseRef.set(responsePayload);
+      // CLAUDE.md #3: submitting a culture-pulse response is a state-changing
+      // write. Details stay anonymity-safe (no answers, no raw responder uid) —
+      // the response doc itself never persists `responderUid` (Ley Karín 21.643
+      // / Ley 19.628); only `projectId` + `surveyId` identify the affected wave.
+      await auditServerEvent(
+        req,
+        'culturePulse.respondSurvey',
+        'culturePulse',
+        { projectId, surveyId },
+        { projectId },
+      );
       return res.status(201).json({ ok: true });
     } catch (err) {
       logger.error?.('culturePulse.respond.error', err);

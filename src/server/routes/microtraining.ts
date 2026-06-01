@@ -15,6 +15,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -186,6 +187,14 @@ router.post(
         await adapter.grantCert(body.workerUid, body.moduleId, cert);
         certified = true;
       }
+      await auditServerEvent(req, 'microtraining.session', 'microtraining', {
+        projectId,
+        sessionId,
+        workerUid: body.workerUid,
+        moduleId: body.moduleId,
+        score,
+        certified,
+      }, { projectId });
       return res.status(201).json({
         sessionId,
         score,

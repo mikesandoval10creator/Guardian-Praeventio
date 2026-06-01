@@ -18,6 +18,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -376,6 +377,7 @@ router.post(
         .doc(body.id)
         .set(payload, { merge: true });
 
+      await auditServerEvent(req, 'residualRisk.create', 'residualRisk', { projectId, riskId: body.id }, { projectId });
       return res.status(201).json({ ok: true, risk: payload });
     } catch (err) {
       logger.error?.('residualRisk.create.error', err);
@@ -424,6 +426,7 @@ router.post(
         },
         { merge: true },
       );
+      await auditServerEvent(req, 'residualRisk.accept', 'residualRisk', { projectId, riskId: id }, { projectId });
       return res.status(200).json({ ok: true });
     } catch (err) {
       logger.error?.('residualRisk.accept.error', err);

@@ -34,6 +34,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -206,6 +207,12 @@ router.post(
         projectId,
       );
       await adapter.save(equipment);
+      await auditServerEvent(req, 'equipmentQr.register', 'equipmentQr', {
+        projectId,
+        equipmentId: qrId,
+        code: body.code,
+        type: body.type,
+      }, { projectId });
       // QR payload is `equipment:{id}` — small, stable, and parseable by
       // the scanner. The PNG render is done client-side via qrcode.react.
       const qrPayload = `equipment:${qrId}`;
@@ -375,6 +382,13 @@ router.post(
         await adapter.updateStatus(equipment.id, derivedStatus);
         appliedStatus = derivedStatus;
       }
+      await auditServerEvent(req, 'equipmentQr.preuse', 'equipmentQr', {
+        projectId,
+        equipmentId: equipment.id,
+        validationId: validation.id,
+        passed: validation.passed,
+        appliedStatus,
+      }, { projectId });
       // Recommendation copy — the UI uses this verbatim. Note the
       // language: "RECOMENDAMOS" not "BLOQUEAMOS".
       let recommendation: PreUseRecommendation;

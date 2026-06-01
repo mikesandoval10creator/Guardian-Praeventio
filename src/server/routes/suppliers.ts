@@ -20,6 +20,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -380,6 +381,7 @@ router.post(
         audits: [],
       };
       await docRef.set(supplier, { merge: false });
+      await auditServerEvent(req, 'suppliers.create', 'suppliers', { projectId, supplierId: docRef.id }, { projectId });
       return res
         .status(201)
         .json({ ok: true, supplier: toView(supplier) });
@@ -439,6 +441,7 @@ router.post(
         },
         { merge: true },
       );
+      await auditServerEvent(req, 'suppliers.incident', 'suppliers', { projectId, supplierId: id, incidentId: entry.id }, { projectId });
       return res.status(201).json({ ok: true, incident: entry });
     } catch (err) {
       logger.error?.('suppliers.incident.error', err);
@@ -498,6 +501,7 @@ router.post(
         },
         { merge: true },
       );
+      await auditServerEvent(req, 'suppliers.audit', 'suppliers', { projectId, supplierId: id, auditId: entry.id }, { projectId });
       return res.status(201).json({ ok: true, audit: entry });
     } catch (err) {
       logger.error?.('suppliers.audit.error', err);

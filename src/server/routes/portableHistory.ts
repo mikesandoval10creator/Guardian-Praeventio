@@ -18,6 +18,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -324,6 +325,17 @@ router.post(
         )
         .doc('consent')
         .set(consent, { merge: true });
+      await auditServerEvent(
+        req,
+        'portableHistory.updateConsent',
+        'portableHistory',
+        {
+          workerUid,
+          allowsPortableExport: consent.allowsPortableExport,
+          includesIncidents: consent.includesIncidents,
+        },
+        { projectId },
+      );
       return res.json({ ok: true, consent });
     } catch (err) {
       logger.error?.('sprintK.portableHistory.consent.error', err);

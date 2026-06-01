@@ -22,6 +22,7 @@ import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 // Sprint 28 Bucket B3 — Zod transversal middleware (audit hallazgo H17).
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -106,6 +107,14 @@ router.post('/consent', verifyAuth, async (req, res) => {
       legalBasis,
       textVersion,
     });
+    // CLAUDE.md #3: consent recording is a state-changing compliance write.
+    await auditServerEvent(req, 'compliance.consent', 'compliance', {
+      uid,
+      purpose,
+      granted,
+      legalBasis,
+      textVersion,
+    });
     return res.json({ ok: true, record });
   } catch (err) {
     if (err instanceof ComplianceError) {
@@ -129,6 +138,11 @@ router.delete('/consent/:purpose', verifyAuth, async (req, res) => {
   }
   try {
     await revokeConsent(getDb(), uid, purpose);
+    // CLAUDE.md #3: consent revocation is a state-changing compliance write.
+    await auditServerEvent(req, 'compliance.revokeConsent', 'compliance', {
+      uid,
+      purpose,
+    });
     return res.json({ ok: true });
   } catch (err) {
     if (err instanceof ComplianceError) {
@@ -220,6 +234,12 @@ router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req
   try {
     const request = await requestDataAccess(getDb(), uid, type, {
       rectificationPayload,
+    });
+    // CLAUDE.md #3: data-subject request creation is a state-changing write.
+    await auditServerEvent(req, 'compliance.dataRequest', 'compliance', {
+      uid,
+      requestId: request.id,
+      type,
     });
     return res.status(201).json({
       ok: true,

@@ -29,6 +29,7 @@ import admin from 'firebase-admin';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -234,6 +235,11 @@ router.post(
       if (!result.ok) {
         return res.status(400).json({ result });
       }
+      await auditServerEvent(req, 'qrAck.sign', 'qrAck', {
+        projectId,
+        sessionId,
+        workerUid: callerUid,
+      }, { projectId });
       return res.json({ result });
     } catch (err) {
       logger.error?.('qrAck.validateScan.error', err);

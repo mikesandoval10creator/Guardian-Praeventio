@@ -20,6 +20,7 @@ import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -196,6 +197,19 @@ router.post(
         if (v !== undefined) cleaned[k] = v;
       }
       await apprenticeRef.set(cleaned, { merge: true });
+      await auditServerEvent(
+        req,
+        'apprenticeship.register',
+        'apprenticeship',
+        {
+          projectId,
+          tenantId: g.tenantId,
+          workerUid: body.uid,
+          mentorUid: body.mentorUid,
+          role: body.role,
+        },
+        { projectId },
+      );
       return res.status(201).json({ ok: true, apprentice: payload });
     } catch (err) {
       logger.error?.('sprintK.apprentices.register.error', err);
@@ -312,6 +326,20 @@ router.post(
       if (result.kind === 'signer_mismatch') {
         return res.status(403).json({ error: 'signer_not_assigned_mentor' });
       }
+      await auditServerEvent(
+        req,
+        'apprenticeship.authorize',
+        'apprenticeship',
+        {
+          projectId,
+          tenantId: g.tenantId,
+          workerUid: uid,
+          taskKind: body.taskKind,
+          toLevel: body.toLevel,
+          signedByUid: body.signedByUid,
+        },
+        { projectId },
+      );
       return res.json({
         ok: true,
         workerUid: uid,
@@ -386,6 +414,20 @@ router.post(
       if (result.kind === 'not_found') {
         return res.status(404).json({ error: 'apprentice_not_found' });
       }
+      await auditServerEvent(
+        req,
+        'apprenticeship.expose',
+        'apprenticeship',
+        {
+          projectId,
+          tenantId: g.tenantId,
+          workerUid: uid,
+          taskKind: body.taskKind,
+          outcome: body.outcome,
+          exposureId: id,
+        },
+        { projectId },
+      );
       return res.status(201).json({ ok: true, exposure });
     } catch (err) {
       logger.error?.('sprintK.apprentices.expose.error', err);
