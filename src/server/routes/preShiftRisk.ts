@@ -317,7 +317,10 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
               docs: Array<{ id: string; data(): unknown }>;
             }) => s.docs.map(mapDoc),
           )
-          .catch(() => [] as ReturnType<typeof mapDoc>[]);
+          .catch((err) => {
+            logger.warn('preShiftRisk.read.equipmentLegacy.failed', err);
+            return [] as ReturnType<typeof mapDoc>[];
+          });
 
         const canonicalPromise: Promise<ReturnType<typeof mapDoc>[]> =
           (async () => {
@@ -329,7 +332,8 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
                 .limit(500)
                 .get();
               return canonSnap.docs.map(mapDoc);
-            } catch {
+            } catch (err) {
+              logger.warn('preShiftRisk.read.equipmentCanonical.failed', err);
               return [];
             }
           })();

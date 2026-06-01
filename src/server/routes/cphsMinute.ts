@@ -337,16 +337,37 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
           verifiedEffectiveA,
           reopenedA,
         ] = await Promise.all([
-          adapter.listByStatus('open', ACTIONS_PAGE).catch(() => []),
+          adapter.listByStatus('open', ACTIONS_PAGE).catch((err) => {
+            logger.warn('cphsMinute.read.actionsOpen.failed', err);
+            return [];
+          }),
           adapter
             .listByStatus('in_progress', ACTIONS_PAGE)
-            .catch(() => []),
-          adapter.listByStatus('closed', ACTIONS_PAGE).catch(() => []),
-          adapter.listByStatus('verified', ACTIONS_PAGE).catch(() => []),
+            .catch((err) => {
+              logger.warn('cphsMinute.read.actionsInProgress.failed', err);
+              return [];
+            }),
+          adapter.listByStatus('closed', ACTIONS_PAGE).catch((err) => {
+            logger.warn('cphsMinute.read.actionsClosed.failed', err);
+            return [];
+          }),
+          adapter.listByStatus('verified', ACTIONS_PAGE).catch((err) => {
+            logger.warn('cphsMinute.read.actionsVerified.failed', err);
+            return [];
+          }),
           adapter
             .listByStatus('verified_effective', ACTIONS_PAGE)
-            .catch(() => []),
-          adapter.listByStatus('reopened', ACTIONS_PAGE).catch(() => []),
+            .catch((err) => {
+              logger.warn(
+                'cphsMinute.read.actionsVerifiedEffective.failed',
+                err,
+              );
+              return [];
+            }),
+          adapter.listByStatus('reopened', ACTIONS_PAGE).catch((err) => {
+            logger.warn('cphsMinute.read.actionsReopened.failed', err);
+            return [];
+          }),
         ]);
         return [
           ...openA,

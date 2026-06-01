@@ -164,34 +164,64 @@ router.get(
               .collection('training_assignments')
               .where('workerUid', '==', workerUid)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.trainingAssignments.failed',
+                  err,
+                );
+                return null;
+              }),
             db
               .collection('projects')
               .doc(projectId)
               .collection('trainings')
               .where('workerUid', '==', workerUid)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.projectTrainingsByUid.failed',
+                  err,
+                );
+                return null;
+              }),
             db
               .collection('projects')
               .doc(projectId)
               .collection('trainings')
               .where('workerId', '==', workerUid)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.projectTrainingsByWorkerId.failed',
+                  err,
+                );
+                return null;
+              }),
             db
               .collection('training')
               .where('projectId', '==', projectId)
               .where('workerUid', '==', workerUid)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.topTrainingByUid.failed',
+                  err,
+                );
+                return null;
+              }),
             db
               .collection('training')
               .where('projectId', '==', projectId)
               .where('status', '==', 'completed')
               .where('attendees', 'array-contains', workerUid)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.topTrainingByAttendees.failed',
+                  err,
+                );
+                return null;
+              }),
           ]);
           const all = new Map<string, Record<string, unknown>>();
           if (nestedSnap) {
@@ -243,26 +273,50 @@ router.get(
               .collection('epp_assignments')
               .where('workerId', '==', workerUid)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.eppNestedByWorkerId.failed',
+                  err,
+                );
+                return null;
+              }),
             db
               .collection('projects')
               .doc(projectId)
               .collection('epp_assignments')
               .where('workerUid', '==', workerUid)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.eppNestedByWorkerUid.failed',
+                  err,
+                );
+                return null;
+              }),
             db
               .collection('epp_assignments')
               .where('projectId', '==', projectId)
               .where('workerUid', '==', workerUid)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.eppTopByUid.failed',
+                  err,
+                );
+                return null;
+              }),
             db
               .collection('epp_assignments')
               .where('projectId', '==', projectId)
               .where('assignedTo', '==', workerUid)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.eppTopByAssignedTo.failed',
+                  err,
+                );
+                return null;
+              }),
           ]);
           const all = new Map<string, Record<string, unknown>>();
           if (nestedByWorkerId) {
@@ -328,22 +382,46 @@ router.get(
               .where('workerUid', '==', workerUid)
               .limit(50)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.incidentsByWorkerUid.failed',
+                  err,
+                );
+                return null;
+              }),
             baseQuery
               .where('affectedWorkerUid', '==', workerUid)
               .limit(50)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.incidentsByAffectedWorkerUid.failed',
+                  err,
+                );
+                return null;
+              }),
             baseQuery
               .where('involvedWorkers', 'array-contains', workerUid)
               .limit(50)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.incidentsByInvolvedWorkers.failed',
+                  err,
+                );
+                return null;
+              }),
             baseQuery
               .where('affectedWorkerUids', 'array-contains', workerUid)
               .limit(50)
               .get()
-              .catch(() => null),
+              .catch((err) => {
+                logger.warn?.(
+                  'workerReadiness.read.incidentsByAffectedWorkerUids.failed',
+                  err,
+                );
+                return null;
+              }),
           ]);
           const all = new Map<string, Record<string, unknown>>();
           const merge = (snap: FirebaseFirestore.QuerySnapshot | null) => {
