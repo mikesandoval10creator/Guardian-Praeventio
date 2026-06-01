@@ -1846,3 +1846,53 @@ DTE, emisión) está cableado; 1 huérfano encontrado y montado.
 snooze) con audit=3 (cubiertos), `verifyAuth` + `assertProjectMember`, no stub.
 Mount `/api/sprint-k` + caso de contrato (RED→GREEN, 15/15).
 
+---
+
+### B6 — Capacitación & Currículum · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Sin huérfanos, sin stubs. 9 routers del dominio
+montados (`curriculum`, `safetyTalks`, `microtraining`, `postTraining`,
+`spacedRepetition`, `skillGap`, `returnToWork`, `apprenticeship`, `adoption`),
+con servicios reales (`services/curriculum/`, `trainingBackend.ts`). Páginas
+`Training`, `Onboarding`, `PortableCurriculum`, `LessonsLearned` ruteadas.
+
+**Sin fix necesario.**
+
+**Deferido (listado):**
+- ⬜ B6-D1: `routes/curriculum.ts` tiene 9 writes y 3 `audit`/`auditServerEvent`.
+  Probable múltiples writes por operación auditada (claim + counter + node bajo
+  una sola op). El convention-guard pasa (0 pending). Confirmar cobertura 1:1
+  op-auditada vs estado-cambiante para los claims DS44.
+
+---
+
+### B7 — Salud ocupacional & Vigilancia · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL + ADR 0012 enforced.** Sin huérfanos.
+
+| Aspecto | Estado | Evidencia |
+|---|---|---|
+| Routers (medicalCatalogs, hygiene, mentalLoad, fatigue, circadian, workerHistory, returnToWork) | ✅ | montados `/api/sprint-k` |
+| ADR 0012 no-diagnóstico | ✅ | 0 funciones prohibidas en `src/` (único match = el test del guard `medicalGuard.test.cjs`) |
+| `<MedicalDisclaimer/>` | ✅ | 8 usos en pages/components de salud |
+| Biometría on-device (regla #12) | ✅ | `health/healthFacadeNative.ts`, `nativeHealthAdapter.ts` (Health Connect/HealthKit) |
+| Páginas | ✅ | HealthVaultShare/Viewer, Medicine, MyData, SystemHealth ruteadas |
+
+**Sin fix necesario.**
+
+---
+
+### B8 — Permisos de trabajo & LOTO · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Sin huérfanos, sin stubs. `workPermits` (DS132,
+audit=4), `loto`, `criticalControls`, `engineeringControls`, `softBlocking`,
+`exceptions` montados. Página `WorkPermits.tsx` ruteada. Permisos/LOTO siguen el
+patrón offline-first (persistencia vía servicio/cliente; rutas compute o
+auditadas vía servicio).
+
+**Sin fix necesario.**
+
+**Deferido (listado):**
+- ⬜ B8-D1: `softBlocking` write=1/audit=0 — el convention-guard lo cuenta entre
+  los 14 exentos (0 pending). Confirmar que el write no es estado-cambiante
+  auditable (o que el exempt está justificado).
