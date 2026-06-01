@@ -377,7 +377,7 @@ router.post('/claim', verifyAuth, async (req, res) => {
           logger.error('curriculum_email_failed', {
             claimId: result.id,
             refereeIndex: idx,
-            message: (emailErr as any)?.message,
+            message: emailErr instanceof Error ? emailErr.message : String(emailErr),
           });
           captureRouteError(emailErr, 'curriculum.claim_email', {
             claimId: result.id,
@@ -471,7 +471,7 @@ router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
     } catch (emailErr) {
       logger.error('curriculum_resend_email_failed', {
         claimId,
-        message: (emailErr as any)?.message,
+        message: emailErr instanceof Error ? emailErr.message : String(emailErr),
       });
       captureRouteError(emailErr, 'curriculum.resend_email', { claimId });
     }
