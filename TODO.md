@@ -1795,9 +1795,10 @@ sin gap de audit-log), con `verifyAuth` + `assertProjectMember`.
   (`risk-ranking/timeseries|top-risks|weak-controls`). Hoy los hooks devuelven
   idle (stub honesto). Es feature-work (nuevos handlers + tests), no wiring →
   fuera del scope fix-as-I-go.
-- ⬜ B2-D2: `useShiftRiskPanel` no tiene consumidor (page/componente) todavía —
-  el router queda montado y listo, pero la UI no lo invoca. Verificar si es
-  intencional o falta cablear una vista.
+- ⬜ B2-D2 (decisión de producto, no bug): confirmado — `useShiftRiskPanel` no
+  tiene consumidor en `src/pages`/`src/components`. Backend listo y montado; la
+  UI no lo invoca. Decidir dónde vive la vista del panel de riesgo de turno (o
+  borrar el hook si se descarta). No es un bug de wiring.
 
 ---
 
@@ -1825,10 +1826,11 @@ montada.
   pero **no existe en `src/`** (0 referencias). Doc-vs-code gap: o se implementa
   o se quita de la doc (el código es source of truth, regla #1). Feature-work,
   fuera de scope fix-as-I-go.
-- ⬜ B3-D2: `ergonomics.ts` es compute-only; si en el futuro persiste
-  `ergonomicAssessments` (CLAUDE.md menciona `services/safety/ergonomicAssessments`
-  mutation-tested), ese path SÍ requeriría `audit_logs`. Verificar dónde persiste
-  la evaluación (¿client-direct a Firestore con rules?).
+- ✅ **B3-D2 CERRADO (2026-06-01):** la evaluación persiste en
+  `services/safety/ergonomicAssessments.ts` (writer **client-side**: `setDoc` +
+  `logAuditAction`, append-only-after-signed por Firestore rules, Ley 16.744 +
+  ISO 45001 §7.5.3). La ruta `ergonomics.ts` compute-only es correcta por diseño
+  — la auditoría ocurre en el servicio client. Sin gap.
 
 ---
 
@@ -1900,10 +1902,10 @@ con servicios reales (`services/curriculum/`, `trainingBackend.ts`). Páginas
 **Sin fix necesario.**
 
 **Deferido (listado):**
-- ⬜ B6-D1: `routes/curriculum.ts` tiene 9 writes y 3 `audit`/`auditServerEvent`.
-  Probable múltiples writes por operación auditada (claim + counter + node bajo
-  una sola op). El convention-guard pasa (0 pending). Confirmar cobertura 1:1
-  op-auditada vs estado-cambiante para los claims DS44.
+- ✅ **B6-D1 CERRADO (2026-06-01):** cobertura **1:1** confirmada — 3 endpoints
+  mutantes (POST/PUT/PATCH/DELETE) y **3** llamadas de auditoría (root
+  `audit_logs`, `curriculum.ts:153`). Los "9 writes" eran múltiples writes
+  Firestore por operación auditada. Sin gap.
 
 ---
 
@@ -1934,9 +1936,9 @@ auditadas vía servicio).
 **Sin fix necesario.**
 
 **Deferido (listado):**
-- ⬜ B8-D1: `softBlocking` write=1/audit=0 — el convention-guard lo cuenta entre
-  los 14 exentos (0 pending). Confirmar que el write no es estado-cambiante
-  auditable (o que el exempt está justificado).
+- ✅ **B8-D1 CERRADO (2026-06-01):** falso positivo — el "write" era
+  `createHash('sha256').update(content)` (hash crypto), **no** un write Firestore.
+  `softBlocking` es compute-only, 0 writes reales → sin gap de auditoría.
 
 ---
 
