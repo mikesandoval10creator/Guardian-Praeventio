@@ -4228,7 +4228,7 @@
   {
     "path": "server.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 1501,
     "purpose": "",
     "exports": [],
@@ -19649,7 +19649,7 @@
   {
     "path": "src/server/jobs/checkExpiredPpe.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B10-EPP",
     "loc": 213,
     "purpose": "Sprint 28 H26 — EPP expiry reaper.",
     "exports": [
@@ -19695,7 +19695,7 @@
   {
     "path": "src/server/jobs/consolidateZettelkasten.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B14-IA",
     "loc": 194,
     "purpose": "SystemEngine — Zettelkasten consolidation migration.",
     "exports": [
@@ -19718,7 +19718,7 @@
   {
     "path": "src/server/jobs/dailyClimateRiskScan.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 296,
     "purpose": "Sprint 25 Bucket TT — Daily Climate Risk Scan Orchestrator.",
     "exports": [
@@ -19744,7 +19744,7 @@
   {
     "path": "src/server/jobs/firestoreCriticalReplicate.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 185,
     "purpose": "Bucket W.5 — Hourly write-through replica for critical Firestore data.",
     "exports": [
@@ -19770,7 +19770,7 @@
   {
     "path": "src/server/jobs/runB2dMrrSnapshot.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B15-Billing",
     "loc": 191,
     "purpose": "runB2dMrrSnapshot — toma una \"foto\" mensual de los métricos B2D y la",
     "exports": [
@@ -19794,7 +19794,7 @@
   {
     "path": "src/server/jobs/runConsistencyAudit.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 196,
     "purpose": "Praeventio Guard — Sprint 39 Fase G.3 follow-up: cron consistency audit.",
     "exports": [
@@ -19940,7 +19940,7 @@
   {
     "path": "src/server/jobs/weeklyDigest.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 364,
     "purpose": "Praeventio Guard — Sprint 22 (Bucket Y).",
     "exports": [
@@ -19964,7 +19964,7 @@
   {
     "path": "src/server/kmsPreflight.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 47,
     "purpose": "",
     "exports": [
@@ -20003,7 +20003,7 @@
   {
     "path": "src/server/middleware/assertProjectMemberMiddleware.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 96,
     "purpose": "Praeventio Guard — Round 16 R5 Phase 1 split.",
     "exports": [
@@ -20036,7 +20036,7 @@
   {
     "path": "src/server/middleware/b2dAuth.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 109,
     "purpose": "Sprint 23 Bucket BB — B2D API authentication middleware.",
     "exports": [
@@ -20057,7 +20057,7 @@
   {
     "path": "src/server/middleware/canonicalBody.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 128,
     "purpose": "Praeventio Guard — Round 18 R6 (R6→R17 MEDIUM #2): RFC 8785 canonical",
     "exports": [
@@ -20077,7 +20077,7 @@
   {
     "path": "src/server/middleware/captureRouteError.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 55,
     "purpose": "",
     "exports": [
@@ -20119,7 +20119,7 @@
   {
     "path": "src/server/middleware/idempotencyKey.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 370,
     "purpose": "Praeventio Guard — Sprint 35 Bucket (Audit P1 §1.3).",
     "exports": [
@@ -20134,7 +20134,7 @@
   {
     "path": "src/server/middleware/largeBodyJson.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 19,
     "purpose": "Praeventio Guard — Round 16 R5 Phase 1 split.",
     "exports": [
@@ -20145,7 +20145,7 @@
   {
     "path": "src/server/middleware/limiters.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 305,
     "purpose": "Praeventio Guard — Round 16 R5 Phase 1 split.",
     "exports": [
@@ -20167,7 +20167,7 @@
   {
     "path": "src/server/middleware/safeSecretEqual.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 35,
     "purpose": "Praeventio Guard — Round 16 R5 Phase 1 split.",
     "exports": [
@@ -20187,7 +20187,7 @@
   {
     "path": "src/server/middleware/securityHeaders.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 231,
     "purpose": "",
     "exports": [
@@ -20212,7 +20212,7 @@
   {
     "path": "src/server/middleware/stampCspNonce.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 35,
     "purpose": "Praeventio Guard — Plan v2 F8 / Audit H16 (P3).",
     "exports": [
@@ -20232,7 +20232,7 @@
   {
     "path": "src/server/middleware/validate.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 81,
     "purpose": "Praeventio Guard — Sprint 28 Bucket B3.",
     "exports": [
@@ -20275,7 +20275,7 @@
   {
     "path": "src/server/middleware/verifySchedulerToken.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 48,
     "purpose": "Sprint 27 (audit P0 H14) — gate Cloud Scheduler endpoints.",
     "exports": [
@@ -20295,7 +20295,7 @@
   {
     "path": "src/server/middleware/verifyTwinStepUp.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 194,
     "purpose": "Sprint 26 — Bucket YY.3 — server-side enforcement del ADR 0011 triple-gate.",
     "exports": [
@@ -20319,7 +20319,7 @@
   {
     "path": "src/server/rateLimit/firestoreRateLimitStore.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 257,
     "purpose": "Praeventio Guard — Firestore-backed rate limit store para express-rate-limit.",
     "exports": [
@@ -20353,7 +20353,7 @@
   {
     "path": "src/server/routes/adminBurden.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 145,
     "purpose": "Praeventio Guard — Admin Burden + Automation Suggester HTTP surface.",
     "exports": [
@@ -20364,7 +20364,7 @@
   {
     "path": "src/server/routes/adminJobs.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 56,
     "purpose": "Sprint 35 audit P1 §1.3 — Cloud Scheduler entrypoints for batch",
     "exports": [
@@ -20384,7 +20384,7 @@
   {
     "path": "src/server/routes/adoption.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 209,
     "purpose": "Praeventio Guard — Product Adoption Analytics HTTP surface.",
     "exports": [
@@ -20531,7 +20531,7 @@
   {
     "path": "src/server/routes/annualReview.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 462,
     "purpose": "Praeventio Guard — §291-295 Revisión Anual del SGI (ISO 45001 §9.3).",
     "exports": [
@@ -20568,7 +20568,7 @@
   {
     "path": "src/server/routes/audit.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 187,
     "purpose": "Praeventio Guard — Round 16 R5 Phase 1 split.",
     "exports": [
@@ -20628,7 +20628,7 @@
   {
     "path": "src/server/routes/b2d/climate.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 220,
     "purpose": "Sprint 23 Bucket BB.3 — B2D Climate API.",
     "exports": [
@@ -20659,7 +20659,7 @@
   {
     "path": "src/server/routes/b2d/index.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 36,
     "purpose": "Sprint 23 Bucket BB — B2D API parent router.",
     "exports": [
@@ -20679,7 +20679,7 @@
   {
     "path": "src/server/routes/b2d/normativa.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 144,
     "purpose": "Sprint 23 Bucket BB.5 — B2D Normativa API.",
     "exports": [
@@ -20699,7 +20699,7 @@
   {
     "path": "src/server/routes/b2d/suite.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 300,
     "purpose": "Sprint 23 Bucket BB.6 — B2D Suite tier API.",
     "exports": [
@@ -20710,7 +20710,7 @@
   {
     "path": "src/server/routes/b2dAdmin.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 320,
     "purpose": "Praeventio Guard — Bucket CC: B2D admin endpoints (Sprint 23).",
     "exports": [
@@ -20741,7 +20741,7 @@
   {
     "path": "src/server/routes/bcn.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 140,
     "purpose": "Praeventio Guard — BCN snapshot endpoint.",
     "exports": [
@@ -20811,7 +20811,7 @@
   {
     "path": "src/server/routes/cad.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 116,
     "purpose": "Sprint 17a (initial stub) → Sprint 21 Bucket Q (LibreDWG Cloud Function proxy).",
     "exports": [
@@ -20891,7 +20891,7 @@
   {
     "path": "src/server/routes/climateAwareScheduling.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 144,
     "purpose": "Praeventio Guard — Climate-aware scheduling HTTP surface.",
     "exports": [
@@ -21028,7 +21028,7 @@
   {
     "path": "src/server/routes/consistency.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 169,
     "purpose": "Praeventio Guard — Cross-module consistency auditor HTTP surface.",
     "exports": [
@@ -21128,7 +21128,7 @@
   {
     "path": "src/server/routes/controlComparator.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B2-RiesgoIPER",
     "loc": 198,
     "purpose": "Praeventio Guard — Control Comparator HTTP surface.",
     "exports": [
@@ -21168,7 +21168,7 @@
   {
     "path": "src/server/routes/costCalculator.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 134,
     "purpose": "Praeventio Guard — Prevention Cost Calculator HTTP surface.",
     "exports": [
@@ -21188,7 +21188,7 @@
   {
     "path": "src/server/routes/cphsMinute.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B12-CPHS",
     "loc": 645,
     "purpose": "Praeventio Guard — F.7 Minuta automática Comité Paritario (CPHS).",
     "exports": [
@@ -21332,7 +21332,7 @@
   {
     "path": "src/server/routes/dataQuality.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 197,
     "purpose": "Praeventio Guard — Fase F.9 Data Quality (pre-IA gap detector).",
     "exports": [
@@ -21352,7 +21352,7 @@
   {
     "path": "src/server/routes/deduplication.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 152,
     "purpose": "Praeventio Guard — Record Deduplication HTTP surface.",
     "exports": [
@@ -21372,7 +21372,7 @@
   {
     "path": "src/server/routes/documentVersioning.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 293,
     "purpose": "Praeventio Guard — Sprint 41 F.23 HTTP surface.",
     "exports": [
@@ -21412,7 +21412,7 @@
   {
     "path": "src/server/routes/driving.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 161,
     "purpose": "Praeventio Guard — Driving safety telemetry HTTP surface.",
     "exports": [
@@ -21432,7 +21432,7 @@
   {
     "path": "src/server/routes/drivingSafety.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 643,
     "purpose": "Praeventio Guard — §69-71 Conducción Segura + Rutas Críticas + Alertas Ruta.",
     "exports": [
@@ -21443,7 +21443,7 @@
   {
     "path": "src/server/routes/ds67ds76.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 518,
     "purpose": "Praeventio Guard — Sprint 31 Bucket PP.",
     "exports": [
@@ -21477,7 +21477,7 @@
   {
     "path": "src/server/routes/efficacyVerification.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B4-Incidentes",
     "loc": 139,
     "purpose": "Praeventio Guard — Corrective-Action Efficacy Verification HTTP surface.",
     "exports": [
@@ -21551,7 +21551,7 @@
   {
     "path": "src/server/routes/eppFlow.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B10-EPP",
     "loc": 581,
     "purpose": "Praeventio Guard — Bloque 4.2: EPP Inventory Purchase Flow HTTP surface.",
     "exports": [
@@ -21632,7 +21632,7 @@
   {
     "path": "src/server/routes/escalation.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B1-Emergencia",
     "loc": 305,
     "purpose": "Praeventio Guard — Escalation + SLA Engine HTTP surface.",
     "exports": [
@@ -21693,7 +21693,7 @@
   {
     "path": "src/server/routes/eventReplay.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 227,
     "purpose": "Praeventio Guard — Event Replay Audit Tool HTTP surface.",
     "exports": [
@@ -21733,7 +21733,7 @@
   {
     "path": "src/server/routes/expirations.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 156,
     "purpose": "Praeventio Guard — Universal expiration scanner HTTP surface.",
     "exports": [
@@ -21773,7 +21773,7 @@
   {
     "path": "src/server/routes/expressBundle.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 201,
     "purpose": "Praeventio Guard — Auditoría Express Bundle (PDF index) HTTP surface.",
     "exports": [
@@ -21853,7 +21853,7 @@
   {
     "path": "src/server/routes/fiveS.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B9-Inspecciones",
     "loc": 158,
     "purpose": "Praeventio Guard — 5S Audit + Zone Ranking HTTP surface.",
     "exports": [
@@ -22040,7 +22040,7 @@
   {
     "path": "src/server/routes/import.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 399,
     "purpose": "Praeventio Guard — Sprint K §106-108 — Importador Excel (HTTP endpoints).",
     "exports": [
@@ -22060,7 +22060,7 @@
   {
     "path": "src/server/routes/inbox.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 177,
     "purpose": "Praeventio Guard — Fase F.8 Inbox del Prevencionista.",
     "exports": [
@@ -22166,7 +22166,7 @@
   {
     "path": "src/server/routes/insights.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 259,
     "purpose": "Praeventio Guard — Wire UI bridge: /api/insights routes.",
     "exports": [
@@ -22186,7 +22186,7 @@
   {
     "path": "src/server/routes/iot.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 155,
     "purpose": "Sprint 32 Bucket TT — IoT device registration endpoint.",
     "exports": [
@@ -22227,7 +22227,7 @@
   {
     "path": "src/server/routes/knowledgeBase.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B6-Capacitacion",
     "loc": 395,
     "purpose": "Praeventio Guard — §185-190 Base de Conocimiento + Curador + Obsolescencia.",
     "exports": [
@@ -22247,7 +22247,7 @@
   {
     "path": "src/server/routes/leadership.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 321,
     "purpose": "Praeventio Guard — §276-277 Bitácora de Decisiones de Supervisión + Ranking.",
     "exports": [
@@ -22473,7 +22473,7 @@
   {
     "path": "src/server/routes/misc.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 346,
     "purpose": "Praeventio Guard — Round 19 R2 Phase 4 split.",
     "exports": [
@@ -22493,7 +22493,7 @@
   {
     "path": "src/server/routes/multiProject.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 163,
     "purpose": "Praeventio Guard — Multi-Project Comparator HTTP surface.",
     "exports": [
@@ -22513,7 +22513,7 @@
   {
     "path": "src/server/routes/multiRoleSummary.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 237,
     "purpose": "Praeventio Guard — Multi-Role Summary HTTP surface.",
     "exports": [
@@ -22597,7 +22597,7 @@
   {
     "path": "src/server/routes/openapi.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 61,
     "purpose": "Sprint 36 — Public OpenAPI endpoint.",
     "exports": [
@@ -22668,7 +22668,7 @@
   {
     "path": "src/server/routes/pdca.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B4-Incidentes",
     "loc": 468,
     "purpose": "Praeventio Guard — §195-200 Ciclo PDCA + No Conformidades (ISO 45001 §10.2).",
     "exports": [
@@ -22708,7 +22708,7 @@
   {
     "path": "src/server/routes/pinSign.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 326,
     "purpose": "Praeventio Guard — PIN Sign HTTP surface (F.25 fallback sin biometría).",
     "exports": [
@@ -22931,7 +22931,7 @@
   {
     "path": "src/server/routes/privacyShield.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 177,
     "purpose": "Praeventio Guard — Privacy Shield HTTP surface.",
     "exports": [
@@ -22951,7 +22951,7 @@
   {
     "path": "src/server/routes/projectClosure.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 675,
     "purpose": "Praeventio Guard — §131-138 Cierre de Proyecto + Lecciones Transferibles +",
     "exports": [
@@ -22982,7 +22982,7 @@
   {
     "path": "src/server/routes/projects.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 645,
     "purpose": "Praeventio Guard — Round 18 Phase 3 split.",
     "exports": [
@@ -23003,7 +23003,7 @@
   {
     "path": "src/server/routes/protocols.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B3-Ergonomia",
     "loc": 170,
     "purpose": "Praeventio Guard — Protocols (IPER + PREXOR + TMERT) HTTP surface.",
     "exports": [
@@ -23014,7 +23014,7 @@
   {
     "path": "src/server/routes/push.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 92,
     "purpose": "Praeventio Guard — Round 17 R3.",
     "exports": [
@@ -23134,7 +23134,7 @@
   {
     "path": "src/server/routes/readReceipts.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B6-Capacitacion",
     "loc": 279,
     "purpose": "Praeventio Guard — Read receipts (acknowledgement) HTTP surface.",
     "exports": [
@@ -23225,7 +23225,7 @@
   {
     "path": "src/server/routes/reputationalAlerts.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 149,
     "purpose": "Praeventio Guard — Reputational Alerts HTTP surface.",
     "exports": [
@@ -23305,7 +23305,7 @@
   {
     "path": "src/server/routes/retaliationProtection.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 151,
     "purpose": "Praeventio Guard — Retaliation Protection HTTP surface.",
     "exports": [
@@ -23325,7 +23325,7 @@
   {
     "path": "src/server/routes/returnToWork.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B7-Salud",
     "loc": 244,
     "purpose": "Praeventio Guard — Return-to-Work + restricciones + derivación HTTP surface.",
     "exports": [
@@ -23385,7 +23385,7 @@
   {
     "path": "src/server/routes/roiScenario.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 108,
     "purpose": "Praeventio Guard — ROI Scenario Comparator HTTP surface.",
     "exports": [
@@ -23405,7 +23405,7 @@
   {
     "path": "src/server/routes/roleViews.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 104,
     "purpose": "Praeventio Guard — Role-based dashboard view HTTP surface.",
     "exports": [
@@ -23465,7 +23465,7 @@
   {
     "path": "src/server/routes/routeScoring.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 162,
     "purpose": "Praeventio Guard — Route Scoring HTTP surface (driving safety routes).",
     "exports": [
@@ -23485,7 +23485,7 @@
   {
     "path": "src/server/routes/routing.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B1-Emergencia",
     "loc": 143,
     "purpose": "Praeventio Guard — Routing engines HTTP surface.",
     "exports": [
@@ -23605,7 +23605,7 @@
   {
     "path": "src/server/routes/sif.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B4-Incidentes",
     "loc": 122,
     "purpose": "Praeventio Guard — F.3 SIF Precursors (Serious Injury/Fatality).",
     "exports": [
@@ -23797,7 +23797,7 @@
   {
     "path": "src/server/routes/suppliers.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B11-Contratistas",
     "loc": 568,
     "purpose": "Praeventio Guard — §90-91 Calidad de Proveedores + Ranking de Riesgo.",
     "exports": [
@@ -23848,7 +23848,7 @@
   {
     "path": "src/server/routes/systemEvents.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 72,
     "purpose": "SystemEngine — POST /api/system-events/emit.",
     "exports": [
@@ -23879,7 +23879,7 @@
   {
     "path": "src/server/routes/upsell.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B15-Billing",
     "loc": 80,
     "purpose": "Praeventio Guard — Pain-Based Upsell Suggester HTTP surface.",
     "exports": [
@@ -23939,7 +23939,7 @@
   {
     "path": "src/server/routes/vulnerability.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B2-RiesgoIPER",
     "loc": 77,
     "purpose": "Praeventio Guard — F.10 Vulnerability Map.",
     "exports": [
@@ -23959,7 +23959,7 @@
   {
     "path": "src/server/routes/waste.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 81,
     "purpose": "Praeventio Guard — §229-236 Waste Inventory + ESG manifests.",
     "exports": [
@@ -23979,7 +23979,7 @@
   {
     "path": "src/server/routes/wisdomCapsule.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B14-IA",
     "loc": 485,
     "purpose": "Sprint 15 — Wisdom Capsule daily endpoint.",
     "exports": [
@@ -24025,7 +24025,7 @@
   {
     "path": "src/server/routes/workerHistory.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B7-Salud",
     "loc": 243,
     "purpose": "Praeventio Guard — Portable worker history HTTP surface.",
     "exports": [
@@ -24045,7 +24045,7 @@
   {
     "path": "src/server/routes/workerReadiness.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B7-Salud",
     "loc": 907,
     "purpose": "Praeventio Guard — F.16 Score de Preparación del Trabajador.",
     "exports": [
@@ -24056,7 +24056,7 @@
   {
     "path": "src/server/routes/zettelkasten.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B14-IA",
     "loc": 523,
     "purpose": "Praeventio Guard — Sprint 11.",
     "exports": [
@@ -24076,7 +24076,7 @@
   {
     "path": "src/server/services/projectTokens.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B1-Emergencia",
     "loc": 261,
     "purpose": "PR #482 codex P1 — resolver project-member FCM tokens by role.",
     "exports": [
@@ -24101,7 +24101,7 @@
   {
     "path": "src/server/services/serverZkNodeWriter.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B14-IA",
     "loc": 169,
     "purpose": "Praeventio Guard — server-side Zettelkasten node writer (Codex P1 on #650).",
     "exports": [
@@ -24123,7 +24123,7 @@
   {
     "path": "src/server/services/userLifecycle.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 87,
     "purpose": "Praeventio Guard — Sprint 39 Fase B.2.",
     "exports": [
@@ -24167,7 +24167,7 @@
   {
     "path": "src/server/sync/distributedLock.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B16-Offline",
     "loc": 350,
     "purpose": "Bloque 5.4 (C14) — SyncManager distributed lock, Firestore-backed.",
     "exports": [
@@ -24192,7 +24192,7 @@
   {
     "path": "src/server/triggers/backgroundTriggers.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 476,
     "purpose": "Praeventio Guard — Round 21 B1 Phase 5 split.",
     "exports": [
@@ -24239,7 +24239,7 @@
   {
     "path": "src/server/triggers/systemEngineTrigger.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 104,
     "purpose": "SystemEngine — Server-side trigger.",
     "exports": [
@@ -24261,7 +24261,7 @@
   {
     "path": "src/server/triggers/zettelkastenMaterializer.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B14-IA",
     "loc": 223,
     "purpose": "Praeventio Guard — Sprint 39 Fase D.8.c follow-up: materializer trigger.",
     "exports": [
@@ -24281,7 +24281,7 @@
   {
     "path": "src/server/types/express.d.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "CROSS",
     "loc": 49,
     "purpose": "Express Request augmentation (Sprint 49 - E.5 P2 H19).",
     "exports": [],
@@ -24299,7 +24299,7 @@
   {
     "path": "src/server/utils/fcmMulticast.ts",
     "category": "FEAT-server",
-    "block": "",
+    "block": "B1-Emergencia",
     "loc": 72,
     "purpose": "PR #482 codex P1 — chunked FCM multicast.",
     "exports": [
@@ -24313,7 +24313,7 @@
   {
     "path": "src/services/adService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 123,
     "purpose": "",
     "exports": [
@@ -24340,7 +24340,7 @@
   {
     "path": "src/services/adminBurden/adminBurdenTracker.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 213,
     "purpose": "Praeventio Guard — Sprint 51 §259: Tracker de carga administrativa.",
     "exports": [
@@ -24357,7 +24357,7 @@
   {
     "path": "src/services/adminBurden/automationSuggester.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 150,
     "purpose": "Praeventio Guard — Sprint 51 §260: Auto-admin (sugerir automatizaciones).",
     "exports": [
@@ -24442,7 +24442,7 @@
   {
     "path": "src/services/ai/aiAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 136,
     "purpose": "AI adapter interface — the small swappable boundary between Praeventio's",
     "exports": [
@@ -24488,7 +24488,7 @@
   {
     "path": "src/services/ai/colorBasedEppDetector.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B10-EPP",
     "loc": 348,
     "purpose": "Praeventio Guard — §2.18 (2026-05-22) detector EPP on-device REAL.",
     "exports": [
@@ -24509,7 +24509,7 @@
   {
     "path": "src/services/ai/contextualAssistant.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 227,
     "purpose": "Praeventio Guard — Sprint 39 Fase C.10: Asistente contextual con citas Zettelkasten.",
     "exports": [
@@ -24535,7 +24535,7 @@
   {
     "path": "src/services/ai/eppDetectorOnDevice.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B10-EPP",
     "loc": 364,
     "purpose": "Praeventio Guard — §2.18 fix (2026-05-22): EPP detection ON-DEVICE.",
     "exports": [
@@ -24569,7 +24569,7 @@
   {
     "path": "src/services/ai/index.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 167,
     "purpose": "AI adapter facade — single entry point for picking the right provider.",
     "exports": [
@@ -24594,7 +24594,7 @@
   {
     "path": "src/services/ai/resilientAiAdapters.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 387,
     "purpose": "Adapters concretos para conectar el `resilientAiOrchestrator` con",
     "exports": [
@@ -24653,7 +24653,7 @@
   {
     "path": "src/services/ai/vertexAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 324,
     "purpose": "Vertex AI adapter — real implementation.",
     "exports": [
@@ -24675,7 +24675,7 @@
   {
     "path": "src/services/ai/zkRagContextBuilder.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 343,
     "purpose": "Praeventio Guard — Sprint 47 Fase C.10: RAG sobre Zettelkasten + citation policy.",
     "exports": [
@@ -24700,7 +24700,7 @@
   {
     "path": "src/services/ai/zkRagResponseValidator.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 176,
     "purpose": "Praeventio Guard — Sprint 47 Fase C.10: Validator post-respuesta del LLM",
     "exports": [
@@ -25110,7 +25110,7 @@
   {
     "path": "src/services/annualReview/annualReviewFirestoreAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 74,
     "purpose": "Persistence #22: annual SGI review adapter (PreventiveObjective).",
     "exports": [
@@ -25131,7 +25131,7 @@
   {
     "path": "src/services/annualReview/annualSgiReview.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 228,
     "purpose": "Praeventio Guard — Sprint K: Revisión Anual del Sistema de Gestión.",
     "exports": [
@@ -25189,7 +25189,7 @@
   {
     "path": "src/services/ar/arAnchorFirestoreAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 205,
     "purpose": "AR Anchor Firestore Adapter — persistencia por proyecto.",
     "exports": [
@@ -25210,7 +25210,7 @@
   {
     "path": "src/services/ar/arAnchorService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 254,
     "purpose": "AR Anchor Service — tipos + lógica de negocio para anclas AR",
     "exports": [
@@ -25241,7 +25241,7 @@
   {
     "path": "src/services/ar/arHitTest.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 220,
     "purpose": "Praeventio Guard — AR hit-test pure logic.",
     "exports": [
@@ -25272,7 +25272,7 @@
   {
     "path": "src/services/ar/arPlatformPolicy.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 138,
     "purpose": "Praeventio Guard — Sprint 48 E.1 (cierre): AR platform policy + scene orchestrator.",
     "exports": [
@@ -25296,7 +25296,7 @@
   {
     "path": "src/services/ar/arQuickLookFallback.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 159,
     "purpose": "Praeventio Guard — AR Quick Look fallback para iOS Safari.",
     "exports": [
@@ -25346,7 +25346,7 @@
   {
     "path": "src/services/ar/posterCatalog.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 453,
     "purpose": "Poster Catalog — catálogo de afiches de seguridad reconocibles por el",
     "exports": [
@@ -25368,7 +25368,7 @@
   {
     "path": "src/services/ar/posterEmbeddings.generated.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 26,
     "purpose": "Poster Embeddings — pre-computados offline vía `scripts/seed-poster-embeddings.ts`.",
     "exports": [
@@ -25388,7 +25388,7 @@
   {
     "path": "src/services/ar/posterMatcher.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 299,
     "purpose": "Poster Matcher — wrapper sobre MediaPipe `ImageEmbedder` para",
     "exports": [
@@ -25414,7 +25414,7 @@
   {
     "path": "src/services/ar/usdzConverter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 142,
     "purpose": "Sprint 23 Bucket EE.5 — USDZ converter client adapter.",
     "exports": [
@@ -25435,7 +25435,7 @@
   {
     "path": "src/services/ar/webXrCapabilities.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 259,
     "purpose": "Praeventio Guard — WebXR AR Fase E.1.",
     "exports": [
@@ -25461,7 +25461,7 @@
   {
     "path": "src/services/audit/expressBundleBuilder.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 257,
     "purpose": "Praeventio Guard — Sprint 39 Fase F.1: Modo Auditoría Express.",
     "exports": [
@@ -25491,7 +25491,7 @@
   {
     "path": "src/services/audit/tamperProofChain.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 404,
     "purpose": "Tamper-Proof Audit Hash Chain.",
     "exports": [
@@ -25581,7 +25581,7 @@
   {
     "path": "src/services/auditService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 73,
     "purpose": "",
     "exports": [
@@ -25800,7 +25800,7 @@
   {
     "path": "src/services/b2d/apiKeyService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 233,
     "purpose": "Sprint 23 Bucket BB — B2D API key service.",
     "exports": [
@@ -25819,7 +25819,7 @@
   {
     "path": "src/services/b2d/externalClimate.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 384,
     "purpose": "Praeventio Guard — B2D External Climate sources (§2.16 cierre Fase C.4, 2026-05-21).",
     "exports": [
@@ -25838,7 +25838,7 @@
   {
     "path": "src/services/b2d/usage.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 35,
     "purpose": "Sprint 23 Bucket BB — B2D usage tracking helper.",
     "exports": [
@@ -25858,7 +25858,7 @@
   {
     "path": "src/services/battery/batteryAdvisor.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 182,
     "purpose": "Praeventio Guard — TODO.md §12.2.8: Battery-aware polling advisor.",
     "exports": [
@@ -25878,7 +25878,7 @@
   {
     "path": "src/services/bcnService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 89,
     "purpose": "Service to interact with the Biblioteca del Congreso Nacional (BCN) API.",
     "exports": [
@@ -26343,7 +26343,7 @@
   {
     "path": "src/services/bundlePerf/bundleSizeAnalyzer.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 206,
     "purpose": "Praeventio Guard — Sprint 47 D.7: Bundle size analyzer + lazy strategy.",
     "exports": [
@@ -26361,7 +26361,7 @@
   {
     "path": "src/services/cad/dwgAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 169,
     "purpose": "Sprint 21 Bucket Q — DWG client-side adapter.",
     "exports": [
@@ -26385,7 +26385,7 @@
   {
     "path": "src/services/cad/dwgDocumentValidator.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 398,
     "purpose": "Sprint 50 E.5 P2 H1 — DWG document validator (pre-upload).",
     "exports": [
@@ -26412,7 +26412,7 @@
   {
     "path": "src/services/cad/dxfAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 189,
     "purpose": "Sprint 17a — DXF entity adapter for the MIT-only CAD viewer stack.",
     "exports": [
@@ -26462,7 +26462,7 @@
   {
     "path": "src/services/calendar/predictions.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 243,
     "purpose": "Calendar predictions — pure rule engine.",
     "exports": [
@@ -26486,7 +26486,7 @@
   {
     "path": "src/services/capacity/normativeAlerts.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 283,
     "purpose": "Per-project Chilean normativa alerts.",
     "exports": [
@@ -26510,7 +26510,7 @@
   {
     "path": "src/services/capacity/tierEvaluation.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B15-Billing",
     "loc": 155,
     "purpose": "Deterministic capacity / tier evaluation.",
     "exports": [
@@ -26535,7 +26535,7 @@
   {
     "path": "src/services/cargo/stowageOptimizer.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 309,
     "purpose": "Praeventio Guard — Sprint 39 Fase D.2: Optimizador de Estiba + COG.",
     "exports": [
@@ -26663,7 +26663,7 @@
   {
     "path": "src/services/chemicalBackend.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 179,
     "purpose": "",
     "exports": [
@@ -26764,7 +26764,7 @@
   {
     "path": "src/services/climateAwareScheduling/climateAwareScheduling.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 187,
     "purpose": "Praeventio Guard — Sprint K: Climate-Aware Scheduling + Work Suspension.",
     "exports": [
@@ -26791,7 +26791,7 @@
   {
     "path": "src/services/coach/normativeRag.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 386,
     "purpose": "NormativeRagService — domain-aware retrieval over CL safety/health corpus.",
     "exports": [
@@ -26813,7 +26813,7 @@
   {
     "path": "src/services/coach/personaSelector.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 273,
     "purpose": "Praeventio Guard — §12.6.1: Selector de persona para GeminiChat.",
     "exports": [
@@ -26855,7 +26855,7 @@
   {
     "path": "src/services/coachBackend.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B6-Capacitacion",
     "loc": 38,
     "purpose": "",
     "exports": [
@@ -27400,7 +27400,7 @@
   {
     "path": "src/services/consistency/consistencyAuditor.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 347,
     "purpose": "Praeventio Guard — Sprint 39 Fase G.3: revisión de consistencia entre módulos.",
     "exports": [
@@ -27425,7 +27425,7 @@
   {
     "path": "src/services/consistency/consistencyStateBuilder.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 226,
     "purpose": "Praeventio Guard — Sprint K wire UI (2026-05-23) consistency state builder.",
     "exports": [
@@ -27575,7 +27575,7 @@
   {
     "path": "src/services/controlComparator/controlComparator.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B2-RiesgoIPER",
     "loc": 314,
     "purpose": "Praeventio Guard — Sprint 52 §193: Comparador de Controles A vs B.",
     "exports": [
@@ -27606,7 +27606,7 @@
   {
     "path": "src/services/controlComparator/controlFailureLibrary.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B2-RiesgoIPER",
     "loc": 670,
     "purpose": "Praeventio Guard — Sprint 52 §306: Biblioteca de Fallas de Controles",
     "exports": [
@@ -28154,7 +28154,7 @@
   {
     "path": "src/services/dataQuality/incompletenessScanner.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 486,
     "purpose": "Praeventio Guard — Sprint 40 Fase F.9: Detector de Datos Incompletos.",
     "exports": [
@@ -28176,7 +28176,7 @@
   {
     "path": "src/services/dataSeedService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 114,
     "purpose": "",
     "exports": [
@@ -28196,7 +28196,7 @@
   {
     "path": "src/services/dea/deaFirestoreAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B1-Emergencia",
     "loc": 121,
     "purpose": "Persistence #N (Sprint C — 2026-05-15): DEA Firestore adapter.",
     "exports": [
@@ -28217,7 +28217,7 @@
   {
     "path": "src/services/dea/deaService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B1-Emergencia",
     "loc": 142,
     "purpose": "DEA (Desfibrilador Externo Automático) — Ley 21.156.",
     "exports": [
@@ -28242,7 +28242,7 @@
   {
     "path": "src/services/deduplication/recordDeduplicator.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 318,
     "purpose": "Praeventio Guard — Sprint 44 §108: Desduplicador de Registros.",
     "exports": [
@@ -28269,7 +28269,7 @@
   {
     "path": "src/services/digitalTwin/gaussianSplatFirestoreAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 84,
     "purpose": "Persistence #23: Gaussian Splat captures adapter.",
     "exports": [
@@ -28290,7 +28290,7 @@
   {
     "path": "src/services/digitalTwin/gaussianSplatRegistry.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 306,
     "purpose": "Praeventio Guard — Fase D parcial: Gaussian Splat registry for Digital Twin.",
     "exports": [
@@ -28350,7 +28350,7 @@
   {
     "path": "src/services/digitalTwin/objectPlacement/normativaRules.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 260,
     "purpose": "Normativa rules engine — valida la colocación de objetos virtuales",
     "exports": [
@@ -28372,7 +28372,7 @@
   {
     "path": "src/services/digitalTwin/onDeviceReconstruction/frameExtractor.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 242,
     "purpose": "Praeventio Guard — §2.28 (2026-05-22) on-device reconstruction module.",
     "exports": [
@@ -28385,7 +28385,7 @@
   {
     "path": "src/services/digitalTwin/onDeviceReconstruction/glbExporter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 101,
     "purpose": "Praeventio Guard — §2.28 (2026-05-22) on-device reconstruction.",
     "exports": [
@@ -28397,7 +28397,7 @@
   {
     "path": "src/services/digitalTwin/onDeviceReconstruction/index.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 258,
     "purpose": "Praeventio Guard — §2.28 (2026-05-22) on-device reconstruction pipeline.",
     "exports": [
@@ -28421,7 +28421,7 @@
   {
     "path": "src/services/digitalTwin/onDeviceReconstruction/midasDepthEstimator.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 273,
     "purpose": "Praeventio Guard — Plan 2026-05-23 §Fase D.1 — MiDaS depth ML on-device.",
     "exports": [
@@ -28446,7 +28446,7 @@
   {
     "path": "src/services/digitalTwin/onDeviceReconstruction/pointCloudBuilder.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 395,
     "purpose": "Praeventio Guard — §2.28 (2026-05-22) on-device reconstruction.",
     "exports": [
@@ -28469,7 +28469,7 @@
   {
     "path": "src/services/digitalTwin/onDeviceReconstruction/usdzExporter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 240,
     "purpose": "Praeventio Guard — §2.28 (2026-05-23) USDZ exporter para iOS Quick Look.",
     "exports": [
@@ -28491,7 +28491,7 @@
   {
     "path": "src/services/digitalTwin/photogrammetry/mockAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 173,
     "purpose": "Mock photogrammetry adapter — para tests + desarrollo offline.",
     "exports": [
@@ -28503,7 +28503,7 @@
   {
     "path": "src/services/digitalTwin/photogrammetry/onDeviceAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 271,
     "purpose": "Praeventio Guard — §2.28 (2026-05-22) on-device PhotogrammetryAdapter.",
     "exports": [
@@ -28516,7 +28516,7 @@
   {
     "path": "src/services/digitalTwin/photogrammetry/reconstructionJobStore.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 204,
     "purpose": "Praeventio Guard — §2.28 (2026-05-22) on-device reconstruction.",
     "exports": [
@@ -28534,7 +28534,7 @@
   {
     "path": "src/services/digitalTwin/photogrammetry/types.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 200,
     "purpose": "Photogrammetry types — Brecha C foundation.",
     "exports": [
@@ -28562,7 +28562,7 @@
   {
     "path": "src/services/digitalTwin/placedObjectsStore.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 137,
     "purpose": "Sprint 21 Ola 3 — Bucket J — placedObjectsStore.",
     "exports": [
@@ -28576,7 +28576,7 @@
   {
     "path": "src/services/digitalTwin/siteGeometry.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 227,
     "purpose": "Sprint 13 — Digital Twin Phase A",
     "exports": [
@@ -28598,7 +28598,7 @@
   {
     "path": "src/services/digitalTwin/siteGeometryStore.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B-DigitalTwin",
     "loc": 103,
     "purpose": "Sprint 13 — Digital Twin Phase A",
     "exports": [
@@ -28649,7 +28649,7 @@
   {
     "path": "src/services/documents/documentVersioning.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 281,
     "purpose": "Praeventio Guard — Sprint 41 Fase F.23: Versionado de Documentos.",
     "exports": [
@@ -28680,7 +28680,7 @@
   {
     "path": "src/services/documents/documentVersioningFirestoreAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 168,
     "purpose": "Praeventio Guard — Sprint 41 F.23 persistence.",
     "exports": [
@@ -28702,7 +28702,7 @@
   {
     "path": "src/services/documents/legalDocTemplates.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 291,
     "purpose": "Praeventio Guard — Sprint 39 Fase C.7: Legal docs desde plantilla.",
     "exports": [
@@ -28730,7 +28730,7 @@
   {
     "path": "src/services/domainEvents/domainEventStore.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 208,
     "purpose": "Praeventio Guard — Sprint 45 §151-153: Eventos de dominio auditables",
     "exports": [
@@ -28816,7 +28816,7 @@
   {
     "path": "src/services/driving/speedTrigger.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 224,
     "purpose": "Praeventio Guard — Sprint 12.",
     "exports": [
@@ -28844,7 +28844,7 @@
   {
     "path": "src/services/drivingSafety/drivingSafetyService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 203,
     "purpose": "Praeventio Guard — Sprint K: Conducción Segura + Rutas Críticas + Alertas Ruta.",
     "exports": [
@@ -28929,7 +28929,7 @@
   {
     "path": "src/services/efficacyVerification/efficacyVerifier.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B4-Incidentes",
     "loc": 342,
     "purpose": "Praeventio Guard — Sprint 44 F.11: Verificación de Eficacia.",
     "exports": [
@@ -28949,7 +28949,7 @@
   {
     "path": "src/services/email/index.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 25,
     "purpose": "Praeventio Guard — Sprint 22 (Bucket Y) email service barrel.",
     "exports": [
@@ -28976,7 +28976,7 @@
   {
     "path": "src/services/email/resendService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 167,
     "purpose": "Praeventio Guard — Sprint 22 (Bucket Y).",
     "exports": [
@@ -28992,7 +28992,7 @@
   {
     "path": "src/services/email/templates.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 559,
     "purpose": "Praeventio Guard — Sprint 22 (Bucket Y).",
     "exports": [
@@ -29210,7 +29210,7 @@
   {
     "path": "src/services/engineering/scratchCalculations.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B2-RiesgoIPER",
     "loc": 181,
     "purpose": "Praeventio Guard — Scratch storage para cálculos de ingeniería.",
     "exports": [
@@ -29266,7 +29266,7 @@
   {
     "path": "src/services/environment/chileClimatology.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 237,
     "purpose": "Praeventio Guard — Chile climate normals (climatology).",
     "exports": [
@@ -29290,7 +29290,7 @@
   {
     "path": "src/services/environmentBackend.client.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 163,
     "purpose": "environmentBackend (frontend client)",
     "exports": [
@@ -29312,7 +29312,7 @@
   {
     "path": "src/services/environmentBackend.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 466,
     "purpose": "",
     "exports": [
@@ -29368,7 +29368,7 @@
   {
     "path": "src/services/environmental/wasteFirestoreAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 117,
     "purpose": "Persistence #21: waste records + manifests adapter.",
     "exports": [
@@ -29380,7 +29380,7 @@
   {
     "path": "src/services/eppBackend.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B10-EPP",
     "loc": 75,
     "purpose": "",
     "exports": [
@@ -29547,7 +29547,7 @@
   {
     "path": "src/services/erp/erpAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 249,
     "purpose": "Praeventio Guard — ERP Integration adapter (honest implementation).",
     "exports": [
@@ -29578,7 +29578,7 @@
   {
     "path": "src/services/escalation/escalationSlaEngine.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B1-Emergencia",
     "loc": 368,
     "purpose": "Praeventio Guard — Sprint 50 §206-210: Escalation engine + SLA cierre.",
     "exports": [
@@ -29609,7 +29609,7 @@
   {
     "path": "src/services/etl/csvAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 355,
     "purpose": "Sprint 24 — Bucket JJ — Universal CSV importer/exporter.",
     "exports": [
@@ -29638,7 +29638,7 @@
   {
     "path": "src/services/etl/schemas.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 312,
     "purpose": "Sprint 24 — Bucket JJ — Pre-built CSV schemas for the 6 entity types",
     "exports": [
@@ -29667,7 +29667,7 @@
   {
     "path": "src/services/euler/criticalLoad.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 146,
     "purpose": "Euler critical buckling load — Fase 3 del plan Euler-Matrix.",
     "exports": [
@@ -29695,7 +29695,7 @@
   {
     "path": "src/services/euler/eulerLagrange.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 243,
     "purpose": "Cálculo variacional Euler-Lagrange — Fase 8 del plan Euler-Matrix.",
     "exports": [
@@ -29721,7 +29721,7 @@
   {
     "path": "src/services/euler/eulerianPath.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 274,
     "purpose": "Eulerian path / circuit finder — Fase 2 del plan Euler-Matrix",
     "exports": [
@@ -29744,7 +29744,7 @@
   {
     "path": "src/services/euler/fftAnalyzer.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 218,
     "purpose": "Fast Fourier Transform — Fase 5 del plan Euler-Matrix.",
     "exports": [
@@ -29771,7 +29771,7 @@
   {
     "path": "src/services/euler/graphConnectivity.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 233,
     "purpose": "Euler graph connectivity primitives — Fase 1 del plan Euler-Matrix",
     "exports": [
@@ -29788,7 +29788,7 @@
   {
     "path": "src/services/euler/index.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 27,
     "purpose": "Barrel for Euler-driven primitives — pareja matemática de Bernoulli",
     "exports": [],
@@ -29806,7 +29806,7 @@
   {
     "path": "src/services/euler/inviscidFlow.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 225,
     "purpose": "Ecuaciones de Euler de fluidos no-viscosos — Fase 4 del plan Euler-Matrix.",
     "exports": [
@@ -29834,7 +29834,7 @@
   {
     "path": "src/services/euler/odeIntegrator.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 308,
     "purpose": "Método de Euler explícito para ODE — Fase 6 del plan Euler-Matrix.",
     "exports": [
@@ -29865,7 +29865,7 @@
   {
     "path": "src/services/euler/polyhedronAchievements.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 199,
     "purpose": "Característica de Euler V-E+F=2 — Fase 10 del plan Euler-Matrix",
     "exports": [
@@ -29893,7 +29893,7 @@
   {
     "path": "src/services/euler/zettelkastenTopology.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 277,
     "purpose": "Topología auto-organizativa de Zettelkasten — Fase 7 del plan Euler-Matrix.",
     "exports": [
@@ -29967,7 +29967,7 @@
   {
     "path": "src/services/eventBus/eventBus.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 360,
     "purpose": "Praeventio Guard — Fase C.4: Event Bus global in-process.",
     "exports": [
@@ -29989,7 +29989,7 @@
   {
     "path": "src/services/eventBus/integrations.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 189,
     "purpose": "Praeventio Guard — Fase C.4: Integraciones eventBus ↔ services SST.",
     "exports": [
@@ -30014,7 +30014,7 @@
   {
     "path": "src/services/eventReplay/eventReplayAuditTool.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 391,
     "purpose": "Praeventio Guard — Sprint 53 §147-152: Event replay sourcing audit tool",
     "exports": [
@@ -30045,7 +30045,7 @@
   {
     "path": "src/services/eventStore/inMemoryEventStore.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 231,
     "purpose": "Praeventio Guard — In-memory Event Store.",
     "exports": [
@@ -30056,7 +30056,7 @@
   {
     "path": "src/services/eventStore/types.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 172,
     "purpose": "Praeventio Guard — Event Store core types.",
     "exports": [
@@ -30081,7 +30081,7 @@
   {
     "path": "src/services/evidenceChain/custodyChainFirestoreAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B4-Incidentes",
     "loc": 76,
     "purpose": "Persistence #11: custodyChainService adapter.",
     "exports": [
@@ -30102,7 +30102,7 @@
   {
     "path": "src/services/evidenceChain/custodyChainService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B4-Incidentes",
     "loc": 249,
     "purpose": "Praeventio Guard — Sprint 39 Fase J.7: Cadena de Custodia de Evidencias.",
     "exports": [
@@ -30133,7 +30133,7 @@
   {
     "path": "src/services/excelImport/excelImporter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 219,
     "purpose": "Praeventio Guard — Sprint K: Importador Excel + Validador + Desduplicador.",
     "exports": [
@@ -30162,7 +30162,7 @@
   {
     "path": "src/services/excelImporter/deduplicator.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 125,
     "purpose": "Praeventio Guard — Sprint K §108 — Deduplicador.",
     "exports": [
@@ -30177,7 +30177,7 @@
   {
     "path": "src/services/excelImporter/index.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 52,
     "purpose": "Praeventio Guard — Sprint K §106-108 — Excel importer (barrel).",
     "exports": [
@@ -30213,7 +30213,7 @@
   {
     "path": "src/services/excelImporter/recordValidator.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 278,
     "purpose": "Praeventio Guard — Sprint K §107 — Validador estructural (Zod) por kind.",
     "exports": [
@@ -30244,7 +30244,7 @@
   {
     "path": "src/services/excelImporter/xlsxReader.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 316,
     "purpose": "Praeventio Guard — Sprint K §106 — Lector de archivos Excel.",
     "exports": [
@@ -30339,7 +30339,7 @@
   {
     "path": "src/services/expirations/expirationScanner.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 204,
     "purpose": "Praeventio Guard — Sprint 39 Fase B.9: vencimientos universales.",
     "exports": [
@@ -30394,7 +30394,7 @@
   {
     "path": "src/services/exposure/exposureFirestoreAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B7-Salud",
     "loc": 50,
     "purpose": "Persistence #5: exposureRegistry adapter.",
     "exports": [
@@ -30415,7 +30415,7 @@
   {
     "path": "src/services/exposure/exposureRegistry.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B7-Salud",
     "loc": 106,
     "purpose": "Praeventio Guard — Sprint 39 Fase G.8: Registro de exposición ocupacional.",
     "exports": [
@@ -30441,7 +30441,7 @@
   {
     "path": "src/services/exposure/thermalStressCalculator.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B7-Salud",
     "loc": 281,
     "purpose": "Praeventio Guard — Sprint 39 Fase L.9: Estrés Térmico + UV + Aclimatación.",
     "exports": [
@@ -30472,7 +30472,7 @@
   {
     "path": "src/services/external/eonet/eonetAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 157,
     "purpose": "EONET adapter — natural-event feed (wildfires, storms, volcanoes, …).",
     "exports": [
@@ -30486,7 +30486,7 @@
   {
     "path": "src/services/external/eonet/types.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 79,
     "purpose": "External natural-event feed adapter — type definitions.",
     "exports": [
@@ -30506,7 +30506,7 @@
   {
     "path": "src/services/external/index.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 70,
     "purpose": "External natural-event feeds — shared module re-exports.",
     "exports": [
@@ -30532,7 +30532,7 @@
   {
     "path": "src/services/external/nasaPower/nasaPowerAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 325,
     "purpose": "NASA POWER adapter — clima histórico hourly por punto GPS.",
     "exports": [
@@ -30549,7 +30549,7 @@
   {
     "path": "src/services/external/nasaPower/types.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 138,
     "purpose": "NASA POWER (Prediction Of Worldwide Energy Resources) types.",
     "exports": [
@@ -30576,7 +30576,7 @@
   {
     "path": "src/services/external/recommendationBuilder.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 221,
     "purpose": "Calm-recommendation builder.",
     "exports": [
@@ -30592,7 +30592,7 @@
   {
     "path": "src/services/external/usgs/types.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 40,
     "purpose": "USGS Earthquake feed adapter — type definitions.",
     "exports": [
@@ -30617,7 +30617,7 @@
   {
     "path": "src/services/external/usgs/usgsEarthquakeAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 128,
     "purpose": "USGS Earthquake adapter — sub-minute global seismic feed.",
     "exports": [
@@ -30794,7 +30794,7 @@
   {
     "path": "src/services/firestore/createProjectScopedStore.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 264,
     "purpose": "Praeventio Guard — Plan 2026-05-23 Fase B.1.",
     "exports": [
@@ -30819,7 +30819,7 @@
   {
     "path": "src/services/firestore/resilientReader.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 214,
     "purpose": "Resilient Firestore Reader — retry exponencial + offline cache fallback.",
     "exports": [
@@ -30874,7 +30874,7 @@
   {
     "path": "src/services/fiveS/fiveSAudit.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B9-Inspecciones",
     "loc": 140,
     "purpose": "Praeventio Guard — Sprint K: 5S Audit + Housekeeping + Zone Scoring.",
     "exports": [
@@ -30901,7 +30901,7 @@
   {
     "path": "src/services/focusBlocks/focusBlocks.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B6-Capacitacion",
     "loc": 313,
     "purpose": "Praeventio Guard — §201-210 Bloques de Foco (core).",
     "exports": [
@@ -30932,7 +30932,7 @@
   {
     "path": "src/services/foregroundService/guardianForegroundService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 217,
     "purpose": "Praeventio Guard — Sprint 47 C.2: Foreground Service Android.",
     "exports": [
@@ -31478,7 +31478,7 @@
   {
     "path": "src/services/glossary/glossaryEngine.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B6-Capacitacion",
     "loc": 324,
     "purpose": "Praeventio Guard — Sprint 50 §97-99: Glosario + FAQ + Feedback Utilidad.",
     "exports": [
@@ -31509,7 +31509,7 @@
   {
     "path": "src/services/governance/deviationNormalizationRadar.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 247,
     "purpose": "Praeventio Guard — Sprint 39 Fase L.2: Radar de Normalización del Desvío.",
     "exports": [
@@ -31959,7 +31959,7 @@
   {
     "path": "src/services/hvac/thermalModel.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 284,
     "purpose": "Praeventio Guard — Sprint 39 Fase D.3: Modelo térmico 1R1C + CO2 HVAC.",
     "exports": [
@@ -32013,7 +32013,7 @@
   {
     "path": "src/services/i18n/culturalConventions.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 150,
     "purpose": "Sprint 31 Bucket SS — Cultural conventions framework.",
     "exports": [
@@ -32042,7 +32042,7 @@
   {
     "path": "src/services/identity/rutValidators.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 300,
     "purpose": "Praeventio Guard — Sprint 31 Bucket PP.",
     "exports": [
@@ -32070,7 +32070,7 @@
   {
     "path": "src/services/immutable/pdfImmutableService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 401,
     "purpose": "Praeventio Guard — PDF inmutable real (jsPDF + SHA-256 content addressing).",
     "exports": [
@@ -32315,7 +32315,7 @@
   {
     "path": "src/services/internalTransit/internalTransitService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 353,
     "purpose": "Praeventio Guard — Sprint 39 Fase L.10: Tránsito Interno + Convivencia.",
     "exports": [
@@ -32366,7 +32366,7 @@
   {
     "path": "src/services/iot/edgeFilter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 622,
     "purpose": "Sprint 34 — Edge Filtering, dos fases (mineria subterranea / mesh-first).",
     "exports": [
@@ -32394,7 +32394,7 @@
   {
     "path": "src/services/iot/firestoreBridge.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 221,
     "purpose": "Sprint 32 Bucket TT — MQTT → Firestore bridge.",
     "exports": [
@@ -32407,7 +32407,7 @@
   {
     "path": "src/services/iot/ingestRuleEngine.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 167,
     "purpose": "Sprint 32 Bucket TT — Ingest rule engine.",
     "exports": [
@@ -32420,7 +32420,7 @@
   {
     "path": "src/services/iot/mqttAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 350,
     "purpose": "Sprint 32 Bucket TT — MQTT adapter (dual + in-memory).",
     "exports": [
@@ -32451,7 +32451,7 @@
   {
     "path": "src/services/iot/mqttClient.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 368,
     "purpose": "Praeventio Guard — MQTT-over-WebSocket client real (no simulación).",
     "exports": [
@@ -32481,7 +32481,7 @@
   {
     "path": "src/services/iot/probabilityFailureScoring.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 172,
     "purpose": "Praeventio Guard — §12.7.4: Telemetría IoT ↔ Probabilidad Falla",
     "exports": [
@@ -32496,7 +32496,7 @@
   {
     "path": "src/services/iot/types.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 103,
     "purpose": "Sprint 32 Bucket TT — IoT canonical types.",
     "exports": [
@@ -32552,7 +32552,7 @@
   {
     "path": "src/services/knowledgeBase/knowledgeBaseService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B6-Capacitacion",
     "loc": 180,
     "purpose": "Praeventio Guard — Sprint K: Base conocimiento + Glosario + FAQ + Curador.",
     "exports": [
@@ -32580,7 +32580,7 @@
   {
     "path": "src/services/leadership/supervisionDecisionTrail.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 198,
     "purpose": "Praeventio Guard — Sprint K: Historial de Decisiones de Supervisión + Ranking.",
     "exports": [
@@ -32607,7 +32607,7 @@
   {
     "path": "src/services/legal/legalRuleEngine.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 255,
     "purpose": "Praeventio Guard — Sprint 39 Fase B.10: abogado codificado.",
     "exports": [
@@ -32623,7 +32623,7 @@
   {
     "path": "src/services/legal/termsContent.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 134,
     "purpose": "Términos y Condiciones de Servicio — Praeventio Guard",
     "exports": [
@@ -32637,7 +32637,7 @@
   {
     "path": "src/services/legalBackend.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 143,
     "purpose": "",
     "exports": [
@@ -32753,7 +32753,7 @@
   {
     "path": "src/services/lineOfFire/lineOfFireChecker.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B2-RiesgoIPER",
     "loc": 189,
     "purpose": "Praeventio Guard — Sprint K: Control de Línea de Fuego.",
     "exports": [
@@ -32981,7 +32981,7 @@
   {
     "path": "src/services/mcp/stdioBoot.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 62,
     "purpose": "Praeventio Guard — Sprint 49 activación @modelcontextprotocol/sdk.",
     "exports": [
@@ -33002,7 +33002,7 @@
   {
     "path": "src/services/mcp/zettelkastenServer.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 340,
     "purpose": "Praeventio Guard — Sprint 39 Fase D.11: MCP Zettelkasten server.",
     "exports": [
@@ -33032,7 +33032,7 @@
   {
     "path": "src/services/mcp/zettelkastenStdioAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 168,
     "purpose": "Praeventio Guard — Sprint 45 D.11 (cierre): stdio adapter para MCP server.",
     "exports": [
@@ -33053,7 +33053,7 @@
   {
     "path": "src/services/measurements/measurementChain.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B9-Inspecciones",
     "loc": 261,
     "purpose": "Praeventio Guard — Sprint 39 Fase L.12: Cadena de Medición + Calibración.",
     "exports": [
@@ -33476,7 +33476,7 @@
   {
     "path": "src/services/migration/registry.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 171,
     "purpose": "Praeventio Guard — Sprint 24 differentiators (Bucket MM).",
     "exports": [
@@ -33501,7 +33501,7 @@
   {
     "path": "src/services/ml/vertexTrainer.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 164,
     "purpose": "Sprint 32 Bucket VV — Vertex AI custom training scaffold.",
     "exports": [
@@ -33526,7 +33526,7 @@
   {
     "path": "src/services/mobile/foregroundServiceClient.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 262,
     "purpose": "Praeventio Guard — Sprint mobile FGS: foreground-service client wrapper.",
     "exports": [
@@ -33611,7 +33611,7 @@
   {
     "path": "src/services/networkBackend.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 206,
     "purpose": "",
     "exports": [
@@ -33623,7 +33623,7 @@
   {
     "path": "src/services/nodeSeedService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 79,
     "purpose": "",
     "exports": [
@@ -33673,7 +33673,7 @@
   {
     "path": "src/services/normativa/countryPacks.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 95,
     "purpose": "Country-pack registry for jurisdiction-aware normativa.",
     "exports": [
@@ -33699,7 +33699,7 @@
   {
     "path": "src/services/normativa/locationNormativa.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B5-Cumplimiento",
     "loc": 422,
     "purpose": "GPS-based country detection for the normativa pack loader.",
     "exports": [
@@ -33725,7 +33725,7 @@
   {
     "path": "src/services/notifications/fcmAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 140,
     "purpose": "Praeventio Guard — Firebase Cloud Messaging (FCM) server-side adapter.",
     "exports": [
@@ -34109,7 +34109,7 @@
   {
     "path": "src/services/openapi/bootstrap.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 457,
     "purpose": "Sprint 36 — OpenAPI registry bootstrap.",
     "exports": [
@@ -34120,7 +34120,7 @@
   {
     "path": "src/services/openapi/registry.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 92,
     "purpose": "Sprint 36 — Auto-OpenAPI registry.",
     "exports": [
@@ -34148,7 +34148,7 @@
   {
     "path": "src/services/openapi/specGenerator.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 227,
     "purpose": "Sprint 36 — OpenAPI 3.1 spec generator.",
     "exports": [
@@ -34169,7 +34169,7 @@
   {
     "path": "src/services/operationalState/faenaStateEngine.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 132,
     "purpose": "Praeventio Guard — Sprint 39 Fase G.5: Estado Operacional de Faena.",
     "exports": [
@@ -34326,7 +34326,7 @@
   {
     "path": "src/services/pdca/pdcaCycle.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B4-Incidentes",
     "loc": 199,
     "purpose": "Praeventio Guard — Sprint K: PDCA + No Conformidades + Eficacia.",
     "exports": [
@@ -34357,7 +34357,7 @@
   {
     "path": "src/services/pdca/pdcaCycleEngine.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B4-Incidentes",
     "loc": 226,
     "purpose": "Praeventio Guard — Sprint 49: PDCA Cycle Engine (multi-cycle projects).",
     "exports": [
@@ -34437,7 +34437,7 @@
   {
     "path": "src/services/physics/bernoulliEngine.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 55,
     "purpose": "Bernoulli engine — fluid dynamics for ventilation, hazmat, structural and EPP modules. SI units.",
     "exports": [
@@ -34462,7 +34462,7 @@
   {
     "path": "src/services/pinSign/pinSignService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 333,
     "purpose": "Praeventio Guard — Sprint K F.25: PIN Sign (firma por PIN sin biometría).",
     "exports": [
@@ -34593,7 +34593,7 @@
   {
     "path": "src/services/predictionBackend.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 126,
     "purpose": "",
     "exports": [
@@ -34912,7 +34912,7 @@
   {
     "path": "src/services/privacy/dpiaTemplate.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 284,
     "purpose": "Praeventio Guard — Sprint 31 Bucket MM.",
     "exports": [
@@ -34926,7 +34926,7 @@
   {
     "path": "src/services/privacy/regimes/152fz-ru.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 47,
     "purpose": "Praeventio Guard — Sprint 31 Bucket SS.",
     "exports": [
@@ -34937,7 +34937,7 @@
   {
     "path": "src/services/privacy/regimes/appi.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 46,
     "purpose": "Praeventio Guard — Sprint 31 Bucket MM.",
     "exports": [
@@ -34948,7 +34948,7 @@
   {
     "path": "src/services/privacy/regimes/ccpa.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 39,
     "purpose": "Praeventio Guard — Sprint 31 Bucket MM.",
     "exports": [
@@ -34959,7 +34959,7 @@
   {
     "path": "src/services/privacy/regimes/cpra.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 41,
     "purpose": "Praeventio Guard — Sprint 31 Bucket MM.",
     "exports": [
@@ -34970,7 +34970,7 @@
   {
     "path": "src/services/privacy/regimes/gdpr.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 44,
     "purpose": "Praeventio Guard — Sprint 31 Bucket MM.",
     "exports": [
@@ -34981,7 +34981,7 @@
   {
     "path": "src/services/privacy/regimes/ley19628.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 47,
     "purpose": "Praeventio Guard — Sprint 31 Bucket MM.",
     "exports": [
@@ -34992,7 +34992,7 @@
   {
     "path": "src/services/privacy/regimes/lgpd.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 48,
     "purpose": "Praeventio Guard — Sprint 31 Bucket MM.",
     "exports": [
@@ -35003,7 +35003,7 @@
   {
     "path": "src/services/privacy/regimes/pdpa.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 40,
     "purpose": "Praeventio Guard — Sprint 31 Bucket MM.",
     "exports": [
@@ -35014,7 +35014,7 @@
   {
     "path": "src/services/privacy/regimes/pipa-tw.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 47,
     "purpose": "Praeventio Guard — Sprint 31 Bucket SS.",
     "exports": [
@@ -35025,7 +35025,7 @@
   {
     "path": "src/services/privacy/regimes/pipeda.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 43,
     "purpose": "Praeventio Guard — Sprint 31 Bucket MM.",
     "exports": [
@@ -35036,7 +35036,7 @@
   {
     "path": "src/services/privacy/regimes/pipl-cn.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 53,
     "purpose": "Praeventio Guard — Sprint 31 Bucket SS.",
     "exports": [
@@ -35056,7 +35056,7 @@
   {
     "path": "src/services/privacy/registry.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 260,
     "purpose": "Praeventio Guard — Sprint 31 Bucket MM.",
     "exports": [
@@ -35072,7 +35072,7 @@
   {
     "path": "src/services/privacy/types.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 100,
     "purpose": "Praeventio Guard — Sprint 31 Bucket MM.",
     "exports": [
@@ -35126,7 +35126,7 @@
   {
     "path": "src/services/privacyShield/piiClassifier.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 189,
     "purpose": "Praeventio Guard — Sprint K: Privacidad PII + Datos Médicos Separados + Retención.",
     "exports": [
@@ -35155,7 +35155,7 @@
   {
     "path": "src/services/projectClosure/projectClosureService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 212,
     "purpose": "Praeventio Guard — Sprint K: Cierre Proyecto + Lecciones Transferibles + Decisiones Críticas.",
     "exports": [
@@ -35288,7 +35288,7 @@
   {
     "path": "src/services/proximitySensor/proximityModeDetector.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 227,
     "purpose": "Praeventio Guard — Sprint 49 C.3: Proximity Sensor + Mode Detection.",
     "exports": [
@@ -35308,7 +35308,7 @@
   {
     "path": "src/services/psychosocialBackend.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B7-Salud",
     "loc": 87,
     "purpose": "",
     "exports": [
@@ -35501,7 +35501,7 @@
   {
     "path": "src/services/ragService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 272,
     "purpose": "",
     "exports": [
@@ -35526,7 +35526,7 @@
   {
     "path": "src/services/readReceipts/readReceiptService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B6-Capacitacion",
     "loc": 196,
     "purpose": "Praeventio Guard — Sprint 39 Fase G.1: confirmación lectura obligatoria.",
     "exports": [
@@ -35548,7 +35548,7 @@
   {
     "path": "src/services/readReceipts/readReceiptStore.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B6-Capacitacion",
     "loc": 116,
     "purpose": "Praeventio Guard — Sprint K wire UI (2026-05-23) read-receipt store.",
     "exports": [
@@ -35929,7 +35929,7 @@
   {
     "path": "src/services/reputationalAlerts/reputationalAlertEngine.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 330,
     "purpose": "Praeventio Guard — Sprint 51 §118: Alertas reputacionales (incidentes",
     "exports": [
@@ -36020,7 +36020,7 @@
   {
     "path": "src/services/retaliationProtection/retaliationDetector.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 199,
     "purpose": "Praeventio Guard — Sprint 49: Retaliation Protection Detector.",
     "exports": [
@@ -36046,7 +36046,7 @@
   {
     "path": "src/services/returnToWork/returnToWorkPlanner.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B7-Salud",
     "loc": 350,
     "purpose": "Praeventio Guard — Sprint 49 §251-253: Return-to-Work + Restricciones",
     "exports": [
@@ -36135,7 +36135,7 @@
   {
     "path": "src/services/roiScenario/roiScenarioSimulator.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 359,
     "purpose": "Praeventio Guard — Sprint 53 §175 (extendido): ROI Scenario Simulator.",
     "exports": [
@@ -36192,7 +36192,7 @@
   {
     "path": "src/services/roleViews/roleViewBuilder.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B17-Admin",
     "loc": 243,
     "purpose": "Praeventio Guard — Sprint 39 Fase J.4: Modos por Rol (Jefe Terreno / Trabajador / Gerencia).",
     "exports": [
@@ -36324,7 +36324,7 @@
   {
     "path": "src/services/routeScoring/criticalRouteScoring.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 266,
     "purpose": "Praeventio Guard — Sprint 53.",
     "exports": [
@@ -36355,7 +36355,7 @@
   {
     "path": "src/services/routeScoring/driverRouteMatcher.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 232,
     "purpose": "Praeventio Guard — Sprint 53.",
     "exports": [
@@ -36383,7 +36383,7 @@
   {
     "path": "src/services/routing/gridAStar.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B1-Emergencia",
     "loc": 222,
     "purpose": "Praeventio Guard — Codex fake fix §2.3 (2026-05-15).",
     "exports": [
@@ -36405,7 +36405,7 @@
   {
     "path": "src/services/routing/routeClimateAssessment.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B1-Emergencia",
     "loc": 308,
     "purpose": "Route climate assessment — evaluación de riesgo climático para una ruta",
     "exports": [
@@ -36429,7 +36429,7 @@
   {
     "path": "src/services/routingBackend.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B1-Emergencia",
     "loc": 79,
     "purpose": "Represents a coordinate point.",
     "exports": [
@@ -36510,7 +36510,7 @@
   {
     "path": "src/services/safety/iperAssessments.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B2-RiesgoIPER",
     "loc": 178,
     "purpose": "Firestore writer for IPER (Identificación de Peligros y Evaluación de",
     "exports": [
@@ -36524,7 +36524,7 @@
   {
     "path": "src/services/safetyEngineBackend.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B2-RiesgoIPER",
     "loc": 131,
     "purpose": "",
     "exports": [
@@ -36639,7 +36639,7 @@
   {
     "path": "src/services/scheduler/distributedLease.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 249,
     "purpose": "Sprint 35 — Distributed lease for in-process cron jobs.",
     "exports": [
@@ -36666,7 +36666,7 @@
   {
     "path": "src/services/security/browserEnvelope.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 354,
     "purpose": "Browser-side envelope encryption — AES-256-GCM con DEK aleatorio",
     "exports": [
@@ -36701,7 +36701,7 @@
   {
     "path": "src/services/security/deviceKek.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 194,
     "purpose": "Device-bound Key Encryption Key (KEK).",
     "exports": [
@@ -36727,7 +36727,7 @@
   {
     "path": "src/services/security/encryptedKvStore.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 201,
     "purpose": "Encrypted key-value store sobre IndexedDB.",
     "exports": [
@@ -36774,7 +36774,7 @@
   {
     "path": "src/services/security/kmsAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 219,
     "purpose": "KMS adapter interface + dev/stub implementations.",
     "exports": [
@@ -36799,7 +36799,7 @@
   {
     "path": "src/services/security/kmsEnvelope.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 172,
     "purpose": "Envelope encryption for OAuth tokens (and any other small secret).",
     "exports": [
@@ -36813,7 +36813,7 @@
   {
     "path": "src/services/seedBackend.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 144,
     "purpose": "",
     "exports": [
@@ -36825,7 +36825,7 @@
   {
     "path": "src/services/seedService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 138,
     "purpose": "",
     "exports": [
@@ -36868,7 +36868,7 @@
   {
     "path": "src/services/shiftBackend.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B13-MOC",
     "loc": 87,
     "purpose": "",
     "exports": [
@@ -37004,7 +37004,7 @@
   {
     "path": "src/services/sif/sifFirestoreAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B4-Incidentes",
     "loc": 102,
     "purpose": "Persistence #14: SIF precursors adapter.",
     "exports": [
@@ -37026,7 +37026,7 @@
   {
     "path": "src/services/sif/sifPrecursorClassifier.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B4-Incidentes",
     "loc": 219,
     "purpose": "Praeventio Guard — Sprint 39 Fase L.4: SIF Precursor Classifier.",
     "exports": [
@@ -38185,7 +38185,7 @@
   {
     "path": "src/services/socialRecognition/wallEngine.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B6-Capacitacion",
     "loc": 241,
     "purpose": "Praeventio Guard — §12.7.3: Reconocimiento social — Muro Dinámico.",
     "exports": [
@@ -38338,7 +38338,7 @@
   {
     "path": "src/services/suppliers/supplierQualityService.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B11-Contratistas",
     "loc": 191,
     "purpose": "Praeventio Guard — Sprint K: Evaluación de Proveedores + Servicios Críticos + SLA.",
     "exports": [
@@ -38367,7 +38367,7 @@
   {
     "path": "src/services/suppliers/supplierScoring.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B11-Contratistas",
     "loc": 169,
     "purpose": "Praeventio Guard — Sprint K: Supplier Scoring 4 dimensiones.",
     "exports": [
@@ -38630,7 +38630,7 @@
   {
     "path": "src/services/sync/conflictResolver.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B16-Offline",
     "loc": 393,
     "purpose": "Sprint 34 — Per-field conflict resolver for offline sync.",
     "exports": [
@@ -38661,7 +38661,7 @@
   {
     "path": "src/services/sync/encryptedOutboxAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B16-Offline",
     "loc": 152,
     "purpose": "Encrypted persistence adapter para `GenericOutboxEngine`.",
     "exports": [
@@ -38683,7 +38683,7 @@
   {
     "path": "src/services/sync/genericOutboxEngine.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B16-Offline",
     "loc": 402,
     "purpose": "Generic Offline Outbox Engine.",
     "exports": [
@@ -38712,7 +38712,7 @@
   {
     "path": "src/services/sync/monotonicSync.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B16-Offline",
     "loc": 154,
     "purpose": "Praeventio Guard — Sprint 39 Fase C.11: sync con revisiones monotónicas.",
     "exports": [
@@ -38732,7 +38732,7 @@
   {
     "path": "src/services/sync/outboxBackoff.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B16-Offline",
     "loc": 40,
     "purpose": "Backoff exponencial deterministico para el outbox engine.",
     "exports": [
@@ -38755,7 +38755,7 @@
   {
     "path": "src/services/sync/syncStateMachine.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B16-Offline",
     "loc": 398,
     "purpose": "Sprint 25 Bucket QQ — Centralized Offline Sync State Machine.",
     "exports": [
@@ -38781,7 +38781,7 @@
   {
     "path": "src/services/sync/topologyAwarePrefetch.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B16-Offline",
     "loc": 375,
     "purpose": "Praeventio Guard — Sprint 47 C.11 (cierre completo): Topology-aware",
     "exports": [
@@ -38812,7 +38812,7 @@
   {
     "path": "src/services/syncManager.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B16-Offline",
     "loc": 284,
     "purpose": "",
     "exports": [
@@ -38855,7 +38855,7 @@
   {
     "path": "src/services/systemEngine/README.md",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 165,
     "purpose": "SystemEngine",
     "exports": [],
@@ -38927,7 +38927,7 @@
   {
     "path": "src/services/systemEngine/adapters/appModeContextAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 15,
     "purpose": "SystemEngine — AppMode context adapter (placeholder).",
     "exports": [
@@ -38963,7 +38963,7 @@
   {
     "path": "src/services/systemEngine/adapters/index.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 23,
     "purpose": "SystemEngine — Adapter barrel.",
     "exports": [
@@ -38984,7 +38984,7 @@
   {
     "path": "src/services/systemEngine/adapters/languageProviderAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 12,
     "purpose": "SystemEngine — LanguageProvider adapter (placeholder).",
     "exports": [
@@ -38996,7 +38996,7 @@
   {
     "path": "src/services/systemEngine/adapters/normativeContextAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 13,
     "purpose": "SystemEngine — Normative context adapter (placeholder).",
     "exports": [
@@ -39008,7 +39008,7 @@
   {
     "path": "src/services/systemEngine/adapters/notificationContextAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 14,
     "purpose": "SystemEngine — Notification context adapter (placeholder).",
     "exports": [
@@ -39020,7 +39020,7 @@
   {
     "path": "src/services/systemEngine/adapters/projectContextAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 13,
     "purpose": "SystemEngine — Project context adapter (placeholder).",
     "exports": [
@@ -39032,7 +39032,7 @@
   {
     "path": "src/services/systemEngine/adapters/sensorContextAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 24,
     "purpose": "SystemEngine — Sensor context adapter (placeholder).",
     "exports": [
@@ -39056,7 +39056,7 @@
   {
     "path": "src/services/systemEngine/adapters/themeContextAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 13,
     "purpose": "SystemEngine — Theme context adapter (placeholder).",
     "exports": [
@@ -39068,7 +39068,7 @@
   {
     "path": "src/services/systemEngine/adapters/universalKnowledgeContextAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 16,
     "purpose": "SystemEngine — UniversalKnowledge context adapter (placeholder).",
     "exports": [
@@ -39080,7 +39080,7 @@
   {
     "path": "src/services/systemEngine/decisionEngine.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 79,
     "purpose": "SystemEngine — DecisionEngine.",
     "exports": [
@@ -39092,7 +39092,7 @@
   {
     "path": "src/services/systemEngine/eventLog.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 270,
     "purpose": "SystemEngine — EventLog.",
     "exports": [
@@ -39109,7 +39109,7 @@
   {
     "path": "src/services/systemEngine/eventTypes.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 169,
     "purpose": "SystemEngine — Event schema (discriminated union).",
     "exports": [
@@ -39125,7 +39125,7 @@
   {
     "path": "src/services/systemEngine/executor.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 124,
     "purpose": "SystemEngine — Executor.",
     "exports": [
@@ -39150,7 +39150,7 @@
   {
     "path": "src/services/systemEngine/policies/index.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 44,
     "purpose": "SystemEngine — Policy registry.",
     "exports": [
@@ -39165,7 +39165,7 @@
   {
     "path": "src/services/systemEngine/policies/policy.types.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 93,
     "purpose": "SystemEngine — Policy + Action types.",
     "exports": [
@@ -39187,7 +39187,7 @@
   {
     "path": "src/services/systemEngine/policies/tierChangeReactivity.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 66,
     "purpose": "SystemEngine — Policy: tier_changed → reactive feature-flag refresh.",
     "exports": [
@@ -39198,7 +39198,7 @@
   {
     "path": "src/services/systemEngine/subscriber.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 103,
     "purpose": "SystemEngine — Subscriber.",
     "exports": [
@@ -39298,7 +39298,7 @@
   {
     "path": "src/services/upsell/painBasedUpsellSuggester.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B15-Billing",
     "loc": 175,
     "purpose": "Praeventio Guard — Sprint K: Upsell por dolor real.",
     "exports": [
@@ -39322,7 +39322,7 @@
   {
     "path": "src/services/uxModes/uxModeAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "CROSS",
     "loc": 255,
     "purpose": "Praeventio Guard — Sprint 50 §141-145: Modos adaptativos de UI.",
     "exports": [
@@ -39492,7 +39492,7 @@
   {
     "path": "src/services/vulnerability/operationalVulnerabilityMap.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B2-RiesgoIPER",
     "loc": 275,
     "purpose": "Praeventio Guard — Sprint 39 Fase L.1: Mapa de Vulnerabilidad Operacional.",
     "exports": [
@@ -39523,7 +39523,7 @@
   {
     "path": "src/services/vulnerability/vulnerabilityFirestoreAdapter.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B2-RiesgoIPER",
     "loc": 58,
     "purpose": "Persistence #13: vulnerability map adapter.",
     "exports": [
@@ -39743,7 +39743,7 @@
   {
     "path": "src/services/workerReadiness/readinessScore.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B7-Salud",
     "loc": 359,
     "purpose": "Praeventio Guard — Sprint 41 Fase F.16: Score Preparación Trabajador.",
     "exports": [
@@ -39767,7 +39767,7 @@
   {
     "path": "src/services/zettelkasten/backlinks.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 116,
     "purpose": "Praeventio Guard — §ZK-1: Backlinks bidireccionales (agregador).",
     "exports": [
@@ -39794,7 +39794,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/confinedSpaceHVAC.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 89,
     "purpose": "A.4 — Monitoreo de espacios confinados: gradiente de presión HVAC.",
     "exports": [
@@ -39817,7 +39817,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/dikeHydrostaticMonitor.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 75,
     "purpose": "C.14 — Monitor hidrostático de diques / tranques de relaves.",
     "exports": [
@@ -39839,7 +39839,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/gasDispersionCloud.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 83,
     "purpose": "C.15 — Dispersión de nube de gas + zona de exclusión dinámica (Pasquill-Gifford).",
     "exports": [
@@ -39862,7 +39862,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/gasLeakDetection.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 85,
     "purpose": "A.5 — Detección de fugas en redes de gas industrial vía desviación Bernoulli.",
     "exports": [
@@ -39907,7 +39907,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/hidranteFireNetwork.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 93,
     "purpose": "A.1 — Hidrante / red de incendio. Pure Bernoulli-based node generator.",
     "exports": [
@@ -39923,7 +39923,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/index.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 60,
     "purpose": "Barrel + registry for Bernoulli-driven Zettelkasten node generators.",
     "exports": [
@@ -39954,7 +39954,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/microWindEnergy.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 64,
     "purpose": "C.11 — Micro-generación eólica para sensores autónomos (Betz 0.593).",
     "exports": [
@@ -39976,7 +39976,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/miningVenturi.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 78,
     "purpose": "B.6 — Ventilación táctica en minería (efecto Venturi extracción gases).",
     "exports": [
@@ -39998,7 +39998,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/mistingDustSuppression.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 85,
     "purpose": "A.2 — Sistema de supresión de polvo (misting Venturi PM2.5 / sílice).",
     "exports": [
@@ -40021,7 +40021,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/pulmonaryAltitude.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 80,
     "purpose": "B.10 — Capacidad pulmonar + altitud (DS 594 Art. 49 / DS 28/2012).",
     "exports": [
@@ -40067,7 +40067,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/scaffoldWindSuction.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 74,
     "purpose": "A.3 — Estabilidad de cubiertas y andamios: succión por viento.",
     "exports": [
@@ -40090,7 +40090,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/slamPhotogrammetryNode.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 55,
     "purpose": "C.13 — Photogrammetry/SLAM bridge. LingBot-Map is not integrated yet.",
     "exports": [
@@ -40112,7 +40112,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/slopeStabilityAfterRain.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 75,
     "purpose": "C.12 — Estabilidad de talud post-lluvia (ángulo de reposo + hidrostática).",
     "exports": [
@@ -40135,7 +40135,7 @@
   {
     "path": "src/services/zettelkasten/bernoulli/structuralWindLoad.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 62,
     "purpose": "B.8 — Cargas de viento en estructuras (wrap NCh 432).",
     "exports": [
@@ -40158,7 +40158,7 @@
   {
     "path": "src/services/zettelkasten/canonical/materializer.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 269,
     "purpose": "Praeventio Guard — Sprint 39 Fase D.8.c: Zettelkasten canonical materializer.",
     "exports": [
@@ -40187,7 +40187,7 @@
   {
     "path": "src/services/zettelkasten/centrality.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 132,
     "purpose": "Praeventio Guard — §ZK-6: Graph centrality metrics + archive candidacy.",
     "exports": [
@@ -40220,7 +40220,7 @@
   {
     "path": "src/services/zettelkasten/climateRiskCoupling.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B18-Analitica",
     "loc": 637,
     "purpose": "Climate ↔ Zettelkasten coupling.",
     "exports": [
@@ -40251,7 +40251,7 @@
   {
     "path": "src/services/zettelkasten/contextualActions.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 388,
     "purpose": "Praeventio Guard — §12.7.2: Acciones contextuales para nodos del grafo.",
     "exports": [
@@ -40269,7 +40269,7 @@
   {
     "path": "src/services/zettelkasten/edgeStoreFirestore.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 45,
     "purpose": "Praeventio Guard — Firestore-backed EdgeStore adapter (shared).",
     "exports": [
@@ -40290,7 +40290,7 @@
   {
     "path": "src/services/zettelkasten/edges.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 292,
     "purpose": "Praeventio Guard — Sprint 39 Fase B.7: aristas tipadas + bidireccionalidad.",
     "exports": [
@@ -40334,7 +40334,7 @@
   {
     "path": "src/services/zettelkasten/families/climateNodeRegistry.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 65,
     "purpose": "Static catalog for the CLIMATE & ENVIRONMENT family (50 nodes).",
     "exports": [
@@ -40357,7 +40357,7 @@
   {
     "path": "src/services/zettelkasten/families/index.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 48,
     "purpose": "Aggregator barrel for the 8 Zettelkasten v2 family registries.",
     "exports": [
@@ -40379,7 +40379,7 @@
   {
     "path": "src/services/zettelkasten/families/ohsNormativaNodeRegistry.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 122,
     "purpose": "Static catalog for the OHS & NORMATIVA family (80 nodes).",
     "exports": [
@@ -40390,7 +40390,7 @@
   {
     "path": "src/services/zettelkasten/families/personalEppNodeRegistry.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 62,
     "purpose": "Static catalog for the PERSONAL & EPP family (50 nodes).",
     "exports": [
@@ -40401,7 +40401,7 @@
   {
     "path": "src/services/zettelkasten/families/physicsNodeRegistry.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 58,
     "purpose": "Static catalog for the PHYSICS & FLUIDS family (60 nodes).",
     "exports": [
@@ -40565,7 +40565,7 @@
   {
     "path": "src/services/zettelkasten/persistence/writeNode.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 291,
     "purpose": "Praeventio Guard — Sprint 11.",
     "exports": [
@@ -40590,7 +40590,7 @@
   {
     "path": "src/services/zettelkasten/resilientRetrieval.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 345,
     "purpose": "Resilient Zettelkasten Retrieval — multi-source fallback chain.",
     "exports": [
@@ -40642,7 +40642,7 @@
   {
     "path": "src/services/zettelkasten/smartActions.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 320,
     "purpose": "Praeventio Guard — §12.1.6: 5 smart actions Proto-1 ausentes en",
     "exports": [
@@ -40663,7 +40663,7 @@
   {
     "path": "src/services/zettelkasten/types.ts",
     "category": "FEAT-services",
-    "block": "",
+    "block": "B14-IA",
     "loc": 83,
     "purpose": "Shared Zettelkasten payload types for Bernoulli-driven node generators.",
     "exports": [
