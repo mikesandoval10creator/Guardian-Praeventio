@@ -981,6 +981,17 @@ varios contradicen un ✅ previo (Rule #1).
 - **Sugerencia:** crear bloque **B-DigitalTwin** (~25 archivos hoy sin bloque; pipeline
   on-device MiDaS ONNX real).
 
+**Estratégico — Cuota/resiliencia IA (Gemini):**
+- 🔴 **Inferencia de producción sobre clave AI Studio gratuita** (`gemini.ts:271`) —
+  Google estrechó cuotas (req/día + nivel de "thinking"); a escala el tráfico de
+  clientes agotaría la cuota y degradaría/caería la IA. Ya existen rate-limit
+  por-usuario + global, circuit-breaker, costo estimado, orquestador resiliente (flag
+  OFF) y RAG (`safeNormativeQuery`). **Decisión documentada en
+  `docs/architecture-decisions/0019-ai-quota-resilience-strategy.md`**: migrar a
+  Vertex pay-as-you-go (F1) + encender orquestador/SLM (F2) + ruteo Flash/thinking
+  (F3) + RAG-first/caché (F4) + budget por tenant/tier (F5). BYOK queda como opción
+  enterprise con clave **paga**. Pendiente: investigar números exactos de cuota.
+
 **Correcciones de consistencia aplicadas a este TODO (2026-06-02):**
 - §1 tabla: Mesh "consumer cableado" (no "falta"); Billing quita "falta MP IPN HMAC"
   (verificado wired); Tests sincronizado con §2.11 (10029/0) + matiz cobertura.
