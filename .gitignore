@@ -64,3 +64,8 @@ public/models/mediapipe/*.wasm
 public/models/mediapipe/*.wasm.partial
 public/models/mediapipe/*.js
 public/models/mediapipe/*.js.partial
+.jdk21-tmp/
+e2e-run*.log
+emu-test.log
+emu.pid
+e2e-sos*.log

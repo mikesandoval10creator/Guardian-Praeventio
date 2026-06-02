@@ -18,6 +18,15 @@ import { seedProject } from './fixtures/seed';
 // IndexedDB→Firestore sync assertions need reconciling with the live render
 // (the "Descripción" field label drifted). Now locally-iterable (Java 21 +
 // emulator). Un-fixme once verified end-to-end.
+//
+// DIAGNOSIS (2026-06-02, verified locally w/ Temurin-21 emulator): two drifts.
+// (1) `/projects/{id}/findings/new` is NOT a route — RiskRoutes mounts only
+// `findings` (→ Findings.tsx, the list+search page); finding creation is a modal
+// opened from the "Nuevo hallazgo" button, not a /new sub-route, so the goto
+// lands on the list page with no "Descripción" field. (2) The asserted toast
+// "Guardado para sincronizar" does not exist anywhere in the code. To un-fixme:
+// drive creation via the real modal, confirm the actual offline-queue
+// confirmation copy, then assert the IndexedDB→Firestore sync against the feed.
 test.describe.fixme('Offline-first sync', () => {
   test('hallazgo creado offline se sincroniza al recuperar la red', async ({ page, context }) => {
     test.skip(

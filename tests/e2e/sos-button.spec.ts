@@ -20,6 +20,21 @@ import { seedProject } from './fixtures/seed';
 // LOCALLY-ITERABLE — `JAVA_HOME=<Temurin-21> E2E_FULL_STACK=1 … playwright test`
 // boots the emulator (Java 21 + firebase-tools 15). Un-fixme as each assertion
 // is reconciled with the feature.
+//
+// DIAGNOSIS (2026-06-02, ran locally 3× w/ Temurin-21 emulator + test-mode dist
+// that does carry the demo-test projectId fix): the authenticated app SHELL does
+// not fully render in headless for this project-scoped route. After granting
+// geolocation + a position (which clears the "Geocerca desactivada" gate) and
+// with auth working, the page snapshot collapses to a single `button > img` and
+// `getByRole('button', { name: /Activar modo emergencia/i })` (the ModeSwitcher
+// dock that toggles emergency mode — RootLayout.tsx:417) never mounts → the
+// mode-gated SOSButton can't appear. The WebServer logs `[EnvironmentBackend]
+// Error updating context: fetch failed`; the shell may be blocked on an
+// environment/weather context fetch that fails with no outbound network. The
+// geolocation-grant + emergency-mode-entry steps coded below ARE the correct
+// reconciliation — the remaining blocker is app-side (the shell should degrade
+// gracefully when the environment fetch fails). test 2 (tel:) additionally needs
+// the rewrite noted on it.
 test.describe.fixme('SOSButton long-press', () => {
   test('long-press de 3s dispara alerta; tap corto no', async ({ page }) => {
     test.skip(
@@ -31,11 +46,27 @@ test.describe.fixme('SOSButton long-press', () => {
     const seed = await seedProject();
 
     try {
+      // The emergency page gates behind a geolocation-permission check
+      // (renders "Geocerca desactivada — Concede permiso de ubicación" until
+      // granted), which suppresses the RootLayout shell incl. the floating
+      // ModeSwitcher dock. Grant geolocation + a position BEFORE navigating
+      // so the shell (and thus the mode switcher + SOS trigger) renders.
+      await page.context().grantPermissions(['geolocation']);
+      await page.context().setGeolocation({ latitude: -33.45, longitude: -70.66 });
       await page.goto(`/projects/${seed.projectId}/emergency`);
       // §2.24 fix (2026-05-22) — wait barrier: signa al user en Firebase
       // Auth real (via Auth Emulator) ANTES de buscar elementos UI que
       // dependen de Firestore queries (firestore.rules:25 require auth).
       await signInBrowserViaCustomToken(page);
+
+      // SOSButton renders ONLY in emergency mode — RootLayout gates it on
+      // `useAppMode().mode === 'emergency'` (it is not tied to the /emergency
+      // route). Activate emergency mode via the floating ModeSwitcher dock
+      // (RootLayout.tsx:417 — `fixed bottom-4 right-4`, always visible
+      // post-login) so the SOS trigger mounts.
+      await page
+        .getByRole('button', { name: /Activar modo emergencia/i })
+        .click();
 
       // The SOS control is an icon button whose accessible name is the full
       // aria-label "Botón SOS — mantener presionado 3 segundos" (not a bare
@@ -72,7 +103,17 @@ test.describe.fixme('SOSButton long-press', () => {
     }
   });
 
-  test('fallback a tel: cuando geolocation está bloqueada', async ({ page, context }) => {
+  // FIXME (2026-06-02, premise drift verified locally w/ Temurin-21 emulator):
+  // this test expects a visible <a> labelled "Llamar emergencia" with an
+  // href="tel:…" when geolocation is blocked. The REAL SOSButton tel: fallback
+  // (SOSButton.tsx:146-149) is a `window.location.href = tel:…` NAVIGATION that
+  // fires on FETCH FAILURE of POST /api/emergency/sos — not on geo-block, and
+  // not as a rendered link. No "Llamar emergencia" tel: anchor exists in the
+  // emergency tree (the only tel: <a> is Driving.tsx:299). To un-fixme:
+  // (1) seed `phone` in seedProject, (2) route.fulfill POST /api/emergency/sos
+  // with 500 to force the fallback, (3) assert the tel: navigation (page.url()
+  // / waitForRequest) instead of querying for a link element.
+  test.fixme('fallback a tel: cuando geolocation está bloqueada', async ({ page, context }) => {
     test.skip(
       process.env.E2E_FULL_STACK !== '1',
       'Requires full E2E stack (preview + Express + Firestore Emulator). Run `npm run test:e2e:full`.',

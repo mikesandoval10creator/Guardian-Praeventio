@@ -18,6 +18,15 @@ import { seedProject } from './fixtures/seed';
 // What remains is feature-level: the "Iniciar proceso" → close → XP-grant flow
 // assertions need reconciling with the live render. Now locally-iterable
 // (Java 21 + emulator). Un-fixme once verified end-to-end.
+//
+// DIAGNOSIS (2026-06-02, verified locally w/ Temurin-21 emulator + the unmounted
+// routers now landed via #650): the spec navigates to `/projects/{id}/gantt` and
+// clicks "Iniciar proceso", but the StartProcessModal trigger lives in
+// src/pages/CuadrillasDashboard.tsx, NOT the gantt route — so "Iniciar proceso"
+// never appears where the spec looks. To un-fixme: navigate to the Cuadrillas
+// route that mounts CuadrillasDashboard, then reconcile the close → XP-preview →
+// "Cerrar y celebrar" steps against CloseProcessModal.tsx +
+// ProcessClosePreviewCard.tsx in the live render.
 test.describe.fixme('Process lifecycle (start → close → XP)', () => {
   test('iniciar y cerrar un proceso otorga XP a la cuadrilla', async ({ page }) => {
     test.skip(
