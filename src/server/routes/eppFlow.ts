@@ -45,7 +45,7 @@ import {
   type EppFlowDeps,
   type FlowRunResult,
 } from '../../services/zettelkasten/flows/eppInventoryPurchaseFlow.js';
-import { writeNodes } from '../../services/zettelkasten/persistence/writeNode.js';
+import { makeServerWriteNodes } from '../services/serverZkNodeWriter.js';
 import type { EdgeStore, ZkEdge, EdgeType } from '../../services/zettelkasten/edges.js';
 import {
   suggestPurchaseOrder,
@@ -259,7 +259,13 @@ router.post(
 
     try {
       const deps: EppFlowDeps = {
-        writeNodes,
+        // Codex P1 (#650): in the Express runtime the browser `writeNodes`
+        // (relative fetch + IndexedDB) can't persist — use the Admin-SDK
+        // server writer, stamped with the verified actor.
+        writeNodes: makeServerWriteNodes({
+          createdBy: callerUid,
+          createdByEmail: req.user?.email ?? null,
+        }),
         edgeStore: buildFirestoreEdgeStore(),
         tenantId: body.tenantId,
         createdBy: callerUid,
@@ -415,7 +421,13 @@ router.post(
       }
 
       const deps: EppFlowDeps = {
-        writeNodes,
+        // Codex P1 (#650): in the Express runtime the browser `writeNodes`
+        // (relative fetch + IndexedDB) can't persist — use the Admin-SDK
+        // server writer, stamped with the verified actor.
+        writeNodes: makeServerWriteNodes({
+          createdBy: callerUid,
+          createdByEmail: req.user?.email ?? null,
+        }),
         edgeStore: buildFirestoreEdgeStore(),
         tenantId: body.tenantId,
         createdBy: callerUid,
@@ -505,7 +517,13 @@ router.get(
       // grabamos en sign-order). MVP: si no tenemos, hacemos un best-effort.
       // El persistPdfNode skipea edge si los ids coinciden (defensive path).
       const deps: EppFlowDeps = {
-        writeNodes,
+        // Codex P1 (#650): in the Express runtime the browser `writeNodes`
+        // (relative fetch + IndexedDB) can't persist — use the Admin-SDK
+        // server writer, stamped with the verified actor.
+        writeNodes: makeServerWriteNodes({
+          createdBy: callerUid,
+          createdByEmail: req.user?.email ?? null,
+        }),
         edgeStore: buildFirestoreEdgeStore(),
         tenantId,
         createdBy: callerUid,

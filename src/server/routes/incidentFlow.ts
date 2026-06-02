@@ -36,6 +36,7 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { nodeIdFor } from '../../services/zettelkasten/persistence/writeNode.js';
+import { makeServerWriteNodes } from '../services/serverZkNodeWriter.js';
 import {
   createIncidentReportedNode,
   createInvestigationOpenedNode,
@@ -61,9 +62,26 @@ import {
   type InvestigationClosureInput,
   type ChainNodeRef,
   type IncidentLessonTrainingNodeType,
+  type FlowDeps,
 } from '../../services/zettelkasten/flows/incidentLessonTrainingFlow.js';
 
 const router = Router();
+
+/**
+ * Codex P1 (#650): the incident chain flow defaults to the BROWSER `writeNodes`
+ * (relative fetch + IndexedDB), which can't persist in the Express runtime.
+ * Inject the Admin-SDK server writer, stamped with the verified actor, into
+ * every flow step so reports/investigations/lessons/trainings actually
+ * materialize their ZK nodes server-side.
+ */
+function flowDepsFor(req: import('express').Request): FlowDeps {
+  return {
+    writeNodes: makeServerWriteNodes({
+      createdBy: req.user!.uid,
+      createdByEmail: req.user?.email ?? null,
+    }),
+  };
+}
 
 // ────────────────────────────────────────────────────────────────────────
 // Guard helpers (mirror lessonsLearned.ts / incidentBundle.ts shape)
@@ -167,7 +185,7 @@ router.post(
         location: body.location,
         photoStorageUrl: body.photoStorageUrl,
       };
-      const result = await onIncidentReported(input);
+      const result = await onIncidentReported(input, flowDepsFor(req));
       if (!result.ok) {
         return res.status(500).json({ error: result.error ?? 'flow_failed' });
       }
@@ -240,7 +258,11 @@ router.post(
         openedAtIso: body.openedAtIso,
         scopeNotes: body.scopeNotes,
       };
-      const result = await onInvestigationOpened(openingInput, reportNodeId);
+      const result = await onInvestigationOpened(
+        openingInput,
+        reportNodeId,
+        flowDepsFor(req),
+      );
       if (!result.ok) {
         return res.status(500).json({ error: result.error ?? 'flow_failed' });
       }
@@ -316,7 +338,11 @@ router.post(
         contributingFactor: body.contributingFactor,
         preventiveActions: body.preventiveActions,
       };
-      const result = await onInvestigationConcluded(conclusionInput, openingNodeId);
+      const result = await onInvestigationConcluded(
+        conclusionInput,
+        openingNodeId,
+        flowDepsFor(req),
+      );
       if (!result.ok) {
         return res.status(500).json({ error: result.error ?? 'flow_failed' });
       }
@@ -404,7 +430,11 @@ router.post(
         tags: body.tags,
         riskCategories: body.riskCategories,
       };
-      const result = await onLessonPublished(lessonInput, rootCauseNodeId);
+      const result = await onLessonPublished(
+        lessonInput,
+        rootCauseNodeId,
+        flowDepsFor(req),
+      );
       if (!result.ok) {
         return res.status(500).json({ error: result.error ?? 'flow_failed' });
       }
@@ -502,7 +532,11 @@ router.post(
           assignedAtIso: body.assignedAtIso,
           derivedFromLessonId: body.lesson.lessonId,
         };
-        const result = await onMicrotrainingAssigned(assignmentInput, lessonNodeId);
+        const result = await onMicrotrainingAssigned(
+          assignmentInput,
+          lessonNodeId,
+          flowDepsFor(req),
+        );
         if (!result.ok) {
           // One worker failed — log + skip; do not abort the whole batch.
           logger.warn?.('incidentFlow.assignMicrotraining.worker_failed', {
@@ -601,7 +635,11 @@ router.post(
         passed: body.passed,
         certified: body.certified,
       };
-      const result = await onMicrotrainingCompleted(completionInput, assignmentNodeId);
+      const result = await onMicrotrainingCompleted(
+        completionInput,
+        assignmentNodeId,
+        flowDepsFor(req),
+      );
       if (!result.ok) {
         return res.status(500).json({ error: result.error ?? 'flow_failed' });
       }
