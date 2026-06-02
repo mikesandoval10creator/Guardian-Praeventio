@@ -93,6 +93,50 @@ async function guard(
   return true;
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// Action-authority (Gate 3) — drill lifecycle is a supervisor action.
+// ────────────────────────────────────────────────────────────────────────
+//
+// Membership (`guard`) only proves the caller belongs to the project. Starting
+// a drill (with an arbitrary `expectedWorkers` roster) and closing an active
+// drill are supervisor-grade actions: a plain worker must NOT be able to fire
+// a phantom drill or end one mid-evacuation. `evacuation_coordinator` is a real
+// emergency brigade role (see `emergencyBrigade.ts`), so it is included here.
+// Mirrors the `callerCanWriteBrigade` pattern in `routes/emergencyBrigade.ts`.
+const EVAC_WRITE_ROLES = new Set([
+  'admin',
+  'prevencionista',
+  'supervisor',
+  'evacuation_coordinator',
+]);
+
+function callerCanManageEvac(req: import('express').Request): boolean {
+  const u = req.user;
+  if (!u) return false;
+  if (u.admin === true) return true;
+  if (typeof u.role === 'string' && EVAC_WRITE_ROLES.has(u.role)) {
+    return true;
+  }
+  const tenants = (u as unknown as {
+    tenants?: Record<string, { role?: string }>;
+  }).tenants;
+  if (
+    tenants &&
+    typeof tenants === 'object' &&
+    typeof u.tenantId === 'string'
+  ) {
+    const t = tenants[u.tenantId];
+    if (
+      t &&
+      typeof t.role === 'string' &&
+      EVAC_WRITE_ROLES.has(t.role)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function newDrillId(): string {
   // crypto.randomUUID() returns an RFC-4122 v4 UUID (128 bits of entropy).
   // Date.now() prefix preserves sort order for log/audit scanners.
@@ -157,6 +201,11 @@ router.post(
     const callerUid = req.user!.uid;
     const body = req.validated as z.infer<typeof startSchema>;
     if (!(await guard(callerUid, body.projectId, res))) return undefined;
+    // Gate 3: starting a drill is a supervisor action. A plain project member
+    // must not be able to fire a phantom drill with an arbitrary roster.
+    if (!callerCanManageEvac(req)) {
+      return res.status(403).json({ error: 'forbidden_role' });
+    }
 
     const tenantId = await tenantIdFor(body.projectId);
     if (!tenantId) {
@@ -217,6 +266,14 @@ router.post(
     const callerUid = req.user!.uid;
     const body = req.validated as z.infer<typeof scanQrSchema>;
     if (!(await guard(callerUid, body.projectId, res))) return undefined;
+    // Gate 3 (scan authority): a worker may only mark THEMSELVES safe
+    // (workerUid === callerUid). Marking ANOTHER worker safe is a supervisor
+    // action and requires an elevated role — otherwise a single member could
+    // forge a clean headcount for absent colleagues. The expectedWorkers
+    // membership check below still applies regardless of who scans.
+    if (body.workerUid !== callerUid && !callerCanManageEvac(req)) {
+      return res.status(403).json({ error: 'forbidden_scan' });
+    }
 
     const tenantId = await tenantIdFor(body.projectId);
     if (!tenantId) {
@@ -334,6 +391,10 @@ router.post(
     const callerUid = req.user!.uid;
     const body = req.validated as z.infer<typeof endSchema>;
     if (!(await guard(callerUid, body.projectId, res))) return undefined;
+    // Gate 3: closing an active drill mid-evacuation is a supervisor action.
+    if (!callerCanManageEvac(req)) {
+      return res.status(403).json({ error: 'forbidden_role' });
+    }
 
     const tenantId = await tenantIdFor(body.projectId);
     if (!tenantId) {

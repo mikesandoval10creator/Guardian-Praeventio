@@ -72,57 +72,40 @@ if (typeof globalThis.document !== 'undefined') {
   }
 }
 
-export {};
-
-// ── §2.31 open-handle detector (opt-in) ──────────────────────────────────
-// The CI "Tests" job intermittently (~30-40%) runs to its 30-min timeout and
-// is killed because the vitest worker never exits — a test leaves an open
-// handle (timer / socket / gRPC channel) post-run. This detector is INERT in
-// normal runs; set `DETECT_HANDLES=1` to snapshot Node's active resources at
-// file load vs `afterAll`, attributing any new lingering handle to the test
-// file that leaked it. Usage:
-//   DETECT_HANDLES=1 npx vitest run src/__tests__/server 2>&1 | grep LEAK
+// ── §2.31 open-handle diagnostic (gated, opt-in) ──────────────────────────
+// The CI "Tests" job intermittently hangs to its 30-min timeout because a
+// forked worker won't exit — a test left an open handle (timer / socket /
+// server) it never tore down. This block, enabled ONLY with DETECT_HANDLES=1,
+// snapshots `process.getActiveResourcesInfo()` before/after each test FILE and
+// warns when a file leaves a NEW timer/socket-shaped handle behind, naming the
+// file so the leak can be pinned. Zero effect on normal runs (env-gated).
+//   Usage: DETECT_HANDLES=1 npx vitest run <files> --no-file-parallelism 2>&1 | grep DETECT_HANDLES
 if (process.env.DETECT_HANDLES === '1') {
-  const { afterAll } = await import('vitest');
-  // Resource types that legitimately persist (the worker's own plumbing) and
-  // must not be flagged as leaks.
-  const BENIGN = new Set([
-    'TTYWrap',
-    'PipeWrap',
-    'ProcessWrap',
-    'TickObject',
-    'Immediate',
-    'FSReqCallback',
-    'MessagePort',
-  ]);
-  // vitest's own worker plumbing keeps a single `Timeout` alive even for a
-  // trivial empty test — verified empirically. Treat exactly +1 Timeout as
-  // benign; +2 or more is a real app-leaked timer worth attributing.
-  const baseline = countResources();
+  const { beforeAll, afterAll, expect } = await import('vitest');
+  const LEAKY = /Timeout|Immediate|TCP|Socket|Pipe|FSReq|FileHandle|Server|TTY|Worker|ChildProcess/i;
+  const tally = (arr: string[]): Record<string, number> =>
+    arr.reduce<Record<string, number>>((m, r) => ((m[r] = (m[r] ?? 0) + 1), m), {});
+  let before: Record<string, number> = {};
+  beforeAll(() => {
+    before = tally(process.getActiveResourcesInfo?.() ?? []);
+  });
   afterAll(() => {
-    const after = countResources();
-    const leaks: string[] = [];
-    for (const [kind, n] of Object.entries(after)) {
-      if (BENIGN.has(kind)) continue;
-      let delta = n - (baseline[kind] ?? 0);
-      if (kind === 'Timeout') delta -= 1; // discount vitest's own heartbeat
-      if (delta > 0) leaks.push(`${kind}+${delta}`);
-    }
-    if (leaks.length > 0) {
-      // Attribute by running file-by-file (DETECT_HANDLES=1 npx vitest run <file>).
-      const worker = process.env.VITEST_WORKER_ID ?? '?';
+    const after = tally(process.getActiveResourcesInfo?.() ?? []);
+    const leaked = Object.keys(after)
+      .map((k) => [k, after[k] - (before[k] ?? 0)] as const)
+      .filter(([k, d]) => d > 0 && LEAKY.test(k))
+      .map(([k, d]) => `${k}+${d}`);
+    if (leaked.length) {
+      let file = '?';
+      try {
+        file = String(expect.getState().testPath ?? '?').replace(/.*[\\/]/, '');
+      } catch {
+        /* testPath unavailable */
+      }
       // eslint-disable-next-line no-console
-      console.error(`[LEAK] worker=${worker} ${leaks.join(' ')}`);
+      console.warn(`[DETECT_HANDLES] ${file} leaked: ${leaked.join(' ')}`);
     }
   });
 }
 
-function countResources(): Record<string, number> {
-  const out: Record<string, number> = {};
-  // Node 20+: getActiveResourcesInfo returns string names of active handles.
-  const info = (
-    process as unknown as { getActiveResourcesInfo?: () => string[] }
-  ).getActiveResourcesInfo?.() ?? [];
-  for (const kind of info) out[kind] = (out[kind] ?? 0) + 1;
-  return out;
-}
+export {};
