@@ -1,13 +1,13 @@
 # Informe de Auditoría de Contexto — Praeventio Guard
 
 **Fecha:** 2026-06-02 · **Rama:** `claude/technical-debt-review-e2e-87kVX`
-**Universo medido:** `git ls-files` = **3.541 archivos** versionados.
+**Universo medido:** `git ls-files` = **3.545 archivos** versionados.
 **Estado del gate de totalidad:** ✅ `sin-mapear = 0`
 (`node scripts/audit-coverage-census.cjs`).
 
 > **Qué es este documento.** Un informe de contexto que describe **qué hace** la
 > aplicación, **dónde vive** cada parte y **en qué estado real** está, cubriendo
-> la **totalidad** del código. No es un barrido general: cada uno de los 3.541
+> la **totalidad** del código. No es un barrido general: cada uno de los 3.545
 > archivos queda asignado a una categoría verificable, y cada bloque funcional se
 > describe con evidencia `file:line`. Sirve para tres cosas: (1) que ambos
 > —usuario y asistente— estemos al tanto de lo que existe; (2) **no asumir**
@@ -40,7 +40,7 @@
 ## 1. Objetivo
 
 Producir un **único informe** que permita **ver qué hace la aplicación** en su
-totalidad antes de tocar nada, dada la magnitud del código (3.541 archivos,
+totalidad antes de tocar nada, dada la magnitud del código (3.545 archivos,
 ~3.053 en `src/`). El informe es el **entregable primario**. La incorporación de
 funcionalidad huérfana y la remediación de deuda técnica son **fases
 posteriores** que se planifican a partir de este documento, con visto bueno del
@@ -74,7 +74,7 @@ cobertura (§4), con gate de cierre **`sin-mapear = 0`**.
 **Universo y distribución (verificado por el script):**
 
 ```
-total tracked files: 3541   ·   UNMAPPED: 0   (gate PASS)
+total tracked files: 3545   ·   UNMAPPED: 0   (gate PASS)
 ```
 
 | Categoría | Archivos | Qué agrupa |
@@ -93,7 +93,7 @@ total tracked files: 3541   ·   UNMAPPED: 0   (gate PASS)
 | I-DATA | 18 | `src/data/**` — corpus normativo (RAG) |
 | I-I18N | 18 | `src/i18n/**` — locales |
 | FEAT-routes | 7 | `src/routes/**` — route-groups React Router 7 |
-| **TOTAL** | **3.541** | **mapped = total → gate PASS** |
+| **TOTAL** | **3.545** | **mapped = total → gate PASS** |
 
 > **Nota de honestidad sobre el etiquetado por bloque.** El script también
 > intenta etiquetar cada archivo de feature con su bloque funcional (B1–B18) por
@@ -152,7 +152,7 @@ referencia). Cuando una doc y el código discrepan, **el código es la verdad**.
 
 ## 4. Libro de Cobertura (totalidad verificada)
 
-La tabla de §2 **es** el Libro de Cobertura a nivel de categoría: 3.541 archivos,
+La tabla de §2 **es** el Libro de Cobertura a nivel de categoría: 3.545 archivos,
 14 categorías, `sin-mapear = 0`. La distribución por **bloque funcional**
 (best-effort, apoyo a la revisión) según el script:
 
@@ -640,7 +640,7 @@ node scripts/audit-coverage-census.cjs --blocks   # tally por bloque (apoyo)
 node scripts/audit-coverage-census.cjs --json     # salida máquina
 ```
 
-Salida actual: `total 3541 · UNMAPPED 0 (gate PASS)`.
+Salida actual: `total 3545 · UNMAPPED 0 (gate PASS)`.
 
 ### 8.2 Glosario de veredictos
 
@@ -651,7 +651,7 @@ Ver leyenda en §3. Marcadores transversales: 🛟 vida · 🔐 privacidad/PII/b
 - `TODO.md §17` (auditoría B1→B18 de primera mano, 2026-06-01) y `§17.99` (cierre).
 - `docs/audits/SERVICES_TRIAGE.md`, `COMPONENTS_TRIAGE.md`, `HOOKS_TRIAGE.md`.
 - `docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`.
-- `firestore.rules`, `server.ts`, y el árbol completo `git ls-files` (3.541).
+- `firestore.rules`, `server.ts`, y el árbol completo `git ls-files` (3.545).
 
 ### 8.4 Índice de bloques
 
