@@ -998,10 +998,21 @@ varios contradicen un ✅ previo (Rule #1).
 - §2.29 acotado a "server-side" (este §2.32 B11 abre el gap client-side).
 - Inconsistencia `conflict_queue` (§16.2.2) resuelta arriba.
 
-> **Nota de completitud:** el barrido cubrió el 100% mecánico, pero ~100 archivos UI
-> quedaron con atribución de bloque `❓unclear`, ~50 archivos están mal-clasificados por
-> heurística, los 185 `I-DOCS` no se revisaron a fondo, y la cobertura real de tests debe
-> medirse con `vitest --coverage`. Esos son los frentes del paso-a-paso siguiente.
+**Doc-drift detectado (auditoría I-DOCS, ver `DEEP-I-DOCS.md`):**
+- 🔴 **`ARCHITECTURE.md` viola Regla #20** — `geminiBackend.ts` dice 2923 LOC (real
+  **1466**), `server.ts` 1411 (real **1500**), refs `server.ts:1972/2321/2901/3115/3191`
+  **más allá del EOF** (post-split), `ALLOWED_GEMINI_ACTIONS` ya está en
+  `gemini.ts:119` no en `server.ts:1593`.
+- 🟡 `stubs-inventory.md` da el mesh nativo como stub (es real); 3 runbooks de
+  photogrammetry despliegan workers ya eliminados; CLAUDE.md #13/#17 dice guards
+  "Enforced" sin estarlo; ADR 0006 superseded sin marcar, ADR 0005 ref inexistente.
+
+> **Nota de completitud (actualizada 2026-06-02):** barrido 100% mecánico + ahora
+> **100% atribuido por bloque** (los 355 UI sin bloque reclasificados →
+> `ui-reclass-map.json`; server+services en cierre). I-DOCS revisado (doc-drift
+> arriba). **Pendiente:** ~50 archivos mal-clasificados por heurística a reubicar, y
+> medir cobertura real con `vitest --coverage`. Detalle en
+> `docs/audits/file-ledger/DEEP-UI-RECLASIFICACION.md` y `DEEP-SRV-RECLASIFICACION.md`.
 
 ---
 
