@@ -2,668 +2,686 @@
 
 **Fecha:** 2026-06-02 · **Rama:** `claude/technical-debt-review-e2e-87kVX`
 **Universo medido:** `git ls-files` = **3.545 archivos** versionados.
-**Estado del gate de totalidad:** ✅ `sin-mapear = 0`
-(`node scripts/audit-coverage-census.cjs`).
+**Gate de totalidad:** ✅ `sin-mapear = 0` (`node scripts/audit-coverage-census.cjs`).
+**Método:** code-first (el código es la verdad), evidencia `file:line`, 4 barridos
+profundos en paralelo + escaneos de métricas + barrido de primera mano `TODO.md §17`.
 
-> **Qué es este documento.** Un informe de contexto que describe **qué hace** la
-> aplicación, **dónde vive** cada parte y **en qué estado real** está, cubriendo
-> la **totalidad** del código. No es un barrido general: cada uno de los 3.545
-> archivos queda asignado a una categoría verificable, y cada bloque funcional se
-> describe con evidencia `file:line`. Sirve para tres cosas: (1) que ambos
-> —usuario y asistente— estemos al tanto de lo que existe; (2) **no asumir**
-> (el usuario puede corregir donde algo no le parezca); (3) compararlo con
-> `TODO.md` y, recién después, decidir la deuda técnica y la incorporación de lo
-> que falte.
+> **Qué es este documento.** Un informe de contexto **detallado** que describe
+> qué hace la aplicación, dónde vive cada parte, su estado real (con endpoints,
+> patrones y evidencia `file:line`), cubriendo la **totalidad** del código. No es
+> un barrido general. Sirve para: (1) que ambos estemos al tanto de lo que
+> existe; (2) **no asumir** (puedes corregir donde algo no te parezca); (3)
+> compararlo con `TODO.md` y luego decidir la deuda técnica y la incorporación de
+> lo que falte.
 
-> **Misión que enmarca el rigor.** Praeventio Guard es una aplicación de
-> prevención de riesgos para industrias críticas en Latinoamérica. Su propósito
-> es **proteger y salvar la vida** de los trabajadores, y hacerlo **respetando la
-> privacidad** de las personas (Ley 19.628, biometría 100% on-device, trazas
-> auditables e inmutables). Por eso el informe **prioriza primero lo más
-> importante**: las funciones de vida y los datos sensibles.
+> **Misión que enmarca el rigor.** Praeventio Guard protege y **salva la vida**
+> de trabajadores en industrias críticas de LATAM, **respetando la privacidad**
+> (Ley 19.628, biometría 100% on-device, trazas auditables e inmutables, ADR 0012
+> no-diagnóstico). El informe **prioriza primero lo más importante**: funciones de
+> vida y datos sensibles.
 
 ---
 
 ## Índice
 
 1. [Objetivo](#1-objetivo)
-2. [Alcance](#2-alcance)
+2. [Alcance y Libro de Cobertura](#2-alcance-y-libro-de-cobertura)
 3. [Metodología y medidas de control](#3-metodología-y-medidas-de-control)
-4. [Libro de Cobertura (totalidad verificada)](#4-libro-de-cobertura-totalidad-verificada)
-5. [Mapa funcional por bloque — qué hace la app](#5-mapa-funcional-por-bloque--qué-hace-la-app)
-6. [Reconciliación con TODO.md](#6-reconciliación-con-todomd)
-7. [Planificación — orden por criticidad (vida/privacidad primero)](#7-planificación--orden-por-criticidad-vidaprivacidad-primero)
-8. [Apéndices](#8-apéndices)
+4. [Patrones de seguridad transversales](#4-patrones-de-seguridad-transversales)
+5. [Mapa funcional detallado por bloque](#5-mapa-funcional-detallado-por-bloque)
+6. [Deuda silenciosa transversal (métricas verificadas)](#6-deuda-silenciosa-transversal-métricas-verificadas)
+7. [Matriz de promesas vs realidad (actualizada a hoy)](#7-matriz-de-promesas-vs-realidad-actualizada-a-hoy)
+8. [Hallazgos abiertos y correcciones a docs previas](#8-hallazgos-abiertos-y-correcciones-a-docs-previas)
+9. [Oportunidades cross-cutting (alta palanca)](#9-oportunidades-cross-cutting-alta-palanca)
+10. [Planificación por criticidad (vida/privacidad primero)](#10-planificación-por-criticidad-vidaprivacidad-primero)
+11. [Apéndices](#11-apéndices)
 
 ---
 
 ## 1. Objetivo
 
-Producir un **único informe** que permita **ver qué hace la aplicación** en su
-totalidad antes de tocar nada, dada la magnitud del código (3.545 archivos,
-~3.053 en `src/`). El informe es el **entregable primario**. La incorporación de
-funcionalidad huérfana y la remediación de deuda técnica son **fases
-posteriores** que se planifican a partir de este documento, con visto bueno del
-usuario en cada paso.
+Ver **qué hace la aplicación** en su totalidad antes de tocar nada, dada la
+magnitud (3.545 archivos; ~3.053 en `src/`). El informe es el **entregable
+primario**; la incorporación de huérfanos y la remediación de deuda son **fases
+posteriores** planificadas a partir de aquí, con visto bueno del usuario.
 
-**Secuencia macro acordada:**
-
-1. **Informe de contexto** (este documento) — qué hay y qué hace. ← *entregado*
-2. **Comparación informe ↔ `TODO.md`** — qué se deseaba vs. qué existe (§6).
-3. **Plan de deuda técnica** priorizado (§7) — referencias para decidir.
-4. **Incorporación bloque por bloque** (módulo + menú + Zettelkasten) — *posterior, con aprobación.*
+**Secuencia macro:** (1) **informe de contexto** ← *este documento* → (2)
+comparación con `TODO.md` (§7-8) → (3) plan de deuda (§10) → (4) incorporación
+bloque por bloque (posterior, con aprobación).
 
 ---
 
-## 2. Alcance
+## 2. Alcance y Libro de Cobertura
 
-**Incluye:** la totalidad de los archivos versionados (frontend, servidor,
-servicios/engines, hooks, tests, infraestructura, datos normativos, i18n, docs,
-assets, nativo móvil). Cada archivo se asigna a **exactamente una** categoría de
-cobertura (§4), con gate de cierre **`sin-mapear = 0`**.
+**Incluye** la totalidad de archivos versionados; cada uno se asigna a **una**
+categoría, gate **`sin-mapear = 0`**. **No incluye** (esta fase): no modifica
+código de producto (doc-only; único archivo de soporte
+`scripts/audit-coverage-census.cjs`); no incorpora huérfanos ni crea menús (F4);
+no corrige rules ni resuelve hallazgos (F3); **no descarta nada** (⚠️/❓ se
+consultan).
 
-**No incluye (por diseño, esta fase):**
-
-- No modifica código de producto (es **doc-only**; el único archivo nuevo de
-  soporte es `scripts/audit-coverage-census.cjs`, la medida de control).
-- No incorpora huérfanos ni crea páginas/menús (Fase 4).
-- No corrige reglas de Firestore ni resuelve hallazgos abiertos (Fase 3).
-- No descarta nada: los ítems ambiguos (⚠️/❓) se listan para consulta, **no se
-  borran**.
-
-**Universo y distribución (verificado por el script):**
-
-```
-total tracked files: 3545   ·   UNMAPPED: 0   (gate PASS)
-```
+**Distribución verificada** (`total tracked files: 3545 · UNMAPPED: 0 · gate PASS`):
 
 | Categoría | Archivos | Qué agrupa |
 |---|---:|---|
-| I-TEST | 1.246 | Suites Vitest/Playwright/rules, smoke, loadtest, `*.test/*.spec`, `firestore.test.rules` |
+| I-TEST | 1.246 | Vitest/Playwright/rules/smoke/loadtest, `firestore.test.rules` |
 | FEAT-services | 692 | `src/services/**` — engines puros + clientes de dominio |
-| FEAT-components | 424 | `src/components/**` — UI compartida (modales, wizards, charts) |
-| FEAT-server | 243 | `src/server/**` + `server.ts` — rutas, middleware, triggers, jobs |
+| FEAT-components | 424 | `src/components/**` — UI compartida |
+| FEAT-server | 243 | `src/server/**` + `server.ts` |
+| FEAT-hooks | 206 | `src/hooks/**` |
 | I-DOCS | 184 | `docs/**`, `*.md`, `tasks/`, `templates/`, `LICENSE` |
-| FEAT-hooks | 206 | `src/hooks/**` — data-fetching, sensores, IA |
-| FEAT-pages | 170 | `src/pages/**` — features top-level lazy-routed |
+| FEAT-pages | 170 | `src/pages/**` |
 | I-BUILD | 131 | configs raíz, `scripts/`, `.github/`, `.husky/`, `infra*/`, Docker, rules |
 | I-ASSETS | 77 | `public/**`, `marketplace/`, `index.html` |
 | I-PLAT | 72 | `android/`, `ios/`, `fastlane/`, `packages/capacitor-mesh/`, `src/workers/` |
-| I-CORE | 53 | `contexts/`, `store/`, `providers/`, `lib/`, `utils/`, `types/`, `constants/`, raíz `src/` |
+| I-CORE | 53 | `contexts/`, `store/`, `providers/`, `lib/`, `utils/`, `types/` |
 | I-DATA | 18 | `src/data/**` — corpus normativo (RAG) |
-| I-I18N | 18 | `src/i18n/**` — locales |
+| I-I18N | 18 | `src/i18n/**` — 16 locales |
 | FEAT-routes | 7 | `src/routes/**` — route-groups React Router 7 |
 | **TOTAL** | **3.545** | **mapped = total → gate PASS** |
 
-> **Nota de honestidad sobre el etiquetado por bloque.** El script también
-> intenta etiquetar cada archivo de feature con su bloque funcional (B1–B18) por
-> heurística de palabra clave. De los 1.742 archivos de feature, **725 quedan
-> como `B?-needs-human`** (nombres genéricos: adaptadores, utilidades internas de
-> `services/`, etc.). Esto es **deliberadamente honesto**: el gate de totalidad
-> es a nivel de categoría (donde `sin-mapear = 0`); la asignación fina por bloque
-> es un **apoyo**, no una verdad mecánica, y los 725 quedan disponibles para que
-> el usuario los ubique durante la revisión. El mapa funcional (§5) sí asigna los
-> dominios principales a su bloque con evidencia `file:line`.
+**Distribución por bloque funcional** (best-effort, apoyo a la revisión): B14 IA
+107 · B1 Emergencia 103 · B7 Salud 99 · B5 Cumplimiento 95 · B18 Analítica 80 ·
+B6 Capacitación 73 · B9 Inspecciones 66 · B4 Incidentes 55 · B10 EPP 49 · B2
+Riesgo 48 · B8 Permisos/LOTO 43 · B15 Facturación 41 · B17 Admin 38 · B13 MOC 34
+· B12 CPHS 28 · B16 Offline 24 · B3 Ergonomía 19 · B11 Contratistas 15 ·
+**B?-needs-human 725** · TOTAL feature 1.742.
+
+> El residual `B?-needs-human` (41%) son servicios de infra de dominio
+> (adaptadores, sync, observabilidad, zettelkasten) cuya pertenencia a un bloque
+> es ambigua por nombre. El gate de totalidad es a nivel de categoría; la
+> asignación por bloque es apoyo, no verdad mecánica.
 
 ---
 
 ## 3. Metodología y medidas de control
 
-**Principio rector:** *code-first, sin asumir.* Todo aserto se respalda con
-evidencia `file:line` real (Regla #1 de `CLAUDE.md`: nada marcado ✅ sin
-referencia). Cuando una doc y el código discrepan, **el código es la verdad**.
+**Principio rector:** *code-first, sin asumir.* Toda afirmación con `file:line`
+real (Regla #1: nada ✅ sin referencia). **Si doc y código discrepan, el código
+manda** — este informe corrige varias docs obsoletas (§8).
 
-**Medidas de control aplicadas a este informe:**
+**Control de calidad de este informe:** lancé **4 barridos profundos en paralelo**
+(vida crítica / cumplimiento+admin+rules / IA+negocio+operación / deuda silenciosa
++ infra) y **crucé sus hallazgos contra el código** — donde un barrido afirmó algo
+no confirmado por grep directo, prevaleció el grep (p.ej. corregí "0 `console.*`
+en server" → en realidad **20 en 13 archivos**; "14 colecciones sin reglas de
+write" → en realidad **ya tienen reglas**, `firestore.rules:388-477`).
 
-1. **Gate de totalidad mecánico.** `scripts/audit-coverage-census.cjs` recomputa
-   `git ls-files` contra el Libro de Cobertura y **falla (exit≠0) si algún
-   archivo queda sin mapear**. Hoy: `UNMAPPED = 0`. Reproducible y CI-friendly.
-2. **Trazabilidad.** Cada bloque enlaza a su evidencia en código y, donde aplica,
-   a `TODO.md §X` / commit / PR.
-3. **No-asumir + checkpoints de usuario.** El informe se entrega para revisión por
-   tandas (vida/privacidad primero); el usuario corrige antes de avanzar a la
-   incorporación. Los ítems ambiguos se marcan ❓/⚠️ y se consultan, no se
-   resuelven especulativamente.
-4. **Foco vida y privacidad.** Cada ficha de bloque marca explícitamente si es
-   **función de seguridad de vida** (🛟) y/o si trata **datos sensibles/PII/
-   biometría** (🔐), con la nota legal correspondiente (Ley 16.744, Ley 19.628,
-   ADR 0012 no-diagnóstico).
-5. **Apoyo en auditoría previa verificada.** Este informe **sintetiza y no
-   contradice** el barrido de primera mano `TODO.md §17` (B1→B18, 2026-06-01) y
-   los triages de `docs/audits/{SERVICES,COMPONENTS,HOOKS}_TRIAGE.md`. Donde una
-   doc previa quedó obsoleta (STALE), se anota la corrección.
+**Medidas de control:** (1) **gate mecánico** `sin-mapear=0` (exit≠0 en CI); (2)
+**trazabilidad** a `TODO.md §X`/commit/PR; (3) **no-asumir + checkpoints** por
+tandas (vida/privacidad primero); (4) **foco vida/privacidad** marcado por ficha;
+(5) síntesis de `TODO.md §17` + triages sin contradecirlos.
 
-**Leyenda de veredictos de estado** (consistente con `TODO.md §17`):
-
-| Símbolo | Significado |
-|---|---|
-| ✅ | Real / cableado end-to-end con evidencia |
-| 🟡 | Parcial — lógica existe, falta wire crítico / sensor / test |
-| 🏚️ | Sin hogar de frontend — backend listo y montado, sin UI que lo consuma |
-| 🔌 | Backend-only por diseño (API HTTP / job / trigger sin consumer único) |
-| 🔵 | Stub honesto (tipado / `503` / feature-flag, registrado) |
-| 🔑 | Bloqueado por secret/cuenta del usuario (§ secrets) |
-| ❓ | Requiere decisión del usuario |
-| ⚠️ | Posible descarte a confirmar (no borrar sin preguntar) |
-
-**Marcadores transversales:** 🛟 seguridad de vida · 🔐 datos sensibles/PII/biometría.
+**Leyenda:** ✅ Real e2e · 🟡 Parcial · 🏚️ Sin hogar de frontend (backend listo,
+sin UI) · 🔌 Backend-only por diseño · 🔵 Stub honesto (503/flag) · 🔑 Bloqueado
+por secret/cuenta · ❓ Decisión del usuario · ⚠️ Posible descarte a confirmar.
+**Marcadores:** 🛟 seguridad de vida · 🔐 datos sensibles/PII/biometría.
 
 ---
 
-## 4. Libro de Cobertura (totalidad verificada)
+## 4. Patrones de seguridad transversales
 
-La tabla de §2 **es** el Libro de Cobertura a nivel de categoría: 3.545 archivos,
-14 categorías, `sin-mapear = 0`. La distribución por **bloque funcional**
-(best-effort, apoyo a la revisión) según el script:
+Verificados de forma repetida en todos los routers; son el "ADN" de seguridad:
 
-| Bloque (heurística) | Archivos de feature |
-|---|---:|
-| B14 IA/Gemini/SLM | 107 |
-| B1 Emergencia | 103 |
-| B7 Salud ocupacional | 99 |
-| B5 Cumplimiento/SUSESO | 95 |
-| B18 Analítica/Reportes | 80 |
-| B6 Capacitación | 73 |
-| B9 Inspecciones | 66 |
-| B4 Incidentes | 55 |
-| B10 EPP/Activos | 49 |
-| B2 Riesgo/IPER | 48 |
-| B8 Permisos/LOTO | 43 |
-| B15 Facturación/Tier | 41 |
-| B17 Admin/Auth | 38 |
-| B13 MOC/Ops críticas | 34 |
-| B12 CPHS/Comités | 28 |
-| B16 Offline/PWA | 24 |
-| B3 Ergonomía | 19 |
-| B11 Contratistas/Visitas | 15 |
-| **B?-needs-human** | **725** |
-| **TOTAL feature** | **1.742** |
-
-> El alto conteo de B14/B7/B5/B1 es coherente con un producto de prevención de
-> riesgos centrado en vida (emergencia, salud) y cumplimiento, con una capa de IA
-> extensa. El residual `B?-needs-human` (41%) refleja servicios de infraestructura
-> de dominio (adaptadores, sync, observabilidad, zettelkasten) cuya pertenencia a
-> un bloque es ambigua por nombre — se resuelve en la revisión guiada.
+- **Identidad estampada server-side, nunca del cliente.** El `uid` del actor se
+  fuerza desde el token verificado: SOS `emergency.ts:211-212`, lone-worker
+  `loneWorker.ts:124-128` (anti-blame: un trabajador solo puede hacer su propio
+  check-in), evacuación `evacuation.ts:133` (`scannedByUid` forzado),
+  mental-load `mentalLoad.ts:89`, visitas `visitors.ts:16-20` (`hostUid`),
+  photo-evidence `photoEvidence.ts:110` (`capturedByUid`).
+- **Cadena de middleware:** `verifyAuth` → `idempotencyKey()` (en mutaciones) →
+  `validate(zodSchema)` → handler → `captureRouteError` (Sentry) →
+  `auditServerEvent` (en operaciones críticas).
+- **Tenancy:** `tenants/{tid}/projects/{pid}/…`; cross-tenant vía
+  `collectionGroup(...)` filtrado por `tenantId`. `assertProjectMember(uid,pid,db)`
+  antes de todo write.
+- **Auditoría append-only:** `audit_logs` con `create: server-only, update:false,
+  delete:false` (`firestore.rules:558-569`). Las llamadas se `await`ean (Regla #14).
+- **Idempotencia:** transacciones `get()+update()` atómicas + 3-way idempotence
+  (visitas `visitors.ts:202-216`, inspecciones `offlineInspections.ts:311-332`).
+- **Rate-limiting:** `sosLimiter` (`emergency.ts:200`), `geminiLimiter`
+  (30/15min), `aiFeedbackLimiter`, `verifySchedulerToken` en crons.
+- **Directiva "nunca bloquear maquinaria":** salud/fatiga/horómetro/EPP devuelven
+  *recomendaciones/flags*, jamás bloqueo automático (ver B7, B8, B10).
+- **Directiva "no auto-push":** EPP/hazmat/DTE generan documento; la empresa lo
+  entrega al proveedor/SUSESO/SII — Praeventio nunca empuja (header
+  `X-Praeventio-Pushed-To-Supplier=false`, `eppFlow.ts:561`).
 
 ---
 
-## 5. Mapa funcional por bloque — qué hace la app
+## 5. Mapa funcional detallado por bloque
 
-> Núcleo del informe. Cada ficha responde: **propósito** · **superficie**
-> (página/ruta/servicio) · **persistencia/auditoría** · **estado** · **vida/
-> privacidad** · **evidencia**. El orden sigue la criticidad: vida y privacidad
-> primero. La fuente de verdad de cada veredicto es el barrido de primera mano
-> `TODO.md §17` (2026-06-01), aquí sintetizado.
+> Cada ficha: **propósito · endpoints/superficie (file:line) · persistencia/
+> auditoría · patrón · estado · vida/privacidad · deferido**. Orden por criticidad.
 
 ### 🛟 Tanda A — Vida y seguridad crítica
 
-#### B1 — Emergencia & Respuesta · ✅ REAL · 🛟
+#### B1 — Emergencia & Respuesta · ✅ REAL (production-grade) · 🛟
 
-- **Propósito:** salvar vidas en eventos críticos: SOS, evacuación con ruteo,
-  conteo de personal, trabajador solitario (lone-worker), caída/ManDown,
-  refugios, zonas restringidas, brigada, simulacros y comunicaciones de
-  contingencia.
-- **Superficie:** `SOSButton` → `POST /api/sos` (Firestore + FCM + email
-  fallback, rate-limited + auditado); `src/server/routes/evacuation.ts`
-  (Haversine + A* sobre grid, montado en `server.ts:1060`); route-group
-  `src/routes/EmergencyRoutes.tsx`; contexto `src/contexts/EmergencyContext.tsx`
-  (con fallback mesh).
-- **Persistencia/auditoría:** SOS y eventos escriben a Firestore + `audit_logs`.
-- **Estado:** ✅ mayoritariamente production-grade. Tras el barrido se cablearon
-  **4 routers que estaban huérfanos** (loneWorker, refuges, restrictedZones,
-  evacuationHeadcount): implementados y unit-tested pero **nunca montados** →
-  daban **404** a sus consumidores (`useLoneWorker`, `useRefuges`,
-  `useRestrictedZones`, `useEvacuationHeadcount`, `EvacuationQRScanner.tsx`).
-  Resueltos con TDD (B1-F1, B1-F2; contrato `serverMountOrder.test.ts`).
-- **Vida/Privacidad:** 🛟 máxima criticidad. Función directa de salvamento.
-- **Deferido:** B1-D2 verificar lone-worker nativo (Foreground Service Android);
-  B1-D3 reconciliar specs E2E `sos-button.spec` (hoy en `describe.fixme`).
-- **Evidencia:** `TODO.md §17 B1` (líneas 1765-1817); `emergencyRouter` mount
-  `server.ts:895`; `EmergencyContext.meshFallback.test.tsx`.
+**Propósito:** salvar vidas: SOS, evacuación, headcount, lone-worker, fall/ManDown,
+refugios, zonas restringidas, brigada, drills, comms, contingencia, first-responder.
 
-#### B7 — Salud ocupacional & Vigilancia · ✅ REAL + ADR 0012 · 🛟🔐
+**Endpoints reales:**
+- **SOS** — `POST /api/emergency/sos` (`emergency.ts:211`, montado `server.ts:940`).
+  `verifyAuth` + `sosLimiter` (10/min, `:200`) + Zod `sosSchema`. Escribe
+  `tenants/{tid}/emergency_alerts/{id}` (`:216-227`) + **siempre** `audit_logs`
+  (`:258-260`). Fan-out a supervisores (`sendToProjectSupervisors :277-310`):
+  lookup cross-collection de tokens (`users/{uid}/fcmTokens` + fallback legacy
+  `members/{uid}.fcmToken`) con cache 5-min; **FCM multicast** y **fallback email**
+  si push falla (`:306-354`). `uid` forzado server-side (`:211-212`).
+- **Brigada** — `POST /api/emergency/notify-brigada` (`emergency.ts:412`):
+  supervisor activa; 12 tipos (fall/sos/medical/fire/gas/collapse/tsunami/flood/
+  earthquake/volcanic/storm/other); escribe `brigada_activations` + audita;
+  `supervisorUid` forzado (`:421`). *(Corrige el bug histórico H7 de `notify-brigada`
+  inline en server.ts — migrado, ver `server.ts:1327-1333`.)*
+- **Evacuación (stateless compute)** — `POST /:projectId/evacuation/{compute-status,
+  record-scan,end-drill,build-postmortem}` (`evacuation.ts:87,121,153,181`).
+  `verifyAuth` + `assertProjectMember`. **Sin writes** (el cliente persiste); evita
+  carreras en evacuaciones concurrentes. `scannedByUid` forzado (`:133`).
+- **Lone-worker** — `POST /:projectId/lone-worker/{check-in,end-session,
+  derive-status,decide-escalation,admin-overview}` (`loneWorker.ts:111,158,193,218,
+  255`). **Anti-blame** (`:124-128`); check-in **siempre** auditado, en especial
+  `status:'help'` (`:134-139`). Escalación pura determinista.
+- **Comms** — `POST /:projectId/comms/{best-channel-for-zone,detect-dead-zones,
+  compute-escalation,build-contactability-report,plan-channel-failover}`
+  (`comms.ts:102…232`). Compute puro; canales: radio UHF/VHF, cel, satélite, push,
+  whatsapp, face-to-face.
+- **Drills** — `GET /:projectId/drills`, `POST /:projectId/drills/plan|:id/execute`
+  (`drillsManager.ts:142,236,297`). Plan persiste + audita (`drill.planned`);
+  ejecución = scoring determinista (`participationRate`, `speedDeficitPercent`,
+  `level`) + audita (`drill.executed`).
+- **Zonas restringidas** — `restrictedZones.ts` (506 LOC). **Nunca bloquea
+  maquinaria** (Directiva #1): marca para *acknowledgement* + logging (entrada
+  informada). Tipos: hot/confined/atex/lifting/high_voltage/biohazard/…
+- **First-responder** — `build-dispatch-plan`, `analyze-coverage` (compute puro).
 
-- **Propósito:** vigilancia de salud ocupacional sin diagnóstico clínico:
-  catálogos médicos, carga mental, fatiga, ritmo circadiano, higiene, historia
-  del trabajador, retorno al trabajo, bóveda de salud (HealthVault) con
-  compartición por QR.
-- **Superficie:** routers `medicalCatalogs`, `hygiene`, `mentalLoad`, `fatigue`,
-  `circadian`, `workerHistory`, `returnToWork` (montados `/api/sprint-k`);
-  páginas `HealthVaultShare/Viewer`, `Medicine`, `MyData`, `SystemHealth`;
-  route-group `src/routes/HealthRoutes.tsx`; servicios `src/services/health/*`
-  (19 archivos), `src/services/medical/*` (8).
-- **Persistencia/auditoría:** datos de salud cifrados; bóveda con compartición
-  controlada.
-- **Estado:** ✅ sin huérfanos. **ADR 0012 (no-diagnóstico) enforced**: 0
-  funciones prohibidas en `src/` (único match = el test del guard); 8 usos de
-  `<MedicalDisclaimer/>`.
-- **Vida/Privacidad:** 🛟🔐 crítico en ambas dimensiones. Biometría **100%
-  on-device** (Regla #12): `health/healthFacadeNative.ts`, `nativeHealthAdapter.ts`
-  (Health Connect / HealthKit) — no salen frames ni ritmo cardíaco del
-  dispositivo. PII médica → Ley 19.628 + KMS.
-- **Evidencia:** `TODO.md §17 B7` (líneas 1979-1991).
+**Cliente:** `SOSButton.tsx:46-230` — long-press 3s (`HOLD_MS=3000`), geoloc alta
+precisión, **fallback `tel:` deeplink** si falla la red, `aria-label` + touch
+target 96×96px.
 
-#### B16 — Offline / PWA / Capacitor / Mesh / Biometría on-device · ✅ REAL · 🛟🔐
+**Estado:** ✅. El barrido B1 (`TODO.md §17`) cableó **4 routers huérfanos**
+(loneWorker, refuges 169 LOC, restrictedZones 506 LOC, evacuationHeadcount) que
+daban **404** — resueltos con TDD (`serverMountOrder.test.ts`).
+**Vida/Privacidad:** 🛟 máxima. **Deferido:** B1-D2 verificar lone-worker nativo
+(FGS Android); B1-D3 specs E2E `sos-button` en `describe.fixme`.
 
-- **Propósito:** que la app funcione **sin red** en faenas remotas: PWA offline,
-  SQLite cifrado on-device, relay mesh BLE/WiFi-Direct, sincronización y sensores.
-- **Superficie:** `src/services/sync/*` (15), `packages/capacitor-mesh/`,
-  `src/workers/*`, `SensorContext.tsx`; router `syncStatus` (montado tras
-  barrido).
-- **Persistencia:** IndexedDB/SQLite on-device; sync con cola de conflictos.
-- **Estado:** ✅. **Cifrado SQLite ON** (Regla #16): `createConnection(..., true,
-  mode, ...)` en `pwa-offline.ts:78` y `offlineStorage.ts:89`; el único match
-  `"no-encryption"` es un comentario histórico, no código activo. `syncStatus.ts`
-  estaba huérfano → montado (B16-F1).
-- **Vida/Privacidad:** 🛟 (la operación offline sostiene el SOS/evacuación sin
-  red) · 🔐 (cifrado obligatorio de datos en reposo en el dispositivo).
-- **Evidencia:** `TODO.md §17 B16` (líneas 2084-2095).
+#### B7 — Salud ocupacional & Vigilancia · ✅ REAL + ADR 0012 enforced · 🛟🔐
+
+**Propósito:** vigilancia ocupacional **sin diagnóstico clínico**.
+
+**ADR 0012:** grep de funciones prohibidas (`inferDiagnosis`/`assessClinicalRisk`/
+`suggestTreatment`) → **0 hits** en `src/`. Cada router lo declara: fatiga
+`fatigue.ts:19`, carga mental `mentalLoad.ts:14`, retorno al trabajo
+`returnToWork.ts:19` ("opera con `restrictionTags` operacionales, NUNCA con
+diagnóstico/PHI"), catálogos `medicalCatalogs.ts:14-15` ("sin LLM, no reemplaza
+juicio médico").
+
+**Endpoints destacados:**
+- **HealthVault (Ley 20.584 — el trabajador es dueño de su dato)** —
+  `services/health/vaultShare.ts` (257 LOC): tokens de compartición **temporales**
+  (no permisos por rol). Secreto **nunca persistido**, solo SHA-256
+  (`:80-83`); verificación con `timingSafeEqual` (`:85-88`); TTL 24h, 5 consumos
+  máx; cada consumo audita viewer + `ipHash` (`:228-256`); revocación inmediata.
+- **Fatiga** — `POST /:projectId/fatigue/assess` (`fatigue.ts:64`): umbrales
+  DS594 Art.102 (>12h) y Código del Trabajo Art.38 (<11h descanso); devuelve
+  `shouldRestrictCritical` (flag para supervisor, **no bloqueo**, `:19`).
+- **Carga mental NASA-TLX** — `score-survey`, `build-admin-burden`
+  (`mentalLoad.ts:79,115`); `workerUid` forzado (`:89`).
+- **Circadiano** — `classify-window`, `assess-alertness`, `recommend-shift-rotation`
+  (`circadian.ts:70,101,132`). Solo soporte a decisión.
+- **Higiene (Mifflin-St Jeor)** — `bmr`, `current-burn` (`hygiene.ts:66,95`);
+  **rechaza datos incompletos** (devuelve `null`, no inventa, `:15-16`).
+- **Catálogos médicos** — ICD-10/DS109, ATC/DrugBank, anatomía
+  (`medicalCatalogs.ts`, 6 endpoints): lookup read-only, **sin LLM**.
+- **Retorno al trabajo** — `assess-task-fit`, `decide-derivation`, `build-plan`
+  (`returnToWork.ts:150,190,223`): 23 `restrictionTags` operacionales; el
+  diagnóstico/PHI se mapea a tags en la mutual (externamente).
+
+**Biometría on-device (Regla #12):** `services/health/healthFacadeNative.ts`
+(HealthKit iOS / Health Connect Android); en web devuelve arrays vacíos; **cero
+egress al servidor** de telemetría de salud.
+
+**Estado:** ✅ sin huérfanos. **Vida/Privacidad:** 🛟🔐 crítico en ambas.
+
+#### B16 — Offline / PWA / Capacitor / Mesh / Sensores · ✅ REAL (móvil pre-release) · 🛟🔐
+
+- **Cifrado SQLite (Regla #16):** `utils/sqliteEncryption.ts` (77 LOC) — SQLCipher
+  AES-256, passphrase 256-bit (`getRandomValues(32)`, `:40-46`), persistida en
+  **secure store nativo** (Keychain/Keystore, no SharedPreferences),
+  inicialización idempotente `ensureSqliteEncryptionSecret` (`:64-76`) con guard
+  `isSecretStored()` (`:67-68`). Migración: bases sin cifrar no se reabren →
+  base instalada de producción = 0 (móvil pre-release).
+- **Mesh relay (ADR 0013 store-carry-forward):** `services/mesh/meshRelayQueue.ts`
+  (dedup TTL 6h, prioridad SOS, anti-loop `relayedBy[]`, hook `onRelaySuccess`
+  para gamificación) + `transportFacade.ts` (abstracción BLE/WiFi, reconciliación
+  30s, snapshot de peers/queue). **Cola en memoria** (no persistida).
+- **Sync / syncStatus:** router `syncStatus` cableado tras barrido (B16-F1).
+- **Plugin nativo:** `packages/capacitor-mesh` — **web simulator funciona (~240
+  LOC); nativo Kotlin/Swift son STUBS** que loggean + emiten eventos fake
+  (`MeshPlugin.kt:552`, `Plugin.swift:350`; `docs/stubs-inventory.md:69-75`). 🔑
+  pendiente BLE GATT/CoreBluetooth real (Sprint 31/32).
+
+**Vida/Privacidad:** 🛟 (sostiene SOS/evacuación sin red) · 🔐 (cifrado at-rest).
 
 #### B2 — Riesgo & IPER · ✅ REAL · 🛟
 
-- **Propósito:** identificación de peligros y evaluación de riesgos (IPER), mapa
-  de calor, ranking, riesgo residual, bowtie, JSA, controles críticos, riesgo de
-  turno y madurez.
-- **Superficie:** motor `src/services/protocols/iper.ts` (135 LOC, puro,
-  unit+mutation-tested); routers `riskRadar`/`residualRisk`/`maturity`/`bowtie`/
-  `jsa`/`criticalControls`/`raciMatrix`/`preShiftRisk` montados; route-group
-  `src/routes/RiskRoutes.tsx`.
-- **Estado:** ✅. `riskRanking.ts` y `shiftRiskPanel.ts` estaban huérfanos →
-  montados (B2-F1).
-- **Vida/Privacidad:** 🛟 (la matriz de riesgo es la columna vertebral preventiva).
-- **Deferido:** B2-D1 faltan 3 endpoints **GET** que consumen los dashboard cards
-  (`risk-ranking/timeseries|top-risks|weak-controls`) — hoy los hooks devuelven
-  idle (stub honesto, `useRiskRanking.ts:135-172`); B2-D2 `useShiftRiskPanel` sin
-  consumidor UI (🏚️ sin hogar) → **❓ decisión de producto**: dónde vive la vista.
-- **Evidencia:** `TODO.md §17 B2` (líneas 1821-1854).
+**Propósito:** IPER, mapa de calor, ranking, residual, bowtie, JSA, controles
+críticos, riesgo de turno, madurez.
+**Superficie:** motor `services/protocols/iper.ts` (135 LOC, puro, unit+mutation);
+routers `riskRadar/residualRisk/maturity/bowtie/jsa/criticalControls/raciMatrix/
+preShiftRisk` montados (`server.ts:961-964`); route-group `RiskRoutes.tsx`.
+`riskRanking`/`shiftRiskPanel` cableados tras barrido (B2-F1).
+**Deferido:** **B2-D1** faltan 3 GET (`risk-ranking/timeseries|top-risks|
+weak-controls`) — los hooks devuelven idle (stub honesto, `useRiskRanking.ts:135-172`);
+**B2-D2** `useShiftRiskPanel` 🏚️ sin consumidor UI → **❓ dónde vive la vista**.
 
 #### B3 — Ergonomía & Protocolos MINSAL · ✅ REAL · 🛟🔐
 
-- **Propósito:** evaluación ergonómica y protocolos MINSAL: REBA, RULA, TMERT,
-  PREXOR; estimación de postura on-device por visión.
-- **Superficie:** motores puros `services/ergonomics/{reba.ts:378,rula.ts:284}`,
-  `services/protocols/{tmert.ts:106,prexor.ts:128}` (unit+mutation-tested);
-  `landmarksToScore.ts`, `useMediaPipePose.ts`, `AIPostureAnalysisModal.tsx`;
-  routers `ergonomics`/`protocols` montados (compute-only, stateless).
-- **Persistencia/auditoría:** la evaluación persiste client-side en
-  `services/safety/ergonomicAssessments.ts` (`setDoc` + `logAuditAction`,
-  append-only tras firma, Ley 16.744 + ISO 45001 §7.5.3) — la ruta compute-only
-  es correcta por diseño (B3-D2 cerrado).
-- **Vida/Privacidad:** 🛟 (previene TME) · 🔐 (Regla #12: 0 subidas de frame de
-  cámara; el análisis de pose es on-device).
-- **Deferido:** **B3-D1 — PLAESI** aparece en `CLAUDE.md` (Regla #10) pero **no
-  existe en `src/`** (0 referencias) → ⚠️ doc-vs-code gap: implementar o quitar de
-  la doc.
-- **Evidencia:** `TODO.md §17 B3` (líneas 1858-1886).
+**Motores puros:** `ergonomics/reba.ts` (378 LOC), `rula.ts` (284),
+`protocols/tmert.ts` (106), `prexor.ts` (128) — unit+mutation-tested.
+**Persistencia:** client-side en `services/safety/ergonomicAssessments.ts`
+(`setDoc` + `logAuditAction`, append-only tras firma); reglas
+`ergonomic_assessments` (`firestore.rules:698-715`): `delete:false` (Ley 16.744
+Art.76 + ISO 45001 §7.5.3), inmutable post-firma. `iper_assessments`
+(`:720-742`): probability/severity ∈ [1-5], whitelist de campos editables.
+**On-device:** 0 subidas de frame de cámara (Regla #12).
+**Deferido:** **B3-D1 — PLAESI** en `CLAUDE.md` pero **ausente en `src/`** (0
+refs) → ⚠️ doc-vs-code. **AIPostureAnalysisModal:** verificar si ya usa MediaPipe
+local (deuda histórica era Gemini-vision).
 
 ### 🔐 Tanda B — Privacidad, cumplimiento e integridad
 
 #### B17 — Admin / Multi-tenant / Auth / RBAC / Audit / Privacidad · ✅ REAL · 🔐
 
-- **Propósito:** control de acceso, aislamiento multi-tenant, autenticación,
-  RBAC, cadena de auditoría inmutable y privacidad. Base de confianza de toda la
-  app.
-- **Superficie:** routers `admin (×4)`, `b2dAdmin`, `oauthGoogle (×2)`,
-  `adminJobs`, `audit (×3)`, `auditChain`, `auditPortal`; middleware
-  `verifyAuth`, `assertProjectMember`; servicios `src/services/auth/*` (14),
-  `src/services/privacy/*` (16), `src/services/security/*` (12); contextos
-  `FirebaseContext`, `ProjectContext`.
-- **Persistencia/auditoría:** `firestore.rules` (1k+ LOC, default-deny con
-  catch-all `match /{document=**}`); `audit_logs` append-only
-  (`create:true, update:false, delete:false`).
-- **Estado:** ✅ stack sólido. `pymeOnboarding.ts` y `pymeWizard.ts` estaban
-  huérfanos → montados (B17-F1).
-- **Vida/Privacidad:** 🔐 núcleo de privacidad. Invariante de auditoría: el
-  servidor estampa `userId`/`userEmail` del token verificado (nunca confía en el
-  cliente); las llamadas de audit se `await`ean (Regla #14).
-- **Evidencia:** `TODO.md §17 B17` (líneas 2099-2114).
-- **🔴 Hallazgo crítico asociado (ver §6):** 14 colecciones client-SDK sin reglas
-  de write en producción (default-deny bloquea writes legítimos).
+**`firestore.rules` (1.182 LOC):** default-deny `match /{document=**} {allow read,
+write: if false}` (`:17-19`). Roles: `isAdmin()` (token+doc, `:36-43`),
+`isSupervisor()` **global** (`:45-50`), `isSupervisorOfTenant()` per-tenant
+(`:84-109`, fix 2026-05-15 que cierra escalada horizontal). Master-gate
+`match /{subCollection=**}/{docId}` **read-only** para project-members (`:258-260`).
+
+**🟢 CORRECCIÓN CRÍTICA (resuelto en esta rama):** las **14 colecciones Sprint-K**
+client-SDK **ahora tienen reglas de write explícitas** (`:366-477`) — antes el
+default-deny bloqueaba los writes en producción. Modelo por colección:
+
+| Colección | create | update | delete | Líneas |
+|---|---|---|---|---|
+| stoppages | member + `declaredByUid==auth.uid` | `declaredByUid` inmutable | false | 388-394 |
+| operational_changes | member, `declaredByUid` inmutable | idem | false | 395-401 |
+| root_causes | member, `analyzedByUid` inmutable | idem | false | 402-408 |
+| site_book | member | append-only post-firma | false | 410-417 |
+| site_book_entries | member, `recordedByUid` inmutable | idem | false | 418-425 |
+| lone_worker_sessions | `workerUid==auth.uid` | `workerUid` inmutable | admin/sup | 428-434 |
+| lone_worker_events | `workerUid==auth.uid` | inmutable | admin/sup | 435-441 |
+| safety_talks_given | `givenByUid==auth.uid` | inmutable | admin/sup | 442-448 |
+| audit_portals | `createdByUid==auth.uid` | inmutable | admin/sup | 449-455 |
+| documents_for_read | `authorUid==auth.uid` | inmutable | admin/sup | 456-462 |
+| **exceptions** | member (**sin creator-uid**) | member | admin/sup | 466-469 |
+| **legal_obligations** | member (**sin creator-uid**) | member | admin/sup | 470-473 |
+| **shifts** | member (**sin creator-uid**) | member | admin/sup | 474-477 |
+
+> **Para tu revisión (❓):** `exceptions`/`legal_obligations`/`shifts` permiten
+> create/update a cualquier project-member **sin anti-spoof de creator-uid** (no
+> tienen ese campo). Verificación final por **emulador/CI** (no corre en este
+> entorno). Rules-tests parametrizados en `src/rules-tests/projectScopedStores.rules.test.ts`.
+
+**Otras colecciones críticas:** `audit_logs` append-only (`:558-569`);
+`suseso_forms` inmutable post-creación, firma vía Admin SDK (`:989-1003`);
+`cphs_committees` (≥6 miembros, `:1117-1133`), `cphs_meetings` (signed records
+append-only, `:1135-1180`).
+**Huérfanos cableados:** `pymeOnboarding`, `pymeWizard` (B17-F1).
+**Deuda residual (threads Codex #650):** 5 reglas con bugs (lone-worker ownership,
+libro de obras firmado editable, `site_book_counters` faltante,
+`documents_for_read`/`audit_portals` desalineados) — **P1**. (7 threads de authz
+ya fijos por #651/#652.)
 
 #### B5 — Cumplimiento & SUSESO · ✅ REAL · 🔐
 
-- **Propósito:** cumplimiento normativo chileno (Ley 16.744, DS54, DS44/2024,
-  DS40), calendario legal, no conformidades, retención de privacidad, emisión DTE
-  y formularios DIAT/DIEP a la mutual.
-- **Superficie:** routers `compliance (×3)`, `complianceEmit`, `dte`,
-  `regulatoryFramework`, `industryRules`, `nonConformity`, `privacyRetention`
-  montados; route-group `src/routes/ComplianceRoutes.tsx`; servicios
-  `services/compliance/*` (27), `services/suseso/*` (15), `services/sii/*` (18),
-  `services/regulatory/*` (25).
-- **Estado:** ✅. `legalObligations.ts` estaba huérfano → montado (B5-F1).
-- **Vida/Privacidad:** 🔐 (retención de datos, marco regulatorio multi-jurisdicción
-  — ADR 0014).
-- **Evidencia:** `TODO.md §17 B5` (líneas 1943-1957).
+**DTE (decisión, nunca push directo a SII):** `services/dte/dteAutoIssueOrchestrator.ts`
+(277 LOC, motor puro idempotente). `decideDteIssue()` (`:198-276`): dedup por
+paymentId → `already_issued`; gateway webpay/mercadopago soportado, `manual` no
+(`:209-216`); clasifica RUT (`classifyChileanTaxId :141-156`) → boleta/factura;
+idempotency = sha256(paymentId|tenantId) (`:169-177`). **Directiva (`:8-13`):
+Praeventio NUNCA hace push a SII; emisión real vía PSE intermediario.**
+**Generación DTE con WebAuthn:** `POST /api/dte/generate` (`dte.ts`, requireAdmin
+`:83-101`): genera XML + PDF firmado localmente; **no push a SII**. `BsaleAdapter`
+503 si falta `BSALE_ACCESS_TOKEN`/`OFFICE_ID` (`:105-114`).
+**Adapters SII:** `libredteAdapter.ts` (25 LOC) — `emitDte`/`getDteStatus` lanzan
+`SiiNotImplementedError` (`:18-23`) → 🔵 **stub honesto**. OpenFactura/SimpleAPI
+similares (plan K1).
+**SUSESO:** `services/sii/susesoApiClient.ts` — **server-only** (warning "NO
+importar desde browser", `:1-10`; `fromEnv()` devuelve `null` sin env, `:148-150`).
+Payloads DIAT/DIEP/ROI. **🔴 B5-D1:** **sin métodos de lectura de estado** post-
+envío (fire-and-forget; sin retry/webhook ni persistencia de receipt SUSESO).
+**Otros:** routers `compliance(×3)`, `complianceEmit`, `regulatoryFramework`,
+`industryRules`, `nonConformity`, `privacyRetention`; `legalObligations` cableado
+(B5-F1). DIAT/DIEP: PDF + folio atómico + firma + verify público (Sprint 28 B6).
+Marco multi-jurisdicción ADR 0014.
 
 #### B4 — Incidentes & Investigación · ✅ REAL · 🛟
 
-- **Propósito:** reporte de incidentes, investigación (árbol de causas),
-  lecciones aprendidas, acciones correctivas, tendencias, y paralización de faena
-  (stoppage).
-- **Superficie:** routers `rootCauseInvestigation`, `incidentTrends`,
-  `incidentBundle`, `lessonsLearned`, `correctiveActions` montados; `incidentFlow`
-  y `stoppage` montados tras barrido (B4-F1).
-- **Persistencia/auditoría:** `incidentFlow` audita a **root `audit_logs`**
-  (`incidentFlow.ts:115`, corrige hallazgo STALE previo que lo daba en path
-  tenant-scoped). `stoppage` es **stateless de transición** (cliente persiste).
-- **Vida/Privacidad:** 🛟 (la investigación de incidentes previene recurrencia).
-- **Deferido:** **🔴 B4-D1 (real):** la persistencia client-side de `stoppages`
-  cae bajo default-deny — **`firestore.rules` no tiene entrada para `stoppages`**
-  → write bloqueado en prod. Requiere **decisión del modelo de acceso** (¿inmutable
-  tras declarar?, ¿quién resume/cancela?, ¿folio?) antes de escribir las reglas
-  (Regla #4). Candidato a PR de seguridad dedicado. B4-D2 cerrado (no-defecto).
-- **Evidencia:** `TODO.md §17 B4` (líneas 1890-1939).
+Routers `rootCause/incidentTrends/incidentBundle/lessonsLearned/correctiveActions`
+montados; `incidentFlow` y `stoppage` cableados (B4-F1).
+**`incidentFlow` audita a root `audit_logs`** (`incidentFlow.ts:115` — corrige
+hallazgo STALE que lo daba tenant-scoped). **`stoppage` stateless** de transición.
+**🟢 B4-D1 (antes 🔴, ahora resuelto en esta rama):** `stoppages` ya tiene regla
+de write (`firestore.rules:388-394`); persiste con `declaredByUid==auth.uid`,
+inmutable, `delete:false`. Pendiente verificación emulador/CI.
 
 ### ⚙️ Tanda C — Operación y soporte
 
 #### B6 — Capacitación & Currículum · ✅ REAL
-
-- **Propósito:** capacitación DS44, ODI, microtraining, repetición espaciada,
-  brechas de competencia, retorno al trabajo, aprendices, gamificación.
-- **Superficie:** 9 routers montados (`curriculum`, `safetyTalks`,
-  `microtraining`, `postTraining`, `spacedRepetition`, `skillGap`,
-  `returnToWork`, `apprenticeship`, `adoption`); `services/curriculum/*`,
-  `trainingBackend.ts`; route-group `TrainingRoutes.tsx`; páginas `Training`,
-  `Onboarding`, `PortableCurriculum`, `LessonsLearned`, más mini-juegos
-  (`ArcadeGames`, `ClawMachine`).
-- **Estado:** ✅ sin huérfanos ni stubs (B6-D1 cerrado: cobertura audit 1:1).
-- **Evidencia:** `TODO.md §17 B6` (líneas 1961-1975).
+9 routers (`curriculum`, `safetyTalks`, `microtraining`, `postTraining`,
+`spacedRepetition`, `skillGap`, `returnToWork`, `apprenticeship`, `adoption`).
+**WebAuthn register/verify** vive en `curriculum.ts` (`/api/auth/webauthn/register/
+options|verify`). Páginas Training/Onboarding/PortableCurriculum/LessonsLearned +
+gamificación (ArcadeGames/ClawMachine). B6-D1 cerrado (audit 1:1).
 
 #### B8 — Permisos de trabajo & LOTO · ✅ REAL · 🛟
-
-- **Propósito:** permisos de trabajo (DS132), bloqueo/etiquetado (LOTO), controles
-  críticos y de ingeniería, soft-blocking, excepciones.
-- **Superficie:** routers `workPermits` (audit=4), `loto`, `criticalControls`,
-  `engineeringControls`, `softBlocking`, `exceptions` montados; página
-  `WorkPermits.tsx`.
-- **Estado:** ✅ sin huérfanos (B8-D1 cerrado: el "write" sospechoso era un
-  `createHash('sha256')`, no Firestore).
-- **Vida/Privacidad:** 🛟 (LOTO previene energización accidental).
-- **Evidencia:** `TODO.md §17 B8` (líneas 1995-2008).
+Routers `workPermits` (DS132, audit=4), `loto`, `criticalControls`,
+`engineeringControls`, `softBlocking`, `exceptions`. B8-D1 cerrado (el "write"
+sospechoso era `createHash('sha256')`, no Firestore). 🛟 LOTO previene energización.
 
 #### B9 — Inspecciones, Checklists & Observaciones · ✅ REAL
-
-- **Propósito:** inspecciones offline, checklists, observaciones de conducta
-  (BBS), libro de obras con firma, evidencia fotográfica, ack por QR.
-- **Superficie:** routers `positiveObservations`, `offlineInspections`,
-  `checklistBuilder`, `formBuilderAdvanced`, `bbs`, `qrSignature`, `qrAck`,
-  `photoEvidence`, `sitebook` + `sitebookSign` (WebAuthn) montados; páginas
-  `Findings`, `FindingsHeatMap`, `OfflineInspection`, `PositiveObservations`,
-  `SiteBook`; servicios `services/siteBook/*` (12).
-- **Estado:** ✅. `qrAck` devuelve `503` honesto (`qr_ack_not_configured`) si
-  falta `QR_ACK_HMAC_SECRET` → 🔑 bloqueado por secret, no stub.
-- **Evidencia:** `TODO.md §17 B9` (líneas 2012-2024).
+- **offlineInspections** (`offlineInspections.ts`, 495 LOC): list (con index
+  fallback `:153-192`), start (idempotente), observations (**transacción** +
+  3-way idempotence `:311-332`), complete. Storage
+  `tenants/{tid}/projects/{pid}/inspections/{id}`.
+- **photoEvidence** (223 LOC): artifacts con `contentHash`, linkages a
+  incident/inspection/audit/finding/work_permit/training/corrective;
+  `capturedByUid` forzado (`:110`).
+- `checklistBuilder`, `formBuilderAdvanced`, `bbs`, `qrSignature`, `qrAck` (503
+  honesto `qr_ack_not_configured` si falta `QR_ACK_HMAC_SECRET` → 🔑), `sitebook`
+  + `sitebookSign` (WebAuthn).
 
 #### B10 — EPP, Activos & Mantenimiento · ✅ REAL
-
-- **Propósito:** flujo de EPP (inspección/órdenes/firma/PDF), activos con QR,
-  mantenimiento, horómetro, señalética, inventario hazmat con compatibilidad
-  química.
-- **Superficie:** routers `equipment`, `maintenance`, `horometro`, `signaletics`
-  montados; `eppFlow`, `equipmentQr`, `hazmatInventory` montados tras barrido
-  (B10-F1); `services/hazmat/*` (8); página `Assets.tsx`.
-- **Estado:** ✅. `hazmatInventory` es superficie stateless next-state (cliente
-  persiste), no stub.
-- **Evidencia:** `TODO.md §17 B10` (líneas 2028-2043).
+- **eppFlow** (581 LOC): inspection/pending-orders/sign-order/order-pdf. **No
+  auto-push** (`X-Praeventio-Pushed-To-Supplier=false :561`); WebAuthn
+  'claim-signing' con `challengeId` — **TODO revalidación server-side de firma
+  (`:22`)** (deuda real). Server-writer Admin-SDK (`makeServerWriteNodes`, Codex P1).
+- **equipmentQr** (474 LOC): register/list/preuse/history. **Nunca bloquea**: el
+  pre-use **siempre persiste** (`:370`); el cambio de estado es recomendación.
+- **horometro** (432 LOC): reading/maintenance-tasks/complete. **Nunca bloquea**:
+  crea task `status=open`, no marca `fuera_servicio` (`:13-18`).
+- **hazmatInventory** (377 LOC): substance CRUD + compatibility-check + spill-plan;
+  compute puro, **no auto-push** a SUSESO/MINSAL. `signaletics`, `maintenance`,
+  `equipment` montados.
 
 #### B11 — Contratistas, Visitas & Acreditación · ✅ REAL
-
-- **Propósito:** gestión de contratistas (DS76), visitas en tiempo real,
-  onboarding y acreditación de proveedores, venta consultiva, permisos de
-  geocerca.
-- **Superficie:** routers `contractors`, `visitors`, `vendorOnboarding`,
-  `consultativeSale`, `geofencePermissions` montados.
-- **Estado:** ✅ sin huérfanos. **Nota triage:** `resolveObservation`
-  (`vendorAccreditationTracker.ts:147`) es API pública de calc engine sin UI
-  consumer → 🏚️ DEFER hasta `<VendorAccreditationPanel/>`.
-- **Evidencia:** `TODO.md §17 B11` (líneas 2052-2053); `SERVICES_TRIAGE.md`.
+- **visitors** (348 LOC): check-in/check-out (**transacción** `:202-216`)/
+  acknowledge-induction/list; `hostUid` del token (`:16-20`).
+- **vendorOnboarding** (301 LOC): evaluate-stage/missing-mandatory/build-client-
+  bundle/accreditation summarize+should-escalate (compute puro). `resolveObservation`
+  (`vendorAccreditationTracker.ts:147`) 🏚️ API sin UI consumer.
+- `consultativeSale`, `geofencePermissions` (decide-ux; nunca bloquea maquinaria).
 
 #### B12 — CPHS & Comités · ✅ REAL · 🔐
-
-- **Propósito:** Comité Paritario de Higiene y Seguridad: actas, estructura
-  orgánica, pulso de cultura, agenda, paquete de reunión, matriz RACI.
-- **Superficie:** routers `cphsMinute`, `organic`, `culturePulse`, `agenda`,
-  `meetingPack`, `raciMatrix` montados; páginas `ComiteParitario`, `CphsModule`,
-  `CphsDraftMinute`, `CulturePulse`.
-- **Estado:** ✅. Actas inmutables post-firma por reglas (H29 cerrado).
-- **Evidencia:** `TODO.md §17 B12` (líneas 2054-2055).
+Routers `cphsMinute`, `organic`, `culturePulse`, `agenda`, `meetingPack`,
+`raciMatrix`. Actas inmutables post-firma (`cphs_meetings` signed-records
+append-only). Páginas ComiteParitario/CphsModule/CphsDraftMinute/CulturePulse.
 
 #### B13 — Gestión del cambio (MOC) & Operaciones críticas · ✅ REAL
-
-- **Propósito:** management of change (ISO 45001 §8.1.3), entrega de turno,
-  cambio organizacional, conmutación, continuidad operacional, roles críticos.
-- **Superficie:** routers `operationalChange`, `shiftHandover`, `changeMgmt`,
-  `commute`, `continuity`, `criticalRoles` montados (cierra el gap de PR #606).
-- **Estado:** ✅ sin huérfanos.
-- **Evidencia:** `TODO.md §17 B13` (líneas 2056-2058).
+Routers `operationalChange`, `shiftHandover`, `changeMgmt`, `commute`,
+`continuity`, `criticalRoles` (cierra gap PR #606). ISO 45001 §8.1.3.
 
 ### 🤖 Tanda D — Inteligencia y negocio
 
-#### B14 — IA / Gemini / SLM & Copilots · ✅ REAL · 🔐
+#### B14 — IA / Gemini / SLM & Copilots · ✅ REAL · 🔐  (bloque más grande, 107 archivos)
 
-- **Propósito:** asistencia IA: acciones Gemini whitelisted, SLM offline,
-  guardrails, calidad, explicabilidad, coach con RAG, feedback, modo
-  investigación. Es el bloque más grande por archivos (107).
-- **Superficie:** routers `gemini`, `aiToggle`, `aiGuardrails`, `aiQuality`,
-  `explainability`, `coachRag`, `aiFeedback`, `researchMode` montados; route-group
-  `AIRoutes.tsx`; servicios `services/gemini/*` (26, post-split), `services/slm/*`
-  (50), `services/ai/*` (22), `services/aiGuardrails/*` (11).
-- **Estado:** ✅. Whitelist `ALLOWED_GEMINI_ACTIONS` presente (Regla #5);
-  **88 actions mapeadas 1:1** entre whitelist y exports (sin huérfanos en ninguna
-  dirección, `SERVICES_TRIAGE.md`). Los 3 `503` son **circuit-breaker**
-  (`gemini_circuit_open`), no stubs.
-- **Vida/Privacidad:** 🔐 (los prompts no deben tener forma diagnóstica — ADR
-  0012; SLM offline mantiene datos en dispositivo).
-- **Evidencia:** `TODO.md §17 B14` (líneas 2059-2062).
+- **`/api/gemini`** (`gemini.ts`, 595 LOC): allowlist **`ALLOWED_GEMINI_ACTIONS`
+  ≈ 84 acciones** (`:119-204`), RPC con gate (`:398`); `/api/ask-guardian` (RAG +
+  streaming), `/api/gemini/stream` (SSE para AsesorChat). **Circuit breaker**
+  (closed→open a 5 fallos/60s→half-open a 300s; los 3 `503` son
+  `gemini_circuit_open`, no stubs). **Gobernanza** `gemini/governance.ts`:
+  `assertGeminiAllowed` (`:39-59`), `estimateGeminiCostUsd` (`:82-95`),
+  `recordGeminiOutcome` (`:109-132`); cuota diaria por tenant + tier.
+- **aiFeedback** (`aiFeedback.ts`): **replay protection** (Sprint 33, flag `force`
+  + `runTransaction`, 409 conflict, `:194-234`) + **redacción PII** (RUT/email/
+  teléfono) + TTL 7 días. *(Corrige el P0 de mayo "sin replay protection".)*
+- **SLM offline:** 28 archivos `services/slm/*` (TinyLlama/Qwen/Gemma + transformers).
+  Regla de decisión (`useSlmOffline`): `forceSlm`→SLM; offline→SLM; si online,
+  intenta cloud y cae a SLM. **Consumers:** `Evacuation.tsx` ✅; `AsesorChat`,
+  `Driving`, `InhospitableGuide` 🟡 TODO (deuda de fallback offline).
+- Montados: `aiToggle`, `aiGuardrails`, `aiQuality`, `explainability`, `coachRag`,
+  `researchMode`.
 
 #### B15 — Facturación, Suscripciones & Tier-gating · ✅ REAL · 🔐
 
-- **Propósito:** cobros (Webpay, MercadoPago, Khipu, Google Play/Apple IAP),
-  suscripciones, tier-gating server-side, costo de prevención.
-- **Superficie:** routers `billing (×2: /api/billing + /billing Webpay)`,
-  `subscription`, `dte` montados; `preventionCost` montado tras barrido (B15-F1);
-  servicios `services/billing/*` (27), `services/pricing/*` (12); contexto
-  `SubscriptionContext`.
-- **Estado:** ✅. **Tier-gating server-side presente** (Regla #11): checks
-  `RANK_`/`subscription.planId` en `subscription.ts`, `billing.ts`,
-  `onboarding.ts` (el gating frontend es solo UX).
-- **Vida/Privacidad:** 🔐 (datos de pago; webhooks firmados con audit replays).
-- **Adaptadores parciales:** LibreDTE/OpenFactura/SimpleAPI con `SiiNotImplemented`
-  (🔵 stub honesto, plan K1); MercadoPago/Webpay TODOs (K10/F13).
-- **Evidencia:** `TODO.md §17 B15` (líneas 2068-2080); `SERVICES_TRIAGE.md`.
+- **`billing.ts`** (1.800+ LOC, mount `/api/billing` + `/billing`): adapters
+  `webpay`, `Khipu`, `mercadoPago` (IPN HMAC SHA-256), Google Play RTDN, Apple SSN.
+  **Stripe removido** (`:93` §2.12, 2026-05-21 — *corrige el hallazgo de mayo
+  "Stripe aún enrutado"*).
+- **Normalización de planId** (`subscriptionPlan.ts`, 61 LOC):
+  `normalizeSubscriptionPlanId` mapea canonical↔legacy (`:49-53`) — *corrige el P0
+  de mayo "planId canónico que el frontend no entiende"*. Planes: free/comite/
+  departamento/plata/oro/titanio/platino/empresarial/corporativo/ilimitado.
+- **Tier-gating server-side** (Regla #11): `RANK_`/`subscription.planId` en
+  subscription.ts/billing.ts/onboarding.ts (frontend = solo UX).
+- `preventionCost` cableado (B15-F1).
 
 #### B18 — Analítica / Reportes / Dashboards / KPIs · ✅ REAL
-
-- **Propósito:** agregación de telemetría, métricas organizacionales, confianza
-  de datos, historia portable, desempeño de seguridad, comparador de proyectos,
-  alertas predictivas, automatización de reportes.
-- **Superficie:** routers `aggregateTelemetry`, `orgMetrics`, `dataConfidence`,
-  `portableHistory`, `safetyPerformance`, `explainability` montados;
-  `reportsAutomation`, `safetyMetrics`, `projectComparator`, `predictiveAlerts`
-  montados tras barrido (B18-F1, este último consumido por
-  `AlertSchedulerMount.tsx`); servicios `services/analytics/*` (10).
-- **Estado:** ✅.
-- **Evidencia:** `TODO.md §17 B18` (líneas 2118-2133).
+- **aggregateTelemetry** (178 LOC): `/telemetry/aggregate?window=` + `/tenants/:tid/
+  telemetry/rollup`; **nunca retorna PII** (`assertNoPII` como defensa final).
+- **dataConfidence** (614 LOC): snapshot de calidad de datos, dismiss (roles admin/
+  gerente/prevention_lead), recommendations; validación anti-inyección de `issueId`
+  (`:476-479`).
+- **reportsAutomation** (179): validate/render/check-due (compute puro).
+- **projectComparator** (98): compare 2-10 snapshots (**nunca recomienda decisión**).
+- `safetyMetrics`, `safetyPerformance`, `orgMetrics`, `portableHistory`,
+  `predictiveAlerts` (consumido por `AlertSchedulerMount.tsx`) — cableados (B18-F1).
 
 ### 🧱 Tanda E — Infraestructura / plataforma
 
-- **I-PLAT (72):** PWA/offline, Capacitor 8 (`android/` 53, `ios/`), mesh
-  (`packages/capacitor-mesh/` 13), workers, fastlane. **Bloqueos conocidos:**
-  plugins nativos HealthConnect/HealthKit y signing pendientes de keystore/cuentas
-  (🔑). `allowBackup="false"` por defecto (Regla #17). Mesh: engine puro listo,
-  consumer en `src/` históricamente débil (drift vs ADR 0013).
-- **I-CORE (53):** contextos (18 incl. `EmergencyContext`, `FirebaseContext`,
-  `ProjectContext`, `SubscriptionContext`, `SensorContext`), stores Zustand
-  (migrando vía `createProjectScopedStore`), `lib/`, `utils/`, `types/`.
-- **I-I18N (18):** es-CL (referencia) + en + pt-BR a paridad de claves (Regla #18,
-  gate `validate-i18n.cjs`); locales lazy (fr/de/it/ja/zh/ar/ko/hi/ru) fuera de
-  scope por diseño (fallback chain).
-- **I-DATA (18):** corpus normativo BCN + ISO + NCh (fuente RAG).
-- **I-BUILD (131):** configs raíz, `scripts/` (55), CI `.github/` (15), husky,
-  Docker, `firestore.rules`/`storage.rules`, infra Cloud Run.
-- **I-TEST (1.246):** Vitest 4 (node default; jsdom por archivo), suites server
-  con supertest (33+), rules-tests (emulador), Playwright E2E, smoke, mutation
-  (Stryker sobre calc engines), loadtest. **Nota:** `firestore.test.rules` son
-  reglas TEST-ONLY abiertas (ver hallazgo §6).
-- **I-DOCS (184) / I-ASSETS (77):** runbooks, ADRs, auditorías, sprints;
-  `public/.well-known` (PGP, AASA, assetlinks), `index.html`, marketplace.
+- **I-PLAT (72):** Capacitor 8 (`android/` 53 archivos, `ios/`), mesh nativo
+  **STUB** (web simulator OK), workers, fastlane. `allowBackup="false"`
+  (`AndroidManifest.xml`, Regla #17 ✅). `assetlinks.json` con fingerprint real
+  ✅; **`apple-app-site-association` con placeholder `TEAMID`** ⚠️ (rompe iOS app
+  links en prod).
+- **I-CORE (53):** 18 contextos (Emergency, Firebase, Project, Subscription,
+  Sensor, SystemEngine…), stores Zustand (migrando vía `createProjectScopedStore`).
+  **🔴 SystemEngineProvider bloqueado:** falta fuente client-side de `tenantId`
+  (`docs/stubs-inventory.md`) → no se monta sin 500.
+- **I-I18N (18):** 16 locales; es-CL+en+pt-BR a paridad (Regla #18, gate
+  `validate-i18n.cjs`); resto lazy.
+- **I-DATA (18):** corpus normativo BCN+ISO+NCh (RAG).
+- **I-BUILD (131):** `scripts/` (55), CI `.github/` (15), husky, 5 Dockerfiles
+  (app + loadtest + dwg/usdz/photogrammetry workers), `firestore.rules`. **KMS
+  preflight** `src/server/kmsPreflight.ts:27-32` exige `cloud-kms` en producción
+  (*corrige el P0 de mayo "KMS dev en prod"*).
+- **I-TEST (1.246):** Vitest 4 (excluye rules-tests del default, `vitest.config.ts:55-61`),
+  supertest (153 archivos server), rules-tests (emulador), Playwright, Stryker
+  **required en CI** (`mutation.yml`, ya **sin** `continue-on-error` — *corrige el
+  P0 "gating engañoso"*). `firestore.test.rules` = reglas TEST-ONLY abiertas.
 
 ---
 
-## 6. Reconciliación con TODO.md
+## 6. Deuda silenciosa transversal (métricas verificadas)
 
-> Comparación informe ↔ lo que `TODO.md` dice que se desea hacer. Conclusión
-> central: **no hubo descarte masivo por miss-concept**; la mayoría de lo que
-> figuraba "pendiente" ya se construyó. El límite real es el techo de secrets/
-> cuentas (§ provisioning), no código faltante.
+> "Potencia construida sin consumir" + métricas de calidad. Números **verificados
+> por grep directo hoy** (algunos corrigen a los barridos).
 
-### 6.1 Estado global según `TODO.md` y honest-state
+### 6.1 Huérfanos / sub-consumidos
 
-- `TODO.md §17.99` (cierre 2026-06-01): **los 18 bloques auditados de primera
-  mano**; **20 routers huérfanos** encontrados y **los 20 cableados** con TDD
-  (B1:4, B2:2, B4:2, B5:1, B10:3, B15:1, B16:1, B17:2, B18:4). Bloques sin
-  huérfanos: B3, B6, B7, B8, B9, B11, B12, B13, B14. **Ningún bug de wiring
-  abierto.**
-- Baseline de runtime verificado (`TODO.md §17`): `npm ci` ✅, `typecheck` **0
-  errores**, `build` ✅ (2m03s), `lint` ✅. (El flake §2.31 open-handle afecta
-  ~30-40% de runs de `npm run test`.)
-- `PRAEVENTIO_HONEST_STATE_2026-05-05.md`: promedio ponderado E2E ~62% (cifra de
-  mayo, anterior al cierre de huérfanos de junio). Dominios fuertes: Auth/RBAC
-  95%, Emergencia 90%, PWA 90%, Billing 85%, HealthVault 80%. Dominios débiles
-  por secret/cuenta: native plugins 30%, mobile pipeline 30%, mesh 35%.
+- **Servicios `*Backend.ts`:** ~20 archivos; varios **sin consumer de producción**
+  (solo self + tests): chemicalBackend, comiteBackend, eppBackend, inventoryBackend,
+  legalBackend, medicineBackend, medicalAnalysisBackend, psychosocialBackend,
+  shiftBackend, susesoBackend, trainingBackend, predictionBackend. *(Down de "16+"
+  en mayo. Matiz: tienen 2-3 archivos que los referencian — self/test/barrel — no
+  "cero"; requieren confirmación caso a caso antes de borrar.)*
+- **Stacks:** `services/iot/` (12 archivos, ~2 importers externos → casi huérfano),
+  `services/mesh/` (12, ~10), `services/ml/` (vertexTrainer = stub intencional,
+  `stubs-inventory.md:13-19`).
+- **Bernoulli/Euler — YA NO huérfanos:** `CalculatorHub.tsx:32-45` **monta los 12
+  generadores** + 3 paneles de ingeniería (desde Sprint 29). `physics/bernoulliEngine`
+  importado por ~26 archivos. *(Corrige el hallazgo de mayo "12 generadores sin UI".)*
+- **Componentes huérfanos:** ~24 listados en `COMPONENTS_TRIAGE.md` (Ds67Modal,
+  PymeMaturityWizard, HazmatCompatibilityPanel, SpofPanel, NonConformityListPanel,
+  PreventiveObjectivesPanel…) — 🏚️ backend listo, falta página contenedora.
+- **Hooks sin consumer UI:** ~71 en `HOOKS_TRIAGE.md` (useAuditChain, useBowtie,
+  useChangeMgmt, useContractors, useCriticalControls, useConfidentialReports…).
 
-### 6.2 Tabla de veredictos (síntesis de §8/§9/§16 + triages)
+### 6.2 Métricas de calidad (conteos de hoy)
 
-| Veredicto | Ítems (ejemplos verificados) |
-|---|---|
-| ✅ Construido (figuraba "pendiente") | gemini split (`src/services/gemini/*`, 26 archivos), 88 Gemini actions 1:1, SLM offline (`services/slm/*`, 50), MediaPipe local, conflict_queue, safeNormativeQuery, OpenAPI, Bernoulli en paneles, los 20 routers huérfanos cableados |
-| 🧱 Pendiente real | MaestrIA foto→hallazgo (`TODO.md §16.1.3`), ARIA 5 agentes (§16.1.4), MCP internos gp-* (§16.1.5), 3 GET dashboard de riskRanking (B2-D1) |
-| 🏚️ Sin hogar de frontend | `useShiftRiskPanel` (B2-D2), `resolveObservation`/`VendorAccreditationPanel`, ~24 componentes en `COMPONENTS_TRIAGE.md` (Ds67Modal, PymeMaturityWizard, HazmatCompatibilityPanel, SpofPanel, NonConformityListPanel…), ~71 hooks en `HOOKS_TRIAGE.md` (useAuditChain, useBowtie, useChangeMgmt, useContractors, useCriticalControls…) |
-| 🔵 Stub honesto / 🔑 key-blocked | adaptadores SII (LibreDTE/OpenFactura/SimpleAPI), Stripe (no instalado), Khipu (cuenta), `qrAck 503`, gemini circuit-breaker, native plugins (keystore/cuentas) |
-| ⚠️ Posible descarte a confirmar | `useBinanceIntegration.ts` eliminado del árbol (§9 "descartado por usuario", sin commit-directiva citado) — **confirmar antes de dar por cerrado** |
-| ❓ Decisión del usuario | dónde vive la vista de `shiftRiskPanel`; workshop 512 nodos, Wake Word, Pinecone, Marketplace, tier "Global", MQTT broker IoT, WebXR `immersive-ar` real |
-| 🗑️ Descarte legítimo (documentado) | Stripe pre-flight, Vertex SDK directo, scraping-SUSESO, ODA File Converter (→ LibreDWG) |
+| Métrica | Valor | Nota |
+|---|---|---|
+| `: any` + `as any` (todo `src`, incl. tests/anotaciones) | **1.461** en 402 archivos | métrica gobernada distinta ↓ |
+| `as any` producción (ratchet) | **160** | baseline `any-ratchet-baseline.json`, gate CI lo congela |
+| TODO/FIXME en `src` | **191** | dispersos, sin concentración en SOS/emergencia |
+| `@ts-ignore`/`@ts-expect-error` | **47** en 23 archivos | aceptable en código browser/React |
+| `console.*` en `src/server` (no-test) | **20 en 13 archivos** | 🔴 **deuda viva** (ver abajo) |
+| `Sentry.captureException` en `src/server` | 30 en 16 archivos | conviven con console.* |
+| `Math.random` en `src/server` | **0** (solo en un `.test.ts`) | Regla #15 ✅ |
+| Tests `skip/fixme` en `src` | **2** | (antes varios críticos) |
+| Rutas server / tests server | 191 / 153 (~78%) | buena cobertura |
+| Páginas con `useTranslation` | **169/170** (solo `Onboarding.tsx` no) | *corrige "107/110 hardcoded" de mayo* |
 
-### 6.3 Hallazgos abiertos que el informe registra (no resuelve en esta fase)
+**🔴 `console.*` en server (deuda viva, P2):** 13 archivos siguen usando
+`console.error/warn/log` en vez de Sentry — exactamente los que mayo marcó P0 +
+algunos: `verifyAuth.ts`, `billing.ts`, `dte.ts`, `gemini.ts`, `healthVault.ts`,
+`misc.ts`, `oauthGoogle.ts`, `projects.ts`, `reports.ts`,
+`triggers/backgroundTriggers.ts`, `triggers/healthCheck.ts`,
+`firestoreRateLimitStore.ts`, `firestoreSessionStore.ts`. En prod = fallos
+silenciosos sin captura.
 
-1. **🔴 14 stores client-SDK sin reglas de write en prod (B17/transversal).**
-   `firebase.json` despliega `firestore.rules`; el master-gate
-   `match /{subCollection=**}/{docId}` (`firestore.rules:258`) da **solo read** a
-   project-members. Las 14 colecciones Sprint-K creadas con
-   `createProjectScopedStore` (CLIENT SDK `setDoc`/`updateDoc`) **no tienen regla
-   de write** → default-deny **bloquea los writes en producción**. Enmascarado por
-   `firestore.test.rules` (TEST-ONLY open). Colecciones: `stoppages`, `site_book`,
-   `site_book_entries`, `legal_obligations`, `operational_changes`, `root_causes`,
-   `lone_worker_events`, `lone_worker_sessions`, `exceptions`, `shifts`,
-   `audit_portals`, `safety_talks_given`, `documents_for_read`, `sample_live`
-   (test-only). **Fix en progreso** (`TODO.md §17`, líneas 1714-1761): reglas de
-   write conservadoras para las 13 reales + rules-tests parametrizados +
-   `security_spec.md`; verificación vía CI (emulador no corre en este entorno).
-   **Requiere revisión del usuario** de los modelos de acceso marcados inline
-   (especialmente `exceptions`/`legal_obligations`/`shifts` sin campo creator-uid
-   confirmado, e inmutabilidad de paralización). **Toca cumplimiento (Regla #4) y
-   afecta vida (lone_worker) → P1.**
-2. **🔴 B4-D1 — `stoppages` sin regla (subconjunto del #1).** Persistencia de
-   paralización bloqueada; requiere decisión de modelo de acceso antes de escribir
-   reglas. **🛟 (paralización de faena es seguridad de vida) → P1.**
-3. **5 reglas firestore con bugs reales (threads Codex #650):** lone-worker sin
-   ownership, libro de obras firmado editable, `site_book_counters` faltante,
-   `documents_for_read`/`audit_portals` desalineados. (7 threads de authz ya
-   fijos por #651/#652.) **🛟🔐 → P1.**
-4. **B3-D1 — PLAESI** en doc pero ausente en código → ⚠️ resolver doc-vs-code.
-5. **B2-D1 — 3 endpoints GET** de riskRanking inexistentes (feature-work).
+### 6.3 Observabilidad
 
-### 6.4 Correcciones a docs previas (código = verdad)
+- **Sentry** inicializado en `src/lib/sentry.ts` + `server.ts` + `main.tsx`.
+- **OTel** opcional: `services/observability/tracing.ts` (`tracedAsync`/`tracedSync`),
+  usado en ~12 archivos server (30 invocaciones); fallback graceful sin SDK.
+- **Logging estructurado (pino/winston): inexistente** — todo `console.*`/Sentry.
+- **Noops registrados** (`stubs-inventory.md`): CloudErrorReporting (3 métodos),
+  Metrics adapter (6 métodos) — pendientes de migración GCP/OTel real.
 
-- `incidentFlow` audita a **root `audit_logs`** (`incidentFlow.ts:115`), no a path
-  tenant-scoped como decía el audit L795 → **STALE corregido**.
-- Veredicto inicial B1 "Headcount ✅" era parcial → faltaba el CRUD persistente
-  (resuelto en B1-F2).
-- `PRAEVENTIO_HONEST_STATE` (mayo) reporta E2E ~62%; el cierre de huérfanos de
-  junio (`§17.99`) sube el wiring real de varios dominios — la cifra de mayo está
-  desactualizada al alza de junio.
+### 6.4 Móvil / nativo
+
+- `allowBackup="false"` ✅; `assetlinks.json` real ✅; **AASA con `TEAMID`
+  placeholder ⚠️** (bloquea iOS Universal Links en prod).
+- Plugin mesh nativo = STUB (web simulator funcional).
+- KMS preflight gateado ✅. 5 Dockerfiles (app + 4 workers).
 
 ---
 
-## 7. Planificación — orden por criticidad (vida/privacidad primero)
+## 7. Matriz de promesas vs realidad (actualizada a hoy)
 
-> Backlog priorizado para las **fases posteriores** (no se ejecuta en esta fase).
-> Orden: primero lo que protege la vida y la privacidad.
+> Compara claims históricos contra el código de hoy. **Varios P0/P1 de mayo están
+> corregidos** — el barrido de junio cerró la mayor parte de la brecha.
 
-### P0/P1 — Vida y privacidad (cerrar primero)
-
-1. **Reglas de write de las 14 colecciones client-SDK** (§6.3#1) — incluye
-   `lone_worker_*` (🛟) y cumplimiento (🔐). Requiere visto bueno del usuario a los
-   modelos de acceso inline. **Verificar por CI (emulador).**
-2. **Modelo de acceso + reglas de `stoppages`** (§6.3#2, B4-D1) — 🛟 paralización.
-3. **5 reglas firestore con bugs reales** (§6.3#3) — libro de obras firmado
-   inmutable, lone-worker ownership, `site_book_counters`. 🛟🔐
-4. **B1-D2/D3** — verificar lone-worker nativo (FGS Android) y reconciliar specs
-   E2E de SOS (hoy `describe.fixme`). 🛟
-
-### P2 — Operación y completitud funcional
-
-5. **Sin-hogar de frontend (🏚️):** dar página/menú a los componentes y hooks
-   listos (COMPONENTS_TRIAGE: ~24; HOOKS_TRIAGE: ~71). Priorizar críticos:
-   Ds67Modal (DIAT mutual), NonConformityListPanel (ISO 45001 §10.2),
-   useConfidentialReports (Ley 21.643), useAuditChain. **Decidir caso a caso** con
-   el usuario (incl. ❓ `useShiftRiskPanel`).
-6. **B2-D1** — 3 endpoints GET de riskRanking (timeseries/top-risks/weak-controls).
-7. **B3-D1** — resolver PLAESI (implementar o quitar de doc).
-
-### P3 — Inteligencia, negocio e infraestructura
-
-8. Adaptadores SII reales (LibreDTE/OpenFactura/SimpleAPI), MercadoPago/Webpay
-   TODOs (K-series).
-9. Plugins nativos HealthConnect/HealthKit + pipeline de signing (🔑 bloqueado por
-   keystore/cuentas — input del usuario).
-10. Features mencionadas-no-implementadas (honest-state §"de lado"): MQTT broker
-    IoT, WebXR `immersive-ar`, CalculatorHub Bernoulli, RAG NL incidentes,
-    Gamification×salud, Coach IA por dominio. **❓ confirmar prioridad con el
-    usuario.**
-
-### Confirmaciones pendientes (no asumir)
-
-- ⚠️ `useBinanceIntegration` — confirmar que el descarte fue intencional.
-- ❓ Decisiones de producto sobre features grandes (§6.2) antes de invertir.
+| Promesa / hallazgo de mayo | Estado HOY | Evidencia |
+|---|---|---|
+| "Stripe aún enrutado pese a descarte" | ✅ **Corregido** | `billing.ts:93` Stripe removido §2.12 |
+| "KMS dev permitido en producción" | ✅ **Corregido** | `kmsPreflight.ts:27-32` exige cloud-kms |
+| "planId canónico que frontend no entiende" | ✅ **Corregido** | `subscriptionPlan.ts:49-53` normaliza |
+| "aiFeedback sin replay protection" | ✅ **Corregido** | `aiFeedback.ts:194-234` runTransaction+409 |
+| "e2e-full-stack continue-on-error (vida no bloquea merge)" | ✅ **Corregido** | solo queda en comentario de `mutation.yml` |
+| "Stryker no en CI" | ✅ **Corregido** | `mutation.yml` required, sin continue-on-error |
+| "107/110 páginas hardcoded (bloqueador global)" | ✅ **Muy mejorado** | 169/170 usan `useTranslation` |
+| "12 generadores Bernoulli sin UI" | ✅ **Corregido** | `CalculatorHub.tsx:32-45` los monta |
+| "14 stores client-SDK sin reglas de write" | ✅ **Corregido (esta rama)** | `firestore.rules:366-477` |
+| "incidentFlow audita a path tenant-scoped" | ✅ **STALE corregido** | `incidentFlow.ts:115` root audit_logs |
+| "WebAuthn cae a legacy consume-only verified:true" | 🟡 **Parcial** | register/verify en curriculum.ts; eppFlow `:22` TODO revalidación server-side |
+| "DTE autoemisión no cableada / push a SII" | 🔵 **Por diseño** | nunca push directo; PSE; adapters stub (K1) |
+| "SUSESO cliente en browser (secreto)" | ✅ **Mitigado** | `susesoApiClient.ts:1-10` server-only, `fromEnv` null |
+| "Mesh BLE real" | 🔴 **No (stub nativo)** | web simulator OK; Kotlin/Swift fake |
+| "Zettelkasten 3 fuentes (no canonical)" | 🟡 **Deuda viva** | materializer behind flag (`SERVICES_TRIAGE.md`) |
+| "A* evacuación real" | ❓ **Verificar** | evacuation usa Haversine + grid; confirmar si A* real |
+| "console.error en server en vez de Sentry" | 🔴 **Aún presente** | 20 en 13 archivos |
+| "SystemEngineProvider huérfano" | 🔴 **Bloqueado** | falta `tenantId` client-side |
+| "Apple AASA placeholder" | ⚠️ **Pendiente** | `TEAMID` literal |
 
 ---
 
-## 8. Apéndices
+## 8. Hallazgos abiertos y correcciones a docs previas
 
-### 8.1 Reproducir el gate de totalidad
+**Hallazgos abiertos (registrados, no resueltos esta fase):**
+1. **🔴 5 reglas firestore con bugs reales** (threads Codex #650): lone-worker
+   ownership, libro de obras firmado editable, `site_book_counters`,
+   `documents_for_read`/`audit_portals`. 🛟🔐 **P1**.
+2. **❓ Modelos laxos** `exceptions`/`legal_obligations`/`shifts` (sin creator-uid
+   anti-spoof, `firestore.rules:466-477`) — tu revisión.
+3. **🔴 B5-D1 SUSESO fire-and-forget** (sin lectura de estado/receipt) — riesgo de
+   cumplimiento. 🔐
+4. **🔴 console.* en 13 archivos server** (fallos silenciosos) — P2.
+5. **🔴 SystemEngineProvider bloqueado** por `tenantId` client-side.
+6. **⚠️ AASA `TEAMID`** placeholder (iOS links).
+7. **🟡 eppFlow WebAuthn** sin revalidación server-side de firma (`:22`).
+8. **B3-D1 PLAESI** doc-vs-code; **B2-D1** 3 GET de riskRanking; **B2-D2/❓**
+   `useShiftRiskPanel` sin hogar.
+9. **⚠️ `useBinanceIntegration`** eliminado (§9 TODO "descartado por usuario", sin
+   commit citado) — confirmar.
 
-```bash
-node scripts/audit-coverage-census.cjs            # resumen + gate (exit≠0 si sin-mapear>0)
-node scripts/audit-coverage-census.cjs --unmapped # lista de no mapeados (debe ser vacía)
-node scripts/audit-coverage-census.cjs --blocks   # tally por bloque (apoyo)
-node scripts/audit-coverage-census.cjs --json     # salida máquina
-```
+**Correcciones a docs (código = verdad):** incidentFlow root audit_logs (no
+tenant-scoped); B1 "Headcount" parcial→B1-F2; 14 colecciones **ya con reglas** (no
+"en progreso"); i18n 169/170 (no 107/110); Bernoulli montado; Stripe/KMS/replay/
+gating/normalización **corregidos** desde mayo. La cifra E2E ~62% (mayo) quedó baja.
 
-Salida actual: `total 3545 · UNMAPPED 0 (gate PASS)`.
+---
 
-### 8.2 Glosario de veredictos
+## 9. Oportunidades cross-cutting (alta palanca)
 
-Ver leyenda en §3. Marcadores transversales: 🛟 vida · 🔐 privacidad/PII/biometría.
+Features que conectan 2-5 módulos **ya existentes** (bajo esfuerzo, alto impacto):
 
-### 8.3 Fuentes primarias del informe
+1. **SOS auto-relay con XP** — `mesh/meshRelayQueue` + `gamification/positiveXp` +
+   `emergency`. (S, alto, narrativa de marca; el hook `onRelaySuccess` ya existe.)
+2. **REBA/RULA → folio SUSESO** — `ergonomics` + `safety/ergonomicAssessments` +
+   `suseso/folioGenerator`. (S, demo legal tangible.)
+3. **Dar hogar a los ~24 componentes + ~71 hooks 🏚️** (Ds67Modal/DIAT,
+   NonConformityListPanel/ISO 45001 §10.2, useConfidentialReports/Ley 21.643,
+   useAuditChain). (M, desbloquea inversión hecha.)
+4. **SLM offline en Driving/Emergency/AsesorChat** (hoy solo Evacuation lo usa) —
+   asesor sin red. (M, vida.)
+5. **MQTT IoT → Bernoulli → alerta predictiva + folio** — desbloquea el stack
+   `iot/` casi huérfano. (M.)
+6. **Zettelkasten canonical** (materializer behind flag) → curriculum/RAG. (M.)
 
-- `TODO.md §17` (auditoría B1→B18 de primera mano, 2026-06-01) y `§17.99` (cierre).
-- `docs/audits/SERVICES_TRIAGE.md`, `COMPONENTS_TRIAGE.md`, `HOOKS_TRIAGE.md`.
-- `docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`.
-- `firestore.rules`, `server.ts`, y el árbol completo `git ls-files` (3.545).
+---
 
-### 8.4 Índice de bloques
+## 10. Planificación por criticidad (vida/privacidad primero)
 
-B1 Emergencia · B2 Riesgo/IPER · B3 Ergonomía/Protocolos · B4 Incidentes ·
-B5 Cumplimiento/SUSESO · B6 Capacitación · B7 Salud ocupacional · B8 Permisos/LOTO ·
-B9 Inspecciones · B10 EPP/Activos · B11 Contratistas/Visitas · B12 CPHS/Comités ·
-B13 MOC/Ops-críticas · B14 IA/Gemini/SLM · B15 Facturación/Tier · B16 Offline/PWA ·
-B17 Admin/Multi-tenant/Auth · B18 Analítica/Reportes. Infra: I-PLAT, I-CORE,
-I-I18N, I-DATA, I-BUILD, I-TEST, I-DOCS, I-ASSETS.
+**P0/P1 — Vida y privacidad:**
+1. **Verificar por emulador/CI** las reglas de las 14 colecciones (ya escritas) +
+   **revisar contigo** los modelos laxos (`exceptions`/`legal_obligations`/`shifts`).
+2. **5 reglas firestore con bugs reales** (#650): libro de obras firmado inmutable,
+   lone-worker ownership, `site_book_counters`. 🛟🔐
+3. **B5-D1 SUSESO**: añadir lectura de estado/receipt + retry (cumplimiento). 🔐
+4. **B1-D2/D3**: lone-worker nativo (FGS Android) + specs E2E de SOS. 🛟
+5. **SLM offline** en Driving/Emergency/InhospitableGuide. 🛟
+
+**P2 — Operación/completitud:**
+6. **Hogar para 🏚️** (~24 componentes + ~71 hooks) — caso a caso contigo.
+7. **console.* → Sentry** en los 13 archivos server.
+8. **eppFlow** revalidación server-side de WebAuthn.
+9. **B2-D1** 3 GET riskRanking; **B3-D1** PLAESI.
+
+**P3 — IA/negocio/infra:**
+10. Adapters SII reales (K1); **AASA Team ID** real (iOS); SystemEngineProvider
+    (`tenantId` client-side); Zettelkasten canonical; MQTT→Bernoulli; logging
+    estructurado/OTel spans; plugins nativos HealthConnect/HealthKit (🔑 cuentas).
+
+**Confirmaciones (no asumir):** ⚠️ `useBinanceIntegration`; ❓ A* real en
+evacuación; ❓ modelos laxos de rules; ❓ features grandes (MQTT, WebXR real, tier
+Global, Marketplace).
+
+---
+
+## 11. Apéndices
+
+**Reproducir el gate:** `node scripts/audit-coverage-census.cjs` (+ `--unmapped`,
+`--blocks`, `--json`). Salida: `total 3545 · UNMAPPED 0 (gate PASS)`.
+
+**Fuentes primarias:** `TODO.md §17`/`§17.99` (barrido B1→B18 de primera mano);
+`firestore.rules` (1.182 LOC); `server.ts`; barridos profundos verificados contra
+código; triages SERVICES/COMPONENTS/HOOKS; PRAEVENTIO_HONEST_STATE; AUDIT_TRUTH_
+MATRIX; AUDIT_2026-05-05_FULL; `docs/stubs-inventory.md`.
+
+**Glosario:** ver §3. **Marcadores:** 🛟 vida · 🔐 privacidad/PII/biometría.
+
+**Índice de bloques:** B1 Emergencia · B2 Riesgo/IPER · B3 Ergonomía · B4
+Incidentes · B5 Cumplimiento/SUSESO · B6 Capacitación · B7 Salud · B8 Permisos/
+LOTO · B9 Inspecciones · B10 EPP/Activos · B11 Contratistas · B12 CPHS · B13 MOC ·
+B14 IA/Gemini/SLM · B15 Facturación · B16 Offline/PWA · B17 Admin/Auth · B18
+Analítica. Infra: I-PLAT, I-CORE, I-I18N, I-DATA, I-BUILD, I-TEST, I-DOCS, I-ASSETS.
 
 ---
 
 *Informe doc-only. No modifica código de producto. Próximo paso sugerido: revisión
-por tandas (A→E) con el usuario, partiendo por vida/privacidad, antes de la Fase 3
-(deuda) y Fase 4 (incorporación de huérfanos).*
+por tandas (A→E), vida/privacidad primero, antes de Fase 3 (deuda) y Fase 4
+(incorporación de huérfanos).*
