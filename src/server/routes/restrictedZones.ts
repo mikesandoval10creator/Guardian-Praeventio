@@ -206,6 +206,45 @@ function newEventId(): string {
   return `zev_${Date.now()}_${randomUUID()}`;
 }
 
+// Elevated-role gate for MUTATING zone-definition handlers. Header comment
+// (endpoint catalogue, line ~18) documents `/define` as "admin/supervisor
+// define a zone"; `prevencionista` is the canonical prevention role for
+// safety controls and belongs in the same write tier. An ordinary project
+// member must NOT be able to create/overwrite zone safety rules for a whole
+// site. Mirrors the canonical pattern in `emergencyBrigade.ts`
+// (`callerCanWriteBrigade`). NOTE: `/entry-event` is intentionally NOT gated
+// here — the founder no-blocking directive requires that the worker
+// themselves (any member) records their own informed entry; that handler
+// keeps its own `workerUid === callerUid` self-declaration guard.
+const ZONE_WRITE_ROLES = new Set(['admin', 'prevencionista', 'supervisor']);
+
+function callerCanWriteZones(req: import('express').Request): boolean {
+  const u = req.user;
+  if (!u) return false;
+  if (u.admin === true) return true;
+  if (typeof u.role === 'string' && ZONE_WRITE_ROLES.has(u.role)) {
+    return true;
+  }
+  const tenants = (u as unknown as {
+    tenants?: Record<string, { role?: string }>;
+  }).tenants;
+  if (
+    tenants &&
+    typeof tenants === 'object' &&
+    typeof u.tenantId === 'string'
+  ) {
+    const t = tenants[u.tenantId];
+    if (
+      t &&
+      typeof t.role === 'string' &&
+      ZONE_WRITE_ROLES.has(t.role)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // 1. POST /api/zones/define — supervisor/admin define a zone
 // ────────────────────────────────────────────────────────────────────────
@@ -219,6 +258,9 @@ router.post(
     const callerUid = req.user!.uid;
     const body = req.validated as z.infer<typeof defineSchema>;
     if (!(await guard(callerUid, body.projectId, res))) return undefined;
+    if (!callerCanWriteZones(req)) {
+      return res.status(403).json({ error: 'forbidden_role' });
+    }
 
     const tenantId = await tenantIdFor(body.projectId);
     if (!tenantId) {

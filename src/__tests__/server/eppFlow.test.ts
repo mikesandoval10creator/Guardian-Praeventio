@@ -364,7 +364,8 @@ describe('POST /:projectId/epp-flow/inspection', () => {
     // Verify the pending order was registered (GET pending-orders should return it).
     const pending = await request(buildApp())
       .get(`/api/sprint-k/${PROJECT_ID}/epp-flow/pending-orders`)
-      .set('x-test-uid', MEMBER_UID);
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
     expect(pending.status).toBe(200);
     expect(pending.body.orders).toHaveLength(1);
     expect(pending.body.orders[0].orderId).toBe('oc-insp-001');
@@ -425,10 +426,19 @@ describe('GET /:projectId/epp-flow/pending-orders', () => {
     expect(res.body.error).toBe('forbidden');
   });
 
+  it('403 forbidden_role when caller is a member but lacks an elevated role', async () => {
+    const res = await request(buildApp())
+      .get(URL)
+      .set('x-test-uid', MEMBER_UID); // member, but no x-test-role
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_role');
+  });
+
   it('200 returns empty orders list when there are none', async () => {
     const res = await request(buildApp())
       .get(URL)
-      .set('x-test-uid', MEMBER_UID);
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
     expect(res.status).toBe(200);
     expect(res.body.orders).toEqual([]);
   });
@@ -465,7 +475,8 @@ describe('GET /:projectId/epp-flow/pending-orders', () => {
 
     const res = await request(buildApp())
       .get(URL)
-      .set('x-test-uid', MEMBER_UID);
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
     expect(res.status).toBe(200);
     expect(res.body.orders).toHaveLength(1);
     expect(res.body.orders[0].status).toBe('pending_signature');
@@ -536,11 +547,25 @@ describe('POST /:projectId/epp-flow/sign-order/:orderId', () => {
     expect(res.body.error).toBe('invalid_payload');
   });
 
+  it('403 forbidden_role when caller is a member but lacks an elevated role', async () => {
+    await seedPendingOrder();
+    // signerUid matches the caller, order exists & node matches — the ONLY
+    // reason this is rejected is the missing elevated role. Proves the role
+    // gate fires before the signerUid/order checks.
+    const res = await request(buildApp())
+      .post(SIGN_URL)
+      .set('x-test-uid', MEMBER_UID) // member, but no x-test-role
+      .send(signOrderBody(MEMBER_UID, 'fake-node-0'));
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_role');
+  });
+
   it('403 when signerUid does not match the authenticated caller', async () => {
     await seedPendingOrder();
     const res = await request(buildApp())
       .post(SIGN_URL)
       .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
       .send(signOrderBody('uid-impersonator')); // signerUid != MEMBER_UID
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('forbidden');
@@ -551,6 +576,7 @@ describe('POST /:projectId/epp-flow/sign-order/:orderId', () => {
     const res = await request(buildApp())
       .post(SIGN_URL)
       .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
       .send(signOrderBody(MEMBER_UID));
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('order_not_found');
@@ -562,6 +588,7 @@ describe('POST /:projectId/epp-flow/sign-order/:orderId', () => {
     const res = await request(buildApp())
       .post(SIGN_URL)
       .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
       .send(body);
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('suggestedNodeId_mismatch');
@@ -574,6 +601,7 @@ describe('POST /:projectId/epp-flow/sign-order/:orderId', () => {
     const res = await request(buildApp())
       .post(SIGN_URL)
       .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
       .send(body);
 
     expect(res.status).toBe(200);
@@ -586,7 +614,8 @@ describe('POST /:projectId/epp-flow/sign-order/:orderId', () => {
     // After signing, GET pending-orders should not return this order (it's signed).
     const pending = await request(buildApp())
       .get(`/api/sprint-k/${PROJECT_ID}/epp-flow/pending-orders`)
-      .set('x-test-uid', MEMBER_UID);
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
     expect(pending.status).toBe(200);
     expect(pending.body.orders).toHaveLength(0);
   });
@@ -635,6 +664,7 @@ describe('GET /:projectId/epp-flow/order-pdf/:orderId', () => {
     await request(buildApp())
       .post(`/api/sprint-k/${PROJECT_ID}/epp-flow/sign-order/${ORDER_ID}`)
       .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
       .send(signOrderBody(MEMBER_UID, 'fake-node-0'));
   }
 
@@ -659,10 +689,19 @@ describe('GET /:projectId/epp-flow/order-pdf/:orderId', () => {
     expect(res.body.error).toBe('forbidden');
   });
 
+  it('403 forbidden_role when caller is a member but lacks an elevated role', async () => {
+    const res = await request(buildApp())
+      .get(`${PDF_URL}?tenantId=${TENANT_ID}`)
+      .set('x-test-uid', MEMBER_UID); // member, but no x-test-role
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_role');
+  });
+
   it('404 when the order is not found', async () => {
     const res = await request(buildApp())
       .get(`${PDF_URL}?tenantId=${TENANT_ID}`)
-      .set('x-test-uid', MEMBER_UID);
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('order_not_found');
   });
@@ -698,7 +737,8 @@ describe('GET /:projectId/epp-flow/order-pdf/:orderId', () => {
 
     const res = await request(buildApp())
       .get(`${PDF_URL}?tenantId=${TENANT_ID}`)
-      .set('x-test-uid', MEMBER_UID);
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('order_not_signed');
   });
@@ -709,6 +749,7 @@ describe('GET /:projectId/epp-flow/order-pdf/:orderId', () => {
     const res = await request(buildApp())
       .get(`${PDF_URL}?tenantId=${TENANT_ID}`)
       .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
       .buffer(true)
       .parse((r, cb) => {
         const chunks: Buffer[] = [];

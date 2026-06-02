@@ -322,6 +322,24 @@ describe('POST /:projectId/legal-calendar/acknowledge', () => {
     expect(res.status).toBe(403);
   });
 
+  it('403 — cross-project IDOR: cannot acknowledge another project\'s obligation', async () => {
+    seedProject(); // caller IS a member of PROJECT_ID …
+    // … but the obligation with this id actually belongs to a DIFFERENT project.
+    seedObligation(baseObligation, 'other-project-xyz');
+    const res = await request(buildApp())
+      .post(url())
+      .set('x-test-uid', CALLER_UID)
+      .send({ obligation: baseObligation });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_cross_project');
+    // The other project's obligation must be untouched (no reassign / overwrite).
+    const stored = (
+      await H.db!.collection('legal_obligations').doc(baseObligation.id).get()
+    ).data() as Record<string, unknown>;
+    expect(stored.projectId).toBe('other-project-xyz');
+    expect(stored.lastAcknowledgedByUid).toBeUndefined();
+  });
+
   it('200 — returns obligation with rolled nextDueAt (monthly → +30 days)', async () => {
     seedProject();
     const res = await request(buildApp())

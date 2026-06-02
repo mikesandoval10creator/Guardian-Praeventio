@@ -24,6 +24,10 @@ import request from 'supertest';
 
 const H = vi.hoisted(() => ({
   db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
+  // §651-authz: `/define` now requires an elevated role. SUPERVISOR_UID is the
+  // privileged actor across this suite, so the verifyAuth mock defaults it to a
+  // `supervisor` role (tests can still override via the `x-test-role` header).
+  SUPERVISOR_UID: 'supervisor-1',
 }));
 
 vi.mock('firebase-admin', async () => {
@@ -42,6 +46,9 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
       uid,
       email: `${uid}@test.example`,
       tenantId: req.header('x-test-tenant') || undefined,
+      role:
+        req.header('x-test-role') ||
+        (uid === H.SUPERVISOR_UID ? 'supervisor' : undefined),
     };
     next();
   },
@@ -78,7 +85,7 @@ function buildApp() {
 const PROJECT_ID = 'proj-alpha';
 const TENANT_ID = 'tenant-1';
 const WORKER_UID = 'worker-1';
-const SUPERVISOR_UID = 'supervisor-1';
+const SUPERVISOR_UID = H.SUPERVISOR_UID;
 
 /** Minimal zone fixture — kind 'hot' requires 'caliente' permit. */
 const ZONE_HOT = {
@@ -161,6 +168,17 @@ describe('POST /api/zones/define', () => {
       .send({ projectId: PROJECT_ID, zone: ZONE_HOT });
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('forbidden');
+  });
+
+  it('403 forbidden_role when a project member lacks an elevated role', async () => {
+    // WORKER_UID is a project member (seedProject) but has no supervisor/admin
+    // role — defining restricted-zone safety rules is gated to elevated roles.
+    const res = await request(buildApp())
+      .post('/api/zones/define')
+      .set('x-test-uid', WORKER_UID)
+      .send({ projectId: PROJECT_ID, zone: ZONE_HOT });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_role');
   });
 
   it('400 when projectId is missing from body', async () => {

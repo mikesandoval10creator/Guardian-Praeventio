@@ -19,7 +19,11 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
     const uid = req.header('x-test-uid');
     if (!uid) return void res.status(401).json({ error: 'unauthorized' });
-    (req as Request & { user: Record<string, unknown> }).user = { uid };
+    (req as Request & { user: Record<string, unknown> }).user = {
+      uid,
+      role: req.header('x-test-role') || undefined,
+      tenantId: req.header('x-test-tenant') || undefined,
+    };
     next();
   },
 }));
@@ -177,9 +181,22 @@ describe('POST /api/evacuation/start', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/start')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send(validBody);
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('project_missing_tenant');
+  });
+
+  it('403 member without elevated role — forbidden_role', async () => {
+    // WORKER_UID is a project member but has no supervisor/coordinator role,
+    // so it must not be able to start a drill with an arbitrary roster.
+    seedProject(H.db!);
+    const res = await request(buildApp())
+      .post('/api/evacuation/start')
+      .set(asUser(WORKER_UID))
+      .send(validBody);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_role');
   });
 
   it('200 happy path — drill doc written to Firestore', async () => {
@@ -187,6 +204,7 @@ describe('POST /api/evacuation/start', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/start')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send({ ...validBody, id: DRILL_ID });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -204,6 +222,7 @@ describe('POST /api/evacuation/start', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/start')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send({ ...validBody, id: 'custom-drill-id-99' });
     expect(res.status).toBe(200);
     expect(res.body.drill.id).toBe('custom-drill-id-99');
@@ -215,6 +234,7 @@ describe('POST /api/evacuation/start', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/start')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send(validBody);
     expect(res.status).toBe(200);
     expect(typeof res.body.drill.id).toBe('string');
@@ -266,6 +286,7 @@ describe('POST /api/evacuation/scan-qr', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/scan-qr')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send(validBody);
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('project_missing_tenant');
@@ -277,6 +298,7 @@ describe('POST /api/evacuation/scan-qr', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/scan-qr')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send(validBody);
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('drill_not_found');
@@ -288,6 +310,7 @@ describe('POST /api/evacuation/scan-qr', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/scan-qr')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send(validBody);
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('drill_already_ended');
@@ -299,17 +322,21 @@ describe('POST /api/evacuation/scan-qr', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/scan-qr')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send({ ...validBody, workerUid: 'ghost-worker-uid' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('worker_not_in_drill');
   });
 
-  it('200 happy path — scan written + status returned', async () => {
+  it('200 happy path — supervisor scans another worker + status returned', async () => {
+    // MEMBER_UID (supervisor1) scans WORKER_UID — scanning SOMEONE ELSE, so
+    // an elevated role is required.
     seedProject(H.db!);
     seedDrill(H.db!);
     const res = await request(buildApp())
       .post('/api/evacuation/scan-qr')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send(validBody);
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -322,6 +349,38 @@ describe('POST /api/evacuation/scan-qr', () => {
     expect(scanDoc?.workerUid).toBe(WORKER_UID);
   });
 
+  it('403 forbidden_scan — member scans ANOTHER worker without elevated role', async () => {
+    // WORKER_UID (a plain member) tries to mark worker2 safe. No supervisor
+    // role → must be rejected so nobody can forge a clean headcount.
+    seedProject(H.db!);
+    seedDrill(H.db!);
+    const res = await request(buildApp())
+      .post('/api/evacuation/scan-qr')
+      .set(asUser(WORKER_UID))
+      .send({ ...validBody, workerUid: 'worker2' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_scan');
+    // No scan should have been written for the forged target.
+    expect(H.db!._store.has(`${SCANS_PATH}/worker2`)).toBe(false);
+  });
+
+  it('200 self-scan — worker marks THEMSELVES safe without any role', async () => {
+    // workerUid === callerUid → a worker checking in at the assembly point.
+    // This is the common path on the worker's own phone; no role needed.
+    seedProject(H.db!);
+    seedDrill(H.db!);
+    const res = await request(buildApp())
+      .post('/api/evacuation/scan-qr')
+      .set(asUser(WORKER_UID))
+      .send(validBody); // workerUid === WORKER_UID === caller
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    const scanDoc = H.db!._store.get(`${SCANS_PATH}/${WORKER_UID}`);
+    expect(scanDoc).toBeDefined();
+    expect(scanDoc?.scannedByUid).toBe(WORKER_UID);
+    expect(scanDoc?.workerUid).toBe(WORKER_UID);
+  });
+
   it('200 idempotent second scan returns same drill without error', async () => {
     seedProject(H.db!);
     seedDrill(H.db!);
@@ -329,6 +388,7 @@ describe('POST /api/evacuation/scan-qr', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/scan-qr')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send(validBody);
     expect(res.status).toBe(200);
   });
@@ -463,6 +523,7 @@ describe('POST /api/evacuation/end', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/end')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send(validBody);
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('project_missing_tenant');
@@ -473,9 +534,25 @@ describe('POST /api/evacuation/end', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/end')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send(validBody);
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('drill_not_found');
+  });
+
+  it('403 member without elevated role — forbidden_role', async () => {
+    // A plain project member must not be able to close an active drill.
+    seedProject(H.db!);
+    seedDrill(H.db!);
+    const res = await request(buildApp())
+      .post('/api/evacuation/end')
+      .set(asUser(WORKER_UID))
+      .send(validBody);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_role');
+    // Drill must remain open.
+    const stored = H.db!._store.get(`${DRILLS_PATH}/${DRILL_ID}`);
+    expect(stored?.endedAt).toBeFalsy();
   });
 
   it('200 idempotent — already-ended drill returns existing postmortem', async () => {
@@ -485,6 +562,7 @@ describe('POST /api/evacuation/end', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/end')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send(validBody);
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -500,6 +578,7 @@ describe('POST /api/evacuation/end', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/end')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send({ ...validBody, endedAt });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -525,6 +604,7 @@ describe('POST /api/evacuation/end', () => {
     const res = await request(buildApp())
       .post('/api/evacuation/end')
       .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
       .send({ ...validBody, endedAt: customEndedAt });
     expect(res.status).toBe(200);
     expect(res.body.drill.endedAt).toBe(customEndedAt);
