@@ -128,6 +128,34 @@ async function guard(
   return { tenantId };
 }
 
+// ── Role gate (mirror residualRisk.ts) ────────────────────────────────
+// Saving a cost-benefit scenario is a prevention-PLANNING action, not a
+// worker safety self-action — so it carries a role dimension on top of
+// project membership. The no-blocking directive protects a worker
+// recording their OWN safety action (check-in, inspection, stoppage
+// recommendation); a financial planning artifact is none of those, so
+// gating it to the planning roles is correct RBAC, not blocking. This
+// restores what the file header always intended ("mirror residualRisk.ts")
+// but originally dropped. Membership is still enforced first by guard().
+const COST_SCENARIO_AUTHOR_ROLES: ReadonlySet<string> = new Set([
+  'admin',
+  'gerente',
+  'prevencionista',
+]);
+
+function callerCanSaveCostScenario(
+  user: Express.PraeventioAuthUser,
+): boolean {
+  if (user.admin === true) return true;
+  const role = typeof user.role === 'string' ? user.role : null;
+  if (role && COST_SCENARIO_AUTHOR_ROLES.has(role)) return true;
+  const roles = Array.isArray(user.roles) ? user.roles : [];
+  for (const r of roles) {
+    if (typeof r === 'string' && COST_SCENARIO_AUTHOR_ROLES.has(r)) return true;
+  }
+  return false;
+}
+
 // ── Engine input schemas (mirror costCalculator.ts) ────────────────────
 
 const nonComplianceInputSchema = z.object({
@@ -296,6 +324,13 @@ router.post(
     const body = req.validated as z.infer<typeof saveScenarioSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
+    if (!callerCanSaveCostScenario(req.user!)) {
+      return res.status(403).json({
+        error: 'forbidden_role',
+        message:
+          'Guardar escenarios de costo requiere rol de prevención (admin, gerente o prevencionista).',
+      });
+    }
     try {
       const simulation = computeSimulation(body.input);
       const now = new Date().toISOString();
