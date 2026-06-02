@@ -83,5 +83,39 @@
 12. **MFA Bypass (If implemented)**:
 *Reason*: Access without valid MFA claims if required.
 
+## Sprint-K client-SDK stores — write rules (added 2026-06-01)
+
+These 13 `createProjectScopedStore` collections live under
+`projects/{projectId}/<coll>` and are written via the Firebase **client SDK**.
+They previously had no write rule (the `{subCollection=**}` master-gate is
+read-only), so client `save()` was default-denied in production — masked by the
+open `firestore.test.rules`. See `TODO.md §17 "HALLAZGO CRÍTICO"`. Rules tests:
+`src/rules-tests/projectScopedStores.rules.test.ts`.
+
+**Access model (conservative — pending per-collection review):**
+- create: project member; the creator-uid field must equal the caller
+  (`stoppages.declaredByUid`, `operational_changes.declaredByUid`,
+  `root_causes.analyzedByUid`, `site_book(_entries).recordedByUid`,
+  `lone_worker_*.workerUid`, `safety_talks_given.givenByUid`,
+  `audit_portals.createdByUid`, `documents_for_read.authorUid`).
+- update: project member; the creator-uid is immutable; `site_book(_entries)`
+  are append-only once `signedAt` is set.
+- delete: **false** for compliance records (`stoppages`, `operational_changes`,
+  `root_causes`, `site_book`, `site_book_entries`); admin/supervisor otherwise.
+- `exceptions`, `legal_obligations`, `shifts`: member-gated create/update (no
+  confirmed creator-uid field — anti-spoof N/A, marked for review).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+13. **Stoppage Spoof**: `{ "declaredByUid": "victim_id", "status": "active" }`
+    *Target*: `/projects/p1/stoppages/s1` (create) — `declaredByUid` ≠ caller.
+14. **Non-member Store Write**: any create under `/projects/victim/<coll>/x`
+    by a non-member of `victim`.
+15. **Creator Reassignment**: update flipping `recordedByUid`/`declaredByUid`/…
+    to another uid.
+16. **Signed SiteBook Tamper**: `update /projects/p1/site_book_entries/e1`
+    where `signedAt` is already set.
+17. **Compliance Delete**: `delete /projects/p1/stoppages/s1` (even as admin).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

@@ -83,3 +83,165 @@ describe('server.ts route mount ordering (B1 contract)', () => {
     expect(matches.length).toBe(1);
   });
 });
+
+// B1 emergency-block audit (2026-06-01): loneWorker.ts, refuges.ts and
+// restrictedZones.ts were implemented + unit-tested (on standalone express
+// apps) but NEVER mounted in server.ts, so the real consumers — useLoneWorker,
+// useRefuges, useRestrictedZones and their pages/components — got 404 against
+// the live server. The per-router supertest suites mount the router on a fresh
+// app, so they passed while production was broken. This contract pins the real
+// wiring: each router must be imported AND mounted under its expected prefix,
+// before the SPA catch-all (otherwise the catch-all would swallow the request
+// and return SPA HTML).
+describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
+  const source = readFileSync(join(process.cwd(), 'server.ts'), 'utf8');
+  const lines = source.split('\n');
+
+  function findLine(predicate: (line: string) => boolean): number {
+    return lines.findIndex(predicate);
+  }
+
+  const spaCatchAll = findLine((l) => /^\s*app\.get\(\s*['"`]\*['"`]/.test(l));
+
+  const cases: ReadonlyArray<{
+    name: string;
+    importRe: RegExp;
+    mountRe: RegExp;
+  }> = [
+    {
+      name: 'loneWorker (/:projectId/lone-worker/*) under /api/sprint-k',
+      importRe: /import\s+loneWorkerRouter\s+from\s+['"`][^'"`]*loneWorker(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*loneWorkerRouter/,
+    },
+    {
+      name: 'refuges (/:projectId/refuges/*) under /api/sprint-k',
+      importRe: /import\s+refugesRouter\s+from\s+['"`][^'"`]*refuges(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*refugesRouter/,
+    },
+    {
+      name: 'restrictedZones (/define, /check, …) under /api/zones',
+      importRe: /import\s+restrictedZonesRouter\s+from\s+['"`][^'"`]*restrictedZones(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/zones['"`]\s*,\s*restrictedZonesRouter/,
+    },
+    {
+      // B1-F2: persistent headcount CRUD surface (useEvacuationHeadcount,
+      // EvacuationQRScanner). Distinct from the stateless evacuation.ts router.
+      name: 'evacuationHeadcount (/start, /scan-qr, …) under /api/evacuation',
+      importRe: /import\s+evacuationHeadcountRouter\s+from\s+['"`][^'"`]*evacuationHeadcount(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/evacuation['"`]\s*,\s*evacuationHeadcountRouter/,
+    },
+    // B2 risk-block audit (2026-06-01): riskRanking.ts (feeds RiskTimeseriesChart,
+    // TopRisksDashboardCard, WeakControlsDashboardCard) and shiftRiskPanel.ts were
+    // implemented + unit-tested but never mounted → useRiskRanking / useShiftRiskPanel
+    // got 404. Same orphan class as B1.
+    {
+      name: 'riskRanking (/:projectId/risk-ranking/*) under /api/sprint-k',
+      importRe: /import\s+riskRankingRouter\s+from\s+['"`][^'"`]*riskRanking(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*riskRankingRouter/,
+    },
+    {
+      name: 'shiftRiskPanel (/:projectId/shift-risk-panel/*) under /api/sprint-k',
+      importRe: /import\s+shiftRiskPanelRouter\s+from\s+['"`][^'"`]*shiftRiskPanel(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*shiftRiskPanelRouter/,
+    },
+    // B4 incident-block audit (2026-06-01): incidentFlow (report→investigation→
+    // lesson→microtraining) and stoppage (stateless work-stoppage transitions)
+    // were orphaned → useIncidentFlow / useStoppage got 404.
+    {
+      name: 'incidentFlow (/:projectId/incident-flow/*) under /api/sprint-k',
+      importRe: /import\s+incidentFlowRouter\s+from\s+['"`][^'"`]*incidentFlow(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*incidentFlowRouter/,
+    },
+    {
+      name: 'stoppage (/:projectId/stoppage/*) under /api/sprint-k',
+      importRe: /import\s+stoppageRouter\s+from\s+['"`][^'"`]*stoppage(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*stoppageRouter/,
+    },
+    // B5 compliance-block audit (2026-06-01): legalObligations (legal-calendar:
+    // upcoming/overdue/acknowledge/snooze/history) was orphaned → useLegalCalendar
+    // / useLegalObligations got 404.
+    {
+      name: 'legalObligations (/:projectId/legal-calendar/*) under /api/sprint-k',
+      importRe: /import\s+legalObligationsRouter\s+from\s+['"`][^'"`]*legalObligations(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*legalObligationsRouter/,
+    },
+    // B10 EPP/assets-block audit (2026-06-01): eppFlow, equipmentQr and
+    // hazmatInventory were orphaned → useEppFlow / useEquipmentQr / HazmatStorage
+    // got 404.
+    {
+      name: 'eppFlow (/:projectId/epp-flow/*) under /api/sprint-k',
+      importRe: /import\s+eppFlowRouter\s+from\s+['"`][^'"`]*eppFlow(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*eppFlowRouter/,
+    },
+    {
+      name: 'equipmentQr (/:projectId/equipment-qr/*) under /api/sprint-k',
+      importRe: /import\s+equipmentQrRouter\s+from\s+['"`][^'"`]*equipmentQr(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*equipmentQrRouter/,
+    },
+    {
+      name: 'hazmatInventory (/:projectId/hazmat/*) under /api/sprint-k',
+      importRe: /import\s+hazmatInventoryRouter\s+from\s+['"`][^'"`]*hazmatInventory(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*hazmatInventoryRouter/,
+    },
+    // B15 billing-block audit (2026-06-01): preventionCost (cost scenarios) orphaned.
+    {
+      name: 'preventionCost (/:projectId/cost/*) under /api/sprint-k',
+      importRe: /import\s+preventionCostRouter\s+from\s+['"`][^'"`]*preventionCost(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*preventionCostRouter/,
+    },
+    // B16 offline-block audit (2026-06-01): syncStatus tracker orphaned.
+    {
+      name: 'syncStatus (/:projectId/sync-status/*) under /api/sprint-k',
+      importRe: /import\s+syncStatusRouter\s+from\s+['"`][^'"`]*syncStatus(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*syncStatusRouter/,
+    },
+    // B17 admin-block audit (2026-06-01): pyme onboarding + wizard orphaned.
+    {
+      name: 'pymeOnboarding (/:projectId/pyme-onboarding/*) under /api/sprint-k',
+      importRe: /import\s+pymeOnboardingRouter\s+from\s+['"`][^'"`]*pymeOnboarding(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*pymeOnboardingRouter/,
+    },
+    {
+      name: 'pymeWizard (/:projectId/pyme-wizard/*) under /api/sprint-k',
+      importRe: /import\s+pymeWizardRouter\s+from\s+['"`][^'"`]*pymeWizard(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*pymeWizardRouter/,
+    },
+    // B18 analytics-block audit (2026-06-01): reportsAutomation, safetyMetrics,
+    // projectComparator and predictiveAlerts were orphaned.
+    {
+      name: 'reportsAutomation (/:projectId/reports-automation/*) under /api/sprint-k',
+      importRe: /import\s+reportsAutomationRouter\s+from\s+['"`][^'"`]*reportsAutomation(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*reportsAutomationRouter/,
+    },
+    {
+      name: 'safetyMetrics (/:projectId/safety-metrics/*) under /api/sprint-k',
+      importRe: /import\s+safetyMetricsRouter\s+from\s+['"`][^'"`]*safetyMetrics(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*safetyMetricsRouter/,
+    },
+    {
+      name: 'projectComparator (/:projectId/project-comparator/*) under /api/sprint-k',
+      importRe: /import\s+projectComparatorRouter\s+from\s+['"`][^'"`]*projectComparator(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*projectComparatorRouter/,
+    },
+    {
+      name: 'predictiveAlerts (/:projectId/predictive-alerts/*) under /api/sprint-k',
+      importRe: /import\s+predictiveAlertsRouter\s+from\s+['"`][^'"`]*predictiveAlerts(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*predictiveAlertsRouter/,
+    },
+  ];
+
+  it('declares the SPA catch-all (sanity)', () => {
+    expect(spaCatchAll).toBeGreaterThanOrEqual(0);
+  });
+
+  for (const c of cases) {
+    it(`imports and mounts ${c.name} before the SPA catch-all`, () => {
+      const importLine = findLine((l) => c.importRe.test(l));
+      const mountLine = findLine((l) => c.mountRe.test(l));
+
+      expect(importLine, 'router import missing').toBeGreaterThanOrEqual(0);
+      expect(mountLine, 'router never mounted (orphan)').toBeGreaterThanOrEqual(0);
+      expect(mountLine).toBeLessThan(spaCatchAll);
+    });
+  }
+});

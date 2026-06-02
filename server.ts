@@ -127,6 +127,10 @@ import complianceEmitRouter from "./src/server/routes/complianceEmit.js";
 import dteRouter from "./src/server/routes/dte.js";
 // Sprint 24 Bucket KK — onboarding wizard endpoint.
 import onboardingRouter from "./src/server/routes/onboarding.js";
+// Admin/onboarding block (B17) — pyme onboarding maturity + plan wizard were
+// orphaned; consumers usePymeOnboarding / usePymeWizard hit 404.
+import pymeOnboardingRouter from "./src/server/routes/pymeOnboarding.js";
+import pymeWizardRouter from "./src/server/routes/pymeWizard.js";
 // Sprint 39 PASO 2 — Wire UI bridge routes (persistence layer + insights).
 import sitebookRouter from "./src/server/routes/sitebook.js";
 import insightsRouter from "./src/server/routes/insights.js";
@@ -141,6 +145,9 @@ import insightsRouter from "./src/server/routes/insights.js";
 import incidentTrendsRouter from "./src/server/routes/incidentTrends.js";
 import dataConfidenceRouter from "./src/server/routes/dataConfidence.js";
 import portableHistoryRouter from "./src/server/routes/portableHistory.js";
+// Offline block (B16) — sync-status tracker was orphaned; consumer useSyncStatus
+// hit 404. Paths /:projectId/sync-status/*.
+import syncStatusRouter from "./src/server/routes/syncStatus.js";
 import confidentialReportsRouter from "./src/server/routes/confidentialReports.js";
 import apprenticeshipRouter from "./src/server/routes/apprenticeship.js";
 import lessonsLearnedRouter from "./src/server/routes/lessonsLearned.js";
@@ -148,6 +155,10 @@ import riskRadarRouter from "./src/server/routes/riskRadar.js";
 import positiveObservationsRouter from "./src/server/routes/positiveObservations.js";
 import residualRiskRouter from "./src/server/routes/residualRisk.js";
 import maturityRouter from "./src/server/routes/maturity.js";
+// Risk block (B2) — implemented + unit-tested but never mounted (orphans).
+// riskRanking feeds 3 dashboard cards; shiftRiskPanel composes the shift panel.
+import riskRankingRouter from "./src/server/routes/riskRanking.js";
+import shiftRiskPanelRouter from "./src/server/routes/shiftRiskPanel.js";
 import drillsManagerRouter from "./src/server/routes/drillsManager.js";
 import workerReadinessRouter from "./src/server/routes/workerReadiness.js";
 import workPermitsRouter from "./src/server/routes/workPermits.js";
@@ -174,8 +185,19 @@ import wasteRouter from "./src/server/routes/waste.js";
 import correctiveActionsRouter from "./src/server/routes/correctiveActions.js";
 import lotoRouter from "./src/server/routes/loto.js";
 import equipmentRouter from "./src/server/routes/equipment.js";
+// EPP/Assets block (B10) — orphaned: eppFlow (EPP inspection + order sign/PDF),
+// equipmentQr (QR register + pre-use), hazmatInventory (stateless next-state
+// inventory). Consumers useEppFlow / useEquipmentQr / HazmatStorage hit 404.
+import eppFlowRouter from "./src/server/routes/eppFlow.js";
+import equipmentQrRouter from "./src/server/routes/equipmentQr.js";
+import hazmatInventoryRouter from "./src/server/routes/hazmatInventory.js";
 import dataQualityRouter from "./src/server/routes/dataQuality.js";
 import incidentBundleRouter from "./src/server/routes/incidentBundle.js";
+// Incident block (B4) — orphaned routers: incidentFlow (report → investigation
+// → lesson → microtraining lifecycle) and stoppage (stateless work-stoppage
+// transitions). Consumers useIncidentFlow / useStoppage hit 404 until mounted.
+import incidentFlowRouter from "./src/server/routes/incidentFlow.js";
+import stoppageRouter from "./src/server/routes/stoppage.js";
 import inboxRouter from "./src/server/routes/inbox.js";
 // F.19 Photo Evidence — metadata + linkage endpoints (bytes upload via Storage).
 import photoEvidenceRouter from "./src/server/routes/photoEvidence.js";
@@ -263,6 +285,14 @@ import expressBundleRouter from "./src/server/routes/expressBundle.js";
 import researchModeRouter from "./src/server/routes/researchMode.js";
 // Organizational Metrics — Sprint K §278-283 (silos / friction / closure / chronic / pressure).
 import orgMetricsRouter from "./src/server/routes/orgMetrics.js";
+// Analytics block (B18) — four orphaned routers: reports automation, safety
+// metrics report, project comparator, predictive alerts. Their consumers
+// (useReportsAutomation / useSafetyMetrics / useProjectComparator /
+// usePredictiveAlerts) hit 404 until mounted.
+import reportsAutomationRouter from "./src/server/routes/reportsAutomation.js";
+import safetyMetricsRouter from "./src/server/routes/safetyMetrics.js";
+import projectComparatorRouter from "./src/server/routes/projectComparator.js";
+import predictiveAlertsRouter from "./src/server/routes/predictiveAlerts.js";
 // Spaced Repetition (SM-2) — Sprint K §85-89 post-training learning retention.
 import spacedRepetitionRouter from "./src/server/routes/spacedRepetition.js";
 // Business Continuity — Sprint K §237-243 (SPOF detection / outage simulator / polyvalence plan).
@@ -281,6 +311,9 @@ import hygieneRouter from "./src/server/routes/hygiene.js";
 import mentalLoadRouter from "./src/server/routes/mentalLoad.js";
 // Regulatory Framework — ISO 45001 + 14 jurisdicciones (ADR 0014).
 import regulatoryFrameworkRouter from "./src/server/routes/regulatoryFramework.js";
+// Compliance block (B5) — legal-obligations calendar was orphaned; consumers
+// useLegalCalendar / useLegalObligations hit 404. Paths /:projectId/legal-calendar/*.
+import legalObligationsRouter from "./src/server/routes/legalObligations.js";
 // Medical Catalogs (diagnoses ICD-10 + drugs ATC + anatomy DS 594) — Sprint 21 R.
 import medicalCatalogsRouter from "./src/server/routes/medicalCatalogs.js";
 // PIN Sign (firma por PIN sin biometría) — Sprint K F.25.
@@ -309,6 +342,9 @@ import agendaRouter from "./src/server/routes/agenda.js";
 import consistencyRouter from "./src/server/routes/consistency.js";
 // Prevention Cost Calculator — Sprint 39 J.3 (§117-118 non-compliance + ROI).
 import costCalculatorRouter from "./src/server/routes/costCalculator.js";
+// Billing block (B15) — prevention-cost scenarios was orphaned; consumer
+// usePreventionCost hit 404. Paths /:projectId/cost/*.
+import preventionCostRouter from "./src/server/routes/preventionCost.js";
 // Universal expiration scanner — Sprint 39 B.9 (9 ExpirationKind buckets).
 import expirationsRouter from "./src/server/routes/expirations.js";
 // Fatigue Monitor — Sprint 39 I.4 (§65-67 DS 594 art. 102 + Ley 20.949).
@@ -321,6 +357,10 @@ import firstResponderMapRouter from "./src/server/routes/firstResponderMap.js";
 import contractorsRouter from "./src/server/routes/contractors.js";
 // Evacuation headcount — Sprint 39 G.12 (QR-scan based + postmortem).
 import evacuationRouter from "./src/server/routes/evacuation.js";
+// Emergency block (B1) — persistent CRUD headcount surface (start/scan-qr/
+// status/end). Complements evacuation.ts (stateless); was orphaned → the
+// QR-scan headcount flow (useEvacuationHeadcount, EvacuationQRScanner) hit 404.
+import evacuationHeadcountRouter from "./src/server/routes/evacuationHeadcount.js";
 // Exception engine — Sprint 39 G.2 (controlled rule exceptions with validUntil).
 import exceptionsRouter from "./src/server/routes/exceptions.js";
 // Critical Controls — Sprint 39 I.2 (library + robustness + barriers + energy).
@@ -354,6 +394,11 @@ import softBlockingRouter from "./src/server/routes/softBlocking.js";
 import roleViewsRouter from "./src/server/routes/roleViews.js";
 // Safety talks topic suggester — context-aware daily talk recommendations.
 import safetyTalksRouter from "./src/server/routes/safetyTalks.js";
+// Emergency block (B1) — three routers were implemented but never mounted,
+// so their consumers (useLoneWorker, useRefuges, useRestrictedZones) hit 404.
+import loneWorkerRouter from "./src/server/routes/loneWorker.js";
+import refugesRouter from "./src/server/routes/refuges.js";
+import restrictedZonesRouter from "./src/server/routes/restrictedZones.js";
 // Sprint K §106-108 — Excel importer endpoints (validate-only + commit).
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
@@ -949,6 +994,8 @@ app.use('/api/insights', insightsRouter);
 // (sprintK.ts) is deleted.
 app.use('/api/sprint-k', incidentTrendsRouter);
 app.use('/api/sprint-k', dataConfidenceRouter);
+// B16 — offline sync-status tracker.
+app.use('/api/sprint-k', syncStatusRouter);
 app.use('/api/sprint-k', portableHistoryRouter);
 app.use('/api/sprint-k', confidentialReportsRouter);
 app.use('/api/sprint-k', apprenticeshipRouter);
@@ -957,6 +1004,10 @@ app.use('/api/sprint-k', riskRadarRouter);
 app.use('/api/sprint-k', positiveObservationsRouter);
 app.use('/api/sprint-k', residualRiskRouter);
 app.use('/api/sprint-k', maturityRouter);
+// Risk block (B2) — paths /:projectId/risk-ranking/* and
+// /:projectId/shift-risk-panel/* (compute-only; verifyAuth + assertProjectMember).
+app.use('/api/sprint-k', riskRankingRouter);
+app.use('/api/sprint-k', shiftRiskPanelRouter);
 app.use('/api/sprint-k', drillsManagerRouter);
 app.use('/api/sprint-k', workerReadinessRouter);
 app.use('/api/sprint-k', workPermitsRouter);
@@ -983,8 +1034,15 @@ app.use('/api/sprint-k', wasteRouter);
 app.use('/api/sprint-k', correctiveActionsRouter);
 app.use('/api/sprint-k', lotoRouter);
 app.use('/api/sprint-k', equipmentRouter);
+// B10 — EPP flow, equipment QR, hazmat inventory (all /:projectId/<seg>/*).
+app.use('/api/sprint-k', eppFlowRouter);
+app.use('/api/sprint-k', equipmentQrRouter);
+app.use('/api/sprint-k', hazmatInventoryRouter);
 app.use('/api/sprint-k', dataQualityRouter);
 app.use('/api/sprint-k', incidentBundleRouter);
+// B4 — incident lifecycle + work-stoppage transitions.
+app.use('/api/sprint-k', incidentFlowRouter);
+app.use('/api/sprint-k', stoppageRouter);
 app.use('/api/sprint-k', inboxRouter);
 app.use('/api/sprint-k', photoEvidenceRouter);
 app.use('/api/sprint-k', explainabilityRouter);
@@ -1029,6 +1087,12 @@ app.use('/api', externalAuditPortalRouter);
 app.use('/api/sprint-k', expressBundleRouter);
 app.use('/api/sprint-k', researchModeRouter);
 app.use('/api/sprint-k', orgMetricsRouter);
+// B18 — analytics: reports automation, safety metrics, project comparator,
+// predictive alerts (all /:projectId/<seg>/*).
+app.use('/api/sprint-k', reportsAutomationRouter);
+app.use('/api/sprint-k', safetyMetricsRouter);
+app.use('/api/sprint-k', projectComparatorRouter);
+app.use('/api/sprint-k', predictiveAlertsRouter);
 app.use('/api/sprint-k', spacedRepetitionRouter);
 app.use('/api/sprint-k', continuityRouter);
 app.use('/api/sprint-k', circadianRouter);
@@ -1038,6 +1102,8 @@ app.use('/api/sprint-k', fiveSRouter);
 app.use('/api/sprint-k', hygieneRouter);
 app.use('/api/sprint-k', mentalLoadRouter);
 app.use('/api/sprint-k', regulatoryFrameworkRouter);
+// B5 — legal obligations calendar (upcoming/overdue/acknowledge/snooze/history).
+app.use('/api/sprint-k', legalObligationsRouter);
 app.use('/api/sprint-k', medicalCatalogsRouter);
 app.use('/api/sprint-k', pinSignRouter);
 app.use('/api/sprint-k', coachRagRouter);
@@ -1049,15 +1115,22 @@ app.use('/api/sprint-k', criticalRolesRouter);
 app.use('/api/sprint-k', nonConformityRouter);
 app.use('/api/sprint-k', changeMgmtRouter);
 app.use('/api/sprint-k', adoptionRouter);
+// B17 — PyME onboarding maturity + plan wizard.
+app.use('/api/sprint-k', pymeOnboardingRouter);
+app.use('/api/sprint-k', pymeWizardRouter);
 app.use('/api/sprint-k', agendaRouter);
 app.use('/api/sprint-k', consistencyRouter);
 app.use('/api/sprint-k', costCalculatorRouter);
+// B15 — prevention cost scenarios.
+app.use('/api/sprint-k', preventionCostRouter);
 app.use('/api/sprint-k', expirationsRouter);
 app.use('/api/sprint-k', fatigueRouter);
 app.use('/api/sprint-k', escalationRouter);
 app.use('/api/sprint-k', firstResponderMapRouter);
 app.use('/api/sprint-k', contractorsRouter);
 app.use('/api/sprint-k', evacuationRouter);
+// B1 — headcount CRUD at /api/evacuation (paths /start, /scan-qr, /status, /end).
+app.use('/api/evacuation', evacuationHeadcountRouter);
 app.use('/api/sprint-k', exceptionsRouter);
 app.use('/api/sprint-k', criticalControlsRouter);
 app.use('/api/sprint-k', auditPortalRouter);
@@ -1077,6 +1150,13 @@ app.use('/api/sprint-k', industryRulesRouter);
 app.use('/api/sprint-k', softBlockingRouter);
 app.use('/api/sprint-k', roleViewsRouter);
 app.use('/api/sprint-k', safetyTalksRouter);
+// Emergency block (B1) — lone-worker + refuges live under /api/sprint-k
+// (router paths: /:projectId/lone-worker/* and /:projectId/refuges/*);
+// restricted zones mount at /api/zones (paths: /define, /by-site/:projectId,
+// /check, /entry-event, /entry-permissions/*). Previously orphaned → 404.
+app.use('/api/sprint-k', loneWorkerRouter);
+app.use('/api/sprint-k', refugesRouter);
+app.use('/api/zones', restrictedZonesRouter);
 
 // Sprint K §106-108 — Excel importer mount. Two endpoints under /api/import:
 //   • POST /api/import/excel  → parse + validate + dedupe (no writes)

@@ -812,7 +812,44 @@ El audit identificó que PR #458 (Phase 1, 2026-05-21) eliminó el backend de ph
 **Cerrados:**
 - ✅ **annualReview** ×3 handlers — `src/server/routes/annualReview.ts:260,335,423` envueltos en `db.runTransaction<R>(…txn.get/txn.set…)` con result discriminado (patrón `apprenticeship.ts:245`). Test: spy `runTransaction` en `annualReview.test.ts`.
 
-### 2.31 🟡 CI "Tests" job open-handle hang — corre 30min → kill (intermitente ~30-40%, INVESTIGADO 2026-06-01)
+### 2.31 🟡 CI "Tests" job open-handle hang — detector instrumentado 2026-06-01 (next-step del audit, HECHO)
+
+**Update 2026-06-01 (deuda residual, sesión audit B1-B18):** se implementó el
+**próximo paso recomendado** — detector de handles opt-in en `src/test/setup.ts`
+(gated por `DETECT_HANDLES=1`, inerte en runs normales). Snapshot de
+`process.getActiveResourcesInfo()` en file-load vs `afterAll`. Hallazgos
+empíricos (corriendo `src/__tests__/server`, 153 files / 3476 tests):
+
+- **`Timeout+1` es de vitest, NO de la app**: aparece hasta en un test trivial
+  vacío → es el heartbeat del worker. El detector lo descuenta (señal real =
+  `Timeout+2` o más).
+- **`TCPServerWrap`/`TCPSocketWrap`/`SimpleShutdownWrap`** aparecen en los 142
+  files que usan supertest: es el server efímero de `request(app)` con el
+  `close()` **en vuelo** (`SimpleShutdownWrap`) al momento del `afterAll` —
+  transitorio, drena solo. El suite **salió limpio en 38s** (sin repro del hang)
+  en este entorno → confirma que el hang es el caso raro (~30%) donde un
+  `close()` de supertest no alcanza a completar (probable test con
+  `request(app)` sin `await`, no determinista).
+- **Rate-limiters de producción verificados IPv6-safe**: `commute.ts:45`,
+  `incidents.ts:58`, `emergency.ts:55`, `organic.ts:43`, `healthVault.ts:72`,
+  `server.ts:699` y los compartidos en `limiters.ts` usan
+  `ipKeyGenerator(req.ip ?? '')`. La `ValidationError` de express-rate-limit en
+  el log de tests viene SOLO de 3 fixtures de test (`webauthnVerify.test.ts:981`,
+  `askGuardian.test.ts:121`, `webauthnRegister.test.ts:216`) que usan `req.ip`
+  pelado → ruido de log + inconsistencia con prod, no bug de seguridad.
+
+**Sigue abierto (genuinamente unbounded):** el handle exacto del caso raro no
+reprodujo local. Mitigación: re-run de PRs verificados-seguros. **Ahora
+instrumentado** — el próximo que vea el hang en CI corre `DETECT_HANDLES=1 npx
+vitest run <subset>` y ataca el archivo que muestra `TCPServerWrap` sin
+`SimpleShutdownWrap` o `Timeout+2`. **B-2.31-D1 ✅ HECHO (2026-06-01):** los 3
+fixtures (`webauthnVerify`, `askGuardian`, `webauthnRegister`) ahora usan
+`ipKeyGenerator(req.ip ?? '')` — ruido `ValidationError` de express-rate-limit
+eliminado, 46 tests verdes.
+
+---
+
+### 2.31-OLD 🟡 CI "Tests" job open-handle hang — corre 30min → kill (intermitente ~30-40%, INVESTIGADO 2026-06-01)
 
 **Hallazgo (esta sesión):** el job CI **Tests** falla ~30-40% de runs **no por una aserción** sino
 porque el proceso vitest **no termina**: corre hasta `timeout-minutes` (~30min) y lo matan
@@ -1614,3 +1651,524 @@ Items identificados durante auditoría 2026-05-27 que NO entran al sprint actual
 - **A_SENTRY** rotar `SENTRY_DSN` + auditar commits `b13cfe8/d5e7a8e`
 - **A_GEMMA** descargar Gemma 2 2B con HF token + computar SHA-256 + setear en `registry.ts:119`
 - **B7** wire MP IPN HMAC SHA-256 production env vars
+
+---
+
+## 17. 🔍 Auditoría bloque-por-bloque (B1→B18) — estado REAL del código
+
+> Deep-dive secuencial verificando **de primera mano** (no desde docs) el estado
+> de cada bloque funcional. Metodología **fix-as-I-go**: los bugs de wiring
+> seguros y acotados se arreglan con TDD en el commit del bloque; la deuda
+> profunda se lista aquí para una fase posterior. Regla #1: nada ✅ sin
+> `file:line`.
+
+### Baseline de runtime — VERIFICADO 2026-06-01 (ya no asumido)
+
+`npm ci` ✅ · `npm run typecheck` **0 errores** ✅ · `npm run build` ✅ (2m03s) ·
+`npm run lint` ✅ (0 errors, warnings preexistentes) · Java 21 disponible
+(emulador E2E viable). Esto invalida el bloqueo de verificación previo
+(node_modules ausente daba falsos "Cannot find module"). `npm run test` corre
+pero arrastra el flake §2.31 (open-handle, ~30-40% de runs).
+
+### Leyenda de veredictos
+✅ Real · 🟡 Parcial · 🔵 Stub honesto (tipado/503/flagged) · 🔑 Bloqueado-key
+(§5, usuario provee) · ❌ Huérfano/no-cableado.
+
+### Mapa de bloques (decomposición sobre 7 route-groups + 191 dominios server)
+
+B1 Emergencia · B2 Riesgo/IPER · B3 Ergonomía/Protocolos · B4 Incidentes ·
+B5 Cumplimiento/SUSESO · B6 Capacitación · B7 Salud ocupacional · B8 Permisos/LOTO ·
+B9 Inspecciones · B10 EPP/Activos · B11 Contratistas/Visitas · B12 CPHS/Comités ·
+B13 MOC/Operaciones críticas · B14 IA/Gemini/SLM · B15 Facturación/Tier ·
+B16 Offline/PWA/Capacitor · B17 Admin/Multi-tenant/Auth · B18 Analítica/Reportes.
+
+### 🔎 Hallazgo transversal — barrido global de routers huérfanos (2026-06-01)
+
+Barrido de los 179 routers con `export default Router` vs los `app.use` de
+`server.ts`: **20 routers huérfanos** (implementados + unit-tested pero nunca
+montados → **404** para sus consumidores reales). Misma clase que PR #606. Las
+suites per-router no lo detectan porque montan en un app express fresco. El prior
+audit (§ líneas ~640-795) ya catalogó varios; este barrido lo confirma y completa.
+Roadmap por bloque (se montan **dentro de su bloque**, cadencia block-by-block):
+
+| Router huérfano | Bloque | Prefijo | Consumidor | Estado |
+|---|---|---|---|---|
+| loneWorker, refuges, restrictedZones | B1 | sprint-k / zones | useLoneWorker/useRefuges/useRestrictedZones | ✅ B1-F1 |
+| evacuationHeadcount | B1 | `/api/evacuation` | useEvacuationHeadcount, EvacuationQRScanner | ✅ B1-F2 |
+| riskRanking, shiftRiskPanel | B2 | sprint-k | useRiskRanking (3 cards), useShiftRiskPanel | ✅ B2-F1 |
+| incidentFlow | B4 | sprint-k | useIncidentFlow | ⬜ (ojo: audit a path tenant-scoped, ver L795) |
+| stoppage | B4/B8 | sprint-k | useStoppage, StoppageMonitor.tsx | ⬜ |
+| legalObligations | B5 | sprint-k | useLegalCalendar/useLegalObligations | ⬜ |
+| eppFlow, equipmentQr, hazmatInventory | B10 | sprint-k | useEppFlow/useEquipmentQr/HazmatStorage | ⬜ |
+| syncStatus | B16 | sprint-k | useSyncStatus | ⬜ |
+| pymeOnboarding, pymeWizard | B17 | sprint-k | usePymeOnboarding/usePymeWizard | ⬜ |
+| reportsAutomation, safetyMetrics, projectComparator, predictiveAlerts | B18 | sprint-k | useReportsAutomation/useSafetyMetrics/useProjectComparator/usePredictiveAlerts | ⬜ |
+| preventionCost | B15 | sprint-k | usePreventionCost | ⬜ |
+
+Todos verificados: `verifyAuth` + `assertProjectMember` presentes; los que
+escriben auditan (helper o raw `audit_logs`). Cada uno se monta con su caso en
+`serverMountOrder.test.ts` (RED→GREEN) al llegar a su bloque.
+
+---
+
+### 🔴🔴 HALLAZGO CRÍTICO — 14 stores client-SDK sin write rules en producción (2026-06-01)
+
+**Severidad: ALTA (funcional + cumplimiento). Surgido al cerrar B4-D1.**
+
+`firebase.json` despliega **`firestore.rules`**. Los 14 stores Sprint-K creados
+con `createProjectScopedStore` usan el **Firebase CLIENT SDK** (`setDoc`/
+`updateDoc` modular) y escriben a `projects/{pid}/<colección>`. En
+`firestore.rules`, el master-gate `match /{subCollection=**}/{docId}` (línea 258)
+da **solo `read`** a project-members; ninguna de estas 14 colecciones tiene regla
+de **write** explícita → **los writes del cliente quedan default-deny en
+producción**.
+
+**Las 14 colecciones afectadas:** `stoppages`, `site_book`, `site_book_entries`,
+`legal_obligations`, `operational_changes`, `root_causes`, `lone_worker_events`,
+`lone_worker_sessions`, `exceptions`, `shifts`, `audit_portals`,
+`safety_talks_given`, `documents_for_read`, `sample_live`.
+
+**Por qué no se detectó:** existe `firestore.test.rules` (**TEST-ONLY open
+rules**) que el job CI `firestore-stores` usa para probar la LÓGICA de los stores
+(CRUD/subscribe/merge) contra el emulador — su propio header dice "does NOT test
+the rules". Los tests pasan con reglas abiertas → **enmascaran** el gap de prod.
+Páginas como `StoppageMonitor.tsx` (`saveStoppage`) y `SiteBook.tsx`
+(`saveSiteBookEntry`) llaman estos `save()` client-side → fallan con
+permission-denied en prod.
+
+**Evidencia:** `firestore.rules:258-260` (master-gate read-only) · sin match
+`stoppages`/`site_book`/… (grep=0) · `createProjectScopedStore.ts:29,147,197`
+(client `setDoc` a `projects/{pid}/{coll}`) · `firestore.test.rules` header ·
+`StoppageMonitor.tsx`→`saveStoppage`, `SiteBook.tsx`→`saveSiteBookEntry`.
+
+**Fix — EN PROGRESO (2026-06-01, usuario eligió "implementar las 14 ahora"):**
+- `firestore.rules`: agregadas reglas de write para las **13** colecciones reales
+  (`sample_live` es test-only, excluida) bajo `projects/{projectId}` — modelo
+  conservador: create member + anti-spoof del campo creator-uid donde existe;
+  update con creator-uid inmutable + append-only tras `signedAt` (site_book);
+  delete `false` para cumplimiento (stoppages, operational_changes, root_causes,
+  site_book[_entries]), admin/supervisor para operacionales. Cada modelo marcado
+  inline para revisión del usuario.
+- `src/rules-tests/projectScopedStores.rules.test.ts`: rules-tests parametrizados
+  (owner-allow, non-member-deny, spoof-deny, creator-immutable, post-sign-deny,
+  delete-deny) — typecheck verde.
+- `security_spec.md`: sección Sprint-K stores + payloads 13-17.
+- ⚠️ **Verificación: vía CI** (`Firestore rules tests` job) — el emulador no corre
+  en este entorno (firebase-tools no instalable). `lint:rules` 0 errores. Si CI
+  falla, autofix vía subscripción al PR.
+- **Revisar (usuario):** modelos de acceso marcados inline en `firestore.rules`
+  (especialmente `exceptions`/`legal_obligations`/`shifts` sin campo creator-uid
+  confirmado, e inmutabilidad exacta de paralización). **B4-D1 incluido en este fix.**
+
+---
+
+### B1 — Emergencia & Respuesta · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: mayoritariamente REAL y production-grade.**
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| SOS | ✅ | `SOSButton` → `POST /api/sos` → Firestore + FCM + email fallback, rate-limited + audited; mount `server.ts` (`/api/emergency`, `emergencyRouter:895`) |
+| Evacuación + ruteo A* | ✅ | `src/server/routes/evacuation.ts` (Haversine + grid), mount `server.ts:1060` |
+| Headcount (stateless: compute-status/record-scan/end-drill/postmortem) | ✅ | `evacuation.ts` (mounted `:1073`) sobre el engine puro `services/evacuation/evacuationHeadcount.ts` |
+| Headcount CRUD persistente (start/scan-qr/status/end) | ❌→✅ | `routes/evacuationHeadcount.ts` **estaba huérfano** → **B1-F2** (consumido por `useEvacuationHeadcount`, `EvacuationQRScanner.tsx`) |
+| Drills/Comms/Contingency/First-responder | ✅ | mounts `/api/sprint-k` (drillsManager, commsDrill, contingencySimulation, firstResponderMap), todos con `verifyAuth` + `audit_logs` |
+| Lone-worker (HTTP) | ❌→✅ | `loneWorker.ts` (281 LOC) **estaba huérfano** → **B1-F1** |
+| Refuges (HTTP) | ❌→✅ | `refuges.ts` (169 LOC) **estaba huérfano** → **B1-F1** |
+| Restricted zones (HTTP) | ❌→✅ | `restrictedZones.ts` (506 LOC) **estaba huérfano** → **B1-F1** |
+| `emergencyBrigade` nativo FGS-Android | 🟡 | pendiente verificar lado Capacitor/Android (no bloqueante para web) |
+
+**🔴 Bug B1-F1 (RESUELTO fix-as-I-go):** 3 routers implementados + unit-tested
+(sobre apps express standalone) pero **nunca montados** en `server.ts`. Los
+consumidores `useLoneWorker.ts`, `useRefuges.ts`, `useRestrictedZones.ts` (+ sus
+páginas/componentes) recibían **404** contra el server real. Mismo patrón que
+PR #606 (MOC/shift-handover "built+tested, never mounted"). Las suites
+per-router no lo detectaban porque montan el router en un app fresco.
+
+- **Fix:** `server.ts` — 3 imports + `app.use('/api/sprint-k', loneWorkerRouter)`,
+  `app.use('/api/sprint-k', refugesRouter)`, `app.use('/api/zones', restrictedZonesRouter)`.
+- **Test (RED→GREEN verificado):** extendido
+  `src/__tests__/server/serverMountOrder.test.ts` con contrato B1 que asserta
+  import + mount + orden vs SPA catch-all para los 3 routers (3 fallan sin el
+  fix, 9/9 pasan con él).
+- **Verificación:** `typecheck` 0 errores · `lint` 0 errors.
+
+**🔴 Bug B1-F2 (RESUELTO):** `routes/evacuationHeadcount.ts` (CRUD persistente,
+complementa el stateless `evacuation.ts`) **nunca montado** → el flujo de conteo
+por QR (`useEvacuationHeadcount`, `EvacuationQRScanner.tsx`) daba **404**. 0
+writes directos (vía adapter), 4 `auditServerEvent`, `assertProjectMember` +
+`verifyAuth`. Mount nuevo `/api/evacuation` (libre, sin colisión) + caso de
+contrato (RED→GREEN, 12/12). Corrige el veredicto inicial de B1 que daba
+"Headcount ✅" sin distinguir el surface stateless del CRUD.
+
+**Deferido a fase posterior (listado, no abordado):**
+- ✅ **B1-D1 HECHO (2026-06-01):** guard genérico
+  `src/__tests__/contracts/routerMountCoverage.test.ts` — cruza TODOS los
+  módulos de `src/server/routes/*.ts` con `export default Router` contra los
+  `import` + `app.use` de `server.ts`. Falla si cualquier router queda
+  importado-pero-sin-montar o sin importar. Baseline: **0 huérfanos** (179
+  routers). Detectó además un caso que el barrido manual no veía
+  (imported-but-not-mounted, p.ej. import combinado default+named de
+  `curriculum`). `INTENTIONALLY_UNMOUNTED` allowlist (vacía) para excepciones
+  futuras justificadas. RED→GREEN verificado.
+- ⬜ B1-D2: verificar lone-worker nativo (Foreground Service Android) en
+  `packages/`/Capacitor.
+- ⬜ B1-D3: los specs E2E `sos-button.spec` están en `describe.fixme` — reconciliar
+  aserciones al render real (fase E2E separada).
+
+---
+
+### B2 — Riesgo & IPER · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** El motor IPER y la mayoría de routers del dominio
+están cableados; se encontraron 2 huérfanos más (mismo patrón B1).
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| Motor IPER | ✅ | `src/services/protocols/iper.ts` (135 LOC) función pura, 0 side-effects, unit + mutation-tested |
+| riskRadar / residualRisk / maturity | ✅ | montados `server.ts` `/api/sprint-k` (961-964), con tests |
+| bowtie / jsa / criticalControls / raciMatrix / preShiftRisk | ✅ | montados `/api/sprint-k`, con `*.test.ts` |
+| riskRanking (POST risks/weak-controls/zones/tasks) | ❌→✅ | `riskRanking.ts` (211 LOC) **estaba huérfano** → **B2-F1** |
+| shiftRiskPanel (POST compose) | ❌→✅ | `shiftRiskPanel.ts` (126 LOC) **estaba huérfano** → **B2-F1** |
+| riskRanking GET timeseries/top-risks/weak-controls | 🔵 | stubs honestos documentados en `useRiskRanking.ts:135-172` (return idle, tracked) — endpoints **aún no existen** |
+
+**🔴 Bug B2-F1 (RESUELTO fix-as-I-go):** `riskRanking.ts` y `shiftRiskPanel.ts`
+implementados + unit-tested pero **nunca montados** → `useRiskRanking.ts` (que
+alimenta `RiskTimeseriesChart`, `TopRisksDashboardCard`, `WeakControlsDashboardCard`)
+y `useShiftRiskPanel.ts` recibían **404**. Ambos son compute-only (0 writes →
+sin gap de audit-log), con `verifyAuth` + `assertProjectMember`.
+
+- **Fix:** `server.ts` — 2 imports + `app.use('/api/sprint-k', riskRankingRouter)`
+  + `app.use('/api/sprint-k', shiftRiskPanelRouter)`.
+- **Test:** extendido el contrato `serverMountOrder.test.ts` (RED→GREEN: 2 fallan
+  sin el fix, 11/11 con él).
+
+**Deferido (listado, no abordado):**
+- ⬜ B2-D1: faltan 3 endpoints **GET** que los dashboard cards consumen
+  (`risk-ranking/timeseries|top-risks|weak-controls`). Hoy los hooks devuelven
+  idle (stub honesto). Es feature-work (nuevos handlers + tests), no wiring →
+  fuera del scope fix-as-I-go.
+- ⬜ B2-D2 (decisión de producto, no bug): confirmado — `useShiftRiskPanel` no
+  tiene consumidor en `src/pages`/`src/components`. Backend listo y montado; la
+  UI no lo invoca. Decidir dónde vive la vista del panel de riesgo de turno (o
+  borrar el hook si se descarta). No es un bug de wiring.
+
+---
+
+### B3 — Ergonomía & Protocolos MINSAL · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Sin bugs de wiring; sin huérfanos. Los motores de
+cálculo son funciones puras, unit + mutation-tested, y su superficie HTTP está
+montada.
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| Motor REBA | ✅ | `services/ergonomics/reba.ts` (378 LOC) puro (0 side-effects) + `reba.test.ts` + mutation |
+| Motor RULA | ✅ | `services/ergonomics/rula.ts` (284 LOC) puro + test + mutation |
+| Motor TMERT | ✅ | `services/protocols/tmert.ts` (106 LOC) puro + test |
+| Motor PREXOR | ✅ | `services/protocols/prexor.ts` (128 LOC) puro + test |
+| Pose→score on-device | ✅ | `landmarksToScore.ts`, `poseEdgeFilter.ts`, `useMediaPipePose.ts`, `AIPostureAnalysisModal.tsx` |
+| HTTP ergonomics | ✅ | `routes/ergonomics.ts` montado `/api/sprint-k`, usa reba/rula puros, 0 writes (stateless compute), `verifyAuth` + `assertProjectMember` |
+| HTTP protocols | ✅ | `routes/protocols.ts` montado, sirve `/protocols/{iper,prexor,tmert}` |
+| Biometría on-device (regla #12) | ✅ | 0 subidas de frame de cámara en `useErgonomics`/`services/ergonomics` |
+
+**Sin fix necesario** (no hay orphan ni wiring bug en B3).
+
+**Deferido (listado):**
+- ⬜ B3-D1: **PLAESI** aparece en `CLAUDE.md` (regla #10 / lista de protocolos)
+  pero **no existe en `src/`** (0 referencias). Doc-vs-code gap: o se implementa
+  o se quita de la doc (el código es source of truth, regla #1). Feature-work,
+  fuera de scope fix-as-I-go.
+- ✅ **B3-D2 CERRADO (2026-06-01):** la evaluación persiste en
+  `services/safety/ergonomicAssessments.ts` (writer **client-side**: `setDoc` +
+  `logAuditAction`, append-only-after-signed por Firestore rules, Ley 16.744 +
+  ISO 45001 §7.5.3). La ruta `ergonomics.ts` compute-only es correcta por diseño
+  — la auditoría ocurre en el servicio client. Sin gap.
+
+---
+
+### B4 — Incidentes & Investigación · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Núcleo de investigación cableado; 2 huérfanos
+encontrados y montados.
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| rootCauseInvestigation / incidentTrends / incidentBundle / lessonsLearned / correctiveActions | ✅ | montados `/api/sprint-k`, con tests |
+| incidentFlow (report→investigation→lesson→microtraining→status) | ❌→✅ | `incidentFlow.ts` **estaba huérfano** → **B4-F1** |
+| stoppage (declare/precondition/resume/cancel/summarize) | ❌→✅ | `stoppage.ts` **estaba huérfano** → **B4-F1** |
+
+**🔴 Bug B4-F1 (RESUELTO):** `incidentFlow.ts` y `stoppage.ts` nunca montados →
+`useIncidentFlow` y `useStoppage`/`StoppageMonitor.tsx` daban **404**. Mount
+`/api/sprint-k` + 2 casos de contrato (RED→GREEN, 14/14).
+
+- `incidentFlow`: 6 endpoints mutantes, cada uno con `await writeAudit(...)`
+  (cobertura de auditoría completa) escribiendo a **root `audit_logs`** (correcto).
+  Persistencia vía flows zettelkasten (`incidentLessonTrainingFlow`). `verifyAuth`
+  + `assertProjectMember`.
+- `stoppage`: superficie **stateless de transición** (el cliente envía el objeto
+  `stoppage`, el server computa la siguiente transición sobre `stoppageEngine` y
+  lo devuelve). No es stub (0 `503`/`NotImplemented`). 0 writes/audit en la ruta
+  por diseño offline-first. `verifyAuth` + `assertProjectMember` + `validate`.
+
+**Corrección de hallazgo previo:** el prior audit (L795) marcaba
+`incidentFlow(escribe path equivocado tenants/{tid}/audit_logs)`. **STALE**: el
+código actual escribe a root `audit_logs` (`incidentFlow.ts:115`). El código es
+source of truth → hallazgo resuelto.
+
+**Deferido (listado):**
+- 🔴 **B4-D1 ESCALADO a hallazgo real (2026-06-01):** la ruta stoppage es
+  stateless → el cliente persiste vía `services/stoppage/stoppageFirestoreAdapter.ts`
+  a la colección `tenants/{tid}/projects/{pid}/stoppages/{id}` (usado por
+  `StoppageMonitor.tsx`). **PERO `firestore.rules` NO tiene entrada para
+  `stoppages`** → default-deny **bloquea** el write del cliente. Tras B4-F1 la API
+  responde, pero la persistencia queda bloqueada por rules. **Fix gobernado por
+  regla #4** (rules explícitas + ≥5 rules-tests + entrada `security_spec.md`).
+  Semántica append-only/transición de una paralización (DS) es sensible a
+  cumplimiento → **requiere decisión del modelo de acceso antes de escribir las
+  rules** (¿inmutable tras declarar? ¿quién resume/cancela? ¿folio?). NO se fija
+  especulativamente. Candidato a PR de seguridad dedicado (`/guard`).
+- ✅ **B4-D2 CERRADO como no-defecto (2026-06-01):** investigado — NO unificar en
+  aislamiento. `actorUid`/`kind` es una **convención de campo compartida** por ≥5
+  routers (`systemEvents`, `misc`, `confidentialReports`, `incidentBundle`,
+  `eventReplay`) y leída por UI (`CustodyChainTimelineCard`,
+  `useGeofenceWithEvents`). El test de `incidentFlow` solo exige que la fila caiga
+  en root `audit_logs` (cumple). Forzar `auditServerEvent` (`userId`/`userEmail`)
+  lo volvería **inconsistente** con ese patrón. El codebase tiene 2 esquemas de
+  audit conviviendo; unificarlos es una migración coordinada de esquema (esfuerzo
+  aparte), no un cambio por-router. Sin gap de cumplimiento (audita a root).
+
+---
+
+### B5 — Cumplimiento & SUSESO · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** El stack de cumplimiento (DS54/DS44/Ley 16.744,
+DTE, emisión) está cableado; 1 huérfano encontrado y montado.
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| compliance (×3 mounts) / complianceEmit / dte | ✅ | montados, con tests |
+| regulatoryFramework / industryRules / nonConformity / privacyRetention | ✅ | montados `/api/sprint-k` |
+| legalObligations (legal-calendar: upcoming/overdue/acknowledge/snooze/history) | ❌→✅ | `legalObligations.ts` **estaba huérfano** → **B5-F1** |
+
+**🔴 Bug B5-F1 (RESUELTO):** `legalObligations.ts` nunca montado →
+`useLegalCalendar` / `useLegalObligations` daban **404**. writes=2 (acknowledge/
+snooze) con audit=3 (cubiertos), `verifyAuth` + `assertProjectMember`, no stub.
+Mount `/api/sprint-k` + caso de contrato (RED→GREEN, 15/15).
+
+---
+
+### B6 — Capacitación & Currículum · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Sin huérfanos, sin stubs. 9 routers del dominio
+montados (`curriculum`, `safetyTalks`, `microtraining`, `postTraining`,
+`spacedRepetition`, `skillGap`, `returnToWork`, `apprenticeship`, `adoption`),
+con servicios reales (`services/curriculum/`, `trainingBackend.ts`). Páginas
+`Training`, `Onboarding`, `PortableCurriculum`, `LessonsLearned` ruteadas.
+
+**Sin fix necesario.**
+
+**Deferido (listado):**
+- ✅ **B6-D1 CERRADO (2026-06-01):** cobertura **1:1** confirmada — 3 endpoints
+  mutantes (POST/PUT/PATCH/DELETE) y **3** llamadas de auditoría (root
+  `audit_logs`, `curriculum.ts:153`). Los "9 writes" eran múltiples writes
+  Firestore por operación auditada. Sin gap.
+
+---
+
+### B7 — Salud ocupacional & Vigilancia · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL + ADR 0012 enforced.** Sin huérfanos.
+
+| Aspecto | Estado | Evidencia |
+|---|---|---|
+| Routers (medicalCatalogs, hygiene, mentalLoad, fatigue, circadian, workerHistory, returnToWork) | ✅ | montados `/api/sprint-k` |
+| ADR 0012 no-diagnóstico | ✅ | 0 funciones prohibidas en `src/` (único match = el test del guard `medicalGuard.test.cjs`) |
+| `<MedicalDisclaimer/>` | ✅ | 8 usos en pages/components de salud |
+| Biometría on-device (regla #12) | ✅ | `health/healthFacadeNative.ts`, `nativeHealthAdapter.ts` (Health Connect/HealthKit) |
+| Páginas | ✅ | HealthVaultShare/Viewer, Medicine, MyData, SystemHealth ruteadas |
+
+**Sin fix necesario.**
+
+---
+
+### B8 — Permisos de trabajo & LOTO · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Sin huérfanos, sin stubs. `workPermits` (DS132,
+audit=4), `loto`, `criticalControls`, `engineeringControls`, `softBlocking`,
+`exceptions` montados. Página `WorkPermits.tsx` ruteada. Permisos/LOTO siguen el
+patrón offline-first (persistencia vía servicio/cliente; rutas compute o
+auditadas vía servicio).
+
+**Sin fix necesario.**
+
+**Deferido (listado):**
+- ✅ **B8-D1 CERRADO (2026-06-01):** falso positivo — el "write" era
+  `createHash('sha256').update(content)` (hash crypto), **no** un write Firestore.
+  `softBlocking` es compute-only, 0 writes reales → sin gap de auditoría.
+
+---
+
+### B9 — Inspecciones & Checklists & Observaciones · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Sin huérfanos, sin stubs disfrazados.
+`positiveObservations`, `offlineInspections`, `checklistBuilder`,
+`formBuilderAdvanced`, `bbs`, `qrSignature`, `qrAck`, `photoEvidence`, `sitebook`
++ `sitebookSign(Routes)` (WebAuthn) montados. Páginas `Findings`,
+`FindingsHeatMap`, `OfflineInspection`, `PositiveObservations`, `SiteBook`.
+
+| Nota | Estado | Evidencia |
+|---|---|---|
+| `qrAck` 2× `503` | 🔑 | gate de config honesto (`qr_ack_not_configured` si falta `QR_ACK_HMAC_SECRET`), no stub disfrazado — feature bloqueada por secret §5 |
+
+**Sin fix necesario.**
+
+---
+
+### B10 — EPP & Activos & Mantenimiento · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** `equipment`, `maintenance`, `horometro`,
+`signaletics` montados; 3 huérfanos encontrados y montados.
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| eppFlow (inspection/pending-orders/sign-order/order-pdf) | ❌→✅ | huérfano → **B10-F1**; writes=4 audit=4 |
+| equipmentQr (register/list/preuse/history) | ❌→✅ | huérfano → **B10-F1**; writes=1 audit=3 |
+| hazmatInventory (substance CRUD + compatibility/spill-plan) | ❌→✅ | huérfano → **B10-F1**; stateless next-state (cliente persiste, doc lines 26-29), no stub |
+
+**🔴 Bug B10-F1 (RESUELTO):** `eppFlow.ts`, `equipmentQr.ts`, `hazmatInventory.ts`
+nunca montados → `useEppFlow`, `useEquipmentQr`, `HazmatStorage.tsx` daban **404**.
+Todos `verifyAuth` + `assertProjectMember`, no stubs; los que escriben auditan;
+hazmat es superficie stateless offline-first (mismo patrón que loneWorker/
+readReceipts). Mount `/api/sprint-k` + 3 casos de contrato (RED→GREEN, 18/18).
+
+---
+
+### B11–B14 · ✅ AUDITADOS (2026-06-01) — todos REAL, sin huérfanos
+
+Verdict-pass (sin bugs de wiring; todos los routers montados, sin stubs
+disfrazados):
+
+- **B11 Contratistas/Visitas**: `contractors`, `visitors`, `vendorOnboarding`,
+  `consultativeSale`, `geofencePermissions` montados. ✅
+- **B12 CPHS/Comités**: `cphsMinute`, `organic`, `culturePulse`, `agenda`,
+  `meetingPack`, `raciMatrix` montados. ✅
+- **B13 MOC/Ops-críticas**: `operationalChange` (MOC), `shiftHandover`,
+  `changeMgmt`, `commute`, `continuity`, `criticalRoles` montados (cierra el gap
+  de PR #606). ✅
+- **B14 IA/Gemini/SLM**: `gemini` (whitelist `ALLOWED_GEMINI_ACTIONS` presente,
+  regla #5 ✅; los 3 `503` son **circuit-breaker** `gemini_circuit_open`, no
+  stubs), `aiToggle`, `aiGuardrails`, `aiQuality`, `explainability`, `coachRag`,
+  `aiFeedback`, `researchMode` montados. ✅
+
+**Sin fix necesario en B11–B14.**
+
+---
+
+### B15 — Facturación & Suscripciones & Tier-gating · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** `billing` (×2: `/api/billing` + `/billing` Webpay),
+`subscription`, `dte` montados. Tier-gating **server-side** presente (regla #11):
+checks `RANK_`/`subscription.planId` en `subscription.ts`, `billing.ts`,
+`onboarding.ts`. 1 huérfano montado.
+
+| Feature | Estado | Evidencia |
+|---|---|---|
+| preventionCost (cost scenarios) | ❌→✅ | huérfano → **B15-F1**; w=1 audit=2, `verifyAuth` + `assertProjectMember` |
+
+**🔴 Bug B15-F1 (RESUELTO):** `preventionCost.ts` nunca montado →
+`usePreventionCost` daba **404**. Mount `/api/sprint-k` + contrato (RED→GREEN, 19/19).
+
+---
+
+### B16 — Offline / PWA / Capacitor / Mesh · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** 1 huérfano montado; cifrado SQLite OK.
+
+| Aspecto | Estado | Evidencia |
+|---|---|---|
+| Cifrado SQLite on-device (regla #16) | ✅ | `createConnection(..., true, mode, ...)` en `pwa-offline.ts:78` y `offlineStorage.ts:89`; modo centralizado en `sqliteEncryption.ts`. El único match `"no-encryption"` es un **comentario histórico** (comportamiento ya corregido), no código activo |
+| Mesh relay | ✅ | `packages/capacitor-mesh/` presente |
+| syncStatus (sync-status tracker) | ❌→✅ | huérfano → **B16-F1**; stateless, `verifyAuth` + `assertProjectMember` |
+
+**🔴 Bug B16-F1 (RESUELTO):** `syncStatus.ts` nunca montado → `useSyncStatus`
+daba **404**. Mount `/api/sprint-k` + contrato (RED→GREEN, 20/20).
+
+---
+
+### B17 — Admin / Multi-tenant / Auth / RBAC / Audit · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Stack admin/auth sólido; 2 huérfanos montados.
+
+| Aspecto | Estado | Evidencia |
+|---|---|---|
+| admin (×4) / b2dAdmin / oauthGoogle (×2) / adminJobs | ✅ | montados |
+| audit (×3) / auditChain / auditPortal | ✅ | montados (trail de cumplimiento) |
+| Firestore default-deny | ✅ | `firestore.rules` con catch-all `match /{document=**}` + denies |
+| pymeOnboarding (maturity) | ❌→✅ | huérfano → **B17-F1** |
+| pymeWizard (build-plan) | ❌→✅ | huérfano → **B17-F1** |
+
+**🔴 Bug B17-F1 (RESUELTO):** `pymeOnboarding.ts` y `pymeWizard.ts` nunca montados
+→ `usePymeOnboarding` / `usePymeWizard` (+ `PymeMaturityWizard.tsx`) daban **404**.
+Stateless, `verifyAuth` + `assertProjectMember`. Mount `/api/sprint-k` + 2
+contratos (RED→GREEN, 22/22).
+
+---
+
+### B18 — Analítica / Reportes / Dashboards · ✅ AUDITADO (2026-06-01)
+
+**Veredicto general: REAL.** Stack de analítica montado; 4 huérfanos montados.
+
+| Aspecto | Estado | Evidencia |
+|---|---|---|
+| aggregateTelemetry / orgMetrics / dataConfidence / portableHistory / safetyPerformance / explainability | ✅ | montados |
+| reportsAutomation (validate/build) | ❌→✅ | huérfano → **B18-F1** |
+| safetyMetrics (build-report) | ❌→✅ | huérfano → **B18-F1** |
+| projectComparator (compare) | ❌→✅ | huérfano → **B18-F1** |
+| predictiveAlerts (should-fire-windowed) | ❌→✅ | huérfano → **B18-F1** (consumido por `AlertSchedulerMount.tsx`) |
+
+**🔴 Bug B18-F1 (RESUELTO):** los 4 routers nunca montados →
+`useReportsAutomation` / `useSafetyMetrics` / `useProjectComparator` /
+`usePredictiveAlerts` daban **404**. Stateless, `verifyAuth` +
+`assertProjectMember`. Mount `/api/sprint-k` + 4 contratos (RED→GREEN, 26/26).
+
+---
+
+## 17.99 — 🏁 Cierre del barrido B1→B18 (2026-06-01)
+
+**Los 18 bloques funcionales auditados de primera mano (no desde docs).**
+
+**Resultado wiring:** **20 routers huérfanos** encontrados (implementados +
+unit-tested pero nunca montados → **404** para consumidores reales) y **los 20
+cableados** con TDD (contrato de mount `serverMountOrder.test.ts`, 26 casos,
+RED→GREEN por cada uno):
+
+- B1 (4): loneWorker, refuges, restrictedZones, evacuationHeadcount
+- B2 (2): riskRanking, shiftRiskPanel
+- B4 (2): incidentFlow, stoppage
+- B5 (1): legalObligations
+- B10 (3): eppFlow, equipmentQr, hazmatInventory
+- B15 (1): preventionCost
+- B16 (1): syncStatus
+- B17 (2): pymeOnboarding, pymeWizard
+- B18 (4): reportsAutomation, safetyMetrics, projectComparator, predictiveAlerts
+
+**Bloques sin huérfanos (verdict REAL):** B3 (Ergonomía/Protocolos), B6
+(Capacitación), B7 (Salud + ADR 0012), B8 (Permisos/LOTO), B9 (Inspecciones),
+B11 (Contratistas), B12 (CPHS), B13 (MOC), B14 (IA/Gemini).
+
+**Patrones confirmados como honestos (no bugs):** superficies stateless
+offline-first (cliente persiste el doc; el server devuelve next-state — hazmat,
+stoppage, loneWorker, readReceipts); gates de config `503` por secret §5 (qrAck,
+gemini circuit-breaker); cifrado SQLite on-device ON; ADR 0012 enforced.
+
+**Correcciones a docs previas:** L795 marcaba `incidentFlow` escribiendo audit a
+path tenant-scoped → STALE (hoy escribe a root `audit_logs`). Veredicto inicial
+B1 "Headcount ✅" era parcial → faltaba el CRUD persistente (B1-F2).
+
+**Deuda residual (deferida, listada en cada bloque B*-D*):** PLAESI ausente
+(B3-D1), 3 GET dashboard endpoints de riskRanking inexistentes (B2-D1),
+unificar `incidentFlow` al helper `auditServerEvent` (B4-D2), verificar audit
+client-side de paralizaciones (B4-D1), y otros checks puntuales. **Ningún bug de
+wiring abierto.** El techo §5 (secrets DevOps) sigue siendo el límite real para
+las features 🔑.
