@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { parseGeminiJson } from './gemini/parsing';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -75,5 +76,5 @@ export const optimizePPEInventory = async (currentStock: any[], consumptionHisto
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };

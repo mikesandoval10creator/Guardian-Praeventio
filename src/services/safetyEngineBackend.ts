@@ -1,4 +1,5 @@
 import admin from "firebase-admin";
+import { parseGeminiJson } from './gemini/parsing';
 import { GoogleGenAI, Type } from "@google/genai";
 import { processGlobalSafetyAudit, calculateComplianceSummary } from "./geminiBackend.js";
 import { logger } from '../utils/logger';
@@ -84,7 +85,7 @@ export const autoValidateTelemetry = async (telemetryEvent: any) => {
         });
         
         if (!response.text) throw new Error('gemini_empty_response');
-        return JSON.parse(response.text);
+        return parseGeminiJson(response);
     } catch (e) {
         logger.error("Error auto-validating telemetry:", e);
         return null;
@@ -126,5 +127,5 @@ export const predictGlobalIncidents = async (context: string, envContext: string
     });
 
     if (!response.text) throw new Error('gemini_empty_response');
-    return JSON.parse(response.text);
+    return parseGeminiJson(response);
 };

@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { parseGeminiJson } from './gemini/parsing';
 import { withSentryScope } from './observability/sentryInstrumentation';
 
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -72,7 +73,7 @@ async function generatePredictiveForecastImpl(projectName: string, context: stri
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 }
 
 export const analyzeRiskCorrelations = async (nodes: any[], events: any[]) => {
@@ -121,5 +122,5 @@ async function analyzeRiskCorrelationsImpl(nodes: any[], events: any[]) {
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 }

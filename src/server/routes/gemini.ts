@@ -40,6 +40,7 @@ import {
 import { tracedAsync } from '../../services/observability/tracing.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
+import { isUpstreamGeminiParseError } from './_geminiErrors.js';
 
 function sentryCapture(
   err: unknown,
@@ -427,7 +428,10 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
       const result = await tracedAsync(
         'gemini.dispatch',
         { tenantId, action },
-        () => (geminiBackend[action as keyof typeof geminiBackend] as Function)(...args),
+        () =>
+          (geminiBackend[action as keyof typeof geminiBackend] as (
+            ...fnArgs: unknown[]
+          ) => Promise<unknown>)(...args),
       );
       res.json({ result });
       // Bucket X: post-call accounting. The whitelisted RPC layer does
@@ -451,6 +455,17 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     logger.error('gemini_proxy_failed', error, { action });
     sentryCapture(error, { endpoint: '/api/gemini', tags: { method: 'POST', action, tenantId } });
     await recordGeminiOutcome(tenantId, 'failure');
+    // An unparseable/empty upstream body is a bad *gateway* response (502), not
+    // an internal bug (500). `parseGeminiJson` throws 'gemini_empty_response' on
+    // an empty completion (safety-blocked / non-STOP finish); a malformed body
+    // throws SyntaxError. Surface both as 502 so a client can tell "the AI
+    // returned garbage" apart from "our server broke" — without leaking internals.
+    if (isUpstreamGeminiParseError(error)) {
+      return res.status(502).json({
+        error: 'gemini_bad_response',
+        message: 'The AI service returned an unparseable response. Please retry.',
+      });
+    }
     res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'

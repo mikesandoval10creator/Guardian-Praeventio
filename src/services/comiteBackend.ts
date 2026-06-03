@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { parseGeminiJson } from './gemini/parsing';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -34,7 +35,7 @@ export const suggestMeetingAgenda = async (projectRisks: any[], pendingAgreement
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const summarizeAgreements = async (rawMeetingNotes: string) => {
@@ -72,5 +73,5 @@ export const summarizeAgreements = async (rawMeetingNotes: string) => {
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };

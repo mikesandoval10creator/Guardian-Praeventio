@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { parseGeminiJson } from './gemini/parsing';
 import { CHEMICAL_PROMPT } from "./coach/prompts.js";
 import { NormativeRagService, type NormativeChunk } from "./coach/normativeRag.js";
 
@@ -86,7 +87,7 @@ referencias normativas que respaldan cada hallazgo.`;
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  const parsed = JSON.parse(response.text);
+  const parsed = parseGeminiJson(response);
   // Ensure RAG citations are always present in the response, even if Gemini
   // omitted them, so downstream UI can always render the source list.
   parsed.citations = Array.from(
@@ -144,7 +145,7 @@ Responde en JSON e incluye "citations" con las normas usadas.`;
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  const parsed = JSON.parse(response.text);
+  const parsed = parseGeminiJson(response);
   parsed.citations = Array.from(
     new Set([...(parsed.citations ?? []), ...usedCitations]),
   );

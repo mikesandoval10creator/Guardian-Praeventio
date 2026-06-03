@@ -243,16 +243,28 @@ describe('POST /api/gemini — whitelist + gates', () => {
     expect(res.body.error).toBe('downstream exploded');
   });
 
-  // ── JSON.parse fallback contract (CLAUDE.md #5) ────────────────────────────
-  // The route wraps every backend call in try/catch; a SyntaxError thrown
-  // by an unguarded JSON.parse inside a service MUST be caught → 500 (not crash).
+  // ── JSON.parse fallback contract (CLAUDE.md #5 + F2) ───────────────────────
+  // The route wraps every backend call in try/catch; a SyntaxError from an
+  // unguarded JSON.parse inside a service MUST be caught (server must NOT crash)
+  // and surfaced as 502 — an unparseable/empty UPSTREAM Gemini body is a bad
+  // gateway, not an internal bug. CLAUDE.md #5 already mandates "502".
 
-  it('JSON.parse fallback — SyntaxError from backend is caught, not a crash (CLAUDE.md #5)', async () => {
+  it('SyntaxError from backend → 502 gemini_bad_response (caught, not a crash) (CLAUDE.md #5 / F2)', async () => {
     H.analyze.mockRejectedValue(new SyntaxError('Unexpected token < in JSON at position 0'));
     const res = await request(buildApp()).post('/api/gemini').set(uid).send({ action: 'analyzeRiskWithAI', args: [] });
-    // The route catch MUST intercept — server must NOT crash.
-    expect(res.status).toBe(500);
+    // Caught (no crash) AND 502 (bad gateway), not 500: the AI returned garbage,
+    // our server is fine.
+    expect(res.status).toBe(502);
+    expect(res.body.error).toBe('gemini_bad_response');
     // failure outcome is still recorded
+    expect(H.record).toHaveBeenCalledWith('u1', 'failure');
+  });
+
+  it('gemini_empty_response from backend (parseGeminiJson empty guard) → 502 (F2)', async () => {
+    H.analyze.mockRejectedValue(new Error('gemini_empty_response'));
+    const res = await request(buildApp()).post('/api/gemini').set(uid).send({ action: 'analyzeRiskWithAI', args: [] });
+    expect(res.status).toBe(502);
+    expect(res.body.error).toBe('gemini_bad_response');
     expect(H.record).toHaveBeenCalledWith('u1', 'failure');
   });
 

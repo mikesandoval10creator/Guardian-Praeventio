@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { parseGeminiJson } from './gemini/parsing';
 import { MEDICINE_PROMPT } from "./coach/prompts.js";
 import { NormativeRagService, type NormativeChunk } from "./coach/normativeRag.js";
 
@@ -78,7 +79,7 @@ Responde en JSON con la estructura:
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  const parsed = JSON.parse(response.text);
+  const parsed = parseGeminiJson(response);
   // Attach RAG citations as a separate metadata field on a wrapper if the
   // shape is an array. Callers that expect the bare array still work
   // because we only attach a non-enumerable property when possible.
@@ -136,7 +137,7 @@ Proporciona resumen, alertas y citations.`;
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  const parsed = JSON.parse(response.text);
+  const parsed = parseGeminiJson(response);
   parsed.citations = Array.from(
     new Set([...(parsed.citations ?? []), ...usedCitations]),
   );
@@ -199,7 +200,7 @@ Incluye explicación clínica y citations al protocolo aplicable.`;
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  const parsed = JSON.parse(response.text);
+  const parsed = parseGeminiJson(response);
   parsed.citations = Array.from(
     new Set([...(parsed.citations ?? []), ...usedCitations]),
   );

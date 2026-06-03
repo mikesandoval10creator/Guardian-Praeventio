@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { parseGeminiJson } from './gemini/parsing';
 import admin from "firebase-admin";
 
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -63,7 +64,7 @@ export const generateShiftHandoverInsights = async (previousShiftEvents: any[], 
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const analyzeShiftFatiguePatterns = async (attendanceData: any[]) => {
