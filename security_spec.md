@@ -146,6 +146,21 @@ distress emitted nothing). Rules tests: `src/rules-tests/survivalPings.rules.tes
 19. **Beacon Hijack**: writing `/pings/victim_uid` while authenticated as someone else.
 20. **Beacon Field Injection**: `{ ...ping, "exfiltrate": "…" }` (schema `hasOnly`).
 21. **Cross-worker Beacon Read**: a non-admin/supervisor reading `/pings/other_uid`.
+
+## Critical-control validations — write rules (B2, added 2026-06-03)
+
+`projects/{pid}/control_validations/{controlId__taskId}` (DS44 controles críticos,
+client SDK via `controlValidationsStore`) had no write rule → default-denied.
+Rules tests: `src/rules-tests/controlValidations.rules.test.ts`.
+- create/update: project member; `validatedByUid` equals the caller and is
+  immutable on update. delete: admin/supervisor only. Read via the
+  project sub-collection master-gate.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+22. **Validation Spoof**: `{ "validatedByUid": "supervisor_id" }` (create) — falsely
+    claim someone else verified a critical safety control.
+23. **Validator Reassignment**: update flipping `validatedByUid` to another uid.
 16. **Signed SiteBook Tamper**: `update /projects/p1/site_book_entries/e1`
     where `signedAt` is already set.
 17. **Compliance Delete**: `delete /projects/p1/stoppages/s1` (even as admin).
