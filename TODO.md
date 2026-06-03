@@ -915,6 +915,12 @@ varios contradicen un ✅ previo (Rule #1).
   exención técnicamente válida que **ocultaba** esta brecha de vida.)
 - 🟡 **AlertScheduler con probes vacíos** — `RootLayout.tsx:467` `probes={[]}` → el
   pipeline predictivo Bernoulli está dormido en prod.
+- ✅ **Ruta de evacuación insegura RESUELTA (Fase 5, 2026-06-03)** (era DEEP-EX-03):
+  `routingBackend.ts` esquivaba UN solo peligro por waypoint (`break`) sin re-chequear
+  el punto reubicado → la ruta podía atravesar un 2º peligro. Nuevo
+  `clearPointFromHazards()` libra TODOS los peligros con re-chequeo (cota dura,
+  determinista); 16/16 tests reales. Pendiente: verificar que los SEGMENTOS entre
+  waypoints no crucen un peligro (no solo los vértices) + validar endpoints.
 
 **P1 — Privacidad / cumplimiento (🔐):**
 - 🔴 **External Audit Portal sin gate de rol** — `externalAuditPortal.ts:234,306,355,428`
