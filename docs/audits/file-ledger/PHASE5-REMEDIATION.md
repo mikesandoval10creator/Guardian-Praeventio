@@ -1,0 +1,234 @@
+# Fase 5: Remediación de deuda técnica de Praeventio Guard (checklist por bloque)
+
+> **Roadmap durable de ejecución.** Sintetiza la auditoría exhaustiva (cada
+> archivo del repo leído línea por línea) en un plan accionable, un PR por
+> bloque, vida/privacidad primero. Verdad de referencia: `TODO.md`
+> §2.32/§2.33/§2.34 + los `DEEP-*.md` de este mismo directorio.
+
+## Contexto
+Praeventio Guard es una PWA de **prevención de riesgos para salvar vidas** en
+industrias críticas, protegiendo la **privacidad** (Ley 19.628, biometría on-device,
+audit trail). Una auditoría **exhaustiva línea por línea de todo el repo** (3.545
+archivos; 103 docs en `docs/audits/file-ledger/`) confirmó que la app es
+mayoritariamente **real y bien construida**, pero esconde **~45 hallazgos P0/P1 + 17
+patrones sistémicos**. Esta fase **resuelve esa deuda, un PR por bloque**, en el orden
+de la auditoría (vida y privacidad primero).
+
+**Verdad de referencia** (en repo): `TODO.md` §2.32/§2.33/§2.34 · `DEEP-EX-INDEX.md`
+· `DEEP-EXT-INDEX.md` · `INDEX-CONSOLIDADO.md` · `PHASE3-RECONCILIATION.md` · `DEEP-<bloque>.md`.
+**Decisiones (usuario):** un PR por bloque · emulador Firestore disponible (verificar
+rules-tests reales) · cimientos compartidos primero.
+
+## ⭐ Principio rector — HACER REAL, no eliminar
+**El objetivo es hacer real la aplicación de prevención: cada función del código se
+considera y se CABLEA donde corresponde.** Reglas:
+- **Huérfanos** (componentes/hooks/servicios sin consumidor) → **dárles hogar**: montar
+  la página/menú/ruta, cablear al engine/endpoint real. NO borrar.
+- **Mocks / datos hardcodeados / "demo"** → **cablear a datos reales**. NO borrar la pieza;
+  reemplazar el dato falso por el real.
+- **Stubs / NotImplemented** → **implementar y cablear**. NO borrar.
+- **Duplicados** → **consolidar preservando TODAS las capacidades** (fusionar en el canónico,
+  migrar lo que aporte el otro). NO borrar funcionalidad.
+- **Excepciones (2, manejar con cuidado):**
+  1. **Directiva legal/ética dura (ADR 0012 — no diagnóstico médico):** lo que infiere
+     diagnóstico se **RECONVIERTE a función conforme** (transcribir el veredicto del médico,
+     catálogos de referencia con `MedicalDisclaimer`, señales no-diagnósticas) y se cablea.
+     **Nunca** se habilita inferencia diagnóstica; **nunca** se borra la pieza sin reconvertir.
+     Marcar ❓ decisión de producto si el destino conforme no es obvio.
+  2. **Decisión de arquitectura ya tomada (p.ej. COLMAP server-side → on-device §2.28):** el
+     **reemplazo ES la función real**; se **documenta** la supersesión (no re-cablear lo
+     contradicho, no borrar a ciegas — consultar antes de tocar `infra/` muerto).
+- **Datos legales fabricados** (RUT falso, métricas inventadas) → exigir/cablear el dato
+  **real**; jamás fabricar (esto SÍ es quitar el dato falso, no la función).
+
+**Severidad:** 🔴 P0/P1 (vida/seguridad/legal) · 🟡 P2 (integridad) · 🔵 P3 (limpieza/cableado).
+**Test:** `vitest`=lógica · `rules`=emulador `authenticatedContext` · `comp`=componente jsdom · `super`=supertest router real.
+
+---
+
+## Paso 0 (primer commit nueva sesión)
+- [x] Copiar este plan a **`docs/audits/file-ledger/PHASE5-REMEDIATION.md`** (roadmap durable).
+- [x] Añadir a **`CLAUDE.md`** la sección "Active work — Phase 5" (texto al final).
+- [x] Commit `docs(phase5): remediation roadmap + CLAUDE.md pointer`.
+
+## Fase 5.0 — Cimientos compartidos (hacer primero; reutilizables)
+- [ ] **F1 Harness rules-tests REAL** — helper en `src/rules-tests/` con **solo
+  `authenticatedContext`** (jamás Admin SDK), **falla si el emulador no arranca** (sin
+  `if(!testEnv) return`), cubre los 5 casos Regla #4 (owner-allow/non-member-deny/
+  schema-violation/post-sign-update-deny/server-field-spoof-deny). Arreglar
+  `projectScopedStores.rules.test.ts` (silent-pass + siembra sintética de `signedAt`). (rules)
+- [ ] **F2 `parseGeminiJson` + codemod (P11)** — `src/services/gemini/parseGeminiJson.ts`
+  (try/catch + fallback tipado/502); aplicar a los `*Backend.ts` (medicine/psychosocial/
+  suseso/legal/safetyEngine/shift/prediction/network). Reusar patrón de `medicalAnalysisBackend.ts`. (vitest)
+- [ ] **F3 Identidad-desde-token (P3)** — endurecer dispatcher `/api/gemini`
+  (`src/server/routes/gemini.ts:~430`): las acciones con identidad no confían `authorUid`/
+  `projectId` del cliente; estampar `req.user.uid`+tenant; helper `assertCallerIdentity`. (super)
+- [ ] **F4 Verify WebAuthn real (P4)** — consumidores llaman `verifyAuthenticationResponse`:
+  `dte.ts:349`, referee (`claims.ts:306`/`RefereeAccept.tsx`), `Login.tsx`→`useBiometricAuth`,
+  `medicalAptitude`, suseso `kms-sign-rsa`. (super/vitest)
+- [ ] **F5 Gobernanza/CI** — cablear `precommit-stub-guard.cjs`(#13) y
+  `precommit-allowbackup-guard.cjs`(#17) en `.husky/pre-commit`; **job CI** con `lint` +
+  ratchets (no bypaseables con `--no-verify`); **reactivar e2e** `sos-button`/
+  `process-lifecycle`/`offline-resilience` (quitar `describe.fixme`). (CI)
+
+---
+
+## Fase 5.1 — Bloques (un PR por bloque, en este orden)
+
+### B1 — Emergencia & Respuesta 🛟  · ref `DEEP-B1` + `DEEP-EX-01/02/03`
+- [x] `sosOutbox` dead-letter (HECHO).
+- [x] `routingBackend.clearPointFromHazards` (HECHO).
+- [ ] 🔴 `EmergencySquadManager.tsx:28` escuadrón mock → **cablear** a `useEmergencyBrigade(projectId)` real + estado vacío honesto (datos reales, no ficticios). (comp)
+- [ ] 🔴 Declarar-emergencia falla en silencio: añadir `isEmergencyActive`/`activeEmergencyProtocol`/`emergencyStartTime` al `hasOnly` de `isValidProject` (o subcolección con reglas) — `EmergencyCheckIn.tsx:115`. (rules)
+- [ ] 🔴 `pings` (baliza vida, `useSurvivalPing`) sin regla → reglas+tests+security_spec. (rules)
+- [ ] 🔴 `deas`/`inspections` (DEA Ley 21.156) sin regla → reglas+tests. (rules)
+- [ ] 🔴 ManDown sin push: **cablear** `useManDownDetection`→`triggerEmergency`+FCM + trigger server `mandown_events` (como FallDetection). (vitest/super)
+- [ ] 🟡 `AlertScheduler` `probes={[]}` (`RootLayout.tsx:467`) → **cablear** probes reales (Bernoulli predictivo). (comp)
+- [ ] 🟡 `DynamicEvacuationMap` usa Gemini no A* → **cablear** a `gridAStar`. (vitest)
+- [ ] 🟡 `useAccelerometer.ts:47,90` leak listener; SurvivalMode torch `setInterval` sin clear (`:158`); `useAcousticSOS.ts:27` falsos positivos; `Asesor.tsx:25,32` prompt-injection. (comp/vitest)
+- [ ] 🟡 `manDownTimer` un stage/tick; `buildPostmortem` >100%; training fecha-NaN vigente; `gemini/emergency.ts:185` JSON.parse (F2); `emergencyContextAdapter` void emit+Date.now → await+randomId. (vitest)
+- [ ] 🔵 `FirstResponderDispatchPanel` huérfano → **montar/cablear** a datos reales.
+
+### B7 — Salud ocupacional & Vigilancia 🛟🔐  · ref `DEEP-B7` + `DEEP-EX-04/05/06`
+- [ ] 🔴 `VitalityMonitor.tsx:29-62,131` inferencia CIE-10 (ADR 0012) → **reconvertir** a alerta NO-diagnóstica conforme (señales HR/ambiente como recomendación de pausa/hidratación, **sin código CIE-10**) + `MedicalDisclaimer` + cablear a `clinical_alerts` con reglas. (comp)
+- [ ] 🔴 Extender `precommit-medical-guard.cjs` SCOPED_DIRS a `hygiene/`+`occupational-health/`+`*Backend.ts` raíz. (vitest)
+- [ ] 🔴 `clinical_alerts` (client-write) sin regla → reglas+tests. (rules)
+- [ ] 🔴 `Medicine.tsx:134,137,141` MedicalAnalyzer/DifferentialDiagnosis/DrugInteractions → **reconvertir a función conforme ADR 0012** (transcripción del veredicto médico + catálogos CIE-10/ATC de referencia con disclaimer, NUNCA inferencia) y cablear acción Gemini whitelisted conforme. ❓ decisión de producto sobre el alcance. (comp)
+- [ ] 🔴 `health_vault`/`health_vault_shares` sin reglas → reglas + ≥5 rules-tests + security_spec + KMS; `HealthVaultShare.tsx:60` listado → endpoint server. (rules)
+- [ ] 🟡 `personalized_plans`(`PersonalizedSafetyPlan.tsx:60`) y `users/{uid}/morning_checkins`(`MorningRoutine.tsx:60`) sin reglas. (rules)
+- [ ] 🟡 `VigilanciaScheduler` DEMO_EXAMS (`Medicine.tsx:140`) → **cablear a exámenes reales**; `Hygiene.tsx` métricas hardcoded → **cablear a métricas reales**. (comp)
+- [ ] 🟡 `Login.tsx:10` biometría débil → `useBiometricAuth` (F4); `AptitudeCertificateForm.tsx:59` egress geo → on-device; `medicalAptitude` stub → implementar (F4). (super/vitest)
+- [ ] 🔵 `AnnualReview.tsx:220` Math.random→randomId; `Ds109/Ds67` RUT en claro en nodo ZK→hash; `HealthVaultViewer.tsx:215` fileUri post-revocación; `telemetry_events`/`uv_exposures` scope; `medicineBackend.ts:81,139,202`+`psychosocialBackend.ts:68` JSON.parse (F2).
+
+### B3 — Ergonomía & Protocolos MINSAL 🛟🔐  · ref `DEEP-B3` + `DEEP-EX-07`
+- [ ] 🔴 `BioAnalysis.tsx:411` frame de cámara VIVA a Gemini (#12) → **cablear al path on-device** (MediaPipe), que es la función real; sin egress cloud. (comp)
+- [ ] 🔴 `BioAnalysis.tsx:465` `findings` sin regla + sin audit → reglas+audit. (rules)
+- [ ] 🟡 `AIPostureAnalysisModal.tsx:277` `bodyParts` sin guard (TypeError) → guard; fallback Gemini foto (#12) → on-device. (comp)
+- [ ] 🔵 `prexor.ts:35` comentario 10dB stale; reba/rula 500→400; `pulmonaryErgonomics` escribe en render→effect; **corregir DEEP-B3** (protocols.ts SÍ expone tmert/prexor).
+
+### B16 — Offline / PWA / Mesh / Sensores 🛟🔐  · ref `DEEP-B16` + `DEEP-EX-08`
+- [ ] 🔴 `syncStateMachine.ts:313` y `genericOutboxEngine.ts:248` descartan datos de seguridad → dead-letter (P2, patrón sosOutbox). (vitest)
+- [ ] 🟡 `conflictQueue.ts` (real, sin consumidor/reglas) → **cablear** (consumidor + reglas+tests). (rules/vitest)
+- [ ] 🟡 `meshPacket.ts:237` firma `'unsigned-dev'` → firmar+verificar; `offlineStorage.ts` `encryptData` base64 → **cifrado real** (no llamarlo cifrado si no lo es). (vitest)
+- [ ] 🔵 `useSyncStatus`/`SyncQueueBadge` huérfanos → **montar** (badge de cola en UI).
+
+### B2 — Riesgo & IPER 🛟  · ref `DEEP-B2` + `DEEP-EX-14/15`
+- [ ] 🔴 `Matrix.tsx:134,194,229,776` banding ad-hoc P×S → **cablear** a `calculateIper` (DS44); `RiskMatrix5x5.tsx:51` tercer esquema → unificar al canónico. (vitest/comp)
+- [ ] 🔴 `control_validations` (`controlValidationsStore.ts:31`, controles críticos) sin regla → reglas+tests. (rules)
+- [ ] 🟡 `lineOfFireChecker.ts:124` match por primera palabra → exacto (bloqueo de seguridad); `safetyEngineBackend.ts:129` JSON.parse (F2); `residualRisk.ts:241,285` safeRead → surface error. (vitest)
+- [ ] 🔵 `useRiskRanking` 3 idle stubs + 3 GET faltantes (B2-D1) → **implementar+cablear**; `shiftRiskPanel` → **consolidar** con `preShiftRisk` (preservar capacidades).
+
+### B17 — Admin / Auth / RBAC / Privacidad 🔐  · ref `DEEP-B17` + `DEEP-EX-09/10`
+- [ ] 🔴 `externalAuditPortal.ts:234,306,355,428` sin gate de rol → `assertProjectMember`+`isAdmin`. (super)
+- [ ] 🔴 `auditPortalStore.savePortal` token en claro → `accessTokenHash`; master-gate read (`firestore.rules:257`) no expone. (rules/vitest)
+- [ ] 🔴 `projects.ts` claim global `gerente/admin` → membresía por-proyecto. (super)
+- [ ] 🔴 `WebAuthnKeysSection.tsx:73` borrado MFA client-side → step-up + audit. (comp/super)
+- [ ] 🔴 Reglas #650: `documents_for_read` authorUid (rules:456); `site_book_counters` sin regla; `lone_worker_sessions` update sin `existing().workerUid==auth.uid`; `root_cause_analyses` vs regla; `exceptions/legal_obligations/shifts` laxos (rules:466-477). (rules)
+- [ ] 🟡 `pinSign` PinCredential del body→Firestore; `import.ts` assertProjectMember; OAuth refresh_token envelope default-ON; `webauthnAssertion.ts:204` clone-detection; `admin.ts:124,199` audit sin try/catch (#14); Math.random IDs (`PortalManager.tsx:521`). (super/vitest)
+
+### B5 — Cumplimiento & SUSESO 🔐  · ref `DEEP-B5` + `DEEP-EX-11/12/13`
+- [ ] 🔴 DTE firma WebAuthn nunca verificada (`dte.ts:349`) (F4). (super)
+- [ ] 🔴 `suseso.ts`/`ds67ds76.ts` tenantId del body → token + assertProjectMember (F3). (super)
+- [ ] 🔴 `SusesoReports.tsx:419` RUT falso `12.345.678-9` → exigir RUT real (no fabricar dato legal). (comp)
+- [ ] 🔴 `documents` y `workers/{wid}/documents` sin reglas → reglas+tests; `SusesoReports.tsx:143` "Guardado en Drive" falso → fix try/catch. (rules/comp)
+- [ ] 🟡 `siiPreflightCheck` env names; `profiles.ts` régimen privacidad; `noopSiiAdapter` guard NODE_ENV; `mark-paid` → **activar tier**; **adapters SII LibreDTE/OpenFactura/SimpleAPI + `dteIssueQueue` → implementar+cablear** (no dejar stub). (super/vitest)
+- [ ] 🟡 `generateSusesoFormMetadata` validar catálogo; legal-calendar "Marcar cumplida" → server+audit (#3); kms-sign-rsa verify (F4); thresholds CPHS≥25/Depto≥100. (vitest)
+- [ ] 🔵 `susesoBackend`/`legalBackend` JSON.parse (F2); `committee_minutes`/`training_record` /emit stubs → **implementar generación PDF real** (#13); dte audit (#14)/err.message 5xx (#8).
+
+### B12 — CPHS & Comités 🔐  · ref `DEEP-B12` + `DEEP-EX-18`
+- [ ] 🔴 `comite_actas` sin regla de write (`ComiteParitario.tsx:73`) → regla; **consolidar** con `cphs_meetings` (un solo canónico, preservar capacidades). (rules)
+- [ ] 🔴 `cphs_meetings:1175` append-only no preserva prefijo del array de firmas → preservar + ≥5 rules-tests + security_spec. (rules)
+- [ ] 🟡 `cphsService` client-side sin audit (#3) → ruta server; `culturePulse.respondSurvey:657` audita userId → anonimizar/hash. (super/vitest)
+- [ ] 🔵 `organic.ts` err.message (#8); `comiteBackend.ts:37,75` JSON.parse (F2); `useAgenda`/`useMeetingPack`/`useRaciMatrix` huérfanos → **montar**.
+
+### B4 — Incidentes & Investigación 🛟  · ref `DEEP-B4` + `DEEP-EX-16/17`
+- [ ] 🔴 `sif.ts` `reviewedByUid`/`reviewedAt` del body → token (F3). (super)
+- [ ] 🟡 `incidentFlow.ts:77` `flowDepsFor` sin `createEdge` → grafo PDCA conectado; writeAudit shape → canónico. (vitest)
+- [ ] 🟡 `root_cause_analyses` vs regla `root_causes`; `incidentPostmortem` audita a `tenants/{tid}/audit_log`→root; incidents path mismatch; `pdca.ts` /advance sin runTransaction (#19); `lessonsLearned` adoptionCount del body→server. (rules/super)
+- [ ] 🔵 `incidentRagService.ts:299`/`incidentCommands` Math.random→randomId; custody appendEvent doc-id colisión; **CQRS in-memory → persistente** (cablear).
+
+### B8 — Permisos de trabajo & LOTO 🛟  · ref `DEEP-B8` + `DEEP-EX-19`
+- [ ] 🔴 LOTO write-path: `loto.ts:55` solo GET → **implementar+cablear** endpoints apply-lock/verify-zero-energy/release + adapter + audit + **montar** `LotoStatusPanel`. (super/comp)
+- [ ] 🟡 `exceptions/legal_obligations/shifts` laxos (con B17); stoppage/softBlocking compute-only → persist+audit. (rules/super)
+- [ ] 🔵 `exceptionFirestoreAdapter`/`stoppageFirestoreAdapter` (real, sin caller) → **cablear** al flujo.
+
+### B9 — Inspecciones, Checklists & Observaciones  · ref `DEEP-B9` + `DEEP-EX-20/21`
+- [ ] 🔴 `site_book` firmado mutable (gate `signedAt` top-level vs `signature.signedAt`, `siteBookSigning.ts:247`) → fix gate + **fix test falso-verde** (`projectScopedStores.rules.test.ts:181`). (rules)
+- [ ] 🔴 `lighting_audits` mutable post-firma (`LightPollutionAudit.tsx:123`) → fix gate + `auditorUid==auth.uid`; SiteBook 3 paths disjuntos → unificar. (rules/super)
+- [ ] 🟡 `photoEvidenceFirestoreAdapter.save` nunca escribe `linkageKeys` (queried) → fix; `photo_evidence`/`positive_observations`/`quota_usage`/`sitebook_crdt_drafts` sin reglas; `siteBookStore.nextSequenceForYear` no transaccional (folios DS76). (rules/vitest)
+- [ ] 🔵 `iso_documents`/`iso_improvements` schema/audit+owner bug; qrSignature 500→503; `sitebookSignRoutes` assertProjectMember.
+
+### B6 — Capacitación & Currículum  · ref `DEEP-B6` + `DEEP-EX-22/23`
+- [ ] 🔴 `gamification.ts:35` auto-otorga puntos (amount del cliente) → whitelist/cota server. (super)
+- [ ] 🔴 Referee co-sign WebAuthn nunca verificada (`RefereeAccept.tsx:82`/`claims.ts:306`) (F4). (super)
+- [ ] 🔴 `read_receipts` (DS44/RIOHS) sin regla → reglas+tests; `microtraining.ts:187` `grantCert(body.workerUid)` → callerUid (F3). (rules/super)
+- [ ] 🟡 `trainingCertificate` sobre-afirma legal → **añadir firma/QR/hash verificable**; training root client-write; `gamificationBackend` field-path injection; `onboarding.ts:268` audit (#14). (vitest)
+- [ ] 🔵 `PublicNodeView` colección `zettelkasten` huérfana → cablear; **7 hooks + 5 componentes huérfanos → montar** (microtraining/spacedRep/skillGap…); duplicación pyme → **consolidar**.
+
+### B10 — EPP, Activos & Mantenimiento  · ref `DEEP-B10` + `DEEP-EX-24/25`
+- [ ] 🟡 `horometerEngine.ts:69,117` lógica de bloqueo contradice directiva #2 → **reconvertir a ADVERTENCIA** (no bloqueo) y cablear su consumidor honestamente. (vitest)
+- [ ] 🟡 `eppFlow.ts:240` órdenes en Map volátil → store durable; order-pdf sin `signedNodeId`; `EPPVerificationModal.tsx:63` foto a Gemini (#12) → on-device; eppFlow WebAuthn TODO server (F4). (vitest/comp)
+- [ ] 🔵 `maintenanceScheduler.completeMaintenanceTask` RMW sin runTransaction (#19); montar UIs admin EPP huérfanas.
+
+### B11 — Contratistas, Visitas & Acreditación  · ref `DEEP-B11` + `DEEP-EX-26`
+- [ ] 🔴 `visitors.ts:112` sin `assertProjectMember` → añadir (F3); `driving_incidents` (`SafeDriving.tsx:94`) sin regla → reglas. (super/rules)
+- [ ] 🟡 colisión ruta `safe-driving` → resolver (ambos componentes cableados a su ruta); `ClimateRoutes:215` botón "Calcular Ruta" → **cablear** al cálculo real. (comp)
+- [ ] 🔵 `resolveObservation` → **exponer/cablear UI**; DS76 duplicado → **consolidar**; stack `visitor_accesses` → **cablear o consolidar** en el canónico.
+
+### B13 — MOC & Operaciones críticas  · ref `DEEP-B13` + `DEEP-EX-27/28`
+- [ ] 🔴 UI MOC/handover escribe por store cliente sin audit (`OperationalChanges.tsx:46`) → **re-cablear a endpoints auditados** (o trigger server) (#3). (super)
+- [ ] 🟡 `shiftHandover` compute-only + adapter huérfano (#606) → **cablear** persist+audit; acuse mutable (rules:475) → post-sign deny; `shiftBackend.ts:66` JSON.parse (F2). (super/rules)
+- [ ] 🔵 `changeMgmt` → **consolidar** en `operationalChange` (preservar capacidades); `continuity`/`criticalRoles` UI huérfana → **montar** (SpofPanel, CriticalRoleCoverageCard).
+
+### B14 — IA / Gemini / SLM & Copilots 🔐  · ref `DEEP-B14` + `DEEP-EX-30/31/32/33`
+- [ ] 🔴 `networkBackend.ts:41,77` RAG-poisoning + cross-tenant → F3 + scope (`vector_store` por tenant). (super)
+- [ ] 🔴 `KnowledgeIngestion.tsx:60` nodos global/master sin gate; `ragService.queryCommunityKnowledge` self-poisoning → score-gate+audit. (super/vitest)
+- [ ] 🟡 SLM integridad: `loader.ts` pesos CDN sin sha256 → verificar como `slmRuntime.ts`; `onnxAdapter` tinyllama → **corregir registry**; `searchRelevantContext` fallback hardcoded → **cablear** a `safeNormativeQuery` real. (vitest)
+- [ ] 🟡 SLM offline OFF + Phi-3/Gemma CDN → **bundlear** modelos; `resilientAiOrchestrator` flag OFF → **encender** (ADR 0019); `designHazmatStorage` export collision → cablear versión RAG; 6 JSON.parse (F2). (vitest)
+
+### B15 — Facturación, Suscripciones & Tier-gating 🔐  · ref `DEEP-B15` + `DEEP-EX-29`
+- [ ] 🔴 Tier-gating por-feature solo client-side (`SubscriptionContext.tsx:64`) → middleware server (#11). (super)
+- [ ] 🟡 `mark-paid` → **activar** `users/{uid}.subscription`; Khipu sin checkout → **implementar endpoint**; Apple SSN leaf-only → chain verify; `BILLING_TIER_FALLBACK` añadir `global-titanio`. (super/vitest)
+- [ ] 🔵 `runB2dMrrSnapshot` job huérfano → **cablear** (scheduler/endpoint).
+
+### B18 — Analítica / Reportes / Dashboards  · ref `DEEP-B18` + `DEEP-EX-34/35/36`
+- [ ] 🟡 `dataConfidence.ts:302` `inconsistenciesCount:0` → **cablear cómputo real**; `SloErrorBudget`/`WeatherBulletin`/`CQRSArchitecture` dato falso → **cablear a datos reales**. (comp/vitest)
+- [ ] 🟡 `insights.ts` colecciones top-level sin tenantId/regla → scope; `portableHistory.ts:231` fallback PII cross-tenant; `environmentBackend.client` API key en navegador → **proxy server**. (super/rules)
+- [ ] 🔵 `reportsAutomation` `contentHash` → **computar**; `predictionBackend` metering Pro/Flash; `assertNoPII` → **cablear**; AlertScheduler probes (con B1).
+
+### B-DigitalTwin (bloque nuevo)  · ref `DEEP-NH-services-infra` + `DEEP-EX-37/38`
+- [ ] 🔴 `reconstructions` storage default-deny (`storage.rules:159`); `reconstruction_jobs` sin regla (vs `digital_twin_jobs` fantasma); `placed_objects` sin regla (objetos de seguridad no persisten) → reglas+tests. (rules)
+- [ ] 🔴 `pages/BlueprintViewer.tsx` mock ruteado (#13) → **cablear la ruta a la versión real** (upload+Firestore de AIHub); `verifyTwinStepUp.ts` no cableado (ADR 0011) → **cablear**. (comp/super)
+- [ ] 🔵 COLMAP infra: **NO eliminar a ciegas** — documentar como superseded por on-device (§2.28, que es la función real); consultar antes de tocar `infra/`.
+
+---
+
+## Fase 5.2 — Cross-cutting config/seguridad (bajo riesgo, intercalable temprano)
+- [ ] 🔴 **Dominio/WebAuthn**: unificar `praeventio.app` (manifest/AASA/assetlinks) vs `app.praeventio.net` (server/WebAuthn) + `WEBAUTHN_RP_ID`/`WEBAUTHN_RPID` → un dominio canónico (passkeys+deep-links).
+- [ ] 🔴 **iOS mesh `CBUUID` inválido** (`packages/capacitor-mesh/ios/.../Plugin.swift:34`) → replicar mapeo no-hex→hex de Android (interop BLE).
+- [ ] 🔴 **`render-well-known.mjs:31`** cert Play hardcodeado → exigir `ANDROID_CERT_SHA256` fail-closed.
+- [ ] 🔴 **DR replication** (`firestoreCriticalReplicate.ts:154` `createdAt`→`timestamp`; invoices Timestamp) + fix test falso-verde. (vitest)
+- [ ] 🔴 **voseo es-AR en `es/common.json`** (`Reintentá`/`Seleccioná`/`vos sos`) → "tú" chileno (Regla #2).
+- [ ] 🟡 **Cap de gasto IA por-pod** (`limiters.ts` MemoryStore) → store Firestore (ADR 0019).
+- [ ] 🟡 **Gemini ADR 0019** (track): Vertex paga + orquestador resiliente ON + ruteo Flash + RAG-first + budget por tier.
+
+## Fase 5.3 — Doc-drift sweep (bajo riesgo, intercalable)
+- [ ] Actualizar: `ARCHITECTURE.md` (LOC/refs #20), `stubs-inventory.md` (mesh real + SystemEngine montado), `CLAUDE.md` (#13/#17), runbooks photogrammetry (superseded), `TRACKING_PLAN.md` (analytics impl), `BERNOULLI_EXTENSIONS.md` (16 motores), `gemini-split-plan.md`, `ADR 0013` (UUID mesh), `ADR 0005/0006` superseded, links rotos terraform/README.
+
+## Track transversal — Calidad de tests (intercalar con cada bloque)  · ref `DEEP-EXT-INDEX`
+- [ ] **Reescribir** los 144 tests "wire-up contract" de `src/server/routes/*.test.ts` para que ejerciten el router real (supertest), o asegurar companion en `__tests__/server/`.
+- [ ] **Reescribir** la reimplementación-disfrazada (auditCoverage/mercadoPagoIpn/telemetry/webauthnVerify/externalAuditPortal/suseso/visitors…) para importar la ruta real.
+- [ ] **Reescribir** tautologías "ID crypto contract" y mock-the-SUT (ragService/MorningRoutine). (No borrar tests; corregir que prueben código real.)
+
+---
+
+## Convenciones (no violar)
+- **TDD estricto** RED→GREEN→REFACTOR; tests que ejercitan **código real** — prohibido: Admin-SDK en rules-tests, sembrar el campo del gate, reimplementar el handler en el test, tests "wire-up" solo `router.stack` (catálogo en `DEEP-EXT-INDEX.md`).
+- **Hacer REAL, no eliminar** (ver Principio rector): huérfanos→montar, mocks→datos reales, stubs→implementar, duplicados→consolidar; ADR 0012→reconvertir; nada se borra sin consultar.
+- Cada cambio de estado escribe `audit_logs`; el servidor estampa uid/tenant del token.
+- Nueva colección = reglas explícitas + ≥5 rules-tests (`authenticatedContext`) + Dirty Dozen en `security_spec.md`.
+- **Actualizar `TODO.md`** (resuelto con `file:line`) al cerrar cada ítem. **Un PR por bloque**; reusar utilidades existentes.
+
+## Verificación (cada fix, antes de PR)
+- `npx vitest run <test>` verde y que **falle sobre la impl vieja** (RED real).
+- `npm run test:rules` (emulador, `authenticatedContext`) verde · `npm run typecheck` → 0 · `npm run lint` limpio · pre-commit PASS · copy es-CL "tú" · sin secretos.

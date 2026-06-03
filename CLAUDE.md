@@ -265,3 +265,30 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
   shape.
 - For unfamiliar files/branches/lockfile state, **investigate before
   deleting or overwriting** — assume it's the user's in-flight work.
+
+## Active work — Phase 5 remediation (2026-06)
+
+El repo fue auditado por completo (cada archivo leído línea por línea). Estado y hoja de ruta:
+- `TODO.md` §2.32 (deuda FEAT) · §2.33 (17 patrones sistémicos) · §2.34 (tests/infra/docs).
+- Índices: `docs/audits/file-ledger/DEEP-EX-INDEX.md`, `DEEP-EXT-INDEX.md`, `INDEX-CONSOLIDADO.md`.
+- Roadmap de ejecución (checklist por bloque): `docs/audits/file-ledger/PHASE5-REMEDIATION.md`.
+
+PRINCIPIO RECTOR: hacer REAL la app, NO eliminar. Cada función se cablea donde corresponde —
+huérfanos→montar, mocks→datos reales, stubs→implementar, duplicados→consolidar (preservar
+capacidades). ADR 0012 (no diagnóstico): reconvertir a función conforme, nunca borrar ni habilitar
+diagnóstico. Datos legales fabricados (RUT falso, métricas inventadas): exigir el dato real.
+Decisiones de arquitectura ya tomadas (COLMAP→on-device §2.28): documentar supersesión, no re-cablear.
+
+La remediación va **un PR por bloque**, vida/privacidad primero
+(B1→B7→B3→B16→B2→B17→B5→B12→B4→B8→B9→B6→B10→B11→B13→B14→B15→B18→B-DigitalTwin),
+tras **cimientos compartidos** (F1 harness rules-tests real, F2 parseGeminiJson, F3
+identidad-desde-token, F4 verify WebAuthn, F5 gobernanza CI). Cross-cutting (dominio/WebAuthn,
+iOS mesh UUID, DR replication, voseo es-CL) y doc-drift se intercalan.
+
+Reglas: TDD estricto con tests que ejercitan CÓDIGO REAL (prohibido Admin-SDK en rules-tests,
+sembrar el campo del gate, reimplementar el handler, o tests "wire-up" solo router.stack —
+catálogo en DEEP-EXT-INDEX.md). Cada cambio de estado escribe audit_logs (server estampa uid/tenant).
+Nueva colección = reglas + ≥5 rules-tests (authenticatedContext) + Dirty Dozen en security_spec.md.
+Actualizar TODO.md (resuelto con file:line) al avanzar.
+
+Hecho (B1): sosOutbox dead-letter + routingBackend hazard-clearing.
