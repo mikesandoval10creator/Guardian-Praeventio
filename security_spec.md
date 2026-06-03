@@ -204,6 +204,18 @@ sub-collection master-gate. Rules tests:
 
 29. **Finding Injection**: a non-member creating `/projects/victim/findings/*`.
 30. **Twin Object Delete**: a non-admin/supervisor deleting a placed safety object.
+
+## Project documents — write rules (B5, added 2026-06-03)
+
+`projects/{pid}/documents/{id}` (reports, emergency plans, EPP & SUSESO docs —
+many client-SDK writers) had no write rule → the whole Documents feature was
+default-denied in production. Member-gated create/update; admin/supervisor delete
+(compliance/legal trail). Rules tests: `src/rules-tests/projectDocuments.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+31. **Document Injection**: a non-member creating/editing `/projects/victim/documents/*`.
+32. **Compliance Doc Delete**: a non-admin/supervisor deleting a project document.
 16. **Signed SiteBook Tamper**: `update /projects/p1/site_book_entries/e1`
     where `signedAt` is already set.
 17. **Compliance Delete**: `delete /projects/p1/stoppages/s1` (even as admin).
