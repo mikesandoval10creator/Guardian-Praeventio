@@ -1068,6 +1068,56 @@ Zettelkasten v2 core, motores puros (IPER/REBA/analítica), aislamiento server.
 
 ---
 
+### 2.34 🔴 Deuda de la pasada exhaustiva 2 — tests + infra + build + docs (2026-06-03)
+
+**Origen:** segunda pasada línea-por-línea de los **1.725 archivos restantes** (1.247
+tests + 89 I-CORE/I18N/DATA + 72 I-PLAT + 132 I-BUILD + 185 I-DOCS). Con esto **el
+repo completo (3.545 archivos, menos 77 binarios) queda leído línea por línea.** Índice:
+`docs/audits/file-ledger/DEEP-EXT-INDEX.md`; detalle `DEEP-EXT-01..23` + `DEEP-EXI-24..35`.
+
+**Tests — la cobertura es BIMODAL (el conteo "10.029 passing" sobreestima):**
+- 🔴 **"Wire-up contract": 144 de 164 tests co-located en `src/server/routes/*.test.ts`**
+  solo introspeccionan `router.stack`; no ejercitan handler/`verifyAuth`/`validate`.
+  Borrar `verifyAuth` deja la suite verde. (Cobertura real vive en las 143 suites
+  supertest de `src/__tests__/server/`; rutas sin companion = sin cobertura conductual.)
+- 🔴 **Reimplementación-disfrazada:** `auditCoverage` (prueba la invariante #3 sobre
+  copias), `mercadoPagoIpn`, `telemetry*`, `webauthnVerify/Register`, `externalAuditPortal`,
+  `suseso`, `visitors`, `iot`, etc. — re-implementan el handler, no importan la ruta.
+- 🔴 **"ID crypto contract" tautológico** (apprenticeship/leadership/projectClosure/
+  confidentialReports/drivingSafety/visitors) + **mock-the-SUT** (ragService, MorningRoutine).
+- 🔴🛟 **e2e safety-críticos en `describe.fixme`** (`sos-button`, `process-lifecycle`,
+  `offline-resilience`) → **SOS y offline no tienen e2e activo**; DR dry-run prueba el
+  seeder, no backup real.
+- Lo sólido: `__tests__/server` supertest, componentes con asserts de valor, engines puros
+  mutation-grade (reba/rula/euler), billing crypto (RFC/FIPS/RSA), `security/*` (KEK/KMS).
+
+**Infra/Build — gobernanza y config:**
+- 🔴 **No hay job de `lint` en CI**; **los ratchets (#3/#19/any/i18n) corren solo en
+  husky, no en CI** (bypaseables con `--no-verify`; solo medical-guard tiene backstop CI);
+  **guards #13/#17 no-wired** (re-confirmado).
+- 🔴 **Mismatch de dominio** `praeventio.app` (manifest/AASA) vs `app.praeventio.net`
+  (server/WebAuthn) + `WEBAUTHN_RP_ID`≠`WEBAUTHN_RPID` → **passkeys y deep-links rotos en prod**.
+- 🔴 **iOS `CBUUID` inválido** vs Android → **malla BLE de emergencia no interopera iOS↔Android**.
+- 🔴 `render-well-known.mjs:31` hardcodea el SHA-256 del cert Play de prod (fail-open).
+- 🔴 **voseo es-AR en la referencia es-CL** (`es/common.json`, Regla #2).
+- 🟡 `firebase-applet-config.json` git-trackeada; `cphs_meetings:1175` append-only no
+  preserva prefijo del array de firmas; converters token `==` timing-oracle; contenedores root.
+  ✅ Terraform 100% limpio.
+
+**Docs — doc-drift generalizado post-split** (Regla #20): ARCHITECTURE.md (LOC/refs),
+stubs-inventory (SystemEngine/mesh), CLAUDE.md (#13/#17), TRACKING_PLAN (analytics
+"no impl" pero ~3457 LOC), BERNOULLI_EXTENSIONS, gemini-split-plan, runbooks photogrammetry
+(worker descartado documentado como vivo), BILLING.md, CONTRIBUTING.md, THREAT_MODEL,
+ADR 0013 (UUID mesh inválido), ADR 0005/0006 superseded sin marcar. ✅ SENTRY docs 1:1.
+
+**Reconciliación "colecciones sin reglas" (§2.32 B-rules / §2.33 P1):** se DIVIDE en
+(a) **client-written → ruptura silenciosa real** (clinical_alerts, control_validations,
+comite_actas, findings, driving_incidents, documents, read_receipts, site_book/lighting_audits
+mutables — verificadas client-side) y (b) **server-only → solo gap #4 + lectura cliente rota**
+(health_vault). Ambos necesitan reglas explícitas + rules-tests; (a) además pierde datos en runtime.
+
+---
+
 ## 3. ✅ Codex review pendings — TODOS MERGEADOS (verificación 2026-05-19)
 
 > Codex ChatGPT hizo review automática en ~16 PRs mergeados últimos 14 días. La mayoría muestran "Codex usage limits reached" (sin contenido técnico). Solo **4 PRs** tuvieron hallazgos reales — **10 hallazgos totales** (2 P1 + 8 P2), cubiertos por PRs #267 + #268.
