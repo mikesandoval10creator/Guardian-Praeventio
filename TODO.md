@@ -1099,6 +1099,11 @@ repo completo (3.545 archivos, menos 77 binarios) queda leído línea por línea
   seeder, no backup real.
 - Lo sólido: `__tests__/server` supertest, componentes con asserts de valor, engines puros
   mutation-grade (reba/rula/euler), billing crypto (RFC/FIPS/RSA), `security/*` (KEK/KMS).
+- ✅ **F1 cimiento (2026-06-03):** harness fail-closed `src/rules-tests/_harness.ts`
+  (`createRulesTestEnv():59` lanza si el emulador no arranca) + `projectScopedStores.rules.test.ts`
+  migrado → muere el silent-pass (antes 78 "pass" sin emulador; ahora el suite FALLA, exit 1).
+  `npm run test:rules` = 4 files / 184 tests verde. Pendiente: migrar `tenantScoped.test.ts:64`
+  (`ctx.skip`) al helper; `dirtyDozen`/`firestore.rules.test` ya son fail-closed (maybeSkip-throw).
 
 **Infra/Build — gobernanza y config:**
 - 🔴 **No hay job de `lint` en CI**; **los ratchets (#3/#19/any/i18n) corren solo en
