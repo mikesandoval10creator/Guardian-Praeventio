@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { parseGeminiJson } from './gemini/parsing';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -56,7 +57,7 @@ export const generateCustomSafetyTraining = async (gapDescription: string, audie
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const generateTrainingQuiz = async (topic: string, description: string) => {
@@ -93,5 +94,5 @@ export const generateTrainingQuiz = async (topic: string, description: string) =
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };

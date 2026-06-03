@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { parseGeminiJson } from './gemini/parsing';
 import { LEGAL_PROMPT } from "./coach/prompts.js";
 import { NormativeRagService, type NormativeChunk } from "./coach/normativeRag.js";
 
@@ -86,7 +87,7 @@ referenciadas.`;
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  const parsed = JSON.parse(response.text);
+  const parsed = parseGeminiJson(response);
   parsed.citations = Array.from(
     new Set([...(parsed.citations ?? []), ...usedCitations]),
   );

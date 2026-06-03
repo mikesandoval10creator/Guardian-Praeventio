@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { parseGeminiJson } from './gemini/parsing';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -43,7 +44,7 @@ export const calculatePreventionROI = async (projectData: any) => {
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const generateSusesoFormMetadata = async (incident: any, projectContext: any) => {
@@ -83,5 +84,5 @@ export const generateSusesoFormMetadata = async (incident: any, projectContext: 
   });
 
   if (!response.text) throw new Error('gemini_empty_response');
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
