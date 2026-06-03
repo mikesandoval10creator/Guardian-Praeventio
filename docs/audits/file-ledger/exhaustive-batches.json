@@ -285,7 +285,7 @@
     "start": 110,
     "end": 125,
     "count": 15,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 37,
@@ -293,7 +293,7 @@
     "start": 0,
     "end": 55,
     "count": 55,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 38,
@@ -301,7 +301,7 @@
     "start": 55,
     "end": 61,
     "count": 6,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 39,
@@ -309,7 +309,7 @@
     "start": 0,
     "end": 55,
     "count": 55,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 40,
@@ -317,7 +317,7 @@
     "start": 55,
     "end": 110,
     "count": 55,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 41,
@@ -325,6 +325,6 @@
     "start": 110,
     "end": 159,
     "count": 49,
-    "status": "pending"
+    "status": "done"
   }
 ]
