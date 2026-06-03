@@ -165,7 +165,7 @@
     "start": 1100,
     "end": 1155,
     "count": 55,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 22,
@@ -173,7 +173,7 @@
     "start": 1155,
     "end": 1210,
     "count": 55,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 23,
@@ -181,7 +181,7 @@
     "start": 1210,
     "end": 1247,
     "count": 37,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 24,
