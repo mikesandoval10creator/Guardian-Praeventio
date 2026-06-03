@@ -1031,7 +1031,10 @@ sistémicos** (arreglar la clase, no el síntoma). Los más graves re-verificado
   `placed_objects`, `comite_actas`, `documents`, `personalized_plans`, `slo_metrics`, etc. Tests
   `.firestore.test.ts` usan Admin SDK → falso verde.
 - **P2 — Colas offline descartan datos de seguridad tras N reintentos** sin dead-letter:
-  `sosOutbox.ts:160` (SOS), `syncStateMachine.ts:313` (incidentes/evidencia), `genericOutboxEngine.ts:248`.
+  ✅ **`sosOutbox` RESUELTO (Fase 5, 2026-06-03)** — tras MAX_RETRY el SOS se marca
+  `deadLettered` y se retiene (jamás se descarta); + `deadLetters()`/`clearDeadLetter()`;
+  el hard-cap nunca evicta un dead-letter; 11/11 tests reales. Pendiente: surjir
+  dead-letters en UI; `syncStateMachine.ts:313` (incidentes/evidencia); `genericOutboxEngine.ts:248`.
 - **P3 — Identidad/rol/tenantId del cliente sin verificar contra el token:** `sif.ts`
   (reviewedByUid SIF suplantable), `stoppage.ts:216` (resumedByRole reanuda paralización),
   `exceptions.ts` (approvedByRole), `suseso.ts` (tenantId DIAT/DIEP cross-empresa),

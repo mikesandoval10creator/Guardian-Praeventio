@@ -80,7 +80,10 @@ describe('SosOutbox', () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
-  it('flush abandona después de MAX_RETRY (6)', async () => {
+  it('flush NUNCA descarta en silencio: tras MAX_RETRY mueve a dead-letter', async () => {
+    // 🛟 Un SOS no puede perderse en silencio. Tras agotar reintentos
+    // debe quedar retenido como dead-letter para escalamiento presencial,
+    // no desaparecer (bug DEEP-EX-03 / TODO §2.32 P2).
     const storage = new InMemorySosStorage();
     const send = vi.fn().mockResolvedValue({ ok: false });
     let now = 0;
@@ -92,7 +95,71 @@ describe('SosOutbox', () => {
       await outbox.flush();
     }
     const final = await outbox.snapshot();
-    expect(final).toHaveLength(0); // entry abandonada
+    expect(final).toHaveLength(1); // RETENIDO, no descartado
+    expect(final[0].deadLettered).toBe(true);
+    expect(final[0].event.clientEventId).toBe('evt-1');
+
+    const dead = await outbox.deadLetters();
+    expect(dead).toHaveLength(1);
+    expect(dead[0].event.clientEventId).toBe('evt-1');
+  });
+
+  it('flush no reintenta un entry dead-lettered (no llama send) y lo reporta', async () => {
+    const storage = new InMemorySosStorage();
+    const send = vi.fn().mockResolvedValue({ ok: false });
+    let now = 0;
+    const outbox = new SosOutbox({ storage, send, now: () => now });
+    await outbox.enqueue(makeEvent());
+    for (let i = 0; i < 7; i++) {
+      now += 999_999;
+      await outbox.flush();
+    }
+    const callsAfterDeadLetter = send.mock.calls.length;
+    now += 999_999;
+    const summary = await outbox.flush();
+    expect(send.mock.calls.length).toBe(callsAfterDeadLetter); // no reintento
+    expect(summary.deadLettered).toBe(1);
+    expect(summary.pending).toBe(0); // dead-letters no cuentan como pendientes
+  });
+
+  it('clearDeadLetter remueve un dead-letter ya escalado presencialmente', async () => {
+    const storage = new InMemorySosStorage();
+    const send = vi.fn().mockResolvedValue({ ok: false });
+    let now = 0;
+    const outbox = new SosOutbox({ storage, send, now: () => now });
+    await outbox.enqueue(makeEvent());
+    for (let i = 0; i < 7; i++) {
+      now += 999_999;
+      await outbox.flush();
+    }
+    expect(await outbox.deadLetters()).toHaveLength(1);
+    await outbox.clearDeadLetter('evt-1');
+    expect(await outbox.deadLetters()).toHaveLength(0);
+    expect(await outbox.snapshot()).toHaveLength(0);
+  });
+
+  it('el hard-cap nunca evicta un dead-letter en favor de un pendiente más nuevo', async () => {
+    // 🛟 Un SOS no entregado (dead-letter) es lo MÁS importante: jamás
+    // debe ser desplazado por eventos pendientes más nuevos.
+    const storage = new InMemorySosStorage();
+    const send = vi.fn().mockResolvedValue({ ok: false });
+    let now = 0;
+    const outbox = new SosOutbox({ storage, send, now: () => now });
+    // Dead-letterear evt-dead
+    await outbox.enqueue(makeEvent({ clientEventId: 'evt-dead' }));
+    for (let i = 0; i < 7; i++) {
+      now += 999_999;
+      await outbox.flush();
+    }
+    expect((await outbox.deadLetters())[0].event.clientEventId).toBe('evt-dead');
+    // Saturar la cola con 60 pendientes nuevos
+    for (let i = 0; i < 60; i++) {
+      await outbox.enqueue(makeEvent({ clientEventId: `evt-new-${i}` }));
+    }
+    const snap = await outbox.snapshot();
+    expect(snap.length).toBeLessThanOrEqual(50);
+    // El dead-letter sigue presente pese a la saturación
+    expect(snap.some((e) => e.event.clientEventId === 'evt-dead' && e.deadLettered)).toBe(true);
   });
 
   it('flush con send que throws lo trata como fallo (no rompe la cola)', async () => {
