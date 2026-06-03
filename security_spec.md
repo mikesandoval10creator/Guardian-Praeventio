@@ -190,6 +190,20 @@ are explicit). Rules tests: `src/rules-tests/b7PlansCheckins.rules.test.ts`.
 
 27. **Wellness Snoop**: a non-owner / non-doctor reading `/users/victim/morning_checkins/*`.
 28. **Check-in Forge**: writing `/users/victim/morning_checkins/*` while authenticated as someone else.
+
+## Findings + placed objects — write rules (B3 / B-DigitalTwin, added 2026-06-03)
+
+`projects/{pid}/findings/{id}` (BioAnalysis / Hallazgos; `reportedBy` is a display
+name, not a uid → member-gated) and `projects/{pid}/placed_objects/{id}`
+(digital-twin hazards/equipment, member-gated) had no write rule (default-denied).
+Both: member-gated create/update, admin/supervisor delete; read via the project
+sub-collection master-gate. Rules tests:
+`src/rules-tests/findingsPlacedObjects.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+29. **Finding Injection**: a non-member creating `/projects/victim/findings/*`.
+30. **Twin Object Delete**: a non-admin/supervisor deleting a placed safety object.
 16. **Signed SiteBook Tamper**: `update /projects/p1/site_book_entries/e1`
     where `signedAt` is already set.
 17. **Compliance Delete**: `delete /projects/p1/stoppages/s1` (even as admin).
