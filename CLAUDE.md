@@ -154,7 +154,7 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
     <owner>` comment, (b) be invisible to end users (feature flag gate or
     return HTTP 503), (c) have a test that pins the placeholder's shape,
     (d) be registered in `docs/stubs-inventory.md`. Enforced by
-    `scripts/precommit-stub-guard.cjs` (wired in PR #514).
+    `scripts/precommit-stub-guard.cjs` (shipped in PR #514; wired into `.husky/pre-commit` 2026-06).
 14. **Audit log calls MUST be `await`ed.** `void auditServerEvent(...)`
     is banned because Firestore failures silently break the compliance
     trail. Pattern: `try { await auditServerEvent(...); } catch (err) {
@@ -175,7 +175,7 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
 17. **Android `allowBackup="false"` by default.** `adb backup` allows
     data extraction without root. If you have a legitimate reason to set
     it `"true"`, add an inline XML comment explaining why. Enforced by
-    `scripts/precommit-allowbackup-guard.cjs` (wired in PR #514).
+    `scripts/precommit-allowbackup-guard.cjs` (shipped in PR #514; wired into `.husky/pre-commit` 2026-06).
 18. **Locale parity.** The launch locales (`es` reference + `en`, `pt-BR`)
     must stay at key parity: a key present in `src/i18n/locales/es/common.json`
     MUST also exist in `en` and `pt-BR`. Enforced by
