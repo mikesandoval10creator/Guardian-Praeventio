@@ -186,6 +186,10 @@ service cloud.firestore {
                'companyName', 'companyRut', 'companyAddress', 'mutualidad',
                // Emergency + tracking
                'phone', 'shiftStart', 'shiftEnd', 'trackCommute', 'settings',
+               // Emergency declaration state (B1) — written by EmergencyCheckIn
+               // toggleEmergency via setDoc(merge). Without these in the
+               // allowlist, declaring an emergency was silently denied.
+               'isEmergencyActive', 'activeEmergencyProtocol', 'emergencyStartTime',
                // Future-proof slots used by some integrations
                'ownerUid', 'ownerEmail', 'organizationId', 'erpId',
                'tags', 'metadata', 'invitedEmails', 'photos',
