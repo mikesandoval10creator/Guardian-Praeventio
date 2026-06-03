@@ -1016,6 +1016,58 @@ varios contradicen un ✅ previo (Rule #1).
 
 ---
 
+### 2.33 🔴 Deuda de la pasada exhaustiva línea-por-línea (1.743 archivos FEAT, 2026-06-03)
+
+**Origen:** segunda pasada que leyó **TODOS** los archivos FEAT línea por línea (no
+solo la capa crítica). Índice + detalle: `docs/audits/file-ledger/DEEP-EX-INDEX.md`
+y `DEEP-EX-01..41.md`. ~45 hallazgos 🔴 NUEVOS, agrupados en **17 patrones
+sistémicos** (arreglar la clase, no el síntoma). Los más graves re-verificados por grep.
+
+**Patrones de mayor impacto (vida/cumplimiento):**
+- **P1 — Colecciones client-side SIN reglas Firestore → default-deny silencioso.** El
+  fix de §17 (14 colecciones) **quedó incompleto**; faltan ≥20: `pings` (baliza de vida),
+  `deas`/`inspections` (desfibriladores), `clinical_alerts`, `findings`, `control_validations`,
+  `read_receipts`, `driving_incidents`, `calendar_events`, `reconstructions`/`reconstruction_jobs`/
+  `placed_objects`, `comite_actas`, `documents`, `personalized_plans`, `slo_metrics`, etc. Tests
+  `.firestore.test.ts` usan Admin SDK → falso verde.
+- **P2 — Colas offline descartan datos de seguridad tras N reintentos** sin dead-letter:
+  `sosOutbox.ts:160` (SOS), `syncStateMachine.ts:313` (incidentes/evidencia), `genericOutboxEngine.ts:248`.
+- **P3 — Identidad/rol/tenantId del cliente sin verificar contra el token:** `sif.ts`
+  (reviewedByUid SIF suplantable), `stoppage.ts:216` (resumedByRole reanuda paralización),
+  `exceptions.ts` (approvedByRole), `suseso.ts` (tenantId DIAT/DIEP cross-empresa),
+  `networkBackend.ts` (authorUid), `microtraining.ts:187` (certificar a cualquiera).
+- **P4 — Firmas WebAuthn presence-checked pero nunca verificadas cripto:** DTE (`dte.ts:349`),
+  referee co-sign, biometría login, aptitud médica, kms-sign-rsa.
+- **P5 — Records firmados MUTABLES** (gate keya campo que el writer no escribe) + tests falso-verde:
+  `site_book`, `lighting_audits` (DS594). (cphs_meetings sí está bien.)
+- **P6 — Puntos ciegos del guard ADR 0012:** código de diagnóstico real fuera del scope —
+  `VitalityMonitor.tsx` (CIE-10 golpe de calor), `medicalAnalysisBackend.ts` (differentialDiagnosis),
+  `occupational-health/`, `psychosocialBackend`, `shiftBackend`. El guard solo escanea `health/`+`medicine/`.
+- **P7 — Imágenes de cámara a Gemini cloud vs directiva #12:** `BioAnalysis.tsx:411` (frame vivo),
+  `AIPostureAnalysisModal`, `EPPVerificationModal.tsx:63`.
+- **P8 — Envenenamiento de RAG (Zettelkasten):** `KnowledgeIngestion.tsx:60` y `networkBackend.ts:77`
+  (nodos `global`/master sin gate), `ragService.queryCommunityKnowledge` (self-poisoning).
+- **P9 — Auto-otorgamiento de gamificación** por escritura directa (reglas restringen keys no valores):
+  `user_stats`, `gamification_scores`.
+- **P14 — Job de réplica DR replica CERO filas en silencio** (`firestoreCriticalReplicate.ts:154`
+  filtra `createdAt` pero audit escribe `timestamp`; invoices Timestamp vs epoch-ms) → RPO incumplido.
+
+**Patrones de robustez/costo:** P10 datos falsos mostrados como reales (SloErrorBudget,
+WeatherBulletin, dataConfidence, EmergencySquadManager); P11 `JSON.parse` sin try/catch
+sistémico en `*Backend.ts` (#5, **un codemod**); P12 `Math.random` en IDs cliente (#15);
+P13 SLM sin verificar sha256 del CDN; **P15 el cap global de gasto IA usa MemoryStore
+por-pod → cap real = réplicas × cap** (relevante a ADR 0019); P16 stubs disfrazados
+que llegan al usuario; P17 copy de cumplimiento mentiroso.
+
+**Notas operacionales:** push de incidente CRÍTICO al CPHS no llega a dispositivos
+modernos (`backgroundTriggers.ts:213` lee `fcmToken` legacy singular); `predictionBackend`
+usa `gemini-3.1-pro-preview` facturado a precio Flash (sub-metering).
+
+**Aguantó el escrutinio (sólido):** billing/pagos, clúster cripto (AES-256-GCM/CloudKMS),
+Zettelkasten v2 core, motores puros (IPER/REBA/analítica), aislamiento server.
+
+---
+
 ## 3. ✅ Codex review pendings — TODOS MERGEADOS (verificación 2026-05-19)
 
 > Codex ChatGPT hizo review automática en ~16 PRs mergeados últimos 14 días. La mayoría muestran "Codex usage limits reached" (sin contenido técnico). Solo **4 PRs** tuvieron hallazgos reales — **10 hallazgos totales** (2 P1 + 8 P2), cubiertos por PRs #267 + #268.
