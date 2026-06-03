@@ -410,6 +410,24 @@ service cloud.firestore {
           && incoming().analyzedByUid == existing().analyzedByUid;
         allow delete: if false;
       }
+      // DEA — desfibriladores externos (Ley 21.156). Equipo que salva vidas:
+      // cualquier miembro del proyecto registra/actualiza un DEA (anti-spoof en
+      // createdBy), las inspecciones son un registro INMUTABLE de cumplimiento,
+      // y borrar un DEA queda restringido a admin/supervisor. Lectura cubierta
+      // por el master-gate de subcolecciones (isProjectMember).
+      match /deas/{deaId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().createdBy == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().createdBy == existing().createdBy;
+        allow delete: if isAdmin() || isSupervisor();
+        match /inspections/{inspectionId} {
+          allow create: if isValidId(projectId) && isProjectMember(projectId)
+            && incoming().performedByUid == request.auth.uid;
+          // Registro inmutable de cumplimiento (Ley 21.156).
+          allow update, delete: if false;
+        }
+      }
       // SiteBook (libro de obras): legally-binding; immutable once signed.
       match /site_book/{docId} {
         allow create: if isValidId(projectId) && isProjectMember(projectId)
