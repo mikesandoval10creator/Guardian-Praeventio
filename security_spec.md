@@ -131,6 +131,21 @@ are client-SDK written (`DEAZones.tsx`) and previously had no write rule (client
 17. **Inspection Tamper**: any update/delete on
     `/projects/p1/deas/d1/inspections/i1` (immutable compliance record).
 18. **Inspector Spoof**: `{ "performedByUid": "victim_id" }` on inspection create.
+
+## Survival ping (life beacon) — write rules (B1, added 2026-06-03)
+
+`pings/{uid}` is a top-level per-worker beacon written ~every 60s by
+`useSurvivalPing` (client SDK). It had no rule → default-denied (a worker in
+distress emitted nothing). Rules tests: `src/rules-tests/survivalPings.rules.test.ts`.
+- create/update: owner only (`isOwner(uid)`); fixed schema `{lat,lng,timestamp,status}`.
+- read: owner + admin/supervisor (rescue coordinators).
+- delete: **false** (append-only rescue trail).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+19. **Beacon Hijack**: writing `/pings/victim_uid` while authenticated as someone else.
+20. **Beacon Field Injection**: `{ ...ping, "exfiltrate": "…" }` (schema `hasOnly`).
+21. **Cross-worker Beacon Read**: a non-admin/supervisor reading `/pings/other_uid`.
 16. **Signed SiteBook Tamper**: `update /projects/p1/site_book_entries/e1`
     where `signedAt` is already set.
 17. **Compliance Delete**: `delete /projects/p1/stoppages/s1` (even as admin).

@@ -524,6 +524,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Survival ping — life beacon written ~every 60s by useSurvivalPing
+    // (pings/{uid}, client SDK, setDoc merge). The worker writes ONLY their own
+    // beacon; rescue coordinators (admin/supervisor) read it to locate workers
+    // in an emergency. Previously had no rule → the beacon was default-denied.
+    match /pings/{pingUid} {
+      allow read: if isValidId(pingUid) && (isOwner(pingUid) || isAdmin() || isSupervisor());
+      allow create, update: if isValidId(pingUid) && isOwner(pingUid)
+        && incoming().keys().hasOnly(['lat', 'lng', 'timestamp', 'status'])
+        && incoming().status is string;
+      allow delete: if false;
+    }
+
     match /telemetry_events/{eventId} {
       allow read: if isAdmin() || isSupervisor();
       // Client-side creates are forbidden. Telemetry must flow through
