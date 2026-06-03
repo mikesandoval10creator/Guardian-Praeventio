@@ -113,6 +113,24 @@ open `firestore.test.rules`. See `TODO.md §17 "HALLAZGO CRÍTICO"`. Rules tests
     by a non-member of `victim`.
 15. **Creator Reassignment**: update flipping `recordedByUid`/`declaredByUid`/…
     to another uid.
+
+## DEA defibrillator equipment — write rules (B1, added 2026-06-03)
+
+`projects/{projectId}/deas/{id}` and nested `.../inspections/{id}` (Ley 21.156)
+are client-SDK written (`DEAZones.tsx`) and previously had no write rule (client
+`setDoc` default-denied). Rules tests:
+`src/rules-tests/deaSafetyEquipment.rules.test.ts`.
+- `deas` create/update: project member; `createdBy` equals the caller and is
+  immutable on update. delete: admin/supervisor only.
+- `deas/{id}/inspections`: project member; `performedByUid` equals the caller;
+  **immutable** (no update/delete) — compliance record.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+16. **DEA Creator Spoof**: `{ "createdBy": "victim_id" }` on `/projects/p1/deas/d1` (create).
+17. **Inspection Tamper**: any update/delete on
+    `/projects/p1/deas/d1/inspections/i1` (immutable compliance record).
+18. **Inspector Spoof**: `{ "performedByUid": "victim_id" }` on inspection create.
 16. **Signed SiteBook Tamper**: `update /projects/p1/site_book_entries/e1`
     where `signedAt` is already set.
 17. **Compliance Delete**: `delete /projects/p1/stoppages/s1` (even as admin).
