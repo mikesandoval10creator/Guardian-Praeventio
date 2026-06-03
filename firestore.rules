@@ -437,6 +437,20 @@ service cloud.firestore {
           allow update, delete: if false;
         }
       }
+      // Bio-analysis / inspection findings (BioAnalysis + Hallazgos, client SDK).
+      // The schema carries `reportedBy` (display name, not a uid) → member-gated
+      // create/update; deleting a safety finding is restricted to admin/supervisor.
+      match /findings/{findingId} {
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
+      }
+      // Digital-twin placed objects (hazards/equipment placed in the 3D twin,
+      // placedObjectsStore client SDK). No creator-uid field → member-gated;
+      // deleting a placed safety object is restricted to admin/supervisor.
+      match /placed_objects/{objectId} {
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
+      }
       // Personalized AI safety plans (PersonalizedSafetyPlan, client SDK). The
       // schema has no creator-uid field → member-gated; admin/supervisor delete.
       match /personalized_plans/{planId} {
