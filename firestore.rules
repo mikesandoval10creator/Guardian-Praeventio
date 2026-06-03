@@ -428,6 +428,24 @@ service cloud.firestore {
           allow update, delete: if false;
         }
       }
+      // Driving incidents (SafeDriving, client SDK). The schema has no confirmed
+      // creator-uid field → member-gated create/update; admin/supervisor delete.
+      match /driving_incidents/{incidentId} {
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
+      }
+      // Read receipts (DS44/RIOHS) — legal acknowledgement that a worker read a
+      // document. projects/{pid}/read_receipts/{documentId__workerUid}. The worker
+      // writes ONLY their own receipt (workerUid == caller, immutable); the acuse
+      // is never deleted. Read via the sub-collection master-gate.
+      match /read_receipts/{receiptId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().workerUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().workerUid == existing().workerUid
+          && existing().workerUid == request.auth.uid;
+        allow delete: if false;
+      }
       // Critical-control validations (DS44 — controles críticos de seguridad).
       // projects/{pid}/control_validations/{controlId__taskId} (client SDK,
       // controlValidationsStore). A project member records a validation;
