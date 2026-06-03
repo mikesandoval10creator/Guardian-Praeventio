@@ -5,7 +5,7 @@
     "start": 0,
     "end": 55,
     "count": 55,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 2,
@@ -13,7 +13,7 @@
     "start": 55,
     "end": 110,
     "count": 55,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 3,
@@ -21,7 +21,7 @@
     "start": 110,
     "end": 130,
     "count": 20,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 4,
@@ -29,7 +29,7 @@
     "start": 0,
     "end": 55,
     "count": 55,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 5,
@@ -37,7 +37,7 @@
     "start": 55,
     "end": 110,
     "count": 55,
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": 6,
