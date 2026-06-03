@@ -1939,18 +1939,26 @@ Roadmap por bloque (se montan **dentro de su bloque**, cadencia block-by-block):
 | loneWorker, refuges, restrictedZones | B1 | sprint-k / zones | useLoneWorker/useRefuges/useRestrictedZones | ✅ B1-F1 |
 | evacuationHeadcount | B1 | `/api/evacuation` | useEvacuationHeadcount, EvacuationQRScanner | ✅ B1-F2 |
 | riskRanking, shiftRiskPanel | B2 | sprint-k | useRiskRanking (3 cards), useShiftRiskPanel | ✅ B2-F1 |
-| incidentFlow | B4 | sprint-k | useIncidentFlow | ⬜ (ojo: audit a path tenant-scoped, ver L795) |
-| stoppage | B4/B8 | sprint-k | useStoppage, StoppageMonitor.tsx | ⬜ |
-| legalObligations | B5 | sprint-k | useLegalCalendar/useLegalObligations | ⬜ |
-| eppFlow, equipmentQr, hazmatInventory | B10 | sprint-k | useEppFlow/useEquipmentQr/HazmatStorage | ⬜ |
-| syncStatus | B16 | sprint-k | useSyncStatus | ⬜ |
-| pymeOnboarding, pymeWizard | B17 | sprint-k | usePymeOnboarding/usePymeWizard | ⬜ |
-| reportsAutomation, safetyMetrics, projectComparator, predictiveAlerts | B18 | sprint-k | useReportsAutomation/useSafetyMetrics/useProjectComparator/usePredictiveAlerts | ⬜ |
-| preventionCost | B15 | sprint-k | usePreventionCost | ⬜ |
+| incidentFlow | B4 | sprint-k | useIncidentFlow | ✅ #650 (writeNodes server-side #652) |
+| stoppage | B4/B8 | sprint-k | useStoppage, StoppageMonitor.tsx | ✅ #650 |
+| legalObligations | B5 | sprint-k | useLegalCalendar/useLegalObligations | ✅ #650 (IDOR fix #651) |
+| eppFlow, equipmentQr, hazmatInventory | B10 | sprint-k | useEppFlow/useEquipmentQr/HazmatStorage | ✅ #650 (eppFlow role-gate #651 + writeNodes #652) |
+| syncStatus | B16 | sprint-k | useSyncStatus | ✅ #650 |
+| pymeOnboarding, pymeWizard | B17 | sprint-k | usePymeOnboarding/usePymeWizard | ✅ #650 |
+| reportsAutomation, safetyMetrics, projectComparator, predictiveAlerts | B18 | sprint-k | useReportsAutomation/useSafetyMetrics/useProjectComparator/usePredictiveAlerts | ✅ #650 |
+| preventionCost | B15 | sprint-k | usePreventionCost | ✅ #650 (role-gate save-scenario #653) |
 
-Todos verificados: `verifyAuth` + `assertProjectMember` presentes; los que
-escriben auditan (helper o raw `audit_logs`). Cada uno se monta con su caso en
-`serverMountOrder.test.ts` (RED→GREEN) al llegar a su bloque.
+**✅ TODOS MONTADOS — #650 mergeado 2026-06-02 (`7d67200a`).** Los 20 routers
+huérfanos están en `server.ts` (`app.use('/api/sprint-k', …)` + `/api/evacuation`
++ `/api/zones`). El guard `routerMountCoverage.test.ts` (baseline 0 huérfanos) lo
+ratchetea. **Authz-audit-on-mount completado:** montar volvió LIVE los gaps
+dormidos → Codex halló 7 P1 → **#651** (IDOR legalObligations + role-gates
+restrictedZones/evacuation/eppFlow) + **#652** (eppFlow/incidentFlow persisten ZK
+server-side vía `serverZkNodeWriter.ts`, ya no browser-writeNodes) + **#653**
+(preventionCost save-scenario role-gate, único write restante sin gatear). Los 13
+`/api/sprint-k` restantes son stateless pure-compute (0 writes server-side; el
+cliente persiste vía las 13 firestore.rules que #650 agregó). `verifyAuth` +
+`assertProjectMember` presentes en todos.
 
 ---
 
@@ -1984,7 +1992,7 @@ permission-denied en prod.
 (client `setDoc` a `projects/{pid}/{coll}`) · `firestore.test.rules` header ·
 `StoppageMonitor.tsx`→`saveStoppage`, `SiteBook.tsx`→`saveSiteBookEntry`.
 
-**Fix — EN PROGRESO (2026-06-01, usuario eligió "implementar las 14 ahora"):**
+**Fix — ✅ RESUELTO (#650 mergeado 2026-06-02 `7d67200a`):**
 - `firestore.rules`: agregadas reglas de write para las **13** colecciones reales
   (`sample_live` es test-only, excluida) bajo `projects/{projectId}` — modelo
   conservador: create member + anti-spoof del campo creator-uid donde existe;
@@ -1996,9 +2004,10 @@ permission-denied en prod.
   (owner-allow, non-member-deny, spoof-deny, creator-immutable, post-sign-deny,
   delete-deny) — typecheck verde.
 - `security_spec.md`: sección Sprint-K stores + payloads 13-17.
-- ⚠️ **Verificación: vía CI** (`Firestore rules tests` job) — el emulador no corre
-  en este entorno (firebase-tools no instalable). `lint:rules` 0 errores. Si CI
-  falla, autofix vía subscripción al PR.
+- ✅ **Verificación: CI VERDE en #650** — jobs `Firestore rules tests` (2m10s) +
+  `Firestore stores tests` (1m50s) pasaron. **Arregla bugs funcionales reales:**
+  StoppageMonitor (`saveStoppage`) + SiteBook (`saveSiteBookEntry`) escribían a
+  paths default-deny → permission-denied en prod → ahora persisten correctamente.
 - **Revisar (usuario):** modelos de acceso marcados inline en `firestore.rules`
   (especialmente `exceptions`/`legal_obligations`/`shifts` sin campo creator-uid
   confirmado, e inmutabilidad exacta de paralización). **B4-D1 incluido en este fix.**

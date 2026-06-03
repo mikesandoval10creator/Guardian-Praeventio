@@ -39,6 +39,12 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
     (req as Request & { user: Record<string, unknown> }).user = {
       uid,
       tenantId: req.header('x-test-tenant') || undefined,
+      // save-scenario role gate: MEMBER_UID ('member-user') defaults to a
+      // cost-author role so the membership-era 201 tests stay green; any
+      // other caller gets the explicit x-test-role header (or no role).
+      role:
+        req.header('x-test-role') ||
+        (uid === 'member-user' ? 'prevencionista' : undefined),
     };
     next();
   },
@@ -497,6 +503,58 @@ describe('POST /:projectId/cost/save-scenario', () => {
     expect(input.industry).toBe('mining');
     expect(input.workerCount).toBe(50);
     expect(input.preventionInvestmentClp).toBe(50_000);
+  });
+});
+
+// ── 403 — save-scenario role gate (prevention-planning roles only) ──────────
+// Membership alone is NOT enough to author a cost-benefit scenario: it is a
+// planning artifact, gated to {admin, gerente, prevencionista} mirroring
+// residualRisk.ts. (A worker's OWN safety self-action is never gated — this
+// is not one of those.) The membership-era 201 tests above keep passing
+// because MEMBER_UID defaults to 'prevencionista' in the verifyAuth mock.
+
+describe('403 — save-scenario requires a prevention-planning role', () => {
+  it('forbidden_role when a project member has a non-author role (operario)', async () => {
+    seedMembership(MEMBER_UID); // is a member…
+    const res = await request(buildApp())
+      .post(`/api/${PROJECT}/cost/save-scenario`)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'operario') // …but operario is not a cost-author role
+      .send(VALID_SAVE_BODY);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_role');
+  });
+
+  it('forbidden_role when a project member has no role at all', async () => {
+    // A distinct member uid (not MEMBER_UID) → mock assigns no role.
+    seedMembership('plain-member');
+    const res = await request(buildApp())
+      .post(`/api/${PROJECT}/cost/save-scenario`)
+      .set('x-test-uid', 'plain-member')
+      .send(VALID_SAVE_BODY);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_role');
+  });
+
+  it('201 when a project member has the prevencionista role', async () => {
+    seedMembership(MEMBER_UID);
+    const res = await request(buildApp())
+      .post(`/api/${PROJECT}/cost/save-scenario`)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'prevencionista')
+      .send(VALID_SAVE_BODY);
+    expect(res.status).toBe(201);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it('201 when a project member has the gerente role', async () => {
+    seedMembership(MEMBER_UID);
+    const res = await request(buildApp())
+      .post(`/api/${PROJECT}/cost/save-scenario`)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'gerente')
+      .send(VALID_SAVE_BODY);
+    expect(res.status).toBe(201);
   });
 });
 
