@@ -428,6 +428,19 @@ service cloud.firestore {
           allow update, delete: if false;
         }
       }
+      // Critical-control validations (DS44 — controles críticos de seguridad).
+      // projects/{pid}/control_validations/{controlId__taskId} (client SDK,
+      // controlValidationsStore). A project member records a validation;
+      // validatedByUid must be the caller and is immutable on update; deleting a
+      // safety validation is restricted to admin/supervisor. Read via the
+      // sub-collection master-gate (isProjectMember).
+      match /control_validations/{validationId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().validatedByUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().validatedByUid == existing().validatedByUid;
+        allow delete: if isAdmin() || isSupervisor();
+      }
       // SiteBook (libro de obras): legally-binding; immutable once signed.
       match /site_book/{docId} {
         allow create: if isValidId(projectId) && isProjectMember(projectId)
