@@ -437,6 +437,15 @@ service cloud.firestore {
           allow update, delete: if false;
         }
       }
+      // Project documents (reports, emergency plans, EPP & SUSESO docs — many
+      // client-SDK writers with varied schemas). Member-gated create/update;
+      // deleting a project document (compliance/legal trail) is restricted to
+      // admin/supervisor. Read via the sub-collection master-gate. Previously had
+      // NO write rule → the Documents feature was default-denied in production.
+      match /documents/{documentId} {
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
+      }
       // Bio-analysis / inspection findings (BioAnalysis + Hallazgos, client SDK).
       // The schema carries `reportedBy` (display name, not a uid) → member-gated
       // create/update; deleting a safety finding is restricted to admin/supervisor.
