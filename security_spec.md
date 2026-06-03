@@ -161,6 +161,21 @@ Rules tests: `src/rules-tests/controlValidations.rules.test.ts`.
 22. **Validation Spoof**: `{ "validatedByUid": "supervisor_id" }` (create) — falsely
     claim someone else verified a critical safety control.
 23. **Validator Reassignment**: update flipping `validatedByUid` to another uid.
+
+## Driving incidents + read receipts — write rules (B11/B6, added 2026-06-03)
+
+`projects/{pid}/driving_incidents/{id}` (SafeDriving; no creator-uid field →
+member-gated create/update, admin/supervisor delete) and
+`projects/{pid}/read_receipts/{documentId__workerUid}` (DS44/RIOHS acuse;
+worker-owned `workerUid == caller`, immutable, never deleted) had no write rule.
+Rules tests: `src/rules-tests/drivingAndReceipts.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+24. **Receipt Forgery**: `{ "workerUid": "victim_id" }` on read_receipts create —
+    claim another worker acknowledged a mandatory document.
+25. **Receipt Hijack**: update flipping `workerUid` on an existing receipt.
+26. **Incident Delete**: a non-admin/supervisor deleting a `driving_incident`.
 16. **Signed SiteBook Tamper**: `update /projects/p1/site_book_entries/e1`
     where `signedAt` is already set.
 17. **Compliance Delete**: `delete /projects/p1/stoppages/s1` (even as admin).
