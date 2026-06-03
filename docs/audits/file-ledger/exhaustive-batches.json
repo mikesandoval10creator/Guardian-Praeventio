@@ -1,0 +1,330 @@
+[
+  {
+    "id": 1,
+    "block": "B1-Emergencia",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 2,
+    "block": "B1-Emergencia",
+    "start": 55,
+    "end": 110,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 3,
+    "block": "B1-Emergencia",
+    "start": 110,
+    "end": 130,
+    "count": 20,
+    "status": "pending"
+  },
+  {
+    "id": 4,
+    "block": "B7-Salud",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 5,
+    "block": "B7-Salud",
+    "start": 55,
+    "end": 110,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 6,
+    "block": "B7-Salud",
+    "start": 110,
+    "end": 125,
+    "count": 15,
+    "status": "pending"
+  },
+  {
+    "id": 7,
+    "block": "B3-Ergonomia",
+    "start": 0,
+    "end": 29,
+    "count": 29,
+    "status": "pending"
+  },
+  {
+    "id": 8,
+    "block": "B16-Offline",
+    "start": 0,
+    "end": 30,
+    "count": 30,
+    "status": "pending"
+  },
+  {
+    "id": 9,
+    "block": "B17-Admin",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 10,
+    "block": "B17-Admin",
+    "start": 55,
+    "end": 108,
+    "count": 53,
+    "status": "pending"
+  },
+  {
+    "id": 11,
+    "block": "B5-Cumplimiento",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 12,
+    "block": "B5-Cumplimiento",
+    "start": 55,
+    "end": 110,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 13,
+    "block": "B5-Cumplimiento",
+    "start": 110,
+    "end": 154,
+    "count": 44,
+    "status": "pending"
+  },
+  {
+    "id": 14,
+    "block": "B2-RiesgoIPER",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 15,
+    "block": "B2-RiesgoIPER",
+    "start": 55,
+    "end": 79,
+    "count": 24,
+    "status": "pending"
+  },
+  {
+    "id": 16,
+    "block": "B4-Incidentes",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 17,
+    "block": "B4-Incidentes",
+    "start": 55,
+    "end": 71,
+    "count": 16,
+    "status": "pending"
+  },
+  {
+    "id": 18,
+    "block": "B12-CPHS",
+    "start": 0,
+    "end": 40,
+    "count": 40,
+    "status": "pending"
+  },
+  {
+    "id": 19,
+    "block": "B8-PermisosLOTO",
+    "start": 0,
+    "end": 54,
+    "count": 54,
+    "status": "pending"
+  },
+  {
+    "id": 20,
+    "block": "B9-Inspecciones",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 21,
+    "block": "B9-Inspecciones",
+    "start": 55,
+    "end": 88,
+    "count": 33,
+    "status": "pending"
+  },
+  {
+    "id": 22,
+    "block": "B6-Capacitacion",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 23,
+    "block": "B6-Capacitacion",
+    "start": 55,
+    "end": 106,
+    "count": 51,
+    "status": "pending"
+  },
+  {
+    "id": 24,
+    "block": "B10-EPP",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 25,
+    "block": "B10-EPP",
+    "start": 55,
+    "end": 62,
+    "count": 7,
+    "status": "pending"
+  },
+  {
+    "id": 26,
+    "block": "B11-Contratistas",
+    "start": 0,
+    "end": 35,
+    "count": 35,
+    "status": "pending"
+  },
+  {
+    "id": 27,
+    "block": "B13-MOC",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 28,
+    "block": "B13-MOC",
+    "start": 55,
+    "end": 60,
+    "count": 5,
+    "status": "pending"
+  },
+  {
+    "id": 29,
+    "block": "B15-Billing",
+    "start": 0,
+    "end": 52,
+    "count": 52,
+    "status": "pending"
+  },
+  {
+    "id": 30,
+    "block": "B14-IA",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 31,
+    "block": "B14-IA",
+    "start": 55,
+    "end": 110,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 32,
+    "block": "B14-IA",
+    "start": 110,
+    "end": 165,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 33,
+    "block": "B14-IA",
+    "start": 165,
+    "end": 175,
+    "count": 10,
+    "status": "pending"
+  },
+  {
+    "id": 34,
+    "block": "B18-Analitica",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 35,
+    "block": "B18-Analitica",
+    "start": 55,
+    "end": 110,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 36,
+    "block": "B18-Analitica",
+    "start": 110,
+    "end": 125,
+    "count": 15,
+    "status": "pending"
+  },
+  {
+    "id": 37,
+    "block": "B-DigitalTwin",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 38,
+    "block": "B-DigitalTwin",
+    "start": 55,
+    "end": 61,
+    "count": 6,
+    "status": "pending"
+  },
+  {
+    "id": 39,
+    "block": "CROSS",
+    "start": 0,
+    "end": 55,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 40,
+    "block": "CROSS",
+    "start": 55,
+    "end": 110,
+    "count": 55,
+    "status": "pending"
+  },
+  {
+    "id": 41,
+    "block": "CROSS",
+    "start": 110,
+    "end": 159,
+    "count": 49,
+    "status": "pending"
+  }
+]
