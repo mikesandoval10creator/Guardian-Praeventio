@@ -250,6 +250,15 @@ service cloud.firestore {
         allow read: if isOwner(userId) || isDoctor();
         allow write: if isDoctor();
       }
+
+      // Morning wellness self-check (MorningRoutine, hygiene). Private to the
+      // worker and the occupational-health doctor; the worker writes their own
+      // check-in; the wellness history is never deleted.
+      match /morning_checkins/{date} {
+        allow read: if isOwner(userId) || isDoctor();
+        allow create, update: if isOwner(userId);
+        allow delete: if false;
+      }
     }
 
     match /projects/{projectId} {
@@ -427,6 +436,12 @@ service cloud.firestore {
           // Registro inmutable de cumplimiento (Ley 21.156).
           allow update, delete: if false;
         }
+      }
+      // Personalized AI safety plans (PersonalizedSafetyPlan, client SDK). The
+      // schema has no creator-uid field → member-gated; admin/supervisor delete.
+      match /personalized_plans/{planId} {
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
       }
       // Driving incidents (SafeDriving, client SDK). The schema has no confirmed
       // creator-uid field → member-gated create/update; admin/supervisor delete.
