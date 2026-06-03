@@ -13,22 +13,21 @@
 //   • update: project member + creator-uid immutable (+ append-only once signed);
 //   • delete: false for compliance records, admin/supervisor for operational.
 //
-// Emulator dependency: like the sibling rules suites, this auto-skips when the
-// Firestore emulator is unreachable (run via `npm run test:rules`).
+// Phase 5 · F1 (2026-06-03): this suite previously swallowed the emulator
+// connect error and every test early-returned (`if (!testEnv) return`), so with
+// no emulator it reported 78 "passing" tests asserting NOTHING. It now uses the
+// shared fail-closed harness (`./_harness`): `createRulesTestEnv()` THROWS when
+// the emulator is unreachable, so the `beforeAll` rejects and the suite FAILS
+// rather than faking green. Run via `npm run test:rules`.
 
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import {
   assertFails,
   assertSucceeds,
-  initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, setDoc, deleteDoc, setLogLevel } from 'firebase/firestore';
-
-const PROJECT_ID = 'praeventio-rules-test';
-const RULES_PATH = resolve(__dirname, '../../firestore.rules');
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { createRulesTestEnv, verifiedToken } from './_harness';
 
 const PID = 'proj-stores-1';
 const MEMBER = 'member-uid-1';
@@ -36,24 +35,12 @@ const OTHER_MEMBER = 'member-uid-2';
 const NON_MEMBER = 'outsider-uid-9';
 const ADMIN = 'admin-uid-1';
 
-function verifiedToken(role: string, email = 'user@example.com') {
-  return { email, email_verified: true, role };
-}
-
 let testEnv: RulesTestEnvironment | null = null;
-let skipReason: string | null = null;
 
 beforeAll(async () => {
-  setLogLevel('silent');
-  try {
-    testEnv = await initializeTestEnvironment({
-      projectId: PROJECT_ID,
-      firestore: { rules: readFileSync(RULES_PATH, 'utf8') },
-    });
-  } catch (err) {
-    skipReason = `Firestore emulator not reachable: ${(err as Error).message}`;
-    testEnv = null;
-  }
+  // Fail-closed: createRulesTestEnv() THROWS if the emulator is unreachable, so
+  // this hook rejects and every test FAILS — no silent-pass (the old bug).
+  testEnv = await createRulesTestEnv();
 });
 
 afterAll(async () => {
@@ -61,10 +48,10 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  if (!testEnv) return;
-  await testEnv.clearFirestore();
+  const env = requireEnv();
+  await env.clearFirestore();
   // Seed the project with two members + an admin user doc, bypassing rules.
-  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'projects', PID), {
       name: 'Stores Test Project',
@@ -124,52 +111,40 @@ const OWNER_STORES: OwnerStore[] = [
 const NO_OWNER_STORES = ['exceptions', 'legal_obligations', 'shifts'];
 
 describe('projectScopedStores firestore.rules', () => {
-  it('skips when the emulator is unavailable', () => {
-    if (skipReason) {
-      // eslint-disable-next-line no-console
-      console.warn(`[projectScopedStores.rules] SKIPPED — ${skipReason}`);
-    }
-  });
-
   for (const s of OWNER_STORES) {
     describe(`${s.coll} (owner=${s.owner}, compliance=${s.compliance})`, () => {
       it('member can create their own doc (owner == caller)', async () => {
-        if (!testEnv) return;
-        const db = testEnv.authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+        const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
         await assertSucceeds(
           setDoc(ref(db, s.coll, 'd1'), { [s.owner]: MEMBER, status: 'active' }),
         );
       });
 
       it('non-member cannot create', async () => {
-        if (!testEnv) return;
-        const db = testEnv.authenticatedContext(NON_MEMBER, verifiedToken('worker')).firestore();
+        const db = requireEnv().authenticatedContext(NON_MEMBER, verifiedToken('worker')).firestore();
         await assertFails(
           setDoc(ref(db, s.coll, 'd2'), { [s.owner]: NON_MEMBER, status: 'active' }),
         );
       });
 
       it('member cannot spoof the creator-uid field (server-field-spoof-deny)', async () => {
-        if (!testEnv) return;
-        const db = testEnv.authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+        const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
         await assertFails(
           setDoc(ref(db, s.coll, 'd3'), { [s.owner]: OTHER_MEMBER, status: 'active' }),
         );
       });
 
       it('member can update their own doc keeping the creator-uid', async () => {
-        if (!testEnv) return;
         await seed(s.coll, 'd4', { [s.owner]: MEMBER, status: 'active' });
-        const db = testEnv.authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+        const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
         await assertSucceeds(
           setDoc(ref(db, s.coll, 'd4'), { [s.owner]: MEMBER, status: 'updated' }),
         );
       });
 
       it('cannot change the creator-uid on update', async () => {
-        if (!testEnv) return;
         await seed(s.coll, 'd5', { [s.owner]: MEMBER, status: 'active' });
-        const db = testEnv.authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+        const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
         await assertFails(
           setDoc(ref(db, s.coll, 'd5'), { [s.owner]: OTHER_MEMBER, status: 'active' }),
         );
@@ -177,9 +152,14 @@ describe('projectScopedStores firestore.rules', () => {
 
       if (s.signed) {
         it('cannot update once signed (post-sign update-deny)', async () => {
-          if (!testEnv) return;
+          // FIXME(B9): the rule gate (firestore.rules:414) checks TOP-LEVEL
+          // `signedAt`, and this seeds top-level `signedAt` to match it — so it
+          // validates the gate AS WRITTEN. But production signs via NESTED
+          // `signature.signedAt` (siteBookSigning.ts), which the gate does NOT
+          // catch → a real signed site_book stays mutable in prod. Reconcile
+          // rule + sign-path + seed to ONE shape in B9.
           await seed(s.coll, 'd6', { [s.owner]: MEMBER, status: 'signed', signedAt: '2026-06-01T00:00:00Z' });
-          const db = testEnv.authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+          const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
           await assertFails(
             setDoc(ref(db, s.coll, 'd6'), { [s.owner]: MEMBER, status: 'tampered', signedAt: '2026-06-01T00:00:00Z' }),
           );
@@ -188,18 +168,16 @@ describe('projectScopedStores firestore.rules', () => {
 
       if (s.compliance) {
         it('compliance record cannot be deleted (even by admin)', async () => {
-          if (!testEnv) return;
           await seed(s.coll, 'd7', { [s.owner]: MEMBER, status: 'active' });
-          const adminDb = testEnv.authenticatedContext(ADMIN, verifiedToken('admin')).firestore();
+          const adminDb = requireEnv().authenticatedContext(ADMIN, verifiedToken('admin')).firestore();
           await assertFails(deleteDoc(ref(adminDb, s.coll, 'd7')));
         });
       } else {
         it('member cannot delete; admin/supervisor can', async () => {
-          if (!testEnv) return;
           await seed(s.coll, 'd8', { [s.owner]: MEMBER, status: 'active' });
-          const memberDb = testEnv.authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+          const memberDb = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
           await assertFails(deleteDoc(ref(memberDb, s.coll, 'd8')));
-          const adminDb = testEnv.authenticatedContext(ADMIN, verifiedToken('admin')).firestore();
+          const adminDb = requireEnv().authenticatedContext(ADMIN, verifiedToken('admin')).firestore();
           await assertSucceeds(deleteDoc(ref(adminDb, s.coll, 'd8')));
         });
       }
@@ -209,33 +187,28 @@ describe('projectScopedStores firestore.rules', () => {
   for (const coll of NO_OWNER_STORES) {
     describe(`${coll} (member-gated, no owner field)`, () => {
       it('member can create', async () => {
-        if (!testEnv) return;
-        const db = testEnv.authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+        const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
         await assertSucceeds(setDoc(ref(db, coll, 'd1'), { status: 'open' }));
       });
       it('non-member cannot create', async () => {
-        if (!testEnv) return;
-        const db = testEnv.authenticatedContext(NON_MEMBER, verifiedToken('worker')).firestore();
+        const db = requireEnv().authenticatedContext(NON_MEMBER, verifiedToken('worker')).firestore();
         await assertFails(setDoc(ref(db, coll, 'd2'), { status: 'open' }));
       });
       it('member can update', async () => {
-        if (!testEnv) return;
         await seed(coll, 'd3', { status: 'open' });
-        const db = testEnv.authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+        const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
         await assertSucceeds(setDoc(ref(db, coll, 'd3'), { status: 'closed' }));
       });
       it('member cannot delete; admin can', async () => {
-        if (!testEnv) return;
         await seed(coll, 'd4', { status: 'open' });
-        const memberDb = testEnv.authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+        const memberDb = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
         await assertFails(deleteDoc(ref(memberDb, coll, 'd4')));
-        const adminDb = testEnv.authenticatedContext(ADMIN, verifiedToken('admin')).firestore();
+        const adminDb = requireEnv().authenticatedContext(ADMIN, verifiedToken('admin')).firestore();
         await assertSucceeds(deleteDoc(ref(adminDb, coll, 'd4')));
       });
       it('non-member cannot update', async () => {
-        if (!testEnv) return;
         await seed(coll, 'd5', { status: 'open' });
-        const db = testEnv.authenticatedContext(NON_MEMBER, verifiedToken('worker')).firestore();
+        const db = requireEnv().authenticatedContext(NON_MEMBER, verifiedToken('worker')).firestore();
         await assertFails(setDoc(ref(db, coll, 'd5'), { status: 'closed' }));
       });
     });
