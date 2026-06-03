@@ -176,6 +176,20 @@ Rules tests: `src/rules-tests/drivingAndReceipts.rules.test.ts`.
     claim another worker acknowledged a mandatory document.
 25. **Receipt Hijack**: update flipping `workerUid` on an existing receipt.
 26. **Incident Delete**: a non-admin/supervisor deleting a `driving_incident`.
+
+## Personalized plans + morning check-ins — write rules (B7, added 2026-06-03)
+
+`projects/{pid}/personalized_plans/{id}` (PersonalizedSafetyPlan; no creator-uid
+field → member-gated, admin/supervisor delete) and
+`users/{uid}/morning_checkins/{date}` (MorningRoutine wellness self-check —
+private to the owner + occupational-health doctor `medico_ocupacional`,
+owner-write, never deleted; the `users/{uid}` block has no master-gate so reads
+are explicit). Rules tests: `src/rules-tests/b7PlansCheckins.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+27. **Wellness Snoop**: a non-owner / non-doctor reading `/users/victim/morning_checkins/*`.
+28. **Check-in Forge**: writing `/users/victim/morning_checkins/*` while authenticated as someone else.
 16. **Signed SiteBook Tamper**: `update /projects/p1/site_book_entries/e1`
     where `signedAt` is already set.
 17. **Compliance Delete**: `delete /projects/p1/stoppages/s1` (even as admin).
