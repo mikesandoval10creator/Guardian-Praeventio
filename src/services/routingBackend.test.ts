@@ -180,6 +180,51 @@ describe('calculateDeterministicSafeRoute — degenerate inputs (characterizatio
   });
 });
 
+describe('calculateDeterministicSafeRoute — multi/overlapping hazard clearance (Fase 5 hardening)', () => {
+  // 🛟 Bug DEEP-EX-03 / TODO §2.32: el impl previo esquivaba UN solo peligro por
+  // waypoint (`break`) y no re-chequeaba el punto reubicado, de modo que la ruta
+  // podía dejar un waypoint dentro de un segundo peligro. Un trabajador evacuando
+  // no puede ser enrutado a través de un peligro.
+
+  it('peligros solapados: TODO waypoint interpolado libra TODOS los peligros', () => {
+    const M = midpoint(start, destination);
+    const hazards: HazardZone[] = [
+      { center: { lat: M.lat, lng: M.lng - 0.0006 }, radius: 250 },
+      { center: { lat: M.lat, lng: M.lng + 0.0006 }, radius: 400 },
+      { center: M, radius: 300 },
+    ];
+    const route = calculateDeterministicSafeRoute(start, destination, hazards);
+    for (const wp of route.slice(1, -1)) {
+      for (const h of hazards) {
+        expect(calculateDistance(wp, h.center)).toBeGreaterThanOrEqual(h.radius);
+      }
+    }
+  });
+
+  it('reubicar fuera del peligro A no puede dejar el punto dentro del peligro B', () => {
+    // A y B colocados de modo que empujar fuera de A aterriza dentro de B.
+    const M = midpoint(start, destination);
+    const a: HazardZone = { center: { lat: M.lat, lng: M.lng - 0.0004 }, radius: 200 };
+    const b: HazardZone = { center: { lat: M.lat, lng: M.lng + 0.0004 }, radius: 600 };
+    const route = calculateDeterministicSafeRoute(start, destination, [a, b]);
+    for (const wp of route.slice(1, -1)) {
+      expect(calculateDistance(wp, a.center)).toBeGreaterThanOrEqual(a.radius);
+      expect(calculateDistance(wp, b.center)).toBeGreaterThanOrEqual(b.radius);
+    }
+  });
+
+  it('clearance multi-peligro es determinista (sin Math.random)', () => {
+    const M = midpoint(start, destination);
+    const hazards: HazardZone[] = [
+      { center: { lat: M.lat, lng: M.lng - 0.0006 }, radius: 250 },
+      { center: { lat: M.lat, lng: M.lng + 0.0006 }, radius: 400 },
+    ];
+    const r1 = calculateDeterministicSafeRoute(start, destination, hazards);
+    const r2 = calculateDeterministicSafeRoute(start, destination, hazards);
+    expect(r1).toEqual(r2);
+  });
+});
+
 describe('calculateDeterministicSafeRoute — determinism', () => {
   it('same input twice yields byte-identical output (no Math.random)', () => {
     const hazards: HazardZone[] = [

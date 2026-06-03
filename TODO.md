@@ -45,16 +45,16 @@ Cada dominio se mide:
 | **Auth / RBAC** | 95% | — | WebAuthn cliente cierra envío de id/rawId (#264 + sweep) |
 | **Multi-tenant rules** | 85% | ⬆️ +5pp | tenants/* matcher + cross-tenant tests |
 | **Emergencia (SOS / Fall / Push)** | 92% | ⬆️ +2pp | FCM users/{uid}.fcmTokens migrado (#265 wave) |
-| **Billing (Webpay / MP / IAP / Google Play)** | 88% | ⬆️ +3pp | Webhooks audit replay; **falta** MP IPN HMAC SHA-256 verify production wire |
+| **Billing (Webpay / MP / IAP / Google Play)** | 88% | — | MP IPN HMAC SHA-256 **verificado wired** (`mercadoPagoIpn.ts:248`); IAP valida receipt server-to-server. Pendiente: tier-gating por-feature solo client-side (§2.32) |
 | **AI / Gemini / Vertex (inferencia)** | 80% | ⬆️ +5pp | Adapter inferencia real; Trainer sigue STUB (NO descartar el bug) |
 | **AI offline (SLM)** | 80% | ⬆️ +15pp | Phi-3 + Qwen SHA-256 reales; **Gemma SHA-256 null** todavía |
 | **Compliance Chile (DS54/594/109/132 + Ley 16.744)** | 80% | ⬆️ +10pp | CPHS + DIAT/DIEP cerrados |
 | **Compliance global (ISO 45001 + jurisdicciones)** | 45% | ⬆️ +20pp | 6 jurisdicciones nuevas (E.4); **falta** UK/CA/AU/JP/KR/IN wire UI |
 | **i18n** | 91% | ⬆️ +46pp | 109/119 páginas con `useTranslation`; **quedan 10 páginas** |
-| **Health Vault (ADR 0012)** | 85% | ⬆️ +5pp | Disclaimer + QR sharing |
+| **Health Vault (ADR 0012)** | 75% | ⬇️ -10pp | Disclaimer + QR sharing OK; **`health_vault` sin reglas Firestore** (§2.32 B4, incumple Regla #4) |
 | **CPHS Comité Paritario** | 80% | ⬆️ +30pp | Service + UI card (#265); falta endpoint admin |
 | **DIAT/DIEP SUSESO** | 75% | ⬆️ +15pp | PDF real + folio + firma; **falta** WebAuthn ceremony real |
-| **Mesh BLE/WiFi Direct** | 70% | ⬆️ +35pp | Plugin Android Kotlin **real (552 LOC)** + iOS Swift; falta consumer en src/ |
+| **Mesh BLE/WiFi Direct** | 80% | ⬆️ +10pp | Plugin Android Kotlin **real (552 LOC)** + iOS Swift; **consumer cableado** (`MeshProvider.tsx:110`→`AppProviders.tsx:139`). Pendiente: firma de paquetes (`meshPacket.ts:237` `unsigned-dev`) |
 | **PWA / Offline / Sync** | 92% | ⬆️ +2pp | SW models cache + outbox engine (#245-246) |
 | **Native plugins (HealthKit/HealthConnect)** | 40% | ⬆️ +10pp | Foundation; **bloqueado** por keystores |
 | **Photogrammetry (COLMAP / Modal)** | 75% | ⬆️ +15pp | Worker Cloud Run real (325 LOC); falta deploy |
@@ -62,7 +62,7 @@ Cada dominio se mide:
 | **CQRS / Event Store** | 75% | ⬆️ +75pp | Real productivo (#261) — Event Store + aggregates + read model |
 | **Bernoulli generators** | 50% | ⬆️ +5pp | Mayoría sin UI consumer; StructuralCalc va a logger.info, no Firestore |
 | **Telemetry / Wearables** | 75% | ⬆️ +5pp | Telemetry.tsx real; WearablesPanel sigue UI-only |
-| **Tests** | 70% | ⬆️ +20pp | 766 archivos; **8040 passing / 394 failing** (exit 0 silencia) |
+| **Tests** | 75% | ⬆️ +5pp | **10029 passing / 0 failed** (§2.11, 2026-05-19); 1.247 archivos test; cobertura co-located ~54%, 20 skip/fixme (medir oficial con `vitest --coverage`) |
 | **Stryker mutation** | 72% global | — | Limiters todavía 3% por Windows crash |
 | **Observability (Sentry + OTel)** | 90% | ⬆️ +5pp | Coverage sweep + CSP final (#249) |
 | **Mobile build pipeline** | 50% | ⬆️ +20pp | Foreground Service C.2 + capacitor-proximity C.3; **falta** keystore prod |
@@ -786,7 +786,7 @@ El audit identificó que PR #458 (Phase 1, 2026-05-21) eliminó el backend de ph
 
 ---
 
-### 2.29 ✅ Audit trail ausente en rutas mutantes (rule #3) — CERRADO `rule3_pending=0` (campaña 2026-05-31)
+### 2.29 ✅ Audit trail ausente en rutas mutantes (rule #3) — CERRADO `rule3_pending=0` **(server-side; ver §2.32 B11 para el bypass client-side aún abierto)** (campaña 2026-05-31)
 
 **Hallazgo** (auditoría real `everything-claude-code` + verificación manual, HEAD `1fd2c31e`): ~20 rutas en `src/server/routes/` mutan estado (Firestore `.set/.update/.add` o adapter) **sin** escribir `audit_logs` → viola CLAUDE.md regla #3. Solo **14/197** rutas auditaban. Para una app de prevención, un audit trail con huecos es false completeness severa (la empresa cree que hay traza y no la hay).
 
@@ -881,6 +881,249 @@ typecheck-verde).
 **Por qué no se cerró acá:** el hunt del handle exacto en ~10k tests es **no-acotado** y el flake
 puede no reproducir local; un fix especulativo violaría TODO.md Regla #1 (nada ✅ sin evidencia
 verificable). Registrado como **deuda evidenciada con next-step** en vez de fingir cierre.
+
+---
+
+### 2.32 🔴 Deuda verificada por barrido archivo-por-archivo (auditoría 2026-06-02)
+
+**Origen:** auditoría de contexto archivo-por-archivo de los **3.545 archivos** del
+repo (cobertura mecánica 100% + 25 revisiones profundas). Evidencia, detalle por
+archivo y reconciliación contra este TODO en
+`docs/audits/file-ledger/` — ver `INDEX-CONSOLIDADO.md` y `PHASE3-RECONCILIATION.md`.
+Esta sub-sección es **autoritativa** sobre el estado real de los ítems listados:
+varios contradicen un ✅ previo (Rule #1).
+
+> **Hallazgo sistémico (B11):** el factory `createProjectScopedStore.save/patch`
+> (`src/store/createProjectScopedStore.ts:190-215`) y varios contextos
+> (`EmergencyContext.triggerEmergency` sobre `emergency_events`, `ProjectContext`,
+> `UniversalKnowledgeContext`, `FirebaseContext`) escriben a Firestore **client-side
+> sin `auditServerEvent`**. El cierre de §2.29 (`rule3_pending=0`) es **solo
+> server-side** (ratchet sobre `src/server/routes/`); este camino cliente→Firestore
+> **no está cubierto** y es un posible hueco Regla #3 para operaciones hechas por UI
+> (MOC, CPHS, SiteBook, Stoppage). → Decisión: trigger server vs re-cablear UI a
+> endpoints auditados.
+
+**P0 — Vida (🛟):**
+- 🔴 **ManDown no hace push** — `useManDownDetection` escribe Firestore pero no
+  llama `triggerEmergency`/FCM ni hay trigger server sobre `mandown_events`. (§16.6.2
+  lo listaba como "UI completa MEDIA"; el gap real es el pipeline de push.) *Usuario
+  pidió dejar documentado.*
+- 🔴 **LOTO read-only** — `src/server/routes/loto.ts:55` solo expone `GET`; no hay
+  endpoint para aplicar candado / verificar cero-energía / liberar; `LotoAdapter`/
+  `applyFullRelease` son código muerto; `LotoStatusPanel` huérfano. El control que
+  "previene energización" **no está cableado**. (§2.29 lo eximió como "read-only" —
+  exención técnicamente válida que **ocultaba** esta brecha de vida.)
+- 🟡 **AlertScheduler con probes vacíos** — `RootLayout.tsx:467` `probes={[]}` → el
+  pipeline predictivo Bernoulli está dormido en prod.
+- ✅ **Ruta de evacuación insegura RESUELTA (Fase 5, 2026-06-03)** (era DEEP-EX-03):
+  `routingBackend.ts` esquivaba UN solo peligro por waypoint (`break`) sin re-chequear
+  el punto reubicado → la ruta podía atravesar un 2º peligro. Nuevo
+  `clearPointFromHazards()` libra TODOS los peligros con re-chequeo (cota dura,
+  determinista); 16/16 tests reales. Pendiente: verificar que los SEGMENTOS entre
+  waypoints no crucen un peligro (no solo los vértices) + validar endpoints.
+
+**P1 — Privacidad / cumplimiento (🔐):**
+- 🔴 **External Audit Portal sin gate de rol** — `externalAuditPortal.ts:234,306,355,428`
+  solo `verifyAuth`, sin `assertProjectMember`/`isAdmin` → cualquier member del tenant
+  emite token de auditor externo con acceso cross-proyecto a docs/IPER/incidentes.
+- 🔴 **`health_vault`/`health_vault_shares` sin reglas Firestore** (grep=0) — colección
+  médica más sensible; writes por Admin SDK pero incumple Regla #4 (sin rules-tests ni
+  `security_spec`); el listado client-side cae en default-deny.
+- 🔴 **Libro de obras firmado sigue MUTABLE + test falso-verde** — `firestore.rules:414,422`
+  chequea `signedAt` top-level; la firma escribe `signature.signedAt` anidado
+  (`siteBookSigning.ts:247`) → el gate nunca dispara; el rules-test pasa sembrando un
+  `signedAt` sintético (`projectScopedStores.rules.test.ts:181`). Además SiteBook tiene
+  3 paths disjuntos (adapter `tenants/.../sitebook_entries` vs firma
+  `projects/.../site_book_entries`).
+- 🔴 **`visitors.ts` sin `assertProjectMember`** — `:112,119` solo `verifyAuth` +
+  `tenantIdFor` → escritura de visitas cross-proyecto (viola Regla #6). *(El audit
+  server-side de §2.29 sí cerró; este es el gap de membership, distinto.)*
+- 🔴 **Biometría de login débil** — `Login.tsx:10` usa `utils/biometrics.ts:88` que
+  retorna `true` client-side sin verificación server-side de firma. *(§2.1 ✅ cubre el
+  setup MFA `useBiometricAuth`, NO el path de login.)*
+- 🔴 **Medicine.tsx UI de diagnóstico** — `MedicalAnalyzer/DifferentialDiagnosis/
+  DrugInteractions` (`:134,137,141`) llaman acciones Gemini no whitelisted → 403, y
+  contradicen ADR 0012. UI muerta a retirar/feature-flag.
+- 🟡 **AIPostureAnalysisModal sube foto** — fallback Gemini Vision
+  (`AIPostureAnalysisModal.tsx:206-210`) sube la foto del trabajador (matiz Regla #12:
+  foto estática subida manualmente, no frame en vivo).
+- 🟡 **`culturePulse.respondSurvey` audita `userId`** (`:657`) → re-identificación de
+  encuesta "anónima".
+
+**P2 — Integridad / robustez:**
+- 🟡 **Gamificación auto-otorga puntos** — `gamification.ts:35` toma `amount` del cliente
+  sin cota/whitelist; `gamificationService.ts:34` lo envía verbatim.
+- 🟡 **Tier-gating por-feature solo client-side** — `SubscriptionContext.tsx:64-68`; sin
+  middleware server que re-chequee rank (Regla #11 parcial; activación sí está gateada).
+- 🟡 **PDCA flow no crea edges** — `incidentFlow.ts:77-84` inyecta solo `writeNodes` → los
+  7 nodos ZK quedan sin conectar (trail ISO 45001 §10.2 no end-to-end).
+- 🟡 **`comite_actas` sin regla de write** — `ComiteParitario.tsx:73` escribe → default-deny
+  en prod; duplica el canónico `cphs_meetings`. *(El gate de inmutabilidad de cphs_meetings
+  SÍ está bien: pivota sobre `signatures.size()`.)*
+- 🟡 **Reglas Codex #650** — `site_book_counters` sin regla; `documents_for_read` exige
+  `authorUid` que el writer no estampa; `lone_worker_sessions` update sin
+  `existing().workerUid==auth.uid`; `root_cause_analyses` (`rootCauseStore.ts:20`) vs regla
+  `root_causes`. Modelos laxos `exceptions`/`legal_obligations`/`shifts` (`firestore.rules:466-477`,
+  hay `TODO(review dahosandoval@)`).
+- 🟡 **Guards #13/#17 NO wired** — `.husky/pre-commit` solo corre medical/convention/i18n/
+  any-ratchet; `precommit-stub-guard` (#13) y `precommit-allowbackup-guard` (#17) no se
+  referencian en husky/CI/package.json, pese a que CLAUDE.md dice "Enforced (PR #514)".
+- 🟡 **B16 sync:** `conflict_queue` (`conflictQueue.ts`, 238 LOC) **existe pero está muerto
+  y sin reglas** (resuelve la contradicción §16.2.2: 1432 ✅ vs 1463 CRÍTICA → la verdad es
+  "engine sí, feature no"); `meshPacket.ts:237` firma `'unsigned-dev'` nunca verificada;
+  `encryptData` web es base64, no cifrado (`offlineStorage.ts`).
+- 🟡 **B4:** `Math.random` en ID `incidentRagService.ts:299` (Regla #15); incidents path
+  mismatch (bundle root vs servicio tenant-scoped).
+
+**P3 — Limpieza / huérfanos (🔵):**
+- **86 UI huérfanas** (48 componentes + 38 hooks, 0 pages sin rutear); **`euler/*` ~4.053 LOC
+  100% huérfano**; `eventBus/*` sin listeners; cadena RAG-coach huérfana; subsistemas muertos
+  (cost calculator 928 LOC, EPP purchase-order, twin instanced, AR placement,
+  `ProjectScopedPage` scaffold).
+- **Duplicados a consolidar:** doble-MQTT (cloud `NotImplementedError` vs WS client),
+  doble-DS76, doble PDF SUSESO, `changeMgmt` vs `operationalChange`.
+- **IoT MQTT** no conecta a broker (`mqttAdapter.ts` cloud/EMQX `NotImplementedError`);
+  comentario `:16` "mqtt is NOT a dependency" **falso** (`package.json:151`).
+- **Sugerencia:** crear bloque **B-DigitalTwin** (~25 archivos hoy sin bloque; pipeline
+  on-device MiDaS ONNX real).
+
+**Estratégico — Cuota/resiliencia IA (Gemini):**
+- 🔴 **Inferencia de producción sobre clave AI Studio gratuita** (`gemini.ts:271`) —
+  Google estrechó cuotas (req/día + nivel de "thinking"); a escala el tráfico de
+  clientes agotaría la cuota y degradaría/caería la IA. Ya existen rate-limit
+  por-usuario + global, circuit-breaker, costo estimado, orquestador resiliente (flag
+  OFF) y RAG (`safeNormativeQuery`). **Decisión documentada en
+  `docs/architecture-decisions/0019-ai-quota-resilience-strategy.md`**: migrar a
+  Vertex pay-as-you-go (F1) + encender orquestador/SLM (F2) + ruteo Flash/thinking
+  (F3) + RAG-first/caché (F4) + budget por tenant/tier (F5). BYOK queda como opción
+  enterprise con clave **paga**. Pendiente: investigar números exactos de cuota.
+
+**Correcciones de consistencia aplicadas a este TODO (2026-06-02):**
+- §1 tabla: Mesh "consumer cableado" (no "falta"); Billing quita "falta MP IPN HMAC"
+  (verificado wired); Tests sincronizado con §2.11 (10029/0) + matiz cobertura.
+- §2.29 acotado a "server-side" (este §2.32 B11 abre el gap client-side).
+- Inconsistencia `conflict_queue` (§16.2.2) resuelta arriba.
+
+**Doc-drift detectado (auditoría I-DOCS, ver `DEEP-I-DOCS.md`):**
+- 🔴 **`ARCHITECTURE.md` viola Regla #20** — `geminiBackend.ts` dice 2923 LOC (real
+  **1466**), `server.ts` 1411 (real **1500**), refs `server.ts:1972/2321/2901/3115/3191`
+  **más allá del EOF** (post-split), `ALLOWED_GEMINI_ACTIONS` ya está en
+  `gemini.ts:119` no en `server.ts:1593`.
+- 🟡 `stubs-inventory.md` da el mesh nativo como stub (es real); 3 runbooks de
+  photogrammetry despliegan workers ya eliminados; CLAUDE.md #13/#17 dice guards
+  "Enforced" sin estarlo; ADR 0006 superseded sin marcar, ADR 0005 ref inexistente.
+
+> **Nota de completitud (actualizada 2026-06-02):** barrido 100% mecánico + ahora
+> **100% atribuido por bloque** (los 355 UI sin bloque reclasificados →
+> `ui-reclass-map.json`; server+services en cierre). I-DOCS revisado (doc-drift
+> arriba). **Pendiente:** ~50 archivos mal-clasificados por heurística a reubicar, y
+> medir cobertura real con `vitest --coverage`. Detalle en
+> `docs/audits/file-ledger/DEEP-UI-RECLASIFICACION.md` y `DEEP-SRV-RECLASIFICACION.md`.
+
+---
+
+### 2.33 🔴 Deuda de la pasada exhaustiva línea-por-línea (1.743 archivos FEAT, 2026-06-03)
+
+**Origen:** segunda pasada que leyó **TODOS** los archivos FEAT línea por línea (no
+solo la capa crítica). Índice + detalle: `docs/audits/file-ledger/DEEP-EX-INDEX.md`
+y `DEEP-EX-01..41.md`. ~45 hallazgos 🔴 NUEVOS, agrupados en **17 patrones
+sistémicos** (arreglar la clase, no el síntoma). Los más graves re-verificados por grep.
+
+**Patrones de mayor impacto (vida/cumplimiento):**
+- **P1 — Colecciones client-side SIN reglas Firestore → default-deny silencioso.** El
+  fix de §17 (14 colecciones) **quedó incompleto**; faltan ≥20: `pings` (baliza de vida),
+  `deas`/`inspections` (desfibriladores), `clinical_alerts`, `findings`, `control_validations`,
+  `read_receipts`, `driving_incidents`, `calendar_events`, `reconstructions`/`reconstruction_jobs`/
+  `placed_objects`, `comite_actas`, `documents`, `personalized_plans`, `slo_metrics`, etc. Tests
+  `.firestore.test.ts` usan Admin SDK → falso verde.
+- **P2 — Colas offline descartan datos de seguridad tras N reintentos** sin dead-letter:
+  ✅ **`sosOutbox` RESUELTO (Fase 5, 2026-06-03)** — tras MAX_RETRY el SOS se marca
+  `deadLettered` y se retiene (jamás se descarta); + `deadLetters()`/`clearDeadLetter()`;
+  el hard-cap nunca evicta un dead-letter; 11/11 tests reales. Pendiente: surjir
+  dead-letters en UI; `syncStateMachine.ts:313` (incidentes/evidencia); `genericOutboxEngine.ts:248`.
+- **P3 — Identidad/rol/tenantId del cliente sin verificar contra el token:** `sif.ts`
+  (reviewedByUid SIF suplantable), `stoppage.ts:216` (resumedByRole reanuda paralización),
+  `exceptions.ts` (approvedByRole), `suseso.ts` (tenantId DIAT/DIEP cross-empresa),
+  `networkBackend.ts` (authorUid), `microtraining.ts:187` (certificar a cualquiera).
+- **P4 — Firmas WebAuthn presence-checked pero nunca verificadas cripto:** DTE (`dte.ts:349`),
+  referee co-sign, biometría login, aptitud médica, kms-sign-rsa.
+- **P5 — Records firmados MUTABLES** (gate keya campo que el writer no escribe) + tests falso-verde:
+  `site_book`, `lighting_audits` (DS594). (cphs_meetings sí está bien.)
+- **P6 — Puntos ciegos del guard ADR 0012:** código de diagnóstico real fuera del scope —
+  `VitalityMonitor.tsx` (CIE-10 golpe de calor), `medicalAnalysisBackend.ts` (differentialDiagnosis),
+  `occupational-health/`, `psychosocialBackend`, `shiftBackend`. El guard solo escanea `health/`+`medicine/`.
+- **P7 — Imágenes de cámara a Gemini cloud vs directiva #12:** `BioAnalysis.tsx:411` (frame vivo),
+  `AIPostureAnalysisModal`, `EPPVerificationModal.tsx:63`.
+- **P8 — Envenenamiento de RAG (Zettelkasten):** `KnowledgeIngestion.tsx:60` y `networkBackend.ts:77`
+  (nodos `global`/master sin gate), `ragService.queryCommunityKnowledge` (self-poisoning).
+- **P9 — Auto-otorgamiento de gamificación** por escritura directa (reglas restringen keys no valores):
+  `user_stats`, `gamification_scores`.
+- **P14 — Job de réplica DR replica CERO filas en silencio** (`firestoreCriticalReplicate.ts:154`
+  filtra `createdAt` pero audit escribe `timestamp`; invoices Timestamp vs epoch-ms) → RPO incumplido.
+
+**Patrones de robustez/costo:** P10 datos falsos mostrados como reales (SloErrorBudget,
+WeatherBulletin, dataConfidence, EmergencySquadManager); P11 `JSON.parse` sin try/catch
+sistémico en `*Backend.ts` (#5, **un codemod**); P12 `Math.random` en IDs cliente (#15);
+P13 SLM sin verificar sha256 del CDN; **P15 el cap global de gasto IA usa MemoryStore
+por-pod → cap real = réplicas × cap** (relevante a ADR 0019); P16 stubs disfrazados
+que llegan al usuario; P17 copy de cumplimiento mentiroso.
+
+**Notas operacionales:** push de incidente CRÍTICO al CPHS no llega a dispositivos
+modernos (`backgroundTriggers.ts:213` lee `fcmToken` legacy singular); `predictionBackend`
+usa `gemini-3.1-pro-preview` facturado a precio Flash (sub-metering).
+
+**Aguantó el escrutinio (sólido):** billing/pagos, clúster cripto (AES-256-GCM/CloudKMS),
+Zettelkasten v2 core, motores puros (IPER/REBA/analítica), aislamiento server.
+
+---
+
+### 2.34 🔴 Deuda de la pasada exhaustiva 2 — tests + infra + build + docs (2026-06-03)
+
+**Origen:** segunda pasada línea-por-línea de los **1.725 archivos restantes** (1.247
+tests + 89 I-CORE/I18N/DATA + 72 I-PLAT + 132 I-BUILD + 185 I-DOCS). Con esto **el
+repo completo (3.545 archivos, menos 77 binarios) queda leído línea por línea.** Índice:
+`docs/audits/file-ledger/DEEP-EXT-INDEX.md`; detalle `DEEP-EXT-01..23` + `DEEP-EXI-24..35`.
+
+**Tests — la cobertura es BIMODAL (el conteo "10.029 passing" sobreestima):**
+- 🔴 **"Wire-up contract": 144 de 164 tests co-located en `src/server/routes/*.test.ts`**
+  solo introspeccionan `router.stack`; no ejercitan handler/`verifyAuth`/`validate`.
+  Borrar `verifyAuth` deja la suite verde. (Cobertura real vive en las 143 suites
+  supertest de `src/__tests__/server/`; rutas sin companion = sin cobertura conductual.)
+- 🔴 **Reimplementación-disfrazada:** `auditCoverage` (prueba la invariante #3 sobre
+  copias), `mercadoPagoIpn`, `telemetry*`, `webauthnVerify/Register`, `externalAuditPortal`,
+  `suseso`, `visitors`, `iot`, etc. — re-implementan el handler, no importan la ruta.
+- 🔴 **"ID crypto contract" tautológico** (apprenticeship/leadership/projectClosure/
+  confidentialReports/drivingSafety/visitors) + **mock-the-SUT** (ragService, MorningRoutine).
+- 🔴🛟 **e2e safety-críticos en `describe.fixme`** (`sos-button`, `process-lifecycle`,
+  `offline-resilience`) → **SOS y offline no tienen e2e activo**; DR dry-run prueba el
+  seeder, no backup real.
+- Lo sólido: `__tests__/server` supertest, componentes con asserts de valor, engines puros
+  mutation-grade (reba/rula/euler), billing crypto (RFC/FIPS/RSA), `security/*` (KEK/KMS).
+
+**Infra/Build — gobernanza y config:**
+- 🔴 **No hay job de `lint` en CI**; **los ratchets (#3/#19/any/i18n) corren solo en
+  husky, no en CI** (bypaseables con `--no-verify`; solo medical-guard tiene backstop CI);
+  **guards #13/#17 no-wired** (re-confirmado).
+- 🔴 **Mismatch de dominio** `praeventio.app` (manifest/AASA) vs `app.praeventio.net`
+  (server/WebAuthn) + `WEBAUTHN_RP_ID`≠`WEBAUTHN_RPID` → **passkeys y deep-links rotos en prod**.
+- 🔴 **iOS `CBUUID` inválido** vs Android → **malla BLE de emergencia no interopera iOS↔Android**.
+- 🔴 `render-well-known.mjs:31` hardcodea el SHA-256 del cert Play de prod (fail-open).
+- 🔴 **voseo es-AR en la referencia es-CL** (`es/common.json`, Regla #2).
+- 🟡 `firebase-applet-config.json` git-trackeada; `cphs_meetings:1175` append-only no
+  preserva prefijo del array de firmas; converters token `==` timing-oracle; contenedores root.
+  ✅ Terraform 100% limpio.
+
+**Docs — doc-drift generalizado post-split** (Regla #20): ARCHITECTURE.md (LOC/refs),
+stubs-inventory (SystemEngine/mesh), CLAUDE.md (#13/#17), TRACKING_PLAN (analytics
+"no impl" pero ~3457 LOC), BERNOULLI_EXTENSIONS, gemini-split-plan, runbooks photogrammetry
+(worker descartado documentado como vivo), BILLING.md, CONTRIBUTING.md, THREAT_MODEL,
+ADR 0013 (UUID mesh inválido), ADR 0005/0006 superseded sin marcar. ✅ SENTRY docs 1:1.
+
+**Reconciliación "colecciones sin reglas" (§2.32 B-rules / §2.33 P1):** se DIVIDE en
+(a) **client-written → ruptura silenciosa real** (clinical_alerts, control_validations,
+comite_actas, findings, driving_incidents, documents, read_receipts, site_book/lighting_audits
+mutables — verificadas client-side) y (b) **server-only → solo gap #4 + lectura cliente rota**
+(health_vault). Ambos necesitan reglas explícitas + rules-tests; (a) además pierde datos en runtime.
 
 ---
 

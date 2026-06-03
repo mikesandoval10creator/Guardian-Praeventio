@@ -49,6 +49,13 @@ export interface OutboxEntry {
   nextRetryAt: number;
   /** Último error reportado (telemetría). */
   lastError?: string;
+  /**
+   * 🛟 Marcado tras agotar MAX_RETRY. Un SOS dead-lettered NO se reintenta
+   * (la red claramente no responde) pero TAMPOCO se descarta: queda
+   * retenido para que la UI lo surja y el trabajador escale presencialmente.
+   * El bug previo lo eliminaba en silencio (DEEP-EX-03 / TODO §2.32).
+   */
+  deadLettered?: boolean;
 }
 
 export type OutboxStatus = 'pending' | 'in_flight' | 'sent' | 'gave_up';
@@ -113,12 +120,9 @@ export class SosOutbox {
     if (current.some((e) => e.event.clientEventId === event.clientEventId)) {
       return;
     }
-    // Hard cap: si la cola está llena, descartamos el más viejo NO
-    // crítico (en la práctica todos son críticos — esto previene OOM).
-    const trimmed =
-      current.length >= MAX_QUEUE_SIZE
-        ? current.slice(current.length - MAX_QUEUE_SIZE + 1)
-        : current;
+    // Hard cap: si la cola está llena evictamos el pendiente más viejo,
+    // PERO nunca un dead-letter (SOS no entregado = lo más importante).
+    const trimmed = this.trimForCapacity(current);
     const entry: OutboxEntry = {
       event,
       queuedAt: new Date(this.now()).toISOString(),
@@ -135,7 +139,12 @@ export class SosOutbox {
    *
    * Devuelve un resumen para telemetría.
    */
-  async flush(): Promise<{ sent: number; pending: number; gaveUp: number }> {
+  async flush(): Promise<{
+    sent: number;
+    pending: number;
+    gaveUp: number;
+    deadLettered: number;
+  }> {
     const now = this.now();
     const current = await this.deps.storage.load();
     const next: OutboxEntry[] = [];
@@ -143,6 +152,12 @@ export class SosOutbox {
     let gaveUp = 0;
 
     for (const entry of current) {
+      // 🛟 Un dead-letter ya agotó los reintentos: se retiene intacto
+      // (jamás se descarta), pero no se vuelve a enviar.
+      if (entry.deadLettered) {
+        next.push(entry);
+        continue;
+      }
       if (entry.nextRetryAt > now) {
         next.push(entry); // todavía no toca reintentar
         continue;
@@ -159,10 +174,16 @@ export class SosOutbox {
 
       const newRetry = entry.retryCount + 1;
       if (newRetry > MAX_RETRY) {
+        // Agotados los reintentos: NO se descarta. Se marca dead-letter y
+        // se retiene para escalamiento presencial (la UI debe surjirlo).
         gaveUp += 1;
-        // No agregamos al next — lo movemos a "gave_up" implícito
-        // (se podría persistir en una collection de quarantine — fuera
-        // de scope de este módulo).
+        next.push({
+          ...entry,
+          retryCount: newRetry,
+          deadLettered: true,
+          nextRetryAt: Number.POSITIVE_INFINITY,
+          lastError: result.error ?? entry.lastError,
+        });
         continue;
       }
       next.push({
@@ -174,11 +195,60 @@ export class SosOutbox {
     }
 
     await this.deps.storage.save(next);
-    return { sent, pending: next.length, gaveUp };
+    const deadLettered = next.filter((e) => e.deadLettered).length;
+    return {
+      sent,
+      pending: next.length - deadLettered,
+      gaveUp,
+      deadLettered,
+    };
   }
 
   /** Snapshot inmutable del estado de la cola (para UI badge). */
   async snapshot(): Promise<OutboxEntry[]> {
     return this.deps.storage.load();
+  }
+
+  /**
+   * 🛟 SOS que agotaron los reintentos y siguen sin entregarse. La UI debe
+   * mostrarlos de forma prominente ("avisa al supervisor presencialmente").
+   */
+  async deadLetters(): Promise<OutboxEntry[]> {
+    const all = await this.deps.storage.load();
+    return all.filter((e) => e.deadLettered);
+  }
+
+  /**
+   * Remueve un dead-letter una vez escalado por otra vía (p.ej. el
+   * trabajador confirmó que avisó presencialmente). Idempotente.
+   */
+  async clearDeadLetter(clientEventId: string): Promise<void> {
+    const all = await this.deps.storage.load();
+    await this.deps.storage.save(
+      all.filter(
+        (e) => !(e.deadLettered && e.event.clientEventId === clientEventId),
+      ),
+    );
+  }
+
+  /**
+   * Hard cap respetando dead-letters: evicta primero los pendientes más
+   * viejos; solo si la cola está saturada de dead-letters evicta el más
+   * viejo en general (caso extremo que no debería ocurrir en la práctica).
+   */
+  private trimForCapacity(entries: OutboxEntry[]): OutboxEntry[] {
+    if (entries.length < MAX_QUEUE_SIZE) return entries;
+    const toRemove = entries.length - MAX_QUEUE_SIZE + 1;
+    const evictIds = new Set(
+      entries
+        .filter((e) => !e.deadLettered)
+        .slice(0, toRemove)
+        .map((e) => e.event.clientEventId),
+    );
+    let kept = entries.filter((e) => !evictIds.has(e.event.clientEventId));
+    if (kept.length >= MAX_QUEUE_SIZE) {
+      kept = kept.slice(kept.length - MAX_QUEUE_SIZE + 1);
+    }
+    return kept;
   }
 }
