@@ -2,70 +2,19 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Battery, Droplets, ThermometerSun, Mountain, Hammer, AlertTriangle, HeartPulse } from 'lucide-react';
 import { Card } from '../shared/Card';
-import { diagnoses } from '../../data/medical';
+import { MedicalDisclaimer } from '../health/MedicalDisclaimer';
 import { useHealthMetrics } from '../../hooks/useHealthMetrics';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../services/firebase';
 import { logger } from '../../utils/logger';
 import { useProject } from '../../contexts/ProjectContext';
+import { evaluateSafetyRecommendations } from './vitalitySignals';
 
-// Sprint 21 — Bucket R · Mapeo offline-first condición ambiental → CIE-10 relevantes.
-// Sprint 25 — Bucket OO · wire con healthFacade real-time vía useHealthMetrics.
-const RISK_AGENT_KEYWORDS: Record<string, RegExp> = {
-  heat: /calor|sol|temperatura/i,
-  altitude: /altit|altura|hipoxia/i,
-  load: /levantamiento|manual|carga|vibrac/i,
-  cardiac: /cardio|taquicardia|hipertens/i,
-};
-
-interface ClinicalAlert {
-  cieCode: string; // e.g., 'T67.5', 'T67.0', 'R00.0'
-  trigger: string;
-  severity: 'low' | 'medium' | 'high';
-  rationale: string;
-}
-
-// Bucket OO — Mapeo condición → CIE-10 directo (sin búsqueda por keywords).
-function evaluateClinicalAlerts(input: {
-  hrSustainedHigh: boolean; // HR > 120 sostenido 5min
-  hrIrregular: boolean;
-  stepsLowAfterShift: boolean;
-  temperature: number;
-  toolWeight: number;
-}): ClinicalAlert[] {
-  const out: ClinicalAlert[] = [];
-  if (input.hrSustainedHigh && input.toolWeight > 5) {
-    out.push({
-      cieCode: 'T67.5',
-      trigger: 'HR > 120 bpm sostenido + carga manual',
-      severity: 'high',
-      rationale: 'Agotamiento por calor probable (CIE-10 T67.5). Pausa hidratación inmediata.',
-    });
-  }
-  if (input.stepsLowAfterShift && input.temperature >= 30) {
-    out.push({
-      cieCode: 'T67.0',
-      trigger: `Inactividad post-jornada + ${input.temperature}°C`,
-      severity: 'high',
-      rationale: 'Riesgo golpe de calor inminente (CIE-10 T67.0). Evacuar a sombra.',
-    });
-  }
-  if (input.hrIrregular) {
-    out.push({
-      cieCode: 'R00.0',
-      trigger: 'HR irregular detectado',
-      severity: 'medium',
-      rationale: 'Taquicardia sinusal o irregular (CIE-10 R00.0). Derivar a evaluación médica.',
-    });
-  }
-  return out;
-}
-const findRelatedDiagnoses = (agent: keyof typeof RISK_AGENT_KEYWORDS) => {
-  const re = RISK_AGENT_KEYWORDS[agent];
-  return diagnoses
-    .filter((d) => d.riskAgents.some((r) => re.test(r)) || re.test(d.description))
-    .slice(0, 3);
-};
+// ADR 0012 — Praeventio NUNCA diagnostica. Este monitor observa SEÑALES
+// fisiológicas/ambientales (frecuencia cardíaca, calor, carga) y emite
+// RECOMENDACIONES de seguridad NO diagnósticas (pausa, hidratación, buscar
+// evaluación médica) vía `evaluateSafetyRecommendations` — nunca infiere
+// enfermedades ni asigna códigos CIE-10 (eso es del médico tratante).
 
 export function VitalityMonitor() {
   const [temperature, setTemperature] = useState(25);
@@ -78,7 +27,7 @@ export function VitalityMonitor() {
   // Avoid duplicate Firestore writes for the same trigger window.
   const lastAlertedRef = useRef<Set<string>>(new Set());
 
-  // Bucket OO — Detect HR sustained > 120 bpm for ~5min, and HR irregularity
+  // Detect HR sustained > 120 bpm for ~5min, and HR irregularity
   // (RMSSD-style proxy: stdev of recent samples > threshold).
   const heartStats = useMemo(() => {
     const samples = metrics.heartRateRecent;
@@ -106,9 +55,9 @@ export function VitalityMonitor() {
   const stepsLowAfterShift =
     isShiftLate && (metrics.stepsToday ?? 9999) < 1000;
 
-  const clinicalAlerts = useMemo(
+  const recommendations = useMemo(
     () =>
-      evaluateClinicalAlerts({
+      evaluateSafetyRecommendations({
         hrSustainedHigh: heartStats.sustainedHigh,
         hrIrregular: heartStats.irregular,
         stepsLowAfterShift,
@@ -118,21 +67,22 @@ export function VitalityMonitor() {
     [heartStats, stepsLowAfterShift, temperature, toolWeight],
   );
 
-  // Persist clinical alerts to Firestore once per trigger window (per session).
+  // Persist NON-diagnostic safety recommendations to Firestore once per trigger
+  // window (per session). We store the observed signal + suggested action —
+  // never a diagnosis or clinical code (ADR 0012).
   useEffect(() => {
     const projectId = selectedProject?.id;
-    if (!projectId || clinicalAlerts.length === 0) return;
-    for (const alert of clinicalAlerts) {
-      const dedupKey = `${alert.cieCode}:${alert.trigger}`;
+    if (!projectId || recommendations.length === 0) return;
+    for (const rec of recommendations) {
+      const dedupKey = rec.signal;
       if (lastAlertedRef.current.has(dedupKey)) continue;
       lastAlertedRef.current.add(dedupKey);
       void (async () => {
         try {
           await addDoc(collection(db, `projects/${projectId}/clinical_alerts`), {
-            cieCode: alert.cieCode,
-            trigger: alert.trigger,
-            severity: alert.severity,
-            rationale: alert.rationale,
+            signal: rec.signal,
+            severity: rec.severity,
+            recommendation: rec.recommendation,
             source: metrics.source,
             heartRateBpm: heartStats.latestBpm,
             stepsToday: metrics.stepsToday ?? null,
@@ -143,12 +93,12 @@ export function VitalityMonitor() {
             createdBy: auth.currentUser?.uid ?? null,
           });
         } catch (err) {
-          logger.warn('[VitalityMonitor] No se pudo persistir alerta clínica', err);
+          logger.warn('[VitalityMonitor] No se pudo persistir la recomendación', err);
         }
       })();
     }
   }, [
-    clinicalAlerts,
+    recommendations,
     selectedProject?.id,
     metrics.source,
     metrics.stepsToday,
@@ -164,8 +114,8 @@ export function VitalityMonitor() {
     // High temp (>30C) adds drain.
     // High altitude (>2500m) adds drain.
     // Heavy tools (>10kg) adds drain.
-    
-    let drainRate = 10; 
+
+    let drainRate = 10;
     if (temperature > 30) drainRate += (temperature - 30) * 2;
     if (altitude > 2500) drainRate += (altitude - 2500) / 100;
     if (toolWeight > 10) drainRate += (toolWeight - 10) * 1.5;
@@ -186,15 +136,6 @@ export function VitalityMonitor() {
     setVitality(Math.min(100, vitality + 30));
     setHydrationNeeded(false);
   };
-
-  // Diagnósticos potenciales según condición ambiental (catálogo CIE-10 SST).
-  const environmentalAlerts = useMemo(() => {
-    const alerts: Array<{ trigger: string; diagnoses: typeof diagnoses }> = [];
-    if (temperature > 30) alerts.push({ trigger: `Calor ${temperature}°C`, diagnoses: findRelatedDiagnoses('heat') });
-    if (altitude > 2500) alerts.push({ trigger: `Altitud ${altitude}m`, diagnoses: findRelatedDiagnoses('altitude') });
-    if (toolWeight > 10) alerts.push({ trigger: `Carga ${toolWeight}kg`, diagnoses: findRelatedDiagnoses('load') });
-    return alerts;
-  }, [temperature, altitude, toolWeight]);
 
   const getBatteryColor = () => {
     if (vitality > 70) return 'text-emerald-500 bg-emerald-500';
@@ -226,9 +167,9 @@ export function VitalityMonitor() {
           <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1">
             <ThermometerSun className="w-3 h-3" /> Temp (°C)
           </label>
-          <input 
-            type="number" 
-            value={temperature} 
+          <input
+            type="number"
+            value={temperature}
             onChange={e => setTemperature(Number(e.target.value))}
             className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-xs text-white"
           />
@@ -237,9 +178,9 @@ export function VitalityMonitor() {
           <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1">
             <Mountain className="w-3 h-3" /> Altitud (m)
           </label>
-          <input 
-            type="number" 
-            value={altitude} 
+          <input
+            type="number"
+            value={altitude}
             onChange={e => setAltitude(Number(e.target.value))}
             className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-xs text-white"
           />
@@ -248,9 +189,9 @@ export function VitalityMonitor() {
           <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1">
             <Hammer className="w-3 h-3" /> Carga (kg)
           </label>
-          <input 
-            type="number" 
-            value={toolWeight} 
+          <input
+            type="number"
+            value={toolWeight}
             onChange={e => setToolWeight(Number(e.target.value))}
             className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-xs text-white"
           />
@@ -258,14 +199,14 @@ export function VitalityMonitor() {
       </div>
 
       <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
-        <motion.div 
+        <motion.div
           className={`h-full ${getBatteryColor().split(' ')[1]}`}
           animate={{ width: `${vitality}%` }}
           transition={{ duration: 0.5 }}
         />
       </div>
 
-      {/* Sprint 25 — Bucket OO · Vitales en tiempo real (HealthKit / Health Connect / BLE). */}
+      {/* Vitales en tiempo real (HealthKit / Health Connect / BLE) — on-device. */}
       {(metrics.source !== 'mock' || heartStats.latestBpm != null) && (
         <div className="grid grid-cols-3 gap-3 rounded-xl bg-zinc-900/40 border border-white/5 p-3">
           <div className="text-center">
@@ -291,55 +232,24 @@ export function VitalityMonitor() {
         </div>
       )}
 
-      {/* Sprint 25 — Bucket OO · Alertas clínicas CIE-10 por vitales + ambiente. */}
-      {clinicalAlerts.length > 0 && (
+      {/* Recomendaciones de seguridad NO diagnósticas (señal + acción). */}
+      {recommendations.length > 0 && (
         <div className="rounded-xl bg-rose-500/5 border border-rose-500/30 p-3 space-y-2">
           <p className="text-[10px] font-black uppercase tracking-widest text-rose-400 flex items-center gap-1.5">
             <AlertTriangle className="w-3 h-3" />
-            Alertas clínicas activas
+            Recomendaciones de seguridad
           </p>
-          {clinicalAlerts.map((a) => (
-            <div key={a.cieCode + a.trigger} className="space-y-0.5">
-              <p className="text-[10px] font-bold text-zinc-200">
-                <span className="font-mono text-rose-300">{a.cieCode}</span> — {a.trigger}
-              </p>
-              <p className="text-[10px] text-zinc-400">{a.rationale}</p>
+          {recommendations.map((r) => (
+            <div key={r.signal} className="space-y-0.5">
+              <p className="text-[10px] font-bold text-zinc-200">{r.signal}</p>
+              <p className="text-[10px] text-zinc-400">{r.recommendation}</p>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Sprint 21 — Bucket R · Diagnósticos potenciales por exposición ambiental. */}
-      {environmentalAlerts.length > 0 && (
-        <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-3 space-y-2">
-          <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 flex items-center gap-1.5">
-            <AlertTriangle className="w-3 h-3" />
-            Riesgos clínicos asociados (CIE-10)
-          </p>
-          {environmentalAlerts.map((a) => (
-            <div key={a.trigger} className="space-y-1">
-              <p className="text-[10px] font-bold text-zinc-300">{a.trigger}</p>
-              <ul className="space-y-0.5 pl-2">
-                {a.diagnoses.length === 0 ? (
-                  <li className="text-[10px] text-zinc-500 italic">Sin diagnósticos catalogados.</li>
-                ) : (
-                  a.diagnoses.map((d) => (
-                    <li key={d.code} className="text-[10px] text-zinc-400">
-                      <span className="font-mono text-violet-400">{d.code}</span> — {d.name}
-                    </li>
-                  ))
-                )}
-              </ul>
-            </div>
-          ))}
-          <p className="text-[9px] text-zinc-500 italic pt-1">
-            Mapeo orientativo offline. NO sustituye juicio clínico.
-          </p>
         </div>
       )}
 
       {hydrationNeeded && (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-between"
@@ -348,7 +258,7 @@ export function VitalityMonitor() {
             <Droplets className="w-4 h-4 shrink-0" />
             <p className="text-xs font-bold">¡Receso de hidratación sugerido!</p>
           </div>
-          <button 
+          <button
             onClick={handleHydrate}
             className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg transition-colors"
           >
@@ -356,6 +266,9 @@ export function VitalityMonitor() {
           </button>
         </motion.div>
       )}
+
+      {/* ADR 0012 — recordatorio permanente: la app no diagnostica. */}
+      <MedicalDisclaimer variant="compact" className="pt-1" />
     </Card>
   );
 }
