@@ -437,6 +437,18 @@ service cloud.firestore {
           allow update, delete: if false;
         }
       }
+      // Clinical alerts (VitalityMonitor — NON-diagnostic safety recommendations
+      // post ADR-0012 reconversion: signal + recommendation, no CIE-10). Written
+      // by the worker's device; createdBy must be the caller and is immutable.
+      // Deleting a safety alert is restricted to admin/supervisor. Read via the
+      // sub-collection master-gate. Previously had NO write rule → default-denied.
+      match /clinical_alerts/{alertId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().createdBy == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().createdBy == existing().createdBy;
+        allow delete: if isAdmin() || isSupervisor();
+      }
       // Project documents (reports, emergency plans, EPP & SUSESO docs — many
       // client-SDK writers with varied schemas). Member-gated create/update;
       // deleting a project document (compliance/legal trail) is restricted to
