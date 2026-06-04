@@ -42,6 +42,10 @@ vi.mock('../../services/geminiBackend.js', () => {
     predictGlobalIncidents: dispatchHandler,
     auditLegalGap: dispatchHandler,
     calculatePreventionROI: dispatchHandler,
+    // F3 identity-stamped actions — the dispatcher overwrites their authorUid
+    // arg with the verified token uid before calling these.
+    syncNodeToNetwork: dispatchHandler,
+    syncBatchToNetwork: dispatchHandler,
     // 'semanticSearch' declared as non-function to cover the route's
     // defensive "whitelisted but no backend function → 400" branch.
     semanticSearch: undefined,
@@ -180,6 +184,51 @@ describe('POST /api/gemini — whitelist + gates', () => {
     const res = await request(buildApp()).post('/api/gemini').set(uid).send({ action: 'analyzeRiskWithAI', args: [] });
     expect(res.status).toBe(503);
     expect(res.body.error).toBe('gemini_circuit_open');
+  });
+
+  // ─── F3 — identity-from-token (anti-spoof) ───────────────────────────────────
+  // syncNodeToNetwork / syncBatchToNetwork persist the caller's uid (node
+  // authorship) via the Admin SDK. The dispatcher MUST overwrite the
+  // client-supplied authorUid (arg[1]) with the verified token uid.
+  it('F3 — stamps the verified uid over a client-spoofed authorUid (syncNodeToNetwork)', async () => {
+    const res = await request(buildApp()).post('/api/gemini').set(uid)
+      .send({ action: 'syncNodeToNetwork', args: [{ title: 'x' }, 'SPOOFED-UID'] });
+    expect(res.status).toBe(200);
+    // The backend received the TOKEN uid (u1), not the client-supplied value.
+    expect(H.analyze).toHaveBeenCalledWith({ title: 'x' }, 'u1');
+  });
+
+  it('F3 — stamps authorUid even when the client omits the identity slot', async () => {
+    const res = await request(buildApp()).post('/api/gemini').set(uid)
+      .send({ action: 'syncNodeToNetwork', args: [{ title: 'x' }] });
+    expect(res.status).toBe(200);
+    expect(H.analyze).toHaveBeenCalledWith({ title: 'x' }, 'u1');
+  });
+
+  it('F3 — stamps authorUid for the batch action too (syncBatchToNetwork)', async () => {
+    const res = await request(buildApp()).post('/api/gemini').set(uid)
+      .send({ action: 'syncBatchToNetwork', args: [[{ title: 'a' }], 'SPOOFED-UID'] });
+    expect(res.status).toBe(200);
+    expect(H.analyze).toHaveBeenCalledWith([{ title: 'a' }], 'u1');
+  });
+
+  it('F3 — rejects an identity-stamped action when args is not an array (400)', async () => {
+    const res = await request(buildApp()).post('/api/gemini').set(uid)
+      .send({ action: 'syncNodeToNetwork', args: 'not-an-array' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects any action whose args are not an array (400, defense-in-depth)', async () => {
+    const res = await request(buildApp()).post('/api/gemini').set(uid)
+      .send({ action: 'analyzeRiskWithAI', args: { not: 'an array' } });
+    expect(res.status).toBe(400);
+  });
+
+  it('413 when the serialized args exceed the payload cap', async () => {
+    const huge = 'x'.repeat(300_000); // > 256 KB once serialized
+    const res = await request(buildApp()).post('/api/gemini').set(uid)
+      .send({ action: 'analyzeRiskWithAI', args: [huge] });
+    expect(res.status).toBe(413);
   });
 
   it('429 when the per-tenant quota is exceeded', async () => {
