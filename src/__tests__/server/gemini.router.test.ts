@@ -218,6 +218,19 @@ describe('POST /api/gemini — whitelist + gates', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects any action whose args are not an array (400, defense-in-depth)', async () => {
+    const res = await request(buildApp()).post('/api/gemini').set(uid)
+      .send({ action: 'analyzeRiskWithAI', args: { not: 'an array' } });
+    expect(res.status).toBe(400);
+  });
+
+  it('413 when the serialized args exceed the payload cap', async () => {
+    const huge = 'x'.repeat(300_000); // > 256 KB once serialized
+    const res = await request(buildApp()).post('/api/gemini').set(uid)
+      .send({ action: 'analyzeRiskWithAI', args: [huge] });
+    expect(res.status).toBe(413);
+  });
+
   it('429 when the per-tenant quota is exceeded', async () => {
     H.assertAllowed.mockRejectedValue(
       Object.assign(new Error('quota'), { code: 'gemini_quota_exceeded', quota: { reason: 'requests_exceeded', usage: 31, limit: 30 } }),

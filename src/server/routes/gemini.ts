@@ -217,6 +217,11 @@ const IDENTITY_STAMPED_ACTIONS: Record<string, { argIndex: number; field: string
   syncBatchToNetwork: { argIndex: 1, field: 'authorUid' },
 };
 
+// Hard ceiling on the serialized RPC args. The flat token estimator below
+// charges by JSON length / 4, so an unbounded args array could burn quota and
+// force giant prompts. 256 KB is far above any legitimate RPC payload.
+const MAX_GEMINI_ARGS_BYTES = 256 * 1024;
+
 const router = Router();
 
 // Ask Guardian Endpoint (El Cerebro Externo).
@@ -413,19 +418,29 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     return res.status(403).json({ error: `Forbidden: Action ${action} is not allowed` });
   }
 
+  // All whitelisted RPCs take a positional args array (the client wrappers
+  // always send one). Reject non-arrays early — a bare spread of a non-array
+  // would throw a 500 — and cap the payload so a client can't force a giant
+  // prompt that burns quota past the flat estimator below.
+  if (!Array.isArray(args)) {
+    return res.status(400).json({ error: 'Invalid args: expected an array' });
+  }
+  if (JSON.stringify(args).length > MAX_GEMINI_ARGS_BYTES) {
+    return res.status(413).json({ error: 'Payload too large' });
+  }
+
   // F3 — stamp the caller's verified identity over any client-supplied value for
-  // identity-persisting actions, BEFORE the args are spread into the backend.
-  // Never trust a client-supplied authorUid/uid.
+  // identity-persisting actions. Work on a COPY — never mutate the parsed
+  // request body. The client-supplied authorUid/uid is never trusted.
+  let callArgs: unknown[] = args;
   const identityStamp = IDENTITY_STAMPED_ACTIONS[action];
   if (identityStamp) {
     if (!req.user?.uid) {
       return res.status(401).json({ error: 'unauthenticated' });
     }
-    if (!Array.isArray(args)) {
-      return res.status(400).json({ error: 'Invalid args: expected an array' });
-    }
-    while (args.length <= identityStamp.argIndex) args.push(undefined);
-    args[identityStamp.argIndex] = req.user.uid;
+    callArgs = [...args];
+    while (callArgs.length <= identityStamp.argIndex) callArgs.push(undefined);
+    callArgs[identityStamp.argIndex] = req.user.uid;
   }
 
   // Sprint 22 (Bucket X): circuit + quota gate. The dispatcher is the
@@ -459,7 +474,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
         () =>
           (geminiBackend[action as keyof typeof geminiBackend] as (
             ...fnArgs: unknown[]
-          ) => Promise<unknown>)(...args),
+          ) => Promise<unknown>)(...callArgs),
       );
       res.json({ result });
       // Bucket X: post-call accounting. The whitelisted RPC layer does
