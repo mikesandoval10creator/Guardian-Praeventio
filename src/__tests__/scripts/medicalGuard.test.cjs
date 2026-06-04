@@ -201,3 +201,40 @@ test('9. isInScope normaliza separadores Windows', () => {
   assert.strictEqual(isInScope('src\\services\\health\\foo.ts'), true);
   assert.strictEqual(isInScope('src/utils/random.ts'), false);
 });
+
+test('10. B7 — src/components/hygiene/ está en scope', () => {
+  assert.strictEqual(isInScope('src/components/hygiene/VitalityMonitor.tsx'), true);
+  assert.strictEqual(isInScope('src/components/hygiene/SensoryFatigueMonitor.tsx'), true);
+  assert.strictEqual(isInScope('src/components/other/Foo.tsx'), false);
+});
+
+test('11. VitalityMonitor sin MedicalDisclaimer → MISSING_DISCLAIMER', () => {
+  const sb = makeSandbox();
+  try {
+    const violations = runIn(
+      sb,
+      'src/components/hygiene/VitalityMonitor.tsx',
+      `export function VitalityMonitor() { return <div>vitals</div>; }`,
+    );
+    assert.ok(
+      violations.find((v) => v.type === 'MISSING_DISCLAIMER'),
+      'VitalityMonitor es vista médica → requiere <MedicalDisclaimer/>',
+    );
+  } finally {
+    sb.cleanup();
+  }
+});
+
+test('12. VitalityMonitor CON MedicalDisclaimer → sin violación', () => {
+  const sb = makeSandbox();
+  try {
+    const content = `import { MedicalDisclaimer } from '../health/MedicalDisclaimer';
+export function VitalityMonitor() {
+  return <div><MedicalDisclaimer variant="compact" /><span>vitals</span></div>;
+}`;
+    const violations = runIn(sb, 'src/components/hygiene/VitalityMonitor.tsx', content);
+    assert.strictEqual(violations.length, 0, JSON.stringify(violations));
+  } finally {
+    sb.cleanup();
+  }
+});
