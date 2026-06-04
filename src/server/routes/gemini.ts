@@ -204,6 +204,19 @@ const ALLOWED_GEMINI_ACTIONS = [
   'scanLegalUpdates',
 ];
 
+// F3 — identity-from-token. A few whitelisted actions take the CALLER'S uid as
+// an argument that their backend then PERSISTS (e.g. node authorship written via
+// the Admin SDK, which bypasses Firestore rules). Because the dispatcher spreads
+// client-supplied args verbatim, a client could spoof that field. For these
+// actions the dispatcher OVERWRITES the configured arg slot with the verified
+// token uid — the client-supplied value is never trusted.
+const IDENTITY_STAMPED_ACTIONS: Record<string, { argIndex: number; field: string }> = {
+  // syncNodeToNetwork(nodeData, authorUid) → writes metadata.authorId to nodes/*
+  syncNodeToNetwork: { argIndex: 1, field: 'authorUid' },
+  // syncBatchToNetwork(operations, authorUid) → batched syncNodeToNetwork
+  syncBatchToNetwork: { argIndex: 1, field: 'authorUid' },
+};
+
 const router = Router();
 
 // Ask Guardian Endpoint (El Cerebro Externo).
@@ -398,6 +411,21 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
 
   if (!ALLOWED_GEMINI_ACTIONS.includes(action)) {
     return res.status(403).json({ error: `Forbidden: Action ${action} is not allowed` });
+  }
+
+  // F3 — stamp the caller's verified identity over any client-supplied value for
+  // identity-persisting actions, BEFORE the args are spread into the backend.
+  // Never trust a client-supplied authorUid/uid.
+  const identityStamp = IDENTITY_STAMPED_ACTIONS[action];
+  if (identityStamp) {
+    if (!req.user?.uid) {
+      return res.status(401).json({ error: 'unauthenticated' });
+    }
+    if (!Array.isArray(args)) {
+      return res.status(400).json({ error: 'Invalid args: expected an array' });
+    }
+    while (args.length <= identityStamp.argIndex) args.push(undefined);
+    args[identityStamp.argIndex] = req.user.uid;
   }
 
   // Sprint 22 (Bucket X): circuit + quota gate. The dispatcher is the
