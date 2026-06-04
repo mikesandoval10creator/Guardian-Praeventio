@@ -2,6 +2,7 @@ import admin from "firebase-admin";
 import { GoogleGenAI } from "@google/genai";
 import { logger } from '../utils/logger';
 import { autoConnectNodes } from "./geminiBackend";
+import { assertProjectMember } from "./auth/projectMembership";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -40,6 +41,23 @@ const getEmbedding = async (text: string): Promise<number[]> => {
  */
 export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
   const db = admin.firestore();
+
+  // B14 — tenant isolation. These writes use the Admin SDK, which BYPASSES
+  // firestore.rules, so membership must be enforced here. `authorUid` is the
+  // verified caller (stamped server-side by the /api/gemini dispatcher — F3).
+  // A node bound to a SPECIFIC project may only be written by a member of that
+  // project; this closes cross-tenant RAG poisoning (injecting a node into a
+  // victim project's nodes/* + vector_store/*). Unscoped/community ('global')
+  // nodes are governed separately (community score-gate). `assertProjectMember`
+  // throws ProjectMembershipError (httpStatus 403), surfaced as 403 by the
+  // dispatcher.
+  const targetProjectId =
+    typeof nodeData?.projectId === 'string' && nodeData.projectId !== 'global'
+      ? nodeData.projectId
+      : null;
+  if (targetProjectId) {
+    await assertProjectMember(authorUid, targetProjectId, db);
+  }
 
   // 1. Generate Embedding if not provided
   if (!nodeData.embedding || (Array.isArray(nodeData.embedding) && nodeData.embedding.length === 0)) {
@@ -180,6 +198,19 @@ export const syncBatchToNetwork = async (operations: any[], authorUid: string) =
         results.push({ id: op.id, status: 'success', res });
       } else if (op.type === 'delete') {
         const nodeId = op.id;
+        // B14 — verify membership before deleting a project-scoped node, so a
+        // caller can't delete another tenant's nodes by guessing IDs (the
+        // Admin SDK bypasses rules). A throw here is caught below and the op is
+        // recorded as 'error' — the node is NOT deleted.
+        const existing = await db.collection('nodes').doc(nodeId).get();
+        const existingData = existing.exists ? existing.data() : null;
+        const existingProjectId =
+          existingData && typeof existingData.projectId === 'string' && existingData.projectId !== 'global'
+            ? existingData.projectId
+            : null;
+        if (existingProjectId) {
+          await assertProjectMember(authorUid, existingProjectId, db);
+        }
         // 1. Delete from Firestore
         await db.collection('nodes').doc(nodeId).delete();
         // 2. Delete from Vector Store
