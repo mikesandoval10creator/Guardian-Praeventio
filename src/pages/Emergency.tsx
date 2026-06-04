@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useProject } from '../contexts/ProjectContext';
+import { useEmergency } from '../contexts/EmergencyContext';
 import { useManDownDetection } from '../hooks/useManDownDetection';
 import { DynamicEvacuationMap } from '../components/emergency/DynamicEvacuationMap';
 import { EmergencyDashboard } from '../components/emergency/EmergencyDashboard';
@@ -58,11 +59,21 @@ interface EmergencyProtocol {
 export function Emergency() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
+  const { triggerEmergency } = useEmergency();
   const [searchTerm, setSearchTerm] = useState('');
   const [isCrisisMode, setIsCrisisMode] = useState(false);
   const [isContactsOpen, setIsContactsOpen] = useState(false);
   const [isDownloadingPlan, setIsDownloadingPlan] = useState(false);
-  const { isActive, isAlerting, countdown, startDetection, stopDetection, cancelCountdown, acknowledgeAlert } = useManDownDetection();
+  // B1 — on a confirmed man-down, fan out the FCM push to project responders
+  // (triggerEmergency → /api/emergency/notify-brigada) AND switch to emergency
+  // mode. Previously the hook wrote mandown_events + sounded the local alarm but
+  // NEVER pushed, so a supervisor only saw it if they happened to be in the app.
+  const { isActive, isAlerting, countdown, startDetection, stopDetection, cancelCountdown, acknowledgeAlert } =
+    useManDownDetection({
+      onManDownConfirmed: () => {
+        if (selectedProject?.id) void triggerEmergency('fall', selectedProject.id);
+      },
+    });
   const isOnline = useOnlineStatus();
   const { isSupported: isWakeLockSupported, isLocked: isWakeLocked, requestWakeLock, releaseWakeLock } = useWakeLock();
 
