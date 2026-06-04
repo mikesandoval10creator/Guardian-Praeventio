@@ -216,6 +216,19 @@ default-denied in production. Member-gated create/update; admin/supervisor delet
 
 31. **Document Injection**: a non-member creating/editing `/projects/victim/documents/*`.
 32. **Compliance Doc Delete**: a non-admin/supervisor deleting a project document.
+
+## Clinical alerts (non-diagnostic) — write rules (B7, added 2026-06-03)
+
+`projects/{pid}/clinical_alerts/{id}` (VitalityMonitor — NON-diagnostic safety
+recommendations after the ADR-0012 reconversion: signal + recommendation, no
+CIE-10) had no write rule → default-denied. Member-gated with anti-spoof
+`createdBy` (immutable on update); delete admin/supervisor; read via the project
+sub-collection master-gate. Rules tests: `src/rules-tests/clinicalAlerts.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+33. **Alert Spoof**: `{ "createdBy": "victim_id" }` on a clinical_alerts create.
+34. **Alert Owner Reassign**: update flipping `createdBy` to another uid.
 16. **Signed SiteBook Tamper**: `update /projects/p1/site_book_entries/e1`
     where `signedAt` is already set.
 17. **Compliance Delete**: `delete /projects/p1/stoppages/s1` (even as admin).
