@@ -84,6 +84,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
   const [strobeFlash, setStrobeFlash] = useState(false);
   const [showPanic, setShowPanic] = useState(false);
   const torchStreamRef = useRef<MediaStream | null>(null);
+  const torchIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { requestWakeLock, releaseWakeLock, wakeLockFailed } = useWakeLock();
 
   // Survival guides are localised via t(); ids are stable so navigation
@@ -155,7 +156,11 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
         torchStreamRef.current = stream;
         const track = stream.getVideoTracks()[0];
         let on = false;
-        setInterval(() => {
+        // Capture the interval id so cleanup can clear it. Before this fix the
+        // torch-toggle interval was never cleared — it ran forever, calling
+        // applyConstraints on an already-stopped track and draining the battery
+        // of a trapped worker (the worst possible place to leak).
+        torchIntervalRef.current = setInterval(() => {
           on = !on;
           (track.applyConstraints as any)({ advanced: [{ torch: on }] }).catch(() => {});
         }, 500);
@@ -165,6 +170,10 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
 
     return () => {
       clearInterval(interval);
+      if (torchIntervalRef.current) {
+        clearInterval(torchIntervalRef.current);
+        torchIntervalRef.current = null;
+      }
       if (torchStreamRef.current) {
         torchStreamRef.current.getTracks().forEach(t => t.stop());
         torchStreamRef.current = null;
