@@ -309,4 +309,43 @@ describe('syncNodeToNetwork — project membership enforcement (B14)', () => {
     expect(result.results[0].status).toBe('deleted');
     expect(fakeAdmin.docs.has('nodes/mine')).toBe(false);
   });
+
+  it('does NOT back-link into another project\'s node (cross-project backlink blocked)', async () => {
+    // Target node belongs to project B; the attacker is a member of p1 only.
+    fakeAdmin.docs.set('nodes/targetB', { id: 'targetB', projectId: 'pB', connections: [] });
+
+    await syncNodeToNetwork(
+      {
+        id: 'attacker',
+        title: 'T',
+        description: 'D',
+        type: 'Riesgo',
+        projectId: 'p1',
+        connections: ['targetB'],
+        embedding: [0.1],
+      },
+      'author-uid',
+    );
+
+    // The victim's node was NOT modified (no back-link grafted in).
+    expect(fakeAdmin.docs.get('nodes/targetB')?.connections).toEqual([]);
+  });
+
+  it('canonicalizes a non-specific projectId (empty / non-string) to global, no membership check, no corruption', async () => {
+    const r1 = await syncNodeToNetwork(
+      { id: 'e1', title: 'T', description: 'D', type: 'Riesgo', projectId: '', embedding: [0.1] },
+      'author-uid',
+    );
+    expect(r1.success).toBe(true);
+    expect(fakeAdmin.docs.get('nodes/e1')?.projectId).toBe('global');
+
+    // A non-string projectId must NOT land in nodes/* or vector_store/* as-is.
+    const r2 = await syncNodeToNetwork(
+      { id: 'e2', title: 'T', description: 'D', type: 'Riesgo', projectId: ['victim'], embedding: [0.1] },
+      'author-uid',
+    );
+    expect(r2.success).toBe(true);
+    expect(fakeAdmin.docs.get('nodes/e2')?.projectId).toBe('global');
+    expect(fakeAdmin.docs.get('vector_store/node-e2')?.projectId).toBe('global');
+  });
 });

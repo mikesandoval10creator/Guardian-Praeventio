@@ -45,18 +45,25 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
   // B14 — tenant isolation. These writes use the Admin SDK, which BYPASSES
   // firestore.rules, so membership must be enforced here. `authorUid` is the
   // verified caller (stamped server-side by the /api/gemini dispatcher — F3).
+  //
+  // Canonicalize projectId FIRST so a non-string / empty / whitespace value
+  // can't (a) slip past the membership gate while still landing in a project's
+  // index, or (b) corrupt the stored doc / shared vector_store. Anything that
+  // isn't a specific project string normalizes to 'global' (community scope).
+  const rawProjectId =
+    typeof nodeData?.projectId === 'string' ? nodeData.projectId.trim() : '';
+  const isGlobalScope = rawProjectId === '' || rawProjectId.toLowerCase() === 'global';
+  const canonicalProjectId = isGlobalScope ? 'global' : rawProjectId;
+  nodeData.projectId = canonicalProjectId;
+
   // A node bound to a SPECIFIC project may only be written by a member of that
   // project; this closes cross-tenant RAG poisoning (injecting a node into a
   // victim project's nodes/* + vector_store/*). Unscoped/community ('global')
   // nodes are governed separately (community score-gate). `assertProjectMember`
   // throws ProjectMembershipError (httpStatus 403), surfaced as 403 by the
   // dispatcher.
-  const targetProjectId =
-    typeof nodeData?.projectId === 'string' && nodeData.projectId !== 'global'
-      ? nodeData.projectId
-      : null;
-  if (targetProjectId) {
-    await assertProjectMember(authorUid, targetProjectId, db);
+  if (!isGlobalScope) {
+    await assertProjectMember(authorUid, canonicalProjectId, db);
   }
 
   // 1. Generate Embedding if not provided
@@ -107,7 +114,23 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
       const targetDoc = await targetRef.get();
 
       if (targetDoc.exists) {
-        const currentConnections = targetDoc.data()?.connections || [];
+        const targetData = targetDoc.data();
+        const targetProjectId =
+          typeof targetData?.projectId === 'string' ? targetData.projectId : null;
+        // B14 — the back-link is an Admin-SDK write into ANOTHER node. Never
+        // write into a node that belongs to a DIFFERENT specific project, or a
+        // member of project A could graft links into project B's graph (and
+        // poison its auto-connect / RAG context). Same-project and community
+        // ('global') targets are allowed.
+        if (targetProjectId && targetProjectId !== 'global' && targetProjectId !== canonicalProjectId) {
+          logger.warn('[NetworkBackend] cross-project backlink blocked', {
+            nodeId,
+            targetId,
+            targetProjectId,
+          });
+          continue;
+        }
+        const currentConnections = targetData?.connections || [];
         if (!currentConnections.includes(nodeId)) {
           // Add back-link using Admin SDK (bypasses rules)
           await targetRef.update({

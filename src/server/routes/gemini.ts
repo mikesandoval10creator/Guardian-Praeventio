@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+import { ProjectMembershipError } from '../../services/auth/projectMembership.js';
 import { geminiLimiter, geminiGlobalDailyLimiter } from '../middleware/limiters.js';
 import { getFirestore } from 'firebase-admin/firestore';
 // Sprint 22 prod hardening (Bucket X) — wire circuit breaker + per-tenant
@@ -477,6 +478,28 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
             ...fnArgs: unknown[]
           ) => Promise<unknown>)(...callArgs),
       );
+      // B14 — audit the node-sync state changes BEFORE responding (CLAUDE.md
+      // #3/#14). Only the identity-stamped actions write state via the Admin
+      // SDK (rules-bypassing); the rest are stateless Gemini generation. The
+      // audit must never block the user-facing response, so swallow + Sentry on
+      // failure (auditServerEvent already returns false on its own errors).
+      if (identityStamp) {
+        const firstArg = callArgs[0] as { projectId?: unknown } | undefined;
+        const auditProjectId =
+          firstArg && typeof firstArg.projectId === 'string' ? firstArg.projectId : null;
+        try {
+          await auditServerEvent(
+            req,
+            `gemini.${action}`,
+            'network',
+            { nodeId: (result as { nodeId?: string } | null | undefined)?.nodeId ?? null },
+            { projectId: auditProjectId },
+          );
+        } catch (auditErr) {
+          logger.error('audit_event_failed', auditErr as Error, { action });
+          sentryCapture(auditErr, { endpoint: '/api/gemini', tags: { action } });
+        }
+      }
       res.json({ result });
       // Bucket X: post-call accounting. The whitelisted RPC layer does
       // not return per-call token usage, so we charge a flat estimate
@@ -492,22 +515,15 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
         // ask-guardian path. Use Flash pricing as the default.
         costUsd: estimateGeminiCostUsd('gemini-2.0-flash', tokensIn, tokensOut),
       });
-      // B14 — audit the node-sync state changes (CLAUDE.md #3). Only the
-      // identity-stamped actions write state via the Admin SDK (rules-bypassing);
-      // the rest are stateless Gemini generation. auditServerEvent never throws
-      // (returns false on failure) so it is safe after the response is sent.
-      if (identityStamp) {
-        await auditServerEvent(req, `gemini.${action}`, 'network', {
-          nodeId: (result as { nodeId?: string } | null | undefined)?.nodeId ?? null,
-        });
-      }
     } else {
       res.status(400).json({ error: `Action ${action} not found` });
     }
   } catch (error: any) {
     // B14 — a project-membership denial is a 403 client error (not a server or
     // upstream failure); return it cleanly without polluting failure metrics.
-    if (error?.name === 'ProjectMembershipError') {
+    // `instanceof` is primary; the name check is a defensive fallback in case a
+    // module-boundary duplicate ever breaks identity.
+    if (error instanceof ProjectMembershipError || error?.name === 'ProjectMembershipError') {
       return res.status(403).json({ error: 'forbidden_project', message: 'No eres miembro del proyecto indicado.' });
     }
     logger.error('gemini_proxy_failed', error, { action });
