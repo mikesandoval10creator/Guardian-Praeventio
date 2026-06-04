@@ -71,6 +71,12 @@ vi.mock('../../server/middleware/limiters.js', () => ({
   geminiGlobalDailyLimiter: (_req: Request, _res: Response, next: NextFunction) => next(),
 }));
 
+// auditServerEvent → no-op (B14 adds an audit on the node-sync success path;
+// keep it off firebase-admin in this router test).
+vi.mock('../../server/middleware/auditLog.js', () => ({
+  auditServerEvent: vi.fn(async () => true),
+}));
+
 // ─── validate — pass-through (stream endpoint uses real Zod schema) ───────────
 // NOTE: we do NOT mock validate so the /api/gemini/stream Zod body validation
 // is exercised for real. validate.ts has no heavy deps.
@@ -229,6 +235,18 @@ describe('POST /api/gemini — whitelist + gates', () => {
     const res = await request(buildApp()).post('/api/gemini').set(uid)
       .send({ action: 'analyzeRiskWithAI', args: [huge] });
     expect(res.status).toBe(413);
+  });
+
+  it('B14 — maps a ProjectMembershipError from the backend to 403 (not 500)', async () => {
+    H.backendFn = vi.fn(async () => {
+      const err = new Error('Caller is not a member of project pX');
+      (err as Error & { name: string }).name = 'ProjectMembershipError';
+      throw err;
+    });
+    const res = await request(buildApp()).post('/api/gemini').set(uid)
+      .send({ action: 'syncNodeToNetwork', args: [{ projectId: 'pX' }, 'spoof'] });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_project');
   });
 
   it('429 when the per-tenant quota is exceeded', async () => {
