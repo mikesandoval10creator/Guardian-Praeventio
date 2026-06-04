@@ -208,6 +208,22 @@ test('10. B7 — src/components/hygiene/ está en scope', () => {
   assert.strictEqual(isInScope('src/components/other/Foo.tsx'), false);
 });
 
+test('10b. B7 — src/components/occupational-health/ está en scope', () => {
+  assert.strictEqual(
+    isInScope('src/components/occupational-health/SymptomDocumenter.tsx'),
+    true,
+  );
+  assert.strictEqual(
+    isInScope('src/components/occupational-health/HumanBodyViewer.tsx'),
+    true,
+  );
+  // Windows separators normalize too.
+  assert.strictEqual(
+    isInScope('src\\components\\occupational-health\\SymptomDocumenter.tsx'),
+    true,
+  );
+});
+
 test('11. VitalityMonitor sin MedicalDisclaimer → MISSING_DISCLAIMER', () => {
   const sb = makeSandbox();
   try {
