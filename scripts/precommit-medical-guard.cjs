@@ -46,6 +46,10 @@ const VIEW_FILE_PATTERNS = [
   /^src\/pages\/Medicine\.tsx$/,
   /^src\/components\/health\/.*\.tsx$/,
   /^src\/components\/medicine\/HealthVault\.tsx$/,
+  // B7 (2026-06) — VitalityMonitor procesa señales de salud (HR, vitales) y
+  // emite recomendaciones; tras reconvertirlo a no-diagnóstico (ADR 0012) debe
+  // mantener el <MedicalDisclaimer/> permanentemente.
+  /^src\/components\/hygiene\/VitalityMonitor\.tsx$/,
 ];
 
 const SCOPED_DIRS = [
@@ -53,6 +57,10 @@ const SCOPED_DIRS = [
   'src/services/medicine/',
   'src/components/health/',
   'src/components/medicine/',
+  // B7 (2026-06) — el módulo de higiene procesa vitales/salud (VitalityMonitor,
+  // SensoryFatigueMonitor) y antes coló inferencia CIE-10 sin que el guard lo
+  // viera. Ahora se escanea para impedir regresiones diagnósticas.
+  'src/components/hygiene/',
   'src/pages/HealthVault',
   'src/pages/MyData',
   'src/pages/Medicine',
