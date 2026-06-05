@@ -94,6 +94,26 @@ function mapToAnalyticsRole(role: unknown): AnalyticsRole {
 
 const router = Router();
 
+/**
+ * Write an `audit_logs` entry WITHOUT letting a Firestore failure break the
+ * user-facing admin action (directive #14). The state change has already
+ * happened by the time we audit, so an audit-write error is logged + captured
+ * but NON-blocking — the original response still succeeds. Previously these
+ * writes were bare `await ...add(...)` inside the handler try, so an audit
+ * failure 500'd a COMPLETED operation (done-but-reported-failed, no audit row).
+ * Audit failure is severe (compliance) but must not corrupt the user action.
+ */
+async function safeAudit(entry: Record<string, unknown>): Promise<void> {
+  try {
+    await admin.firestore().collection('audit_logs').add(entry);
+  } catch (err) {
+    logger.error('admin_audit_event_failed', err, { action: entry.action });
+    captureRouteError(err, 'admin.audit', {
+      action: String(entry.action ?? 'unknown'),
+    });
+  }
+}
+
 // Desconexión Forzada (Revoke Tokens - El Haki del Rey / Security)
 router.post('/revoke-access', verifyAuth, async (req, res) => {
   const { targetUid } = req.body;
@@ -121,7 +141,7 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
     );
 
     // Audit trail — see audit_logs schema at the top of server.ts.
-    await admin.firestore().collection('audit_logs').add({
+    await safeAudit({
       actor: callerUid,
       action: 'revoke_access',
       target: targetUid,
@@ -196,7 +216,7 @@ router.post('/set-role', verifyAuth, async (req, res) => {
     await admin.auth().revokeRefreshTokens(uid);
 
     // Audit trail — see audit_logs schema notes at the top of server.ts.
-    await admin.firestore().collection('audit_logs').add({
+    await safeAudit({
       actor: callerUid,
       action: 'set_role',
       target: uid,
@@ -264,7 +284,7 @@ router.post('/replicate-critical', verifyAuth, async (req, res) => {
 
     // Audit trail — replicate runs are infrequent enough that we want one
     // row per invocation. Captures partial-success state in `result`.
-    await admin.firestore().collection('audit_logs').add({
+    await safeAudit({
       actor: callerUid,
       action: 'replicate_critical',
       ts: admin.firestore.FieldValue.serverTimestamp(),
@@ -300,7 +320,7 @@ router.post('/jobs/weekly-digest', verifyAuth, async (req, res) => {
       ? body.projectIds.filter((id): id is string => typeof id === 'string').slice(0, 200)
       : undefined;
     const result = await runWeeklyDigest({ projectIds });
-    await admin.firestore().collection('audit_logs').add({
+    await safeAudit({
       actor: callerUid,
       action: 'weekly_digest_run',
       ts: admin.firestore.FieldValue.serverTimestamp(),
@@ -450,17 +470,14 @@ router.post('/jobs/climate-scan', verifyAuth, async (req, res) => {
         return { successCount: out.successCount, failureCount: out.failureCount };
       },
       audit: async (action, details) => {
-        await admin
-          .firestore()
-          .collection('audit_logs')
-          .add({
-            actor: callerUid,
-            action,
-            ts: admin.firestore.FieldValue.serverTimestamp(),
-            ip: req.ip,
-            ua: req.header('user-agent') || null,
-            details,
-          });
+        await safeAudit({
+          actor: callerUid,
+          action,
+          ts: admin.firestore.FieldValue.serverTimestamp(),
+          ip: req.ip,
+          ua: req.header('user-agent') || null,
+          details,
+        });
       },
     };
 
@@ -564,7 +581,7 @@ router.post('/quotas/reset', verifyAuth, async (req, res) => {
   }
   try {
     await resetQuota(tenantId, date);
-    await admin.firestore().collection('audit_logs').add({
+    await safeAudit({
       actor: callerUid,
       action: 'quota_reset',
       target: tenantId,
@@ -642,7 +659,7 @@ router.post('/sync/clear-user-queue', verifyAuth, async (req, res) => {
         },
         { merge: true },
       );
-    await admin.firestore().collection('audit_logs').add({
+    await safeAudit({
       actor: callerUid,
       action: 'sync_clear_user_queue',
       target: targetUid,
