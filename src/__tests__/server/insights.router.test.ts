@@ -188,6 +188,90 @@ describe('GET /api/insights/:projectId/risk-ranking', () => {
 });
 
 // ══════════════════════════════════════════════════════════
+// GET /:projectId/top-risks  (B2 🔵 — real Zettelkasten source)
+// ══════════════════════════════════════════════════════════
+describe('GET /api/insights/:projectId/top-risks', () => {
+  const TENANT_ID = 'tenant-alpha';
+  const url = `/api/insights/${PROJECT_ID}/top-risks`;
+  const zkPath = `tenants/${TENANT_ID}/zettelkasten_nodes`;
+
+  beforeEach(() => {
+    // Re-seed the project WITH a tenantId so resolveTenantId succeeds.
+    H.db!._seed(`projects/${PROJECT_ID}`, {
+      members: [MEMBER_UID],
+      createdBy: MEMBER_UID,
+      tenantId: TENANT_ID,
+    });
+  });
+
+  function seedRiskNode(
+    id: string,
+    probabilidad: number,
+    severidad: number,
+    over: Record<string, unknown> = {},
+  ) {
+    H.db!._seed(`${zkPath}/${id}`, {
+      type: 'Riesgo', // NodeType.RISK
+      title: `Riesgo ${id}`,
+      projectId: PROJECT_ID,
+      metadata: { probabilidad, severidad, riesgo: 'caída de altura', ...over },
+    });
+  }
+
+  it('401 when no token is sent', async () => {
+    const res = await request(buildApp()).get(url);
+    expect(res.status).toBe(401);
+  });
+
+  it('403 when caller is not a project member', async () => {
+    const res = await request(buildApp()).get(url).set(asUser(OUTSIDER_UID));
+    expect(res.status).toBe(403);
+  });
+
+  it('404 when the project has no resolvable tenantId', async () => {
+    H.db!._seed(`projects/${PROJECT_ID}`, { members: [MEMBER_UID], createdBy: MEMBER_UID });
+    const res = await request(buildApp()).get(url).set(asUser(MEMBER_UID));
+    expect(res.status).toBe(404);
+    expect((res.body as Record<string, unknown>).error).toBe('tenant_not_found');
+  });
+
+  it('200 empty — no RISK nodes yet', async () => {
+    const res = await request(buildApp()).get(url).set(asUser(MEMBER_UID));
+    expect(res.status).toBe(200);
+    const body = res.body as { topRisks: unknown[]; total: number };
+    expect(body.topRisks).toEqual([]);
+    expect(body.total).toBe(0);
+  });
+
+  it('200 ranks RISK nodes by DS44 IPER score and ignores non-RISK nodes', async () => {
+    seedRiskNode('low', 1, 1); // score 1
+    seedRiskNode('high', 5, 5); // score 25
+    seedRiskNode('mid', 3, 3); // score 9
+    // A non-RISK node in the same project must be excluded.
+    H.db!._seed(`${zkPath}/note1`, { type: 'Nota', title: 'no es riesgo', projectId: PROJECT_ID });
+    // A RISK node from a DIFFERENT project must be excluded.
+    H.db!._seed(`${zkPath}/other`, {
+      type: 'Riesgo', title: 'otro proyecto', projectId: 'proj-beta',
+      metadata: { probabilidad: 5, severidad: 5 },
+    });
+
+    const res = await request(buildApp()).get(`${url}?topN=2`).set(asUser(MEMBER_UID));
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      topRisks: Array<{ id: string; iperScore: number; criticidad: string; iperLevel: string }>;
+      total: number;
+    };
+    expect(body.total).toBe(3); // 3 RISK nodes in this project
+    expect(body.topRisks).toHaveLength(2); // topN=2
+    expect(body.topRisks[0]!.id).toBe('high');
+    expect(body.topRisks[0]!.iperScore).toBe(25);
+    expect(body.topRisks[0]!.criticidad).toBe('Crítica');
+    expect(body.topRisks[1]!.id).toBe('mid');
+    expect(body.topRisks[1]!.iperLevel).toBe('moderado');
+  });
+});
+
+// ══════════════════════════════════════════════════════════
 // GET /:projectId/safety-talks
 // ══════════════════════════════════════════════════════════
 describe('GET /api/insights/:projectId/safety-talks', () => {

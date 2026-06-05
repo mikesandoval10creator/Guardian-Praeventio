@@ -30,6 +30,10 @@ import {
   type ControlRecord,
 } from '../../services/riskRanking/riskRankingEngine.js';
 import {
+  rankRiskNodesByIper,
+  type RiskNodeInput,
+} from '../../services/riskRanking/riskNodeRanking.js';
+import {
   suggestTalks,
   type ContextSignals,
 } from '../../services/safetyTalks/talkTopicSuggester.js';
@@ -60,6 +64,29 @@ async function guardProjectAccess(
   }
 }
 
+/** Resolve a project's tenantId (project doc, then members sub-collection). */
+async function resolveTenantId(
+  callerUid: string,
+  projectId: string,
+  db: admin.firestore.Firestore,
+): Promise<string | null> {
+  const proj = await db.collection('projects').doc(projectId).get();
+  const data = proj.exists ? proj.data() : null;
+  if (data && typeof data.tenantId === 'string') return data.tenantId;
+  const members = await db
+    .collection('projects')
+    .doc(projectId)
+    .collection('members')
+    .where('uid', '==', callerUid)
+    .limit(1)
+    .get();
+  if (!members.empty) {
+    const tid = members.docs[0]?.data()?.tenantId;
+    if (typeof tid === 'string') return tid;
+  }
+  return null;
+}
+
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // GET /api/insights/:projectId/risk-ranking
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -87,6 +114,67 @@ router.get('/:projectId/risk-ranking', verifyAuth, async (req, res) => {
   } catch (err) {
     logger.error?.('insights.risk_ranking.error', err);
     captureRouteError(err, 'insights.risk_ranking');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// GET /api/insights/:projectId/top-risks
+//
+// REAL pull-based ranking (B2 🔵, Fase 5): ranks the project's
+// `NodeType.RISK` ('Riesgo') Zettelkasten nodes by their DS44 IPER score
+// (probabilidad × severidad → calculateIper). Replaces the idle `useTopRisks`
+// stub that fed an orphan dashboard from the empty flat `risks` collection.
+// Source of truth = `tenants/{tid}/zettelkasten_nodes` (what the Matrix IPER
+// page actually writes). `type` is filtered in-memory to avoid a composite
+// index. See ADR 0020 (Zettelkasten-canonical source).
+// ────────────────────────────────────────────────────────────────────────
+router.get('/:projectId/top-risks', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
+  const db = admin.firestore();
+  const tenantId = await resolveTenantId(callerUid, projectId, db);
+  if (!tenantId) {
+    return res.status(404).json({ error: 'tenant_not_found' });
+  }
+  const topN = Math.min(Math.max(Number(req.query.topN) || 10, 1), 50);
+  try {
+    const snap = await db
+      .collection('tenants')
+      .doc(tenantId)
+      .collection('zettelkasten_nodes')
+      .where('projectId', '==', projectId)
+      .limit(2000)
+      .get();
+    const nodes: RiskNodeInput[] = snap.docs
+      .filter((d) => (d.data() ?? {}).type === 'Riesgo') // NodeType.RISK
+      .map((d) => {
+        const data = d.data() ?? {};
+        const meta = (data.metadata ?? {}) as Record<string, unknown>;
+        return {
+          id: d.id,
+          title: typeof data.title === 'string' ? data.title : '(sin título)',
+          category:
+            typeof meta.riesgo === 'string'
+              ? meta.riesgo
+              : typeof meta.actividad === 'string'
+                ? meta.actividad
+                : undefined,
+          probabilidad:
+            typeof meta.probabilidad === 'number' ? meta.probabilidad : undefined,
+          severidad: typeof meta.severidad === 'number' ? meta.severidad : undefined,
+        };
+      });
+    const topRisks = rankRiskNodesByIper(nodes, topN);
+    return res.json({
+      topRisks,
+      total: nodes.length,
+      computedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.error?.('insights.top_risks.error', err);
+    captureRouteError(err, 'insights.top_risks');
     return res.status(500).json({ error: 'internal_error' });
   }
 });
