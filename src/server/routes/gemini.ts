@@ -156,7 +156,9 @@ const ALLOWED_GEMINI_ACTIONS = [
   'syncNodeToNetwork',
   'syncBatchToNetwork',
   'generateCompensatoryExercises',
-  'analyzeBioImage',
+  // B3 (Fase 5): 'analyzeBioImage' de-whitelisted — BioAnalysis ahora corre
+  // 100% on-device (directiva #12, el frame de cámara no sale del equipo).
+  // Sin caller cliente; cerramos el path de egress también en el servidor.
   'generatePredictiveForecast',
   'generateOperationalTasks',
   'generateEmergencyPlanJSON',
