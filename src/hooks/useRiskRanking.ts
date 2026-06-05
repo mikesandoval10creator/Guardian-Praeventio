@@ -1,6 +1,7 @@
-// Praeventio Guard — Risk Ranking client hook (4 mutators + 3 React hook stubs).
+// Praeventio Guard — Risk Ranking client hook (4 POST mutators + useTopRisks
+// real pull-hook + 2 remaining stubs: useRiskTimeseries, useWeakControls).
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiAuthHeaders } from '../lib/apiAuth';
 import type {
   RiskRecord,
@@ -9,6 +10,7 @@ import type {
   ZoneStats,
   TaskRiskRecord,
 } from '../services/riskRanking/riskRankingEngine';
+import type { RankedRiskNode } from '../services/riskRanking/riskNodeRanking';
 
 async function authedFetch(
   path: string,
@@ -30,6 +32,44 @@ async function json<T>(res: Response): Promise<T> {
     throw new Error(body.error ?? `http_${res.status}`);
   }
   return (await res.json()) as T;
+}
+
+/**
+ * GET endpoint hook with abort + refetch (mirrors `useControlComparator`).
+ * `path === null` (e.g. no project selected) stays idle without fetching.
+ */
+function useEndpoint<T>(path: string | null): AsyncResult<T> {
+  const [state, setState] = useState<Omit<AsyncResult<T>, 'refetch'>>({
+    data: null,
+    loading: Boolean(path),
+    error: null,
+  });
+  const [refetchKey, setRefetchKey] = useState(0);
+  const controllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!path) {
+      setState({ data: null, loading: false, error: null });
+      return undefined;
+    }
+    setState((s) => ({ ...s, loading: true, error: null }));
+    const ctl = new AbortController();
+    controllerRef.current = ctl;
+    (async () => {
+      try {
+        const res = await authedFetch(path, { signal: ctl.signal });
+        const data = await json<T>(res);
+        if (!ctl.signal.aborted) setState({ data, loading: false, error: null });
+      } catch (err) {
+        if (ctl.signal.aborted) return;
+        setState({ data: null, loading: false, error: err as Error });
+      }
+    })();
+    return () => ctl.abort();
+  }, [path, refetchKey]);
+
+  const refetch = useCallback(() => setRefetchKey((k) => k + 1), []);
+  return { ...state, refetch };
 }
 
 // ── 1. risks ──────────────────────────────────────────────────────────
@@ -97,19 +137,14 @@ export async function rankTasksByRiskApi(
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// React hook stubs expected by orphan dashboard components (rescue-450)
+// Dashboard pull-hooks (B2 🔵, Fase 5 — replacing the rescue-450 stubs)
 // ──────────────────────────────────────────────────────────────────────
 //
-// `src/components/riskRanking/{RiskTimeseriesChart, TopRisksDashboardCard,
-// WeakControlsDashboardCard}.tsx` were wired in rescue-450 PR #505 to
-// these hook names, but none of them are mounted in any route. The hooks
-// below return idle results (no fetch) so typecheck passes and the
-// components render their "empty/loading" state if accidentally mounted.
-//
-// Real implementation requires new GET endpoints that don't yet exist —
-// the existing rank*Api functions are push-based (client provides records),
-// which doesn't fit the dashboard pull pattern. Tracked TODO §13 +
-// `docs/stubs-inventory.md`.
+// `useTopRisks` is now REAL: it fetches the Zettelkasten-backed
+// `GET /api/insights/{projectId}/top-risks` and `TopRisksDashboardCard` is
+// mounted in `Risks.tsx`. `useRiskTimeseries` (← findings) and
+// `useWeakControls` (← control_validations) remain idle stubs pending their
+// own endpoints — next PRs. Tracked TODO §13 + `docs/stubs-inventory.md`.
 
 interface AsyncResult<T> {
   data: T | null;
@@ -141,25 +176,31 @@ export function useRiskTimeseries(
   _projectId: string | null,
   _days: number = 30,
 ): AsyncResult<RiskTimeseriesData> {
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   return idleResult<RiskTimeseriesData>();
 }
 
 export interface TopRisksData {
-  topRisks: Array<RiskRecord & { score: number }>;
+  /** Ranked RISK nodes (Zettelkasten) by DS44 IPER score. */
+  topRisks: RankedRiskNode[];
+  /** Total RISK nodes considered (before topN). */
+  total: number;
+  computedAt: string;
 }
 /**
- * Stub — needs new `GET /api/sprint-k/{projectId}/risk-ranking/top-risks`
- * endpoint (pull-based, server fetches records then ranks). The existing
- * `rankRisksApi` is push-based and doesn't fit dashboard consumers.
- * Tracked TODO §13.
+ * REAL (B2 🔵, Fase 5): pulls the project's top RISK nodes ranked by their DS44
+ * IPER score from `GET /api/insights/{projectId}/top-risks` (Zettelkasten
+ * source — see ADR 0020). Replaces the previous idle stub that fed an orphan
+ * dashboard from empty flat collections.
  */
 export function useTopRisks(
-  _projectId: string | null,
-  _topN: number = 10,
+  projectId: string | null,
+  topN: number = 10,
 ): AsyncResult<TopRisksData> {
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  return idleResult<TopRisksData>();
+  return useEndpoint<TopRisksData>(
+    projectId
+      ? `/api/insights/${encodeURIComponent(projectId)}/top-risks?topN=${topN}`
+      : null,
+  );
 }
 
 export interface WeakControlsData {
@@ -175,6 +216,5 @@ export function useWeakControls(
   _projectId: string | null,
   _topN: number = 10,
 ): AsyncResult<WeakControlsData> {
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   return idleResult<WeakControlsData>();
 }

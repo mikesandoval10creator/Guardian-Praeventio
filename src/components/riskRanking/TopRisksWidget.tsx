@@ -1,36 +1,34 @@
 // Praeventio Guard — Wire UI #4a: <TopRisksWidget />
 //
-// Sidebar widget showing the Top N risks of the current project, ranked
-// by the deterministic score (severity × incidents × overdue × exposure).
-// Consumes `rankRisks` from `riskRanking/riskRankingEngine.ts`.
-//
-// Used in: ProjectDetail right sidebar, Dashboard secondary column.
+// Sidebar widget showing the Top N risks of the current project, ranked by
+// their DS44 IPER score (probabilidad × severidad). B2 🔵 (Fase 5): the input
+// is now `RankedRiskNode[]` already ranked + classified server-side by the
+// canonical IPER engine (`riskNodeRanking`, ADR 0020) — the widget no longer
+// re-ranks by ad-hoc counters (which showed "(0 trab.)" for Zettelkasten
+// risks). Pure presentational: ranked-list-in, list-out.
 
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Flame, ArrowUpRight } from 'lucide-react';
-import {
-  rankRisks,
-  type RiskRecord,
-  type RiskSeverity,
-} from '../../services/riskRanking/riskRankingEngine.js';
+import type { RankedRiskNode } from '../../services/riskRanking/riskNodeRanking.js';
+import type { IperCriticidad } from '../../services/protocols/iperCriticidad.js';
 
 interface TopRisksWidgetProps {
-  risks: RiskRecord[];
+  risks: RankedRiskNode[];
   topN?: number;
   onRiskClick?: (riskId: string) => void;
 }
 
-const SEVERITY_DOT: Record<RiskSeverity, string> = {
-  low: 'bg-sky-500',
-  medium: 'bg-amber-500',
-  high: 'bg-orange-500',
-  critical: 'bg-rose-500',
+const CRITICIDAD_DOT: Record<IperCriticidad, string> = {
+  Crítica: 'bg-rose-500',
+  Alta: 'bg-orange-500',
+  Media: 'bg-amber-500',
+  Baja: 'bg-emerald-500',
 };
 
 export function TopRisksWidget({ risks, topN = 5, onRiskClick }: TopRisksWidgetProps) {
   const { t } = useTranslation();
-  const ranked = useMemo(() => rankRisks(risks, topN), [risks, topN]);
+  // Server already ranked by IPER score; just bound to topN defensively.
+  const ranked = risks.slice(0, topN);
 
   return (
     <section
@@ -61,22 +59,24 @@ export function TopRisksWidget({ risks, topN = 5, onRiskClick }: TopRisksWidgetP
                 {idx + 1}.
               </span>
               <span
-                className={`w-2 h-2 rounded-full shrink-0 ${SEVERITY_DOT[r.severity]}`}
-                aria-label={r.severity}
+                className={`w-2 h-2 rounded-full shrink-0 ${CRITICIDAD_DOT[r.criticidad]}`}
+                aria-label={r.criticidad}
               />
               <button
                 type="button"
                 onClick={() => onRiskClick?.(r.id)}
                 disabled={!onRiskClick}
-                className="flex-1 min-w-0 text-left text-xs text-primary-token hover:underline disabled:no-underline disabled:cursor-default"
+                className="flex-1 min-w-0 text-left text-xs text-primary-token hover:underline disabled:no-underline disabled:cursor-default truncate"
+                title={r.title}
               >
-                <span className="font-semibold">{r.category}</span>
-                <span className="text-muted-token ml-1">
-                  ({r.exposedWorkerCount} {t('top_risks.workers', 'trab.')})
-                </span>
+                <span className="font-semibold">{r.title}</span>
+                <span className="text-muted-token ml-1">({r.category})</span>
               </button>
-              <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 tabular-nums">
-                {r.score}
+              <span
+                className="text-[10px] font-bold text-rose-600 dark:text-rose-400 tabular-nums"
+                title={`IPER ${r.iperLevel} — P${r.probabilidad}×S${r.severidad}`}
+              >
+                {r.iperScore}
               </span>
               {onRiskClick && <ArrowUpRight className="w-3 h-3 text-muted-token" aria-hidden="true" />}
             </li>

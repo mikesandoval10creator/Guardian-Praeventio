@@ -3,10 +3,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TopRisksWidget } from './TopRisksWidget.js';
 import { WeakControlsWidget } from './WeakControlsWidget.js';
-import type {
-  RiskRecord,
-  ControlRecord,
-} from '../../services/riskRanking/riskRankingEngine.js';
+import type { ControlRecord } from '../../services/riskRanking/riskRankingEngine.js';
+import type { RankedRiskNode } from '../../services/riskRanking/riskNodeRanking.js';
+import type { IperCriticidad } from '../../services/protocols/iperCriticidad.js';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -15,16 +14,21 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-function risk(id: string, severity: 'low' | 'medium' | 'high' | 'critical', extras: Partial<RiskRecord> = {}): RiskRecord {
+function rankedRisk(
+  id: string,
+  iperScore: number,
+  criticidad: IperCriticidad = 'Media',
+  extras: Partial<RankedRiskNode> = {},
+): RankedRiskNode {
   return {
     id,
-    projectId: 'p1',
+    title: `Riesgo ${id}`,
     category: 'altura',
-    severity,
-    exposedWorkerCount: 5,
-    recentFindingCount: 2,
-    linkedIncidentCount: 1,
-    overdueActionCount: 0,
+    probabilidad: 3,
+    severidad: 3,
+    iperScore,
+    iperLevel: 'moderado',
+    criticidad,
     ...extras,
   };
 }
@@ -47,23 +51,27 @@ describe('<TopRisksWidget />', () => {
     expect(screen.getByText(/Sin riesgos/i)).toBeInTheDocument();
   });
 
-  it('rankea por score descendente', () => {
+  it('renderiza en el orden rankeado por el server y respeta topN', () => {
+    // El server ya rankea por IPER; el widget conserva el orden y corta a topN.
     const risks = [
-      risk('low-id', 'low', { recentFindingCount: 0, linkedIncidentCount: 0 }),
-      risk('crit-id', 'critical', { recentFindingCount: 5, linkedIncidentCount: 3 }),
-      risk('med-id', 'medium', { recentFindingCount: 1 }),
+      rankedRisk('crit-id', 25, 'Crítica'),
+      rankedRisk('med-id', 9, 'Media'),
+      rankedRisk('low-id', 1, 'Baja'),
     ];
-    render(<TopRisksWidget risks={risks} topN={3} />);
+    render(<TopRisksWidget risks={risks} topN={2} />);
     const items = screen.getAllByTestId(/^top-risk-/);
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(2); // topN=2
     expect(items[0].getAttribute('data-testid')).toBe('top-risk-crit-id');
+    expect(items[1].getAttribute('data-testid')).toBe('top-risk-med-id');
+    // Muestra el score IPER.
+    expect(screen.getByText('25')).toBeInTheDocument();
   });
 
   it('onRiskClick dispara con id', () => {
     const onClick = vi.fn();
     render(
       <TopRisksWidget
-        risks={[risk('r1', 'high')]}
+        risks={[rankedRisk('r1', 16, 'Alta')]}
         topN={1}
         onRiskClick={onClick}
       />,

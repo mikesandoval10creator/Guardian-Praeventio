@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, Button } from '../components/shared/Card';
 import { Modal } from '../components/shared/Modal';
 import { IPERCAnalysis } from '../components/risks/IPERCAnalysis';
+import { TopRisksDashboardCard } from '../components/riskRanking/TopRisksDashboardCard';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
 import { RiskNode, NodeType } from '../types';
@@ -42,6 +43,9 @@ export function Risks() {
           {t('risks.subtitle', 'Identificación y control de peligros en el entorno laboral.')}
         </p>
       </div>
+
+      {/* B2 🔵: ranking real de riesgos por IPER DS44 (fuente Zettelkasten). */}
+      <TopRisksDashboardCard topN={5} />
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-10 sm:py-20 gap-3 sm:gap-4">

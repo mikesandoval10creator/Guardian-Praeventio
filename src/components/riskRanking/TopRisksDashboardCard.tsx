@@ -16,7 +16,6 @@ import { useTranslation } from 'react-i18next';
 import { useProject } from '../../contexts/ProjectContext';
 import { useTopRisks } from '../../hooks/useRiskRanking';
 import { TopRisksWidget } from './TopRisksWidget';
-import type { RiskRecord } from '../../services/riskRanking/riskRankingEngine';
 
 export interface TopRisksDashboardCardProps {
   /** Top-N count. Default 10. */
@@ -93,16 +92,13 @@ export function TopRisksDashboardCard({
     );
   }
 
-  // The HTTP response already comes ranked + scored, but TopRisksWidget
-  // expects raw RiskRecord[] and computes rankRisks() internally with the
-  // same algorithm. Passing through the records produces identical output.
-  const records: RiskRecord[] = (data?.topRisks ?? []).map(
-    ({ score: _score, ...rest }) => rest,
-  );
+  // The HTTP response already comes ranked + IPER-classified server-side
+  // (riskNodeRanking). TopRisksWidget renders the RankedRiskNode[] directly.
+  const ranked = data?.topRisks ?? [];
 
   return (
     <div className="space-y-1">
-      <TopRisksWidget risks={records} topN={topN} onRiskClick={handleClick} />
+      <TopRisksWidget risks={ranked} topN={topN} onRiskClick={handleClick} />
       <div className="flex items-center justify-end px-2">
         <Link
           to="/risks"
