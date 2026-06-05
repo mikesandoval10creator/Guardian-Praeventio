@@ -1,14 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Activity, Camera, AlertTriangle, CheckCircle2, RefreshCw, Eye, User, Shield, Zap, Save, LineChart as LineChartIcon, HeartPulse, WifiOff } from 'lucide-react';
+import { Activity, Camera, AlertTriangle, CheckCircle2, RefreshCw, Eye, User, Shield, Zap, Save, LineChart as LineChartIcon, HeartPulse } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
-import { analyzeBioImage } from '../services/geminiService';
 import { CompensatoryExercisesModal } from '../components/bio/CompensatoryExercisesModal';
 import { MedicalIcon } from '../components/medical/MedicalIcon';
-import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -22,6 +20,20 @@ import { ToastContainer } from '../components/shared/ToastContainer';
 import { respiratorPressureDrop } from '../services/physics/bernoulliEngine';
 import { generatePulmonaryNode } from '../services/zettelkasten/bernoulli';
 import { writeNodesDebounced } from '../services/zettelkasten/persistence/writeNode';
+// B3 (Fase 5) — Bio-Análisis 100% on-device (directiva #12). El frame de
+// cámara NUNCA sale del dispositivo: el detector EPP corre sobre el pixel
+// data local (ColorBasedEppDetector). Reemplaza el egress a Gemini Vision.
+import {
+  getEppDetectorImpl,
+  inspectImage,
+  buildEppInspectionNode,
+  type EppClass,
+  type EppInspectionResult,
+} from '../services/ai/eppDetectorOnDevice';
+import { buildOnDeviceBioReport } from '../services/bio/onDeviceBioReport';
+
+// EPP requerido (mínimo legal genérico DS 594) que evalúa esta vista.
+const BIO_REQUIRED_EPP: readonly EppClass[] = ['casco', 'chaleco_reflectivo', 'botas'];
 
 // ATS/ERS spirometry guidelines (informational); NOT a clinical diagnosis.
 const PEF_FILTER_RESISTANCE_PA_S_PER_M3 = 800;
@@ -88,7 +100,7 @@ export function BioAnalysis() {
       atRisk: drop > PEF_FATIGUE_THRESHOLD_PA,
     };
   })();
-  const isOnline = useOnlineStatus();
+  const [onDeviceEppResult, setOnDeviceEppResult] = useState<EppInspectionResult | null>(null);
   const { toasts, show: showToast, dismiss } = useToast();
 
   const connectWearable = async () => {
@@ -377,7 +389,12 @@ export function BioAnalysis() {
       
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
 
-      // Apply face blurring (ISO 27001 Privacy)
+      // Capture the UN-blurred pixel data for on-device EPP detection BEFORE
+      // blurring the face (blur would degrade casco/head detection). This
+      // ImageData never leaves the browser — it is consumed locally.
+      const frameImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      // Apply face blurring (ISO 27001 Privacy) — only for the local preview.
       if (faceLandmarkerRef.current) {
         const faceResults = faceLandmarkerRef.current.detectForVideo(videoRef.current, performance.now());
         if (faceResults.faceLandmarks) {
@@ -408,21 +425,38 @@ export function BioAnalysis() {
         }
       }
 
-      const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
       setLastAnalysisImage(canvas.toDataURL('image/jpeg'));
 
-      // 2. Call Gemini Vision for EPP and general context
-      const result = await analyzeBioImage(base64Image);
-      
-      // Preserve MediaPipe metrics for fatigue, posture, and attention
+      // 2. On-device EPP detection (directiva #12 — la imagen NO sale del
+      // dispositivo). El detector de color analiza el pixel data localmente.
+      let inspection: EppInspectionResult | null = null;
+      try {
+        const detector = await getEppDetectorImpl('auto');
+        inspection = await inspectImage(frameImageData, detector, {
+          requiredClasses: BIO_REQUIRED_EPP,
+        });
+      } catch (detectErr) {
+        logger.warn('[BioAnalysis] on-device EPP detection failed', { err: String(detectErr) });
+      }
+      setOnDeviceEppResult(inspection);
+
+      // 3. Consolidate live MediaPipe metrics + on-device EPP into the report.
+      const report = buildOnDeviceBioReport(
+        { fatigue: metrics.fatigue, posture: metrics.posture, attention: metrics.attention },
+        inspection,
+        BIO_REQUIRED_EPP,
+      );
+
+      // Preserve MediaPipe metrics for fatigue, posture, and attention; EPP
+      // score now comes from the on-device inspection.
       setMetrics(prev => {
         const newMetrics = {
           fatigue: prev.fatigue, // Keep MediaPipe value
           posture: prev.posture, // Keep MediaPipe value
           attention: prev.attention, // Keep MediaPipe value
-          epp: result.epp || 100 // Update EPP from Gemini
+          epp: report.eppScore, // On-device EPP compliance score
         };
-        
+
         setHistory(historyPrev => {
           const newHistory = [...historyPrev, {
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -435,14 +469,14 @@ export function BioAnalysis() {
       });
 
       setEppDetails({
-        detected: result.detectedEPP || [],
-        missing: result.missingEPP || []
+        detected: report.eppDetected,
+        missing: report.eppMissing,
       });
-      setAlerts(result.alerts || []);
+      setAlerts(report.alerts);
 
     } catch (error) {
       logger.error("Error analyzing image:", error);
-      showToast("Error al analizar la imagen con IA.", 'error');
+      showToast("Error al analizar la imagen en el dispositivo.", 'error');
     } finally {
       setIsAiProcessing(false);
       setIsAnalyzing(false);
@@ -485,6 +519,22 @@ export function BioAnalysis() {
           findingId: docRef.id
         }
       });
+
+      // 3. If the on-device EPP detector produced a result, persist it as a
+      // ZK node tipo 'epp_inspection'. buildEppInspectionNode NEVER includes
+      // the image — only the classification + métricas (privacy by design).
+      if (onDeviceEppResult && user.uid) {
+        try {
+          const eppNode = buildEppInspectionNode(onDeviceEppResult, {
+            workerUid: user.uid,
+            projectId: selectedProject.id,
+            authorUid: user.uid,
+          });
+          writeNodesDebounced([eppNode], { projectId: selectedProject.id });
+        } catch (zkErr) {
+          logger.warn('[BioAnalysis] EPP ZK node write failed', { err: String(zkErr) });
+        }
+      }
       showToast("Hallazgo guardado en la Red Neuronal y Hallazgos exitosamente.", 'success');
     } catch (error) {
       logger.error("Error saving to Zettelkasten:", error);
@@ -534,15 +584,15 @@ export function BioAnalysis() {
           </button>
           
           {cameraActive && (
-            <button 
+            <button
               onClick={captureAndAnalyze}
-              disabled={isAiProcessing || !isOnline}
+              disabled={isAiProcessing}
               className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 w-full sm:w-auto ${
-                !isOnline ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' : isAiProcessing ? 'bg-zinc-500 text-white cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-600'
+                isAiProcessing ? 'bg-zinc-500 text-white cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-600'
               }`}
             >
-              {!isOnline ? <WifiOff className="w-4 h-4" /> : isAiProcessing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-              <span>{!isOnline ? 'Requiere Conexión' : isAiProcessing ? 'Analizando...' : 'Analizar con IA'}</span>
+              {isAiProcessing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+              <span>{isAiProcessing ? 'Analizando...' : 'Analizar (on-device)'}</span>
             </button>
           )}
         </div>
@@ -598,7 +648,7 @@ export function BioAnalysis() {
                     <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md border border-white/10 rounded-xl p-3">
                       <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-widest">
                         <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                        Procesando con Gemini Vision...
+                        Procesando en el dispositivo...
                       </div>
                     </div>
                   </div>
@@ -884,11 +934,11 @@ export function BioAnalysis() {
               Sincronización Neuronal
             </h3>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              Los datos biométricos y de EPP son analizados por Gemini Vision. Si se detectan anomalías críticas, puedes guardarlas directamente como un nodo de "Hallazgo" en la Red Neuronal para análisis predictivo y auditoría.
+              Los datos biométricos y de EPP se analizan 100% en tu dispositivo (MediaPipe Vision + detector EPP on-device): la imagen de la cámara nunca sale del equipo. Si se detectan anomalías críticas, puedes guardarlas como un nodo de "Hallazgo" en la Red Neuronal para análisis predictivo y auditoría.
             </p>
             <div className="flex items-center gap-2 text-[10px] font-black text-blue-400 uppercase tracking-widest">
               <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-              Conexión IA Activa
+              IA on-device activa
             </div>
           </div>
         </div>
