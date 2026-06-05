@@ -24,6 +24,10 @@ import {
   Legend,
   ReferenceArea,
 } from 'recharts';
+// B2 (Fase 5): la banda ISO 31000 vive ahora en un motor puro compartido
+// (`iso31000Band`) en vez de un esquema inline anónimo. DS44 e ISO 31000
+// coexisten como estándares de primera clase (ver ADR 0020).
+import { iso31000Band, type Iso31000Band } from '../../services/protocols/iso31000Band';
 
 export interface RiskMatrixNode {
   id: string;
@@ -45,14 +49,15 @@ export interface RiskMatrix5x5Props {
   appearance?: 'light' | 'dark';
 }
 
-type SeverityBand = 'low' | 'medium' | 'high' | 'extreme';
+type SeverityBand = Iso31000Band;
 
+/**
+ * @deprecated Thin re-export of the canonical `iso31000Band` engine, kept for
+ * the component's local naming + existing test. Prefer importing `iso31000Band`
+ * directly from `services/protocols/iso31000Band`.
+ */
 export function severityForCell(prob: number, impact: number): SeverityBand {
-  const score = prob * impact;
-  if (score <= 4) return 'low';
-  if (score <= 9) return 'medium';
-  if (score <= 15) return 'high';
-  return 'extreme';
+  return iso31000Band(prob, impact);
 }
 
 const BAND_COLOR: Record<SeverityBand, string> = {

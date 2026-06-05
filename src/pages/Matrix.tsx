@@ -43,6 +43,10 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { INDUSTRY_IPER_BASE, type IPERBaseNode } from '../data/industryIPER';
+// B2 (Fase 5): la clasificación legal de criticidad vive en el motor IPER
+// DS44 (`calculateIper`), NO en escaleras de umbrales P×S inline. Este adapter
+// preserva el contrato `criticidad` de 4 bandas derivándolo del motor canónico.
+import { criticidadFromIper } from '../services/protocols/iperCriticidad';
 
 const getCriticalityColor = (criticidad?: string) => {
   switch (String(criticidad || '').toLowerCase()) {
@@ -62,6 +66,28 @@ const getCriticalityTextColor = (criticidad?: string) => {
     case 'baja': return 'text-emerald-500';
     default: return 'text-zinc-500';
   }
+};
+
+// B2 (Fase 5): la calculadora "Riesgo Puro" deriva su banda del motor IPER
+// DS44 (`criticidadFromIper`), no de umbrales P×S inline. Estos mapas traducen
+// las 4 bandas canónicas a las clases/etiqueta (masculina) de la tarjeta.
+const PURE_RISK_CARD_CLASS: Record<string, string> = {
+  'Crítica': 'bg-rose-500/10 border-rose-500/30',
+  'Alta': 'bg-orange-500/10 border-orange-500/30',
+  'Media': 'bg-amber-500/10 border-amber-500/30',
+  'Baja': 'bg-emerald-500/10 border-emerald-500/30',
+};
+const PURE_RISK_BADGE_CLASS: Record<string, string> = {
+  'Crítica': 'bg-rose-500 text-white',
+  'Alta': 'bg-orange-500 text-white',
+  'Media': 'bg-amber-500 text-white',
+  'Baja': 'bg-emerald-500 text-white',
+};
+const PURE_RISK_LABEL: Record<string, string> = {
+  'Crítica': 'Crítico',
+  'Alta': 'Alto',
+  'Media': 'Medio',
+  'Baja': 'Bajo',
 };
 
 export function Matrix() {
@@ -131,7 +157,7 @@ export function Matrix() {
             consecuencia: node.consecuencia,
             probabilidad: node.probabilidad,
             severidad: node.severidad,
-            criticidad: (node.probabilidad * node.severidad) >= 16 ? 'Crítica' : (node.probabilidad * node.severidad) >= 9 ? 'Alta' : (node.probabilidad * node.severidad) >= 4 ? 'Media' : 'Baja',
+            criticidad: criticidadFromIper(node.probabilidad, node.severidad),
             controles: node.controles,
             status: 'approved',
             source: 'Seed'
@@ -188,10 +214,13 @@ export function Matrix() {
       
       for (const suggestion of suggestions) {
         // R16/R19 doctrine: AI no longer returns `criticidad`. Derive it
-        // deterministically from P×S so the legal classification stays in
-        // the IPER engine, not the LLM. Mirrors the handleSeedMatrix ladder.
-        const score = suggestion.probabilidad * suggestion.severidad;
-        const criticidad = score >= 16 ? 'Crítica' : score >= 9 ? 'Alta' : score >= 4 ? 'Media' : 'Baja';
+        // deterministically so the legal classification stays in the IPER
+        // engine (DS44), not the LLM. B2 (Fase 5): now wired to the canonical
+        // `calculateIper` instead of an inline P×S ladder that drifted from it.
+        const criticidad = criticidadFromIper(
+          suggestion.probabilidad,
+          suggestion.severidad,
+        );
         await addNode({
           title: suggestion.title,
           description: suggestion.description,
@@ -225,8 +254,10 @@ export function Matrix() {
     if (!selectedProject) return;
     
     try {
-      const score = manualRisk.probabilidad * manualRisk.severidad;
-      const criticality = score >= 16 ? 'Crítica' : score >= 9 ? 'Alta' : score >= 4 ? 'Media' : 'Baja';
+      const criticality = criticidadFromIper(
+        manualRisk.probabilidad,
+        manualRisk.severidad,
+      );
 
       await addNode({
         title: manualRisk.title,
@@ -771,25 +802,17 @@ export function Matrix() {
             </div>
           </div>
           
-          {/* Calculadora Nativa de Riesgo Puro */}
+          {/* Calculadora Nativa de Riesgo Puro — banda derivada del motor IPER DS44 */}
           <div className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${
-            (manualRisk.probabilidad * manualRisk.severidad) >= 16 ? 'bg-rose-500/10 border-rose-500/30' :
-            (manualRisk.probabilidad * manualRisk.severidad) >= 9 ? 'bg-orange-500/10 border-orange-500/30' :
-            (manualRisk.probabilidad * manualRisk.severidad) >= 4 ? 'bg-amber-500/10 border-amber-500/30' :
-            'bg-emerald-500/10 border-emerald-500/30'
+            PURE_RISK_CARD_CLASS[criticidadFromIper(manualRisk.probabilidad, manualRisk.severidad)]
           }`}>
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">Riesgo Puro (P x S)</span>
             <div className="flex items-center gap-3">
               <span className="text-3xl font-black text-zinc-900 dark:text-white">{manualRisk.probabilidad * manualRisk.severidad}</span>
               <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                (manualRisk.probabilidad * manualRisk.severidad) >= 16 ? 'bg-rose-500 text-white' :
-                (manualRisk.probabilidad * manualRisk.severidad) >= 9 ? 'bg-orange-500 text-white' :
-                (manualRisk.probabilidad * manualRisk.severidad) >= 4 ? 'bg-amber-500 text-white' :
-                'bg-emerald-500 text-white'
+                PURE_RISK_BADGE_CLASS[criticidadFromIper(manualRisk.probabilidad, manualRisk.severidad)]
               }`}>
-                {(manualRisk.probabilidad * manualRisk.severidad) >= 16 ? 'Crítico' :
-                 (manualRisk.probabilidad * manualRisk.severidad) >= 9 ? 'Alto' :
-                 (manualRisk.probabilidad * manualRisk.severidad) >= 4 ? 'Medio' : 'Bajo'}
+                {PURE_RISK_LABEL[criticidadFromIper(manualRisk.probabilidad, manualRisk.severidad)]}
               </span>
             </div>
           </div>

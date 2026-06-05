@@ -152,7 +152,14 @@ considera y se CABLEA donde corresponde.** Reglas:
 - [ ] 🔵 `useSyncStatus`/`SyncQueueBadge` huérfanos → **montar** (badge de cola en UI).
 
 ### B2 — Riesgo & IPER 🛟  · ref `DEEP-B2` + `DEEP-EX-14/15`
-- [ ] 🔴 `Matrix.tsx:134,194,229,776` banding ad-hoc P×S → **cablear** a `calculateIper` (DS44); `RiskMatrix5x5.tsx:51` tercer esquema → unificar al canónico. (vitest/comp)
+- [x] 🔴 `Matrix.tsx` banding ad-hoc P×S (4 sitios) → **cableado a `calculateIper` (DS44)**
+  vía adapter canónico `iperCriticidad.ts` que preserva el contrato `criticidad` de 4 bandas
+  (leído por ~10 módulos). `RiskMatrix5x5.severityForCell` (tercer esquema inline) →
+  promovido a motor puro `iso31000Band.ts` (re-export delgado, back-compat). **Refinamiento
+  del plan original** (decisión usuario 2026-06-05): DS44 e ISO 31000 **coexisten** como
+  estándares de primera clase (no se colapsa ISO en DS44) — toggle por régimen vía
+  `TenantRegulatoryContext` como follow-up. Documentado en **ADR 0020**. +14 tests puros.
+  (Fase 5, 2026-06-05)
 - [ ] 🔴 `control_validations` (`controlValidationsStore.ts:31`, controles críticos) sin regla → reglas+tests. (rules)
 - [ ] 🟡 `lineOfFireChecker.ts:124` match por primera palabra → exacto (bloqueo de seguridad); `safetyEngineBackend.ts:129` JSON.parse (F2); `residualRisk.ts:241,285` safeRead → surface error. (vitest)
 - [ ] 🔵 `useRiskRanking` 3 idle stubs + 3 GET faltantes (B2-D1) → **implementar+cablear**; `shiftRiskPanel` → **consolidar** con `preShiftRisk` (preservar capacidades).
