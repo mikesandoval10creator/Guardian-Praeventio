@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next';
 import { useProject } from '../../contexts/ProjectContext';
 import { useWeakControls } from '../../hooks/useRiskRanking';
 import { WeakControlsWidget } from './WeakControlsWidget';
-import type { ControlRecord } from '../../services/riskRanking/riskRankingEngine';
 
 export interface WeakControlsDashboardCardProps {
   /** Top-N count. Default 10. */
@@ -88,25 +87,13 @@ export function WeakControlsDashboardCard({
     );
   }
 
-  // HTTP returns ControlWeakness[] (controlId, label, failureRate, …).
-  // WeakControlsWidget takes ControlRecord[] and recomputes weakness with
-  // the same engine. We round-trip back to ControlRecord shape so the
-  // pure widget can render unmodified.
-  const records: ControlRecord[] = (data?.weakControls ?? []).map((w) => ({
-    id: w.controlId,
-    projectId: projectId,
-    label: w.label,
-    // Reverse-engineer counts so rankWeakControls reproduces the same
-    // failureRate. Keeps the visual consistent without leaking a second
-    // ranking pathway through the widget.
-    failureCount: Math.round(w.failureRate * 100),
-    verificationCount: 100,
-    daysSinceLastVerification: w.isOverdueVerification ? 60 : 0,
-  }));
+  // HTTP returns ControlWeakness[] already ranked server-side
+  // (controlValidationAggregation). WeakControlsWidget renders it directly.
+  const ranked = data?.weakControls ?? [];
 
   return (
     <div className="space-y-1">
-      <WeakControlsWidget controls={records} topN={topN} onControlClick={handleClick} />
+      <WeakControlsWidget controls={ranked} topN={topN} onControlClick={handleClick} />
       <div className="flex items-center justify-end px-2">
         <Link
           to="/risks"

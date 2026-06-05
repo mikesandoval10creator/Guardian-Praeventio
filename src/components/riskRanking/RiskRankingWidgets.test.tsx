@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TopRisksWidget } from './TopRisksWidget.js';
 import { WeakControlsWidget } from './WeakControlsWidget.js';
-import type { ControlRecord } from '../../services/riskRanking/riskRankingEngine.js';
+import type { ControlWeakness } from '../../services/riskRanking/riskRankingEngine.js';
 import type { RankedRiskNode } from '../../services/riskRanking/riskNodeRanking.js';
 import type { IperCriticidad } from '../../services/protocols/iperCriticidad.js';
 
@@ -33,15 +33,14 @@ function rankedRisk(
   };
 }
 
-function control(id: string, label: string, failureCount: number, verificationCount: number): ControlRecord {
-  return {
-    id,
-    projectId: 'p1',
-    label,
-    failureCount,
-    verificationCount,
-    daysSinceLastVerification: 0,
-  };
+function weakness(
+  controlId: string,
+  label: string,
+  failureRate: number,
+  weaknessScore: number,
+  isOverdueVerification = false,
+): ControlWeakness {
+  return { controlId, label, failureRate, isOverdueVerification, weaknessScore };
 }
 
 describe('<TopRisksWidget />', () => {
@@ -88,22 +87,34 @@ describe('<WeakControlsWidget />', () => {
     expect(screen.getByText(/Sin controles/i)).toBeInTheDocument();
   });
 
-  it('rankea por failure rate', () => {
+  it('renderiza en el orden rankeado por el server, respeta topN y muestra % de falla', () => {
     const controls = [
-      control('c-strong', 'Control fuerte', 0, 10),
-      control('c-weak', 'Control débil', 8, 10),
-      control('c-mid', 'Control medio', 3, 10),
+      weakness('c-weak', 'Control débil', 0.8, 80),
+      weakness('c-mid', 'Control medio', 0.3, 30),
+      weakness('c-strong', 'Control fuerte', 0, 0),
     ];
-    render(<WeakControlsWidget controls={controls} topN={3} />);
+    render(<WeakControlsWidget controls={controls} topN={2} />);
     const items = screen.getAllByTestId(/^weak-control-/);
+    expect(items).toHaveLength(2); // topN=2
     expect(items[0].getAttribute('data-testid')).toBe('weak-control-c-weak');
+    expect(screen.getByText('80%')).toBeInTheDocument();
+  });
+
+  it('marca verificación vencida (isOverdueVerification)', () => {
+    render(
+      <WeakControlsWidget
+        controls={[weakness('c-overdue', 'Sin verificar', 0, 80, true)]}
+        topN={1}
+      />,
+    );
+    expect(screen.getByLabelText(/vencida/i)).toBeInTheDocument();
   });
 
   it('onControlClick dispara con id', () => {
     const onClick = vi.fn();
     render(
       <WeakControlsWidget
-        controls={[control('c1', 'Test', 5, 10)]}
+        controls={[weakness('c1', 'Test', 0.5, 50)]}
         topN={1}
         onControlClick={onClick}
       />,
