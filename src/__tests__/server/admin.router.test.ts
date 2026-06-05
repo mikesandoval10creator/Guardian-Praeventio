@@ -144,6 +144,29 @@ describe('POST /api/admin/revoke-access', () => {
     expect(H.revoke).toHaveBeenCalledWith('victim');
     expect(H.db!._store.has('user_sessions/victim')).toBe(true);
   });
+
+  it('200 even when the audit_logs write fails — audit is non-blocking (directive #14)', async () => {
+    // Make ONLY the audit_logs write throw; everything else succeeds.
+    const realCollection = H.db!.collection.bind(H.db!);
+    const spy = vi
+      .spyOn(H.db!, 'collection')
+      .mockImplementation((path: string) =>
+        path === 'audit_logs'
+          ? ({ add: async () => { throw new Error('audit write boom'); } } as unknown as ReturnType<typeof realCollection>)
+          : realCollection(path),
+      );
+    try {
+      const res = await request(buildApp())
+        .post('/api/admin/revoke-access')
+        .set(asUser('admin1'))
+        .send({ targetUid: 'victim2' });
+      // The completed operation must NOT 500 just because the audit row failed.
+      expect(res.status).toBe(200);
+      expect(H.revoke).toHaveBeenCalledWith('victim2');
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
 
 describe('admin observability endpoints (assertAdminCaller gate)', () => {
