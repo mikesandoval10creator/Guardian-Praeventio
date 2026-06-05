@@ -188,7 +188,11 @@ considera y se CABLEA donde corresponde.** Reglas:
     huérfano `useShiftRiskPanel` (pendiente input usuario).
 
 ### B17 — Admin / Auth / RBAC / Privacidad 🔐  · ref `DEEP-B17` + `DEEP-EX-09/10`
-- [ ] 🔴 `externalAuditPortal.ts:234,306,355,428` sin gate de rol → `assertProjectMember`+`isAdmin`. (super)
+- [x] 🔴 `externalAuditPortal.ts` 4 endpoints admin (create/list/revoke/access-log) **sin gate de rol** (cualquier
+  usuario autenticado del tenant podía crear/revocar portales de auditor externo = escalada de privilegios) →
+  **`assertAdminCaller`** (`isAdminRole(customClaims.role)`, server-authoritative, espeja `admin.ts`). `resolveTenantIdForAdmin`
+  ya acotaba al tenant propio (sin riesgo cross-tenant); el gap era puramente el rol. +7 supertests sobre el **router real**
+  (403 no-admin en los 4, 200/201 admin). El test previo reimplementaba los handlers (anti-patrón wire-up). (Fase 5, 2026-06-05)
 - [ ] 🔴 `auditPortalStore.savePortal` token en claro → `accessTokenHash`; master-gate read (`firestore.rules:257`) no expone. (rules/vitest)
 - [ ] 🔴 `projects.ts` claim global `gerente/admin` → membresía por-proyecto. (super)
 - [ ] 🔴 `WebAuthnKeysSection.tsx:73` borrado MFA client-side → step-up + audit. (comp/super)

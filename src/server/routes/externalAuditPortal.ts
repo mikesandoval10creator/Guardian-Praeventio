@@ -55,6 +55,7 @@ import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { isAdminRole } from '../../types/roles.js';
 import {
   createPortal,
   derivePortalStatus,
@@ -120,6 +121,31 @@ async function resolveTenantIdForAdmin(
     return data.tenantId;
   }
   return null;
+}
+
+/**
+ * B17 (Fase 5): the four admin endpoints below manage external-auditor portals
+ * (sensitive — a portal grants an outside party scoped read access to a
+ * tenant's compliance data). They had `verifyAuth` but NO role gate, so any
+ * authenticated tenant user could create/list/revoke/inspect portals
+ * (privilege escalation). This asserts the caller holds an admin role (custom
+ * claim), mirroring `admin.ts`. Sends 403 and returns false otherwise.
+ */
+async function assertAdminCaller(
+  req: import('express').Request,
+  res: import('express').Response,
+): Promise<boolean> {
+  const callerUid = req.user?.uid;
+  if (!callerUid) {
+    res.status(401).json({ error: 'unauthorized' });
+    return false;
+  }
+  const callerRecord = await admin.auth().getUser(callerUid);
+  if (!isAdminRole(callerRecord.customClaims?.role)) {
+    res.status(403).json({ error: 'forbidden_requires_admin' });
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -241,6 +267,7 @@ router.post(
     const callerTenantId = (req.user as { tenantId?: string } | undefined)?.tenantId;
     const body = req.validated as z.infer<typeof createPortalSchema>;
 
+    if (!(await assertAdminCaller(req, res))) return undefined;
     try {
       const tenantId = await resolveTenantIdForAdmin(
         callerUid,
@@ -312,6 +339,7 @@ router.get(
     const callerTenantId = (req.user as { tenantId?: string } | undefined)?.tenantId;
     const q = req.validated as z.infer<typeof adminListQuerySchema>;
 
+    if (!(await assertAdminCaller(req, res))) return undefined;
     try {
       const tenantId = await resolveTenantIdForAdmin(
         callerUid,
@@ -363,6 +391,7 @@ router.post(
     const { portalId } = req.params;
     const body = req.validated as z.infer<typeof revokeSchema>;
 
+    if (!(await assertAdminCaller(req, res))) return undefined;
     try {
       const tenantId = await resolveTenantIdForAdmin(
         callerUid,
@@ -435,6 +464,7 @@ router.get(
     const { portalId } = req.params;
     const q = req.validated as z.infer<typeof accessLogQuerySchema>;
 
+    if (!(await assertAdminCaller(req, res))) return undefined;
     try {
       const tenantId = await resolveTenantIdForAdmin(
         callerUid,
