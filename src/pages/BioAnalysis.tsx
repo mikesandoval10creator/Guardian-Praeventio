@@ -26,7 +26,6 @@ import { writeNodesDebounced } from '../services/zettelkasten/persistence/writeN
 import {
   getEppDetectorImpl,
   inspectImage,
-  buildEppInspectionNode,
   type EppClass,
   type EppInspectionResult,
 } from '../services/ai/eppDetectorOnDevice';
@@ -100,7 +99,6 @@ export function BioAnalysis() {
       atRisk: drop > PEF_FATIGUE_THRESHOLD_PA,
     };
   })();
-  const [onDeviceEppResult, setOnDeviceEppResult] = useState<EppInspectionResult | null>(null);
   const { toasts, show: showToast, dismiss } = useToast();
 
   const connectWearable = async () => {
@@ -274,16 +272,17 @@ export function BioAnalysis() {
         }
       }
 
-      // Object detection (EPP simulation)
-      let currentEpp = 100;
+      // Object detection — draw person/asset bounding boxes for the live
+      // overlay only. EPP compliance is NOT derived here: it is computed on
+      // capture by the on-device EPP detector (ColorBasedEppDetector), which
+      // is the single source of truth for `metrics.epp`. The old per-frame
+      // "person → -20" heuristic was removed so a capture's real EPP score is
+      // not overwritten by the live loop moments later.
       if (objectDetectorRef.current) {
         const objectResults = objectDetectorRef.current.detectForVideo(video, startTimeMs);
         if (objectResults.detections) {
-          let personDetected = false;
           objectResults.detections.forEach(detection => {
             const category = detection.categories[0].categoryName;
-            if (category === 'person') personDetected = true;
-            
             // Draw bounding box
             if (detection.boundingBox) {
               ctx.strokeStyle = '#3B82F6';
@@ -303,12 +302,6 @@ export function BioAnalysis() {
               );
             }
           });
-          
-          // If person is detected but no specific EPP (simulated by checking if we only see 'person')
-          // In a real scenario, we'd use a custom model trained on 'helmet', 'glasses', etc.
-          if (personDetected && objectResults.detections.length === 1) {
-             currentEpp -= 20; // Penalty for missing EPP
-          }
         }
       }
 
@@ -321,12 +314,14 @@ export function BioAnalysis() {
         ctx.shadowBlur = 10;
       }
 
-      // Update metrics smoothly
+      // Update metrics smoothly. `epp` is intentionally carried forward
+      // unchanged — it is owned by the on-device capture inspection, not the
+      // live loop (see comment above).
       setMetrics(prev => ({
         fatigue: Math.min(100, Math.max(0, prev.fatigue * 0.9 + currentFatigue * 0.1)),
         posture: Math.min(100, Math.max(0, prev.posture * 0.9 + currentPosture * 0.1)),
         attention: Math.min(100, Math.max(0, prev.attention * 0.9 + currentAttention * 0.1)),
-        epp: Math.min(100, Math.max(0, prev.epp * 0.9 + currentEpp * 0.1))
+        epp: prev.epp,
       }));
 
       requestRef.current = requestAnimationFrame(predictWebcam);
@@ -438,7 +433,6 @@ export function BioAnalysis() {
       } catch (detectErr) {
         logger.warn('[BioAnalysis] on-device EPP detection failed', { err: String(detectErr) });
       }
-      setOnDeviceEppResult(inspection);
 
       // 3. Consolidate live MediaPipe metrics + on-device EPP into the report.
       const report = buildOnDeviceBioReport(
@@ -448,13 +442,15 @@ export function BioAnalysis() {
       );
 
       // Preserve MediaPipe metrics for fatigue, posture, and attention; EPP
-      // score now comes from the on-device inspection.
+      // score comes from the on-device inspection. When the inspection could
+      // not run (eppScore === null), carry the previous EPP value forward
+      // rather than recording "not assessed" as a compliant number.
       setMetrics(prev => {
         const newMetrics = {
           fatigue: prev.fatigue, // Keep MediaPipe value
           posture: prev.posture, // Keep MediaPipe value
           attention: prev.attention, // Keep MediaPipe value
-          epp: report.eppScore, // On-device EPP compliance score
+          epp: report.eppScore ?? prev.epp, // On-device EPP score (null → keep prev)
         };
 
         setHistory(historyPrev => {
@@ -519,22 +515,6 @@ export function BioAnalysis() {
           findingId: docRef.id
         }
       });
-
-      // 3. If the on-device EPP detector produced a result, persist it as a
-      // ZK node tipo 'epp_inspection'. buildEppInspectionNode NEVER includes
-      // the image — only the classification + métricas (privacy by design).
-      if (onDeviceEppResult && user.uid) {
-        try {
-          const eppNode = buildEppInspectionNode(onDeviceEppResult, {
-            workerUid: user.uid,
-            projectId: selectedProject.id,
-            authorUid: user.uid,
-          });
-          writeNodesDebounced([eppNode], { projectId: selectedProject.id });
-        } catch (zkErr) {
-          logger.warn('[BioAnalysis] EPP ZK node write failed', { err: String(zkErr) });
-        }
-      }
       showToast("Hallazgo guardado en la Red Neuronal y Hallazgos exitosamente.", 'success');
     } catch (error) {
       logger.error("Error saving to Zettelkasten:", error);

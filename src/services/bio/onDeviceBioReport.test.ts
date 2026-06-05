@@ -95,11 +95,12 @@ describe('buildOnDeviceBioReport', () => {
     expect(report.eppScore).toBe(100);
   });
 
-  it('is honest when the on-device EPP inspection is unavailable', () => {
+  it('is honest when the on-device EPP inspection is unavailable (eppScore null, never 100)', () => {
     const report = buildOnDeviceBioReport(healthyMetrics, null, REQUIRED);
     expect(report.eppDetected).toEqual([]);
     expect(report.eppMissing).toEqual([]);
-    expect(report.eppScore).toBe(100);
+    // null = no evaluado; NUNCA 100 (no debe leerse como cumplimiento).
+    expect(report.eppScore).toBeNull();
     expect(report.alerts.some((a) => /no se pudo evaluar el epp/i.test(a))).toBe(true);
   });
 });

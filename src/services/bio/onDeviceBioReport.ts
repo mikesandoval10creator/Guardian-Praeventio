@@ -46,8 +46,13 @@ export interface OnDeviceBioReport {
   eppMissing: string[];
   /** Alertas accionables (es-CL, tuteo chileno). */
   alerts: string[];
-  /** Score de cumplimiento EPP [0..100] derivado de requeridos vs faltantes. */
-  eppScore: number;
+  /**
+   * Score de cumplimiento EPP [0..100], o `null` cuando NO se pudo evaluar
+   * (detector falló / frame indecodificable). `null` ≠ cumplimiento: la UI
+   * NUNCA debe registrar "no evaluado" como 100% para no contaminar
+   * dashboards ni auditorías.
+   */
+  eppScore: number | null;
 }
 
 function label(cls: EppClass): string {
@@ -79,7 +84,8 @@ export function buildOnDeviceBioReport(
 
   if (!inspection) {
     alerts.push('No se pudo evaluar el EPP on-device con esta captura. Reintenta con mejor encuadre.');
-    return { eppDetected: [], eppMissing: [], alerts, eppScore: 100 };
+    // eppScore = null (no evaluado) — jamás 100, para no leerse como cumplido.
+    return { eppDetected: [], eppMissing: [], alerts, eppScore: null };
   }
 
   const eppDetected = inspection.detected.map((d) => label(d.class));
