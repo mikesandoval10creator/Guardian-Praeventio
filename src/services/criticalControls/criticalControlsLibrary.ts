@@ -63,6 +63,15 @@ export function getControlsForRisk(category: string): CriticalControl[] {
   return CRITICAL_CONTROLS_LIBRARY.filter((c) => c.riskCategory === category);
 }
 
+const LABEL_BY_CONTROL_ID: Record<string, string> = Object.fromEntries(
+  CRITICAL_CONTROLS_LIBRARY.map((c) => [c.id, c.label]),
+);
+
+/** Human label for a controlId; falls back to the id for unknown controls. */
+export function getControlLabel(controlId: string): string {
+  return LABEL_BY_CONTROL_ID[controlId] ?? controlId;
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // Validation in terreno
 // ────────────────────────────────────────────────────────────────────────

@@ -272,6 +272,63 @@ describe('GET /api/insights/:projectId/top-risks', () => {
 });
 
 // ══════════════════════════════════════════════════════════
+// GET /:projectId/weak-controls  (B2 🔵 — control_validations source)
+// ══════════════════════════════════════════════════════════
+describe('GET /api/insights/:projectId/weak-controls', () => {
+  const url = `/api/insights/${PROJECT_ID}/weak-controls`;
+  const cvPath = `projects/${PROJECT_ID}/control_validations`;
+
+  function seedValidation(
+    id: string,
+    controlId: string,
+    present: boolean,
+    validatedAt: string,
+  ) {
+    H.db!._seed(`${cvPath}/${id}`, { controlId, present, validatedAt, projectId: PROJECT_ID });
+  }
+
+  it('401 when no token is sent', async () => {
+    const res = await request(buildApp()).get(url);
+    expect(res.status).toBe(401);
+  });
+
+  it('403 when caller is not a project member', async () => {
+    const res = await request(buildApp()).get(url).set(asUser(OUTSIDER_UID));
+    expect(res.status).toBe(403);
+  });
+
+  it('200 empty — no validations yet', async () => {
+    const res = await request(buildApp()).get(url).set(asUser(MEMBER_UID));
+    expect(res.status).toBe(200);
+    const body = res.body as { weakControls: unknown[]; total: number };
+    expect(body.weakControls).toEqual([]);
+    expect(body.total).toBe(0);
+  });
+
+  it('200 ranks controls by weakness (failure rate) with resolved labels', () => {
+    return (async () => {
+      // alt-eng-baranda: 1 verified, 1 failure → 100% failure rate.
+      seedValidation('v1', 'alt-eng-baranda', false, '2026-06-04T10:00:00Z');
+      // alt-eng-linea: 2 clean verifications → 0% failure.
+      seedValidation('v2', 'alt-eng-linea', true, '2026-06-04T10:00:00Z');
+      seedValidation('v3', 'alt-eng-linea', true, '2026-06-03T10:00:00Z');
+
+      const res = await request(buildApp()).get(`${url}?topN=5`).set(asUser(MEMBER_UID));
+      expect(res.status).toBe(200);
+      const body = res.body as {
+        weakControls: Array<{ controlId: string; label: string; failureRate: number }>;
+        total: number;
+      };
+      expect(body.total).toBe(2); // 2 distinct controls
+      expect(body.weakControls[0]!.controlId).toBe('alt-eng-baranda');
+      expect(body.weakControls[0]!.failureRate).toBe(1);
+      // Label resolved from the controls library.
+      expect(body.weakControls[0]!.label).toBe('Barandas perimetrales');
+    })();
+  });
+});
+
+// ══════════════════════════════════════════════════════════
 // GET /:projectId/safety-talks
 // ══════════════════════════════════════════════════════════
 describe('GET /api/insights/:projectId/safety-talks', () => {

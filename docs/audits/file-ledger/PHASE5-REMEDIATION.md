@@ -175,7 +175,10 @@ considera y se CABLEA donde corresponde.** Reglas:
   - [x] **top-risks (UI)**: `useTopRisks` cableado al endpoint real (`useEndpoint` con abort/refetch); `TopRisksWidget`
     reformado a `RankedRiskNode[]` (sin re-rank por contadores; dot por criticidad + score IPER); `TopRisksDashboardCard`
     pasa-through; **montado en `Risks.tsx`**. typecheck 0, lint 0, tests verdes. (Fase 5, 2026-06-05)
-  - [ ] weak-controls ← `control_validations`; timeseries ← findings reales.
+  - [x] **weak-controls (backend)**: motor puro `controlValidationAggregation.ts` (agrupa `control_validations` por
+    controlId → verificaciones/fallas/overdue → `rankWeakControls`) + endpoint `GET /api/insights/:projectId/weak-controls`
+    (lee `projects/{pid}/control_validations`, labels desde la biblioteca) + 12 tests. UI (hook+widget+montar) pendiente.
+  - [ ] weak-controls (UI) · timeseries ← findings reales (backend+UI).
   - [ ] `shiftRiskPanel` → **consolidar** con `preShiftRisk` (preservar capacidades).
 
 ### B17 — Admin / Auth / RBAC / Privacidad 🔐  · ref `DEEP-B17` + `DEEP-EX-09/10`
