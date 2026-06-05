@@ -1,5 +1,6 @@
-// Praeventio Guard — Risk Ranking client hook (4 POST mutators + useTopRisks
-// & useWeakControls real pull-hooks + 1 remaining stub: useRiskTimeseries).
+// Praeventio Guard — Risk Ranking client hook (4 POST mutators + 3 REAL pull
+// hooks: useTopRisks, useWeakControls, useRiskTimeseries — all wired to
+// /api/insights/* over Zettelkasten-canonical sources, ADR 0020).
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiAuthHeaders } from '../lib/apiAuth';
@@ -140,21 +141,17 @@ export async function rankTasksByRiskApi(
 // Dashboard pull-hooks (B2 🔵, Fase 5 — replacing the rescue-450 stubs)
 // ──────────────────────────────────────────────────────────────────────
 //
-// `useTopRisks` (← Zettelkasten RISK nodes) and `useWeakControls`
-// (← control_validations) are now REAL pull-hooks; their dashboard cards are
-// mounted in `Risks.tsx`. `useRiskTimeseries` (← findings) remains an idle stub
-// pending its endpoint — next PR. Tracked TODO §13 + `docs/stubs-inventory.md`.
+// All three are now REAL pull-hooks over the Zettelkasten-canonical sources
+// (ADR 0020) and their dashboard widgets are mounted in `Risks.tsx`:
+//   • useTopRisks       ← RISK nodes ranked by DS44 IPER
+//   • useWeakControls   ← control_validations
+//   • useRiskTimeseries ← FINDING nodes bucketed by day
 
 interface AsyncResult<T> {
   data: T | null;
   loading: boolean;
   error: Error | null;
   refetch: () => void;
-}
-
-const NOOP = () => undefined;
-function idleResult<T>(): AsyncResult<T> {
-  return { data: null, loading: false, error: null, refetch: NOOP };
 }
 
 export interface RiskTimeseriesPoint {
@@ -166,16 +163,20 @@ export interface RiskTimeseriesData {
   series: RiskTimeseriesPoint[];
 }
 /**
- * Stub — needs new `GET /api/sprint-k/{projectId}/risk-ranking/timeseries`
- * endpoint + server-side computation from `findings` collection. Tracked
- * TODO §13. Currently returns idle (data:null, loading:false) so the
- * orphan `RiskTimeseriesChart.tsx` renders its empty-window message.
+ * REAL (B2 🔵, Fase 5): pulls the project's findings trend from
+ * `GET /api/insights/{projectId}/risk-timeseries`, a daily total/critical
+ * series over the trailing window (FINDING nodes; ADR 0020). Replaces the idle
+ * stub that fed the orphan `RiskTimeseriesChart`.
  */
 export function useRiskTimeseries(
-  _projectId: string | null,
-  _days: number = 30,
+  projectId: string | null,
+  days: number = 30,
 ): AsyncResult<RiskTimeseriesData> {
-  return idleResult<RiskTimeseriesData>();
+  return useEndpoint<RiskTimeseriesData>(
+    projectId
+      ? `/api/insights/${encodeURIComponent(projectId)}/risk-timeseries?days=${days}`
+      : null,
+  );
 }
 
 export interface TopRisksData {

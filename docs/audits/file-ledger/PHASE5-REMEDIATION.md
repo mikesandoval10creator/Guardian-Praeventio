@@ -168,7 +168,7 @@ considera y se CABLEA donde corresponde.** Reglas:
   +regresión. · `safetyEngineBackend.ts:129` JSON.parse → **YA usa `parseGeminiJson`** (F2, doc-drift). ·
   `residualRisk.ts` `safeRead` → **surface error** (rethrow → 500; antes enmascaraba lectura fallida como
   lista vacía = falso "sin riesgos residuales"). +2 tests `_failReads`. (Fase 5, 2026-06-05)
-- [ ] 🔵 `useRiskRanking` 3 idle stubs → **implementar+cablear** (EN PROGRESO, fuente canónica = Zettelkasten, ADR 0020 ext):
+- [x] 🔵 `useRiskRanking` 3 idle stubs → **implementar+cablear COMPLETO** (fuente canónica = Zettelkasten, ADR 0020 ext). Los 3 hooks son pull-hooks reales montados en `Risks.tsx`:
   - [x] **top-risks (backend)**: motor puro `riskNodeRanking.ts` (rankea `NodeType.RISK` por IPER DS44) + endpoint
     real `GET /api/insights/:projectId/top-risks` (lee `tenants/{tid}/zettelkasten_nodes`, no las colecciones planas
     vacías) + 12 tests. Hallazgo: el endpoint legacy leía colecciones que ningún writer puebla (dashboards vacíos).
@@ -181,7 +181,10 @@ considera y se CABLEA donde corresponde.** Reglas:
   - [x] **weak-controls (UI)**: `useWeakControls` cableado al endpoint real; `WeakControlsWidget` reformado a
     `ControlWeakness[]` (sin round-trip a ControlRecord; % falla + ícono de verificación vencida);
     `WeakControlsDashboardCard` pass-through; **montado en `Risks.tsx`** junto a top-risks.
-  - [ ] timeseries ← findings reales (backend+UI) — último ranking pendiente.
+  - [x] **timeseries (backend #693)**: motor puro `findingsTimeseries.ts` (agrupa `NodeType.FINDING` por día UTC,
+    ventana móvil con gaps en 0, total+críticos) + endpoint `GET /api/insights/:projectId/risk-timeseries` + 9 tests.
+  - [x] **timeseries (UI)**: `useRiskTimeseries` cableado al endpoint real; `RiskTimeseriesChart` **montado en `Risks.tsx`**;
+    removidos `idleResult`/`NOOP` (ya no hay stubs). Los 3 rankings quedan reales end-to-end. (Fase 5, 2026-06-05)
   - [ ] `shiftRiskPanel` → **consolidar** con `preShiftRisk`: HALLAZGO — ya están consolidados a nivel de motor
     (ambos usan `composeShiftRiskPanel`); son complementarios (push `shift-risk-panel/compose` vs pull
     `pre-shift-risk` server-agregado, usado por `PreShiftRisk.tsx`). Residual = decisión de producto sobre el hook
