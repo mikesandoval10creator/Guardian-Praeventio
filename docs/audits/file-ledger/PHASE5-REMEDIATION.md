@@ -172,7 +172,9 @@ considera y se CABLEA donde corresponde.** Reglas:
   - [x] **top-risks (backend)**: motor puro `riskNodeRanking.ts` (rankea `NodeType.RISK` por IPER DS44) + endpoint
     real `GET /api/insights/:projectId/top-risks` (lee `tenants/{tid}/zettelkasten_nodes`, no las colecciones planas
     vacías) + 12 tests. Hallazgo: el endpoint legacy leía colecciones que ningún writer puebla (dashboards vacíos).
-  - [ ] top-risks (UI): cablear `useTopRisks` → endpoint, reformar `TopRisksWidget`/Card a la forma IPER, montar.
+  - [x] **top-risks (UI)**: `useTopRisks` cableado al endpoint real (`useEndpoint` con abort/refetch); `TopRisksWidget`
+    reformado a `RankedRiskNode[]` (sin re-rank por contadores; dot por criticidad + score IPER); `TopRisksDashboardCard`
+    pasa-through; **montado en `Risks.tsx`**. typecheck 0, lint 0, tests verdes. (Fase 5, 2026-06-05)
   - [ ] weak-controls ← `control_validations`; timeseries ← findings reales.
   - [ ] `shiftRiskPanel` → **consolidar** con `preShiftRisk` (preservar capacidades).
 
