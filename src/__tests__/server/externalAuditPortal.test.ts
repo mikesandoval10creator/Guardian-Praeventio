@@ -123,10 +123,22 @@ vi.mock('firebase-admin', async () => {
     originalFirestoreFn,
   );
 
+  // B17: the admin endpoints now assert an admin role via
+  // admin.auth().getUser(uid).customClaims.role. This suite exercises the
+  // admin endpoints' DOWNSTREAM behavior (tenant resolution, validation,
+  // portal logic) assuming an authorized admin caller, so make getUser report
+  // an admin role for every caller. The role gate itself (403 for non-admins)
+  // is covered by externalAuditPortal.rolegate.test.ts.
+  const adminAuthFn = () => ({
+    getUser: async (uid: string) => ({ uid, customClaims: { role: 'admin' } }),
+    verifyIdToken: async () => ({ uid: 'test' }),
+  });
+
   const patched = {
     ...base,
-    default: { ...base.default, firestore: patchedFirestoreFn },
+    default: { ...base.default, firestore: patchedFirestoreFn, auth: adminAuthFn },
     firestore: patchedFirestoreFn,
+    auth: adminAuthFn,
   };
   return patched;
 });
