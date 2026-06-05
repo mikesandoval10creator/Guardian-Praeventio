@@ -93,6 +93,24 @@ export function getRequiredMitigationsForKind(kind: LineOfFireKind): string[] {
   return REQUIRED_MITIGATIONS[kind];
 }
 
+/**
+ * Normaliza una mitigación para comparación: minúsculas, sin acentos, espacios
+ * colapsados y recortados. NO altera el contenido de tokens — la comparación
+ * sigue siendo de FRASE COMPLETA (ver `validateLineOfFire`).
+ */
+function normalizeMitigation(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[áàä]/g, 'a')
+    .replace(/[éèë]/g, 'e')
+    .replace(/[íìï]/g, 'i')
+    .replace(/[óòö]/g, 'o')
+    .replace(/[úùü]/g, 'u')
+    .replace(/ñ/g, 'n') // exclusión→exclusion, señalero→senalero
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 export interface LineOfFireValidationResult {
   exposure: LineOfFireExposure;
   /** Lista de mitigaciones ESPERADAS según el kind. */
@@ -113,15 +131,23 @@ export interface LineOfFireValidationResult {
  * mitigaciones que ya están en sitio. Si falta alguna esperada, lo
  * marca como missing. Bloquea si hay personas en trayectoria sin
  * suficientes mitigaciones.
+ *
+ * Matching de seguridad (B2, Fase 5): una mitigación requerida se considera
+ * presente SÓLO si el caller declara su FRASE COMPLETA (normalizada: minúsculas,
+ * sin acentos, espacios colapsados). Antes el match era por la PRIMERA PALABRA
+ * como substring — un falso-positivo peligroso: "guardarropa" satisfacía
+ * "guarda física en partes móviles", limpiando una línea de fuego no mitigada.
+ * Para un gate de BLOQUEO el sesgo correcto es fail-closed (exacto), por lo que
+ * los callers deben declarar las frases canónicas de `getRequiredMitigationsForKind`.
  */
 export function validateLineOfFire(
   exposure: LineOfFireExposure,
   declaredMitigations: string[],
 ): LineOfFireValidationResult {
   const expectedMitigations = getRequiredMitigationsForKind(exposure.kind);
-  const normalizedDeclared = declaredMitigations.map((m) => m.toLowerCase().trim());
+  const declaredSet = new Set(declaredMitigations.map(normalizeMitigation));
   const missingMitigations = expectedMitigations.filter(
-    (em) => !normalizedDeclared.some((dm) => dm.includes(em.toLowerCase().split(' ')[0])),
+    (em) => !declaredSet.has(normalizeMitigation(em)),
   );
 
   // Bloqueo: personas en trayectoria sin TODAS las mitigaciones.

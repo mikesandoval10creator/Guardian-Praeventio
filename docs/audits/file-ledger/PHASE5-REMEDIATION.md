@@ -160,8 +160,14 @@ considera y se CABLEA donde corresponde.** Reglas:
   estándares de primera clase (no se colapsa ISO en DS44) — toggle por régimen vía
   `TenantRegulatoryContext` como follow-up. Documentado en **ADR 0020**. +14 tests puros.
   (Fase 5, 2026-06-05)
-- [ ] 🔴 `control_validations` (`controlValidationsStore.ts:31`, controles críticos) sin regla → reglas+tests. (rules)
-- [ ] 🟡 `lineOfFireChecker.ts:124` match por primera palabra → exacto (bloqueo de seguridad); `safetyEngineBackend.ts:129` JSON.parse (F2); `residualRisk.ts:241,285` safeRead → surface error. (vitest)
+- [x] 🔴 `control_validations` (controles críticos) → **YA resuelto en #663** (doc-drift en esta línea):
+  regla en `firestore.rules:505` (create con `validatedByUid==auth.uid`, update inmutable, delete admin/supervisor),
+  6 rules-tests reales (`src/rules-tests/controlValidations.rules.test.ts`), Dirty Dozen `security_spec.md:152`. (Fase 5)
+- [x] 🟡 `lineOfFireChecker.ts:124` match **por primera palabra → exacto** (frase completa normalizada;
+  fail-closed para gate de bloqueo): "guardarropa" ya **no** limpia "guarda física en partes móviles".
+  +regresión. · `safetyEngineBackend.ts:129` JSON.parse → **YA usa `parseGeminiJson`** (F2, doc-drift). ·
+  `residualRisk.ts` `safeRead` → **surface error** (rethrow → 500; antes enmascaraba lectura fallida como
+  lista vacía = falso "sin riesgos residuales"). +2 tests `_failReads`. (Fase 5, 2026-06-05)
 - [ ] 🔵 `useRiskRanking` 3 idle stubs + 3 GET faltantes (B2-D1) → **implementar+cablear**; `shiftRiskPanel` → **consolidar** con `preShiftRisk` (preservar capacidades).
 
 ### B17 — Admin / Auth / RBAC / Privacidad 🔐  · ref `DEEP-B17` + `DEEP-EX-09/10`
