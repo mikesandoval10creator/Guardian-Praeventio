@@ -29,23 +29,34 @@ describe('getRequiredMitigationsForKind', () => {
   });
 });
 
-describe('validateLineOfFire', () => {
-  it('todas las mitigaciones declaradas → passes', () => {
-    const r = validateLineOfFire(exposure({ kind: 'suspended_load' }), [
-      'zona de exclusión bajo carga delimitada',
-      'tag-line para guiar la carga',
-      'señalero entrenado en posición',
-    ]);
+describe('validateLineOfFire — exact full-phrase matching (safety gate)', () => {
+  it('declarar las frases canónicas COMPLETAS → passes', () => {
+    const r = validateLineOfFire(
+      exposure({ kind: 'suspended_load' }),
+      getRequiredMitigationsForKind('suspended_load'),
+    );
     expect(r.passes).toBe(true);
     expect(r.missingMitigations).toEqual([]);
     expect(r.blockTask).toBe(false);
   });
 
-  it('falta una mitigación pero sin personnelInPath → no bloquea', () => {
-    const r = validateLineOfFire(exposure({ kind: 'suspended_load', personnelInPath: false }), [
-      'zona de exclusión delimitada',
+  it('matching es case- y acento-insensible pero de FRASE COMPLETA', () => {
+    const r = validateLineOfFire(exposure({ kind: 'suspended_load' }), [
+      '  ZONA  DE EXCLUSION BAJO CARGA ', // mayúsculas, sin acento, espacios
+      'Tag-Line Para Guiar Carga',
+      'SEÑALERO ENTRENADO',
     ]);
+    expect(r.passes).toBe(true);
+    expect(r.missingMitigations).toEqual([]);
+  });
+
+  it('declarar 1 de 3 frases exactas (sin personnelInPath) → no pasa, no bloquea', () => {
+    const r = validateLineOfFire(
+      exposure({ kind: 'suspended_load', personnelInPath: false }),
+      ['zona de exclusión bajo carga'],
+    );
     expect(r.passes).toBe(false);
+    expect(r.missingMitigations).toHaveLength(2);
     expect(r.blockTask).toBe(false); // sin personnelInPath
   });
 
@@ -55,18 +66,29 @@ describe('validateLineOfFire', () => {
     expect(r.message).toMatch(/BLOQUEO/);
   });
 
-  it('múltiples kinds: rotating_machinery exige guarda + LOTO + ropa', () => {
-    const r = validateLineOfFire(exposure({ kind: 'rotating_machinery' }), ['guarda física instalada']);
-    expect(r.missingMitigations.length).toBeGreaterThan(0);
+  // ── Regresión del bug "match por primera palabra" (B2, Fase 5) ──────────
+  it('NO limpia un control con una declaración que sólo comparte la primera palabra', () => {
+    // El bug previo: "guardarropa" satisfacía "guarda física en partes móviles"
+    // porque el match era `dm.includes(em.split(" ")[0])` (primera palabra).
+    const r = validateLineOfFire(exposure({ kind: 'rotating_machinery' }), [
+      'guardarropa del personal',
+      'loto company swag', // comparte 'loto' como token suelto
+    ]);
+    expect(r.passes).toBe(false);
+    expect(r.missingMitigations).toContain('guarda física en partes móviles');
+    expect(r.missingMitigations).toContain('LOTO si intervención');
   });
 
-  it('matching de mitigaciones es por palabra clave (case-insensitive)', () => {
+  it('NO limpia con una frase PARCIAL (subconjunto incompleto del control)', () => {
+    // "rodapié instalado" NO cubre "rodapié + malla en niveles superiores":
+    // declarar sólo el rodapié deja la malla/red sin verificar → debe faltar.
     const r = validateLineOfFire(exposure({ kind: 'falling_object' }), [
       'rodapié instalado',
       'herramientas con cuerdas',
       'casco con barbiquejo activo',
     ]);
-    expect(r.passes).toBe(true);
+    expect(r.passes).toBe(false);
+    expect(r.missingMitigations).toContain('rodapié + malla en niveles superiores');
   });
 });
 
@@ -74,16 +96,14 @@ describe('summarizeLineOfFire', () => {
   it('cuenta byKind + blocking + passes', () => {
     const results = [
       validateLineOfFire(exposure({ kind: 'suspended_load', personnelInPath: true }), []),
-      validateLineOfFire(exposure({ kind: 'electric_arc', personnelInPath: false }), [
-        'distancia mínima',
-        'EPP arc-rated',
-        'desenergización',
-      ]),
-      validateLineOfFire(exposure({ kind: 'suspended_load' }), [
-        'zona de exclusión',
-        'tag-line',
-        'señalero',
-      ]),
+      validateLineOfFire(
+        exposure({ kind: 'electric_arc', personnelInPath: false }),
+        getRequiredMitigationsForKind('electric_arc'),
+      ),
+      validateLineOfFire(
+        exposure({ kind: 'suspended_load' }),
+        getRequiredMitigationsForKind('suspended_load'),
+      ),
     ];
     const s = summarizeLineOfFire(results);
     expect(s.totalExposures).toBe(3);

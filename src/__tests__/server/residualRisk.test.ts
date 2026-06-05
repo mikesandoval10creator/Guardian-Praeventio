@@ -171,6 +171,17 @@ describe('GET /:projectId/residual-risk/suspicious', () => {
     expect(risks[0].isSuspicious).toBe(true);
     expect(risks[0].id).toBe('rr-sus-001');
   });
+
+  it('500 when the Firestore read fails — does NOT mask as an empty list (B2)', async () => {
+    // Regresión: antes safeRead tragaba el error y devolvía [] → la UI mostraba
+    // "sin riesgos sospechosos" cuando la lectura realmente falló.
+    H.db!._failReads('residual_risks');
+    const res = await request(buildApp())
+      .get(url)
+      .set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(500);
+    expect(res.body.risks).toBeUndefined();
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -200,6 +211,15 @@ describe('GET /:projectId/residual-risk', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.risks)).toBe(true);
     expect(res.body.risks).toHaveLength(0);
+  });
+
+  it('500 when the Firestore read fails — does NOT mask as an empty list (B2)', async () => {
+    H.db!._failReads('residual_risks');
+    const res = await request(buildApp())
+      .get(url)
+      .set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(500);
+    expect(res.body.risks).toBeUndefined();
   });
 
   it('200 returns risks ordered by createdAt desc (newest first)', async () => {

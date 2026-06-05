@@ -238,18 +238,22 @@ router.get(
     if (!g) return undefined;
     try {
       const db = admin.firestore();
-      const safeRead = async <T,>(
+      // B2 (Fase 5): surface the failure — NUNCA enmascarar una lectura de
+      // datos de seguridad fallida como lista vacía. Un error de Firestore
+      // mostraría "sin riesgos residuales sospechosos" cuando en realidad la
+      // consulta falló (falso-negativo peligroso). Rethrow → outer catch → 500.
+      const surfaceRead = async <T,>(
         label: string,
         fn: () => Promise<T[]>,
       ): Promise<T[]> => {
         try {
           return await fn();
         } catch (err) {
-          logger.warn?.(`residualRisk.read.${label}.failed`, err);
-          return [];
+          logger.error?.(`residualRisk.read.${label}.failed`, err);
+          throw err;
         }
       };
-      const risks = await safeRead<StoredResidualRisk>(
+      const risks = await surfaceRead<StoredResidualRisk>(
         'suspicious',
         async () => {
           const snap = await db
@@ -282,18 +286,20 @@ router.get('/:projectId/residual-risk', verifyAuth, async (req, res) => {
   if (!g) return undefined;
   try {
     const db = admin.firestore();
-    const safeRead = async <T,>(
+    // B2 (Fase 5): surface the failure — ver comentario en /suspicious. Una
+    // lectura fallida NO debe enmascararse como lista vacía. Rethrow → 500.
+    const surfaceRead = async <T,>(
       label: string,
       fn: () => Promise<T[]>,
     ): Promise<T[]> => {
       try {
         return await fn();
       } catch (err) {
-        logger.warn?.(`residualRisk.read.${label}.failed`, err);
-        return [];
+        logger.error?.(`residualRisk.read.${label}.failed`, err);
+        throw err;
       }
     };
-    const risks = await safeRead<StoredResidualRisk>('list', async () => {
+    const risks = await surfaceRead<StoredResidualRisk>('list', async () => {
       const snap = await db
         .collection(`tenants/${g.tenantId}/projects/${projectId}/residual_risks`)
         .orderBy('createdAt', 'desc')

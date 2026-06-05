@@ -2,7 +2,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { LineOfFireValidationCard } from './LineOfFireValidationCard.js';
-import { validateLineOfFire } from '../../services/lineOfFire/lineOfFireChecker.js';
+import {
+  validateLineOfFire,
+  getRequiredMitigationsForKind,
+} from '../../services/lineOfFire/lineOfFireChecker.js';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -36,7 +39,7 @@ describe('<LineOfFireValidationCard />', () => {
         proximityMeters: 5,
         personnelInPath: false,
       },
-      ['mampara física', 'protección facial', 'distancia mínima'],
+      getRequiredMitigationsForKind('projection'),
     );
     render(<LineOfFireValidationCard result={result} />);
     expect(screen.getByTestId('lof-status-projection').textContent).toBe('CUMPLE');
