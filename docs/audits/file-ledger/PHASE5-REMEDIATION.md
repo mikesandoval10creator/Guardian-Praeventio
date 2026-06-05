@@ -146,7 +146,7 @@ considera y se CABLEA donde corresponde.** Reglas:
 - [ ] 🔵 `prexor.ts:35` comentario 10dB stale; reba/rula 500→400; `pulmonaryErgonomics` escribe en render→effect; **corregir DEEP-B3** (protocols.ts SÍ expone tmert/prexor).
 
 ### B16 — Offline / PWA / Mesh / Sensores 🛟🔐  · ref `DEEP-B16` + `DEEP-EX-08`
-- [ ] 🔴 `syncStateMachine.ts:313` y `genericOutboxEngine.ts:248` descartan datos de seguridad → dead-letter (P2, patrón sosOutbox). (vitest)
+- [x] 🔴 `syncStateMachine.ts:313` y `genericOutboxEngine.ts:248` descartaban datos de seguridad en silencio (give-up/TTL/maxRetries → `delete`) → **dead-letter (patrón sosOutbox B1)**: se retienen marcados `deadLettered`, dejan de reintentarse, se excluyen de `pending` y se exponen vía `deadLetters()` / `clearDeadLetter()`. Capacidad nunca evicta un dead-letter; el scheduler no hace busy-loop con dead-letters. +13 tests (40 en ambas suites). (Fase 5, 2026-06-05)
 - [ ] 🟡 `conflictQueue.ts` (real, sin consumidor/reglas) → **cablear** (consumidor + reglas+tests). (rules/vitest)
 - [ ] 🟡 `meshPacket.ts:237` firma `'unsigned-dev'` → firmar+verificar; `offlineStorage.ts` `encryptData` base64 → **cifrado real** (no llamarlo cifrado si no lo es). (vitest)
 - [ ] 🔵 `useSyncStatus`/`SyncQueueBadge` huérfanos → **montar** (badge de cola en UI).

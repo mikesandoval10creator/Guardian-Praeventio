@@ -29,8 +29,11 @@
  *   - **Retention cap**: max N events por feature (configurable),
  *     evictando el más antiguo de baja prioridad cuando se llena.
  *   - **Backoff exponencial**: 1s, 2s, 4s, 8s, 16s, 32s, cap 60s.
- *   - **TTL** opcional: events viejos (>X horas) se descartan con
- *     audit hook (no se intentan eternamente).
+ *   - **Dead-letter** (NO silent-drop): events que agotan el TTL o el
+ *     `maxRetries` NO se descartan — se marcan `deadLettered`, se retienen
+ *     intactos y dejan de reintentarse. La UI los surge para escalamiento
+ *     (`deadLetters()` / `clearDeadLetter()`). El bug previo los borraba en
+ *     silencio, perdiendo datos de seguridad (DEEP-B16 / TODO §2.32 / B16).
  *   - **Failures DON'T crash el engine** — el sender puede throw,
  *     el engine captura, incrementa retryCount, deja en cola.
  */
@@ -72,8 +75,15 @@ export interface OutboxEntry<T> {
   nextRetryAt: number;
   /** Último error reportado. */
   lastError?: string;
-  /** Marcado para purga: TTL excedido o N retries excedidos. */
-  expired?: boolean;
+  /**
+   * 🛟 Marcado tras agotar el TTL o `maxRetries`. Un entry dead-lettered NO se
+   * reintenta (no tiene sentido) pero TAMPOCO se descarta: queda retenido para
+   * que la UI lo surja y el dato de seguridad se escale por otra vía. Reemplaza
+   * el `expired` previo, que terminaba en `deleteEntry` (pérdida silenciosa).
+   */
+  deadLettered?: boolean;
+  /** Razón del dead-letter (telemetría / UI). */
+  deadLetterReason?: 'ttl' | 'max_retries';
 }
 
 /** Resultado de un attempt de flush. */
@@ -139,7 +149,12 @@ export type TelemetryEvent =
   | { kind: 'flush_success'; entryId: string; retryCount: number }
   | { kind: 'flush_retry'; entryId: string; retryCount: number; error: string }
   | { kind: 'flush_permanent_failure'; entryId: string; error: string }
-  | { kind: 'expired_purged'; entryId: string; reason: 'ttl' | 'max_retries' }
+  | {
+      kind: 'dead_lettered';
+      entryId: string;
+      reason: 'ttl' | 'max_retries';
+      priority: OutboxPriority;
+    }
   | { kind: 'evicted'; entryId: string; reason: 'capacity' };
 
 // ────────────────────────────────────────────────────────────────────────
@@ -181,8 +196,11 @@ export class GenericOutboxEngine<T> {
     const maxEntries = this.config.maxEntries ?? 100;
     if (entries.length >= maxEntries) {
       // Evict: el más viejo de menor prioridad (background > normal > critical).
+      // 🛟 Los dead-letters NO son candidatos a evicción — son datos de
+      // seguridad retenidos para escalamiento; descartarlos por capacidad
+      // reintroduce la pérdida silenciosa que este bloque arregla.
       const evictable = entries
-        .slice()
+        .filter((e) => !e.deadLettered)
         .sort((a, b) => {
           const pdiff =
             PRIORITY_RANK[b.event.priority] - PRIORITY_RANK[a.event.priority];
@@ -194,7 +212,9 @@ export class GenericOutboxEngine<T> {
         !victim ||
         PRIORITY_RANK[victim.event.priority] <= PRIORITY_RANK[event.priority]
       ) {
-        // No hay víctima de menor o igual prioridad → rechazamos el nuevo.
+        // No hay víctima viva de menor prioridad → rechazamos el nuevo (la cola
+        // está saturada de items de prioridad ≥ a la del entrante, o sólo
+        // quedan dead-letters, que nunca se desalojan).
         return false;
       }
       await this.config.adapter.deleteEntry(victim.event.clientEventId);
@@ -232,7 +252,7 @@ export class GenericOutboxEngine<T> {
     succeeded: number;
     retried: number;
     permanentlyFailed: number;
-    expiredPurged: number;
+    deadLettered: number;
   }> {
     const now = this.now();
     const entries = await this.config.adapter.listEntries();
@@ -243,27 +263,38 @@ export class GenericOutboxEngine<T> {
     let succeeded = 0;
     let retried = 0;
     let permanentlyFailed = 0;
-    let expiredPurged = 0;
+    let deadLettered = 0;
 
-    // 1. Purge expired (TTL exceeded or max retries).
+    // 1. Dead-letter (NO purge) los que agotan TTL o maxRetries. Se retienen
+    //    marcados para escalamiento — jamás se descartan en silencio.
     for (const entry of entries) {
+      if (entry.deadLettered) continue; // ya dead-lettered: intacto.
       const ageMs = now - Date.parse(entry.queuedAt);
       const ttlExpired = ageMs > ttlMs;
       const retriesExceeded = entry.retryCount >= maxRetries;
       if (ttlExpired || retriesExceeded) {
-        await this.config.adapter.deleteEntry(entry.event.clientEventId);
-        this.emit({
-          kind: 'expired_purged',
-          entryId: entry.event.clientEventId,
-          reason: ttlExpired ? 'ttl' : 'max_retries',
+        const reason: 'ttl' | 'max_retries' = ttlExpired ? 'ttl' : 'max_retries';
+        await this.config.adapter.saveEntry({
+          ...entry,
+          deadLettered: true,
+          deadLetterReason: reason,
+          nextRetryAt: Number.POSITIVE_INFINITY,
         });
-        expiredPurged++;
+        this.emit({
+          kind: 'dead_lettered',
+          entryId: entry.event.clientEventId,
+          reason,
+          priority: entry.event.priority,
+        });
+        deadLettered++;
       }
     }
 
-    // 2. Re-lista entries DESPUÉS de la purge.
+    // 2. Re-lista entries DESPUÉS del dead-lettering. Los dead-letters quedan
+    //    excluidos del intento de envío (nextRetryAt = +Infinity los descarta,
+    //    pero filtramos explícitamente por claridad).
     const live = (await this.config.adapter.listEntries())
-      .filter((e) => e.nextRetryAt <= now)
+      .filter((e) => !e.deadLettered && e.nextRetryAt <= now)
       .sort((a, b) => {
         const pdiff =
           PRIORITY_RANK[a.event.priority] - PRIORITY_RANK[b.event.priority];
@@ -331,13 +362,38 @@ export class GenericOutboxEngine<T> {
       succeeded,
       retried,
       permanentlyFailed,
-      expiredPurged,
+      deadLettered,
     };
+  }
+
+  /**
+   * 🛟 Entries que agotaron TTL/maxRetries y siguen retenidos sin entregarse.
+   * La UI debe surgirlos de forma prominente para escalamiento manual.
+   */
+  async deadLetters(): Promise<OutboxEntry<T>[]> {
+    const entries = await this.config.adapter.listEntries();
+    return entries.filter((e) => e.deadLettered);
+  }
+
+  /**
+   * Remueve un dead-letter una vez escalado por otra vía. Idempotente —
+   * sólo borra si el entry está efectivamente dead-lettered.
+   */
+  async clearDeadLetter(clientEventId: string): Promise<void> {
+    const entries = await this.config.adapter.listEntries();
+    const target = entries.find(
+      (e) => e.event.clientEventId === clientEventId && e.deadLettered,
+    );
+    if (target) {
+      await this.config.adapter.deleteEntry(clientEventId);
+    }
   }
 
   /** Stats sin flushear — útil para UI badges. */
   async stats(): Promise<{
     total: number;
+    pending: number;
+    deadLettered: number;
     byPriority: Record<OutboxPriority, number>;
     oldestQueuedAt?: string;
     nextRetryReadyAt?: number;
@@ -350,8 +406,15 @@ export class GenericOutboxEngine<T> {
     };
     let oldest: string | undefined;
     let nextReady: number | undefined;
+    let deadLettered = 0;
     for (const e of entries) {
       byPriority[e.event.priority]++;
+      if (e.deadLettered) {
+        deadLettered++;
+        // Dead-letters no entran en el cálculo de "próximo intento" (no se
+        // reintentan) ni representan trabajo pendiente de la cola activa.
+        continue;
+      }
       if (!oldest || Date.parse(e.queuedAt) < Date.parse(oldest)) {
         oldest = e.queuedAt;
       }
@@ -361,6 +424,8 @@ export class GenericOutboxEngine<T> {
     }
     return {
       total: entries.length,
+      pending: entries.length - deadLettered,
+      deadLettered,
       byPriority,
       oldestQueuedAt: oldest,
       nextRetryReadyAt: nextReady,

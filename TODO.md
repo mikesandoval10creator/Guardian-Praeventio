@@ -1039,8 +1039,15 @@ sistémicos** (arreglar la clase, no el síntoma). Los más graves re-verificado
 - **P2 — Colas offline descartan datos de seguridad tras N reintentos** sin dead-letter:
   ✅ **`sosOutbox` RESUELTO (Fase 5, 2026-06-03)** — tras MAX_RETRY el SOS se marca
   `deadLettered` y se retiene (jamás se descarta); + `deadLetters()`/`clearDeadLetter()`;
-  el hard-cap nunca evicta un dead-letter; 11/11 tests reales. Pendiente: surjir
-  dead-letters en UI; `syncStateMachine.ts:313` (incidentes/evidencia); `genericOutboxEngine.ts:248`.
+  el hard-cap nunca evicta un dead-letter; 11/11 tests reales.
+  ✅ **`syncStateMachine` + `genericOutboxEngine` RESUELTOS (Fase 5, 2026-06-05, B16)** —
+  mismo patrón: `syncStateMachine.ts` give-up (MAX_ATTEMPTS) → `deadLettered` retenido,
+  excluido de `pending`/scheduler, + `deadLetters()`/`clearDeadLetter()`
+  (`src/services/sync/syncStateMachine.ts`); `genericOutboxEngine.ts` TTL/maxRetries →
+  `deadLettered` (antes `delete`), capacidad nunca evicta un dead-letter, +
+  `deadLetters()`/`clearDeadLetter()`/`stats().deadLettered`
+  (`src/services/sync/genericOutboxEngine.ts`); +13 tests reales. Pendiente sólo: surjir
+  dead-letters en UI (item 🔵 B16 `SyncQueueBadge`).
 - **P3 — Identidad/rol/tenantId del cliente sin verificar contra el token:** `sif.ts`
   (reviewedByUid SIF suplantable), `stoppage.ts:216` (resumedByRole reanuda paralización),
   `exceptions.ts` (approvedByRole), `suseso.ts` (tenantId DIAT/DIEP cross-empresa),

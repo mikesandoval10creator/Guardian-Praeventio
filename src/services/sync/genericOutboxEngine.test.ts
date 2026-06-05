@@ -222,7 +222,7 @@ describe('GenericOutboxEngine — flush', () => {
     ).toHaveLength(1);
   });
 
-  it('TTL excedido: entry purged + emite expired_purged ttl', async () => {
+  it('TTL excedido: entry dead-lettered (retenido, NO descartado) + emite dead_lettered ttl', async () => {
     const adapter = createInMemoryOutboxAdapter<FakePayload>();
     const events: TelemetryEvent[] = [];
     let now = 1000;
@@ -233,20 +233,28 @@ describe('GenericOutboxEngine — flush', () => {
       ttlHours: 1,
       onTelemetry: (e) => events.push(e),
     });
-    await engine.enqueue(event('e1'));
+    await engine.enqueue(event('e1', { priority: 'critical' }));
     // Avanzamos 2 horas — más que el TTL de 1h.
     now += 2 * 60 * 60 * 1000;
     const stats = await engine.flush();
-    expect(stats.expiredPurged).toBe(1);
-    expect((await adapter.listEntries())).toHaveLength(0);
+    expect(stats.deadLettered).toBe(1);
+    // 🛟 El dato de seguridad NO se descarta: queda retenido como dead-letter.
+    const list = await adapter.listEntries();
+    expect(list).toHaveLength(1);
+    expect(list[0]!.deadLettered).toBe(true);
+    expect(list[0]!.deadLetterReason).toBe('ttl');
     expect(
       events.find(
-        (e) => e.kind === 'expired_purged' && e.entryId === 'e1',
+        (e) =>
+          e.kind === 'dead_lettered' &&
+          e.entryId === 'e1' &&
+          e.reason === 'ttl' &&
+          e.priority === 'critical',
       ),
     ).toBeDefined();
   });
 
-  it('maxRetries excedido: entry purged como max_retries', async () => {
+  it('maxRetries excedido: entry dead-lettered como max_retries (retenido)', async () => {
     const adapter = createInMemoryOutboxAdapter<FakePayload>();
     const events: TelemetryEvent[] = [];
     let now = 1000;
@@ -264,17 +272,110 @@ describe('GenericOutboxEngine — flush', () => {
       now += 60_000; // skip past backoff
     }
     expect((await adapter.listEntries())[0]!.retryCount).toBe(3);
-    // 4to flush: el engine ve retryCount >= maxRetries (3) → purge.
-    await engine.flush();
-    expect((await adapter.listEntries())).toHaveLength(0);
+    // 4to flush: el engine ve retryCount >= maxRetries (3) → dead-letter.
+    const stats = await engine.flush();
+    expect(stats.deadLettered).toBe(1);
+    const list = await adapter.listEntries();
+    expect(list).toHaveLength(1);
+    expect(list[0]!.deadLettered).toBe(true);
+    expect(list[0]!.deadLetterReason).toBe('max_retries');
     expect(
       events.find(
         (e) =>
-          e.kind === 'expired_purged' &&
+          e.kind === 'dead_lettered' &&
           e.entryId === 'e1' &&
           e.reason === 'max_retries',
       ),
     ).toBeDefined();
+  });
+
+  it('dead-letter NO se reintenta en flushes posteriores y el sender no se invoca', async () => {
+    const adapter = createInMemoryOutboxAdapter<FakePayload>();
+    let now = 1000;
+    const sender = vi.fn(async () => ({ kind: 'retry' as const, error: 'x' }));
+    const engine = new GenericOutboxEngine<FakePayload>({
+      adapter,
+      sender,
+      nowMs: () => now,
+      maxRetries: 1,
+    });
+    await engine.enqueue(event('e1'));
+    await engine.flush(); // retryCount → 1
+    now += 60_000;
+    await engine.flush(); // retryCount >= 1 → dead-letter
+    const callsAfterDeadLetter = sender.mock.calls.length;
+    now += 60_000;
+    const stats = await engine.flush();
+    // No se vuelve a invocar al sender para un dead-letter.
+    expect(sender.mock.calls.length).toBe(callsAfterDeadLetter);
+    expect(stats.attempted).toBe(0);
+    expect(stats.deadLettered).toBe(0); // ya estaba dead-lettered, no recuenta
+  });
+
+  it('deadLetters() expone los retenidos; clearDeadLetter() los remueve tras escalar', async () => {
+    const adapter = createInMemoryOutboxAdapter<FakePayload>();
+    let now = 1000;
+    const engine = new GenericOutboxEngine<FakePayload>({
+      adapter,
+      sender: async () => ({ kind: 'retry' as const, error: 'x' }),
+      nowMs: () => now,
+      maxRetries: 0, // dead-letter al primer flush
+    });
+    await engine.enqueue(event('e1', { priority: 'critical' }));
+    await engine.flush();
+    let dl = await engine.deadLetters();
+    expect(dl.map((e) => e.event.clientEventId)).toEqual(['e1']);
+    // clearDeadLetter sobre un id NO dead-lettered es no-op.
+    await engine.clearDeadLetter('inexistente');
+    expect(await engine.deadLetters()).toHaveLength(1);
+    // Escalado por otra vía → se remueve.
+    await engine.clearDeadLetter('e1');
+    dl = await engine.deadLetters();
+    expect(dl).toHaveLength(0);
+    expect(await adapter.listEntries()).toHaveLength(0);
+  });
+
+  it('capacidad: un dead-letter NUNCA es evictado para admitir un entry nuevo', async () => {
+    const adapter = createInMemoryOutboxAdapter<FakePayload>();
+    let now = 1000;
+    const engine = new GenericOutboxEngine<FakePayload>({
+      adapter,
+      sender: async () => ({ kind: 'retry' as const, error: 'x' }),
+      nowMs: () => now,
+      maxEntries: 1,
+      maxRetries: 0,
+    });
+    // e1 (background) se dead-letterea.
+    await engine.enqueue(event('e1', { priority: 'background' }));
+    await engine.flush();
+    expect((await engine.deadLetters()).map((e) => e.event.clientEventId)).toEqual([
+      'e1',
+    ]);
+    // Cola llena (1) con un dead-letter. Un nuevo critical NO puede evictar al
+    // dead-letter retenido → se rechaza (protege el dato de seguridad retenido).
+    const ok = await engine.enqueue(event('e2', { priority: 'critical' }));
+    expect(ok).toBe(false);
+    expect((await adapter.listEntries()).map((e) => e.event.clientEventId)).toEqual([
+      'e1',
+    ]);
+  });
+
+  it('stats() separa pending de deadLettered', async () => {
+    const adapter = createInMemoryOutboxAdapter<FakePayload>();
+    let now = 1000;
+    const engine = new GenericOutboxEngine<FakePayload>({
+      adapter,
+      sender: async () => ({ kind: 'retry' as const, error: 'x' }),
+      nowMs: () => now,
+      maxRetries: 0,
+    });
+    await engine.enqueue(event('dead', { priority: 'critical' }));
+    await engine.flush(); // → dead-letter
+    await engine.enqueue(event('alive', { priority: 'normal' }));
+    const s = await engine.stats();
+    expect(s.total).toBe(2);
+    expect(s.pending).toBe(1);
+    expect(s.deadLettered).toBe(1);
   });
 
   it('error en telemetry callback NO crashea el flush', async () => {

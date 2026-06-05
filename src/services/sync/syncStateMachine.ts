@@ -52,12 +52,23 @@ export interface SyncOperation {
   lastAttemptMs?: number;
   lastError?: string;
   createdAt: number;
+  /**
+   * 🛟 Marcado tras agotar MAX_ATTEMPTS. Una op dead-lettered se RETIENE (no
+   * se borra de la cola) pero deja de reintentarse y deja de contar como
+   * `pending`. La UI la surge para escalamiento manual. El bug previo la
+   * borraba en silencio, perdiendo el dato (DEEP-B16 / TODO §2.32 / B16).
+   */
+  deadLettered?: boolean;
 }
 
 export interface SyncStateSnapshot {
   state: SyncState;
+  /** Ops vivas pendientes de reintento (EXCLUYE dead-letters). */
   pendingCount: number;
+  /** Ops vivas pendientes (EXCLUYE dead-letters). */
   operations: SyncOperation[];
+  /** 🛟 Ops que agotaron los reintentos y quedan retenidas para escalamiento. */
+  deadLetterCount: number;
   lastSyncSuccessMs: number | null;
   isOnline: boolean;
 }
@@ -178,9 +189,16 @@ export class OfflineSyncStateMachine {
    * Compute current snapshot from internal state. Pure projection — calling
    * this multiple times is cheap and side-effect-free.
    */
+  /** Live ops still eligible for retry (EXCLUDES dead-letters). */
+  private pendingOps(): SyncOperation[] {
+    return Array.from(this.operations.values()).filter((op) => !op.deadLettered);
+  }
+
   getState(): SyncStateSnapshot {
     const isOnline = this.onlineGetter();
-    const pendingCount = this.operations.size;
+    const pending = this.pendingOps();
+    const pendingCount = pending.length;
+    const deadLetterCount = this.operations.size - pendingCount;
     let state: SyncState;
     if (this.isSyncing) {
       state = 'online_syncing';
@@ -189,6 +207,8 @@ export class OfflineSyncStateMachine {
     } else if (this.hasFailures && pendingCount > 0) {
       state = 'online_failed';
     } else if (pendingCount === 0) {
+      // Queue drained from the retry perspective. Any dead-letters are
+      // surfaced separately (deadLetterCount) for manual escalation.
       state = 'online_synced';
     } else {
       // Online, ops queued, no recorded failures — we're between drains.
@@ -197,10 +217,34 @@ export class OfflineSyncStateMachine {
     return {
       state,
       pendingCount,
-      operations: Array.from(this.operations.values()),
+      operations: pending,
+      deadLetterCount,
       lastSyncSuccessMs: this.lastSyncSuccessMs,
       isOnline,
     };
+  }
+
+  /**
+   * 🛟 Ops that exhausted MAX_ATTEMPTS and are retained for manual
+   * escalation. The UI should surface these prominently.
+   */
+  deadLetters(): SyncOperation[] {
+    return Array.from(this.operations.values()).filter((op) => op.deadLettered);
+  }
+
+  /**
+   * Remove a dead-lettered op once it has been escalated by another channel.
+   * Idempotent and SAFE: only removes if the op is actually dead-lettered, so
+   * it can never drop a still-pending operation.
+   */
+  async clearDeadLetter(id: string): Promise<void> {
+    await this.readyPromise;
+    const op = this.operations.get(id);
+    if (op && op.deadLettered) {
+      this.operations.delete(id);
+      await this.persist();
+      this.notify();
+    }
   }
 
   subscribe(cb: (snap: SyncStateSnapshot) => void): () => void {
@@ -292,6 +336,8 @@ export class OfflineSyncStateMachine {
     const ops = Array.from(this.operations.values());
 
     for (const op of ops) {
+      // 🛟 Dead-lettered ops are retained but never retried.
+      if (op.deadLettered) continue;
       // Skip ops still in backoff window.
       if (op.lastAttemptMs && op.attempts > 0) {
         const wait = getBackoffMs(op.attempts);
@@ -311,15 +357,20 @@ export class OfflineSyncStateMachine {
           lastError: err instanceof Error ? err.message : String(err),
         };
         if (updated.attempts >= MAX_ATTEMPTS) {
-          // Give up — pop from queue so we don't block forever.
-          // Loud log because data is being intentionally dropped.
-          logger.error('offlineSync: op exceeded MAX_ATTEMPTS — dropping', {
-            opId: op.id,
-            collection: op.collection,
-            type: op.type,
-            lastError: updated.lastError,
-          });
-          this.operations.delete(op.id);
+          // 🛟 Dead-letter (NO drop): stop retrying so we don't block the
+          // queue forever, but RETAIN the op so the safety data isn't lost.
+          // The UI surfaces dead-letters for manual escalation. Loud log
+          // because the op can no longer be auto-delivered.
+          logger.error(
+            'offlineSync: op exceeded MAX_ATTEMPTS — dead-lettering (retained for escalation)',
+            {
+              opId: op.id,
+              collection: op.collection,
+              type: op.type,
+              lastError: updated.lastError,
+            },
+          );
+          this.operations.set(op.id, { ...updated, deadLettered: true });
         } else {
           this.operations.set(op.id, updated);
         }
@@ -328,7 +379,10 @@ export class OfflineSyncStateMachine {
     }
 
     this.hasFailures = failed > 0;
-    if (succeeded > 0 && this.operations.size === 0 && failed === 0) {
+    // Only "fully synced" when no PENDING ops remain. Dead-letters are
+    // retained but don't block the success marker (they're terminal).
+    const pending = this.pendingOps();
+    if (succeeded > 0 && pending.length === 0 && failed === 0) {
       this.lastSyncSuccessMs = Date.now();
       try {
         await set(LAST_SUCCESS_KEY, this.lastSyncSuccessMs);
@@ -341,13 +395,14 @@ export class OfflineSyncStateMachine {
     this.isSyncing = false;
     this.notify();
 
-    // Schedule a follow-up if there are still ops queued — picks the
-    // shortest backoff window across the remaining ops so we don't sleep
-    // longer than needed.
-    if (this.operations.size > 0) {
+    // Schedule a follow-up only if PENDING (non-dead-lettered) ops remain —
+    // dead-letters are terminal, so a queue holding only dead-letters must
+    // NOT busy-loop syncNow. Picks the shortest backoff window so we don't
+    // sleep longer than needed.
+    if (pending.length > 0) {
       const tNow = Date.now();
       let minWait = Infinity;
-      for (const op of this.operations.values()) {
+      for (const op of pending) {
         const due = (op.lastAttemptMs ?? tNow) + getBackoffMs(op.attempts);
         const wait = Math.max(0, due - tNow);
         if (wait < minWait) minWait = wait;
