@@ -196,7 +196,14 @@ considera y se CABLEA donde corresponde.** Reglas:
   **`assertAdminCaller`** (`isAdminRole(customClaims.role)`, server-authoritative, espeja `admin.ts`). `resolveTenantIdForAdmin`
   ya acotaba al tenant propio (sin riesgo cross-tenant); el gap era puramente el rol. +7 supertests sobre el **router real**
   (403 no-admin en los 4, 200/201 admin). El test previo reimplementaba los handlers (anti-patrón wire-up). (Fase 5, 2026-06-05)
-- [ ] 🔴 `auditPortalStore.savePortal` token en claro → `accessTokenHash`; master-gate read (`firestore.rules:257`) no expone. (rules/vitest)
+- [x] 🔴 `auditPortalStore.savePortal` token EN CLARO → **eliminado el path roto** (mejor que hashearlo): la investigación
+  (pedida por usuario) probó que el path cliente estaba MUERTO — `findPortalByPublicToken` busca por `accessTokenHash` y
+  rechaza rutas que no sean `tenants/…`, así que los portales escritos por `savePortal` (token en claro, `projects/{pid}/
+  audit_portals`) eran **inutilizables** por el auditor. Fix: la página routeada `/audit-portals` ahora monta el manager
+  CANÓNICO server-wired `PortalManager` (huérfano hasta hoy) que crea/lista/revoca vía `/api/audit-portal/*`
+  (`useExternalAuditPortal`) — hashea el token + ruta verificable + gate de rol (#695). Se **retiró** `auditPortalStore.ts`
+  (sin consumidores, footgun de token en claro). Supersesión documentada en `AuditPortals.tsx`. typecheck/lint 0.
+  RESIDUAL: master-gate read (`firestore.rules:257`) que no exponga — sub-ítem de reglas, follow-up. (Fase 5, 2026-06-05)
 - [ ] 🔴 `projects.ts` claim global `gerente/admin` → membresía por-proyecto. (super)
 - [ ] 🔴 `WebAuthnKeysSection.tsx:73` borrado MFA client-side → step-up + audit. (comp/super)
 - [ ] 🔴 Reglas #650: `documents_for_read` authorUid (rules:456); `site_book_counters` sin regla; `lone_worker_sessions` update sin `existing().workerUid==auth.uid`; `root_cause_analyses` vs regla; `exceptions/legal_obligations/shifts` laxos (rules:466-477). (rules)
