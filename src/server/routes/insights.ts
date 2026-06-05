@@ -39,6 +39,10 @@ import {
 } from '../../services/riskRanking/controlValidationAggregation.js';
 import { getControlLabel } from '../../services/criticalControls/criticalControlsLibrary.js';
 import {
+  buildFindingsTimeseries,
+  type TimeseriesFindingInput,
+} from '../../services/riskRanking/findingsTimeseries.js';
+import {
   suggestTalks,
   type ContextSignals,
 } from '../../services/safetyTalks/talkTopicSuggester.js';
@@ -232,6 +236,72 @@ router.get('/:projectId/weak-controls', verifyAuth, async (req, res) => {
   } catch (err) {
     logger.error?.('insights.weak_controls.error', err);
     captureRouteError(err, 'insights.weak_controls');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// GET /api/insights/:projectId/risk-timeseries?days=30
+//
+// REAL trend (B2 🔵, Fase 5): daily counts of FINDING ('Hallazgo')
+// Zettelkasten nodes over the trailing window, total + critical. Same
+// canonical source as top-risks (`tenants/{tid}/zettelkasten_nodes`); replaces
+// the idle `useRiskTimeseries` stub. `type` filtered in-memory (no composite
+// index). See ADR 0020.
+// ────────────────────────────────────────────────────────────────────────
+const TS_CRITICAL_SEVERITY = new Set(['high', 'critical', 'alto', 'crítico']);
+const TS_CRITICAL_CRITICIDAD = new Set(['Crítica', 'Alta']);
+
+/** Coerce a Firestore timestamp / ISO string / epoch to ms-or-ISO for bucketing. */
+function coerceFindingDate(value: unknown): string | number | null {
+  if (typeof value === 'string' || typeof value === 'number') return value;
+  if (value && typeof value === 'object') {
+    const v = value as { toMillis?: () => number; seconds?: number };
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (typeof v.seconds === 'number') return v.seconds * 1000;
+  }
+  return null;
+}
+
+router.get('/:projectId/risk-timeseries', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
+  const db = admin.firestore();
+  const tenantId = await resolveTenantId(callerUid, projectId, db);
+  if (!tenantId) {
+    return res.status(404).json({ error: 'tenant_not_found' });
+  }
+  const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
+  try {
+    const snap = await db
+      .collection('tenants')
+      .doc(tenantId)
+      .collection('zettelkasten_nodes')
+      .where('projectId', '==', projectId)
+      .limit(5000)
+      .get();
+    const findings: TimeseriesFindingInput[] = [];
+    for (const d of snap.docs) {
+      const data = d.data() ?? {};
+      if (data.type !== 'Hallazgo') continue; // NodeType.FINDING
+      const createdAt = coerceFindingDate(data.createdAt);
+      if (createdAt === null) continue;
+      const meta = (data.metadata ?? {}) as Record<string, unknown>;
+      const severity = String(data.severity ?? meta.severity ?? '').toLowerCase();
+      const criticidad = String(meta.criticidad ?? '');
+      const severidad = typeof meta.severidad === 'number' ? meta.severidad : 0;
+      const isCritical =
+        TS_CRITICAL_SEVERITY.has(severity) ||
+        TS_CRITICAL_CRITICIDAD.has(criticidad) ||
+        severidad >= 4;
+      findings.push({ createdAt, isCritical });
+    }
+    const series = buildFindingsTimeseries(findings, { days });
+    return res.json({ series, total: findings.length, computedAt: new Date().toISOString() });
+  } catch (err) {
+    logger.error?.('insights.risk_timeseries.error', err);
+    captureRouteError(err, 'insights.risk_timeseries');
     return res.status(500).json({ error: 'internal_error' });
   }
 });

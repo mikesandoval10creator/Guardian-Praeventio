@@ -329,6 +329,66 @@ describe('GET /api/insights/:projectId/weak-controls', () => {
 });
 
 // ══════════════════════════════════════════════════════════
+// GET /:projectId/risk-timeseries  (B2 🔵 — findings trend, Zettelkasten)
+// ══════════════════════════════════════════════════════════
+describe('GET /api/insights/:projectId/risk-timeseries', () => {
+  const TENANT_ID = 'tenant-ts';
+  const url = `/api/insights/${PROJECT_ID}/risk-timeseries`;
+  const zkPath = `tenants/${TENANT_ID}/zettelkasten_nodes`;
+
+  beforeEach(() => {
+    H.db!._seed(`projects/${PROJECT_ID}`, {
+      members: [MEMBER_UID],
+      createdBy: MEMBER_UID,
+      tenantId: TENANT_ID,
+    });
+  });
+
+  function seedFinding(id: string, createdAt: string, critical: boolean) {
+    H.db!._seed(`${zkPath}/${id}`, {
+      type: 'Hallazgo', // NodeType.FINDING
+      title: `Hallazgo ${id}`,
+      projectId: PROJECT_ID,
+      createdAt,
+      metadata: { criticidad: critical ? 'Alta' : 'Baja' },
+    });
+  }
+
+  it('401 when no token is sent', async () => {
+    expect((await request(buildApp()).get(url)).status).toBe(401);
+  });
+
+  it('403 when caller is not a project member', async () => {
+    expect((await request(buildApp()).get(url).set(asUser(OUTSIDER_UID))).status).toBe(403);
+  });
+
+  it('200 returns a continuous daily series (gaps filled) and ignores non-FINDING nodes', async () => {
+    const today = new Date().toISOString();
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString();
+    seedFinding('f1', today, true);
+    seedFinding('f2', today, false);
+    seedFinding('f3', yesterday, false);
+    // A RISK node must be excluded from the findings trend.
+    H.db!._seed(`${zkPath}/r1`, {
+      type: 'Riesgo', title: 'no es hallazgo', projectId: PROJECT_ID, createdAt: today,
+      metadata: { probabilidad: 5, severidad: 5 },
+    });
+
+    const res = await request(buildApp()).get(`${url}?days=7`).set(asUser(MEMBER_UID));
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      series: Array<{ date: string; totalFindings: number; criticalFindings: number }>;
+      total: number;
+    };
+    expect(body.series).toHaveLength(7); // continuous 7-day window
+    expect(body.total).toBe(3); // 3 FINDING nodes (RISK excluded)
+    const todayBucket = body.series[body.series.length - 1]!;
+    expect(todayBucket.totalFindings).toBe(2);
+    expect(todayBucket.criticalFindings).toBe(1);
+  });
+});
+
+// ══════════════════════════════════════════════════════════
 // GET /:projectId/safety-talks
 // ══════════════════════════════════════════════════════════
 describe('GET /api/insights/:projectId/safety-talks', () => {
