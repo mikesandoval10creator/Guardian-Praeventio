@@ -1,79 +1,120 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Map as MapIcon,
   Navigation,
   AlertCircle,
-  Shield,
-  Zap,
+  Compass,
   Loader2,
   CheckCircle2,
   XCircle,
-  ArrowRight,
-  Plus,
-  Compass
+  MapPin,
+  Clock,
+  Trash2,
+  Hand,
 } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
+import { useProject } from '../../contexts/ProjectContext';
 import { NodeType } from '../../types';
-import { calculateDynamicEvacuationRoute } from '../../services/geminiService';
-import { get } from 'idb-keyval';
-
+import { auth } from '../../services/firebase';
+import { subscribeSiteGeometry } from '../../services/digitalTwin/siteGeometryStore';
+import type { SiteGeometryFeature } from '../../services/digitalTwin/siteGeometry';
+import {
+  planEvacuationRoute,
+  featuresBounds,
+  type LngLat,
+} from '../../services/routing/evacuationGrid';
+import { useGeolocationTracking } from '../../hooks/useGeolocationTracking';
 import { VectorialEvacuationMap } from './VectorialEvacuationMap';
+import { EvacuationGridMap } from './EvacuationGridMap';
 import { logger } from '../../utils/logger';
+
+// Conservative evacuation walking pace (m/s) — brisk but accounts for stress,
+// debris and congestion. Used only for an ETA estimate, clearly labelled.
+const EVAC_PACE_MS = 1.2;
+
+function formatEta(distanceMeters: number): string {
+  const seconds = Math.round(distanceMeters / EVAC_PACE_MS);
+  if (seconds < 60) return `~${seconds} s`;
+  return `~${Math.round(seconds / 60)} min`;
+}
 
 export function DynamicEvacuationMap() {
   const { nodes } = useUniversalKnowledge();
-  const [isCalculating, setIsCalculating] = useState(false);
-  const [routeData, setRouteData] = useState<any>(null);
-  const [userBlockedAreas, setUserBlockedAreas] = useState<string[]>([]);
-  const [newBlockedArea, setNewBlockedArea] = useState('');
+  const { selectedProject } = useProject();
+  const { lastLocation } = useGeolocationTracking();
+
+  const projectId = selectedProject?.id ?? null;
+  const tenantId = auth.currentUser?.tenantId ?? 'default';
+
+  const [features, setFeatures] = useState<SiteGeometryFeature[]>([]);
+  const [geoLoading, setGeoLoading] = useState(true);
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState<LngLat[]>([]);
   const [showDeadReckoning, setShowDeadReckoning] = useState(false);
 
+  // Live subscription to the project's Digital Twin footprint (site_geometry).
+  useEffect(() => {
+    if (!projectId) {
+      setFeatures([]);
+      setGeoLoading(false);
+      return undefined;
+    }
+    setGeoLoading(true);
+    const unsub = subscribeSiteGeometry(
+      tenantId,
+      projectId,
+      (next) => {
+        setFeatures(next);
+        setGeoError(null);
+        setGeoLoading(false);
+      },
+      (err) => {
+        logger.error('site_geometry subscription failed', { err: String(err) });
+        setGeoError('No se pudo cargar la geometría del sitio.');
+        setGeoLoading(false);
+      },
+    );
+    return unsub;
+  }, [tenantId, projectId]);
+
+  const worker: LngLat | null = useMemo(
+    () => (lastLocation ? { lng: lastLocation.lng, lat: lastLocation.lat } : null),
+    [lastLocation],
+  );
+
+  // Critical nodes that justify recomputing / flagging an emergency.
   const activeEmergencies = useMemo(() => {
-    return nodes.filter(n => {
+    return nodes.filter((n) => {
       if (n.type === NodeType.EMERGENCY && n.metadata?.status === 'active') return true;
-      if (n.type === NodeType.INCIDENT) return true; // Include all incidents
-      if (n.type === NodeType.RISK && n.metadata?.level === 'Crítico') return true; // Include critical risks
+      if (n.type === NodeType.INCIDENT) return true;
+      if (n.type === NodeType.RISK && n.metadata?.level === 'Crítico') return true;
       return false;
     });
   }, [nodes]);
 
-  const calculateRoute = async () => {
-    setIsCalculating(true);
-    
-    try {
-      const twinState: any = (await get('twinState')) || {};
-      const workers = twinState.workers ? Object.values(twinState.workers) : [];
-      const machinery = twinState.machinery ? Object.values(twinState.machinery) : [];
-      
-      const data = await calculateDynamicEvacuationRoute(activeEmergencies, workers, machinery, userBlockedAreas);
-      setRouteData(data);
-    } catch (error) {
-      logger.error('Error calculating route:', error);
-    } finally {
-      setIsCalculating(false);
-    }
-  };
+  const bounds = useMemo(() => featuresBounds(features), [features]);
+  const hasGeometry = features.length > 0 && bounds !== null;
+  const hasExit = useMemo(
+    () => features.some((f) => f.properties.type === 'evacuation'),
+    [features],
+  );
 
-  useEffect(() => {
-    if (activeEmergencies.length > 0) {
-      calculateRoute();
-    } else {
-      setRouteData(null);
-    }
-  }, [activeEmergencies.length, userBlockedAreas]);
+  // The REAL evacuation route — A* over the twin-derived grid.
+  const route = useMemo(() => {
+    if (!worker || features.length === 0) return null;
+    return planEvacuationRoute(features, worker, { extraBlocked: blocked });
+  }, [features, worker, blocked]);
 
-  const handleAddBlockedArea = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newBlockedArea.trim() && !userBlockedAreas.includes(newBlockedArea.trim())) {
-      setUserBlockedAreas(prev => [...prev, newBlockedArea.trim()]);
-      setNewBlockedArea('');
-    }
-  };
+  const handleBlockPoint = useCallback((p: LngLat) => {
+    setBlocked((prev) => [...prev, p]);
+  }, []);
 
-  const handleRemoveBlockedArea = (area: string) => {
-    setUserBlockedAreas(prev => prev.filter(a => a !== area));
-  };
+  const handleRemoveBlocked = useCallback((index: number) => {
+    setBlocked((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleClearBlocked = useCallback(() => setBlocked([]), []);
 
   return (
     <section className="bg-zinc-900/50 border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-8 space-y-4 sm:space-y-6">
@@ -84,12 +125,12 @@ export function DynamicEvacuationMap() {
           </div>
           <div>
             <h3 className="text-lg sm:text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-tight">Rutas Dinámicas</h3>
-            <p className="text-[10px] sm:text-xs text-zinc-500 font-medium uppercase tracking-widest mt-0.5">Cálculo de Evacuación en Tiempo Real</p>
+            <p className="text-[10px] sm:text-xs text-zinc-500 font-medium uppercase tracking-widest mt-0.5">Evacuación A* sobre el Gemelo Digital</p>
           </div>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
-            onClick={() => setShowDeadReckoning(v => !v)}
+            onClick={() => setShowDeadReckoning((v) => !v)}
             // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
             className={`min-h-11 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
               showDeadReckoning
@@ -98,7 +139,7 @@ export function DynamicEvacuationMap() {
             }`}
           >
             <Compass className="w-3 h-3 shrink-0" />
-            {showDeadReckoning ? 'DR Activo' : 'Navegación Inercial'}
+            {showDeadReckoning ? 'Navegación Inercial' : 'Mapa del Sitio'}
           </button>
           {activeEmergencies.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-full animate-pulse">
@@ -110,116 +151,136 @@ export function DynamicEvacuationMap() {
       </header>
 
       <div className="relative aspect-square sm:aspect-video bg-white dark:bg-black/40 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-white/5 overflow-hidden flex items-center justify-center">
-        <VectorialEvacuationMap showDeadReckoning={showDeadReckoning} />
-
         <AnimatePresence mode="wait">
-          {isCalculating ? (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 flex flex-col items-center justify-center gap-3 sm:gap-4 p-4 text-center bg-black/60 backdrop-blur-sm z-10"
-            >
-              <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 text-blue-500 animate-spin" />
-              <p className="text-[10px] sm:text-xs font-black text-white uppercase tracking-widest animate-pulse">Recalculando Rutas Seguras...</p>
-            </motion.div>
-          ) : routeData ? (
-            <motion.div
-              key="route"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="absolute inset-0 w-full h-full p-4 sm:p-8 flex flex-col justify-center overflow-y-auto custom-scrollbar bg-black/80 backdrop-blur-md z-10"
-            >
-              <div className="max-w-md space-y-4 sm:space-y-6 mx-auto w-full">
-                <div className="space-y-1 sm:space-y-2">
-                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-500">
-                    <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-                    <span className="text-xs sm:text-sm font-black uppercase tracking-widest">Ruta Óptima Encontrada</span>
-                  </div>
-                  <h4 className="text-lg sm:text-2xl font-black text-zinc-900 dark:text-white leading-tight uppercase tracking-tighter">
-                    {routeData.safeRoute}
-                  </h4>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-white/5 rounded-xl border border-zinc-200 dark:border-white/5">
-                    <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Tiempo Est.</p>
-                    <p className="text-base sm:text-lg font-black text-zinc-900 dark:text-white">{routeData.estimatedTime}</p>
-                  </div>
-                  <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-white/5 rounded-xl border border-zinc-200 dark:border-white/5">
-                    <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Prioridad</p>
-                    <p className={`text-base sm:text-lg font-black uppercase ${
-                      routeData.priority === 'Alta' ? 'text-rose-600 dark:text-rose-500' : 'text-emerald-600 dark:text-emerald-500'
-                    }`}>{routeData.priority}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <p className="text-[9px] sm:text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-2">
-                      <XCircle className="w-3 h-3 shrink-0" /> Áreas Bloqueadas / Peligrosas
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                      {routeData.blockedAreas.map((area: string, i: number) => (
-                        <span key={i} className="px-2 py-1 bg-rose-500/10 border border-rose-500/20 rounded text-[9px] sm:text-[10px] font-bold text-rose-400 uppercase flex items-center gap-1">
-                          {area}
-                          {userBlockedAreas.includes(area) && (
-                            <button
-                              type="button"
-                              aria-label={`Quitar área bloqueada ${area}`}
-                              onClick={() => handleRemoveBlockedArea(area)}
-                              className="hover:text-rose-300 ml-1"
-                            >
-                              <XCircle className="w-3 h-3" aria-hidden="true" />
-                            </button>
-                          )}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <form onSubmit={handleAddBlockedArea} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={newBlockedArea}
-                      onChange={(e) => setNewBlockedArea(e.target.value)}
-                      placeholder="Reportar área bloqueada (ej. Pasillo 3)"
-                      className="flex-1 bg-zinc-900/50 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-rose-500"
-                    />
-                    <button
-                      type="submit"
-                      aria-label="Agregar área bloqueada"
-                      disabled={!newBlockedArea.trim() || isCalculating}
-                      // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
-                      className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <Plus className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                  </form>
-                </div>
-              </div>
-            </motion.div>
-          ) : (
-            <div className="text-center space-y-3 sm:space-y-4 p-4">
+          {showDeadReckoning ? (
+            // Inertial navigation — real dead-reckoning for GPS-denied areas.
+            <VectorialEvacuationMap showDeadReckoning />
+          ) : !projectId ? (
+            <div className="text-center space-y-3 p-4">
+              <MapIcon className="w-10 h-10 text-zinc-400 dark:text-zinc-700 mx-auto" />
+              <p className="text-xs sm:text-sm font-bold text-zinc-500">Selecciona un proyecto para ver su mapa de evacuación.</p>
+            </div>
+          ) : geoLoading ? (
+            <div className="flex flex-col items-center justify-center gap-3 p-4 text-center">
+              <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+              <p className="text-[10px] sm:text-xs font-black text-zinc-500 uppercase tracking-widest">Cargando geometría del sitio…</p>
+            </div>
+          ) : geoError ? (
+            <div className="text-center space-y-3 p-4">
+              <XCircle className="w-10 h-10 text-rose-500 mx-auto" />
+              <p className="text-xs sm:text-sm font-bold text-rose-500">{geoError}</p>
+            </div>
+          ) : !hasGeometry || !bounds ? (
+            // Honest empty state — no fabricated floor plan.
+            <div className="text-center space-y-3 sm:space-y-4 p-4 max-w-md">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-zinc-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto border border-zinc-200 dark:border-white/5">
                 <MapIcon className="w-6 h-6 sm:w-8 sm:h-8 text-zinc-400 dark:text-zinc-700" />
               </div>
               <div>
-                <p className="text-xs sm:text-sm font-bold text-zinc-500">No hay emergencias activas.</p>
-                <p className="text-[9px] sm:text-[10px] font-medium text-zinc-600 uppercase tracking-widest mt-1">El sistema de rutas dinámicas está en espera.</p>
+                <p className="text-xs sm:text-sm font-bold text-zinc-700 dark:text-zinc-300">Aún no has construido el gemelo digital de esta faena.</p>
+                <p className="text-[10px] sm:text-xs font-medium text-zinc-500 leading-relaxed mt-2">
+                  Captura la geometría del sitio —perímetro, zonas de peligro y zonas de evacuación— desde el Gemelo Digital
+                  para habilitar el cálculo de rutas de evacuación reales (A*).
+                </p>
               </div>
             </div>
+          ) : (
+            <motion.div
+              key="grid-map"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="absolute inset-0 w-full h-full"
+            >
+              <EvacuationGridMap
+                features={features}
+                bounds={bounds}
+                worker={worker}
+                route={route}
+                blocked={blocked}
+                onBlockPoint={handleBlockPoint}
+              />
+
+              {/* Honest route status banner */}
+              <div className="absolute left-0 right-0 bottom-0 p-2 sm:p-3 bg-gradient-to-t from-black/80 to-transparent">
+                {!worker ? (
+                  <div className="flex items-center gap-2 text-blue-300 bg-black/50 rounded-lg px-3 py-2">
+                    <MapPin className="w-4 h-4 shrink-0 animate-pulse" />
+                    <span className="text-[10px] sm:text-xs font-bold">Esperando tu ubicación GPS para trazar la ruta…</span>
+                  </div>
+                ) : route ? (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-emerald-300 bg-black/60 rounded-lg px-3 py-2">
+                    <span className="flex items-center gap-1.5 text-xs sm:text-sm font-black uppercase tracking-wide">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" /> Ruta segura encontrada
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] sm:text-xs font-bold">
+                      <Navigation className="w-3 h-3" /> {Math.round(route.distanceMeters)} m
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] sm:text-xs font-bold">
+                      <Clock className="w-3 h-3" /> {formatEta(route.distanceMeters)}
+                    </span>
+                  </div>
+                ) : !hasExit ? (
+                  <div className="flex items-center gap-2 text-amber-300 bg-black/60 rounded-lg px-3 py-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span className="text-[10px] sm:text-xs font-bold">Define una zona de evacuación en el gemelo digital para calcular rutas.</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-rose-300 bg-black/60 rounded-lg px-3 py-2">
+                    <XCircle className="w-4 h-4 shrink-0" />
+                    <span className="text-[10px] sm:text-xs font-bold">No hay ruta segura alcanzable desde tu posición. Revisa peligros o bloqueos reportados.</span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
 
+      {/* Real-time blocked-area reporting (coordinate-based, feeds re-routing) */}
+      {!showDeadReckoning && hasGeometry && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+              <Hand className="w-3 h-3 shrink-0" /> Toca el mapa para reportar un área bloqueada
+            </p>
+            {blocked.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearBlocked}
+                className="min-h-11 inline-flex items-center gap-1 px-2 py-1 text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-300"
+              >
+                <Trash2 className="w-3 h-3" /> Limpiar
+              </button>
+            )}
+          </div>
+          {blocked.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+              {blocked.map((_, i) => (
+                <span key={i} className="px-2 py-1 bg-rose-500/10 border border-rose-500/20 rounded text-[9px] sm:text-[10px] font-bold text-rose-400 uppercase flex items-center gap-1">
+                  Bloqueo {i + 1}
+                  <button
+                    type="button"
+                    aria-label={`Quitar bloqueo ${i + 1}`}
+                    onClick={() => handleRemoveBlocked(i)}
+                    className="hover:text-rose-300 ml-1"
+                  >
+                    <XCircle className="w-3 h-3" aria-hidden="true" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="p-3 sm:p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl sm:rounded-2xl flex items-start gap-3 sm:gap-4">
-        <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 mt-0.5 sm:mt-1 shrink-0" />
+        <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 mt-0.5 sm:mt-1 shrink-0" />
         <div>
           <h4 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white">Inteligencia de Evacuación</h4>
           <p className="text-[10px] sm:text-xs text-zinc-500 leading-relaxed mt-1">
-            El sistema monitorea constantemente los nodos de emergencia en la Red Neuronal y recalcula las rutas de escape evitando zonas de peligro reportadas en tiempo real.
+            La ruta se calcula con A* sobre la geometría real de tu faena (perímetro, peligros y zonas de evacuación del
+            gemelo digital), evitando obstáculos y peligros. Si no existe ruta alcanzable, el sistema lo informa
+            honestamente en lugar de inventar una.
           </p>
         </div>
       </div>
