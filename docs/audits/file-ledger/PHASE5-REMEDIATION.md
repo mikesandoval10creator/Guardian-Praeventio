@@ -178,8 +178,14 @@ considera y se CABLEA donde corresponde.** Reglas:
   - [x] **weak-controls (backend)**: motor puro `controlValidationAggregation.ts` (agrupa `control_validations` por
     controlId → verificaciones/fallas/overdue → `rankWeakControls`) + endpoint `GET /api/insights/:projectId/weak-controls`
     (lee `projects/{pid}/control_validations`, labels desde la biblioteca) + 12 tests. UI (hook+widget+montar) pendiente.
-  - [ ] weak-controls (UI) · timeseries ← findings reales (backend+UI).
-  - [ ] `shiftRiskPanel` → **consolidar** con `preShiftRisk` (preservar capacidades).
+  - [x] **weak-controls (UI)**: `useWeakControls` cableado al endpoint real; `WeakControlsWidget` reformado a
+    `ControlWeakness[]` (sin round-trip a ControlRecord; % falla + ícono de verificación vencida);
+    `WeakControlsDashboardCard` pass-through; **montado en `Risks.tsx`** junto a top-risks.
+  - [ ] timeseries ← findings reales (backend+UI) — último ranking pendiente.
+  - [ ] `shiftRiskPanel` → **consolidar** con `preShiftRisk`: HALLAZGO — ya están consolidados a nivel de motor
+    (ambos usan `composeShiftRiskPanel`); son complementarios (push `shift-risk-panel/compose` vs pull
+    `pre-shift-risk` server-agregado, usado por `PreShiftRisk.tsx`). Residual = decisión de producto sobre el hook
+    huérfano `useShiftRiskPanel` (pendiente input usuario).
 
 ### B17 — Admin / Auth / RBAC / Privacidad 🔐  · ref `DEEP-B17` + `DEEP-EX-09/10`
 - [ ] 🔴 `externalAuditPortal.ts:234,306,355,428` sin gate de rol → `assertProjectMember`+`isAdmin`. (super)

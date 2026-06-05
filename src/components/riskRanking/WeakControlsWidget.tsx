@@ -1,28 +1,26 @@
 // Praeventio Guard — Wire UI #4b: <WeakControlsWidget />
 //
 // Sidebar widget showing controls with high failure rate or no recent
-// verification. Consumes `rankWeakControls` from
-// `riskRanking/riskRankingEngine.ts`.
+// verification. B2 🔵 (Fase 5): input is now `ControlWeakness[]` already
+// ranked server-side from the terreno validation log (controlValidationAggregation,
+// ADR 0020). The widget no longer re-ranks via ad-hoc ControlRecord counters.
 //
-// Used in: ProjectDetail right sidebar (paired with <TopRisksWidget />).
+// Used in: Risks page (paired with <TopRisksDashboardCard />).
 
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ShieldAlert } from 'lucide-react';
-import {
-  rankWeakControls,
-  type ControlRecord,
-} from '../../services/riskRanking/riskRankingEngine.js';
+import { ShieldAlert, Clock } from 'lucide-react';
+import type { ControlWeakness } from '../../services/riskRanking/riskRankingEngine.js';
 
 interface WeakControlsWidgetProps {
-  controls: ControlRecord[];
+  controls: ControlWeakness[];
   topN?: number;
   onControlClick?: (controlId: string) => void;
 }
 
 export function WeakControlsWidget({ controls, topN = 5, onControlClick }: WeakControlsWidgetProps) {
   const { t } = useTranslation();
-  const ranked = useMemo(() => rankWeakControls(controls, topN), [controls, topN]);
+  // Server already ranked by weakness score; bound to topN defensively.
+  const ranked = controls.slice(0, topN);
 
   return (
     <section
@@ -61,6 +59,12 @@ export function WeakControlsWidget({ controls, topN = 5, onControlClick }: WeakC
               >
                 {c.label}
               </button>
+              {c.isOverdueVerification && (
+                <Clock
+                  className="w-3 h-3 text-rose-500 shrink-0"
+                  aria-label={t('weak_controls.overdue', 'Verificación vencida') as string}
+                />
+              )}
               <span
                 className="text-[10px] tabular-nums px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300"
                 title={t('weak_controls.failure_rate', 'Tasa de falla') as string}

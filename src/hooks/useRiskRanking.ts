@@ -1,5 +1,5 @@
 // Praeventio Guard — Risk Ranking client hook (4 POST mutators + useTopRisks
-// real pull-hook + 2 remaining stubs: useRiskTimeseries, useWeakControls).
+// & useWeakControls real pull-hooks + 1 remaining stub: useRiskTimeseries).
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiAuthHeaders } from '../lib/apiAuth';
@@ -140,11 +140,10 @@ export async function rankTasksByRiskApi(
 // Dashboard pull-hooks (B2 🔵, Fase 5 — replacing the rescue-450 stubs)
 // ──────────────────────────────────────────────────────────────────────
 //
-// `useTopRisks` is now REAL: it fetches the Zettelkasten-backed
-// `GET /api/insights/{projectId}/top-risks` and `TopRisksDashboardCard` is
-// mounted in `Risks.tsx`. `useRiskTimeseries` (← findings) and
-// `useWeakControls` (← control_validations) remain idle stubs pending their
-// own endpoints — next PRs. Tracked TODO §13 + `docs/stubs-inventory.md`.
+// `useTopRisks` (← Zettelkasten RISK nodes) and `useWeakControls`
+// (← control_validations) are now REAL pull-hooks; their dashboard cards are
+// mounted in `Risks.tsx`. `useRiskTimeseries` (← findings) remains an idle stub
+// pending its endpoint — next PR. Tracked TODO §13 + `docs/stubs-inventory.md`.
 
 interface AsyncResult<T> {
   data: T | null;
@@ -204,17 +203,25 @@ export function useTopRisks(
 }
 
 export interface WeakControlsData {
+  /** Controls ranked by weakness (failure rate / overdue / never verified). */
   weakControls: ControlWeakness[];
+  /** Distinct controls considered (before topN). */
+  total: number;
+  computedAt: string;
 }
 /**
- * Stub — needs new `GET /api/sprint-k/{projectId}/risk-ranking/weak-controls`
- * endpoint (pull-based). The orphan `WeakControlsDashboardCard.tsx`
- * passes a `topN` arg so we accept it here for compile-time parity even
- * though the stub ignores it. Tracked TODO §13.
+ * REAL (B2 🔵, Fase 5): pulls the project's weakest critical controls from
+ * `GET /api/insights/{projectId}/weak-controls`, aggregated server-side from
+ * the terreno validation log (`control_validations`). Replaces the previous
+ * idle stub that read the empty flat `controls` collection. See ADR 0020.
  */
 export function useWeakControls(
-  _projectId: string | null,
-  _topN: number = 10,
+  projectId: string | null,
+  topN: number = 10,
 ): AsyncResult<WeakControlsData> {
-  return idleResult<WeakControlsData>();
+  return useEndpoint<WeakControlsData>(
+    projectId
+      ? `/api/insights/${encodeURIComponent(projectId)}/weak-controls?topN=${topN}`
+      : null,
+  );
 }
