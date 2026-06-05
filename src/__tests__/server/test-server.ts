@@ -34,6 +34,7 @@ import express from 'express';
 import crypto from 'crypto';
 
 import { buildInvoice } from '../../services/billing/invoice.js';
+import { VALID_ZK_NODE_TYPES } from '../../server/routes/zettelkastenNodeTypes.js';
 import {
   isSubscriptionPlan,
   normalizeSubscriptionPlanId,
@@ -1403,23 +1404,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // â‡’ contador limpio.
   const zkRateBuckets = new Map<string, number>();
   const ZK_LIMIT = 30;
-  const VALID_ZK_TYPES = new Set([
-    'hidrante-pressure',
-    'misting-suppression',
-    'scaffold-uplift',
-    'confined-space-vent',
-    'gas-leak-anomaly',
-    'mining-extraction',
-    'hazmat-pipe',
-    'structural-wind',
-    'respirator-fatigue',
-    'pulmonary-altitude',
-    'micro-wind-energy',
-    'slope-stability',
-    'slam-mesh',
-    'dike-hydrostatic',
-    'gas-dispersion',
-  ]);
+  // Imported from the canonical allowlist (zettelkastenNodeTypes.ts) so this
+  // mirror can never drift from the production route.
+  const VALID_ZK_TYPES = VALID_ZK_NODE_TYPES;
   const VALID_ZK_SEVERITIES = new Set(['info', 'low', 'medium', 'high', 'critical']);
   const ZK_ID_REGEX = /^[A-Za-z0-9_\-:.]{1,256}$/;
 

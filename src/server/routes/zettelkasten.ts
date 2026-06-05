@@ -28,6 +28,7 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { z } from 'zod';
+import { VALID_ZK_NODE_TYPES } from './zettelkastenNodeTypes.js';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import {
@@ -83,25 +84,9 @@ import {
 const router = Router();
 
 const VALID_SEVERITIES = new Set(['info', 'low', 'medium', 'high', 'critical']);
-const VALID_TYPES = new Set([
-  'hidrante-pressure',
-  'misting-suppression',
-  'scaffold-uplift',
-  'confined-space-vent',
-  'gas-leak-anomaly',
-  'mining-extraction',
-  'hazmat-pipe',
-  'structural-wind',
-  'respirator-fatigue',
-  'pulmonary-altitude',
-  'micro-wind-energy',
-  'slope-stability',
-  'slam-mesh',
-  'dike-hydrostatic',
-  'gas-dispersion',
-  // Sprint 16 — wisdom-capsule learning node emitted by /api/wisdom-capsule.
-  'safety-learning',
-]);
+// Canonical allowlist shared with the supertest mirror (test-server.ts) so the
+// two can never drift — see src/server/routes/zettelkastenNodeTypes.ts.
+const VALID_TYPES = VALID_ZK_NODE_TYPES;
 
 const ID_REGEX = /^[A-Za-z0-9_\-:.]{1,256}$/;
 
