@@ -142,7 +142,7 @@ considera y se CABLEA donde corresponde.** Reglas:
 ### B3 — Ergonomía & Protocolos MINSAL 🛟🔐  · ref `DEEP-B3` + `DEEP-EX-07`
 - [x] 🔴 `BioAnalysis.tsx:411` frame de cámara VIVA a Gemini (#12) → **cableado al path on-device** (`ColorBasedEppDetector` + `inspectImage`; `src/services/bio/onDeviceBioReport.ts` puro + 7 tests). La imagen ya NO sale del equipo; `analyzeBioImage` de-whitelisted en `gemini.ts`. (Fase 5, 2026-06-05)
 - [ ] 🔴 `BioAnalysis.tsx:465` `findings` sin regla + sin audit → reglas+audit. (rules)
-- [ ] 🟡 `AIPostureAnalysisModal.tsx:277` `bodyParts` sin guard (TypeError) → guard; fallback Gemini foto (#12) → on-device. (comp)
+- [x] 🟡 `AIPostureAnalysisModal.tsx` → análisis postural **100% on-device** (MediaPipe→REBA/RULA): se **retiró el fallback Gemini** que subía la foto del trabajador (decisión usuario: a la nube va el RESULTADO, no la imagen — privacidad). `analyzePostureWithAI` de-whitelisted. El crash de `bodyParts` desaparece (siempre lo llena MediaPipe). (Fase 5, 2026-06-05)
 - [ ] 🔵 `prexor.ts:35` comentario 10dB stale; reba/rula 500→400; `pulmonaryErgonomics` escribe en render→effect; **corregir DEEP-B3** (protocols.ts SÍ expone tmert/prexor).
 
 ### B16 — Offline / PWA / Mesh / Sensores 🛟🔐  · ref `DEEP-B16` + `DEEP-EX-08`

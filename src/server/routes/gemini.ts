@@ -126,7 +126,9 @@ const ALLOWED_GEMINI_ACTIONS = [
   'analyzeFastCheck',
   'predictGlobalIncidents',
   'analyzeRiskWithAI',
-  'analyzePostureWithAI',
+  // B3 (Fase 5): 'analyzePostureWithAI' de-whitelisted — el análisis postural
+  // es 100% on-device (MediaPipe → REBA/RULA, directiva #12); la imagen del
+  // trabajador no sale del equipo. Sin caller cliente; cerramos el egress.
   'generateEmergencyPlan',
   'analyzeSafetyImage',
   'generateISOAuditChecklist',
