@@ -12,7 +12,7 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const ratchet = require('../../../scripts/check-any-ratchet.cjs') as {
-  scan: () => Record<string, number>;
+  scan: (files?: string[]) => Record<string, number>;
   listSrcFiles: () => string[];
   total: (counts: Record<string, number>) => number;
   AS_ANY_RE: RegExp;
