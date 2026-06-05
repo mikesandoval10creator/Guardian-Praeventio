@@ -34,6 +34,11 @@ import {
   type RiskNodeInput,
 } from '../../services/riskRanking/riskNodeRanking.js';
 import {
+  rankWeakControlsFromValidations,
+  type ControlValidationInput,
+} from '../../services/riskRanking/controlValidationAggregation.js';
+import { getControlLabel } from '../../services/criticalControls/criticalControlsLibrary.js';
+import {
   suggestTalks,
   type ContextSignals,
 } from '../../services/safetyTalks/talkTopicSuggester.js';
@@ -175,6 +180,58 @@ router.get('/:projectId/top-risks', verifyAuth, async (req, res) => {
   } catch (err) {
     logger.error?.('insights.top_risks.error', err);
     captureRouteError(err, 'insights.top_risks');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// GET /api/insights/:projectId/weak-controls
+//
+// REAL pull-based ranking (B2 🔵, Fase 5): ranks the project's critical
+// controls by weakness from the terreno validation log
+// (`projects/{pid}/control_validations`, written by controlValidationsStore).
+// Groups by controlId, counts verifications + failures (present === false),
+// and feeds the canonical `rankWeakControls` engine. Labels resolve from the
+// controls library. Replaces the idle `useWeakControls` stub that read the
+// empty flat `controls` collection. See ADR 0020.
+// ────────────────────────────────────────────────────────────────────────
+router.get('/:projectId/weak-controls', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
+  const topN = Math.min(Math.max(Number(req.query.topN) || 10, 1), 50);
+  try {
+    const db = admin.firestore();
+    const snap = await db
+      .collection('projects')
+      .doc(projectId)
+      .collection('control_validations')
+      .limit(5000)
+      .get();
+    const validations: ControlValidationInput[] = snap.docs.map((d) => {
+      const data = d.data() ?? {};
+      return {
+        controlId: typeof data.controlId === 'string' ? data.controlId : '',
+        // Default present:true unless explicitly recorded absent (present:false).
+        present: data.present !== false,
+        validatedAt: typeof data.validatedAt === 'string' ? data.validatedAt : '',
+      };
+    });
+    const distinctControls = new Set(
+      validations.map((v) => v.controlId).filter(Boolean),
+    ).size;
+    const weakControls = rankWeakControlsFromValidations(validations, {
+      labelFor: getControlLabel,
+      topN,
+    });
+    return res.json({
+      weakControls,
+      total: distinctControls,
+      computedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.error?.('insights.weak_controls.error', err);
+    captureRouteError(err, 'insights.weak_controls');
     return res.status(500).json({ error: 'internal_error' });
   }
 });
