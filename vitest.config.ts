@@ -61,6 +61,13 @@ export default defineConfig({
     ],
     setupFiles: ['./src/test/setup.ts'],
     globals: false,
+    // Align the local default with CI (`test:ci` passes --test-timeout=30000).
+    // The 5s default is too tight for the heavy ratchet / module-import smoke
+    // tests under full-suite concurrency: a synchronous test that blows the
+    // timeout can't be aborted, so vitest force-kills its fork ("Worker exited
+    // unexpectedly") and the pool hangs to the 30-min CI cap. Headroom here +
+    // the single-pass anyRatchet scan keep those tests well under the limit.
+    testTimeout: 30_000,
     // Coverage instrumentation (Plan v3 Fase 1.0 — 2026-05-29). Provider
     // pinned to the exact vitest version. `all: true` counts source files
     // with NO importing test too, so the denominator is the honest "what

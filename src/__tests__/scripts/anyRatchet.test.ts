@@ -23,12 +23,21 @@ const baseline = JSON.parse(
   readFileSync(path.join(repoRoot, 'scripts', 'any-ratchet-baseline.json'), 'utf8'),
 ) as { total: number; counts: Record<string, number> };
 
+// Scan the repo ONCE and share across tests. Previously the gate + stale tests
+// each called `scan()` (a full src/ read pass) and `listSrcFiles()` ran again —
+// ~3 directory walks + 2 read passes over ~1200 files. Under full-suite
+// concurrency that stretched to ~23s, occasionally exceeding the 30s CI test
+// timeout; vitest then force-killed the (synchronous, un-abortable) fork →
+// "Worker exited unexpectedly" → the CI "Tests" pool hung to the 30-min cap.
+// A single shared pass keeps this well under the timeout.
+const SRC_FILES = ratchet.listSrcFiles();
+const LIVE = ratchet.scan(SRC_FILES);
+
 describe('as-any ratchet (type-safety)', () => {
   it('discovers production src files (tests excluded)', () => {
-    const files = ratchet.listSrcFiles();
-    expect(files.length).toBeGreaterThan(200);
+    expect(SRC_FILES.length).toBeGreaterThan(200);
     expect(
-      files.every(
+      SRC_FILES.every(
         (f) =>
           /\.(ts|tsx)$/.test(f) &&
           !/\.(test|spec)\.(ts|tsx)$/.test(f) &&
@@ -44,9 +53,8 @@ describe('as-any ratchet (type-safety)', () => {
 
   // ── THE GATE ────────────────────────────────────────────────────────────
   it('no file exceeds its baselined `as any` count (no regression)', () => {
-    const live = ratchet.scan();
     const base = baseline.counts;
-    const increases = Object.entries(live)
+    const increases = Object.entries(LIVE)
       .filter(([f, n]) => n > (base[f] ?? 0))
       .map(([f, n]) => `${f}: ${base[f] ?? 0} → ${n}`);
     expect(
@@ -56,9 +64,8 @@ describe('as-any ratchet (type-safety)', () => {
   });
 
   it('baseline has no stale entries (improved files must be regenerated)', () => {
-    const live = ratchet.scan();
     const stale = Object.entries(baseline.counts)
-      .filter(([f, n]) => (live[f] ?? 0) < n)
+      .filter(([f, n]) => (LIVE[f] ?? 0) < n)
       .map(([f, n]) => `${f}: ${n} → ${live[f] ?? 0}`);
     expect(
       stale,
