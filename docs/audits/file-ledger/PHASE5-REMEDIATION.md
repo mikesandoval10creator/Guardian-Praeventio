@@ -5,6 +5,45 @@
 > bloque, vida/privacidad primero. Verdad de referencia: `TODO.md`
 > §2.32/§2.33/§2.34 + los `DEEP-*.md` de este mismo directorio.
 
+## Progreso ejecutado (actualizado 2026-06-04)
+
+**Cimientos compartidos:** F1 harness rules-tests ✅ #657 · F2 parseGeminiJson ✅ #658 ·
+F5-p1 governance ✅ #659 · **F3 identidad-desde-token ✅ #678** (`IDENTITY_STAMPED_ACTIONS`
+estampa `req.user.uid` sobre `authorUid` antes del spread; + hardening args no-array/payload).
+**F4 = bloque grande PENDIENTE** (firma = huella WebAuthn universal; la infra está completa
+—verifier + challenge/credential store + helper cliente `webauthnComplianceSign`—; los gaps son
+por-consumidor: CPHS (client-side, B12+F4), co-firmas currículum, medical-aptitude. Cada uno es
+refactor cliente+server, alto riesgo → con foco fresco + `/cso-praeventio`).
+
+**B1 Emergencia 🛟:** sosOutbox dead-letter + routing hazard-clearing ✅ #656 · ManDown push ✅ #671 ·
+**EmergencySquadManager roster real ✅ #672** · **DynamicEvacuationMap → A\* real ✅ #673** (core puro
+`src/services/routing/evacuationGrid.ts` = twin→grilla→A\* + `EvacuationGridMap` + cableado
+`subscribeSiteGeometry`/`useGeolocationTracking`; reemplaza la narrativa Gemini) · **sensor leaks ✅ #675**
+(useAccelerometer listener, SurvivalMode torch interval, useAcousticSOS flanco+histéresis). Reglas:
+declare-emergency #660, DEA #661, pings #662. PENDIENTE B1: AlertScheduler probes reales,
+FirstResponderDispatchPanel montar, Asesor.tsx prompt-injection.
+
+**B7 Salud 🛟🔐 (ADR 0012):** VitalityMonitor sin CIE-10 ✅ #668 · clinical_alerts rule ✅ #669 ·
+medical-guard ext (hygiene) ✅ #670 · **Medicine TRÍADA reconvertida ✅:** visor→`SymptomDocumenter`
+#674 (documenta síntomas para el médico, no diagnostica) · diagnóstico→referencia CIE-10 #676 ·
+fármacos→Vademécum #677 · medical-guard ext (occupational-health) #674. PENDIENTE B7: health_vault
+(KMS), VigilanciaScheduler exámenes reales, medical aptitude (F4; hoy fail-closed 503).
+
+**Reglas additive ✅:** control_validations #663 (B2) · documents #667 (B5) · read_receipts +
+driving_incidents #664 (B6/B11) · personalized_plans/morning_checkins #665 (B7) · findings/placed_objects
+#666 (B3/B-DigitalTwin).
+
+**B14 IA/Gemini 🔐:** **networkBackend cross-tenant CERRADO ✅ #679** (`assertProjectMember` en
+sync+delete, audit #3/#14, bloqueo de backlink cross-project, normalización projectId). RESIDUAL:
+score-gate de nodos 'global'/comunidad (follow-up).
+
+**Infra CI:** flaky hang **root-caused ✅ #680** (`anyRatchet` escaneaba `src/` 2-3× → fork
+force-kill bajo carga → pool hang de 30min; ahora 1 scan a module-load + `testTimeout` alineado a CI).
+
+**Método:** un PR por ítem, CI verde → merge (vigilante auto-merge), revisión adversarial
+(`/cso-praeventio` vía subagente security-reviewer) en seguridad. Marcar acá + en `TODO.md` al cerrar.
+**Recta final:** lo nuevo que salga se aborda de inmediato.
+
 ## Contexto
 Praeventio Guard es una PWA de **prevención de riesgos para salvar vidas** en
 industrias críticas, protegiendo la **privacidad** (Ley 19.628, biometría on-device,
