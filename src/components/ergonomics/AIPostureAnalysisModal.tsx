@@ -9,13 +9,10 @@ import {
   CheckCircle2,
   ScanFace,
   BrainCircuit,
-  WifiOff,
   Cpu,
 } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
-import { analyzePostureWithAI } from '../../services/geminiService';
-import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { logger } from '../../utils/logger';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../shared/ToastContainer';
@@ -42,9 +39,13 @@ interface AIPostureAnalysisModalProps {
 // Reuse: useMediaPipePose, calculateReba, landmarksToRebaInput. No tocar el
 // flujo de fotos estático actual.
 
-// Resultado unificado mostrado al usuario, sin importar la fuente.
+// Resultado del análisis postural on-device (MediaPipe Pose → REBA/RULA).
+// Directiva #12 + privacidad: la imagen del trabajador NUNCA sale del
+// dispositivo. A la nube va sólo el RESULTADO (scores/hallazgos) como
+// registro de prevención — ver `handleSave`. `source` se conserva
+// (siempre 'mediapipe') para tags/auditoría.
 interface UnifiedResult {
-  source: 'mediapipe' | 'gemini';
+  source: 'mediapipe';
   /** Score normalizado 1..10 para la UI heredada. */
   score: number;
   findings: string[];
@@ -73,8 +74,6 @@ export function AIPostureAnalysisModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
-  const [imageMimeType, setImageMimeType] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<UnifiedResult | null>(null);
   const [workstation, setWorkstation] = useState('');
   const [loadKg, setLoadKg] = useState<number>(0);
@@ -82,7 +81,6 @@ export function AIPostureAnalysisModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const isOnline = useOnlineStatus();
   const { toasts, show: showToast, dismiss } = useToast();
   const { analyzeImage, error: poseError } = useMediaPipePose();
 
@@ -141,13 +139,10 @@ export function AIPostureAnalysisModal({
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setImagePreview(base64String);
-        const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-        if (matches && matches.length === 3) {
-          setImageMimeType(matches[1]);
-          setImageBase64(matches[2]);
-        }
+        // The image is rendered into <img ref={imgRef}> and analyzed fully
+        // on-device by MediaPipe Pose. It is NOT base64-extracted for upload
+        // anymore — the worker's photo never leaves the device (directiva #12).
+        setImagePreview(reader.result as string);
         setAnalysisResult(null);
       };
       reader.readAsDataURL(file);
@@ -202,38 +197,23 @@ export function AIPostureAnalysisModal({
     };
   };
 
-  /** Fallback: Gemini Vision si MediaPipe falla. */
-  const analyzeWithGemini = async (): Promise<UnifiedResult | null> => {
-    if (!imageBase64 || !imageMimeType) return null;
-    if (!isOnline) return null;
-    setStatusLine('Fallback Gemini Vision…');
-    const result = await analyzePostureWithAI(imageBase64, imageMimeType);
-    return {
-      source: 'gemini',
-      score: result.score,
-      findings: result.findings,
-      recommendations: result.recommendations,
-      bodyParts: result.bodyParts,
-    };
-  };
-
   const handleAnalyze = async () => {
-    if (!imageBase64 || !imageMimeType) return;
+    if (!imagePreview) return;
     setLoading(true);
     try {
+      // Directiva #12 + privacidad: el análisis postural es 100% on-device
+      // (MediaPipe Pose → REBA/RULA). La imagen del trabajador NO sale del
+      // dispositivo — no hay fallback cloud. Si no se detecta la pose, se
+      // pide otra foto en lugar de subir la imagen a un servicio externo.
       let result: UnifiedResult | null = null;
       try {
         result = await analyzeWithMediaPipe();
       } catch (e) {
-        logger.warn('MediaPipe analysis failed, falling back to Gemini', e);
-        showToast('No se detectó la pose. Usando análisis IA de respaldo…', 'info');
-      }
-      if (!result) {
-        result = await analyzeWithGemini();
+        logger.warn('MediaPipe posture analysis failed', e);
       }
       if (!result) {
         showToast(
-          'No se pudo analizar la postura. Verifica conexión e intenta otra foto.',
+          'No se detectó la pose. Asegúrate de que se vea el cuerpo completo y bien iluminado, e intenta con otra foto.',
           'error'
         );
         return;
@@ -265,14 +245,11 @@ export function AIPostureAnalysisModal({
       await addNode({
         type: NodeType.ERGONOMICS,
         title: `Análisis Postural - ${workstation}`,
-        description: `Evaluación postural en ${workstation}. Fuente: ${analysisResult.source === 'mediapipe' ? 'MediaPipe + REBA/RULA' : 'Gemini Vision (fallback)'}. Score: ${analysisResult.score}/10. Hallazgos: ${analysisResult.findings.join(', ')}`,
+        description: `Evaluación postural en ${workstation}. Fuente: MediaPipe Pose + REBA/RULA (on-device). Score: ${analysisResult.score}/10. Hallazgos: ${analysisResult.findings.join(', ')}`,
         tags,
         metadata: {
           workstation,
-          assessmentType:
-            analysisResult.source === 'mediapipe'
-              ? 'MediaPipe Pose + REBA/RULA determinista'
-              : 'Gemini Vision (fallback)',
+          assessmentType: 'MediaPipe Pose + REBA/RULA determinista (on-device)',
           risk: riskLevel,
           observations: `Hallazgos: ${analysisResult.findings.join('. ')}\n\nRecomendaciones: ${analysisResult.recommendations.join('. ')}\n\nEstado Corporal:\n- Cuello: ${analysisResult.bodyParts.neck}\n- Tronco: ${analysisResult.bodyParts.trunk}\n- Brazos: ${analysisResult.bodyParts.arms}\n- Piernas: ${analysisResult.bodyParts.legs}`,
           status: 'completed',
@@ -299,8 +276,6 @@ export function AIPostureAnalysisModal({
 
   const handleClose = () => {
     setImagePreview(null);
-    setImageBase64(null);
-    setImageMimeType(null);
     setAnalysisResult(null);
     setWorkstation('');
     setLoadKg(0);
@@ -378,7 +353,7 @@ export function AIPostureAnalysisModal({
                       className="max-w-full max-h-full object-contain"
                       crossOrigin="anonymous"
                     />
-                    {analysisResult?.source === 'mediapipe' && (
+                    {analysisResult && (
                       <canvas
                         ref={overlayCanvasRef}
                         className="absolute inset-0 w-full h-full pointer-events-none"
@@ -428,12 +403,10 @@ export function AIPostureAnalysisModal({
                           </>
                         )}
                       </button>
-                      {!isOnline && (
-                        <p className="text-xs text-amber-500 flex items-center gap-2">
-                          <WifiOff className="w-4 h-4" />
-                          Sin conexión: solo MediaPipe local; el fallback Gemini queda inactivo.
-                        </p>
-                      )}
+                      <p className="text-xs text-zinc-500 flex items-center gap-2">
+                        <Cpu className="w-3.5 h-3.5 text-emerald-400" />
+                        Análisis 100% on-device: la imagen no sale de tu dispositivo.
+                      </p>
                       {poseError && (
                         <p className="text-xs text-rose-500">
                           MediaPipe error previo: {poseError}
@@ -449,14 +422,8 @@ export function AIPostureAnalysisModal({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="bg-zinc-800/50 rounded-xl p-4 border border-white/5">
                           <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                            {analysisResult.source === 'mediapipe' ? (
-                              <Cpu className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <BrainCircuit className="w-3 h-3 text-indigo-400" />
-                            )}
-                            {analysisResult.source === 'mediapipe'
-                              ? 'REBA / RULA (on-device)'
-                              : 'Gemini fallback'}
+                            <Cpu className="w-3 h-3 text-emerald-400" />
+                            REBA / RULA (on-device)
                           </h3>
                           <div className="flex items-end gap-3">
                             <span
