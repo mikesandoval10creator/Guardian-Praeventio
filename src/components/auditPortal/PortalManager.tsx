@@ -37,6 +37,7 @@ import {
   type AdminPortalCreatedView,
   type PortalAccessLogEntry,
 } from '../../hooks/useExternalAuditPortal';
+import { randomId } from '../../utils/randomId';
 
 interface PortalManagerProps {
   /** Project ids that can be assigned in scope. Provided by parent dashboard. */
@@ -518,9 +519,9 @@ function CreatePortalDialog({
     setError(null);
     setSubmitting(true);
     try {
-      const portalId = `ap_${Date.now().toString(36)}_${Math.random()
-        .toString(36)
-        .slice(2, 8)}`;
+      // B17 (directiva #15): id de portal con `randomId()` (crypto.randomUUID
+      // con fallback) en vez de Math.random — sin colisiones / no predecible.
+      const portalId = `ap_${Date.now().toString(36)}_${randomId()}`;
       const { portal } = await createExternalAuditPortal(
         {
           id: portalId,

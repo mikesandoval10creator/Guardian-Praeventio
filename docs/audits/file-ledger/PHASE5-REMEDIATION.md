@@ -207,7 +207,7 @@ considera y se CABLEA donde corresponde.** Reglas:
 - [ ] 🔴 `projects.ts` claim global `gerente/admin` → membresía por-proyecto. (super)
 - [ ] 🔴 `WebAuthnKeysSection.tsx:73` borrado MFA client-side → step-up + audit. (comp/super)
 - [ ] 🔴 Reglas #650: `documents_for_read` authorUid (rules:456); `site_book_counters` sin regla; `lone_worker_sessions` update sin `existing().workerUid==auth.uid`; `root_cause_analyses` vs regla; `exceptions/legal_obligations/shifts` laxos (rules:466-477). (rules)
-- [ ] 🟡 `pinSign` PinCredential del body→Firestore; `import.ts` assertProjectMember; OAuth refresh_token envelope default-ON; `webauthnAssertion.ts:204` clone-detection; ~~`admin.ts:124,199` audit sin try/catch (#14)~~ **✅ hecho** (helper `safeAudit` aplicado a los **7** writes de `audit_logs` de admin.ts → fallo de auditoría no rompe la operación ya completada; +1 test directive-#14, 2026-06-05); Math.random IDs (`PortalManager.tsx:521`). (super/vitest)
+- [ ] 🟡 `pinSign` PinCredential del body→Firestore; `import.ts` assertProjectMember; OAuth refresh_token envelope default-ON; `webauthnAssertion.ts:204` clone-detection; ~~`admin.ts:124,199` audit sin try/catch (#14)~~ **✅ hecho** (helper `safeAudit` aplicado a los **7** writes de `audit_logs` de admin.ts → fallo de auditoría no rompe la operación ya completada; +1 test directive-#14, 2026-06-05); ~~Math.random IDs (`PortalManager.tsx:521`)~~ **✅ hecho** (id de portal → `randomId()` crypto, #15, 2026-06-05). (super/vitest)
 
 ### B5 — Cumplimiento & SUSESO 🔐  · ref `DEEP-B5` + `DEEP-EX-11/12/13`
 - [ ] 🔴 DTE firma WebAuthn nunca verificada (`dte.ts:349`) (F4). (super)
