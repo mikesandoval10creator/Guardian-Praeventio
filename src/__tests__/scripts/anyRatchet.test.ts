@@ -66,7 +66,7 @@ describe('as-any ratchet (type-safety)', () => {
   it('baseline has no stale entries (improved files must be regenerated)', () => {
     const stale = Object.entries(baseline.counts)
       .filter(([f, n]) => (LIVE[f] ?? 0) < n)
-      .map(([f, n]) => `${f}: ${n} → ${live[f] ?? 0}`);
+      .map(([f, n]) => `${f}: ${n} → ${LIVE[f] ?? 0}`);
     expect(
       stale,
       `These files improved — regenerate: \`node scripts/check-any-ratchet.cjs --write\`: ${stale.join(', ')}`,
