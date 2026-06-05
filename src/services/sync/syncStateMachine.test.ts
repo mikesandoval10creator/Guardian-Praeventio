@@ -168,14 +168,18 @@ describe('OfflineSyncStateMachine', () => {
     sm._dispose();
   });
 
-  it('drops op after MAX_ATTEMPTS to avoid stuck queue', async () => {
+  it('dead-letters op after MAX_ATTEMPTS (retained, NOT dropped) so the queue unblocks but data survives', async () => {
     const sm = new OfflineSyncStateMachine();
     sm.setOnlineGetter(() => true);
     sm.setExecutor(async () => {
       throw new Error('always fails');
     });
     await sm.ready();
-    await sm.enqueue({ type: 'create', collection: 'docs', data: { x: 1 } });
+    const id = await sm.enqueue({
+      type: 'create',
+      collection: 'incidents',
+      data: { x: 1 },
+    });
     // Force-run through max attempts by directly bumping lastAttemptMs
     // backwards so backoff windows are always satisfied.
     for (let i = 0; i < _internal.MAX_ATTEMPTS + 1; i++) {
@@ -186,7 +190,79 @@ describe('OfflineSyncStateMachine', () => {
       (op as any).lastAttemptMs = 0;
       await sm.syncNow();
     }
+    const snap = sm.getState();
+    // 🛟 Queue unblocked (no pending retries) but the data is NOT lost.
+    expect(snap.pendingCount).toBe(0);
+    expect(snap.state).toBe('online_synced');
+    expect(snap.deadLetterCount).toBe(1);
+    const dead = sm.deadLetters();
+    expect(dead).toHaveLength(1);
+    expect(dead[0]!.id).toBe(id);
+    expect(dead[0]!.deadLettered).toBe(true);
+    expect(dead[0]!.collection).toBe('incidents');
+    sm._dispose();
+  });
+
+  it('dead-lettered op is never retried again (executor not re-invoked)', async () => {
+    const sm = new OfflineSyncStateMachine();
+    sm.setOnlineGetter(() => true);
+    const executor = vi.fn(async () => {
+      throw new Error('always fails');
+    });
+    sm.setExecutor(executor);
+    await sm.ready();
+    await sm.enqueue({ type: 'create', collection: 'docs', data: { x: 1 } });
+    for (let i = 0; i < _internal.MAX_ATTEMPTS + 1; i++) {
+      const snap = sm.getState();
+      if (snap.pendingCount === 0) break;
+      (snap.operations[0] as any).lastAttemptMs = 0;
+      await sm.syncNow();
+    }
+    const callsAfterDeadLetter = executor.mock.calls.length;
+    // Further syncs must not touch the dead-letter.
+    await sm.syncNow();
+    await sm.syncNow();
+    expect(executor.mock.calls.length).toBe(callsAfterDeadLetter);
+    expect(sm.getState().deadLetterCount).toBe(1);
+    sm._dispose();
+  });
+
+  it('clearDeadLetter removes a dead-letter once escalated, and no-ops on unknown ids', async () => {
+    const sm = new OfflineSyncStateMachine();
+    sm.setOnlineGetter(() => true);
+    sm.setExecutor(async () => {
+      throw new Error('always fails');
+    });
+    await sm.ready();
+    const id = await sm.enqueue({ type: 'create', collection: 'docs', data: { x: 1 } });
+    for (let i = 0; i < _internal.MAX_ATTEMPTS + 1; i++) {
+      const snap = sm.getState();
+      if (snap.pendingCount === 0) break;
+      (snap.operations[0] as any).lastAttemptMs = 0;
+      await sm.syncNow();
+    }
+    expect(sm.deadLetters()).toHaveLength(1);
+    await sm.clearDeadLetter('nonexistent');
+    expect(sm.deadLetters()).toHaveLength(1);
+    await sm.clearDeadLetter(id);
+    expect(sm.deadLetters()).toHaveLength(0);
     expect(sm.getState().pendingCount).toBe(0);
+    sm._dispose();
+  });
+
+  it('clearDeadLetter never drops a still-pending op', async () => {
+    const sm = new OfflineSyncStateMachine();
+    // Offline → the op stays queued and is never synced or dead-lettered.
+    sm.setOnlineGetter(() => false);
+    sm.setExecutor(async () => {});
+    await sm.ready();
+    const id = await sm.enqueue({ type: 'create', collection: 'docs', data: { x: 1 } });
+    expect(sm.getState().pendingCount).toBe(1);
+    // The op is pending (not dead-lettered) → clearDeadLetter must be a no-op.
+    await sm.clearDeadLetter(id);
+    expect(sm.getState().pendingCount).toBe(1);
+    expect(sm.deadLetters()).toHaveLength(0);
+    sm._dispose();
   });
 
   it('backoff schedule is monotonic and capped', () => {
