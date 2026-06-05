@@ -4,6 +4,7 @@ import { Modal } from '../components/shared/Modal';
 import { IPERCAnalysis } from '../components/risks/IPERCAnalysis';
 import { TopRisksDashboardCard } from '../components/riskRanking/TopRisksDashboardCard';
 import { WeakControlsDashboardCard } from '../components/riskRanking/WeakControlsDashboardCard';
+import { RiskTimeseriesChart } from '../components/riskRanking/RiskTimeseriesChart';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
 import { RiskNode, NodeType } from '../types';
@@ -45,12 +46,14 @@ export function Risks() {
         </p>
       </div>
 
-      {/* B2 🔵: rankings reales — riesgos por IPER DS44 (Zettelkasten) y
-          controles débiles por validaciones en terreno (control_validations). */}
+      {/* B2 🔵: rankings reales — riesgos por IPER DS44 (Zettelkasten),
+          controles débiles por validaciones en terreno (control_validations)
+          y tendencia de hallazgos (findings) en el tiempo. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         <TopRisksDashboardCard topN={5} />
         <WeakControlsDashboardCard topN={5} />
       </div>
+      <RiskTimeseriesChart days={30} />
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-10 sm:py-20 gap-3 sm:gap-4">
