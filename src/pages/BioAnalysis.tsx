@@ -26,6 +26,7 @@ import { writeNodesDebounced } from '../services/zettelkasten/persistence/writeN
 import {
   getEppDetectorImpl,
   inspectImage,
+  buildEppInspectionNode,
   type EppClass,
   type EppInspectionResult,
 } from '../services/ai/eppDetectorOnDevice';
@@ -432,6 +433,23 @@ export function BioAnalysis() {
         });
       } catch (detectErr) {
         logger.warn('[BioAnalysis] on-device EPP detection failed', { err: String(detectErr) });
+      }
+
+      // 2b. Persist EVERY successful inspection as an epp_inspection ZK node
+      // (OK results included → complete EPP audit trail), not only when there
+      // are alerts. buildEppInspectionNode NEVER includes the image — only the
+      // classification + métricas (privacy by design). Debounced + idempotent.
+      if (inspection && selectedProject?.id && user?.uid) {
+        try {
+          const eppNode = buildEppInspectionNode(inspection, {
+            workerUid: user.uid,
+            projectId: selectedProject.id,
+            authorUid: user.uid,
+          });
+          writeNodesDebounced([eppNode], { projectId: selectedProject.id });
+        } catch (zkErr) {
+          logger.warn('[BioAnalysis] EPP ZK node write failed', { err: String(zkErr) });
+        }
       }
 
       // 3. Consolidate live MediaPipe metrics + on-device EPP into the report.

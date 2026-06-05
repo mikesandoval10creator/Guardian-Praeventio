@@ -118,6 +118,25 @@ describe('POST /api/zettelkasten/nodes', () => {
     expect(audit!.details.nodeId).toBe('abc1234567890def');
   });
 
+  it('accepts the epp_inspection node type (on-device EPP audit node)', async () => {
+    // Regression: epp_inspection was missing from the allowlist, so the
+    // VisionAnalyzer / BioAnalysis writes were silently rejected server-side.
+    const eppNode = validNode({
+      type: 'epp_inspection',
+      title: 'Inspección EPP ⚠️ faltantes',
+      severity: 'high',
+      metadata: { detectedClasses: 'casco', missingClasses: 'botas', onDeviceOnly: true },
+      idempotencyKey: 'eppnode00000000a',
+    });
+    const res = await request(handle.app)
+      .post('/api/zettelkasten/nodes')
+      .set('Authorization', 'Bearer test:uid-A:a@test.com')
+      .send({ projectId: 'proj-A', nodes: [eppNode] });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(fs.store.get('zettelkasten_nodes/eppnode00000000a')).toBeDefined();
+  });
+
   it('is idempotent: re-POSTing same idempotencyKey returns same ids and does not duplicate', async () => {
     await request(handle.app)
       .post('/api/zettelkasten/nodes')
