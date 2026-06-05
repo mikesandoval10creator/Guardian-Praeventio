@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Motion } from '@capacitor/motion';
 import { Capacitor } from '@capacitor/core';
 import { logger } from '../utils/logger';
@@ -24,27 +24,37 @@ export function useAccelerometer(options: FallDetectionOptions = {}) {
   const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
   const [listenerId, setListenerId] = useState<any>(null);
 
+  // Keep the latest threshold + callback in refs so `handleMotion` can stay
+  // referentially STABLE. Before this fix, handleMotion was recreated whenever
+  // the parent passed a new onFallDetected closure, so `start` added one
+  // listener but the cleanup/`stop` called removeEventListener with a DIFFERENT
+  // function reference — the old `devicemotion` listener leaked (and on native,
+  // removeAllListeners() nuked every motion listener app-wide). Fall detection
+  // is life-safety, so a silently-detached listener is dangerous.
+  const onFallRef = useRef(onFallDetected);
+  const thresholdRef = useRef(threshold);
+  useEffect(() => { onFallRef.current = onFallDetected; }, [onFallDetected]);
+  useEffect(() => { thresholdRef.current = threshold; }, [threshold]);
+
   const handleMotion = useCallback((event: any) => {
     // Handle both Web API and Capacitor plugin event formats
     const accel = event.accelerationIncludingGravity || event.acceleration;
     if (!accel) return;
-    
+
     const { x, y, z } = accel;
-    
+
     if (x !== null && y !== null && z !== null && x !== undefined) {
       // Calculate total acceleration vector magnitude
       const acceleration = Math.sqrt(x * x + y * y + z * z);
-      
+
       setData({ x, y, z, acceleration });
 
-      // Fall detection logic: sudden spike in acceleration (impact)
-      if (acceleration > threshold) {
-        if (onFallDetected) {
-          onFallDetected();
-        }
+      // Fall detection logic: sudden spike in acceleration (impact).
+      if (acceleration > thresholdRef.current) {
+        onFallRef.current?.();
       }
     }
-  }, [threshold, onFallDetected]);
+  }, []); // stable: latest threshold/callback read via refs
 
   const requestPermission = async () => {
     if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {

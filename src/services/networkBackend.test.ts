@@ -50,6 +50,9 @@ function makeFakeAdmin() {
       const prev = docs.get(path) ?? {};
       docs.set(path, { ...prev, ...data });
     }),
+    delete: vi.fn(async () => {
+      docs.delete(path);
+    }),
   });
 
   const queryChain = () => {
@@ -135,11 +138,15 @@ vi.mock('./geminiBackend', () => ({
 // ── SUT ─────────────────────────────────────────────────────────────────────
 
 let syncNodeToNetwork: typeof import('./networkBackend').syncNodeToNetwork;
+let syncBatchToNetwork: typeof import('./networkBackend').syncBatchToNetwork;
 
 beforeEach(async () => {
   vi.stubEnv('GEMINI_API_KEY', 'test-key');
   fakeAdmin.docs.clear();
   fakeAdmin.recentDocs.length = 0;
+  // B14 — the sync path now enforces project membership. Seed 'author-uid' as a
+  // member of the project the suggestion tests use ('p1') so they still pass.
+  fakeAdmin.docs.set('projects/p1', { members: ['author-uid'] });
   autoConnectMock.mockReset();
   autoConnectMock.mockResolvedValue([]);
 
@@ -147,6 +154,7 @@ beforeEach(async () => {
   vi.resetModules();
   const mod = await import('./networkBackend');
   syncNodeToNetwork = mod.syncNodeToNetwork;
+  syncBatchToNetwork = mod.syncBatchToNetwork;
 });
 
 afterEach(() => {
@@ -240,5 +248,104 @@ describe('syncNodeToNetwork — autoConnect suggestions', () => {
     expect(result.nodeId).toBe('new-node');
     expect(result.connectionSuggestions).toEqual([]);
     expect(fakeAdmin.docs.has('nodes/new-node')).toBe(true);
+  });
+});
+
+// ── B14 — tenant isolation (Admin SDK bypasses firestore.rules) ───────────────
+describe('syncNodeToNetwork — project membership enforcement (B14)', () => {
+  it('rejects a node write to a project the caller is NOT a member of (no cross-tenant poisoning)', async () => {
+    // author-uid is NOT a member of p1 here.
+    fakeAdmin.docs.set('projects/p1', { members: ['someone-else'] });
+
+    await expect(
+      syncNodeToNetwork(
+        { id: 'evil', title: 'poison', description: '...', type: 'Riesgo', projectId: 'p1', embedding: [0.1] },
+        'author-uid',
+      ),
+    ).rejects.toThrow(/member/i);
+
+    // The node + its vector_store entry were never written.
+    expect(fakeAdmin.docs.has('nodes/evil')).toBe(false);
+    expect(fakeAdmin.docs.has('vector_store/node-evil')).toBe(false);
+  });
+
+  it('allows a member to write a node to their own project', async () => {
+    // beforeEach already seeds projects/p1 with members: ['author-uid'].
+    const result = await syncNodeToNetwork(
+      { id: 'ok-node', title: 'T', description: 'D', type: 'Riesgo', projectId: 'p1', embedding: [0.1] },
+      'author-uid',
+    );
+    expect(result.success).toBe(true);
+    expect(fakeAdmin.docs.has('nodes/ok-node')).toBe(true);
+  });
+
+  it('allows an unscoped/community (global) node without a project-membership check', async () => {
+    // No projects/global doc seeded — a membership check would throw, so this
+    // proves global nodes skip the check (governed by the community score-gate).
+    const result = await syncNodeToNetwork(
+      { id: 'g-node', title: 'T', description: 'D', type: 'Riesgo', projectId: 'global', embedding: [0.1] },
+      'author-uid',
+    );
+    expect(result.success).toBe(true);
+    expect(fakeAdmin.docs.has('nodes/g-node')).toBe(true);
+  });
+
+  it('blocks deleting another tenant\'s node by ID (batch delete membership)', async () => {
+    fakeAdmin.docs.set('nodes/victim', { id: 'victim', projectId: 'pX' });
+    fakeAdmin.docs.set('projects/pX', { members: ['other'] }); // author-uid not a member
+
+    const result = await syncBatchToNetwork([{ type: 'delete', id: 'victim' }], 'author-uid');
+
+    // The op fails (membership) and the node is NOT deleted.
+    expect(result.results[0].status).toBe('error');
+    expect(fakeAdmin.docs.has('nodes/victim')).toBe(true);
+  });
+
+  it('allows a member to delete a node in their own project', async () => {
+    fakeAdmin.docs.set('nodes/mine', { id: 'mine', projectId: 'p1' }); // author-uid is a member of p1
+
+    const result = await syncBatchToNetwork([{ type: 'delete', id: 'mine' }], 'author-uid');
+
+    expect(result.results[0].status).toBe('deleted');
+    expect(fakeAdmin.docs.has('nodes/mine')).toBe(false);
+  });
+
+  it('does NOT back-link into another project\'s node (cross-project backlink blocked)', async () => {
+    // Target node belongs to project B; the attacker is a member of p1 only.
+    fakeAdmin.docs.set('nodes/targetB', { id: 'targetB', projectId: 'pB', connections: [] });
+
+    await syncNodeToNetwork(
+      {
+        id: 'attacker',
+        title: 'T',
+        description: 'D',
+        type: 'Riesgo',
+        projectId: 'p1',
+        connections: ['targetB'],
+        embedding: [0.1],
+      },
+      'author-uid',
+    );
+
+    // The victim's node was NOT modified (no back-link grafted in).
+    expect(fakeAdmin.docs.get('nodes/targetB')?.connections).toEqual([]);
+  });
+
+  it('canonicalizes a non-specific projectId (empty / non-string) to global, no membership check, no corruption', async () => {
+    const r1 = await syncNodeToNetwork(
+      { id: 'e1', title: 'T', description: 'D', type: 'Riesgo', projectId: '', embedding: [0.1] },
+      'author-uid',
+    );
+    expect(r1.success).toBe(true);
+    expect(fakeAdmin.docs.get('nodes/e1')?.projectId).toBe('global');
+
+    // A non-string projectId must NOT land in nodes/* or vector_store/* as-is.
+    const r2 = await syncNodeToNetwork(
+      { id: 'e2', title: 'T', description: 'D', type: 'Riesgo', projectId: ['victim'], embedding: [0.1] },
+      'author-uid',
+    );
+    expect(r2.success).toBe(true);
+    expect(fakeAdmin.docs.get('nodes/e2')?.projectId).toBe('global');
+    expect(fakeAdmin.docs.get('vector_store/node-e2')?.projectId).toBe('global');
   });
 });

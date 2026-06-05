@@ -1,19 +1,60 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, UserCheck, Radio, ShieldAlert, MapPin, AlertTriangle, CheckCircle2, Search, Clock, Award } from 'lucide-react';
+import {
+  Users, UserCheck, Radio, ShieldAlert, MapPin, AlertTriangle, CheckCircle2,
+  Search, Clock, Award, Flame, HeartPulse, Megaphone, Loader2,
+} from 'lucide-react';
 import { Card, Button } from '../shared/Card';
 import { useFirebase } from '../../contexts/FirebaseContext';
+import { useProject } from '../../contexts/ProjectContext';
+import { useEmergency } from '../../contexts/EmergencyContext';
+import { useEmergencyBrigade } from '../../hooks/useEmergencyBrigade';
+import { useFirestoreCollection } from '../../hooks/useFirestoreCollection';
 import { getBreadcrumbs } from '../../utils/offlineStorage';
 import { SkillTree } from './SkillTree';
 import { useBluetoothMesh } from '../../hooks/useBluetoothMesh';
+import { logger } from '../../utils/logger';
+import type { Worker } from '../../types';
+import type { BrigadeRole } from '../../services/emergencyBrigade/emergencyBrigadeService';
 
-interface SquadMember {
-  id: string;
-  name: string;
-  role: 'Líder' | 'Rescatista' | 'Comunicador' | 'Soporte Vital';
-  status: 'En Posición' | 'En Tránsito' | 'No Responde';
-  distance: string;
-  skills: string[];
+// Display labels for the canonical brigade roles (Ley 16.744 / DS 44 brigada).
+const ROLE_LABEL: Record<BrigadeRole, string> = {
+  brigade_chief: 'Jefe de Brigada',
+  first_aid: 'Primeros Auxilios',
+  fire_response: 'Respuesta a Incendios',
+  evacuation_coordinator: 'Coordinador de Evacuación',
+  communications: 'Comunicaciones',
+};
+
+function roleIcon(role: BrigadeRole) {
+  switch (role) {
+    case 'brigade_chief': return <ShieldAlert className="w-5 h-5" />;
+    case 'first_aid': return <HeartPulse className="w-5 h-5" />;
+    case 'fire_response': return <Flame className="w-5 h-5" />;
+    case 'evacuation_coordinator': return <UserCheck className="w-5 h-5" />;
+    case 'communications': return <Radio className="w-5 h-5" />;
+    default: return <Users className="w-5 h-5" />;
+  }
+}
+
+type Tone = 'emerald' | 'amber' | 'rose' | 'zinc';
+const TONE_CLASS: Record<Tone, string> = {
+  emerald: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
+  amber: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
+  rose: 'text-rose-500 bg-rose-500/10 border-rose-500/20',
+  zinc: 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20',
+};
+
+/** Real training validity from `trainedAt` + `trainingValidYears` (no fabricated data). */
+function trainingState(trainedAt: string, validYears: number): { label: string; tone: Tone } {
+  const trained = new Date(trainedAt);
+  if (Number.isNaN(trained.getTime())) return { label: 'Capacitación sin fecha registrada', tone: 'amber' };
+  const expires = new Date(trained);
+  expires.setFullYear(expires.getFullYear() + (validYears || 0));
+  const fmt = expires.toLocaleDateString('es-CL');
+  return expires.getTime() > Date.now()
+    ? { label: `Capacitación vigente hasta ${fmt}`, tone: 'emerald' }
+    : { label: `Capacitación vencida (${fmt})`, tone: 'rose' };
 }
 
 interface Breadcrumb {
@@ -24,18 +65,41 @@ interface Breadcrumb {
 
 export function EmergencySquadManager() {
   const { user } = useFirebase();
-  const { isSupported: bleSupported, isScanning: bleScanning, peerBreadcrumbs, nearbyDevices, startScanning } = useBluetoothMesh();
-  const [squad] = useState<SquadMember[]>([
-    { id: '1', name: 'Carlos Mendoza', role: 'Líder', status: 'En Posición', distance: '0m', skills: ['Mando', 'Primeros Auxilios Avanzados'] },
-    { id: '2', name: 'Ana Silva', role: 'Rescatista', status: 'En Tránsito', distance: '45m', skills: ['Rescate en Altura', 'Espacios Confinados'] },
-    { id: '3', name: 'Luis Pérez', role: 'Comunicador', status: 'En Posición', distance: '10m', skills: ['Radiocomunicaciones', 'Coordinación Externa'] },
-    { id: '4', name: 'María Gómez', role: 'Soporte Vital', status: 'No Responde', distance: '120m', skills: ['Enfermería', 'Manejo de DEA'] },
-  ]);
+  const { selectedProject } = useProject();
+  const { triggerEmergency } = useEmergency();
+  const { isSupported: bleSupported, isScanning: bleScanning, peerBreadcrumbs, startScanning } = useBluetoothMesh();
 
-  const [activeRole, setActiveRole] = useState<string | null>(null);
+  const projectId = selectedProject?.id ?? null;
+  // Real brigade roster (server snapshot) + the project workers to resolve names.
+  const { data: brigade, loading: brigadeLoading, error: brigadeError, refetch } = useEmergencyBrigade(projectId);
+  const { data: workers } = useFirestoreCollection<Worker>(
+    projectId ? `projects/${projectId}/workers` : null,
+  );
+
+  // Join brigade members (workerUid + role + training) with the real worker
+  // record (name, certifications). No live status/distance is fabricated —
+  // those simply are not part of the brigade roster.
+  const roster = useMemo(() => {
+    const members = brigade?.members ?? [];
+    const byId = new Map((workers ?? []).map((w) => [w.id, w]));
+    return members.map((m) => {
+      const w = byId.get(m.workerUid);
+      return {
+        workerUid: m.workerUid,
+        name: w?.name ?? `Trabajador ${m.workerUid.slice(0, 6)}`,
+        role: m.role,
+        active: m.active,
+        training: trainingState(m.trainedAt, m.trainingValidYears),
+        certifications: w?.certifications ?? [],
+      };
+    });
+  }, [brigade?.members, workers]);
+
+  const [activeUid, setActiveUid] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'squad' | 'search' | 'skills'>('squad');
   const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([]);
   const [loadingCrumbs, setLoadingCrumbs] = useState(false);
+  const [calling, setCalling] = useState(false);
 
   useEffect(() => {
     if (viewMode !== 'search' || !user) return;
@@ -48,22 +112,17 @@ export function EmergencySquadManager() {
     if (bleSupported) startScanning();
   }, [viewMode, user, bleSupported]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'En Posición': return 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20';
-      case 'En Tránsito': return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
-      case 'No Responde': return 'text-rose-500 bg-rose-500/10 border-rose-500/20';
-      default: return 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20';
-    }
-  };
-
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case 'Líder': return <ShieldAlert className="w-5 h-5" />;
-      case 'Rescatista': return <UserCheck className="w-5 h-5" />;
-      case 'Comunicador': return <Radio className="w-5 h-5" />;
-      case 'Soporte Vital': return <AlertTriangle className="w-5 h-5" />;
-      default: return <Users className="w-5 h-5" />;
+  // "Llamado General" — real action: fan out the brigade emergency push
+  // (triggerEmergency → /api/emergency/notify-brigada) for the active project.
+  const handleGeneralCall = async () => {
+    if (!projectId || calling) return;
+    setCalling(true);
+    try {
+      await triggerEmergency('sos', projectId);
+    } catch (err) {
+      logger.error('[EmergencySquadManager] llamado general falló', err);
+    } finally {
+      setCalling(false);
     }
   };
 
@@ -83,7 +142,7 @@ export function EmergencySquadManager() {
           </div>
           <div>
             <h2 className="text-xl font-black text-white uppercase tracking-tight">Escuadrón de Emergencia</h2>
-            <p className="text-sm text-zinc-400 font-medium">Asignación Cinética de Roles</p>
+            <p className="text-sm text-zinc-400 font-medium">Brigada del proyecto</p>
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -94,13 +153,18 @@ export function EmergencySquadManager() {
               className={`border-zinc-700 text-zinc-300 hover:bg-zinc-800 ${viewMode === mode ? 'border-amber-500/50 text-amber-400 bg-amber-500/10' : ''}`}
               onClick={() => setViewMode(mode)}
             >
-              {mode === 'squad' && <><Users className="w-4 h-4 mr-2" />Escuadrón</>}
+              {mode === 'squad' && <><Users className="w-4 h-4 mr-2" />Brigada</>}
               {mode === 'search' && <><Search className="w-4 h-4 mr-2" />Búsqueda</>}
               {mode === 'skills' && <><Award className="w-4 h-4 mr-2" />Habilidades</>}
             </Button>
           ))}
-          <Button variant="outline" className="border-rose-500/50 text-rose-500 hover:bg-rose-500/10">
-            <Radio className="w-4 h-4 mr-2" />
+          <Button
+            variant="outline"
+            className="border-rose-500/50 text-rose-500 hover:bg-rose-500/10 disabled:opacity-50"
+            onClick={handleGeneralCall}
+            disabled={calling || !projectId}
+          >
+            {calling ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Megaphone className="w-4 h-4 mr-2" />}
             Llamado General
           </Button>
         </div>
@@ -193,71 +257,85 @@ export function EmergencySquadManager() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-4"
           >
-            <AnimatePresence>
-              {squad.map((member) => (
-                <motion.div
-                  key={member.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`p-4 rounded-xl border ${activeRole === member.role ? 'border-rose-500 bg-rose-500/5' : 'border-zinc-800 bg-black/40'} transition-all cursor-pointer`}
-                  onClick={() => setActiveRole(activeRole === member.role ? null : member.role)}
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${getStatusColor(member.status)}`}>
-                        {getRoleIcon(member.role)}
-                      </div>
-                      <div>
-                        <h3 className="text-white font-bold">{member.name}</h3>
-                        <p className="text-xs text-zinc-400 uppercase tracking-wider">{member.role}</p>
-                      </div>
-                    </div>
-                    <div className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${getStatusColor(member.status)}`}>
-                      {member.status}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 text-xs text-zinc-500 mt-4">
-                    <div className="flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      {member.distance}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" />
-                      {member.skills.length} Competencias
-                    </div>
-                  </div>
-
-                  {activeRole === member.role && (
+            {brigadeLoading ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-zinc-500 text-sm">
+                <Loader2 className="w-4 h-4 animate-spin" /> Cargando brigada...
+              </div>
+            ) : brigadeError ? (
+              <div className="text-center py-10 space-y-3">
+                <AlertTriangle className="w-8 h-8 text-rose-500 mx-auto" />
+                <p className="text-sm text-zinc-400">No se pudo cargar la brigada.</p>
+                <Button variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 min-h-11" onClick={refetch}>
+                  Reintentar
+                </Button>
+              </div>
+            ) : roster.length === 0 ? (
+              <div className="text-center py-10 space-y-2">
+                <Users className="w-8 h-8 text-zinc-700 mx-auto" />
+                <p className="text-zinc-400 text-sm font-bold">Aún no hay brigada configurada en este proyecto.</p>
+                <p className="text-zinc-600 text-xs max-w-md mx-auto">
+                  Asigna miembros (con su rol y capacitación) desde la gestión de brigada de emergencia. Los integrantes aparecerán aquí con su rol y vigencia de capacitación.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <AnimatePresence>
+                  {roster.map((member) => (
                     <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      className="mt-4 pt-4 border-t border-zinc-800"
+                      key={member.workerUid}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`p-4 rounded-xl border ${activeUid === member.workerUid ? 'border-rose-500 bg-rose-500/5' : 'border-zinc-800 bg-black/40'} transition-all cursor-pointer`}
+                      onClick={() => setActiveUid(activeUid === member.workerUid ? null : member.workerUid)}
                     >
-                      <p className="text-xs text-zinc-400 mb-2 font-bold uppercase tracking-wider">Competencias Validadas:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {member.skills.map((skill, idx) => (
-                          <span key={idx} className="px-2 py-1 rounded bg-zinc-800 text-zinc-300 text-[10px] font-medium">
-                            {skill}
-                          </span>
-                        ))}
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${member.active ? TONE_CLASS.emerald : TONE_CLASS.zinc}`}>
+                            {roleIcon(member.role)}
+                          </div>
+                          <div>
+                            <h3 className="text-white font-bold">{member.name}</h3>
+                            <p className="text-xs text-zinc-400 uppercase tracking-wider">{ROLE_LABEL[member.role] ?? member.role}</p>
+                          </div>
+                        </div>
+                        <div className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${member.active ? TONE_CLASS.emerald : TONE_CLASS.zinc}`}>
+                          {member.active ? 'Activo' : 'Inactivo'}
+                        </div>
                       </div>
-                      <div className="mt-4 flex gap-2">
-                        {/* Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target. */}
-                        <Button className="flex-1 min-h-11 bg-rose-600 hover:bg-rose-700 text-white text-xs py-1.5 h-auto">
-                          Reasignar Rol
-                        </Button>
-                        <Button variant="outline" className="flex-1 min-h-11 border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs py-1.5 h-auto">
-                          Ver Ubicación
-                        </Button>
+
+                      <div className="flex items-center gap-2 text-xs mt-4">
+                        <CheckCircle2 className={`w-3 h-3 shrink-0 ${member.training.tone === 'emerald' ? 'text-emerald-500' : member.training.tone === 'rose' ? 'text-rose-500' : 'text-amber-500'}`} />
+                        <span className={member.training.tone === 'rose' ? 'text-rose-400' : member.training.tone === 'amber' ? 'text-amber-400' : 'text-zinc-400'}>
+                          {member.training.label}
+                        </span>
                       </div>
+
+                      {activeUid === member.workerUid && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="mt-4 pt-4 border-t border-zinc-800"
+                        >
+                          <p className="text-xs text-zinc-400 mb-2 font-bold uppercase tracking-wider">Certificaciones registradas:</p>
+                          {member.certifications.length === 0 ? (
+                            <p className="text-[10px] text-zinc-500 italic">Sin certificaciones registradas para este trabajador.</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {member.certifications.map((cert, idx) => (
+                                <span key={idx} className="px-2 py-1 rounded bg-zinc-800 text-zinc-300 text-[10px] font-medium">
+                                  {cert}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
                     </motion.div>
-                  )}
-                </motion.div>
-              ))}
-            </AnimatePresence>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
           </motion.div>
         ) : null}
       </AnimatePresence>

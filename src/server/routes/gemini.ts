@@ -23,6 +23,8 @@ import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
+import { ProjectMembershipError } from '../../services/auth/projectMembership.js';
 import { geminiLimiter, geminiGlobalDailyLimiter } from '../middleware/limiters.js';
 import { getFirestore } from 'firebase-admin/firestore';
 // Sprint 22 prod hardening (Bucket X) — wire circuit breaker + per-tenant
@@ -203,6 +205,24 @@ const ALLOWED_GEMINI_ACTIONS = [
   'getNutritionSuggestion',
   'scanLegalUpdates',
 ];
+
+// F3 — identity-from-token. A few whitelisted actions take the CALLER'S uid as
+// an argument that their backend then PERSISTS (e.g. node authorship written via
+// the Admin SDK, which bypasses Firestore rules). Because the dispatcher spreads
+// client-supplied args verbatim, a client could spoof that field. For these
+// actions the dispatcher OVERWRITES the configured arg slot with the verified
+// token uid — the client-supplied value is never trusted.
+const IDENTITY_STAMPED_ACTIONS: Record<string, { argIndex: number; field: string }> = {
+  // syncNodeToNetwork(nodeData, authorUid) → writes metadata.authorId to nodes/*
+  syncNodeToNetwork: { argIndex: 1, field: 'authorUid' },
+  // syncBatchToNetwork(operations, authorUid) → batched syncNodeToNetwork
+  syncBatchToNetwork: { argIndex: 1, field: 'authorUid' },
+};
+
+// Hard ceiling on the serialized RPC args. The flat token estimator below
+// charges by JSON length / 4, so an unbounded args array could burn quota and
+// force giant prompts. 256 KB is far above any legitimate RPC payload.
+const MAX_GEMINI_ARGS_BYTES = 256 * 1024;
 
 const router = Router();
 
@@ -400,6 +420,31 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     return res.status(403).json({ error: `Forbidden: Action ${action} is not allowed` });
   }
 
+  // All whitelisted RPCs take a positional args array (the client wrappers
+  // always send one). Reject non-arrays early — a bare spread of a non-array
+  // would throw a 500 — and cap the payload so a client can't force a giant
+  // prompt that burns quota past the flat estimator below.
+  if (!Array.isArray(args)) {
+    return res.status(400).json({ error: 'Invalid args: expected an array' });
+  }
+  if (JSON.stringify(args).length > MAX_GEMINI_ARGS_BYTES) {
+    return res.status(413).json({ error: 'Payload too large' });
+  }
+
+  // F3 — stamp the caller's verified identity over any client-supplied value for
+  // identity-persisting actions. Work on a COPY — never mutate the parsed
+  // request body. The client-supplied authorUid/uid is never trusted.
+  let callArgs: unknown[] = args;
+  const identityStamp = IDENTITY_STAMPED_ACTIONS[action];
+  if (identityStamp) {
+    if (!req.user?.uid) {
+      return res.status(401).json({ error: 'unauthenticated' });
+    }
+    callArgs = [...args];
+    while (callArgs.length <= identityStamp.argIndex) callArgs.push(undefined);
+    callArgs[identityStamp.argIndex] = req.user.uid;
+  }
+
   // Sprint 22 (Bucket X): circuit + quota gate. The dispatcher is the
   // single chokepoint for 100+ Gemini RPCs — guarding here covers them
   // all without touching individual handlers in geminiBackend.ts.
@@ -431,8 +476,30 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
         () =>
           (geminiBackend[action as keyof typeof geminiBackend] as (
             ...fnArgs: unknown[]
-          ) => Promise<unknown>)(...args),
+          ) => Promise<unknown>)(...callArgs),
       );
+      // B14 — audit the node-sync state changes BEFORE responding (CLAUDE.md
+      // #3/#14). Only the identity-stamped actions write state via the Admin
+      // SDK (rules-bypassing); the rest are stateless Gemini generation. The
+      // audit must never block the user-facing response, so swallow + Sentry on
+      // failure (auditServerEvent already returns false on its own errors).
+      if (identityStamp) {
+        const firstArg = callArgs[0] as { projectId?: unknown } | undefined;
+        const auditProjectId =
+          firstArg && typeof firstArg.projectId === 'string' ? firstArg.projectId : null;
+        try {
+          await auditServerEvent(
+            req,
+            `gemini.${action}`,
+            'network',
+            { nodeId: (result as { nodeId?: string } | null | undefined)?.nodeId ?? null },
+            { projectId: auditProjectId },
+          );
+        } catch (auditErr) {
+          logger.error('audit_event_failed', auditErr as Error, { action });
+          sentryCapture(auditErr, { endpoint: '/api/gemini', tags: { action } });
+        }
+      }
       res.json({ result });
       // Bucket X: post-call accounting. The whitelisted RPC layer does
       // not return per-call token usage, so we charge a flat estimate
@@ -452,6 +519,13 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
       res.status(400).json({ error: `Action ${action} not found` });
     }
   } catch (error: any) {
+    // B14 — a project-membership denial is a 403 client error (not a server or
+    // upstream failure); return it cleanly without polluting failure metrics.
+    // `instanceof` is primary; the name check is a defensive fallback in case a
+    // module-boundary duplicate ever breaks identity.
+    if (error instanceof ProjectMembershipError || error?.name === 'ProjectMembershipError') {
+      return res.status(403).json({ error: 'forbidden_project', message: 'No eres miembro del proyecto indicado.' });
+    }
     logger.error('gemini_proxy_failed', error, { action });
     sentryCapture(error, { endpoint: '/api/gemini', tags: { method: 'POST', action, tenantId } });
     await recordGeminiOutcome(tenantId, 'failure');

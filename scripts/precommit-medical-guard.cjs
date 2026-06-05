@@ -61,6 +61,11 @@ const SCOPED_DIRS = [
   // SensoryFatigueMonitor) y antes coló inferencia CIE-10 sin que el guard lo
   // viera. Ahora se escanea para impedir regresiones diagnósticas.
   'src/components/hygiene/',
+  // B7 (2026-06) — occupational-health alberga el visor corporal + el antiguo
+  // MedicalAnalyzer (que inferían diagnóstico vía Gemini). Tras reconvertirlo a
+  // SymptomDocumenter (documentación de síntomas, no diagnóstico) se escanea
+  // para impedir que vuelva a colarse inferencia clínica.
+  'src/components/occupational-health/',
   'src/pages/HealthVault',
   'src/pages/MyData',
   'src/pages/Medicine',

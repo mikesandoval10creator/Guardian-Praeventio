@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Activity, Network, CheckCircle, Loader2 } from 'lucide-react';
 import { HumanBodyViewer as HumanBodyViewerComponent, BodyRegion } from '../components/occupational-health/HumanBodyViewer';
-import { MedicalAnalyzer } from '../components/occupational-health/MedicalAnalyzer';
+import { SymptomDocumenter } from '../components/occupational-health/SymptomDocumenter';
 import { MedicalIcon } from '../components/medical/MedicalIcon';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
@@ -105,7 +105,7 @@ export function HumanBodyViewer() {
       {/* Two-column layout: body viewer + AI analyzer */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <HumanBodyViewerComponent onChange={setRegions} />
-        <MedicalAnalyzer regions={regions} />
+        <SymptomDocumenter regions={regions} />
       </div>
     </div>
   );

@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   AlertCircle,
   Loader2,
-  Calendar,
   Brain
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -23,7 +22,7 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { AddMedicineModal } from '../components/medicine/AddMedicineModal';
 import { HumanBodyViewer, BodyRegion } from '../components/occupational-health/HumanBodyViewer';
-import { MedicalAnalyzer } from '../components/occupational-health/MedicalAnalyzer';
+import { SymptomDocumenter } from '../components/occupational-health/SymptomDocumenter';
 import { DifferentialDiagnosis } from '../components/medicine/DifferentialDiagnosis';
 import { AptitudeCertificateForm } from '../components/medicine/AptitudeCertificateForm';
 import { AnatomyLibrary } from '../components/medicine/AnatomyLibrary';
@@ -131,7 +130,7 @@ export function Medicine() {
         {activeTab === 'visor' && (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <HumanBodyViewer onChange={setBodyRegions} compact />
-            <MedicalAnalyzer regions={bodyRegions} />
+            <SymptomDocumenter regions={bodyRegions} />
           </div>
         )}
         {activeTab === 'diagnostico' && <DifferentialDiagnosis />}
