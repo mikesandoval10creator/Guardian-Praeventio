@@ -168,7 +168,13 @@ considera y se CABLEA donde corresponde.** Reglas:
   +regresión. · `safetyEngineBackend.ts:129` JSON.parse → **YA usa `parseGeminiJson`** (F2, doc-drift). ·
   `residualRisk.ts` `safeRead` → **surface error** (rethrow → 500; antes enmascaraba lectura fallida como
   lista vacía = falso "sin riesgos residuales"). +2 tests `_failReads`. (Fase 5, 2026-06-05)
-- [ ] 🔵 `useRiskRanking` 3 idle stubs + 3 GET faltantes (B2-D1) → **implementar+cablear**; `shiftRiskPanel` → **consolidar** con `preShiftRisk` (preservar capacidades).
+- [ ] 🔵 `useRiskRanking` 3 idle stubs → **implementar+cablear** (EN PROGRESO, fuente canónica = Zettelkasten, ADR 0020 ext):
+  - [x] **top-risks (backend)**: motor puro `riskNodeRanking.ts` (rankea `NodeType.RISK` por IPER DS44) + endpoint
+    real `GET /api/insights/:projectId/top-risks` (lee `tenants/{tid}/zettelkasten_nodes`, no las colecciones planas
+    vacías) + 12 tests. Hallazgo: el endpoint legacy leía colecciones que ningún writer puebla (dashboards vacíos).
+  - [ ] top-risks (UI): cablear `useTopRisks` → endpoint, reformar `TopRisksWidget`/Card a la forma IPER, montar.
+  - [ ] weak-controls ← `control_validations`; timeseries ← findings reales.
+  - [ ] `shiftRiskPanel` → **consolidar** con `preShiftRisk` (preservar capacidades).
 
 ### B17 — Admin / Auth / RBAC / Privacidad 🔐  · ref `DEEP-B17` + `DEEP-EX-09/10`
 - [ ] 🔴 `externalAuditPortal.ts:234,306,355,428` sin gate de rol → `assertProjectMember`+`isAdmin`. (super)

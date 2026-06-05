@@ -77,6 +77,25 @@ contrato cross-cutting.
   ~10 consumidores. Es la opción "más fiel a DS44" pero de alto riesgo; se puede
   retomar como migración deliberada futura.
 
+## Extensión B2 🔵 (2026-06-05) — fuente canónica de los rankings de riesgo
+
+Al cablear `useRiskRanking` (dashboards huérfanos) se constató que el endpoint
+`GET /api/insights/:projectId/risk-ranking` leía colecciones planas top-level
+`risks`/`controls`/`findings` que **ningún writer puebla** → dashboards vacíos
+(fake-real). Decisión usuario (2026-06-05): la **fuente canónica** de los
+rankings es **`tenants/{tid}/zettelkasten_nodes`** (`NodeType.RISK = 'Riesgo'`),
+que es lo que la página Matrix IPER realmente escribe con
+`metadata.{probabilidad,severidad}`. Consecuencia:
+
+- `top-risks` se rankea con el **mismo motor DS44** de esta ADR
+  (`calculateIper` sobre P×S del nodo) — coherencia total con la criticidad.
+  Engine puro `services/riskRanking/riskNodeRanking.ts`; endpoint
+  `GET /api/insights/:projectId/top-risks`.
+- `weak-controls` ← `control_validations`; `timeseries` ← findings reales
+  (PRs siguientes).
+- El endpoint legacy sobre colecciones planas queda para deprecar/reemplazar a
+  medida que cada ranking pasa a su fuente real.
+
 ## Principio rector (Fase 5)
 
 Resolver deuda técnica = **crear la solución real de lo ya propuesto en el
