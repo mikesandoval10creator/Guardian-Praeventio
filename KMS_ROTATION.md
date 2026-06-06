@@ -3,9 +3,16 @@
 Status: **Round 2 (cloud-kms wiring done)** — types, in-memory dev adapter,
 envelope math, real `cloudKmsAdapter` (`@google-cloud/kms`-backed), and the
 one-shot migration script for legacy plaintext tokens are all in place.
-`OAUTH_ENVELOPE_ENABLED` defaults to `false`; the remaining rollout work is
-operational (Cloud KMS provisioning, env config, monitoring) — see §3 and
-"Round 3 follow-ups" at the bottom.
+`OAUTH_ENVELOPE_ENABLED` is **default-ON** as of B17 (Fase 5): refresh tokens
+are envelope-encrypted unless an operator explicitly sets
+`OAUTH_ENVELOPE_ENABLED=false`. With no KMS env configured the wrap uses the
+deterministic in-memory dev KEK (functional, but NOT real protection); set
+`KMS_ADAPTER=cloud-kms` + `KMS_KEY_RESOURCE_NAME` in production for a real
+KMS-managed KEK. If `cloud-kms` is selected but its key name is missing, the
+store logs `oauth_envelope_adapter_unavailable` and degrades to plaintext
+(never throws — the OAuth flow must not fail closed). The remaining rollout
+work is operational (Cloud KMS provisioning, env config, monitoring) — see §3
+and "Round 3 follow-ups" at the bottom.
 
 ## 1. Why envelope encryption
 

@@ -8,12 +8,13 @@
  * IMPORTANT — do not import this module from client-side code. It uses
  * firebase-admin which only works in Node.
  *
- * Production hardening — KMS envelope encryption (Round 1 scaffolding):
- *   When the env flag `OAUTH_ENVELOPE_ENABLED=true` is set, refresh_token is
- *   wrapped via `envelopeEncrypt` before being written to Firestore, and
- *   transparently unwrapped on read. The wrapping uses a per-token random
- *   AES-256-GCM Data Encryption Key (DEK), and that DEK is itself wrapped by
- *   a KMS-managed Key Encryption Key (KEK) selected via `KMS_ADAPTER`.
+ * Production hardening — KMS envelope encryption (default-ON, B17):
+ *   refresh_token is wrapped via `envelopeEncrypt` before being written to
+ *   Firestore (and transparently unwrapped on read) UNLESS the operator opts
+ *   out with `OAUTH_ENVELOPE_ENABLED=false`. The wrapping uses a per-token
+ *   random AES-256-GCM Data Encryption Key (DEK), and that DEK is itself
+ *   wrapped by a KMS-managed Key Encryption Key (KEK) selected via
+ *   `KMS_ADAPTER`.
  *
  *   Both adapters are functional: `in-memory-dev` for tests, and
  *   `cloud-kms` (real `CloudKmsAdapter` backed by `@google-cloud/kms`,
@@ -22,12 +23,12 @@
  *   are envelope-encrypted at rest. The earlier "stub awaiting install"
  *   note here was stale — kept for historical context only.
  *
- *   Backwards compatibility: when the flag is OFF (default), behavior is
- *   identical to pre-envelope code. When ON, the read path is permissive —
- *   it accepts BOTH legacy plaintext refresh_tokens AND new envelope
- *   objects. This means we can flip the flag on without a migration; old
- *   docs continue to work and a separate migration job (also documented in
- *   KMS_ROTATION.md) re-wraps them in the background.
+ *   Backwards compatibility: the read path is permissive — it accepts BOTH
+ *   legacy plaintext refresh_tokens AND new envelope objects. This means the
+ *   default-ON flip needs no migration; old plaintext docs continue to work
+ *   and a separate migration job (also documented in KMS_ROTATION.md) re-wraps
+ *   them in the background. Opting out (`OAUTH_ENVELOPE_ENABLED=false`)
+ *   restores the pre-envelope plaintext-write behavior.
  */
 
 import admin from 'firebase-admin';
@@ -38,6 +39,7 @@ import {
   type EnvelopeCiphertext,
 } from './security/kmsEnvelope.ts';
 import { getKmsAdapter } from './security/kmsAdapter.ts';
+import { logger } from '../utils/logger.ts';
 
 const COLLECTION = 'oauth_tokens';
 
@@ -81,21 +83,44 @@ function docId({ uid, provider }: TokenIdentity): string {
  * at module load — tests stub `process.env.OAUTH_ENVELOPE_ENABLED`, and
  * operators may flip it at runtime (e.g. via a Cloud Run revision) without
  * redeploy.
+ *
+ * DEFAULT-ON (B17, Fase 5): envelope encryption is now enabled unless the
+ * operator explicitly opts OUT with `OAUTH_ENVELOPE_ENABLED=false`. Refresh
+ * tokens are long-lived bearer credentials — storing them as Firestore
+ * plaintext (relying only on at-rest disk encryption) was the weak default.
+ * The read path accepts BOTH legacy plaintext and envelopes, so flipping the
+ * default needs no migration. Production should additionally set
+ * `KMS_ADAPTER=cloud-kms` + `KMS_KEY_RESOURCE_NAME` so the wrap uses a real
+ * KMS-managed KEK rather than the in-source dev KEK (see `getKmsAdapter`).
  */
 function envelopeEnabled(): boolean {
-  return (process.env.OAUTH_ENVELOPE_ENABLED ?? '').toLowerCase() === 'true';
+  return (process.env.OAUTH_ENVELOPE_ENABLED ?? '').toLowerCase() !== 'false';
 }
 
 /**
  * Wrap a refresh_token for storage. Returns the envelope object (not a JSON
- * string — Firestore handles nested objects natively) when the flag is on,
- * else returns the plaintext string for backwards-compatible storage.
+ * string — Firestore handles nested objects natively) when enabled AND a
+ * working KMS adapter is available, else returns the plaintext string.
+ *
+ * Graceful degradation: if envelope is enabled but the selected adapter is
+ * NOT available (e.g. `KMS_ADAPTER=cloud-kms` without `KMS_KEY_RESOURCE_NAME`),
+ * we DO NOT throw — that would break the OAuth connect/refresh flow. Instead we
+ * log loudly and fall back to plaintext storage so the feature degrades to the
+ * pre-envelope behavior rather than failing closed on the user. The in-memory
+ * dev adapter is always available, so the common default still encrypts.
  */
 async function maybeWrapRefreshToken(
   refreshToken: string,
 ): Promise<string | EnvelopeCiphertext> {
   if (!envelopeEnabled()) return refreshToken;
   const adapter = getKmsAdapter();
+  if (!adapter.isAvailable) {
+    logger.warn?.('oauth_envelope_adapter_unavailable', {
+      adapter: adapter.name,
+      msg: 'OAUTH_ENVELOPE_ENABLED is on but the KMS adapter is not configured; storing refresh_token as plaintext. Set KMS_KEY_RESOURCE_NAME (cloud-kms).',
+    });
+    return refreshToken;
+  }
   return envelopeEncrypt(refreshToken, adapter);
 }
 
