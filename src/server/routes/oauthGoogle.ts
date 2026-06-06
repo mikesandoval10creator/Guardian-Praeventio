@@ -34,6 +34,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { requireTier } from '../middleware/requireTier.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   saveTokens,
@@ -339,7 +340,13 @@ oauthGoogleApiRouter.post('/fitness/sync', verifyAuth, async (req, res) => {
 });
 
 // Google Drive Integration
-oauthGoogleApiRouter.get('/drive/auth/url', verifyAuth, (req, res) => {
+// Tier gate (directive #11): the Google Drive / Workspace integration is a
+// titanio+ feature (`canUseGoogleWorkspaceAddon` in the client matrix). The UI
+// already hides it below titanio; `requireTier` ENFORCES it server-side so a
+// lower-tier caller can't initiate the OAuth grant by hitting the route
+// directly. Existing connected integrations are unaffected (they refresh via
+// the stored token, not this initiation endpoint).
+oauthGoogleApiRouter.get('/drive/auth/url', verifyAuth, requireTier('titanio'), (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/api/drive/auth/callback`;
 

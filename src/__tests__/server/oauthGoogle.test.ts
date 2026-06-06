@@ -27,6 +27,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
+import { createFakeFirestore } from '../helpers/fakeFirestore';
 
 // â”€â”€â”€ Module mocks (must be hoisted via vi.mock before route import) â”€â”€â”€â”€
 
@@ -59,6 +60,17 @@ vi.mock('../../server/middleware/auditLog.js', () => ({
 vi.mock('../../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
+
+// firebase-admin mock — needed because the Drive auth-URL route is now gated by
+// `requireTier` (directive #11), which reads users/{uid}.subscription.planId.
+const HADMIN = vi.hoisted(() => ({
+  db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
+}));
+vi.mock('firebase-admin', async () => {
+  const { adminMock } = await import('../helpers/fakeFirestore');
+  return adminMock(() => HADMIN.db!);
+});
+vi.mock('../../server/middleware/captureRouteError.js', () => ({ captureRouteError: vi.fn() }));
 
 // Tiny in-memory session middleware — the production code does
 // `req.session as any` and writes properties; we just need a stable object
@@ -97,6 +109,12 @@ beforeEach(() => {
   revokeTokensMock.mockClear();
   process.env.GOOGLE_CLIENT_ID = 'test-client-id';
   process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
+  // Seed a titanio+ plan for the uids that exercise the (now tier-gated) Drive
+  // auth-URL route, so the existing CSRF/flow tests reach the handler.
+  HADMIN.db = createFakeFirestore();
+  HADMIN.db._seed('users/uid-C', { subscription: { planId: 'titanio' } });
+  HADMIN.db._seed('users/uid-titanio', { subscription: { planId: 'titanio' } });
+  HADMIN.db._seed('users/uid-free', { subscription: { planId: 'free' } });
   vi.resetModules();
 });
 
@@ -171,6 +189,27 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
       .query({ code: 'any-code', state: driveState! });
     expect(res.status).toBe(403);
     expect(saveTokensMock).not.toHaveBeenCalled();
+  });
+
+  it('tier gate (#11): a below-titanio caller cannot initiate the Drive OAuth grant', async () => {
+    const app = await buildApp();
+    const res = await request(app)
+      .get('/api/drive/auth/url')
+      .set('x-test-session', 'sess-free')
+      .set('Authorization', 'Bearer test:uid-free'); // free plan
+    expect(res.status).toBe(402);
+    expect(res.body.error).toBe('upgrade_required');
+    expect(res.body.requiredPlan).toBe('titanio');
+  });
+
+  it('tier gate (#11): a titanio caller CAN initiate the Drive OAuth grant', async () => {
+    const app = await buildApp();
+    const res = await request(app)
+      .get('/api/drive/auth/url')
+      .set('x-test-session', 'sess-tit')
+      .set('Authorization', 'Bearer test:uid-titanio');
+    expect(res.status).toBe(200);
+    expect(res.body.url).toContain('accounts.google.com');
   });
 
   it('happy path: valid state + valid code â†’ token exchange runs and tokens are saved', async () => {
