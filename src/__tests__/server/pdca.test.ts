@@ -108,6 +108,35 @@ describe('pdca cycles', () => {
     expect(res.body.cycle.currentStage).toBe('do');
   });
 
+  it('advance: 200 persists the new stage atomically (txn read-modify-write, #19)', async () => {
+    H.db!._seed(`${CYCLES}/c1`, {
+      id: 'c1', currentStage: 'plan', cycleNumber: 1,
+      stages: [{ kind: 'plan', activityId: 'a', notes: '', ownerUid: 'o', startedAt: 'now' }],
+    });
+    H.advance.mockReturnValue({
+      advanced: true,
+      project: { id: 'c1', currentStage: 'do', cycleNumber: 1, stages: [{ kind: 'plan' }, { kind: 'do' }] },
+    });
+    const res = await request(buildApp())
+      .post('/api/sprint-k/p1/pdca/cycles/c1/advance')
+      .set(uid)
+      .send({ evidence: ['e.pdf'] });
+    expect(res.status).toBe(200);
+    // The transaction committed the advanced stage back to Firestore.
+    expect(H.db!._store.get(`${CYCLES}/c1`)?.currentStage).toBe('do');
+  });
+
+  it('advance: 400 no_entry_for_current_stage when no stage entry matches currentStage', async () => {
+    H.db!._seed(`${CYCLES}/c1`, { id: 'c1', currentStage: 'plan', cycleNumber: 1, stages: [] });
+    const res = await request(buildApp())
+      .post('/api/sprint-k/p1/pdca/cycles/c1/advance')
+      .set(uid)
+      .send({ evidence: ['x'] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('no_entry_for_current_stage');
+    expect(H.advance).not.toHaveBeenCalled();
+  });
+
   it('advance: 400 cannot_advance when the engine refuses', async () => {
     H.db!._seed(`${CYCLES}/c1`, {
       id: 'c1', currentStage: 'plan', cycleNumber: 1,
