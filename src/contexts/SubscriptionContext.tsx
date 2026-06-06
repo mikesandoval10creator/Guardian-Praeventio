@@ -21,6 +21,12 @@ export type { SubscriptionPlan };
  * Free-for-all features (predictable calendar, multi-país pack, ISO 45001
  * fallback, basic emergency button) are intentionally NOT in this matrix —
  * they remain ungated.
+ *
+ * ⛔ HARD RULE (ADR 0021): only MANAGEMENT/SCALE/CONVENIENCE capabilities belong
+ * here. LIFE-SAFETY features (SOS, emergency, ManDown, lone-worker, evacuation,
+ * brigade, DEA, incident/hazard reporting, and a worker reading their OWN
+ * prevention records) are FREE on every tier — never add them to this matrix.
+ * See docs/architecture-decisions/0021-life-safety-features-free-all-tiers.md.
  */
 export interface SubscriptionFeatures {
   canUseSSO: boolean;

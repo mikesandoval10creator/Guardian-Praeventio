@@ -10,6 +10,17 @@
 //
 //   router.post('/sso/config', verifyAuth, requireTier('titanio'), handler);
 //
+// ⛔ HARD RULE (ADR 0021): NEVER mount requireTier on a LIFE-SAFETY route.
+// Life/integrity features — SOS, emergency declaration, ManDown/fall detection,
+// lone-worker, evacuation headcount/routes, emergency brigade, DEA/AED,
+// incident/hazard reporting, and a worker reading their OWN prevention records —
+// are FREE on every tier, including `free`. requireTier is ONLY for
+// management/scale/convenience: external integrations (Drive/Workspace, SSO,
+// API access), executive dashboard, advanced analytics, custom branding,
+// Vertex fine-tuning, multi-tenant. Gating must never reduce a worker's ability
+// to stay safe or record what protects them.
+// See docs/architecture-decisions/0021-life-safety-features-free-all-tiers.md.
+//
 // Failure modes:
 //   • 401 if there is no authenticated caller (verifyAuth should run first).
 //   • 402 Payment Required + { error: 'upgrade_required', requiredPlan,
