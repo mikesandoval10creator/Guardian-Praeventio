@@ -6,7 +6,6 @@
 
 import { apiAuthHeaders } from '../lib/apiAuth';
 import type {
-  PinCredential,
   PinSignItemKind,
   PinSignedAcknowledgement,
 } from '../services/pinSign/pinSignService';
@@ -71,12 +70,13 @@ export interface VerifyPinResponse {
   ok: boolean;
   justLockedOut: boolean;
   remainingLockoutMinutes?: number;
-  credential: PinCredential;
 }
 
 export async function verifyPinApi(
   projectId: string,
-  input: { credential: PinCredential; pin: string },
+  // The PIN credential is stored server-side (B17) — the client only sends the
+  // PIN to check; it never holds the hash/salt.
+  input: { pin: string },
 ): Promise<VerifyPinResponse> {
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/pin-sign/verify`,
@@ -88,7 +88,6 @@ export async function verifyPinApi(
 // ── 4. sign-item  (verify + build ack atomic) ──────────────────────────
 
 export interface SignItemInput {
-  credential: PinCredential;
   pin: string;
   itemId: string;
   kind: PinSignItemKind;
@@ -100,7 +99,6 @@ export interface SignItemResponse {
   acknowledgement?: PinSignedAcknowledgement;
   justLockedOut?: boolean;
   remainingLockoutMinutes?: number;
-  credential: PinCredential;
 }
 
 export async function signItemWithPinApi(

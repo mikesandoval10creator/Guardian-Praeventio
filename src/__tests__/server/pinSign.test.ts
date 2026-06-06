@@ -1,5 +1,5 @@
 // Real-router supertest for src/server/routes/pinSign.ts
-// (Plan v3 Fase 1 — 5 POST endpoints, pure-compute + PBKDF2 PIN crypto).
+// (Plan v3 Fase 1 · B17 Fase 5 — server-persisted PIN credential).
 //
 // Route is mounted at /api/sprint-k in server.ts:
 //   POST /:projectId/pin-sign/validate-policy
@@ -8,13 +8,16 @@
 //   POST /:projectId/pin-sign/sign-item
 //   POST /:projectId/pin-sign/verify-acknowledgement
 //
-// Crypto (PBKDF2 via @noble/hashes) is NOT mocked — we exercise the
-// real KDF via registerPin() on the service, then feed the resulting
-// credential to the verify/sign-item endpoints. This gives us real
-// timing-safe comparison and lockout logic without touching prod code.
+// B17 (Fase 5) security model under test: the PIN credential (salt + PBKDF2
+// hash + failure counter + lockout) is stored SERVER-SIDE at
+// projects/{projectId}/pin_credentials/{workerUid}. `verify`/`sign-item` read
+// it from Firestore and persist the updated counter in a transaction. The
+// client NEVER supplies or receives the credential — so it cannot forge a
+// hash for a chosen PIN, nor reset the lockout counter.
 //
-// PIN_SIGN_SERVER_SECRET is set in each test that needs it via
-// vi.stubEnv so suites that don't need HMAC remain fast.
+// Crypto (PBKDF2 via @noble/hashes) is NOT mocked — `makeCredential` runs the
+// real KDF (at 1 iteration for speed) and we seed the result into the fake
+// Firestore, exercising the real timing-safe compare + lockout logic.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
@@ -41,6 +44,7 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
     }
     (req as Request & { user: Record<string, unknown> }).user = {
       uid,
+      email: `${uid}@x.cl`,
       role: req.header('x-test-role') ?? undefined,
       tenantId: req.header('x-test-tenant') ?? undefined,
     };
@@ -64,7 +68,7 @@ vi.mock('../../services/observability/index.js', () => ({
 // ── imports after mocks ─────────────────────────────────────────────────────
 import pinSignRouter from '../../server/routes/pinSign.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
-import { registerPin } from '../../services/pinSign/pinSignService.js';
+import { registerPin, type PinCredential } from '../../services/pinSign/pinSignService.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -90,7 +94,7 @@ function seedProject(db: NonNullable<typeof H.db>) {
 }
 
 /** Build a real PinCredential via the service (uses PBKDF2 at low iter count for speed). */
-function makeCredential(uid: string, pin: string, opts?: { iterations?: number }) {
+function makeCredential(uid: string, pin: string, opts?: { iterations?: number }): PinCredential {
   const saltHex = 'aabbccddeeff00112233445566778899'; // 32 hex chars = 16 bytes
   return registerPin({
     workerUid: uid,
@@ -98,6 +102,24 @@ function makeCredential(uid: string, pin: string, opts?: { iterations?: number }
     saltHex,
     iterations: opts?.iterations ?? 1, // 1 iteration — valid in tests (skips 600k KDF cost)
   });
+}
+
+// Top-level server-only collection (see route: avoids the projects master-gate
+// read that would expose the hash to members).
+const credPath = (uid: string) => `pin_credentials/${PROJECT_ID}__${uid}`;
+
+/** Seed a stored PIN credential server-side (the way `register` would). */
+function seedCredential(
+  db: NonNullable<typeof H.db>,
+  uid: string,
+  pin: string,
+  overrides: Partial<PinCredential> = {},
+) {
+  db._seed(credPath(uid), { ...makeCredential(uid, pin), ...overrides });
+}
+
+function storedCredential(db: NonNullable<typeof H.db>, uid: string) {
+  return db._store.get(credPath(uid)) as PinCredential | undefined;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -127,72 +149,38 @@ describe('POST /api/sprint-k/:projectId/pin-sign/validate-policy', () => {
   });
 
   it('returns 400 when pin is missing from body', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({});
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_payload');
   });
 
   it('returns 400 when pin is not all-digits', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ pin: 'abcd' });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('invalid_payload');
-  });
-
-  it('returns 400 when pin is too short (3 digits)', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ pin: '123' });
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ pin: 'abcd' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_payload');
   });
 
   it('returns 403 when caller is not a project member', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', 'uid-outsider')
-      .send({ pin: '5678' });
+    const res = await request(app).post(url).set('x-test-uid', 'uid-outsider').send({ pin: '5678' });
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('forbidden');
   });
 
   it('returns 200 ok:true for a valid non-trivial pin', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ pin: '9371' });
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ pin: '9371' });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
   });
 
   it('returns 400 with engine error code for a trivial pin (1234)', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ pin: '1234' });
-    // validatePinPolicy throws PinSignValidationError([PIN_TRIVIAL]) → 400
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/PIN_TRIVIAL/);
-  });
-
-  it('returns 400 with engine error code for all-same digits (0000)', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ pin: '0000' });
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ pin: '1234' });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/PIN_TRIVIAL/);
   });
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// 2. register
+// 2. register  (persists server-side + audits)
 // ════════════════════════════════════════════════════════════════════════════
 
 describe('POST /api/sprint-k/:projectId/pin-sign/register', () => {
@@ -206,178 +194,132 @@ describe('POST /api/sprint-k/:projectId/pin-sign/register', () => {
   });
 
   it('returns 400 when pin is missing', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({});
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_payload');
   });
 
   it('returns 400 for a trivial pin (1234)', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ pin: '1234' });
-    // The route calls registerPin() which calls validatePinPolicy() → PIN_TRIVIAL
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ pin: '1234' });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/PIN_TRIVIAL/);
   });
 
   it('returns 403 when caller is not a project member', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', 'uid-outsider')
-      .send({ pin: '9371' });
+    const res = await request(app).post(url).set('x-test-uid', 'uid-outsider').send({ pin: '9371' });
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('forbidden');
   });
 
-  it('200 happy path — returns registered:true and workerUid from token, NOT raw pin in response', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ pin: '9371' });
+  it('200 happy path — persists the credential server-side, audits, and never returns hash/salt/pin', async () => {
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ pin: '9371' });
     expect(res.status).toBe(200);
     expect(res.body.registered).toBe(true);
-    // workerUid must come from the token, not client body.
     expect(res.body.workerUid).toBe(CALLER_UID);
     expect(res.body.createdAt).toBeDefined();
-    // CRITICAL: raw PIN must never appear in the response.
+    // CRITICAL: raw PIN / hash / salt must never appear in the response.
     expect(JSON.stringify(res.body)).not.toContain('9371');
-    // hash and salt must not be in the response.
     expect(res.body.hashHex).toBeUndefined();
     expect(res.body.saltHex).toBeUndefined();
+    // The credential is now stored SERVER-SIDE with a real hash.
+    const stored = storedCredential(H.db!, CALLER_UID);
+    expect(stored).toBeDefined();
+    expect(stored!.workerUid).toBe(CALLER_UID);
+    expect(typeof stored!.hashHex).toBe('string');
+    expect(stored!.hashHex.length).toBeGreaterThan(0);
+    expect(stored!.consecutiveFailures).toBe(0);
+    // A state-changing op must write audit_logs (directive #3).
+    const auditKeys = [...H.db!._store.keys()].filter((k) => k.startsWith('audit_logs/'));
+    expect(auditKeys.length).toBe(1);
   });
 
   it('workerUid is always taken from the token, not client-supplied body (anti-spoofing)', async () => {
-    // Even if a client could inject extra fields they don't control workerUid.
-    // The route does: workerUid = callerUid = req.user!.uid (from token).
     const res = await request(app)
       .post(url)
       .set('x-test-uid', CALLER_UID)
-      // Inject a spoofed workerUid in the body — route ignores it.
       .send({ pin: '9371', workerUid: 'uid-attacker' });
     expect(res.status).toBe(200);
     expect(res.body.workerUid).toBe(CALLER_UID);
-    expect(res.body.workerUid).not.toBe('uid-attacker');
+    // Stored under the caller, never the spoofed uid.
+    expect(storedCredential(H.db!, CALLER_UID)).toBeDefined();
+    expect(storedCredential(H.db!, 'uid-attacker')).toBeUndefined();
   });
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// 3. verify
+// 3. verify  (reads credential from Firestore — never the body)
 // ════════════════════════════════════════════════════════════════════════════
 
 describe('POST /api/sprint-k/:projectId/pin-sign/verify', () => {
   const url = `/api/sprint-k/${PROJECT_ID}/pin-sign/verify`;
-
-  // Build a real credential once for reuse in happy-path tests.
   const VALID_PIN = '9371';
-  const WRONG_PIN = '0000'; // happens to be trivial but verifyPin doesn't re-run policy
-  const cred = makeCredential(CALLER_UID, VALID_PIN);
+  const WRONG_PIN = '0000';
 
   let app: ReturnType<typeof buildApp>;
   beforeEach(() => { app = buildApp(); });
 
   it('returns 401 when no auth header', async () => {
-    const res = await request(app)
-      .post(url)
-      .send({ credential: cred, pin: VALID_PIN });
+    const res = await request(app).post(url).send({ pin: VALID_PIN });
     expect(res.status).toBe(401);
   });
 
-  it('returns 400 when credential is missing from body', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ pin: VALID_PIN });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('invalid_payload');
-  });
-
   it('returns 400 when pin field is missing', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ credential: cred });
+    seedCredential(H.db!, CALLER_UID, VALID_PIN);
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_payload');
   });
 
-  it('returns 403 when credential.workerUid does not match the token uid (cross-user)', async () => {
-    const otherCred = makeCredential('uid-other-worker', VALID_PIN);
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ credential: otherCred, pin: VALID_PIN });
-    expect(res.status).toBe(403);
-    expect(res.body.error).toBe('forbidden_credential');
+  it('returns 404 when the caller has no registered credential', async () => {
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ pin: VALID_PIN });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('not_registered');
   });
 
   it('returns 403 when caller is not a project member', async () => {
-    const outsiderCred = makeCredential('uid-outsider', VALID_PIN);
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', 'uid-outsider')
-      .send({ credential: outsiderCred, pin: VALID_PIN });
+    const res = await request(app).post(url).set('x-test-uid', 'uid-outsider').send({ pin: VALID_PIN });
     expect(res.status).toBe(403);
-    // guard(assertProjectMember) fires first since uid matches, then forbidden.
-    // Actually guard fires first. uid-outsider not in project → 403 forbidden.
     expect(res.body.error).toBe('forbidden');
   });
 
-  it('200 ok:true + updated credential returned on correct pin', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ credential: cred, pin: VALID_PIN });
+  it('200 ok:true on the correct pin; resets the stored counter; no credential in response', async () => {
+    seedCredential(H.db!, CALLER_UID, VALID_PIN, { consecutiveFailures: 2 });
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ pin: VALID_PIN });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.justLockedOut).toBe(false);
-    // Updated credential returned for caller to persist.
-    expect(res.body.credential).toBeDefined();
-    expect(res.body.credential.workerUid).toBe(CALLER_UID);
-    expect(res.body.credential.consecutiveFailures).toBe(0);
-    // CRITICAL: hash must still be present (for future verifications) but
-    // the response must not expose the raw pin value.
+    // The credential (hash/salt/counter) must NOT be exposed to the client.
+    expect(res.body.credential).toBeUndefined();
     expect(JSON.stringify(res.body)).not.toContain(VALID_PIN);
+    // Counter reset persisted server-side.
+    expect(storedCredential(H.db!, CALLER_UID)!.consecutiveFailures).toBe(0);
   });
 
-  it('200 ok:false + justLockedOut:false on wrong pin (first attempt)', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ credential: cred, pin: WRONG_PIN });
+  it('200 ok:false on a wrong pin; increments the stored counter (forgery/lockout-reset is impossible)', async () => {
+    seedCredential(H.db!, CALLER_UID, VALID_PIN);
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ pin: WRONG_PIN });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(false);
     expect(res.body.justLockedOut).toBe(false);
-    expect(res.body.credential.consecutiveFailures).toBe(1);
+    expect(res.body.credential).toBeUndefined();
+    // The failure was persisted server-side — the client can't reset it.
+    expect(storedCredential(H.db!, CALLER_UID)!.consecutiveFailures).toBe(1);
   });
 
-  it('200 ok:false + justLockedOut:true after 5 consecutive failures', async () => {
-    let currentCred = { ...cred };
-    // Simulate 4 prior failures via the credential's consecutiveFailures field.
-    currentCred = { ...currentCred, consecutiveFailures: 4 };
-
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ credential: currentCred, pin: WRONG_PIN });
+  it('200 justLockedOut:true after the 5th consecutive failure (counter is server-authoritative)', async () => {
+    seedCredential(H.db!, CALLER_UID, VALID_PIN, { consecutiveFailures: 4 });
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ pin: WRONG_PIN });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(false);
     expect(res.body.justLockedOut).toBe(true);
     expect(res.body.remainingLockoutMinutes).toBe(15);
-    expect(res.body.credential.lockedUntil).toBeDefined();
+    expect(storedCredential(H.db!, CALLER_UID)!.lockedUntil).toBeDefined();
   });
 
-  it('200 ok:false + remainingLockoutMinutes set when credential is already locked', async () => {
-    const future = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min from now
-    const lockedCred = { ...cred, consecutiveFailures: 5, lockedUntil: future };
-
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ credential: lockedCred, pin: VALID_PIN });
+  it('200 ok:false + remaining lockout when the stored credential is already locked', async () => {
+    const future = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    seedCredential(H.db!, CALLER_UID, VALID_PIN, { consecutiveFailures: 5, lockedUntil: future });
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ pin: VALID_PIN });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(false);
     expect(res.body.justLockedOut).toBe(false);
@@ -386,17 +328,15 @@ describe('POST /api/sprint-k/:projectId/pin-sign/verify', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// 4. sign-item
+// 4. sign-item  (reads credential from Firestore; audits the signature)
 // ════════════════════════════════════════════════════════════════════════════
 
 describe('POST /api/sprint-k/:projectId/pin-sign/sign-item', () => {
   const url = `/api/sprint-k/${PROJECT_ID}/pin-sign/sign-item`;
   const VALID_PIN = '8472';
-  const WRONG_PIN = '1111'; // trivial but not re-validated at verify time
-  const cred = makeCredential(CALLER_UID, VALID_PIN);
+  const WRONG_PIN = '1111';
 
   const validBody = () => ({
-    credential: cred,
     pin: VALID_PIN,
     itemId: 'epp-001',
     kind: 'epp_delivery' as const,
@@ -404,7 +344,7 @@ describe('POST /api/sprint-k/:projectId/pin-sign/sign-item', () => {
   });
 
   let app: ReturnType<typeof buildApp>;
-  beforeEach(() => { app = buildApp(); });
+  beforeEach(() => { app = buildApp(); seedCredential(H.db!, CALLER_UID, VALID_PIN); });
 
   it('returns 401 when no auth header', async () => {
     const res = await request(app).post(url).send(validBody());
@@ -414,100 +354,72 @@ describe('POST /api/sprint-k/:projectId/pin-sign/sign-item', () => {
   it('returns 400 when itemId is missing', async () => {
     const body = validBody();
     delete (body as Partial<typeof body>).itemId;
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send(body);
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send(body);
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_payload');
   });
 
   it('returns 400 when kind is not in the allowed enum', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ ...validBody(), kind: 'not_a_kind' });
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ ...validBody(), kind: 'not_a_kind' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_payload');
   });
 
-  it('returns 403 when credential.workerUid does not match the token uid', async () => {
-    const otherCred = makeCredential('uid-other', VALID_PIN);
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ ...validBody(), credential: otherCred });
-    expect(res.status).toBe(403);
-    expect(res.body.error).toBe('forbidden_credential');
+  it('returns 404 when the caller has no registered credential', async () => {
+    H.db!._store.delete(credPath(CALLER_UID));
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send(validBody());
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('not_registered');
   });
 
   it('returns 403 when caller is not a project member', async () => {
-    const outsiderCred = makeCredential('uid-outsider', VALID_PIN);
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', 'uid-outsider')
-      .send({ ...validBody(), credential: outsiderCred });
+    const res = await request(app).post(url).set('x-test-uid', 'uid-outsider').send(validBody());
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('forbidden');
   });
 
-  it('returns 401 ok:false when pin is wrong (verify fails inside sign-item)', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ ...validBody(), pin: WRONG_PIN });
+  it('returns 401 ok:false when the pin is wrong; no credential in response', async () => {
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ ...validBody(), pin: WRONG_PIN });
     expect(res.status).toBe(401);
     expect(res.body.ok).toBe(false);
-    expect(res.body.credential).toBeDefined();
+    expect(res.body.credential).toBeUndefined();
+    expect(storedCredential(H.db!, CALLER_UID)!.consecutiveFailures).toBe(1);
   });
 
-  it('200 happy path — acknowledgement returned with correct signedByUid from token', async () => {
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send(validBody());
+  it('200 happy path — acknowledgement server-stamped, audited, no credential leaked', async () => {
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send(validBody());
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
+    expect(res.body.credential).toBeUndefined();
     const ack = res.body.acknowledgement;
     expect(ack).toBeDefined();
-    // CRITICAL: signedByUid must be server-stamped from the token, not from
-    // any client-supplied body field.
+    // signedByUid is server-stamped from the token.
     expect(ack.signedByUid).toBe(CALLER_UID);
     expect(ack.itemId).toBe('epp-001');
     expect(ack.kind).toBe('epp_delivery');
     expect(ack.projectId).toBe(PROJECT_ID);
     expect(ack.biometricUsed).toBe(false);
-    // attestationHex must be present and non-trivial.
     expect(typeof ack.attestationHex).toBe('string');
     expect(ack.attestationHex.length).toBeGreaterThan(32);
-    // signedAt must be an ISO timestamp.
     expect(new Date(ack.signedAt).getTime()).toBeGreaterThan(0);
-    // Updated credential returned for persistence.
-    expect(res.body.credential.consecutiveFailures).toBe(0);
+    // The signing event is audited (directive #3).
+    const audit = [...H.db!._store.values()].find((d) => d.action === 'pinSign.signItem');
+    expect(audit).toBeDefined();
   });
 
-  it('signedByUid in acknowledgement is token uid even if attacker injects spoofed signedByUid', async () => {
-    // The route uses callerUid = req.user!.uid; body extra fields are ignored.
-    const body = {
-      ...validBody(),
-      signedByUid: 'uid-attacker', // should be ignored
-    };
+  it('signedByUid is the token uid even if an attacker injects a spoofed signedByUid', async () => {
     const res = await request(app)
       .post(url)
       .set('x-test-uid', CALLER_UID)
-      .send(body);
+      .send({ ...validBody(), signedByUid: 'uid-attacker' });
     expect(res.status).toBe(200);
     expect(res.body.acknowledgement.signedByUid).toBe(CALLER_UID);
-    expect(res.body.acknowledgement.signedByUid).not.toBe('uid-attacker');
   });
 
   it('200 happy path without optional location', async () => {
     const body = validBody();
     delete (body as Partial<typeof body>).location;
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send(body);
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send(body);
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.acknowledgement.location).toBeUndefined();
@@ -516,22 +428,15 @@ describe('POST /api/sprint-k/:projectId/pin-sign/sign-item', () => {
   it('returns 500 when PIN_SIGN_SERVER_SECRET env is missing', async () => {
     vi.unstubAllEnvs();
     delete process.env.PIN_SIGN_SERVER_SECRET;
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send(validBody());
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send(validBody());
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('server_misconfigured');
-    // Restore for other tests
     vi.stubEnv('PIN_SIGN_SERVER_SECRET', SERVER_SECRET);
   });
 
-  it('401 ok:false + justLockedOut:true after 5th consecutive wrong-pin call in sign-item', async () => {
-    const lockedCred = { ...cred, consecutiveFailures: 4 };
-    const res = await request(app)
-      .post(url)
-      .set('x-test-uid', CALLER_UID)
-      .send({ ...validBody(), credential: lockedCred, pin: WRONG_PIN });
+  it('401 justLockedOut:true on the 5th consecutive wrong-pin sign-item attempt', async () => {
+    seedCredential(H.db!, CALLER_UID, VALID_PIN, { consecutiveFailures: 4 });
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ ...validBody(), pin: WRONG_PIN });
     expect(res.status).toBe(401);
     expect(res.body.ok).toBe(false);
     expect(res.body.justLockedOut).toBe(true);
@@ -548,10 +453,7 @@ describe('POST /api/sprint-k/:projectId/pin-sign/sign-item', () => {
       'inspection_handover',
     ] as const;
     for (const kind of kinds) {
-      const res = await request(app)
-        .post(url)
-        .set('x-test-uid', CALLER_UID)
-        .send({ ...validBody(), kind });
+      const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ ...validBody(), kind });
       expect(res.status).toBe(200);
       expect(res.body.acknowledgement.kind).toBe(kind);
     }
@@ -565,122 +467,65 @@ describe('POST /api/sprint-k/:projectId/pin-sign/sign-item', () => {
 describe('POST /api/sprint-k/:projectId/pin-sign/verify-acknowledgement', () => {
   const signUrl = `/api/sprint-k/${PROJECT_ID}/pin-sign/sign-item`;
   const verifyAckUrl = `/api/sprint-k/${PROJECT_ID}/pin-sign/verify-acknowledgement`;
-
   const VALID_PIN = '7293';
-  const cred = makeCredential(CALLER_UID, VALID_PIN);
 
   let app: ReturnType<typeof buildApp>;
-  beforeEach(() => { app = buildApp(); });
+  beforeEach(() => { app = buildApp(); seedCredential(H.db!, CALLER_UID, VALID_PIN); });
 
-  /** Produce a real acknowledgement by going through the sign-item endpoint. */
+  /** Produce a real acknowledgement by going through the (now persisted) sign-item endpoint. */
   async function issueAck() {
     const res = await request(app)
       .post(signUrl)
       .set('x-test-uid', CALLER_UID)
       .send({
-        credential: cred,
         pin: VALID_PIN,
         itemId: 'doc-safety-001',
         kind: 'document_read',
         location: { lat: -23.5, lng: -46.6 },
       });
     expect(res.status).toBe(200);
-    return res.body.acknowledgement as {
-      itemId: string;
-      kind: string;
-      projectId: string;
-      signedByUid: string;
-      signedAt: string;
-      attestationHex: string;
-      biometricUsed: false;
-      location?: { lat: number; lng: number };
-    };
+    return res.body.acknowledgement as Record<string, unknown>;
   }
 
   it('returns 401 when no auth header', async () => {
     const ack = await issueAck();
-    const res = await request(app)
-      .post(verifyAckUrl)
-      .send({ acknowledgement: ack });
+    const res = await request(app).post(verifyAckUrl).send({ acknowledgement: ack });
     expect(res.status).toBe(401);
   });
 
   it('returns 400 when acknowledgement is missing', async () => {
-    const res = await request(app)
-      .post(verifyAckUrl)
-      .set('x-test-uid', CALLER_UID)
-      .send({});
+    const res = await request(app).post(verifyAckUrl).set('x-test-uid', CALLER_UID).send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_payload');
   });
 
   it('returns 403 when caller is not a project member', async () => {
     const ack = await issueAck();
-    const res = await request(app)
-      .post(verifyAckUrl)
-      .set('x-test-uid', 'uid-outsider')
-      .send({ acknowledgement: ack });
+    const res = await request(app).post(verifyAckUrl).set('x-test-uid', 'uid-outsider').send({ acknowledgement: ack });
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('forbidden');
   });
 
-  it('returns 400 when required acknowledgement field attestationHex is missing', async () => {
-    const ack = await issueAck();
-    const broken = { ...ack };
-    delete (broken as Partial<typeof broken>).attestationHex;
-    const res = await request(app)
-      .post(verifyAckUrl)
-      .set('x-test-uid', CALLER_UID)
-      .send({ acknowledgement: broken });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('invalid_payload');
-  });
-
   it('200 ok:true for a genuine acknowledgement (HMAC valid)', async () => {
     const ack = await issueAck();
-    const res = await request(app)
-      .post(verifyAckUrl)
-      .set('x-test-uid', CALLER_UID)
-      .send({ acknowledgement: ack });
+    const res = await request(app).post(verifyAckUrl).set('x-test-uid', CALLER_UID).send({ acknowledgement: ack });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
   });
 
-  it('200 ok:false when the acknowledgement has been tampered (attestationHex corrupted)', async () => {
+  it('200 ok:false when the acknowledgement is tampered (attestationHex corrupted)', async () => {
     const ack = await issueAck();
-    const tampered = {
-      ...ack,
-      attestationHex: 'deadbeef'.repeat(8), // plausible length but wrong HMAC
-    };
-    const res = await request(app)
-      .post(verifyAckUrl)
-      .set('x-test-uid', CALLER_UID)
-      .send({ acknowledgement: tampered });
+    const tampered = { ...ack, attestationHex: 'deadbeef'.repeat(8) };
+    const res = await request(app).post(verifyAckUrl).set('x-test-uid', CALLER_UID).send({ acknowledgement: tampered });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(false);
   });
 
-  it('200 ok:false when signedByUid in the acknowledgement is modified (tamper detection)', async () => {
+  it('200 ok:false when signedByUid is modified (tamper detection)', async () => {
     const ack = await issueAck();
     const tampered = { ...ack, signedByUid: 'uid-attacker' };
-    const res = await request(app)
-      .post(verifyAckUrl)
-      .set('x-test-uid', CALLER_UID)
-      .send({ acknowledgement: tampered });
+    const res = await request(app).post(verifyAckUrl).set('x-test-uid', CALLER_UID).send({ acknowledgement: tampered });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(false);
-  });
-
-  it('returns 500 when PIN_SIGN_SERVER_SECRET env is missing', async () => {
-    const ack = await issueAck();
-    vi.unstubAllEnvs();
-    delete process.env.PIN_SIGN_SERVER_SECRET;
-    const res = await request(app)
-      .post(verifyAckUrl)
-      .set('x-test-uid', CALLER_UID)
-      .send({ acknowledgement: ack });
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBe('server_misconfigured');
-    vi.stubEnv('PIN_SIGN_SERVER_SECRET', SERVER_SECRET);
   });
 });

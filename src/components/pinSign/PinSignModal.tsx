@@ -1,9 +1,10 @@
 // Praeventio Guard — Sprint K F.25: <PinSignModal />
 //
 // Componente reusable para firmar items sin biometría. Recibe los datos
-// del item (itemId, kind) y la credencial actual del usuario, y dispara
-// `signItemWithPinApi` para verificar PIN + emitir acknowledgement
-// atómicamente. UX: campo 4-6 dígitos numérico + masked + soft-keyboard
+// del item (itemId, kind) y dispara `signItemWithPinApi` para verificar PIN
+// + emitir acknowledgement atómicamente. La credencial PIN vive SERVER-SIDE
+// (B17): el cliente sólo envía el PIN; nunca maneja el hash/salt ni el
+// contador de lockout. UX: campo 4-6 dígitos numérico + masked + soft-keyboard
 // numérico en mobile (`inputMode="numeric"`), con feedback de lockout.
 
 import { useState } from 'react';
@@ -16,7 +17,6 @@ import {
   type SignItemResponse,
 } from '../../hooks/usePinSign';
 import type {
-  PinCredential,
   PinSignItemKind,
   PinSignedAcknowledgement,
 } from '../../services/pinSign/pinSignService';
@@ -27,19 +27,14 @@ export interface PinSignModalProps {
   projectId: string;
   itemId: string;
   kind: PinSignItemKind;
-  /** Credencial PIN actual del trabajador (cargada desde Firestore por el caller). */
-  credential: PinCredential;
   /** Lat/lng opcional para audit. */
   location?: { lat: number; lng: number };
   /**
-   * Callback con el acknowledgement firmado + credential actualizada. El
-   * caller decide cómo persistir ambos (típicamente: ack a
-   * `signatures/{id}` y credential update a `pinCredentials/{uid}`).
+   * Callback con el acknowledgement firmado. El caller decide cómo persistir
+   * el ack (típicamente a `signatures/{id}`). La credencial PIN ya se
+   * actualizó server-side dentro del endpoint sign-item.
    */
-  onSigned: (result: {
-    acknowledgement: PinSignedAcknowledgement;
-    credential: PinCredential;
-  }) => void;
+  onSigned: (result: { acknowledgement: PinSignedAcknowledgement }) => void;
 }
 
 export function PinSignModal({
@@ -48,7 +43,6 @@ export function PinSignModal({
   projectId,
   itemId,
   kind,
-  credential,
   location,
   onSigned,
 }: PinSignModalProps) {
@@ -71,7 +65,6 @@ export function PinSignModal({
     setSubmitting(true);
     try {
       const input: SignItemInput = {
-        credential,
         pin,
         itemId,
         kind,
@@ -79,10 +72,7 @@ export function PinSignModal({
       };
       const response: SignItemResponse = await signItemWithPinApi(projectId, input);
       if (response.ok && response.acknowledgement) {
-        onSigned({
-          acknowledgement: response.acknowledgement,
-          credential: response.credential,
-        });
+        onSigned({ acknowledgement: response.acknowledgement });
         setPin('');
         onClose();
       } else if (response.justLockedOut || response.remainingLockoutMinutes) {
@@ -94,17 +84,9 @@ export function PinSignModal({
           ) as string,
         );
       } else {
-        const remaining =
-          5 - (response.credential.consecutiveFailures ?? 0);
-        setError(
-          remaining > 0
-            ? t(
-                'pinSign.errors.wrongPinRetries',
-                'PIN incorrecto. Intentos restantes: {{n}}',
-                { n: remaining },
-              ) as string
-            : t('pinSign.errors.wrongPin', 'PIN incorrecto.') as string,
-        );
+        // The failure counter is server-authoritative and not returned to the
+        // client; show a generic wrong-PIN message.
+        setError(t('pinSign.errors.wrongPin', 'PIN incorrecto.') as string);
       }
     } catch (err) {
       setError(
