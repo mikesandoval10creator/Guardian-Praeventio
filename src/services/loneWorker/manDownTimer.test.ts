@@ -88,6 +88,29 @@ describe('tickManDownEvent', () => {
     expect(event.escalationLog[3]?.channel).toBe('voice');
   });
 
+  it('ticks perdidos: salta directo al stage que el tiempo amerita y registra cada escalación cruzada', () => {
+    // Un solo tick a +600s desde pre_alert (p.ej. cron se saltó, o el device
+    // estuvo offline). Antes esto solo avanzaba a level_1 → SAMU nunca paginado.
+    const e0 = initManDownEvent({ ...baseInput, trigger: 'inactivity' });
+    const jumped = tickManDownEvent(e0, '2026-05-21T03:10:00.000Z', config); // +600s ≥ 540
+    expect(jumped.stage).toBe('level_3');
+    // Se registraron las 3 escalaciones cruzadas (level_1, level_2, level_3),
+    // cada una notificando a sus responsables.
+    const crossed = jumped.escalationLog.slice(1); // [0] = init pre_alert
+    expect(crossed.map((e) => e.stage)).toEqual(['level_1', 'level_2', 'level_3']);
+    expect(crossed[0].notifiedUids).toEqual(['sup-1', 'sup-2']);
+    expect(crossed[1].notifiedUids).toEqual(['cphs-1']);
+    expect(crossed[2].notifiedUids).toEqual(['eb-1', 'eb-2']);
+    expect(crossed[2].channel).toBe('voice');
+  });
+
+  it('salto parcial: pre_alert a +300s → level_2 (no se queda en level_1)', () => {
+    const e0 = initManDownEvent({ ...baseInput, trigger: 'inactivity' });
+    const jumped = tickManDownEvent(e0, '2026-05-21T03:05:00.000Z', config); // +300s (≥240, <540)
+    expect(jumped.stage).toBe('level_2');
+    expect(jumped.escalationLog.slice(1).map((e) => e.stage)).toEqual(['level_1', 'level_2']);
+  });
+
   it('no avanza si no pasó tiempo suficiente', () => {
     const e0 = initManDownEvent({ ...baseInput, trigger: 'inactivity' });
     const e1 = tickManDownEvent(e0, '2026-05-21T03:00:30.000Z', config); // +30s
