@@ -147,7 +147,13 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
     `--no-verify`.
 11. **Tier-gating enforcement always lives server-side.** Frontend gating in
     `SubscriptionContext` is UX-only; the canonical rank check is reading
-    `users/{uid}.subscription.planId` and comparing against `RANK_*`.
+    `users/{uid}.subscription.planId` and comparing against `RANK_*` (use the
+    `requireTier(minPlan)` middleware). **Life-safety features are FREE on every
+    tier (incl. `free`) and MUST NEVER be tier-gated** — SOS, emergency,
+    ManDown, lone-worker, evacuation, brigade, DEA, incident/hazard reporting,
+    and a worker reading their OWN prevention records. Tier-gating applies ONLY
+    to management/scale/convenience (integrations, analytics, branding,
+    multi-tenant, worker/project limits). See ADR 0021.
 12. **Biometric processing is 100% on-device** (MediaPipe Vision, Health
     Connect, HealthKit). No camera frames or heart rate leave the device.
 13. **Anti-stub-disfrazado.** Code that returns mock data or throws
