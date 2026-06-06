@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, cleanup, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, cleanup, fireEvent, act } from '@testing-library/react';
 
 // Mock useFirebase before importing the component.
 const mockUser = {
@@ -140,42 +140,30 @@ describe('Settings WebAuthn UI', () => {
     expect(err.textContent).toMatch(/no se pudo registrar/i);
   });
 
-  it('confirm-delete flow removes the credential after explicit confirm', async () => {
-    const loadCredentials = vi
-      .fn()
-      .mockResolvedValueOnce([
-        {
-          credentialId: 'cred-x',
-          nickname: 'Old key',
-          registeredAt: 1700000000000,
-          lastUsedAt: null,
-        },
-      ])
-      .mockResolvedValueOnce([]);
-    const deleteCredential = vi.fn(async () => undefined);
+  it('does NOT expose a self-serve delete control (stolen-device protection, B17)', async () => {
+    // Self-serve removal of an MFA credential is disabled by design: a thief
+    // with an unlocked phone must not be able to wipe the victim's keys and
+    // lock them out of their safety data with no recovery. The screen is
+    // read-only + register-new (rotate); removal is an account-recovery flow.
+    const loadCredentials = vi.fn(async () => [
+      {
+        credentialId: 'cred-x',
+        nickname: 'Old key',
+        registeredAt: 1700000000000,
+        lastUsedAt: null,
+      },
+    ]);
 
-    const { findByTestId, getByLabelText, queryByTestId } = render(
-      <WebAuthnKeysSection
-        loadCredentials={loadCredentials}
-        deleteCredential={deleteCredential}
-      />,
+    const { findByTestId, queryByLabelText, queryByTestId, getByTestId } = render(
+      <WebAuthnKeysSection loadCredentials={loadCredentials} />,
     );
     await findByTestId('webauthn-credential-cred-x');
 
-    // Click trash icon → renders inline confirm panel.
-    fireEvent.click(getByLabelText(/eliminar llave/i));
-    const confirm = await findByTestId('webauthn-confirm-cred-x');
-    expect(confirm).not.toBeNull();
-
-    await act(async () => {
-      fireEvent.click(confirm.querySelector('button')!); // first button = "Confirmar"
-    });
-    await waitFor(() => expect(deleteCredential).toHaveBeenCalledWith('test-uid', 'cred-x'));
-
-    // After refresh the row is gone.
-    await waitFor(() =>
-      expect(queryByTestId('webauthn-credential-cred-x')).toBeNull(),
-    );
+    // No trash/delete affordance, no inline confirm panel.
+    expect(queryByLabelText(/eliminar llave/i)).toBeNull();
+    expect(queryByTestId('webauthn-confirm-cred-x')).toBeNull();
+    // The protective explanation is shown instead.
+    expect(getByTestId('webauthn-no-delete-note')).not.toBeNull();
   });
 
   it('shows the unsupported banner when navigator.credentials missing', () => {

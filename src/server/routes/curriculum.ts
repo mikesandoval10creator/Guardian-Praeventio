@@ -57,6 +57,7 @@ import {
 import {
   findByCredentialId,
   registerCredential,
+  getCredentialsByUid,
   updateCounter as updateCredentialCounter,
   decodePublicKey,
   type MinimalCredentialsDb,
@@ -673,6 +674,46 @@ webauthnChallengeRouter.get('/webauthn/challenge', verifyAuth, async (req, res) 
       message: error?.message,
     });
     captureRouteError(error, 'curriculum.webauthn_challenge', { uid: callerUid });
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/auth/webauthn/credentials — list the CALLER's own registered
+// WebAuthn credentials (read-only). Reads from the canonical top-level
+// `webauthn_credentials` collection (the one the verify path actually
+// gates on) filtered by the verified token uid — never a client-supplied
+// id. The Settings "Llaves de seguridad" UI consumes this so the worker
+// can SEE which devices are enrolled.
+//
+// SECURITY/PRODUCT (B17, Fase 5 — stolen-device protection):
+//   • Read-only by design. There is intentionally NO self-serve DELETE
+//     endpoint for MFA credentials. Removing a key is destructive and a
+//     thief with an unlocked phone could otherwise wipe the victim's keys
+//     and lock them out of their safety data with no recovery. Rotation =
+//     register a new key (POST /register/*). Removal of a lost/stolen
+//     device's key is an account-recovery / admin-assisted flow (future),
+//     not a one-tap action inside an authenticated session.
+//   • Never returns `publicKey` bytes (public, but kept off the wire as a
+//     minimisation baseline) and never another user's rows.
+webauthnChallengeRouter.get('/webauthn/credentials', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  try {
+    const rows = await getCredentialsByUid(callerUid, buildWebAuthnCredentialsDb());
+    return res.json({
+      credentials: rows.map((c) => ({
+        credentialId: c.credentialId,
+        transports: c.transports ?? [],
+        counter: c.counter,
+        registeredAt: c.registeredAt,
+        lastUsedAt: c.lastUsedAt,
+      })),
+    });
+  } catch (error: any) {
+    logger.error('webauthn_credentials_list_failed', {
+      uid: callerUid,
+      message: error?.message,
+    });
+    captureRouteError(error, 'curriculum.webauthn_credentials', { uid: callerUid });
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

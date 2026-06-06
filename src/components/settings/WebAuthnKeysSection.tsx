@@ -16,7 +16,7 @@
 // interferir con el resto del tree.
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Fingerprint, Plus, Trash2, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
+import { Fingerprint, Plus, ShieldCheck, AlertTriangle, Loader2, Info } from 'lucide-react';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import {
   isWebAuthnSupported,
@@ -38,39 +38,38 @@ export interface WebAuthnCredentialRow {
 export interface WebAuthnKeysSectionProps {
   /**
    * Inyectable para tests — fetcher de la lista de credenciales del usuario.
-   * Producción: lee `users/{uid}/webauthn_credentials/` via Web SDK.
+   * Producción: GET `/api/auth/webauthn/credentials` (read-only, server-side,
+   * identidad desde el token). NO se lee Firestore directo desde el cliente —
+   * la colección canónica `webauthn_credentials` es server-only (default-deny).
    */
   loadCredentials?: (uid: string) => Promise<WebAuthnCredentialRow[]>;
-  /** Inyectable para tests — delete by credentialId. */
-  deleteCredential?: (uid: string, credentialId: string) => Promise<void>;
   /** Inyectable para tests — reemplazo del fetch global. */
   fetchImpl?: typeof fetch;
 }
 
+// Read-only list of the caller's enrolled keys. There is intentionally NO
+// delete loader — self-serve removal of an MFA credential is disabled by
+// design (stolen-device protection, B17/Fase 5). Rotation = registrar una
+// nueva llave; remover un dispositivo perdido = flujo de recuperación.
 async function defaultLoadCredentials(uid: string): Promise<WebAuthnCredentialRow[]> {
-  const { collection, getDocs } = await import('firebase/firestore');
-  const { db } = await import('../../services/firebase');
-  const snap = await getDocs(collection(db, 'users', uid, 'webauthn_credentials'));
-  return snap.docs.map((d) => {
-    const data = d.data() as Record<string, unknown>;
-    return {
-      credentialId: String(data.credentialId ?? d.id),
-      nickname: typeof data.nickname === 'string' ? data.nickname : undefined,
-      deviceType: typeof data.deviceType === 'string' ? data.deviceType : undefined,
-      transports: Array.isArray(data.transports) ? (data.transports as string[]) : undefined,
-      registeredAt: Number(data.registeredAt ?? 0),
-      lastUsedAt:
-        data.lastUsedAt === null || data.lastUsedAt === undefined
-          ? null
-          : Number(data.lastUsedAt),
-    };
+  void uid; // identity is taken from the verified token, server-side
+  const { apiAuthHeaderOrThrow } = await import('../../lib/apiAuth');
+  const authHeader = await apiAuthHeaderOrThrow();
+  const res = await fetch('/api/auth/webauthn/credentials', {
+    headers: { Authorization: authHeader },
   });
-}
-
-async function defaultDeleteCredential(uid: string, credentialId: string): Promise<void> {
-  const { doc, deleteDoc } = await import('firebase/firestore');
-  const { db } = await import('../../services/firebase');
-  await deleteDoc(doc(db, 'users', uid, 'webauthn_credentials', credentialId));
+  if (!res.ok) {
+    throw new Error(`webauthn_credentials_list_failed:${res.status}`);
+  }
+  const data = await res.json();
+  const rows = Array.isArray(data?.credentials) ? data.credentials : [];
+  return rows.map((d: Record<string, unknown>) => ({
+    credentialId: String(d.credentialId ?? ''),
+    transports: Array.isArray(d.transports) ? (d.transports as string[]) : undefined,
+    registeredAt: Number(d.registeredAt ?? 0),
+    lastUsedAt:
+      d.lastUsedAt === null || d.lastUsedAt === undefined ? null : Number(d.lastUsedAt),
+  }));
 }
 
 function formatDate(ms: number | null): string {
@@ -84,7 +83,6 @@ function formatDate(ms: number | null): string {
 
 export function WebAuthnKeysSection({
   loadCredentials = defaultLoadCredentials,
-  deleteCredential = defaultDeleteCredential,
   fetchImpl,
 }: WebAuthnKeysSectionProps = {}) {
   const { user } = useFirebase();
@@ -92,7 +90,6 @@ export function WebAuthnKeysSection({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [registering, setRegistering] = useState<boolean>(false);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [nickname, setNickname] = useState<string>('');
   const supported = isWebAuthnSupported();
 
@@ -147,18 +144,6 @@ export function WebAuthnKeysSection({
     }
   };
 
-  const handleDelete = async (credentialId: string) => {
-    if (!user) return;
-    try {
-      await deleteCredential(user.uid, credentialId);
-      setConfirmDelete(null);
-      await refresh();
-    } catch (err) {
-      logger.error?.('webauthn_credential_delete_failed', { err: String(err) });
-      setError('No se pudo eliminar la llave.');
-    }
-  };
-
   if (!supported) {
     return (
       <div
@@ -209,63 +194,48 @@ export function WebAuthnKeysSection({
         </div>
       ) : (
         <ul className="space-y-2" data-testid="webauthn-list">
-          {credentials.map((cred) => {
-            const confirming = confirmDelete === cred.credentialId;
-            return (
-              <li
-                key={cred.credentialId}
-                data-testid={`webauthn-credential-${cred.credentialId}`}
-                className="p-3 rounded-lg bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">
-                      {cred.nickname || 'Llave sin nombre'}
-                    </p>
-                    <p className="text-[10px] text-zinc-500">
-                      {cred.deviceType ?? 'desconocido'} ·{' '}
-                      {(cred.transports ?? []).join(', ') || 'transport ?'}
-                    </p>
-                    <p className="text-[10px] text-zinc-400">
-                      Registrada: {formatDate(cred.registeredAt)} · Último uso:{' '}
-                      {formatDate(cred.lastUsedAt)}
-                    </p>
-                  </div>
-                  {confirming ? (
-                    <div
-                      data-testid={`webauthn-confirm-${cred.credentialId}`}
-                      className="flex gap-2"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(cred.credentialId)}
-                        className="px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider rounded"
-                      >
-                        Confirmar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDelete(null)}
-                        className="px-2 py-1 bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-[10px] font-black uppercase tracking-wider rounded"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      aria-label={`Eliminar llave ${cred.nickname || cred.credentialId}`}
-                      onClick={() => setConfirmDelete(cred.credentialId)}
-                      className="p-2 rounded hover:bg-rose-50 dark:hover:bg-rose-500/10 text-rose-500"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
+          {credentials.map((cred) => (
+            <li
+              key={cred.credentialId}
+              data-testid={`webauthn-credential-${cred.credentialId}`}
+              className="p-3 rounded-lg bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">
+                  {cred.nickname || 'Llave sin nombre'}
+                </p>
+                <p className="text-[10px] text-zinc-500">
+                  {cred.deviceType ?? 'desconocido'} ·{' '}
+                  {(cred.transports ?? []).join(', ') || 'transport ?'}
+                </p>
+                <p className="text-[10px] text-zinc-400">
+                  Registrada: {formatDate(cred.registeredAt)} · Último uso:{' '}
+                  {formatDate(cred.lastUsedAt)}
+                </p>
+              </div>
+            </li>
+          ))}
         </ul>
+      )}
+
+      {/* Protección de cuenta (B17, Fase 5): la eliminación de llaves NO está
+          disponible para el usuario por diseño. Si pierdes un dispositivo,
+          registra una llave nueva y usa el flujo de recuperación de cuenta —
+          así un teléfono robado no puede borrar tus accesos y dejarte fuera. */}
+      {credentials.length > 0 && (
+        <div
+          data-testid="webauthn-no-delete-note"
+          className="p-3 rounded-lg bg-sky-500/10 border border-sky-500/30 text-[11px] text-sky-700 dark:text-sky-300 flex items-start gap-2"
+        >
+          <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>
+            Por tu seguridad no puedes <strong>eliminar</strong> una llave desde
+            aquí. Para reemplazar un dispositivo perdido o robado, registra una
+            llave nueva y usa la recuperación de cuenta con tu administrador. Así
+            nadie que tome tu teléfono puede borrar tus accesos y dejarte sin tu
+            información.
+          </span>
+        </div>
       )}
 
       {/* Registrar */}
