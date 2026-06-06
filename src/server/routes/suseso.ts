@@ -20,6 +20,7 @@ import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { susesoVerifyLimiter } from '../middleware/limiters.js';
+import { callerTenantOr403 } from '../auth/callerTenant.js';
 import { logger } from '../../utils/logger.js';
 import {
   createSusesoForm,
@@ -155,7 +156,11 @@ const submitSchema = z.object({ tenantId: z.string().min(1) });
 // â”€â”€â”€ Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.post('/form', verifyAuth, validate(createFormSchema), async (req, res) => {
-  const input = req.validated as z.infer<typeof createFormSchema>;
+  const validated = req.validated as z.infer<typeof createFormSchema>;
+  // tenantId is authoritative from the verified token — never the body.
+  const tenantId = callerTenantOr403(req, res, validated.tenantId);
+  if (tenantId === null) return;
+  const input = { ...validated, tenantId };
   try {
     const result = await createSusesoForm(input, {
       folioStore: buildFolioStore(),
@@ -198,8 +203,10 @@ router.post(
   verifyAuth,
   validate(signSchema),
   async (req, res) => {
-    const { tenantId, signature, webauthnAssertion } =
+    const { tenantId: bodyTenantId, signature, webauthnAssertion } =
       req.validated as z.infer<typeof signSchema>;
+    const tenantId = callerTenantOr403(req, res, bodyTenantId);
+    if (tenantId === null) return;
     const callerUid = req.user!.uid;
     try {
       // 2026-05-15 (Regla #3): SI algorithm === 'webauthn-ecdsa-p256',
@@ -315,7 +322,9 @@ router.post(
   verifyAuth,
   validate(submitSchema),
   async (req, res) => {
-    const { tenantId } = req.validated as z.infer<typeof submitSchema>;
+    const { tenantId: bodyTenantId } = req.validated as z.infer<typeof submitSchema>;
+    const tenantId = callerTenantOr403(req, res, bodyTenantId);
+    if (tenantId === null) return;
     try {
       const updated = await submitToMutualidad(tenantId, req.params.id, {
         formStore: buildFormStore(),
@@ -337,10 +346,9 @@ router.post(
   verifyAuth,
   async (req, res) => {
     const formId = req.params.formId;
-    const tenantId = (req.body?.tenantId ?? '') as string;
-    if (!tenantId || typeof tenantId !== 'string') {
-      return res.status(400).json({ error: 'invalid_tenantId' });
-    }
+    // tenantId is authoritative from the verified token — never the body.
+    const tenantId = callerTenantOr403(req, res, req.body?.tenantId);
+    if (tenantId === null) return;
     const role: string | undefined = req.user?.role;
     const allowed = new Set(['admin', 'gerente', 'supervisor']);
     if (!role || !allowed.has(role)) {

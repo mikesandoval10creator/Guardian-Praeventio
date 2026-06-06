@@ -42,7 +42,10 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
     (req as Request & { user: Record<string, unknown> }).user = {
       uid,
       role,
-      tenantId: req.header('x-test-tenant') ?? undefined,
+      // B5: tenantId is now taken from the verified token. Default the shim to
+      // the same tenant the test bodies use ('t1') so existing happy-paths
+      // match; cross-tenant tests override via the x-test-tenant header.
+      tenantId: req.header('x-test-tenant') ?? 't1',
     };
     next();
   },
@@ -383,6 +386,35 @@ describe('POST /api/suseso/form', () => {
     // createSusesoForm was called with bodyPartsAffected defaulting to [].
     const callInput = mockCreateSusesoForm.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(Array.isArray(callInput.bodyPartsAffected)).toBe(true);
+  });
+
+  it('403 cross-tenant: cannot create a form under a tenant other than the token tenant (B5)', async () => {
+    const res = await request(buildApp())
+      .post('/api/suseso/form')
+      .set('x-test-uid', 'u1')
+      .set('x-test-tenant', 't1')
+      .send({ ...validFormBody, tenantId: 't2' }); // forge another tenant
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('tenant_mismatch');
+    // The domain service must NOT have been called for the forged tenant.
+    expect(mockCreateSusesoForm).not.toHaveBeenCalled();
+  });
+
+  it('create stamps the TOKEN tenant even if the body omits/echoes it (B5)', async () => {
+    mockCreateSusesoForm.mockResolvedValueOnce({
+      form: { ...fakeForm, folio: 'DIAT-2026-t1000000-000009' },
+      pdfBytes: new Uint8Array([37, 80, 68, 70]),
+      payloadHashHex: 'a'.repeat(64),
+      qrCodeUrl: '/api/suseso/verify/x',
+    });
+    const res = await request(buildApp())
+      .post('/api/suseso/form')
+      .set('x-test-uid', 'u1')
+      .set('x-test-tenant', 't1')
+      .send({ ...validFormBody, tenantId: 't1' });
+    expect(res.status).toBe(200);
+    const callInput = mockCreateSusesoForm.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callInput.tenantId).toBe('t1'); // server-stamped from the token
   });
 });
 
@@ -735,14 +767,27 @@ describe('POST /api/suseso/forms/:formId/mark-submitted', () => {
     expect(res.status).toBe(401);
   });
 
-  it('400 when tenantId is missing', async () => {
+  it('403 cross-tenant: a body tenantId different from the token tenant is rejected (B5)', async () => {
+    // Token tenant is 't1' (shim default); the body forges 't2'.
     const res = await request(buildApp())
       .post(MARK_PATH)
       .set('x-test-uid', 'u1')
       .set('x-test-role', 'admin')
-      .send({});
-    expect(res.status).toBe(400);
-    expect((res.body as Record<string, unknown>).error).toBe('invalid_tenantId');
+      .set('x-test-tenant', 't1')
+      .send({ tenantId: 't2' });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('tenant_mismatch');
+  });
+
+  it('403 when the caller has no tenant binding on the token', async () => {
+    const res = await request(buildApp())
+      .post(MARK_PATH)
+      .set('x-test-uid', 'u1')
+      .set('x-test-role', 'admin')
+      .set('x-test-tenant', '') // empty → no_tenant_binding
+      .send({ tenantId: 't1' });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('no_tenant_binding');
   });
 
   it('403 for worker role (not in admin/gerente/supervisor allowed set)', async () => {
