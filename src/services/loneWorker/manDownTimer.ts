@@ -137,54 +137,52 @@ export function tickManDownEvent(
     (Date.parse(nowIso) - Date.parse(event.detectedAt)) / 1000;
   if (isNaN(elapsedSec) || elapsedSec < 0) return event;
 
-  let nextStage: ManDownStage | null = null;
-  let nextEscalation: ManDownEscalation | null = null;
+  // Cumulative thresholds from detectedAt.
+  const t1 = config.preAlertToLevel1Sec;
+  const t2 = t1 + config.level1ToLevel2Sec;
+  const t3 = t2 + config.level2ToLevel3Sec;
 
-  if (
-    event.stage === 'pre_alert' &&
-    elapsedSec >= config.preAlertToLevel1Sec
-  ) {
-    nextStage = 'level_1';
-    nextEscalation = {
-      stage: 'level_1',
-      triggeredAt: nowIso,
-      notifiedUids: config.supervisorUids,
-      channel: 'fcm',
-    };
-  } else if (
-    event.stage === 'level_1' &&
-    elapsedSec >= config.preAlertToLevel1Sec + config.level1ToLevel2Sec
-  ) {
-    nextStage = 'level_2';
-    nextEscalation = {
-      stage: 'level_2',
-      triggeredAt: nowIso,
-      notifiedUids: config.cphsUids,
-      channel: 'fcm',
-    };
-  } else if (
-    event.stage === 'level_2' &&
-    elapsedSec >=
-      config.preAlertToLevel1Sec +
-        config.level1ToLevel2Sec +
-        config.level2ToLevel3Sec
-  ) {
-    nextStage = 'level_3';
-    nextEscalation = {
-      stage: 'level_3',
-      triggeredAt: nowIso,
-      notifiedUids: config.emergencyBrigadeUids,
-      // Level 3 fuerza canal multi (FCM + SMS + voz si configurado)
-      channel: 'voice',
-    };
+  // The stage the elapsed time WARRANTS. We escalate to this directly instead
+  // of advancing a single step: ticks can be missed (cron gap, the worker's
+  // device offline then reconnecting). For a possibly-incapacitated worker,
+  // a single-step advance would UNDER-escalate — e.g. 600s elapsed but still
+  // only reaching level_1, so SAMU/brigada (level_3) are never paged. Every
+  // stage crossed in this tick is logged so the responders for each are
+  // notified.
+  const ESCALATION_ORDER: ManDownStage[] = ['pre_alert', 'level_1', 'level_2', 'level_3'];
+  let elapsedRank = 0;
+  if (elapsedSec >= t3) elapsedRank = 3;
+  else if (elapsedSec >= t2) elapsedRank = 2;
+  else if (elapsedSec >= t1) elapsedRank = 1;
+
+  const currentRank = ESCALATION_ORDER.indexOf(event.stage);
+  // Never regress (a fall starts at level_1 before t1 elapses).
+  const targetRank = Math.max(currentRank, elapsedRank);
+  if (targetRank <= currentRank) return event;
+
+  const escalationFor = (stage: ManDownStage): ManDownEscalation => {
+    switch (stage) {
+      case 'level_1':
+        return { stage, triggeredAt: nowIso, notifiedUids: config.supervisorUids, channel: 'fcm' };
+      case 'level_2':
+        return { stage, triggeredAt: nowIso, notifiedUids: config.cphsUids, channel: 'fcm' };
+      case 'level_3':
+        // Level 3 fuerza canal multi (FCM + SMS + voz si configurado)
+        return { stage, triggeredAt: nowIso, notifiedUids: config.emergencyBrigadeUids, channel: 'voice' };
+      default:
+        return { stage, triggeredAt: nowIso, notifiedUids: [], channel: 'broadcast' };
+    }
+  };
+
+  const newEscalations: ManDownEscalation[] = [];
+  for (let rank = currentRank + 1; rank <= targetRank; rank++) {
+    newEscalations.push(escalationFor(ESCALATION_ORDER[rank]));
   }
-
-  if (!nextStage || !nextEscalation) return event;
 
   return {
     ...event,
-    stage: nextStage,
-    escalationLog: [...event.escalationLog, nextEscalation],
+    stage: ESCALATION_ORDER[targetRank],
+    escalationLog: [...event.escalationLog, ...newEscalations],
   };
 }
 
