@@ -87,9 +87,27 @@ describe('POST /:id/invite', () => {
     expect(inviteKeys.length).toBe(1);
   });
 
-  it('admin (non-creator) is allowed to invite', async () => {
-    const res = await request(buildApp()).post('/api/projects/p1/invite').set(as('admin1')).send({ invitedEmail: 'nuevo@x.cl', invitedRole: 'operario' });
+  it('200 when a per-project gerente member (non-creator) invites', async () => {
+    // gerenteMember belongs to p1 with a `gerente` per-project role.
+    H.db!._seed('projects/p1', {
+      name: 'Obra Norte', createdBy: 'creator1',
+      members: ['creator1', 'gerenteMember'], memberRoles: { creator1: 'gerente', gerenteMember: 'gerente' },
+    });
+    const res = await request(buildApp()).post('/api/projects/p1/invite').set(as('gerenteMember')).send({ invitedEmail: 'nuevo@x.cl', invitedRole: 'operario' });
     expect(res.status).toBe(200);
+  });
+
+  it('403 — a GLOBAL admin who is NOT a member of this project cannot invite (B17 cross-project IDOR)', async () => {
+    // admin1 carries a global `admin` custom claim but is not in p1.members.
+    // Under the per-project model the global claim grants nothing here.
+    const res = await request(buildApp()).post('/api/projects/p1/invite').set(as('admin1')).send({ invitedEmail: 'nuevo@x.cl', invitedRole: 'operario' });
+    expect(res.status).toBe(403);
+  });
+
+  it('403 — a member WITHOUT a management role cannot invite', async () => {
+    // member1 is a member but their per-project role is `operario`.
+    const res = await request(buildApp()).post('/api/projects/p1/invite').set(as('member1')).send({ invitedEmail: 'nuevo@x.cl', invitedRole: 'operario' });
+    expect(res.status).toBe(403);
   });
 
   it('409 when the invited email already belongs to a member', async () => {
@@ -145,6 +163,22 @@ describe('DELETE /:id/members/:uid', () => {
     const res = await request(buildApp()).delete('/api/projects/p1/members/member1').set(as('member1'));
     expect(res.status).toBe(200);
     expect((H.db!._dump()['projects/p1'] as { members: string[] }).members).not.toContain('member1');
+  });
+
+  it('200 a per-project gerente member removes another member', async () => {
+    H.db!._seed('projects/p1', {
+      name: 'Obra', createdBy: 'creator1',
+      members: ['creator1', 'gerenteMember', 'member2'],
+      memberRoles: { gerenteMember: 'gerente', member2: 'operario' },
+    });
+    const res = await request(buildApp()).delete('/api/projects/p1/members/member2').set(as('gerenteMember'));
+    expect(res.status).toBe(200);
+    expect((H.db!._dump()['projects/p1'] as { members: string[] }).members).not.toContain('member2');
+  });
+
+  it('403 a GLOBAL admin who is NOT a member cannot remove (B17 cross-project IDOR)', async () => {
+    const res = await request(buildApp()).delete('/api/projects/p1/members/member1').set(as('admin1'));
+    expect(res.status).toBe(403);
   });
 });
 

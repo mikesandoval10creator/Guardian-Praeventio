@@ -1039,15 +1039,20 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       const projectDoc = await deps.firestore.collection('projects').doc(projectId).get();
       if (!projectDoc.exists) return res.status(404).json({ error: 'Project not found' });
       const projectData = projectDoc.data()!;
-      if (projectData.createdBy !== callerUid) {
-        const callerRecord = await deps.auth.getUser(callerUid);
-        if (
-          callerRecord.customClaims?.role !== 'gerente' &&
-          callerRecord.customClaims?.role !== 'admin'
-        ) {
+      // Per-project membership (B17, Fase 5): the creator, or a member whose
+      // per-project role is gerente/admin. A GLOBAL custom claim grants
+      // nothing here — management is project-scoped (mirrors
+      // callerCanManageProject in src/server/routes/projects.ts).
+      {
+        const members: string[] = projectData.members || [];
+        const role = projectData.memberRoles?.[callerUid];
+        const canManage =
+          projectData.createdBy === callerUid ||
+          (members.includes(callerUid) && (role === 'gerente' || role === 'admin'));
+        if (!canManage) {
           return res
             .status(403)
-            .json({ error: 'Forbidden: Only the project creator can invite members' });
+            .json({ error: 'Forbidden: Only the project creator or a gerente/admin member can invite members' });
         }
       }
       const existing: string[] = projectData.members || [];
