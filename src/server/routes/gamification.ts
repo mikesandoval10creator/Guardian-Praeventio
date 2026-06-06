@@ -29,28 +29,38 @@ import {
   getLeaderboard,
   checkMedalEligibility,
 } from '../../services/gamificationBackend.js';
+import { POINT_VALUES, isPointReason } from '../../services/gamification/pointValues.js';
 
 const router = Router();
 
 router.post('/gamification/points', verifyAuth, async (req, res) => {
-  const { amount, reason } = req.body;
   const uid = req.user!.uid;
+  // B6 (Fase 5): the points amount is SERVER-AUTHORITATIVE — derived from the
+  // whitelisted `reason`, NEVER from the request body. Previously the handler
+  // incremented the caller's score by `req.body.amount`, so any user could
+  // self-grant unlimited points (leaderboard + medal-threshold abuse). The
+  // client `amount`, if any, is ignored.
+  const reason = req.body?.reason;
+  if (!isPointReason(reason)) {
+    return res.status(400).json({ error: 'invalid_reason' });
+  }
+  const amount = POINT_VALUES[reason];
   try {
     await awardPoints(uid, amount, reason);
     // Round 17 R1 — audit row for awarded points (compliance trail per
     // Ley 16.744 — gamification tied to safety behaviors must be auditable).
     try {
       await auditServerEvent(req, 'gamification.points_awarded', 'gamification', {
-        amount: typeof amount === 'number' ? amount : null,
-        reason: typeof reason === 'string' ? reason : null,
+        amount,
+        reason,
       });
     } catch {
       /* observability never breaks request path */
     }
-    res.json({ success: true });
+    return res.json({ success: true, awarded: amount });
   } catch (error: any) {
     captureRouteError(error, 'gamification.handler', { uid: req.user?.uid });
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 });
 

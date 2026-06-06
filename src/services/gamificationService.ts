@@ -1,4 +1,10 @@
 import { apiAuthHeaders } from '../lib/apiAuth';
+// Canonical point values live in a shared, server-authoritative module (B6).
+// Re-exported here so existing client imports of `POINT_VALUES`/`PointReason`
+// keep working; the server uses the SAME table and ignores any client `amount`.
+import { POINT_VALUES, type PointReason } from './gamification/pointValues';
+
+export { POINT_VALUES, type PointReason };
 
 async function authHeaders(): Promise<Record<string, string>> {
   // §2.20 fix (2026-05-21) — usa apiAuthHeaders() helper unificado que
@@ -12,26 +18,15 @@ async function authHeaders(): Promise<Record<string, string>> {
   };
 }
 
-export const POINT_VALUES = {
-  morning_checkin: 10,
-  training_completed: 50,
-  quiz_passed: 25,
-  mandown_acknowledged: 30,
-  zone_violation_reported: 20,
-  incident_reported: 15,
-  sos_resolved: 40,
-} as const;
-
-export type PointReason = keyof typeof POINT_VALUES;
-
-export async function awardPoints(reason: PointReason, overrideAmount?: number): Promise<void> {
-  const amount = overrideAmount ?? POINT_VALUES[reason];
+export async function awardPoints(reason: PointReason): Promise<void> {
   try {
     const headers = await authHeaders();
+    // The server awards the canonical POINT_VALUES[reason]; we only send the
+    // reason. (No client-supplied amount — it would be ignored server-side.)
     await fetch('/api/gamification/points', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ amount, reason }),
+      body: JSON.stringify({ reason }),
     });
     // Fire-and-forget medal check after every award
     fetch('/api/gamification/check-medals', { method: 'POST', headers }).catch(() => {});
