@@ -213,4 +213,42 @@ describe('projectScopedStores firestore.rules', () => {
       });
     });
   }
+
+  // B17 (Fase 5) — lone-worker session integrity. A lone-worker session/event
+  // belongs to ONE worker; a different project member must NOT be able to flip
+  // its state (e.g. mark a worker-in-distress as "safe"). Only the owner or a
+  // rescue coordinator (admin/supervisor) may update it.
+  for (const coll of ['lone_worker_sessions', 'lone_worker_events']) {
+    describe(`${coll} (owner-or-rescuer update integrity)`, () => {
+      it('a DIFFERENT member cannot update the worker\'s session', async () => {
+        await seed(coll, 'lw1', { workerUid: MEMBER, status: 'active' });
+        const otherDb = requireEnv()
+          .authenticatedContext(OTHER_MEMBER, verifiedToken('worker'))
+          .firestore();
+        await assertFails(
+          setDoc(ref(otherDb, coll, 'lw1'), { workerUid: MEMBER, status: 'safe' }),
+        );
+      });
+
+      it('the owning worker can update their own session', async () => {
+        await seed(coll, 'lw2', { workerUid: MEMBER, status: 'active' });
+        const ownerDb = requireEnv()
+          .authenticatedContext(MEMBER, verifiedToken('worker'))
+          .firestore();
+        await assertSucceeds(
+          setDoc(ref(ownerDb, coll, 'lw2'), { workerUid: MEMBER, status: 'safe' }),
+        );
+      });
+
+      it('a supervisor (rescue coordinator) can update any worker\'s session', async () => {
+        await seed(coll, 'lw3', { workerUid: MEMBER, status: 'active' });
+        const supDb = requireEnv()
+          .authenticatedContext('supervisor-uid-1', verifiedToken('supervisor'))
+          .firestore();
+        await assertSucceeds(
+          setDoc(ref(supDb, coll, 'lw3'), { workerUid: MEMBER, status: 'rescued' }),
+        );
+      });
+    });
+  }
 });

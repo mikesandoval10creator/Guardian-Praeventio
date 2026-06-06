@@ -528,18 +528,26 @@ service cloud.firestore {
       }
 
       // -- Operational (member-write; admin/supervisor delete) ---------
+      // B17 (Fase 5): a lone-worker session/event belongs to ONE worker. Only
+      // that worker — or a rescue coordinator (admin/supervisor) — may update
+      // it. Previously ANY project member could mutate another worker's session
+      // (e.g. falsely flip a worker-in-distress to "safe"), masking a real
+      // emergency. `isProjectMember` already subsumes admin/supervisor, so the
+      // added clause is the owner-or-rescuer gate; `workerUid` stays immutable.
       match /lone_worker_sessions/{sessionId} {
         allow create: if isValidId(projectId) && isProjectMember(projectId)
           && incoming().workerUid == request.auth.uid;
         allow update: if isValidId(projectId) && isProjectMember(projectId)
-          && incoming().workerUid == existing().workerUid;
+          && incoming().workerUid == existing().workerUid
+          && (existing().workerUid == request.auth.uid || isAdmin() || isSupervisor());
         allow delete: if isAdmin() || isSupervisor();
       }
       match /lone_worker_events/{eventId} {
         allow create: if isValidId(projectId) && isProjectMember(projectId)
           && incoming().workerUid == request.auth.uid;
         allow update: if isValidId(projectId) && isProjectMember(projectId)
-          && incoming().workerUid == existing().workerUid;
+          && incoming().workerUid == existing().workerUid
+          && (existing().workerUid == request.auth.uid || isAdmin() || isSupervisor());
         allow delete: if isAdmin() || isSupervisor();
       }
       match /safety_talks_given/{talkId} {
