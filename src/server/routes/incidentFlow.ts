@@ -120,6 +120,14 @@ async function guard(
   return { tenantId };
 }
 
+// B4 (Fase 5): emit the CANONICAL audit_logs shape so incident-flow events are
+// queryable by the standard audit tooling. The prior hand-rolled row used
+// `kind`/`actorUid`/`createdAt`, which the audit readers (which filter on
+// `action`/`userId`/`timestamp` + `module`) silently skipped. We keep the
+// top-level `audit_logs` collection (append-only rules) and stamp the same
+// field names auditServerEvent writes. (userEmail/ip/ua are not available at
+// this helper's call sites — they default to null; the queryable keys
+// `action`/`module`/`userId`/`timestamp`/`projectId` are what matters.)
 async function writeAudit(
   tenantId: string,
   projectId: string,
@@ -132,12 +140,15 @@ async function writeAudit(
       .firestore()
       .collection('audit_logs')
       .add({
-        kind: action,
-        tenantId,
+        action,
+        module: 'incidentFlow',
+        userId: actorUid,
+        userEmail: null,
         projectId,
-        actorUid,
-        details,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        details: { ...details, tenantId },
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        ip: null,
+        userAgent: null,
       });
   } catch (err) {
     // Audit failure MUST NOT break the user flow.
