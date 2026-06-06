@@ -193,6 +193,22 @@ describe('POST /api/gemini — whitelist + gates', () => {
     expect(res.body.error).toBe('gemini_circuit_open');
   });
 
+  it('circuit-open → life-safety emergency plan still degrades to a baseline (200, not 503)', async () => {
+    // The breaker is OPEN (sustained outage) — assertGeminiAllowed rejects
+    // before dispatch. A worker in an emergency must STILL get a usable plan, so
+    // the dispatcher serves the deterministic baseline instead of 503.
+    H.assertAllowed.mockRejectedValue(Object.assign(new Error('open'), { code: 'gemini_circuit_open' }));
+    const res = await request(buildApp())
+      .post('/api/gemini')
+      .set(uid)
+      .send({ action: 'generateEmergencyPlanJSON', args: ['Incendio', 'fuego en bodega', 'DS 594'] });
+    expect(res.status).toBe(200);
+    expect(res.body.degraded).toBe(true);
+    expect(res.body.result.generadoSinIA).toBe(true);
+    expect(res.body.result.objetivo).toContain('Incendio');
+    expect((res.body.result.marcoLegal as string[]).join(' ')).toContain('16.744');
+  });
+
   // ─── F3 — identity-from-token (anti-spoof) ───────────────────────────────────
   // syncNodeToNetwork / syncBatchToNetwork persist the caller's uid (node
   // authorship) via the Admin SDK. The dispatcher MUST overwrite the
