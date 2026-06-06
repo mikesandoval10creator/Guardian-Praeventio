@@ -6,6 +6,7 @@ import { useProject } from './ProjectContext';
 import { logger } from '../utils/logger';
 import {
   normalizeSubscriptionPlanId,
+  PLAN_RANK,
   type SubscriptionPlan,
 } from '../services/pricing/subscriptionPlan';
 
@@ -32,21 +33,10 @@ export interface SubscriptionFeatures {
   canUseCustomBranding: boolean;
 }
 
-// Plan ranking, from lowest (free) to highest (ilimitado). The legacy
-// `'platino'` id is mapped to the modern Diamante slot via TIER_TO_LEGACY_PLAN
-// in Pricing.tsx, so it ranks between titanio and empresarial here.
-const PLAN_RANK: Record<SubscriptionPlan, number> = {
-  free: 0,
-  comite: 1,
-  departamento: 2,
-  plata: 3,
-  oro: 4,
-  titanio: 5,
-  platino: 6, // legacy alias for diamante
-  empresarial: 7,
-  corporativo: 8,
-  ilimitado: 9,
-};
+// Plan ranking now lives in the canonical, server-shared module
+// (`services/pricing/subscriptionPlan`) so the client feature matrix and the
+// server `requireTier` middleware compare against the SAME ranks (directive
+// #11). `PLAN_RANK` is imported above.
 
 const RANK_ORO = PLAN_RANK.oro;
 const RANK_TITANIO = PLAN_RANK.titanio;

@@ -58,3 +58,39 @@ export function subscriptionPlanMatchesPaidTier(
 ): boolean {
   return normalizeSubscriptionPlanId(paidTierId) === requestedPlan;
 }
+
+/**
+ * Canonical plan ranking, lowest (free) → highest (ilimitado). SINGLE SOURCE OF
+ * TRUTH for tier comparisons, used by BOTH the client feature matrix
+ * (`SubscriptionContext`) and the SERVER enforcement middleware
+ * (`requireTier`). Tier-gating is UX-only on the client (directive #11) — the
+ * authoritative check reads `users/{uid}.subscription.planId` server-side and
+ * compares ranks here.
+ */
+export const PLAN_RANK: Record<SubscriptionPlan, number> = {
+  free: 0,
+  comite: 1,
+  departamento: 2,
+  plata: 3,
+  oro: 4,
+  titanio: 5,
+  platino: 6, // legacy id for the modern "diamante" slot (titanio < platino < empresarial)
+  empresarial: 7,
+  corporativo: 8,
+  ilimitado: 9,
+};
+
+/**
+ * Rank for an arbitrary (possibly legacy/unknown) plan value. Unknown or
+ * missing values resolve to the free-tier rank (0) — fail-closed: an
+ * unrecognized plan never satisfies a paid gate.
+ */
+export function planRank(plan: unknown): number {
+  const normalized = normalizeSubscriptionPlanId(plan);
+  return normalized ? PLAN_RANK[normalized] : 0;
+}
+
+/** True iff `plan` ranks at or above `minPlan`. */
+export function planMeetsMinimum(plan: unknown, minPlan: SubscriptionPlan): boolean {
+  return planRank(plan) >= PLAN_RANK[minPlan];
+}
