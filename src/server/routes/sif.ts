@@ -80,9 +80,13 @@ router.get(
   },
 );
 
+// B4 (Fase 5): the reviewer identity and timestamp are stamped server-side
+// from the verified token + server clock — NEVER the request body. A SIF
+// (Serious Injury/Fatality) executive review is an accountability record;
+// trusting `reviewedByUid`/`reviewedAt` from the client let a caller attribute
+// the review to another executive and backdate it. Only `reviewNotes` is
+// client-supplied.
 const sifReviewSchema = z.object({
-  reviewedByUid: z.string().min(1),
-  reviewedAt: z.string().min(10),
   reviewNotes: z.string().max(2000).optional(),
 });
 
@@ -102,10 +106,11 @@ router.post(
         g.tenantId,
         projectId,
       );
+      // reviewer = authenticated caller; reviewedAt = server clock.
       await adapter.recordExecutiveReview(
         id,
-        body.reviewedByUid,
-        body.reviewedAt,
+        callerUid,
+        new Date().toISOString(),
         body.reviewNotes,
       );
       await auditServerEvent(req, 'sif.executive-review', 'sif', { projectId, precursorId: id }, { projectId });
