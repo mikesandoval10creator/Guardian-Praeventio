@@ -26,6 +26,12 @@ const parseXlsxMock = vi.fn();
 const validateRowsMock = vi.fn();
 const dedupeMock = vi.fn();
 
+// B17: the commit handler now calls assertProjectMember, which reads
+// `projects/{projectId}`. This hoisted seed lets each test control that doc.
+const projectSeed = vi.hoisted(() => ({
+  current: null as null | { members?: string[]; createdBy?: string },
+}));
+
 vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) =>
     verifyAuthMock(req, res, next),
@@ -107,6 +113,22 @@ vi.mock('firebase-admin', () => {
   }
   const firestoreFn: any = () => ({
     collection: (_n: string) => {
+      // B17: top-level `projects/{id}` is read by assertProjectMember; serve
+      // the per-test seed so the membership gate resolves.
+      if (_n === 'projects') {
+        return {
+          doc: (_id?: string) => ({
+            id: 'doc-fake',
+            collection: (_c: string) => makeColl(),
+            get: async () => ({
+              exists: projectSeed.current !== null,
+              data: () => projectSeed.current ?? undefined,
+            }),
+          }),
+          limit: (_n2: number) => ({ get: async () => ({ forEach: () => {} }) }),
+          get: async () => ({ forEach: () => {} }),
+        };
+      }
       // Capture the final `.doc()` call from `colRef.doc()` (commit-path)
       // so we can assert on the doc factory if needed.
       const c = makeColl();
@@ -155,6 +177,7 @@ beforeEach(() => {
   batchCommitMock.mockReset();
   batchCommitMock.mockResolvedValue(undefined);
   collectionDocMock.mockClear();
+  projectSeed.current = null;
 
   // Default: idempotency middleware is a pass-through (no key sent → next()).
   idempotencyKeyMiddleware.mockImplementation(
@@ -338,8 +361,21 @@ describe('POST /api/import/commit — persist a validated batch', () => {
     expect(res.body.error).toBe('invalid_payload');
   });
 
+  it('returns 403 when the caller is not a member of the project (B17)', async () => {
+    authOK('intruder');
+    projectSeed.current = { members: ['someone-else'], createdBy: 'owner' };
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/import/commit')
+      .send({ kind: 'workers', records: [{ rut: '1' }], projectId: 'proj-X' });
+    expect(res.status).toBe(403);
+    expect(batchCommitMock).not.toHaveBeenCalled();
+  });
+
   it('happy path: returns 200 after committing records', async () => {
     authOK('uid-commit');
+    // Caller is a member of the target project → passes the B17 gate.
+    projectSeed.current = { members: ['uid-commit'] };
     const app = await buildApp();
     const records = [
       { rut: '11.111.111-1', fullName: 'Ana' },

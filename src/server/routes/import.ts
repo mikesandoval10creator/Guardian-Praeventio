@@ -33,6 +33,10 @@ import { auditServerEvent } from '../middleware/auditLog.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { logger } from '../../utils/logger.js';
 import {
+  assertProjectMember,
+  ProjectMembershipError,
+} from '../../services/auth/projectMembership.js';
+import {
   parseXlsx,
   validateRows,
   dedupe,
@@ -335,6 +339,21 @@ router.post(
     const { kind, records, projectId } = parsed.data;
 
     const db = admin.firestore();
+
+    // B17 (Fase 5): conectar la verificación de membresía que faltaba — antes,
+    // cualquier usuario autenticado podía COMMITear registros a cualquier
+    // projectId. Ahora el caller debe ser miembro (o creador) del proyecto.
+    // Aditivo: los miembros legítimos no cambian; sólo se bloquea a quien no
+    // pertenece. Mismo helper que el resto de las rutas server.
+    try {
+      await assertProjectMember(uid, projectId, db);
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+
     const tenantId = uid;
     const colRef = db
       .collection('tenants')
