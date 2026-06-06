@@ -69,6 +69,25 @@ describe('buildBrigadeCoverageReport', () => {
     ]);
     expect(r.totalMembers).toBe(0);
   });
+
+  it('fail-closed: trainedAt inválido NO cuenta como cobertura (antes daba falso positivo de vida)', () => {
+    const r = buildBrigadeCoverageReport(
+      [
+        member({ workerUid: 'a', role: 'brigade_chief', trainedAt: 'fecha-corrupta' }),
+        member({ workerUid: 'b', role: 'first_aid' }),
+        member({ workerUid: 'c', role: 'fire_response' }),
+      ],
+      '2026-05-11T00:00:00Z',
+    );
+    // El miembro con fecha que no parsea (Date.parse → NaN) se trata como
+    // VENCIDO, no se cuenta en byRole, y el rol queda descubierto. Antes del
+    // fix `NaN < now` era false → contaba como vigente → meetsMinimum=true con
+    // un brigade_chief sin capacitación válida.
+    expect(r.byRole.brigade_chief).toBe(0);
+    expect(r.expiredTrainings.map((m) => m.workerUid)).toContain('a');
+    expect(r.uncoveredRoles).toContain('brigade_chief');
+    expect(r.meetsMinimum).toBe(false);
+  });
 });
 
 describe('buildResourceReadinessReport', () => {
