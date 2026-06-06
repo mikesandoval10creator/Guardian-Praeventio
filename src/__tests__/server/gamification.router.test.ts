@@ -68,14 +68,36 @@ describe('POST /gamification/points', () => {
     expect(res.status).toBe(401);
   });
 
-  it('200 awards points to the caller', async () => {
+  it('200 awards the SERVER-defined points for a whitelisted reason (ignores client amount)', async () => {
     const res = await request(buildApp())
       .post('/api/gamification/points')
       .set('x-test-uid', 'w1')
-      .send({ amount: 10, reason: 'reported_hazard' });
+      // Attacker tries to grant 999999 — the server must ignore it and use the
+      // canonical value for 'training_completed' (50).
+      .send({ amount: 999999, reason: 'training_completed' });
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true });
-    expect(vi.mocked(awardPoints)).toHaveBeenCalledWith('w1', 10, 'reported_hazard');
+    expect(res.body).toEqual({ success: true, awarded: 50 });
+    // The forged amount is NOT passed through; the server value (50) is.
+    expect(vi.mocked(awardPoints)).toHaveBeenCalledWith('w1', 50, 'training_completed');
+  });
+
+  it('400 invalid_reason for a non-whitelisted reason (no self-grant)', async () => {
+    const res = await request(buildApp())
+      .post('/api/gamification/points')
+      .set('x-test-uid', 'w1')
+      .send({ amount: 10, reason: 'reported_hazard' }); // not in POINT_VALUES
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_reason');
+    expect(vi.mocked(awardPoints)).not.toHaveBeenCalled();
+  });
+
+  it('400 invalid_reason when no reason is supplied', async () => {
+    const res = await request(buildApp())
+      .post('/api/gamification/points')
+      .set('x-test-uid', 'w1')
+      .send({ amount: 10 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_reason');
   });
 
   it('500 when the award service throws', async () => {
@@ -83,7 +105,7 @@ describe('POST /gamification/points', () => {
     const res = await request(buildApp())
       .post('/api/gamification/points')
       .set('x-test-uid', 'w1')
-      .send({ amount: 10 });
+      .send({ reason: 'quiz_passed' });
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('store down');
   });

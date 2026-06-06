@@ -279,7 +279,7 @@ considera y se CABLEA donde corresponde.** Reglas:
 - [ ] 🔵 `iso_documents`/`iso_improvements` schema/audit+owner bug; qrSignature 500→503; `sitebookSignRoutes` assertProjectMember.
 
 ### B6 — Capacitación & Currículum  · ref `DEEP-B6` + `DEEP-EX-22/23`
-- [ ] 🔴 `gamification.ts:35` auto-otorga puntos (amount del cliente) → whitelist/cota server. (super)
+- [x] 🔴 `gamification.ts:35` auto-otorga puntos (amount del cliente) → whitelist/cota server. **HECHO**: el endpoint sumaba `req.body.amount` al puntaje del caller → cualquier user se auto-otorgaba puntos ilimitados (abuso de leaderboard + umbrales de medallas). Ahora el monto es **server-authoritative**: catálogo único `src/services/gamification/pointValues.ts` (`POINT_VALUES`), el server otorga `POINT_VALUES[reason]` e **ignora el amount del cliente**; reason no-whitelisted → 400 `invalid_reason`. Consolidado: el catálogo (antes duplicado en `gamificationService.ts` cliente) es ahora la única fuente, reusada por cliente (UI) y server. +tests: amount forjado ignorado (otorga 50), invalid_reason 400, sin-reason 400; 13 verde, typecheck/lint 0, 2026-06-06 · PR #712. (super)
 - [ ] 🔴 Referee co-sign WebAuthn nunca verificada (`RefereeAccept.tsx:82`/`claims.ts:306`) (F4). (super)
 - [ ] 🔴 `read_receipts` (DS44/RIOHS) sin regla → reglas+tests; `microtraining.ts:187` `grantCert(body.workerUid)` → callerUid (F3). (rules/super)
 - [ ] 🟡 `trainingCertificate` sobre-afirma legal → **añadir firma/QR/hash verificable**; training root client-write; `gamificationBackend` field-path injection; `onboarding.ts:268` audit (#14). (vitest)
