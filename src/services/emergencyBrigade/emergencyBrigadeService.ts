@@ -76,8 +76,15 @@ export function buildBrigadeCoverageReport(
 
   const expiredTrainings: BrigadeMember[] = [];
   for (const m of active) {
-    const expiresMs = Date.parse(m.trainedAt) + m.trainingValidYears * 365 * 86_400_000;
-    if (expiresMs < nowMs) {
+    const trainedMs = Date.parse(m.trainedAt);
+    const expiresMs = trainedMs + m.trainingValidYears * 365 * 86_400_000;
+    // Fail-closed: a corrupt/unparseable `trainedAt` must NOT count as valid
+    // brigade coverage — a brigade can't be certified "ready" on garbage data.
+    // `Date.parse` returns NaN on a bad date and `NaN < nowMs` is always false,
+    // so WITHOUT this guard the member would skip `expiredTrainings` AND
+    // increment `byRole`, inflating `meetsMinimum` for a brigade that is
+    // actually under-covered — a life-safety false positive.
+    if (Number.isNaN(trainedMs) || expiresMs < nowMs) {
       expiredTrainings.push(m);
     } else {
       byRole[m.role] += 1;
