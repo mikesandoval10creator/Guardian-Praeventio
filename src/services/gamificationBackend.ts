@@ -1,6 +1,26 @@
 import * as admin from 'firebase-admin';
 
+// B6 (Fase 5): `reason` is interpolated into a Firestore FIELD PATH below
+// (`completedChallenges.${reason}`). A `reason` containing a dot (or other
+// path/operator characters) would be parsed by Firestore as a NESTED field,
+// letting a caller write to an arbitrary path under the user's stats doc
+// (field-path injection). The route layer already whitelists `reason`, but
+// this exported service must guard its own input — the same alphanumeric +
+// underscore charset the point-value catalog uses.
+const SAFE_REASON = /^[A-Za-z0-9_]{1,64}$/;
+
 export const awardPoints = async (uid: string, amount: number, reason: string) => {
+  if (typeof reason !== 'string' || !SAFE_REASON.test(reason)) {
+    throw new Error(
+      'awardPoints: reason must match [A-Za-z0-9_]{1,64} (Firestore field-path injection guard)',
+    );
+  }
+  if (typeof uid !== 'string' || uid.length === 0) {
+    throw new Error('awardPoints: uid is required');
+  }
+  if (!Number.isFinite(amount)) {
+    throw new Error('awardPoints: amount must be a finite number');
+  }
   const db = admin.firestore();
   const userRef = db.collection('user_stats').doc(uid);
   
