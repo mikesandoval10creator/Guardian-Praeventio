@@ -253,70 +253,87 @@ router.post(
           `tenants/${g.tenantId}/projects/${projectId}/pdca_cycles`,
         )
         .doc(id);
-      const snap = await ref.get();
-      if (!snap.exists) {
+
+      type Outcome =
+        | { kind: 'not_found' }
+        | { kind: 'no_entry' }
+        | { kind: 'cannot_advance'; reason: string }
+        | { kind: 'ok'; cycle: StoredCycle };
+
+      // CLAUDE.md #19: the read-modify-write of the cycle's stage MUST be
+      // atomic. Without a transaction, two concurrent /advance calls could both
+      // read the same `currentStage` and double-transition the PDCA phase
+      // machine (lost update — e.g. plan→do applied twice, or check + act
+      // racing past the efficacy gate).
+      const outcome = await db.runTransaction<Outcome>(async (txn) => {
+        const snap = await txn.get(ref);
+        if (!snap.exists) return { kind: 'not_found' };
+        const stored = snap.data() as StoredCycle;
+        const nowIso = new Date().toISOString();
+
+        const stages = [...(stored.stages ?? [])];
+        let lastIdx = -1;
+        for (let i = stages.length - 1; i >= 0; i--) {
+          if (stages[i].kind === stored.currentStage) {
+            lastIdx = i;
+            break;
+          }
+        }
+        if (lastIdx < 0) return { kind: 'no_entry' };
+
+        const closed: PdcaEntry = {
+          ...stages[lastIdx],
+          completedAt: nowIso,
+          notes: body.notes ?? stages[lastIdx].notes,
+        };
+        if (
+          stored.currentStage === 'act' &&
+          typeof body.efficacyScore === 'number'
+        ) {
+          closed.efficacyScore = body.efficacyScore;
+        }
+        stages[lastIdx] = closed;
+
+        const result = advanceStage(
+          {
+            id: stored.id,
+            currentStage: stored.currentStage,
+            stages,
+            cycleNumber: stored.cycleNumber,
+          },
+          body.evidence,
+          nowIso,
+        );
+        if (!result.advanced) {
+          return { kind: 'cannot_advance', reason: result.reason ?? 'unknown' };
+        }
+        const merged: StoredCycle = {
+          ...stored,
+          currentStage: result.project.currentStage,
+          stages: result.project.stages as PdcaEntry[],
+          cycleNumber: result.project.cycleNumber,
+        };
+        txn.set(ref, merged); // full replace (was set merge:false)
+        return { kind: 'ok', cycle: merged };
+      });
+
+      if (outcome.kind === 'not_found') {
         return res.status(404).json({ error: 'cycle_not_found' });
       }
-      const stored = snap.data() as StoredCycle;
-      const nowIso = new Date().toISOString();
-
-      const stages = [...(stored.stages ?? [])];
-      let lastIdx = -1;
-      for (let i = stages.length - 1; i >= 0; i--) {
-        if (stages[i].kind === stored.currentStage) {
-          lastIdx = i;
-          break;
-        }
+      if (outcome.kind === 'no_entry') {
+        return res.status(400).json({ error: 'no_entry_for_current_stage' });
       }
-      if (lastIdx < 0) {
-        return res
-          .status(400)
-          .json({ error: 'no_entry_for_current_stage' });
+      if (outcome.kind === 'cannot_advance') {
+        return res.status(400).json({ error: 'cannot_advance', reason: outcome.reason });
       }
-      const closed: PdcaEntry = {
-        ...stages[lastIdx],
-        completedAt: nowIso,
-        notes: body.notes ?? stages[lastIdx].notes,
-      };
-      if (
-        stored.currentStage === 'act' &&
-        typeof body.efficacyScore === 'number'
-      ) {
-        closed.efficacyScore = body.efficacyScore;
-      }
-      stages[lastIdx] = closed;
-
-      const result = advanceStage(
-        {
-          id: stored.id,
-          currentStage: stored.currentStage,
-          stages,
-          cycleNumber: stored.cycleNumber,
-        },
-        body.evidence,
-        nowIso,
-      );
-      if (!result.advanced) {
-        return res.status(400).json({
-          error: 'cannot_advance',
-          reason: result.reason ?? 'unknown',
-        });
-      }
-      const merged: StoredCycle = {
-        ...stored,
-        currentStage: result.project.currentStage,
-        stages: result.project.stages as PdcaEntry[],
-        cycleNumber: result.project.cycleNumber,
-      };
-      await ref.set(merged, { merge: false });
       await auditServerEvent(
         req,
         'pdca.advanceCycle',
         'pdca',
-        { cycleId: id, currentStage: merged.currentStage },
+        { cycleId: id, currentStage: outcome.cycle.currentStage },
         { projectId },
       );
-      return res.json({ ok: true, cycle: merged });
+      return res.json({ ok: true, cycle: outcome.cycle });
     } catch (err) {
       logger.error?.('pdca.advance.error', err);
       captureRouteError(err, 'pdca.advance');
