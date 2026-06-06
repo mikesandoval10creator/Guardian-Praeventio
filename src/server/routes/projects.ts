@@ -16,12 +16,16 @@
 //   • GET    /api/invitations/info/:token        (public)
 //   • POST   /api/invitations/:token/accept      (verifyAuth)
 //
-// Authorization model:
-//   • Project surfaces: caller must be the project's `createdBy` OR have
-//     gerente/admin role. We do NOT use `assertProjectMemberFromParam`
-//     here because the existing semantics distinguish "creator" from
-//     "member" — only creators can invite/remove. The members LIST
-//     endpoint allows any project member (or gerente/admin) to read.
+// Authorization model (B17, Fase 5 — per-project membership):
+//   • Management surfaces (invite / remove-member / cancel-invite): the
+//     caller must be the project's `createdBy` OR a MEMBER OF THIS PROJECT
+//     whose per-project role (`memberRoles[uid]`) is `gerente`/`admin`.
+//     Previously these gated on the caller's GLOBAL `gerente`/`admin`
+//     custom claim, which let a gerente of ANY project manage EVERY
+//     project (cross-project IDOR). The privilege now derives from the
+//     per-project `memberRoles` map, never a global claim.
+//   • The members LIST endpoint allows any member of this project to read.
+//   • Self-leave: a member may always remove THEMSELVES.
 //   • Invitation accept: the caller's email must match the invited email.
 
 import { Router } from 'express';
@@ -87,6 +91,44 @@ function mapDomainRole(role: unknown): AnalyticsRole {
   return 'worker';
 }
 
+/**
+ * Per-project authorization helpers (B17, Fase 5). Both read a project
+ * document's `members`/`memberRoles`/`createdBy` fields and decide solely
+ * from THIS project's state — never from a global custom claim. This closes
+ * the cross-project IDOR where a `gerente`/`admin` claim on one project
+ * granted management over every project.
+ *
+ * `PROJECT_MANAGEMENT_ROLES` is the set of per-project roles that may
+ * manage membership (invite/remove/cancel). The project creator is always
+ * allowed regardless of their recorded role.
+ */
+const PROJECT_MANAGEMENT_ROLES = new Set(['gerente', 'admin']);
+
+interface ProjectAuthShape {
+  createdBy?: string;
+  members?: string[];
+  memberRoles?: Record<string, string>;
+}
+
+/** True if the caller is the creator or appears in this project's members. */
+function callerIsProjectMember(callerUid: string, projectData: ProjectAuthShape): boolean {
+  if (projectData.createdBy === callerUid) return true;
+  return Array.isArray(projectData.members) && projectData.members.includes(callerUid);
+}
+
+/**
+ * True if the caller may manage membership of THIS project: the creator, or
+ * a member whose per-project role is in `PROJECT_MANAGEMENT_ROLES`. A global
+ * custom claim is intentionally NOT consulted — management is project-scoped.
+ */
+function callerCanManageProject(callerUid: string, projectData: ProjectAuthShape): boolean {
+  if (projectData.createdBy === callerUid) return true;
+  const members = projectData.members;
+  if (!Array.isArray(members) || !members.includes(callerUid)) return false;
+  const role = projectData.memberRoles?.[callerUid];
+  return typeof role === 'string' && PROJECT_MANAGEMENT_ROLES.has(role);
+}
+
 function buildInviteEmailHtml({
   projectName,
   inviterName,
@@ -150,16 +192,10 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
     if (!projectDoc.exists) return res.status(404).json({ error: 'Project not found' });
 
     const projectData = projectDoc.data()!;
-    if (projectData.createdBy !== callerUid) {
-      const callerRecord = await admin.auth().getUser(callerUid);
-      if (
-        callerRecord.customClaims?.role !== 'gerente' &&
-        callerRecord.customClaims?.role !== 'admin'
-      ) {
-        return res
-          .status(403)
-          .json({ error: 'Forbidden: Only the project creator can invite members' });
-      }
+    if (!callerCanManageProject(callerUid, projectData)) {
+      return res
+        .status(403)
+        .json({ error: 'Forbidden: Only the project creator or a gerente/admin member can invite members' });
     }
 
     // Check if user is already a member
@@ -294,14 +330,8 @@ projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
     const memberUids: string[] = projectData.members || [];
     const memberRoles: Record<string, string> = projectData.memberRoles || {};
 
-    if (!memberUids.includes(callerUid)) {
-      const callerRecord = await admin.auth().getUser(callerUid);
-      if (
-        callerRecord.customClaims?.role !== 'gerente' &&
-        callerRecord.customClaims?.role !== 'admin'
-      ) {
-        return res.status(403).json({ error: 'Forbidden: Not a project member' });
-      }
+    if (!callerIsProjectMember(callerUid, projectData)) {
+      return res.status(403).json({ error: 'Forbidden: Not a project member' });
     }
 
     const memberDetails = await Promise.all(
@@ -369,18 +399,11 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
 
     const projectData = projectDoc.data()!;
 
-    const isCreator = projectData.createdBy === callerUid;
     const isSelf = callerUid === targetUid;
-    if (!isCreator && !isSelf) {
-      const callerRecord = await admin.auth().getUser(callerUid);
-      if (
-        callerRecord.customClaims?.role !== 'gerente' &&
-        callerRecord.customClaims?.role !== 'admin'
-      ) {
-        return res
-          .status(403)
-          .json({ error: 'Forbidden: Only the project creator can remove members' });
-      }
+    if (!isSelf && !callerCanManageProject(callerUid, projectData)) {
+      return res
+        .status(403)
+        .json({ error: 'Forbidden: Only the project creator or a gerente/admin member can remove members' });
     }
 
     if (targetUid === projectData.createdBy) {
@@ -440,17 +463,10 @@ projectsRouter.delete('/:id/invite', verifyAuth, async (req, res) => {
     if (!projectDoc.exists) return res.status(404).json({ error: 'Project not found' });
 
     const projectData = projectDoc.data()!;
-    const isCreator = projectData.createdBy === callerUid;
-    if (!isCreator) {
-      const callerRecord = await admin.auth().getUser(callerUid);
-      if (
-        callerRecord.customClaims?.role !== 'gerente' &&
-        callerRecord.customClaims?.role !== 'admin'
-      ) {
-        return res
-          .status(403)
-          .json({ error: 'Forbidden: Only the project creator can cancel invitations' });
-      }
+    if (!callerCanManageProject(callerUid, projectData)) {
+      return res
+        .status(403)
+        .json({ error: 'Forbidden: Only the project creator or a gerente/admin member can cancel invitations' });
     }
 
     const inviteDoc = await admin.firestore().collection('invitations').doc(inviteId).get();
