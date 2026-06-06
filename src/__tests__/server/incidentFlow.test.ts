@@ -107,6 +107,15 @@ describe('POST report', () => {
     // audit_logs collection (append-only rules), not the tenant-scoped path.
     const auditKeys = [...H.db!._store.keys()].filter((k) => k.startsWith('audit_logs/'));
     expect(auditKeys.length).toBe(1);
+    // B4: and it must use the CANONICAL field shape (action/module/userId/
+    // timestamp), not the legacy kind/actorUid/createdAt the readers skipped.
+    const row = H.db!._store.get(auditKeys[0])!;
+    expect(row.action).toBe('incident_flow.report');
+    expect(row.module).toBe('incidentFlow');
+    expect(row.userId).toBe('u1');
+    expect(row.timestamp).toBeDefined();
+    expect(row.kind).toBeUndefined();
+    expect(row.actorUid).toBeUndefined();
   });
 
   it('500 when the flow engine returns ok:false', async () => {
