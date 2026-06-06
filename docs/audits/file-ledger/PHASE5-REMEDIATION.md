@@ -161,7 +161,7 @@ considera y se CABLEA donde corresponde.** Reglas:
 - [ ] 🟡 `AlertScheduler` `probes={[]}` (`RootLayout.tsx:467`) → **cablear** probes reales (Bernoulli predictivo). (comp)
 - [ ] 🟡 `DynamicEvacuationMap` usa Gemini no A* → **cablear** a `gridAStar`. (vitest)
 - [ ] 🟡 `useAccelerometer.ts:47,90` leak listener; SurvivalMode torch `setInterval` sin clear (`:158`); `useAcousticSOS.ts:27` falsos positivos; `Asesor.tsx:25,32` prompt-injection. (comp/vitest)
-- [ ] 🟡 `manDownTimer` un stage/tick; `buildPostmortem` >100%; training fecha-NaN vigente; `gemini/emergency.ts:185` JSON.parse (F2); `emergencyContextAdapter` void emit+Date.now → await+randomId. (vitest)
+- [~] 🟡 `manDownTimer` un stage/tick (PENDIENTE); ~~`buildPostmortem` >100%~~ **✅ hecho** (la cobertura de evacuación usaba `drill.scans.length` (eventos crudos) / esperados → re-scans o visitantes no-esperados daban >100%; ahora `totalSafe` = scanners ÚNICOS (`safeUids.size`) y `finalCoveragePercent` = esperados-contabilizados/esperados (`expectedCount - missing`), garantizado 0..100; +test re-scan+visitante → 33% no 150%, totalSafe 2 no 3, 11 verde, 2026-06-06 · PR #717); training fecha-NaN vigente (PENDIENTE); `gemini/emergency.ts:185` JSON.parse (F2); `emergencyContextAdapter` void emit+Date.now → await+randomId (PENDIENTE). (vitest)
 - [ ] 🔵 `FirstResponderDispatchPanel` huérfano → **montar/cablear** a datos reales.
 
 ### B7 — Salud ocupacional & Vigilancia 🛟🔐  · ref `DEEP-B7` + `DEEP-EX-04/05/06`
