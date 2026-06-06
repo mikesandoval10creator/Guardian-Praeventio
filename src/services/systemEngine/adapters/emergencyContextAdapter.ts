@@ -19,7 +19,7 @@ export interface EmergencyAdapterOptions {
 export function useEmergencyContextAdapter({ tenantId }: EmergencyAdapterOptions): void {
   const { user } = useFirebase();
   const { selectedProject } = useProject();
-  const { isEmergencyActive, emergencyType } = useEmergency();
+  const { isEmergencyActive, emergencyType, emergencyStartTime } = useEmergency();
   const wasActiveRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -29,27 +29,50 @@ export function useEmergencyContextAdapter({ tenantId }: EmergencyAdapterOptions
       const projectId = selectedProject?.id ?? '';
       const inferredOrigin = inferOrigin(emergencyType);
 
-      void emit({
-        ...buildEnvelope({
-          tenantId,
-          projectId,
-          actorUid: user.uid,
-          idempotencyKey: `sos:${user.uid}:${emergencyType ?? 'unknown'}:${Date.now()}`,
-        }),
-        type: 'sos_triggered',
-        payload: {
-          workerId: user.uid,
-          projectId,
-          emergencyType: emergencyType ?? 'unknown',
-          origin: inferredOrigin,
-        },
-      }).catch((err) =>
-        logger.warn('emergencyContextAdapter: emit failed', { err: String(err) }),
-      );
+      // Idempotency key is tied to the emergency ACTIVATION (emergencyStartTime),
+      // not the emit-time clock. A `Date.now()` here made every call unique, so
+      // the eventLog's 1h idempotency ring never deduped — a remount, a
+      // StrictMode double-invoke, or a quick active→inactive→active toggle
+      // emitted DUPLICATE sos_triggered events for the SAME emergency. Keying on
+      // the activation timestamp makes this SOS observability event idempotent.
+      const emergencyKey = emergencyStartTime ?? 'unknown';
+
+      // Awaited (via IIFE — effects can't be async): emit() returns { ok: false }
+      // WITHOUT throwing for validation/queue failures, so the old `.catch`-only
+      // path silently dropped those. A dropped SOS audit event is a compliance
+      // gap, so surface both the rejected and the not-ok cases.
+      void (async () => {
+        try {
+          const result = await emit({
+            ...buildEnvelope({
+              tenantId,
+              projectId,
+              actorUid: user.uid,
+              idempotencyKey: `sos:${user.uid}:${emergencyType ?? 'unknown'}:${emergencyKey}`,
+            }),
+            type: 'sos_triggered',
+            payload: {
+              workerId: user.uid,
+              projectId,
+              emergencyType: emergencyType ?? 'unknown',
+              origin: inferredOrigin,
+            },
+          });
+          if (!result.ok) {
+            logger.error('emergencyContextAdapter: sos_triggered emit not ok', {
+              error: result.error,
+            });
+          }
+        } catch (err) {
+          logger.error('emergencyContextAdapter: sos_triggered emit threw', {
+            err: String(err),
+          });
+        }
+      })();
     } else if (!isEmergencyActive && wasActiveRef.current) {
       wasActiveRef.current = false;
     }
-  }, [isEmergencyActive, emergencyType, selectedProject?.id, tenantId, user?.uid]);
+  }, [isEmergencyActive, emergencyType, emergencyStartTime, selectedProject?.id, tenantId, user?.uid]);
 }
 
 function inferOrigin(type: string | null): 'user_button' | 'fall_detection' | 'mandown' | 'geofence' | 'iot' | 'other' {

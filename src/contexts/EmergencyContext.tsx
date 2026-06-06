@@ -90,6 +90,13 @@ async function notifyBrigadeServer(
 interface EmergencyContextType {
   isEmergencyActive: boolean;
   emergencyType: string | null;
+  /**
+   * Epoch ms when the CURRENT emergency was activated, or null when inactive.
+   * Stable for the lifetime of one logical emergency — observers (e.g. the
+   * SystemEngine adapter) key their idempotency on this instead of an emit-time
+   * clock so a remount or a quick toggle can't spawn duplicate SOS events.
+   */
+  emergencyStartTime: number | null;
   triggerEmergency: (type: string, projectId?: string) => Promise<void>;
   resolveEmergency: () => void;
 }
@@ -99,6 +106,7 @@ const EmergencyContext = createContext<EmergencyContextType | undefined>(undefin
 export function EmergencyProvider({ children }: { children: React.ReactNode }) {
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
   const [emergencyType, setEmergencyType] = useState<string | null>(null);
+  const [emergencyStartTime, setEmergencyStartTime] = useState<number | null>(null);
   // Tracks the Firestore doc created by triggerEmergency so resolveEmergency can update it
   const activeEventRef = useRef<{ projectId: string; docId: string } | null>(null);
 
@@ -109,6 +117,8 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
   const triggerEmergency = useCallback(async (type: string, projectId?: string) => {
     setEmergencyType(type);
     setIsEmergencyActive(true);
+    // Stamp the activation moment once so observers have a stable emergency key.
+    setEmergencyStartTime(Date.now());
 
     if (!projectId) return;
     try {
@@ -190,6 +200,7 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
   const resolveEmergency = useCallback(() => {
     setIsEmergencyActive(false);
     setEmergencyType(null);
+    setEmergencyStartTime(null);
 
     const ref = activeEventRef.current;
     activeEventRef.current = null;
@@ -215,8 +226,8 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
   // esta memoización, cada render del Provider invalidaba toda la cadena
   // de monitoreo de emergencia.
   const contextValue = useMemo(
-    () => ({ isEmergencyActive, emergencyType, triggerEmergency, resolveEmergency }),
-    [isEmergencyActive, emergencyType, triggerEmergency, resolveEmergency],
+    () => ({ isEmergencyActive, emergencyType, emergencyStartTime, triggerEmergency, resolveEmergency }),
+    [isEmergencyActive, emergencyType, emergencyStartTime, triggerEmergency, resolveEmergency],
   );
 
   return (
