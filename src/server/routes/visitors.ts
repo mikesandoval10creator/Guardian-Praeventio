@@ -37,6 +37,10 @@ import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import {
+  assertProjectMember,
+  ProjectMembershipError,
+} from '../../services/auth/projectMembership.js';
+import {
   registerVisitor,
   acknowledgeInduction,
   checkOutVisitor,
@@ -84,6 +88,35 @@ async function tenantIdFor(projectId: string): Promise<string | null> {
   return typeof tid === 'string' && tid.length > 0 ? tid : null;
 }
 
+/**
+ * B11 (Fase 5): every visitor endpoint must confirm the caller is a MEMBER of
+ * the target project before resolving its tenant — otherwise any authenticated
+ * user could register/check-out/induct visitors (or list them) for ANY
+ * projectId (cross-project write/read). Returns the tenantId, or writes the
+ * error response and returns null.
+ */
+async function assertMemberAndResolveTenant(
+  res: import('express').Response,
+  callerUid: string,
+  projectId: string,
+): Promise<string | null> {
+  try {
+    await assertProjectMember(callerUid, projectId, admin.firestore());
+  } catch (err) {
+    if (err instanceof ProjectMembershipError) {
+      res.status(err.httpStatus).json({ error: 'forbidden' });
+      return null;
+    }
+    throw err;
+  }
+  const tenantId = await tenantIdFor(projectId);
+  if (!tenantId) {
+    res.status(400).json({ error: 'project_missing_tenant' });
+    return null;
+  }
+  return tenantId;
+}
+
 function visitorsCollection(
   tenantId: string,
   projectId: string,
@@ -116,10 +149,8 @@ router.post(
     const hostUid = req.user!.uid;
     const body = req.validated as z.infer<typeof checkInSchema>;
 
-    const tenantId = await tenantIdFor(body.projectId);
-    if (!tenantId) {
-      return res.status(400).json({ error: 'project_missing_tenant' });
-    }
+    const tenantId = await assertMemberAndResolveTenant(res, hostUid, body.projectId);
+    if (!tenantId) return undefined;
 
     const visitorId = body.id ?? newVisitorId();
 
@@ -178,6 +209,7 @@ router.post(
   verifyAuth,
   idempotencyKey(),
   async (req, res) => {
+    const callerUid = req.user!.uid;
     const visitorId = req.params.id;
     const projectIdRaw =
       typeof req.body?.projectId === 'string' ? req.body.projectId : '';
@@ -185,10 +217,8 @@ router.post(
       return res.status(400).json({ error: 'invalid_payload' });
     }
 
-    const tenantId = await tenantIdFor(projectIdRaw);
-    if (!tenantId) {
-      return res.status(400).json({ error: 'project_missing_tenant' });
-    }
+    const tenantId = await assertMemberAndResolveTenant(res, callerUid, projectIdRaw);
+    if (!tenantId) return undefined;
 
     const ref = visitorsCollection(tenantId, projectIdRaw).doc(visitorId);
     // CLAUDE.md #19: get() + update() on the same visitor doc must be atomic so
@@ -246,6 +276,7 @@ router.post(
   idempotencyKey(),
   validate(acknowledgeSchema),
   async (req, res) => {
+    const callerUid = req.user!.uid;
     const visitorId = req.params.id;
     const { inductionVersionId } = req.validated as z.infer<typeof acknowledgeSchema>;
     const projectIdRaw =
@@ -254,10 +285,8 @@ router.post(
       return res.status(400).json({ error: 'invalid_payload' });
     }
 
-    const tenantId = await tenantIdFor(projectIdRaw);
-    if (!tenantId) {
-      return res.status(400).json({ error: 'project_missing_tenant' });
-    }
+    const tenantId = await assertMemberAndResolveTenant(res, callerUid, projectIdRaw);
+    if (!tenantId) return undefined;
 
     const ref = visitorsCollection(tenantId, projectIdRaw).doc(visitorId);
     // CLAUDE.md #19: get() + update() on the same visitor doc must be atomic.
@@ -321,12 +350,11 @@ router.post(
 // ────────────────────────────────────────────────────────────────────────
 
 router.get('/', verifyAuth, validate(listQuerySchema, 'query'), async (req, res) => {
+  const callerUid = req.user!.uid;
   const { projectId } = req.validated as z.infer<typeof listQuerySchema>;
 
-  const tenantId = await tenantIdFor(projectId);
-  if (!tenantId) {
-    return res.status(400).json({ error: 'project_missing_tenant' });
-  }
+  const tenantId = await assertMemberAndResolveTenant(res, callerUid, projectId);
+  if (!tenantId) return undefined;
 
   try {
     // We deliberately filter "active" (no checkOutAt) client-side because

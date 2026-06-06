@@ -67,9 +67,14 @@ const TENANT_ID = 'tenant-abc';
 const PROJECT_ID = 'proj-alpha';
 const HOST_UID = 'worker1';
 
-/** Seed the project doc so tenantIdFor() resolves correctly. */
+/** Seed the project doc so tenantIdFor() resolves AND the host is a member
+ *  (B11: visitor endpoints now require assertProjectMember). */
 function seedProject(db: ReturnType<typeof createFakeFirestore>) {
-  db._seed(`projects/${PROJECT_ID}`, { tenantId: TENANT_ID });
+  db._seed(`projects/${PROJECT_ID}`, {
+    tenantId: TENANT_ID,
+    createdBy: HOST_UID,
+    members: [HOST_UID],
+  });
 }
 
 /** A valid check-in body. */
@@ -136,8 +141,22 @@ describe('POST /api/visitors/check-in', () => {
     expect((res.body as Record<string, unknown>).error).toBe('invalid_payload');
   });
 
-  it('400 when project has no tenant (project_missing_tenant)', async () => {
-    // Project not seeded → tenantIdFor returns null
+  it('403 when the caller is not a member of the project (B11 cross-project defense)', async () => {
+    seedProject(H.db!); // members = [HOST_UID]
+    const res = await request(buildApp())
+      .post('/api/visitors/check-in')
+      .set(asUser('outsider-uid'))
+      .send(validCheckIn);
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('forbidden');
+    // No visitor doc must have been written for the forged project.
+    const keys = [...H.db!._store.keys()].filter((k) => k.includes('/visitors/'));
+    expect(keys.length).toBe(0);
+  });
+
+  it('400 when a member calls but the project has no tenant (project_missing_tenant)', async () => {
+    // Project exists with the caller as a member, but no tenantId field.
+    H.db!._seed(`projects/${PROJECT_ID}`, { createdBy: HOST_UID, members: [HOST_UID] });
     const res = await request(buildApp())
       .post('/api/visitors/check-in')
       .set(asUser(HOST_UID))
@@ -215,6 +234,7 @@ describe('POST /api/visitors/:id/check-out', () => {
   });
 
   it('400 when project has no tenant (project_missing_tenant)', async () => {
+    H.db!._seed(`projects/${PROJECT_ID}`, { createdBy: HOST_UID, members: [HOST_UID] });
     const res = await request(buildApp())
       .post('/api/visitors/vis-001/check-out')
       .set(asUser(HOST_UID))
@@ -286,6 +306,7 @@ describe('POST /api/visitors/:id/acknowledge-induction', () => {
   });
 
   it('400 when project has no tenant (project_missing_tenant)', async () => {
+    H.db!._seed(`projects/${PROJECT_ID}`, { createdBy: HOST_UID, members: [HOST_UID] });
     const res = await request(buildApp())
       .post('/api/visitors/vis-001/acknowledge-induction')
       .set(asUser(HOST_UID))
@@ -346,6 +367,7 @@ describe('GET /api/visitors', () => {
   });
 
   it('400 when project has no tenant (project_missing_tenant)', async () => {
+    H.db!._seed(`projects/${PROJECT_ID}`, { createdBy: HOST_UID, members: [HOST_UID] });
     const res = await request(buildApp())
       .get(`/api/visitors?projectId=${PROJECT_ID}`)
       .set(asUser(HOST_UID));
