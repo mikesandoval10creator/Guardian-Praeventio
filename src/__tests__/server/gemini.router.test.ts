@@ -121,6 +121,7 @@ vi.mock('../../services/orchestratorService.js', () => ({
 }));
 
 import geminiRouter from '../../server/routes/gemini.js';
+import { GeminiDegradedError } from '../../services/gemini/degraded.js';
 
 function buildApp() {
   const app = express();
@@ -190,6 +191,22 @@ describe('POST /api/gemini — whitelist + gates', () => {
     const res = await request(buildApp()).post('/api/gemini').set(uid).send({ action: 'analyzeRiskWithAI', args: [] });
     expect(res.status).toBe(503);
     expect(res.body.error).toBe('gemini_circuit_open');
+  });
+
+  it('circuit-open → life-safety emergency plan still degrades to a baseline (200, not 503)', async () => {
+    // The breaker is OPEN (sustained outage) — assertGeminiAllowed rejects
+    // before dispatch. A worker in an emergency must STILL get a usable plan, so
+    // the dispatcher serves the deterministic baseline instead of 503.
+    H.assertAllowed.mockRejectedValue(Object.assign(new Error('open'), { code: 'gemini_circuit_open' }));
+    const res = await request(buildApp())
+      .post('/api/gemini')
+      .set(uid)
+      .send({ action: 'generateEmergencyPlanJSON', args: ['Incendio', 'fuego en bodega', 'DS 594'] });
+    expect(res.status).toBe(200);
+    expect(res.body.degraded).toBe(true);
+    expect(res.body.result.generadoSinIA).toBe(true);
+    expect(res.body.result.objetivo).toContain('Incendio');
+    expect((res.body.result.marcoLegal as string[]).join(' ')).toContain('16.744');
   });
 
   // ─── F3 — identity-from-token (anti-spoof) ───────────────────────────────────
@@ -263,6 +280,27 @@ describe('POST /api/gemini — whitelist + gates', () => {
     H.analyze.mockRejectedValue(new Error('gemini upstream 500'));
     const res = await request(buildApp()).post('/api/gemini').set(uid).send({ action: 'analyzeRiskWithAI', args: [] });
     expect(res.status).toBe(500);
+    expect(H.record).toHaveBeenCalledWith('u1', 'failure');
+  });
+
+  it('GeminiDegradedError → 200 with the carried fallback AND a recorded breaker failure', async () => {
+    // A life-safety action (e.g. emergency-plan generation) degrades a failed
+    // upstream request into a GeminiDegradedError carrying a usable baseline.
+    // The dispatcher must record a breaker FAILURE (so the breaker opens and the
+    // SLM failover engages) yet still return the fallback with 200 — the worker
+    // is never left without a plan.
+    const baseline = { objetivo: 'plan base', generadoSinIA: true };
+    H.backendFn = vi.fn(async () => {
+      throw new GeminiDegradedError('gemini_emergency_plan_degraded', baseline);
+    });
+    const res = await request(buildApp())
+      .post('/api/gemini')
+      .set(uid)
+      .send({ action: 'generateEmergencyPlan', args: [] });
+    expect(res.status).toBe(200);
+    expect(res.body.result).toEqual(baseline);
+    expect(res.body.degraded).toBe(true);
+    // Breaker still sees the outage.
     expect(H.record).toHaveBeenCalledWith('u1', 'failure');
   });
 

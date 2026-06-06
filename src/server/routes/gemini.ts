@@ -25,6 +25,8 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { ProjectMembershipError } from '../../services/auth/projectMembership.js';
+import { isGeminiDegradedError } from '../../services/gemini/degraded.js';
+import { baselineEmergencyPlan } from '../../services/gemini/emergency.js';
 import { geminiLimiter, geminiGlobalDailyLimiter } from '../middleware/limiters.js';
 import { getFirestore } from 'firebase-admin/firestore';
 // Sprint 22 prod hardening (Bucket X) — wire circuit breaker + per-tenant
@@ -227,6 +229,22 @@ const IDENTITY_STAMPED_ACTIONS: Record<string, { argIndex: number; field: string
 // charges by JSON length / 4, so an unbounded args array could burn quota and
 // force giant prompts. 256 KB is far above any legitimate RPC payload.
 const MAX_GEMINI_ARGS_BYTES = 256 * 1024;
+
+// Life-safety actions that MUST still return a usable result even when the
+// shared Gemini breaker is already OPEN. `assertGeminiAllowed` rejects with
+// `gemini_circuit_open` BEFORE dispatch, so without this carve-out a worker
+// would get a 503 in exactly the sustained-outage scenario the deterministic
+// plan exists to cover. Each entry synthesizes a fallback from the call args
+// WITHOUT touching Gemini; the breaker stays open (no upstream call is made).
+// This is the same degradation the post-dispatch GeminiDegradedError path
+// provides for transient request failures — extended to the breaker-open path.
+// (When the resilient on-device SLM failover — ADR 0019 — is wired server-side,
+// it becomes the primary here and this baseline remains the last resort.)
+const asStr = (v: unknown): string => (typeof v === 'string' ? v : '');
+const CIRCUIT_OPEN_FALLBACKS: Record<string, (args: unknown[]) => unknown> = {
+  generateEmergencyPlanJSON: (args) =>
+    baselineEmergencyPlan(asStr(args[0]), asStr(args[1]), asStr(args[2]), asStr(args[3]) || undefined),
+};
 
 const router = Router();
 
@@ -458,6 +476,12 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     await assertGeminiAllowed(tenantId, tier);
   } catch (err: any) {
     if (err?.code === 'gemini_circuit_open') {
+      // Life-safety carve-out: serve the deterministic fallback instead of 503
+      // so a worker in an emergency still gets a usable plan during the outage.
+      const circuitOpenFallback = CIRCUIT_OPEN_FALLBACKS[action];
+      if (circuitOpenFallback) {
+        return res.json({ result: circuitOpenFallback(callArgs), degraded: true });
+      }
       return res.status(503).json({ error: 'gemini_circuit_open', message: 'AI temporarily unavailable.' });
     }
     if (err?.code === 'gemini_quota_exceeded') {
@@ -533,6 +557,14 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     logger.error('gemini_proxy_failed', error, { action });
     sentryCapture(error, { endpoint: '/api/gemini', tags: { method: 'POST', action, tenantId } });
     await recordGeminiOutcome(tenantId, 'failure');
+    // A life-safety action surfaced a usable fallback alongside the upstream
+    // failure (e.g. emergency-plan generation). The breaker failure is already
+    // recorded above — so the breaker opens and the resilient SLM failover
+    // (ADR 0019) engages — but the caller still receives the fallback with HTTP
+    // 200 rather than an error. The worker is never left without a plan.
+    if (isGeminiDegradedError(error)) {
+      return res.json({ result: error.degradedResult, degraded: true });
+    }
     // An unparseable/empty upstream body is a bad *gateway* response (502), not
     // an internal bug (500). `parseGeminiJson` throws 'gemini_empty_response' on
     // an empty completion (safety-blocked / non-STOP finish); a malformed body
