@@ -124,4 +124,44 @@ describe('emergencyPlanFromResponse — degradación grácil', () => {
     );
     expect(out.generadoSinIA).toBe(true);
   });
+
+  it('cae al baseline si un arreglo contiene elementos no-string (evita crash en UI)', () => {
+    const badPlan = {
+      objetivo: 'o',
+      alcance: 'a',
+      marcoLegal: [{}], // objeto en vez de string → no renderizable como React child
+      evaluacionMatematica: '$MR = P \\times C$',
+      cadenaMando: ['jefe'],
+      accionesInmediatas: ['alarma'],
+      evacuacion: ['salir'],
+      equipos: ['extintor'],
+    };
+    const out = emergencyPlanFromResponse(
+      { text: JSON.stringify(badPlan) },
+      'Sismo',
+      'magnitud 7',
+      'DS 594',
+    );
+    expect(out.generadoSinIA).toBe(true);
+  });
+
+  it('cae al baseline si un arreglo contiene null', () => {
+    const badPlan = {
+      objetivo: 'o',
+      alcance: 'a',
+      marcoLegal: ['Ley 16.744'],
+      evaluacionMatematica: '$MR = P \\times C$',
+      cadenaMando: ['jefe'],
+      accionesInmediatas: ['alarma'],
+      evacuacion: [null],
+      equipos: ['extintor'],
+    };
+    const out = emergencyPlanFromResponse(
+      { text: JSON.stringify(badPlan) },
+      'Sismo',
+      'magnitud 7',
+      'DS 594',
+    );
+    expect(out.generadoSinIA).toBe(true);
+  });
 });

@@ -133,16 +133,20 @@ function isUsableEmergencyPlan(v: unknown): v is EmergencyPlanJSON {
   if (!v || typeof v !== 'object') return false;
   const p = v as Record<string, unknown>;
   const nonEmptyStr = (x: unknown) => typeof x === 'string' && x.trim().length > 0;
-  const nonEmptyArr = (x: unknown) => Array.isArray(x) && x.length > 0;
+  // Every array element must itself be a non-empty string: the UI renders these
+  // values directly as React children, so a `[{}]` or `[null]` element would
+  // crash the preview instead of degrading to the safe baseline.
+  const nonEmptyStrArr = (x: unknown) =>
+    Array.isArray(x) && x.length > 0 && x.every(nonEmptyStr);
   return (
     nonEmptyStr(p.objetivo) &&
     nonEmptyStr(p.alcance) &&
-    nonEmptyArr(p.marcoLegal) &&
+    nonEmptyStrArr(p.marcoLegal) &&
     nonEmptyStr(p.evaluacionMatematica) &&
-    nonEmptyArr(p.cadenaMando) &&
-    nonEmptyArr(p.accionesInmediatas) &&
-    nonEmptyArr(p.evacuacion) &&
-    nonEmptyArr(p.equipos)
+    nonEmptyStrArr(p.cadenaMando) &&
+    nonEmptyStrArr(p.accionesInmediatas) &&
+    nonEmptyStrArr(p.evacuacion) &&
+    nonEmptyStrArr(p.equipos)
   );
 }
 
@@ -264,43 +268,52 @@ export const generateEmergencyPlanJSON = async (
     IMPORTANTE: En la sección "evaluacionMatematica", DEBES usar sintaxis LaTeX encerrada en signos de dólar (ej. $MR = P \\times C$) para las fórmulas.
   `;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          objetivo: { type: Type.STRING },
-          alcance: { type: Type.STRING },
-          marcoLegal: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-            description: 'Citas exactas de artículos de leyes chilenas aplicables',
+  // The request itself can reject (transient 503, network failure, safety
+  // block). For a life-safety feature that must still produce a usable plan, a
+  // request failure degrades to the deterministic baseline exactly like an
+  // empty/malformed response does — never propagate the error to the worker.
+  let response: { text?: string };
+  try {
+    response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            objetivo: { type: Type.STRING },
+            alcance: { type: Type.STRING },
+            marcoLegal: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: 'Citas exactas de artículos de leyes chilenas aplicables',
+            },
+            evaluacionMatematica: {
+              type: Type.STRING,
+              description: 'Evaluación del riesgo incluyendo fórmulas en LaTeX como $MR = P \\times C$',
+            },
+            cadenaMando: { type: Type.ARRAY, items: { type: Type.STRING } },
+            accionesInmediatas: { type: Type.ARRAY, items: { type: Type.STRING } },
+            evacuacion: { type: Type.ARRAY, items: { type: Type.STRING } },
+            equipos: { type: Type.ARRAY, items: { type: Type.STRING } },
           },
-          evaluacionMatematica: {
-            type: Type.STRING,
-            description: 'Evaluación del riesgo incluyendo fórmulas en LaTeX como $MR = P \\times C$',
-          },
-          cadenaMando: { type: Type.ARRAY, items: { type: Type.STRING } },
-          accionesInmediatas: { type: Type.ARRAY, items: { type: Type.STRING } },
-          evacuacion: { type: Type.ARRAY, items: { type: Type.STRING } },
-          equipos: { type: Type.ARRAY, items: { type: Type.STRING } },
+          required: [
+            'objetivo',
+            'alcance',
+            'marcoLegal',
+            'evaluacionMatematica',
+            'cadenaMando',
+            'accionesInmediatas',
+            'evacuacion',
+            'equipos',
+          ],
         },
-        required: [
-          'objetivo',
-          'alcance',
-          'marcoLegal',
-          'evaluacionMatematica',
-          'cadenaMando',
-          'accionesInmediatas',
-          'evacuacion',
-          'equipos',
-        ],
       },
-    },
-  });
+    });
+  } catch {
+    return baselineEmergencyPlan(scenario, description, normative, industry);
+  }
 
   return emergencyPlanFromResponse(response, scenario, description, normative, industry);
 };
