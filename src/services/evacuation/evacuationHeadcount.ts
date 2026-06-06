@@ -131,10 +131,17 @@ export interface EvacuationPostmortem {
 export function buildPostmortem(drill: EvacuationDrill): EvacuationPostmortem {
   const expectedCount = drill.expectedWorkers.length;
   const safeUids = new Set(drill.scans.map((s) => s.workerUid));
-  const safeCount = drill.scans.length;
   const missingWorkers = drill.expectedWorkers
     .filter((w) => !safeUids.has(w.uid))
     .map((w) => ({ uid: w.uid, fullName: w.fullName }));
+  // totalSafe counts UNIQUE workers who scanned in — a re-scan by the same
+  // worker (or a duplicate event) must not inflate the headcount.
+  const safeCount = safeUids.size;
+  // Coverage is the % of EXPECTED workers accounted for. Basing it on
+  // expected-minus-missing (NOT the raw scan count) guarantees it can never
+  // exceed 100% even if non-expected people (visitors) scan in or a worker
+  // re-scans — a coverage > 100% was nonsensical and misled drill reports.
+  const expectedAccounted = expectedCount - missingWorkers.length;
 
   const startMs = Date.parse(drill.startedAt);
   const totalElapsedSec = drill.endedAt
@@ -154,7 +161,7 @@ export function buildPostmortem(drill: EvacuationDrill): EvacuationPostmortem {
     totalExpected: expectedCount,
     totalSafe: safeCount,
     finalCoveragePercent:
-      expectedCount === 0 ? 100 : Math.round((safeCount / expectedCount) * 100),
+      expectedCount === 0 ? 100 : Math.round((expectedAccounted / expectedCount) * 100),
     totalElapsedSec,
     missingWorkers,
     averageTimeToScanSec,

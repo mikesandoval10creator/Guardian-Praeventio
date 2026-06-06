@@ -147,4 +147,28 @@ describe('buildPostmortem', () => {
     expect(pm.finalCoveragePercent).toBe(0);
     expect(pm.averageTimeToScanSec).toBe(0);
   });
+
+  it('re-scans + non-expected scanners never push coverage over 100% nor double-count safe', () => {
+    // 3 expected (w1,w2,w3). Scans: w1 twice (re-scan) + a visitor "vX" not in
+    // the expected list. Raw scan count = 3 would have given 100% (3/3) and
+    // totalSafe=3 — both wrong. Only w1 of the expected list actually checked in.
+    const d = endDrill(
+      drill({
+        scans: [
+          { workerUid: 'w1', scannedAt: '2026-05-11T12:01:00Z', meetingPointId: 'mp-1', scannedByUid: 'w1' },
+          { workerUid: 'w1', scannedAt: '2026-05-11T12:01:30Z', meetingPointId: 'mp-1', scannedByUid: 'w1' },
+          { workerUid: 'vX', scannedAt: '2026-05-11T12:02:00Z', meetingPointId: 'mp-1', scannedByUid: 'vX' },
+        ],
+      }),
+      '2026-05-11T12:10:00Z',
+    );
+    const pm = buildPostmortem(d);
+    // totalSafe = unique scanners (w1, vX) = 2, not 3 raw scans.
+    expect(pm.totalSafe).toBe(2);
+    // Coverage = expected accounted (only w1) / 3 = 33% — never > 100%.
+    expect(pm.finalCoveragePercent).toBe(33);
+    expect(pm.finalCoveragePercent).toBeLessThanOrEqual(100);
+    // w2 + w3 are still correctly listed as missing.
+    expect(pm.missingWorkers.map((w) => w.uid).sort()).toEqual(['w2', 'w3']);
+  });
 });
