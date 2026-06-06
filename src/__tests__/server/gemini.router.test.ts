@@ -121,6 +121,7 @@ vi.mock('../../services/orchestratorService.js', () => ({
 }));
 
 import geminiRouter from '../../server/routes/gemini.js';
+import { GeminiDegradedError } from '../../services/gemini/degraded.js';
 
 function buildApp() {
   const app = express();
@@ -263,6 +264,27 @@ describe('POST /api/gemini — whitelist + gates', () => {
     H.analyze.mockRejectedValue(new Error('gemini upstream 500'));
     const res = await request(buildApp()).post('/api/gemini').set(uid).send({ action: 'analyzeRiskWithAI', args: [] });
     expect(res.status).toBe(500);
+    expect(H.record).toHaveBeenCalledWith('u1', 'failure');
+  });
+
+  it('GeminiDegradedError → 200 with the carried fallback AND a recorded breaker failure', async () => {
+    // A life-safety action (e.g. emergency-plan generation) degrades a failed
+    // upstream request into a GeminiDegradedError carrying a usable baseline.
+    // The dispatcher must record a breaker FAILURE (so the breaker opens and the
+    // SLM failover engages) yet still return the fallback with 200 — the worker
+    // is never left without a plan.
+    const baseline = { objetivo: 'plan base', generadoSinIA: true };
+    H.backendFn = vi.fn(async () => {
+      throw new GeminiDegradedError('gemini_emergency_plan_degraded', baseline);
+    });
+    const res = await request(buildApp())
+      .post('/api/gemini')
+      .set(uid)
+      .send({ action: 'generateEmergencyPlan', args: [] });
+    expect(res.status).toBe(200);
+    expect(res.body.result).toEqual(baseline);
+    expect(res.body.degraded).toBe(true);
+    // Breaker still sees the outage.
     expect(H.record).toHaveBeenCalledWith('u1', 'failure');
   });
 

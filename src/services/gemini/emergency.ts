@@ -16,6 +16,7 @@
 
 import { GoogleGenAI, Type } from '@google/genai';
 import { parseGeminiJson } from './parsing';
+import { GeminiDegradedError } from './degraded';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -269,9 +270,14 @@ export const generateEmergencyPlanJSON = async (
   `;
 
   // The request itself can reject (transient 503, network failure, safety
-  // block). For a life-safety feature that must still produce a usable plan, a
-  // request failure degrades to the deterministic baseline exactly like an
-  // empty/malformed response does — never propagate the error to the worker.
+  // block). The worker must still get a usable plan, but a swallowed rejection
+  // would hide the outage from the shared Gemini circuit breaker and stop the
+  // resilient SLM failover (ADR 0019) from engaging. So we throw a
+  // GeminiDegradedError carrying the deterministic baseline: the dispatcher
+  // records a breaker FAILURE (breaker opens → SLM path) yet still returns the
+  // baseline to the worker with HTTP 200. (An empty/malformed body after a
+  // SUCCESSFUL request is handled below by emergencyPlanFromResponse and stays a
+  // breaker success — the upstream was healthy, it just returned unusable text.)
   let response: { text?: string };
   try {
     response = await ai.models.generateContent({
@@ -311,8 +317,12 @@ export const generateEmergencyPlanJSON = async (
         },
       },
     });
-  } catch {
-    return baselineEmergencyPlan(scenario, description, normative, industry);
+  } catch (err) {
+    throw new GeminiDegradedError(
+      'gemini_emergency_plan_degraded',
+      baselineEmergencyPlan(scenario, description, normative, industry),
+      { cause: err },
+    );
   }
 
   return emergencyPlanFromResponse(response, scenario, description, normative, industry);

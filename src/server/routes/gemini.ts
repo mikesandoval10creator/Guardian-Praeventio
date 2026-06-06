@@ -25,6 +25,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { ProjectMembershipError } from '../../services/auth/projectMembership.js';
+import { isGeminiDegradedError } from '../../services/gemini/degraded.js';
 import { geminiLimiter, geminiGlobalDailyLimiter } from '../middleware/limiters.js';
 import { getFirestore } from 'firebase-admin/firestore';
 // Sprint 22 prod hardening (Bucket X) — wire circuit breaker + per-tenant
@@ -533,6 +534,14 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     logger.error('gemini_proxy_failed', error, { action });
     sentryCapture(error, { endpoint: '/api/gemini', tags: { method: 'POST', action, tenantId } });
     await recordGeminiOutcome(tenantId, 'failure');
+    // A life-safety action surfaced a usable fallback alongside the upstream
+    // failure (e.g. emergency-plan generation). The breaker failure is already
+    // recorded above — so the breaker opens and the resilient SLM failover
+    // (ADR 0019) engages — but the caller still receives the fallback with HTTP
+    // 200 rather than an error. The worker is never left without a plan.
+    if (isGeminiDegradedError(error)) {
+      return res.json({ result: error.degradedResult, degraded: true });
+    }
     // An unparseable/empty upstream body is a bad *gateway* response (502), not
     // an internal bug (500). `parseGeminiJson` throws 'gemini_empty_response' on
     // an empty completion (safety-blocked / non-STOP finish); a malformed body
