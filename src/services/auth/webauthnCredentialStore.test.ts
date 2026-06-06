@@ -25,6 +25,7 @@ import {
   registerCredential,
   getCredentialsByUid,
   findByCredentialId,
+  deleteCredentialById,
   updateCounter,
   decodePublicKey,
   type MinimalCredentialsDb,
@@ -60,6 +61,9 @@ function makeFakeDb(now: () => number = () => Date.now()): {
               const cur = store.get(id);
               if (!cur) throw new Error('document does not exist');
               store.set(id, { data: { ...cur.data, ...patch } });
+            },
+            async delete() {
+              store.delete(id);
             },
           };
         },
@@ -300,6 +304,32 @@ describe('findByCredentialId', () => {
     expect(out!.credential.credentialId).toBe('cred-find');
     expect(out!.credential.counter).toBe(7);
     expect(out!.credential.publicKey).toBe(Buffer.from(pubkey).toString('base64'));
+  });
+});
+
+describe('deleteCredentialById', () => {
+  it('deletes a registered credential and returns true', async () => {
+    const { db, store } = makeFakeDb();
+    await registerCredential(
+      'uid-del',
+      { credentialId: 'cred-del', publicKey: new Uint8Array([1, 2]), counter: 0 },
+      db,
+    );
+    expect(store.has('cred-del')).toBe(true);
+    const deleted = await deleteCredentialById('cred-del', db);
+    expect(deleted).toBe(true);
+    expect(store.has('cred-del')).toBe(false);
+  });
+
+  it('returns false when the credentialId is not registered (no read-then-404 needed)', async () => {
+    const { db } = makeFakeDb();
+    const deleted = await deleteCredentialById('never-stored', db);
+    expect(deleted).toBe(false);
+  });
+
+  it('rejects an empty credentialId', async () => {
+    const { db } = makeFakeDb();
+    await expect(deleteCredentialById('', db)).rejects.toThrow(/credentialId is required/);
   });
 });
 

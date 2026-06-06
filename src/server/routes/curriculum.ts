@@ -294,6 +294,9 @@ export function buildWebAuthnCredentialsDb(): MinimalCredentialsDb {
             async update(patch: Record<string, unknown>) {
               await ref.update(patch);
             },
+            async delete() {
+              await ref.delete();
+            },
           };
         },
         where(field: string, op: '==', value: unknown) {

@@ -43,6 +43,9 @@ function buildFakeCredsDb(): MinimalCredentialsDb {
               const cur = col.get(id) ?? {};
               col.set(id, { ...cur, ...patch });
             },
+            async delete() {
+              col.delete(id);
+            },
           };
         },
         where(field: string, _op: '==', value: unknown) {

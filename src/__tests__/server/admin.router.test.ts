@@ -412,6 +412,90 @@ describe('POST /api/admin/quotas/reset', () => {
 });
 
 // ===========================================================================
+// POST /api/admin/webauthn/revoke — admin-assisted MFA recovery (B17)
+// ===========================================================================
+describe('POST /api/admin/webauthn/revoke', () => {
+  function seedKeys() {
+    H.db!._seed('webauthn_credentials/v-key-1', {
+      credentialId: 'v-key-1', uid: 'victim', publicKey: 'cHVi', counter: 3,
+      transports: ['internal'], registeredAt: 1, lastUsedAt: null,
+    });
+    H.db!._seed('webauthn_credentials/v-key-2', {
+      credentialId: 'v-key-2', uid: 'victim', publicKey: 'cHVi', counter: 0,
+      transports: ['usb'], registeredAt: 2, lastUsedAt: null,
+    });
+    H.db!._seed('webauthn_credentials/other-key', {
+      credentialId: 'other-key', uid: 'someone-else', publicKey: 'cHVi', counter: 1,
+      transports: ['internal'], registeredAt: 3, lastUsedAt: null,
+    });
+  }
+
+  it('401 without token', async () => {
+    const res = await request(buildApp()).post('/api/admin/webauthn/revoke').send({ targetUid: 'victim' });
+    expect(res.status).toBe(401);
+  });
+
+  it('403 non-admin caller (cannot revoke another user\'s keys)', async () => {
+    seedKeys();
+    const res = await request(buildApp())
+      .post('/api/admin/webauthn/revoke')
+      .set(asUser('worker1'))
+      .send({ targetUid: 'victim' });
+    expect(res.status).toBe(403);
+    expect(H.db!._store.has('webauthn_credentials/v-key-1')).toBe(true); // nothing deleted
+    expect(H.revoke).not.toHaveBeenCalled();
+  });
+
+  it('400 invalid uid', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/webauthn/revoke')
+      .set(asUser('admin1'))
+      .send({ targetUid: 'has spaces' });
+    expect(res.status).toBe(400);
+  });
+
+  it('200 admin revokes a SINGLE credential (owned) + audit + token revoke', async () => {
+    seedKeys();
+    const res = await request(buildApp())
+      .post('/api/admin/webauthn/revoke')
+      .set(asUser('admin1'))
+      .send({ targetUid: 'victim', credentialId: 'v-key-1' });
+    expect(res.status).toBe(200);
+    expect(res.body.revoked).toBe(1);
+    expect(H.db!._store.has('webauthn_credentials/v-key-1')).toBe(false); // deleted
+    expect(H.db!._store.has('webauthn_credentials/v-key-2')).toBe(true);  // other key kept
+    expect(H.revoke).toHaveBeenCalledWith('victim');
+    const audit = [...H.db!._store.values()].find((d) => d.action === 'webauthn.admin_revoke');
+    expect(audit?.target).toBe('victim');
+    expect(audit?.actor).toBe('admin1');
+  });
+
+  it('404 when the credentialId is not registered to the target user (no cross-user delete)', async () => {
+    seedKeys();
+    const res = await request(buildApp())
+      .post('/api/admin/webauthn/revoke')
+      .set(asUser('admin1'))
+      .send({ targetUid: 'victim', credentialId: 'other-key' }); // belongs to someone-else
+    expect(res.status).toBe(404);
+    expect(H.db!._store.has('webauthn_credentials/other-key')).toBe(true); // untouched
+  });
+
+  it('200 admin revokes ALL of a user\'s keys when no credentialId is given', async () => {
+    seedKeys();
+    const res = await request(buildApp())
+      .post('/api/admin/webauthn/revoke')
+      .set(asUser('admin1'))
+      .send({ targetUid: 'victim' });
+    expect(res.status).toBe(200);
+    expect(res.body.revoked).toBe(2);
+    expect(H.db!._store.has('webauthn_credentials/v-key-1')).toBe(false);
+    expect(H.db!._store.has('webauthn_credentials/v-key-2')).toBe(false);
+    expect(H.db!._store.has('webauthn_credentials/other-key')).toBe(true); // other user's untouched
+    expect(H.revoke).toHaveBeenCalledWith('victim');
+  });
+});
+
+// ===========================================================================
 // GET /api/admin/circuit-state
 // ===========================================================================
 describe('GET /api/admin/circuit-state', () => {
