@@ -5,7 +5,43 @@
 > bloque, vida/privacidad primero. Verdad de referencia: `TODO.md`
 > §2.32/§2.33/§2.34 + los `DEEP-*.md` de este mismo directorio.
 
-## Progreso ejecutado (actualizado 2026-06-04)
+## Progreso ejecutado (actualizado 2026-06-06)
+
+### Sesión 2026-06-06 — B17 (cerrado) + B5 + B4 (10 PRs fusionados)
+
+**B17 Admin/Auth/RBAC/Privacidad 🔐 — bloque CERRADO (los ítems server-side/comp;
+quedan solo sub-ítems de reglas que requieren emulador):**
+- #700 `projects.ts` membresía **por-proyecto** (helpers `callerCanManageProject`/
+  `callerIsProjectMember`) — cierra IDOR donde un claim global `gerente/admin`
+  gestionaba TODOS los proyectos.
+- #701 `WebAuthnKeysSection` **read-only** (sin self-delete) + lista real vía
+  `GET /api/auth/webauthn/credentials` (la UI leía una subcolección fantasma).
+- #702 `lone_worker_sessions/events` update exige dueño-o-rescatista (otro miembro
+  ya no puede flipar a "safe" una sesión ajena). [parte del lote Reglas #650]
+- #703 `webauthnAssertion.ts` cierra bypass de detección de **clon** (counter 0).
+- #704 **recuperación admin-asistida** de llaves WebAuthn (`POST /api/admin/webauthn/revoke`),
+  honra la directriz anti-robo (no self-delete; un teléfono robado desbloqueado pasa step-up).
+- #705 `pinSign` credencial **server-side** (`pin_credentials/{tid}__{uid}`) — antes el
+  cliente mandaba el hash/contador → forjable; verify/sign-item en `runTransaction`.
+- #706 OAuth refresh_token **envelope default-ON** (cifrado salvo opt-out) + degradación
+  elegante si el KMS no está disponible.
+
+**B5 Cumplimiento & SUSESO 🔐:**
+- #707 `suseso.ts` + #708 `ds67ds76.ts` `tenantId` **autoritativo desde el token**
+  (helper compartido `src/server/auth/callerTenant.ts`) — antes un user del tenant A
+  creaba/firmaba DIAT/DIEP/DS67/DS76 del tenant B (cross-tenant en datos legales).
+
+**B4 Incidentes 🛟:**
+- #709 `sif.ts` revisión ejecutiva SIF estampa `reviewedByUid`/`reviewedAt` desde
+  token+reloj server (no del body) — no se puede atribuir/antedatar una revisión de
+  lesión grave/fatal.
+
+PENDIENTE B17 (sub-bloque reglas, requiere emulador): `site_book_counters`,
+`root_cause_analyses` vs regla, laxitud `exceptions/legal_obligations/shifts`,
+`WebAuthnKeysSection` recuperación self-service (futuro). Cada cambio: TDD real,
+typecheck/lint 0, audit_logs donde aplica; helper `callerTenant` reutilizable.
+
+### Sesión previa (actualizado 2026-06-04)
 
 **Cimientos compartidos:** F1 harness rules-tests ✅ #657 · F2 parseGeminiJson ✅ #658 ·
 F5-p1 governance ✅ #659 · **F3 identidad-desde-token ✅ #678** (`IDENTITY_STAMPED_ACTIONS`
