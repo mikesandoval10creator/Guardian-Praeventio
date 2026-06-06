@@ -129,6 +129,11 @@ router.get('/:projectId/lessons', verifyAuth, async (req, res) => {
 
 // ── POST /:projectId/lessons ──────────────────────────────────────────
 
+// B4 (Fase 5): `adoptionCount` is NOT accepted from the client. A new lesson
+// always starts at 0; adoption is incremented server-side only via the
+// adapter's increment path when a lesson is actually reused. Trusting a
+// client-supplied count let anyone inflate a lesson's adoption to game the
+// `listTopAdopted` ranking.
 const lessonSchema = z.object({
   id: z.string().min(1),
   summary: z.string().min(3).max(2000),
@@ -139,7 +144,6 @@ const lessonSchema = z.object({
   industry: z.string().min(1).max(200).optional(),
   derivedFromIncidentId: z.string().min(1).optional(),
   publishedAt: z.string().min(10),
-  adoptionCount: z.number().int().nonnegative(),
 });
 
 router.post(
@@ -154,7 +158,8 @@ router.post(
     if (!g) return undefined;
     try {
       const adapter = new LessonsAdapter(admin.firestore(), g.tenantId);
-      await adapter.save(body);
+      // adoptionCount is server-owned — a new lesson always starts at 0.
+      await adapter.save({ ...body, adoptionCount: 0 });
       // Audit: canonical top-level `audit_logs` (actor stamped from the
       // verified token). Replaces a prior hand-rolled write to the
       // non-canonical `tenants/{tid}/audit_logs` path — same wrong-path class
