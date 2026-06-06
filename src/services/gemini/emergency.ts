@@ -114,6 +114,126 @@ export const generateEmergencyScenario = async (context: string): Promise<unknow
   return parseGeminiJson(response);
 };
 
+/** Shape of a generated emergency plan (matches the Gemini responseSchema). */
+export interface EmergencyPlanJSON {
+  objetivo: string;
+  alcance: string;
+  marcoLegal: string[];
+  evaluacionMatematica: string;
+  cadenaMando: string[];
+  accionesInmediatas: string[];
+  evacuacion: string[];
+  equipos: string[];
+  /** true when this plan came from the deterministic fallback (AI unavailable). */
+  generadoSinIA?: boolean;
+}
+
+/** A parsed value is a usable plan only if every required field is present and non-empty. */
+function isUsableEmergencyPlan(v: unknown): v is EmergencyPlanJSON {
+  if (!v || typeof v !== 'object') return false;
+  const p = v as Record<string, unknown>;
+  const nonEmptyStr = (x: unknown) => typeof x === 'string' && x.trim().length > 0;
+  const nonEmptyArr = (x: unknown) => Array.isArray(x) && x.length > 0;
+  return (
+    nonEmptyStr(p.objetivo) &&
+    nonEmptyStr(p.alcance) &&
+    nonEmptyArr(p.marcoLegal) &&
+    nonEmptyStr(p.evaluacionMatematica) &&
+    nonEmptyArr(p.cadenaMando) &&
+    nonEmptyArr(p.accionesInmediatas) &&
+    nonEmptyArr(p.evacuacion) &&
+    nonEmptyArr(p.equipos)
+  );
+}
+
+/**
+ * Deterministic, normative-grounded emergency plan used when the AI is
+ * unavailable or returns an empty/malformed response. This is a LIFE-SAFETY
+ * feature: a worker facing an emergency must ALWAYS get a usable plan, never an
+ * error screen or a blank object. The content is a conservative baseline
+ * protocol the prevencionista must review/adapt to the site (flagged via
+ * `generadoSinIA`). Legal references are real Chilean norms (no fabricated
+ * article numbers).
+ */
+export function baselineEmergencyPlan(
+  scenario: string,
+  description: string,
+  normative: string,
+  _industry?: string,
+): EmergencyPlanJSON {
+  return {
+    generadoSinIA: true,
+    objetivo:
+      `Plan de emergencia base para el escenario "${scenario}". NOTA: generado sin asistencia ` +
+      `de IA (servicio no disponible); el prevencionista DEBE revisarlo y adaptarlo al sitio ` +
+      `antes de su uso formal.`,
+    alcance:
+      `Aplica a todas las personas presentes en la faena (trabajadores, contratistas y visitas) ` +
+      `ante el escenario descrito: ${description}.`,
+    marcoLegal: [
+      'Ley N° 16.744 — Seguro Social contra Riesgos de Accidentes del Trabajo y Enfermedades Profesionales.',
+      'Art. 184 del Código del Trabajo — deber del empleador de proteger eficazmente la vida y salud de los trabajadores, incluidas condiciones de emergencia y evacuación.',
+      'DS N° 594/1999 MINSAL — condiciones sanitarias y ambientales básicas en los lugares de trabajo.',
+      'DS N° 44/2024 — Reglamento sobre gestión preventiva de los riesgos laborales (Ley 16.744).',
+      `Normativa indicada para este escenario: ${normative} (verificar artículos aplicables con el prevencionista).`,
+    ],
+    evaluacionMatematica:
+      `Evaluación del riesgo: $MR = P \\times C$. Sin datos específicos del sitio se asume el caso ` +
+      `conservador (P y C altos ⇒ MR máximo) hasta que el prevencionista ajuste la Probabilidad (P) ` +
+      `y la Consecuencia (C) según el escenario "${scenario}".`,
+    cadenaMando: [
+      '1) La persona que detecta la emergencia da la alarma de inmediato.',
+      '2) El supervisor/líder de área asume el mando inicial y verifica la alarma.',
+      '3) El jefe de emergencia / prevencionista coordina la respuesta.',
+      '4) Se informa al Comité Paritario de Higiene y Seguridad (CPHS).',
+      '5) Gerencia y mutualidad (ACHS / IST / ISL) son notificadas según la gravedad.',
+    ],
+    accionesInmediatas: [
+      'Detener las actividades y dar la alarma.',
+      'Asegurar la zona y cortar energías/fuentes de riesgo solo si es seguro hacerlo.',
+      'Evacuar a las personas por la vía de evacuación señalizada.',
+      'Llamar a emergencias: SAMU 131, Bomberos 132, Carabineros 133; mutualidad ACHS 1404.',
+      'No reingresar al área hasta que el jefe de emergencia lo autorice.',
+    ],
+    evacuacion: [
+      'Usar las vías de evacuación señalizadas; NO usar ascensores.',
+      'Dirigirse al punto de encuentro definido para la faena.',
+      'Realizar el conteo de personas (headcount) y reportar a quien falte.',
+      'Asistir a personas con movilidad reducida.',
+      'Mantener despejadas las salidas de emergencia en todo momento.',
+    ],
+    equipos: [
+      'Extintores adecuados a la clase de fuego del escenario.',
+      'Botiquín de primeros auxilios y DEA (desfibrilador) si está disponible.',
+      'Señalética de evacuación y luces de emergencia operativas.',
+      'Sistema de alarma y medio de comunicación.',
+      'EPP acorde al riesgo del escenario.',
+    ],
+  };
+}
+
+/**
+ * Turn a Gemini response into a usable plan: use the model's plan when it is
+ * complete, otherwise fall back to the deterministic baseline. NEVER returns an
+ * empty object or throws on a bad model response — life-safety must degrade
+ * gracefully into a real plan.
+ */
+export function emergencyPlanFromResponse(
+  response: { text?: string },
+  scenario: string,
+  description: string,
+  normative: string,
+  industry?: string,
+): EmergencyPlanJSON {
+  try {
+    const parsed = parseGeminiJson<unknown>(response);
+    if (isUsableEmergencyPlan(parsed)) return parsed;
+  } catch {
+    // AI returned empty/malformed JSON — fall through to the baseline.
+  }
+  return baselineEmergencyPlan(scenario, description, normative, industry);
+}
+
 export const generateEmergencyPlanJSON = async (
   scenario: string,
   description: string,
@@ -182,5 +302,5 @@ export const generateEmergencyPlanJSON = async (
     },
   });
 
-  return JSON.parse(response.text || '{}');
+  return emergencyPlanFromResponse(response, scenario, description, normative, industry);
 };
