@@ -19,6 +19,9 @@ vi.mock('@simplewebauthn/server', () => ({
 }));
 
 import { verifyWebAuthnAssertion } from './webauthnAssertion';
+import { verifyAuthenticationResponse } from '@simplewebauthn/server';
+
+const mockVerify = vi.mocked(verifyAuthenticationResponse);
 
 const VALID_INPUT = {
   uid: 'user-1',
@@ -156,5 +159,122 @@ describe('verifyWebAuthnAssertion — shape validation (Layer 0)', () => {
       credentialsDb: mockCredentialsDb(),
     });
     expect(result).toEqual({ verified: false, reason: 'malformed_client_data' });
+  });
+});
+
+// ─── Layer 5: counter monotonicity / clone-detection ────────────────────
+//
+// Drives the full happy path (challenge consumed, credential found+owned,
+// signature verified) so the ONLY variable is the authenticator counter.
+// The signed-challenge bytes must match VALID_INPUT's clientDataJSON
+// challenge ("aaaaaaaaaaaaaaaa") so consumeWebAuthnChallenge succeeds.
+const CHALLENGE_B64 = Buffer.from('aaaaaaaaaaaaaaaa').toString('base64');
+
+function consumableChallengesDb() {
+  return {
+    now: () => 1000,
+    collection: () => ({
+      doc: () => ({
+        get: async () => ({
+          exists: true,
+          data: () => ({ expiresAt: 100000, consumed: false, challengeB64: CHALLENGE_B64 }),
+        }),
+        updateIf: async () => true,
+        set: async () => undefined,
+        update: async () => undefined,
+        delete: async () => undefined,
+      }),
+    }),
+  } as any;
+}
+
+function credentialsDbWithCounter(storedCounter: number) {
+  return {
+    now: () => 1000,
+    collection: () => ({
+      doc: () => ({
+        get: async () => ({
+          exists: true,
+          id: 'cred-abc',
+          data: () => ({
+            credentialId: 'cred-abc',
+            uid: 'user-1',
+            publicKey: Buffer.from([1, 2, 3]).toString('base64'),
+            counter: storedCounter,
+            transports: ['internal'],
+            registeredAt: 1,
+            lastUsedAt: null,
+          }),
+        }),
+        set: async () => undefined,
+        update: async () => undefined,
+        delete: async () => undefined,
+      }),
+    }),
+  } as any;
+}
+
+describe('verifyWebAuthnAssertion — counter clone-detection (Layer 5)', () => {
+  it('REJECTS a replayed counter of 0 when the stored counter is > 0 (clone bypass)', async () => {
+    // A real authenticator advanced its counter to 5. An attacker replays a
+    // cloned assertion reporting counter 0. The old `&& newCounter !== 0`
+    // carve-out skipped the check for counter 0 → the clone was ACCEPTED.
+    mockVerify.mockResolvedValueOnce({
+      verified: true,
+      authenticationInfo: { newCounter: 0 },
+    } as any);
+    const result = await verifyWebAuthnAssertion({
+      ...VALID_INPUT,
+      challengesDb: consumableChallengesDb(),
+      credentialsDb: credentialsDbWithCounter(5),
+    });
+    expect(result).toEqual({ verified: false, reason: 'counter_not_monotonic' });
+  });
+
+  it('REJECTS an equal counter (classic replay)', async () => {
+    mockVerify.mockResolvedValueOnce({
+      verified: true,
+      authenticationInfo: { newCounter: 5 },
+    } as any);
+    const result = await verifyWebAuthnAssertion({
+      ...VALID_INPUT,
+      challengesDb: consumableChallengesDb(),
+      credentialsDb: credentialsDbWithCounter(5),
+    });
+    expect(result).toEqual({ verified: false, reason: 'counter_not_monotonic' });
+  });
+
+  it('ACCEPTS a monotonically increasing counter', async () => {
+    mockVerify.mockResolvedValueOnce({
+      verified: true,
+      authenticationInfo: { newCounter: 6 },
+    } as any);
+    const result = await verifyWebAuthnAssertion({
+      ...VALID_INPUT,
+      challengesDb: consumableChallengesDb(),
+      credentialsDb: credentialsDbWithCounter(5),
+    });
+    expect(result).toEqual({
+      verified: true,
+      newCounter: 6,
+      verifiedCredentialId: 'cred-abc',
+    });
+  });
+
+  it('ACCEPTS counter 0 when the authenticator never implemented a counter (stored 0)', async () => {
+    mockVerify.mockResolvedValueOnce({
+      verified: true,
+      authenticationInfo: { newCounter: 0 },
+    } as any);
+    const result = await verifyWebAuthnAssertion({
+      ...VALID_INPUT,
+      challengesDb: consumableChallengesDb(),
+      credentialsDb: credentialsDbWithCounter(0),
+    });
+    expect(result).toEqual({
+      verified: true,
+      newCounter: 0,
+      verifiedCredentialId: 'cred-abc',
+    });
   });
 });

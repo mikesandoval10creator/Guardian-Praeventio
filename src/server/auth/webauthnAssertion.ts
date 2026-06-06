@@ -200,10 +200,16 @@ export async function verifyWebAuthnAssertion(
   }
 
   // ─── Layer 5: counter monotonicity (clone-detection) ──────────────────
+  // Enforce monotonicity ONLY when the stored counter is > 0. Authenticators
+  // that don't implement a counter keep it at 0 forever (some cloud-synced
+  // passkeys), so a stored 0 + new 0 is legitimate. But once the stored
+  // counter has advanced (> 0), ANY new counter <= stored is a clone/replay
+  // — including a reported 0. The previous guard (`newCounter !== 0`) carved
+  // out 0 unconditionally, so an attacker replaying counter 0 against a
+  // credential whose stored counter was already 5 BYPASSED the check. This
+  // mirrors the canonical gate in curriculum.ts (/api/auth/webauthn/verify).
   const newCounter = verification.authenticationInfo.newCounter;
-  if (newCounter <= stored.credential.counter && newCounter !== 0) {
-    // newCounter === 0 lo permitimos solo cuando el authenticator NO
-    // implementa counter (algunos passkeys cloud-synced lo dejan en 0).
+  if (stored.credential.counter > 0 && newCounter <= stored.credential.counter) {
     return { verified: false, reason: 'counter_not_monotonic' };
   }
   await updateCounter(input.credentialId, newCounter, input.credentialsDb);
