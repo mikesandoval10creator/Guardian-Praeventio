@@ -291,7 +291,7 @@ considera y se CABLEA donde corresponde.** Reglas:
 - [ ] 🔵 `maintenanceScheduler.completeMaintenanceTask` RMW sin runTransaction (#19); montar UIs admin EPP huérfanas.
 
 ### B11 — Contratistas, Visitas & Acreditación  · ref `DEEP-B11` + `DEEP-EX-26`
-- [ ] 🔴 `visitors.ts:112` sin `assertProjectMember` → añadir (F3); `driving_incidents` (`SafeDriving.tsx:94`) sin regla → reglas. (super/rules)
+- [~] 🔴 `visitors.ts:112` sin `assertProjectMember` → **✅ hecho** (helper `assertMemberAndResolveTenant` aplicado a los **4** endpoints —check-in/check-out/acknowledge-induction/GET list—; antes cualquier user autenticado registraba/cerraba/listaba visitas de CUALQUIER projectId porque solo resolvía el tenant del proyecto sin verificar membresía. +tests: no-miembro→403 sin escribir, miembro-sin-tenant→400, happy-paths re-seedeados con membership; 30 verde, typecheck/lint 0, 2026-06-06 · PR #711). PENDIENTE: `driving_incidents` (`SafeDriving.tsx:94`) sin regla → reglas (emulador). (super/rules)
 - [ ] 🟡 colisión ruta `safe-driving` → resolver (ambos componentes cableados a su ruta); `ClimateRoutes:215` botón "Calcular Ruta" → **cablear** al cálculo real. (comp)
 - [ ] 🔵 `resolveObservation` → **exponer/cablear UI**; DS76 duplicado → **consolidar**; stack `visitor_accesses` → **cablear o consolidar** en el canónico.
 
