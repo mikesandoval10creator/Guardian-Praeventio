@@ -33,6 +33,15 @@ import {
 } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+// B17 (Fase 5) — admin-assisted WebAuthn recovery (revoke a worker's
+// compromised credentials). The store is DB-agnostic; we feed it a thin
+// Admin-SDK adapter built below.
+import {
+  getCredentialsByUid,
+  findByCredentialId,
+  deleteCredentialById,
+  type MinimalCredentialsDb,
+} from '../../services/auth/webauthnCredentialStore.js';
 // 15th wave (Bucket D): real server analytics adapter — closes the 13th
 // wave Sentry-breadcrumb deferral for `auth.role.granted/revoked`.
 import { serverAnalytics } from '../../services/analytics/serverAdapter.js';
@@ -103,6 +112,60 @@ const router = Router();
  * failure 500'd a COMPLETED operation (done-but-reported-failed, no audit row).
  * Audit failure is severe (compliance) but must not corrupt the user action.
  */
+// Thin Admin-SDK adapter onto the DB-agnostic webauthn credential store.
+// Mirrors the shape buildWebAuthnCredentialsDb (curriculum.ts) exposes; kept
+// local so this admin route doesn't statically couple to the curriculum
+// module (and its boot-time origin guard). Only the methods the recovery
+// flow needs are wired: doc().get()/delete() and where().get().
+function buildCredentialsDb(): MinimalCredentialsDb {
+  const fs = admin.firestore();
+  return {
+    now: () => Date.now(),
+    collection(name: string) {
+      const col = fs.collection(name);
+      return {
+        doc(id: string) {
+          const ref = col.doc(id);
+          return {
+            async get() {
+              const snap = await ref.get();
+              return {
+                exists: snap.exists,
+                id: snap.id,
+                data: () => (snap.exists ? (snap.data() as Record<string, unknown>) : undefined),
+              };
+            },
+            async set(data: Record<string, unknown>) {
+              await ref.set(data);
+            },
+            async update(patch: Record<string, unknown>) {
+              await ref.update(patch);
+            },
+            async delete() {
+              await ref.delete();
+            },
+          };
+        },
+        where(field: string, op: '==', value: unknown) {
+          const q = col.where(field, op, value);
+          return {
+            async get() {
+              const snap = await q.get();
+              return {
+                empty: snap.empty,
+                docs: snap.docs.map((d) => ({
+                  id: d.id,
+                  data: () => d.data() as Record<string, unknown>,
+                })),
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
 async function safeAudit(entry: Record<string, unknown>): Promise<void> {
   try {
     await admin.firestore().collection('audit_logs').add(entry);
@@ -176,6 +239,82 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
   } catch (error) {
     logger.error('admin_revoke_access_failed', error, { callerUid, targetUid });
     captureRouteError(error, 'admin.revoke_access', { callerUid, targetUid });
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/webauthn/revoke  { targetUid, credentialId? }
+//
+// Admin-assisted WebAuthn recovery (B17, Fase 5). There is NO user-facing
+// self-delete of MFA credentials — a thief with an unlocked phone would
+// otherwise wipe the victim's keys and lock them out of their safety data
+// (client-side step-up does not protect a stolen UNLOCKED device, since the
+// device's own key passes it). The ONLY removal path is this admin/supervisor
+// gated, audited recovery: when a worker reports a lost/stolen device, an
+// authorized operator revokes the compromised credential(s) on their behalf.
+//
+//   • `credentialId` present → revoke that one credential (404 if it isn't
+//     registered to `targetUid`).
+//   • `credentialId` absent  → revoke ALL of the worker's credentials
+//     (force a clean re-enrollment from a trusted device).
+//
+// We also revoke the worker's refresh tokens so a session riding the
+// compromised device is dropped. Audited to audit_logs (directive #3),
+// non-blocking via safeAudit (directive #14).
+router.post('/webauthn/revoke', verifyAuth, async (req, res) => {
+  if (!(await assertAdminCaller(req, res))) return undefined;
+  const callerUid = req.user!.uid;
+  const { targetUid, credentialId } = req.body ?? {};
+
+  if (typeof targetUid !== 'string' || !UID_REGEX.test(targetUid)) {
+    return res.status(400).json({ error: 'Invalid uid' });
+  }
+  if (
+    credentialId !== undefined &&
+    (typeof credentialId !== 'string' || credentialId.length === 0 || credentialId.length > 512)
+  ) {
+    return res.status(400).json({ error: 'Invalid credentialId' });
+  }
+
+  try {
+    const credsDb = buildCredentialsDb();
+
+    let revokedIds: string[] = [];
+    if (typeof credentialId === 'string') {
+      const stored = await findByCredentialId(credentialId, credsDb);
+      // Treat "not found" and "registered to another user" identically — a
+      // 404 that never confirms whether the id exists under a different uid.
+      if (!stored || stored.uid !== targetUid) {
+        return res.status(404).json({ error: 'Credential not found for user' });
+      }
+      await deleteCredentialById(credentialId, credsDb);
+      revokedIds = [credentialId];
+    } else {
+      const all = await getCredentialsByUid(targetUid, credsDb);
+      for (const c of all) {
+        await deleteCredentialById(c.credentialId, credsDb);
+      }
+      revokedIds = all.map((c) => c.credentialId);
+    }
+
+    // Drop any session riding the compromised device.
+    await admin.auth().revokeRefreshTokens(targetUid);
+
+    await safeAudit({
+      actor: callerUid,
+      action: 'webauthn.admin_revoke',
+      target: targetUid,
+      // credentialIds are public identifiers (not secrets) — safe to audit.
+      details: { count: revokedIds.length, credentialIds: revokedIds },
+      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ip: req.ip,
+      ua: req.header('user-agent') || null,
+    });
+
+    return res.json({ success: true, revoked: revokedIds.length });
+  } catch (error) {
+    logger.error('admin_webauthn_revoke_failed', error, { callerUid, targetUid });
+    captureRouteError(error, 'admin.webauthn_revoke', { callerUid, targetUid });
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -63,6 +63,7 @@ export interface MinimalCredentialsDb {
       }>;
       set(data: Record<string, unknown>): Promise<void>;
       update(patch: Record<string, unknown>): Promise<void>;
+      delete(): Promise<void>;
     };
     where(field: string, op: '==', value: unknown): {
       get(): Promise<{
@@ -201,6 +202,32 @@ export async function updateCounter(
     counter: newCounter,
     lastUsedAt: db.now(),
   });
+}
+
+/**
+ * Revoke (hard-delete) a single registered credential by id. Used by the
+ * admin-assisted account-recovery flow (B17, Fase 5): when a worker loses a
+ * device or it is stolen, an authorized admin/supervisor revokes the
+ * compromised credential on their behalf. There is intentionally NO
+ * user-facing self-delete (a thief with an unlocked phone would otherwise
+ * wipe the victim's keys), so this is the only deletion path and it lives
+ * behind the admin role gate + audit_logs at the route layer.
+ *
+ * Returns `true` if a credential existed and was deleted, `false` if the id
+ * was not found (so the caller can return 404 without a second read).
+ */
+export async function deleteCredentialById(
+  credentialId: string,
+  db: MinimalCredentialsDb,
+): Promise<boolean> {
+  if (typeof credentialId !== 'string' || credentialId.length === 0) {
+    throw new Error('credentialId is required');
+  }
+  const ref = db.collection(COLLECTION).doc(credentialId);
+  const snap = await ref.get();
+  if (!snap.exists) return false;
+  await ref.delete();
+  return true;
 }
 
 function rowToRegistered(data: Record<string, unknown>): RegisteredCredential {

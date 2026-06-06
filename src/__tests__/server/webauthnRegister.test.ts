@@ -144,6 +144,9 @@ function buildTestCredentialsDb(
               if (!cur) throw new Error('document does not exist');
               fs.store.set(key, { ...cur, ...patch });
             },
+            async delete() {
+              fs.store.delete(key);
+            },
           };
         },
         where(field: string, _op: '==', value: unknown) {
