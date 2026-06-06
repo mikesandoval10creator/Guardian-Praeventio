@@ -226,7 +226,7 @@ considera y se CABLEA donde corresponde.** Reglas:
 - [ ] 🔵 `organic.ts` err.message (#8); `comiteBackend.ts:37,75` JSON.parse (F2); `useAgenda`/`useMeetingPack`/`useRaciMatrix` huérfanos → **montar**.
 
 ### B4 — Incidentes & Investigación 🛟  · ref `DEEP-B4` + `DEEP-EX-16/17`
-- [ ] 🔴 `sif.ts` `reviewedByUid`/`reviewedAt` del body → token (F3). (super)
+- [x] 🔴 `sif.ts` `reviewedByUid`/`reviewedAt` del body → token (F3). **HECHO**: el endpoint `executive-review` de precursores SIF (lesión grave/fatalidad) estampaba el revisor y la fecha desde el BODY → un caller podía atribuir la revisión a otro ejecutivo y antedatarla. Ahora `reviewedByUid = req.user.uid` (token) y `reviewedAt = new Date().toISOString()` (reloj server); el schema solo acepta `reviewNotes`. +test real-router `sif.router.test.ts` (401/403-no-miembro/204-estampa-caller-ignora-body-forjado/404-sin-tenant), typecheck/lint 0, 2026-06-06 · PR #709. (super)
 - [ ] 🟡 `incidentFlow.ts:77` `flowDepsFor` sin `createEdge` → grafo PDCA conectado; writeAudit shape → canónico. (vitest)
 - [ ] 🟡 `root_cause_analyses` vs regla `root_causes`; `incidentPostmortem` audita a `tenants/{tid}/audit_log`→root; incidents path mismatch; `pdca.ts` /advance sin runTransaction (#19); `lessonsLearned` adoptionCount del body→server. (rules/super)
 - [ ] 🔵 `incidentRagService.ts:299`/`incidentCommands` Math.random→randomId; custody appendEvent doc-id colisión; **CQRS in-memory → persistente** (cablear).
