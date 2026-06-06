@@ -23,9 +23,12 @@ import request from 'supertest';
 
 vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, _res: Response, next: NextFunction) => {
-    (req as Request & { user: { uid: string; email: string } }).user = {
+    (req as Request & { user: { uid: string; email: string; tenantId?: string } }).user = {
       uid: 'doctor-uid',
       email: 'doctor@example.com',
+      // B5: tenantId now comes from the verified token. Default to the tenant
+      // the test bodies use ('t-1'); cross-tenant tests override via header.
+      tenantId: req.header('x-test-tenant') ?? 't-1',
     };
     next();
   },
@@ -304,4 +307,44 @@ describe('ds67ds76 router — WebAuthn sign verification gate (§2.9)', () => {
       });
     });
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// B5 — tenantId is authoritative from the token, not the body/query.
+// ═══════════════════════════════════════════════════════════════════════════
+describe('ds67ds76 router — B5 tenant-from-token (cross-tenant defense)', () => {
+  it('403 tenant_mismatch on POST /ds67 when the body forges another tenant', async () => {
+    const res = await request(buildApp())
+      .post('/api/compliance/ds67')
+      .set('x-test-tenant', 't-1')
+      .send({ ...validDs67Body, tenantId: 't-2' });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('tenant_mismatch');
+  });
+
+  it('403 tenant_mismatch on GET /ds67/:formId/pdf when the query forges another tenant', async () => {
+    const res = await request(buildApp())
+      .get('/api/compliance/ds67/form-1/pdf?tenantId=t-2')
+      .set('x-test-tenant', 't-1');
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('tenant_mismatch');
+  });
+
+  it('403 tenant_mismatch on POST /ds76 when the body forges another tenant', async () => {
+    const res = await request(buildApp())
+      .post('/api/compliance/ds76')
+      .set('x-test-tenant', 't-1')
+      .send({ ...validDs76Body, tenantId: 't-2' });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('tenant_mismatch');
+  });
+
+  it('403 no_tenant_binding when the token carries no tenant', async () => {
+    const res = await request(buildApp())
+      .post('/api/compliance/ds67')
+      .set('x-test-tenant', '')
+      .send(validDs67Body);
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('no_tenant_binding');
+  });
 });

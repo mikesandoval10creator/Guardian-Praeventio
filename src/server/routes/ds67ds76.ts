@@ -21,6 +21,7 @@ import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+import { callerTenantOr403 } from '../auth/callerTenant.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -184,15 +185,19 @@ const signSchema = z.object({
 // ─── DS 67 ──────────────────────────────────────────────────────────────────
 
 router.post('/ds67', verifyAuth, validate(ds67Schema), async (req, res) => {
-  const input = req.validated as z.infer<typeof ds67Schema>;
+  const validated = req.validated as z.infer<typeof ds67Schema>;
+  // tenantId is authoritative from the verified token — never the body (B5).
+  const tenantId = callerTenantOr403(req, res, validated.tenantId);
+  if (tenantId === null) return;
+  const input = { ...validated, tenantId };
   try {
     const result = await createDs67Form(input, {
       folioStore: buildFolioStore(),
       formStore: buildDs67FormStore(),
     });
-    // P0 fix: previously this was `void auditServerEvent(...)` — fire-and-forget
-    // discarded the audit write so the response could ship before the row
-    // landed in Firestore. For DS 67 / DS 76 that is a SUSESO audit-trail
+    // P0 fix: previously this audit write was fire-and-forget (the promise was
+    // discarded), so the response could ship before the row landed in
+    // Firestore. For DS 67 / DS 76 that is a SUSESO audit-trail
     // gap risk. Now we `await` to guarantee the write attempt completes
     // before responding. Codex P2 3308579646: auditServerEvent catches its
     // own Firestore failures and resolves `false` (never rejects), so the
@@ -223,10 +228,8 @@ router.post('/ds67', verifyAuth, validate(ds67Schema), async (req, res) => {
 });
 
 router.get('/ds67/:formId/pdf', verifyAuth, async (req, res) => {
-  const tenantId = (req.query.tenantId ?? '') as string;
-  if (!tenantId) {
-    return res.status(400).json({ error: 'tenantId required' });
-  }
+  const tenantId = callerTenantOr403(req, res, req.query.tenantId);
+  if (tenantId === null) return;
   try {
     const formStore = buildDs67FormStore();
     const form = await formStore.loadForm(tenantId, req.params.formId);
@@ -275,8 +278,10 @@ router.post(
   verifyAuth,
   validate(signSchema),
   async (req, res) => {
-    const { tenantId, signature, webauthnAssertion } =
+    const { tenantId: bodyTenantId, signature, webauthnAssertion } =
       req.validated as z.infer<typeof signSchema>;
+    const tenantId = callerTenantOr403(req, res, bodyTenantId);
+    if (tenantId === null) return;
     const callerUid = req.user!.uid;
     try {
       // §2.9 — when the signature claims WebAuthn, run the full ceremony
@@ -354,7 +359,11 @@ router.post(
 // ─── DS 76 ──────────────────────────────────────────────────────────────────
 
 router.post('/ds76', verifyAuth, validate(ds76Schema), async (req, res) => {
-  const input = req.validated as z.infer<typeof ds76Schema>;
+  const validated = req.validated as z.infer<typeof ds76Schema>;
+  // tenantId is authoritative from the verified token — never the body (B5).
+  const tenantId = callerTenantOr403(req, res, validated.tenantId);
+  if (tenantId === null) return;
+  const input = { ...validated, tenantId };
   try {
     const result = await createDs76Form(input, {
       folioStore: buildFolioStore(),
@@ -388,10 +397,8 @@ router.post('/ds76', verifyAuth, validate(ds76Schema), async (req, res) => {
 });
 
 router.get('/ds76/:formId/pdf', verifyAuth, async (req, res) => {
-  const tenantId = (req.query.tenantId ?? '') as string;
-  if (!tenantId) {
-    return res.status(400).json({ error: 'tenantId required' });
-  }
+  const tenantId = callerTenantOr403(req, res, req.query.tenantId);
+  if (tenantId === null) return;
   try {
     const formStore = buildDs76FormStore();
     const form = await formStore.loadForm(tenantId, req.params.formId);
@@ -438,8 +445,10 @@ router.post(
   verifyAuth,
   validate(signSchema),
   async (req, res) => {
-    const { tenantId, signature, webauthnAssertion } =
+    const { tenantId: bodyTenantId, signature, webauthnAssertion } =
       req.validated as z.infer<typeof signSchema>;
+    const tenantId = callerTenantOr403(req, res, bodyTenantId);
+    if (tenantId === null) return;
     const callerUid = req.user!.uid;
     try {
       // §2.9 — full WebAuthn ceremony before persisting a webauthn signature.
