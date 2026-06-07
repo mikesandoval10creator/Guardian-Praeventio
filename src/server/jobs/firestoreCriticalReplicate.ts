@@ -22,9 +22,9 @@
 // Idempotency:
 //   The filename is `<collection>/<YYYY-MM-DDTHH>.jsonl`, so a re-run
 //   for the same hour overwrites the previous file with the SAME
-//   contents (the `where('createdAt', '>=', oneHourAgo)` window is
-//   deterministic given a fixed `now`). Re-runs are safe; the job is
-//   designed to be re-driven manually via the admin endpoint.
+//   contents (the `where(<timestamp field>, '>=', new Date(oneHourAgo))`
+//   window is deterministic given a fixed `now`). Re-runs are safe; the job
+//   is designed to be re-driven manually via the admin endpoint.
 //
 // Dependency injection:
 //   The Firestore handle and the Storage uploader are both injected so
@@ -43,6 +43,24 @@ const DEFAULT_BUCKET = 'praeventio-critical-replica';
 /** Collections eligible for the hourly write-through. Order is stable. */
 export const CRITICAL_COLLECTIONS = ['audit_logs', 'invoices'] as const;
 export type CriticalCollection = (typeof CRITICAL_COLLECTIONS)[number];
+
+/**
+ * The Firestore Timestamp field each critical collection is windowed on.
+ * `audit_logs` rows stamp `timestamp` (server.ts / serverZkNodeWriter), while
+ * `invoices` stamp `createdAt` (billing.ts) — BOTH via
+ * `admin.firestore.FieldValue.serverTimestamp()`, i.e. real Firestore
+ * Timestamps. The previous query hard-coded `createdAt` for every collection
+ * AND compared against a raw epoch-ms number, so the audit_logs field was wrong
+ * AND the value type never matched a Timestamp → the hourly replica silently
+ * shipped nothing (RPO=0 for invoices was unmet). We map the field per
+ * collection and compare against a `Date` (the Admin SDK coerces it to a
+ * Timestamp).
+ */
+const WINDOW_FIELD: Record<string, string> = {
+  audit_logs: 'timestamp',
+  invoices: 'createdAt',
+};
+const DEFAULT_WINDOW_FIELD = 'createdAt';
 
 /**
  * Storage uploader contract. Implementations MUST be idempotent: the
@@ -149,9 +167,13 @@ async function replicateCriticalDataInner(
 
   for (const coll of collections) {
     try {
+      // Per-collection Timestamp field, compared against a Date (Admin SDK
+      // coerces Date → Timestamp). Using the raw `oneHourAgo` number here would
+      // match nothing against a Timestamp field — the original DR bug.
+      const windowField = WINDOW_FIELD[coll] ?? DEFAULT_WINDOW_FIELD;
       const snap = await db
         .collection(coll)
-        .where('createdAt', '>=', oneHourAgo)
+        .where(windowField, '>=', new Date(oneHourAgo))
         .get();
 
       if (snap.empty || snap.docs.length === 0) {
