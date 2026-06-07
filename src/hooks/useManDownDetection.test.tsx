@@ -38,6 +38,7 @@ const h = vi.hoisted(() => ({
   saveBlackBox: vi.fn(),
   tagIncidentTipo: vi.fn((base: unknown) => base),
   getActiveSession: vi.fn(() => null),
+  triggerEmergency: vi.fn(),
 }));
 
 vi.mock('../contexts/SensorContext', () => ({
@@ -53,6 +54,9 @@ vi.mock('../contexts/ProjectContext', () => ({
 }));
 vi.mock('../contexts/FirebaseContext', () => ({
   useFirebase: () => ({ user: h.state.user }),
+}));
+vi.mock('../contexts/EmergencyContext', () => ({
+  useEmergency: () => ({ triggerEmergency: h.triggerEmergency }),
 }));
 vi.mock('../services/firebase', () => ({
   db: {},
@@ -96,6 +100,7 @@ beforeEach(() => {
   h.addDoc.mockResolvedValue({ id: 'evt1' });
   h.updateDoc.mockResolvedValue(undefined);
   h.saveBlackBox.mockResolvedValue(undefined);
+  h.triggerEmergency.mockResolvedValue(undefined);
   h.tagIncidentTipo.mockImplementation((base: unknown) => base);
   h.getActiveSession.mockReturnValue(null);
   // jsdom has no geolocation — provide a deterministic success so triggerAlert
@@ -156,13 +161,16 @@ describe('useManDownDetection — inactivity escalation', () => {
     expect(result.current.isAlerting).toBe(true);
   });
 
-  it('fires the full alert (risk node + crisis msg + mandown_event + black box) when the countdown elapses', async () => {
+  it('fires the full alert (FCM dispatch + risk node + crisis msg + mandown_event + black box) when the countdown elapses', async () => {
     const onManDownConfirmed = vi.fn();
     const { result } = renderHook(() => useManDownDetection({ onManDownConfirmed }));
     act(() => result.current.startDetection());
     // 30s inactivity + 10s countdown → alert fires.
     await tickSeconds(42);
     expect(h.saveBlackBox).toHaveBeenCalledTimes(1);
+    // Life-safety GAP fix (B1): the emergency pipeline is dispatched → FCM push
+    // wakes the supervisor even with the downed worker's phone backgrounded.
+    expect(h.triggerEmergency).toHaveBeenCalledWith('man_down', 'p1');
     expect(h.addNode).toHaveBeenCalledTimes(1);
     // addDoc is called for emergency_messages AND mandown_events.
     expect(h.addDoc).toHaveBeenCalledTimes(2);
@@ -212,9 +220,11 @@ describe('useManDownDetection — guards', () => {
     const { result } = renderHook(() => useManDownDetection());
     act(() => result.current.startDetection());
     await tickSeconds(42);
-    // triggerAlert early-returns after starting the local alarm → no network writes.
+    // triggerAlert early-returns after starting the local alarm → no network
+    // writes and no emergency dispatch (the guard precedes both).
     expect(h.addNode).not.toHaveBeenCalled();
     expect(h.addDoc).not.toHaveBeenCalled();
     expect(h.saveBlackBox).not.toHaveBeenCalled();
+    expect(h.triggerEmergency).not.toHaveBeenCalled();
   });
 });

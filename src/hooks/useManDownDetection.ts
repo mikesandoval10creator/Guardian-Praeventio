@@ -3,6 +3,7 @@ import { useRiskEngine } from './useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useSensors } from '../contexts/SensorContext';
+import { useEmergency } from '../contexts/EmergencyContext';
 import { NodeType } from '../types';
 import { db, collection, addDoc, serverTimestamp } from '../services/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -23,6 +24,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const { sensorData, startListening, stopListening } = useSensors();
+  const { triggerEmergency } = useEmergency();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   // Stores the Firestore mandown_events doc so acknowledgeAlert() can update it
@@ -203,6 +205,17 @@ export function useManDownDetection(options: ManDownOptions = {}) {
       inactivityMs: INACTIVITY_THRESHOLD,
       timestamp: impactTimestamp,
     }).catch(() => {}); // silently fail — safety data has priority
+
+    // Dispatch the emergency pipeline → FCM push to project supervisors. THIS is
+    // the life-safety gap (B1): without it, a downed/unconscious worker whose
+    // phone is backgrounded never wakes the supervisor — the `mandown_events`
+    // doc written below is only seen if someone is already watching. Mirrors
+    // FallDetectionMonitor's `triggerEmergency('fall', …)`. Fire-and-forget so
+    // it runs concurrently with the record writes; a dispatch failure must NEVER
+    // break the local alarm or the auditable Firestore record.
+    void triggerEmergency('man_down', selectedProject.id).catch((err) =>
+      logger.error('useManDownDetection: triggerEmergency failed', { err }),
+    );
 
     try {
       const location = await new Promise<string>((resolve) => {
