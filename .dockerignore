@@ -13,10 +13,11 @@
 .env
 .env.*
 !.env.example
-# H3 (2026-05-17): excluir firebase-applet-config para que un dev con el
-# archivo local no lo hornee en la imagen. En runtime se monta como
-# Secret Manager (Cloud Run). Ver docs/runbooks/SECRETS_RUNBOOK.md.
-firebase-applet-config.json
+# firebase-applet-config.json is NOT excluded: it is the PUBLIC Firebase client
+# config (projectId/apiKey/authDomain/firestoreDatabaseId — no SA private key;
+# the admin credential is ADC / Workload Identity). vite bundles it into the
+# client AND server.ts reads it at startup to select the non-default Firestore
+# database. Excluding it broke both the build and the runtime DB selection.
 
 # ── Node ─────────────────────────────────────────────────────────────────
 node_modules/

@@ -37,10 +37,13 @@ RUN npm ci --legacy-peer-deps
 
 COPY . .
 
-# Typecheck and build the frontend (vite outputs to /app/dist).
-# `typecheck:ci` already sets --max-old-space-size=4096 inside the script.
-RUN npm run typecheck:ci \
- && npm run build
+# Build the frontend (vite outputs to /app/dist). We do NOT re-run the
+# full-repo `typecheck:ci` in the image: it compiles the test suite
+# (src/__tests__/*), which imports dev-only fixtures under tests/ (excluded by
+# .dockerignore) → TS2307 in this minimal build context. The typecheck gate
+# already runs in CI on the SAME commit with full context, and deploy.yml only
+# deploys on CI success (workflow_run.conclusion == 'success'), so it is covered.
+RUN npm run build
 
 # ── Stage 3: minimal runtime image ───────────────────────────────────────────
 FROM node:20-alpine AS runtime
@@ -62,9 +65,15 @@ COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/src ./src
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/package.json ./package.json
-# H3 (2026-05-17): firebase-applet-config.json NO se hornea en la imagen.
-# Se monta como Secret Manager en runtime de Cloud Run.
-# Ver docs/runbooks/SECRETS_RUNBOOK.md.
+# firebase-applet-config.json is the PUBLIC Firebase client config (projectId /
+# apiKey / authDomain / firestoreDatabaseId — NO service-account private key; the
+# admin credential is ADC / Workload Identity via applicationDefault()). server.ts
+# reads it at startup to select the NON-default Firestore database
+# (firestoreDatabaseId); without it the server silently falls back to the
+# `(default)` DB and serves no data. vite also bundles it into the client. It is
+# public + git-tracked, so it MUST be baked into the image. (Prior "mount via
+# Secret Manager" note was doc-drift — the real admin secret never lives here.)
+COPY --from=build /app/firebase-applet-config.json ./firebase-applet-config.json
 
 # Drop privileges. The official node:20-alpine image ships a `node` user.
 RUN chown -R node:node /app
