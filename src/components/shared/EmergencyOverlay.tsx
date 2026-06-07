@@ -4,7 +4,9 @@ import { AlertTriangle, MapPin, ShieldAlert, Phone, ArrowRight, CheckCircle2, Na
 import { useEmergency } from '../../contexts/EmergencyContext';
 import { useAppMode } from '../../contexts/AppModeContext';
 import { db, serverTimestamp } from '../../services/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
+import { useProject } from '../../contexts/ProjectContext';
+import { useFirebase } from '../../contexts/FirebaseContext';
 import { logger } from '../../utils/logger';
 
 // Sprint 14 — climate sub-type copy (Spanish UI). Centralized so future
@@ -158,6 +160,8 @@ function ClimateAutoOverlay({
 export function EmergencyOverlay() {
   const { isEmergencyActive, emergencyType, resolveEmergency } = useEmergency();
   const { emergencyAutoEvent, dismissEmergency } = useAppMode();
+  const { selectedProject } = useProject();
+  const { user } = useFirebase();
 
   // Rules of hooks: every hook (the useState trio + the useEffect below) runs
   // on EVERY render. The auto-monitor early-returns were moved to AFTER the
@@ -277,13 +281,55 @@ export function EmergencyOverlay() {
     // Reason 'company' falls through to the legacy useEmergency-driven UI.
   }
 
+  // Persist the worker's status to the canonical headcount the supervisor's
+  // evacuation dashboard reads: projects/{pid}/emergency_checkins/{uid}
+  // (mirrors EmergencyCheckIn.handleStatusUpdate; the Firestore rule requires
+  // workerId == auth.uid). Captures a best-effort live GPS fix so rescue knows
+  // WHERE the worker is. Non-blocking + offline-first: the Firestore SDK queues
+  // the write when offline, and a failure must never stall the local "estoy a
+  // salvo" feedback.
+  const persistCheckin = async (
+    status: 'safe' | 'danger',
+    triageLevel?: 'verde' | 'amarillo' | 'rojo',
+  ) => {
+    if (!selectedProject?.id || !user) return;
+    let pos = location;
+    if (!pos && typeof navigator !== 'undefined' && navigator.geolocation) {
+      pos = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+          () => resolve(null),
+          { timeout: 5000 },
+        );
+      });
+    }
+    try {
+      await setDoc(
+        doc(db, `projects/${selectedProject.id}/emergency_checkins`, user.uid),
+        {
+          projectId: selectedProject.id,
+          workerId: user.uid,
+          name: user.displayName || 'Usuario',
+          status,
+          ...(triageLevel ? { triageLevel } : {}),
+          ...(pos ? { location: pos } : {}),
+          timestamp: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    } catch (err) {
+      logger.warn('EmergencyOverlay: failed to persist emergency_checkin', { err });
+    }
+  };
+
   const handleSafeClick = () => {
     setIsSafe(true);
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
-    // Here we would normally update Firebase: users/uid/status = 'safe'
-    // For now, we just show the visual feedback and let them resolve it
+    // Persist to the supervisor's headcount so evacuation isn't blind to who
+    // has reported safe.
+    void persistCheckin('safe');
     setTimeout(() => {
       resolveEmergency();
     }, 3000);
@@ -291,7 +337,8 @@ export function EmergencyOverlay() {
 
   const handleTriage = (level: 'verde' | 'amarillo' | 'rojo') => {
     setTriageReported(level);
-    // Here we would send the triage report to Firebase with the location
+    // verde = able to self-evacuate (safe); amarillo/rojo = needs assistance.
+    void persistCheckin(level === 'verde' ? 'safe' : 'danger', level);
   };
 
   return (

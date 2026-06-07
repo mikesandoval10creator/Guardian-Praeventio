@@ -24,6 +24,14 @@ let appModeMock: {
   emergencyAutoEvent: null,
   dismissEmergency: vi.fn(),
 };
+let projectMock: { selectedProject: { id: string; name: string } | null } = {
+  selectedProject: { id: 'p1', name: 'Mina X' },
+};
+let firebaseMock: { user: { uid: string; displayName: string | null } | null } = {
+  user: { uid: 'u1', displayName: 'Juan' },
+};
+// Reassigned per test so assertions see a fresh spy (mirrors emergencyMock).
+let setDocSpy = vi.fn((..._args: unknown[]) => Promise.resolve());
 
 vi.mock('../../contexts/EmergencyContext', () => ({
   useEmergency: () => emergencyMock,
@@ -31,6 +39,14 @@ vi.mock('../../contexts/EmergencyContext', () => ({
 
 vi.mock('../../contexts/AppModeContext', () => ({
   useAppMode: () => appModeMock,
+}));
+
+vi.mock('../../contexts/ProjectContext', () => ({
+  useProject: () => projectMock,
+}));
+
+vi.mock('../../contexts/FirebaseContext', () => ({
+  useFirebase: () => firebaseMock,
 }));
 
 vi.mock('../../services/firebase', () => ({
@@ -41,6 +57,8 @@ vi.mock('../../services/firebase', () => ({
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(() => ({})),
   addDoc: vi.fn(() => Promise.resolve({ id: 'fake' })),
+  doc: vi.fn((_db: unknown, path: string, id: string) => ({ path, id })),
+  setDoc: (...args: unknown[]) => setDocSpy(...args),
 }));
 
 vi.mock('../../utils/logger', () => ({
@@ -60,10 +78,17 @@ beforeEach(() => {
     emergencyAutoEvent: null,
     dismissEmergency: vi.fn(),
   };
-  // Stub geolocation so component effects don't throw.
+  projectMock = { selectedProject: { id: 'p1', name: 'Mina X' } };
+  firebaseMock = { user: { uid: 'u1', displayName: 'Juan' } };
+  setDocSpy = vi.fn((..._args: unknown[]) => Promise.resolve());
+  // Stub geolocation so the check-in's best-effort GPS resolves (a no-op stub
+  // would hang the persist Promise).
   Object.defineProperty(global.navigator, 'geolocation', {
     configurable: true,
-    value: { getCurrentPosition: vi.fn() },
+    value: {
+      getCurrentPosition: (ok: PositionCallback) =>
+        ok({ coords: { latitude: -33.45, longitude: -70.66 } } as GeolocationPosition),
+    },
   });
   // Stub speechSynthesis.
   (global as any).window.speechSynthesis = {
@@ -162,5 +187,51 @@ describe('EmergencyOverlay', () => {
     appModeMock.emergencyAutoEvent = null;
     expect(() => rerender(<EmergencyOverlay />)).not.toThrow();
     expect(screen.getByText(/ALERTA DE EMERGENCIA/i)).toBeTruthy();
+  });
+
+  // Life-safety persistence (B1): the "estoy a salvo" + triage taps used to be
+  // stubs ("here we would normally update Firebase"), so the supervisor's
+  // evacuation headcount was blind. They now write the canonical
+  // projects/{pid}/emergency_checkins/{uid} doc the dashboard reads.
+  it('persists "safe" to emergency_checkins (+ GPS) when the worker taps ESTOY A SALVO', async () => {
+    emergencyMock.isEmergencyActive = true;
+    emergencyMock.emergencyType = 'sismo';
+    render(<EmergencyOverlay />);
+    await act(async () => {
+      fireEvent.click(screen.getByText(/ESTOY A SALVO/i));
+    });
+    expect(setDocSpy).toHaveBeenCalledTimes(1);
+    const [ref, payload, opts] = setDocSpy.mock.calls[0] as unknown as [
+      { path: string; id: string },
+      Record<string, unknown>,
+      { merge: boolean },
+    ];
+    expect(ref.path).toBe('projects/p1/emergency_checkins');
+    expect(ref.id).toBe('u1');
+    expect(payload).toMatchObject({ projectId: 'p1', workerId: 'u1', status: 'safe' });
+    expect(payload.location).toEqual({ lat: -33.45, lng: -70.66 });
+    expect(opts).toEqual({ merge: true });
+  });
+
+  it('persists a triage level (Crítico → status danger + triageLevel rojo)', async () => {
+    emergencyMock.isEmergencyActive = true;
+    render(<EmergencyOverlay />);
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Crítico/i));
+    });
+    expect(setDocSpy).toHaveBeenCalledTimes(1);
+    const payload = setDocSpy.mock.calls[0]![1] as Record<string, unknown>;
+    expect(payload).toMatchObject({ workerId: 'u1', status: 'danger', triageLevel: 'rojo' });
+  });
+
+  it('does not persist when project or user is absent (guarded)', async () => {
+    emergencyMock.isEmergencyActive = true;
+    projectMock = { selectedProject: null };
+    firebaseMock = { user: null };
+    render(<EmergencyOverlay />);
+    await act(async () => {
+      fireEvent.click(screen.getByText(/ESTOY A SALVO/i));
+    });
+    expect(setDocSpy).not.toHaveBeenCalled();
   });
 });
