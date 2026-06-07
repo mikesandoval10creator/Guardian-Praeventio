@@ -172,6 +172,12 @@ router.post(
       );
       const finalSession: MicroTrainingSession = {
         ...body,
+        // The certificate SUBJECT is the VERIFIED caller who actually took the
+        // quiz — NEVER the client-supplied workerUid, which let any project
+        // member mint a competency cert (altura/eléctrico/confinado/hazmat) for
+        // a worker who never trained → that worker assigned to a hazardous task
+        // they cannot safely perform. F3 identity-from-token.
+        workerUid: callerUid,
         completedAt: body.completedAt ?? Date.now(),
         score,
       };
@@ -184,13 +190,13 @@ router.post(
       let certified = false;
       if (shouldCertify(finalSession, module)) {
         const cert = buildCertFromSession(finalSession, module, sessionId);
-        await adapter.grantCert(body.workerUid, body.moduleId, cert);
+        await adapter.grantCert(callerUid, body.moduleId, cert);
         certified = true;
       }
       await auditServerEvent(req, 'microtraining.session', 'microtraining', {
         projectId,
         sessionId,
-        workerUid: body.workerUid,
+        workerUid: callerUid,
         moduleId: body.moduleId,
         score,
         certified,
