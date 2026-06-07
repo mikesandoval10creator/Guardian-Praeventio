@@ -134,9 +134,15 @@ router.get('/:projectId/risk-ranking', verifyAuth, async (req, res) => {
 // `NodeType.RISK` ('Riesgo') Zettelkasten nodes by their DS44 IPER score
 // (probabilidad × severidad → calculateIper). Replaces the idle `useTopRisks`
 // stub that fed an orphan dashboard from the empty flat `risks` collection.
-// Source of truth = `tenants/{tid}/zettelkasten_nodes` (what the Matrix IPER
-// page actually writes). `type` is filtered in-memory to avoid a composite
-// index. See ADR 0020 (Zettelkasten-canonical source).
+// Source of truth = the top-level `nodes` collection — where the IPER Matrix
+// (client sync → flat `nodes/{id}`) and the Bernoulli generators (server
+// dual-write → `nodes/{tid}_{pid}_{id}`) actually land. The previous read
+// targeted the `tenants/{tid}/zettelkasten_nodes` subcollection, which NO writer
+// populates (the materializer trigger that fills it is behind a feature flag),
+// so the dashboard was always empty. `projectId` is globally unique, so the
+// equality filter is tenant-safe and captures flat nodes lacking `tenantId`;
+// `type` is filtered in-memory (no composite index). Mirrors the §2.15
+// RiskNodeMarkers fix. See ADR 0020 (Zettelkasten-canonical source).
 // ────────────────────────────────────────────────────────────────────────
 router.get('/:projectId/top-risks', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
@@ -150,9 +156,7 @@ router.get('/:projectId/top-risks', verifyAuth, async (req, res) => {
   const topN = Math.min(Math.max(Number(req.query.topN) || 10, 1), 50);
   try {
     const snap = await db
-      .collection('tenants')
-      .doc(tenantId)
-      .collection('zettelkasten_nodes')
+      .collection('nodes')
       .where('projectId', '==', projectId)
       .limit(2000)
       .get();
@@ -245,9 +249,10 @@ router.get('/:projectId/weak-controls', verifyAuth, async (req, res) => {
 //
 // REAL trend (B2 🔵, Fase 5): daily counts of FINDING ('Hallazgo')
 // Zettelkasten nodes over the trailing window, total + critical. Same
-// canonical source as top-risks (`tenants/{tid}/zettelkasten_nodes`); replaces
-// the idle `useRiskTimeseries` stub. `type` filtered in-memory (no composite
-// index). See ADR 0020.
+// canonical source as top-risks (the top-level `nodes` collection, NOT the
+// unwritten `tenants/{tid}/zettelkasten_nodes` subcollection); replaces the idle
+// `useRiskTimeseries` stub. `type` filtered in-memory (no composite index). See
+// ADR 0020.
 // ────────────────────────────────────────────────────────────────────────
 const TS_CRITICAL_SEVERITY = new Set(['high', 'critical', 'alto', 'crítico']);
 const TS_CRITICAL_CRITICIDAD = new Set(['Crítica', 'Alta']);
@@ -275,9 +280,7 @@ router.get('/:projectId/risk-timeseries', verifyAuth, async (req, res) => {
   const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
   try {
     const snap = await db
-      .collection('tenants')
-      .doc(tenantId)
-      .collection('zettelkasten_nodes')
+      .collection('nodes')
       .where('projectId', '==', projectId)
       .limit(5000)
       .get();
