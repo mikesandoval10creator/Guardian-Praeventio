@@ -52,7 +52,7 @@ import {
   type WriteNodesFn,
   type CreateEdgeFn,
 } from '../../services/zettelkasten/flows/horometroMaintenanceFlow.js';
-import { writeNodes } from '../../services/zettelkasten/persistence/writeNode.js';
+import { makeServerWriteNodes } from '../services/serverZkNodeWriter.js';
 import { createEdge } from '../../services/zettelkasten/edges.js';
 import { buildEdgeStore } from '../../services/zettelkasten/edgeStoreFirestore.js';
 
@@ -186,17 +186,23 @@ function buildTaskStore(
   };
 }
 
-// Use writeNodes from persistence layer directly. Wrap in the flow's
-// minimal interface so the impl can ignore the broader return shape.
-const writeNodesAdapter: WriteNodesFn = async (nodes, ctx) => {
-  const res = await writeNodes([...nodes], ctx);
-  return {
-    ok: res.ok,
-    ids: res.ids,
-    queued: res.queued,
-    error: res.error,
+// Server-side ZK node writer (same Codex P1 #650 class as incidentFlow): the
+// browser `writeNodes` (relative fetch + IndexedDB) CANNOT persist inside the
+// Express runtime, so horometro's ZK nodes never landed and the edges it DID
+// persist (buildCreateEdgeAdapter) dangled off non-existent nodes. Build a
+// per-request writer bound to the verified actor — the same Admin-SDK writer
+// eppFlow/incidentFlow use — and wrap it to the flow's minimal WriteNodesFn
+// shape (readonly array → mutable; narrow the WriteResult return).
+function serverWriteNodesFor(req: import('express').Request): WriteNodesFn {
+  const write = makeServerWriteNodes({
+    createdBy: req.user!.uid,
+    createdByEmail: req.user?.email ?? null,
+  });
+  return async (nodes, ctx) => {
+    const res = await write([...nodes], ctx);
+    return { ok: res.ok, ids: res.ids, queued: res.queued, error: res.error };
   };
-};
+}
 
 function buildCreateEdgeAdapter(db: admin.firestore.Firestore): CreateEdgeFn {
   const store = buildEdgeStore(db);
@@ -297,7 +303,7 @@ router.post(
           createdByUid: callerUid,
         },
         {
-          writeNodes: writeNodesAdapter,
+          writeNodes: serverWriteNodesFor(req),
           createEdge: buildCreateEdgeAdapter(db),
           taskStore,
           logger,
@@ -410,7 +416,7 @@ router.post(
           completion: updated.completion,
         },
         {
-          writeNodes: writeNodesAdapter,
+          writeNodes: serverWriteNodesFor(req),
           createEdge: buildCreateEdgeAdapter(db),
           logger,
         },
