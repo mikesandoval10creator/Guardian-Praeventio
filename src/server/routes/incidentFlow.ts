@@ -696,11 +696,16 @@ router.post(
 // ────────────────────────────────────────────────────────────────────────
 
 /**
- * Reads the chain nodes for a single incident from
- * `tenants/{tenantId}/zettelkasten_nodes` filtered by
- * `metadata.incidentId == incidentId AND type IN [chain types]`. Returns
- * the PDCA reducer output (phase, closure %, counts) so the client UI can
- * paint the overview without re-implementing the reducer.
+ * Reads the chain nodes for a single incident from the GLOBAL
+ * `zettelkasten_nodes` collection — where `serverWriteNodes` actually persists
+ * them with the RAW chain `type` + `metadata.incidentId` + `projectId`. The
+ * previous read targeted the `tenants/{tenantId}/zettelkasten_nodes`
+ * subcollection, which NO writer populates (the materializer trigger that reads
+ * it is behind a feature flag AND maps unknown chain types to 'Riesgo'), so the
+ * status was always empty. We filter by `metadata.incidentId` in the query and
+ * scope to the project + chain types in memory — no composite index, mirroring
+ * the §2.15 RiskNodeMarkers fix. Returns the PDCA reducer output (phase, closure
+ * %, counts) so the client UI can paint the overview without re-implementing it.
  *
  * Safe-fail: if the read fails, we return phase='idle' and log the error.
  * The caller already knows the incident exists (passed the path param).
@@ -727,9 +732,8 @@ router.get(
     try {
       const db = admin.firestore();
       const snap = await db
-        .collection(`tenants/${g.tenantId}/zettelkasten_nodes`)
+        .collection('zettelkasten_nodes')
         .where('metadata.incidentId', '==', incidentId)
-        .where('type', 'in', CHAIN_TYPES as unknown as string[])
         .limit(1000)
         .get()
         .catch((err) => {
@@ -741,6 +745,9 @@ router.get(
       if (snap) {
         for (const doc of snap.docs) {
           const data = doc.data() ?? {};
+          // Project scope (global collection holds every project's nodes) +
+          // chain-type filter applied in memory to avoid a composite index.
+          if (data.projectId !== projectId) continue;
           const type = String(data.type ?? '') as IncidentLessonTrainingNodeType;
           if (!CHAIN_TYPES.includes(type)) continue;
           const metadata = (data.metadata ?? {}) as Record<string, unknown>;
