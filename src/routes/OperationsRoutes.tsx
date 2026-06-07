@@ -35,6 +35,9 @@ const FocusAgenda = lazy(() => import('../pages/FocusAgenda').then(module => ({ 
 // sin page consumidor.
 const SiteBook = lazy(() => import('../pages/SiteBook').then(module => ({ default: module.SiteBook })));
 const ShiftHandover = lazy(() => import('../pages/ShiftHandover').then(module => ({ default: module.ShiftHandover })));
+// Fase 5 B8 — LOTO Digital (Lock-Out/Tag-Out). Engine + adapter + write
+// endpoints (loto.ts) + LotoStatusPanel existían sin page consumidor.
+const Loto = lazy(() => import('../pages/Loto').then(module => ({ default: module.Loto })));
 
 export const OperationsRoutes = [
   <Route key="projects" path="projects" element={<Projects />} />,
@@ -58,4 +61,5 @@ export const OperationsRoutes = [
   <Route key="focus-agenda" path="focus-agenda" element={<FocusAgenda />} />,
   <Route key="site-book" path="site-book" element={<SiteBook />} />,
   <Route key="shift-handover" path="shift-handover" element={<ShiftHandover />} />,
+  <Route key="loto" path="loto" element={<Loto />} />,
 ];

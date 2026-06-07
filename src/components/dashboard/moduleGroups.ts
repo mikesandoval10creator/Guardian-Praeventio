@@ -17,7 +17,7 @@ import {
   Activity, AlertOctagon, AlertTriangle, Award, BarChart3, Book, BookOpen, Briefcase,
   Calendar, Car, ClipboardCheck, ClipboardList, Clock, Cog, Compass, CreditCard, Box,
   Database, Droplets, Eye, FileCheck, FileText, Folder, GitBranch, Grid, HeartPulse, Home,
-  Layers, Lightbulb, Map, MessageSquare, Network, Radio, Settings as SettingsIcon, ShieldAlert,
+  Layers, Lightbulb, Lock, Map, MessageSquare, Network, Radio, Settings as SettingsIcon, ShieldAlert,
   Shield, ShieldCheck, Siren, SunMedium, UserCheck, Users, Wrench, Brain, Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -75,6 +75,7 @@ export const moduleGroups: ModuleGroup[] = [
       { title: 'Cambio de Turno', icon: GitBranch, path: '/shift-handover', color: 'text-blue-500' },
       { title: 'Detenciones', icon: AlertTriangle, path: '/stoppages', color: 'text-blue-500' },
       { title: 'Libro de Obra', icon: Book, path: '/site-book', color: 'text-blue-500' },
+      { title: 'LOTO', icon: Lock, path: '/loto', color: 'text-blue-500' },
     ],
   },
 

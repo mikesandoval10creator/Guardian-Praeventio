@@ -6,7 +6,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { auth } from '../services/firebase';
 import type { LotoApplication } from '../services/loto/lotoDigitalLight';
-import { apiAuthHeader } from '../lib/apiAuth';
+import type { EnergyType } from '../services/criticalControls/controlRobustness';
+import { apiAuthHeader, apiAuthHeaders } from '../lib/apiAuth';
 
 interface FetchState<T> {
   data: T | null;
@@ -88,4 +89,66 @@ export function useLoto(
     path = `/api/sprint-k/${projectId}/loto${query ? `?${query}` : ''}`;
   }
   return useEndpoint<LotoResponse>(path);
+}
+
+// ─── Write-path client (B8, Fase 5) ────────────────────────────────────────
+// Thin POST helpers for the LOTO write endpoints. The server stamps the actor
+// identity from the verified token and gates release by leader/authorized
+// worker; these just carry the form fields + Authorization header.
+
+async function lotoPost<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await apiAuthHeaders()) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const b = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(b.error ?? `http_${res.status}`);
+  }
+  return (await res.json()) as T;
+}
+
+export interface CreateLotoInput {
+  equipmentId: string;
+  workDescription: string;
+  energiesIdentified: EnergyType[];
+  authorizedWorkerUids?: string[];
+}
+
+export interface ApplyLockInput {
+  pointId: string;
+  description: string;
+  energyType: EnergyType;
+  tagId: string;
+}
+
+export function createLotoApplication(
+  projectId: string,
+  input: CreateLotoInput,
+): Promise<{ application: LotoApplication }> {
+  return lotoPost(`/api/sprint-k/${projectId}/loto`, input);
+}
+
+export function applyLotoLock(
+  projectId: string,
+  appId: string,
+  input: ApplyLockInput,
+): Promise<{ application: LotoApplication }> {
+  return lotoPost(`/api/sprint-k/${projectId}/loto/${appId}/apply-lock`, input);
+}
+
+export function verifyLotoZeroEnergy(
+  projectId: string,
+  appId: string,
+  pointId: string,
+): Promise<{ application: LotoApplication }> {
+  return lotoPost(`/api/sprint-k/${projectId}/loto/${appId}/verify-zero-energy`, { pointId });
+}
+
+export function releaseLoto(
+  projectId: string,
+  appId: string,
+): Promise<{ application: LotoApplication }> {
+  return lotoPost(`/api/sprint-k/${projectId}/loto/${appId}/release`, {});
 }
