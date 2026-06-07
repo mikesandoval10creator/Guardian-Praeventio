@@ -25,6 +25,9 @@ import { scanLegalUpdates, suggestMeetingAgenda, summarizeAgreements } from '../
 import { db } from '../services/firebase';
 import { collection, addDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { analytics, userIdHash } from '../services/analytics';
+// Fase 5 B12 — mounts the orphaned meeting-pack `extract-action-items` capability
+// (server-side, deterministic) so meeting discussion text → suggested acuerdos.
+import { MeetingActionItemExtractor } from '../components/cphs/MeetingActionItemExtractor';
 
 interface Acta {
   id: string;
@@ -254,7 +257,7 @@ export function ComiteParitario() {
           // Home/End jump to first/last (matches ARIA APG tablist).
           const order: Array<'actas' | 'acuerdos'> = ['actas', 'acuerdos'];
           const currentIdx = order.indexOf(activeTab);
-          let nextIdx = currentIdx;
+          let nextIdx: number;
           if (e.key === 'ArrowRight') nextIdx = (currentIdx + 1) % order.length;
           else if (e.key === 'ArrowLeft') nextIdx = (currentIdx - 1 + order.length) % order.length;
           else if (e.key === 'Home') nextIdx = 0;
@@ -316,6 +319,19 @@ export function ComiteParitario() {
       >
         {activeTab === 'actas' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {selectedProject && actas && actas.length > 0 && (
+              <div className="col-span-full">
+                <MeetingActionItemExtractor
+                  projectId={selectedProject.id}
+                  onAdd={(item) => {
+                    // Pre-fill the acuerdo form and open it on the most recent
+                    // acta; the committee reviews/edits before saving.
+                    setAcuerdoForm(item);
+                    setAddAcuerdoActaId(actas[0].id);
+                  }}
+                />
+              </div>
+            )}
             {actas?.length === 0 ? (
               <div className="col-span-full text-center py-12 bg-white dark:bg-zinc-900/30 rounded-[2rem] border border-zinc-200 dark:border-white/10">
                 <Users className="w-12 h-12 text-zinc-400 mx-auto mb-4" />
