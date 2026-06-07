@@ -18,14 +18,21 @@ describe('release blockers — Fase 0 cierre (PR #357)', () => {
     expect(lock).toContain('"node_modules/xlsx"');
   });
 
-  it('H3: .dockerignore excluye firebase-applet-config.json', () => {
+  // H3 corregido (Fase 5, 2026-06): el contrato original era DOC-DRIFT.
+  // `firebase-applet-config.json` es la config PÚBLICA de cliente de Firebase
+  // (projectId/apiKey/authDomain/firestoreDatabaseId — SIN private_key de SA;
+  // el credential admin real es ADC vía applicationDefault()). vite la hornea en
+  // el cliente (firebase.ts:6) Y server.ts la lee al arrancar para elegir la BD
+  // Firestore no-default — sin ella el server cae en silencio a la BD `(default)`
+  // y sirve datos vacíos. Por eso DEBE estar en el contexto + la imagen.
+  it('H3: .dockerignore NO excluye firebase-applet-config.json (config pública de cliente)', () => {
     const di = read('.dockerignore');
-    expect(di).toMatch(/^firebase-applet-config\.json$/m);
+    expect(di).not.toMatch(/^firebase-applet-config\.json$/m);
   });
 
-  it('H3: Dockerfile.api NO copia firebase-applet-config en la imagen', () => {
+  it('H3: Dockerfile.api SÍ copia firebase-applet-config.json en la imagen', () => {
     const df = read('Dockerfile.api');
-    expect(df).not.toMatch(/^COPY .*firebase-applet-config\.json/m);
+    expect(df).toMatch(/^COPY .*firebase-applet-config\.json/m);
   });
 
   it('H4: cloudbuild.yaml etiqueta source con el owner correcto', () => {

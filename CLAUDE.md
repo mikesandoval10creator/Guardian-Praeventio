@@ -244,8 +244,15 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
   `scripts/validate-env.cjs`.
 - Minimum to boot: `GEMINI_API_KEY`, `SESSION_SECRET`
   (`openssl rand -hex 32`).
-- `firebase-applet-config.json` (Firebase Admin SA) is gitignored and lives
-  only in Secret Manager in prod.
+- `firebase-applet-config.json` is the PUBLIC Firebase **client** config
+  (projectId / apiKey / authDomain / firestoreDatabaseId — NO service-account
+  private key). It is git-TRACKED and intentionally baked into the image: vite
+  bundles it into the client (`src/services/firebase.ts`) and `server.ts` reads
+  it at startup to select the non-default Firestore DB. The real Firebase
+  **Admin** credential comes from ADC / Workload Identity
+  (`admin.credential.applicationDefault()`), never from this file. (Firebase Web
+  apiKey/projectId are public by design — access is gated by Firestore Rules +
+  App Check, not by hiding them.)
 - Never commit a real `.env*`. Step-by-step provisioning per variable is in
   `docs/runbooks/SECRETS_RUNBOOK.md`.
 
