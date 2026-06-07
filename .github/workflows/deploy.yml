@@ -6,6 +6,10 @@ on:
     branches: [main]
     types:
       - completed
+  # Operator-initiated deploy of main HEAD, independent of the CI gate. Useful
+  # when CI was cancelled by the flaky open-handle hang (deploy then never fires)
+  # or to re-trigger after a transient infra failure during build/push.
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -23,12 +27,14 @@ jobs:
   deploy:
     name: Build and deploy to Cloud Run
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Run on a successful CI workflow_run OR a manual dispatch of main HEAD.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          # workflow_run → the SHA CI validated; workflow_dispatch → main HEAD.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -40,9 +46,32 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker southamerica-west1-docker.pkg.dev --quiet
 
+      # The push target (southamerica-west1-docker.pkg.dev/.../praeventio/api)
+      # requires the `praeventio` Docker repository to exist in Artifact
+      # Registry. cloudbuild.yaml declares it (_REPO: "praeventio") but never
+      # created it, so the very first GitHub-Actions deploy failed with
+      # `name unknown: Repository "praeventio" not found`. Create it idempotently
+      # so the deploy is self-provisioning (data residency Chile: same region as
+      # the image path + Cloud Run service, Ley 19.628).
+      - name: Ensure Artifact Registry repository exists
+        run: |
+          set -euo pipefail
+          if ! gcloud artifacts repositories describe praeventio \
+              --location=southamerica-west1 \
+              --project="${{ env.PROJECT_ID }}" >/dev/null 2>&1; then
+            echo "Creating Artifact Registry repo 'praeventio' in southamerica-west1..."
+            gcloud artifacts repositories create praeventio \
+              --repository-format=docker \
+              --location=southamerica-west1 \
+              --project="${{ env.PROJECT_ID }}" \
+              --description="Praeventio Guard API container images"
+          else
+            echo "Artifact Registry repo 'praeventio' already exists."
+          fi
+
       - name: Build and push Docker image
         env:
-          SHA: ${{ github.event.workflow_run.head_sha }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           # H17: usar Dockerfile.api (runtime moderno) en vez del legado Dockerfile (monolito API+frontend)
           docker build \
@@ -60,7 +89,7 @@ jobs:
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE }}
-          image: ${{ env.IMAGE }}:${{ github.event.workflow_run.head_sha }}
+          image: ${{ env.IMAGE }}:${{ github.event.workflow_run.head_sha || github.sha }}
           region: ${{ env.REGION }}
           flags: >-
             --port=3000
