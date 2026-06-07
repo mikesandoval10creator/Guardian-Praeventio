@@ -243,11 +243,11 @@
     },
     "checkout": {
       "error_title": "Error al iniciar el pago",
-      "error_default": "No pudimos iniciar el pago. Reintentá en unos segundos.",
+      "error_default": "No pudimos iniciar el pago. Reintenta en unos segundos.",
       "login_required_title": "Inicia sesión primero",
       "login_required_msg": "Necesitas iniciar sesión para suscribirte a un plan pago.",
-      "provider_unavailable": "El proveedor de pagos no está disponible. Reintentá en unos segundos o contacta a contacto@praeventio.net.",
-      "mp_unavailable": "MercadoPago no está disponible. Reintentá en unos segundos o contacta a contacto@praeventio.net.",
+      "provider_unavailable": "El proveedor de pagos no está disponible. Reintenta en unos segundos o contacta a contacto@praeventio.net.",
+      "mp_unavailable": "MercadoPago no está disponible. Reintenta en unos segundos o contacta a contacto@praeventio.net.",
       "international_title": "Pagos internacionales",
       "international_msg": "Por el momento sólo procesamos pagos en Chile y mercados LATAM. Escríbenos a contacto@praeventio.net para tu país.",
       "free_activated_title": "Plan gratis activado",
@@ -1380,7 +1380,7 @@
   "iperc": {
     "error_ai": "No se pudieron generar sugerencias con IA. La clasificación IPER ya está disponible.",
     "error_login": "Debes iniciar sesión para guardar la evaluación.",
-    "error_no_project": "Seleccioná un proyecto antes de guardar la evaluación IPER.",
+    "error_no_project": "Selecciona un proyecto antes de guardar la evaluación IPER.",
     "error_save": "No se pudo guardar la matriz IPER.",
     "task_description": "Descripción de la Tarea o Peligro",
     "task_placeholder": "Ej: Trabajos en altura sobre 1.8m en andamios móviles...",
@@ -2424,13 +2424,13 @@
     "subtitle": "Control de trabajadores operando en zonas remotas o aisladas. Check-in periódico obligatorio; sin respuesta se escala automáticamente (supervisor → brigada → servicios de emergencia).",
     "cta_start": "Iniciar sesión",
     "empty": {
-      "select_project": "Seleccioná un proyecto para iniciar sesiones de trabajo solitario."
+      "select_project": "Selecciona un proyecto para iniciar sesiones de trabajo solitario."
     },
     "form": {
       "heading": "Nueva sesión",
       "interval_label": "Intervalo de check-in (minutos)",
       "interval_minutes": "{{n}} min",
-      "geo_note": "Si activás la geolocalización, el check-in incluirá las coordenadas. La sesión es self-tracking (vos sos el worker).",
+      "geo_note": "Si activas la geolocalización, el check-in incluirá las coordenadas. La sesión es self-tracking (tú eres el worker).",
       "submit": "Iniciar"
     },
     "feedback": {
@@ -2459,7 +2459,7 @@
     "subtitle": "Cada excepción a un control normal (capacitación faltante, EPP vencido, permiso pendiente) requiere mitigación alternativa por escrito + duración máx 168 h + aprobador role-gated. El sistema fuerza el formato auditable.",
     "cta_request": "Solicitar excepción",
     "empty": {
-      "select_project": "Seleccioná un proyecto para registrar excepciones."
+      "select_project": "Selecciona un proyecto para registrar excepciones."
     },
     "domain": {
       "training_gap": "Falta capacitación",
@@ -2506,7 +2506,7 @@
     "subtitle": "Toda paralización queda registrada con autoría, motivo y precondiciones para reanudar. La reanudación NO es automática — exige verificación.",
     "cta_declare": "Declarar paralización",
     "empty": {
-      "select_project": "Seleccioná un proyecto para ver paralizaciones."
+      "select_project": "Selecciona un proyecto para ver paralizaciones."
     },
     "category": {
       "incidente_grave": "Incidente grave",
@@ -2568,7 +2568,7 @@
     "subtitle": "Catálogo HCA (Hierarchy of Controls) ISO 45001 § 8.1.2. Marca los controles presentes en terreno; el sistema valida cobertura + balance jerárquico antes de autorizar inicio de tarea.",
     "filter_label": "Tipo de riesgo",
     "empty": {
-      "select_project": "Seleccioná un proyecto para registrar validaciones."
+      "select_project": "Selecciona un proyecto para registrar validaciones."
     },
     "risk": {
       "altura": "Trabajo en altura",
@@ -2601,7 +2601,7 @@
     "subtitle": "Taxonomía ILO/ANSI Z10 + 5 porqués. El análisis NO busca culpables — identifica condiciones del sistema que permitieron el incidente para corregirlas. El supervisor que cierra el análisis lo firma con su UID.",
     "cta_new": "Nuevo análisis",
     "empty": {
-      "select_project": "Seleccioná un proyecto para registrar análisis."
+      "select_project": "Selecciona un proyecto para registrar análisis."
     },
     "factor": {
       "condicion_subestandar": "Condición sub-estándar",
@@ -2634,7 +2634,7 @@
     "history": {
       "heading": "Historial ({{count}})",
       "empty": "Aún no hay análisis de causa raíz en este proyecto.",
-      "select_hint": "Seleccioná un análisis a la izquierda para ver el detalle."
+      "select_hint": "Selecciona un análisis a la izquierda para ver el detalle."
     }
   },
   "consistency_audit": {
@@ -2645,10 +2645,10 @@
     "auto_refresh": "Auto cada 60s",
     "re_run": "Re-ejecutar",
     "empty": {
-      "select_project": "Seleccioná un proyecto para correr la auditoría."
+      "select_project": "Selecciona un proyecto para correr la auditoría."
     },
     "feedback": {
-      "need_project": "Seleccioná un proyecto para correr la auditoría.",
+      "need_project": "Selecciona un proyecto para correr la auditoría.",
       "error": "Error al ejecutar auditoría: {{msg}}"
     },
     "severity": {
@@ -2670,11 +2670,11 @@
     "subtitle": "Libro de obra digital con folios consecutivos year-based (DS 76). Entradas inmutables tras firma; correcciones requieren nueva entrada con folio propio que referencia la corregida.",
     "cta_new_entry": "Nueva entrada",
     "empty": {
-      "select_project": "Seleccioná un proyecto para ver / agregar entradas.",
+      "select_project": "Selecciona un proyecto para ver / agregar entradas.",
       "no_entries": "Sin entradas todavía. Crear la primera con \"Nueva entrada\"."
     },
     "feedback": {
-      "need_project": "Seleccioná un proyecto y autenticación válida.",
+      "need_project": "Selecciona un proyecto y autenticación válida.",
       "created": "Entrada {{folio}} registrada."
     },
     "summary": {
@@ -2691,7 +2691,7 @@
     "cta_start": "Iniciar turno",
     "cta_end": "Cerrar turno",
     "empty": {
-      "select_project": "Seleccioná un proyecto para iniciar turnos."
+      "select_project": "Selecciona un proyecto para iniciar turnos."
     },
     "feedback": {
       "ack_ok": "Handover de {{id}} confirmado."
@@ -2720,7 +2720,7 @@
     },
     "pending_ack": {
       "heading": "Handover pendiente de recibir",
-      "summary": "El supervisor saliente cerró el turno {{kind}} con {{notes}} nota(s) y {{followups}} follow-up(s). Confirmá la recepción para tomar el turno entrante.",
+      "summary": "El supervisor saliente cerró el turno {{kind}} con {{notes}} nota(s) y {{followups}} follow-up(s). Confirma la recepción para tomar el turno entrante.",
       "notes_placeholder": "Notas opcionales del supervisor entrante (qué priorizás del handover)…",
       "confirm": "Confirmar recepción del turno"
     },
@@ -2753,7 +2753,7 @@
     "subtitle": "Cada cambio operacional (supervisor, procedimiento, EPP, equipo, control crítico, norma aplicable) queda registrado con justificación, impacto y lectura confirmada por los trabajadores afectados. ISO 45001 §8.1.3 — Management of Change.",
     "cta_declare": "Declarar cambio",
     "empty": {
-      "select_project": "Seleccioná un proyecto.",
+      "select_project": "Selecciona un proyecto.",
       "no_changes": "Sin cambios registrados."
     },
     "feedback": {
@@ -2813,7 +2813,7 @@
     "title": "Calendario legal",
     "subtitle": "Obligaciones legales recurrentes: auditorías, mediciones ambientales, renovaciones de capacitación, reuniones CPHS, reportes mutualidad, simulacros, exámenes ocupacionales, renovación de documentos y permisos. DS 76 / DS 132 / DS 54 / Ley 16.744.",
     "empty": {
-      "select_project": "Seleccioná un proyecto."
+      "select_project": "Selecciona un proyecto."
     },
     "feedback": {
       "bootstrap_ok": "Inicializadas {{n}} obligaciones estándar (DS 76, DS 132, DS 54, etc.).",
@@ -2844,7 +2844,7 @@
     "title": "Charlas de seguridad",
     "subtitle": "Sugeridor determinístico de tema diario según señales contextuales (riesgos activos, tareas del día, incidentes recientes, clima). Sin LLM — top 3 sugerencias con rationale citando los disparadores.",
     "empty": {
-      "select_project": "Seleccioná un proyecto."
+      "select_project": "Selecciona un proyecto."
     },
     "feedback": {
       "recorded": "Charla \"{{title}}\" registrada para {{date}}."
@@ -2876,7 +2876,7 @@
     "subtitle": "Acceso temporal con scope limitado para auditores externos (SUSESO, mutualidad, ISO certifier, mandante, SEREMI, DT). Token de 64 chars hex; TTL 1-90 días; módulos seleccionables. Revocable manualmente antes del vencimiento.",
     "cta_create": "Crear portal",
     "empty": {
-      "select_project": "Seleccioná un proyecto."
+      "select_project": "Selecciona un proyecto."
     },
     "feedback": {
       "need_project": "Necesitás un proyecto y autenticación válida.",
@@ -2935,12 +2935,12 @@
     "subtitle": "Documentos críticos (protocolos, RIOHS, procedimientos nuevos) cuya lectura por parte del personal debe quedar trazada. El sistema marca como overdue los receipts no confirmados tras el deadline.",
     "cta_publish": "Publicar documento",
     "empty": {
-      "select_project": "Seleccioná un proyecto para gestionar confirmaciones de lectura.",
+      "select_project": "Selecciona un proyecto para gestionar confirmaciones de lectura.",
       "no_docs": "Aún no hay documentos publicados.",
-      "select_doc": "Seleccioná un documento."
+      "select_doc": "Selecciona un documento."
     },
     "feedback": {
-      "need_project": "Seleccioná un proyecto.",
+      "need_project": "Selecciona un proyecto.",
       "title_required": "Título obligatorio.",
       "published": "Documento publicado ({{id}}). Workers verán el aviso de lectura.",
       "ack_ok": "Lectura confirmada."
