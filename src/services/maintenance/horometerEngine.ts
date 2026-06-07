@@ -9,6 +9,11 @@
 // 100% determinístico, sin LLM. El caller persiste cada update — este
 // motor solo razona sobre los thresholds, próximas mantenciones y
 // genera tasks futuras.
+//
+// Directiva de producto (2026-05-06): la app NUNCA bloquea maquinaria — solo
+// RECOMIENDA científicamente. Por eso este motor emite una RECOMENDACIÓN de
+// detener (`mandatoryOverdue`) cuando el ciclo obligatorio vence; la decisión
+// operativa de detener/seguir es del supervisor con criterio técnico.
 
 // ────────────────────────────────────────────────────────────────────────
 // Public types
@@ -41,8 +46,12 @@ export interface MaintenancePolicy {
   cycleHours: number;
   /** Thresholds escalonados antes de cycleHours. */
   thresholds: MaintenanceThreshold[];
-  /** Si el equipo debe BLOQUEARSE cuando se supera mandatory. */
-  blockOnMandatory: boolean;
+  /**
+   * Si se escala a la recomendación más fuerte (detener y mantener) al superar
+   * el threshold `mandatory`. NO bloquea el equipo — la app solo recomienda;
+   * la decisión operativa es del supervisor (directiva: recomendar, no bloquear).
+   */
+  escalateOnMandatory: boolean;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -66,10 +75,11 @@ export function buildDefaultPolicy(cycleHours: number): MaintenancePolicy {
       {
         kind: 'mandatory',
         triggerAtHours: cycleHours,
-        recommendedAction: 'Bloquear operación hasta completar mantención.',
+        recommendedAction:
+          'Detener y completar la mantención obligatoria antes de seguir operando (recomendación técnica; la decisión operativa la toma el supervisor).',
       },
     ],
-    blockOnMandatory: true,
+    escalateOnMandatory: true,
   };
 }
 
@@ -85,8 +95,12 @@ export interface HorometerStatus {
   cycleProgressPercent: number;
   /** Threshold crossed (ordenado por gravedad). null si nada. */
   triggeredThreshold: MaintenanceThreshold | null;
-  /** True si se debe BLOQUEAR el equipo. */
-  shouldBlock: boolean;
+  /**
+   * True si el ciclo obligatorio está vencido → RECOMENDACIÓN fuerte de detener
+   * y mantener. NO es un bloqueo de hardware: la app recomienda, el supervisor
+   * decide (directiva de producto).
+   */
+  mandatoryOverdue: boolean;
   /** Mensaje human-readable. */
   message: string;
 }
@@ -114,11 +128,11 @@ export function assessHorometerStatus(
     }
   }
 
-  const shouldBlock = policy.blockOnMandatory && triggered?.kind === 'mandatory';
+  const mandatoryOverdue = policy.escalateOnMandatory && triggered?.kind === 'mandatory';
 
   let message: string;
   if (triggered?.kind === 'mandatory') {
-    message = `Bloqueo: ${horometer.machineId} superó ciclo de ${policy.cycleHours}h (lleva ${hoursSinceLastMaintenance}h). ${triggered.recommendedAction}`;
+    message = `Mantención obligatoria vencida: ${horometer.machineId} superó el ciclo de ${policy.cycleHours}h (lleva ${hoursSinceLastMaintenance}h). ${triggered.recommendedAction}`;
   } else if (triggered?.kind === 'critical') {
     message = `Crítico: ${horometer.machineId} a ${hoursUntilNextMaintenance}h del ciclo. ${triggered.recommendedAction}`;
   } else if (triggered?.kind === 'warning') {
@@ -133,7 +147,7 @@ export function assessHorometerStatus(
     hoursUntilNextMaintenance,
     cycleProgressPercent,
     triggeredThreshold: triggered,
-    shouldBlock,
+    mandatoryOverdue,
     message,
   };
 }
@@ -147,7 +161,7 @@ export interface CalendarTaskProposal {
   /** Hora calendario aprox cuando deberá ejecutarse. */
   proposedDateIso: string;
   /** Tipo de mantención (preventiva por defecto). */
-  kind: 'preventive' | 'mandatory_block_resolution';
+  kind: 'preventive' | 'mandatory_maintenance';
   /** Texto del task. */
   title: string;
   /** Severity para priorización en backlog. */
@@ -174,34 +188,29 @@ export function proposeCalendarTask(
   const nowMs = Date.parse(options.nowIso ?? new Date().toISOString());
   const usagePerDay = Math.max(0.5, options.avgUsageHoursPerDay);
 
-  let daysAhead = 0;
+  // Default = preventive task at the projected cycle date, low priority. The
+  // branches below escalate (sooner date + higher priority) as the crossed
+  // threshold demands; the warning branch keeps the projected date.
+  let daysAhead = Math.ceil(status.hoursUntilNextMaintenance / usagePerDay);
   let priority: CalendarTaskProposal['priority'] = 'low';
   let kind: CalendarTaskProposal['kind'] = 'preventive';
 
-  if (status.shouldBlock) {
+  if (status.mandatoryOverdue || status.triggeredThreshold?.kind === 'mandatory') {
     daysAhead = 0;
     priority = 'critical';
-    kind = 'mandatory_block_resolution';
-  } else if (status.triggeredThreshold?.kind === 'mandatory') {
-    daysAhead = 0;
-    priority = 'critical';
-    kind = 'mandatory_block_resolution';
+    kind = 'mandatory_maintenance';
   } else if (status.triggeredThreshold?.kind === 'critical') {
     daysAhead = 3;
     priority = 'high';
   } else if (status.triggeredThreshold?.kind === 'warning') {
-    daysAhead = Math.ceil(status.hoursUntilNextMaintenance / usagePerDay);
     priority = 'medium';
-  } else {
-    daysAhead = Math.ceil(status.hoursUntilNextMaintenance / usagePerDay);
-    priority = 'low';
   }
 
   const proposedDateMs = nowMs + daysAhead * 24 * 3_600_000;
   const proposedDateIso = new Date(proposedDateMs).toISOString();
 
   const title =
-    kind === 'mandatory_block_resolution'
+    kind === 'mandatory_maintenance'
       ? `URGENTE: Mantención obligatoria ${status.machineId}`
       : `Mantención preventiva ${status.machineId} (~${status.hoursUntilNextMaintenance}h restantes)`;
 
@@ -223,7 +232,8 @@ export interface FleetMaintenanceReport {
   ok: number;
   warning: number;
   critical: number;
-  blocked: number;
+  /** Máquinas con el ciclo obligatorio vencido (recomendación de detener). */
+  mandatoryOverdue: number;
   /** Top 5 que requieren atención inmediata. */
   topUrgent: Array<{ machineId: string; message: string }>;
 }
@@ -234,12 +244,12 @@ export function buildFleetReport(
   let ok = 0;
   let warning = 0;
   let critical = 0;
-  let blocked = 0;
+  let mandatoryOverdue = 0;
   const allStatuses: HorometerStatus[] = [];
   for (const m of fleet) {
     const s = assessHorometerStatus(m.horometer, m.policy);
     allStatuses.push(s);
-    if (s.shouldBlock) blocked += 1;
+    if (s.mandatoryOverdue) mandatoryOverdue += 1;
     else if (s.triggeredThreshold?.kind === 'mandatory') critical += 1;
     else if (s.triggeredThreshold?.kind === 'critical') critical += 1;
     else if (s.triggeredThreshold?.kind === 'warning') warning += 1;
@@ -262,7 +272,7 @@ export function buildFleetReport(
     ok,
     warning,
     critical,
-    blocked,
+    mandatoryOverdue,
     topUrgent,
   };
 }
