@@ -56,6 +56,7 @@ import { Tooltip } from '../shared/Tooltip';
 import { SOSButton } from '../emergency/SOSButton';
 import { EmergencyAutoBridge } from '../emergency/EmergencyAutoBridge';
 import { AlertSchedulerMount } from '../predictive/AlertSchedulerMount';
+import { ReconciliationDrainSlot } from '../slm/ReconciliationDrainSlot';
 import { useProject } from '../../contexts/ProjectContext';
 import { collection, onSnapshot, query, where, limit } from 'firebase/firestore';
 import { db as firestoreDb } from '../../services/firebase';
@@ -426,6 +427,11 @@ export function RootLayout() {
       {/* Sprint 16 — predictive-alert scheduler. Mounts only when both a
           project AND a crew are resolved; renders nothing in the DOM. */}
       <PredictiveSchedulerSlot />
+
+      {/* Phase 5 — drains offline SLM sessions (IndexedDB) into the
+          Zettelkasten when connectivity returns; surfaces each pass via a
+          toast. Installs nothing until a project is selected. */}
+      <ReconciliationDrainSlot />
     </div>
   );
 }
