@@ -47,11 +47,17 @@ import {
 import {
   declareChange,
   acknowledgeChange,
+  submitForReview,
+  recordApproval,
+  activateChange,
+  verifyEffectiveness,
+  revertChange,
   summarizeAcknowledgments,
   ChangeValidationError,
   type OperationalChange,
   type ChangeKind,
   type ChangeImpact,
+  type ApproverRole,
 } from '../../services/changeMgmt/operationalChangeService.js';
 import { OperationalChangeAdapter } from '../../services/changeMgmt/operationalChangeFirestoreAdapter.js';
 
@@ -261,6 +267,210 @@ router.post(
         projectId,
         mocId,
       });
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────
+// Workflow transitions (ISO 45001 §8.1.3) — each loads the MOC, applies the
+// PURE engine transition, persists via the adapter, and writes audit_logs.
+// Closes the B13 gap: OperationalChanges.tsx wrote every transition through a
+// client Firestore store (no audit; role from a client heuristic). The server
+// now stamps the actor and — for approvals — the AUTHORITATIVE role from the
+// verified token, auditing each state change (CLAUDE.md #3).
+// ────────────────────────────────────────────────────────────────────────
+
+function isChangeValidationError(err: unknown): err is ChangeValidationError {
+  return err instanceof ChangeValidationError;
+}
+
+async function loadChange(
+  g: { tenantId: string },
+  projectId: string,
+  mocId: string,
+  res: import('express').Response,
+): Promise<{ adapter: OperationalChangeAdapter; change: OperationalChange } | null> {
+  const adapter = new OperationalChangeAdapter(admin.firestore(), g.tenantId, projectId);
+  const change = await adapter.getById(mocId);
+  if (!change) {
+    res.status(404).json({ error: 'moc_not_found' });
+    return null;
+  }
+  return { adapter, change };
+}
+
+// 3b. submit-for-review — draft → pending_review.
+router.post(
+  '/:projectId/moc/:mocId/submit-for-review',
+  verifyAuth,
+  idempotencyKey(),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, mocId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const loaded = await loadChange(g, projectId, mocId, res);
+      if (!loaded) return undefined;
+      const updated = submitForReview(loaded.change, callerUid);
+      await loaded.adapter.save(updated);
+      await auditServerEvent(req, 'moc.submit_for_review', 'operationalChange', { mocId }, { projectId });
+      return res.json({ change: updated });
+    } catch (err) {
+      if (isChangeValidationError(err)) {
+        return res.status(400).json({ error: 'validation_error', code: err.code, message: err.message });
+      }
+      logger.error?.('operationalChange.submit.error', err);
+      captureRouteError(err, 'operationalChange.submit', { callerUid, projectId, mocId });
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// 3c. decide — pending_review → approved|rejected. Role from the VERIFIED token.
+const decideSchema = z.object({
+  decision: z.enum(['approved', 'rejected']),
+  comment: z.string().min(1).max(5000),
+});
+router.post(
+  '/:projectId/moc/:mocId/decide',
+  verifyAuth,
+  idempotencyKey(),
+  validate(decideSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const role = req.user!.role;
+    const { projectId, mocId } = req.params;
+    const body = req.body as z.infer<typeof decideSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    if (!role) {
+      // Approval authority is the verified role claim, NEVER the client. No
+      // role → cannot approve/reject (anti-blame, ADR 0019).
+      return res.status(403).json({ error: 'role_required' });
+    }
+    try {
+      const loaded = await loadChange(g, projectId, mocId, res);
+      if (!loaded) return undefined;
+      const updated = recordApproval(loaded.change, {
+        approverUid: callerUid,
+        approverRole: role as ApproverRole,
+        decision: body.decision,
+        comment: body.comment,
+      });
+      await loaded.adapter.save(updated);
+      await auditServerEvent(req, 'moc.decide', 'operationalChange', {
+        mocId, decision: body.decision, approverRole: role,
+      }, { projectId });
+      return res.json({ change: updated });
+    } catch (err) {
+      if (isChangeValidationError(err)) {
+        return res.status(400).json({ error: 'validation_error', code: err.code, message: err.message });
+      }
+      logger.error?.('operationalChange.decide.error', err);
+      captureRouteError(err, 'operationalChange.decide', { callerUid, projectId, mocId });
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// 3d. activate — approved → in_effect.
+router.post(
+  '/:projectId/moc/:mocId/activate',
+  verifyAuth,
+  idempotencyKey(),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, mocId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const loaded = await loadChange(g, projectId, mocId, res);
+      if (!loaded) return undefined;
+      const updated = activateChange(loaded.change, callerUid);
+      await loaded.adapter.save(updated);
+      await auditServerEvent(req, 'moc.activate', 'operationalChange', { mocId }, { projectId });
+      return res.json({ change: updated });
+    } catch (err) {
+      if (isChangeValidationError(err)) {
+        return res.status(400).json({ error: 'validation_error', code: err.code, message: err.message });
+      }
+      logger.error?.('operationalChange.activate.error', err);
+      captureRouteError(err, 'operationalChange.activate', { callerUid, projectId, mocId });
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// 3e. verify — in_effect → verified (effectiveness check).
+const verifySchema = z.object({
+  effective: z.boolean(),
+  observations: z.string().min(1).max(5000),
+});
+router.post(
+  '/:projectId/moc/:mocId/verify',
+  verifyAuth,
+  idempotencyKey(),
+  validate(verifySchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, mocId } = req.params;
+    const body = req.body as z.infer<typeof verifySchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const loaded = await loadChange(g, projectId, mocId, res);
+      if (!loaded) return undefined;
+      const updated = verifyEffectiveness(loaded.change, {
+        verifierUid: callerUid,
+        effective: body.effective,
+        observations: body.observations,
+      });
+      await loaded.adapter.save(updated);
+      await auditServerEvent(req, 'moc.verify', 'operationalChange', {
+        mocId, effective: body.effective,
+      }, { projectId });
+      return res.json({ change: updated });
+    } catch (err) {
+      if (isChangeValidationError(err)) {
+        return res.status(400).json({ error: 'validation_error', code: err.code, message: err.message });
+      }
+      logger.error?.('operationalChange.verify.error', err);
+      captureRouteError(err, 'operationalChange.verify', { callerUid, projectId, mocId });
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// 3g. revert — any non-reverted status → reverted (rollback with reason).
+const revertSchema = z.object({
+  reason: z.string().min(1).max(5000),
+});
+router.post(
+  '/:projectId/moc/:mocId/revert',
+  verifyAuth,
+  idempotencyKey(),
+  validate(revertSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, mocId } = req.params;
+    const body = req.body as z.infer<typeof revertSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const loaded = await loadChange(g, projectId, mocId, res);
+      if (!loaded) return undefined;
+      const updated = revertChange(loaded.change, body.reason);
+      await loaded.adapter.save(updated);
+      await auditServerEvent(req, 'moc.revert', 'operationalChange', { mocId }, { projectId });
+      return res.json({ change: updated });
+    } catch (err) {
+      if (isChangeValidationError(err)) {
+        return res.status(400).json({ error: 'validation_error', code: err.code, message: err.message });
+      }
+      logger.error?.('operationalChange.revert.error', err);
+      captureRouteError(err, 'operationalChange.revert', { callerUid, projectId, mocId });
       return res.status(500).json({ error: 'internal_error' });
     }
   },

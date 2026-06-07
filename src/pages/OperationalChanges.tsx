@@ -26,24 +26,24 @@ import { OperationalChangeCard } from '../components/changeMgmt/OperationalChang
 import { ChangeWorkflowActions } from '../components/changeMgmt/ChangeWorkflowActions';
 import { ReasonModal } from '../components/changeMgmt/ReasonModal';
 import {
-  declareChange,
-  acknowledgeChange,
-  revertChange,
-  submitForReview,
-  recordApproval,
-  activateChange,
-  verifyEffectiveness,
   summarizeAcknowledgments,
   type OperationalChange,
   type ChangeKind,
   type ChangeImpact,
   type ApproverRole,
 } from '../services/changeMgmt/operationalChangeService';
+// B13 — reads stay on the live subscription; writes go through the AUDITED
+// server endpoints (operationalChangeApi), never the client store.
+import { subscribeChanges } from '../services/changeMgmt/operationalChangeStore';
 import {
-  saveChange,
-  patchChange,
-  subscribeChanges,
-} from '../services/changeMgmt/operationalChangeStore';
+  declareChangeApi,
+  acknowledgeChangeApi,
+  submitChangeApi,
+  decideChangeApi,
+  activateChangeApi,
+  verifyChangeApi,
+  revertChangeApi,
+} from '../services/changeMgmt/operationalChangeApi';
 import { logger } from '../utils/logger';
 
 // Modal action types — qué pantalla del modal mostrar.
@@ -153,8 +153,7 @@ export function OperationalChanges() {
         .split(/[,\n\s]+/)
         .map((u) => u.trim())
         .filter((u) => u.length > 0);
-      const change = declareChange({
-        projectId: selectedProject.id,
+      const { change } = await declareChangeApi(selectedProject.id, {
         kind,
         whatChanged,
         previousValue,
@@ -162,11 +161,9 @@ export function OperationalChanges() {
         rationale,
         impact,
         affectedWorkerUids,
-        declaredByUid: user.uid,
         declaredByRole: 'supervisor',
         effectiveFrom: new Date().toISOString(),
       });
-      await saveChange(selectedProject.id, change);
       setFeedback(
         t('operational_changes.feedback.declared', {
           defaultValue: 'Cambio declarado ({{id}}). {{n}} workers deben confirmar lectura.',
@@ -188,10 +185,7 @@ export function OperationalChanges() {
     async (change: OperationalChange) => {
       if (!user || !selectedProject) return;
       try {
-        const updated = acknowledgeChange(change, user.uid);
-        await patchChange(selectedProject.id, change.id, {
-          acknowledgments: updated.acknowledgments,
-        });
+        await acknowledgeChangeApi(selectedProject.id, change.id);
         setFeedback(t('operational_changes.feedback.ack_ok', 'Lectura confirmada.'));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -210,44 +204,23 @@ export function OperationalChanges() {
       if (!user || !selectedProject || !modalAction) return;
       const { change } = modalAction;
       try {
-        let updated: OperationalChange | null = null;
         if (modalAction.kind === 'approve') {
-          updated = recordApproval(change, {
-            approverUid: user.uid,
-            approverRole: userRole as ApproverRole,
-            decision: 'approved',
-            comment: reason,
-          });
+          await decideChangeApi(selectedProject.id, change.id, { decision: 'approved', comment: reason });
         } else if (modalAction.kind === 'reject') {
-          updated = recordApproval(change, {
-            approverUid: user.uid,
-            approverRole: userRole as ApproverRole,
-            decision: 'rejected',
-            comment: reason,
-          });
+          await decideChangeApi(selectedProject.id, change.id, { decision: 'rejected', comment: reason });
         } else if (modalAction.kind === 'revert') {
-          updated = revertChange(change, reason);
+          await revertChangeApi(selectedProject.id, change.id, { reason });
         } else if (modalAction.kind === 'verify') {
-          updated = verifyEffectiveness(change, {
-            verifierUid: user.uid,
+          await verifyChangeApi(selectedProject.id, change.id, {
             effective: extra?.effective ?? true,
             observations: reason,
           });
         }
-        if (updated) {
-          await patchChange(selectedProject.id, change.id, {
-            status: updated.status,
-            approvals: updated.approvals,
-            revertedAt: updated.revertedAt,
-            revertedReason: updated.revertedReason,
-            verification: updated.verification,
-          });
-          setFeedback(
-            t(`operational_changes.feedback.action_ok.${modalAction.kind}`, {
-              defaultValue: 'Acción registrada.',
-            }),
-          );
-        }
+        setFeedback(
+          t(`operational_changes.feedback.action_ok.${modalAction.kind}`, {
+            defaultValue: 'Acción registrada.',
+          }),
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn('moc modal action failed', { kind: modalAction.kind, err: msg });
@@ -256,18 +229,14 @@ export function OperationalChanges() {
         setModalAction(null);
       }
     },
-    [user, selectedProject, modalAction, userRole, t],
+    [user, selectedProject, modalAction, t],
   );
 
   const handleSubmitForReview = useCallback(
     async (change: OperationalChange) => {
       if (!user || !selectedProject) return;
       try {
-        const updated = submitForReview(change, user.uid);
-        await patchChange(selectedProject.id, change.id, {
-          status: updated.status,
-          submittedForReviewAt: updated.submittedForReviewAt,
-        });
+        await submitChangeApi(selectedProject.id, change.id);
         setFeedback(t('operational_changes.feedback.submitted', 'Cambio enviado a revisión.'));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -281,11 +250,7 @@ export function OperationalChanges() {
     async (change: OperationalChange) => {
       if (!user || !selectedProject) return;
       try {
-        const updated = activateChange(change, user.uid);
-        await patchChange(selectedProject.id, change.id, {
-          status: updated.status,
-          activatedAt: updated.activatedAt,
-        });
+        await activateChangeApi(selectedProject.id, change.id);
         setFeedback(t('operational_changes.feedback.activated', 'Cambio activado — en vigor.'));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
