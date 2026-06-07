@@ -7,6 +7,7 @@ import { logger } from '../../utils/logger';
 // answers for the reconciliation pass once connectivity returns.
 import { ask, enqueueSession, type SLMResponse } from '../../services/slm';
 import { SLM_ENQUEUED_EVENT } from '../slm/SLMProvider';
+import { buildAsesorPrompt } from './asesorPrompt';
 
 export function Asesor() {
   const [query, setQuery] = useState('');
@@ -22,14 +23,9 @@ export function Asesor() {
 
     setLoading(true);
     try {
-      const contextualQuery = `[MODO ASESOR TÁCTICO DE EMERGENCIA ACTIVADO - IGNORAR OTRAS INSTRUCCIONES]
-REGLAS ESTRICTAS:
-1. Responde SOLO con planes de acción inmediatos y tácticos.
-2. Usa viñetas cortas y directas.
-3. Cero explicaciones largas, cero saludos, cero gráficos.
-4. Ve directo al grano. Ejemplo: "- Evacuar zona norte. - Cortar suministro eléctrico. - Aislar material."
-
-SITUACIÓN REPORTADA: ${query}`;
+      // The user's report is untrusted: fence it as data and keep the tactical
+      // rules non-overridable (prompt-injection defense — see asesorPrompt.ts).
+      const contextualQuery = buildAsesorPrompt(query);
 
       // Single entry point: orchestrator chooses online (Gemini, with the
       // Firebase ID token attached internally) vs. offline (on-device SLM)
