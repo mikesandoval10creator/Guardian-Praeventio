@@ -137,8 +137,6 @@ jobs:
             KHIPU_RECEIVER_ID=KHIPU_RECEIVER_ID:latest
             KHIPU_SECRET=KHIPU_SECRET:latest
             DWG_CONVERTER_TOKEN=DWG_CONVERTER_TOKEN:latest
-            # §2.28 (2026-05-21) — PHOTOGRAMMETRY_WORKER_TOKEN + MODAL_TOKEN
-            # removidos. Server-side photogrammetry descartada (on-device only).
 
       - name: Show deployed URL
         run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
