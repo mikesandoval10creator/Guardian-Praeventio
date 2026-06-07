@@ -193,7 +193,10 @@ describe('GET /api/insights/:projectId/risk-ranking', () => {
 describe('GET /api/insights/:projectId/top-risks', () => {
   const TENANT_ID = 'tenant-alpha';
   const url = `/api/insights/${PROJECT_ID}/top-risks`;
-  const zkPath = `tenants/${TENANT_ID}/zettelkasten_nodes`;
+  // Canonical source: the top-level `nodes` collection (where the IPER Matrix
+  // and the Bernoulli generators actually land), NOT the unwritten
+  // `tenants/{tid}/zettelkasten_nodes` subcollection. Mirrors §2.15.
+  const zkPath = `nodes`;
 
   beforeEach(() => {
     // Re-seed the project WITH a tenantId so resolveTenantId succeeds.
@@ -334,7 +337,9 @@ describe('GET /api/insights/:projectId/weak-controls', () => {
 describe('GET /api/insights/:projectId/risk-timeseries', () => {
   const TENANT_ID = 'tenant-ts';
   const url = `/api/insights/${PROJECT_ID}/risk-timeseries`;
-  const zkPath = `tenants/${TENANT_ID}/zettelkasten_nodes`;
+  // Canonical source: top-level `nodes` (see top-risks note). NOT the unwritten
+  // tenant subcollection.
+  const zkPath = `nodes`;
 
   beforeEach(() => {
     H.db!._seed(`projects/${PROJECT_ID}`, {
