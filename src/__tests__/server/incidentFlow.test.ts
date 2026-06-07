@@ -153,20 +153,30 @@ describe('POST assign-microtraining — batch skip on per-worker failure', () =>
 });
 
 describe('GET status', () => {
-  it('reads chain nodes + returns the PDCA reducer output', async () => {
-    H.db!._seed('tenants/t1/zettelkasten_nodes/n1', {
-      type: 'incident-reported', metadata: { incidentId: 'inc1' }, createdAt: '2026-05-01',
+  it('reads chain nodes from the global zettelkasten_nodes collection + returns the PDCA reducer output', async () => {
+    // serverWriteNodes persists incident-chain nodes to the GLOBAL
+    // `zettelkasten_nodes` collection (raw chain `type` + `metadata.incidentId`
+    // + `projectId`), NOT the `tenants/{tid}/zettelkasten_nodes` subcollection
+    // (which no writer populates). Seeding the real collection makes this fail
+    // against the old subcollection read.
+    H.db!._seed('zettelkasten_nodes/n1', {
+      type: 'incident-reported', projectId: 'p1', metadata: { incidentId: 'inc1' }, createdAt: '2026-05-01',
     });
-    H.db!._seed('tenants/t1/zettelkasten_nodes/n2', {
-      type: 'lesson-published', metadata: { incidentId: 'inc1' }, createdAt: '2026-05-03',
+    H.db!._seed('zettelkasten_nodes/n2', {
+      type: 'lesson-published', projectId: 'p1', metadata: { incidentId: 'inc1' }, createdAt: '2026-05-03',
     });
-    H.db!._seed('tenants/t1/zettelkasten_nodes/other', {
-      type: 'incident-reported', metadata: { incidentId: 'OTHER' }, createdAt: '2026-05-01',
+    // different incident → excluded by the metadata.incidentId query
+    H.db!._seed('zettelkasten_nodes/other', {
+      type: 'incident-reported', projectId: 'p1', metadata: { incidentId: 'OTHER' }, createdAt: '2026-05-01',
+    });
+    // same incident id but ANOTHER project → excluded by the in-memory projectId scope
+    H.db!._seed('zettelkasten_nodes/crossproj', {
+      type: 'incident-reported', projectId: 'p2', metadata: { incidentId: 'inc1' }, createdAt: '2026-05-01',
     });
     const res = await request(buildApp()).get('/api/sprint-k/p1/incident-flow/inc1/status').set(uid);
     expect(res.status).toBe(200);
     expect(res.body.status).toMatchObject({ phase: 'detection' });
-    // only inc1's two chain nodes were passed to the reducer.
+    // only inc1's two chain nodes for THIS project were passed to the reducer.
     expect(res.body.nodeCount).toBe(2);
     expect(H.pdca).toHaveBeenCalledWith('inc1', expect.arrayContaining([
       expect.objectContaining({ nodeId: 'n1', type: 'incident-reported' }),
