@@ -101,7 +101,6 @@ jobs:
           env_vars: |
             NODE_ENV=production
             KMS_ADAPTER=cloud-kms
-            KMS_KEY_RESOURCE_NAME=${{ secrets.KMS_KEY_RESOURCE_NAME }}
             APP_BASE_URL=https://app.praeventio.net
             APP_URL=https://app.praeventio.net
             DWG_CONVERTER_URL=${{ secrets.DWG_CONVERTER_URL }}
@@ -116,7 +115,14 @@ jobs:
           # (just URLs), so we keep them out of Secret Manager to reduce the
           # rotation surface. Bearer tokens paired with each URL DO live in
           # Secret Manager (see below).
+          # KMS KEK resource name moved here from env_vars: the GitHub Actions
+          # secret `KMS_KEY_RESOURCE_NAME` was empty, so the container booted with
+          # an empty value and exited 1 — "[boot] FATAL: Production with cloud-kms
+          # requires KMS_KEY_RESOURCE_NAME to point at the key encryption key". The
+          # real value (projects/.../cryptoKeys/oauth-tokens-kek) lives in Secret
+          # Manager, so mount it from there (a real entry below, NOT a comment).
           secrets: |
+            KMS_KEY_RESOURCE_NAME=KMS_KEY_RESOURCE_NAME:latest
             GEMINI_API_KEY=GEMINI_API_KEY:latest
             SESSION_SECRET=SESSION_SECRET:latest
             RESEND_API_KEY=RESEND_API_KEY:latest
