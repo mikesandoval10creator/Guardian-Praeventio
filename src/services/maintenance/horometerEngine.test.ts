@@ -16,7 +16,7 @@ describe('buildDefaultPolicy', () => {
     expect(p.thresholds[0].triggerAtHours).toBe(850);
     expect(p.thresholds[1].triggerAtHours).toBe(950);
     expect(p.thresholds[2].triggerAtHours).toBe(1000);
-    expect(p.blockOnMandatory).toBe(true);
+    expect(p.escalateOnMandatory).toBe(true);
   });
 });
 
@@ -34,7 +34,7 @@ describe('assessHorometerStatus', () => {
   it('máquina con 500h en ciclo de 1000h → OK', () => {
     const s = assessHorometerStatus(h(500), policy);
     expect(s.triggeredThreshold).toBeNull();
-    expect(s.shouldBlock).toBe(false);
+    expect(s.mandatoryOverdue).toBe(false);
     expect(s.cycleProgressPercent).toBe(50);
     expect(s.message).toMatch(/^OK/);
   });
@@ -42,19 +42,19 @@ describe('assessHorometerStatus', () => {
   it('máquina con 870h → warning', () => {
     const s = assessHorometerStatus(h(870), policy);
     expect(s.triggeredThreshold?.kind).toBe('warning');
-    expect(s.shouldBlock).toBe(false);
+    expect(s.mandatoryOverdue).toBe(false);
   });
 
   it('máquina con 960h → critical', () => {
     const s = assessHorometerStatus(h(960), policy);
     expect(s.triggeredThreshold?.kind).toBe('critical');
-    expect(s.shouldBlock).toBe(false);
+    expect(s.mandatoryOverdue).toBe(false);
   });
 
-  it('máquina con 1050h → mandatory + shouldBlock', () => {
+  it('máquina con 1050h → mandatory + mandatoryOverdue', () => {
     const s = assessHorometerStatus(h(1050), policy);
     expect(s.triggeredThreshold?.kind).toBe('mandatory');
-    expect(s.shouldBlock).toBe(true);
+    expect(s.mandatoryOverdue).toBe(true);
   });
 
   it('después de mantención, status reinicia', () => {
@@ -87,14 +87,14 @@ describe('proposeCalendarTask', () => {
     expect(task?.kind).toBe('preventive');
   });
 
-  it('mandatory crossed → priority critical + kind mandatory_block_resolution', () => {
+  it('mandatory crossed → priority critical + kind mandatory_maintenance', () => {
     const s = assessHorometerStatus(
       { machineId: 'M1', currentHours: 1050, lastMaintenanceAtHours: 0 },
       policy,
     );
     const task = proposeCalendarTask(s, { avgUsageHoursPerDay: 8, nowIso: NOW_ISO });
     expect(task?.priority).toBe('critical');
-    expect(task?.kind).toBe('mandatory_block_resolution');
+    expect(task?.kind).toBe('mandatory_maintenance');
     expect(task?.title).toMatch(/URGENTE/);
   });
 });
@@ -110,16 +110,16 @@ describe('buildFleetReport', () => {
       { horometer: { machineId: 'B', currentHours: 870, lastMaintenanceAtHours: 0 }, policy },
       // critical
       { horometer: { machineId: 'C', currentHours: 970, lastMaintenanceAtHours: 0 }, policy },
-      // blocked
+      // mandatory overdue
       { horometer: { machineId: 'D', currentHours: 1100, lastMaintenanceAtHours: 0 }, policy },
     ];
     const r = buildFleetReport(fleet);
     expect(r.totalMachines).toBe(4);
     expect(r.ok).toBe(1);
     expect(r.warning).toBe(1);
-    // 'critical' bucket incluye 'critical' thresholds + 'mandatory' no bloqueante. Aquí D bloquea.
+    // 'critical' bucket = 'critical' thresholds + 'mandatory' no vencido. Aquí D está vencido.
     expect(r.critical).toBe(1);
-    expect(r.blocked).toBe(1);
+    expect(r.mandatoryOverdue).toBe(1);
   });
 
   it('topUrgent ordenado por gravedad', () => {

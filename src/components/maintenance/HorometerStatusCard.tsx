@@ -116,14 +116,17 @@ export function HorometerStatusCard({
         {status.message}
       </p>
 
-      {status.shouldBlock && (
+      {status.mandatoryOverdue && (
         <div
           className="flex items-start gap-2 bg-rose-500/15 text-rose-700 dark:text-rose-300 p-2 rounded text-[11px] font-bold"
-          data-testid={`horometer-block-${horometer.machineId}`}
+          data-testid={`horometer-mandatory-${horometer.machineId}`}
         >
           <AlertOctagon className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
           <span>
-            {t('horometer.blocked', 'Equipo BLOQUEADO hasta completar mantención.')}
+            {t(
+              'horometer.mandatoryOverdue',
+              'Mantención obligatoria vencida — se recomienda detener y completarla antes de seguir operando.',
+            )}
           </span>
         </div>
       )}

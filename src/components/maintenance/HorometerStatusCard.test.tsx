@@ -37,14 +37,14 @@ describe('<HorometerStatusCard />', () => {
     expect(screen.getByTestId('horometer-task-M2')).toBeInTheDocument();
   });
 
-  it('mandatory triggers bloqueo visible', () => {
+  it('mandatory triggers recomendación de detener visible', () => {
     render(
       <HorometerStatusCard
         horometer={{ machineId: 'M3', currentHours: 1100, lastMaintenanceAtHours: 0 }}
         policy={policy}
       />,
     );
-    expect(screen.getByTestId('horometer-block-M3')).toBeInTheDocument();
+    expect(screen.getByTestId('horometer-mandatory-M3')).toBeInTheDocument();
     expect(screen.getByTestId('horometer-state-M3').textContent).toBe('mandatory');
   });
 
