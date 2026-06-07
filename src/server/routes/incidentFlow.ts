@@ -37,6 +37,8 @@ import {
 } from '../../services/auth/projectMembership.js';
 import { nodeIdFor } from '../../services/zettelkasten/persistence/writeNode.js';
 import { makeServerWriteNodes } from '../services/serverZkNodeWriter.js';
+import { createEdge as createZkEdge } from '../../services/zettelkasten/edges.js';
+import { buildEdgeStore } from '../../services/zettelkasten/edgeStoreFirestore.js';
 import {
   createIncidentReportedNode,
   createInvestigationOpenedNode,
@@ -75,11 +77,20 @@ const router = Router();
  * materialize their ZK nodes server-side.
  */
 function flowDepsFor(req: import('express').Request): FlowDeps {
+  // Codex P1 (#650) fixed NODES (server-side writeNodes), but edges were still
+  // dropped: flowDepsFor never injected `createEdge`, so the flow's
+  // `writeOneEdge` hit `if (!deps.createEdge) return null` and EVERY edge was
+  // silently lost → the incident→investigation→lesson→training graph was
+  // disconnected on the server (ISO 45001 §10.2 traceability broken). Wire the
+  // real Firestore edge store (same adapter horometro.ts uses) so the chain is
+  // actually materialized.
+  const edgeStore = buildEdgeStore(admin.firestore());
   return {
     writeNodes: makeServerWriteNodes({
       createdBy: req.user!.uid,
       createdByEmail: req.user?.email ?? null,
     }),
+    createEdge: (input) => createZkEdge(edgeStore, input),
   };
 }
 
