@@ -123,20 +123,23 @@ jobs:
             IOT_WEBHOOK_SECRET=IOT_WEBHOOK_SECRET:latest
             VITE_GOOGLE_MAPS_API_KEY=VITE_GOOGLE_MAPS_API_KEY:latest
             VITE_OPENWEATHER_API_KEY=VITE_OPENWEATHER_API_KEY:latest
-            GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest
-            GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest
-            VITE_FIREBASE_VAPID_KEY=VITE_FIREBASE_VAPID_KEY:latest
-            WEBPAY_COMMERCE_CODE=WEBPAY_COMMERCE_CODE:latest
-            WEBPAY_API_KEY=WEBPAY_API_KEY:latest
-            MP_IPN_SECRET=MP_IPN_SECRET:latest
-            GOOGLE_PLAY_PACKAGE_NAME=GOOGLE_PLAY_PACKAGE_NAME:latest
-            GOOGLE_PLAY_SERVICE_ACCOUNT_JSON=GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:latest
-            GOOGLE_PLAY_RTDN_TOPIC=GOOGLE_PLAY_RTDN_TOPIC:latest
-            SENTRY_DSN=SENTRY_DSN:latest
-            VITE_SENTRY_DSN=VITE_SENTRY_DSN:latest
-            KHIPU_RECEIVER_ID=KHIPU_RECEIVER_ID:latest
-            KHIPU_SECRET=KHIPU_SECRET:latest
-            DWG_CONVERTER_TOKEN=DWG_CONVERTER_TOKEN:latest
+          # NOTE: the secrets below are NOT yet provisioned in Secret Manager — the
+          # deploy failed with "Secret … was not found", so they are omitted to
+          # let the service go LIVE with its core config. To re-enable a feature:
+          #   1. gcloud secrets create NAME --project=praeventio-541ad
+          #   2. printf '%s' 'VALUE' | gcloud secrets versions add NAME --data-file=- --project=praeventio-541ad
+          #   3. add the line `NAME=NAME:latest` back INSIDE the `secrets: |`
+          #      block above (a real entry, NEVER a comment — `#` inside a YAML
+          #      block scalar is literal text and breaks the deploy).
+          # Pending secret → feature it unlocks:
+          #   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET                       → Google OAuth login
+          #   VITE_FIREBASE_VAPID_KEY                                       → Web push notifications
+          #   WEBPAY_COMMERCE_CODE / WEBPAY_API_KEY                         → Webpay payments
+          #   MP_IPN_SECRET                                                 → MercadoPago IPN
+          #   KHIPU_RECEIVER_ID / KHIPU_SECRET                             → Khipu payments
+          #   GOOGLE_PLAY_PACKAGE_NAME / _SERVICE_ACCOUNT_JSON / _RTDN_TOPIC → Google Play IAP
+          #   SENTRY_DSN / VITE_SENTRY_DSN                                  → Sentry error monitoring
+          #   DWG_CONVERTER_TOKEN                                           → DWG/CAD conversion
 
       - name: Show deployed URL
         run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
