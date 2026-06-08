@@ -18,6 +18,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
+import { Readable } from 'node:stream';
 
 // Mock auth — caller siempre = worker_a
 vi.mock('../middleware/verifyAuth.js', () => ({
@@ -120,9 +121,25 @@ vi.mock('firebase-admin', () => {
     runTransaction,
   });
 
+  // Minimal Storage stub so the file-proxy route can stream a blob in tests.
+  const storage = () => ({
+    bucket: () => ({
+      file: (_objectPath: string) => ({
+        exists: async () => [true],
+        getMetadata: async () => [{ contentType: 'application/pdf' }],
+        createReadStream: () => Readable.from([Buffer.from('%PDF-1.4 fake-bytes')]),
+      }),
+    }),
+  });
+
   return {
-    default: { firestore, auth: () => ({ verifyIdToken: async () => ({ uid: 'worker_a' }) }) },
+    default: {
+      firestore,
+      storage,
+      auth: () => ({ verifyIdToken: async () => ({ uid: 'worker_a' }) }),
+    },
     firestore,
+    storage,
   };
 });
 
@@ -153,6 +170,7 @@ beforeEach(() => {
     meta: { title: 'Hemograma' },
     tags: [],
     shareScope: 'private',
+    fileUri: 'tenants/t1/medical/worker_a/r1.pdf',
   });
   fakeStore.records.set('users/worker_a/health_vault/r2', {
     id: 'r2',
@@ -291,5 +309,128 @@ describe('POST /api/health-vault/share/:tokenId/revoke', () => {
       .send({});
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('not_found');
+  });
+});
+
+describe('GET /api/health-vault/view/:tokenId/:secret/file/:recordId', () => {
+  async function createFullShare() {
+    const res = await request(makeApp())
+      .post('/api/health-vault/share')
+      .send({ scope: 'full' });
+    return res.body as { tokenId: string; secret: string };
+  }
+
+  it('streams the file for a valid, non-revoked share (200) and audits file_accessed', async () => {
+    const { tokenId, secret } = await createFullShare();
+    const res = await request(makeApp())
+      .get(`/api/health-vault/view/${tokenId}/${secret}/file/r1`)
+      .buffer(true)
+      .parse((r, cb) => {
+        const chunks: Buffer[] = [];
+        r.on('data', (c: Buffer) => chunks.push(Buffer.from(c)));
+        r.on('end', () => cb(null, Buffer.concat(chunks)));
+      });
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('application/pdf');
+    expect(res.headers['cache-control']).toContain('no-store');
+    expect(Buffer.from(res.body).toString('utf8')).toContain('%PDF-1.4');
+    expect(
+      fakeStore.audits.some((a) => a.action === 'health_vault.share.file_accessed'),
+    ).toBe(true);
+  });
+
+  it('DENIES file access after the share is revoked (410 revoked) — the core fix', async () => {
+    const { tokenId, secret } = await createFullShare();
+    const path = `users/worker_a/health_vault_shares/${tokenId}`;
+    const rec = fakeStore.shares.get(path);
+    fakeStore.shares.set(path, { ...rec, revokedAt: Date.now() });
+    const res = await request(makeApp()).get(
+      `/api/health-vault/view/${tokenId}/${secret}/file/r1`,
+    );
+    expect(res.status).toBe(410);
+    expect(res.body.error).toBe('revoked');
+    expect(
+      fakeStore.audits.some((a) => a.action === 'health_vault.share.file_accessed'),
+    ).toBe(false);
+  });
+
+  it('DENIES file access after expiry (410 expired)', async () => {
+    const { tokenId, secret } = await createFullShare();
+    const path = `users/worker_a/health_vault_shares/${tokenId}`;
+    const rec = fakeStore.shares.get(path);
+    fakeStore.shares.set(path, { ...rec, expiresAt: Date.now() - 1000 });
+    const res = await request(makeApp()).get(
+      `/api/health-vault/view/${tokenId}/${secret}/file/r1`,
+    );
+    expect(res.status).toBe(410);
+    expect(res.body.error).toBe('expired');
+  });
+
+  it('DENIES file access when consume budget is exhausted (410 max_consumes_reached)', async () => {
+    const { tokenId, secret } = await createFullShare();
+    const path = `users/worker_a/health_vault_shares/${tokenId}`;
+    const rec = fakeStore.shares.get(path);
+    fakeStore.shares.set(path, {
+      ...rec,
+      consumeCount: rec.maxConsumes,
+    });
+    const res = await request(makeApp()).get(
+      `/api/health-vault/view/${tokenId}/${secret}/file/r1`,
+    );
+    expect(res.status).toBe(410);
+    expect(res.body.error).toBe('max_consumes_reached');
+  });
+
+  it('rejects a bad secret (401 invalid_token)', async () => {
+    const { tokenId } = await createFullShare();
+    const res = await request(makeApp()).get(
+      `/api/health-vault/view/${tokenId}/bogus_secret/file/r1`,
+    );
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('invalid_token');
+  });
+
+  it('rejects a recordId outside the share scope (403 out_of_scope)', async () => {
+    // topic share pinned to r2 only -> requesting r1 is out of scope
+    const create = await request(makeApp())
+      .post('/api/health-vault/share')
+      .send({ scope: 'topic', topic: 'lumbalgia', recordIds: ['r2'] });
+    const { tokenId, secret } = create.body;
+    const res = await request(makeApp()).get(
+      `/api/health-vault/view/${tokenId}/${secret}/file/r1`,
+    );
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('out_of_scope');
+  });
+
+  it('returns 404 invalid for an unknown tokenId', async () => {
+    const res = await request(makeApp()).get(
+      '/api/health-vault/view/vs_unknown/whatever/file/r1',
+    );
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('invalid');
+  });
+
+  it('does NOT consume a view-budget unit on file fetch (consumeCount unchanged)', async () => {
+    const { tokenId, secret } = await createFullShare();
+    const path = `users/worker_a/health_vault_shares/${tokenId}`;
+    const before = fakeStore.shares.get(path).consumeCount;
+    await request(makeApp()).get(`/api/health-vault/view/${tokenId}/${secret}/file/r1`);
+    await request(makeApp()).get(`/api/health-vault/view/${tokenId}/${secret}/file/r1`);
+    const after = fakeStore.shares.get(path).consumeCount;
+    expect(after).toBe(before); // file fetches must not burn maxConsumes
+  });
+
+  it('/view no longer leaks raw fileUri — only fileProxyPath', async () => {
+    const { tokenId, secret } = await createFullShare();
+    const res = await request(makeApp()).get(
+      `/api/health-vault/view/${tokenId}/${secret}`,
+    );
+    expect(res.status).toBe(200);
+    const r1 = res.body.records.find((r: any) => r.id === 'r1');
+    expect(r1.fileUri).toBeUndefined();
+    expect(r1.fileProxyPath).toContain(
+      `/api/health-vault/view/${tokenId}/${secret}/file/r1`,
+    );
   });
 });

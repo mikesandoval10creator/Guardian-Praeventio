@@ -362,6 +362,17 @@ decryptable; no migration on rotation).
     client writes denied; only the server mutates share state.
 45. **Cross-Worker Share Read**: worker B reads worker A's
     `/users/A/health_vault_shares/*` — read is owner/doctor/admin only.
+49. **Revoked Share File Fetch**: a doctor who scanned the QR pre-revocation
+    re-requests the medical file blob AFTER the worker revoked (or after expiry)
+    via `GET /api/health-vault/view/:tokenId/:secret/file/:recordId`. The
+    endpoint re-reads the share doc inside a `runTransaction` and runs
+    `validateShareAccess` on FRESH data on EVERY fetch, returning `410 revoked`
+    (likewise `410 expired`, `401 invalid_token` on a bad secret,
+    `403 out_of_scope` for a recordId outside the share scope). The raw
+    `fileUri` is NEVER sent to the client — the `/view` JSON only exposes the
+    server-mediated `fileProxyPath`, and the blob is streamed via the Admin
+    Storage SDK behind that per-access re-validation (`Cache-Control: no-store`).
+    The file URL cannot outlive revocation. Denied.
 
 ## Conflict queue (safety-doc sync conflicts) — write rules (B16, added 2026-06-08)
 

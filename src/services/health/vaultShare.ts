@@ -204,6 +204,71 @@ export function consumeShareToken(
 }
 
 /**
+ * Re-valida un share SIN consumir una unidad del presupuesto de vistas.
+ * La usa el endpoint file-proxy: cada fetch de un blob debe re-chequear
+ * revokedAt / expiry / secret sobre datos FRESCOS, de modo que un share
+ * revocado nunca pueda servir el archivo — pero una sola página con N
+ * archivos NO debe quemar N de maxConsumes. Lanza VaultShareError con
+ * code específico (revoked / expired / max_consumes_reached / invalid_token).
+ *
+ * Es una función pura (no toca Firestore, no muta el record): el caller
+ * la corre dentro de su runTransaction sobre el snapshot fresco.
+ */
+export function validateShareAccess(
+  record: VaultShareToken,
+  incomingSecret: string,
+  options: { now?: () => number } = {},
+): void {
+  const now = (options.now ?? Date.now)();
+  if (record.revokedAt !== null) {
+    throw new VaultShareError('Token revoked', 'revoked');
+  }
+  if (now > record.expiresAt) {
+    throw new VaultShareError('Token expired', 'expired');
+  }
+  if (record.consumeCount >= record.maxConsumes) {
+    throw new VaultShareError('Max consumes reached', 'max_consumes_reached');
+  }
+  if (!verifySecret(incomingSecret, record.tokenHash)) {
+    throw new VaultShareError('Invalid token', 'invalid_token');
+  }
+}
+
+/**
+ * True sólo si `recordId` está dentro del scope del share. Para `full`
+ * (sin subset explícito) expone todo el vault. Para `recent` exige además
+ * que el record esté dentro de la ventana de N días que /view muestra
+ * (paridad con getRecentHealthRecords) — el caller pasa la fecha del
+ * record vía `recordUploadedAt`. Para `topic` (o cualquier subset) sólo
+ * los IDs fijados en record.recordIds.
+ */
+export function recordIdInShareScope(
+  record: VaultShareToken,
+  recordId: string,
+  opts: { recordUploadedAt?: number; recentDaysBack?: number; now?: () => number } = {},
+): boolean {
+  if (typeof recordId !== 'string' || recordId.length === 0) return false;
+  // Subset explícito siempre manda, sea cual sea el scope.
+  if (record.recordIds !== undefined) {
+    return record.recordIds.includes(recordId);
+  }
+  if (record.scope === 'full') {
+    return true;
+  }
+  if (record.scope === 'recent') {
+    // Paridad con /view: sólo records dentro de la ventana reciente.
+    const daysBack = opts.recentDaysBack ?? 90;
+    const uploadedAt = opts.recordUploadedAt;
+    if (typeof uploadedAt !== 'number') return false;
+    const now = (opts.now ?? Date.now)();
+    const cutoff = now - daysBack * 24 * 60 * 60 * 1000;
+    return uploadedAt >= cutoff;
+  }
+  // scope === 'topic' sin recordIds fijados -> nada explícito -> denegar.
+  return false;
+}
+
+/**
  * Revoca un token explícitamente (worker decide cancelar acceso antes
  * del expiry natural).
  */
@@ -230,7 +295,8 @@ export function buildAuditEntry(
     | 'health_vault.share.created'
     | 'health_vault.share.consumed'
     | 'health_vault.share.expired'
-    | 'health_vault.share.revoked',
+    | 'health_vault.share.revoked'
+    | 'health_vault.share.file_accessed',
   record: VaultShareToken,
   extra?: Record<string, unknown>,
 ): {

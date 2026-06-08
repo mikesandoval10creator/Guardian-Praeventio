@@ -186,6 +186,29 @@ export async function getHealthRecordsByIds(
 }
 
 /**
+ * Fetch de un único record por id desde el vault del trabajador. Retorna
+ * null si no existe. El CALLER es responsable de la autorización de scope
+ * (el endpoint file-proxy llama recordIdInShareScope antes).
+ */
+export async function getHealthRecordById(
+  workerUid: string,
+  recordId: string,
+  db: admin.firestore.Firestore = admin.firestore(),
+): Promise<HealthRecord | null> {
+  if (!workerUid || !recordId) {
+    throw new HealthRecordError('workerUid + recordId required', 'malformed');
+  }
+  const snap = await db
+    .collection('users')
+    .doc(workerUid)
+    .collection('health_vault')
+    .doc(recordId)
+    .get();
+  if (!snap.exists) return null;
+  return snap.data() as HealthRecord;
+}
+
+/**
  * Filtro "recent" — últimos N días. Reusa getHealthRecords para no
  * duplicar la lógica Firestore.
  */
