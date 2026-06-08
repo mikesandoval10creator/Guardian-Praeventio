@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { computeDeaStatus, daysUntil, isChecklistComplete } from './deaService.js';
+import {
+  computeDeaStatus,
+  daysUntil,
+  isChecklistComplete,
+  distanceMeters,
+  nearestDea,
+  type Dea,
+} from './deaService.js';
 
 const NOW = '2026-05-15T12:00:00Z';
 
@@ -105,5 +112,56 @@ describe('isChecklistComplete', () => {
         cabinetIntactAlarmOperative: true,
       }),
     ).toBe(false);
+  });
+});
+
+function makeDea(id: string, coordinates?: { lat: number; lng: number }): Dea {
+  return {
+    id,
+    location: id,
+    description: '',
+    batteryExpiry: '2027-01-01',
+    padsExpiry: '2027-01-01',
+    lastCheck: '2026-05-01',
+    assignedToUid: 'u1',
+    assignedToName: 'Resp',
+    createdAt: '2026-01-01',
+    createdBy: 'u1',
+    coordinates,
+  };
+}
+
+describe('distanceMeters (haversine)', () => {
+  it('is 0 for the same point', () => {
+    expect(distanceMeters({ lat: -33.45, lng: -70.66 }, { lat: -33.45, lng: -70.66 })).toBe(0);
+  });
+
+  it('matches a known distance (~1.11 km per 0.01° of latitude)', () => {
+    const d = distanceMeters({ lat: 0, lng: 0 }, { lat: 0.01, lng: 0 });
+    expect(d).toBeGreaterThan(1100);
+    expect(d).toBeLessThan(1115);
+  });
+});
+
+describe('nearestDea', () => {
+  const me = { lat: -33.45, lng: -70.66 }; // Santiago
+
+  it('returns the closest DEA with coordinates + its distance', () => {
+    const far = makeDea('far', { lat: -33.5, lng: -70.7 });
+    const near = makeDea('near', { lat: -33.451, lng: -70.661 });
+    const res = nearestDea([far, near], me);
+    expect(res?.dea.id).toBe('near');
+    expect(res!.distanceM).toBeGreaterThan(0);
+    expect(res!.distanceM).toBeLessThan(distanceMeters(me, far.coordinates!));
+  });
+
+  it('skips DEAs without coordinates', () => {
+    const noCoord = makeDea('noCoord');
+    const withCoord = makeDea('withCoord', { lat: -33.46, lng: -70.67 });
+    expect(nearestDea([noCoord, withCoord], me)?.dea.id).toBe('withCoord');
+  });
+
+  it('returns null when no DEA has coordinates', () => {
+    expect(nearestDea([makeDea('a'), makeDea('b')], me)).toBeNull();
   });
 });
