@@ -29,6 +29,8 @@ import {
   createShareToken,
   consumeShareToken,
   revokeShareToken,
+  validateShareAccess,
+  recordIdInShareScope,
   buildAuditEntry,
   VaultShareError,
   type VaultShareToken,
@@ -38,6 +40,7 @@ import {
   getHealthRecords,
   getHealthRecordsByIds,
   getRecentHealthRecords,
+  getHealthRecordById,
   type HealthRecord,
 } from '../../services/health/vaultRecord.js';
 import { getErrorTracker } from '../../services/observability/index.js';
@@ -285,9 +288,24 @@ router.get(
       // Orden uploadedAt desc para el viewer
       records.sort((a, b) => b.uploadedAt - a.uploadedAt);
 
+      // SECURITY: nunca enviamos el fileUri crudo al navegador del médico —
+      // una URL directamente fetcheable sobreviviría a la revocación. Lo
+      // reemplazamos por un path mediado por el server que re-valida el share
+      // (revokedAt/expiry/secret/scope) en CADA acceso al archivo.
+      const safeRecords = records.map((r) => {
+        const { fileUri, ...rest } = r;
+        const hasFile = typeof fileUri === 'string' && fileUri.length > 0;
+        return {
+          ...rest,
+          fileProxyPath: hasFile
+            ? `/api/health-vault/view/${encodeURIComponent(tokenId)}/${encodeURIComponent(secret)}/file/${encodeURIComponent(r.id)}`
+            : undefined,
+        };
+      });
+
       return res.status(200).json({
         workerName,
-        records,
+        records: safeRecords,
         topicHint: result.topicHint,
         expiresAt: record.expiresAt,
       });
@@ -295,6 +313,134 @@ router.get(
       logger.error('health_vault_view_failed', err);
       sentryCapture(err, { endpoint: '/api/health-vault/view/:tokenId/:secret', tags: { method: 'GET' } });
       return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// GET /api/health-vault/view/:tokenId/:secret/file/:recordId
+//
+// PÚBLICO (sin verifyAuth, igual que /view — el médico no tiene cuenta).
+// Sirve el archivo (blob) de UN record dentro del scope del share. Re-valida
+// el share (revoked/expired/secret) sobre datos FRESCOS y transaccionales en
+// CADA fetch, por lo que un share revocado/expirado NUNCA entrega el archivo
+// y la URL no sobrevive a la revocación. NO consume una unidad de maxConsumes
+// (un viewer con N archivos no debe gastar N vistas). Reusa healthVaultViewLimiter.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+router.get(
+  '/view/:tokenId/:secret/file/:recordId',
+  healthVaultViewLimiter,
+  async (req, res) => {
+    const { tokenId, secret, recordId } = req.params;
+    if (!tokenId || !secret || !recordId) {
+      return res.status(400).json({ error: 'invalid_request' });
+    }
+    try {
+      const located = await findShareById(tokenId);
+      if (!located) {
+        return res.status(404).json({ error: 'invalid' });
+      }
+
+      const shareRef = admin
+        .firestore()
+        .collection('users')
+        .doc(located.workerUid)
+        .collection('health_vault_shares')
+        .doc(located.id);
+
+      // CLAUDE.md #19: re-read + re-validate el share DENTRO de una
+      // transacción sobre datos FRESCOS, para que la revocación se aplique
+      // por cada acceso a archivo (TOCTOU-safe). No hay write aquí -> no
+      // consume vista; sólo necesitamos una lectura consistente.
+      let fresh: VaultShareToken;
+      try {
+        fresh = await admin.firestore().runTransaction(async (txn) => {
+          const snap = await txn.get(shareRef);
+          if (!snap.exists) {
+            throw new VaultShareError('Token not found', 'invalid_token');
+          }
+          const data = snap.data() as VaultShareToken;
+          validateShareAccess(data, secret);
+          return data;
+        });
+      } catch (err) {
+        if (err instanceof VaultShareError) {
+          const httpStatus =
+            err.code === 'invalid_token' ? 401 : err.code === 'malformed' ? 400 : 410;
+          return res.status(httpStatus).json({ error: err.code });
+        }
+        throw err;
+      }
+
+      const record = await getHealthRecordById(fresh.workerUid, recordId);
+      if (!record) {
+        return res.status(404).json({ error: 'file_unavailable' });
+      }
+      if (
+        !recordIdInShareScope(fresh, recordId, {
+          recordUploadedAt: record.uploadedAt,
+          recentDaysBack: RECENT_DAYS_BACK,
+        })
+      ) {
+        return res.status(403).json({ error: 'out_of_scope' });
+      }
+      if (typeof record.fileUri !== 'string' || record.fileUri.length === 0) {
+        return res.status(404).json({ error: 'file_unavailable' });
+      }
+
+      // Audit ANTES de servir, para que un acceso que pasó la validación
+      // deje siempre rastro (CLAUDE.md #14: awaited, no bloqueante si falla).
+      try {
+        await admin.firestore().collection('audit_logs').add({
+          ...buildAuditEntry('health_vault.share.file_accessed', fresh, {
+            recordId,
+            ipHash: hashIp(req.ip),
+          }),
+          userId: fresh.workerUid,
+        });
+      } catch (auditErr) {
+        logger.error('health_vault_file_audit_failed', auditErr);
+        sentryCapture(auditErr, {
+          endpoint: '/api/health-vault/view/:tokenId/:secret/file/:recordId',
+          trigger: 'audit',
+        });
+        // no bloqueante: continuamos sirviendo el archivo (CLAUDE.md #14)
+      }
+
+      // Stream del blob server-side. record.fileUri es el path del objeto en
+      // Storage (admin SDK bypassa storage.rules por diseño — la validación
+      // del share de arriba ES el control de acceso).
+      const bucket = admin.storage().bucket();
+      const objectPath = record.fileUri.replace(/^gs:\/\/[^/]+\//, '');
+      const fileHandle = bucket.file(objectPath);
+      const [exists] = await fileHandle.exists();
+      if (!exists) {
+        return res.status(404).json({ error: 'file_unavailable' });
+      }
+      const [metadata] = await fileHandle.getMetadata();
+      if (metadata.contentType) res.setHeader('Content-Type', metadata.contentType);
+      // Defensa en profundidad: un share revocado no debe quedar cacheado.
+      res.setHeader('Cache-Control', 'no-store, private, max-age=0');
+      res.setHeader('Content-Disposition', 'inline');
+
+      await new Promise<void>((resolve, reject) => {
+        fileHandle
+          .createReadStream()
+          .on('error', reject)
+          .on('end', resolve)
+          .pipe(res);
+      });
+      return;
+    } catch (err) {
+      logger.error('health_vault_file_failed', err);
+      sentryCapture(err, {
+        endpoint: '/api/health-vault/view/:tokenId/:secret/file/:recordId',
+        tags: { method: 'GET' },
+      });
+      if (!res.headersSent) {
+        return res.status(500).json({ error: 'internal_error' });
+      }
+      return res.end();
     }
   },
 );

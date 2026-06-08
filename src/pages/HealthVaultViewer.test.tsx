@@ -117,4 +117,32 @@ describe('HealthVaultViewer', () => {
     await waitFor(() => screen.getByText(/expiró/i));
     expect(screen.getByText('Praeventio nunca diagnostica.')).toBeTruthy();
   });
+
+  it('renders the file link from server fileProxyPath, never a raw fileUri', async () => {
+    fetchMock.mockResolvedValueOnce({
+      status: 200,
+      json: async () => ({
+        workerName: 'Juan Pérez',
+        records: [
+          {
+            id: 'r1',
+            workerUid: 'w1',
+            type: 'imaging',
+            uploadedAt: Date.now(),
+            uploadedBy: 'doctor',
+            meta: { title: 'RX columna' },
+            tags: [],
+            shareScope: 'shared-via-qr',
+            fileProxyPath: '/api/health-vault/view/tok/sec/file/r1',
+          },
+        ],
+        expiresAt: Date.now() + 86_400_000,
+      }),
+    });
+    renderAt('/vault/share/tok/sec');
+    const link = await screen.findByText('Ver archivo');
+    expect(link.getAttribute('href')).toBe('/api/health-vault/view/tok/sec/file/r1');
+    // never points at a raw Storage / signed URL
+    expect(link.getAttribute('href')).not.toMatch(/^https?:\/\//);
+  });
 });

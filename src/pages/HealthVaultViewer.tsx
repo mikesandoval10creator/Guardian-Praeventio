@@ -25,9 +25,14 @@ type ViewerState =
   | { kind: 'rate_limited' }
   | { kind: 'network_error' };
 
+// El /view ya NO devuelve el fileUri crudo: cada record trae un
+// fileProxyPath emitido por el server, que rutea el blob por el endpoint
+// que re-valida la revocación en cada acceso (nunca sobrevive a la revocación).
+type ViewerRecord = Omit<HealthRecord, 'fileUri'> & { fileProxyPath?: string };
+
 interface ViewerSuccessPayload {
   workerName: string;
-  records: HealthRecord[];
+  records: ViewerRecord[];
   topicHint?: string;
   expiresAt: number;
 }
@@ -212,9 +217,9 @@ function SuccessView({ data }: { data: ViewerSuccessPayload }) {
                   </p>
                 )}
               </div>
-              {r.fileUri && (
+              {r.fileProxyPath && (
                 <a
-                  href={r.fileUri}
+                  href={r.fileProxyPath}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-teal-700 dark:text-teal-300 underline shrink-0"

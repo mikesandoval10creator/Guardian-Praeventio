@@ -5,6 +5,8 @@ import {
   consumeShareToken,
   revokeShareToken,
   verifySecret,
+  validateShareAccess,
+  recordIdInShareScope,
   buildAuditEntry,
   VaultShareError,
   DEFAULT_TTL_HOURS,
@@ -278,5 +280,116 @@ describe('buildAuditEntry', () => {
       viewerName: 'Dr. Zapata',
     });
     expect(audit.details.viewerName).toBe('Dr. Zapata');
+  });
+
+  it('accepts the file_accessed action', () => {
+    const { record } = createShareToken({ workerUid: 'w1', scope: 'full', now });
+    const audit = buildAuditEntry('health_vault.share.file_accessed', record, {
+      recordId: 'r1',
+    });
+    expect(audit.action).toBe('health_vault.share.file_accessed');
+    expect(audit.details.recordId).toBe('r1');
+  });
+});
+
+describe('validateShareAccess (non-consuming re-check for the file proxy)', () => {
+  it('passes for a fresh valid share + correct secret', () => {
+    const { record, secret } = createShareToken({ workerUid: 'w1', scope: 'full', now });
+    expect(() => validateShareAccess(record, secret, { now })).not.toThrow();
+  });
+
+  it('throws revoked when revokedAt set', () => {
+    const { record, secret } = createShareToken({ workerUid: 'w1', scope: 'full', now });
+    expect(() =>
+      validateShareAccess({ ...record, revokedAt: FIXED_NOW }, secret, { now }),
+    ).toThrow(/revoked/i);
+  });
+
+  it('throws expired past expiresAt', () => {
+    const { record, secret } = createShareToken({ workerUid: 'w1', scope: 'full', now });
+    expect(() =>
+      validateShareAccess(record, secret, { now: () => record.expiresAt + 1 }),
+    ).toThrow(/expired/i);
+  });
+
+  it('throws max_consumes_reached at the cap', () => {
+    const { record, secret } = createShareToken({
+      workerUid: 'w1',
+      scope: 'full',
+      maxConsumes: 1,
+      now,
+    });
+    expect(() =>
+      validateShareAccess({ ...record, consumeCount: 1 }, secret, { now }),
+    ).toThrow(/max consumes/i);
+  });
+
+  it('throws invalid_token on wrong secret', () => {
+    const { record } = createShareToken({ workerUid: 'w1', scope: 'full', now });
+    expect(() => validateShareAccess(record, 'wrong-secret', { now })).toThrow(
+      /invalid/i,
+    );
+  });
+
+  it('does NOT mutate the record (no consumeCount increment)', () => {
+    const { record, secret } = createShareToken({ workerUid: 'w1', scope: 'full', now });
+    validateShareAccess(record, secret, { now });
+    expect(record.consumeCount).toBe(0);
+  });
+});
+
+describe('recordIdInShareScope', () => {
+  it('full scope without subset exposes any record', () => {
+    const { record } = createShareToken({ workerUid: 'w1', scope: 'full', now });
+    expect(recordIdInShareScope(record, 'rec_anything')).toBe(true);
+  });
+
+  it('full scope WITH explicit subset honors the subset', () => {
+    const { record } = createShareToken({
+      workerUid: 'w1',
+      scope: 'full',
+      recordIds: ['rec_1'],
+      now,
+    });
+    expect(recordIdInShareScope(record, 'rec_1')).toBe(true);
+    expect(recordIdInShareScope(record, 'rec_2')).toBe(false);
+  });
+
+  it('topic scope only exposes pinned recordIds', () => {
+    const { record } = createShareToken({
+      workerUid: 'w1',
+      scope: 'topic',
+      topic: 'lumbalgia',
+      recordIds: ['rec_5'],
+      now,
+    });
+    expect(recordIdInShareScope(record, 'rec_5')).toBe(true);
+    expect(recordIdInShareScope(record, 'rec_9')).toBe(false);
+  });
+
+  it('recent scope honors the day-window cutoff (parity with /view)', () => {
+    const fixed = () => FIXED_NOW;
+    const { record } = createShareToken({ workerUid: 'w1', scope: 'recent', now: fixed });
+    const within = FIXED_NOW - 10 * 24 * 60 * 60 * 1000; // 10 days old
+    const outside = FIXED_NOW - 200 * 24 * 60 * 60 * 1000; // 200 days old
+    expect(
+      recordIdInShareScope(record, 'rec_recent', {
+        recordUploadedAt: within,
+        recentDaysBack: 90,
+        now: fixed,
+      }),
+    ).toBe(true);
+    expect(
+      recordIdInShareScope(record, 'rec_old', {
+        recordUploadedAt: outside,
+        recentDaysBack: 90,
+        now: fixed,
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects empty/non-string recordId', () => {
+    const { record } = createShareToken({ workerUid: 'w1', scope: 'full', now });
+    expect(recordIdInShareScope(record, '')).toBe(false);
   });
 });
