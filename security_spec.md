@@ -362,7 +362,7 @@ decryptable; no migration on rotation).
     client writes denied; only the server mutates share state.
 45. **Cross-Worker Share Read**: worker B reads worker A's
     `/users/A/health_vault_shares/*` — read is owner/doctor/admin only.
-49. **Revoked Share File Fetch**: a doctor who scanned the QR pre-revocation
+57. **Revoked Share File Fetch**: a doctor who scanned the QR pre-revocation
     re-requests the medical file blob AFTER the worker revoked (or after expiry)
     via `GET /api/health-vault/view/:tokenId/:secret/file/:recordId`. The
     endpoint re-reads the share doc inside a `runTransaction` and runs
