@@ -140,6 +140,19 @@ service cloud.firestore {
       return resource.data;
     }
 
+    // A `nodes` doc whose metadata carries a worker's raw RUT (Chilean national
+    // ID) — written by the DS 67 (INCIDENT) and DS 109 (MEDICINE) legal-form
+    // modals (src/components/medicine/Ds67Modal.tsx, Ds109Modal.tsx). The RUT is
+    // medical/injury PII and must NOT be readable by every project member; it is
+    // restricted to the node author + admin/supervisor (the staff who file the
+    // DIAT/DIEP to the mutualidad). Null-safe: false when metadata or the key is
+    // absent, so ordinary (non-PII) nodes keep member-readability.
+    function nodeHasWorkerRut(data) {
+      return 'metadata' in data
+        && data.metadata is map
+        && 'workerRut' in data.metadata;
+    }
+
     // ===============================================================
     // ENTITY VALIDATION HELPERS (Blueprints)
     // ===============================================================
@@ -691,12 +704,19 @@ service cloud.firestore {
     }
 
     match /nodes/{nodeId} {
+      // PRIVACY (2026-06-08): nodes whose metadata carries a worker's raw RUT
+      // (DS 67 / DS 109 legal-form modals) are medical/injury PII. They MUST NOT
+      // be readable by every project member — only the node author and
+      // admin/supervisor (the staff who file the DIAT/DIEP). Ordinary nodes keep
+      // member-readability. The RUT stays in the node so SusesoReports.tsx (which
+      // reads selectedIncident.metadata.workerRut for the DIAT/DIEP form) still
+      // renders the real identifier for those authorized readers.
       allow read: if isEmailVerified() && (
         existing().isPublic == true ||
-        isProjectMember(existing().projectId) ||
         existing().metadata.authorId == request.auth.uid ||
         isAdmin() ||
-        isSupervisor()
+        isSupervisor() ||
+        (isProjectMember(existing().projectId) && !nodeHasWorkerRut(existing()))
       );
       allow create: if isEmailVerified() && isValidNode(incoming()) && incoming().metadata.authorId == request.auth.uid;
       allow update: if isEmailVerified() && isValidNode(incoming()) && (

@@ -474,5 +474,27 @@ path (Caso A) is unchanged. Rules tests:
     (minutes/resolutions/attendees/status) untouched — denied; only a genuine
     append over the unchanged existing prefix is permitted.
 
+## Worker-RUT PII over-exposure in `nodes` — read gate (PRIVACY, fixed 2026-06-08)
+
+The DS 67 (INCIDENT) and DS 109 (MEDICINE) legal-form modals
+(`src/components/medicine/Ds67Modal.tsx:215`, `Ds109Modal.tsx:249`) build a
+`nodes` document whose `metadata.workerRut` carries a worker's RAW RUT (Chilean
+national ID). The `nodes` read rule granted read to **any** project member
+(`isProjectMember(existing().projectId)`), so a single worker's national ID —
+on an accident or occupational-disease record — was readable by **every**
+co-worker on the project. Fix: ordinary nodes stay member-readable, but a node
+carrying `metadata.workerRut` is restricted to the node author
+(`metadata.authorId`, stamped server-side by `networkBackend.ts:83`), admin, and
+supervisor — exactly the staff who file the DIAT/DIEP via `SusesoReports.tsx`
+(reads `selectedIncident.metadata.workerRut`), so the RUT stays in the node and
+the legal form still renders for authorized readers. Helper `nodeHasWorkerRut()`
+is null-safe. Rules tests: `src/rules-tests/nodesWorkerRut.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+56. **RUT Peer Snoop**: a plain project member (not author/admin/supervisor)
+    `get`s `/nodes/n1` whose `metadata.workerRut` is set — denied; the national
+    ID of an injured/diagnosed co-worker is not visible to all peers.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
