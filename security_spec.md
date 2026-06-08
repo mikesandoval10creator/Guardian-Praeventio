@@ -233,5 +233,25 @@ sub-collection master-gate. Rules tests: `src/rules-tests/clinicalAlerts.rules.t
     where `signedAt` is already set.
 17. **Compliance Delete**: `delete /projects/p1/stoppages/s1` (even as admin).
 
+## Public DEA registry (dea_locations) — public read, member write (#4, added 2026-06-08)
+
+`dea_locations/{id}` is a TOP-LEVEL **public** AED registry: a bystander in a
+cardiac arrest finds the nearest defibrillator WITHOUT login (life-safety public
+good, ADR 0021). `read: if true`. Write is gated to members of the OWNING project
+(`isProjectMember(incoming().projectId)`) plus a strict schema
+(`isValidDeaLocation`: only `location` / `coordinates` / `status` / `projectId` /
+`updatedAt`; coordinates required; no PII). Mirrored from a project's
+`projects/{pid}/deas` by DEAZones. Rules tests:
+`src/rules-tests/deaLocations.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+35. **Public Map Poison**: an anonymous (logged-out) `create /dea_locations/x` —
+    randoms must not be able to pollute the public defibrillator map.
+36. **Cross-project DEA Publish**: a non-member publishing a `dea_locations` doc
+    for a project they do not belong to.
+37. **PII Smuggle**: `{ ...dea, "assignedToName": "Juan Pérez" }` — fields beyond
+    the public schema are rejected (no personal data leaks onto the public map).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

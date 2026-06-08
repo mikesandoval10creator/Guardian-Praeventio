@@ -212,6 +212,19 @@ service cloud.firestore {
              data.createdAt is string && data.createdAt.size() > 0;
     }
 
+    // #4 — public DEA (AED) registry schema. Only public-good fields; coordinates
+    // are REQUIRED (the whole point is a geolocated finder). No PII, no
+    // responsible person, no inspection dates.
+    function isValidDeaLocation(data) {
+      return data.keys().hasOnly(['location', 'coordinates', 'status', 'projectId', 'updatedAt']) &&
+             data.keys().hasAll(['location', 'coordinates', 'status', 'projectId']) &&
+             data.location is string && data.location.size() > 0 && data.location.size() <= 200 &&
+             data.coordinates is map &&
+             data.coordinates.lat is number && data.coordinates.lng is number &&
+             data.status in ['operational', 'warning', 'critical'] &&
+             isValidId(data.projectId);
+    }
+
     function isValidPost(data) {
       return data.keys().hasAll(['userId', 'content', 'type', 'createdAt']) &&
              data.keys().size() <= 20 &&
@@ -676,6 +689,21 @@ service cloud.firestore {
       // nivel app — `audit_logs` registran cambios).
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // #4 — PUBLIC defibrillator (AED) registry. A bystander in a cardiac arrest
+    // finds the nearest DEA WITHOUT login (life-safety public good, like an open
+    // AED map; ADR 0021 — life-safety is never gated). No PII / no
+    // company-private data — only a public location label, coordinates, status
+    // and the source project id (mirrored from a project's per-project `deas` by
+    // a member of that project). Read is open; WRITE is gated to members of the
+    // owning project so randoms can't pollute the public map. Anonymous read +
+    // write-deny are exercised by src/rules-tests/deaLocations.rules.test.ts.
+    match /dea_locations/{deaLocationId} {
+      allow read: if true;
+      allow create, update: if isProjectMember(incoming().projectId)
+        && isValidDeaLocation(incoming());
+      allow delete: if isProjectMember(existing().projectId);
     }
 
     match /audit_logs/{logId} {
