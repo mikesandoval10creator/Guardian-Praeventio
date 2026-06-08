@@ -606,7 +606,11 @@ router.post('/referee/:token', refereeLimiter, async (req, res) => {
               declined: true,
               signedAt: new Date().toISOString(),
               signature,
-              method: method ?? 'standard',
+              // F4: never persist the cryptographic 'webauthn' label on an
+              // unauthenticated referee slot, not even on a decline. A client
+              // 'webauthn' intent becomes the truthful 'device_attested'
+              // (local proof-of-presence); everything else is 'standard'.
+              method: method === 'webauthn' ? 'device_attested' : 'standard',
             }
           : r,
       );
@@ -624,7 +628,17 @@ router.post('/referee/:token', refereeLimiter, async (req, res) => {
       return res.json({ success: true, verified: false, declined: true });
     }
 
-    // Cosign path: delegate to the service.
+    // Cosign path: delegate to the service. Resolve the TRUTHFUL stored
+    // method. The referee has no enrolled credential and no verifyAuth uid,
+    // so a real verifyWebAuthnAssertion is structurally impossible on this
+    // public path (see src/server/auth/webauthnAssertion.ts — it needs a uid
+    // plus an enrolled credential where stored.uid===uid). A client
+    // 'webauthn' intent is therefore recorded as 'device_attested' (local
+    // proof-of-presence), NEVER as a cryptographically verified signature.
+    // webauthnVerified stays false so the service refuses to mint a 'webauthn'
+    // label for an unauthenticated stranger.
+    const resolvedMethod: 'device_attested' | 'standard' =
+      method === 'webauthn' ? 'device_attested' : 'standard';
     const audit = buildCurriculumAuditor(
       null,
       null,
@@ -634,15 +648,16 @@ router.post('/referee/:token', refereeLimiter, async (req, res) => {
     const result = await curriculumEndorse(
       claimId,
       rawToken,
-      { signature, method: method as 'webauthn' | 'standard' },
+      { signature, method: resolvedMethod, webauthnVerified: false },
       admin.firestore() as any,
       audit,
     );
-    return res.json({ success: true, verified: result.verified });
+    return res.json({ success: true, verified: result.verified, method: resolvedMethod });
   } catch (error: any) {
     const message = error?.message || 'Internal server error';
     if (/expired/i.test(message)) return res.status(410).json({ error: message });
     if (/already/i.test(message)) return res.status(409).json({ error: message });
+    if (/invalid endorsement/i.test(message)) return res.status(400).json({ error: message });
     if (/token|match/i.test(message)) return res.status(404).json({ error: message });
     logger.error('curriculum_referee_endorse_failed', { message });
     captureRouteError(error, 'curriculum.referee_endorse');

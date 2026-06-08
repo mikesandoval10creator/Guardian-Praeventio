@@ -217,7 +217,10 @@ describe('recordRefereeEndorsement', () => {
     const r = await recordRefereeEndorsement(
       id,
       rawTokens[0],
-      { signature: 'cosign-bytes-base64', method: 'webauthn' },
+      // F4: a direct service caller using method='webauthn' must assert a
+      // real server-side verification ran (webauthnVerified). The public route
+      // never sets this; this exercises the future verified-referee path.
+      { signature: 'cosign-bytes-base64', method: 'webauthn', webauthnVerified: true },
       db,
       audit,
     );
@@ -240,7 +243,8 @@ describe('recordRefereeEndorsement', () => {
     await recordRefereeEndorsement(
       id,
       rawTokens[0],
-      { signature: 'sig-a', method: 'webauthn' },
+      // F4: webauthn requires the verified flag (see note above).
+      { signature: 'sig-a', method: 'webauthn', webauthnVerified: true },
       db,
       audit,
     );
@@ -309,6 +313,94 @@ describe('recordRefereeEndorsement', () => {
       recordRefereeEndorsement(id, rawTokens[0], { signature: 'b', method: 'standard' }, db, audit),
     ).rejects.toThrow(/already/i);
     expect(calls.filter((c) => c.action === 'curriculum.claim.verified')).toHaveLength(0);
+  });
+});
+
+// --- F4: webauthn integrity guard ----------------------------------------
+//
+// recordRefereeEndorsement is the single chokepoint that writes the immutable
+// referee slot. It must NEVER persist method='webauthn' (a claim of a
+// server-verified cryptographic assertion) unless the caller proves the
+// verification actually ran (webauthnVerified:true). The public magic-link
+// route never sets that flag, so an unauthenticated referee cannot fabricate
+// a cryptographic co-signature.
+
+describe('recordRefereeEndorsement — F4 webauthn integrity guard', () => {
+  /** Seed a pending claim and return id + raw tokens (real createClaim). */
+  async function seedPending(): Promise<{
+    id: string;
+    rawTokens: [string, string];
+    db: MinimalClaimsDb;
+    store: Map<string, CurriculumClaim>;
+  }> {
+    const { db, store, addedIds } = makeDb();
+    const { audit } = makeAudit();
+    const r = await createClaim(basePayload, db, audit);
+    return {
+      id: addedIds[0],
+      rawTokens: r.refereeTokens as [string, string],
+      db,
+      store,
+    };
+  }
+
+  it('throws when method=webauthn without webauthnVerified (no fabricated crypto claim)', async () => {
+    const { id, rawTokens, db, store } = await seedPending();
+    const { audit } = makeAudit();
+    await expect(
+      recordRefereeEndorsement(
+        id,
+        rawTokens[0],
+        { signature: 'webauthn:2026-06-08T00:00:00Z', method: 'webauthn' },
+        db,
+        audit,
+      ),
+    ).rejects.toThrow(/invalid endorsement/i);
+    // Nothing was written: the slot is still unsigned.
+    const slot = store.get(id)!.referees[0];
+    expect(slot.signedAt).toBeNull();
+    expect(slot.method).toBeUndefined();
+  });
+
+  it('persists device_attested co-sign and stamps webauthnVerified:false in audit', async () => {
+    const { id, rawTokens, db, store } = await seedPending();
+    const { audit, calls } = makeAudit();
+    const r = await recordRefereeEndorsement(
+      id,
+      rawTokens[0],
+      {
+        signature: 'device-attested:2026-06-08T00:00:00Z',
+        method: 'device_attested',
+        webauthnVerified: false,
+      },
+      db,
+      audit,
+    );
+    expect(r.verified).toBe(false); // only 1 of 2 signed
+    const slot = store.get(id)!.referees[0];
+    expect(slot.method).toBe('device_attested');
+    expect(slot.signedAt).not.toBeNull();
+    const endorsed = calls.find((c) => c.action === 'curriculum.referee.endorsed');
+    expect(endorsed).toBeTruthy();
+    expect(endorsed!.details.method).toBe('device_attested');
+    expect(endorsed!.details.webauthnVerified).toBe(false);
+  });
+
+  it('allows method=webauthn when webauthnVerified:true (future enrolled-referee path)', async () => {
+    const { id, rawTokens, db, store } = await seedPending();
+    const { audit, calls } = makeAudit();
+    const r = await recordRefereeEndorsement(
+      id,
+      rawTokens[0],
+      { signature: 'real-assertion-bytes', method: 'webauthn', webauthnVerified: true },
+      db,
+      audit,
+    );
+    expect(r.verified).toBe(false);
+    const slot = store.get(id)!.referees[0];
+    expect(slot.method).toBe('webauthn');
+    const endorsed = calls.find((c) => c.action === 'curriculum.referee.endorsed');
+    expect(endorsed!.details.webauthnVerified).toBe(true);
   });
 });
 
