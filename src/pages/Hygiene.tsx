@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { 
-  Shield, 
-  Wind, 
-  Thermometer, 
-  Volume2, 
-  Activity, 
-  AlertTriangle, 
+import {
+  Shield,
+  Wind,
+  Thermometer,
+  Volume2,
+  Activity,
+  AlertTriangle,
   BarChart3,
   Plus,
   Loader2,
@@ -16,6 +16,11 @@ import {
 import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
+import { subscribeObligations } from '../services/legalCalendar/legalCalendarStore';
+import { computeCalendar } from '../services/legalCalendar/legalObligationsCalendar';
+import type { LegalObligation } from '../services/legalCalendar/legalObligationsCalendar';
+import { computeMonthlyHygieneTrend, computeMedicalExamCompliance } from './hygieneMetrics';
+import { logger } from '../utils/logger';
 import { AddHygieneModal } from '../components/hygiene/AddHygieneModal';
 import { NoiseMonitor } from '../components/hygiene/NoiseMonitor';
 import { SensoryFatigueMonitor } from '../components/hygiene/SensoryFatigueMonitor';
@@ -38,12 +43,40 @@ export function Hygiene() {
   const { nodes, loading } = useRiskEngine();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const hygieneNodes = nodes.filter(node => 
-    node.type === NodeType.HYGIENE && 
+  const hygieneNodes = nodes.filter(node =>
+    node.type === NodeType.HYGIENE &&
     (selectedProject ? node.projectId === selectedProject.id : true)
   );
 
   const alerts = hygieneNodes.filter(n => n.metadata.status === 'warning');
+
+  // REAL monthly exposure trend derived from the actual hygiene measurements
+  // (value / legal-limit per calendar month). Replaces the previously
+  // hardcoded bar array. Empty → honest empty state, not fake bars.
+  const trend = useMemo(() => computeMonthlyHygieneTrend(hygieneNodes), [hygieneNodes]);
+
+  // REAL occupational medical-exam compliance from the legal-obligations
+  // calendar (same source VigilanciaScheduler uses). `null` = "Sin datos".
+  const [medicalObligations, setMedicalObligations] = useState<LegalObligation[]>([]);
+
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    if (!projectId) {
+      setMedicalObligations([]);
+      return undefined;
+    }
+    const unsub = subscribeObligations(
+      projectId,
+      (list) => setMedicalObligations(list.filter((o) => o.kind === 'medical_exam')),
+      (err) => logger.warn('hygiene_medical_obligations_sub_error', { err: String(err) }),
+    );
+    return () => unsub();
+  }, [selectedProject?.id]);
+
+  const medicalExamCompliance = useMemo(
+    () => computeMedicalExamCompliance(computeCalendar(medicalObligations)),
+    [medicalObligations],
+  );
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
@@ -134,24 +167,34 @@ export function Hygiene() {
                 <option>{t('hygiene.last_6_months')}</option>
               </select>
             </div>
-            <div className="h-48 flex items-end justify-between gap-2">
-              {[40, 65, 45, 80, 55, 70, 90, 60, 45, 75, 50, 65].map((h, i) => (
-                <div 
-                  key={i} 
-                  className="flex-1 bg-emerald-500/20 hover:bg-emerald-500/40 transition-all rounded-t-lg relative group"
-                  style={{ height: `${h}%` }}
-                >
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    {h}% {t('hygiene.level')}
-                  </div>
+            {trend.hasData ? (
+              <>
+                <div className="h-48 flex items-end justify-between gap-2">
+                  {trend.bars.map((h, i) => (
+                    <div
+                      key={trend.labels[i] + i}
+                      className="flex-1 bg-emerald-500/20 hover:bg-emerald-500/40 transition-all rounded-t-lg relative group"
+                      style={{ height: `${Math.max(h, 2)}%` }}
+                    >
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                        {h}% {t('hygiene.level')}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="flex justify-between mt-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-              <span>Ene</span>
-              <span>Jun</span>
-              <span>Dic</span>
-            </div>
+                <div className="flex justify-between mt-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                  {trend.labels.map((label, i) => (
+                    <span key={label + i} className="capitalize">{label}</span>
+                  ))}
+                </div>
+                <p className="mt-3 text-[10px] text-zinc-600 font-medium">{t('hygiene.trend_caption')}</p>
+              </>
+            ) : (
+              <div className="h-48 flex flex-col items-center justify-center text-center">
+                <BarChart3 className="w-8 h-8 text-zinc-700 mb-3" />
+                <p className="text-zinc-500 text-sm">{t('hygiene.trend_empty')}</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -173,19 +216,27 @@ export function Hygiene() {
               <div className="p-4 rounded-2xl bg-zinc-800/50 border border-white/5">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm text-zinc-400">{t('hygiene.medical_exams')}</span>
-                  <span className="text-xs font-bold text-emerald-500">92%</span>
+                  <span className="text-xs font-bold text-emerald-500">
+                    {medicalExamCompliance !== null ? `${medicalExamCompliance}%` : t('hygiene.no_data')}
+                  </span>
                 </div>
                 <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: '92%' }} />
+                  <div
+                    className="h-full bg-emerald-500 rounded-full"
+                    style={{ width: `${medicalExamCompliance ?? 0}%` }}
+                  />
                 </div>
               </div>
               <div className="p-4 rounded-2xl bg-zinc-800/50 border border-white/5">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm text-zinc-400">{t('hygiene.vaccination')}</span>
-                  <span className="text-xs font-bold text-blue-500">78%</span>
+                  {/* No vaccination collection exists in the repo. Per founder
+                      directive we never fabricate a number — show "Sin datos"
+                      until a real immunization source is wired. */}
+                  <span className="text-xs font-bold text-zinc-500">{t('hygiene.no_data')}</span>
                 </div>
                 <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 rounded-full" style={{ width: '78%' }} />
+                  <div className="h-full bg-zinc-700 rounded-full" style={{ width: '0%' }} />
                 </div>
               </div>
             </div>
