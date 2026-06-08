@@ -968,9 +968,15 @@ varios contradicen un ✅ previo (Rule #1).
 - 🟡 **Guards #13/#17 NO wired** — `.husky/pre-commit` solo corre medical/convention/i18n/
   any-ratchet; `precommit-stub-guard` (#13) y `precommit-allowbackup-guard` (#17) no se
   referencian en husky/CI/package.json, pese a que CLAUDE.md dice "Enforced (PR #514)".
-- 🟡 **B16 sync:** `conflict_queue` (`conflictQueue.ts`, 238 LOC) **existe pero está muerto
-  y sin reglas** (resuelve la contradicción §16.2.2: 1432 ✅ vs 1463 CRÍTICA → la verdad es
-  "engine sí, feature no"); `meshPacket.ts:237` firma `'unsigned-dev'` nunca verificada;
+- ✅ **B16 sync `conflict_queue` cableado** (2026-06-08) — engine `conflictQueue.ts`
+  ahora consumido por `src/server/routes/conflictQueue.ts:1` (enqueue/list/mark-in-review/
+  resolve/reject, approver-gated `admin`/`gerente`, audited, idempotent via stable
+  `enqueuedAt`), montado `server.ts:1003` (`/api/sprint-k`), producer best-effort en
+  `src/components/OfflineSyncManager.tsx` (POST al detectar conflicto crítico), reglas
+  `firestore.rules` (`match /conflict_queue/{queueId}`, server-only writes + supervisor
+  read) + 7 rules-tests `src/rules-tests/conflictQueue.rules.test.ts` + supertest
+  `src/__tests__/server/conflictQueueRoute.test.ts` + Dirty-Dozen 45-47 + mount-order guard.
+- 🟡 **B16 sync (resto):** `meshPacket.ts:237` firma `'unsigned-dev'` nunca verificada;
   `encryptData` web es base64, no cifrado (`offlineStorage.ts`).
 - 🟡 **B4:** `Math.random` en ID `incidentRagService.ts:299` (Regla #15); incidents path
   mismatch (bundle root vs servicio tenant-scoped).

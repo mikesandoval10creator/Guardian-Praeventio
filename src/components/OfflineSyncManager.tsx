@@ -16,9 +16,13 @@ import {
   type DocSnapshot,
 } from '../services/sync/conflictResolver';
 import { logAuditAction } from '../services/auditService';
+import { useProject } from '../contexts/ProjectContext';
+import { apiAuthHeader } from '../lib/apiAuth';
 
 export function OfflineSyncManager() {
   const isOnline = useOnlineStatus();
+  const { selectedProject } = useProject();
+  const activeProjectId = selectedProject?.id ?? null;
 
   useEffect(() => {
     const handleSync = async (action: SyncAction) => {
@@ -101,11 +105,49 @@ export function OfflineSyncManager() {
                       for (const fc of manual) {
                         delete resolvedUpdate[fc.field];
                       }
+                      // In-session fast-path: surface to any approver already
+                      // viewing the ConflictResolutionDrawer.
                       window.dispatchEvent(
                         new CustomEvent('sync-critical-conflict', {
                           detail: c,
                         }),
                       );
+                      // Durability backstop (§12.2.2): persist the critical
+                      // conflict to the server-backed queue so it survives app
+                      // close until a gerente/admin resolves it. Best-effort —
+                      // must NOT block the sync flush. Needs an active project
+                      // to scope the queue (assertProjectMember validates it
+                      // server-side); skip + warn if none is selected rather
+                      // than guessing.
+                      if (activeProjectId) {
+                        try {
+                          const authHeader = await apiAuthHeader();
+                          if (authHeader) {
+                            await fetch(
+                              `/api/sprint-k/${encodeURIComponent(activeProjectId)}/conflict-queue/enqueue`,
+                              {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  Authorization: authHeader,
+                                },
+                                body: JSON.stringify({ conflict: c }),
+                              },
+                            );
+                          }
+                        } catch (enqErr) {
+                          logger.warn('Failed to persist critical conflict to queue', {
+                            collection: c.collection,
+                            docId: c.docId,
+                            error: enqErr,
+                          });
+                        }
+                      } else {
+                        logger.warn(
+                          'No active project — critical conflict not persisted to durable queue',
+                          { collection: c.collection, docId: c.docId },
+                        );
+                      }
                     }
                   }
 
@@ -344,7 +386,7 @@ export function OfflineSyncManager() {
       window.removeEventListener('force-sync-single', handleSingleSync);
       window.removeEventListener('sync-critical-conflict-resolved', handleManualResolution);
     };
-  }, [isOnline]);
+  }, [isOnline, activeProjectId]);
 
   return null;
 }
