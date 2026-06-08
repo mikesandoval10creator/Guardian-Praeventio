@@ -1,6 +1,6 @@
 {
   "_doc": "Ratchet baseline for scripts/check-any-ratchet.cjs. Per-file `as any` counts (production src, tests excluded). A file may only SHRINK: remove a cast -> regenerate with `node scripts/check-any-ratchet.cjs --write`. A file whose count GROWS (or a new file with `as any` absent here) fails the gate.",
-  "total": 160,
+  "total": 159,
   "counts": {
     "src/components/ai/GuardianVoiceAssistant.tsx": 2,
     "src/components/calendar/AddEventModal.tsx": 1,
@@ -94,7 +94,6 @@
     "src/services/scheduler/distributedLease.ts": 1,
     "src/services/slm/worker/slmWorker.ts": 2,
     "src/types/globals.d.ts": 1,
-    "src/utils/biometrics.ts": 1,
     "src/utils/deterministicRandom.ts": 1,
     "src/utils/logger.ts": 1
   }
