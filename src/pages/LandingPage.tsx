@@ -7,6 +7,7 @@ import {
   CheckCircle2, ArrowRight, Play, Star, Globe, Lock,
   FileSpreadsheet, FileText, Mail, Activity, Mic
 } from 'lucide-react';
+import { PublicEmergencyButton } from '../components/emergency/PublicEmergencyButton';
 
 interface LandingPageProps {
   onEnter: () => void;
@@ -98,6 +99,11 @@ export function LandingPage({ onEnter }: LandingPageProps) {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans overflow-x-hidden">
+
+      {/* Public, no-login emergency access (prototype-recovery #1): a person in
+          crisis reaches first-aid + call-for-help in one tap from the public
+          landing, BEFORE "Entrar". Self-contained — renders outside AppProviders. */}
+      <PublicEmergencyButton />
 
       {/* Skip link — primer foco al pulsar Tab. Visible solo cuando recibe
           foco gracias a `sr-only focus:not-sr-only`. WCAG 2.1 (2.4.1). */}
