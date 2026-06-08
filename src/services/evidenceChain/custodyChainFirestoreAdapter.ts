@@ -1,7 +1,7 @@
 // Persistence #11: custodyChainService adapter.
 // Schema:
 //   tenants/{tid}/evidence_artifacts/{hash}            ← content-addressed
-//   tenants/{tid}/evidence_artifacts/{hash}/events/{at} ← custody log subcoll
+//   tenants/{tid}/evidence_artifacts/{hash}/events/{at}_{randomId} ← custody log subcoll
 //
 // Indexes: (uploadedByUid, uploadedAt desc), (linkedNodeId), (kind, uploadedAt desc)
 // Events subcollection: (at desc), (eventKind, at desc)
@@ -10,6 +10,7 @@
 // is naturally idempotent at the storage layer.
 
 import type { EvidenceArtifact, CustodyEvent } from './custodyChainService.js';
+import { randomId } from '../../utils/randomId.js';
 
 export interface CustodyFirestoreDb {
   collection(path: string): any;
@@ -47,10 +48,15 @@ export class CustodyChainAdapter {
   }
 
   async appendEvent(event: CustodyEvent): Promise<void> {
-    // event id = at ISO timestamp (assumed unique per artifact)
+    // Doc id = `${at}_${randomId()}`. The ISO `at` prefix keeps ids roughly
+    // time-sortable for debugging; randomId() (crypto.randomUUID) guarantees
+    // uniqueness so two custody events stamped at the same instant CANNOT
+    // collide/overwrite — the custody trail is append-only. Reads order by the
+    // `at` field (see listEvents), not by doc id, so this is read-safe.
+    const eventId = `${event.at}_${randomId()}`;
     await this.db
       .collection(EV_PATH(this.tenantId, event.artifactHash))
-      .doc(event.at)
+      .doc(eventId)
       .set(event);
   }
 
