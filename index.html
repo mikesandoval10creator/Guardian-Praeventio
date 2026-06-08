@@ -22,7 +22,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" media="print" onload="this.media='all'" />
+    <!-- Load the font stylesheet directly. The previous async pattern
+         (media="print" onload="this.media='all'") relied on an INLINE event
+         handler, which our strict CSP (script-src nonce + strict-dynamic, no
+         'unsafe-inline') BLOCKS — so onload never fired, the media stayed
+         "print", and Inter never applied on screen (confirmed in the deployed
+         app's console). The matching `preload` above already warms it, so a
+         direct stylesheet load is not render-blocking in practice. -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
 
     <title>Praeventio Guard</title>
 
