@@ -37,6 +37,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useEmergency } from '../contexts/EmergencyContext';
 import { useManDownDetection } from '../hooks/useManDownDetection';
 import { DynamicEvacuationMap } from '../components/emergency/DynamicEvacuationMap';
+import { EmergencyMedicalCardEditor } from '../components/emergency/EmergencyMedicalCardEditor';
 import { EmergencyDashboard } from '../components/emergency/EmergencyDashboard';
 import { Asesor } from '../components/emergency/Asesor';
 import { db, doc, onSnapshot, setDoc, handleFirestoreError, OperationType } from '../services/firebase';
@@ -387,6 +388,10 @@ export function Emergency() {
             {/* Protocols List */}
             <div className="lg:col-span-2 space-y-6">
               <ManDownSupervisorWidget />
+              {/* #2 step 1 — the worker's on-device emergency medical card
+                  (blood type + allergies + opt-in consent). The TriageBeacon
+                  (step 2) reads it to pre-warn responders. */}
+              <EmergencyMedicalCardEditor />
               <DynamicEvacuationMap />
               
               {/* Man Down Control Panel */}
