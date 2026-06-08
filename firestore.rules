@@ -286,6 +286,37 @@ service cloud.firestore {
         allow create, update: if isOwner(userId);
         allow delete: if false;
       }
+
+      // ── HealthVault medical records (Sprint 25/26 Bucket VV, ADR 0012) ──
+      // `users/{uid}/health_vault/{recordId}` holds the worker's medical
+      // records (HealthRecord — lab results, imaging, audiometry, etc.;
+      // src/services/health/vaultRecord.ts). HIGHEST-privacy data + the
+      // file blobs are KMS-envelope-encrypted via `fileEncryptionKeyId`.
+      // Written ONLY by trusted server code (Admin SDK bypasses these rules)
+      // and NEVER read by the client SDK — the only read path is the
+      // server-side doctor `/api/health-vault/view/...` endpoint gated on a
+      // one-time share secret. So the client gets NOTHING: read+write denied.
+      match /health_vault/{recordId} {
+        allow read, write: if false;
+      }
+
+      // HealthVault share tokens (`users/{uid}/health_vault_shares/{tokenId}`,
+      // VaultShareToken — src/services/health/vaultShare.ts). Created /
+      // consumed / revoked ONLY by trusted server code (Admin SDK):
+      //   POST /api/health-vault/share            (create)
+      //   GET  /api/health-vault/view/:id/:secret (consume — public, doctor)
+      //   POST /api/health-vault/share/:id/revoke (revoke)
+      // The worker reads their OWN active-shares list with the client SDK
+      // (src/pages/HealthVaultShare.tsx:60) to see consume counts / expiry /
+      // revoke. Read = owner OR occupational doctor OR admin, mirroring the
+      // medical_exams privacy envelope. The doc stores only `tokenHash`
+      // (SHA-256) + `tokenPrefix`, never the raw secret (vaultShare.ts:71-75),
+      // so a read leaks no usable access token. ALL client writes denied →
+      // tokens are immutable + unforgeable; only the server mutates state.
+      match /health_vault_shares/{tokenId} {
+        allow read: if isOwner(userId) || isDoctor() || isAdmin();
+        allow write: if false;
+      }
     }
 
     match /projects/{projectId} {

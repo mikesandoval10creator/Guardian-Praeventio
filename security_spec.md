@@ -330,5 +330,35 @@ trail records the resolved `method` plus `webauthnVerified`.
     the rejected slot is coerced to `device_attested`/`standard`; the
     `webauthn` label never lands on an unauthenticated referee slot.
 
+## HealthVault medical records + share tokens — owner-read, server-only write (Bucket VV, added 2026-06-08)
+
+`users/{uid}/health_vault/{recordId}` (HealthRecord — medical records, KMS-
+envelope-encrypted file blobs via `fileEncryptionKeyId`) and
+`users/{uid}/health_vault_shares/{tokenId}` (VaultShareToken — QR share tokens)
+had NO rule → default-denied. This silently broke the worker's own active-shares
+list (`src/pages/HealthVaultShare.tsx:60` client read soft-failed). Both are
+written ONLY by trusted server code (Admin SDK): `/api/health-vault/share`
+(create), `/view/:id/:secret` (consume, public doctor endpoint), `/share/:id/revoke`.
+Records: client read+write fully denied (only the server `/view` endpoint reveals
+them, gated on a one-time share secret; the raw secret is never persisted —
+only its SHA-256 `tokenHash`). Share tokens: owner / occupational-doctor / admin
+read (mirrors the `medical_exams` privacy envelope); all client writes denied
+(immutable + unforgeable). Rules tests: `src/rules-tests/healthVault.rules.test.ts`.
+KMS: HealthRecord file blobs use the envelope DEK identified by
+`fileEncryptionKeyId` — see KMS_ROTATION.md (KEK rotation; old envelopes stay
+decryptable; no migration on rotation).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+43. **Vault Records Snoop**: an authenticated worker `get`/`list`
+    `/users/{victim}/health_vault/*` (or even their OWN) via the client SDK —
+    medical records are server-only; the client gets nothing.
+44. **Share Token Forge**: a worker `create`/`update`/`delete`
+    `/users/{self}/health_vault_shares/x` from the client (e.g. setting
+    `revokedAt: null`, `consumeCount: 0`, or a hand-crafted `tokenHash`) — all
+    client writes denied; only the server mutates share state.
+45. **Cross-Worker Share Read**: worker B reads worker A's
+    `/users/A/health_vault_shares/*` — read is owner/doctor/admin only.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
