@@ -3,18 +3,21 @@
 // Sprint 20 — Bucket D — DocsModal render/list/delete tests.
 
 import React from 'react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, cleanup, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { render, cleanup, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { Worker } from '../../types';
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 let lastSnapshotCb: ((snap: any) => void) | null = null;
 
+const addDocMock = vi.fn(async (..._args: any[]) => ({ id: 'doc-new' }));
+
 vi.mock('../../services/firebase', () => ({
   db: {},
-  collection: vi.fn(),
-  addDoc: vi.fn(async () => ({ id: 'doc-new' })),
+  storage: {},
+  collection: vi.fn((_db: any, path: string) => ({ path })),
+  addDoc: (...args: any[]) => addDocMock(...args),
   onSnapshot: vi.fn((_q: any, cb: any) => {
     lastSnapshotCb = cb;
     return () => { lastSnapshotCb = null; };
@@ -27,6 +30,13 @@ vi.mock('../../services/firebase', () => ({
   deleteDoc: vi.fn(async () => undefined),
   doc: vi.fn(),
   updateDoc: vi.fn(async () => undefined),
+}));
+
+// handleUpload dynamically imports firebase/storage — stub it so no network I/O.
+vi.mock('firebase/storage', () => ({
+  ref: vi.fn(() => ({})),
+  uploadBytes: vi.fn(async () => undefined),
+  getDownloadURL: vi.fn(async () => 'https://example.test/doc.pdf'),
 }));
 
 vi.mock('../../hooks/useRiskEngine', () => ({
@@ -74,6 +84,11 @@ const worker: Worker = {
   joinedAt: new Date().toISOString(),
 } as any;
 
+beforeEach(() => {
+  addDocMock.mockClear();
+  addDocMock.mockResolvedValue({ id: 'doc-new' });
+});
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -95,6 +110,24 @@ describe('DocsModal', () => {
     lastSnapshotCb?.({ docs: [] });
     // Component should not crash and modal stays mounted.
     expect(screen.getByText(/Juan Pérez/)).toBeInTheDocument();
+  });
+
+  it('writes archived:false on uploaded docs so they match the live listener', async () => {
+    const { container } = render(
+      <DocsModal isOpen={true} onClose={() => {}} worker={worker} projectId="proj-1" />
+    );
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+
+    const file = new File(['%PDF-1.4'], 'certificado.pdf', { type: 'application/pdf' });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => expect(addDocMock).toHaveBeenCalledTimes(1));
+    // The written object MUST carry archived:false — the onSnapshot query filters
+    // where('archived', '==', false); without it, uploads never surface in the list.
+    const written = (addDocMock.mock.calls[0] as unknown[])[1] as Record<string, unknown>;
+    expect(written.archived).toBe(false);
+    expect(written.name).toBe('certificado.pdf');
   });
 
   it('returns null branch when worker is null (no Firestore subscription)', () => {
