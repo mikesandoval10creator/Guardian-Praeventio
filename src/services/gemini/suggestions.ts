@@ -110,5 +110,5 @@ export const suggestNormativesWithAI = async (industry: string): Promise<unknown
     },
   });
 
-  return JSON.parse(response.text || '[]');
+  return parseGeminiJson(response);
 };

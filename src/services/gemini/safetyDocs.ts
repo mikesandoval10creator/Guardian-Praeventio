@@ -12,6 +12,7 @@
 //      (PTS / PE / AST).
 
 import { GoogleGenAI, Type } from '@google/genai';
+import { parseGeminiJson } from './parsing';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -78,7 +79,7 @@ export const generatePTS = async (
     },
   });
 
-  return JSON.parse(response.text || '{}');
+  return parseGeminiJson(response);
 };
 
 export const generatePTSWithManufacturerData = async (

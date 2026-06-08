@@ -294,7 +294,7 @@ export const analyzeRootCauses = async (
       },
     });
 
-    return JSON.parse(response.text || '{}');
+    return parseGeminiJson(response);
   } catch (error) {
     logger.error('Error analyzing root causes:', error);
     throw error;
