@@ -601,11 +601,21 @@ service cloud.firestore {
         allow delete: if isAdmin() || isSupervisor();
       }
       // SiteBook (libro de obras): legally-binding; immutable once signed.
+      // B9: signed state is marked by `status == 'signed'` + a nested
+      // `signature` map (signerUid/signedAt/algorithm/payloadHashHex) — this is
+      // the ONLY shape any write-path emits (signEntry() in siteBookService.ts,
+      // the adapter's tx.update({status:'signed',signature}), and the client
+      // store save()). The previous gate checked a TOP-LEVEL `signedAt` that no
+      // path ever wrote, so the clause was vacuously true and a signed record
+      // stayed mutable. We now deny ANY update once status is 'signed' (or a
+      // signature is already present). Corrections are NEW entries referencing
+      // the original folio (createCorrection()), never in-place mutations.
       match /site_book/{docId} {
         allow create: if isValidId(projectId) && isProjectMember(projectId)
           && incoming().recordedByUid == request.auth.uid;
         allow update: if isValidId(projectId) && isProjectMember(projectId)
-          && (!('signedAt' in existing()) || existing().signedAt == null)
+          && existing().status != 'signed'
+          && !('signature' in existing())
           && incoming().recordedByUid == existing().recordedByUid;
         allow delete: if false;
       }
@@ -613,7 +623,8 @@ service cloud.firestore {
         allow create: if isValidId(projectId) && isProjectMember(projectId)
           && incoming().recordedByUid == request.auth.uid;
         allow update: if isValidId(projectId) && isProjectMember(projectId)
-          && (!('signedAt' in existing()) || existing().signedAt == null)
+          && existing().status != 'signed'
+          && !('signature' in existing())
           && incoming().recordedByUid == existing().recordedByUid;
         allow delete: if false;
       }
