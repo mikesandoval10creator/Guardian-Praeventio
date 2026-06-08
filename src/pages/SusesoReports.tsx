@@ -23,6 +23,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { logger } from '../utils/logger';
 import { legalFormValue } from '../utils/legalFormValue';
+import { deriveDriveSaveStatus, type DriveSaveStatus } from '../utils/driveSaveStatus';
 import { useTranslation } from 'react-i18next';
 // §2.14 P0 SECURITY (cierre Fase C.1, 2026-05-21): el cliente
 // SusesoApiClient ya no se importa desde código browser. Razón doble:
@@ -65,8 +66,12 @@ export function SusesoReports() {
   const workerRut = legalFormValue(selectedIncident?.metadata?.workerRut);
   const workerRole = legalFormValue(selectedIncident?.metadata?.workerRole);
 
-  const [isSavingToDrive, setIsSavingToDrive] = useState(false);
-  const [savedToDrive, setSavedToDrive] = useState(false);
+  // Honest single-source status for the "Guardar en Drive" action. 'saved' is
+  // set ONLY from a verified upload result (see deriveDriveSaveStatus); a
+  // failure shows 'error' instead of a false green or a silent no-op.
+  const [driveStatus, setDriveStatus] = useState<DriveSaveStatus>('idle');
+  const isSavingToDrive = driveStatus === 'saving';
+  const savedToDrive = driveStatus === 'saved';
 
   // §2.14 (cierre Fase C.1, 2026-05-21): el path "Enviar a SUSESO" directo
   // se removió. El flujo correcto vive en src/server/routes/suseso.ts y se
@@ -102,10 +107,20 @@ export function SusesoReports() {
 
   const handleShareDocument = async () => {
     if (!selectedIncident || !selectedProject) return;
-    setIsSavingToDrive(true);
+    setDriveStatus('saving');
+
+    // Single honest outcome: success is decided ONLY from the real download URL
+    // produced by a fully completed upload + metadata persist. Any thrown step
+    // (missing element, canvas, upload, getDownloadURL, addDoc) lands in catch
+    // and is reported as 'error' — never a false 'saved'.
+    let downloadUrl: string | null = null;
     try {
       const reportElement = document.getElementById('suseso-form');
-      if (!reportElement) return;
+      if (!reportElement) {
+        // Honest failure instead of a silent no-op (button used to snap back to
+        // "Guardar en Drive" with no feedback when the form node was absent).
+        throw new Error('suseso-form element not found');
+      }
 
       const canvas = await html2canvas(reportElement, {
         scale: 2,
@@ -119,24 +134,28 @@ export function SusesoReports() {
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      
+
       // Get PDF as Blob
       const pdfBlob = pdf.output('blob');
-      
+
       // Upload to Firebase Storage
       const { storage, ref, uploadBytes, getDownloadURL, collection, addDoc, db } = await import('../services/firebase');
       const fileName = `${activeTab}_${selectedIncident.title.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
       const storageRef = ref(storage, `suseso_reports/${selectedProject.id}/${fileName}`);
-      
+
       await uploadBytes(storageRef, pdfBlob);
-      const downloadUrl = await getDownloadURL(storageRef);
-      
-      // Save metadata to Firestore
+      const url = await getDownloadURL(storageRef);
+
+      // Persist metadata to Firestore. A failure here means the document is NOT
+      // archived in the project library — it must surface as an honest error,
+      // not a green "Guardado". Rethrow so the outer catch owns the status and
+      // success can never be assigned after a lost metadata write (do NOT rely
+      // on handleFirestoreError's incidental throw — throw explicitly).
       try {
         await addDoc(collection(db, `projects/${selectedProject.id}/documents`), {
           name: `${activeTab}: ${selectedIncident.title}`,
           type: 'pdf',
-          url: downloadUrl,
+          url,
           projectId: selectedProject.id,
           category: 'SST',
           status: 'Vigente',
@@ -144,23 +163,27 @@ export function SusesoReports() {
           updatedAt: new Date().toISOString(),
           size: pdfBlob.size
         });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, `projects/${selectedProject.id}/documents`);
+      } catch (metaError) {
+        // Log with the redacted Firestore-error helper, then rethrow so the
+        // overall save is reported as failed (prevents the false-success path).
+        handleFirestoreError(metaError, OperationType.CREATE, `projects/${selectedProject.id}/documents`);
+        throw metaError;
       }
 
-      setSavedToDrive(true);
-      
-      // Reset after 3 seconds
-      setTimeout(() => {
-        setSavedToDrive(false);
-      }, 3000);
-      
+      // Only a real, non-empty URL reaches here without a throw.
+      downloadUrl = url;
     } catch (error) {
-      logger.error("Error sharing PDF:", error);
-      logger.error('Error saving to cloud storage.');
-    } finally {
-      setIsSavingToDrive(false);
+      logger.error('Error saving SUSESO report to cloud storage:', error);
     }
+
+    // Status is derived from the REAL outcome, never set positionally.
+    const status = deriveDriveSaveStatus({ downloadUrl });
+    setDriveStatus(status);
+
+    // Auto-clear the transient saved/error badge back to idle after 3s.
+    setTimeout(() => {
+      setDriveStatus('idle');
+    }, 3000);
   };
 
   return (
@@ -325,8 +348,10 @@ export function SusesoReports() {
                     onClick={handleShareDocument}
                     disabled={isSavingToDrive || savedToDrive || !isOnline}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-70 shadow-lg ${
-                      savedToDrive 
-                        ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20' 
+                      savedToDrive
+                        ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20'
+                        : driveStatus === 'error'
+                        ? 'bg-red-500 text-white hover:bg-red-600 shadow-red-500/20'
                         : 'bg-blue-500 text-white hover:bg-blue-600 shadow-blue-500/20'
                     }`}
                   >
@@ -339,6 +364,11 @@ export function SusesoReports() {
                       <>
                         <CheckCircle2 className="w-4 h-4" />
                         Guardado en Drive
+                      </>
+                    ) : driveStatus === 'error' ? (
+                      <>
+                        <AlertTriangle className="w-4 h-4" />
+                        No se pudo guardar
                       </>
                     ) : !isOnline ? (
                       <>
