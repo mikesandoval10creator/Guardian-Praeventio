@@ -1451,7 +1451,14 @@ service cloud.firestore {
           )
           ||
           // Caso B: APPEND-only a signatures[] — el resto debe quedar
-          // bit-a-bit idéntico (immutability post-firma).
+          // bit-a-bit idéntico (immutability post-firma). El array de
+          // firmas SÓLO puede crecer en exactamente 1 y DEBE preservar el
+          // prefijo existente sin reescribir ninguna firma previa: el nuevo
+          // array tiene que ser EXACTAMENTE el anterior + el elemento
+          // agregado al final (`concat`). Sin esto, un miembro podría
+          // enviar un array de tamaño N+1 con las firmas WebAuthn previas
+          // forjadas/reescritas (uid/credentialId/signature/signedAt) — el
+          // chequeo de tamaño solo NO lo impide.
           (incoming().committeeId == resource.data.committeeId
             && incoming().scheduledAt == resource.data.scheduledAt
             && incoming().agenda == resource.data.agenda
@@ -1461,6 +1468,10 @@ service cloud.firestore {
             && incoming().status == resource.data.status
             && incoming().signatures is list
             && incoming().signatures.size() == resource.data.signatures.size() + 1
+            && incoming().signatures
+               == resource.data.signatures.concat(
+                    [incoming().signatures[resource.data.signatures.size()]]
+                  )
           )
         );
       allow delete: if false;
