@@ -45,6 +45,18 @@ export interface Dea {
   createdAt: string;
   /** Quién creó el registro. */
   createdBy: string;
+  /**
+   * Optional geographic position, for the "DEA más cercano a mí" finder + map.
+   * Captured from the registrar's device (geolocation) or entered manually.
+   * Legacy records have no coordinates — the geo finder skips those.
+   */
+  coordinates?: GeoCoord;
+}
+
+/** A latitude/longitude point (WGS84 degrees). */
+export interface GeoCoord {
+  lat: number;
+  lng: number;
 }
 
 /**
@@ -138,4 +150,48 @@ export function isChecklistComplete(checklist: DeaInspection['checklist']): bool
     checklist.responseKitComplete &&
     checklist.cabinetIntactAlarmOperative
   );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Geo — "DEA más cercano a mí" (#4). Pure + deterministic, so it works offline
+// (a cardiac arrest is exactly when there's no time to wait for the network).
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Great-circle (haversine) distance in METRES between two lat/lng points.
+ * Deterministic; no side effects. Mean Earth radius 6 371 000 m.
+ */
+export function distanceMeters(a: GeoCoord, b: GeoCoord): number {
+  const R = 6_371_000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  // clamp guards against tiny FP overshoot of 1 → NaN from asin.
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/**
+ * The DEA closest to `from`, with its distance in metres. DEAs without
+ * `coordinates` are skipped (they cannot be located). Returns `null` when no
+ * DEA has coordinates. On ties the FIRST nearest wins (stable for a given list
+ * order).
+ */
+export function nearestDea(
+  deas: readonly Dea[],
+  from: GeoCoord,
+): { dea: Dea; distanceM: number } | null {
+  let best: { dea: Dea; distanceM: number } | null = null;
+  for (const dea of deas) {
+    if (!dea.coordinates) continue;
+    const distanceM = distanceMeters(from, dea.coordinates);
+    if (best === null || distanceM < best.distanceM) {
+      best = { dea, distanceM };
+    }
+  }
+  return best;
 }

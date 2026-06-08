@@ -19,6 +19,7 @@ import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { Card, Button } from '../components/shared/Card';
+import { NearestDeaFinder } from '../components/emergency/NearestDeaFinder';
 import {
   computeDeaStatus,
   isChecklistComplete,
@@ -63,6 +64,8 @@ interface RegisterForm {
   batteryExpiry: string;
   padsExpiry: string;
   assignedToName: string;
+  /** Captured from the registrar's device, for the "DEA más cercano" finder. */
+  coordinates?: { lat: number; lng: number };
 }
 
 const EMPTY_REGISTER: RegisterForm = {
@@ -216,6 +219,7 @@ export function DEAZones() {
       assignedToName: registerForm.assignedToName.trim(),
       createdAt: new Date().toISOString(),
       createdBy: user.uid,
+      ...(registerForm.coordinates ? { coordinates: registerForm.coordinates } : {}),
     };
 
     setSubmitting(true);
@@ -283,6 +287,10 @@ export function DEAZones() {
           {t('deaZones.registerNew', 'Registrar Nuevo DEA')}
         </Button>
       </div>
+
+      {/* #4 — "DEA más cercano a mí": geolocated public-good finder over the
+          registered DEAs (those with coordinates). */}
+      <NearestDeaFinder deas={deas} />
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -544,6 +552,36 @@ export function DEAZones() {
                   required
                   className="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-emerald-500"
                 />
+              </div>
+              {/* #4 — capture the DEA's geographic position so it shows up in the
+                  "nearest DEA to me" finder. Optional; can be set later. */}
+              <div>
+                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5">
+                  {t('deaZones.fieldCoordinates', 'Ubicación geográfica (para el buscador)')}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+                    navigator.geolocation.getCurrentPosition(
+                      (p) =>
+                        setRegisterForm((prev) => ({
+                          ...prev,
+                          coordinates: { lat: p.coords.latitude, lng: p.coords.longitude },
+                        })),
+                      () => {
+                        /* permission denied / unavailable → leave unset */
+                      },
+                      { enableHighAccuracy: true, timeout: 10_000 },
+                    );
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 py-2 text-sm font-bold text-emerald-400 hover:border-emerald-500"
+                >
+                  <MapPin className="h-4 w-4" />
+                  {registerForm.coordinates
+                    ? `${registerForm.coordinates.lat.toFixed(5)}, ${registerForm.coordinates.lng.toFixed(5)}`
+                    : t('deaZones.useMyLocation', 'Usar mi ubicación actual')}
+                </button>
               </div>
               <div>
                 <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5">
