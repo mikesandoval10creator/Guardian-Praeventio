@@ -396,7 +396,23 @@ service cloud.firestore {
       match /controls/{controlId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
       match /materials/{materialId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
       match /assets/{assetId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
-      match /workers/{workerId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
+      match /workers/{workerId} {
+        allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId);
+        // Worker documents (certs, contracts, EPP records, SUSESO docs) attached
+        // via DocsModal (client SDK addDoc/onSnapshot/deleteDoc). The schema
+        // carries `workerId` (the worker doc id, NOT a caller uid) → there is no
+        // anti-spoof field to bind, so create/update is plain member-gated like
+        // the sibling /documents and /findings rules. Read is already granted to
+        // project members by the sub-collection Master Gate (line ~329), so only
+        // create/update/delete need rules here. Deleting a worker document
+        // (compliance/legal trail) is restricted to admin/supervisor. Previously
+        // the nested `match /workers/{workerId}` declared NO documents sub-match
+        // → the worker Documentación feature was default-denied in production.
+        match /documents/{documentId} {
+          allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+          allow delete: if isAdmin() || isSupervisor();
+        }
+      }
 
       // Emergency events — members create, supervisors/admins update status
       match /emergency_events/{eventId} {
@@ -867,6 +883,21 @@ service cloud.firestore {
       );
       allow create: if isEmailVerified() && isProjectMember(incoming().projectId);
       allow delete: if isAdmin() || isSupervisor() || isProjectCreator(resource.data.projectId);
+    }
+
+    // Top-level worker documents — the projectId-less fallback of DocsModal
+    // (`workers/{workerId}/documents/{id}`, client SDK addDoc/onSnapshot/
+    // deleteDoc, fired when no project is selected). These are non-project-scoped
+    // personnel records (certs, contracts, EPP, SUSESO docs) with no project
+    // membership to check, so they are gated to prevention staff only
+    // (admin/supervisor) for read/create/update; deleting a worker document
+    // (compliance/legal trail) is likewise admin/supervisor. There is NO
+    // top-level `match /workers` block elsewhere, so this path was fully
+    // default-denied and the feature silently failed in that fallback.
+    match /workers/{workerId}/documents/{documentId} {
+      allow read: if isAdmin() || isSupervisor();
+      allow create, update: if isAdmin() || isSupervisor();
+      allow delete: if isAdmin() || isSupervisor();
     }
 
     // Driving reports — SafeDrivingMode writes; own user reads; supervisors/admins see all
