@@ -400,3 +400,25 @@ describe('reportIncident — validation', () => {
     expect(out.reason).toBe('empty_description');
   });
 });
+
+describe('reportIncident — crypto incidentId (CLAUDE.md #15)', () => {
+  it('auto-generated id keeps inc_<ts>_<6 alnum> shape and is unique across calls (crypto suffix)', async () => {
+    const fake = makeFakeFirestore();
+    const deps: ReportIncidentDeps = {
+      db: fake.db,
+      embed: async () => [0.1, 0.2],
+      // No `now` override → exercises DEFAULT_NOW + real randomId() suffix.
+    };
+    const ids = new Set<string>();
+    for (let i = 0; i < 50; i++) {
+      const out = await reportIncident('uid-r', basePayload({ id: undefined }), deps);
+      expect(out.ok).toBe(true);
+      if (!out.ok) return;
+      // Shape contract preserved (same regex the existing test pins).
+      expect(out.incidentId).toMatch(/^inc_\d+_[a-z0-9]{6}$/);
+      ids.add(out.incidentId);
+    }
+    // Crypto suffix → all unique even when Date.now() collides within the loop.
+    expect(ids.size).toBe(50);
+  });
+});

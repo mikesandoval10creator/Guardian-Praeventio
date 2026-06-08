@@ -31,6 +31,8 @@
 //     producto (gamificación SOLO positiva), no se castiga al reporter
 //     bajo ninguna circunstancia.
 
+import { randomId } from '../../utils/randomId';
+
 export interface IncidentReport {
   /** Identificador estable del incidente (DIAT, doc id, etc.). */
   id: string;
@@ -289,14 +291,18 @@ export interface ReportIncidentDeps extends IncidentRagDeps {
 }
 
 function generateIncidentId(now: () => unknown): string {
-  // Match commute.ts shape: prefix + ts + 6 random b36 chars.
+  // Match commute.ts shape: prefix + ts + 6 crypto chars.
+  // CLAUDE.md #15: the random suffix comes from randomId() (crypto.randomUUID,
+  // with a documented fallback) instead of Math.random. We strip dashes and
+  // take 6 hex chars — hex is [0-9a-f] ⊂ [a-z0-9], preserving the existing
+  // `inc_<ts>_<6 alnum>` id contract.
   const ts =
     typeof now === 'function'
       ? typeof now() === 'string'
         ? Date.now()
         : Date.now()
       : Date.now();
-  const rand = Math.random().toString(36).slice(2, 8);
+  const rand = randomId().replace(/-/g, '').slice(0, 6);
   return `inc_${ts}_${rand}`;
 }
 
