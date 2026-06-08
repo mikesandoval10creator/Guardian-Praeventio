@@ -183,6 +183,45 @@ dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/dte/sign-challenge  — F4 (Sprint 5): issue a single-use WebAuthn
+// challenge so an admin can biometrically sign a DTE. The client runs
+// navigator.credentials.get() with this challenge, then POSTs /generate with
+// the assertion + challengeId. Admin-only (signing is an admin/fallback
+// surface). Mirrors suseso.ts GET /form/:id/sign-challenge.
+//
+// MUST be declared BEFORE `GET /:folio` — otherwise Express routes
+// `/sign-challenge` into the `:folio` param handler (folio === 'sign-challenge').
+// ---------------------------------------------------------------------------
+dteRouter.get('/sign-challenge', verifyAuth, async (req: Request, res: Response) => {
+  if (!(await requireAdmin(req, res))) return undefined;
+  const callerUid = req.user?.uid as string;
+  try {
+    const { generateWebAuthnChallenge, storeWebAuthnChallenge } = await import(
+      '../../services/auth/webauthnChallenge.js'
+    );
+    const { buildWebAuthnDb } = await import('./curriculum.js');
+    const { challengeId, challenge } = generateWebAuthnChallenge();
+    await storeWebAuthnChallenge(callerUid, challengeId, challenge, buildWebAuthnDb());
+    return res.json({
+      challengeId,
+      challenge: Buffer.from(challenge).toString('base64'),
+      rpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+      ttlSeconds: 300,
+    });
+  } catch (err) {
+    logger.error(
+      'dte.sign_challenge failed',
+      err instanceof Error ? err : new Error(String(err)),
+    );
+    dteSentryCapture(err, {
+      endpoint: 'GET /api/dte/sign-challenge',
+      tags: { stage: 'challenge' },
+    });
+    return res.status(500).json({ error: 'dte_sign_challenge_failed' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/dte/:folio  — fetch live status from Bsale (admin or owner).
 // ---------------------------------------------------------------------------
 dteRouter.get('/:folio', verifyAuth, async (req: Request, res: Response) => {
@@ -300,9 +339,17 @@ const generateDteSchema = z.object({
   biometric: z
     .object({
       credentialId: z.string().min(1).max(512),
+      // rawId is usually identical to credentialId but the WebAuthn spec
+      // sends it separately; verifyAuthenticationResponse needs both.
+      rawId: z.string().min(1).max(512),
       signature: z.string().min(1),
       authenticatorData: z.string().min(1),
       clientDataJSON: z.string().min(1),
+      // challengeId returned by GET /api/dte/sign-challenge — binds this
+      // assertion to a single-use server-issued challenge (replay defense).
+      challengeId: z.string().min(1).max(256),
+      type: z.literal('public-key'),
+      clientExtensionResults: z.record(z.string(), z.unknown()).default({}),
     })
     .optional(),
 });
@@ -346,6 +393,56 @@ dteRouter.post('/generate', verifyAuth, idempotencyKey(), async (req: Request, r
   let signedAt: string | null = null;
   if (body.biometric) {
     try {
+      // F4 (Sprint 5) — CRYPTOGRAPHIC verification of the WebAuthn assertion
+      // MUST run BEFORE we embed any signature. verifyAndSignDte only checks
+      // credential ownership + hash binding; the actual COSE-pubkey signature
+      // check, origin/RPID binding, single-use challenge consume, and
+      // counter-monotonicity all live in the canonical verifier (the same one
+      // SUSESO / SiteBook / DS76 signing use). Reject 401 on any failure
+      // BEFORE verifyAndSignDte runs. Lazily imported to match the existing
+      // lazy DTE service pattern and the sibling suseso.ts sign path.
+      const { verifyWebAuthnAssertion } = await import('../auth/webauthnAssertion.js');
+      const { buildWebAuthnDb } = await import('./curriculum.js');
+      const verdict = await verifyWebAuthnAssertion({
+        uid: callerUid,
+        credentialId: body.biometric.credentialId,
+        rawId: body.biometric.rawId,
+        clientDataJSON: body.biometric.clientDataJSON,
+        authenticatorData: body.biometric.authenticatorData,
+        signature: body.biometric.signature,
+        clientExtensionResults: body.biometric.clientExtensionResults,
+        type: body.biometric.type,
+        challengeId: body.biometric.challengeId,
+        expectedOrigin: process.env.APP_BASE_URL ?? 'http://localhost:5173',
+        expectedRpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+        challengesDb: buildWebAuthnDb(),
+        credentialsDb: buildWebAuthnCredentialsDb(),
+      });
+      if (!verdict.verified) {
+        logger.warn('dte.sign webauthn verification failed', {
+          uid: callerUid,
+          dteId: generated.dteId,
+          reason: verdict.reason,
+        });
+        // Audit-log the rejected forgery attempt (Regla #14: awaited, never
+        // throws — branch on the boolean return). details carry only the
+        // public credentialId + typed reason, NEVER the assertion bytes.
+        const auditOk = await auditServerEvent(req, 'dte.sign_failed', 'dte', {
+          dteId: generated.dteId,
+          credentialId: body.biometric.credentialId,
+          reason: verdict.reason ?? 'signature_invalid',
+        });
+        if (!auditOk) {
+          dteSentryCapture(new Error('audit_write_failed'), {
+            endpoint: 'POST /api/dte/generate',
+            tags: { audit_event: 'dte.sign_failed', stage: 'audit' },
+          });
+        }
+        return res
+          .status(401)
+          .json({ error: 'dte_sign_failed', reason: verdict.reason ?? 'signature_invalid' });
+      }
+      // Crypto verified — now embed the signature into the XML envelope.
       const signed = await verifyAndSignDte(
         {
           xml: generated.xml,

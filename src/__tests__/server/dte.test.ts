@@ -27,6 +27,8 @@ const H = vi.hoisted(() => ({
   generateDteFn: null as ((...args: unknown[]) => Promise<Record<string, unknown>>) | null,
   verifyAndSignDteFn: null as ((...args: unknown[]) => Promise<Record<string, unknown>>) | null,
   renderDtePdfFn: null as ((...args: unknown[]) => Promise<Buffer>) | null,
+  // F4: swappable WebAuthn assertion verdict. Default (null) → verified:true.
+  verifyAssertionFn: null as (() => Record<string, unknown>) | null,
 }));
 
 // ---------------------------------------------------------------------------
@@ -104,7 +106,11 @@ vi.mock('../../services/sii/dtePdfRenderer.js', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// curriculum.buildWebAuthnCredentialsDb — return a no-op DB shim
+// curriculum.buildWebAuthnCredentialsDb + buildWebAuthnDb — no-op DB shims.
+// F4: the sign path now also calls buildWebAuthnDb() (challenges store), so
+// the mock MUST export it or the handler throws `buildWebAuthnDb is not a
+// function`. Real crypto is covered in dteSignVerify.test.ts; here we mock
+// verifyWebAuthnAssertion below so these DB shims are never actually read.
 // ---------------------------------------------------------------------------
 vi.mock('../../server/routes/curriculum.js', () => ({
   buildWebAuthnCredentialsDb: () => ({
@@ -120,6 +126,29 @@ vi.mock('../../server/routes/curriculum.js', () => ({
       }),
     }),
   }),
+  buildWebAuthnDb: () => ({
+    now: () => Date.now(),
+    collection: () => ({
+      doc: () => ({
+        get: async () => ({ exists: false, id: '', data: () => undefined }),
+        set: async () => {},
+        updateIf: async () => true,
+      }),
+    }),
+  }),
+}));
+
+// ---------------------------------------------------------------------------
+// webauthnAssertion.verifyWebAuthnAssertion — mocked so the biometric path
+// here exercises audit/response branching without driving the real crypto
+// pipeline (covered end-to-end in dteSignVerify.test.ts). Default verdict is
+// verified; a test can force a failure via H.verifyAssertionFn.
+// ---------------------------------------------------------------------------
+vi.mock('../../server/auth/webauthnAssertion.js', () => ({
+  verifyWebAuthnAssertion: async () =>
+    H.verifyAssertionFn
+      ? H.verifyAssertionFn()
+      : { verified: true, newCounter: 1, verifiedCredentialId: 'cred-abc123' },
 }));
 
 // ---------------------------------------------------------------------------
@@ -206,8 +235,24 @@ beforeEach(() => {
   H.generateDteFn = null;
   H.verifyAndSignDteFn = null;
   H.renderDtePdfFn = null;
+  H.verifyAssertionFn = null;
   vi.mocked(auditServerEvent).mockClear();
 });
+
+// F4: full biometric assertion shape now required by the generateDteSchema.
+// Helper so the two biometric fixtures stay DRY + Zod-valid.
+function biometricBlock(credentialId: string) {
+  return {
+    credentialId,
+    rawId: credentialId,
+    type: 'public-key' as const,
+    challengeId: 'chal-1',
+    clientExtensionResults: {},
+    signature: Buffer.from('fake-sig').toString('base64'),
+    authenticatorData: Buffer.from('fake-authdata').toString('base64'),
+    clientDataJSON: Buffer.from('{"type":"webauthn.get"}').toString('base64'),
+  };
+}
 
 // ===========================================================================
 // POST /api/dte/create
@@ -633,12 +678,7 @@ describe('POST /api/dte/generate', () => {
 
     const biometricBody = {
       ...VALID_GENERATE_BODY,
-      biometric: {
-        credentialId: 'cred-abc123',
-        signature: Buffer.from('fake-sig').toString('base64'),
-        authenticatorData: Buffer.from('fake-authdata').toString('base64'),
-        clientDataJSON: Buffer.from('{"type":"webauthn.get"}').toString('base64'),
-      },
+      biometric: biometricBlock('cred-abc123'),
     };
     const res = await request(buildApp())
       .post('/api/dte/generate')
@@ -670,17 +710,14 @@ describe('POST /api/dte/generate', () => {
 
   it('401 when biometric signing fails (unknown credential / hash mismatch)', async () => {
     H.generateDteFn = vi.fn(async () => FAKE_GENERATED_DTE);
+    // WebAuthn assertion verifies, but the embed step (verifyAndSignDte)
+    // throws — e.g. a hash mismatch caught defense-in-depth. Still a 401.
     H.verifyAndSignDteFn = vi.fn(async () => { throw new Error('unknown_credential'); });
     H.renderDtePdfFn = vi.fn(async () => FAKE_PDF_BUFFER);
 
     const biometricBody = {
       ...VALID_GENERATE_BODY,
-      biometric: {
-        credentialId: 'cred-bad',
-        signature: Buffer.from('bad-sig').toString('base64'),
-        authenticatorData: Buffer.from('bad-authdata').toString('base64'),
-        clientDataJSON: Buffer.from('{"type":"webauthn.get"}').toString('base64'),
-      },
+      biometric: biometricBlock('cred-bad'),
     };
     const res = await request(buildApp())
       .post('/api/dte/generate')
@@ -696,6 +733,56 @@ describe('POST /api/dte/generate', () => {
       'dte',
       expect.objectContaining({ dteId: FAKE_GENERATED_DTE.dteId }),
     );
+  });
+
+  it('F4: 401 when the WebAuthn assertion does NOT verify — signer NEVER runs', async () => {
+    // The NEW gate: an invalid assertion is rejected BEFORE verifyAndSignDte.
+    H.generateDteFn = vi.fn(async () => FAKE_GENERATED_DTE);
+    H.verifyAndSignDteFn = vi.fn(async () => ({ signedXml: '<x/>', signedAt: 'x' }));
+    H.renderDtePdfFn = vi.fn(async () => FAKE_PDF_BUFFER);
+    H.verifyAssertionFn = () => ({ verified: false, reason: 'signature_invalid' });
+
+    const res = await request(buildApp())
+      .post('/api/dte/generate')
+      .set('x-test-uid', 'admin-1')
+      .send({ ...VALID_GENERATE_BODY, biometric: biometricBlock('cred-forged') });
+
+    expect(res.status).toBe(401);
+    expect((res.body as Record<string, unknown>).error).toBe('dte_sign_failed');
+    expect((res.body as Record<string, unknown>).reason).toBe('signature_invalid');
+    // CRITICAL: the embed/sign step was never reached.
+    expect(vi.mocked(H.verifyAndSignDteFn!)).not.toHaveBeenCalled();
+    // Forgery attempt was audited; no dte.signed was written.
+    expect(vi.mocked(auditServerEvent)).toHaveBeenCalledWith(
+      expect.anything(),
+      'dte.sign_failed',
+      'dte',
+      expect.objectContaining({ reason: 'signature_invalid' }),
+    );
+    expect(vi.mocked(auditServerEvent)).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'dte.signed',
+      'dte',
+      expect.anything(),
+    );
+  });
+
+  it('400 when biometric block is missing the new required fields (rawId/challengeId/type)', async () => {
+    H.generateDteFn = vi.fn(async () => FAKE_GENERATED_DTE);
+    const res = await request(buildApp())
+      .post('/api/dte/generate')
+      .set('x-test-uid', 'admin-1')
+      .send({
+        ...VALID_GENERATE_BODY,
+        biometric: {
+          credentialId: 'cred-legacy',
+          signature: 'c2ln',
+          authenticatorData: 'YXV0aA==',
+          clientDataJSON: 'e30=',
+        },
+      });
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>).error).toBe('invalid_input');
   });
 
   it('500 when PDF render fails', async () => {
