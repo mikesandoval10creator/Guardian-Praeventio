@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import QRCode from 'react-qr-code';
 import { useWakeLock } from '../../hooks/useWakeLock';
 
-type TriageSeverity = 'CRITICO' | 'GRAVE' | 'ESTABLE';
+export type TriageSeverity = 'CRITICO' | 'GRAVE' | 'ESTABLE';
 
 interface TriageBeaconProps {
   workerId: string;
@@ -11,6 +11,14 @@ interface TriageBeaconProps {
   bloodType?: string;
   allergies?: string;
   impactForce?: number; // g-force value
+  /**
+   * Explicit severity override. A man-down is detected by INACTIVITY (an
+   * unresponsive worker), NOT an impact, so there is no impactForce to derive
+   * severity from — callers pass a conservative explicit severity instead
+   * (e.g. 'GRAVE' for "unresponsive, status unknown"). Falls back to the
+   * impactForce-derived severity when omitted.
+   */
+  severity?: TriageSeverity;
   onDismiss?: () => void; // only for supervisors with biometric auth
 }
 
@@ -26,9 +34,9 @@ function getSeverity(impactForce?: number): TriageSeverity {
   return 'CRITICO';
 }
 
-export function TriageBeacon({ workerId, workerName, bloodType, allergies, impactForce, onDismiss }: TriageBeaconProps) {
+export function TriageBeacon({ workerId, workerName, bloodType, allergies, impactForce, severity: severityProp, onDismiss }: TriageBeaconProps) {
   const { requestWakeLock, releaseWakeLock } = useWakeLock();
-  const severity = getSeverity(impactForce);
+  const severity = severityProp ?? getSeverity(impactForce);
   const config = severityConfig[severity];
 
   // QR payload: offline-readable worker medical summary

@@ -36,8 +36,11 @@ import { Link } from 'react-router-dom';
 import { useProject } from '../contexts/ProjectContext';
 import { useEmergency } from '../contexts/EmergencyContext';
 import { useManDownDetection } from '../hooks/useManDownDetection';
+import { useEmergencyMedicalCard, shareableCard } from '../hooks/useEmergencyMedicalCard';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { DynamicEvacuationMap } from '../components/emergency/DynamicEvacuationMap';
 import { EmergencyMedicalCardEditor } from '../components/emergency/EmergencyMedicalCardEditor';
+import { TriageBeacon } from '../components/emergency/TriageBeacon';
 import { EmergencyDashboard } from '../components/emergency/EmergencyDashboard';
 import { Asesor } from '../components/emergency/Asesor';
 import { db, doc, onSnapshot, setDoc, handleFirestoreError, OperationType } from '../services/firebase';
@@ -61,6 +64,9 @@ export function Emergency() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { triggerEmergency } = useEmergency();
+  const { user } = useFirebase();
+  const { card: medicalCard } = useEmergencyMedicalCard();
+  const [showTriageBeacon, setShowTriageBeacon] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isCrisisMode, setIsCrisisMode] = useState(false);
   const [isContactsOpen, setIsContactsOpen] = useState(false);
@@ -72,6 +78,12 @@ export function Emergency() {
   const { isActive, isAlerting, countdown, startDetection, stopDetection, cancelCountdown, acknowledgeAlert } =
     useManDownDetection({
       onManDownConfirmed: () => {
+        // A confirmed man-down = an unresponsive worker. Raise the TriageBeacon
+        // (the green/yellow/red triage signal arriving responders read off the
+        // screen + QR) AND fan out the emergency push. Default severity GRAVE:
+        // "unresponsive, status unknown" — conservative, never understated. The
+        // blood type / allergies only appear if the worker opted in (consent).
+        setShowTriageBeacon(true);
         if (selectedProject?.id) void triggerEmergency('fall', selectedProject.id);
       },
     });
@@ -208,6 +220,20 @@ export function Emergency() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-hidden box-border">
+      {/* TriageBeacon — raised on a confirmed man-down (#2). Full-screen
+          color-coded beacon (GRAVE by default) + QR with the worker's medical
+          card, but only the fields they consented to share. */}
+      {showTriageBeacon && user && (
+        <TriageBeacon
+          workerId={user.uid}
+          workerName={user.displayName || undefined}
+          bloodType={shareableCard(medicalCard)?.bloodType}
+          allergies={shareableCard(medicalCard)?.allergies}
+          severity="GRAVE"
+          onDismiss={() => setShowTriageBeacon(false)}
+        />
+      )}
+
       {/* Man Down Alert Overlay */}
       <AnimatePresence>
         {isAlerting && (
