@@ -1,103 +1,108 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import {
-  Calendar, Clock, AlertTriangle, CheckCircle, Filter,
-  ChevronRight, User, Stethoscope, Wind, Ear, Bone, Brain, Eye, Activity
-} from 'lucide-react';
+import { Calendar, Clock, AlertTriangle, CheckCircle, Filter, ChevronRight, Stethoscope, Loader2 } from 'lucide-react';
 import { MedicalIcon } from '../medical/MedicalIcon';
+import { useProject } from '../../contexts/ProjectContext';
+import { subscribeObligations } from '../../services/legalCalendar/legalCalendarStore';
+import { computeCalendar } from '../../services/legalCalendar/legalObligationsCalendar';
+import type { CalendarEntry, LegalObligation } from '../../services/legalCalendar/legalObligationsCalendar';
+import { logger } from '../../utils/logger';
 
-interface ScheduledExam {
-  id: string;
-  workerName: string;
-  workerRut: string;
-  occupation: string;
-  program: 'PREXOR' | 'PLANESI' | 'TMERT' | 'EVAST' | 'Cardiovascular' | 'Visual' | 'General';
-  examType: string;
-  dueDate: string;
-  lastExam?: string;
-  status: 'pending' | 'overdue' | 'warning' | 'ok';
-  ds594Article: string;
-}
+// Derived urgency bucket for an obligation entry. Stable identifiers; only
+// labels are localised below.
+type Bucket = 'overdue' | 'warning' | 'ok';
 
-const PROGRAM_META: Record<ScheduledExam['program'], { icon: typeof Ear; color: string; bg: string; article: string }> = {
-  PREXOR: { icon: Ear, color: 'text-rose-500', bg: 'bg-rose-500/10 border-rose-500/20', article: 'DS 594 Art. 70' },
-  PLANESI: { icon: Wind, color: 'text-cyan-500', bg: 'bg-cyan-500/10 border-cyan-500/20', article: 'DS 594 Art. 66' },
-  TMERT: { icon: Bone, color: 'text-amber-500', bg: 'bg-amber-500/10 border-amber-500/20', article: 'DS 594 Art. 110bis' },
-  EVAST: { icon: Brain, color: 'text-violet-500', bg: 'bg-violet-500/10 border-violet-500/20', article: 'EVAST MINSAL' },
-  Cardiovascular: { icon: Activity, color: 'text-rose-600', bg: 'bg-rose-600/10 border-rose-600/20', article: 'Vigilancia genérica' },
-  Visual: { icon: Eye, color: 'text-blue-500', bg: 'bg-blue-500/10 border-blue-500/20', article: 'DS 594 Art. 95-99' },
-  General: { icon: Stethoscope, color: 'text-teal-400', bg: 'bg-teal-400/10 border-teal-400/20', article: 'DS 109' },
-};
-
-const today = new Date();
-const addDays = (d: number) => new Date(today.getTime() + d * 86_400_000).toISOString().slice(0, 10);
-const subDays = (d: number) => new Date(today.getTime() - d * 86_400_000).toISOString().slice(0, 10);
-
-const DEMO_EXAMS: ScheduledExam[] = [
-  { id: '1', workerName: 'Carlos Mendoza Ríos', workerRut: '12.345.678-9', occupation: 'Perforista', program: 'PREXOR', examType: 'Audiometría anual', dueDate: addDays(5), lastExam: subDays(360), status: 'warning', ds594Article: 'DS 594 Art. 70' },
-  { id: '2', workerName: 'Ana González Vidal', workerRut: '13.456.789-0', occupation: 'Administrativo', program: 'Visual', examType: 'Evaluación visual', dueDate: addDays(12), lastExam: subDays(353), status: 'warning', ds594Article: 'DS 594 Art. 95-99' },
-  { id: '3', workerName: 'Pedro Rojas Castro', workerRut: '14.567.890-1', occupation: 'Operador minero', program: 'PLANESI', examType: 'Rx tórax + espirometría', dueDate: subDays(8), lastExam: subDays(738), status: 'overdue', ds594Article: 'DS 594 Art. 66' },
-  { id: '4', workerName: 'María Flores Soto', workerRut: '15.678.901-2', occupation: 'Digitadora', program: 'TMERT', examType: 'Evaluación ergonómica TMERT-EESS', dueDate: addDays(22), lastExam: subDays(343), status: 'warning', ds594Article: 'DS 594 Art. 110bis' },
-  { id: '5', workerName: 'Juan Herrera Lagos', workerRut: '16.789.012-3', occupation: 'Operador maquinaria', program: 'Cardiovascular', examType: 'ECG + perfil lipídico', dueDate: addDays(45), lastExam: subDays(320), status: 'ok', ds594Article: 'Vigilancia genérica' },
-  { id: '6', workerName: 'Lucía Pérez Torres', workerRut: '17.890.123-4', occupation: 'Supervisora', program: 'EVAST', examType: 'Evaluación riesgo psicosocial ISTAS-21', dueDate: addDays(3), lastExam: subDays(362), status: 'warning', ds594Article: 'EVAST MINSAL' },
-  { id: '7', workerName: 'Roberto Silva Muñoz', workerRut: '18.901.234-5', occupation: 'Operador pesado', program: 'General', examType: 'Examen preocupacional', dueDate: addDays(90), lastExam: undefined, status: 'ok', ds594Article: 'DS 109' },
-  { id: '8', workerName: 'Carmen Díaz Araya', workerRut: '19.012.345-6', occupation: 'Perforista', program: 'PREXOR', examType: 'Audiometría semestral', dueDate: subDays(3), lastExam: subDays(183), status: 'overdue', ds594Article: 'DS 594 Art. 70' },
-];
-
-const getDaysUntil = (dateStr: string): number => {
-  const d = new Date(dateStr);
-  return Math.round((d.getTime() - today.getTime()) / 86_400_000);
-};
-
-// NOTE: Status keys are stable identifiers; only labels are localised below.
-const STATUS_STYLES = {
+const STATUS_STYLES: Record<Bucket, { color: string; bg: string; dot: string }> = {
   overdue: { color: 'text-rose-500', bg: 'bg-rose-500/10 border-rose-500/20', dot: 'bg-rose-500' },
   warning: { color: 'text-amber-500', bg: 'bg-amber-500/10 border-amber-500/20', dot: 'bg-amber-500' },
   ok: { color: 'text-teal-400', bg: 'bg-teal-400/10 border-teal-400/20', dot: 'bg-teal-400' },
-  pending: { color: 'text-zinc-400', bg: 'bg-zinc-500/10 border-zinc-500/20', dot: 'bg-zinc-500' },
-} as const;
+};
 
-const ALL_PROGRAMS: Array<ScheduledExam['program'] | 'Todos'> = ['Todos', 'PREXOR', 'PLANESI', 'TMERT', 'EVAST', 'Cardiovascular', 'Visual', 'General'];
+// Window filters replace the old fabricated program taxonomy: the obligation
+// model carries recurrence/alert-window, not a per-worker program.
+const WINDOW_FILTERS = ['todos', 'overdue', 'alert'] as const;
+type WindowFilter = (typeof WINDOW_FILTERS)[number];
+
+const bucketOf = (e: CalendarEntry): Bucket =>
+  e.isOverdue ? 'overdue' : e.isInAlertWindow ? 'warning' : 'ok';
+
+// Chilean date format DD-MM-YYYY from the obligation's ISO nextDueAt.
+const formatDueDate = (iso: string): string => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}-${mm}-${d.getFullYear()}`;
+};
 
 export function VigilanciaScheduler() {
   const { t } = useTranslation();
-  const [filter, setFilter] = useState<ScheduledExam['program'] | 'Todos'>('Todos');
+  const { selectedProject } = useProject();
+  const [obligations, setObligations] = useState<LegalObligation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<WindowFilter>('todos');
   const [sortBy, setSortBy] = useState<'dueDate' | 'status'>('dueDate');
 
-  const statusLabel = (status: ScheduledExam['status']): string => {
-    switch (status) {
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    if (!projectId) {
+      setObligations([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const unsub = subscribeObligations(
+      projectId,
+      (list) => {
+        // Real source: only legally-mandated MEDICAL-EXAM obligations.
+        // No worker PII, no clinical result — just due dates + citation.
+        setObligations(list.filter((o) => o.kind === 'medical_exam'));
+        setLoading(false);
+      },
+      (err) => {
+        logger.warn('vigilancia_obligations_sub_error', { err: String(err) });
+        setLoading(false);
+      },
+    );
+    return () => unsub();
+  }, [selectedProject?.id]);
+
+  const entries: CalendarEntry[] = useMemo(() => computeCalendar(obligations), [obligations]);
+
+  const counts = useMemo(
+    () => ({
+      overdue: entries.filter((e) => e.isOverdue).length,
+      warning: entries.filter((e) => !e.isOverdue && e.isInAlertWindow).length,
+      ok: entries.filter((e) => !e.isOverdue && !e.isInAlertWindow).length,
+    }),
+    [entries],
+  );
+
+  const filtered = useMemo(() => {
+    let list = entries;
+    if (filter === 'overdue') list = entries.filter((e) => e.isOverdue);
+    else if (filter === 'alert') list = entries.filter((e) => !e.isOverdue && e.isInAlertWindow);
+    return [...list].sort((a, b) => {
+      if (sortBy === 'dueDate') return a.daysUntilDue - b.daysUntilDue;
+      const rank = (e: CalendarEntry) => (e.isOverdue ? 0 : e.isInAlertWindow ? 1 : 2);
+      return rank(a) - rank(b);
+    });
+  }, [entries, filter, sortBy]);
+
+  const statusLabel = (bucket: Bucket): string => {
+    switch (bucket) {
       case 'overdue': return t('vigilancia.status_overdue', 'Vencido');
       case 'warning': return t('vigilancia.status_upcoming', 'Próximo');
-      case 'ok': return t('vigilancia.status_on_track', 'Al día');
-      case 'pending': return t('medicine.result_pending', 'Pendiente');
-      default: return status;
+      default: return t('vigilancia.status_on_track', 'Al día');
     }
   };
 
-  const programLabel = (program: ScheduledExam['program'] | 'Todos'): string => {
-    if (program === 'Todos') return t('vigilancia.program_all', 'Todos');
-    if (program === 'Cardiovascular') return t('medicine.body_system_cardiovascular', 'Cardiovascular');
-    if (program === 'Visual') return t('vigilancia.program_visual', 'Visual');
-    if (program === 'General') return t('vigilancia.program_general', 'General');
-    // PREXOR, PLANESI, TMERT, EVAST are Chilean regulatory acronyms — kept verbatim.
-    return program;
+  const filterLabel = (f: WindowFilter): string => {
+    if (f === 'overdue') return t('vigilancia.filter_overdue', 'Vencidos');
+    if (f === 'alert') return t('vigilancia.filter_alert', 'En alerta');
+    return t('vigilancia.program_all', 'Todos');
   };
-
-  const filtered = useMemo(() => {
-    let list = filter === 'Todos' ? DEMO_EXAMS : DEMO_EXAMS.filter(e => e.program === filter);
-    return [...list].sort((a, b) => {
-      if (sortBy === 'dueDate') return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      const order = { overdue: 0, warning: 1, pending: 2, ok: 3 };
-      return order[a.status] - order[b.status];
-    });
-  }, [filter, sortBy]);
-
-  const counts = useMemo(() => ({
-    overdue: DEMO_EXAMS.filter(e => e.status === 'overdue').length,
-    warning: DEMO_EXAMS.filter(e => e.status === 'warning').length,
-    ok: DEMO_EXAMS.filter(e => e.status === 'ok').length,
-  }), []);
 
   return (
     <div className="rounded-2xl border border-zinc-200/50 dark:border-white/5 bg-white/50 dark:bg-zinc-900/50 overflow-hidden">
@@ -122,114 +127,129 @@ export function VigilanciaScheduler() {
         </span>
       </div>
 
-      {/* Summary KPIs */}
-      <div className="px-5 pt-4 grid grid-cols-3 gap-3">
-        {[
-          { key: 'overdue', label: t('vigilancia.kpi_overdue', 'Vencidos'), value: counts.overdue, ...STATUS_STYLES.overdue },
-          { key: 'warning', label: t('vigilancia.kpi_upcoming_30d', 'Próximos 30d'), value: counts.warning, ...STATUS_STYLES.warning },
-          { key: 'ok', label: t('vigilancia.status_on_track', 'Al día'), value: counts.ok, ...STATUS_STYLES.ok },
-        ].map(s => (
-          <div key={s.key} className={`rounded-xl p-3 border ${s.bg} text-center`}>
-            <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
-            <p className={`text-[9px] font-black uppercase tracking-widest ${s.color} opacity-80`}>{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="px-5 pt-3 flex flex-wrap gap-2 items-center">
-        <Filter className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
-        <div className="flex flex-wrap gap-1">
-          {ALL_PROGRAMS.map(p => (
-            <button
-              key={p}
-              onClick={() => setFilter(p)}
-              className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border ${
-                filter === p
-                  ? 'bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border-teal-400/30 dark:border-gold-400/30'
-                  : 'text-zinc-500 border-zinc-200 dark:border-white/10 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
-              }`}
-            >
-              {programLabel(p)}
-            </button>
-          ))}
+      {!selectedProject ? (
+        <div className="p-10 text-center">
+          <Calendar className="w-8 h-8 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {t('vigilancia.empty_no_project', 'Selecciona un proyecto para ver la vigilancia médica programada.')}
+          </p>
         </div>
-        <div className="ml-auto flex items-center gap-1">
-          <span className="text-[9px] text-zinc-500 font-black uppercase tracking-widest">{t('vigilancia.sort_label', 'Orden')}:</span>
-          <button
-            onClick={() => setSortBy(s => s === 'dueDate' ? 'status' : 'dueDate')}
-            className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest text-teal-600 dark:text-gold-400 bg-teal-400/10 dark:bg-gold-400/10 border border-teal-400/20 dark:border-gold-400/20 transition-all hover:bg-teal-400/20"
-          >
-            {sortBy === 'dueDate' ? t('vigilancia.sort_by_date', 'Fecha') : t('vigilancia.sort_by_urgency', 'Urgencia')}
-          </button>
+      ) : loading ? (
+        <div className="p-10 flex justify-center">
+          <Loader2 className="w-6 h-6 text-teal-400 dark:text-gold-400 animate-spin" />
         </div>
-      </div>
-
-      {/* Exam list */}
-      <div className="p-5 space-y-2">
-        {filtered.map((exam, i) => {
-          const days = getDaysUntil(exam.dueDate);
-          const programMeta = PROGRAM_META[exam.program];
-          const statusCfg = STATUS_STYLES[exam.status];
-          const ProgramIcon = programMeta.icon;
-
-          return (
-            <motion.div
-              key={exam.id}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.04 }}
-              className="rounded-xl bg-white dark:bg-zinc-800/50 border border-zinc-200/50 dark:border-white/5 p-3 hover:border-zinc-300 dark:hover:border-white/10 transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg border ${programMeta.bg} flex-shrink-0`}>
-                  <ProgramIcon className={`w-4 h-4 ${programMeta.color}`} />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-black text-zinc-900 dark:text-white truncate">{exam.workerName}</p>
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${programMeta.bg} ${programMeta.color}`}>
-                      {exam.program}
-                    </span>
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${statusCfg.bg} ${statusCfg.color}`}>
-                      {statusLabel(exam.status)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                    <p className="text-[10px] text-zinc-500">{exam.examType}</p>
-                    <p className="text-[10px] text-zinc-400 flex items-center gap-1">
-                      <User className="w-2.5 h-2.5" /> {exam.workerRut}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex-shrink-0 text-right">
-                  <div className={`flex items-center gap-1 justify-end ${exam.status === 'overdue' ? 'text-rose-500' : exam.status === 'warning' ? 'text-amber-500' : 'text-teal-400'}`}>
-                    {exam.status === 'overdue' ? (
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                    ) : exam.status === 'ok' ? (
-                      <CheckCircle className="w-3.5 h-3.5" />
-                    ) : (
-                      <Clock className="w-3.5 h-3.5" />
-                    )}
-                    <span className="text-xs font-black">
-                      {days < 0
-                        ? t('vigilancia.days_overdue', { count: Math.abs(days), defaultValue: '{{count}}d vencido' })
-                        : days === 0
-                          ? t('vigilancia.due_today', 'Hoy')
-                          : t('vigilancia.days_remaining', { count: days, defaultValue: '{{count}}d' })}
-                    </span>
-                  </div>
-                  <p className="text-[9px] text-zinc-500 mt-0.5">{exam.dueDate}</p>
-                </div>
-
-                <ChevronRight className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+      ) : entries.length === 0 ? (
+        <div className="p-10 text-center">
+          <Stethoscope className="w-8 h-8 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {t('vigilancia.empty_no_exams', 'Sin exámenes ocupacionales programados. Inicializa el calendario legal (DS 109 · Ley 16.744) desde Calendario Legal.')}
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Summary KPIs */}
+          <div className="px-5 pt-4 grid grid-cols-3 gap-3">
+            {[
+              { key: 'overdue', label: t('vigilancia.kpi_overdue', 'Vencidos'), value: counts.overdue, ...STATUS_STYLES.overdue },
+              { key: 'warning', label: t('vigilancia.kpi_upcoming_30d', 'Próximos 30d'), value: counts.warning, ...STATUS_STYLES.warning },
+              { key: 'ok', label: t('vigilancia.status_on_track', 'Al día'), value: counts.ok, ...STATUS_STYLES.ok },
+            ].map((s) => (
+              <div key={s.key} className={`rounded-xl p-3 border ${s.bg} text-center`}>
+                <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+                <p className={`text-[9px] font-black uppercase tracking-widest ${s.color} opacity-80`}>{s.label}</p>
               </div>
-            </motion.div>
-          );
-        })}
-      </div>
+            ))}
+          </div>
+
+          {/* Filters */}
+          <div className="px-5 pt-3 flex flex-wrap gap-2 items-center">
+            <Filter className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
+            <div className="flex flex-wrap gap-1">
+              {WINDOW_FILTERS.map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border ${
+                    filter === f
+                      ? 'bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border-teal-400/30 dark:border-gold-400/30'
+                      : 'text-zinc-500 border-zinc-200 dark:border-white/10 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+                  }`}
+                >
+                  {filterLabel(f)}
+                </button>
+              ))}
+            </div>
+            <div className="ml-auto flex items-center gap-1">
+              <span className="text-[9px] text-zinc-500 font-black uppercase tracking-widest">{t('vigilancia.sort_label', 'Orden')}:</span>
+              <button
+                onClick={() => setSortBy((s) => (s === 'dueDate' ? 'status' : 'dueDate'))}
+                className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest text-teal-600 dark:text-gold-400 bg-teal-400/10 dark:bg-gold-400/10 border border-teal-400/20 dark:border-gold-400/20 transition-all hover:bg-teal-400/20"
+              >
+                {sortBy === 'dueDate' ? t('vigilancia.sort_by_date', 'Fecha') : t('vigilancia.sort_by_urgency', 'Urgencia')}
+              </button>
+            </div>
+          </div>
+
+          {/* Obligation list */}
+          <div className="p-5 space-y-2">
+            {filtered.map((entry, i) => {
+              const bucket = bucketOf(entry);
+              const statusCfg = STATUS_STYLES[bucket];
+              const days = entry.daysUntilDue;
+
+              return (
+                <motion.div
+                  key={entry.id}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  className="rounded-xl bg-white dark:bg-zinc-800/50 border border-zinc-200/50 dark:border-white/5 p-3 hover:border-zinc-300 dark:hover:border-white/10 transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg border ${statusCfg.bg} flex-shrink-0`}>
+                      <Stethoscope className={`w-4 h-4 ${statusCfg.color}`} />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-black text-zinc-900 dark:text-white truncate">{entry.label}</p>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${statusCfg.bg} ${statusCfg.color}`}>
+                          {statusLabel(bucket)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                        <p className="text-[10px] text-zinc-500">{entry.legalCitation}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex-shrink-0 text-right">
+                      <div className={`flex items-center gap-1 justify-end ${statusCfg.color}`}>
+                        {bucket === 'overdue' ? (
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                        ) : bucket === 'ok' ? (
+                          <CheckCircle className="w-3.5 h-3.5" />
+                        ) : (
+                          <Clock className="w-3.5 h-3.5" />
+                        )}
+                        <span className="text-xs font-black">
+                          {days < 0
+                            ? t('vigilancia.days_overdue', { count: Math.abs(days), defaultValue: '{{count}}d vencido' })
+                            : days === 0
+                              ? t('vigilancia.due_today', 'Hoy')
+                              : t('vigilancia.days_remaining', { count: days, defaultValue: '{{count}}d' })}
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-zinc-500 mt-0.5">{formatDueDate(entry.nextDueAt)}</p>
+                    </div>
+
+                    <ChevronRight className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       <div className="px-5 pb-4">
         <p className="text-[9px] text-zinc-400 text-center flex items-center justify-center gap-1">
