@@ -254,3 +254,32 @@ export function VitalityMonitor() {
     sb.cleanup();
   }
 });
+
+test('13. B-medical-guard — root-level medical backends están en scope', () => {
+  assert.strictEqual(isInScope('src/services/medicineBackend.ts'), true);
+  assert.strictEqual(isInScope('src/services/medicalAnalysisBackend.ts'), true);
+  assert.strictEqual(isInScope('src/services/psychosocialBackend.ts'), true);
+  assert.strictEqual(isInScope('src\\services\\medicineBackend.ts'), true);
+  assert.strictEqual(isInScope('src/services/inventoryBackend.ts'), false);
+  assert.strictEqual(isInScope('src/services/eppBackend.ts'), false);
+  assert.strictEqual(isInScope('src/services/geminiBackend.ts'), false);
+});
+
+test('14. B-medical-guard — los 3 backends médicos REALES escanean limpio (ADR 0012)', () => {
+  const pathMod = require('path');
+  const repoRoot = pathMod.resolve(__dirname, '../../..');
+  const prevCwd = process.cwd();
+  process.chdir(repoRoot);
+  try {
+    for (const rel of [
+      'src/services/medicineBackend.ts',
+      'src/services/medicalAnalysisBackend.ts',
+      'src/services/psychosocialBackend.ts',
+    ]) {
+      const violations = checkFile(rel);
+      assert.strictEqual(violations.length, 0, `${rel}: ${JSON.stringify(violations)}`);
+    }
+  } finally {
+    process.chdir(prevCwd);
+  }
+});
