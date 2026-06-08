@@ -158,5 +158,5 @@ export const analyzeBioImage = async (base64Image: string): Promise<unknown> => 
     },
   });
 
-  return JSON.parse(response.text || '{}');
+  return parseGeminiJson(response);
 };

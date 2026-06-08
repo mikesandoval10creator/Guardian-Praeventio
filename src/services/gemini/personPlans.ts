@@ -240,5 +240,5 @@ export const generateCompensatoryExercises = async (
     },
   });
 
-  return JSON.parse(response.text || '{}');
+  return parseGeminiJson(response);
 };

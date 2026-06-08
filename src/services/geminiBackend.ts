@@ -330,7 +330,7 @@ export const generatePredictiveForecast = async (projectName: string, context: s
     }
   });
 
-  return JSON.parse(response.text || '{}');
+  return parseGeminiJson(response);
 };
 
 export const generateOperationalTasks = async (normativeTitle: string, normativeDescription: string): Promise<string[]> => {
@@ -364,7 +364,7 @@ export const generateOperationalTasks = async (normativeTitle: string, normative
     }
   });
 
-  return JSON.parse(response.text || '[]');
+  return parseGeminiJson(response);
 };
 
 
@@ -530,7 +530,7 @@ export const analyzeSiteMapDensity = async (nodesContext: string, workersContext
     }
   });
 
-  return JSON.parse(response.text || '{}');
+  return parseGeminiJson(response);
 };
 
 export const generateTrainingQuiz = async (topic: string, description: string) => {
@@ -838,7 +838,7 @@ export const analyzeVisionImage = async (base64Image: string) => {
     }
   });
 
-  return JSON.parse(response.text || '{}');
+  return parseGeminiJson(response);
 };
 
 export const verifyEPPWithAI = async (base64Image: string, workerName: string, requiredEPP: string[]) => {
@@ -886,7 +886,7 @@ export const verifyEPPWithAI = async (base64Image: string, workerName: string, r
     }
   });
 
-  return JSON.parse(response.text || '{}');
+  return parseGeminiJson(response);
 };
 
 export const analyzeRiskNetworkHealth = async (nodes: any[]) => {
@@ -943,7 +943,7 @@ export const analyzeRiskNetworkHealth = async (nodes: any[]) => {
     }
   });
 
-  return JSON.parse(response.text || '{}');
+  return parseGeminiJson(response);
 };
 
 export const analyzeFeedPostForRiskNetwork = async (content: string, imageBase64: string | null, userName: string) => {
