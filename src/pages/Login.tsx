@@ -1,44 +1,91 @@
 import { motion } from 'framer-motion';
 import { logger } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
-import { signInWithGoogle, auth, db } from '../services/firebase';
-import { LogIn, ShieldCheck, Zap, Activity, WifiOff, ArrowLeft } from 'lucide-react';
+import { signInWithGoogle, logOut, auth, db } from '../services/firebase';
+import { LogIn, Zap, WifiOff, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/shared/Card';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useBiometricAuth } from '../hooks/useBiometricAuth';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { isBiometricSupported, verifyBiometric, registerBiometric } from '../utils/biometrics';
-import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { analytics, userIdHash } from '../services/analytics';
+
+// localStorage flag: set ONLY after a server-persisted WebAuthn credential
+// exists (registerCredential succeeded). Drives whether we offer the
+// biometric step-up button. The legacy 'praeventio_biometric_id' flag is
+// intentionally NOT read — it tracked a local-only rawId that the server
+// /verify endpoint can never validate (unknown_credential), so trusting it
+// would render a guaranteed-fail button.
+const WEBAUTHN_ENROLLED_KEY = 'praeventio_webauthn_enrolled';
 
 export default function Login() {
   const { t } = useTranslation();
   const isOnline = useOnlineStatus();
-  const [hasBiometric, setHasBiometric] = useState(false);
-  const [biometricCredential, setBiometricCredential] = useState<string | null>(null);
+  // Real server-verified WebAuthn hook (same one every other signing flow
+  // uses). `authenticate(reason, 'login')` is fail-closed: it fetches a
+  // server-issued challenge, runs the platform ceremony, and round-trips
+  // the assertion through POST /api/auth/webauthn/verify (signature +
+  // monotonic-counter replay check, server-side). It returns false on
+  // unreachable server, 401, replay, or an unenrolled credential.
+  const { isSupported, authenticate, registerCredential } = useBiometricAuth();
+  const [hasEnrolledCredential, setHasEnrolledCredential] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    isBiometricSupported().then(supported => {
-      if (supported) {
-        setHasBiometric(true);
-        const savedCred = localStorage.getItem('praeventio_biometric_id');
-        if (savedCred) {
-          setBiometricCredential(savedCred);
-        }
+    // Only offer the biometric step-up button when (a) the platform
+    // supports WebAuthn AND (b) we have previously persisted a SERVER
+    // credential on this device. Without (b), /verify would always return
+    // unknown_credential and the button would be a guaranteed fail.
+    if (isSupported) {
+      try {
+        setHasEnrolledCredential(
+          localStorage.getItem(WEBAUTHN_ENROLLED_KEY) === '1',
+        );
+      } catch {
+        setHasEnrolledCredential(false);
       }
-    });
-  }, []);
+    }
+  }, [isSupported]);
 
-  const syncBiometricToCloud = async (uid: string, credId: string) => {
+  // After a primary Google sign-in, best-effort enroll a SERVER-verifiable
+  // WebAuthn credential so future logins can step up biometrically. Uses
+  // the real registerCredential() ceremony (/register/options +
+  // /register/verify) which persists the public key server-side — unlike
+  // the legacy registerBiometric() which only kept a local rawId the
+  // server could never validate. Failures are non-fatal: the user is
+  // already signed in; they just won't see the biometric button next time.
+  const maybeEnrollCredential = async (uid: string) => {
+    if (!isSupported) return;
     try {
-      const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, {
-        biometricKeys: arrayUnion(credId)
-      });
+      const userSnap = await getDoc(doc(db, 'users', uid));
+      if (!userSnap.exists()) {
+        try {
+          analytics.track('auth.user.signed_up', {
+            provider: 'google',
+            user_id_hash: await userIdHash(uid),
+          });
+        } catch { /* analytics must never break user flow */ }
+        // Brand-new account: the server seeds the user doc on first login;
+        // enrollment can happen on the next visit once the doc exists.
+        return;
+      }
+      try {
+        analytics.track('auth.user.signed_in', {
+          provider: 'google',
+          mfa_used: false,
+        });
+      } catch { /* analytics must never break user flow */ }
+      const result = await registerCredential(
+        t('auth.biometric_enroll_reason', 'Registra tu biometría para próximos ingresos'),
+      );
+      if (result.success) {
+        try { localStorage.setItem(WEBAUTHN_ENROLLED_KEY, '1'); } catch { /* private mode */ }
+        setHasEnrolledCredential(true);
+      }
     } catch (e) {
-      logger.warn('Could not sync DB but local key exists', { error: e });
+      logger.debug('Biometric enrollment skipped', { error: e });
     }
   };
 
@@ -49,42 +96,8 @@ export default function Login() {
     try {
       await signInWithGoogle();
       const user = auth.currentUser;
-
-      if (user && hasBiometric && !biometricCredential) {
-        // Sign in occurred on a new device or cleared cache, register biometrics
-        try {
-          // Re-sync: first check if we already have it linked in Firestore
-          const userSnap = await getDoc(doc(db, 'users', user.uid));
-          // Wave-9 analytics: a missing user doc is the strongest local
-          // signal that this is a brand-new account (the user-doc seed
-          // happens server-side on first login). Fire signed_up before
-          // we create the doc so the event is captured exactly once.
-          if (!userSnap.exists()) {
-            try {
-              analytics.track('auth.user.signed_up', {
-                provider: 'google',
-                user_id_hash: await userIdHash(user.uid),
-              });
-            } catch { /* analytics must never break user flow */ }
-          }
-          if (userSnap.exists()) {
-             try {
-               analytics.track('auth.user.signed_in', {
-                 provider: 'google',
-                 mfa_used: false,
-               });
-             } catch { /* analytics must never break user flow */ }
-             // Let's create a new passkey specifically for this new device session
-             const credId = await registerBiometric(user.uid, user.email || 'user');
-             localStorage.setItem('praeventio_biometric_id', credId);
-             await syncBiometricToCloud(user.uid, credId);
-          }
-        } catch(e) {
-           logger.debug('Biometric registration skipped', { error: e });
-        }
-      } else if (user && hasBiometric && biometricCredential) {
-         // Already registered, just make sure cloud knows about this device's key
-         await syncBiometricToCloud(user.uid, biometricCredential);
+      if (user) {
+        await maybeEnrollCredential(user.uid);
       }
     } catch (error) {
       logger.error('Error logging in', { error });
@@ -95,25 +108,43 @@ export default function Login() {
   };
 
   const handleBiometricLogin = async () => {
-    if (!biometricCredential) return;
+    if (!hasEnrolledCredential) return;
     setAuthError(null);
     setIsLoading(true);
     try {
-      const verified = await verifyBiometric(biometricCredential);
-      if (verified) {
-        // En una app Capacitor real, aquí inyectaríamos el refresh token o usaríamos signInWithCustomToken.
-        // Simularemos invocando a Google Sign In sin forzar selección de cuenta si el navegador lo permite
-        await signInWithGoogle();
-      } else {
+      // STEP 1: establish the Firebase session. WebAuthn here is
+      // server-verified STEP-UP proof-of-presence — the /challenge and
+      // /verify endpoints sit behind verifyAuth, so a session must exist
+      // before the assertion can be cryptographically checked.
+      await signInWithGoogle();
+      const user = auth.currentUser;
+      if (!user) {
+        setAuthError(t('auth.biometric_failed', 'La verificación biométrica falló.'));
+        return;
+      }
+      // STEP 2: REQUIRE a server-verified WebAuthn assertion. authenticate
+      // with purpose 'login' is fail-closed — false means the server
+      // rejected the assertion (replay/expiry/unknown credential) OR the
+      // challenge endpoint was unreachable. Either way we MUST NOT keep the
+      // session: tear it down so an unverified presence cannot proceed.
+      const verified = await authenticate(
+        t('auth.biometric_login_prompt', 'Confirma tu identidad'),
+        'login',
+      );
+      if (!verified) {
+        try { await logOut(); } catch (e) { logger.warn('signOut after failed biometric failed', { error: e }); }
         setAuthError(t('auth.biometric_failed', 'La verificación biométrica falló.'));
       }
-    } catch(error) {
+      // verified === true: session stands; FirebaseContext's onAuthStateChanged
+      // routes the user onward exactly as the Google path does.
+    } catch (error) {
       logger.error('Biometric verification failed', { error });
+      try { await logOut(); } catch { /* best-effort fail-closed sign-out */ }
       setAuthError(t('auth.biometric_failed', 'La verificación biométrica falló.'));
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
     <main
@@ -172,7 +203,7 @@ export default function Login() {
             </div>
 
             <div className="space-y-3" role="group" aria-label={t('auth.signin_methods', 'Métodos de inicio de sesión')}>
-              {biometricCredential ? (
+              {hasEnrolledCredential ? (
                 <Button
                   type="button"
                   onClick={handleBiometricLogin}
@@ -197,7 +228,7 @@ export default function Login() {
                 disabled={!isOnline || isLoading}
                 aria-busy={isLoading}
                 aria-describedby={authError ? 'auth-error' : undefined}
-                aria-label={biometricCredential
+                aria-label={hasEnrolledCredential
                   ? t('auth.login_other_way', 'Iniciar de otra forma')
                   : t('auth.login_with_google', 'Iniciar con Google')}
                 className={`w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 sm:gap-3 transition-all shadow-xl ${
@@ -214,7 +245,7 @@ export default function Login() {
                 ) : (
                   <>
                     <LogIn className="w-4 h-4" aria-hidden="true" />
-                    {biometricCredential
+                    {hasEnrolledCredential
                       ? t('auth.login_other_way', 'Iniciar de otra forma')
                       : t('auth.login_with_google', 'Iniciar con Google')}
                   </>
