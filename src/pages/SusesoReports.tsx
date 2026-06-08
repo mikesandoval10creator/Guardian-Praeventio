@@ -22,6 +22,7 @@ import { handleFirestoreError, OperationType } from '../services/firebase';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { logger } from '../utils/logger';
+import { legalFormValue } from '../utils/legalFormValue';
 import { useTranslation } from 'react-i18next';
 // §2.14 P0 SECURITY (cierre Fase C.1, 2026-05-21): el cliente
 // SusesoApiClient ya no se importa desde código browser. Razón doble:
@@ -56,6 +57,13 @@ export function SusesoReports() {
   // Filter incidents for the current project
   const incidents = nodes.filter(n => n.type === NodeType.INCIDENT && (!selectedProject || n.projectId === selectedProject.id));
   const selectedIncident = incidents.find(i => i.id === selectedIncidentId);
+
+  // Official DIAT/DIEP forms must never show a fabricated legal identifier — a
+  // valid-format fake RUT on a submitted injury report identifies the WRONG
+  // worker. Resolve worker identity honestly; missing values are flagged, not faked.
+  const workerName = legalFormValue(selectedIncident?.metadata?.workerName);
+  const workerRut = legalFormValue(selectedIncident?.metadata?.workerRut);
+  const workerRole = legalFormValue(selectedIncident?.metadata?.workerRole);
 
   const [isSavingToDrive, setIsSavingToDrive] = useState(false);
   const [savedToDrive, setSavedToDrive] = useState(false);
@@ -371,7 +379,7 @@ export function SusesoReports() {
                       <h3 className="text-[10px] font-black uppercase tracking-widest bg-zinc-100 inline-block px-2 py-1 rounded mb-3">A. Identificación del Empleador</h3>
                       {!selectedProject?.companyName && (
                         <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-[9px] text-amber-700 font-medium">
-                          âš ï¸ Datos del empleador incompletos — completa Razón Social, RUT y Organismo Administrador en la configuración del proyecto.
+                          ⚠ Datos del empleador incompletos — completa Razón Social, RUT y Organismo Administrador en la configuración del proyecto.
                         </div>
                       )}
                       <div className="grid grid-cols-2 gap-4">
@@ -412,15 +420,15 @@ export function SusesoReports() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="col-span-2">
                           <p className="text-[8px] font-bold uppercase text-zinc-500">Nombre Completo</p>
-                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">{selectedIncident.metadata?.workerName || 'No especificado'}</p>
+                          <p className={`text-sm font-medium border-b border-zinc-200 pb-1 ${workerName.missing ? 'text-red-600' : ''}`}>{workerName.text}</p>
                         </div>
                         <div>
                           <p className="text-[8px] font-bold uppercase text-zinc-500">RUT</p>
-                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">{selectedIncident.metadata?.workerRut || '12.345.678-9'}</p>
+                          <p className={`text-sm font-medium border-b border-zinc-200 pb-1 ${workerRut.missing ? 'text-red-600' : ''}`}>{workerRut.text}</p>
                         </div>
                         <div>
                           <p className="text-[8px] font-bold uppercase text-zinc-500">Profesión / Oficio</p>
-                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">{selectedIncident.metadata?.workerRole || 'Operario'}</p>
+                          <p className={`text-sm font-medium border-b border-zinc-200 pb-1 ${workerRole.missing ? 'text-red-600' : ''}`}>{workerRole.text}</p>
                         </div>
                       </div>
                     </div>
