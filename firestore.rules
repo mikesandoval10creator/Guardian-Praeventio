@@ -225,6 +225,20 @@ service cloud.firestore {
              isValidId(data.projectId);
     }
 
+    // CPHS committee minute (Comité Paritario acta, DS54). Fixed client schema
+    // written ONLY by the ComiteParitario page: { fecha, tipo, asistentes[],
+    // acuerdos[], createdAt }. `hasOnly` blocks any extra top-level field — a
+    // compliance/legal record must not become a sink for smuggled PII.
+    function isValidComiteActa(data) {
+      return data.keys().hasOnly(['fecha', 'tipo', 'asistentes', 'acuerdos', 'createdAt']) &&
+             data.keys().hasAll(['fecha', 'tipo', 'asistentes', 'acuerdos', 'createdAt']) &&
+             data.fecha is string && data.fecha.size() > 0 && data.fecha.size() <= 40 &&
+             data.tipo is string && data.tipo.size() > 0 && data.tipo.size() <= 60 &&
+             data.asistentes is list &&
+             data.acuerdos is list &&
+             data.createdAt is string && data.createdAt.size() > 0;
+    }
+
     function isValidPost(data) {
       return data.keys().hasAll(['userId', 'content', 'type', 'createdAt']) &&
              data.keys().size() <= 20 &&
@@ -469,6 +483,23 @@ service cloud.firestore {
       // NO write rule → the Documents feature was default-denied in production.
       match /documents/{documentId} {
         allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
+      }
+      // CPHS committee minutes (Comité Paritario actas, DS54). Written by the
+      // ComiteParitario page (client SDK): create the acta, then append acuerdos
+      // via arrayUnion / replace the acuerdos array on a status change. No
+      // creator-uid field → member-gated create/update, but schema-validated
+      // (legal compliance record — no PII smuggling) and the creation stamp +
+      // meeting date are immutable once set. Deleting a CPHS minute (legal trail)
+      // is restricted to admin/supervisor. Previously had NO write rule → the
+      // Comité Paritario feature was default-denied in production.
+      match /comite_actas/{actaId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && isValidComiteActa(incoming());
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && isValidComiteActa(incoming())
+          && incoming().createdAt == existing().createdAt
+          && incoming().fecha == existing().fecha;
         allow delete: if isAdmin() || isSupervisor();
       }
       // Bio-analysis / inspection findings (BioAnalysis + Hallazgos, client SDK).

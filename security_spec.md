@@ -253,5 +253,28 @@ good, ADR 0021). `read: if true`. Write is gated to members of the OWNING projec
 37. **PII Smuggle**: `{ ...dea, "assignedToName": "Juan Pérez" }` — fields beyond
     the public schema are rejected (no personal data leaks onto the public map).
 
+## CPHS committee minutes (projects/{pid}/comite_actas) — member write (#B12, added 2026-06-08)
+
+`projects/{pid}/comite_actas/{actaId}` holds Comité Paritario actas (DS54 legal
+compliance records). Written by the ComiteParitario page (create the acta, then
+append `acuerdos`). Previously had NO write rule → default-denied (the feature
+was broken in production). Now: member-gated create/update
+(`isProjectMember(projectId)`), schema-validated (`isValidComiteActa`: only
+`fecha` / `tipo` / `asistentes` / `acuerdos` / `createdAt`), the creation stamp
+and meeting date are immutable on update, and delete is restricted to
+admin/supervisor (legal trail). Rules tests:
+`src/rules-tests/comiteActas.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+38. **Acta PII Smuggle**: `{ ...acta, "workerRut": "11.111.111-1" }` — any field
+    beyond the fixed acta schema is rejected; a legal minute must not become a
+    sink for smuggled personal data.
+39. **Minute Backdating**: an update that mutates `createdAt` or `fecha` of an
+    existing acta — the creation stamp and meeting date are immutable once set
+    (tamper-evident compliance record).
+40. **Cross-project / anonymous Acta Write**: a non-member (or logged-out) user
+    creating an acta in a project they do not belong to.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

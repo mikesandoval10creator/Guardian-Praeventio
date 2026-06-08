@@ -256,7 +256,7 @@ considera y se CABLEA donde corresponde.** Reglas:
 - [ ] 🔵 `susesoBackend`/`legalBackend` JSON.parse (F2); `committee_minutes`/`training_record` /emit stubs → **implementar generación PDF real** (#13); dte audit (#14)/err.message 5xx (#8).
 
 ### B12 — CPHS & Comités 🔐  · ref `DEEP-B12` + `DEEP-EX-18`
-- [ ] 🔴 `comite_actas` sin regla de write (`ComiteParitario.tsx:73`) → regla; **consolidar** con `cphs_meetings` (un solo canónico, preservar capacidades). (rules)
+- [x] 🔴 `comite_actas` regla de write → **HECHO** (`firestore.rules` member-gated create/update + schema `isValidComiteActa` (hasOnly 5 campos, no PII smuggle) + `createdAt`/`fecha` inmutables en update + delete admin/supervisor; 10 rules-tests `comiteActas.rules.test.ts` verdes en emulador local; Dirty-Dozen 38-40 en `security_spec.md`; PR #760). Antes default-deny rompía el guardado de actas. **Consolidación con `cphs_meetings` queda como follow-up** (migración de datos separada — no fabricar). (rules)
 - [ ] 🔴 `cphs_meetings:1175` append-only no preserva prefijo del array de firmas → preservar + ≥5 rules-tests + security_spec. (rules)
 - [ ] 🟡 `cphsService` client-side sin audit (#3) → ruta server; `culturePulse.respondSurvey:657` audita userId → anonimizar/hash. (super/vitest)
 - [ ] 🔵 `organic.ts` err.message (#8); `comiteBackend.ts:37,75` JSON.parse (F2); `useAgenda`/`useMeetingPack`/`useRaciMatrix` huérfanos → **montar**.
