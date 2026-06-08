@@ -4,8 +4,10 @@
 //
 // Real CoreBluetooth implementation. Replaces the Sprint 30 STUB.
 //
-//   - CBPeripheralManager advertising service UUID
-//     00001234-PRAE-VENTI-O123-456789ABCDEF
+//   - CBPeripheralManager advertising the derived BLE service UUID
+//     00001234-12AE-3E45-7123-456789ABCDEF (the canonical brand string
+//     00001234-PRAE-VENTI-O123-456789ABCDEF is NOT a valid hex UUID, so the
+//     same non-hex→hex mapping Android uses is applied for the real radio UUID)
 //   - CBCentralManager scanning with CBCentralManagerScanOptionAllowDuplicatesKey
 //     for continuous RSSI tracking
 //   - CBMutableService + CBMutableCharacteristic for `mesh-data`
@@ -31,8 +33,14 @@ import Capacitor
 @objc(MeshPlugin)
 public class MeshPlugin: CAPPlugin, CBPeripheralManagerDelegate, CBCentralManagerDelegate, CBPeripheralDelegate {
 
-    static let serviceUUIDString = "00001234-PRAE-VENTI-O123-456789ABCDEF"
-    static let meshDataCharUUIDString = "00001235-PRAE-VENTI-O123-456789ABCDEF"
+    // Canonical brand string `00001234-PRAE-VENTI-O123-456789ABCDEF` is NOT a
+    // valid hex UUID (contains P/R/V/N/T/I/O and a 5-char group), so passing it
+    // to CBUUID(string:) crashes at runtime. We use the same derived,
+    // BLE-valid UUIDs Android does (P→1 R→2 V→3 N→4 T→5 I→6 O→7, length-fixed)
+    // so iOS and Android peers advertise/scan the SAME 128-bit service and
+    // discover each other.
+    static let serviceUUIDString = "00001234-12AE-3E45-7123-456789ABCDEF"
+    static let meshDataCharUUIDString = "0000ABCD-12AE-3E45-7123-456789ABCDEF"
     static let peerLostTimeout: TimeInterval = 30.0
 
     private let serviceUUID = CBUUID(string: MeshPlugin.serviceUUIDString)
