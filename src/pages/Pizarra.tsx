@@ -2,7 +2,7 @@ import React, { useState, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, Plus, Network, Lightbulb, Tag, X, Save, Loader2, PanelRightClose, PanelRightOpen
+  LayoutDashboard, Plus, Lightbulb, Tag, X, Save, Loader2, PanelRightClose, PanelRightOpen
 } from 'lucide-react';
 // Sprint 29 Bucket BB H24 — lazy split: KnowledgeGraph pulls
 // react-force-graph-2d/3d (~1MB combined) and three.js. Defer until
@@ -255,20 +255,18 @@ export function Pizarra() {
 
         {/* Smart connections side panel — always visible on sm+, toggleable on mobile */}
         <AnimatePresence>
-          {(showPanel || true) && (
-            <motion.div
-              initial={false}
-              className={`${showPanel ? 'flex' : 'hidden'} sm:flex flex-col w-72 shrink-0 border-l border-[var(--border-subtle)] overflow-y-auto bg-[var(--bg-surface)]/40 absolute sm:relative inset-y-0 right-0 z-10`}
-            >
-              <div className="p-3 border-b border-[var(--border-subtle)]">
-                <div className="flex items-center gap-2">
-                  <Lightbulb className="w-4 h-4 text-[var(--accent-warning)]" aria-hidden="true" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-secondary-token">Conexiones Inteligentes</span>
-                </div>
+          <motion.div
+            initial={false}
+            className={`${showPanel ? 'flex' : 'hidden'} sm:flex flex-col w-72 shrink-0 border-l border-[var(--border-subtle)] overflow-y-auto bg-[var(--bg-surface)]/40 absolute sm:relative inset-y-0 right-0 z-10`}
+          >
+            <div className="p-3 border-b border-[var(--border-subtle)]">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="w-4 h-4 text-[var(--accent-warning)]" aria-hidden="true" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-secondary-token">Conexiones Inteligentes</span>
               </div>
-              <SmartConnectionsPanel />
-            </motion.div>
-          )}
+            </div>
+            <SmartConnectionsPanel />
+          </motion.div>
         </AnimatePresence>
       </div>
     </div>
