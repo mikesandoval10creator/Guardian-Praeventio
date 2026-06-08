@@ -195,6 +195,14 @@ describe('server.ts block-audit router mounts (B1, B2 … contract)', () => {
       importRe: /import\s+syncStatusRouter\s+from\s+['"`][^'"`]*syncStatus(\.js)?['"`]/,
       mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*syncStatusRouter/,
     },
+    // B16 offline-block (2026-06-08): conflictQueue durable persistence — the
+    // pure engine src/services/sync/conflictQueue.ts had 0 consumers. Wired to
+    // a server route so a critical safety-doc conflict survives app close.
+    {
+      name: 'conflictQueue (/:projectId/conflict-queue/*) under /api/sprint-k',
+      importRe: /import\s+conflictQueueRouter\s+from\s+['"`][^'"`]*conflictQueue(\.js)?['"`]/,
+      mountRe: /app\.use\(\s*['"`]\/api\/sprint-k['"`]\s*,\s*conflictQueueRouter/,
+    },
     // B17 admin-block audit (2026-06-01): pyme onboarding + wizard orphaned.
     {
       name: 'pymeOnboarding (/:projectId/pyme-onboarding/*) under /api/sprint-k',

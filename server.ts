@@ -148,6 +148,9 @@ import portableHistoryRouter from "./src/server/routes/portableHistory.js";
 // Offline block (B16) — sync-status tracker was orphaned; consumer useSyncStatus
 // hit 404. Paths /:projectId/sync-status/*.
 import syncStatusRouter from "./src/server/routes/syncStatus.js";
+// B16 (2026-06-08): durable conflict_queue persistence — wires the orphan
+// engine src/services/sync/conflictQueue.ts. Paths /:projectId/conflict-queue/*.
+import conflictQueueRouter from "./src/server/routes/conflictQueue.js";
 import confidentialReportsRouter from "./src/server/routes/confidentialReports.js";
 import apprenticeshipRouter from "./src/server/routes/apprenticeship.js";
 import lessonsLearnedRouter from "./src/server/routes/lessonsLearned.js";
@@ -1004,6 +1007,8 @@ app.use('/api/sprint-k', incidentTrendsRouter);
 app.use('/api/sprint-k', dataConfidenceRouter);
 // B16 — offline sync-status tracker.
 app.use('/api/sprint-k', syncStatusRouter);
+// B16 — durable conflict_queue persistence (/:projectId/conflict-queue/*).
+app.use('/api/sprint-k', conflictQueueRouter);
 app.use('/api/sprint-k', portableHistoryRouter);
 app.use('/api/sprint-k', confidentialReportsRouter);
 app.use('/api/sprint-k', apprenticeshipRouter);

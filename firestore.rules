@@ -1184,7 +1184,7 @@ service cloud.firestore {
       match /{subcoll}/{docId} {
         allow read: if isSignedIn()
           && isMemberOfTenant(tenantId)
-          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters']);
+          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue']);
         allow create, update, delete: if false;
       }
 
@@ -1231,6 +1231,25 @@ service cloud.firestore {
       // SUSESO folio counters. Server-only; clients never need to read.
       match /suseso_counters/{counterId} {
         allow read, write: if false;
+      }
+
+      // ===============================================================
+      // §12.2.2 / B16 — Safety-doc conflict queue.
+      //
+      // Two offline writers diverged on a legally-binding field (incident
+      // severity, medical aptitude, training cert, …). The entry is written
+      // ONLY by the server (src/server/routes/conflictQueue.ts via Admin
+      // SDK, which bypasses these rules) so identity + status transitions
+      // are server-stamped and approver-gated. Clients NEVER write here —
+      // resolution flows through the audited, approver-gated server route,
+      // not a direct client write.
+      //
+      // Read: supervisor-tier of THIS tenant (so a gerente/admin can see
+      // the queue and resolve it). Workers do not read other workers'
+      // conflict decisions.
+      match /conflict_queue/{queueId} {
+        allow read: if isSignedIn() && isSupervisorOfTenant(tenantId);
+        allow create, update, delete: if false;
       }
 
       // ===============================================================

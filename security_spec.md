@@ -360,5 +360,32 @@ decryptable; no migration on rotation).
 45. **Cross-Worker Share Read**: worker B reads worker A's
     `/users/A/health_vault_shares/*` — read is owner/doctor/admin only.
 
+## Conflict queue (safety-doc sync conflicts) — write rules (B16, added 2026-06-08)
+
+`tenants/{tid}/conflict_queue/{queueId}` (§12.2.2) holds safety-doc sync
+conflicts (Inspection / IncidentReport / EmergencyAlert / MedicalRecord /
+TrainingCompletion) where two offline writers diverged on a legally-binding
+field and human approval is required. The pure engine
+`src/services/sync/conflictQueue.ts` had 0 consumers and no rules; it is now
+written ONLY by the server route `src/server/routes/conflictQueue.ts` (Admin
+SDK — identity, status transitions and the approver-role gate are
+server-stamped). Rules tests: `src/rules-tests/conflictQueue.rules.test.ts`.
+- read: supervisor-tier of the tenant (`isSupervisorOfTenant(tenantId)`).
+- create/update/delete: **false** for ALL clients — resolution flows through
+  the audited, approver-gated (`admin`/`gerente`) server route, never a direct
+  client write.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+46. **Queue Write Forgery**: any client `setDoc` / `update` to
+    `/tenants/t1/conflict_queue/q1` — the collection is server-only; clients
+    cannot create, update or delete under any circumstance.
+47. **Cross-tenant Queue Read**: a supervisor of tenant A reading
+    `/tenants/t1/conflict_queue/q1` — per-tenant role governs; a supervisor
+    claim in another tenant grants nothing here.
+48. **Worker Queue Read**: a tenant member with worker-tier role reading
+    `/tenants/t1/conflict_queue/q1` — the queue is supervisor-only, so workers
+    never see other workers' conflict decisions.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
