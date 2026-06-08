@@ -347,3 +347,20 @@ describe('handleCloseIncident', () => {
     ).rejects.toThrow(/INVARIANT_VIOLATED/);
   });
 });
+
+describe('generateEventId — crypto event identity (CLAUDE.md #15)', () => {
+  it('emits a non-empty unique eventId per created incident (no Math.random collisions)', async () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 50; i++) {
+      const freshStore = new InMemoryEventStore(() => nowMs);
+      const cmd = { ...createCmdBase(), aggregateId: `inc-${i}` };
+      const events = await handleCreateIncident({ store: freshStore, nowIso }, cmd);
+      expect(events).toHaveLength(1);
+      const id = (events[0] as IncidentEvent).eventId;
+      expect(typeof id).toBe('string');
+      expect(id.length).toBeGreaterThan(0);
+      seen.add(id);
+    }
+    expect(seen.size).toBe(50);
+  });
+});

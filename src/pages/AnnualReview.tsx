@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { randomId } from '../utils/randomId';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
   useCurrentAnnualReview,
@@ -217,7 +218,8 @@ export function AnnualReview() {
     setError(null);
     try {
       const newObj = {
-        id: `obj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        // CLAUDE.md #15: crypto id suffix (randomId → crypto.randomUUID) instead of Math.random.
+        id: `obj_${Date.now()}_${randomId().replace(/-/g, '').slice(0, 6)}`,
         title: draft.title.trim(),
         description: '',
         metric: draft.metric,

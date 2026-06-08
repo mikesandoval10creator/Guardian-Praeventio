@@ -33,6 +33,7 @@ import {
   type IncidentClosedPayload,
   type IncidentReopenedPayload,
 } from './incidentEvents.js';
+import { randomId } from '../../../utils/randomId.js';
 
 // ────────────────────────────────────────────────────────────────────────
 // Command types
@@ -122,13 +123,11 @@ async function loadAggregate(
 }
 
 function generateEventId(): string {
-  // UUID v4 lite — suficiente para event identity (Firestore añade
-  // ULID equivalente al hacer auto-id, pero queremos seedeable en tests).
-  const rnd = (n: number) =>
-    Array.from({ length: n }, () =>
-      Math.floor(Math.random() * 16).toString(16),
-    ).join('');
-  return `${rnd(8)}-${rnd(4)}-${rnd(4)}-${rnd(4)}-${rnd(12)}`;
+  // CLAUDE.md #15: crypto event identity. randomId() wraps
+  // crypto.randomUUID() (with a documented non-crypto fallback for
+  // sandboxes lacking WebCrypto) and returns a UUID-shaped string, which
+  // replaces the previous hand-rolled Math.random UUID-v4-lite.
+  return randomId();
 }
 
 /**
