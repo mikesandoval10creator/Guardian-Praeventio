@@ -46,6 +46,12 @@ describe('securityHeaders middleware', () => {
     expect(csp).toContain('upgrade-insecure-requests');
     expect(csp).toContain('https://generativelanguage.googleapis.com');
     expect(csp).toContain('https://*.sentry.io');
+    // USGS Earthquake API must be reachable — the seismic monitor (life-safety,
+    // useSeismicMonitor → usgsEarthquakeAdapter) fetches earthquake.usgs.gov.
+    // A missing entry silently blocked it in production (found by running the
+    // deployed app; unit tests mock fetch so they never caught it).
+    expect(csp).toContain('https://earthquake.usgs.gov');
+    expect(__connectSrcOriginsForTests).toContain('https://earthquake.usgs.gov');
   });
 
   it('sets X-Content-Type-Options nosniff', () => {
