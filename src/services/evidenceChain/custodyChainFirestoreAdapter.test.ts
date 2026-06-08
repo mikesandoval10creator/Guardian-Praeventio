@@ -71,6 +71,48 @@ describe('CustodyChainAdapter', () => {
     expect(list.every((art) => art.linkedNodeId === 'inc-A')).toBe(true);
   });
 
+  it('no pierde eventos en la misma marca de tiempo (sin colisión de doc id)', async () => {
+    const db = createFakeFirestore();
+    const a = new CustodyChainAdapter(db, 't1');
+    const { artifact, event: uploadEvent } = makeArtifact();
+    await a.saveArtifact(artifact);
+    // Dos eventos de custodia en el MISMO instante (mismo `at`).
+    const sameInstant = new Date('2026-05-11T10:00:00Z');
+    const access1 = recordAccess(artifact, 'auditor-1', 'auditor', undefined, sameInstant);
+    const access2 = recordAccess(artifact, 'auditor-2', 'auditor', undefined, sameInstant);
+    expect(access1.at).toBe(access2.at); // precondición: timestamp idéntico
+    await a.appendEvent(uploadEvent);
+    await a.appendEvent(access1);
+    await a.appendEvent(access2);
+    const events = await a.listEvents(artifact.id);
+    // 3 eventos distintos persistidos — el segundo acceso NO sobre-escribe al primero.
+    expect(events).toHaveLength(3);
+    const accessActors = events
+      .filter((e) => e.eventKind === 'access')
+      .map((e) => e.actorUid)
+      .sort();
+    expect(accessActors).toEqual(['auditor-1', 'auditor-2']);
+  });
+
+  it('doc ids de eventos son únicos aunque compartan timestamp', async () => {
+    const db = createFakeFirestore();
+    const a = new CustodyChainAdapter(db, 't1');
+    const { artifact } = makeArtifact();
+    await a.saveArtifact(artifact);
+    const at = new Date('2026-05-11T10:00:00Z');
+    await a.appendEvent(recordAccess(artifact, 'x', 'auditor', undefined, at));
+    await a.appendEvent(recordAccess(artifact, 'y', 'auditor', undefined, at));
+    // Inspecciona la subcollection cruda: dos doc ids distintos para el mismo `at`.
+    // El separador `_` es el contrato del esquema de id — si el esquema cambia,
+    // estas aserciones fallan a propósito.
+    const raw = db._dump().get(`tenants/t1/evidence_artifacts/${artifact.id}/events`);
+    expect(raw).toBeDefined();
+    expect(raw!.size).toBe(2);
+    const ids = Array.from(raw!.keys());
+    expect(ids[0]).not.toBe(ids[1]);
+    expect(ids.every((id) => id.startsWith('2026-05-11T10:00:00.000Z_'))).toBe(true);
+  });
+
   it('subcollections aisladas por artifact hash', async () => {
     const db = createFakeFirestore();
     const a = new CustodyChainAdapter(db, 't1');
