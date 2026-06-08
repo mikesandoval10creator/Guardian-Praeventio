@@ -209,10 +209,15 @@ export class TransportFacade {
   // ---------------------------------------------------------------------------
 
   private handleIncomingPacket(packet: MeshPacket): void {
-    const result = this.queue.receive([packet]);
-    if (this.router && result.forLocal.length > 0) {
-      void this.router.processIncomingPackets(result.forLocal);
-    }
+    // receive() is async (verify-on-receive runs WebCrypto). Only VERIFIED
+    // packets reach forLocal; untrusted SOS are relayed but intentionally NOT
+    // handed to the local router for auto-escalation.
+    void (async () => {
+      const result = await this.queue.receive([packet]);
+      if (this.router && result.forLocal.length > 0) {
+        void this.router.processIncomingPackets(result.forLocal);
+      }
+    })();
   }
 }
 

@@ -680,6 +680,19 @@ service cloud.firestore {
       allow create: if false;
     }
 
+    // Phase 5 — Per-project mesh signing key (HMAC-SHA-256). Distributed ONLY
+    // through the server route GET /api/mesh/key (Admin SDK), gated by
+    // verifyAuth + assertProjectMember. Clients must NEVER read it directly
+    // (would expose the project secret in a member's browser console, letting
+    // them forge mesh SOS packets) nor write it (would let one member overwrite
+    // the trust root for the whole project). Default-deny both. Server reads via
+    // Admin SDK bypass these rules. Exercised by
+    // src/rules-tests/meshKeys.rules.test.ts.
+    match /mesh_keys/{projectId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
     // Sprint 11 — Bernoulli-driven Zettelkasten nodes. Server-only writes
     // via POST /api/zettelkasten/nodes (verifyAuth + assertProjectMember
     // + zettelkastenWriteLimiter). Client-side reads están limitadas a

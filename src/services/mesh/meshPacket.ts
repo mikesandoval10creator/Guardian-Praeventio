@@ -234,12 +234,57 @@ export function buildPacket(opts: {
     bornAtMs: opts.bornAtMs,
     expiresAtMs,
     payload: opts.payload,
-    signature: opts.signature ?? 'unsigned-dev',
-    signaturePublicKeyId: opts.signaturePublicKeyId ?? 'unsigned-dev',
+    // 'unkeyed' = no project mesh key was available at build time (first
+    // launch offline). The relay queue treats an 'unkeyed' SOS as UNTRUSTED:
+    // it is still relayed (never drop a life signal) but is NOT handed to the
+    // local router for auto-escalation. All other 'unkeyed' types are dropped
+    // when a verifying key is present. A real keyId here (from
+    // buildSignedPacket) marks a verifiable packet.
+    signature: opts.signature ?? UNKEYED_SIGNATURE,
+    signaturePublicKeyId: opts.signaturePublicKeyId ?? UNKEYED_SIGNATURE,
     relayedBy: [],
     projectId: opts.projectId,
     priority,
   };
+}
+
+/** Sentinel for packets built without a project mesh key (offline first-run). */
+export const UNKEYED_SIGNATURE = 'unkeyed';
+
+/** True when the packet claims a real (non-sentinel) signing key. */
+export function isVerifiablePacket(packet: MeshPacket): boolean {
+  return (
+    packet.signaturePublicKeyId !== UNKEYED_SIGNATURE &&
+    packet.signature !== UNKEYED_SIGNATURE
+  );
+}
+
+/**
+ * Sign-on-build: construye el packet con defaults y lo FIRMA con la clave de
+ * proyecto provista (HMAC-SHA-256 sobre los campos inmutables). Esta es la
+ * entrada real de runtime; reemplaza el placeholder 'unkeyed' por una firma
+ * verificable. Si `signingKey` es null (no hay clave provisionada todavía),
+ * degrada a buildPacket() unkeyed — nunca lanza (un SOS offline no debe morir
+ * por falta de clave).
+ */
+export async function buildSignedPacket(
+  opts: Parameters<typeof buildPacket>[0],
+  signingKey: import('./meshPacketSigner').MeshSigningKey | null,
+): Promise<MeshPacket> {
+  const base = buildPacket(opts);
+  if (!signingKey) return base;
+  try {
+    const { signPacket } = await import('./meshPacketSigner');
+    const { signature, signaturePublicKeyId } = await signPacket(
+      base,
+      signingKey,
+    );
+    return { ...base, signature, signaturePublicKeyId };
+  } catch {
+    // WebCrypto fault — return the unkeyed packet rather than failing the
+    // emergency. The receiver treats it as untrusted, not forged.
+    return base;
+  }
 }
 
 /**

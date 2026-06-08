@@ -46,6 +46,10 @@ import { useProject } from '../contexts/ProjectContext';
 import { registerMeshTransport } from '../services/emergency/meshFallback';
 import { MeshRelayQueue } from '../services/mesh/meshRelayQueue';
 import { makeRelayXpHandler } from '../services/mesh/meshRelayXpWire';
+import {
+  getMeshSigningKey,
+  provisionMeshSigningKey,
+} from '../services/mesh/meshKeyStore';
 import { TransportFacade } from '../services/mesh/transportFacade';
 import { getErrorTracker } from '../services/observability/index.js';
 
@@ -83,31 +87,45 @@ export function MeshProvider({ children }: MeshProviderProps) {
     let cancelled = false;
     let facade: TransportFacade | null = null;
 
-    const queue = new MeshRelayQueue({
-      selfUid: uid,
-      projectId,
-      // Sprint 32 B3 wire — relayer earns +50 XP on each SOS rebroadcast
-      // (Flow Infinito Phase 3: Consolidación de Conocimiento).
-      onRelaySuccess: makeRelayXpHandler(),
-    });
-
-    facade = new TransportFacade({
-      peerId: uid,
-      projectId,
-      queue,
-    });
-
     (async () => {
+      // Provision the project mesh signing key while online (best-effort), then
+      // load the cached key for offline verify-on-receive. Failure is a
+      // degraded mode — the queue runs without verification until a key lands.
+      await provisionMeshSigningKey(projectId).catch((err) =>
+        reportMeshError(err, 'provisionMeshKey'),
+      );
+      const signingKey = await getMeshSigningKey(projectId).catch((err) => {
+        reportMeshError(err, 'loadMeshKey');
+        return null;
+      });
+      if (cancelled) return;
+
+      const queue = new MeshRelayQueue({
+        selfUid: uid,
+        projectId,
+        // verify-on-receive: forged SOS/packets are rejected against this key.
+        signingKey,
+        // Sprint 32 B3 wire — relayer earns +50 XP on each SOS rebroadcast
+        // (Flow Infinito Phase 3: Consolidación de Conocimiento).
+        onRelaySuccess: makeRelayXpHandler(),
+      });
+
+      facade = new TransportFacade({
+        peerId: uid,
+        projectId,
+        queue,
+      });
+
       try {
-        await facade!.startMesh();
+        await facade.startMesh();
         if (cancelled) {
           // Provider unmounted before startMesh resolved — undo.
-          await facade!.stopMesh().catch((err) =>
+          await facade.stopMesh().catch((err) =>
             reportMeshError(err, 'stopMesh-after-cancel'),
           );
           return;
         }
-        registerMeshTransport(facade!);
+        registerMeshTransport(facade);
       } catch (err) {
         reportMeshError(err, 'startMesh');
       }

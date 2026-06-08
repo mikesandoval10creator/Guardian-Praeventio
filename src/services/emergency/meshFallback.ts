@@ -39,7 +39,8 @@
 // "envía SOS al mesh"; este módulo decide CÓMO.
 
 import type { MeshPacket } from '../mesh/meshPacket';
-import { buildPacket } from '../mesh/meshPacket';
+import { buildSignedPacket } from '../mesh/meshPacket';
+import { getMeshSigningKey } from '../mesh/meshKeyStore';
 import type { TransportFacade } from '../mesh/transportFacade';
 
 // Estado de módulo: el facade activo (si algún día el provider de
@@ -102,14 +103,23 @@ export async function enqueueOutbound(
   };
 
   try {
-    const packet: MeshPacket = buildPacket({
-      type: 'sos',
-      fromUid: payload.uid,
-      toUid: 'broadcast',
-      payload: sosPayload,
-      bornAtMs: Date.now(),
-      projectId: payload.projectId,
-    });
+    // Sign-on-build with the project mesh key so same-project peers can verify
+    // this SOS is authentic (not a forged/spoofed broadcast). getMeshSigningKey
+    // returns null when offline-without-key (first launch in a dead zone) →
+    // buildSignedPacket degrades to an unkeyed packet, which peers still relay
+    // as untrusted — we never block the life signal on a missing key.
+    const signingKey = await getMeshSigningKey(payload.projectId);
+    const packet: MeshPacket = await buildSignedPacket(
+      {
+        type: 'sos',
+        fromUid: payload.uid,
+        toUid: 'broadcast',
+        payload: sosPayload,
+        bornAtMs: Date.now(),
+        projectId: payload.projectId,
+      },
+      signingKey,
+    );
     const res = await activeFacade.sendLocal(packet);
     if (!res.enqueued) {
       return { enqueued: false, reason: 'queue-rejected', packetId: packet.id };
