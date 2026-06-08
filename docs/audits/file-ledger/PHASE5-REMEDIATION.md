@@ -184,7 +184,7 @@ considera y se CABLEA donde corresponde.** Reglas:
 ### B16 — Offline / PWA / Mesh / Sensores 🛟🔐  · ref `DEEP-B16` + `DEEP-EX-08`
 - [x] 🔴 `syncStateMachine.ts:313` y `genericOutboxEngine.ts:248` descartaban datos de seguridad en silencio (give-up/TTL/maxRetries → `delete`) → **dead-letter (patrón sosOutbox B1)**: se retienen marcados `deadLettered`, dejan de reintentarse, se excluyen de `pending` y se exponen vía `deadLetters()` / `clearDeadLetter()`. Capacidad nunca evicta un dead-letter; el scheduler no hace busy-loop con dead-letters. +13 tests (40 en ambas suites). (Fase 5, 2026-06-05)
 - [ ] 🟡 `conflictQueue.ts` (real, sin consumidor/reglas) → **cablear** (consumidor + reglas+tests). (rules/vitest)
-- [ ] 🟡 `meshPacket.ts:237` firma `'unsigned-dev'` → firmar+verificar; `offlineStorage.ts` `encryptData` base64 → **cifrado real** (no llamarlo cifrado si no lo es). (vitest)
+- [ ] 🟡 `meshPacket.ts:237` firma `'unsigned-dev'` → firmar+verificar (PENDIENTE); ~~`offlineStorage.ts` `encryptData` base64 → **cifrado real**~~ **✅ HECHO** (`src/utils/offlineCrypto.ts`: AES-256-GCM real con clave no-extraíble device-bound en IndexedDB, IV aleatorio por payload, autenticado (tamper→null); migration-safe (lee base64 legacy); cableado async en offlineStorage workers/matrices/zettel; bug de tx de cursor IDB corregido (descifrar tras cerrar cursor); 4 tests crypto + 41 offlineStorage verdes; PR #761). (vitest)
 - [ ] 🔵 `useSyncStatus`/`SyncQueueBadge` huérfanos → **montar** (badge de cola en UI).
 
 ### B2 — Riesgo & IPER 🛟  · ref `DEEP-B2` + `DEEP-EX-14/15`
