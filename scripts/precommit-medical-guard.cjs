@@ -66,6 +66,17 @@ const SCOPED_DIRS = [
   // SymptomDocumenter (documentación de síntomas, no diagnóstico) se escanea
   // para impedir que vuelva a colarse inferencia clínica.
   'src/components/occupational-health/',
+  // B-medical-guard (2026-06) — los backends Gemini médicos viven en la RAÍZ de
+  // src/services/ (no en las subcarpetas health/ o medicine/ ya escaneadas), así
+  // que el prefijo de directorio NUNCA los matcheaba y quedaban fuera de ADR 0012.
+  // Se agregan como rutas exactas (isInScope usa startsWith, así que la ruta
+  // completa matchea). medicineBackend = vigilancia médica/epidemiología;
+  // medicalAnalysisBackend = ilustración anatómica educativa (ex-diagnóstico,
+  // reconvertido #674/#676/#677); psychosocialBackend = ISTAS-21. Todos son
+  // superficies diagnóstico-shaped que el guard DEBE vigilar contra regresiones.
+  'src/services/medicineBackend.ts',
+  'src/services/medicalAnalysisBackend.ts',
+  'src/services/psychosocialBackend.ts',
   'src/pages/HealthVault',
   'src/pages/MyData',
   'src/pages/Medicine',
