@@ -229,6 +229,23 @@ export function DEAZones() {
         doc(db, `projects/${selectedProject.id}/deas/${id}`),
         newDea,
       );
+      // #4 — mirror to the PUBLIC AED registry (dea_locations) so a bystander in
+      // a cardiac arrest can find it WITHOUT login. Only the public-good fields
+      // (no PII). Only DEAs with coordinates; best-effort — a mirror failure must
+      // NOT block the per-project compliance record written above.
+      if (newDea.coordinates) {
+        try {
+          await setDoc(doc(db, `dea_locations/${id}`), {
+            location: newDea.location,
+            coordinates: newDea.coordinates,
+            status: computeDeaStatus(newDea),
+            projectId: selectedProject.id,
+            updatedAt: newDea.createdAt,
+          });
+        } catch (mirrorErr) {
+          logger.warn('No se pudo publicar el DEA al mapa público', { error: mirrorErr });
+        }
+      }
       setIsRegisterOpen(false);
       setRegisterForm(EMPTY_REGISTER);
     } catch (err) {
