@@ -276,10 +276,14 @@ describe('generatePredictiveForecast', () => {
     expect(result.score).toBe(78);
   });
 
-  it('undefined response.text → returns empty object {}', async () => {
+  it('undefined response.text → throws gemini_empty_response (F2: no silent empty for a safety forecast)', async () => {
     _generateContent.mockResolvedValueOnce({ text: undefined });
-    const result = await mod.generatePredictiveForecast('p', 'c') as Record<string, unknown>;
-    expect(result).toEqual({});
+    // A blocked/empty Gemini completion must NOT degrade into a silent {} that
+    // the UI would render as "no risks" — a dangerous false-negative for a
+    // predictive SAFETY forecast. parseGeminiJson surfaces it as
+    // gemini_empty_response so the whitelisted dispatcher returns 502 and the
+    // user retries instead of trusting an empty result.
+    await expect(mod.generatePredictiveForecast('p', 'c')).rejects.toThrow('gemini_empty_response');
   });
 
   it('weatherContext is optional → still calls model', async () => {
@@ -303,10 +307,11 @@ describe('generateOperationalTasks', () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
-  it('undefined response.text → returns empty array []', async () => {
+  it('undefined response.text → throws gemini_empty_response (F2: no silent empty task list)', async () => {
     _generateContent.mockResolvedValueOnce({ text: undefined });
-    const result = await mod.generateOperationalTasks('n', 'd');
-    expect(result).toEqual([]);
+    // An empty completion must surface as an error, not a silent [] that hides
+    // that the model produced no compliance tasks. parseGeminiJson → 502.
+    await expect(mod.generateOperationalTasks('n', 'd')).rejects.toThrow('gemini_empty_response');
   });
 });
 
@@ -378,10 +383,9 @@ describe('analyzeSiteMapDensity', () => {
     expect(Array.isArray(result.puntosCalientes)).toBe(true);
   });
 
-  it('undefined response.text → returns {}', async () => {
+  it('undefined response.text → throws gemini_empty_response (F2)', async () => {
     _generateContent.mockResolvedValueOnce({ text: undefined });
-    const result = await mod.analyzeSiteMapDensity('n', 'w', 'a') as Record<string, unknown>;
-    expect(result).toEqual({});
+    await expect(mod.analyzeSiteMapDensity('n', 'w', 'a')).rejects.toThrow('gemini_empty_response');
   });
 });
 
@@ -491,10 +495,11 @@ describe('analyzeVisionImage', () => {
     expect(result.summary).toBeTruthy();
   });
 
-  it('undefined response.text → returns {}', async () => {
+  it('undefined response.text → throws gemini_empty_response (F2: no silent empty EPP analysis)', async () => {
     _generateContent.mockResolvedValueOnce({ text: undefined });
-    const result = await mod.analyzeVisionImage('img') as Record<string, unknown>;
-    expect(result).toEqual({});
+    // EPP/PPE vision analysis must never silently return {} (reads as "no PPE
+    // issues"). An empty model output is an error → 502, not a clean bill.
+    await expect(mod.analyzeVisionImage('img')).rejects.toThrow('gemini_empty_response');
   });
 });
 
