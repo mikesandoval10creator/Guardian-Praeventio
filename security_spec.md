@@ -99,7 +99,9 @@ open `firestore.test.rules`. See `TODO.md §17 "HALLAZGO CRÍTICO"`. Rules tests
   `lone_worker_*.workerUid`, `safety_talks_given.givenByUid`,
   `audit_portals.createdByUid`, `documents_for_read.authorUid`).
 - update: project member; the creator-uid is immutable; `site_book(_entries)`
-  are append-only once `signedAt` is set.
+  are append-only once **signed** (gated on `status == 'signed'` / presence of
+  the nested `signature` map — NOT a top-level `signedAt`, which no write-path
+  emits; B9 fix 2026-06-08).
 - delete: **false** for compliance records (`stoppages`, `operational_changes`,
   `root_causes`, `site_book`, `site_book_entries`); admin/supervisor otherwise.
 - `exceptions`, `legal_obligations`, `shifts`: member-gated create/update (no
@@ -230,7 +232,8 @@ sub-collection master-gate. Rules tests: `src/rules-tests/clinicalAlerts.rules.t
 33. **Alert Spoof**: `{ "createdBy": "victim_id" }` on a clinical_alerts create.
 34. **Alert Owner Reassign**: update flipping `createdBy` to another uid.
 16. **Signed SiteBook Tamper**: `update /projects/p1/site_book_entries/e1`
-    where `signedAt` is already set.
+    where `status == 'signed'` (real shape: nested `signature` map, no
+    top-level `signedAt`) — denied (B9, corrected 2026-06-08; see #52).
 17. **Compliance Delete**: `delete /projects/p1/stoppages/s1` (even as admin).
 
 ## Public DEA registry (dea_locations) — public read, member write (#4, added 2026-06-08)
@@ -419,6 +422,24 @@ read/create/update/delete. Rules tests:
     admin/supervisor-only.
 51. **Worker-Doc Compliance Delete**: a non-admin/supervisor deleting a worker
     document (certs/contracts are a legal/compliance trail).
+
+## SiteBook post-sign immutability — real-shape gate (B9, fixed 2026-06-08)
+
+`projects/{pid}/site_book(_entries)/{id}` are DS-76 legally-binding records.
+The immutability gate previously keyed on a top-level `signedAt` field that no
+write-path (client `siteBookStore` save, server `SiteBookAdapter`, WebAuthn
+`/api/sitebook/sign/verify`) ever wrote — signed state is `status == 'signed'`
++ a nested `signature` map. The gate was therefore vacuously satisfied and a
+signed entry stayed mutable. Now any update is denied once `status == 'signed'`
+(or a `signature` is present). Rules tests:
+`src/rules-tests/projectScopedStores.rules.test.ts` (real signed shape).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+52. **Signed Libro-de-Obra Rewrite**: the recorder `update`s
+    `/projects/p1/site_book_entries/e1` whose `status == 'signed'` (nested
+    `signature` present, NO top-level `signedAt`) to flip `status` back to
+    `open` or rewrite `description` — denied by the status-based gate.
 
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

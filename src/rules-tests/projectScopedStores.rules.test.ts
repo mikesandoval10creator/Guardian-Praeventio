@@ -151,17 +151,58 @@ describe('projectScopedStores firestore.rules', () => {
       });
 
       if (s.signed) {
-        it('cannot update once signed (post-sign update-deny)', async () => {
-          // FIXME(B9): the rule gate (firestore.rules:414) checks TOP-LEVEL
-          // `signedAt`, and this seeds top-level `signedAt` to match it — so it
-          // validates the gate AS WRITTEN. But production signs via NESTED
-          // `signature.signedAt` (siteBookSigning.ts), which the gate does NOT
-          // catch → a real signed site_book stays mutable in prod. Reconcile
-          // rule + sign-path + seed to ONE shape in B9.
-          await seed(s.coll, 'd6', { [s.owner]: MEMBER, status: 'signed', signedAt: '2026-06-01T00:00:00Z' });
+        // The canonical signed shape, mirroring signEntry() (siteBookService.ts)
+        // and the adapter's tx.update({ status:'signed', signature }). NO
+        // top-level signedAt — production marks signed via status + nested
+        // signature.signedAt only.
+        const signedDoc = {
+          [s.owner]: MEMBER,
+          status: 'signed',
+          folio: 'SB-2026-000006',
+          signature: {
+            signerUid: MEMBER,
+            signedAt: '2026-06-01T00:00:00Z',
+            algorithm: 'webauthn-ecdsa-p256',
+            payloadHashHex: 'a'.repeat(64),
+          },
+        };
+
+        it('cannot mutate a signed entry (real signed shape: status + nested signature)', async () => {
+          // B9: gate must trigger on status=='signed', NOT a phantom top-level
+          // `signedAt`. This seeds the exact shape prod persists; under the old
+          // rule the update below SUCCEEDS (bug) — under the fixed rule it FAILS.
+          await seed(s.coll, 'd6', signedDoc);
           const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
           await assertFails(
-            setDoc(ref(db, s.coll, 'd6'), { [s.owner]: MEMBER, status: 'tampered', signedAt: '2026-06-01T00:00:00Z' }),
+            setDoc(ref(db, s.coll, 'd6'), {
+              ...signedDoc,
+              status: 'open', // attempt to re-open
+              description: 'TAMPERED legally-binding record',
+            }),
+          );
+        });
+
+        it('cannot tamper a signed entry even keeping status=signed (any field change denied)', async () => {
+          // Defence-in-depth: once signed the doc is fully immutable — flipping
+          // any substantive field (description) while leaving status:'signed'
+          // must still be denied.
+          await seed(s.coll, 'd6b', signedDoc);
+          const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+          await assertFails(
+            setDoc(ref(db, s.coll, 'd6b'), {
+              ...signedDoc,
+              description: 'silently rewritten after signature',
+            }),
+          );
+        });
+
+        it('an OPEN (unsigned) entry is still editable by the recorder', async () => {
+          // Regression guard: the fix must NOT freeze open entries — the
+          // create→edit→sign flow depends on open entries staying mutable.
+          await seed(s.coll, 'd6c', { [s.owner]: MEMBER, status: 'open', description: 'draft' });
+          const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+          await assertSucceeds(
+            setDoc(ref(db, s.coll, 'd6c'), { [s.owner]: MEMBER, status: 'open', description: 'draft v2' }),
           );
         });
       }
