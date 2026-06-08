@@ -387,5 +387,38 @@ server-stamped). Rules tests: `src/rules-tests/conflictQueue.rules.test.ts`.
     `/tenants/t1/conflict_queue/q1` — the queue is supervisor-only, so workers
     never see other workers' conflict decisions.
 
+## Worker documents — write rules (added 2026-06-08)
+
+`src/components/workers/DocsModal.tsx` reads (live `onSnapshot`), creates
+(`addDoc` after a Storage upload) and deletes (`deleteDoc`) worker documents
+(certs, contracts, EPP records, SUSESO docs) at TWO paths:
+`projects/{pid}/workers/{wid}/documents/{id}` when a project is selected, and
+the top-level fallback `workers/{wid}/documents/{id}` when `projectId` is
+undefined (`Workers.tsx` passes `projectId={selectedProject?.id}`). Neither had
+a rule: the nested `match /workers/{workerId}` declared NO `documents`
+sub-match (so create/update/delete were default-denied — read was already
+granted by the project sub-collection master-gate), and there was no top-level
+`match /workers` at all (so that path was fully default-denied). The worker
+Documentación feature was therefore broken in production. The schema carries
+`workerId` (the worker doc id, NOT a caller uid), so there is no anti-spoof
+field to bind: the nested path is member-gated create/update with
+admin/supervisor delete (compliance/legal trail), mirroring the sibling
+`/documents` and `/findings` rules; the top-level fallback (a non-project-scoped
+personnel record with no membership to check) is admin/supervisor-only for
+read/create/update/delete. Rules tests:
+`src/rules-tests/workerDocuments.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+49. **Worker-Doc Injection**: a non-member creating/editing
+    `/projects/victim/workers/w1/documents/*` — only project members may attach
+    or edit a worker's documents.
+50. **Worker-Doc Snoop**: a non-member reading
+    `/projects/victim/workers/w1/documents/*`, or a plain worker reading the
+    top-level `/workers/w1/documents/*` — the top-level fallback is
+    admin/supervisor-only.
+51. **Worker-Doc Compliance Delete**: a non-admin/supervisor deleting a worker
+    document (certs/contracts are a legal/compliance trail).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
