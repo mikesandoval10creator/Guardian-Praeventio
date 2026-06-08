@@ -172,6 +172,14 @@ jobs:
       # Esto cierra el ciclo "tiene la lógica" → "ejecuta automáticamente"
       # sin requerir que el operador ejecute gcloud manualmente cada deploy.
       - name: Setup Cloud Scheduler — daily climate risk scan
+        # Non-fatal: the deploy SA (github-guardian-deploy@) intentionally lacks
+        # serviceusage.services.enable + iam.serviceAccounts.create, so it cannot
+        # provision Cloud Scheduler. The DEPLOY + SMOKE already succeeded by here;
+        # failing the whole workflow on this optional cron setup would mask a
+        # green deploy (and block the auto-deploy chain). The scheduler jobs are
+        # provisioned out-of-band by an owner (enable cloudscheduler API + create
+        # the runner SA once); until then this step no-ops without going red.
+        continue-on-error: true
         env:
           URL: ${{ steps.deploy.outputs.url }}
           PROJECT_ID: ${{ env.PROJECT_ID }}
@@ -248,6 +256,8 @@ jobs:
       # check-overdue-maintenance, weekly-digest, replicate-critical).
       # Idempotente per-job.
       - name: Setup Cloud Scheduler — maintenance jobs
+        # Non-fatal — same rationale as the climate-scan scheduler step above.
+        continue-on-error: true
         env:
           URL: ${{ steps.deploy.outputs.url }}
           PROJECT_ID: ${{ env.PROJECT_ID }}
