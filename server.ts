@@ -415,6 +415,9 @@ import { acquireLease } from "./src/services/scheduler/distributedLease.js";
 import adminJobsRouter from "./src/server/routes/adminJobs.js";
 // Sprint 32 Bucket TT — IoT device registration + MQTT broker boot.
 import iotRouter from "./src/server/routes/iot.js";
+// Phase 5 — Mesh signing key distribution (GET /api/mesh/key). Roots the
+// offline mesh-packet HMAC trust in the Firebase-auth + project-membership chain.
+import meshKeyRouter from "./src/server/routes/mesh.js";
 // Sprint 35 F1 — Aptitude cert biometric generator (export-only, NO push to
 // MUTUAL/SUSESO/IST per memory product_signing_no_blocking_directives).
 import medicalAptitudeRouter from "./src/server/routes/medicalAptitude.js";
@@ -953,6 +956,11 @@ app.use('/api/cad', cadRouter);
 // so the surface stays separate from /api/telemetry/ingest (gateway HMAC
 // path) and /api/admin/iot/rotate-secret (admin-only).
 app.use('/api/iot', iotRouter);
+
+// Phase 5 — Per-project mesh signing key (GET /api/mesh/key?projectId=).
+// verifyAuth + assertProjectMember gate; mints the key lazily and audits each
+// fetch. Life-safety: NOT tier-gated (CLAUDE.md #11).
+app.use('/api/mesh', meshKeyRouter);
 
 // Sprint 35 F1 — Aptitude cert biometric router. POST /generate +
 // /sign-challenge + /sign. Doctor/admin/gerente role gate. Generates

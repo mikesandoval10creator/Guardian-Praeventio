@@ -18,9 +18,12 @@ import {
   applyHop,
   comparePackets,
   isPacketAlive,
+  isVerifiablePacket,
   packetBelongsToProject,
   shouldRelay,
 } from './meshPacket';
+import type { MeshSigningKey } from './meshPacketSigner';
+import { verifyPacket } from './meshPacketSigner';
 
 /**
  * Sprint 32 — hook que se dispara cuando un packet SOS se rebroadcastea
@@ -47,6 +50,16 @@ export interface MeshRelayQueueOptions {
   selfUid: string;
   /** Project del worker — packets de otro project se descartan al recibir. */
   projectId: string;
+  /**
+   * Project mesh signing key for verify-on-receive. When present, every
+   * incoming packet is HMAC-verified against the project key and rejected on
+   * mismatch (forgery). When null/absent (offline first-run before the key is
+   * provisioned), the queue cannot verify and keeps the legacy pre-signing
+   * behavior — a degraded mode, NOT a security regression: this is exactly
+   * today's behavior, and SOS still relays. Once a key lands, verification is
+   * enforced fail-closed.
+   */
+  signingKey?: MeshSigningKey | null;
   /** Cuántos packets max almacenar en queue. Default 500. */
   maxQueueSize?: number;
   /** Cuánto tiempo retener IDs de packets ya vistos para dedup. Default 6h. */
@@ -74,8 +87,16 @@ export interface ReceiveResult {
   forLocal: MeshPacket[];
   /** Packets agregados al store-carry para relay futuro. */
   enqueued: MeshPacket[];
-  /** Packets descartados (loop, expirado, project mismatch, dup). */
+  /** Packets descartados (loop, expirado, project mismatch, dup, FORGED). */
   dropped: MeshPacket[];
+  /**
+   * SOS packets that could not be verified (bad/absent signature) but were
+   * still relayed because losing a life signal is worse than relaying an
+   * untrusted one. These are NEVER placed in `forLocal` (so the local router
+   * never auto-escalates a spoofable SOS to brigade) — they ride the relay
+   * mesh until a verified hop confirms them. The consumer decides what to do.
+   */
+  untrusted: MeshPacket[];
 }
 
 const DEFAULT_MAX_QUEUE_SIZE = 500;
@@ -88,6 +109,7 @@ export class MeshRelayQueue {
   private readonly dedupTtlMs: number;
   private readonly nowFn: () => number;
   private readonly onRelaySuccess?: (event: MeshRelaySuccessEvent) => void;
+  private readonly signingKey: MeshSigningKey | null;
 
   private queue: MeshPacket[] = [];
   /** Set de packet IDs vistos recientemente. Cleanup por TTL. */
@@ -100,6 +122,7 @@ export class MeshRelayQueue {
     this.dedupTtlMs = options.dedupTtlMs ?? DEFAULT_DEDUP_TTL_MS;
     this.nowFn = options.now ?? Date.now;
     this.onRelaySuccess = options.onRelaySuccess;
+    this.signingKey = options.signingKey ?? null;
   }
 
   /** Estado actual (lectura). Útil para UI badge "N pendientes". */
@@ -136,10 +159,11 @@ export class MeshRelayQueue {
    * intercambio acaba de ocurrir). Decide qué se procesa local, qué
    * se almacena para relay futuro, qué se descarta.
    */
-  receive(packets: MeshPacket[]): ReceiveResult {
+  async receive(packets: MeshPacket[]): Promise<ReceiveResult> {
     const forLocal: MeshPacket[] = [];
     const enqueued: MeshPacket[] = [];
     const dropped: MeshPacket[] = [];
+    const untrusted: MeshPacket[] = [];
 
     for (const packet of packets) {
       // Dedup: ya lo vimos
@@ -163,6 +187,36 @@ export class MeshRelayQueue {
       // Marcar visto
       this.seenIds.set(packet.id, this.nowFn());
 
+      // ─── Verify-on-receive (authenticity gate) ──────────────────────────
+      // Only enforced when a project signing key is provisioned. Without a key
+      // (offline first-run) we cannot verify, so we keep today's legacy
+      // behavior unchanged — a documented degraded mode, not a regression.
+      // With a key: a packet is TRUSTED iff it carries a real keyId AND its
+      // HMAC verifies against our project key. Forgery / tamper → not trusted.
+      if (this.signingKey) {
+        const trusted =
+          isVerifiablePacket(packet) &&
+          (await verifyPacket(packet, this.signingKey));
+        if (!trusted) {
+          if (packet.type === 'sos') {
+            // Never drop a life signal — relay it, but flag it untrusted so the
+            // consumer does NOT auto-escalate to brigade without a verified
+            // hop. It never reaches forLocal.
+            untrusted.push(packet);
+            if (shouldRelay(packet, this.selfUid, { now: this.nowFn })) {
+              this.append(packet);
+              enqueued.push(packet);
+            }
+          } else {
+            // Unsigned/forged breadcrumb, file, event, ack → drop. These are
+            // not life-safety; an attacker must not be able to inject them.
+            dropped.push(packet);
+          }
+          continue;
+        }
+      }
+
+      // ─── Trusted path (verified, or degraded no-key legacy) ──────────────
       // ¿Va dirigido a mí explícitamente?
       const isForMe =
         packet.toUid === this.selfUid ||
@@ -180,7 +234,7 @@ export class MeshRelayQueue {
     }
 
     this.cleanup();
-    return { forLocal, enqueued, dropped };
+    return { forLocal, enqueued, dropped, untrusted };
   }
 
   /**

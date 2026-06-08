@@ -92,31 +92,31 @@ describe('MeshRelayQueue — store-carry-forward', () => {
   });
 
   describe('receive — incoming peer packets', () => {
-    it('forLocal cuando broadcast destinado a self', () => {
+    it('forLocal cuando broadcast destinado a self', async () => {
       const fromOther = makeBreadcrumb('peer-1');
-      const result = queue.receive([fromOther]);
+      const result = await queue.receive([fromOther]);
       expect(result.forLocal).toHaveLength(1);
       expect(result.enqueued).toHaveLength(1); // también se relaya broadcast
       expect(result.dropped).toHaveLength(0);
     });
 
-    it('drop packets de otro project (privacy ADR 0011 simétrico)', () => {
+    it('drop packets de otro project (privacy ADR 0011 simétrico)', async () => {
       const wrong = makeBreadcrumb('peer-1', NOW, 'other-project');
-      const result = queue.receive([wrong]);
+      const result = await queue.receive([wrong]);
       expect(result.dropped).toHaveLength(1);
       expect(result.forLocal).toHaveLength(0);
       expect(result.enqueued).toHaveLength(0);
     });
 
-    it('drop duplicados (Bloom-filter dedup)', () => {
+    it('drop duplicados (Bloom-filter dedup)', async () => {
       const p = makeBreadcrumb('peer-1');
-      queue.receive([p]);
-      const result = queue.receive([p]);
+      await queue.receive([p]);
+      const result = await queue.receive([p]);
       expect(result.dropped).toHaveLength(1);
       expect(result.forLocal).toHaveLength(0);
     });
 
-    it('drop packets expirados', () => {
+    it('drop packets expirados', async () => {
       const expired = buildPacket({
         type: 'gps_breadcrumb',
         fromUid: 'peer-1',
@@ -126,21 +126,21 @@ describe('MeshRelayQueue — store-carry-forward', () => {
         projectId: PROJECT,
         payload: { workerUid: 'peer-1', lat: 0, lng: 0, accuracyM: 0, capturedAtMs: 0, projectId: PROJECT },
       });
-      const result = queue.receive([expired]);
+      const result = await queue.receive([expired]);
       expect(result.dropped).toHaveLength(1);
     });
 
-    it('NO relaya packet si self ya está en relayedBy', () => {
+    it('NO relaya packet si self ya está en relayedBy', async () => {
       const p = makeBreadcrumb('peer-1');
       const seen = { ...p, relayedBy: ['self'] };
-      const result = queue.receive([seen]);
+      const result = await queue.receive([seen]);
       expect(result.forLocal).toHaveLength(1); // sigue siendo broadcast a self
       expect(result.enqueued).toHaveLength(0);
     });
 
-    it('NO relaya packet de propio origen', () => {
+    it('NO relaya packet de propio origen', async () => {
       const myOwn = makeBreadcrumb('self');
-      const result = queue.receive([myOwn]);
+      const result = await queue.receive([myOwn]);
       expect(result.enqueued).toHaveLength(0);
     });
   });
@@ -182,17 +182,17 @@ describe('MeshRelayQueue — store-carry-forward', () => {
       expect(queue.size()).toBe(7); // los otros 7 quedan
     });
 
-    it('NO envía packet al peer si peer ya está en relayedBy (loop avoidance)', () => {
+    it('NO envía packet al peer si peer ya está en relayedBy (loop avoidance)', async () => {
       const fromOther = makeBreadcrumb('alice');
       const seen = { ...fromOther, relayedBy: ['peer-1'] };
       // Inyectamos directo en queue via receive
-      queue.receive([seen]);
+      await queue.receive([seen]);
       const result = queue.drainForPeer('peer-1', 50);
       expect(result.toSend).toHaveLength(0);
     });
 
-    it('NO envía packet a su propio origen', () => {
-      queue.receive([makeBreadcrumb('alice')]);
+    it('NO envía packet a su propio origen', async () => {
+      await queue.receive([makeBreadcrumb('alice')]);
       const result = queue.drainForPeer('alice', 50);
       // alice es origin → no se le envía su propio packet
       expect(result.toSend).toHaveLength(0);
@@ -221,7 +221,7 @@ describe('MeshRelayQueue — store-carry-forward', () => {
   });
 
   describe('cleanup', () => {
-    it('remueve packets expirados', () => {
+    it('remueve packets expirados', async () => {
       const queueWithMovingNow = new MeshRelayQueue({
         selfUid: 'self', projectId: PROJECT, now: () => NOW,
       });
@@ -235,7 +235,7 @@ describe('MeshRelayQueue — store-carry-forward', () => {
         now: () => NOW + 24 * 60 * 60 * 1000,
       });
       // Re-inyectar manualmente
-      queueLater.receive([p]);
+      await queueLater.receive([p]);
       const cleanup = queueLater.cleanup();
       // Cleanup limpia el packet expirado (que entró pero ya falleció)
       // Bonus: cleanup también limpia seenIds antiguos

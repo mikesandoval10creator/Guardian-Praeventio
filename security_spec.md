@@ -253,6 +253,30 @@ good, ADR 0021). `read: if true`. Write is gated to members of the OWNING projec
 37. **PII Smuggle**: `{ ...dea, "assignedToName": "Juan Pérez" }` — fields beyond
     the public schema are rejected (no personal data leaks onto the public map).
 
+## Mesh signing key (mesh_keys) — server-only, deny client read+write (Phase 5, added 2026-06-08)
+
+`mesh_keys/{projectId}` holds the per-project HMAC-SHA-256 secret used to sign +
+verify offline mesh packets (BLE/WiFi-Direct SOS relay). It is the trust root
+that lets same-project peers reject a forged/spoofed SOS without a live network.
+It is distributed ONLY through the server route `GET /api/mesh/key` (verifyAuth +
+`assertProjectMember`, Admin SDK), which bypasses these rules. Clients must never
+touch the collection directly: a member-readable secret would leak in the browser
+console (any member could then forge mesh SOS packets), and a member-writable doc
+would let one member overwrite the trust root for the whole project. Default-deny
+both `read` and `write` for every actor (member, admin, anonymous). Rules tests:
+`src/rules-tests/meshKeys.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+38. **Mesh Key Exfiltration**: a project member `get /mesh_keys/{projectId}` —
+    the signing secret must never leave the server; reading it directly would let
+    the member forge authentic-looking mesh SOS packets.
+39. **Mesh Key Overwrite**: a member `set /mesh_keys/{projectId}` to replace the
+    project secret — would poison the trust root so the attacker's forged packets
+    verify for every peer.
+40. **Cross-actor Mesh Read**: an admin OR an anonymous user reading the mesh key
+    directly — server-only distribution is enforced regardless of role.
+
 ## CPHS committee minutes (projects/{pid}/comite_actas) — member write (#B12, added 2026-06-08)
 
 `projects/{pid}/comite_actas/{actaId}` holds Comité Paritario actas (DS54 legal

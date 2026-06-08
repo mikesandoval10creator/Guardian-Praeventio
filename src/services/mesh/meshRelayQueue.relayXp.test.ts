@@ -51,7 +51,7 @@ describe('MeshRelayQueue — relay → XP wire (Sprint 32)', () => {
     vi.restoreAllMocks();
   });
 
-  it('packet SOS rebroadcasteado → onRelaySuccess llamado con metadata', () => {
+  it('packet SOS rebroadcasteado → onRelaySuccess llamado con metadata', async () => {
     const events: MeshRelaySuccessEvent[] = [];
     const queue = new MeshRelayQueue({
       selfUid: 'self',
@@ -61,7 +61,7 @@ describe('MeshRelayQueue — relay → XP wire (Sprint 32)', () => {
     });
 
     const sos = makeSos('victim-uid');
-    queue.receive([sos]);
+    await queue.receive([sos]);
     const result = queue.drainForPeer('peer-uid');
 
     expect(result.toSend).toHaveLength(1);
@@ -75,7 +75,7 @@ describe('MeshRelayQueue — relay → XP wire (Sprint 32)', () => {
     });
   });
 
-  it('packet no-SOS rebroadcasteado → onRelaySuccess NO llamado', () => {
+  it('packet no-SOS rebroadcasteado → onRelaySuccess NO llamado', async () => {
     const onRelaySuccess = vi.fn();
     const queue = new MeshRelayQueue({
       selfUid: 'self',
@@ -84,13 +84,13 @@ describe('MeshRelayQueue — relay → XP wire (Sprint 32)', () => {
       onRelaySuccess,
     });
 
-    queue.receive([makeBreadcrumb('worker-a')]);
+    await queue.receive([makeBreadcrumb('worker-a')]);
     queue.drainForPeer('peer-uid');
 
     expect(onRelaySuccess).not.toHaveBeenCalled();
   });
 
-  it('listener lanzando excepción NO rompe el path de relay', () => {
+  it('listener lanzando excepción NO rompe el path de relay', async () => {
     const queue = new MeshRelayQueue({
       selfUid: 'self',
       projectId: PROJECT,
@@ -101,7 +101,7 @@ describe('MeshRelayQueue — relay → XP wire (Sprint 32)', () => {
     });
 
     const sos = makeSos('victim-uid');
-    queue.receive([sos]);
+    await queue.receive([sos]);
 
     // El drain NO debe lanzar; el packet sí debe entregarse.
     const result = queue.drainForPeer('peer-uid');
@@ -138,7 +138,7 @@ describe('MeshRelayQueue — relay → XP wire (Sprint 32)', () => {
     expect(result.amount).toBe(50);
   });
 
-  it('integración: queue + wire → awardXp se llama 1 vez por SOS único', () => {
+  it('integración: queue + wire → awardXp se llama 1 vez por SOS único', async () => {
     const spy = vi.spyOn(positiveXp, 'awardXp');
     const queue = new MeshRelayQueue({
       selfUid: 'self',
@@ -148,7 +148,7 @@ describe('MeshRelayQueue — relay → XP wire (Sprint 32)', () => {
     });
 
     const sos = makeSos('victim-uid');
-    queue.receive([sos]);
+    await queue.receive([sos]);
     queue.drainForPeer('peer-1');
 
     expect(spy).toHaveBeenCalledTimes(1);
