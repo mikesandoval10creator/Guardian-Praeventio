@@ -135,7 +135,7 @@ ${JSON.stringify(currentOperations)}`;
     },
   });
 
-  const parsed = JSON.parse(response.text ?? '{}');
+  const parsed = parseGeminiJson(response);
   parsed.citations = Array.from(
     new Set([...(parsed.citations ?? []), ...usedCitations]),
   );
