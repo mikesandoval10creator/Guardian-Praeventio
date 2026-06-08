@@ -3,6 +3,9 @@ import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacito
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { logger } from './logger';
 import { ensureSqliteEncryptionSecret } from './sqliteEncryption';
+// Real AES-256-GCM for the offline cache (was base64 obfuscation). Async +
+// migration-safe (reads legacy payloads). See offlineCrypto.ts.
+import { encryptData, decryptData } from './offlineCrypto';
 
 // Keep IDB as fallback for web
 interface PraeventioDB extends DBSchema {
@@ -113,26 +116,8 @@ export const initDB = async () => {
   }
 };
 
-const encryptData = (data: any): string => {
-  try {
-    return btoa(encodeURIComponent(JSON.stringify(data)));
-  } catch (e) {
-    logger.error('Encryption error', e);
-    return '';
-  }
-};
-
-const decryptData = (encryptedStr: string): any => {
-  try {
-    return JSON.parse(decodeURIComponent(atob(encryptedStr)));
-  } catch (e) {
-    logger.error('Decryption error', e);
-    return null;
-  }
-};
-
 export const saveWorkerOffline = async (worker: any) => {
-  const encryptedWorker = { ...worker, _encryptedData: encryptData(worker) };
+  const encryptedWorker = { ...worker, _encryptedData: await encryptData(worker) };
   if (Capacitor.isNativePlatform()) {
     const db = await initSQLite();
     if(db) await db.run('INSERT OR REPLACE INTO workers (id, projectId, data) VALUES (?, ?, ?)', [worker.id, worker.projectId, JSON.stringify(encryptedWorker)]);
@@ -147,19 +132,19 @@ export const getWorkersOffline = async (projectId: string) => {
     const db = await initSQLite();
     if(!db) return [];
     const res = await db.query('SELECT data FROM workers WHERE projectId = ?', [projectId]);
-    return res.values?.map(row => {
+    return Promise.all((res.values ?? []).map(async row => {
       const w = JSON.parse(row.data);
-      return w._encryptedData ? decryptData(w._encryptedData) : w;
-    }) || [];
+      return w._encryptedData ? await decryptData(w._encryptedData) : w;
+    }));
   } else {
     const db = await initIDB();
     const workers = await db.getAllFromIndex('workers', 'by-project', projectId);
-    return workers.map(w => w._encryptedData ? decryptData(w._encryptedData) : w);
+    return Promise.all(workers.map(async w => (w._encryptedData ? await decryptData(w._encryptedData) : w)));
   }
 };
 
 export const saveMatrixOffline = async (matrix: any) => {
-  const encryptedMatrix = { ...matrix, _encryptedData: encryptData(matrix) };
+  const encryptedMatrix = { ...matrix, _encryptedData: await encryptData(matrix) };
   if (Capacitor.isNativePlatform()) {
     const db = await initSQLite();
     if(db) await db.run('INSERT OR REPLACE INTO matrices (id, projectId, data) VALUES (?, ?, ?)', [matrix.id, matrix.projectId, JSON.stringify(encryptedMatrix)]);
@@ -174,19 +159,19 @@ export const getMatricesOffline = async (projectId: string) => {
     const db = await initSQLite();
     if(!db) return [];
     const res = await db.query('SELECT data FROM matrices WHERE projectId = ?', [projectId]);
-    return res.values?.map(row => {
+    return Promise.all((res.values ?? []).map(async row => {
       const m = JSON.parse(row.data);
-      return m._encryptedData ? decryptData(m._encryptedData) : m;
-    }) || [];
+      return m._encryptedData ? await decryptData(m._encryptedData) : m;
+    }));
   } else {
     const db = await initIDB();
     const matrices = await db.getAllFromIndex('matrices', 'by-project', projectId);
-    return matrices.map(m => m._encryptedData ? decryptData(m._encryptedData) : m);
+    return Promise.all(matrices.map(async m => (m._encryptedData ? await decryptData(m._encryptedData) : m)));
   }
 };
 
 export const saveZettelNodeOffline = async (node: any) => {
-  const encryptedNode = { ...node, _encryptedData: encryptData(node) };
+  const encryptedNode = { ...node, _encryptedData: await encryptData(node) };
   if (Capacitor.isNativePlatform()) {
     const db = await initSQLite();
     if(db) await db.run('INSERT OR REPLACE INTO zettelkasten (id, projectId, data) VALUES (?, ?, ?)', [node.id, node.projectId, JSON.stringify(encryptedNode)]);
@@ -201,17 +186,17 @@ export const getZettelNodesOffline = async (projectId: string, limit = 50, offse
     const db = await initSQLite();
     if(!db) return [];
     const res = await db.query('SELECT data FROM zettelkasten WHERE projectId = ? LIMIT ? OFFSET ?', [projectId, limit, offset]);
-    return res.values?.map(row => {
+    return Promise.all((res.values ?? []).map(async row => {
       const n = JSON.parse(row.data);
-      return n._encryptedData ? decryptData(n._encryptedData) : n;
-    }) || [];
+      return n._encryptedData ? await decryptData(n._encryptedData) : n;
+    }));
   } else {
     const db = await initIDB();
     const tx = db.transaction('zettelkasten', 'readonly');
     const index = tx.store.index('by-project');
     
     let cursor = await index.openCursor(IDBKeyRange.only(projectId));
-    const results: any[] = [];
+    const raw: any[] = [];
     let count = 0;
 
     if (offset > 0 && cursor) {
@@ -219,12 +204,15 @@ export const getZettelNodesOffline = async (projectId: string, limit = 50, offse
     }
 
     while (cursor && count < limit) {
-      results.push(cursor.value._encryptedData ? decryptData(cursor.value._encryptedData) : cursor.value);
+      raw.push(cursor.value);
       count++;
       cursor = await cursor.continue();
     }
 
-    return results;
+    // Decrypt AFTER the cursor closes. Awaiting WebCrypto / idb-keyval (a
+    // separate IDB transaction) INSIDE the cursor loop would let the cursor's
+    // transaction auto-commit, breaking the next `cursor.continue()`.
+    return Promise.all(raw.map(async (v) => (v._encryptedData ? await decryptData(v._encryptedData) : v)));
   }
 };
 
