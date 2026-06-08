@@ -95,6 +95,16 @@ const CONNECT_SRC_ORIGINS = [
   // evidencia NASA. Codex review PR #279 (POWER) + audit propio (EONET).
   'https://power.larc.nasa.gov',
   'https://eonet.gsfc.nasa.gov',
+  // 2026-06-08 — USGS Earthquake API (monitor sísmico, life-safety). Real call
+  // site: `usgsEarthquakeAdapter.ts` (DEFAULT_BASE_URL
+  // `https://earthquake.usgs.gov/fdsnws/event/1/query` + the
+  // `/earthquakes/feed/v1.0/summary/all_day.geojson` feed) via
+  // `useSeismicMonitor`. This host was MISSING from the allow-list, so in
+  // production the CSP connect-src SILENTLY blocked every USGS fetch and the
+  // seismic monitor received no quake data. Found by running the DEPLOYED app
+  // (the unit tests mock `fetch`, so they never caught it). Sibling of the NASA
+  // entries above; same rationale.
+  'https://earthquake.usgs.gov',
 ] as const;
 
 /*
