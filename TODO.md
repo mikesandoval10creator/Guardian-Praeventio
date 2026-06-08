@@ -904,10 +904,8 @@ varios contradicen un ✅ previo (Rule #1).
 > endpoints auditados.
 
 **P0 — Vida (🛟):**
-- 🔴 **ManDown no hace push** — `useManDownDetection` escribe Firestore pero no
-  llama `triggerEmergency`/FCM ni hay trigger server sobre `mandown_events`. (§16.6.2
-  lo listaba como "UI completa MEDIA"; el gap real es el pipeline de push.) *Usuario
-  pidió dejar documentado.*
+- ✅ **ManDown push RESUELTO** (#671, 2026-06-07) — `useManDownDetection.ts:216` ahora llama
+  `triggerEmergency('man_down', …)` (como FallDetection) + escribe `mandown_events`. El pipeline de push despierta al supervisor.
 - 🔴 **LOTO read-only** — `src/server/routes/loto.ts:55` solo expone `GET`; no hay
   endpoint para aplicar candado / verificar cero-energía / liberar; `LotoAdapter`/
   `applyFullRelease` son código muerto; `LotoStatusPanel` huérfano. El control que
@@ -926,24 +924,22 @@ varios contradicen un ✅ previo (Rule #1).
 - 🔴 **External Audit Portal sin gate de rol** — `externalAuditPortal.ts:234,306,355,428`
   solo `verifyAuth`, sin `assertProjectMember`/`isAdmin` → cualquier member del tenant
   emite token de auditor externo con acceso cross-proyecto a docs/IPER/incidentes.
-- 🔴 **`health_vault`/`health_vault_shares` sin reglas Firestore** (grep=0) — colección
-  médica más sensible; writes por Admin SDK pero incumple Regla #4 (sin rules-tests ni
-  `security_spec`); el listado client-side cae en default-deny.
-- 🔴 **Libro de obras firmado sigue MUTABLE + test falso-verde** — `firestore.rules:414,422`
-  chequea `signedAt` top-level; la firma escribe `signature.signedAt` anidado
-  (`siteBookSigning.ts:247`) → el gate nunca dispara; el rules-test pasa sembrando un
-  `signedAt` sintético (`projectScopedStores.rules.test.ts:181`). Además SiteBook tiene
-  3 paths disjuntos (adapter `tenants/.../sitebook_entries` vs firma
-  `projects/.../site_book_entries`).
-- 🔴 **`visitors.ts` sin `assertProjectMember`** — `:112,119` solo `verifyAuth` +
-  `tenantIdFor` → escritura de visitas cross-proyecto (viola Regla #6). *(El audit
-  server-side de §2.29 sí cerró; este es el gap de membership, distinto.)*
-- 🔴 **Biometría de login débil** — `Login.tsx:10` usa `utils/biometrics.ts:88` que
-  retorna `true` client-side sin verificación server-side de firma. *(§2.1 ✅ cubre el
-  setup MFA `useBiometricAuth`, NO el path de login.)*
-- 🔴 **Medicine.tsx UI de diagnóstico** — `MedicalAnalyzer/DifferentialDiagnosis/
-  DrugInteractions` (`:134,137,141`) llaman acciones Gemini no whitelisted → 403, y
-  contradicen ADR 0012. UI muerta a retirar/feature-flag.
+- ✅ **`health_vault`/`health_vault_shares` reglas RESUELTAS** (#762, 2026-06-08) —
+  owner-gated en `firestore.rules:312/329` + collectionGroup index; #780 además re-valida
+  el acceso a archivo en cada `/view` (revocado/expirado→410, `healthVault.test.ts`).
+- ✅ **Libro de obras firmado INMUTABLE + test corregido** (#771, 2026-06-08) —
+  `firestore.rules:629-632`: `update` exige `existing().status != 'signed' && !('signature' in existing())`;
+  el rules-test ahora siembra la forma real (`status:'signed'`+`signature.signedAt` anidado), muere el falso-verde.
+  Pendiente residual: unificar los 3 paths disjuntos de SiteBook (decisión de migración).
+- ✅ **`visitors.ts` `assertProjectMember` AÑADIDO** (#711, 2026-06-06) — `assertMemberAndResolveTenant`
+  en los 4 endpoints (check-in/out/acknowledge/list); no-miembro→403 sin escribir.
+- 🟡 **Biometría de login débil — PARCIAL** (#775, 2026-06-08): el path **web** ahora
+  server-verifica (`useBiometricAuth().authenticate` → /challenge+/verify). **PENDIENTE:** el path
+  **nativo** (`useBiometricAuth.ts:249`) aún retorna true sin /verify; `src/utils/biometrics.ts` quedó
+  como código muerto (sin importadores) → borrar.
+- ✅ **Medicine.tsx UI reconvertida (ADR 0012)** (#674/#676/#677, 2026-06-07) —
+  `SymptomDocumenter` (documenta síntomas), `DifferentialDiagnosis` (referencia educativa CIE-10),
+  `DrugInteractions` (Vademécum ATC), todas con `MedicalDisclaimer`, sin inferencia.
 - 🟡 **AIPostureAnalysisModal sube foto** — fallback Gemini Vision
   (`AIPostureAnalysisModal.tsx:206-210`) sube la foto del trabajador (matiz Regla #12:
   foto estática subida manualmente, no frame en vivo).
@@ -951,23 +947,22 @@ varios contradicen un ✅ previo (Rule #1).
   encuesta "anónima".
 
 **P2 — Integridad / robustez:**
-- 🟡 **Gamificación auto-otorga puntos** — `gamification.ts:35` toma `amount` del cliente
-  sin cota/whitelist; `gamificationService.ts:34` lo envía verbatim.
-- 🟡 **Tier-gating por-feature solo client-side** — `SubscriptionContext.tsx:64-68`; sin
-  middleware server que re-chequee rank (Regla #11 parcial; activación sí está gateada).
+- ✅ **Gamificación auto-otorga puntos RESUELTO** (#712, 2026-06-06) — monto server-authoritative
+  desde catálogo `POINT_VALUES`; ignora el `amount` del cliente; reason no-whitelisted→400.
+- 🟡 **Tier-gating por-feature solo client-side — PRIMITIVO HECHO** (#719/#720/#722) — middleware
+  `requireTier(minPlan)` server-side (402 upgrade_required, fail-closed); 1ª ruta cableada (Drive titanio);
+  guardrail ADR 0021 (life-safety nunca tier-gated). PENDIENTE: resto de features premium cuando existan rutas.
 - 🟡 **PDCA flow no crea edges** — `incidentFlow.ts:77-84` inyecta solo `writeNodes` → los
-  7 nodos ZK quedan sin conectar (trail ISO 45001 §10.2 no end-to-end).
-- 🟡 **`comite_actas` sin regla de write** — `ComiteParitario.tsx:73` escribe → default-deny
-  en prod; duplica el canónico `cphs_meetings`. *(El gate de inmutabilidad de cphs_meetings
-  SÍ está bien: pivota sobre `signatures.size()`.)*
-- 🟡 **Reglas Codex #650** — `site_book_counters` sin regla; `documents_for_read` exige
-  `authorUid` que el writer no estampa; `lone_worker_sessions` update sin
-  `existing().workerUid==auth.uid`; `root_cause_analyses` (`rootCauseStore.ts:20`) vs regla
-  `root_causes`. Modelos laxos `exceptions`/`legal_obligations`/`shifts` (`firestore.rules:466-477`,
-  hay `TODO(review dahosandoval@)`).
-- 🟡 **Guards #13/#17 NO wired** — `.husky/pre-commit` solo corre medical/convention/i18n/
-  any-ratchet; `precommit-stub-guard` (#13) y `precommit-allowbackup-guard` (#17) no se
-  referencian en husky/CI/package.json, pese a que CLAUDE.md dice "Enforced (PR #514)".
+  7 nodos ZK quedan sin conectar (trail ISO 45001 §10.2 no end-to-end). *(Pendiente — `createEdge`.)*
+- ✅ **`comite_actas` regla de write RESUELTA** (#760, 2026-06-08) — `firestore.rules:556`
+  member-gated + schema `isValidComiteActa` + inmutabilidad + 10 rules-tests. Consolidación con
+  `cphs_meetings` queda como follow-up de migración.
+- 🟡 **Reglas Codex #650 — PARCIAL** (#702, 2026-06-06): `lone_worker_sessions` update ahora
+  exige `existing().workerUid==auth.uid || admin/supervisor` (`firestore.rules:651`); `documents_for_read`
+  ya tenía anti-spoof. PENDIENTE: `site_book_counters`, `root_cause_analyses` vs `root_causes`,
+  laxitud `exceptions`/`legal_obligations`/`shifts`.
+- ✅ **Guards #13/#17 WIRED** (#659, 2026-06) — `.husky/pre-commit:6-7` ahora corre
+  `precommit-stub-guard.cjs` (#13) y `precommit-allowbackup-guard.cjs` (#17); CLAUDE.md ya no miente.
 - ✅ **B16 sync `conflict_queue` cableado** (2026-06-08) — engine `conflictQueue.ts`
   ahora consumido por `src/server/routes/conflictQueue.ts:1` (enqueue/list/mark-in-review/
   resolve/reject, approver-gated `admin`/`gerente`, audited, idempotent via stable
@@ -976,10 +971,10 @@ varios contradicen un ✅ previo (Rule #1).
   `firestore.rules` (`match /conflict_queue/{queueId}`, server-only writes + supervisor
   read) + 7 rules-tests `src/rules-tests/conflictQueue.rules.test.ts` + supertest
   `src/__tests__/server/conflictQueueRoute.test.ts` + Dirty-Dozen 45-47 + mount-order guard.
-- 🟡 **B16 sync (resto):** `meshPacket.ts:237` firma `'unsigned-dev'` nunca verificada;
-  `encryptData` web es base64, no cifrado (`offlineStorage.ts`).
-- 🟡 **B4:** `Math.random` en ID `incidentRagService.ts:299` (Regla #15); incidents path
-  mismatch (bundle root vs servicio tenant-scoped).
+- ✅ **B16 sync (resto) RESUELTO:** `meshPacket.ts` firma+verifica vía HMAC `meshPacketSigner.ts`
+  (#768, cierra `'unsigned-dev'`); `encryptData` web ahora AES-256-GCM real (`offlineCrypto.ts`, #761).
+- 🟡 **B4:** ✅ `Math.random` en ID `incidentRagService.ts`/`incidentCommands.ts` → `randomId()` (#779);
+  custody appendEvent doc-id colisión → `${at}_${randomId()}` (#778). PENDIENTE: incidents path mismatch.
 
 **P3 — Limpieza / huérfanos (🔵):**
 - **86 UI huérfanas** (48 componentes + 38 hooks, 0 pages sin rutear); **`euler/*` ~4.053 LOC
@@ -1054,19 +1049,17 @@ sistémicos** (arreglar la clase, no el síntoma). Los más graves re-verificado
   `deadLetters()`/`clearDeadLetter()`/`stats().deadLettered`
   (`src/services/sync/genericOutboxEngine.ts`); +13 tests reales. Pendiente sólo: surjir
   dead-letters en UI (item 🔵 B16 `SyncQueueBadge`).
-- **P3 — Identidad/rol/tenantId del cliente sin verificar contra el token:** `sif.ts`
-  (reviewedByUid SIF suplantable), `stoppage.ts:216` (resumedByRole reanuda paralización),
-  `exceptions.ts` (approvedByRole), `suseso.ts` (tenantId DIAT/DIEP cross-empresa),
-  `networkBackend.ts` (authorUid), `microtraining.ts:187` (certificar a cualquiera).
-- **P4 — Firmas WebAuthn presence-checked pero nunca verificadas cripto:** DTE (`dte.ts:349`),
-  referee co-sign, biometría login, aptitud médica, kms-sign-rsa.
-- **P5 — Records firmados MUTABLES** (gate keya campo que el writer no escribe) + tests falso-verde:
-  `site_book`, `lighting_audits` (DS594). (cphs_meetings sí está bien.)
-- **P6 — Puntos ciegos del guard ADR 0012:** código de diagnóstico real fuera del scope —
-  `VitalityMonitor.tsx` (CIE-10 golpe de calor), `medicalAnalysisBackend.ts` (differentialDiagnosis),
-  `occupational-health/`, `psychosocialBackend`, `shiftBackend`. El guard solo escanea `health/`+`medicine/`.
-- **P7 — Imágenes de cámara a Gemini cloud vs directiva #12:** `BioAnalysis.tsx:411` (frame vivo),
-  `AIPostureAnalysisModal`, `EPPVerificationModal.tsx:63`.
+- **P3 — Identidad/rol/tenantId del cliente sin verificar contra el token — MAYORMENTE CERRADO:**
+  ✅ `sif.ts` (#709), ✅ `suseso.ts`/`ds67ds76.ts` tenantId (#707/#708), ✅ dispatcher F3 (#678).
+  PENDIENTE: `stoppage.ts:216` (resumedByRole), `exceptions.ts` (approvedByRole), `networkBackend.ts` (authorUid), `microtraining.ts:187`.
+- **P4 — Firmas WebAuthn presence-checked pero nunca verificadas cripto — PARCIAL:**
+  ✅ DTE (#765), ✅ referee honest-label (#766), ✅ Login web (#775). PENDIENTE: Login nativo, aptitud médica, kms-sign-rsa.
+- **P5 — Records firmados MUTABLES — PARCIAL:** ✅ `site_book` gate + test corregidos (#771);
+  ✅ `cphs_meetings` append-only Case B (#774, Case A pendiente). PENDIENTE: `lighting_audits` (DS594).
+- **P6 — Puntos ciegos del guard ADR 0012 — CERRADO:** ✅ `VitalityMonitor.tsx` reconvertido (#668);
+  ✅ guard extendido a `occupational-health/` + los 3 `*Backend.ts` raíz (medicineBackend/medicalAnalysisBackend/psychosocialBackend, #670/#773).
+- **P7 — Imágenes de cámara a Gemini cloud vs directiva #12 — PARCIAL:** ✅ `BioAnalysis.tsx` frame vivo on-device,
+  ✅ `AIPostureAnalysisModal` 100% on-device (Fase 5, 2026-06-05). PENDIENTE: `EPPVerificationModal.tsx:63`.
 - **P8 — Envenenamiento de RAG (Zettelkasten):** `KnowledgeIngestion.tsx:60` y `networkBackend.ts:77`
   (nodos `global`/master sin gate), `ragService.queryCommunityKnowledge` (self-poisoning).
 - **P9 — Auto-otorgamiento de gamificación** por escritura directa (reglas restringen keys no valores):
@@ -1074,12 +1067,15 @@ sistémicos** (arreglar la clase, no el síntoma). Los más graves re-verificado
 - **P14 — Job de réplica DR replica CERO filas en silencio** (`firestoreCriticalReplicate.ts:154`
   filtra `createdAt` pero audit escribe `timestamp`; invoices Timestamp vs epoch-ms) → RPO incumplido.
 
-**Patrones de robustez/costo:** P10 datos falsos mostrados como reales (SloErrorBudget,
-WeatherBulletin, dataConfidence, EmergencySquadManager); P11 `JSON.parse` sin try/catch
-sistémico en `*Backend.ts` (#5, **un codemod**); P12 `Math.random` en IDs cliente (#15);
-P13 SLM sin verificar sha256 del CDN; **P15 el cap global de gasto IA usa MemoryStore
-por-pod → cap real = réplicas × cap** (relevante a ADR 0019); P16 stubs disfrazados
-que llegan al usuario; P17 copy de cumplimiento mentiroso.
+**Patrones de robustez/costo:** P10 datos falsos mostrados como reales (✅ EmergencySquadManager
+roster real #672; PENDIENTE SloErrorBudget, WeatherBulletin, dataConfidence, Hygiene métricas);
+P11 `JSON.parse` sin try/catch sistémico en `*Backend.ts` (#5 codemod, **PARCIAL** #658/#769/#772/#784 —
+5 callsites crudos restantes: `geminiBackend.ts:232,707,1005,1208` + `embeddings.ts:112`);
+P12 `Math.random` en IDs cliente (#15, **PARCIAL** — incident/event/objective/custody ya migrados #778/#779;
+quedan analytics/ar/driving/onDeviceAdapter); P13 SLM sin verificar sha256 del CDN (PENDIENTE);
+**P14 — DR replica cero filas RESUELTO** (#735, window sobre el Timestamp real);
+**P15 el cap global de gasto IA usa MemoryStore por-pod** (PENDIENTE, ADR 0019); P16 stubs disfrazados
+(guard #13 ya wired #659); P17 copy de cumplimiento mentiroso (✅ SUSESO Drive honesto #764).
 
 **Notas operacionales:** push de incidente CRÍTICO al CPHS no llega a dispositivos
 modernos (`backgroundTriggers.ts:213` lee `fcmToken` legacy singular); `predictionBackend`
@@ -1119,17 +1115,16 @@ repo completo (3.545 archivos, menos 77 binarios) queda leído línea por línea
   (`ctx.skip`) al helper; `dirtyDozen`/`firestore.rules.test` ya son fail-closed (maybeSkip-throw).
 
 **Infra/Build — gobernanza y config:**
-- 🔴 **No hay job de `lint` en CI**; **los ratchets (#3/#19/any/i18n) corren solo en
-  husky, no en CI** (bypaseables con `--no-verify`; solo medical-guard tiene backstop CI);
-  **guards #13/#17 no-wired** (re-confirmado).
+- 🟡 **CI lint/ratchets — PARCIAL** (#659): guards #13/#17 ahora wired en husky + job CI lint+ratchets.
+  PENDIENTE: confirmar que TODOS los ratchets (#3/#19/any/i18n) tienen backstop CI no-bypaseable.
 - 🔴 **Mismatch de dominio** `praeventio.app` (manifest/AASA) vs `app.praeventio.net`
-  (server/WebAuthn) + `WEBAUTHN_RP_ID`≠`WEBAUTHN_RPID` → **passkeys y deep-links rotos en prod**.
-- 🔴 **iOS `CBUUID` inválido** vs Android → **malla BLE de emergencia no interopera iOS↔Android**.
-- 🔴 `render-well-known.mjs:31` hardcodea el SHA-256 del cert Play de prod (fail-open).
-- 🔴 **voseo es-AR en la referencia es-CL** (`es/common.json`, Regla #2).
-- 🟡 `firebase-applet-config.json` git-trackeada; `cphs_meetings:1175` append-only no
-  preserva prefijo del array de firmas; converters token `==` timing-oracle; contenedores root.
-  ✅ Terraform 100% limpio.
+  (server/WebAuthn) + `WEBAUTHN_RP_ID`≠`WEBAUTHN_RPID` → **passkeys y deep-links rotos en prod**. *(PENDIENTE)*
+- ✅ **iOS `CBUUID` RESUELTO** (#777) — UUID hex válido `00001234-12AE-3E45-…`, idéntico en iOS/Android (interop BLE).
+- 🔴 `render-well-known.mjs:31` hardcodea el SHA-256 del cert Play de prod (fail-open). *(PENDIENTE)*
+- ✅ **voseo es-AR → "tú" chileno RESUELTO** (#736) — grep de `Reintentá`/`Seleccioná`/`vos sos` en `es/common.json` = 0.
+- 🟡 `firebase-applet-config.json` git-trackeada (por diseño, ver CLAUDE.md); ✅ `cphs_meetings`
+  append-only Case B preserva el prefijo (#774, Case A primera-firma pendiente); converters token `==`
+  timing-oracle; contenedores root. ✅ Terraform 100% limpio.
 
 **Docs — doc-drift generalizado post-split** (Regla #20): ARCHITECTURE.md (LOC/refs),
 stubs-inventory (SystemEngine/mesh), CLAUDE.md (#13/#17), TRACKING_PLAN (analytics
