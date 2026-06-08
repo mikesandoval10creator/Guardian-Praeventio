@@ -176,22 +176,39 @@ export function distanceMeters(a: GeoCoord, b: GeoCoord): number {
 }
 
 /**
+ * The item closest to `from`, with its distance in metres. Items without
+ * `coordinates` are skipped (they cannot be located). Returns `null` when no
+ * item has coordinates. On ties the FIRST nearest wins (stable for a given list
+ * order). Generic so it serves both the full `Dea` model (DEAZones, members)
+ * AND the sanitized public `dea_locations` doc (anonymous bystander finder) —
+ * any record carrying `coordinates` can be located.
+ */
+export function nearestByCoordinates<T extends { coordinates?: GeoCoord }>(
+  items: readonly T[],
+  from: GeoCoord,
+): { item: T; distanceM: number } | null {
+  let best: { item: T; distanceM: number } | null = null;
+  for (const item of items) {
+    if (!item.coordinates) continue;
+    const distanceM = distanceMeters(from, item.coordinates);
+    if (best === null || distanceM < best.distanceM) {
+      best = { item, distanceM };
+    }
+  }
+  return best;
+}
+
+/**
  * The DEA closest to `from`, with its distance in metres. DEAs without
  * `coordinates` are skipped (they cannot be located). Returns `null` when no
  * DEA has coordinates. On ties the FIRST nearest wins (stable for a given list
- * order).
+ * order). Thin wrapper over {@link nearestByCoordinates} preserving the `Dea`
+ * return shape used by existing callers.
  */
 export function nearestDea(
   deas: readonly Dea[],
   from: GeoCoord,
 ): { dea: Dea; distanceM: number } | null {
-  let best: { dea: Dea; distanceM: number } | null = null;
-  for (const dea of deas) {
-    if (!dea.coordinates) continue;
-    const distanceM = distanceMeters(from, dea.coordinates);
-    if (best === null || distanceM < best.distanceM) {
-      best = { dea, distanceM };
-    }
-  }
-  return best;
+  const best = nearestByCoordinates(deas, from);
+  return best ? { dea: best.item, distanceM: best.distanceM } : null;
 }

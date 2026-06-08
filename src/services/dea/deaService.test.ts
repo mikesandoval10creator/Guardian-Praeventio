@@ -5,6 +5,7 @@ import {
   isChecklistComplete,
   distanceMeters,
   nearestDea,
+  nearestByCoordinates,
   type Dea,
 } from './deaService.js';
 
@@ -163,5 +164,37 @@ describe('nearestDea', () => {
 
   it('returns null when no DEA has coordinates', () => {
     expect(nearestDea([makeDea('a'), makeDea('b')], me)).toBeNull();
+  });
+});
+
+describe('nearestByCoordinates (generic — serves the public dea_locations doc)', () => {
+  const me = { lat: -33.45, lng: -70.66 }; // Santiago
+
+  it('locates the nearest of arbitrary records carrying coordinates', () => {
+    // Shape of a sanitized public `dea_locations` doc — NOT a full Dea.
+    const items = [
+      { id: 'far', location: 'Bodega', coordinates: { lat: -33.5, lng: -70.7 } },
+      { id: 'near', location: 'Recepción', coordinates: { lat: -33.451, lng: -70.661 } },
+    ];
+    const res = nearestByCoordinates(items, me);
+    expect(res?.item.id).toBe('near');
+    expect(res!.item.location).toBe('Recepción');
+    expect(res!.distanceM).toBeGreaterThan(0);
+  });
+
+  it('skips records without coordinates and returns null when none remain', () => {
+    const items = [
+      { id: 'a', location: 'Sin coords', coordinates: undefined },
+      { id: 'b', location: 'Tampoco', coordinates: undefined },
+    ];
+    expect(nearestByCoordinates(items, me)).toBeNull();
+  });
+
+  it('keeps the FIRST nearest on a tie (stable for a given order)', () => {
+    const items = [
+      { id: 'first', coordinates: { lat: -33.46, lng: -70.67 } },
+      { id: 'second', coordinates: { lat: -33.46, lng: -70.67 } },
+    ];
+    expect(nearestByCoordinates(items, me)?.item.id).toBe('first');
   });
 });

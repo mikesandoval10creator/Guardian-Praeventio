@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { ShieldAlert, Phone, HeartPulse, LifeBuoy, ArrowLeft, X } from 'lucide-react';
 import { FirstAidCards } from './FirstAidCards';
 import { SurvivalMode } from './SurvivalMode';
+import { PublicDeaFinder } from './PublicDeaFinder';
 import {
   getEmergencyNumbersByCoords,
   getEmergencyNumbersByRegion,
@@ -28,7 +29,7 @@ import {
   type EmergencyNumbers,
 } from '../../services/emergency/emergencyNumbers';
 
-type View = 'menu' | 'firstaid' | 'survival';
+type View = 'menu' | 'firstaid' | 'survival' | 'dea';
 
 export function PublicEmergencyButton() {
   const { t } = useTranslation();
@@ -150,12 +151,27 @@ export function PublicEmergencyButton() {
                     <span className="text-sm font-bold">{t('emergency.public_survival', 'Modo supervivencia')}</span>
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setView('dea')}
+                  data-testid="public-emergency-dea"
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600/90 px-4 py-4 font-bold text-white hover:bg-emerald-500"
+                >
+                  <HeartPulse className="h-6 w-6" />
+                  {t('emergency.public_find_dea', 'Desfibrilador (DEA) más cercano')}
+                </button>
               </div>
             )}
 
             {view === 'firstaid' && (
               <div className="flex-1 px-2 pb-10">
                 <FirstAidCards />
+              </div>
+            )}
+
+            {view === 'dea' && (
+              <div className="flex-1 px-5 pb-10">
+                <PublicDeaFinder />
               </div>
             )}
           </motion.div>
