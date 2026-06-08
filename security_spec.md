@@ -276,5 +276,35 @@ admin/supervisor (legal trail). Rules tests:
 40. **Cross-project / anonymous Acta Write**: a non-member (or logged-out) user
     creating an acta in a project they do not belong to.
 
+## Curriculum referee co-sign — method-label integrity (#F4, added 2026-06-08)
+
+The public, magic-link referee co-sign endpoint
+`POST /api/curriculum/referee/:token` (`src/server/routes/curriculum.ts`) is
+unauthenticated by design (the 256-bit token is the barrier). It previously
+accepted `{ method: 'webauthn', signature }` from the client and persisted it
+verbatim — stamping a co-signature as a *cryptographically verified* WebAuthn
+assertion that was **never verified**. A real verification is structurally
+impossible here: `verifyWebAuthnAssertion` (`src/server/auth/webauthnAssertion.ts`)
+requires a Firebase `uid` plus a credential enrolled in `webauthn_credentials`
+where `stored.uid === uid`; a magic-link referee has neither. Integrity
+guarantee now enforced: the `webauthn` method label means **only** a
+server-verified assertion against an enrolled credential. The route coerces a
+client `webauthn` *intent* into the truthful `device_attested` (local device
+proof-of-presence) on both the cosign and decline branches, and the service
+chokepoint `recordRefereeEndorsement` throws (`400`) if asked to persist
+`method='webauthn'` without `webauthnVerified:true`. The append-only audit
+trail records the resolved `method` plus `webauthnVerified`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+41. **Fabricated WebAuthn Co-sign**: `{ action: 'cosign', method: 'webauthn',
+    signature: 'webauthn:<ISO>' }` from a token-holder with no enrolled
+    credential — stored as `device_attested`, never as the cryptographic
+    `webauthn` label, so a forged "verified" attestation cannot enter the
+    immutable curriculum.
+42. **Decline-path label spoof**: `{ action: 'decline', method: 'webauthn' }` —
+    the rejected slot is coerced to `device_attested`/`standard`; the
+    `webauthn` label never lands on an unauthenticated referee slot.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

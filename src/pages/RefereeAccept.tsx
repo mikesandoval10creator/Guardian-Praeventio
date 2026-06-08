@@ -11,7 +11,10 @@
 //      } or 404/410 if invalid/expired.
 //   2. The page renders a co-sign card.
 //   3. Three actions:
-//      • "Co-firmar con huella"  — WebAuthn-backed signature.
+//      • "Co-firmar con huella"  — LOCAL device biometric (proof-of-presence).
+//        Recorded server-side as a 'device_attested' co-sign, NOT a
+//        cryptographically verified WebAuthn signature: a magic-link referee
+//        is unauthenticated and has no enrolled credential (see F4).
 //      • "Co-firmar (estándar)"  — opaque acknowledgement timestamp.
 //      • "Rechazar"              — declines the claim.
 //   4. POST /api/curriculum/referee/:token  with the chosen method.
@@ -79,7 +82,13 @@ export function RefereeAccept() {
         }
         const ok = await authenticate(`Co-firma el claim de ${preview.workerName}`);
         if (!ok) throw new Error('No se pudo confirmar la huella. Vuelve a intentar.');
-        signature = `webauthn:${new Date().toISOString()}`;
+        // Local device proof-of-presence only — the server records this as a
+        // 'device_attested' co-sign, NOT a cryptographically verified WebAuthn
+        // signature (a magic-link referee has no enrolled credential). The
+        // marker string is honest about what this actually represents. The
+        // POST body still sends method:'webauthn' as the biometric INTENT
+        // (the route allow-list is {webauthn,standard}); the server coerces it.
+        signature = `device-attested:${new Date().toISOString()}`;
       } else if (method === 'standard') {
         signature = `standard:${new Date().toISOString()}`;
       } else {

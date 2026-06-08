@@ -59,7 +59,19 @@ export type ClaimStatus =
   | 'rejected'
   | 'expired';
 
-export type EndorsementMethod = 'webauthn' | 'standard';
+// `webauthn` = a co-signature whose WebAuthn assertion was CRYPTOGRAPHICALLY
+//   verified server-side against an ENROLLED credential (verifyWebAuthnAssertion
+//   in src/server/auth/webauthnAssertion.ts — needs a uid + a credential where
+//   stored.uid===uid). A magic-link referee is UNAUTHENTICATED and has no
+//   enrolled credential, so the public cosign path CANNOT produce this value;
+//   it is reserved for a future referee-enrollment flow (see F4 follow-up).
+//   Stamping it without a real verification would fabricate cryptographic
+//   assurance on a legal-value attestation.
+// `device_attested` = the referee passed a LOCAL device biometric / proof-of-
+//   presence (navigator.credentials.get with a client challenge). Honest about
+//   what actually happened: a device unlock, NOT a server-verified signature.
+// `standard` = opaque "yo declaro" acknowledgement timestamp, no biometrics.
+export type EndorsementMethod = 'webauthn' | 'device_attested' | 'standard';
 
 export interface RefereeSlot {
   email: string;
@@ -266,10 +278,29 @@ export async function createClaim(
 export async function recordRefereeEndorsement(
   claimId: string,
   rawToken: string,
-  endorsement: { signature: string; method: EndorsementMethod },
+  endorsement: {
+    signature: string;
+    method: EndorsementMethod;
+    /** TRUE only when the caller has CRYPTOGRAPHICALLY verified a real
+     *  WebAuthn assertion against an enrolled credential. The service
+     *  refuses to persist method='webauthn' without it — this is the single
+     *  chokepoint that writes the immutable referee slot, so no route
+     *  (present or future) can fabricate a "verified" cryptographic label
+     *  for an unauthenticated referee (F4). */
+    webauthnVerified?: boolean;
+  },
   db: MinimalClaimsDb,
   audit: AuditLogger,
 ): Promise<{ verified: boolean }> {
+  // F4 integrity guard: the ONLY way `method` can be 'webauthn' is if the
+  // caller asserts (and is trusted to have run) a real server-side
+  // verifyWebAuthnAssertion. The public magic-link route NEVER sets this,
+  // so an unauthenticated referee can never mint a cryptographic claim.
+  if (endorsement.method === 'webauthn' && endorsement.webauthnVerified !== true) {
+    throw new Error(
+      'invalid endorsement: method=webauthn requires a server-verified assertion',
+    );
+  }
   const docRef = db.collection(COLLECTION).doc(claimId);
   const snap = await docRef.get();
   if (!snap.exists) throw new Error('token does not match any pending claim');
@@ -321,6 +352,11 @@ export async function recordRefereeEndorsement(
     claimId,
     refereeEmail: slot.email,
     method: endorsement.method,
+    // F4: explicit truth flag in the append-only trail. Only true when a real
+    // server-side assertion was verified — never for the public magic-link
+    // path (referees have no enrolled credential). Keeps the ISO/legal export
+    // honest about what the co-sign actually proves.
+    webauthnVerified: endorsement.webauthnVerified === true,
   });
 
   if (allSigned) {

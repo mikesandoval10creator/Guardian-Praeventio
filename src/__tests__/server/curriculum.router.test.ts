@@ -718,6 +718,79 @@ describe('POST /api/curriculum/referee/:token (cosign/decline)', () => {
     expect(actions).toContain('curriculum.referee.declined');
   });
 
+  // ── F4: the public cosign path NEVER stores method=webauthn ──────────────
+  // An unauthenticated magic-link referee has no enrolled credential, so the
+  // server cannot verify a real assertion. A client 'webauthn' intent must be
+  // recorded as the truthful 'device_attested', never the cryptographic label.
+
+  it('F4: coerces client method=webauthn into stored method=device_attested', async () => {
+    const { rawToken0 } = seedClaim('claim-f4a');
+    const res = await request(buildApp())
+      .post(`/api/curriculum/referee/${rawToken0}`)
+      .send({ action: 'cosign', method: 'webauthn', signature: 'device-attested:2026-06-08T00:00:00Z' });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    // The route echoes the RESOLVED method so the client knows the truth.
+    expect(res.body.method).toBe('device_attested');
+
+    const snap = (await H.db!.collection('curriculum_claims').doc('claim-f4a').get()).data() as Record<string, unknown>;
+    const refs = snap.referees as Array<Record<string, unknown>>;
+    // CRITICAL: the stored slot is NOT labelled as cryptographic webauthn.
+    expect(refs[0].method).toBe('device_attested');
+    expect(refs[0].method).not.toBe('webauthn');
+    expect(refs[0].signedAt).toBeTruthy();
+
+    // Audit records the truthful method + webauthnVerified:false.
+    const auditSnap = await H.db!.collection('audit_logs').get();
+    const endorsed = auditSnap.docs.find((d) => d.data()!.action === 'curriculum.referee.endorsed');
+    const details = endorsed!.data()!.details as Record<string, unknown>;
+    expect(details.method).toBe('device_attested');
+    expect(details.webauthnVerified).toBe(false);
+  });
+
+  it('F4: standard cosign still stores method=standard', async () => {
+    const { rawToken0 } = seedClaim('claim-f4b');
+    const res = await request(buildApp())
+      .post(`/api/curriculum/referee/${rawToken0}`)
+      .send({ action: 'cosign', method: 'standard', signature: 'standard:2026-06-08T00:00:00Z' });
+    expect(res.status).toBe(200);
+    expect(res.body.method).toBe('standard');
+    const snap = (await H.db!.collection('curriculum_claims').doc('claim-f4b').get()).data() as Record<string, unknown>;
+    expect((snap.referees as Array<Record<string, unknown>>)[0].method).toBe('standard');
+  });
+
+  it('F4: both referees biometric → claim verifies but NO slot claims webauthn', async () => {
+    const { rawToken0, rawToken1 } = seedClaim('claim-f4c');
+    await request(buildApp())
+      .post(`/api/curriculum/referee/${rawToken0}`)
+      .send({ action: 'cosign', method: 'webauthn', signature: 'device-attested:a' });
+    const res = await request(buildApp())
+      .post(`/api/curriculum/referee/${rawToken1}`)
+      .send({ action: 'cosign', method: 'webauthn', signature: 'device-attested:b' });
+    expect(res.status).toBe(200);
+    expect(res.body.verified).toBe(true);
+
+    const snap = (await H.db!.collection('curriculum_claims').doc('claim-f4c').get()).data() as Record<string, unknown>;
+    expect(snap.status).toBe('verified');
+    const refs = snap.referees as Array<Record<string, unknown>>;
+    expect(refs.every((r) => r.method === 'device_attested')).toBe(true);
+    expect(refs.some((r) => r.method === 'webauthn')).toBe(false);
+  });
+
+  it('F4: decline with method=webauthn does not stamp the webauthn label', async () => {
+    const { rawToken0 } = seedClaim('claim-f4d');
+    const res = await request(buildApp())
+      .post(`/api/curriculum/referee/${rawToken0}`)
+      .send({ action: 'decline', method: 'webauthn', signature: 'device-attested:x' });
+    expect(res.status).toBe(200);
+    expect(res.body.declined).toBe(true);
+    const snap = (await H.db!.collection('curriculum_claims').doc('claim-f4d').get()).data() as Record<string, unknown>;
+    const refs = snap.referees as Array<Record<string, unknown>>;
+    expect(refs[0].declined).toBe(true);
+    expect(refs[0].method).toBe('device_attested');
+    expect(refs[0].method).not.toBe('webauthn');
+  });
+
   it('410 when claim has expired (service throws "expired")', async () => {
     // Seed an expired claim that still has status pending_referees
     // (lazy expiry path: expiresAt is past but not yet flipped).
