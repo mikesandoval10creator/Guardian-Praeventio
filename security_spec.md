@@ -441,5 +441,38 @@ signed entry stayed mutable. Now any update is denied once `status == 'signed'`
     `signature` present, NO top-level `signedAt`) to flip `status` back to
     `open` or rewrite `description` — denied by the status-based gate.
 
+## CPHS meeting minutes (cphs_meetings) — signatures append-only + prefix-preserved (added 2026-06-08)
+
+`cphs_meetings/{meetingId}` holds Comité Paritario actas (DS54 / ISO 45001
+§5.4). Once an acta carries >=1 WebAuthn co-signature the document is immutable
+except for an APPEND to `signatures[]` (other attendees co-signing) — same
+pattern as `audit_logs`. The update rule previously enforced only that the new
+`signatures` array GREW BY ONE (`size() == old.size() + 1`); it did NOT assert
+that the existing signatures prefix was preserved. A project member could
+therefore submit a size-N+1 array whose first N entries were forged/rewritten
+(swapping another member's `uid` / `credentialId` / `signature` / `signedAt`)
+and pass. The rule now requires the new array to equal the existing array
+plus exactly one appended tail element
+(`incoming().signatures == existing().signatures.concat([tail])`), so prior
+WebAuthn assertions are bit-for-bit immutable. The pre-first-signature edit
+path (Caso A) is unchanged. Rules tests:
+`src/rules-tests/cphsMeetings.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+53. **Co-signature Prefix Rewrite**: an attendee `update`s a signed
+    `cphs_meetings/{id}` with `signatures = [ {forged copy of member-A's slot},
+    {own new signature} ]` (size old+1) — the rewrite of member-A's existing
+    WebAuthn slot is denied because the new array must equal the old array
+    concatenated with exactly one new tail element.
+54. **Signature Truncation / Reorder**: an attendee submits a `signatures`
+    array that drops a prior signature, or keeps the same length while
+    reordering existing entries — denied; the array may only grow by one and
+    must keep the existing prefix in place.
+55. **Bulk Signature Replace**: an attendee replaces the entire `signatures`
+    array (size old+1) with brand-new entries while leaving the meeting body
+    (minutes/resolutions/attendees/status) untouched — denied; only a genuine
+    append over the unchanged existing prefix is permitted.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
