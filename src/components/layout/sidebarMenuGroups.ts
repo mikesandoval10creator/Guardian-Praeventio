@@ -222,6 +222,9 @@ export function buildSidebarMenuGroups(
     { title: t('nav.drills', 'Gestor de Simulacros'), icon: ShieldAlert, path: '/drills', color: 'text-amber-500' },
     // Sprint K §74-78 — Brigada de Emergencia + Inventario de Recursos.
     { title: t('nav.emergency_brigade', 'Brigada Emergencia'), icon: ShieldAlert, path: '/emergency-brigade', color: 'text-amber-500' },
+    // Phase 5 "make real" wire — Mapa de Primer Respondedor (FirstResponderDispatchPanel
+    // estaba construido pero huérfano: feed real de cobertura + despacho del más apto).
+    { title: t('nav.first_responder_map', 'Primer Respondedor'), icon: HeartPulse, path: '/first-responder-map', color: 'text-rose-500' },
     // Sprint K vidas críticas wire — Tablero de Evacuación.
     { title: t('nav.evacuation_dashboard', 'Tablero Evacuación'), icon: AlertTriangle, path: '/evacuation-dashboard', color: 'text-rose-500' },
     // Sprint K vidas críticas wire (2026-05-22) — Paralizaciones / stop-work
