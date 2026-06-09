@@ -19,7 +19,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
-    "typecheck:ci": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
+    "typecheck:ci": "node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc --noEmit",
     "lint": "eslint . --cache && eslint firestore.rules",
     "lint:fix": "eslint . --cache --fix && eslint firestore.rules --fix",
     "lint:rules": "eslint firestore.rules",
