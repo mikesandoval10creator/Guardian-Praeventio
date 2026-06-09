@@ -1492,32 +1492,58 @@ service cloud.firestore {
         && isProjectMember(
           get(/databases/$(database)/documents/cphs_committees/$(resource.data.committeeId)).data.projectId
         )
+        // Invariantes hoisted a TODOS los sub-casos: committeeId y
+        // scheduledAt nunca mutan, y signatures siempre debe ser una lista.
+        && incoming().committeeId == resource.data.committeeId
+        && incoming().scheduledAt == resource.data.scheduledAt
+        && incoming().signatures is list
         && (
-          // Caso A: acta sin firmar todavía → libre edición de campos
-          // operativos; committeeId / scheduledAt no mutables.
+          // Caso A1 — BORRADOR (acta sin firmar, signatures sigue vacío):
+          // libre edición de campos operativos (recordMinutes flow).
           (resource.data.signatures.size() == 0
-            && incoming().committeeId == resource.data.committeeId
-            && incoming().scheduledAt == resource.data.scheduledAt
+            && incoming().signatures.size() == 0
           )
           ||
-          // Caso B: APPEND-only a signatures[] — el resto debe quedar
-          // bit-a-bit idéntico (immutability post-firma). El array de
-          // firmas SÓLO puede crecer en exactamente 1 y DEBE preservar el
-          // prefijo existente sin reescribir ninguna firma previa: el nuevo
-          // array tiene que ser EXACTAMENTE el anterior + el elemento
-          // agregado al final (`concat`). Sin esto, un miembro podría
-          // enviar un array de tamaño N+1 con las firmas WebAuthn previas
-          // forjadas/reescritas (uid/credentialId/signature/signedAt) — el
-          // chequeo de tamaño solo NO lo impide.
-          (incoming().committeeId == resource.data.committeeId
-            && incoming().scheduledAt == resource.data.scheduledAt
+          // Caso A2 — PRIMERA FIRMA (transición 0 -> 1). Misma disciplina
+          // self-binding que el append de Caso B: EXACTAMENTE una firma, su
+          // uid DEBE ser el del que escribe (no se puede plantar la firma de
+          // otro miembro), y NO se puede plantar un lote de N firmas pre-
+          // forjadas (tamaño cap a 1). El cuerpo del acta queda bit-a-bit
+          // idéntico — la transición de primera firma NO puede manipular
+          // agenda/minutes/resolutions/attendees/status. Sin esto, sobre un
+          // acta sin firmar cualquier miembro podría en UNA sola escritura
+          // (a) firmar bajo el uid de otro, (b) plantar N firmas WebAuthn
+          // pre-forjadas saltándose la ceremonia per-member, y (c) mutar el
+          // cuerpo a la vez que bloquea el doc (Caso B lo vuelve inmutable).
+          (resource.data.signatures.size() == 0
+            && incoming().signatures.size() == 1
+            && incoming().signatures[0].uid == request.auth.uid
             && incoming().agenda == resource.data.agenda
             && incoming().minutes == resource.data.minutes
             && incoming().resolutions == resource.data.resolutions
             && incoming().attendees == resource.data.attendees
             && incoming().status == resource.data.status
-            && incoming().signatures is list
+          )
+          ||
+          // Caso B: APPEND-only a signatures[] (acta ya firmada) — el resto
+          // debe quedar bit-a-bit idéntico (immutability post-firma). El
+          // array de firmas SÓLO puede crecer en exactamente 1 y DEBE
+          // preservar el prefijo existente sin reescribir ninguna firma
+          // previa: el nuevo array tiene que ser EXACTAMENTE el anterior +
+          // el elemento agregado al final (`concat`). Sin esto, un miembro
+          // podría enviar un array de tamaño N+1 con las firmas WebAuthn
+          // previas forjadas/reescritas (uid/credentialId/signature/
+          // signedAt) — el chequeo de tamaño solo NO lo impide. Además la
+          // firma agregada al final DEBE ser auto-firmada (uid == caller),
+          // de modo que nadie pueda co-firmar bajo el uid de otro miembro.
+          (resource.data.signatures.size() >= 1
+            && incoming().agenda == resource.data.agenda
+            && incoming().minutes == resource.data.minutes
+            && incoming().resolutions == resource.data.resolutions
+            && incoming().attendees == resource.data.attendees
+            && incoming().status == resource.data.status
             && incoming().signatures.size() == resource.data.signatures.size() + 1
+            && incoming().signatures[resource.data.signatures.size()].uid == request.auth.uid
             && incoming().signatures
                == resource.data.signatures.concat(
                     [incoming().signatures[resource.data.signatures.size()]]

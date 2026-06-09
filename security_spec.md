@@ -465,8 +465,9 @@ therefore submit a size-N+1 array whose first N entries were forged/rewritten
 and pass. The rule now requires the new array to equal the existing array
 plus exactly one appended tail element
 (`incoming().signatures == existing().signatures.concat([tail])`), so prior
-WebAuthn assertions are bit-for-bit immutable. The pre-first-signature edit
-path (Caso A) is unchanged. Rules tests:
+WebAuthn assertions are bit-for-bit immutable. The appended tail must also be
+self-signed (`tail.uid == request.auth.uid`) so nobody can co-sign under
+another member's identity. Rules tests:
 `src/rules-tests/cphsMeetings.rules.test.ts`.
 
 **Rejected payloads (Dirty-Dozen extension):**
@@ -484,6 +485,44 @@ path (Caso A) is unchanged. Rules tests:
     array (size old+1) with brand-new entries while leaving the meeting body
     (minutes/resolutions/attendees/status) untouched — denied; only a genuine
     append over the unchanged existing prefix is permitted.
+
+### cphs_meetings — Caso A first-signature (0 -> 1) transition gating (added 2026-06-08)
+
+Before the first signature, the Caso A branch previously constrained only
+`committeeId` / `scheduledAt` and left the incoming `signatures` array ENTIRELY
+unconstrained. Because production signs `cphs_meetings` directly via the
+Firebase Web SDK (`src/pages/CphsModule.tsx` -> `cphsService.signMinutes` ->
+`docRef.update({signatures})`), `firestore.rules` is the SOLE server-side gate.
+On an unsigned acta any project member could in ONE write: plant the FIRST
+signature under another member's `uid` (no self-binding), batch-plant N
+pre-forged signatures (no `0 -> N` size cap) bypassing the per-member WebAuthn
+ceremony, and mutate `minutes`/`resolutions`/`attendees`/`status` while locking
+the doc (Caso B then makes the forged signatures bit-for-bit immutable —
+irreversible repudiation on a legally binding DS54 / ISO 45001 acta). The rule
+now splits Caso A into **A1** (draft: `signatures` stays empty, body freely
+editable) and **A2** (first signature: EXACTLY one, `tail.uid ==
+request.auth.uid`, body bit-for-bit identical), collapsing the first-sign into
+the same self-binding discipline as Caso B. `committeeId` / `scheduledAt` /
+`signatures is list` are hoisted invariants over all three sub-cases. Rules
+tests (`src/rules-tests/cphsMeetings.rules.test.ts`, 15/15 under the emulator).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+64. **First-Signature Identity Spoof**: a member `update`s an unsigned
+    `cphs_meetings/{id}` with `signatures = [ {uid: <another member>, ...} ]`
+    (size `0 -> 1`) — denied; the first signature's `uid` must equal the caller
+    (`request.auth.uid`), so nobody can plant the inaugural WebAuthn slot under
+    someone else's identity.
+65. **First-Signature Batch Plant**: a member `update`s an unsigned acta with
+    `signatures` of size `0 -> 2` (or more) — N pre-forged WebAuthn assertions
+    landed in one write — denied; Caso A2 caps the first-sign transition to
+    exactly one signature, forcing the per-member ceremony for each subsequent
+    co-signature via Caso B.
+66. **First-Signature Body Tamper**: a member lands the first signature while
+    also mutating `minutes` / `resolutions` / `attendees` / `status` /
+    `scheduledAt` in the same write — denied; the `0 -> 1` transition must leave
+    the acta body bit-for-bit identical, so the document that gets locked is the
+    one the committee actually deliberated.
 
 ## Worker-RUT PII over-exposure in `nodes` — read gate (PRIVACY, fixed 2026-06-08)
 

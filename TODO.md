@@ -1055,7 +1055,9 @@ sistémicos** (arreglar la clase, no el síntoma). Los más graves re-verificado
 - **P4 — Firmas WebAuthn presence-checked pero nunca verificadas cripto — PARCIAL:**
   ✅ DTE (#765), ✅ referee honest-label (#766), ✅ Login web (#775). PENDIENTE: Login nativo, aptitud médica, kms-sign-rsa.
 - **P5 — Records firmados MUTABLES — PARCIAL:** ✅ `site_book` gate + test corregidos (#771);
-  ✅ `cphs_meetings` append-only Case B (#774, Case A pendiente). PENDIENTE: `lighting_audits` (DS594).
+  ✅ `cphs_meetings` append-only Case B (#774) + ✅ Case A first-signature `0 -> 1`
+  self-bound + body-immutable (`firestore.rules:1461`, A1/A2/B split; 8 tests en
+  `src/rules-tests/cphsMeetings.rules.test.ts`). PENDIENTE: `lighting_audits` (DS594).
 - **P6 — Puntos ciegos del guard ADR 0012 — CERRADO:** ✅ `VitalityMonitor.tsx` reconvertido (#668);
   ✅ guard extendido a `occupational-health/` + los 3 `*Backend.ts` raíz (medicineBackend/medicalAnalysisBackend/psychosocialBackend, #670/#773).
 - **P7 — Imágenes de cámara a Gemini cloud vs directiva #12 — PARCIAL:** ✅ `BioAnalysis.tsx` frame vivo on-device,
@@ -1123,7 +1125,8 @@ repo completo (3.545 archivos, menos 77 binarios) queda leído línea por línea
 - 🔴 `render-well-known.mjs:31` hardcodea el SHA-256 del cert Play de prod (fail-open). *(PENDIENTE)*
 - ✅ **voseo es-AR → "tú" chileno RESUELTO** (#736) — grep de `Reintentá`/`Seleccioná`/`vos sos` en `es/common.json` = 0.
 - 🟡 `firebase-applet-config.json` git-trackeada (por diseño, ver CLAUDE.md); ✅ `cphs_meetings`
-  append-only Case B preserva el prefijo (#774, Case A primera-firma pendiente); converters token `==`
+  append-only Case B preserva el prefijo (#774); ✅ Case A primera-firma gated
+  (self-bound + body-immutable, `firestore.rules:1461`); converters token `==`
   timing-oracle; contenedores root. ✅ Terraform 100% limpio.
 
 **Docs — doc-drift generalizado post-split** (Regla #20): ARCHITECTURE.md (LOC/refs),
