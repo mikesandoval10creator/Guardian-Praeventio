@@ -156,9 +156,14 @@ function decodeBase64(b64: string): Uint8Array | null {
   }
 }
 
-/** Strip undefined keys — Firestore rejects `undefined` field values. */
-function pruneUndefined<T extends Record<string, unknown>>(obj: T): T {
-  const out = {} as Record<string, unknown>;
+/**
+ * Strip undefined keys — Firestore rejects `undefined` field values.
+ * Constrained to `object` (not `Record<string, unknown>`) so the domain
+ * interfaces `EvidenceArtifact` / `CustodyEvent` (which have no index
+ * signature) satisfy it; the shape is preserved on the way out.
+ */
+function pruneUndefined<T extends object>(obj: T): T {
+  const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
     if (v !== undefined) out[k] = v;
   }
@@ -313,7 +318,7 @@ router.post('/:projectId/evidence/:hash/access', verifyAuth, async (req, res) =>
     const enriched: CustodyEvent = parsed.data.notes
       ? { ...event, notes: parsed.data.notes }
       : event;
-    await adapter.appendEvent(pruneUndefined(enriched as Record<string, unknown>) as unknown as CustodyEvent);
+    await adapter.appendEvent(pruneUndefined(enriched));
     try {
       await auditServerEvent(
         req,
