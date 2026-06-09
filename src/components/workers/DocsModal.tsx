@@ -49,7 +49,9 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
         doc_kind: 'regulatory',
         project_id: projectId,
       });
-    } catch {}
+    } catch {
+      // Analytics is best-effort; never let a tracking failure break the modal.
+    }
   }, [isOpen, worker, projectId]);
 
   // Fetch documents for the worker
@@ -123,6 +125,9 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
         url: downloadURL,
         createdAt: new Date().toISOString(),
         workerId: worker.id,
+        // Required by the onSnapshot listener's where('archived', '==', false)
+        // filter — without it, freshly uploaded docs never surface in the list.
+        archived: false,
         compliance
       };
 
