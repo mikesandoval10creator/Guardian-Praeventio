@@ -87,7 +87,7 @@ refactor cliente+server, alto riesgo → con foco fresco + `/cso-praeventio`).
 `src/services/routing/evacuationGrid.ts` = twin→grilla→A\* + `EvacuationGridMap` + cableado
 `subscribeSiteGeometry`/`useGeolocationTracking`; reemplaza la narrativa Gemini) · **sensor leaks ✅ #675**
 (useAccelerometer listener, SurvivalMode torch interval, useAcousticSOS flanco+histéresis). Reglas:
-declare-emergency #660, DEA #661, pings #662, **FirstResponderDispatchPanel montado #791** (feed real brigada+pings).
+declare-emergency #660, DEA #661, pings #662, **FirstResponderDispatchPanel feed real #791 + PÁGINA REAL montada #818** (la afirmación "montado #791" era FALSA: #791 solo construyó el feed; el panel seguía huérfano —solo su test lo importaba—; #818 crea `src/pages/FirstResponderMap.tsx` con ruta + nav "Primer Respondedor" + acciones de despacho REALES que postean nota auditada a `emergency_chat` + tel:SAMU 131).
 **AlertScheduler probes reales ✅ #798** (feed Bernoulli sobre inputs físicos reales + viento horario Open-Meteo; sin datos ⇒ no probe).
 **Falso positivo sísmico ✅ #816** (founder report 2026-06-09): `autoTrigger.ts checkSismo` latcheaba `peakAccelG` y medía tiempo-desde-flanco → un spike <300ms (caída del teléfono) leía como "sismo sostenido". Ahora mide **duración CONTINUA sobre el umbral** (run con primer/último over-sample + grace de dip 150ms; sustained solo si span≥300ms Y el run sigue vivo). +3 regression guards (spike solo/spike+settle/stale-run → no dispara) + dedup regex de clima `STORM_CONDITIONS_RE`. 14/14 verde.
 **Emergency/ops collections default-denied (§365 root-cause) ✅ #807:** 7 colecciones que el Master Gate
