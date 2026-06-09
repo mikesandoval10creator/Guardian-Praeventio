@@ -638,5 +638,43 @@ Corrections are NEW audits, never in-place rewrites.
     != true` gate blocks the update outright, so a finalized certificate can
     never be un-signed and rewritten.
 
+### Evidence chain-of-custody (audit H8 — content-addressed legal evidence)
+
+`tenants/{tid}/evidence_artifacts/{hash}` (+ `.../events/{eid}`) is the
+content-addressed legal evidence chain (photo/PDF/declaration/measurement hashes +
+metadata) that an incident expediente promises. The custody engine + adapter
+(`src/services/evidenceChain/*`) were inert dead-code (DEEP-EX-16 H8) until
+`src/server/routes/custodyChain.ts` mounted them; the collection had NO Firestore
+rule and fell to default-deny. ALL writes flow through that `verifyAuth` +
+`assertProjectMember` route via the Admin SDK, which bypasses these rules and
+server-stamps `uploadedByUid` / `actorUid` from the verified token (CLAUDE.md #3) —
+the client SDK NEVER writes here. The artifact's SHA-256 is its identity, so
+"replacement" is a NEW event + a server-applied `replacedByHash`, never an in-place
+edit. The `/events` subcollection is APPEND-ONLY immutable (same anchor class as
+`audit_logs` / `suseso_forms`): no client create, and update/delete denied to anyone
+so no link in the custody trail can be rewritten or erased. Rules tests:
+`src/rules-tests/evidenceArtifacts.rules.test.ts`; route tests:
+`src/__tests__/server/custodyChain.router.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+67. **Forged-Custody Artifact Write**: a tenant member writes
+    `tenants/{tid}/evidence_artifacts/{hash}` directly from the client — e.g. to
+    forge `uploadedByUid` to another worker, or fabricate an artifact that was never
+    captured. Denied: artifact create/update/delete is server-only (`if false`); the
+    only writer is the Admin-SDK custody route, which stamps `uploadedByUid` from the
+    verified token, so the chain's identity can never be spoofed.
+68. **Custody-Log Tamper (append-only break)**: a member tries to `create` a forged
+    `/events/{eid}` link, `update` an existing event (e.g. rewrite `actorRole` to
+    `admin`), or `delete` a link to erase who accessed/exported the evidence. All
+    denied: the events subcollection is hard `if false` for create/update/delete to
+    everyone — the legal chain of custody is immutable and additions only ever happen
+    server-side via a NEW Admin-SDK append.
+69. **Cross-Tenant Evidence Snoop**: a verified member of tenant B `get`s an artifact
+    (or a custody event) under tenant A's `evidence_artifacts` — denied by
+    `isMemberOfTenant(tenantId)`; evidence (and its access trail) is readable only by
+    members of the owning tenant, and the same gate also drops it from the generic
+    sub-collection reader (added to the `evidence_artifacts` deny-list there).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

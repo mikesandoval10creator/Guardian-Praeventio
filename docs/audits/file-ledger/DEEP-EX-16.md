@@ -174,15 +174,19 @@ primero → pérdida silenciosa de un eslabón en una cadena de custodia *legal*
 declaraciones). El comentario `// event id = at ISO timestamp (assumed unique per artifact)` reconoce el
 supuesto frágil. **Acción**: id = `${at}_${randomId()}` o auto-id de Firestore + índice por `at`.
 
-### 🟡 H8 — Subsistema Cadena de Custodia (J.7) sin wiring productivo (#13 — dead-code)
-`custodyChainService.ts` (motor: hash SHA-256, register/replace/access/export/verifyIntegrity — sólido)
-y su adapter **no tienen caller productivo**: `grep` solo encuentra referencias en **comentarios**
-(`photoEvidenceEngine.ts:11`, `incidentEvidenceBundle.ts:21`). No hay ruta `verifyAuth` que materialice
-artefactos, ni mount en `server.ts`. La colección `evidence_artifacts` no tiene regla Firestore (cae a
-default-deny — moot mientras no haya cliente). Toda la fase J.7 ("Cadena de Custodia de Evidencias",
-§24) está implementada pero **inerte**. Relacionado con H3: el bundle promete custody-chain pero el
-feed va vacío precisamente porque este subsistema no se invoca. **Acción**: registrar como pendiente en
-`docs/stubs-inventory.md` o cablear un endpoint de registro de evidencia.
+### ✅ H8 — Subsistema Cadena de Custodia (J.7) cableado a producción (era #13 — dead-code)
+**RESUELTO.** El motor `custodyChainService.ts` (hash SHA-256,
+register/replace/access/export/verifyIntegrity) + su adapter ya tienen caller productivo:
+`src/server/routes/custodyChain.ts` monta 5 endpoints bajo `/api/sprint-k` (GET artifact+chain,
+POST register/replace/access/export), cada uno con `verifyAuth` + `assertProjectMember`,
+identidad server-stampeada desde el token verificado (`uploadedByUid`/`actorUid`, nunca del body),
+y un `audit_logs` awaited en try/catch por cada op mutadora. Mount en `server.ts`. La colección
+`tenants/{tid}/evidence_artifacts/{hash}` (+ `/events/{eid}`) ahora tiene regla Firestore:
+member-read, write server-only (Admin SDK), `/events` APPEND-ONLY inmutable (sin update/delete por
+nadie). Tests reales: `src/rules-tests/evidenceArtifacts.rules.test.ts` (9 casos, harness F1
+`authenticatedContext`) + `src/__tests__/server/custodyChain.router.test.ts` (20 casos supertest
+ejercitando el motor + adapter reales). Dirty-Dozen #67–69 en `security_spec.md`. Cierra también la
+parte de H3 donde el bundle prometía custody-chain con feed vacío por no invocarse el subsistema.
 
 ### 🟡 H9 — `incidentCommands.ts:124-132`: `generateEventId()` usa `Math.random()` para IDs de evento (#15) — NUEVO (DEEP-B4 solo flageó `incidentRagService.ts:299`)
 ```ts
