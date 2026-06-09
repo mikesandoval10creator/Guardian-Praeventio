@@ -596,6 +596,18 @@ entry per call, Ley 19.628 access trail).
     `emergency_alerts` fix; the engine then emits `no_position_known` and marks
     them honestly unavailable. Positions older than `POSITION_MAX_STALE_SECONDS`
     (30 min) are dropped so a stale GPS fix can never drive a dispatch decision.
+64. **Structural-Load Spoof / Cross-project Injection**: a non-member POSTs to
+    `:projectId/structural-loads` (or writes `projects/{pid}/structural_loads`
+    directly) — denied 403 (`assertProjectMember`) / default-deny by rules. A
+    project member cannot forge `createdBy` to another uid on create, and cannot
+    change `createdBy` on update (owner is immutable). Deleting a structural-load
+    record (a safety input that drives the Bernoulli wind-load predictive alert)
+    is restricted to admin/supervisor. A record missing any physical input
+    (area/Cp/maxForceN) produces NO probe — the predictive ladder stays honestly
+    silent rather than firing on a fabricated wind. The predictive probe is fed
+    only by REAL Open-Meteo HOURLY wind at the project's coordinates; with no
+    coordinates or no forecast the answer is "no probe", never an invented speed.
+    (Numbered #64: #60–#63 are reserved for in-flight blocks.)
 
 ### Signed lighting audits (DS 594 Art. 103 lighting-compliance certificate)
 

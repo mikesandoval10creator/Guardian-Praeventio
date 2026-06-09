@@ -613,6 +613,22 @@ service cloud.firestore {
           && incoming().validatedByUid == existing().validatedByUid;
         allow delete: if isAdmin() || isSupervisor();
       }
+      // Structural-load inputs (area/Cp/NCh-432 force limit) captured by an
+      // operator and consumed by the Bernoulli wind-load predictive probe that
+      // feeds AlertScheduler. A project member records inputs; createdBy must be
+      // the caller and is immutable on update; deleting a structural-load record
+      // (a safety input that drives wind-load alerting) is restricted to
+      // admin/supervisor. Read is granted by the sub-collection master-gate
+      // (isProjectMember). A record missing any physical input produces NO probe
+      // server-side — the predictive ladder stays honestly silent, never firing
+      // on a fabricated wind.
+      match /structural_loads/{loadId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().createdBy == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().createdBy == existing().createdBy;
+        allow delete: if isAdmin() || isSupervisor();
+      }
       // SiteBook (libro de obras): legally-binding; immutable once signed.
       // B9: signed state is marked by `status == 'signed'` + a nested
       // `signature` map (signerUid/signedAt/algorithm/payloadHashHex) — this is
