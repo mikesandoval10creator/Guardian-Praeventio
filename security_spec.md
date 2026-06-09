@@ -507,6 +507,33 @@ is null-safe. Rules tests: `src/rules-tests/nodesWorkerRut.rules.test.ts`.
     `get`s `/nodes/n1` whose `metadata.workerRut` is set — denied; the national
     ID of an injured/diagnosed co-worker is not visible to all peers.
 
+### `isPublic` bypass of the worker-RUT read gate (PRIVACY, fixed 2026-06-08, remaining half of #776)
+
+The first half of #776 added the `nodeHasWorkerRut()` guard ONLY to the
+`isProjectMember` branch of the `nodes` read rule, but the rule kept an
+`existing().isPublic == true` disjunct OR'd **ahead** of that guard. `isValidNode()`
+permits `isPublic:true` alongside `metadata.workerRut`, and the
+author/admin/supervisor update rule can toggle a node public — so a DS 67/109
+RUT-bearing node flagged `isPublic:true` became readable by **any verified
+signed-in user, including a stranger from another project/tenant**, leaking the
+worker's raw RUT. (The outer `isEmailVerified()` gate kept anonymous callers out;
+the public-web `PublicNodeView.tsx` reads the separate `zettelkasten` collection,
+not `nodes` — so the real leak audience was signed-in cross-tenant/peer users.)
+Fix: guard the public branch with the same helper —
+`(existing().isPublic == true && !nodeHasWorkerRut(existing()))` — so a RUT-bearing
+node is **never** publicly readable regardless of `isPublic`; genuinely public
+non-RUT nodes keep public-read (no regression). Rules tests:
+`src/rules-tests/nodesWorkerRut.rules.test.ts` (`isPublic bypass` describe block).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+60. **Public-Flag RUT Leak (cross-tenant)**: a verified NON-MEMBER from another
+    tenant `get`s `/nodes/n1` with `metadata.workerRut` set AND `isPublic == true`
+    — denied; the public flag no longer overrides the worker-RUT gate.
+61. **Public-Flag RUT Leak (in-project peer)**: a plain project peer `get`s the
+    same public RUT-bearing node — denied; author/admin/supervisor still read it,
+    and a public NON-RUT node remains readable (no regression).
+
 ### First-Responder presence feed (PII-position read endpoint)
 
 `GET /api/sprint-k/:projectId/first-responder-map/responder-feed`
