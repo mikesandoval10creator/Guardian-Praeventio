@@ -752,5 +752,47 @@ all four handlers wrapped in try/catch so a denied write never aborts the SOS fl
     row (e.g. lower a recorded `peakG`) — denied (`update,delete:false`); the
     on-device accelerometer log is immutable.
 
+### Default-denied UI collections (🔵 missing rules)
+
+Six collections the UI reads/writes had NO rule and fell to default-deny in
+production. New rules (rules tests:
+`src/rules-tests/missingCollectionsRules.rules.test.ts`, 30 cases, F1 harness):
+
+- `slo_metrics/{id}/daily` — admin/supervisor read, **server-only write** (the
+  aggregation job uses the Admin SDK).
+- `projects/{pid}/training_capsules` — member create, admin/supervisor mutate.
+- `projects/{pid}/calendar_events` — member create/update, admin delete (auto
+  inspection reminders).
+- `calendar_events` (top-level, digital-twin lifecycle) — **projectId-gated**:
+  create/read require membership of `data.projectId`; client update/delete denied
+  (the Google-Calendar retry job owns `syncStatus`).
+- `users/{uid}/focus_blocks` — **owner-only** read/write.
+- `users/{uid}/awards` — owner read, **server-only write** (badges minted by the
+  Admin SDK; the client can never self-award).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+78. **SLO Dashboard Snoop / Forge**: a plain worker reads `slo_metrics/*/daily`,
+    or anyone client-writes an SLO sample — denied (admin/supervisor read,
+    `write:false`). Error-budget data is not exposed to operators and cannot be
+    fabricated to hide a breach.
+79. **Self-Award Privilege Escalation**: a worker writes a doc into their own
+    `users/{uid}/awards` to grant themselves a badge (e.g. "Salvaste una vida")
+    — denied (`write:false`). Awards are minted server-side only.
+80. **Cross-User Focus/Curriculum Snoop**: user B reads or writes
+    `users/{A}/focus_blocks` or `users/{A}/awards` — denied (`isOwner` gate).
+    A worker's private schedule and badges are not visible to peers.
+81. **Cross-Project Calendar Forge (top-level)**: a member of project A creates a
+    top-level `calendar_events` doc with `projectId: B`, or reads one belonging to
+    project B — denied by `isProjectMember(data.projectId)`. Reminders cannot be
+    injected into or read from another project.
+82. **Calendar Sync-Status Tamper**: a member client-updates a top-level
+    `calendar_events` doc to flip `syncStatus` to `synced`, masking a failed
+    Google-Calendar push — denied (`update,delete:false`); only the server job
+    mutates sync state.
+83. **Cross-Project Capsule/Reminder Snoop**: a non-member reads or writes
+    `projects/{pid}/training_capsules` or `projects/{pid}/calendar_events` —
+    denied by `isProjectMember(projectId)`.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
