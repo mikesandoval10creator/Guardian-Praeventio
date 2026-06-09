@@ -507,5 +507,29 @@ is null-safe. Rules tests: `src/rules-tests/nodesWorkerRut.rules.test.ts`.
     `get`s `/nodes/n1` whose `metadata.workerRut` is set — denied; the national
     ID of an injured/diagnosed co-worker is not visible to all peers.
 
+### First-Responder presence feed (PII-position read endpoint)
+
+`GET /api/sprint-k/:projectId/first-responder-map/responder-feed`
+(`src/server/routes/firstResponderMap.ts`) surfaces brigade members' last-known
+positions (from each worker's own `tenants/{tid}/emergency_alerts` ping) so the
+dispatch engine can pick the nearest responder. No NEW Firestore collection is
+created — it is a read-only derivation over existing `emergency_brigade` /
+`emergency_alerts` / `users` (whose rules + rules-tests already exist) — but the
+endpoint exposes worker location PII, so it is hardened and audited like a
+write path (`verifyAuth` + `assertProjectMember`; one awaited `audit_logs`
+entry per call, Ley 19.628 access trail).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+58. **Responder-Feed Non-Member Snoop**: a caller who is not a member of
+    `:projectId` calls the feed — denied 403 (`assertProjectMember`); a
+    stranger cannot harvest the live positions of a project's brigade.
+59. **Fabricated-Position Injection (impossible-by-construction)**: a brigade
+    member with no recent ping must NEVER be returned with coordinates. The
+    handler leaves `currentPosition` undefined for any member lacking a fresh
+    `emergency_alerts` fix; the engine then emits `no_position_known` and marks
+    them honestly unavailable. Positions older than `POSITION_MAX_STALE_SECONDS`
+    (30 min) are dropped so a stale GPS fix can never drive a dispatch decision.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
