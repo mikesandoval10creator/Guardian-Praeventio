@@ -794,5 +794,35 @@ production. New rules (rules tests:
     `projects/{pid}/training_capsules` or `projects/{pid}/calendar_events` —
     denied by `isProjectMember(projectId)`.
 
+### Cloud Storage rules (real upload paths — `storage.rules` rewrite)
+
+The prior `storage.rules` described an aspirational scheme nothing used
+(`tenants/{tid}/{medical,legal,evidence,general}` + a `quarantine` → AV pipeline
+that was never built), while all 10+ client uploaders wrote to entirely
+different REAL paths — so every upload fell to default-deny (file upload broken
+app-wide). Storage rules **cannot read Firestore**, and standard provisioning
+mints `assignedSiteIds` (project ids), **not** a `tenantId` claim — so the rules
+are project-keyed and gated by `assignedSiteIds` (`memberOfSite()`), not
+tenant-keyed. Rules tests: `src/rules-tests/storageRules.rules.test.ts` (19
+cases, Storage emulator). AV/quarantine is a documented deferred follow-up.
+
+**Rejected payloads (Storage):**
+
+84. **Cross-Site Upload/Read**: a user whose `assignedSiteIds` claim covers site
+    A uploads to or reads `projects/B/**`, `ai_reports/B/**`, `blueprints/B/**`,
+    `suseso_reports/B/**` or `reconstructions/B/**` — denied by `memberOfSite(B)`.
+85. **Executable/Disallowed Content**: a member uploads `application/x-msdownload`
+    (or any type outside the pdf/image/video/audio/model/office allow-set) to a
+    project path — denied by `isAllowedUpload()`. (Byte-level malware scanning is
+    the deferred AV follow-up; this blocks the obvious dangerous MIME types.)
+86. **SUSESO Report Overwrite**: a member re-uploads to an existing
+    `suseso_reports/{pid}/*.pdf` to silently replace a filed compliance PDF —
+    denied by `resource == null` on create + `update,delete:false` (immutable).
+87. **Cross-User Vault Access**: user B reads or writes `workers/{A}/**` — denied
+    (`request.auth.uid == uid` only). The per-uid vault is strictly private.
+88. **Dead-Scheme / Unknown-Path Write**: any write to the removed aspirational
+    `tenants/{tid}/**` or `quarantine/**`, or any other unmatched path — denied
+    by the explicit default-deny. Unauthenticated uploads anywhere — denied.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
