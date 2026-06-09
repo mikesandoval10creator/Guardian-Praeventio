@@ -47,6 +47,20 @@ quedan solo sub-ítems de reglas que requieren emulador):**
 - #707 `suseso.ts` + #708 `ds67ds76.ts` `tenantId` **autoritativo desde el token**
   (helper compartido `src/server/auth/callerTenant.ts`) — antes un user del tenant A
   creaba/firmaba DIAT/DIEP/DS67/DS76 del tenant B (cross-tenant en datos legales).
+- **#809 `eppFlow.ts` (4 handlers) + `iot.ts /devices/register` ✅:** misma familia
+  IDOR cross-tenant, VIVOS en prod. eppFlow tomaba `tenantId` del body/query → ahora
+  `callerTenantOr403` (token autoritativo). iot derivaba el tenant del proyecto pero
+  sin atar al caller → ahora `assertProjectMember` (un admin del tenant A no registra
+  device en proyecto del tenant B). +supertest real-router cross-tenant (eppFlow 21,
+  nuevo `iotDeviceRegister.test.ts` 5 — reemplaza el parallel-app prohibido).
+
+**🔵 Reglas faltantes (default-deny UI) ✅ #810:** `slo_metrics/{id}/daily`
+(admin/supervisor read, server write), `projects/{pid}/training_capsules`,
+`projects/{pid}/calendar_events` (member) + `calendar_events` top-level
+(projectId-gated, digital-twin lifecycle), `users/{uid}/focus_blocks` (owner),
+`users/{uid}/awards` (owner read, server write, no auto-medalla) → 30 rules-tests F1
++ Dirty-Dozen #78–#83. PENDIENTE: rewire `hallazgos`→`projects/{pid}/findings`
+(`ProcessDetailModal`) en PR aparte (necesita plumbing de projectId).
 
 **B4 Incidentes 🛟:**
 - #709 `sif.ts` revisión ejecutiva SIF estampa `reviewedByUid`/`reviewedAt` desde
