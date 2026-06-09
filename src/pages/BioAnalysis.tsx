@@ -73,26 +73,15 @@ export function BioAnalysis() {
 
   // Pulmonary ergonomics (Bernoulli) — early-warning heuristic, NOT clinical diagnosis.
   // Ref.: ATS/ERS spirometry guidelines (informational).
+  // PURE derivation only — no side effects in render. Persistence + audit
+  // logging happen in the useEffect below (React correctness: render must be
+  // free of I/O; StrictMode double-renders must not double-write Firestore).
   const pulmonaryErgonomics = (() => {
     if (!Number.isFinite(pefLMin) || pefLMin <= 0) return null;
     const flowM3PerS = pefLMin / 60000;
     let drop = respiratorPressureDrop(PEF_FILTER_RESISTANCE_PA_S_PER_M3, flowM3PerS);
     const altitudeAdjusted = altitudeMasl > ALTITUDE_THRESHOLD_MASL;
     if (altitudeAdjusted) drop *= ALTITUDE_THIN_AIR_MULTIPLIER;
-    // Sprint 11 + Regla #3: el pulmonary-altitude node se persiste a
-    // Firestore (debounce 2 s) cuando hay proyecto activo. El logger
-    // queda como debug aid auditeable.
-    const node = generatePulmonaryNode(
-      { id: 'bio-worker', pefLMin },
-      { masl: altitudeMasl },
-      { id: 'bio-mask', filterResistancePaSPerM3: PEF_FILTER_RESISTANCE_PA_S_PER_M3, criticalDropPa: PEF_FATIGUE_THRESHOLD_PA },
-    );
-    if (node) {
-      logger.info('zettelkasten:pulmonary-altitude', { node });
-      // Sprint 11: persistencia (debounce 2 s). Sin proyecto, no escribimos.
-      const projectId = selectedProject?.id;
-      if (projectId) writeNodesDebounced([node], { projectId });
-    }
     return {
       flowM3PerS,
       dropPa: drop,
@@ -100,6 +89,23 @@ export function BioAnalysis() {
       atRisk: drop > PEF_FATIGUE_THRESHOLD_PA,
     };
   })();
+
+  // Sprint 11 + Regla #3: persist the pulmonary-altitude node to Firestore
+  // (debounce 2 s) when there is an active project, and emit an auditable
+  // debug log. Runs as a side-effect AFTER render so it is invoked once per
+  // real input change, never during the render phase.
+  useEffect(() => {
+    if (!Number.isFinite(pefLMin) || pefLMin <= 0) return;
+    const node = generatePulmonaryNode(
+      { id: 'bio-worker', pefLMin },
+      { masl: altitudeMasl },
+      { id: 'bio-mask', filterResistancePaSPerM3: PEF_FILTER_RESISTANCE_PA_S_PER_M3, criticalDropPa: PEF_FATIGUE_THRESHOLD_PA },
+    );
+    if (!node) return;
+    logger.info('zettelkasten:pulmonary-altitude', { node });
+    const projectId = selectedProject?.id;
+    if (projectId) writeNodesDebounced([node], { projectId });
+  }, [pefLMin, altitudeMasl, selectedProject?.id]);
   const { toasts, show: showToast, dismiss } = useToast();
 
   const connectWearable = async () => {

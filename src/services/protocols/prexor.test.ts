@@ -138,3 +138,29 @@ describe('calculatePrexor — recommendation', () => {
     expect(r.recommendation.length).toBeGreaterThan(0);
   });
 });
+
+describe('calculatePrexor — worked example from header comment (Q=3)', () => {
+  it('8h at 90 dB(A) → dose ≈ 317.5%, LAeq ≈ 90 dB(A) (alto)', () => {
+    // T(90) = 8 / 2^((90-85)/3) = 8 / 2^(5/3) ≈ 2.5198 h
+    // dose = 8 / 2.5198 * 100 ≈ 317.48%
+    // LAeq = 85 + (3/log10(2))*log10(dose/100) = 90.000 dB(A)
+    // The header comment previously wrote (10/log10(2)) (Q=10 factor) which
+    // would give ≈101.67, contradicting its own '≈ 90' claim. With the
+    // corrected (3/log10(2)) factor the code value matches the comment.
+    const r = calculatePrexor([{ durationHours: 8, levelDbA: 90 }]);
+    expect(r.dosePercent).toBeCloseTo(317.48, 1);
+    expect(r.leqEq8hDbA).toBeCloseTo(90, 4);
+    expect(r.riskLevel).toBe('alto');
+    expect(r.exceedsLegalLimit).toBe(true);
+  });
+
+  it('the Q=10 factor would NOT yield 90 dB(A) (guards against comment regression)', () => {
+    // Sanity: confirm the corrected factor (3) — not 10 — is what the engine
+    // uses. If someone re-introduces the 10 factor in the code, LAeq jumps to
+    // ~101.67 and this test fails.
+    const r = calculatePrexor([{ durationHours: 8, levelDbA: 90 }]);
+    const q10 = 85 + (10 / Math.log10(2)) * Math.log10(r.dosePercent / 100);
+    expect(q10).toBeCloseTo(101.67, 1);
+    expect(r.leqEq8hDbA).not.toBeCloseTo(q10, 1);
+  });
+});
