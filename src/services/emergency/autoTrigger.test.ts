@@ -73,23 +73,61 @@ describe('autoTrigger — sismic detection', () => {
     expect(await checkSismo()).toBe(true);
   });
 
+  // ─── Founder report 2026-06-09 — seismic FALSE-POSITIVE regression guards ──
+  // The old design latched `peakAccelG` for up to SISMO_WINDOW_MS and measured
+  // time-since-the-rising-edge, so a <300ms spike (a dropped phone) read as a
+  // "sustained" sismo. Continuity tracking must reject all of these.
+
+  it('FALSE-POSITIVE — a single hard spike then silence never triggers', async () => {
+    ingestAccelerationSample(sampleAtDynamicG(2.0), Date.now()); // dropped-phone spike at t=0
+    // No further over-threshold samples. After 350ms the OLD latch fired here.
+    vi.advanceTimersByTime(350);
+    expect(await checkSismo()).toBe(false);
+    // And it stays false (the latched peak no longer survives the window).
+    vi.advanceTimersByTime(500);
+    expect(await checkSismo()).toBe(false);
+  });
+
+  it('FALSE-POSITIVE — a spike then sub-threshold settling never triggers', async () => {
+    ingestAccelerationSample(sampleAtDynamicG(2.0), Date.now()); // spike at t=0
+    // The device settles: a sub-threshold sample past the dip grace ends the run.
+    vi.advanceTimersByTime(200);
+    ingestAccelerationSample(sampleAtDynamicG(0.2), Date.now());
+    vi.advanceTimersByTime(150);
+    expect(await checkSismo()).toBe(false);
+  });
+
+  it('STALENESS — two spikes >=300ms apart then long silence does not trigger', async () => {
+    // The first→last span is >=300ms, but by check time the run is stale (no
+    // recent over-threshold sample), so it must not fire.
+    ingestAccelerationSample(sampleAtDynamicG(0.9), Date.now()); // t=0
+    vi.advanceTimersByTime(350);
+    ingestAccelerationSample(sampleAtDynamicG(0.9), Date.now()); // t=350 (span 350)
+    vi.advanceTimersByTime(2_000); // 2s silence → stale
+    expect(await checkSismo()).toBe(false);
+  });
+
   it('after a trigger, debounce 60s blocks subsequent peaks', async () => {
-    // First trigger.
+    // First trigger — a GENUINELY sustained run needs two over-threshold
+    // samples spanning >=300ms (a single sample no longer latches).
     ingestAccelerationSample(sampleAtDynamicG(0.9), Date.now());
-    vi.advanceTimersByTime(400);
+    vi.advanceTimersByTime(350);
+    ingestAccelerationSample(sampleAtDynamicG(0.9), Date.now());
     expect(await checkSismo()).toBe(true);
 
-    // 30s later — still inside the 60s debounce window.
+    // 30s later — a second genuinely-sustained run, still inside the 60s debounce.
     vi.advanceTimersByTime(30_000);
     ingestAccelerationSample(sampleAtDynamicG(0.9), Date.now());
-    vi.advanceTimersByTime(400);
+    vi.advanceTimersByTime(350);
+    ingestAccelerationSample(sampleAtDynamicG(0.9), Date.now());
     expect(await checkSismo()).toBe(false);
   });
 
   it('after 60s the debounce releases and a new peak can trigger again', async () => {
-    // First trigger.
+    // First trigger — genuine sustained run (two over-threshold samples).
     ingestAccelerationSample(sampleAtDynamicG(0.9), Date.now());
-    vi.advanceTimersByTime(400);
+    vi.advanceTimersByTime(350);
+    ingestAccelerationSample(sampleAtDynamicG(0.9), Date.now());
     expect(await checkSismo()).toBe(true);
 
     // Advance well past the 60s debounce.

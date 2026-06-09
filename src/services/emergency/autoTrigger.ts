@@ -47,7 +47,9 @@ export function __resetEmergencyBridges(): void {
   weatherSnapshot = { windKmh: null, conditions: null, temperatureC: null };
   companyEmergencyActive = false;
   peakAccelG = 0;
-  peakSinceMs = 0;
+  sismoRunStartMs = 0;
+  sismoLastOverMs = 0;
+  sismoRunActive = false;
   usgsAdapter = null;
   lastSeismicLocation = null;
   for (const k of Object.keys(lastTriggerByKey)) delete lastTriggerByKey[k];
@@ -107,10 +109,25 @@ const G = 9.80665; // m/s² â†’ 1 g
 // (sub-0.4g, low-frequency). Documented as "approximate".
 const SISMO_PEAK_G = 0.6;
 const SISMO_SUSTAIN_MS = 300;
-const SISMO_WINDOW_MS = 1_000;
+// A genuine quake keeps the acceleration MAGNITUDE above threshold fairly
+// continuously; only brief (sampling-noise) dips fall under it. A short dip
+// grace bridges those without latching a lone spike — it MUST stay well under
+// SISMO_SUSTAIN_MS so a single spike followed by silence can NEVER accumulate
+// into a "sustained" reading (the false positive this fixes).
+const SISMO_DIP_GRACE_MS = 150;
+// Check-time staleness: a run with no over-threshold sample for this long is
+// considered dead even if no sub-threshold sample arrived to end it (e.g. two
+// spikes far apart then total silence).
+const SISMO_STALE_MS = 1_000;
 
-let peakAccelG = 0;
-let peakSinceMs = 0;
+// Continuous-run state. The previous design latched `peakAccelG` and measured
+// time-since-the-rising-edge, so a <300 ms spike read as "sustained" for up to
+// 1 s. We now track an actual continuous over-threshold RUN: its first and last
+// over-threshold sample, plus whether it is active.
+let peakAccelG = 0; // peak magnitude within the current run (severity/telemetry)
+let sismoRunStartMs = 0; // first over-threshold sample of the current run
+let sismoLastOverMs = 0; // most recent over-threshold sample
+let sismoRunActive = false; // a continuous over-threshold run is in progress
 let motionListenerAttached = false;
 let motionSupported = false;
 
@@ -136,17 +153,25 @@ export function ingestAccelerationSample(
   // Subtract 1g rest baseline conservatively; never go negative.
   const dynamicG = Math.max(0, gMag - 1);
   if (dynamicG >= SISMO_PEAK_G) {
-    if (peakAccelG < SISMO_PEAK_G) {
-      // Rising edge — start the sustain timer.
-      peakSinceMs = nowMs;
+    // Over threshold. A run continues across over-threshold samples regardless
+    // of their spacing (we assume the magnitude held between them); only a
+    // sub-threshold sample or check-time staleness ends it. Start a FRESH run
+    // when none is active OR the previous run already went stale.
+    if (!sismoRunActive || nowMs - sismoLastOverMs > SISMO_STALE_MS) {
+      sismoRunStartMs = nowMs;
+      peakAccelG = dynamicG;
+      sismoRunActive = true;
+    } else {
+      peakAccelG = Math.max(peakAccelG, dynamicG);
     }
-    peakAccelG = Math.max(peakAccelG, dynamicG);
-  } else {
-    // Decay the window if the last peak is older than SISMO_WINDOW_MS.
-    if (nowMs - peakSinceMs > SISMO_WINDOW_MS) {
-      peakAccelG = 0;
-      peakSinceMs = 0;
-    }
+    sismoLastOverMs = nowMs;
+  } else if (sismoRunActive && nowMs - sismoLastOverMs > SISMO_DIP_GRACE_MS) {
+    // A sub-threshold sample beyond the dip grace means the shaking stopped —
+    // continuity is broken, so the run ends. THIS is the core fix: a lone spike
+    // followed by quiet no longer stays latched and cannot read as sustained.
+    sismoRunActive = false;
+    sismoRunStartMs = 0;
+    peakAccelG = 0;
   }
 }
 
@@ -182,6 +207,13 @@ export function isMotionSupported(): boolean {
 // Predicates
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// Severe-weather condition match. Substring (unanchored) ON PURPOSE so compound
+// labels like "Thunderstorm" / "Snow storm" / "Tornado Warning" match. Shared by
+// both call sites (was duplicated and drift-prone) and deduped — the old
+// `/storm|tornado|tornad/i` carried a redundant partial (`tornad`) after
+// `tornado`; collapsed to the canonical terms.
+const STORM_CONDITIONS_RE = /storm|tornado|tormenta/i;
+
 const lastTriggerByKey: Record<string, number> = {};
 
 function debounced(key: string, active: boolean, nowMs: number = Date.now()): boolean {
@@ -200,7 +232,7 @@ export async function checkAdverseClimate(): Promise<boolean> {
   const { windKmh, conditions, temperatureC } = weatherSnapshot;
   const danger =
     (windKmh != null && windKmh > 80) ||
-    (conditions != null && /storm|tornado|tormenta|tornad/i.test(conditions)) ||
+    (conditions != null && STORM_CONDITIONS_RE.test(conditions)) ||
     (temperatureC != null && (temperatureC < -5 || temperatureC > 45));
   return debounced('climate', danger);
 }
@@ -211,7 +243,14 @@ export async function checkAdverseClimate(): Promise<boolean> {
  */
 export async function checkSismo(): Promise<boolean> {
   attachMotionListener();
-  const sustained = peakAccelG >= SISMO_PEAK_G && Date.now() - peakSinceMs >= SISMO_SUSTAIN_MS;
+  const now = Date.now();
+  // "Sustained" = a continuous over-threshold run whose first→last span has
+  // reached SISMO_SUSTAIN_MS AND that is still LIVE (a recent over-threshold
+  // sample). A single spike has span 0; a run gone quiet is stale → neither
+  // fires. This replaces the latched-peak check that let a <300 ms spike read
+  // as sustained for up to 1 s (false positive — founder report 2026-06-09).
+  const live = sismoRunActive && now - sismoLastOverMs <= SISMO_STALE_MS;
+  const sustained = live && sismoLastOverMs - sismoRunStartMs >= SISMO_SUSTAIN_MS;
   return debounced('sismo', sustained);
 }
 
@@ -362,7 +401,7 @@ export function deriveClimateSubType(snap: WeatherSnapshot): ClimateSubType {
   const { windKmh, conditions, temperatureC } = snap;
   if (
     (windKmh != null && windKmh > 80) ||
-    (conditions != null && /storm|tornado|tormenta|tornad/i.test(conditions))
+    (conditions != null && STORM_CONDITIONS_RE.test(conditions))
   ) {
     return 'storm';
   }

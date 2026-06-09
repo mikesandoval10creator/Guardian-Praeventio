@@ -90,11 +90,14 @@ describe('checkSismoEnriched', () => {
     pushUsgsAdapter({ fetchRecentEarthquakes });
     pushDeviceLocation({ lat: -33.45, lon: -70.66 });
 
-    await triggerSismicEdge();
-
     // Use real timers ONLY for the timeout race; vitest fake timers would
-    // freeze the setTimeout inside withTimeout.
+    // freeze the setTimeout inside withTimeout. Seed the sismo run with REAL
+    // timestamps AFTER switching clocks — continuity tracking measures liveness
+    // against Date.now(), so fake-time-seeded samples would read as stale.
     vi.useRealTimers();
+    const rt = Date.now();
+    ingestAccelerationSample(highMagSample(), rt - 400);
+    ingestAccelerationSample(highMagSample(), rt);
     const result = await checkSismoEnriched({ timeoutMs: 50 });
     expect(result.fired).toBe(true);
     expect(result.severity).toBe('caution');
