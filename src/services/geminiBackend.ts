@@ -229,7 +229,11 @@ export const enrichNodeData = async (nodeData: Partial<RiskNode>): Promise<Parti
       }
     });
 
-    const result = JSON.parse(response.text || '{}');
+    // Empty/garbled body = the model produced no enrichment. DATA IS MISSING →
+    // parseGeminiJson throws (gemini_empty_response / SyntaxError) instead of
+    // silently coercing to `{}` and emitting a half-populated node. The local
+    // catch below degrades to the original nodeData (enrichment is optional).
+    const result = parseGeminiJson<{ title?: string; description?: string }>(response);
 
     return {
       ...nodeData,
@@ -704,7 +708,11 @@ export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], 
   });
 
   try {
-    const result = JSON.parse(response.text || "{}");
+    // Empty/garbled body = no AI narration was produced. DATA IS MISSING →
+    // parseGeminiJson throws instead of spreading a `{}` that lacks every
+    // required route field. The catch below degrades to the deterministic safe
+    // route (calm fallback per the no-panic emergency directive), never blocks.
+    const result = parseGeminiJson(response);
     return {
       ...result,
       routePoints: safeRoutePoints // Return the deterministically calculated points
@@ -999,10 +1007,11 @@ export const analyzeFeedPostForRiskNetwork = async (content: string, imageBase64
     }
   });
 
-  if (!response.text) {
-    throw new Error('gemini_empty_response');
-  }
-  return JSON.parse(response.text.trim());
+  // Empty/garbled body = the model produced no usable result (this node may not
+  // belong in the Red Neuronal). DATA IS MISSING → surface via parseGeminiJson:
+  // throws gemini_empty_response / SyntaxError, which the /api/gemini dispatcher
+  // maps to a typed 502 (see _geminiErrors.ts). No local fallback by design.
+  return parseGeminiJson(response);
 };
 
 // Removed analyzePsychosocialRisks to move it to specialized psychosocialBackend.ts
@@ -1147,7 +1156,10 @@ Devuelve la respuesta en formato JSON con la siguiente estructura:
         temperature: 0.2
       }
     });
-    return JSON.parse(result.text || '{}');
+    // Empty/garbled body = no recommendations were produced. DATA IS MISSING →
+    // parseGeminiJson throws instead of returning a silent `{}`; the catch below
+    // degrades to null (recommendations are optional, non-life-safety enrichment).
+    return parseGeminiJson(result);
   } catch (error) {
     logger.error("Error generating module recommendations:", error);
     return null;
@@ -1202,10 +1214,10 @@ export const generateExecutiveSummary = async (stats: any, nodes: any[]) => {
     }
   });
 
-  if (!response.text) {
-    throw new Error('gemini_empty_response');
-  }
-  return JSON.parse(response.text.trim());
+  // Empty/garbled body = no executive summary was produced. DATA IS MISSING →
+  // surface via parseGeminiJson (throws gemini_empty_response / SyntaxError),
+  // which the /api/gemini dispatcher maps to a typed 502. No local fallback.
+  return parseGeminiJson(response);
 };
 
 export async function analyzeFaenaRiskWithAI(industry: string, context: string, envContext: string) {

@@ -109,6 +109,10 @@ export const autoConnectNodes = async (
       },
     });
 
+    // KEPT as a typed fallback (NOT migrated to parseGeminiJson): an empty body
+    // here is a LEGIT "no relevant connections" answer — the prompt explicitly
+    // instructs the model to return `[]` when nothing should be linked. Coercing
+    // an empty/absent body to `[]` is the correct 200, not a missing-data 502.
     const result = JSON.parse(response.text || '[]');
     if (Array.isArray(result)) {
       return result;
