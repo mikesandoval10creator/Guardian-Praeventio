@@ -390,9 +390,27 @@ service cloud.firestore {
       }
 
       // Digital Twin reconstruction jobs — server writes only, members read.
+      // NOTE: this collection has NO writers in the codebase (phantom/legacy).
+      // The REAL on-device photogrammetry job store writes `reconstruction_jobs`
+      // (below), NOT this path.
       match /digital_twin_jobs/{jobId} {
         allow read: if isValidId(projectId) && isProjectMember(projectId);
         allow write: if false;
+      }
+
+      // Photogrammetry reconstruction jobs (on-device pipeline, CLIENT SDK via
+      // src/services/digitalTwin/photogrammetry/reconstructionJobStore.ts →
+      // projects/{pid}/reconstruction_jobs/{jobId}). The worker running the scan
+      // creates the job and persists progress/completion/failure client-side, so
+      // create/update are member-gated (NOT server-only like digital_twin_jobs).
+      // Was DEFAULT-DENIED → createReconstructionJob() failed and the job never
+      // even started (it is written BEFORE the GLB upload). Mirrors placed_objects:
+      // member create/update, admin/supervisor delete (a job record is part of the
+      // site's safety/inspection trail — only a privileged role may erase one).
+      match /reconstruction_jobs/{jobId} {
+        allow read: if isValidId(projectId) && isProjectMember(projectId);
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
       }
       
       // Strict constraints for other project data
