@@ -34,6 +34,7 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { callerTenantOr403 } from '../auth/callerTenant.js';
 import {
   onEppInspectionCompleted,
   persistSignedNode,
@@ -256,6 +257,11 @@ router.post(
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof inspectionPostSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
+    // Cross-tenant guard (#700/#707/#708): the authoritative tenant is the
+    // verified token claim, NOT the client-supplied body.tenantId. A member of
+    // tenant A echoing `tenantId: B` is rejected with 403.
+    const tenantId = callerTenantOr403(req, res, body.tenantId);
+    if (tenantId === null) return undefined;
 
     try {
       const deps: EppFlowDeps = {
@@ -267,7 +273,7 @@ router.post(
           createdByEmail: req.user?.email ?? null,
         }),
         edgeStore: buildFirestoreEdgeStore(),
-        tenantId: body.tenantId,
+        tenantId,
         createdBy: callerUid,
       };
 
@@ -330,7 +336,7 @@ router.post(
           pendingOrders.set(pendingKey(projectId, orderId), {
             orderId,
             projectId,
-            tenantId: body.tenantId,
+            tenantId,
             inspectionId: body.inspection.inspectionId,
             suggestedNodeId: result.nodeIds[ocNodeIdx],
             draft: result.suggestedOrder,
@@ -409,6 +415,9 @@ router.post(
         message: 'signerUid must match the authenticated caller.',
       });
     }
+    // Cross-tenant guard (#700/#707/#708): tenant from the verified token, not body.
+    const tenantId = callerTenantOr403(req, res, body.tenantId);
+    if (tenantId === null) return undefined;
 
     try {
       const key = pendingKey(projectId, orderId);
@@ -429,7 +438,7 @@ router.post(
           createdByEmail: req.user?.email ?? null,
         }),
         edgeStore: buildFirestoreEdgeStore(),
-        tenantId: body.tenantId,
+        tenantId,
         createdBy: callerUid,
       };
 
@@ -480,14 +489,15 @@ router.get(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const { projectId, orderId } = req.params;
-    const tenantId = (req.query.tenantId ?? '') as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'tenantId required' });
-    }
     if (!(await guard(callerUid, projectId, res))) return undefined;
     if (!callerCanSignEpp(req)) {
       return res.status(403).json({ error: 'forbidden_role' });
     }
+    // Cross-tenant guard (#700/#707/#708): the authoritative tenant is the verified
+    // token claim. A missing claim → 403 (no_tenant_binding); a forged query
+    // ?tenantId=other → 403 (tenant_mismatch). Replaces the old trust-the-query path.
+    const tenantId = callerTenantOr403(req, res, req.query.tenantId);
+    if (tenantId === null) return undefined;
 
     try {
       const key = pendingKey(projectId, orderId);
