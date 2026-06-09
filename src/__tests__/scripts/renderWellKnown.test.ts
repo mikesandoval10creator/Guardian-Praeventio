@@ -62,23 +62,27 @@ const ASSETLINKS = path.join(WELL_KNOWN_DIR, 'assetlinks.json');
 const AASA = path.join(WELL_KNOWN_DIR, 'apple-app-site-association');
 const SECURITY_TXT = path.join(WELL_KNOWN_DIR, 'security.txt');
 
-describe('resolveAndroidSha (fail-closed)', () => {
-  it('throws when the env var is undefined (no hardcoded fallback)', () => {
-    expect(() => resolveAndroidSha(undefined)).toThrow(/no está definido/);
+describe('resolveAndroidSha (no hardcoded fallback)', () => {
+  it('returns null when absent and not required (web/dev/CI builds)', () => {
+    // Absent → honest "unconfigured" state, NOT a fabricated cert. The caller
+    // writes empty fingerprints. This is what unblocks ordinary web/CI builds.
+    expect(resolveAndroidSha(undefined)).toBeNull();
+    expect(resolveAndroidSha('')).toBeNull();
+    expect(resolveAndroidSha('   ')).toBeNull();
   });
 
-  it('throws on empty / whitespace-only', () => {
-    expect(() => resolveAndroidSha('')).toThrow(/no está definido/);
-    expect(() => resolveAndroidSha('   ')).toThrow(/no está definido/);
+  it('throws when absent AND required (release fail-closed)', () => {
+    expect(() => resolveAndroidSha(undefined, { required: true })).toThrow(/no está definido/);
+    expect(() => resolveAndroidSha('', { required: true })).toThrow(/no está definido/);
   });
 
-  it('throws on placeholder values', () => {
+  it('throws on placeholder values (a provided-but-wrong cert is always an error)', () => {
     expect(() => resolveAndroidSha('REPLACE_WITH_REAL_SHA256')).toThrow(/placeholder/i);
     expect(() => resolveAndroidSha('YOUR_CERT_HERE')).toThrow(/placeholder/i);
     expect(() => resolveAndroidSha('PLACEHOLDER')).toThrow(/placeholder/i);
   });
 
-  it('throws on malformed fingerprints (too short, wrong separators, 31 bytes)', () => {
+  it('throws on malformed fingerprints even when not required (too short, wrong separators, 31 bytes)', () => {
     expect(() => resolveAndroidSha('garbage')).toThrow(/formato inválido/);
     expect(() => resolveAndroidSha('3D:AC:D9')).toThrow(/formato inválido/);
     // 31 bytes instead of 32 — the old loose regex (>=47 chars) wrongly accepted this.
@@ -113,12 +117,31 @@ describe('buildSecurityTxt', () => {
 });
 
 describe('render (e2e with injected fs + env)', () => {
-  it('FAILS CLOSED: rejects (throws) and writes nothing when ANDROID_CERT_SHA256 is missing', async () => {
+  it('writes HONEST empty-fingerprint assetlinks + warns when ANDROID_CERT_SHA256 is absent (non-release)', async () => {
+    const warnings: string[] = [];
+    const fsImpl = makeFakeFs({ [AASA]: AASA_FIXTURE });
+    const result = await render({
+      env: {},
+      fsImpl,
+      log: () => {},
+      warn: (...args: unknown[]) => {
+        warnings.push(args.map(String).join(' '));
+      },
+    });
+    // Absent cert → honest empty fingerprints, NOT a fabricated/hardcoded cert,
+    // and NOT a hard build failure (web/dev/CI builds proceed).
+    expect(result.androidSha).toBeNull();
+    const written = JSON.parse(fsImpl.store[ASSETLINKS]);
+    expect(written[0].target.sha256_cert_fingerprints).toEqual([]);
+    expect(warnings.join(' ')).toMatch(/ANDROID_CERT_SHA256/);
+  });
+
+  it('FAILS CLOSED: throws + writes nothing when cert absent AND REQUIRE_ANDROID_CERT=1 (release)', async () => {
     const fsImpl = makeFakeFs({ [AASA]: AASA_FIXTURE });
     await expect(
-      render({ env: {}, fsImpl, log: () => {}, warn: () => {} }),
+      render({ env: { REQUIRE_ANDROID_CERT: '1' }, fsImpl, log: () => {}, warn: () => {} }),
     ).rejects.toThrow(/ANDROID_CERT_SHA256/);
-    // No assetlinks.json was written — the build aborts before any artifact.
+    // The release build aborts before any artifact is written.
     expect(fsImpl.store[ASSETLINKS]).toBeUndefined();
   });
 
@@ -145,15 +168,11 @@ describe('render (e2e with injected fs + env)', () => {
     expect(fsImpl.store[SECURITY_TXT]).toContain('sec@praeventio.net');
   });
 
-  it('does NOT bake any cert when env is absent — proving the hardcoded fallback is gone', async () => {
+  it('never emits the old hardcoded prod fingerprint from a fallback (absent env)', async () => {
     const fsImpl = makeFakeFs({ [AASA]: AASA_FIXTURE });
-    await render({
-      env: { ANDROID_CERT_SHA256: REAL_SHA },
-      fsImpl,
-      log: () => {},
-      warn: () => {},
-    }).catch(() => {});
-    // The previously hardcoded prod fingerprint must never appear from a fallback.
+    await render({ env: {}, fsImpl, log: () => {}, warn: () => {} });
+    // The previously hardcoded prod fingerprint must never appear: absent env
+    // yields empty fingerprints, never a baked-in fallback cert.
     const PROD_LITERAL = '3D:AC:D9:BC:C2:CD:5C:B0:6D:5F:5D:BC:37:4A:F5:78:50:99:DA:09:BA:E8:B1:F1:05:FF:B6:A5:42:D3:A7:A0';
     expect(fsImpl.store[ASSETLINKS]).not.toContain(PROD_LITERAL);
   });

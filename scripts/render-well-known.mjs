@@ -7,11 +7,16 @@
  *
  * Variables esperadas en CI/build (Cloud Build, GitHub Actions, local):
  *   - ANDROID_CERT_SHA256   (SHA-256 del keystore Play; 32 bytes hex con ':').
- *                            REQUERIDA y fail-closed: si falta o tiene formato
- *                            inválido, este script lanza y aborta el build. NO
- *                            existe fallback hardcodeado — un fingerprint de
- *                            firma equivocado rompe Android App Links (o, peor,
- *                            valida la app contra un cert ajeno).
+ *                            NO existe fallback hardcodeado. Un valor PRESENTE
+ *                            pero placeholder/malformado SIEMPRE aborta el build
+ *                            (un cert equivocado rompe App Links o valida contra
+ *                            un cert ajeno). AUSENTE: assetlinks.json queda con
+ *                            fingerprints vacíos (honesto, App Links no valida)
+ *                            + warning — para web/dev/CI builds. En un release,
+ *                            set REQUIRE_ANDROID_CERT=1 y ausente aborta (fail-
+ *                            closed) para no publicar sin el cert real.
+ *   - REQUIRE_ANDROID_CERT  ('1'/'true' en release/deploy → fail-closed si falta
+ *                            ANDROID_CERT_SHA256; opcional, default no-required)
  *   - APPLE_TEAM_ID         (10 chars Apple Developer Team ID; opcional)
  *   - SECURITY_CONTACT_EMAIL (default: contacto@praeventio.net)
  *
@@ -42,23 +47,35 @@ const SHA256_FINGERPRINT_REGEX = /^[0-9A-F]{2}(:[0-9A-F]{2}){31}$/;
 /**
  * Resolve + validate the Android signing-cert SHA-256 from the environment.
  *
- * FAIL-CLOSED: there is intentionally NO hardcoded fallback. A missing,
- * placeholder, or malformed value throws — the build aborts rather than
- * silently shipping an assetlinks.json that validates App Links against the
- * wrong certificate.
+ * There is intentionally NO hardcoded fallback (the old code baked a literal
+ * prod fingerprint that silently went stale). The contract:
+ *   - A value that IS present but is a placeholder or malformed ALWAYS throws —
+ *     a provided-but-wrong cert is an error in every context, never written.
+ *   - An ABSENT value returns `null` so the caller can write an HONEST
+ *     "unconfigured" assetlinks (empty fingerprints) for web/dev/CI builds —
+ *     mirrors how an absent APPLE_TEAM_ID leaves the honest `TEAMID` placeholder.
+ *   - When `opts.required` is set (release/deploy via REQUIRE_ANDROID_CERT=1),
+ *     an absent value ALSO throws — fail-closed so a real release can never ship
+ *     without the real cert.
  *
  * @param {string | undefined} rawSha  Typically process.env.ANDROID_CERT_SHA256.
- * @returns {string} The cleaned, upper-cased, colon-hex fingerprint.
- * @throws {Error} If the value is absent, a placeholder, or not 32-byte colon-hex.
+ * @param {{ required?: boolean }} [opts]  required→absent throws (release builds).
+ * @returns {string | null} The cleaned colon-hex fingerprint, or null when absent
+ *                          and not required.
+ * @throws {Error} If the value is a placeholder, malformed, or absent-and-required.
  */
-export function resolveAndroidSha(rawSha) {
+export function resolveAndroidSha(rawSha, opts = {}) {
   if (rawSha == null || String(rawSha).trim() === '') {
-    throw new Error(
-      '[render-well-known] ANDROID_CERT_SHA256 no está definido. '
-        + 'Es REQUERIDA (fail-closed): exporta el SHA-256 real del keystore de '
-        + 'firma Play (32 bytes hex separados por ":", ej. 3D:AC:D9:...) antes '
-        + 'de `vite build` / `docker build`. No hay fallback hardcodeado.',
-    );
+    if (opts.required) {
+      throw new Error(
+        '[render-well-known] ANDROID_CERT_SHA256 no está definido y '
+          + 'REQUIRE_ANDROID_CERT está activo (release fail-closed): exporta el '
+          + 'SHA-256 real del keystore de firma Play (32 bytes hex separados por '
+          + '":", ej. 3D:AC:D9:...) antes de `vite build` / `docker build`. '
+          + 'No hay fallback hardcodeado.',
+      );
+    }
+    return null;
   }
   const cleaned = String(rawSha).trim().toUpperCase();
   if (PLACEHOLDER_PATTERNS.some((rx) => rx.test(cleaned))) {
@@ -78,8 +95,11 @@ export function resolveAndroidSha(rawSha) {
 }
 
 /**
- * Build the assetlinks.json payload (Android App Links / Digital Asset Links)
- * for a validated SHA-256 fingerprint. Pure — returns the object, no I/O.
+ * Build the assetlinks.json payload (Android App Links / Digital Asset Links).
+ * Pure — returns the object, no I/O. A `null` fingerprint yields an HONEST
+ * empty `sha256_cert_fingerprints: []` (the app is declared but no cert is
+ * claimed → App Links simply will not validate until the real cert is set);
+ * this is never a fabricated/placeholder fingerprint.
  */
 export function buildAssetlinks(cleanedSha) {
   return [
@@ -88,7 +108,7 @@ export function buildAssetlinks(cleanedSha) {
       target: {
         namespace: 'android_app',
         package_name: 'com.praeventio.guard',
-        sha256_cert_fingerprints: [cleanedSha],
+        sha256_cert_fingerprints: cleanedSha ? [cleanedSha] : [],
       },
     },
   ];
@@ -131,13 +151,29 @@ export async function render(deps = {}) {
     warn = console.warn,
   } = deps;
 
-  // ── Android (fail-closed) ──────────────────────────────────────────
-  const cleanedSha = resolveAndroidSha(env.ANDROID_CERT_SHA256);
+  // ── Android (honest-placeholder by default, fail-closed on release) ──
+  // A provided-but-wrong cert always throws (resolveAndroidSha). An absent
+  // cert is allowed for web/dev/CI builds (honest empty fingerprints + warn)
+  // but fails closed for a release that sets REQUIRE_ANDROID_CERT=1, so a
+  // shipped app store build can never serve assetlinks without the real cert.
+  const requireAndroidCert =
+    env.REQUIRE_ANDROID_CERT === '1' || env.REQUIRE_ANDROID_CERT === 'true';
+  const cleanedSha = resolveAndroidSha(env.ANDROID_CERT_SHA256, {
+    required: requireAndroidCert,
+  });
   await fsImpl.writeFile(
     path.join(WELL_KNOWN_DIR, 'assetlinks.json'),
     JSON.stringify(buildAssetlinks(cleanedSha), null, 2) + '\n',
   );
-  log('[render-well-known] assetlinks.json rendered (SHA-256 real).');
+  if (cleanedSha) {
+    log('[render-well-known] assetlinks.json rendered (SHA-256 real).');
+  } else {
+    warn(
+      '[render-well-known] ANDROID_CERT_SHA256 no definido — assetlinks.json '
+        + 'queda SIN fingerprint (App Links NO validará hasta proveer el cert '
+        + 'real). Para un release, set REQUIRE_ANDROID_CERT=1 para fail-closed.',
+    );
+  }
 
   // ── apple-app-site-association (iOS Universal Links) ─────────────────
   const appleTeamId = env.APPLE_TEAM_ID;
