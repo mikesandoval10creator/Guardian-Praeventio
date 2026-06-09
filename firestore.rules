@@ -711,8 +711,21 @@ service cloud.firestore {
       // member-readability. The RUT stays in the node so SusesoReports.tsx (which
       // reads selectedIncident.metadata.workerRut for the DIAT/DIEP form) still
       // renders the real identifier for those authorized readers.
+      //
+      // PRIVACY (2026-06-08, remaining half of #776): the public-read branch
+      // (existing().isPublic == true) must ALSO be guarded by !nodeHasWorkerRut().
+      // The outer isEmailVerified() gate keeps anonymous callers out (and the
+      // public-web PublicNodeView.tsx reads the SEPARATE `zettelkasten`
+      // collection, not `nodes`), so the public flag here only ever widened
+      // access to verified signed-in users — INCLUDING strangers from another
+      // project/tenant. isValidNode() permits isPublic:true alongside
+      // metadata.workerRut, and the author/admin/supervisor update rule can
+      // toggle a node public, so a RUT-bearing node flagged isPublic:true leaked
+      // the worker's national ID to any verified account. Guarding the public
+      // branch closes that bypass: a RUT-bearing node is NEVER publicly readable
+      // regardless of isPublic; genuinely public non-RUT nodes are unaffected.
       allow read: if isEmailVerified() && (
-        existing().isPublic == true ||
+        (existing().isPublic == true && !nodeHasWorkerRut(existing())) ||
         existing().metadata.authorId == request.auth.uid ||
         isAdmin() ||
         isSupervisor() ||

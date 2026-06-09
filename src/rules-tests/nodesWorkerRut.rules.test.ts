@@ -39,6 +39,8 @@ const SUPERVISOR = 'sup-uid-1';
 
 const PII_NODE = 'node-ds67-pii';
 const PLAIN_NODE = 'node-plain';
+const PUBLIC_PII_NODE = 'node-ds67-pii-public';   // RUT-bearing + isPublic:true (the bypass)
+const PUBLIC_PLAIN_NODE = 'node-public-plain';     // public, NO workerRut (no regression)
 
 let testEnv: RulesTestEnvironment | null = null;
 
@@ -96,8 +98,17 @@ beforeEach(async () => {
     });
     await setDoc(doc(db, 'nodes', PII_NODE), piiNode());
     await setDoc(doc(db, 'nodes', PLAIN_NODE), plainNode());
+    // RUT-bearing node ALSO flagged public — the bypass under test (#776 half 2).
+    await setDoc(doc(db, 'nodes', PUBLIC_PII_NODE), { ...piiNode(), isPublic: true });
+    // Genuinely public, non-PII node — must keep public-read (no regression).
+    await setDoc(doc(db, 'nodes', PUBLIC_PLAIN_NODE), { ...plainNode(), isPublic: true });
   });
 });
+
+// Anonymous (unauthenticated) caller — for the verified-only baseline assertions.
+function anon() {
+  return requireEnv().unauthenticatedContext().firestore();
+}
 
 type CtxDb = ReturnType<ReturnType<RulesTestEnvironment['authenticatedContext']>['firestore']>;
 function authed(uid: string, role = 'worker') {
@@ -136,5 +147,46 @@ describe('nodes worker-RUT read gate — firestore.rules (PRIVACY 2026-06-08)', 
 
   it('a non-member CANNOT read an ordinary node either (tenant isolation baseline)', async () => {
     await assertFails(getDoc(nodeRef(authed(NON_MEMBER), PLAIN_NODE)));
+  });
+});
+
+// Remaining half of #776 — the public-read branch (`existing().isPublic == true`)
+// was OR'd AHEAD of the worker-RUT guard, so a DS 67/109 node carrying
+// metadata.workerRut and flagged isPublic:true leaked the raw RUT to ANY verified
+// signed-in user — including a stranger from another project/tenant. (The outer
+// isEmailVerified() gate kept anonymous callers out, and the public-web
+// PublicNodeView.tsx reads the SEPARATE `zettelkasten` collection, not `nodes`,
+// so the real leak audience was signed-in cross-tenant/peer users — not anon.)
+// The fix guards the public branch with `&& !nodeHasWorkerRut(existing())`.
+describe('nodes worker-RUT read gate — isPublic bypass (PRIVACY 2026-06-08, #776 half 2)', () => {
+  it('anon CANNOT read a public RUT-bearing node (nodes reads require isEmailVerified)', async () => {
+    await assertFails(getDoc(nodeRef(anon() as unknown as CtxDb, PUBLIC_PII_NODE)));
+  });
+
+  it('THE FIX — a verified NON-MEMBER (other tenant) CANNOT read a public RUT-bearing node', async () => {
+    // RED without the fix: the unguarded `isPublic == true` branch granted read.
+    await assertFails(getDoc(nodeRef(authed(NON_MEMBER), PUBLIC_PII_NODE)));
+  });
+
+  it('THE FIX — a plain project peer CANNOT read a public RUT-bearing node', async () => {
+    // RED without the fix: the unguarded `isPublic == true` branch granted read.
+    await assertFails(getDoc(nodeRef(authed(PEER), PUBLIC_PII_NODE)));
+  });
+
+  it('AUTHORIZED — the node author CAN still read their own public RUT-bearing node', async () => {
+    await assertSucceeds(getDoc(nodeRef(authed(AUTHOR), PUBLIC_PII_NODE)));
+  });
+
+  it('AUTHORIZED — admin + supervisor CAN still read a public RUT-bearing node', async () => {
+    await assertSucceeds(getDoc(nodeRef(authed(ADMIN, 'admin'), PUBLIC_PII_NODE)));
+    await assertSucceeds(getDoc(nodeRef(authed(SUPERVISOR, 'prevencionista'), PUBLIC_PII_NODE)));
+  });
+
+  it('BASELINE — anon CANNOT read even a public NON-RUT node (nodes is verified-only)', async () => {
+    await assertFails(getDoc(nodeRef(anon() as unknown as CtxDb, PUBLIC_PLAIN_NODE)));
+  });
+
+  it('NO REGRESSION — a verified non-member CAN still read a public NON-RUT node', async () => {
+    await assertSucceeds(getDoc(nodeRef(authed(NON_MEMBER), PUBLIC_PLAIN_NODE)));
   });
 });
