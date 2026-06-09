@@ -700,5 +700,57 @@ the upload path; tracked in PHASE5 #356.)
     phantom `digital_twin_jobs` path stays server-only (`write:false`) and is not
     the collection the on-device store actually writes.
 
+### Emergency orchestration + ops sub-collections (§365 root-cause)
+
+The seismic-orchestration dashboard (`src/pages/EmergenciaAvanzada.tsx`) and the AI
+plan / EPP / training / notification writers persisted to project sub-collections
+that had NO write rule. The sub-collection **Master Gate** grants member READ but
+NO write, so every write was default-denied in production — the live emergency
+channel, the worker safety roll-call, AI emergency plans, in-app notifications,
+EPP verifications and training assignments all silently failed. Life-safety is FREE
+on every tier (ADR 0021) → member-gated, never tier-gated. New rules:
+
+- `projects/{pid}/emergency_chat` — member create, **append-only** (no update/delete).
+- `projects/{pid}/emergency_safety/{workerId}` — member create/update (roll-call;
+  a supervisor marks others, a worker confirms self), never deleted.
+- `projects/{pid}/emergency_plans` — member create, admin/supervisor update/delete.
+- `projects/{pid}/notifications` — member create/update (mark-read), admin delete.
+- `projects/{pid}/epp_verifications` — member create, **immutable**, admin delete.
+- `projects/{pid}/trainings` — member create/update (status), admin delete.
+- `tenants/{tid}/seismic_events` — tenant-member create **bound to the path tenant**
+  (`incoming().tenantId == tenantId`), immutable thereafter.
+
+Rules tests: `src/rules-tests/emergencyOpsCollections.rules.test.ts` (29 cases, F1
+harness). `EmergenciaAvanzada`'s `emergency_events` write was also realigned to the
+canonical `{status:'active', triggeredBy:uid}` shape the rule already enforces, and
+all four handlers wrapped in try/catch so a denied write never aborts the SOS flow.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+71. **Cross-Project Emergency-Channel Snoop / Forge**: a non-member of `:pid` reads
+    or posts to `emergency_chat` / `emergency_safety` / `emergency_plans` /
+    `notifications` / `epp_verifications` / `trainings` — denied by
+    `isProjectMember(projectId)`. A stranger cannot eavesdrop on a faena's emergency
+    comms or fabricate a roll-call status.
+72. **Emergency-Chat History Tamper**: any user (incl. admin) tries to UPDATE or
+    DELETE an `emergency_chat` message — denied (`update,delete:false`). The
+    emergency channel is an append-only record of who said what during a crisis.
+73. **Roll-Call Erasure**: any user tries to DELETE an `emergency_safety` entry to
+    hide that a worker was marked "en peligro" — denied (`delete:false`).
+74. **EPP-Verification Falsification**: a member (or admin) tries to UPDATE an
+    `epp_verifications` record to flip `isCompliant` after the fact — denied
+    (`update:false`); the AI compliance record is immutable evidence.
+75. **Notification/Plan Privilege Creep**: a plain member tries to DELETE a
+    `notifications` doc or UPDATE/DELETE an `emergency_plans` doc — denied
+    (admin/supervisor-only), preventing a worker from silently dropping a
+    supervisor's alert or rewriting an approved emergency plan.
+76. **Cross-Tenant Seismic Forge**: a member of tenant B, authenticated against the
+    `tenants/A/seismic_events` path, submits a payload whose `tenantId` claims a
+    different tenant — denied by `incoming().tenantId == tenantId` (path-bound
+    anti-spoof). Seismic telemetry cannot be injected across tenant boundaries.
+77. **Seismic-Event Tamper**: any user tries to UPDATE/DELETE a `seismic_events`
+    row (e.g. lower a recorded `peakG`) — denied (`update,delete:false`); the
+    on-device accelerometer log is immutable.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

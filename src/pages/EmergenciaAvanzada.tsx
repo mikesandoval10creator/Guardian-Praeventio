@@ -19,15 +19,23 @@ import {
 import { Worker } from "../types";
 import { ConfirmDialog } from "../components/shared/ConfirmDialog";
 import { Tooltip } from "../components/shared/Tooltip";
+import { logger } from "../utils/logger";
 
 interface EmergencyEvent {
   id: string;
   type: string;
   magnitude?: number | null;
   epicenter?: string | null;
+  // `status` is the canonical lifecycle field shared with the SOS path
+  // (EmergencyContext) and enforced by firestore.rules:emergency_events.
+  // `active` is retained for backward-compatible display of legacy docs.
+  status?: 'active' | 'pending' | 'resolved';
+  triggeredBy?: string | null;
+  triggeredByName?: string | null;
   startedBy: string;
   startedAt: any;
   resolvedAt?: any;
+  resolvedBy?: string | null;
   active: boolean;
 }
 
@@ -73,7 +81,11 @@ export function EmergenciaAvanzada() {
     selectedProject ? `projects/${selectedProject.id}/workers` : null
   );
 
-  const activeEmergency = emergencyEvents?.find(e => e.active) ?? null;
+  // `status` is the source of truth when present (new docs + SOS path); fall
+  // back to the legacy `active` flag for docs written before the rule alignment.
+  const activeEmergency = emergencyEvents?.find(
+    e => e.status === 'active' || (e.status == null && e.active),
+  ) ?? null;
 
   // Real-time chat
   useEffect(() => {
@@ -116,30 +128,50 @@ export function EmergenciaAvanzada() {
     if (!selectedProject || !user) return;
     const quake = pendingQuake;
     const type = quake ? `Sismo M${quake.magnitude.toFixed(1)}` : 'Emergencia General';
+    const pid = selectedProject.id;
 
-    await addDoc(collection(db, `projects/${selectedProject.id}/emergency_events`), {
-      type,
-      magnitude: quake?.magnitude ?? null,
-      epicenter: quake?.place ?? null,
-      startedBy: user.displayName ?? user.email ?? 'Usuario',
-      startedAt: serverTimestamp(),
-      active: true,
-    });
+    // Each write is INDEPENDENT and life-safety-critical: a denied or failed
+    // write (e.g. offline, or a rule edge case) must NEVER abort the activation.
+    // The UI always advances to the personnel roll-call. `status`/`triggeredBy`
+    // match firestore.rules:emergency_events (the same shape the SOS path writes).
+    try {
+      await addDoc(collection(db, `projects/${pid}/emergency_events`), {
+        type,
+        magnitude: quake?.magnitude ?? null,
+        epicenter: quake?.place ?? null,
+        status: 'active',
+        triggeredBy: user.uid,
+        triggeredByName: user.displayName ?? user.email ?? null,
+        startedBy: user.displayName ?? user.email ?? 'Usuario',
+        startedAt: serverTimestamp(),
+        active: true,
+      });
+    } catch (err) {
+      logger.error('EmergenciaAvanzada: emergency_events create failed', { err });
+    }
 
-    await addDoc(collection(db, `projects/${selectedProject.id}/emergency_chat`), {
-      text: `ðŸš¨ EMERGENCIA ACTIVADA: ${type}.${quake ? ` Epicentro: ${quake.place}. Profundidad: ${quake.coordinates[2]}km.` : ''} Todos los trabajadores deben confirmar su estado de seguridad.`,
-      sender: 'Sistema',
-      senderRole: 'system',
-      isSystem: true,
-      createdAt: serverTimestamp(),
-    });
+    try {
+      await addDoc(collection(db, `projects/${pid}/emergency_chat`), {
+        text: `🚨 EMERGENCIA ACTIVADA: ${type}.${quake ? ` Epicentro: ${quake.place}. Profundidad: ${quake.coordinates[2]}km.` : ''} Todos los trabajadores deben confirmar su estado de seguridad.`,
+        sender: 'Sistema',
+        senderRole: 'system',
+        isSystem: true,
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      logger.error('EmergenciaAvanzada: emergency_chat activation message failed', { err });
+    }
 
     for (const w of (workers ?? [])) {
-      await setDoc(doc(db, `projects/${selectedProject.id}/emergency_safety`, w.id), {
-        workerId: w.id,
-        status: 'unknown',
-        confirmedAt: null,
-      });
+      try {
+        await setDoc(doc(db, `projects/${pid}/emergency_safety`, w.id), {
+          workerId: w.id,
+          status: 'unknown',
+          confirmedAt: null,
+        });
+      } catch (err) {
+        logger.error('EmergenciaAvanzada: emergency_safety seed failed', { workerId: w.id, err });
+      }
     }
 
     setShowTriggerConfirm(false);
@@ -149,17 +181,31 @@ export function EmergenciaAvanzada() {
 
   const resolveEmergency = async () => {
     if (!selectedProject || !activeEmergency) return;
-    await updateDoc(doc(db, `projects/${selectedProject.id}/emergency_events`, activeEmergency.id), {
-      active: false,
-      resolvedAt: serverTimestamp(),
-    });
-    await addDoc(collection(db, `projects/${selectedProject.id}/emergency_chat`), {
-      text: 'âœ… Emergencia resuelta. Todos los sistemas vuelven a operación normal.',
-      sender: 'Sistema',
-      senderRole: 'system',
-      isSystem: true,
-      createdAt: serverTimestamp(),
-    });
+    const pid = selectedProject.id;
+    // Resolution only mutates the rule-allowed key set
+    // (status/resolvedAt/resolvedBy/updatedAt) — flipping `active` would be
+    // rejected by firestore.rules:emergency_events. A failed write (e.g. a
+    // non-supervisor clicking resolve) must not block dismissing the dialog.
+    try {
+      await updateDoc(doc(db, `projects/${pid}/emergency_events`, activeEmergency.id), {
+        status: 'resolved',
+        resolvedBy: user?.uid ?? null,
+        resolvedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      logger.error('EmergenciaAvanzada: emergency_events resolve failed', { err });
+    }
+    try {
+      await addDoc(collection(db, `projects/${pid}/emergency_chat`), {
+        text: '✅ Emergencia resuelta. Todos los sistemas vuelven a operación normal.',
+        sender: 'Sistema',
+        senderRole: 'system',
+        isSystem: true,
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      logger.error('EmergenciaAvanzada: emergency_chat resolve message failed', { err });
+    }
     setShowResolveConfirm(false);
   };
 
@@ -174,6 +220,8 @@ export function EmergenciaAvanzada() {
         createdAt: serverTimestamp(),
       });
       setChatInput('');
+    } catch (err) {
+      logger.error('EmergenciaAvanzada: emergency_chat send failed', { err });
     } finally {
       setSendingMsg(false);
     }
@@ -181,11 +229,16 @@ export function EmergenciaAvanzada() {
 
   const markWorker = async (workerId: string, status: 'safe' | 'danger') => {
     if (!selectedProject) return;
-    await setDoc(doc(db, `projects/${selectedProject.id}/emergency_safety`, workerId), {
-      workerId,
-      status,
-      confirmedAt: serverTimestamp(),
-    });
+    // A failed roll-call write must not throw out of the click handler.
+    try {
+      await setDoc(doc(db, `projects/${selectedProject.id}/emergency_safety`, workerId), {
+        workerId,
+        status,
+        confirmedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      logger.error('EmergenciaAvanzada: markWorker failed', { workerId, err });
+    }
   };
 
   const safeCount = Object.values(safetyStatuses).filter(s => s === 'safe').length;
