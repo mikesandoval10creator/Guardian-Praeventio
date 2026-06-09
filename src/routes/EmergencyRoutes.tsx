@@ -13,6 +13,7 @@ const MountainRefuges = lazy(() => import('../pages/MountainRefuges').then(modul
 const NationalParksEmergency = lazy(() => import('../pages/NationalParksEmergency').then(module => ({ default: module.NationalParksEmergency })));
 const CoastalEmergencyMap = lazy(() => import('../pages/CoastalEmergencyMap').then(module => ({ default: module.CoastalEmergencyMap })));
 const EmergenciaAvanzada = lazy(() => import('../pages/EmergenciaAvanzada').then(module => ({ default: module.EmergenciaAvanzada })));
+const FirstResponderMap = lazy(() => import('../pages/FirstResponderMap').then(module => ({ default: module.FirstResponderMap })));
 const EvacuationRoutes = lazy(() => import('../pages/EvacuationRoutes').then(module => ({ default: module.EvacuationRoutes })));
 const ClimateRoutes = lazy(() => import('../pages/ClimateRoutes').then(module => ({ default: module.ClimateRoutes })));
 // Sprint K vidas críticas (Fase 3.E del plan, audit TODO §2.27) — wire UI
@@ -50,4 +51,5 @@ export const EmergencyRoutes = [
   <Route key="evacuation-dashboard" path="evacuation-dashboard" element={<EvacuationDashboard />} />,
   <Route key="stoppages" path="stoppages" element={<StoppageMonitor />} />,
   <Route key="lone-worker" path="lone-worker" element={<LoneWorkerMonitor />} />,
+  <Route key="first-responder-map" path="first-responder-map" element={<FirstResponderMap />} />,
 ];
