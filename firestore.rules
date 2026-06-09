@@ -455,6 +455,62 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // ── Emergency orchestration + ops sub-collections (§365 root-cause) ──
+      // The seismic-orchestration dashboard (src/pages/EmergenciaAvanzada.tsx)
+      // and the AI plan / EPP / training / notification writers persist to
+      // these project sub-collections. The Master Gate (line ~342) grants member
+      // READ but NO write, so every write was default-denied → the live
+      // emergency channel, the worker safety roll-call, AI emergency plans,
+      // in-app notifications, EPP verifications and training assignments all
+      // silently failed in production. Life-safety features are FREE on every
+      // tier (ADR 0021) → member-gated, NEVER tier-gated. These payloads carry
+      // no caller-uid anti-spoof field (sender/workerId are display ids, not
+      // request.auth.uid), so they follow the plain member-gate pattern of the
+      // sibling /documents and /findings rules.
+
+      // Live emergency chat — append-only; any member posts, nobody edits.
+      match /emergency_chat/{messageId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId);
+        allow update, delete: if false;
+      }
+
+      // Worker safety roll-call (docId == workerId). During an active emergency
+      // a member confirms their own status AND a supervisor marks others, so
+      // create/update are member-gated (not uid-bound). Never deleted.
+      match /emergency_safety/{workerId} {
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if false;
+      }
+
+      // AI-generated emergency plans (EmergencyPlanGenerator). Any member may
+      // generate; only admin/supervisor revise or remove a saved plan.
+      match /emergency_plans/{planId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId);
+        allow update, delete: if isAdmin() || isSupervisor();
+      }
+
+      // In-app notifications (orphan-risk/worker detection — Zettelkasten hook).
+      // Members create + mark-read; deletion restricted to admin/supervisor.
+      match /notifications/{notificationId} {
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
+      }
+
+      // AI EPP verification records (EPPVerificationModal). Compliance trail —
+      // members create, immutable thereafter, admin/supervisor may purge.
+      match /epp_verifications/{verificationId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId);
+        allow update: if false;
+        allow delete: if isAdmin() || isSupervisor();
+      }
+
+      // Training assignments (TrainingRecommendations). Members create + update
+      // status (assigned→done); admin/supervisor may delete.
+      match /trainings/{trainingId} {
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
+      }
+
       // Brigade config — supervisors/admins write assignment docs
       match /brigade_config/{docId} {
         allow write: if isValidId(projectId) && (isAdmin() || isSupervisor() || isProjectCreator(projectId));
@@ -1312,6 +1368,19 @@ service cloud.firestore {
           && isMemberOfTenant(tenantId)
           && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts']);
         allow create, update, delete: if false;
+      }
+
+      // Seismic auto-detection telemetry (src/components/shared/EmergencyOverlay.tsx
+      // → tenants/{tid}/seismic_events). The on-device accelerometer logs one row
+      // per sismo trigger via the CLIENT SDK; the tenant catch-all above denies all
+      // client writes, so this was default-denied. Life-safety telemetry is FREE
+      // (ADR 0021) → tenant-member create, bound to the path tenant so a member of
+      // tenant A cannot forge an event into tenant B. Immutable once written.
+      match /seismic_events/{eventId} {
+        allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+        allow create: if isSignedIn() && isMemberOfTenant(tenantId)
+          && incoming().tenantId == tenantId;
+        allow update, delete: if false;
       }
 
       // Fase D.4 — tenant-scoped supervisor-only subcollection.
