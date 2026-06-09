@@ -50,6 +50,21 @@ const signedMeeting = {
   status: 'held',
 };
 
+// A meeting NOT yet signed (signatures: []) — i.e. the Caso A draft/first-
+// signature path. recordMinutes() leaves status='held' with signatures still
+// empty; the first signMinutes() call performs the 0 -> 1 transition.
+const unsignedMeeting = {
+  committeeId: COMMITTEE,
+  scheduledAt: '2026-06-08T09:00:00.000Z',
+  heldAt: '2026-06-08T09:30:00.000Z',
+  attendees: [MEMBER, MEMBER_B],
+  agenda: ['punto 1'],
+  minutes: 'acta sin firmar',
+  resolutions: [],
+  signatures: [],
+  status: 'held',
+};
+
 let testEnv: RulesTestEnvironment | null = null;
 
 beforeAll(async () => {
@@ -91,6 +106,7 @@ beforeEach(async () => {
       createdBy: MEMBER,
     });
     await setDoc(doc(db, 'cphs_meetings', 'm1'), signedMeeting);
+    await setDoc(doc(db, 'cphs_meetings', 'u1'), unsignedMeeting);
   });
 });
 
@@ -147,6 +163,80 @@ describe('cphs_meetings signatures[] — append-only + prefix-preserved', () => 
         signatures: [SIG_A, SIG_B],
         minutes: 'acta alterada despues de firmar',
       }),
+    );
+  });
+
+  // 8. CO-SIGN-FOR-ANOTHER DENIED — append whose tail uid != caller (Caso B
+  //    self-bind). MEMBER_B appends a signature carrying SIG_A's uid (MEMBER).
+  it('denies a co-sign whose appended tail signature uid is not the caller', async () => {
+    const tailForAnother = { ...SIG_B, uid: MEMBER };
+    await assertFails(
+      updateDoc(mref(authed(MEMBER_B), 'm1'), { signatures: [SIG_A, tailForAnother] }),
+    );
+  });
+});
+
+describe('cphs_meetings Caso A — draft + first-signature (0 -> 1) transition', () => {
+  // A1. DRAFT EDIT ALLOWED — unsigned acta, signatures stays empty, body free.
+  it('A1: allows a member to edit body fields while the acta is unsigned', async () => {
+    await assertSucceeds(
+      updateDoc(mref(authed(MEMBER), 'u1'), {
+        minutes: 'acta editada antes de firmar',
+        resolutions: ['acuerdo 1'],
+      }),
+    );
+  });
+
+  // A2. FIRST SELF-SIGN ALLOWED — 0 -> 1 with tail uid == caller, body intact.
+  it('A2: allows the first signature when its uid is the caller and body is intact', async () => {
+    await assertSucceeds(
+      updateDoc(mref(authed(MEMBER), 'u1'), { signatures: [{ ...SIG_A, uid: MEMBER }] }),
+    );
+  });
+
+  // A2. FIRST-SIGN-FOR-ANOTHER DENIED — plant the first signature under another
+  //     member's uid (no self-binding) over an unsigned acta.
+  it('A2: denies planting the first signature under another member uid', async () => {
+    await assertFails(
+      updateDoc(mref(authed(MEMBER), 'u1'), { signatures: [{ ...SIG_B, uid: MEMBER_B }] }),
+    );
+  });
+
+  // A2. BATCH-PLANT DENIED — 0 -> 2 pre-forged signatures in one write, even if
+  //     the first carries the caller's uid (size cap to exactly 1).
+  it('A2: denies batch-planting two pre-forged signatures (0 -> 2)', async () => {
+    await assertFails(
+      updateDoc(mref(authed(MEMBER), 'u1'), {
+        signatures: [{ ...SIG_A, uid: MEMBER }, SIG_B],
+      }),
+    );
+  });
+
+  // A2. BODY-TAMPER-WHILE-SIGNING DENIED — mutate minutes during the first sign.
+  it('A2: denies mutating the body while landing the first signature', async () => {
+    await assertFails(
+      updateDoc(mref(authed(MEMBER), 'u1'), {
+        signatures: [{ ...SIG_A, uid: MEMBER }],
+        minutes: 'cuerpo alterado durante la primera firma',
+      }),
+    );
+  });
+
+  // A2. SCHEDULED-DRIFT-WHILE-SIGNING DENIED — committeeId/scheduledAt are
+  //     hoisted invariants; drifting scheduledAt during first sign is denied.
+  it('A2: denies drifting scheduledAt while landing the first signature', async () => {
+    await assertFails(
+      updateDoc(mref(authed(MEMBER), 'u1'), {
+        signatures: [{ ...SIG_A, uid: MEMBER }],
+        scheduledAt: '2099-01-01T00:00:00.000Z',
+      }),
+    );
+  });
+
+  // A. NON-MEMBER DENIED — an outsider cannot edit or first-sign the draft.
+  it('A: denies a non-member editing or first-signing an unsigned acta', async () => {
+    await assertFails(
+      updateDoc(mref(authed(OUTSIDER), 'u1'), { signatures: [{ ...SIG_A, uid: OUTSIDER }] }),
     );
   });
 });
