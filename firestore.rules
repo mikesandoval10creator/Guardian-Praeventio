@@ -1068,21 +1068,38 @@ service cloud.firestore {
     }
 
     // Round 16 R2 — closes R15 R4 gap (lighting_audits).
+    // Phase 5 (B-lighting): fix vacuous post-sign gate.
     // Lux measurements vs DS 594 Art. 103 thresholds.
-    // Writer: src/pages/LightPollutionAudit.tsx.
+    // Writer: src/pages/LightPollutionAudit.tsx (save() writes a TOP-LEVEL
+    // boolean `signed`; it never writes a `metadata` object).
+    //
+    // The previous gate checked `metadata.signedAt`, which NO write path ever
+    // sets, so `!('metadata' in existing())` was always true and the clause
+    // was vacuously satisfied — a signed lighting certificate stayed fully
+    // mutable, and `signed` itself was in the mutable allowlist so it could be
+    // flipped back to false. Same defect class already fixed for site_book
+    // above. We now gate on the REAL field (`signed`) and deny ANY update once
+    // `signed == true`. A finalized DS 594 certificate is append-only:
+    // corrections are NEW audits, never in-place rewrites.
     match /lighting_audits/{auditId} {
       allow read: if isValidId(auditId) && isEmailVerified() && (
         isAdmin() || isSupervisor() ||
         isProjectMember(resource.data.projectId)
       );
+      // New audits must be created unsigned; the immutable lock is the
+      // top-level `signed` flag, so it must start false (or be absent).
       allow create: if isValidId(auditId) && isEmailVerified() &&
         isProjectMember(incoming().projectId) &&
-        (!('metadata' in incoming()) || incoming().metadata.signedAt == null);
+        (!('signed' in incoming()) || incoming().signed == false);
+      // Pre-sign: a project member may edit measurements OR sign the audit
+      // (false -> true). Post-sign: every update is denied. `signed` may only
+      // move false -> true, never true -> false.
       allow update: if isValidId(auditId) && isEmailVerified() &&
         isProjectMember(resource.data.projectId) &&
-        (!('metadata' in existing()) || existing().metadata.signedAt == null) &&
+        existing().signed != true &&
+        incoming().signed in [true, false] &&
         incoming().diff(existing()).affectedKeys().hasOnly([
-          'metadata', 'measurements', 'measurementsLux', 'averageLux',
+          'measurementsLux', 'averageLux',
           'compliantAreas', 'nonCompliantAreas', 'compliant', 'signed'
         ]);
       allow delete: if false;
