@@ -558,5 +558,34 @@ entry per call, Ley 19.628 access trail).
     them honestly unavailable. Positions older than `POSITION_MAX_STALE_SECONDS`
     (30 min) are dropped so a stale GPS fix can never drive a dispatch decision.
 
+### Signed lighting audits (DS 594 Art. 103 lighting-compliance certificate)
+
+`lighting_audits/{id}` (`firestore.rules`) records workplace-lighting Lux
+measurements vs DS 594 Art. 103 thresholds. The sole writer
+(`src/pages/LightPollutionAudit.tsx` `save()`) persists a TOP-LEVEL boolean
+`signed` as the immutability anchor — it never writes a `metadata` object. The
+previous update rule gated immutability on `existing().metadata.signedAt ==
+null`, which no write path ever set, so the clause was vacuously true and a
+signed certificate stayed fully mutable (`signed` was even in the mutable
+allowlist, so it could be reset). Same defect class already fixed for
+`site_book` (#52). The rule now gates on the REAL field — `existing().signed !=
+true` denies EVERY post-sign update, and `signed` may only move false→true.
+Corrections are NEW audits, never in-place rewrites.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+62. **Signed Lighting-Audit Rewrite**: a project member `update`s a
+    `lighting_audits` doc whose top-level `signed == true` — e.g.
+    `{ averageLux: 999, measurementsLux: [999,999,999], compliant: true }` to
+    fake DS 594 Art. 103 compliance after finalization. Denied: the update rule
+    gates on `existing().signed != true` (the REAL field the writer sets), so
+    any post-sign field rewrite is rejected. Closes the vacuous
+    `metadata.signedAt` gate that never matched the writer's schema.
+63. **Lighting-Audit Un-Sign Reset**: a project member `update`s a signed
+    `lighting_audits` doc with `{ signed: false }` to reopen it for tampering.
+    Denied: `signed` was removed from the mutable path and the `existing().signed
+    != true` gate blocks the update outright, so a finalized certificate can
+    never be un-signed and rewritten.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

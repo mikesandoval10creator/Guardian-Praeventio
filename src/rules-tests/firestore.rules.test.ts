@@ -982,6 +982,11 @@ describe('firestore.rules', () => {
   });
 
   // ===== lighting_audits ============================================
+  // Schema mirrors the REAL writer src/pages/LightPollutionAudit.tsx save():
+  // a top-level boolean `signed` is the immutability anchor; there is NO
+  // `metadata` object. The earlier test seeded both a phantom
+  // `metadata.signedAt` and `signed`, masking the vacuous old gate — these
+  // tests seed ONLY the real `signed` field so they fail if the rule reverts.
   describe('lighting_audits/{id} — append-only post-sign', () => {
     const PROJECT = 'proj-light';
     const MEMBER = 'light-member-uid';
@@ -1001,11 +1006,11 @@ describe('firestore.rules', () => {
         nonCompliantAreas: [],
         compliant: true,
         signed: false,
-        metadata: { author: MEMBER, signedAt: null },
-        computedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       };
     }
 
+    // unauthenticated create denied.
     it('denies create for unauthenticated', async (ctx) => {
       maybeSkip(ctx);
       const env = requireEnv();
@@ -1016,7 +1021,8 @@ describe('firestore.rules', () => {
       );
     });
 
-    it('allows project member to create', async (ctx) => {
+    // (1) owner-allow: a project member can create an UNSIGNED audit.
+    it('allows project member to create an unsigned audit', async (ctx) => {
       maybeSkip(ctx);
       const env = requireEnv();
       await seedUserDoc(MEMBER, 'prevencionista');
@@ -1027,7 +1033,8 @@ describe('firestore.rules', () => {
       );
     });
 
-    it('denies create for non-member', async (ctx) => {
+    // (2) non-member-deny.
+    it('denies create for a non-member', async (ctx) => {
       maybeSkip(ctx);
       const env = requireEnv();
       await seedUserDoc(MEMBER, 'prevencionista');
@@ -1039,7 +1046,24 @@ describe('firestore.rules', () => {
       );
     });
 
-    it('denies update of a signed audit', async (ctx) => {
+    // (3) sign-transition allowed: false -> true is the legitimate finalize.
+    it('allows a member to sign an unsigned audit (false -> true)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedProject(PROJECT, [MEMBER]);
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'lighting_audits', 'lsign'), validAudit());
+      });
+      const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
+      await assertSucceeds(
+        updateDoc(doc(w.firestore(), 'lighting_audits', 'lsign'), { signed: true }),
+      );
+    });
+
+    // (4) post-sign update-deny: the core tamper case. A SIGNED audit
+    //     (signed:true, NO metadata) must reject any field rewrite.
+    it('denies rewriting measurements of a signed audit', async (ctx) => {
       maybeSkip(ctx);
       const env = requireEnv();
       await seedUserDoc(MEMBER, 'prevencionista');
@@ -1047,26 +1071,48 @@ describe('firestore.rules', () => {
       await env.withSecurityRulesDisabled(async (ctx2) => {
         await setDoc(doc(ctx2.firestore(), 'lighting_audits', 'l4'), {
           ...validAudit(),
-          metadata: { author: MEMBER, signedAt: new Date().toISOString(), signedBy: MEMBER },
           signed: true,
         });
       });
       const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
       await assertFails(
-        updateDoc(doc(w.firestore(), 'lighting_audits', 'l4'), { averageLux: 999 }),
+        updateDoc(doc(w.firestore(), 'lighting_audits', 'l4'), {
+          averageLux: 999,
+          measurementsLux: [999, 999, 999],
+          compliant: true,
+        }),
       );
     });
 
+    // (5) signed-flag-reset-deny: attacker cannot un-sign to reopen the doc.
+    it('denies flipping signed true -> false (un-sign tamper)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedProject(PROJECT, [MEMBER]);
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'lighting_audits', 'l5'), {
+          ...validAudit(),
+          signed: true,
+        });
+      });
+      const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
+      await assertFails(
+        updateDoc(doc(w.firestore(), 'lighting_audits', 'l5'), { signed: false }),
+      );
+    });
+
+    // (6) delete-deny (Ley 16.744 / ISO 45001 retention).
     it('denies delete', async (ctx) => {
       maybeSkip(ctx);
       const env = requireEnv();
       await seedUserDoc(MEMBER, 'prevencionista');
       await seedProject(PROJECT, [MEMBER]);
       await env.withSecurityRulesDisabled(async (ctx2) => {
-        await setDoc(doc(ctx2.firestore(), 'lighting_audits', 'l5'), validAudit());
+        await setDoc(doc(ctx2.firestore(), 'lighting_audits', 'l6'), validAudit());
       });
       const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
-      await assertFails(deleteDoc(doc(w.firestore(), 'lighting_audits', 'l5')));
+      await assertFails(deleteDoc(doc(w.firestore(), 'lighting_audits', 'l6')));
     });
   });
 
