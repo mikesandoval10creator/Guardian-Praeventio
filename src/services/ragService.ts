@@ -181,38 +181,38 @@ export const initializeRAG = async () => {
 
 /**
  * Searches the vector database for the most relevant context given a query.
- * Uses Firestore native Vector Search.
+ *
+ * Delegates to the no-hallucination guardrail `safeNormativeQuery`
+ * (`src/services/rag/safeNormativeQuery.ts`, TODO.md §12.2.3) instead of
+ * returning a hardcoded "Ley 16.744 ..." string. For a risk-prevention app
+ * the SLM/Gemini must NEVER be handed invented legal text it can then cite
+ * as authority. `safeNormativeQuery`:
+ *   - applies a COSINE similarity threshold (MIN_SIMILARITY = 0.75); a best
+ *     score below that yields a canonical "no tengo información verificada"
+ *     message rather than low-confidence text;
+ *   - returns a canonical "RAG no disponible" message when the system is not
+ *     initialized — NOT a hardcoded legal snippet the model could embellish.
+ *
+ * The returned string is always safe to inject into a downstream LLM prompt:
+ * on a verified hit it's the real `[Fuente: ...]` snippet, otherwise it's the
+ * canonical user-facing message (which explicitly tells the model not to
+ * fabricate). The `safeNormativeQuery` module is imported lazily to avoid a
+ * static import cycle (it dynamically imports `generateEmbedding` from this
+ * very module) and to keep the cold-start path clean.
  */
 export const searchRelevantContext = async (query: string, topK: number = 3): Promise<string> => {
-  if (!isInitialized || !admin.apps.length) {
-    // Fallback if not initialized
-    return "Contexto legal: Ley 16.744 sobre accidentes del trabajo y enfermedades profesionales.";
-  }
-
   try {
-    const queryEmbedding = await generateEmbedding(query);
-    const db = admin.firestore();
-    const vectorCollection = db.collection('vector_store');
-    
-    // Perform native vector search in Firestore
-    const results = await vectorCollection
-      .findNearest('embedding', FieldValue.vector(queryEmbedding), {
-        limit: topK,
-        distanceMeasure: 'COSINE'
-      })
-      .get();
-    
-    if (results.empty) {
-      return "No se encontró contexto legal relevante.";
-    }
-
-    return results.docs.map(doc => {
-      const data = doc.data();
-      return `[Fuente: ${data.title}]\n${data.content}`;
-    }).join("\n\n");
+    const { safeNormativeContextOrFallback } = await import('./rag/safeNormativeQuery.js');
+    const { injectable } = await safeNormativeContextOrFallback(query, topK);
+    return injectable;
   } catch (error) {
     logger.error("Error searching context:", error);
-    return "Error al recuperar contexto legal.";
+    // Fail safe: a canonical no-verified-context message, never invented law.
+    return (
+      `No tengo información verificada sobre "${query}" en mi base normativa ` +
+      `en este momento. Consulta leychile.cl o un asesor jurídico calificado. ` +
+      `No generaré texto normativo desde cero.`
+    );
   }
 };
 

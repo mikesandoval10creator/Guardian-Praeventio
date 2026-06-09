@@ -374,114 +374,152 @@ describe('initializeRAG', () => {
   });
 });
 
-// ─── searchRelevantContext ────────────────────────────────────────────────────
+// ─── searchRelevantContext (wired to the REAL safeNormativeQuery RAG) ──────────
+//
+// Phase 5 SLM-integrity block: `searchRelevantContext` no longer returns a
+// hardcoded "Ley 16.744 ..." fallback. It delegates to the no-hallucination
+// guardrail `safeNormativeQuery` (src/services/rag/safeNormativeQuery.ts).
+// These tests exercise the REAL guardrail by injecting its firestore +
+// embedding deps via `__setSafeNormativeDepsForTests` (NOT by mocking the
+// SUT) — proving:
+//   - a verified RAG hit (COSINE score ≥ 0.75) flows through as a real
+//     `[Fuente: ...]` snippet;
+//   - a below-threshold best match returns the canonical "no verificada"
+//     message — NOT the old hardcoded legal snippet the model could embellish;
+//   - rag-not-ready returns the canonical message;
+//   - no Zettelkasten internals leak in any path.
 
-describe('searchRelevantContext', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    // generateEmbedding is called internally; mock via the @google/genai spy.
-    embedContentSpy.mockResolvedValue({ embeddings: [{ values: CANNED_EMBEDDING }] });
-    // Ensure admin.apps is non-empty so the "not initialized" early return is
-    // NOT triggered by the apps check. The isInitialized module flag may be
-    // true from earlier tests — that's also fine since the function checks BOTH.
-    (admin as { apps: unknown[] }).apps = ['app-stub'];
-  });
+import {
+  __resetSafeNormativeDepsForTests,
+  __setSafeNormativeDepsForTests,
+} from './rag/safeNormativeQuery.js';
 
+/**
+ * Build a fake Firestore whose `vector_store.findNearest(...).get()` yields
+ * `docs`. Each doc exposes `data()` with `distance` (COSINE 0..2),
+ * `content`, `title` — exactly the shape `safeNormativeQuery` reads.
+ */
+function makeSafeNormativeFirestore(
+  docs: Array<{ title: string; content: string; distance: number }>,
+) {
+  const findNearestArgs: Array<{ limit: number }> = [];
+  const collection = vi.fn(() => ({
+    findNearest: vi.fn((_field: string, _vec: unknown, opts: { limit: number }) => {
+      findNearestArgs.push({ limit: opts.limit });
+      return {
+        get: vi.fn().mockResolvedValue({
+          empty: docs.length === 0,
+          docs: docs.map((d) => ({
+            data: () => ({ title: d.title, content: d.content, distance: d.distance }),
+          })),
+        }),
+      };
+    }),
+  }));
+  return {
+    firestore: () => ({ collection }) as never,
+    findNearestArgs,
+  };
+}
+
+describe('searchRelevantContext (real safeNormativeQuery wiring)', () => {
   afterEach(() => {
+    __resetSafeNormativeDepsForTests();
     vi.restoreAllMocks();
   });
 
-  it('returns hardcoded fallback (not ZK content) when admin.apps is empty', async () => {
-    (admin as { apps: unknown[] }).apps = [];
-
-    const result = await ragService.searchRelevantContext('DS 594 ruido');
-
-    expect(typeof result).toBe('string');
-    expect(result.length).toBeGreaterThan(10);
-    expect(result).not.toMatch(/zkNodeId|edges|backlinks|centralityScore/i);
-  });
-
-  it('returns no-match string when Firestore results are empty', async () => {
-    wireFirestore(makeVectorCollection({ empty: true, docs: [] }));
-
-    const result = await ragService.searchRelevantContext('normativa inexistente xyz');
-
-    expect(typeof result).toBe('string');
-    expect(result).toContain('No se encontró');
-    expect(result).not.toMatch(/zkNodeId|edges|backlinks|centralityScore/i);
-  });
-
-  it('formats results with public [Fuente: title] citation — no ZK internals', async () => {
-    const mockDocs = [
+  it('returns a real [Fuente: ...] snippet for a verified RAG hit (score ≥ 0.75)', async () => {
+    // distance 0.1 → score = 1 - 0.1/2 = 0.95 ≥ MIN_SIMILARITY (0.75).
+    const fs = makeSafeNormativeFirestore([
       {
-        data: () => ({
-          title: 'DS 594/1999 art. 70',
-          content: 'Los límites permisibles ponderados para ruido son 85 dB(A).',
-          lawId: '14305',
-        }),
+        title: 'DS 594/1999 art. 70',
+        content: 'Los límites permisibles ponderados para ruido son 85 dB(A).',
+        distance: 0.1,
       },
-      {
-        data: () => ({
-          title: 'Ley 16.744 art. 3',
-          content: 'La prevención de accidentes del trabajo es obligación del empleador.',
-          lawId: '28650',
-        }),
-      },
-    ];
+    ]);
+    __setSafeNormativeDepsForTests({
+      firestore: fs.firestore,
+      generateEmbedding: async () => CANNED_EMBEDDING,
+      isRagInitialized: () => true,
+    });
 
-    wireFirestore(
-      makeVectorCollection({
-        empty: false,
-        docs: mockDocs as Array<{ data: () => Record<string, unknown> }>,
-      }),
-    );
+    const result = await ragService.searchRelevantContext('límite ruido DS 594', 3);
 
-    const result = await ragService.searchRelevantContext('límite ruido DS 594', 2);
-
-    expect(result).toContain('[Fuente: DS 594/1999 art. 70]');
-    expect(result).toContain('[Fuente: Ley 16.744 art. 3]');
+    expect(result).toContain('[Fuente: DS 594/1999 art. 70');
     expect(result).toContain('85 dB(A)');
-    expect(result).toContain('prevención de accidentes');
-
-    // ZK-leak assertion — primary safety requirement
+    // It is the REAL snippet, NOT the legacy hardcoded fallback.
+    expect(result).not.toBe(
+      'Contexto legal: Ley 16.744 sobre accidentes del trabajo y enfermedades profesionales.',
+    );
+    // ZK-leak guard.
     expect(result).not.toMatch(/zkNodeId|zettelkasten|zk_node|zk_edge|backlinks|centralityScore/i);
   });
 
-  it('returns error string (not throws) when Firestore findNearest fails', async () => {
-    firestoreCollectionSpy.mockReturnValue({
-      findNearest: vi.fn(() => ({
-        get: vi.fn().mockRejectedValue(new Error('Firestore unavailable')),
-      })),
-      doc: vi.fn(),
-      add: vi.fn(),
-      where: vi.fn().mockReturnThis(),
+  it('returns the canonical "no verificada" message (NOT hardcoded law) for a below-threshold match', async () => {
+    // distance 1.6 → score = 1 - 1.6/2 = 0.2 < 0.75 → no verified match.
+    const fs = makeSafeNormativeFirestore([
+      { title: 'Algo tangencial', content: 'texto poco relevante', distance: 1.6 },
+    ]);
+    __setSafeNormativeDepsForTests({
+      firestore: fs.firestore,
+      generateEmbedding: async () => CANNED_EMBEDDING,
+      isRagInitialized: () => true,
+    });
+
+    const result = await ragService.searchRelevantContext('consulta sin match fuerte');
+
+    expect(result).toMatch(/no tengo información verificada/i);
+    // The guardrail explicitly refuses to invent legal text.
+    expect(result).not.toContain('Contexto legal: Ley 16.744 sobre accidentes');
+    expect(result).not.toMatch(/zkNodeId|zettelkasten|backlinks|centralityScore/i);
+  });
+
+  it('returns the canonical "RAG no disponible" message when RAG is not initialized', async () => {
+    __setSafeNormativeDepsForTests({
+      isRagInitialized: () => false,
+    });
+
+    const result = await ragService.searchRelevantContext('DS 594 ruido');
+
+    // No hardcoded "Ley 16.744 ..." — the canonical not-ready message instead.
+    expect(result).toMatch(/RAG no está disponible|no generaré texto legal/i);
+    expect(result).not.toBe(
+      'Contexto legal: Ley 16.744 sobre accidentes del trabajo y enfermedades profesionales.',
+    );
+  });
+
+  it('forwards the topK argument down to the RAG vector search', async () => {
+    const fs = makeSafeNormativeFirestore([]); // empty → no_verified_match
+    __setSafeNormativeDepsForTests({
+      firestore: fs.firestore,
+      generateEmbedding: async () => CANNED_EMBEDDING,
+      isRagInitialized: () => true,
+    });
+
+    await ragService.searchRelevantContext('DS 594', 5);
+
+    expect(fs.findNearestArgs.at(-1)?.limit).toBe(5);
+  });
+
+  it('never throws — returns a safe canonical string when the RAG layer errors', async () => {
+    __setSafeNormativeDepsForTests({
+      firestore: (() => {
+        throw new Error('firestore boom');
+      }) as never,
+      generateEmbedding: async () => CANNED_EMBEDDING,
+      isRagInitialized: () => true,
     });
 
     const result = await ragService.searchRelevantContext('DS 594');
 
     expect(typeof result).toBe('string');
-    expect(result).toContain('Error al recuperar');
-    expect(result).not.toMatch(/zkNodeId|zettelkasten|backlinks/i);
-  });
-
-  it('respects topK limit — passes limit to findNearest', async () => {
-    const findNearest = vi.fn(() => ({
-      get: vi.fn().mockResolvedValue({ empty: true, docs: [] }),
-    }));
-    firestoreCollectionSpy.mockReturnValue({
-      findNearest,
-      doc: vi.fn(),
-      add: vi.fn(),
-      where: vi.fn().mockReturnThis(),
-    });
-
-    await ragService.searchRelevantContext('DS 594', 5);
-
-    expect(findNearest).toHaveBeenCalledWith(
-      'embedding',
-      CANNED_EMBEDDING,
-      expect.objectContaining({ limit: 5 }),
+    expect(result.length).toBeGreaterThan(10);
+    // safeNormativeQuery catches internal errors and returns its canonical
+    // no-verified-context userMessage; never the hardcoded legal snippet.
+    expect(result).not.toBe(
+      'Contexto legal: Ley 16.744 sobre accidentes del trabajo y enfermedades profesionales.',
     );
+    expect(result).not.toMatch(/zkNodeId|zettelkasten|backlinks/i);
   });
 });
 

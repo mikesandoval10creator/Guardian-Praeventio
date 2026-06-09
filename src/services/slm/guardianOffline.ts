@@ -38,7 +38,7 @@ import { OnnxSlmAdapter } from './onnxAdapter';
  * el service no descarga nada hasta que `preload()` o `ask()` se llama.
  */
 export interface GuardianOfflineConfig {
-  /** URL del modelo ONNX. Default: `/models/slm/tinyllama-1.1b-q4.onnx`. */
+  /** URL del modelo ONNX. Default: `/models/slm/tinyllama-1.1b-int8.onnx`. */
   modelUrl?: string;
   /** URL del tokenizer.json. Default: `/models/slm/tokenizer.json`. */
   tokenizerUrl?: string;
@@ -522,7 +522,9 @@ export class GuardianOfflineService {
     }
 
     const augmentedPrompt = buildAugmentedPrompt(opts.prompt, ranked);
-    let answer = '';
+    // Assigned exactly once below; the catch returns early so there is no
+    // read-before-write path (the `= ''` initializer was a useless assignment).
+    let answer: string;
     try {
       answer = await this.adapter.generate({
         prompt: augmentedPrompt,
