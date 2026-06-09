@@ -79,3 +79,26 @@ export async function analyzeFirstResponderCoverage(
   );
   return json<AnalyzeCoverageResponse>(res);
 }
+
+// ── 3. responder-feed (REAL data source for the panel) ─────────────────
+
+export interface ResponderFeedResponse {
+  responders: Responder[];
+  coverageGaps: CoverageGap[];
+}
+
+/**
+ * Fetch the REAL responder feed (brigade roster + last-known positions +
+ * honest availability) the engine consumes. A member with no recent position
+ * ping comes back position-less → honestly unavailable for dispatch. Wire its
+ * `responders` into buildFirstResponderDispatchPlan + the panel.
+ */
+export async function fetchFirstResponderFeed(
+  projectId: string,
+): Promise<ResponderFeedResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/first-responder-map/responder-feed`,
+    { method: 'GET' },
+  );
+  return json<ResponderFeedResponse>(res);
+}
