@@ -27,6 +27,10 @@ import { auditServerEvent } from '../middleware/auditLog.js';
 import { ProjectMembershipError } from '../../services/auth/projectMembership.js';
 import { isGeminiDegradedError } from '../../services/gemini/degraded.js';
 import { baselineEmergencyPlan } from '../../services/gemini/emergency.js';
+import {
+  hasServerSlmFallback,
+  geminiSlmFallback,
+} from '../../services/gemini/geminiSlmFallback.js';
 import { geminiLimiter, geminiGlobalDailyLimiter } from '../middleware/limiters.js';
 import { getFirestore } from 'firebase-admin/firestore';
 // Sprint 22 prod hardening (Bucket X) — wire circuit breaker + per-tenant
@@ -528,6 +532,33 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
           sentryCapture(auditErr, { endpoint: '/api/gemini', tags: { action } });
         }
       }
+      // Directive #2 — server-side Gemini->degraded fallback for the wired TEXT
+      // actions. When a whitelisted text action returns an EMPTY completion
+      // (Gemini safety-blocked / non-STOP finish / empty string), surface a REAL
+      // degraded answer (RAG -> canned, ADR 0019 §2) instead of `result: ''`.
+      // `null` is intentionally NOT treated as empty: it is a valid typed
+      // fallback for some actions. The whole attempt is wrapped so a fallback
+      // bug can never turn this success path into a 500.
+      const resultIsEmpty =
+        result === undefined ||
+        (typeof result === 'string' && result.trim().length === 0);
+      if (resultIsEmpty && hasServerSlmFallback(action)) {
+        try {
+          const fb = await geminiSlmFallback(action, callArgs);
+          if (fb) {
+            // The request itself succeeded but Gemini returned an empty body —
+            // that is an upstream MISS, so record a breaker FAILURE (ADR 0019)
+            // before returning the degraded answer, so sustained empties still
+            // trip the circuit.
+            await recordGeminiOutcome(tenantId, 'failure');
+            return res.json({ result: fb.text, degraded: true, fallbackTier: fb.tier });
+          }
+        } catch (fallbackErr) {
+          // A fallback bug must NEVER break the (successful) primary path.
+          logger.error('gemini_server_fallback_failed', fallbackErr as Error, { action });
+          sentryCapture(fallbackErr, { endpoint: '/api/gemini', tags: { action, phase: 'fallback-empty' } });
+        }
+      }
       res.json({ result });
       // Bucket X: post-call accounting. The whitelisted RPC layer does
       // not return per-call token usage, so we charge a flat estimate
@@ -571,6 +602,23 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     // throws SyntaxError. Surface both as 502 so a client can tell "the AI
     // returned garbage" apart from "our server broke" — without leaking internals.
     if (isUpstreamGeminiParseError(error)) {
+      // Directive #2 — before surfacing a dry 502, try the server-side degraded
+      // ladder (RAG -> canned, ADR 0019 §2) for the wired TEXT actions so the
+      // worker gets a REAL answer. The breaker FAILURE was already recorded
+      // above (recordGeminiOutcome(tenantId, 'failure')), so the circuit still
+      // trips. The attempt is wrapped so a fallback bug can never turn the 502
+      // into a 500.
+      if (hasServerSlmFallback(action)) {
+        try {
+          const fb = await geminiSlmFallback(action, callArgs);
+          if (fb) {
+            return res.json({ result: fb.text, degraded: true, fallbackTier: fb.tier });
+          }
+        } catch (fallbackErr) {
+          logger.error('gemini_server_fallback_failed', fallbackErr as Error, { action });
+          sentryCapture(fallbackErr, { endpoint: '/api/gemini', tags: { action, phase: 'fallback-parse-error' } });
+        }
+      }
       return res.status(502).json({
         error: 'gemini_bad_response',
         message: 'The AI service returned an unparseable response. Please retry.',
