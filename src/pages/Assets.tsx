@@ -1,15 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Truck
+  Truck, Boxes
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useProject } from '../contexts/ProjectContext';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
+import { EquipmentAdminPanel } from '../components/equipment/EquipmentAdminPanel';
+
+// Phase 5 "make real" — Assets previously mounted ONLY MaquinariaManager, so the
+// fully-built EquipmentAdminPanel (QR-registered equipment admin backed by
+// listEquipmentBySite / registerEquipmentQr) was orphaned (no import → users
+// could never reach it). Surface it via a tab. (Horómetro needs an
+// equipment-list container and HazmatStorageManager needs persistence before
+// they can be wired the same way — tracked as follow-ups.)
+type AssetTab = 'maquinaria' | 'equipos';
 
 export function Assets() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
+  const [tab, setTab] = useState<AssetTab>('maquinaria');
+
+  const tabs = [
+    { id: 'maquinaria' as const, label: t('assets.tabs.maquinaria', 'Maquinaria'), icon: Truck },
+    { id: 'equipos' as const, label: t('assets.tabs.equipos', 'Equipos'), icon: Boxes },
+  ];
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 sm:space-y-8">
@@ -26,7 +41,36 @@ export function Assets() {
       </div>
 
       {selectedProject ? (
-        <MaquinariaManager projectId={selectedProject.id} />
+        <>
+          {/* Tabs */}
+          <div className="flex flex-wrap gap-2">
+            {tabs.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                aria-pressed={tab === id}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-colors border ${
+                  tab === id
+                    ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 border-transparent'
+                    : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-white/10 hover:text-zinc-900 dark:hover:text-white'
+                }`}
+              >
+                <Icon className="w-4 h-4" aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <motion.div
+            key={tab}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            {tab === 'maquinaria' && <MaquinariaManager projectId={selectedProject.id} />}
+            {tab === 'equipos' && <EquipmentAdminPanel projectId={selectedProject.id} />}
+          </motion.div>
+        </>
       ) : (
         <div className="bg-white/50 dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-[3rem] p-20 text-center">
           <div className="w-20 h-20 bg-zinc-100 dark:bg-zinc-800 rounded-3xl flex items-center justify-center mx-auto mb-6">
