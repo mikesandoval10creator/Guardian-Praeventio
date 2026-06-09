@@ -36,6 +36,10 @@ import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 import { tracedAsync } from '../../services/observability/tracing.js';
+import {
+  assertProjectMember,
+  ProjectMembershipError,
+} from '../../services/auth/projectMembership.js';
 
 export const IOT_DEVICE_TYPES = [
   'gas_sensor',
@@ -90,6 +94,24 @@ router.post(
     }
 
     const db = admin.firestore();
+
+    // Cross-tenant guard (#700/#707/#708): the admin/supervisor role check above
+    // is GLOBAL — it does not bind the caller to `projectId`. Without this, a
+    // privileged user of tenant A could register a device into any tenant B's
+    // project (the tenant is derived from `projects/{projectId}.tenantId` below).
+    // assertProjectMember requires the caller to be a member of THIS project.
+    try {
+      await assertProjectMember(callerUid, projectId, db, req.user as Record<string, unknown> | undefined);
+    } catch (err: any) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      // Infra failure (Firestore outage) — fail closed without leaking internals.
+      logger.error('iot_device_register_membership_check_failed', err, { callerUid, projectId });
+      captureRouteError(err, 'iot.device.register');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+
     let tenantId = projectId;
     try {
       const projectSnap = await db.collection('projects').doc(projectId).get();

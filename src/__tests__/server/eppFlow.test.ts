@@ -48,10 +48,14 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
       res.status(401).json({ error: 'unauthorized' });
       return;
     }
+    // Token tenant defaults to 'tenant-a' (== TENANT_ID) so existing happy-path
+    // tests stay green after the cross-tenant guard landed; the sentinel 'none'
+    // simulates a token WITHOUT a tenant claim (→ callerTenantOr403 403s).
+    const rawTenant = req.header('x-test-tenant');
     (req as Request & { user: Record<string, unknown> }).user = {
       uid,
       role: req.header('x-test-role') ?? undefined,
-      tenantId: req.header('x-test-tenant') ?? undefined,
+      tenantId: rawTenant === 'none' ? undefined : (rawTenant ?? 'tenant-a'),
     };
     next();
   },
@@ -407,6 +411,62 @@ describe('POST /:projectId/epp-flow/inspection', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────
+// 1b. Cross-tenant IDOR guard (#700/#707/#708) — tenant from the verified
+//     token, never from the request body. A member of tenant A echoing a
+//     foreign tenantId, or a token with no tenant binding, is rejected.
+// ────────────────────────────────────────────────────────────────────────
+
+describe('cross-tenant guard — eppFlow tenant is token-authoritative', () => {
+  const INSPECT_URL = `/api/sprint-k/${PROJECT_ID}/epp-flow/inspection`;
+
+  it('403 tenant_mismatch on inspection when body.tenantId forges a foreign tenant', async () => {
+    const res = await request(buildApp())
+      .post(INSPECT_URL)
+      .set('x-test-uid', MEMBER_UID) // token tenant defaults to 'tenant-a'
+      .send({ ...baseInspectionBody, tenantId: 'tenant-evil' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('tenant_mismatch');
+  });
+
+  it('403 no_tenant_binding on inspection when the token carries no tenant claim', async () => {
+    const res = await request(buildApp())
+      .post(INSPECT_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-tenant', 'none') // simulate a token without a tenant claim
+      .send(baseInspectionBody);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('no_tenant_binding');
+  });
+
+  it('403 tenant_mismatch on sign-order when body.tenantId forges a foreign tenant', async () => {
+    // Seed a pending order whose suggestedNodeId is 'fake-node-0'.
+    flowMock.inspectionResult = {
+      ok: true,
+      nodes: [
+        { metadata: { sourceType: 'epp-inspection-event' } },
+        { metadata: { sourceType: 'purchase-order-suggested', orderId: 'oc-xt', suggestedAt: '2026-05-30T10:00:00.000Z' } },
+      ],
+      nodeIds: ['n0', 'fake-node-0'],
+      edges: [],
+      suggestedOrder: { lines: [{ kind: 'casco', quantity: 1, estimatedUnitCostClp: 1, supplierId: 's1', urgency: 'routine' }], totalClp: 1, deliveryWeekHint: 1, notes: [] },
+      notes: [],
+    };
+    await request(buildApp())
+      .post(INSPECT_URL)
+      .set('x-test-uid', MEMBER_UID)
+      .send({ ...baseInspectionBody, orderId: 'oc-xt' });
+
+    const res = await request(buildApp())
+      .post(`/api/sprint-k/${PROJECT_ID}/epp-flow/sign-order/oc-xt`)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor')
+      .send({ ...signOrderBody(MEMBER_UID, 'fake-node-0'), tenantId: 'tenant-evil' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('tenant_mismatch');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
 // 2. GET /:projectId/epp-flow/pending-orders
 // ────────────────────────────────────────────────────────────────────────
 
@@ -673,12 +733,22 @@ describe('GET /:projectId/epp-flow/order-pdf/:orderId', () => {
     expect(res.status).toBe(401);
   });
 
-  it('400 when tenantId query param is missing', async () => {
+  it('no longer 400 when the tenantId query is absent — the token is authoritative (404 here, order not seeded)', async () => {
     const res = await request(buildApp())
-      .get(PDF_URL) // no ?tenantId
-      .set('x-test-uid', MEMBER_UID);
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/tenantId/);
+      .get(PDF_URL) // no ?tenantId — resolved from the verified token
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('order_not_found');
+  });
+
+  it('403 tenant_mismatch when ?tenantId forges a tenant different from the token', async () => {
+    const res = await request(buildApp())
+      .get(`${PDF_URL}?tenantId=tenant-evil`)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor'); // token tenant defaults to 'tenant-a'
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('tenant_mismatch');
   });
 
   it('403 when caller is not a project member', async () => {
