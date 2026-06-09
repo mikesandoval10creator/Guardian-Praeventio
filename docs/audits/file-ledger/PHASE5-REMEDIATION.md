@@ -353,7 +353,7 @@ considera y se CABLEA donde corresponde.** Reglas:
 - [ ] 🔵 `reportsAutomation` `contentHash` → **computar**; `predictionBackend` metering Pro/Flash; `assertNoPII` → **cablear**; AlertScheduler probes (con B1).
 
 ### B-DigitalTwin (bloque nuevo)  · ref `DEEP-NH-services-infra` + `DEEP-EX-37/38`
-- [ ] 🔴 `reconstructions` storage default-deny (`storage.rules:159`); `reconstruction_jobs` sin regla (vs `digital_twin_jobs` fantasma); `placed_objects` sin regla (objetos de seguridad no persisten) → reglas+tests. (rules)
+- [~] 🔴 `reconstructions` storage+jobs reglas. **`reconstruction_jobs` ✅ #806**: regla `projects/{pid}/reconstruction_jobs/{jobId}` member read+create/update, admin/supervisor delete (mirror `placed_objects`; era default-deny → `createReconstructionJob()` fallaba ANTES del upload GLB) + 7 rules-tests F1 `reconstructionJobs.rules.test.ts` + Dirty-Dozen #70. **`placed_objects` ✅ ya hecho** (regla `firestore.rules:575-578` + tests en `findingsPlacedObjects.rules.test.ts` — la afirmación "sin regla" del ledger era incorrecta). **PENDIENTE storage** `reconstructions/{projectId}/*.glb|usdz` (`storage.rules:159` default-deny): las reglas de Cloud Storage NO pueden leer Firestore → asegurarlo exige tenant-keyar el path de upload (`onDeviceAdapter`) + infra de storage-rules-test (no existe aún) → follow-up app-code. (rules)
 - [ ] 🔴 `pages/BlueprintViewer.tsx` mock ruteado (#13) → **cablear la ruta a la versión real** (upload+Firestore de AIHub); `verifyTwinStepUp.ts` no cableado (ADR 0011) → **cablear**. (comp/super)
 - [ ] 🔵 COLMAP infra: **NO eliminar a ciegas** — documentar como superseded por on-device (§2.28, que es la función real); consultar antes de tocar `infra/`.
 

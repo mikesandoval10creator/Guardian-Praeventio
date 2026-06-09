@@ -676,5 +676,29 @@ so no link in the custody trail can be rewritten or erased. Rules tests:
     members of the owning tenant, and the same gate also drops it from the generic
     sub-collection reader (added to the `evidence_artifacts` deny-list there).
 
+### Photogrammetry reconstruction jobs (on-device digital-twin job tracking)
+
+`projects/{pid}/reconstruction_jobs/{jobId}` is the on-device photogrammetry job
+store (`reconstructionJobStore.ts`, client SDK). The worker running the scan
+creates the job and persists progress/completion/failure client-side; it had NO
+rule and fell to default-deny, so `createReconstructionJob()` failed and the
+pipeline died before the GLB upload. Rule: member read + member create/update +
+admin/supervisor delete (mirrors `placed_objects` — a job record is part of the
+site's safety/inspection trail). Rules tests:
+`src/rules-tests/reconstructionJobs.rules.test.ts` (7 cases, F1 harness).
+(Storage side — `reconstructions/{projectId}/*.glb|usdz` — is a SEPARATE follow-up:
+Cloud Storage rules cannot read Firestore, so securing it requires tenant-keying
+the upload path; tracked in PHASE5 #356.)
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+70. **Cross-Project Reconstruction-Job Snoop / Forge**: a non-member of `:pid`
+    reads, creates, or updates `projects/{pid}/reconstruction_jobs/{jobId}` —
+    denied by `isProjectMember(projectId)` (a stranger cannot see or fabricate a
+    project's scan jobs). A member CANNOT delete a job record (delete is
+    admin/supervisor-only) so the inspection trail cannot be silently erased; the
+    phantom `digital_twin_jobs` path stays server-only (`write:false`) and is not
+    the collection the on-device store actually writes.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
