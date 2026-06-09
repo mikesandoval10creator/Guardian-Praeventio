@@ -75,6 +75,11 @@ refactor cliente+server, alto riesgo → con foco fresco + `/cso-praeventio`).
 (useAccelerometer listener, SurvivalMode torch interval, useAcousticSOS flanco+histéresis). Reglas:
 declare-emergency #660, DEA #661, pings #662, **FirstResponderDispatchPanel montado #791** (feed real brigada+pings).
 **AlertScheduler probes reales ✅ #798** (feed Bernoulli sobre inputs físicos reales + viento horario Open-Meteo; sin datos ⇒ no probe).
+**Emergency/ops collections default-denied (§365 root-cause) ✅ #807:** 7 colecciones que el Master Gate
+daba read pero NO write (`emergency_chat`, `emergency_safety`, `emergency_plans`, `notifications`,
+`epp_verifications`, `trainings` + tenant `seismic_events` path-bound) → reglas member-gated + 29 rules-tests
+F1 + Dirty-Dozen #71–#77. `EmergenciaAvanzada` realineado a la forma canónica `{status,triggeredBy}` que la
+regla `emergency_events` ya exigía + try/catch por-write en los 4 handlers (un write denegado nunca aborta el SOS).
 
 **B7 Salud 🛟🔐 (ADR 0012):** VitalityMonitor sin CIE-10 ✅ #668 · clinical_alerts rule ✅ #669 ·
 medical-guard ext (hygiene) ✅ #670 · **Medicine TRÍADA reconvertida ✅:** visor→`SymptomDocumenter`
