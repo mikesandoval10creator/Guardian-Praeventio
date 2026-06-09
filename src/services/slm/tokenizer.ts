@@ -58,7 +58,7 @@ const tokenizerCache = new Map<string, Promise<SlmTokenizer>>();
 
 /**
  * Default model name. Matches the TinyLlama checkpoint we ship in
- * `public/models/slm/tinyllama-1.1b-q4.onnx`. The `Xenova/` prefix
+ * `public/models/slm/tinyllama-1.1b-int8.onnx`. The `Xenova/` prefix
  * tells transformers.js to fetch the tokenizer config from the
  * Xenova HF mirror (which serves the JSON files with the
  * cross-origin headers the runtime expects).

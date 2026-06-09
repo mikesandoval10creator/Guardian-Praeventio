@@ -129,7 +129,7 @@ describe('OnnxSlmAdapter.loadModel', () => {
     const { fetchImpl, calls } = makeFakeFetch(128);
 
     const adapter = new OnnxSlmAdapter({
-      modelUrl: '/models/slm/tinyllama-1.1b-q4.onnx',
+      modelUrl: '/models/slm/tinyllama-1.1b-int8.onnx',
       cacheVersion: 'test-v1',
       fetchImpl,
       ortFactory: async () => ort,
@@ -137,15 +137,16 @@ describe('OnnxSlmAdapter.loadModel', () => {
 
     await adapter.loadModel();
 
-    expect(calls).toEqual(['/models/slm/tinyllama-1.1b-q4.onnx']);
+    expect(calls).toEqual(['/models/slm/tinyllama-1.1b-int8.onnx']);
     expect(createCalls).toHaveLength(1);
     // Adapter should request WebGPU first, with WASM as the fallback.
     expect(createCalls[0].providers).toEqual(['webgpu', 'wasm']);
     expect(adapter.isLoaded()).toBe(true);
 
     // Cache key derives from the cacheVersion — assert the bytes landed
-    // in IndexedDB so a second app launch will skip the network.
-    const cached = await loadCachedModel('onnx-tinyllama-1.1b-test-v1');
+    // in IndexedDB so a second app launch will skip the network. The key
+    // segment is `int8` (the real quantization), not the legacy `q4`.
+    const cached = await loadCachedModel('onnx-tinyllama-1.1b-int8-test-v1');
     expect(cached?.byteLength).toBe(128);
   });
 
@@ -301,7 +302,12 @@ describe('OnnxSlmAdapter.getModelInfo', () => {
     const adapter = new OnnxSlmAdapter({ cacheVersion: 'info-v1' });
     const info = adapter.getModelInfo();
     expect(info.name).toMatch(/TinyLlama/i);
-    expect(info.quantization).toBe('q4');
+    // Registry-accurate: the real upstream file
+    // (decoder_model_merged_quantized.onnx) is int8 dynamic quantization,
+    // not q4. getModelInfo() must report the real scheme.
+    expect(info.quantization).toBe('int8');
+    expect(info.name).toMatch(/int8/i);
+    expect(info.name).not.toMatch(/q4/i);
     expect(info.size).toBe(0); // not loaded yet
   });
 

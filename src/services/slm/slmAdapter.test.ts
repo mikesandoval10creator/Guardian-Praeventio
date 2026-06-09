@@ -21,7 +21,7 @@ import { IDBFactory as FDBFactory } from 'fake-indexeddb';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { __resetCacheForTests, cacheModel } from './cache/modelCache';
+import { __resetCacheForTests } from './cache/modelCache';
 import {
   __resetSlmAdapterForTests,
   __setWorkerFactoryForTests,
@@ -31,6 +31,16 @@ import {
   getActiveModelId,
 } from './slmAdapter';
 import type { ModelDescriptor, SLMQuery, SLMResponse } from './types';
+
+// The loader path (fetch → IndexedDB cache → SHA-256 integrity gate) is
+// exercised end-to-end in `loader.test.ts`. Here we stub `loadModel` so this
+// adapter lifecycle test is decoupled from fetch/IDB/integrity and asserts
+// ONLY the worker orchestration (load → init → reuse → dispose). Without the
+// stub the real loader enforces the registry's pinned `expectedSha256`, which
+// no synthetic in-memory byte buffer can satisfy.
+vi.mock('./loader', () => ({
+  loadModel: vi.fn(async () => new ArrayBuffer(8)),
+}));
 
 /**
  * In-memory worker stub. Records calls so the test can assert delegation
@@ -75,11 +85,6 @@ beforeEach(async () => {
   (globalThis as { indexedDB: IDBFactory }).indexedDB = new FDBFactory();
   __resetCacheForTests();
   __resetSlmAdapterForTests();
-
-  // Pre-warm the cache for the default registry model so loadModel never
-  // needs to fetch — keeps the adapter test independent of fetch mocking.
-  await cacheModel('phi-3-mini', new ArrayBuffer(8));
-  await cacheModel('qwen-2.5-0.5b', new ArrayBuffer(4));
 });
 
 afterEach(async () => {

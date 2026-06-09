@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { __resetCacheForTests, cacheModel } from './cache/modelCache';
 import { loadModel } from './loader';
+import { SlmIntegrityError } from './slmIntegrityGuard';
 import type { ModelDescriptor } from './types';
 
 const TEST_MODEL: ModelDescriptor = {
@@ -30,6 +31,30 @@ const TEST_MODEL: ModelDescriptor = {
   preferredBackend: 'wasm-simd',
   quantization: 'int4',
 };
+
+/**
+ * SHA-256 of the ASCII bytes "hello" — same canonical fixture used by
+ * `slmRuntime.test.ts`. Lets us pin a model descriptor's `expectedSha256`
+ * to a known value and feed the loader a body whose bytes hash to it.
+ */
+const HELLO_SHA256 =
+  '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824';
+
+/** ArrayBuffer of the bytes "hello". */
+function helloBuffer(): ArrayBuffer {
+  return new TextEncoder().encode('hello').buffer as ArrayBuffer;
+}
+
+/** Build a non-streaming Response whose arrayBuffer() yields `buf`. */
+function buildArrayBufferResponse(buf: ArrayBuffer): Response {
+  return {
+    ok: true,
+    status: 200,
+    body: null,
+    headers: { get: () => null },
+    arrayBuffer: async () => buf,
+  } as unknown as Response;
+}
 
 /**
  * Build a `Response`-shaped object with a streaming body. We avoid
@@ -172,5 +197,96 @@ describe('SLM loader', () => {
     });
     expect(out.byteLength).toBe(3);
     expect(progress).toEqual([[3, 3]]);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// SHA-256 integrity gate (mirrors slmRuntime.ts). The loader pulls model
+// WEIGHTS from a CDN; before this gate it returned them unverified, so a
+// tampered/corrupted CDN blob (or a poisoned IndexedDB cache row) would be
+// handed straight to ORT. These tests pin a descriptor's `expectedSha256`
+// and prove the loader rejects bytes whose hash doesn't match — and never
+// caches them.
+// ───────────────────────────────────────────────────────────────────────
+describe('SLM loader — SHA-256 integrity', () => {
+  const VERIFIED_MODEL: ModelDescriptor = {
+    ...TEST_MODEL,
+    id: 'test-loader-verified',
+    expectedSha256: HELLO_SHA256,
+  };
+
+  it('accepts a fresh download whose hash matches the pinned expectedSha256', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(buildArrayBufferResponse(helloBuffer()));
+
+    const out = await loadModel(VERIFIED_MODEL, {
+      fetchImpl: fetchSpy as unknown as typeof fetch,
+    });
+
+    expect(out.byteLength).toBe(5); // "hello"
+    expect(new Uint8Array(out)[0]).toBe('h'.charCodeAt(0));
+
+    // Verified bytes are cached → a second load is a cache hit (no fetch).
+    const fetchSpy2 = vi.fn();
+    const out2 = await loadModel(VERIFIED_MODEL, {
+      fetchImpl: fetchSpy2 as unknown as typeof fetch,
+    });
+    expect(fetchSpy2).not.toHaveBeenCalled();
+    expect(out2.byteLength).toBe(5);
+  });
+
+  it('REJECTS a fresh download whose hash does NOT match — and never caches it', async () => {
+    // Descriptor expects HELLO_SHA256 but the CDN serves tampered bytes.
+    const tampered = new Uint8Array([0x01, 0x02, 0x03, 0x04]).buffer;
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(buildArrayBufferResponse(tampered));
+
+    await expect(
+      loadModel(VERIFIED_MODEL, {
+        fetchImpl: fetchSpy as unknown as typeof fetch,
+      }),
+    ).rejects.toBeInstanceOf(SlmIntegrityError);
+
+    // The poisoned bytes must NOT have been persisted: a subsequent load
+    // (with a good body this time) must re-fetch rather than serve the
+    // rejected blob from cache.
+    const goodFetch = vi
+      .fn()
+      .mockResolvedValue(buildArrayBufferResponse(helloBuffer()));
+    const out = await loadModel(VERIFIED_MODEL, {
+      fetchImpl: goodFetch as unknown as typeof fetch,
+    });
+    expect(goodFetch).toHaveBeenCalledTimes(1);
+    expect(out.byteLength).toBe(5);
+  });
+
+  it('REJECTS a cache hit whose bytes do not match the pinned hash (poisoned cache)', async () => {
+    // Simulate a tampered IndexedDB row: cache holds bytes that do NOT
+    // hash to the descriptor's expectedSha256.
+    const poisoned = new Uint8Array([0xde, 0xad, 0xbe, 0xef]).buffer;
+    await cacheModel(VERIFIED_MODEL.id, poisoned);
+
+    const fetchSpy = vi.fn();
+    await expect(
+      loadModel(VERIFIED_MODEL, {
+        fetchImpl: fetchSpy as unknown as typeof fetch,
+      }),
+    ).rejects.toBeInstanceOf(SlmIntegrityError);
+    // Cache-hit path fails closed BEFORE any network fetch.
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('allows an unpinned model (no expectedSha256) — back-compat staging path', async () => {
+    // TEST_MODEL has no expectedSha256 → integrity is a no-op and the
+    // loader behaves exactly as before this gate landed.
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(buildArrayBufferResponse(helloBuffer()));
+    const out = await loadModel(TEST_MODEL, {
+      fetchImpl: fetchSpy as unknown as typeof fetch,
+    });
+    expect(out.byteLength).toBe(5);
   });
 });

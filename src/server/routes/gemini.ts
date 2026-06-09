@@ -389,7 +389,11 @@ ${envBlock}
 
       res.json({
         response: result.text,
-        contextUsed: context !== 'No se encontró contexto legal relevante.',
+        // `searchRelevantContext` (ragService → safeNormativeQuery) now returns
+        // EITHER a verified `[Fuente: ...]` snippet OR a canonical "no verified
+        // info" message (never the old `'No se encontró...'` sentinel, and never
+        // fabricated law). Real context used iff a source header is present.
+        contextUsed: context.includes('[Fuente:'),
         envContextUsed: envContext !== null,
       });
       // Bucket X: post-call accounting. Prefer SDK-reported token usage

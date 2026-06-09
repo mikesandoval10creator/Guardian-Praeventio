@@ -2,9 +2,14 @@
 /**
  * download-slm-model.mjs — Bucket O.4 (Brecha B).
  *
- * Downloads the TinyLlama 1.1B Chat ONNX Q4 weights into
- * `public/models/slm/tinyllama-1.1b-q4.onnx` so the dev server (or a
+ * Downloads the TinyLlama 1.1B Chat ONNX int8 weights into
+ * `public/models/slm/tinyllama-1.1b-int8.onnx` so the dev server (or a
  * CDN behind it) can serve the file to `OnnxSlmAdapter.loadModel()`.
+ *
+ * NOTE: the upstream file is `decoder_model_merged_quantized.onnx`, which
+ * is int8 dynamic quantization (Transformers.js `_quantized` convention),
+ * NOT a 4-bit (q4) export. The destination filename + the adapter's
+ * `DEFAULT_QUANTIZATION` were corrected from the legacy `q4` mislabel.
  *
  * IMPORTANT — DO NOT COMMIT THE 600 MB WEIGHTS TO THE REPO. The
  * `.gitignore` already excludes `public/models/slm/*.onnx`. In
@@ -48,7 +53,7 @@ const DEFAULT_URL =
   'https://huggingface.co/Xenova/TinyLlama-1.1B-Chat-v1.0/resolve/main/onnx/decoder_model_merged_quantized.onnx';
 
 /** Destination on disk — kept in sync with `OnnxSlmAdapter`'s default `modelUrl`. */
-const DEST_REL = 'public/models/slm/tinyllama-1.1b-q4.onnx';
+const DEST_REL = 'public/models/slm/tinyllama-1.1b-int8.onnx';
 const DEST_ABS = resolve(REPO_ROOT, DEST_REL);
 
 /**
@@ -61,7 +66,7 @@ const DEST_ABS = resolve(REPO_ROOT, DEST_REL);
  * that, mismatches are fatal.
  *
  * To recompute by hand (after running this script once):
- *   sha256sum public/models/slm/tinyllama-1.1b-q4.onnx
+ *   sha256sum public/models/slm/tinyllama-1.1b-int8.onnx
  */
 const EXPECTED_SHA256 = null;
 

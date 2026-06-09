@@ -17,6 +17,7 @@
  */
 
 import { cacheModel, loadCachedModel } from './cache/modelCache';
+import { assertModelIntegrity } from './slmIntegrityGuard';
 import type { ModelDescriptor } from './types';
 
 /**
@@ -69,6 +70,12 @@ export async function loadModel(
   // 1. Cache lookup.
   const cached = await loadCachedModel(model.id);
   if (cached) {
+    // Integrity gate (mirrors slmRuntime.ts): a tampered/corrupted cache
+    // must fail closed exactly like a bad network download. When the
+    // descriptor declares no expected hash, `assertModelIntegrity` is a
+    // no-op that still returns the observed hash — the caller policy
+    // decides what to do with an unverified payload.
+    await assertModelIntegrity(cached, model.expectedSha256 ?? null, model.id);
     void emitModelDownloaded({
       model_id: model.id,
       model_bytes: cached.byteLength,
@@ -133,7 +140,15 @@ export async function loadModel(
     opts.onProgress?.(bytes.byteLength, total);
   }
 
-  // 3. Persist for next launch.
+  // 3. Integrity gate BEFORE persisting/returning. The CDN-served weights
+  // are untrusted bytes; verify them against the descriptor's pinned
+  // SHA-256 the same way slmRuntime.ts does before handing them to ORT. A
+  // mismatch throws `SlmIntegrityError` (re-exported from slmIntegrityGuard)
+  // and we never cache nor return tampered weights. A `null` expected hash
+  // is allowed (staging/pre-pin) but the observed hash is still computed.
+  await assertModelIntegrity(bytes, model.expectedSha256 ?? null, model.id);
+
+  // 4. Persist for next launch (only reached for verified bytes).
   await cacheModel(model.id, bytes);
 
   void emitModelDownloaded({

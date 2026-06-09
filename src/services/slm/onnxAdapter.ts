@@ -84,7 +84,7 @@ export interface SlmGenerateOptions {
  * ignored and re-downloaded.
  */
 export interface OnnxAdapterConfig {
-  /** URL of the ONNX weights file. Default: `/models/slm/tinyllama-1.1b-q4.onnx`. */
+  /** URL of the ONNX weights file. Default: `/models/slm/tinyllama-1.1b-int8.onnx`. */
   modelUrl?: string;
   /** URL of the tokenizer.json (HuggingFace format). Default: `/models/slm/tokenizer.json`. */
   tokenizerUrl?: string;
@@ -160,7 +160,7 @@ export interface OnnxTensorLike {
 
 /** Information the model-management UI surfaces about the loaded model. */
 export interface OnnxModelInfo {
-  /** Human-readable name (e.g. "TinyLlama 1.1B Chat Q4"). */
+  /** Human-readable name (e.g. "TinyLlama 1.1B Chat (ONNX int8)"). */
   name: string;
   /** Total weight bytes loaded into memory / cache. */
   size: number;
@@ -168,11 +168,22 @@ export interface OnnxModelInfo {
   quantization: string;
 }
 
-const DEFAULT_MODEL_URL = '/models/slm/tinyllama-1.1b-q4.onnx';
+// Registry-accurate constants for the REAL artifact this adapter loads.
+//
+// `scripts/download-slm-model.mjs` downloads
+// `Xenova/TinyLlama-1.1B-Chat-v1.0/onnx/decoder_model_merged_quantized.onnx`
+// — which is the int8 dynamically-quantized merged decoder (~1.1 GB), NOT a
+// 4-bit (q4) export. The adapter previously advertised `q4` in its name,
+// quantization field, URL, and cache key, so `getModelInfo()` reported a
+// quantization the on-disk weights do NOT have. We correct the registry to
+// the real model: int8. The on-disk filename + cache key are bumped to
+// `int8` (a new cacheVersion is implied by the new key prefix, so any old
+// mislabeled IDB rows are ignored rather than served as "q4").
+const DEFAULT_MODEL_URL = '/models/slm/tinyllama-1.1b-int8.onnx';
 const DEFAULT_TOKENIZER_URL = '/models/slm/tokenizer.json';
 const DEFAULT_CACHE_VERSION = 'v1';
-const DEFAULT_MODEL_NAME = 'TinyLlama 1.1B Chat (ONNX Q4)';
-const DEFAULT_QUANTIZATION = 'q4';
+const DEFAULT_MODEL_NAME = 'TinyLlama 1.1B Chat (ONNX int8)';
+const DEFAULT_QUANTIZATION = 'int8';
 
 /**
  * Sampling defaults — see `sampling.ts` for the full rationale. These
@@ -200,10 +211,13 @@ const DEFAULT_STOP_TOKENS = [2];
 /**
  * Cache key under which we persist the TinyLlama bytes in `modelCache`.
  * Suffixed with `cacheVersion` so a new weights upload invalidates old
- * IndexedDB rows without needing a manual eviction.
+ * IndexedDB rows without needing a manual eviction. The `int8` segment
+ * matches the real quantization of the on-disk artifact (see
+ * DEFAULT_QUANTIZATION) — the old `q4`-keyed rows are a different key and
+ * are therefore never served as if they were this model.
  */
 function makeCacheKey(version: string): string {
-  return `onnx-tinyllama-1.1b-${version}`;
+  return `onnx-tinyllama-1.1b-int8-${version}`;
 }
 
 /**
