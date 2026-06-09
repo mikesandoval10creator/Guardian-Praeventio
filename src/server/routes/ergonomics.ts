@@ -56,6 +56,18 @@ async function guard(
 const COUPLINGS = ['good', 'fair', 'poor', 'unacceptable'] as const;
 const FORCE_PATTERNS = ['intermittent', 'static', 'repeated', 'shock'] as const;
 
+// The pure engines (reba.ts / rula.ts) throw on bad input: RULA raises
+// `RangeError`, REBA raises `Error` with a message prefixed `REBA:` (RULA
+// also prefixes `RULA:`). Those are client-input faults → 400, not 500.
+// Defense-in-depth behind the zod `validate()` barrier: if the schema ever
+// drifts looser than the engine, a bad request still surfaces as 400 rather
+// than a misleading 500 (CLAUDE.md #8).
+function isValidationError(err: unknown): boolean {
+  if (err instanceof RangeError) return true;
+  if (err instanceof Error && /^(REBA|RULA):/.test(err.message)) return true;
+  return false;
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // 1. calculate-reba
 // ────────────────────────────────────────────────────────────────────────
@@ -113,6 +125,12 @@ router.post(
       const result = calculateReba(body);
       return res.json({ result });
     } catch (err) {
+      if (isValidationError(err)) {
+        logger.warn('ergonomics.calculateReba.invalid_input', {
+          message: err instanceof Error ? err.message : String(err),
+        });
+        return res.status(400).json({ error: 'invalid_input' });
+      }
       logger.error?.('ergonomics.calculateReba.error', err);
       captureRouteError(err, 'ergonomics.calculateReba');
       return res.status(500).json({ error: 'internal_error' });
@@ -178,6 +196,12 @@ router.post(
       const result = calculateRula(body);
       return res.json({ result });
     } catch (err) {
+      if (isValidationError(err)) {
+        logger.warn('ergonomics.calculateRula.invalid_input', {
+          message: err instanceof Error ? err.message : String(err),
+        });
+        return res.status(400).json({ error: 'invalid_input' });
+      }
       logger.error?.('ergonomics.calculateRula.error', err);
       captureRouteError(err, 'ergonomics.calculateRula');
       return res.status(500).json({ error: 'internal_error' });

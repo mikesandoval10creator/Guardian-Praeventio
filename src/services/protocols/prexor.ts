@@ -32,7 +32,7 @@
  * Worked example: 8h @ 90 dB(A).
  *   T(90) = 8 / 2^((90-85)/3) = 8 / 2^(5/3) ≈ 8 / 3.1748 ≈ 2.5198 h
  *   dose = 8 / 2.5198 × 100 ≈ 317.5%  (alto)
- *   LAeq,8h ≈ 85 + (10/log10(2))*log10(3.175) ≈ 90 dB(A).
+ *   LAeq,8h ≈ 85 + (3/log10(2))*log10(3.175) ≈ 90 dB(A).
  */
 
 export interface PrexorMeasurement {
