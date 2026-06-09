@@ -89,6 +89,7 @@ refactor cliente+server, alto riesgo → con foco fresco + `/cso-praeventio`).
 (useAccelerometer listener, SurvivalMode torch interval, useAcousticSOS flanco+histéresis). Reglas:
 declare-emergency #660, DEA #661, pings #662, **FirstResponderDispatchPanel montado #791** (feed real brigada+pings).
 **AlertScheduler probes reales ✅ #798** (feed Bernoulli sobre inputs físicos reales + viento horario Open-Meteo; sin datos ⇒ no probe).
+**Falso positivo sísmico ✅ #816** (founder report 2026-06-09): `autoTrigger.ts checkSismo` latcheaba `peakAccelG` y medía tiempo-desde-flanco → un spike <300ms (caída del teléfono) leía como "sismo sostenido". Ahora mide **duración CONTINUA sobre el umbral** (run con primer/último over-sample + grace de dip 150ms; sustained solo si span≥300ms Y el run sigue vivo). +3 regression guards (spike solo/spike+settle/stale-run → no dispara) + dedup regex de clima `STORM_CONDITIONS_RE`. 14/14 verde.
 **Emergency/ops collections default-denied (§365 root-cause) ✅ #807:** 7 colecciones que el Master Gate
 daba read pero NO write (`emergency_chat`, `emergency_safety`, `emergency_plans`, `notifications`,
 `epp_verifications`, `trainings` + tenant `seismic_events` path-bound) → reglas member-gated + 29 rules-tests
