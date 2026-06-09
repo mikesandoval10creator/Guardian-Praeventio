@@ -1292,7 +1292,7 @@ service cloud.firestore {
       match /{subcoll}/{docId} {
         allow read: if isSignedIn()
           && isMemberOfTenant(tenantId)
-          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue']);
+          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters', 'conflict_queue', 'evidence_artifacts']);
         allow create, update, delete: if false;
       }
 
@@ -1358,6 +1358,44 @@ service cloud.firestore {
       match /conflict_queue/{queueId} {
         allow read: if isSignedIn() && isSupervisorOfTenant(tenantId);
         allow create, update, delete: if false;
+      }
+
+      // ===============================================================
+      // B4 / audit H8 — Evidence chain-of-custody (Sprint 39 Fase J.7).
+      //
+      // Modelo: tenants/{tid}/evidence_artifacts/{hash}              (artifact)
+      //         tenants/{tid}/evidence_artifacts/{hash}/events/{eid} (custody log)
+      //
+      // The custody engine + adapter (src/services/evidenceChain/*) were inert
+      // dead-code until src/server/routes/custodyChain.ts mounted them. ALL
+      // writes flow through that verifyAuth + assertProjectMember route via the
+      // Admin SDK (which bypasses these rules and server-stamps uploadedByUid /
+      // actorUid from the verified token). Clients NEVER write here directly:
+      //
+      //   • Artifact reads — any member of THIS tenant. A content-addressed
+      //     evidence record (photo/PDF/declaration hash + metadata) is part of
+      //     the incident expediente the tenant is entitled to inspect.
+      //   • Events subcollection is APPEND-ONLY by design (legal chain of
+      //     custody): create is server-only (Admin SDK), and update/delete are
+      //     hard-denied so no link in the custody trail can be rewritten or
+      //     erased — same immutability anchor as audit_logs / suseso_forms.
+      //   • Direct client create/update/delete on artifacts is denied; an
+      //     artifact's hash is its identity and "replacement" is recorded as a
+      //     NEW event + a server-applied `replacedByHash`, never an in-place
+      //     edit by the client.
+      // ===============================================================
+      match /evidence_artifacts/{hash} {
+        allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+        // Writes are Admin-SDK only (the audited custodyChain route).
+        allow create, update, delete: if false;
+
+        // Custody events — APPEND-ONLY immutable log. No client write at all;
+        // update/delete denied to anyone (incl. the server would re-create, not
+        // mutate). Reads gated to tenant members like the parent artifact.
+        match /events/{eventId} {
+          allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+          allow create, update, delete: if false;
+        }
       }
 
       // ===============================================================

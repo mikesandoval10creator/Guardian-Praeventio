@@ -187,6 +187,7 @@ import sifRouter from "./src/server/routes/sif.js";
 import wasteRouter from "./src/server/routes/waste.js";
 import correctiveActionsRouter from "./src/server/routes/correctiveActions.js";
 import lotoRouter from "./src/server/routes/loto.js";
+import custodyChainRouter from "./src/server/routes/custodyChain.js";
 import equipmentRouter from "./src/server/routes/equipment.js";
 // EPP/Assets block (B10) — orphaned: eppFlow (EPP inspection + order sign/PDF),
 // equipmentQr (QR register + pre-use), hazmatInventory (stateless next-state
@@ -1048,6 +1049,9 @@ app.use('/api/sprint-k', sifRouter);
 app.use('/api/sprint-k', wasteRouter);
 app.use('/api/sprint-k', correctiveActionsRouter);
 app.use('/api/sprint-k', lotoRouter);
+// B4/H8 — Evidence chain-of-custody (register/replace/access/export); engine
+// + adapter were inert dead-code until this mount (DEEP-EX-16 H8).
+app.use('/api/sprint-k', custodyChainRouter);
 app.use('/api/sprint-k', equipmentRouter);
 // B10 — EPP flow, equipment QR, hazmat inventory (all /:projectId/<seg>/*).
 app.use('/api/sprint-k', eppFlowRouter);
