@@ -300,6 +300,23 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Personal focus/deep-work blocks (focusBlocks.ts →
+      // users/{uid}/focus_blocks/{id}). Strictly private to the worker — they
+      // create, read, and reschedule their own blocks. Was default-denied →
+      // createFocusBlock() and listUpcoming() both failed in production.
+      match /focus_blocks/{blockId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Portable-curriculum awards/badges (PortableCurriculum.tsx reads
+      // users/{uid}/awards). The worker reads their OWN earned badges; awards
+      // are MINTED server-side (Admin SDK bypasses these rules) so the client
+      // can never self-award. Was default-denied → the curriculum showed no badges.
+      match /awards/{awardId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+
       // ── HealthVault medical records (Sprint 25/26 Bucket VV, ADR 0012) ──
       // `users/{uid}/health_vault/{recordId}` holds the worker's medical
       // records (HealthRecord — lab results, imaging, audiometry, etc.;
@@ -507,6 +524,24 @@ service cloud.firestore {
       // Training assignments (TrainingRecommendations). Members create + update
       // status (assigned→done); admin/supervisor may delete.
       match /trainings/{trainingId} {
+        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow delete: if isAdmin() || isSupervisor();
+      }
+
+      // AI safety capsules (Training.tsx → projects/{pid}/training_capsules).
+      // Any member generates their own capsule; admin/supervisor may revise/purge.
+      // Was default-denied by the Master Gate (read-only) → the AI capsule never
+      // persisted (SloErrorBudget §365-class gap).
+      match /training_capsules/{capsuleId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId);
+        allow update, delete: if isAdmin() || isSupervisor();
+      }
+
+      // Auto-scheduled calendar events (useAutoCalendarEvents → monthly inspection
+      // reminders). Members create/update; admin/supervisor may delete. (The
+      // top-level `calendar_events` collection, written by the digital-twin
+      // lifecycle, has its own projectId-gated rule below.)
+      match /calendar_events/{eventId} {
         allow create, update: if isValidId(projectId) && isProjectMember(projectId);
         allow delete: if isAdmin() || isSupervisor();
       }
@@ -859,6 +894,36 @@ service cloud.firestore {
       // cross-tenant guards. See src/server/middleware/canonicalBody.ts
       // and the rules tests in src/rules-tests/firestore.rules.test.ts.
       allow create: if false;
+    }
+
+    // SLO error-budget aggregation (SloErrorBudget.tsx reads
+    // slo_metrics/{sloId}/daily). Platform observability written ONLY by the
+    // server aggregation job (Admin SDK); the client reads the daily series to
+    // render the error-budget dashboard. Read limited to admin/supervisor (the
+    // dashboard audience); all client writes denied. Was default-denied → the
+    // dashboard always fell back to synthetic data.
+    match /slo_metrics/{sloId} {
+      allow read: if isSignedIn() && (isAdmin() || isSupervisor());
+      allow write: if false;
+      match /daily/{dayId} {
+        allow read: if isSignedIn() && (isAdmin() || isSupervisor());
+        allow write: if false;
+      }
+    }
+
+    // Digital-twin lifecycle calendar events (useObjectLifecycle →
+    // top-level `calendar_events`, distinct from projects/{pid}/calendar_events).
+    // Each doc carries `projectId` (CalendarEventSpec). Gated by membership of
+    // THAT project so a member cannot create/read another project's reminders.
+    // The Google Calendar retry job mutates `syncStatus` server-side (Admin SDK),
+    // so client update/delete stay denied. Was default-denied → the local
+    // source-of-truth doc never persisted before the sync attempt.
+    match /calendar_events/{eventId} {
+      allow read: if isSignedIn() && existing().projectId is string
+        && isProjectMember(existing().projectId);
+      allow create: if isSignedIn() && incoming().projectId is string
+        && isProjectMember(incoming().projectId);
+      allow update, delete: if false;
     }
 
     // Phase 5 — Per-project mesh signing key (HMAC-SHA-256). Distributed ONLY
