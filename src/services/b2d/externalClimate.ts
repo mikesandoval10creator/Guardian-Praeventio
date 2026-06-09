@@ -106,6 +106,26 @@ interface OpenMeteoApiDaily {
   };
 }
 
+interface OpenMeteoApiHourly {
+  hourly?: {
+    time?: string[];
+    wind_speed_10m?: number[];
+  };
+}
+
+/**
+ * Short-horizon hourly wind forecast — one sample per upcoming hour.
+ * `windKmh[i]` is the predicted 10 m wind speed at `time[i]`. This is the
+ * cadence the per-minute predictive scheduler needs (a DAILY forecast index
+ * cannot be treated as a minute offset); see structuralLoadProbe.ts.
+ */
+export interface OpenMeteoHourlyWind {
+  /** ISO local timestamps, one per hour. */
+  time: string[];
+  /** Predicted wind speed (km/h) per hour, aligned with `time`. */
+  windKmh: number[];
+}
+
 export async function fetchOpenMeteoCurrent(
   lat: number,
   lng: number,
@@ -192,6 +212,76 @@ export async function fetchOpenMeteoForecast(
     return out;
   } catch (err) {
     logger.warn('openmeteo_forecast_threw', { err: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
+/**
+ * Fetch the next `hours` of hourly wind (km/h) from Open-Meteo. Unlike the
+ * daily forecast (`wind_speed_10m_max` per day), this returns one sample per
+ * hour starting at the current hour, which is the short-horizon cadence the
+ * predictive scheduler consumes. Free, no API key. Returns `null` on
+ * timeout / 5xx / parse failure (caller falls back to "no probe", never a
+ * fabricated wind value).
+ */
+export async function fetchOpenMeteoHourlyWind(
+  lat: number,
+  lng: number,
+  hours: number,
+): Promise<{ data: OpenMeteoHourlyWind; source: 'openmeteo' } | null> {
+  const cappedHours = Math.min(48, Math.max(1, Math.floor(hours)));
+  const key = `openmeteo:hourlywind:${bucketCoord(lat)}:${bucketCoord(lng)}:${cappedHours}`;
+  const cached = cacheGet<{ data: OpenMeteoHourlyWind; source: 'openmeteo' }>(key);
+  if (cached) return cached;
+
+  // forecast_days=1 covers up to 24 hourly samples; request 2 days when the
+  // caller needs more than 24 hours of horizon.
+  const forecastDays = cappedHours > 24 ? 2 : 1;
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
+    `&hourly=wind_speed_10m&forecast_days=${forecastDays}&timezone=auto`;
+
+  try {
+    const res = await fetchWithTimeout(url);
+    if (!res.ok) {
+      logger.warn('openmeteo_hourly_wind_failed', { status: res.status });
+      return null;
+    }
+    const json = (await res.json()) as OpenMeteoApiHourly;
+    const h = json.hourly;
+    if (
+      !h ||
+      !Array.isArray(h.time) ||
+      h.time.length === 0 ||
+      !Array.isArray(h.wind_speed_10m)
+    ) {
+      logger.warn('openmeteo_hourly_wind_invalid_shape');
+      return null;
+    }
+    // Take the first `cappedHours` samples (the imminent horizon).
+    const limit = Math.min(cappedHours, h.time.length, h.wind_speed_10m.length);
+    const time: string[] = [];
+    const windKmh: number[] = [];
+    for (let i = 0; i < limit; i++) {
+      const w = h.wind_speed_10m[i];
+      if (typeof w !== 'number' || !Number.isFinite(w)) continue;
+      time.push(h.time[i] ?? '');
+      windKmh.push(Math.round(w * 10) / 10);
+    }
+    if (windKmh.length === 0) {
+      logger.warn('openmeteo_hourly_wind_no_samples');
+      return null;
+    }
+    const out = {
+      data: { time, windKmh } satisfies OpenMeteoHourlyWind,
+      source: 'openmeteo' as const,
+    };
+    cacheSet(key, out);
+    return out;
+  } catch (err) {
+    logger.warn('openmeteo_hourly_wind_threw', {
+      err: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }

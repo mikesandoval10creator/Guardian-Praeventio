@@ -296,6 +296,7 @@ import reportsAutomationRouter from "./src/server/routes/reportsAutomation.js";
 import safetyMetricsRouter from "./src/server/routes/safetyMetrics.js";
 import projectComparatorRouter from "./src/server/routes/projectComparator.js";
 import predictiveAlertsRouter from "./src/server/routes/predictiveAlerts.js";
+import structuralLoadsRouter from "./src/server/routes/structuralLoads.js";
 // Spaced Repetition (SM-2) — Sprint K §85-89 post-training learning retention.
 import spacedRepetitionRouter from "./src/server/routes/spacedRepetition.js";
 // Business Continuity — Sprint K §237-243 (SPOF detection / outage simulator / polyvalence plan).
@@ -1016,6 +1017,7 @@ app.use('/api/sprint-k', lessonsLearnedRouter);
 app.use('/api/sprint-k', riskRadarRouter);
 app.use('/api/sprint-k', positiveObservationsRouter);
 app.use('/api/sprint-k', residualRiskRouter);
+app.use('/api/sprint-k', structuralLoadsRouter);
 app.use('/api/sprint-k', maturityRouter);
 // Risk block (B2) — paths /:projectId/risk-ranking/* and
 // /:projectId/shift-risk-panel/* (compute-only; verifyAuth + assertProjectMember).

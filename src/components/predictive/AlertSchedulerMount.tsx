@@ -50,6 +50,13 @@ const GENERATOR_TO_RISK_CLASS: Record<string, RiskClass> = {
   'dike-hydrostatic': 'weather',
 };
 
+export interface SchedulerWindow {
+  /** How far ahead (minutes) the scheduler walks the forecast. */
+  windowMinutes: number;
+  /** Minimum lead time (minutes) before a crossing fires an alert. */
+  minLeadTimeMin: number;
+}
+
 export interface AlertSchedulerMountProps {
   projectId: string;
   crewId: string;
@@ -59,6 +66,16 @@ export interface AlertSchedulerMountProps {
    * keeping the mount stable.
    */
   probes: GeneratorProbe[];
+  /**
+   * Evaluation window matching the probes' forecast cadence. When the probes
+   * come from real Open-Meteo HOURLY wind, each forecast step is 60 minutes,
+   * so the window must span the full forecast (e.g. 360 min for 6 hourly
+   * samples) with minLeadTime = one step. Threading this from the data source
+   * is what makes the scheduler window AGREE with the forecast cadence — a
+   * fixed per-minute window would never fire on an hourly forecast. Defaults
+   * to the legacy 15-min window when omitted (back-compat for empty probes).
+   */
+  schedulerWindow?: SchedulerWindow;
   /** Optional injectable for tests. */
   notify?: (payload: ReturnType<typeof buildPushPayload>) => void;
 }
@@ -108,18 +125,26 @@ export async function ackPredictiveAlert(args: {
   }
 }
 
-export function AlertSchedulerMount({ projectId, crewId, probes, notify = defaultNotify }: AlertSchedulerMountProps) {
+export function AlertSchedulerMount({ projectId, crewId, probes, schedulerWindow, notify = defaultNotify }: AlertSchedulerMountProps) {
   // Dedupe: the same generator+leadTime within 30 minutes shouldn't fire
   // again. Map<generatorId, lastFiredEpochMs>.
   const firedRef = useRef<Map<string, number>>(new Map());
   const [lastAlerts, setLastAlerts] = useState<ScheduledAlert[]>([]);
+
+  const windowMinutes = schedulerWindow?.windowMinutes;
+  const minLeadTimeMin = schedulerWindow?.minLeadTimeMin ?? MIN_LEAD_TIME_MIN;
 
   useEffect(() => {
     if (!projectId || !crewId) return undefined;
     if (probes.length === 0) return undefined;
 
     const tick = () => {
-      const alerts = evaluateProbes({ probes, minLeadTimeMin: MIN_LEAD_TIME_MIN });
+      // Window MUST match the probes' forecast cadence (real Open-Meteo hourly
+      // wind ⇒ 60-min steps): a per-minute walk over an hourly forecast only
+      // crosses the threshold at the true minute offset when the window spans
+      // the full forecast. Falls back to the engine default (15 min) only when
+      // no cadence is supplied (legacy/empty-probe path).
+      const alerts = evaluateProbes({ probes, windowMinutes, minLeadTimeMin });
       const now = Date.now();
       const out: ScheduledAlert[] = [];
       for (const a of alerts) {
@@ -166,7 +191,7 @@ export function AlertSchedulerMount({ projectId, crewId, probes, notify = defaul
     tick();
     const id = setInterval(tick, POLL_MS);
     return () => clearInterval(id);
-  }, [projectId, crewId, probes, notify]);
+  }, [projectId, crewId, probes, windowMinutes, minLeadTimeMin, notify]);
 
   // Render nothing — pure side effect. We expose the last-alerts state
   // for tests via a `data-` attribute on a hidden span so jsdom-based

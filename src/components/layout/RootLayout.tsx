@@ -55,11 +55,13 @@ import { ModeSwitcher } from '../shared/ModeSwitcher';
 import { Tooltip } from '../shared/Tooltip';
 import { SOSButton } from '../emergency/SOSButton';
 import { EmergencyAutoBridge } from '../emergency/EmergencyAutoBridge';
-import { AlertSchedulerMount } from '../predictive/AlertSchedulerMount';
+import { AlertSchedulerMount, type SchedulerWindow } from '../predictive/AlertSchedulerMount';
 import { ReconciliationDrainSlot } from '../slm/ReconciliationDrainSlot';
 import { useProject } from '../../contexts/ProjectContext';
 import { collection, onSnapshot, query, where, limit } from 'firebase/firestore';
 import { db as firestoreDb } from '../../services/firebase';
+import { fetchStructuralLoadProbes } from '../../lib/structuralLoadProbesClient';
+import type { GeneratorProbe } from '../../services/predictiveAlerts/alertScheduler';
 
 export function RootLayout() {
   const { user } = useFirebase();
@@ -443,9 +445,16 @@ export function RootLayout() {
  * inject probes via a future context. The empty-probes path keeps
  * evaluation cheap (early-return inside the scheduler).
  */
+// Re-pull the real probes periodically: new captures + fresh Open-Meteo wind.
+const PROBE_REFRESH_MS = 10 * 60 * 1000; // 10 min
+
 function PredictiveSchedulerSlot() {
   const { selectedProject } = useProject();
   const [crewId, setCrewId] = useState<string | null>(null);
+  const [probes, setProbes] = useState<GeneratorProbe[]>([]);
+  const [schedulerWindow, setSchedulerWindow] = useState<SchedulerWindow | undefined>(
+    undefined,
+  );
 
   useEffect(() => {
     if (!selectedProject?.id) {
@@ -465,12 +474,38 @@ function PredictiveSchedulerSlot() {
     return () => un();
   }, [selectedProject?.id]);
 
+  // Fetch the REAL Bernoulli probes (stored structural inputs × Open-Meteo
+  // hourly wind) plus the scheduler window matching the forecast cadence.
+  // Empty until a project has captured inputs — never a fake probe.
+  useEffect(() => {
+    const pid = selectedProject?.id;
+    if (!pid || !crewId) {
+      setProbes([]);
+      setSchedulerWindow(undefined);
+      return undefined;
+    }
+    let cancelled = false;
+    const load = async () => {
+      const next = await fetchStructuralLoadProbes(pid);
+      if (cancelled) return;
+      setProbes(next.probes);
+      setSchedulerWindow(next.window ?? undefined);
+    };
+    void load();
+    const id = setInterval(() => void load(), PROBE_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [selectedProject?.id, crewId]);
+
   if (!selectedProject?.id || !crewId) return null;
   return (
     <AlertSchedulerMount
       projectId={selectedProject.id}
       crewId={crewId}
-      probes={[]}
+      probes={probes}
+      schedulerWindow={schedulerWindow}
     />
   );
 }
