@@ -16,13 +16,18 @@ import {
   type DocSnapshot,
 } from '../services/sync/conflictResolver';
 import { logAuditAction } from '../services/auditService';
-import { useProject } from '../contexts/ProjectContext';
+import { useProjectOptional } from '../contexts/ProjectContext';
 import { apiAuthHeader } from '../lib/apiAuth';
 
 export function OfflineSyncManager() {
   const isOnline = useOnlineStatus();
-  const { selectedProject } = useProject();
-  const activeProjectId = selectedProject?.id ?? null;
+  // useProjectOptional, NOT useProject: this component mounts at the App()
+  // top level, OUTSIDE AppProviders/ProjectProvider (it must exist on every
+  // route, including the anonymous landing). The throwing variant crashed
+  // the entire SPA at boot from 2026-06-08 until this fix ("Sistema
+  // Interrumpido" for every visitor — caught by the landing e2e suite).
+  const projectCtx = useProjectOptional();
+  const activeProjectId = projectCtx?.selectedProject?.id ?? null;
 
   useEffect(() => {
     const handleSync = async (action: SyncAction) => {

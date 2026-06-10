@@ -335,3 +335,18 @@ export function useProject() {
   }
   return context;
 }
+
+/**
+ * Non-throwing variant for components that legitimately mount OUTSIDE the
+ * ProjectProvider (top-level App chrome like OfflineSyncManager, which runs
+ * on the anonymous landing too). Returns `null` instead of throwing.
+ *
+ * AUDIT-2026-06 incident: PR #767 added `useProject()` to
+ * OfflineSyncManager, which App() mounts outside AppProviders -> the hook
+ * threw on EVERY boot, the root ErrorBoundary swallowed the app, and every
+ * visitor saw "Sistema Interrumpido" (e2e was solid red since 2026-06-08).
+ * Components outside the provider tree MUST use this variant.
+ */
+export function useProjectOptional(): ProjectContextType | null {
+  return useContext(ProjectContext) ?? null;
+}
