@@ -504,6 +504,35 @@ considera y se CABLEA donde corresponde.** Reglas:
 - [ ] 🟡 **Cap de gasto IA por-pod** (`limiters.ts` MemoryStore) → store Firestore (ADR 0019).
 - [ ] 🟡 **Gemini ADR 0019** (track): Vertex paga + orquestador resiliente ON + ruteo Flash + RAG-first + budget por tier.
 
+## Épica Rubros SII — homologación de códigos de actividad económica (diseño 2026-06-10)
+Precargar el perfil preventivo según el código de actividad económica del SII (clasificador
+CIIU4.CL) al clasificar el proyecto en el onboarding. Reutiliza piezas existentes:
+`INDUSTRY_SECTORS`/`EPP_BY_SECTOR` (`src/constants.ts`), paso `industry` del `OnboardingWizard`
+(`src/components/onboarding/`) y el pack normativo CL (`src/data/normativa/cl.ts`).
+- [x] **Slice 1 — datos + motores puros + tests** ✅ (rama `claude/sii-rubros-slice1`):
+  - `src/data/sii/actividadesEconomicas.ts` — 110 códigos SII REALES (subset curado de los
+    rubros objetivo), cada uno verificado 2026-06-10 contra DOS fuentes oficiales sii.cl
+    (lista "códigos de actividad económica" + PDF de homologación CIIU4.CL 2012); descripción
+    oficial verbatim + mapeo a sectorId GP-*. Cero códigos fabricados.
+  - `src/services/sii/rubroSearch.ts` — búsqueda pura por código exacto, prefijo (forma
+    canónica 6 dígitos con cero inicial) y texto con normalización de tildes; entrada
+    `searchRubros()` para el autocompletado del wizard.
+  - `src/services/sii/industryRiskProfile.ts` — `getRiskProfileForSector()` arma el perfil
+    desde piezas existentes (regulaciones del pack CL por sector: minería→cl-ds-132,
+    construcción→cl-ds-76+bitácora, agro→cl-ds-594+plaguicidas como texto, residuos→cl-ds-148,
+    todos→cl-ley-16744+cl-ds-44; EPP de `EPP_BY_SECTOR`; 5-8 riesgos semilla es-CL por sector
+    mayor) y `obligacionesPorDotacion()` deriva CPHS/delegado SST/Depto Prevención leyendo los
+    umbrales del pack (no hardcodeados — test con pack sintético lo pinea).
+  - TDD: 52 tests nuevos (catálogo: 6 dígitos, sin duplicados, sectorIds existentes,
+    spot-checks 410010/040000/089110/492300; búsqueda exacta/prefijo/texto/tildes; perfil por
+    sector con ids reales del pack; bordes de dotación 0/10/24/25/99/100).
+- [ ] **Slice 2** — wiring wizard + autocompletado de rubro SII en el paso `industry` del
+  `OnboardingWizard` (UI es-CL), persistir `codigoActividadSii` en el proyecto.
+- [ ] **Slice 3** — instanciación de semillas al crear proyecto (riesgos típicos + obligaciones
+  por dotación → registros iniciales del proyecto, con audit_logs).
+- [ ] **Slice 4** — agregación anónima por rubro (benchmarks entre proyectos del mismo código
+  SII, sin PII, k-anonimato).
+
 ## Fase 5.3 — Doc-drift sweep (bajo riesgo, intercalable)
 - [ ] Actualizar: `ARCHITECTURE.md` (LOC/refs #20), `stubs-inventory.md` (mesh real + SystemEngine montado), `CLAUDE.md` (#13/#17), runbooks photogrammetry (superseded), `TRACKING_PLAN.md` (analytics impl), `BERNOULLI_EXTENSIONS.md` (16 motores), `gemini-split-plan.md`, `ADR 0013` (UUID mesh), `ADR 0005/0006` superseded, links rotos terraform/README.
 
