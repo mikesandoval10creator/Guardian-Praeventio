@@ -20,6 +20,15 @@ B23-Estado compartido, B24-Calidad tests**). Evidencia: `AUDIT-2026-06-FULL.md` 
 - B12 rules-tests CPHS existen: `cphsMeetings.rules.test.ts` + `comiteActas.rules.test.ts` (2026-06-09).
 - B14 `networkBackend.ts` gate: canonicalización projectId + `assertProjectMember` (#679).
 
+**INCIDENTE descubierto y resuelto en esta sesión (no estaba en ningún informe):**
+- [x] 🔴🛟 **PRODUCTION-DOWN desde 2026-06-08**: #767 metió `useProject()` (throwing) en
+  `OfflineSyncManager`, montado en App() FUERA de AppProviders → throw en cada boot → el
+  ErrorBoundary raíz tragaba la SPA entera: **todo visitante veía "Sistema Interrumpido"**.
+  El e2e de landing estaba rojo sólido desde el run #1192 y se leía como "flaky". ✅ Resuelto
+  (PR #820): `useProjectOptional()` no-throwing + regression test render-sin-provider +
+  verificación Playwright local 9/9. LECCIÓN para B24: e2e rojo ≠ flaky; el bisect de runs
+  (último verde → primer rojo) encontró el commit en minutos.
+
 **Hallazgos NUEVOS 🔴 (no estaban en este tracker; orden = prioridad de remediación):**
 - [x] 🔴🛟 ~~**B19: cero crons en prod**~~ → ✅ **hecho** (PR #820): `verifySchedulerToken`
   ahora acepta el token OIDC de Google del SA pin (`SCHEDULER_SERVICE_ACCOUNT`, match
