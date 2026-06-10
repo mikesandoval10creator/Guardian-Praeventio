@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   resolveAudience,
   buildInitialReceipts,
+  buildDocumentForRead,
   deriveStatus,
   acknowledgeReceipt,
   summarizeReceipts,
@@ -19,6 +20,7 @@ const baseDoc: DocumentForRead = {
   audience: { allWorkers: false, roles: ['operador'] },
   publishedAt: PUBLISHED,
   readDeadlineDays: 7,
+  authorUid: 'uid-prevencionista',
 };
 
 const workers: WorkerForRead[] = [
@@ -141,5 +143,34 @@ describe('summarizeReceipts', () => {
     const summary = summarizeReceipts(baseDoc, [], NOW);
     expect(summary.coveragePercent).toBe(100);
     expect(summary.totalAudience).toBe(0);
+  });
+});
+
+// AUDIT-2026-06 — documents_for_read rule requires an anti-spoof
+// `authorUid == request.auth.uid` on create, but the client never stamped
+// it (and generated ids with Math.random, rule #15) → every save() was
+// rules-denied in production. The builder is the single place that shapes
+// a creatable document.
+describe('buildDocumentForRead', () => {
+  it('stamps authorUid, version 1 and clamps deadline days to [1, 90]', () => {
+    const doc = buildDocumentForRead({
+      title: '  Protocolo LOTO v2  ',
+      readDeadlineDays: 365,
+      authorUid: 'uid-creator',
+    });
+    expect(doc.authorUid).toBe('uid-creator');
+    expect(doc.version).toBe(1);
+    expect(doc.title).toBe('Protocolo LOTO v2');
+    expect(doc.readDeadlineDays).toBe(90);
+    expect(doc.audience).toEqual({ allWorkers: true });
+    expect(Date.parse(doc.publishedAt)).not.toBeNaN();
+    // crypto-random id, never Math.random (rule #15)
+    expect(doc.id).toMatch(/^doc_[0-9a-f-]{36}$/);
+  });
+
+  it('clamps deadline floor to 1 day and rejects empty author/title', () => {
+    expect(buildDocumentForRead({ title: 'X', readDeadlineDays: 0, authorUid: 'u' }).readDeadlineDays).toBe(1);
+    expect(() => buildDocumentForRead({ title: '   ', readDeadlineDays: 7, authorUid: 'u' })).toThrow();
+    expect(() => buildDocumentForRead({ title: 'X', readDeadlineDays: 7, authorUid: '' })).toThrow();
   });
 });

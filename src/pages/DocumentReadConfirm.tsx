@@ -26,6 +26,7 @@ import { DocumentReadConfirmCard } from '../components/readReceipts/DocumentRead
 import {
   acknowledgeReceipt,
   buildInitialReceipts,
+  buildDocumentForRead,
   type DocumentForRead,
   type ReadReceipt,
   type WorkerForRead,
@@ -118,18 +119,22 @@ export function DocumentReadConfirm() {
       setFeedback(t('document_read.feedback.title_required', 'Título obligatorio.'));
       return;
     }
+    if (!user?.uid) {
+      setFeedback(t('document_read.feedback.need_session', 'Sesión no disponible.'));
+      return;
+    }
     setSubmitting(true);
     setFeedback(null);
     try {
-      const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const document: DocumentForRead = {
-        id: docId,
-        version: 1,
-        title: title.trim(),
-        audience: { allWorkers: true },
-        publishedAt: new Date().toISOString(),
-        readDeadlineDays: Math.max(1, Math.min(deadlineDays, 90)),
-      };
+      // AUDIT-2026-06 — el builder estampa authorUid (la regla
+      // documents_for_read lo exige == auth.uid; sin él todo create era
+      // denegado) y genera el id con crypto.randomUUID (regla #15).
+      const document: DocumentForRead = buildDocumentForRead({
+        title,
+        readDeadlineDays: deadlineDays,
+        authorUid: user.uid,
+      });
+      const docId = document.id;
       await saveDocumentForRead(selectedProject.id, document);
 
       // Si el user actual es worker (o admin que también lee), genera
