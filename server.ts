@@ -70,6 +70,7 @@ import healthVaultRouter from "./src/server/routes/healthVault.js";
 // Sprint 27 (audit H20) — overdue-maintenance reaper, called by Cloud
 // Scheduler. Gated by verifySchedulerToken at the route level.
 import maintenanceRouter from "./src/server/routes/maintenance.js";
+import projectHealthRouter from "./src/server/routes/projectHealth.js";
 // 2026-05-15 — BCN snapshot router (Biblioteca del Congreso Nacional)
 // para BunkerManager offline. Lazy data fetch + cache 1h.
 import { bcnRouter } from "./src/server/routes/bcn.js";
@@ -448,6 +449,9 @@ dotenv.config();
 // exploitable by A5: /api/erp/sync-workers, /api/comite/alert-email,
 // /api/reports/daily-email, /api/projects/:projectId/health-check.
 // Future re-introduction must use assertProjectMember.
+// AUDIT-2026-06: health-check reintroduced WITH assertProjectMember in
+// src/server/routes/projectHealth.ts (its consumer ProjectHealthCheck.tsx
+// had survived the removal and was POSTing into a 404).
 
 // Round 14 (A6 audit) -> hard fail in production. The OAuth token store
 // uses envelope encryption with a Key Encryption Key resolved by
@@ -657,6 +661,10 @@ app.use("/api/health-vault", healthVaultRouter);
 // gated by SCHEDULER_SHARED_SECRET (constant-time bearer compare) so
 // public ingress can't trigger it without the secret.
 app.use("/api/maintenance", maintenanceRouter);
+// AUDIT-2026-06 A.1 — reintroduces the Round 14-removed health-check with
+// the mandated assertProjectMember gate (ProjectHealthCheck.tsx consumer
+// survived the removal and was POSTing into a 404).
+app.use("/api/projects", projectHealthRouter);
 // 2026-05-15 — BCN snapshot endpoint para BunkerManager offline. Fetcha
 // leyes REALES desde la Biblioteca del Congreso Nacional. Cacheado 1h.
 // Public (no requiere auth) porque las leyes son contenido público —

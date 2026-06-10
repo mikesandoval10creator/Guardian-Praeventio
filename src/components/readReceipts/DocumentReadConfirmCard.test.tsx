@@ -23,6 +23,7 @@ const doc: DocumentForRead = {
   audience: { allWorkers: true },
   publishedAt: '2026-05-01T00:00:00Z',
   readDeadlineDays: 7,
+  authorUid: 'uid-prevencionista',
 };
 
 function receipt(over: Partial<ReadReceipt> = {}): ReadReceipt {
