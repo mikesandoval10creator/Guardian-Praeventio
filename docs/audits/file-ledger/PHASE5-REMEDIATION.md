@@ -7,6 +7,49 @@
 
 ## Progreso ejecutado (actualizado 2026-06-10)
 
+### Aristas de integración (diseño 2026-06-10, verificadas contra código)
+
+Dos capas de conexiones entre módulos que YA existen — el mayor activo no son features
+nuevas sino aristas nuevas. Estado verificado por grep/lectura el 2026-06-10:
+
+**Capa 1 — operación interna:**
+- [~] 🛟 **A1 Clima→Permisos**: umbrales de viento YA en validadores (11/15 m/s ISO 12480/DS 132,
+  `criticalPermitValidators.ts`, `liftingPermitExtension.ts`) pero `windSpeedMps` lo declara el
+  CLIENTE → soft-block decorativo. EN CURSO: viento server-side real vía Open-Meteo con política
+  max(declarado, real) + advisory de discrepancia (rama `claude/weather-permit-validation`).
+- [ ] **A2 Fatiga→Pre-turno→Asignación**: `preShiftRisk.ts:210` ya lee fatigueRisk; falta el
+  soft-block de asignación a maquinaria/conducción.
+- [ ] **A3 Vencimientos→Hallazgos automáticos**: `checkExpiredPpe.ts` notifica FCM y marca
+  expired pero NO crea finding con acción correctiva; replicar para recursos de brigada.
+- [~] **A4 Capacitación→Firma de permisos**: el motor YA exige training del kind
+  (`workPermitEngine.ts:257,327`); falta que lea el currículum portable como fuente.
+- [ ] **A5 Lesión corporal repetida→evaluación REBA/RULA gatillada**: no existe.
+- [ ] **A6 Handover→Pre-turno**: anotación severa del turno saliente como fuente del panel
+  entrante — no conectado.
+- [ ] **A7 MOC aprobado→re-IPER→charla del cambio**: no conectado.
+- [~] **A8 Cierre→Semillas del siguiente proyecto**: lecciones de cierre YA persisten
+  (`projectClosure.ts` closure/lessons + LessonsAdapter); la precarga al próximo proyecto = slice 3
+  de la épica Rubros SII (mismo mecanismo).
+
+**Capa 2 — actores externos y negocio:**
+- [ ] 💰 **B1 Incidentes→Siniestralidad→Simulador cotización adicional DS 67**: NO existe (lo que
+  hay en `ds67ds76.ts` son formularios PDF). El DS 67 ya está en el pack (cl-ds-67). Argumento de
+  venta nº1: proyectar "con esta tendencia tu cotización sube X% = $Y/año". ÉPICA prioritaria.
+- [ ] **B2 Incidente→DIAT prellenada→reloj legal**: generación DIAT existe
+  (`susesoCertificate.ts`) pero sin cadena auto-prellenada desde el incidente ni gatillo del
+  recordatorio de plazo en el calendario legal.
+- [ ] **B3 Portal del mandante→KPIs de contratistas DS 76**: los portales de auditor con
+  audiencias existen (`auditPortal/`); falta la audiencia "mandante" con indicadores de SUS
+  contratistas. Adopción en cascada minera→contratistas.
+- [ ] **B4 Paralización justificada→reconocimiento+XP**: no existe; efecto cultural alto, costo bajo.
+- [ ] **B5 Trabajador nuevo→inducción personalizada**: no existe (riesgos repetidos de la faena +
+  lecciones + currículum portable → ruta de inducción específica).
+- [ ] **B6 QR físico en equipo→inspección viva**: no existe (escaneo = inspección con
+  fecha/usuario/geo → inventario brigada; no-escaneado-en-N-días → hallazgo, encadena con A3).
+- [ ] **B7 Indicadores líderes compuestos→índice predictivo por proyecto**: no existe (componer
+  pulso de cultura + observaciones + ratio near-miss + tasa de cierre; insignia del tier-3).
+
+
 ### Sesión 2026-06-10 — Ola A: auditoría integral de TODO el código (PR #820)
 
 Verificación de lógica punta-a-punta al estado main@#819, cubriendo también las áreas SIN
