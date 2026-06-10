@@ -349,14 +349,23 @@ router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
     const yISO = yesterday.toISOString().slice(0, 10);
 
+    // AUDIT-2026-06 — findings live in the projects/{pid}/findings
+    // subcollection (the only client-written path, see BioAnalysis.tsx);
+    // the old top-level 'hallazgos' collection had no writer and no rule,
+    // so this read always came back empty. Findings carry a `createdAt`
+    // server timestamp (no `date` string), hence the day-range filter.
+    const dayStart = new Date(`${yISO}T00:00:00.000Z`);
+    const dayEnd = new Date(`${date}T00:00:00.000Z`);
     const [hallazgosSnap, crewsSnap, processesSnap] = await Promise.all([
-      db.collection('hallazgos')
-        .where('projectId', '==', projectId)
-        .where('date', '==', yISO)
+      db.collection('projects')
+        .doc(projectId)
+        .collection('findings')
+        .where('createdAt', '>=', dayStart)
+        .where('createdAt', '<', dayEnd)
         .limit(50)
         .get()
         .catch((err) => {
-          logger.warn('wisdomCapsule.read.hallazgos.failed', err);
+          logger.warn('wisdomCapsule.read.findings.failed', err);
           return { size: 0, docs: [] };
         }) as Promise<FsQuerySnap>,
       db.collection('crews').where('projectId', '==', projectId).limit(20).get().catch((err) => {

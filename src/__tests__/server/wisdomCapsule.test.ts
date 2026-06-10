@@ -166,8 +166,11 @@ describe('GET /wisdom-capsule/today', () => {
   it('200 computes fresh capsule (no cache) with local fallback (cached: false)', async () => {
     seedProject();
     // Seed some hallazgos for yesterday relative to DATE (2026-05-28)
-    H.db!._seed('hallazgos/h1', {
-      projectId: PROJECT_ID, date: '2026-05-28',
+    // AUDIT-2026-06 — canonical client-written collection is the
+    // projects/{pid}/findings subcollection (BioAnalysis et al). The old
+    // top-level 'hallazgos' collection never had a writer nor a rule.
+    H.db!._seed(`projects/${PROJECT_ID}/findings/h1`, {
+      projectId: PROJECT_ID, createdAt: new Date('2026-05-28T12:00:00Z'),
       title: 'Riesgo eléctrico tablero', description: 'Tablero sin tapa',
     });
     const res = await request(buildApp())
@@ -180,6 +183,11 @@ describe('GET /wisdom-capsule/today', () => {
     expect(res.body.capsule).toBeDefined();
     expect(typeof res.body.capsule.body).toBe('string');
     expect(res.body.capsule.xpReward).toBe(5);
+    // The capsule must actually read yesterday's findings from the
+    // canonical projects/{pid}/findings subcollection — before the
+    // AUDIT-2026-06 fix it read a dead top-level 'hallazgos' collection
+    // (no writer, no rule) and ALWAYS produced an empty-source capsule.
+    expect(res.body.capsule.sourceNodes).toContain('h1');
   });
 
   it('fresh capsule persists to Firestore (wisdom_capsules doc created)', async () => {
@@ -200,8 +208,8 @@ describe('GET /wisdom-capsule/today', () => {
 
   it('fresh capsule emits a zettelkasten_nodes safety-learning node (internal only)', async () => {
     seedProject();
-    H.db!._seed('hallazgos/h2', {
-      projectId: PROJECT_ID, date: '2026-05-28',
+    H.db!._seed(`projects/${PROJECT_ID}/findings/h2`, {
+      projectId: PROJECT_ID, createdAt: new Date('2026-05-28T08:30:00Z'),
       title: 'Caída de altura', description: 'Sin arnés',
     });
     const res = await request(buildApp())
@@ -228,8 +236,9 @@ describe('GET /wisdom-capsule/today', () => {
     seedProject();
     // Seed a different project's doc — should not bleed into this call
     H.db!._seed(`projects/proj-other`, { members: ['uid-other'] });
-    H.db!._seed('hallazgos/h-other', {
-      projectId: 'proj-other', date: '2026-05-28', title: 'Foreign finding',
+    H.db!._seed('projects/proj-other/findings/h-other', {
+      projectId: 'proj-other', createdAt: new Date('2026-05-28T09:00:00Z'),
+      title: 'Foreign finding',
     });
     await request(buildApp())
       .get(TODAY)

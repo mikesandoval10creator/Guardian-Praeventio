@@ -69,14 +69,21 @@ export function ProcessDetailModal({ isOpen, process, onClose, onStatusChanged }
     return () => un();
   }, [isOpen, process]);
 
-  // Subscribe to hallazgos (best-effort; collection may not exist for all
-  // tenants — onSnapshot error fallback is silent).
+  // Subscribe to the process's findings (best-effort — onSnapshot error
+  // fallback is silent). AUDIT-2026-06: this used to query a top-level
+  // 'hallazgos' collection that has no firestore.rules entry (default
+  // deny) and no writer, so the subscription ALWAYS errored out silently.
+  // The canonical client collection is projects/{pid}/findings (rule at
+  // firestore.rules `findings`, written by BioAnalysis et al).
   useEffect(() => {
     if (!isOpen || !process) {
       setHallazgos([]);
       return undefined;
     }
-    const q = query(collection(db, 'hallazgos'), where('processId', '==', process.id));
+    const q = query(
+      collection(db, `projects/${process.projectId}/findings`),
+      where('processId', '==', process.id)
+    );
     const un = onSnapshot(
       q,
       (snap) => setHallazgos(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))),
