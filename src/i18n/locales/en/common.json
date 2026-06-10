@@ -486,7 +486,28 @@
     "guide_earthquake_step_2": "Move away from windows, shelves, and objects that may fall.",
     "guide_earthquake_step_3": "If outdoors, move away from buildings, trees, and poles.",
     "guide_earthquake_step_4": "Wait for the shaking to stop before evacuating.",
-    "guide_earthquake_step_5": "Do not light matches or use elevators."
+    "guide_earthquake_step_5": "Do not light matches or use elevators.",
+    "medical_card": {
+      "allergies": "Allergies",
+      "allergies_placeholder": "E.g.: Penicillin, latex",
+      "blood_type": "Blood type",
+      "consent": "I authorize sharing this card in an emergency (with rescuers and over the Bluetooth mesh network) to speed up my care.",
+      "save": "Save card",
+      "saved": "Saved",
+      "subtitle": "Only on your device. Shown to rescuers only if you authorize it, to speed up your care in an emergency.",
+      "title": "Emergency medical card"
+    },
+    "public_back": "Back",
+    "public_button": "Emergency",
+    "public_call_fire": "Fire department",
+    "public_call_medical": "Ambulance",
+    "public_call_police": "Police",
+    "public_close": "Close",
+    "public_find_dea": "Nearest defibrillator (AED)",
+    "public_first_aid": "First aid",
+    "public_subtitle": "Call directly or use the offline guides. No sign-in needed.",
+    "public_survival": "Survival mode",
+    "public_title": "Emergency help"
   },
   "legal": {
     "cookie_title": "Cookies and privacy",
@@ -2978,5 +2999,135 @@
     "action": {
       "acknowledge": "Confirm reading"
     }
+  },
+  "brigade": {
+    "add": {
+      "member": "Add brigade member",
+      "resource": "Add resource"
+    },
+    "addMember": {
+      "role": "Role",
+      "title": "Add brigade member",
+      "trainedAt": "Last training",
+      "uid": "Worker UID"
+    },
+    "addResource": {
+      "kind": "Type",
+      "lastInspected": "Last inspection",
+      "location": "Location",
+      "nextExpiration": "Next expiration",
+      "title": "Add resource"
+    },
+    "aria": "Emergency brigade readiness",
+    "banner": {
+      "amber": "Brigade with 1 gap — review coverage or resources close to expiring",
+      "green": "Brigade ready — minimum coverage and resources up to date",
+      "rose": "Brigade with multiple gaps — response operation compromised",
+      "stats": "{{members}} active brigade members · {{ops}}% operational resources · {{gaps}} uncovered roles · {{attention}} resources need attention"
+    },
+    "byRole": "Coverage by role",
+    "coverageFail": "No minimum coverage",
+    "coverageOk": "Minimum coverage OK",
+    "empty": {
+      "subtitle": "Assign the 3 minimum roles (Leader, First Aid and Fire) and register the available resources to activate emergency response.",
+      "title": "No brigade configured yet"
+    },
+    "expiredTrainingsTitle": "Expired trainings",
+    "gapsTitle": "Missing resources",
+    "inspectResource": {
+      "inspectedAt": "Inspection date",
+      "nextExpirationAt": "Next expiration (optional)",
+      "notes": "Notes (optional)",
+      "operational": "Resource operational after inspection",
+      "submit": "Record",
+      "title": "Record inspection"
+    },
+    "member": {
+      "count": "{{count}} member(s)",
+      "gap": "Gap",
+      "none": "No coverage"
+    },
+    "members": {
+      "aria": "Brigade members",
+      "title": "Brigade members"
+    },
+    "needAttention": "need attention",
+    "operational": "operational",
+    "page": {
+      "error": "Could not load the brigade: {{msg}}",
+      "selectProject": "Select a project to manage the brigade and resources.",
+      "subtitle": "§74-78 — Brigade members + Resources (extinguishers, AED, eyewash, first-aid kits).",
+      "title": "Emergency Brigade"
+    },
+    "resource": {
+      "daysLeft": "{{n}} days",
+      "expired": "Expired",
+      "inspect": "Inspect",
+      "lastInspected": "Insp.",
+      "outOfService": "Out of service"
+    },
+    "resources": {
+      "aria": "Resources",
+      "empty": "No resources registered",
+      "title": "Resources"
+    },
+    "title": "Emergency Brigade"
+  },
+  "evacuation": {
+    "aria": {
+      "active": "Active evacuation board",
+      "idle": "Evacuation panel",
+      "board": "Evacuation board"
+    },
+    "complete": "Everyone safe — the drill can be closed.",
+    "coverage": "Coverage",
+    "dashboard": {
+      "end": "Finish",
+      "idleHint": "No active drill. Start a drill or, in a real emergency, trigger the headcount.",
+      "scan": "Scan QR",
+      "startDrill": "Start drill",
+      "startReal": "Real emergency",
+      "title": "Evacuation Headcount"
+    },
+    "disclaimer": "Tracking is currently local — once the `evacuation_drills` collection is defined (future Sprint), Firestore persistence + supervisor sync will be added.",
+    "drill": "Drill",
+    "end_confirm": "Finish the drill? The history is kept for the postmortem.",
+    "finalize": "Finish",
+    "heading": "Evacuation Board",
+    "mark_safe": "Mark safe",
+    "mark_safe_aria": "Mark {{name}} as safe",
+    "missing": "Missing",
+    "missing_heading": "MISSING",
+    "no_drill": "No active drill",
+    "no_drill_help": "In production, the supervisor pre-populates the worker list from the project base. For demo, you can start a drill with 5 mock workers and try the headcount flow.",
+    "plan": {
+      "title": "Emergency Plan (EP)"
+    },
+    "postmortem": {
+      "avgScan": "Avg. scan time",
+      "coverage": "Final coverage",
+      "elapsed": "Total time",
+      "title": "Postmortem"
+    },
+    "qr": {
+      "aria": "Scan the worker's QR credential",
+      "hint": "Point the camera at the worker's QR to register them as safe at the assembly point.",
+      "processing": "Registering…",
+      "subtitle": "Headcount at assembly point",
+      "title": "Scan credential"
+    },
+    "real": "REAL EMERGENCY",
+    "safe": "Safe",
+    "safe_heading": "Safe",
+    "start_demo": "Start demo drill (5 workers)",
+    "subheading": "When a drill or real emergency is activated, this board shows in real time which workers are already safe at the assembly point and who is missing (with their last known location).",
+    "subtitle": {
+      "default": "Adaptive route management based on the Knowledge Graph",
+      "project": "Smart evacuation plan for: {{name}}"
+    },
+    "title": "Dynamic Evacuation Map",
+    "workers_safe": "workers safe",
+    "active_label_real": "⚠️ REAL EMERGENCY",
+    "active_label_drill": "Active drill"
   }
 }

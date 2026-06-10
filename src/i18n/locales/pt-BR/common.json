@@ -486,7 +486,28 @@
     "guide_earthquake_step_2": "Afastar-se de janelas, prateleiras e objetos que possam cair.",
     "guide_earthquake_step_3": "Se ao ar livre, afastar-se de prédios, árvores e postes.",
     "guide_earthquake_step_4": "Aguardar o término do movimento para evacuar.",
-    "guide_earthquake_step_5": "Não acender fósforos nem usar elevadores."
+    "guide_earthquake_step_5": "Não acender fósforos nem usar elevadores.",
+    "medical_card": {
+      "allergies": "Alergias",
+      "allergies_placeholder": "Ex.: Penicilina, látex",
+      "blood_type": "Tipo sanguíneo",
+      "consent": "Autorizo compartilhar esta ficha em uma emergência (com os socorristas e pela rede mesh Bluetooth) para acelerar meu atendimento.",
+      "save": "Salvar ficha",
+      "saved": "Salvo",
+      "subtitle": "Apenas no seu dispositivo. Mostrada aos socorristas somente se você autorizar, para acelerar seu atendimento em uma emergência.",
+      "title": "Ficha médica de emergência"
+    },
+    "public_back": "Voltar",
+    "public_button": "Emergência",
+    "public_call_fire": "Bombeiros",
+    "public_call_medical": "Ambulância",
+    "public_call_police": "Polícia",
+    "public_close": "Fechar",
+    "public_find_dea": "Desfibrilador (DEA) mais próximo",
+    "public_first_aid": "Primeiros socorros",
+    "public_subtitle": "Ligue direto ou use os guias offline. Não precisa fazer login.",
+    "public_survival": "Modo sobrevivência",
+    "public_title": "Ajuda de emergência"
   },
   "legal": {
     "cookie_title": "Cookies e privacidade",
@@ -2904,6 +2925,209 @@
     "actions": {
       "generateOc": "Gerar Ordem de Compra (.pdf)",
       "todoNote": "Por enquanto baixa JSON · PDF formal pendente Sprint K §177."
+    }
+  },
+  "brigade": {
+    "add": {
+      "member": "Adicionar brigadista",
+      "resource": "Adicionar recurso"
+    },
+    "addMember": {
+      "role": "Função",
+      "title": "Adicionar brigadista",
+      "trainedAt": "Último treinamento",
+      "uid": "UID do trabalhador"
+    },
+    "addResource": {
+      "kind": "Tipo",
+      "lastInspected": "Última inspeção",
+      "location": "Localização",
+      "nextExpiration": "Próximo vencimento",
+      "title": "Adicionar recurso"
+    },
+    "aria": "Prontidão da brigada de emergência",
+    "banner": {
+      "amber": "Brigada com 1 lacuna — revise a cobertura ou recursos próximos do vencimento",
+      "green": "Brigada pronta — cobertura mínima e recursos em dia",
+      "rose": "Brigada com múltiplas lacunas — operação de resposta comprometida",
+      "stats": "{{members}} brigadistas ativos · {{ops}}% recursos operacionais · {{gaps}} funções sem cobertura · {{attention}} recursos precisam de atenção"
+    },
+    "byRole": "Cobertura por função",
+    "coverageFail": "Sem cobertura mínima",
+    "coverageOk": "Cobertura mínima OK",
+    "empty": {
+      "subtitle": "Designe as 3 funções mínimas (Líder, Primeiros Socorros e Incêndio) e registre os recursos disponíveis para ativar a resposta a emergências.",
+      "title": "Nenhuma brigada configurada ainda"
+    },
+    "expiredTrainingsTitle": "Treinamentos vencidos",
+    "gapsTitle": "Recursos faltantes",
+    "inspectResource": {
+      "inspectedAt": "Data da inspeção",
+      "nextExpirationAt": "Próximo vencimento (opcional)",
+      "notes": "Observações (opcional)",
+      "operational": "Recurso operacional após a inspeção",
+      "submit": "Registrar",
+      "title": "Registrar inspeção"
+    },
+    "member": {
+      "count": "{{count}} membro(s)",
+      "gap": "Lacuna",
+      "none": "Sem cobertura"
+    },
+    "members": {
+      "aria": "Brigadistas",
+      "title": "Brigadistas"
+    },
+    "needAttention": "precisam de atenção",
+    "operational": "operacionais",
+    "page": {
+      "error": "Não foi possível carregar a brigada: {{msg}}",
+      "selectProject": "Selecione um projeto para gerenciar a brigada e os recursos.",
+      "subtitle": "§74-78 — Brigadistas + Recursos (extintores, DEA, lava-olhos, kits de primeiros socorros).",
+      "title": "Brigada de Emergência"
+    },
+    "resource": {
+      "daysLeft": "{{n}} dias",
+      "expired": "Vencido",
+      "inspect": "Inspecionar",
+      "lastInspected": "Insp.",
+      "outOfService": "Fora de serviço"
+    },
+    "resources": {
+      "aria": "Recursos",
+      "empty": "Nenhum recurso registrado",
+      "title": "Recursos"
+    },
+    "title": "Brigada de Emergência"
+  },
+  "evacuation": {
+    "aria": {
+      "active": "Painel de evacuação ativo",
+      "idle": "Painel de evacuação",
+      "board": "Painel de evacuação"
+    },
+    "complete": "Todos seguros — o simulado pode ser encerrado.",
+    "coverage": "Cobertura",
+    "dashboard": {
+      "end": "Encerrar",
+      "idleHint": "Nenhum simulado ativo. Inicie um simulado ou, em emergência real, dispare a contagem.",
+      "scan": "Escanear QR",
+      "startDrill": "Iniciar simulado",
+      "startReal": "Emergência real",
+      "title": "Contagem de Evacuação"
+    },
+    "disclaimer": "Rastreamento atualmente local — ao definir a collection `evacuation_drills` (Sprint futura) será adicionada persistência Firestore + sync entre supervisores.",
+    "drill": "Simulado",
+    "end_confirm": "Encerrar o simulado? O histórico fica salvo para o postmortem.",
+    "finalize": "Encerrar",
+    "heading": "Painel de Evacuação",
+    "mark_safe": "Marcar seguro",
+    "mark_safe_aria": "Marcar {{name}} como seguro",
+    "missing": "Faltam",
+    "missing_heading": "FALTANTES",
+    "no_drill": "Nenhum simulado ativo",
+    "no_drill_help": "Em produção, o supervisor pré-popula a lista de trabalhadores a partir da base do projeto. Para demo, você pode iniciar um simulado com 5 trabalhadores fictícios e testar o fluxo de contagem.",
+    "plan": {
+      "title": "Plano de Emergência (PE)"
+    },
+    "postmortem": {
+      "avgScan": "Tempo médio de scan",
+      "coverage": "Cobertura final",
+      "elapsed": "Tempo total",
+      "title": "Postmortem"
+    },
+    "qr": {
+      "aria": "Escanear a credencial QR do trabalhador",
+      "hint": "Aponte a câmera para o QR do trabalhador para registrá-lo como seguro no ponto de encontro.",
+      "processing": "Registrando…",
+      "subtitle": "Contagem no ponto de encontro",
+      "title": "Escanear credencial"
+    },
+    "real": "EMERGÊNCIA REAL",
+    "safe": "Seguros",
+    "safe_heading": "Seguros",
+    "start_demo": "Iniciar simulado demo (5 trabalhadores)",
+    "subheading": "Quando um simulado ou emergência real for ativado, este painel mostra em tempo real quais trabalhadores já estão seguros no ponto de encontro e quem falta (com a última localização conhecida).",
+    "subtitle": {
+      "default": "Gestão de rotas adaptativas baseada no Grafo de Conhecimento",
+      "project": "Plano de evacuação inteligente para: {{name}}"
+    },
+    "title": "Mapa de Evacuação Dinâmico",
+    "workers_safe": "trabalhadores seguros",
+    "active_label_real": "⚠️ EMERGÊNCIA REAL",
+    "active_label_drill": "Simulado ativo"
+  },
+  "incident_report": {
+    "back_emergency": "Emergência",
+    "badge": "Reportar",
+    "err_generic": "Não foi possível reportar. Tente novamente.",
+    "err_must_login": "Você precisa fazer login para reportar.",
+    "folio": "Folio",
+    "label_location": "Localização (opcional)",
+    "label_severity": "Severidade declarada",
+    "label_type": "Tipo",
+    "label_what_happened": "O que aconteceu?",
+    "label_witnesses": "Testemunhas (opcional, separadas por vírgula)",
+    "location_placeholder": "Frente 2 — Piso 3 — Andaime sul",
+    "registered": "Relato registrado",
+    "select_project": "Selecione um projeto ativo antes de reportar.",
+    "sev_critical": "Crítica",
+    "sev_high": "Alta",
+    "sev_low": "Baixa",
+    "sev_med": "Média",
+    "submit": "Reportar",
+    "submitting": "Enviando…",
+    "subtitle": "Sua observação conta. Reportar near-miss salva vidas — e soma XP para sua equipe. Zero penalização: a cultura POSITIVA só reforça.",
+    "title": "Reportar near-miss",
+    "type_incident_hint": "Aconteceu, sem lesão grave.",
+    "type_incident_label": "Incidente",
+    "type_near_miss_hint": "Quase aconteceu algo — observação precoce.",
+    "type_near_miss_label": "Near-miss",
+    "type_post_mortem_hint": "Análise de causa raiz após um evento maior.",
+    "type_post_mortem_label": "Post-mortem",
+    "what_placeholder": "Descreva brevemente: local, o que você viu, possível causa.",
+    "witnesses_placeholder": "João Pereira, Maria Souza",
+    "xp_thanks": "XP — obrigado por reportar."
+  },
+  "lone_worker": {
+    "btn_start": "Iniciar",
+    "btn_stop": "Parar",
+    "fgs_active": "Foreground service ativo",
+    "fgs_error_unknown": "desconhecido",
+    "fgs_no_plugin": "Plugin não disponível neste build.",
+    "fgs_not_native": "Plataforma web — foreground service não se aplica.",
+    "fgs_not_running": "FGS não estava em execução.",
+    "fgs_starting": "Iniciando…",
+    "fgs_stopped": "Foreground service parado",
+    "fgs_stopped_msg": "FGS parado.",
+    "platform_android": "Android nativo",
+    "platform_label": "Plataforma",
+    "platform_web": "Web / iOS (no-op)",
+    "title": "Trabalhador solitário"
+  },
+  "oc": {
+    "actions": {
+      "exportCsv": "Exportar CSV"
+    },
+    "header": {
+      "backToCalc": "Voltar à calculadora",
+      "subtitle": "EPI recomendado por indústria com quantidade e custo total CLP.",
+      "title": "Ordem de Compra Sugerida"
+    },
+    "inputs": {
+      "industry": "Indústria",
+      "workers": "Trabalhadores"
+    },
+    "lines": {
+      "col_item": "Item",
+      "col_life": "Vida útil (m)",
+      "col_per_worker": "Qtd / trabalhador",
+      "col_qty": "Qtd total",
+      "col_total": "Custo total",
+      "col_unit_cost": "Custo unitário",
+      "note": "Cobertura inicial. Orçamento mensal rateado (reposição): {{m}}.",
+      "title": "Itens recomendados — {{industry}}",
+      "total": "Total CLP estimado"
     }
   }
 }

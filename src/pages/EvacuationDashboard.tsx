@@ -214,7 +214,9 @@ export function EvacuationDashboard() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 id="evac-heading" className="text-xs font-black uppercase tracking-widest text-muted-token mb-1">
-              {t('evacuation.active_label', drill.kind === 'real' ? '⚠️ EMERGENCIA REAL' : 'Simulacro activo')}
+              {drill.kind === 'real'
+                ? t('evacuation.active_label_real', '⚠️ EMERGENCIA REAL')
+                : t('evacuation.active_label_drill', 'Simulacro activo')}
             </h1>
             <p className={`text-5xl sm:text-7xl font-black tabular-nums leading-none ${coverageColor}`}>
               {status!.coveragePercent}%

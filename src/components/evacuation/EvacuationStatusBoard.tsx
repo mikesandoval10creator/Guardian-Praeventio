@@ -37,7 +37,7 @@ export function EvacuationStatusBoard({ drill, now }: EvacuationStatusBoardProps
     <section
       className="rounded-2xl border border-default-token bg-surface p-4 shadow-mode space-y-3"
       data-testid={`evacuation-board-${drill.id}`}
-      aria-label={t('evacuation.aria', 'Tablero evacuación') as string}
+      aria-label={t('evacuation.aria.board', 'Tablero evacuación') as string}
     >
       <header className="flex items-center gap-2">
         <Users className="w-4 h-4 text-rose-500" aria-hidden="true" />
