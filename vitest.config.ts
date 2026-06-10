@@ -68,6 +68,12 @@ export default defineConfig({
     // unexpectedly") and the pool hangs to the 30-min CI cap. Headroom here +
     // the single-pass anyRatchet scan keep those tests well under the limit.
     testTimeout: 30_000,
+    // AUDIT-2026-06 — the CI "Tests" job intermittently completed all tests
+    // and then hung to the 30-min cap (3 occurrences on 2026-06-10 alone):
+    // module-level intervals / Firestore Admin listeners left open by an
+    // imported module keep a worker's event loop alive forever. A bounded
+    // teardown lets vitest kill lingering workers instead of waiting.
+    teardownTimeout: 10_000,
     // Coverage instrumentation (Plan v3 Fase 1.0 — 2026-05-29). Provider
     // pinned to the exact vitest version. `all: true` counts source files
     // with NO importing test too, so the denominator is the honest "what

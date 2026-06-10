@@ -92,6 +92,11 @@ export function setupHealthCheckInterval(
   };
 
   const handle = setInterval(tick, intervalMs);
+  // Never keep the process alive just for this sweep: on SIGTERM (or in a
+  // test worker that imported this transitively) the event loop must be
+  // able to drain without waiting for the next 6h tick. The interval still
+  // fires normally while the server runs (AUDIT-2026-06 CI-hang fix).
+  handle.unref?.();
 
   return {
     stop: () => {
