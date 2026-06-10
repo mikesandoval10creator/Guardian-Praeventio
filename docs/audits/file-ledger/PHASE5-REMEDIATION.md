@@ -90,6 +90,13 @@ B23-Estado compartido, B24-Calidad tests**). Evidencia: `AUDIT-2026-06-FULL.md` 
   FIX: generar claves desde defaults inline (codemod) + ratchet que cuente claves usadas.
 - [ ] 🟡 **B22: corpus normativo incompleto** — omite DS 132 (124 citas en código), DS 76/67/148,
   Ley 19.628, NCh; RAG efectivo ~17 chunks. FIX: ingesta real BCN + pipeline de chunks.
+- [x] 🟡 ~~**B19: systemEngineTrigger no-op / SIGTERM sin drain / CI sin lint**~~ → ✅ **hecho**
+  (PR #820): `makeSystemEventAuditor` (1 fila audit_logs idempotente por system event, Phase 1
+  prometida por el header); `gracefulShutdown()` con `server.close()` + budget 8s (antes
+  process.exit inmediato mataba requests en cada rollover); job `lint` en ci.yml (errors-gate)
+  con el repo llevado a **0 errores eslint** — el barrido encontró que
+  `tests/dr/seed-dr-dataset.cjs` NI PARSEABA (`0xdr…` hex inválido → el DR dry-run no podía
+  sembrar datos). `npm run lint` reparado (--cache incompatible con el parser firestore).
 - [ ] 🟡 **B23: doble event-bus sin consumidores**; 5 contexts sin audit; factory
   `createProjectScopedStore` escribe sin audit (Regla #3) → trigger server o re-cablear.
 - [ ] 🟡 **A.1: inventario última milla** — 108 hooks + 146 componentes huérfanos
