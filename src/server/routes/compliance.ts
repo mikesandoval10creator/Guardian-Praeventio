@@ -9,12 +9,19 @@
 //   GET    /api/compliance/data-request/:id
 //   GET    /api/compliance/processing-activities
 //   GET    /api/compliance/data-export/:requestId
+//   POST   /api/compliance/admin/data-request/:id/process   (admin)
+//   POST   /api/compliance/admin/data-request/:id/erase     (admin, destructive)
 //
 // All write endpoints require `verifyAuth`. The processing-activities
 // catalog is intentionally public (no auth) — it is the published RAT and
 // has no PII, so a SERNAC inspector or any data subject can inspect it
 // without registering. The /api/ rate limiter in server.ts already gates
 // all of these paths.
+//
+// The two /admin endpoints (Ley 21.719 roadmap gap G-8, P0) additionally
+// re-read the caller's role from Firebase Auth custom claims — the same
+// server-authoritative gate as src/server/routes/admin.ts — so a client
+// token claiming `admin` cannot process or erase another subject's data.
 
 import { Router } from 'express';
 import admin from 'firebase-admin';
@@ -31,13 +38,19 @@ import {
   getConsentStatus,
   requestDataAccess,
   getDataAccessRequest,
+  processDataAccessRequest,
   exportUserData,
+  eraseUserData,
   getProcessingActivities,
+  REQUESTS_COLLECTION,
   ComplianceError,
   type ConsentPurpose,
   type LegalBasis,
   type MinimalComplianceDb,
 } from '../../services/compliance/ley19628.js';
+// Admin gate for the ARCO processing endpoints — role re-read from Firebase
+// Auth custom claims (mirrors firestore.rules' isAdmin() and admin.ts).
+import { isAdminRole } from '../../types/roles.js';
 // Sprint 31 Bucket MM — multi-regime privacy compliance.
 import {
   getActiveRegimes,
@@ -324,6 +337,184 @@ router.get('/data-export/:requestId', verifyAuth, async (req, res) => {
       { uid, requestId },
     );
     captureRouteError(err, 'compliance.data_export', { uid, requestId });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Admin ARCO processing (Ley 21.719 roadmap G-8, P0)
+//
+// Until 2026-06 `processDataAccessRequest` and `eraseUserData` existed in
+// src/services/compliance/ley19628.ts with NO route invoking them, so a
+// data subject's access/erasure request stayed `pending` forever. These
+// two endpoints close the loop:
+//
+//   • POST /admin/data-request/:id/process — completes an access /
+//     portability request. The export itself is served by the existing
+//     owner-only GET /data-export/:requestId, so the completed row points
+//     there (`exportedToUrl`) instead of duplicating PII into a new store.
+//   • POST /admin/data-request/:id/erase — executes an approved erasure.
+//     DESTRUCTIVE: requires body `{ confirm: "<requestId>" }` and writes
+//     audit_logs BEFORE (arco_erasure_started) and AFTER
+//     (arco_erasure_executed). Always erases with `keepLegalRecords: true`
+//     — audit_logs / incidents / sos_alerts have a 7-year retention window
+//     (Ley 16.744 / DS 594) and purging them is a separate legal decision
+//     that deliberately has no HTTP surface.
+// ---------------------------------------------------------------------------
+
+const REQUEST_ID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * Server-authoritative admin gate (same contract as admin.ts'
+ * assertAdminCaller): re-reads the caller's role from Firebase Auth custom
+ * claims so nothing in the client token or body can escalate. Writes the
+ * 401/403 response and returns false when the caller is not an admin.
+ */
+async function assertAdminCaller(
+  req: { user?: { uid?: string } },
+  res: { status(code: number): { json(body: unknown): unknown } },
+): Promise<boolean> {
+  const callerUid = req.user?.uid;
+  if (!callerUid) {
+    res.status(401).json({ error: 'unauthorized' });
+    return false;
+  }
+  const callerRecord = await admin.auth().getUser(callerUid);
+  if (!isAdminRole(callerRecord.customClaims?.role)) {
+    res.status(403).json({ error: 'forbidden_requires_admin' });
+    return false;
+  }
+  return true;
+}
+
+router.post('/admin/data-request/:id/process', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const requestId = req.params.id;
+  if (!REQUEST_ID_REGEX.test(requestId)) {
+    return res.status(400).json({ error: 'invalid_id' });
+  }
+  try {
+    if (!(await assertAdminCaller(req, res))) return undefined;
+
+    const existing = await getDataAccessRequest(getDb(), requestId);
+    if (!existing) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    if (existing.type !== 'access' && existing.type !== 'portability') {
+      // Erasure goes through the confirmed /erase endpoint; rectification
+      // has no automated apply path yet (manual via support + audit).
+      return res.status(400).json({ error: 'request_not_processable' });
+    }
+
+    const processed = await processDataAccessRequest(getDb(), requestId, {
+      // The data lives behind the existing owner-only inline export
+      // endpoint — point the completed request there rather than copying
+      // PII into a second location.
+      onExport: async (r) => ({ downloadUrl: `/api/compliance/data-export/${r.id}` }),
+    });
+
+    // CLAUDE.md #3/#14: state-changing compliance op → audited, awaited,
+    // identity stamped from the verified token inside auditServerEvent.
+    await auditServerEvent(req, 'arco_access_processed', 'compliance', {
+      requestId,
+      targetUid: existing.uid,
+      type: existing.type,
+      status: processed.status,
+    });
+
+    return res.json({ ok: true, request: processed });
+  } catch (err) {
+    if (err instanceof ComplianceError) {
+      return res.status(err.httpStatus).json({ error: err.code });
+    }
+    logger.error(
+      'compliance_admin_process_request_failed',
+      err instanceof Error ? err : new Error(String(err)),
+      { callerUid, requestId },
+    );
+    captureRouteError(err, 'compliance.admin_process_request', { callerUid, requestId });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+router.post('/admin/data-request/:id/erase', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const requestId = req.params.id;
+  if (!REQUEST_ID_REGEX.test(requestId)) {
+    return res.status(400).json({ error: 'invalid_id' });
+  }
+  try {
+    if (!(await assertAdminCaller(req, res))) return undefined;
+
+    // Destructive-op friction: the operator must echo the request id back.
+    const { confirm } = (req.body ?? {}) as { confirm?: unknown };
+    if (typeof confirm !== 'string' || confirm !== requestId) {
+      return res.status(400).json({
+        error: 'confirm_required',
+        message: 'Destructive operation: body.confirm must equal the request id.',
+      });
+    }
+
+    const existing = await getDataAccessRequest(getDb(), requestId);
+    if (!existing) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    if (existing.type !== 'erasure') {
+      return res.status(400).json({ error: 'not_an_erasure_request' });
+    }
+    if (existing.status === 'completed') {
+      // Idempotent: never run a second destructive sweep for the same row.
+      return res.json({ ok: true, request: existing, alreadyCompleted: true });
+    }
+
+    // Audit BEFORE the destructive sweep so a mid-flight crash still leaves
+    // a trace of who started it.
+    await auditServerEvent(req, 'arco_erasure_started', 'compliance', {
+      requestId,
+      targetUid: existing.uid,
+    });
+
+    // keepLegalRecords is intentionally NOT caller-controllable (see block
+    // comment above). Note: the sweep deletes the subject's own
+    // compliance_data_requests rows (they carry the uid), so we re-persist
+    // the request row afterwards as compliance evidence via set(merge) —
+    // a plain processDataAccessRequest update() would hit NOT_FOUND.
+    const result = await eraseUserData(getDb(), existing.uid, { keepLegalRecords: true });
+
+    const completedAt = Date.now();
+    await getDb().collection(REQUESTS_COLLECTION).doc(requestId).set(
+      {
+        uid: existing.uid,
+        type: existing.type,
+        status: 'completed',
+        requestedAt: existing.requestedAt,
+        completedAt,
+      },
+      { merge: true },
+    );
+
+    await auditServerEvent(req, 'arco_erasure_executed', 'compliance', {
+      requestId,
+      targetUid: existing.uid,
+      erased: result.erased,
+      preserved: result.preserved,
+    });
+
+    return res.json({
+      ok: true,
+      request: { id: requestId, uid: existing.uid, type: existing.type, status: 'completed', requestedAt: existing.requestedAt, completedAt },
+      result,
+    });
+  } catch (err) {
+    if (err instanceof ComplianceError) {
+      return res.status(err.httpStatus).json({ error: err.code });
+    }
+    logger.error(
+      'compliance_admin_erase_failed',
+      err instanceof Error ? err : new Error(String(err)),
+      { callerUid, requestId },
+    );
+    captureRouteError(err, 'compliance.admin_erase', { callerUid, requestId });
     return res.status(500).json({ error: 'internal_error' });
   }
 });

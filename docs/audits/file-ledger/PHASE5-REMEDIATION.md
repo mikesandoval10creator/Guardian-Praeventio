@@ -157,6 +157,17 @@ B23-Estado compartido, B24-Calidad tests**). Evidencia: `AUDIT-2026-06-FULL.md` 
   default-deny, audit inmutable, on-device #12), falta el artefacto formal; (c) elevar a ADR la
   directiva "nunca push a APIs externas" (SISESAT/CUN queda como decisión consciente y
   reversible, hoy vive en comentarios de incidentFlow.ts).
+  ✅ **Avance 2026-06-10 — gap P0 G-8 (ARCO) cerrado**: `processDataAccessRequest` y
+  `eraseUserData` (ley19628.ts) eran código real sin NINGÚN endpoint que los invocara
+  (solicitudes de acceso/borrado quedaban `pending` para siempre). Cableados a rutas admin
+  con rol re-leído de Firebase Auth: `POST /api/compliance/admin/data-request/:id/process`
+  (`src/server/routes/compliance.ts:390`) y `POST .../:id/erase`
+  (`src/server/routes/compliance.ts:440` — destructivo: `{ confirm: requestId }` obligatorio,
+  `keepLegalRecords: true` fijo, audit antes/después `arco_erasure_started`/
+  `arco_erasure_executed`). TDD con funciones reales:
+  `src/__tests__/server/complianceArco.test.ts` (14 casos). Detalle en
+  `docs/compliance/LEY-21719-ROADMAP.md` §6 (G-8). Quedan G-9 (job plazo 30 días) y el
+  resto del roadmap.
 - [ ] 🟡 **A.1: inventario última milla** — 108 hooks + 146 componentes huérfanos
   (`audit-2026-06/orphan-hooks-components.txt`); 77 escritores Firestore client-side sin audit
   (`client-direct-writers.txt`); 53 colecciones sin regla (mayoría server-only — documentar).

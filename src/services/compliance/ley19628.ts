@@ -277,7 +277,9 @@ export class ComplianceError extends Error {
 // ---------------------------------------------------------------------------
 
 const CONSENTS_COLLECTION = 'compliance_consents';
-const REQUESTS_COLLECTION = 'compliance_data_requests';
+// Exported: src/server/routes/compliance.ts re-persists the erasure request
+// row (compliance evidence) after eraseUserData sweeps the subject's docs.
+export const REQUESTS_COLLECTION = 'compliance_data_requests';
 
 function consentDocId(uid: string, purpose: ConsentPurpose): string {
   return `${uid}__${purpose}`;

@@ -32,7 +32,7 @@ verificado**; lo que falta se declara sin eufemismos.
 | 1 | EIPD/DPIA alto riesgo | 🟡 Parcial | Generador PDF existe pero está **huérfano**; no existe NINGUNA EIPD completada (§3) |
 | 2 | RAT | 🟢 Mayormente | `PROCESSING_ACTIVITIES` + endpoint público (§5); faltan actividades (bóveda médica, WebAuthn) |
 | 3 | Notificación de brechas | 🟡 Parcial | Runbook manual con 72h; sin workflow ni plantilla a la Agencia; citaciones inconsistentes (§4) |
-| 4 | ARCO + portabilidad | 🟡 Parcial | Solicitudes + export self-service operativos; **borrado (`eraseUserData`) implementado pero SIN ruta que lo ejecute** (§6) |
+| 4 | ARCO + portabilidad | 🟢 Mayormente | Solicitudes + export self-service operativos; borrado y procesamiento de acceso cableados a rutas admin (`compliance.ts:390,440`, G-8 resuelto); falta job de plazo 30 días (§6) |
 | 5 | Decisiones automatizadas | 🟢 De facto | Patrón "nunca bloquear, solo recomendar" en todo el server; falta política formal (§7) |
 | 6 | Deber de seguridad | 🟢 Fuerte | Default-deny, bóveda médica, audit inmutable, SQLCipher, KMS, biometría on-device (§8) |
 | 7 | Consentimiento | 🟢 Mayormente | ConsentBanner montado + registros versionados (§9) |
@@ -129,21 +129,26 @@ sistemática de trabajadores).
   (d) mesh relay (`packages/capacitor-mesh/`). Revisar inventario Firestore
   de `ARCHITECTURE.md` contra el RAT.
 
-## 6. Derechos ARCO + portabilidad — 🟡
+## 6. Derechos ARCO + portabilidad — 🟢 mayormente
 
-**Qué tenemos (verificado):**
+**Qué tenemos (verificado 2026-06-10):**
 
 - Servicio completo de derechos del titular (consent + solicitudes
   access/rectification/erasure/portability):
-  `src/services/compliance/ley19628.ts` — `recordConsent` (:290),
-  `revokeConsent` (:312), `processDataAccessRequest` (:409),
-  `exportUserData` (:482), `eraseUserData` (:512, con
+  `src/services/compliance/ley19628.ts` — `recordConsent` (:292),
+  `revokeConsent` (:314), `processDataAccessRequest` (:411),
+  `exportUserData` (:484), `eraseUserData` (:514, con
   `keepLegalRecords: true` por la retención de 7 años Ley 16.744/DS 594,
   comentario :18-22).
 - Rutas montadas: `src/server/routes/compliance.ts` — consent POST/DELETE/GET
-  (:85, :133, :161), `POST /data-request` (:204), `GET /data-request/:id`
-  (:265), `GET /data-export/:requestId` con descarga JSON inline del propio
-  titular (:299-318, usa `exportUserData`).
+  (:98, :146, :174), `POST /data-request` (:217), `GET /data-request/:id`
+  (:278), `GET /data-export/:requestId` con descarga JSON inline del propio
+  titular (:312, usa `exportUserData`).
+- Procesamiento admin de solicitudes (cierra G-8):
+  `POST /api/compliance/admin/data-request/:id/process` (compliance.ts:390)
+  y `POST /api/compliance/admin/data-request/:id/erase` (compliance.ts:440),
+  ambas con gate admin re-leído de Firebase Auth (compliance.ts:373) y
+  audit_logs; tests `src/__tests__/server/complianceArco.test.ts`.
 - Centro de control del titular en la UI: `src/pages/MyData.tsx:3,163-166`
   (*"consultar, rectificar, exportar o eliminar tus datos"*), montado en el
   sidebar (`src/components/layout/sidebarMenuGroups.ts:325`).
@@ -157,13 +162,21 @@ sistemática de trabajadores).
 
 **Gaps:**
 
-- **G-8 (P0):** **el borrado nunca se ejecuta.** `eraseUserData`
-  (`ley19628.ts:512`) y `processDataAccessRequest` (`ley19628.ts:409`) **no
-  son importados por ninguna ruta** (grep 2026-06-10: cero referencias fuera
-  del servicio y sus tests; el import de `compliance.ts:28-40` no los
-  incluye). Una solicitud `erasure` o `rectification` queda `pending` para
-  siempre: no hay superficie admin que la procese ni job que la cierre
-  dentro de los 30 días. El derecho está "registrado", no "satisfecho".
+- **G-8 (P0): ✅ RESUELTO 2026-06-10.** `processDataAccessRequest` y
+  `eraseUserData` ya tienen superficie admin:
+  `POST /api/compliance/admin/data-request/:id/process`
+  (`src/server/routes/compliance.ts:390`, completa access/portability y
+  apunta `exportedToUrl` al export self-service) y
+  `POST /api/compliance/admin/data-request/:id/erase`
+  (`src/server/routes/compliance.ts:440`, destructivo: exige body
+  `{ confirm: requestId }`, borra con `keepLegalRecords: true` fijo, audita
+  antes `arco_erasure_started` y después `arco_erasure_executed`). Gate
+  admin con rol re-leído de Firebase Auth
+  (`src/server/routes/compliance.ts:373`). Tests supertest con funciones
+  reales de ley19628: `src/__tests__/server/complianceArco.test.ts` (14
+  casos: 401/403/404/400-sin-confirm/200-happy/idempotencia). Pendiente
+  derivado: rectification sigue sin apply automatizado (manual + audit) y
+  el cierre dentro de 30 días depende del job G-9.
 - **G-9 (P1):** sin tracking del plazo de 30 días (job que alerte
   solicitudes por vencer + escalamiento).
 - **G-10 (P2):** el export inline es el *"simple-case fallback"* para
@@ -272,9 +285,11 @@ mencionarlo y el bundle local ya está planificado ("Ola 5 Bucket O").
       `src/services/privacy/dpiaTemplate.ts`. Mayor riesgo del roadmap (G-2).
 - [ ] **EIPD de biometría de pose** (REBA/RULA on-device) + bóveda médica
       `health_vault` (G-2, G-13).
-- [ ] **Cablear el borrado**: ruta admin (con `verifyAuth` + `audit_logs`)
+- [x] **Cablear el borrado**: ruta admin (con `verifyAuth` + `audit_logs`)
       que invoque `processDataAccessRequest`/`eraseUserData` con
       `keepLegalRecords: true` por defecto; TDD con tests 401/200/403 (G-8).
+      ✅ 2026-06-10: `src/server/routes/compliance.ts:390,440` + tests
+      `src/__tests__/server/complianceArco.test.ts`.
 - [ ] **Corregir runbook de brechas**: nombre de la autoridad (Agencia de
       Protección de Datos Personales, no "ANPD"), citación legal verificada
       por counsel, 72h documentado como estándar interno (G-4).
