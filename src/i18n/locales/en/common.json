@@ -39,7 +39,66 @@
     "theme_dark": "Dark Mode",
     "logout": "Logout",
     "workers": "Workers",
-    "audits": "Audits"
+    "audits": "Audits",
+    "admin_group": "Admin",
+    "afiches": "Safety Posters",
+    "annual_review": "Annual OHSMS Review",
+    "apprenticeship": "Apprentices & Mentors",
+    "audit_portals": "Auditor Portals",
+    "b2d_admin": "B2D Panel",
+    "confidential_reports": "Confidential Reports",
+    "consistency_audit": "Consistency Auditor",
+    "corrective_actions": "Corrective Actions",
+    "cphs": "Joint Committee (CPHS)",
+    "cphs_draft": "CPHS Minutes",
+    "critical_controls": "Critical Controls",
+    "cuadrillas": "Work Crews",
+    "culture_pulse": "Safety Culture",
+    "data_confidence": "Data Confidence",
+    "digital_twin": "3D Digital Twin",
+    "document_read": "Document Reading",
+    "drills": "Drill Manager",
+    "driving_safety": "Safe Driving",
+    "emergency_brigade": "Emergency Brigade",
+    "engineering_controls": "Engineering Controls",
+    "ergonomics": "Ergonomics",
+    "evacuation_dashboard": "Evacuation Board",
+    "exceptions": "Exceptions",
+    "fatigue": "Fatigue Monitor",
+    "first_responder_map": "First Responder",
+    "human_body_viewer": "DIAT Body Viewer",
+    "hygiene": "Industrial Hygiene",
+    "inbox": "Inbox",
+    "incident_trends": "Incident Trends",
+    "inspections": "Inspections",
+    "knowledge_base": "Knowledge Base",
+    "leadership_decisions": "Supervision Decisions",
+    "legal_calendar": "Legal Calendar",
+    "lessons_learned": "Lessons Learned",
+    "lone_worker": "Lone Worker",
+    "loto": "LOTO",
+    "maturity_index": "Maturity Index",
+    "medicine": "Medicine",
+    "mining_contractors": "Mining Contractors",
+    "my_data": "My Data",
+    "occupational_health_group": "Occupational Health",
+    "operational_changes": "Management of Change",
+    "pdca": "PDCA + Nonconformities",
+    "portable_history": "Portable History",
+    "positive_observations": "Positive Observations",
+    "pre_shift_risk": "Pre-Shift",
+    "project_closure": "Project Closure",
+    "qr_signature": "QR Signature",
+    "repeating_risks": "Risk Patterns",
+    "residual_risk": "Residual Risk",
+    "root_cause": "Root Cause",
+    "safety_talks": "Daily Safety Talks",
+    "shift_handover": "Shift Handover",
+    "site_book": "Site Logbook",
+    "stoppages": "Work Stoppages",
+    "suppliers": "Suppliers",
+    "work_permits": "Work Permits",
+    "worker_readiness": "Worker Readiness"
   },
   "auth": {
     "login": "Sign In",
@@ -3129,5 +3188,395 @@
     "workers_safe": "workers safe",
     "active_label_real": "⚠️ REAL EMERGENCY",
     "active_label_drill": "Active drill"
+  },
+  "annualReview": {
+    "achieved": "Achieved",
+    "achievementRate": "Achievement rate",
+    "analysis": {
+      "ph": "Summarize findings, OHSMS performance, lessons learned, recommendations for the following year…",
+      "unsaved": "Unsaved changes — they will be persisted when adding/removing objectives or when concluding the review."
+    },
+    "aria": "Annual OHSMS summary",
+    "atRisk": "At risk",
+    "concluded": {
+      "heading": "Review closed",
+      "signedBy": "Signed by"
+    },
+    "concludedChip": "Closed",
+    "conclusion": {
+      "btn": "Conclude review",
+      "ph": "Summarize the year-end close-out: compliance, critical findings, commitments for {{year}}.",
+      "warning": "Once concluded, the year is locked: no objectives or evidence can be added."
+    },
+    "empty": {
+      "body": "No preventive objectives defined for {{year}} yet. Start the review to record measurable goals, evidence and signed conclusions.",
+      "cta": "Start {{year}} review",
+      "heading": "Start the annual OHSMS review"
+    },
+    "error": {
+      "conclusionTooShort": "The conclusion must be at least 10 characters long.",
+      "evidenceFields": "Select an objective and provide the evidence URL/path.",
+      "noUser": "You must be signed in to sign.",
+      "numericInputs": "Baseline and target must be numeric.",
+      "titleRequired": "Title is required."
+    },
+    "evidence": {
+      "attach": "Attach evidence",
+      "attachBtn": "Attach",
+      "captionPh": "Description (optional)",
+      "empty": "No evidence attached yet. Link documents, audits, incidents or training sessions to each objective.",
+      "kind": {
+        "audit": "Audit",
+        "document": "Document",
+        "incident": "Incident",
+        "other": "Other",
+        "training": "Training"
+      },
+      "selectObjective": "Select objective…",
+      "urlPh": "URL or path (/documents/abc.pdf, https://…)"
+    },
+    "metric": {
+      "count_increase": "Increase count",
+      "count_reduction": "Reduce count",
+      "percent_completion": "% completed",
+      "percent_reduction": "% reduction"
+    },
+    "missed": "Missed",
+    "needsAttention": "Need attention",
+    "objective": {
+      "add": "Add objective",
+      "addBtn": "Add",
+      "baseline": "Baseline",
+      "current": "Current",
+      "target": "Target",
+      "titlePh": "Title (e.g. Reduce incidents by 20%)"
+    },
+    "objectives": {
+      "empty": "No objectives yet. Add at least one to start tracking.",
+      "label": "objectives"
+    },
+    "onTrack": "On track",
+    "page": {
+      "error": "Could not load the annual review: {{msg}}",
+      "selectProject": "Select a project to start or consult the annual OHSMS review.",
+      "subtitle": "ISO 45001 §9.3 + DS 76 — annual PDCA cycle: preventive objectives, evidence and signed conclusions.",
+      "title": "Annual OHSMS Review"
+    },
+    "section": {
+      "analysis": "Analysis and findings",
+      "conclusion": "Conclusions and signature",
+      "evidence": "Evidence",
+      "objectives": "Preventive objectives"
+    },
+    "title": "Annual OHSMS Review",
+    "topPerformers": "Top achievements",
+    "year": "Year"
+  },
+  "closure": {
+    "action": {
+      "adminOnly": "Only administrators can formally close.",
+      "blocked": "Resolve the blockers first.",
+      "error": "The action could not be completed.",
+      "finalize": "Close formally",
+      "finalized": "Project formally closed. Data retained for audit.",
+      "initiate": "Start closure",
+      "initiated": "Closure process started."
+    },
+    "aria": "Project closure",
+    "blocked": "Closure blocked",
+    "blockersTitle": "Blockers",
+    "confirm": "Confirm project closure",
+    "decision": {
+      "invalid": "Context and decision must be at least 5 characters long.",
+      "logged": "Decision logged."
+    },
+    "decisions": {
+      "context": "Context",
+      "decision": "Decision made",
+      "help": "Log decisions that shaped the project result and their retrospective outcome.",
+      "negative": "Negative",
+      "neutral": "Neutral",
+      "outcome": "Retrospective outcome",
+      "positive": "Positive",
+      "submit": "Log decision",
+      "title": "Critical project decisions"
+    },
+    "lesson": {
+      "captured": "Lesson captured and published to the library.",
+      "invalid": "Summary and preventive action must be at least 5 characters long."
+    },
+    "lessons": {
+      "action": "Derived preventive action",
+      "help": "Captured lessons are published to the F.12 library with industry scope so other projects can discover them.",
+      "industry": "Industry",
+      "submit": "Capture lesson",
+      "summary": "Lesson summary",
+      "title": "Lessons transferable to future projects"
+    },
+    "page": {
+      "error": "Could not load the closure: {{msg}}",
+      "selectProject": "Select a project to start the formal closure.",
+      "subtitle": "§131-138 — Transferable lessons + critical decisions + multi-role summaries.",
+      "title": "Project Closure"
+    },
+    "pending": {
+      "actions": "Open actions",
+      "decisions": "Logged decisions",
+      "empty": "No blockers or warnings.",
+      "incidents": "Open incidents",
+      "lessons": "Captured lessons",
+      "permits": "Active permits",
+      "title": "Pending items blocking closure"
+    },
+    "previewAudience": "Preview by audience",
+    "readiness": {
+      "label": "Ready for closure"
+    },
+    "ready": "Ready to close",
+    "state": {
+      "finalized": "Formally closed on {{at}}.",
+      "initiated": "Closure process started.",
+      "open": "Closure process not started."
+    },
+    "summary": {
+      "counts": "Lessons: {{l}} · Decisions: {{d}} · Incidents: {{i}} (critical: {{c}})",
+      "empty": "No summary available.",
+      "gerencia": "Management",
+      "role": "Role",
+      "supervisor": "Supervisor",
+      "title": "Multi-role summary",
+      "worker": "Worker"
+    },
+    "title": "Project Closure",
+    "warningsTitle": "Warnings"
+  },
+  "confidentialReports": {
+    "action": {
+      "close": "Close",
+      "new": "New report",
+      "respond": "Respond"
+    },
+    "card": {
+      "anonymous": "Anonymous",
+      "evidence": "Evidence",
+      "resolution": "Resolution",
+      "severity": "Severity"
+    },
+    "close": {
+      "errorEmpty": "The resolution cannot be empty.",
+      "outcome": "Outcome",
+      "placeholder": "Describe the case resolution, measures taken, and follow-up plan.",
+      "resolution": "Resolution",
+      "submit": "Close report",
+      "substantiated": "Substantiated",
+      "title": "Close report",
+      "transferred": "Referred to external authority",
+      "unsubstantiated": "Unsubstantiated"
+    },
+    "error": "Could not load the reports: {{msg}}",
+    "inbox": {
+      "empty": "No pending reports. Inbox empty."
+    },
+    "mis": {
+      "empty": "You have no reports in this project. Anonymous reports do not appear here by design — only identified ones."
+    },
+    "modal": {
+      "anonymousHelp": "Your identity is NEVER stored. Only an irreversible code used to detect retaliation.",
+      "anonymousLabel": "Anonymous (recommended)",
+      "confirmation": "Report submitted. You will receive a response within 5 business days (Art. 7, Law 21,643).",
+      "errorNarrative": "The description must be at least 10 characters long.",
+      "errorSubmit": "The report could not be submitted.",
+      "evidence": "Evidence (optional)",
+      "evidencePlaceholder": "Witnesses, documents, emails, messages.",
+      "identifiedHelp": "Enables personalized follow-up of the case. Kept strictly confidential.",
+      "identifiedLabel": "Identified",
+      "identityLegend": "Identity",
+      "kind": "Category",
+      "narrative": "Description",
+      "narrativePlaceholder": "Describe the event in detail: what happened, when, where, who.",
+      "severity": "Severity",
+      "submit": "Report",
+      "title": "New confidential report"
+    },
+    "page": {
+      "selectProject": "Select a project to access the reporting channel.",
+      "subtitle": "Channel §211-213 — Law 21,643 (Karin Law) + retaliation protection.",
+      "title": "Confidential Reports"
+    },
+    "privacy": {
+      "body": "You can report anonymously or identified. An anonymous identity is NEVER stored — only an irreversible pseudonymous code to detect retaliation. Any adverse action after a report (dismissal, shift change, sanction) is recorded for legal review.",
+      "title": "Your data is protected by Law 21,643"
+    },
+    "respond": {
+      "errorEmpty": "The message cannot be empty.",
+      "message": "Message",
+      "placeholder": "Describe progress, next steps, or a request for additional information.",
+      "submit": "Send response",
+      "title": "Respond to the report"
+    },
+    "retaliation": {
+      "disclaimer": "Pattern detected via anonymous hash — it does NOT de-anonymize. Human investigation is mandatory before drawing conclusions.",
+      "empty": "No retaliation patterns detected in the last 90 days.",
+      "entry": "{{kind}} {{days}}d after the report (hash: {{hash}}…)",
+      "title": "Retaliation alerts (90-day window)"
+    },
+    "tab": {
+      "inbox": "Investigator inbox",
+      "mis": "My reports"
+    }
+  },
+  "drivingSafety": {
+    "action": {
+      "flagAlert": "Report",
+      "newRoute": "New route",
+      "recordJourney": "Log journey",
+      "resolveAlert": "Manage"
+    },
+    "driver": {
+      "fatigue": "Fatigue",
+      "hoursWeek": "Hours/wk",
+      "incidents": "Incidents 12m",
+      "license": "License",
+      "licenseDays": "expires in {{n}}d",
+      "licenseExpired": "expired"
+    },
+    "drivers": {
+      "empty": "No drivers registered in this project.",
+      "error": "Could not load the drivers: {{msg}}"
+    },
+    "filter": {
+      "status": "Status:"
+    },
+    "modal": {
+      "alertFlag": "Report route alert",
+      "alertKind": "Alert type",
+      "alertManage": "Manage alert",
+      "alertNote": "Note (optional)",
+      "alertNotePlaceholder": "E.g. Ice at km 45-50, reduced visibility.",
+      "alertResolve": "Resolve current",
+      "alertSubmit": "Report",
+      "criticality": "Criticality",
+      "destination": "Destination",
+      "distance": "Distance (km)",
+      "errorAlert": "The alert could not be recorded.",
+      "errorDistance": "Invalid distance.",
+      "errorJourney": "The journey could not be recorded.",
+      "errorJourneyId": "You need the journey ID to close it.",
+      "errorName": "The name must be at least 2 characters long.",
+      "errorPlaces": "Origin and destination are required.",
+      "errorSpeed": "Speed out of range (5-200).",
+      "errorSubmit": "The route could not be recorded.",
+      "hazards": "Hazards (multiple selection)",
+      "journeyAction": "Action",
+      "journeyEnd": "End journey",
+      "journeyHours": "Hours (optional, auto-calculated if empty)",
+      "journeyId": "Journey ID",
+      "journeyNote": "Note (optional)",
+      "journeyStart": "Start journey",
+      "journeySubmit": "Confirm",
+      "journeyTitle": "Log journey",
+      "maxSpeed": "Max speed (km/h)",
+      "name": "Name",
+      "newRouteTitle": "New critical route",
+      "origin": "Origin",
+      "submit": "Save",
+      "weatherSensitive": "Weather-sensitive (notify when conditions change)"
+    },
+    "page": {
+      "selectProject": "Select a project to view critical routes, drivers and the safety ranking.",
+      "subtitle": "§69-71 — critical routes, drivers and real-time alerts (assistive, non-blocking).",
+      "title": "Safe Driving"
+    },
+    "ranking": {
+      "canOperate": "Fit to operate",
+      "empty": "No drivers registered to rank.",
+      "error": "Could not load the ranking: {{msg}}",
+      "hours": "hrs/wk",
+      "score": "Score"
+    },
+    "route": {
+      "weatherSensitive": "Weather-sensitive"
+    },
+    "routes": {
+      "empty": "No routes recorded for this filter.",
+      "error": "Could not load the routes: {{msg}}"
+    },
+    "tab": {
+      "conductores": "Drivers",
+      "ranking": "Ranking",
+      "rutas": "Routes"
+    }
+  },
+  "incidentFlow": {
+    "assigned": {
+      "aria": "Assigned microtraining",
+      "certified": "Certificate issued",
+      "derivedFrom": "Derived from the lesson:",
+      "passed": "Passed",
+      "retryHelper": "No blame — the assignment stays open so you can try again.",
+      "running": "Starting...",
+      "scoreLabel": "Score",
+      "start": "Take microtraining"
+    },
+    "investigation": {
+      "actionPlaceholder": "Specific preventive action",
+      "actionsLabel": "Preventive actions",
+      "addAction": "Add action",
+      "aria": "Investigation panel",
+      "conclude": "Conclude investigation",
+      "concludeHelper": "ISO 45001 requires at least 1 preventive action. Each action will be traceable as a closure node.",
+      "concluding": "Concluding...",
+      "factorLabel": "Contributing factor (optional)",
+      "factorNone": "— unclassified —",
+      "openSubmit": "Open investigation",
+      "opened": "Investigation opened",
+      "opening": "Opening...",
+      "removeAction": "Remove action",
+      "rootLabel": "Root cause (no-blame)",
+      "rootMin": "characters minimum",
+      "rootPlaceholder": "Systemic focus: which procedure, which resource, which decision was missing. Do not name people.",
+      "scopeLabel": "Investigation scope",
+      "scopePlaceholder": "Initial focus: which procedures / equipment / contexts to review.",
+      "title": "Incident investigation"
+    },
+    "lessonForm": {
+      "aria": "Publish lesson learned",
+      "audienceCount": "workers",
+      "audienceLabel": "Audience (comma-separated uids)",
+      "idLabel": "Lesson ID",
+      "published": "Lesson published",
+      "publishing": "Publishing...",
+      "riskCatsLabel": "Risk categories",
+      "submit": "Publish lesson",
+      "summaryLabel": "Lesson summary",
+      "summaryPlaceholder": "One or two systemic sentences anyone in the industry can apply.",
+      "tagsLabel": "Tags",
+      "title": "Publish lesson learned"
+    },
+    "pdca": {
+      "aria": "PDCA closure panel",
+      "closeCta": "Close investigation (PDCA Act → Close)",
+      "closureLabel": "Cycle closure",
+      "loading": "Loading PDCA status...",
+      "nodesLabel": "ZK nodes",
+      "of": "of",
+      "thresholdHelper": "Closure available once {{percent}}% of trainings are completed.",
+      "title": "Incident PDCA closure",
+      "workers": "workers"
+    },
+    "reportForm": {
+      "aria": "Accident report form",
+      "descriptionLabel": "What happened",
+      "descriptionPlaceholder": "Describe the event without blaming people. Focus on the system.",
+      "helper": "Reporting always earns points. There is no penalty: reporting early saves lives.",
+      "locationLabel": "Location",
+      "locationPlaceholder": "Site 7, sector C",
+      "minChars": "characters minimum",
+      "photoAttached": "Photo attached",
+      "severityLabel": "Estimated severity",
+      "submit": "Submit report",
+      "submitting": "Submitting...",
+      "title": "Report accident / near miss"
+    }
   }
 }

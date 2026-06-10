@@ -40,7 +40,9 @@ export function AnnualReviewSummary({
           {t('annualReview.title', 'Revisión Anual SGI')} {fiscalYear}
         </h2>
         <span className="ml-auto text-xs text-secondary-token">
-          {review.totalObjectives} {t('annualReview.objectives', 'objetivos')}
+          {/* Key renamed objectives→objectives.label: 'annualReview.objectives' is a
+              namespace node ('.empty' lives under it), so it cannot also be a leaf. */}
+          {review.totalObjectives} {t('annualReview.objectives.label', 'objetivos')}
         </span>
       </header>
 
