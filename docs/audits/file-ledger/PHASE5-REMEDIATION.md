@@ -48,22 +48,34 @@ B23-Estado compartido, B24-Calidad tests**). Evidencia: `AUDIT-2026-06-FULL.md` 
   lone-worker + capgo-proximity incluidos; la clase del `<service>` ahora compila en el APK.
 - [ ] 🟡 **B21-iOS: mesh pod sin proyecto Xcode** — `packages/capacitor-mesh/ios` tiene Swift
   pero no hay `.podspec` integrado al workspace iOS. FIX: generar pod + `cap update ios` (en Mac).
-- [ ] 🔴 **B19: triggers/jobs in-process × Cloud Run min-instances=0** → onSnapshot/intervals
-  mueren sin tráfico. FIX: `--min-instances=1 --no-cpu-throttling` o mover a Scheduler.
-- [ ] 🔴 **A.1: `ProjectHealthCheck.tsx:68`** (vivo en Analytics) llama `/api/projects/:id/health-check`
-  ELIMINADO en Round 14 → reintroducir endpoint con `assertProjectMember` y re-cablear.
-- [ ] 🔴 **A.1: `ProcessDetailModal.tsx:72`** (vivo en CuadrillasDashboard) se suscribe a colección
-  `hallazgos` SIN regla (lo canónico es `findings:677`) → leer `findings`.
-- [ ] 🔴 **B9: SiteBook 3 esquemas disjuntos** — cliente `site_book` / adapter `sitebook_entries` /
-  firma `site_book_entries` → la firma WebAuthn no encuentra la entrada creada. FIX: path canónico.
-- [ ] 🔴 **B17: `documents_for_read` regla↔schema** — regla exige `authorUid` que nadie estampa
-  (`firestore.rules:456` vs `readReceiptService.ts:34`) → save() cliente denegado siempre.
-- [ ] 🔴 **B12: `comite_actas` write denegado** — `ComiteParitario.tsx:73,111` escribe; la regla
-  solo concede read (`firestore.rules:630`). FIX: consolidar en CphsModule + ruta server auditada.
-- [ ] 🔴 **B17: External Audit Portal sin gate de rol** (`externalAuditPortal.ts:234,355,428`) —
-  cualquier miembro emite tokens de auditor cross-proyecto. FIX: admin + scope de proyectos.
-- [ ] 🔴 **B4/ZK: PDCA sin aristas** — `incidentFlow.ts:77-84` no inyecta `createEdge` → grafo
-  incidente→lección→capacitación desconectado (ISO 45001 §10.2). FIX: inyectar + edges server.
+- [x] 🔴 ~~**B19: triggers/jobs in-process × Cloud Run min-instances=0**~~ → ✅ **hecho**
+  (PR #820): `--min-instances=1 --no-cpu-throttling` con nota de costo (~USD 10-15/mes) —
+  el precio de que los listeners vida-críticos realmente escuchen.
+- [x] 🔴 ~~**A.1: `ProjectHealthCheck.tsx:68`** endpoint eliminado~~ → ✅ **hecho** (PR #820):
+  `src/server/routes/projectHealth.ts` con verifyAuth + assertProjectMember (el exploit del
+  Round 14 queda pin con test 403), contexto normativo desde country pack, cachea
+  `health_checks/latest`, audita con auditServerEvent; 502 sin cache si la IA falla.
+- [x] 🔴 ~~**A.1: `ProcessDetailModal.tsx:72`** colección `hallazgos` sin regla~~ → ✅ **hecho**
+  (PR #820): lee `projects/{pid}/findings` (canónica); también `wisdomCapsule.ts` que leía el
+  mismo path muerto server-side (la cápsula siempre resumía 0 hallazgos — test pin sourceNodes).
+  QUEDA 🟡: fragmentación residual — weeklyDigest lee `tenants/{tid}/findings` e insights lee
+  `findings` top-level; cada path tiene escritor propio → decisión de migración, no re-point ciego.
+- [x] 🔴 ~~**B9: SiteBook esquemas disjuntos (cliente vs firma)**~~ → ✅ **hecho** (PR #820):
+  `SITE_BOOK_COLLECTION = 'site_book_entries'` en el servicio puro, importado por el store
+  cliente Y las rutas de firma (acople por código). QUEDA 🟡: el adapter CRDT
+  `tenants/{tid}/projects/{pid}/sitebook_entries` (GET /api/sitebook usado por useInsights)
+  es una tercera isla → decisión de migración.
+- [x] 🔴 ~~**B17: `documents_for_read` regla↔schema**~~ → ✅ **hecho** (PR #820):
+  `buildDocumentForRead()` puro estampa `authorUid` + id `randomId()` (regla #15, antes
+  Math.random) + clamp [1,90]; DocumentReadConfirm lo usa y exige sesión.
+- [x] 🔴 ~~**B12: `comite_actas` write denegado**~~ → **DRIFT, ya resuelto en main**: la regla
+  actual (firestore.rules:665) permite create/update member-gated con `isValidComiteActa` +
+  createdAt/fecha inmutables; rules-tests `comiteActas.rules.test.ts` (2026-06-09). El shape
+  del cliente coincide con el validador. No re-trabajar.
+- [x] 🔴 ~~**B17: External Audit Portal sin gate de rol**~~ → **DRIFT, ya resuelto en main**:
+  `assertAdminCaller` aplicado en las 4 rutas admin (externalAuditPortal.ts:270,342,394,467).
+- [x] 🔴 ~~**B4/ZK: PDCA sin aristas**~~ → **DRIFT, ya resuelto en main**: `flowDepsFor`
+  (incidentFlow.ts:80-95) inyecta `createEdge` con el edge-store Firestore real (fix #650 R2).
 - [ ] 🔴 **B20: i18n bypaseado a escala** — ~3.150/5.155 claves `t()` no existen en `common.json`
   (2.745 default inline es) → en/pt-BR ven español; el gate es ciego a claves no declaradas.
   FIX: generar claves desde defaults inline (codemod) + ratchet que cuente claves usadas.
