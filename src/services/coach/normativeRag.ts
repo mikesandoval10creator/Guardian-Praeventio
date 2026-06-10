@@ -88,7 +88,14 @@ function bagOfWordsScore(query: string, text: string): number {
 function seedCorpusFromClPack(): NormativeChunk[] {
   const domainByRegId: Record<string, CoachDomain[]> = {
     'cl-ley-16744': ['legal', 'medicine'],
-    'cl-ds-40': ['legal'],
+    // AUDIT-2026-06 B22 — 'cl-ds-40' era un id muerto (el pack tiene
+    // cl-ds-44 desde que DS 44/2024 reemplazó al DS 40/1969 derogado).
+    'cl-ds-44': ['legal'],
+    'cl-ds-132': ['legal'],
+    'cl-ds-76': ['legal'],
+    'cl-ds-67': ['legal'],
+    'cl-ds-148': ['chemical', 'legal'],
+    'cl-ley-19628': ['legal', 'medicine'],
     'cl-ds-54': ['legal'],
     'cl-ds-594': ['chemical', 'medicine', 'legal'],
     'cl-ley-20123': ['legal'],
@@ -103,7 +110,12 @@ function seedCorpusFromClPack(): NormativeChunk[] {
 
   const sourceByRegId: Record<string, NormativeSource> = {
     'cl-ley-16744': 'BCN',
-    'cl-ds-40': 'BCN',
+    'cl-ds-44': 'BCN',
+    'cl-ds-132': 'BCN',
+    'cl-ds-76': 'BCN',
+    'cl-ds-67': 'BCN',
+    'cl-ds-148': 'MINSAL',
+    'cl-ley-19628': 'BCN',
     'cl-ds-54': 'BCN',
     'cl-ds-594': 'MINSAL',
     'cl-ley-20123': 'BCN',

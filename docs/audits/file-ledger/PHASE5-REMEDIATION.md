@@ -91,8 +91,12 @@ B23-Estado compartido, B24-Calidad tests**). Evidencia: `AUDIT-2026-06-FULL.md` 
   encoger; código nuevo con clave sin declarar FALLA husky + vitest gate). **PENDIENTE**: codemod
   que genere las claves es desde los defaults inline + traducción en/pt-BR por lotes (bajar el
   baseline a 0 por módulos, vida-seguridad primero: incident_report.*, lone_worker.*).
-- [ ] 🟡 **B22: corpus normativo incompleto** — omite DS 132 (124 citas en código), DS 76/67/148,
-  Ley 19.628, NCh; RAG efectivo ~17 chunks. FIX: ingesta real BCN + pipeline de chunks.
+- [~] 🟡 **B22: corpus normativo incompleto** → ✅ **parcial** (PR #820): DS 132 (Seguridad
+  Minera), DS 76 (66 bis), DS 67 (cotización adicional), DS 148 (residuos peligrosos) y
+  Ley 19.628 (datos personales) incorporados al CL pack con URLs **verificadas contra BCN**
+  (idNorma 221064/257601/159800/226458/141599) + sembrados al corpus RAG con dominios; id
+  muerto `cl-ds-40` del mapeo → `cl-ds-44`. **PENDIENTE**: pipeline de ingesta de texto
+  completo BCN→chunks (hoy 1 chunk overview por norma) + NCh + índice Pinecone.
 - [x] 🟡 ~~**B19: systemEngineTrigger no-op / SIGTERM sin drain / CI sin lint**~~ → ✅ **hecho**
   (PR #820): `makeSystemEventAuditor` (1 fila audit_logs idempotente por system event, Phase 1
   prometida por el header); `gracefulShutdown()` con `server.close()` + budget 8s (antes

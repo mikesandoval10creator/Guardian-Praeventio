@@ -110,3 +110,34 @@ describe('NormativeRagService (in-memory mode)', () => {
     expect(ids).toContain('test-radiacion-uv');
   });
 });
+
+// AUDIT-2026-06 B22 — el corpus omitía DS 132 (citado 124 veces en código),
+// DS 76/67/148 y Ley 19.628; y el mapeo de dominios tenía el id muerto
+// 'cl-ds-40' (el pack tiene cl-ds-44 desde la derogación del DS 40/1969).
+describe('B22 — normas incorporadas al corpus', () => {
+  it('una consulta minera recupera el chunk del DS 132', async () => {
+    const svc = new NormativeRagService();
+    const results = await svc.searchTopK(
+      'seguridad minera explosivos ventilación SERNAGEOMIN faena',
+      'legal',
+      5,
+    );
+    expect(results.map((r) => r.id)).toContain('seed-cl-ds-132');
+  });
+
+  it('el corpus siembra las 5 normas nuevas + cl-ds-44 (sin id muerto)', () => {
+    const svc = new NormativeRagService();
+    const ids = new Set(svc.listChunks().map((c) => c.id));
+    for (const id of [
+      'seed-cl-ds-132',
+      'seed-cl-ds-76',
+      'seed-cl-ds-67',
+      'seed-cl-ds-148',
+      'seed-cl-ley-19628',
+      'seed-cl-ds-44',
+    ]) {
+      expect(ids.has(id), `falta ${id}`).toBe(true);
+    }
+    expect(ids.has('seed-cl-ds-40')).toBe(false);
+  });
+});
