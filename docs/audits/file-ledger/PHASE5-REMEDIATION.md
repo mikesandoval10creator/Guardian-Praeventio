@@ -47,6 +47,27 @@ nuevas sino aristas nuevas. Estado verificado por grep/lectura el 2026-06-10:
   (`projectClosure.ts` closure/lessons + LessonsAdapter); la precarga al próximo proyecto = slice 3
   de la épica Rubros SII (mismo mecanismo).
 
+**Capa 3 — sensores, patrones y mundo físico (verificada 2026-06-10, ninguna conectada):**
+- [ ] 🛟 **C1 Asistencia→Tablero de evacuación**: `Attendance.tsx` existe y el headcount de
+  evacuación también — desconectados. Conectados = lista NOMINAL en tiempo real de quién falta
+  en el punto de encuentro (los minutos que definen un rescate). La más valiosa de la capa.
+- [ ] **C2 Excepciones repetidas→MOC**: 3 desviaciones sobre el mismo procedimiento = procedimiento
+  mal diseñado; `runConsistencyAudit` debería detectar el patrón y gatillar gestión del cambio.
+- [ ] 🛟 **C3 Telemetría→bloqueo operacional**: el ingest HMAC existe; lectura de gas sobre umbral
+  en zona → soft-block automático de permisos de espacio confinado de esa zona + alerta. El
+  sensor hoy informa; conectado, detiene.
+- [ ] **C4 OCR→Zettelkasten/Hazmat**: `DocumentOCRManager` existe; apuntarlo a HDS de químicos /
+  certificados / mantenciones → nodos estructurados → HazmatStorageDesigner con
+  incompatibilidades reales. El papel legado entra al grafo por la cámara.
+- [ ] 🛟 **C5 Trabajo solitario→Refugios/DEA**: el escalamiento ya dispara con última ubicación;
+  falta adjuntar la ruta al refugio/DEA más cercano a ese punto (datos que ya existen).
+- [ ] **C6 SunTracker→Pre-turno**: elevación solar/fase lunar ya se calculan (SunCalc); como
+  fuente del pre-turno (altura al atardecer con sol de frente, nocturno en luna nueva sin
+  iluminación verificada). Diferenciador: nadie considera luz natural.
+- [ ] **C7 Cierre de proyecto→Ranking de proveedores**: lecciones de cierre y ranking
+  (`supplierQualityService.ts`) existen separados; el desempeño de seguridad del proveedor en el
+  proyecto cerrado debería alimentar su ranking histórico automáticamente.
+
 **Capa 2 — actores externos y negocio:**
 - [ ] 💰 **B1 Incidentes→Siniestralidad→Simulador cotización adicional DS 67**: NO existe (lo que
   hay en `ds67ds76.ts` son formularios PDF). El DS 67 ya está en el pack (cl-ds-67). Argumento de
