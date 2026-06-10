@@ -61,7 +61,19 @@ import {
 import {
   validateCriticalPermit,
   type CriticalMetadata,
+  type CriticalIssue,
 } from '../../services/workPermits/criticalPermitValidators.js';
+// Arista clima→permisos (2026-06-10): `windSpeedMps` used to come exclusively
+// from the client body, making the DS 132 / ISO 12480 wind thresholds
+// decorative when the requester under-declares. For wind-sensitive kinds we
+// now resolve an independent server-side wind sample from the project's
+// `geo:{lat,lng}` (environmentBackend.getForecast — OpenWeather) and validate
+// with effective = max(declared, server). See weatherGate.ts for the policy.
+import {
+  mergeWindForValidation,
+  resolveServerWindWithTimeout,
+  type WindMergeResult,
+} from '../../services/workPermits/weatherGate.js';
 
 const router = Router();
 
@@ -357,6 +369,44 @@ const criticalValidateSchema = z.object({
   data: z.record(z.string(), z.unknown()),
 });
 
+/** Kinds whose validators consume `windSpeedMps` (izaje only today). */
+const KINDS_WITH_WIND: ReadonlySet<string> = new Set(['izaje_critico']);
+
+/** Hard deadline for the independent wind lookup — never hang the endpoint. */
+const WIND_LOOKUP_TIMEOUT_MS = 3000;
+
+/** Read `projects/{projectId}.geo` when it carries finite lat/lng. */
+async function readProjectGeo(
+  projectId: string,
+  db: admin.firestore.Firestore,
+): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const snap = await db.collection('projects').doc(projectId).get();
+    const geo = snap.exists ? (snap.data()?.geo as unknown) : null;
+    if (
+      geo &&
+      typeof (geo as { lat?: unknown }).lat === 'number' &&
+      typeof (geo as { lng?: unknown }).lng === 'number' &&
+      Number.isFinite((geo as { lat: number }).lat) &&
+      Number.isFinite((geo as { lng: number }).lng)
+    ) {
+      return { lat: (geo as { lat: number }).lat, lng: (geo as { lng: number }).lng };
+    }
+    return null;
+  } catch (err) {
+    // Geo is an enhancement — a failed read degrades to the declared value.
+    logger.warn?.('workPermits.validateCritical.geo_read_failed', err);
+    return null;
+  }
+}
+
+interface WeatherVerification {
+  source: WindMergeResult['source'];
+  serverWindMps: number | null;
+  discrepancy: boolean;
+  note?: string;
+}
+
 router.post(
   '/:projectId/work-permits/validate-critical',
   verifyAuth,
@@ -374,11 +424,48 @@ router.post(
         reason: 'caller_lacks_permit_issuer_role',
       });
     }
+
+    // ── Server-side wind verification (wind-sensitive kinds + project geo) ─
+    let data = body.data;
+    let weatherVerification: WeatherVerification | null = null;
+    let merged: WindMergeResult | null = null;
+    if (KINDS_WITH_WIND.has(body.kind)) {
+      const geo = await readProjectGeo(projectId, admin.firestore());
+      if (geo) {
+        const serverWind = await resolveServerWindWithTimeout(
+          {
+            fetchForecast: async (days, loc) => {
+              const { getForecast } = await import(
+                '../../services/environmentBackend.js'
+              );
+              return getForecast(days, loc);
+            },
+          },
+          geo,
+          WIND_LOOKUP_TIMEOUT_MS,
+        );
+        const declared =
+          typeof data.windSpeedMps === 'number' ? data.windSpeedMps : null;
+        merged = mergeWindForValidation(declared, serverWind);
+        if (merged.effectiveWindMps !== null) {
+          // Inject the safety-effective wind BEFORE validation — the existing
+          // IZAJE thresholds (11/15 m/s) then block/advise on the worst case.
+          data = { ...data, windSpeedMps: merged.effectiveWindMps };
+        }
+        weatherVerification = {
+          source: merged.source,
+          serverWindMps: merged.serverWindMps,
+          discrepancy: merged.discrepancy,
+          ...(merged.note ? { note: merged.note } : {}),
+        };
+      }
+    }
+
     let result;
     try {
       result = validateCriticalPermit({
         kind: body.kind,
-        data: body.data,
+        data,
       } as unknown as CriticalMetadata);
     } catch {
       // The pure validator throws only on incomplete/malformed metadata
@@ -390,7 +477,33 @@ router.post(
       });
       return res.status(400).json({ error: 'invalid_metadata', kind: body.kind });
     }
-    return res.json({ result });
+
+    // Surface the under-declaration to the supervisor as a recorded advisory
+    // (the blocking decision itself already ran on the effective wind).
+    if (merged?.discrepancy && merged.serverWindMps !== null) {
+      const discrepancyIssue: CriticalIssue = {
+        severity: 'advisory',
+        code: 'WIND_CLIENT_UNDERREPORTED',
+        message: `Viento declarado ${(merged.clientWindMps ?? 0).toFixed(1)} m/s está por debajo del viento verificado por el servidor ${merged.serverWindMps.toFixed(1)} m/s. La validación se realizó con el valor verificado.`,
+        context: {
+          clientWindMps: merged.clientWindMps ?? 0,
+          serverWindMps: merged.serverWindMps,
+        },
+      };
+      result = {
+        ...result,
+        issues: [...result.issues, discrepancyIssue],
+        hasAdvisories: true,
+      };
+    }
+
+    // NOTE: this endpoint is deliberately NOT audited — it is a read-only
+    // advisory validation (no state change); permit create/sign/close are the
+    // audited lifecycle events (CLAUDE.md #3).
+    return res.json({
+      result,
+      ...(weatherVerification ? { weatherVerification } : {}),
+    });
   },
 );
 

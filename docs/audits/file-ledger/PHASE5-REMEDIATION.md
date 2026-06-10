@@ -13,10 +13,26 @@ Dos capas de conexiones entre módulos que YA existen — el mayor activo no son
 nuevas sino aristas nuevas. Estado verificado por grep/lectura el 2026-06-10:
 
 **Capa 1 — operación interna:**
-- [~] 🛟 **A1 Clima→Permisos**: umbrales de viento YA en validadores (11/15 m/s ISO 12480/DS 132,
-  `criticalPermitValidators.ts`, `liftingPermitExtension.ts`) pero `windSpeedMps` lo declara el
-  CLIENTE → soft-block decorativo. EN CURSO: viento server-side real vía Open-Meteo con política
-  max(declarado, real) + advisory de discrepancia (rama `claude/weather-permit-validation`).
+- [x] ✅ **A1 Clima→Permisos ✅: viento verificado server-side en `validate-critical`.**
+  Antes, `windSpeedMps` venía exclusivamente del body del cliente, dejando decorativos los
+  umbrales DS 132 / ISO 12480 (11/15 m/s) de `criticalPermitValidators.ts:99-100` ante un
+  solicitante que sub-declara. Ahora, para kinds sensibles al viento (`izaje_critico` —
+  `src/server/routes/workPermits.ts:373`), el endpoint lee `projects/{id}.geo`
+  (`workPermits.ts:379-401`), resuelve un viento independiente vía
+  `environmentBackend.getForecast` con deadline duro de 3 s (`workPermits.ts:435-447`;
+  Promise.race en `weatherGate.ts:106-124` — jamás cuelga el endpoint) y valida con
+  `effective = max(declarado, server)` (`src/services/workPermits/weatherGate.ts:126-160`).
+  Sub-declaración ≥2 m/s bajo el server → issue advisory `WIND_CLIENT_UNDERREPORTED`
+  (`workPermits.ts:483-499`); server caído → nota es-CL "No fue posible verificar el viento
+  de forma independiente…" (`weatherGate.ts:67-68`). Respuesta expone
+  `weatherVerification:{source,serverWindMps,discrepancy,note?}` (`workPermits.ts:430,503-506`).
+  Sin geo o kind sin viento → comportamiento previo intacto. NOTA de verdad-de-código: el
+  proveedor real de `getForecast` es **OpenWeather** (`environmentBackend.ts:420`), no
+  Open-Meteo como decía el contexto — `source:'openweather'`. Endpoint sigue read-only
+  (sin audit_log; create/sign/close siguen siendo los eventos auditados). Tests: 15 unit
+  (`weatherGate.test.ts`) + 6 supertest router real
+  (`src/__tests__/server/workPermits.weatherVerification.test.ts`), suites previas de
+  workPermits verdes (193 tests).
 - [ ] **A2 Fatiga→Pre-turno→Asignación**: `preShiftRisk.ts:210` ya lee fatigueRisk; falta el
   soft-block de asignación a maquinaria/conducción.
 - [ ] **A3 Vencimientos→Hallazgos automáticos**: `checkExpiredPpe.ts` notifica FCM y marca
