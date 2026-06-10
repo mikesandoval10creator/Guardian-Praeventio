@@ -32,15 +32,22 @@ B23-Estado compartido, B24-Calidad tests**). Evidencia: `AUDIT-2026-06-FULL.md` 
 - [x] 🔴🛟 ~~**B19: `runLoneWorkerEscalation` jamás provisionado**~~ → ✅ **hecho** (PR #820):
   cron `lone-worker-escalation` `*/5` añadido a deploy.yml apuntando a
   `/api/maintenance/run-lone-worker-escalation` (ya OIDC-gated por el fix de arriba).
-- [ ] 🔴🛟 **B19/B23: FCM crítico roto en móvil** — `backgroundTriggers.ts:213` lee `fcmToken`
-  singular; el registro escribe `fcmTokens[]`. FIX: usar helper canónico `projectTokens.ts`.
-- [ ] 🔴🛟 **B21: mesh nativo fuera del build** — `packages/capacitor-mesh` no es dep npm ni
-  está en `capacitor.settings.gradle` ni hay Xcode project → en dispositivo cae al stub web
-  (SOS offline mesh no funciona). FIX: wirear workspace + gradle + (iOS follow-up).
-- [ ] 🔴🛟 **B21: AndroidManifest sin permisos** ACCESS_FINE/COARSE_LOCATION, CAMERA, BLE →
-  GPS del SOS/QR/biometría muertos en APK (`AndroidManifest.xml:66-90`). FIX: declararlos.
-- [ ] 🔴🛟 **B21: `capacitor.settings.gradle` stale** — falta plugin FGS lone-worker (+proximity);
-  el `<service>` declarado referencia clase ausente. FIX: `npx cap sync` + commitear settings.
+- [x] 🔴🛟 ~~**B19/B23: FCM crítico roto en móvil**~~ → ✅ **hecho** (PR #820): el trigger une
+  `users.fcmTokens[]` (canónico, multi-device) + `fcmToken` legacy con dedupe; test pin con
+  usuario solo-array y usuario con ambos campos. (Quirúrgico en el trigger para preservar el
+  fallback de email user-doc, que el helper canónico obtiene de otra fuente.)
+- [x] 🔴🛟 ~~**B21: mesh nativo fuera del build**~~ → ✅ **hecho** (PR #820):
+  `@praeventio/capacitor-mesh` como dep `file:`, `cap update android` regeneró
+  settings/build.gradle (12 plugins, mesh apunta a `../packages/capacitor-mesh/android`).
+  **Pendiente iOS**: crear Xcode project/pod para el plugin (sub-ítem abajo).
+- [x] 🔴🛟 ~~**B21: AndroidManifest sin permisos**~~ → ✅ **hecho** (PR #820): declarados
+  ACCESS_FINE/COARSE_LOCATION + CAMERA en el manifest de la app; BLE llega por merger desde
+  el manifest del plugin mesh (ahora en el build). Test `androidBuildWiring.test.ts` (16 casos)
+  fija permisos + includes gradle + allowBackup=false + acople clase FGS↔gradle.
+- [x] 🔴🛟 ~~**B21: `capacitor.settings.gradle` stale**~~ → ✅ **hecho** (PR #820): FGS
+  lone-worker + capgo-proximity incluidos; la clase del `<service>` ahora compila en el APK.
+- [ ] 🟡 **B21-iOS: mesh pod sin proyecto Xcode** — `packages/capacitor-mesh/ios` tiene Swift
+  pero no hay `.podspec` integrado al workspace iOS. FIX: generar pod + `cap update ios` (en Mac).
 - [ ] 🔴 **B19: triggers/jobs in-process × Cloud Run min-instances=0** → onSnapshot/intervals
   mueren sin tráfico. FIX: `--min-instances=1 --no-cpu-throttling` o mover a Scheduler.
 - [ ] 🔴 **A.1: `ProjectHealthCheck.tsx:68`** (vivo en Analytics) llama `/api/projects/:id/health-check`
