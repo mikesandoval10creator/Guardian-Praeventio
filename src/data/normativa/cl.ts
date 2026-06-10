@@ -53,10 +53,11 @@ export const CL_PACK: CountryPack = {
     },
     {
       id: 'cl-ds-54',
-      title: 'DS 54 — Reglamento de Comités Paritarios de Higiene y Seguridad',
-      reference: 'Decreto Supremo N° 54 (1969), MINTRAB. Art. 1',
+      title: 'DS 54 — Comités Paritarios (DEROGADO por DS 44/2024; referencia histórica)',
+      reference:
+        'Decreto Supremo N° 54 (1969), MINTRAB. DEROGADO desde 01-02-2025 por el DS 44/2024, que unifica la gestión preventiva y regula hoy los CPHS (elección con voto secreto, anonimato y auditabilidad).',
       scope:
-        'Comité Paritario obligatorio en toda empresa, faena, sucursal o agencia con más de 25 trabajadores. 3 representantes del empleador + 3 de los trabajadores; reuniones mensuales.',
+        'Referencia histórica: Comité Paritario obligatorio sobre 25 trabajadores (3+3 representantes, reuniones mensuales). La regulación VIGENTE de los CPHS está en el DS 44/2024 — citar DS 54 como norma vigente es un error técnico fiscalizable.',
       url: 'https://www.bcn.cl/leychile/navegar?idNorma=9924',
     },
     {
