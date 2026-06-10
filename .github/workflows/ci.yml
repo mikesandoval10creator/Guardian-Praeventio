@@ -84,8 +84,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run vitest
-        run: npm run test:ci
+      # AUDIT-2026-06 — vitest's pool occasionally freezes mid-queue after a
+      # worker force-kill (tests stop being scheduled, no output, job dies at
+      # the 30-min cap; 4 occurrences on 2026-06-10 alone). Healthy runs
+      # finish in ~6 min, so a 14-min watchdog + ONE retry converts a 30-min
+      # hang + manual re-kick into an automatic in-job recovery. Genuine test
+      # failures exit non-124 and are NOT retried.
+      - name: Run vitest (hang watchdog + one retry)
+        run: |
+          set +e
+          timeout 14m npm run test:ci
+          rc=$?
+          if [ $rc -eq 124 ]; then
+            echo "::warning::vitest pool hang detected (>14m, known force-kill freeze) — retrying once"
+            timeout 14m npm run test:ci
+            rc=$?
+          fi
+          exit $rc
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
