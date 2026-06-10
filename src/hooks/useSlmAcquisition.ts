@@ -288,7 +288,7 @@ export function useSlmAcquisition(
       releaseKeepAwakeRef.current = await acquireKeepAwake();
 
       let attempt = 0;
-      // eslint-disable-next-line no-constant-condition
+
       while (true) {
         try {
           const { createSlmRuntime } = await getRuntime();
@@ -355,7 +355,7 @@ export function useSlmAcquisition(
           setError(message);
           // Esperar backoff. Si el user pausa durante el wait, salimos.
           const wait = backoffDelayMs(attempt);
-          // eslint-disable-next-line no-await-in-loop
+
           await new Promise<void>((resolve) => {
             const id = setTimeout(resolve, wait);
             controller.signal.addEventListener('abort', () => {

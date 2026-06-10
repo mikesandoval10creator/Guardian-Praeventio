@@ -70,6 +70,7 @@ import healthVaultRouter from "./src/server/routes/healthVault.js";
 // Sprint 27 (audit H20) — overdue-maintenance reaper, called by Cloud
 // Scheduler. Gated by verifySchedulerToken at the route level.
 import maintenanceRouter from "./src/server/routes/maintenance.js";
+import projectHealthRouter from "./src/server/routes/projectHealth.js";
 // 2026-05-15 — BCN snapshot router (Biblioteca del Congreso Nacional)
 // para BunkerManager offline. Lazy data fetch + cache 1h.
 import { bcnRouter } from "./src/server/routes/bcn.js";
@@ -408,7 +409,8 @@ import restrictedZonesRouter from "./src/server/routes/restrictedZones.js";
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
-import { setupSystemEngineTrigger } from "./src/server/triggers/systemEngineTrigger.js";
+import { makeSystemEventAuditor, setupSystemEngineTrigger } from "./src/server/triggers/systemEngineTrigger.js";
+import { gracefulShutdown } from "./src/server/lifecycle.js";
 import systemEventsRouter from "./src/server/routes/systemEvents.js";
 // Sprint 35 audit P1 §1.3 — distributed lease so in-process cron jobs
 // (env polling 10min, project safety 6h) only run on ONE Cloud Run
@@ -448,6 +450,9 @@ dotenv.config();
 // exploitable by A5: /api/erp/sync-workers, /api/comite/alert-email,
 // /api/reports/daily-email, /api/projects/:projectId/health-check.
 // Future re-introduction must use assertProjectMember.
+// AUDIT-2026-06: health-check reintroduced WITH assertProjectMember in
+// src/server/routes/projectHealth.ts (its consumer ProjectHealthCheck.tsx
+// had survived the removal and was POSTing into a 404).
 
 // Round 14 (A6 audit) -> hard fail in production. The OAuth token store
 // uses envelope encryption with a Key Encryption Key resolved by
@@ -525,15 +530,15 @@ try {
   if (firebaseConfig?.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)') {
     const originalFirestore = admin.firestore;
     const { getFirestore } = await import('firebase-admin/firestore');
-    
+
     const firestoreWrapper = () => getFirestore(admin.app(), firebaseConfig.firestoreDatabaseId);
     Object.assign(firestoreWrapper, originalFirestore);
-    
+
     Object.defineProperty(admin, 'firestore', {
       get: () => firestoreWrapper,
       configurable: true
     });
-    
+
     console.log(`✅ Firebase Admin configured for databaseId: ${firebaseConfig.firestoreDatabaseId}`);
   }
 } catch (error) {
@@ -657,6 +662,10 @@ app.use("/api/health-vault", healthVaultRouter);
 // gated by SCHEDULER_SHARED_SECRET (constant-time bearer compare) so
 // public ingress can't trigger it without the secret.
 app.use("/api/maintenance", maintenanceRouter);
+// AUDIT-2026-06 A.1 — reintroduces the Round 14-removed health-check with
+// the mandated assertProjectMember gate (ProjectHealthCheck.tsx consumer
+// survived the removal and was POSTing into a 404).
+app.use("/api/projects", projectHealthRouter);
 // 2026-05-15 — BCN snapshot endpoint para BunkerManager offline. Fetcha
 // leyes REALES desde la Biblioteca del Congreso Nacional. Cacheado 1h.
 // Public (no requiere auth) porque las leyes son contenido público —
@@ -797,15 +806,15 @@ try {
     // eslint-disable-next-line no-console
     console.log('✅ Session store: Firestore (multi-instance safe)');
   } else if (process.env.NODE_ENV === 'production') {
-    // eslint-disable-next-line no-console
+
     console.error('FATAL: Firebase Admin not initialized — cannot use MemoryStore in production.');
     process.exit(1);
   } else {
-    // eslint-disable-next-line no-console
+
     console.warn('⚠ Session store: MemoryStore (dev only — NOT safe for multi-instance prod)');
   }
 } catch (err) {
-  // eslint-disable-next-line no-console
+
   console.warn('Session store init failed, falling back to MemoryStore:', err);
 }
 
@@ -1397,7 +1406,7 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
   } catch (trackerError) {
     // Observability layer faulted — log via console (NOT logger, to
     // avoid recursion through observability) and keep going.
-    // eslint-disable-next-line no-console
+
     console.warn('[observability] error tracker captureException failed:', trackerError);
   }
   try {
@@ -1418,7 +1427,9 @@ let healthHandle: { stop: () => void } | null = null;
 let systemEngineHandle: { unsubscribe: () => void } | null = null;
 let mqttBrokerHandle: ConnectedBroker | null = null;
 
-app.listen(PORT, "0.0.0.0", () => {
+// AUDIT-2026-06 B19 — capture the handle so SIGTERM can drain in-flight
+// requests via server.close() instead of killing them with process.exit.
+const httpServer = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${PORT}`);
 
   if (admin.apps.length > 0) {
@@ -1434,6 +1445,12 @@ app.listen(PORT, "0.0.0.0", () => {
     // Cleanup is wired into SIGTERM (no leaked listener on rolling deploy).
     systemEngineHandle = setupSystemEngineTrigger({
       db: admin.firestore(),
+      // AUDIT-2026-06 B19 — the Phase 1 hook the module header always
+      // promised: one idempotent audit_logs row per system event. Without
+      // it the listener validated + deduped and then did NOTHING.
+      onEvent: makeSystemEventAuditor(admin.firestore(), () =>
+        admin.firestore.FieldValue.serverTimestamp(),
+      ),
     });
 
     // Proactive Project Health Checks (Every 6 hours to balance quota).
@@ -1504,16 +1521,26 @@ app.listen(PORT, "0.0.0.0", () => {
 // interval so the process can exit cleanly on SIGTERM (Cloud Run sends
 // SIGTERM ~10s before SIGKILL on revision rollover).
 process.on('SIGTERM', () => {
-  triggersHandle?.unsubscribe();
-  healthHandle?.stop();
-  systemEngineHandle?.unsubscribe();
-  // Sprint 27 (audit P0 H10) — clear the env polling interval too.
-  clearInterval(environmentalPollingHandle);
-  // Sprint 32 Bucket TT — release the MQTT broker subscription.
-  if (mqttBrokerHandle) {
-    mqttBrokerHandle.unsubscribe().catch(() => {
-      /* shutdown — swallow */
-    });
-  }
-  process.exit(0);
+  // AUDIT-2026-06 B19 — drain in-flight HTTP via server.close() before
+  // exiting (the old handler process.exit(0)'d immediately, killing
+  // responses mid-flight on every Cloud Run revision rollover). The 8s
+  // drain budget sits inside Cloud Run's ~10s SIGTERM→SIGKILL window.
+  gracefulShutdown({
+    server: httpServer,
+    cleanups: [
+      () => triggersHandle?.unsubscribe(),
+      () => healthHandle?.stop(),
+      () => systemEngineHandle?.unsubscribe(),
+      // Sprint 27 (audit P0 H10) — clear the env polling interval too.
+      () => clearInterval(environmentalPollingHandle),
+      // Sprint 32 Bucket TT — release the MQTT broker subscription.
+      () => {
+        if (mqttBrokerHandle) {
+          mqttBrokerHandle.unsubscribe().catch(() => {
+            /* shutdown — swallow */
+          });
+        }
+      },
+    ],
+  });
 });

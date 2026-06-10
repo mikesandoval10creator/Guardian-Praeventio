@@ -62,7 +62,7 @@ const ZERO_STATS: MedallaStats = {
  * documented policy gate) instead of disappearing into nothing.
  */
 export function decrementXp(_amount: number, _reason?: string): void {
-  // eslint-disable-next-line no-console
+
   console.warn('[SkillTree] decrement attempted; ignored — Flow Infinito policy');
 }
 export const deductXp = decrementXp;

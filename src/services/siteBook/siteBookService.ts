@@ -24,6 +24,19 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 
+/**
+ * Canonical Firestore subcollection for site-book entries:
+ * `projects/{projectId}/site_book_entries/{entryId}`.
+ *
+ * AUDIT-2026-06 B9 — the client store used to write `site_book` while the
+ * WebAuthn sign routes read `site_book_entries`, so signing could never
+ * find the entry the user just created. Client store (siteBookStore.ts)
+ * and server sign routes (sitebookSignRoutes.ts) both import this
+ * constant; firestore.rules keeps the legacy `site_book` match for
+ * pre-existing data (read/no-new-feature).
+ */
+export const SITE_BOOK_COLLECTION = 'site_book_entries';
+
 // ────────────────────────────────────────────────────────────────────────
 // Public types
 // ────────────────────────────────────────────────────────────────────────

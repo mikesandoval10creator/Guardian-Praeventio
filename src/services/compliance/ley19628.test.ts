@@ -22,7 +22,7 @@ import {
   type MinimalQuerySnap,
 } from './ley19628.js';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 
 interface DocRecord {
   id: string;

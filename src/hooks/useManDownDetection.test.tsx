@@ -82,7 +82,7 @@ import { useManDownDetection } from './useManDownDetection';
 // inactivity timer's stale `isAlerting` closure stacks many countdowns.
 async function tickSeconds(n: number) {
   for (let i = 0; i < n; i++) {
-    // eslint-disable-next-line no-await-in-loop
+
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000);
     });

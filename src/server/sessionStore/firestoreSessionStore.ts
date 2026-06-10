@@ -149,7 +149,7 @@ export class FirestoreSessionStore extends Store {
         }
       })
       .catch((err) => {
-        // eslint-disable-next-line no-console
+
         console.warn('[FirestoreSessionStore.get] failed:', err);
         // Degradar a "no session" en lugar de tumbar el request.
         callback(null, null);
@@ -164,7 +164,7 @@ export class FirestoreSessionStore extends Store {
       .set({ data: serialized, expiresAt, updatedAt: new Date() })
       .then(() => callback?.(null))
       .catch((err) => {
-        // eslint-disable-next-line no-console
+
         console.warn('[FirestoreSessionStore.set] failed:', err);
         callback?.(err);
       });
@@ -176,7 +176,7 @@ export class FirestoreSessionStore extends Store {
       .delete()
       .then(() => callback?.(null))
       .catch((err) => {
-        // eslint-disable-next-line no-console
+
         console.warn('[FirestoreSessionStore.destroy] failed:', err);
         callback?.(err);
       });
@@ -200,7 +200,7 @@ export class FirestoreSessionStore extends Store {
           this.set(sid, sess, callback);
           return;
         }
-        // eslint-disable-next-line no-console
+
         console.warn('[FirestoreSessionStore.touch] failed:', err);
         callback?.(err);
       });

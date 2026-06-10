@@ -200,7 +200,7 @@ export class PraeventioMqttClient {
             fn(event);
           } catch (err) {
             // Listeners NO deben tumbar el client. Log silencioso.
-            // eslint-disable-next-line no-console
+
             console.warn('[PraeventioMqttClient] listener threw:', err);
           }
         }

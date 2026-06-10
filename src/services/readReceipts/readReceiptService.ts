@@ -14,6 +14,8 @@
 //
 // API puro: el caller persiste (Firestore Admin SDK). Sin LLM.
 
+import { randomId } from '../../utils/randomId';
+
 // ────────────────────────────────────────────────────────────────────────
 // Public types
 // ────────────────────────────────────────────────────────────────────────
@@ -40,6 +42,39 @@ export interface DocumentForRead {
   publishedAt: string;
   /** Días para confirmar lectura antes de elevar a Finding. */
   readDeadlineDays: number;
+  /**
+   * Anti-spoof owner — MUST equal the creator's auth uid. firestore.rules
+   * `documents_for_read` exige `incoming().authorUid == request.auth.uid`
+   * en create y lo fija inmutable en update. AUDIT-2026-06: el cliente
+   * nunca estampaba este campo → todo save() era denegado en producción.
+   */
+  authorUid: string;
+}
+
+/**
+ * Construye un DocumentForRead creable por reglas: estampa `authorUid`
+ * (anti-spoof), genera id cripto-aleatorio (regla #15 — nunca
+ * Math.random) y clampea el plazo de lectura a [1, 90] días.
+ */
+export function buildDocumentForRead(input: {
+  title: string;
+  readDeadlineDays: number;
+  authorUid: string;
+  audience?: DocumentAudience;
+  publishedAt?: string;
+}): DocumentForRead {
+  const title = input.title.trim();
+  if (!title) throw new Error('buildDocumentForRead: título vacío');
+  if (!input.authorUid) throw new Error('buildDocumentForRead: authorUid vacío');
+  return {
+    id: `doc_${randomId()}`,
+    version: 1,
+    title,
+    audience: input.audience ?? { allWorkers: true },
+    publishedAt: input.publishedAt ?? new Date().toISOString(),
+    readDeadlineDays: Math.max(1, Math.min(input.readDeadlineDays, 90)),
+    authorUid: input.authorUid,
+  };
 }
 
 export interface WorkerForRead {

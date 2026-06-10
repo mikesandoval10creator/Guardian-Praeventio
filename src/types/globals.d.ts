@@ -52,6 +52,6 @@ declare global {
   }
 
   // SLM offline rollout flag (set by feature-flag bootstrap).
-  // eslint-disable-next-line no-var
+
   var __SLM_OFFLINE_ENABLED__: boolean | undefined;
 }

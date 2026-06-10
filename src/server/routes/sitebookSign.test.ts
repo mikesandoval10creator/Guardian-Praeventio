@@ -127,7 +127,7 @@ function makeCredentialsDb(registered: Array<{ uid: string; credentialId: string
         },
       }),
     }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   } as any;
 }
 

@@ -29,7 +29,7 @@ import {
   type SignOptionsDeps,
   type SignVerifyDeps,
 } from './sitebookSign.js';
-import type { SiteBookEntry } from '../../services/siteBook/siteBookService.js';
+import { SITE_BOOK_COLLECTION, type SiteBookEntry } from '../../services/siteBook/siteBookService.js';
 import { verifyWebAuthnAssertion } from '../auth/webauthnAssertion.js';
 import { logger } from '../../utils/logger.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -91,7 +91,7 @@ async function loadSiteBookEntry(
   entryId: string,
 ): Promise<SiteBookEntry | null> {
   const fs = admin.firestore();
-  const ref = fs.collection('projects').doc(projectId).collection('site_book_entries').doc(entryId);
+  const ref = fs.collection('projects').doc(projectId).collection(SITE_BOOK_COLLECTION).doc(entryId);
   const snap = await ref.get();
   if (!snap.exists) return null;
   return snap.data() as SiteBookEntry;
@@ -105,7 +105,7 @@ async function saveSignedSiteBookEntry(
   const ref = fs
     .collection('projects')
     .doc(projectId)
-    .collection('site_book_entries')
+    .collection(SITE_BOOK_COLLECTION)
     .doc(entry.id);
   await ref.set(entry, { merge: true });
 }

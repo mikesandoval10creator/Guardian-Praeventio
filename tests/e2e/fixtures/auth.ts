@@ -110,7 +110,7 @@ export async function loginAsTestUser(
       // Si firebase-admin no está disponible o el emulator no responde,
       // logueamos warning pero NO bloqueamos — el spec puede correr con
       // solo el server-side header (cubre /api/* endpoints).
-      // eslint-disable-next-line no-console
+
       console.warn('[loginAsTestUser] custom token mint failed (firestore.rules queries may deny):', err);
     }
   }
@@ -182,7 +182,7 @@ async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
   const adminModule = await import('firebase-admin');
   // firebase-admin exporta default O namespace (depende de cómo Node lo
   // resuelve). Soportamos ambos shapes.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const admin: any =
     (adminModule as unknown as { default?: unknown }).default ?? adminModule;
   if (!admin.apps?.length) {
@@ -226,7 +226,7 @@ async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
  */
 async function waitForE2EAuthReady(page: Page): Promise<void> {
   await page.waitForFunction(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     () => (window as any).__praeventio_e2e_auth_ready === true,
     null,
     { timeout: 10_000 },
@@ -235,7 +235,7 @@ async function waitForE2EAuthReady(page: Page): Promise<void> {
   await page.evaluate(async () => {
     const deadline = Date.now() + 2000;
     while (Date.now() < deadline) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       if ((window as any).__praeventio_e2e_auth_ready === true) return;
       await new Promise((r) => setTimeout(r, 50));
     }

@@ -7,11 +7,11 @@
 // declarado en su `ModelDescriptor`. Modelo de seguridad:
 //
 //   - Si descriptor.expectedSha256 está definido:
-//       - sha256 coincide â†’ âœ… accept
+//       - sha256 coincide -> accept
 //       - sha256 NO coincide â†’ âŒ fail-closed (modelo rechazado)
 //   - Si descriptor.expectedSha256 está undefined:
 //       - production â†’ âŒ fail-closed con error claro
-//       - non-production â†’ âš ï¸ warn pero pasa
+//       - non-production -> warn pero pasa
 //
 // El SHA-256 se computa sobre el blob completo del weight file (no del
 // archivo cifrado / no del bundle ZIP). Usa Web Crypto SubtleCrypto en
@@ -71,6 +71,7 @@ async function defaultHasher(bytes: Uint8Array): Promise<string> {
       `slmIntegrityCheck: no SHA-256 implementation available (browser SubtleCrypto and node:crypto both unavailable): ${
         err instanceof Error ? err.message : String(err)
       }`,
+      { cause: err },
     );
   }
 }

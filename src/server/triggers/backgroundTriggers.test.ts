@@ -30,7 +30,7 @@ interface CapturedListener {
 
 function makeFakeDb(captured: CapturedListener[], overrides: {
   members?: Array<{ id: string; role: string }>;
-  users?: Record<string, { fcmToken?: string; email?: string }>;
+  users?: Record<string, { fcmToken?: string; fcmTokens?: string[]; email?: string }>;
   projects?: Record<string, { name?: string }>;
 } = {}) {
   const members = overrides.members ?? [];
@@ -230,6 +230,60 @@ describe('setupBackgroundTriggers', () => {
     expect(arg.tokens.sort()).toEqual(['tok-1', 'tok-2']); // supervisor+gerente only
     expect(arg.notification.title).toContain('Crítica');
     expect(arg.data).toEqual({ projectId: 'p1', nodeId: 'n42' });
+  });
+
+  // AUDIT-2026-06 B19/B23 — mobile push was broken in prod: the app
+  // registers device tokens via POST /api/push/register-token, which
+  // arrayUnions into users/{uid}.fcmTokens[] (canonical, multi-device),
+  // but this trigger only read the legacy singular users/{uid}.fcmToken.
+  // Result: every mobile-registered supervisor got ZERO critical-incident
+  // pushes. The trigger must union both fields (dedup included).
+  it('sends to canonical fcmTokens[] (mobile-registered) and dedupes with legacy fcmToken', async () => {
+    const captured: CapturedListener[] = [];
+    const messaging = makeFakeMessaging();
+    setupBackgroundTriggers({
+      db: makeFakeDb(captured, {
+        members: [
+          { id: 'u1', role: 'supervisor' }, // mobile-only: canonical array
+          { id: 'u2', role: 'gerente' }, // both fields, one duplicated
+        ],
+        users: {
+          u1: { fcmTokens: ['tok-m1', 'tok-m2'] },
+          u2: { fcmToken: 'tok-2', fcmTokens: ['tok-2', 'tok-m3'] },
+        },
+        projects: { p1: { name: 'Obra Norte' } },
+      }),
+      messaging,
+      resend: makeFakeResend(),
+      firestoreNamespace: fakeFirestoreNamespace,
+    });
+
+    const incidents = captured.find((c) => c.type === 'incidents')!;
+    incidents.next({ docChanges: () => [] }); // initial load
+    incidents.next({
+      docChanges: () => [
+        {
+          type: 'added',
+          doc: {
+            id: 'n50',
+            ref: {
+              update: vi.fn().mockResolvedValue(undefined),
+              get: vi.fn().mockResolvedValue({ data: () => ({}) }),
+            },
+            data: () => ({
+              title: 'Atrapamiento',
+              metadata: { severity: 'Crítica' },
+              projectId: 'p1',
+            }),
+          },
+        },
+      ],
+    });
+    await new Promise((r) => setImmediate(r));
+
+    expect(messaging.sendEachForMulticast).toHaveBeenCalledTimes(1);
+    const arg = messaging.sendEachForMulticast.mock.calls[0][0];
+    expect(arg.tokens.sort()).toEqual(['tok-2', 'tok-m1', 'tok-m2', 'tok-m3']);
   });
 
   it('skips FCM when severity is not critical', async () => {

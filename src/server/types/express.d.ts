@@ -41,6 +41,11 @@ declare global {
       // `validated` is set by `validate(schema)` to the parsed payload.
       // Typed as `unknown` so callers narrow with the schema's `z.infer<>`.
       validated?: unknown;
+      // Set by `verifySchedulerToken` / `verifySchedulerOrFallback` when the
+      // caller authenticated as Cloud Scheduler (shared secret or pinned-SA
+      // OIDC) instead of a human Firebase user. Handlers use it to skip the
+      // admin-role lookup and stamp a machine actor in audit_logs.
+      schedulerInvocation?: boolean;
     }
   }
 }

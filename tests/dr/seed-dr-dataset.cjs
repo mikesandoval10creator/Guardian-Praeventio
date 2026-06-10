@@ -77,7 +77,10 @@ async function batchedWrite(refsAndDocs, batchSize = 400) {
 async function seed() {
   ensureAdmin();
   const db = admin.firestore();
-  const rng = makeRng(0xdr20260505);
+  // Deterministic seed (DR dryrun dataset 2026-05-05). The previous literal
+  // `0xdr20260505` was INVALID hex — the script did not even parse, so the
+  // DR dry-run could never seed (AUDIT-2026-06 lint sweep).
+  const rng = makeRng(0x20260505);
   const now = Date.now();
 
   // Tenant.

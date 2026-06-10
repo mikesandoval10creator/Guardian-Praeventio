@@ -498,7 +498,7 @@ export function downloadDs109Pdf(input: Ds109Input, filename?: string): void {
  * server-side log table.
  */
 export async function hashRut(rut: string): Promise<string> {
-  const cleaned = (rut || '').replace(/[\s.\-]/g, '').toUpperCase();
+  const cleaned = (rut || '').replace(/[\s.-]/g, '').toUpperCase();
   if (!cleaned) return '';
 
   // Prefer Web Crypto when available (browser + modern Node).

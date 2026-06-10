@@ -91,19 +91,29 @@ jobs:
           service: ${{ env.SERVICE }}
           image: ${{ env.IMAGE }}:${{ github.event.workflow_run.head_sha || github.sha }}
           region: ${{ env.REGION }}
+          # AUDIT-2026-06 B19 — the server hosts in-process Firestore
+          # onSnapshot listeners (critical-incident FCM fanout, RAG
+          # ingestion) and interval jobs. With min-instances=0 those only
+          # exist while a request keeps an instance alive, and with default
+          # CPU throttling the listener gets ~no CPU between requests — the
+          # "real-time" alerting was illusory in prod. One always-on,
+          # unthrottled instance (~USD 10-15/mo at 512Mi) is the price of
+          # the life-safety listeners actually listening.
           flags: >-
             --port=3000
             --allow-unauthenticated
-            --min-instances=0
+            --min-instances=1
             --max-instances=10
             --memory=512Mi
             --cpu=1
+            --no-cpu-throttling
           env_vars: |
             NODE_ENV=production
             KMS_ADAPTER=cloud-kms
             APP_BASE_URL=https://app.praeventio.net
             APP_URL=https://app.praeventio.net
             DWG_CONVERTER_URL=${{ secrets.DWG_CONVERTER_URL }}
+            SCHEDULER_SERVICE_ACCOUNT=climate-scan-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
           # §2.28 (2026-05-21) — PHOTOGRAMMETRY_WORKER_URL + MODAL_*_URL
           # removidas. Server-side photogrammetry (COLMAP / Modal serverless GPU)
           # DESCARTADA por directiva usuario: digital twin + maqueta 3D deben
@@ -320,5 +330,15 @@ jobs:
             "0 9 * * 1" \
             "/api/admin/jobs/weekly-digest" \
             "Weekly safety digest emailed to supervisors (Sprint 22 Y)."
+
+          # AUDIT-2026-06 B19 — lone-worker escalation (every 5 minutes). LIFE
+          # SAFETY: a solo worker who misses check-ins must escalate to
+          # supervisor → brigade → emergency services WITHOUT anyone pressing
+          # a button. The cron was never provisioned, so the escalation only
+          # ever ran when an operator manually POSTed the endpoint.
+          ensure_job "lone-worker-escalation" \
+            "*/5 * * * *" \
+            "/api/maintenance/run-lone-worker-escalation" \
+            "Lone-worker escalation sweep every 5 min (AUDIT-2026-06 B19). Reads active lone_worker_sessions, applies the pure escalation engine, multicasts FCM to supervisor/brigade/emergency_services."
 
           echo "✓ Maintenance scheduler jobs setup complete"

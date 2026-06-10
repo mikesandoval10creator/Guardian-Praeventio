@@ -311,7 +311,7 @@ export async function checkSismoEnriched(
   // Default conservador: caution. Solo subimos a 'high' con confirmación.
   if (!usgsAdapter || !lastSeismicLocation) {
     try {
-      // eslint-disable-next-line no-console
+
       console.warn(
         '[autoTrigger] USGS cross-check skipped — adapter/location missing',
       );
@@ -357,7 +357,7 @@ export async function checkSismoEnriched(
     };
   } catch (err) {
     try {
-      // eslint-disable-next-line no-console
+
       console.warn(
         '[autoTrigger] USGS cross-check failed; falling back to severity caution',
         err,

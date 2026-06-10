@@ -26,5 +26,14 @@ project(':capacitor-preferences').projectDir = new File('../node_modules/@capaci
 include ':capacitor-push-notifications'
 project(':capacitor-push-notifications').projectDir = new File('../node_modules/@capacitor/push-notifications/android')
 
+include ':capawesome-team-capacitor-android-foreground-service'
+project(':capawesome-team-capacitor-android-foreground-service').projectDir = new File('../node_modules/@capawesome-team/capacitor-android-foreground-service/android')
+
+include ':capgo-capacitor-proximity'
+project(':capgo-capacitor-proximity').projectDir = new File('../node_modules/@capgo/capacitor-proximity/android')
+
 include ':kiwi-health-capacitor-health-connect'
 project(':kiwi-health-capacitor-health-connect').projectDir = new File('../node_modules/@kiwi-health/capacitor-health-connect/android')
+
+include ':praeventio-capacitor-mesh'
+project(':praeventio-capacitor-mesh').projectDir = new File('../packages/capacitor-mesh/android')

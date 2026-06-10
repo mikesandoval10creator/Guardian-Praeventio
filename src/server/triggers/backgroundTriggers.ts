@@ -209,9 +209,27 @@ export function setupBackgroundTriggers(
                   db.collection('users').doc(uid).get(),
                 ),
               );
-              const tokens = tokenDocs
-                .map((d) => d.data()?.fcmToken as string | undefined)
-                .filter((t): t is string => !!t);
+              // AUDIT-2026-06 B19/B23 — union BOTH token fields: the app
+              // registers devices via /api/push/register-token, which
+              // arrayUnions users/{uid}.fcmTokens[] (canonical,
+              // multi-device); the singular fcmToken is the legacy web
+              // field. Reading only the singular left every
+              // mobile-registered supervisor without critical pushes.
+              const tokenSet = new Set<string>();
+              for (const d of tokenDocs) {
+                const docData = d.data() as
+                  | { fcmToken?: unknown; fcmTokens?: unknown }
+                  | undefined;
+                if (typeof docData?.fcmToken === 'string' && docData.fcmToken) {
+                  tokenSet.add(docData.fcmToken);
+                }
+                if (Array.isArray(docData?.fcmTokens)) {
+                  for (const t of docData.fcmTokens) {
+                    if (typeof t === 'string' && t) tokenSet.add(t);
+                  }
+                }
+              }
+              const tokens = Array.from(tokenSet);
 
               if (tokens.length === 0) return;
 

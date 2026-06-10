@@ -19,6 +19,7 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 const guard = require('../../../scripts/validate-i18n.cjs') as {
   scan: () => { referenceCount: number; missing: Record<string, string[]> };
+  undeclaredUsed: () => string[];
   flatten: (
     o: Record<string, unknown>,
     prefix?: string,
@@ -35,7 +36,11 @@ const baseline = JSON.parse(
     path.join(repoRoot, 'scripts', 'i18n-parity-baseline.json'),
     'utf8',
   ),
-) as { reference: string; missing: Record<string, string[]> };
+) as {
+  reference: string;
+  missing: Record<string, string[]>;
+  usedUndeclared?: string[];
+};
 
 describe('i18n parity guard (CLAUDE.md #18 ratchet)', () => {
   it('loads a non-trivial reference locale key set', () => {
@@ -77,5 +82,32 @@ describe('i18n parity guard (CLAUDE.md #18 ratchet)', () => {
         `These '${loc}' keys are now translated — remove from baseline.missing.${loc}: ${stale.join(', ')}`,
       ).toEqual([]);
     }
+  });
+});
+
+// AUDIT-2026-06 B20 — used-but-undeclared ratchet. ~3.1k literal t('key')
+// usages reference keys that don't exist in es/common.json at all: every
+// locale renders the inline Spanish default and the parity check above is
+// blind to them. The baseline list may only SHRINK; new code introducing an
+// undeclared literal key turns this red.
+describe('i18n used-but-undeclared ratchet (B20)', () => {
+  it('no NEW t() usages with keys undeclared in the es reference', () => {
+    const live = guard.undeclaredUsed();
+    const baselined = new Set(baseline.usedUndeclared ?? []);
+    const newOnes = live.filter((k) => !baselined.has(k));
+    expect(
+      newOnes,
+      `Declare these keys in src/i18n/locales/es/common.json (+ en, pt-BR): ${newOnes
+        .slice(0, 10)
+        .join(', ')}`,
+    ).toEqual([]);
+  });
+
+  it('ratchet hygiene: baselined keys that got declared should leave the baseline', () => {
+    const live = new Set(guard.undeclaredUsed());
+    const stale = (baseline.usedUndeclared ?? []).filter((k) => !live.has(k));
+    // Aviso no-fatal vía aserción suave: solo exige que no haya MUCHA
+    // deriva acumulada (>50 claves ya declaradas sin limpiar el baseline).
+    expect(stale.length).toBeLessThanOrEqual(50);
   });
 });

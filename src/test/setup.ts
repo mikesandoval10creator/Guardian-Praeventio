@@ -36,7 +36,7 @@ if (typeof globalThis.document !== 'undefined') {
       cleanup();
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
+
     console.warn(
       '[test/setup] @testing-library/react no disponible (peer @testing-library/dom faltante). ' +
       'cleanup() global desactivado — los tests deben unmount manualmente.',
@@ -102,7 +102,7 @@ if (process.env.DETECT_HANDLES === '1') {
       } catch {
         /* testPath unavailable */
       }
-      // eslint-disable-next-line no-console
+
       console.warn(`[DETECT_HANDLES] ${file} leaked: ${leaked.join(' ')}`);
     }
   });

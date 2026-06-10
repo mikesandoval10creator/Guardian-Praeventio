@@ -131,5 +131,47 @@ export const CL_PACK: CountryPack = {
         'Vigilancia ambiental y de la salud auditiva en trabajadores con exposición ocupacional a ruido. Audiometrías periódicas obligatorias.',
       url: 'https://diprece.minsal.cl/le-informamos/auge/acceso-guias-clinicas/protocolos/protocolo-prexor/',
     },
+    // AUDIT-2026-06 B22 — normas citadas extensamente en el código pero
+    // ausentes del pack. URLs verificadas contra BCN (idNorma) 2026-06-10.
+    {
+      id: 'cl-ds-132',
+      title: 'DS 132 — Reglamento de Seguridad Minera',
+      reference: 'Decreto Supremo N° 132 (2002), Ministerio de Minería. Publicado 07-02-2004.',
+      scope:
+        'Marco de Seguridad Minera: obligaciones del explotador, aviso de inicio/reinicio de faenas a SERNAGEOMIN, manejo de explosivos, ventilación, fortificación, escarpes, planes de emergencia y brigadas de rescate minero.',
+      url: 'https://www.bcn.cl/leychile/navegar?idNorma=221064',
+    },
+    {
+      id: 'cl-ds-76',
+      title: 'DS 76 — Gestión de SST en Obras, Faenas o Servicios (art. 66 bis Ley 16.744)',
+      reference: 'Decreto Supremo N° 76 (2006), MINTRAB. Publicado 18-01-2007.',
+      scope:
+        'Reglamento del artículo 66 bis de la Ley 16.744: Sistema de Gestión de la SST de la empresa principal en régimen de subcontratación, registro actualizado de faena, Comité Paritario de Faena y Departamento de Prevención de Faena.',
+      url: 'https://www.bcn.cl/leychile/Navegar?idNorma=257601',
+    },
+    {
+      id: 'cl-ds-67',
+      title: 'DS 67 — Exenciones, Rebajas y Recargos de la Cotización Adicional',
+      reference: 'Decreto Supremo N° 67 (1999), MINTRAB. Publicado 07-03-2000.',
+      scope:
+        'Reglamento de los artículos 15 y 16 de la Ley 16.744: evaluación bienal de la siniestralidad efectiva del empleador para eximir, rebajar o recargar la cotización adicional diferenciada.',
+      url: 'https://www.bcn.cl/leychile/navegar?idNorma=159800',
+    },
+    {
+      id: 'cl-ds-148',
+      title: 'DS 148 — Reglamento Sanitario sobre Manejo de Residuos Peligrosos',
+      reference: 'Decreto Supremo N° 148 (2003), MINSAL. Publicado 16-06-2004.',
+      scope:
+        'Condiciones sanitarias y de seguridad para generación, almacenamiento (máx. 6 meses sin autorización), transporte, tratamiento y disposición final de residuos peligrosos; segregación por incompatibilidad y rotulación SGA.',
+      url: 'https://www.bcn.cl/leychile/navegar?idNorma=226458',
+    },
+    {
+      id: 'cl-ley-19628',
+      title: 'Ley 19.628 — Protección de la Vida Privada (Datos Personales)',
+      reference: 'Ley N° 19.628 (1999). Publicada 28-08-1999.',
+      scope:
+        'Tratamiento de datos personales en registros públicos y privados: licitud, finalidad, secreto, derechos de acceso/rectificación/cancelación. Base legal del manejo de datos de salud ocupacional de los trabajadores.',
+      url: 'https://www.bcn.cl/leychile/navegar?idNorma=141599',
+    },
   ],
 };

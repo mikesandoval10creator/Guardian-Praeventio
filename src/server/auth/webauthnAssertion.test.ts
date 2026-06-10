@@ -131,7 +131,7 @@ describe('verifyWebAuthnAssertion — shape validation (Layer 0)', () => {
   it('rechaza si clientExtensionResults es array (no objeto plano)', async () => {
     const result = await verifyWebAuthnAssertion({
       ...VALID_INPUT,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       clientExtensionResults: [] as any,
       challengesDb: mockChallengesDb(),
       credentialsDb: mockCredentialsDb(),
@@ -142,7 +142,7 @@ describe('verifyWebAuthnAssertion — shape validation (Layer 0)', () => {
   it('rechaza si clientExtensionResults es null', async () => {
     const result = await verifyWebAuthnAssertion({
       ...VALID_INPUT,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       clientExtensionResults: null as any,
       challengesDb: mockChallengesDb(),
       credentialsDb: mockCredentialsDb(),

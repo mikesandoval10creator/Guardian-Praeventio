@@ -22,7 +22,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 const setDocSpy = vi.fn(async (..._args: any[]) => {});
 const updateDocSpy = vi.fn(async (..._args: any[]) => {});
 const getDocsSpy = vi.fn(async (..._args: any[]) => ({ forEach: () => {} }));
@@ -49,7 +49,7 @@ vi.mock('../../services/firebase', () => ({
   limit: (...a: any[]) => limitSpy(a[0] as number),
   where: (...a: any[]) => whereSpy(a[0] as string, a[1] as string, a[2]),
 }));
-/* eslint-enable @typescript-eslint/no-explicit-any */
+
 
 import {
   createProjectScopedStore,
@@ -121,7 +121,7 @@ const siteBookStore = createProjectScopedStore<SiteBookEntry>('site_book_entries
 
 // Lista todos los stores ejemplares para iterar el contrato.
 // Tipado intencionalmente flexible para soportar todos los T<> a la vez.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 const ALL_STORES: Array<{ name: string; store: ProjectScopedStore<any> }> = [
   { name: 'stoppages', store: stoppageStore },
   { name: 'lone_worker_events', store: loneWorkerStore },

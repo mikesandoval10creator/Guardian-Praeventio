@@ -16,13 +16,18 @@ import {
   type DocSnapshot,
 } from '../services/sync/conflictResolver';
 import { logAuditAction } from '../services/auditService';
-import { useProject } from '../contexts/ProjectContext';
+import { useProjectOptional } from '../contexts/ProjectContext';
 import { apiAuthHeader } from '../lib/apiAuth';
 
 export function OfflineSyncManager() {
   const isOnline = useOnlineStatus();
-  const { selectedProject } = useProject();
-  const activeProjectId = selectedProject?.id ?? null;
+  // useProjectOptional, NOT useProject: this component mounts at the App()
+  // top level, OUTSIDE AppProviders/ProjectProvider (it must exist on every
+  // route, including the anonymous landing). The throwing variant crashed
+  // the entire SPA at boot from 2026-06-08 until this fix ("Sistema
+  // Interrumpido" for every visitor — caught by the landing e2e suite).
+  const projectCtx = useProjectOptional();
+  const activeProjectId = projectCtx?.selectedProject?.id ?? null;
 
   useEffect(() => {
     const handleSync = async (action: SyncAction) => {
@@ -51,7 +56,7 @@ export function OfflineSyncManager() {
               // diverging critical field to the human supervisor via the
               // ConflictResolutionDrawer; auto-resolve non-critical fields
               // via per-field LWW and write an audit row for each.
-              let resolvedUpdate: Record<string, unknown> = { ...updateData };
+              const resolvedUpdate: Record<string, unknown> = { ...updateData };
               let manualPending = false;
               if (originalUpdatedAt) {
                 const { getDoc } = await import('firebase/firestore');
@@ -219,7 +224,7 @@ export function OfflineSyncManager() {
           }
           await uploadBytes(storageRef, fileToUpload);
           const downloadUrl = await getDownloadURL(storageRef);
-          
+
           // Add document to Firestore
           try {
             const docRef = await addDoc(collection(db, action.collection), {
@@ -276,7 +281,7 @@ export function OfflineSyncManager() {
 
     const runSync = async () => {
       if (!isOnline) return;
-      
+
       const actions = await getPendingActions();
       if (actions.length === 0) return;
 

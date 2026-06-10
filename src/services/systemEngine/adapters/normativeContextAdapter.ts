@@ -6,7 +6,7 @@
 
 export interface NormativeAdapterOptions { tenantId: string }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 export function useNormativeContextAdapter(_opts: NormativeAdapterOptions): void {
   // Intentionally empty.
 }

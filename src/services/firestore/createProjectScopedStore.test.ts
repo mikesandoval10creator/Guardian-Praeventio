@@ -16,7 +16,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock spies — tipados con `any[]` en los rest args para evitar
 // "spread must have tuple type" del TS strict en vi.fn.mock.calls.
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 const setDocSpy = vi.fn(async (..._args: any[]) => {});
 const updateDocSpy = vi.fn(async (..._args: any[]) => {});
 const getDocsSpy = vi.fn(async (..._args: any[]) => fakeSnapshot([]));
@@ -55,7 +55,7 @@ vi.mock('../firebase', () => ({
   limit: (...a: any[]) => limitSpy(a[0] as number),
   where: (...a: any[]) => whereSpy(a[0] as string, a[1] as string, a[2]),
 }));
-/* eslint-enable @typescript-eslint/no-explicit-any */
+
 
 import { createProjectScopedStore } from './createProjectScopedStore';
 

@@ -218,7 +218,7 @@ function readPackageVersion(): string {
   try {
     // Lazy + best-effort. If anything fails we fall back to the package
     // version we know at code-write time (1.0.0 in package.json).
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+
     return process.env.npm_package_version || '1.0.0';
   } catch {
     return '1.0.0';

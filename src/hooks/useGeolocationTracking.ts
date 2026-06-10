@@ -22,7 +22,7 @@ export const useGeolocationTracking = () => {
         const workersRef = collection(db, `projects/${selectedProject.id}/workers`);
         const q = query(workersRef, where('email', '==', user.email));
         const snapshot = await getDocs(q);
-        
+
         if (!snapshot.empty) {
           const workerData = snapshot.docs[0].data();
           setHasArt22(workerData.hasArt22 === true);
@@ -67,8 +67,8 @@ export const useGeolocationTracking = () => {
 
       const buffer = selectedProject.trackCommute ? 1 : 0; // 1 hour buffer
 
-      let start = shiftStart - buffer;
-      let end = shiftEnd + buffer;
+      const start = shiftStart - buffer;
+      const end = shiftEnd + buffer;
 
       // Handle overnight shifts
       if (end < start) {
@@ -86,11 +86,11 @@ export const useGeolocationTracking = () => {
       const handlePosition = async (position: any) => {
         if (!position || !position.coords) return;
         const { latitude, longitude, accuracy } = position.coords;
-        
+
         // Redondear a 4 decimales (aprox 11 metros de precisión) para optimizar cálculos
         const roundedLat = Math.round(latitude * 10000) / 10000;
         const roundedLng = Math.round(longitude * 10000) / 10000;
-        
+
         setLastLocation({ lat: roundedLat, lng: roundedLng });
 
         // Solo guardar si la precisión es razonable (< 50 metros)

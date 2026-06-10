@@ -25,7 +25,7 @@ function makeDb(): { db: MinimalDb; stores: Record<string, Map<string, FakeDoc>>
   };
 
   function buildQuery(name: string) {
-    let filters: Array<[string, unknown]> = [];
+    const filters: Array<[string, unknown]> = [];
     let order: { field: string; dir: 'asc' | 'desc' } | null = null;
     let lim: number | null = null;
 

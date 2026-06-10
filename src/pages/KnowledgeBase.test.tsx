@@ -61,7 +61,7 @@ const refetchSpy = vi.fn();
 let lastHookOpts: { category?: string; search?: string } | undefined;
 
 const createSpy = vi.fn().mockResolvedValue({ entry: { id: 'new' } });
-const useEntrySpy = vi.fn().mockResolvedValue(undefined);
+const entryUseSpy = vi.fn().mockResolvedValue(undefined);
 const flagObsoleteSpy = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../contexts/ProjectContext', () => ({
@@ -79,7 +79,7 @@ vi.mock('../hooks/useKnowledgeBase', () => ({
     return mockKbState;
   },
   createKbEntry: (pid: string, payload: unknown) => createSpy(pid, payload),
-  recordKbEntryUse: (pid: string, id: string) => useEntrySpy(pid, id),
+  recordKbEntryUse: (pid: string, id: string) => entryUseSpy(pid, id),
   flagKbObsolete: (pid: string, id: string, reason: string) =>
     flagObsoleteSpy(pid, id, reason),
 }));
@@ -89,7 +89,7 @@ beforeEach(() => {
   mockIsOnline = true;
   refetchSpy.mockReset();
   createSpy.mockClear();
-  useEntrySpy.mockClear();
+  entryUseSpy.mockClear();
   flagObsoleteSpy.mockClear();
   lastHookOpts = undefined;
   mockKbState = {

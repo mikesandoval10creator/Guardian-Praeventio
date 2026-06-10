@@ -37,17 +37,18 @@ class FakeCollection extends FakeQuery {
     super(docs);
   }
   doc(id: string) {
-    const self = this;
+    // Arrow properties keep `this` lexically bound to the FakeCollection
+    // instance (was a `const self = this` alias — no-this-alias).
     return {
-      collection(subname: string): FakeCollection {
+      collection: (subname: string): FakeCollection => {
         return (
-          self.subcollections[`${id}/${subname}`] ??
-          new FakeCollection([], {}, `${self.path}/${id}/${subname}`, self.writeSink)
+          this.subcollections[`${id}/${subname}`] ??
+          new FakeCollection([], {}, `${this.path}/${id}/${subname}`, this.writeSink)
         );
       },
-      async set(data: unknown, opts?: { merge?: boolean }) {
-        const sink = self.writeSink ?? self.writes;
-        sink.push({ path: `${self.path}/${id}`, data, merge: opts?.merge });
+      set: async (data: unknown, opts?: { merge?: boolean }) => {
+        const sink = this.writeSink ?? this.writes;
+        sink.push({ path: `${this.path}/${id}`, data, merge: opts?.merge });
         return undefined;
       },
     };

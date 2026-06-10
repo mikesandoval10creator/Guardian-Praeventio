@@ -151,7 +151,7 @@ describe('runDailyClimateRiskScan', () => {
       { minSeverityForFcm: 'medium' },
     );
     expect(fcm).toHaveBeenCalledOnce();
-    const call = fcm.mock.calls[0]?.[0]!;
+    const call = fcm.mock.calls[0]![0]!;
     expect(call.uids).toEqual(['sup1', 'sup2']);
     expect(call.data!.type).toBe('climate_risk_daily');
     expect(call.data!.projectId).toBe('p1');

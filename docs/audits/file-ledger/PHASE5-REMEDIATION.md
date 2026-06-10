@@ -5,7 +5,115 @@
 > bloque, vida/privacidad primero. Verdad de referencia: `TODO.md`
 > §2.32/§2.33/§2.34 + los `DEEP-*.md` de este mismo directorio.
 
-## Progreso ejecutado (actualizado 2026-06-08)
+## Progreso ejecutado (actualizado 2026-06-10)
+
+### Sesión 2026-06-10 — Ola A: auditoría integral de TODO el código (PR #820)
+
+Verificación de lógica punta-a-punta al estado main@#819, cubriendo también las áreas SIN
+bloque (nuevos **B19-Plataforma, B20-i18n, B21-Mobile/Capacitor, B22-Corpus normativo,
+B23-Estado compartido, B24-Calidad tests**). Evidencia: `AUDIT-2026-06-FULL.md` +
+`audit-2026-06/*`. Dos correcciones de drift y un lote de hallazgos nuevos:
+
+**Drift corregido (estaba "pendiente" pero YA RESUELTO en main — no re-trabajar):**
+- B11 `visitors.ts` membership: `assertMemberAndResolveTenant:98-118` aplicado en los 4 endpoints (#711).
+- B8 LOTO write-path completo: `loto.ts` create/apply-lock/verify-zero-energy/release (verificado).
+- B12 rules-tests CPHS existen: `cphsMeetings.rules.test.ts` + `comiteActas.rules.test.ts` (2026-06-09).
+- B14 `networkBackend.ts` gate: canonicalización projectId + `assertProjectMember` (#679).
+
+**INCIDENTE descubierto y resuelto en esta sesión (no estaba en ningún informe):**
+- [x] 🔴🛟 **PRODUCTION-DOWN desde 2026-06-08**: #767 metió `useProject()` (throwing) en
+  `OfflineSyncManager`, montado en App() FUERA de AppProviders → throw en cada boot → el
+  ErrorBoundary raíz tragaba la SPA entera: **todo visitante veía "Sistema Interrumpido"**.
+  El e2e de landing estaba rojo sólido desde el run #1192 y se leía como "flaky". ✅ Resuelto
+  (PR #820): `useProjectOptional()` no-throwing + regression test render-sin-provider +
+  verificación Playwright local 9/9. LECCIÓN para B24: e2e rojo ≠ flaky; el bisect de runs
+  (último verde → primer rojo) encontró el commit en minutos.
+
+**Hallazgos NUEVOS 🔴 (no estaban en este tracker; orden = prioridad de remediación):**
+- [x] 🔴🛟 ~~**B19: cero crons en prod**~~ → ✅ **hecho** (PR #820): `verifySchedulerToken`
+  ahora acepta el token OIDC de Google del SA pin (`SCHEDULER_SERVICE_ACCOUNT`, match
+  exacto de `email` = anti-spoof) **o** el shared secret; `replicate-critical`/`weekly-digest`/
+  `climate-scan` pasan de `verifyAuth` puro a `verifySchedulerOrFallback(verifyAuth)` +
+  `resolveCronActor` (máquina audita `cloud-scheduler`, humano mantiene admin-check).
+  +OIDC tests (accept SA pin, reject SA ajeno/firma/aud/email-no-verif). `continue-on-error`
+  se mantiene a propósito (la SA de deploy no puede provisionar Scheduler; el enmascarado
+  nunca fue la causa — lo era la auth).
+- [x] 🔴🛟 ~~**B19: `runLoneWorkerEscalation` jamás provisionado**~~ → ✅ **hecho** (PR #820):
+  cron `lone-worker-escalation` `*/5` añadido a deploy.yml apuntando a
+  `/api/maintenance/run-lone-worker-escalation` (ya OIDC-gated por el fix de arriba).
+- [x] 🔴🛟 ~~**B19/B23: FCM crítico roto en móvil**~~ → ✅ **hecho** (PR #820): el trigger une
+  `users.fcmTokens[]` (canónico, multi-device) + `fcmToken` legacy con dedupe; test pin con
+  usuario solo-array y usuario con ambos campos. (Quirúrgico en el trigger para preservar el
+  fallback de email user-doc, que el helper canónico obtiene de otra fuente.)
+- [x] 🔴🛟 ~~**B21: mesh nativo fuera del build**~~ → ✅ **hecho** (PR #820):
+  `@praeventio/capacitor-mesh` como dep `file:`, `cap update android` regeneró
+  settings/build.gradle (12 plugins, mesh apunta a `../packages/capacitor-mesh/android`).
+  **Pendiente iOS**: crear Xcode project/pod para el plugin (sub-ítem abajo).
+- [x] 🔴🛟 ~~**B21: AndroidManifest sin permisos**~~ → ✅ **hecho** (PR #820): declarados
+  ACCESS_FINE/COARSE_LOCATION + CAMERA en el manifest de la app; BLE llega por merger desde
+  el manifest del plugin mesh (ahora en el build). Test `androidBuildWiring.test.ts` (16 casos)
+  fija permisos + includes gradle + allowBackup=false + acople clase FGS↔gradle.
+- [x] 🔴🛟 ~~**B21: `capacitor.settings.gradle` stale**~~ → ✅ **hecho** (PR #820): FGS
+  lone-worker + capgo-proximity incluidos; la clase del `<service>` ahora compila en el APK.
+- [ ] 🟡 **B21-iOS: mesh pod sin proyecto Xcode** — `packages/capacitor-mesh/ios` tiene Swift
+  pero no hay `.podspec` integrado al workspace iOS. FIX: generar pod + `cap update ios` (en Mac).
+- [x] 🔴 ~~**B19: triggers/jobs in-process × Cloud Run min-instances=0**~~ → ✅ **hecho**
+  (PR #820): `--min-instances=1 --no-cpu-throttling` con nota de costo (~USD 10-15/mes) —
+  el precio de que los listeners vida-críticos realmente escuchen.
+- [x] 🔴 ~~**A.1: `ProjectHealthCheck.tsx:68`** endpoint eliminado~~ → ✅ **hecho** (PR #820):
+  `src/server/routes/projectHealth.ts` con verifyAuth + assertProjectMember (el exploit del
+  Round 14 queda pin con test 403), contexto normativo desde country pack, cachea
+  `health_checks/latest`, audita con auditServerEvent; 502 sin cache si la IA falla.
+- [x] 🔴 ~~**A.1: `ProcessDetailModal.tsx:72`** colección `hallazgos` sin regla~~ → ✅ **hecho**
+  (PR #820): lee `projects/{pid}/findings` (canónica); también `wisdomCapsule.ts` que leía el
+  mismo path muerto server-side (la cápsula siempre resumía 0 hallazgos — test pin sourceNodes).
+  QUEDA 🟡: fragmentación residual — weeklyDigest lee `tenants/{tid}/findings` e insights lee
+  `findings` top-level; cada path tiene escritor propio → decisión de migración, no re-point ciego.
+- [x] 🔴 ~~**B9: SiteBook esquemas disjuntos (cliente vs firma)**~~ → ✅ **hecho** (PR #820):
+  `SITE_BOOK_COLLECTION = 'site_book_entries'` en el servicio puro, importado por el store
+  cliente Y las rutas de firma (acople por código). QUEDA 🟡: el adapter CRDT
+  `tenants/{tid}/projects/{pid}/sitebook_entries` (GET /api/sitebook usado por useInsights)
+  es una tercera isla → decisión de migración.
+- [x] 🔴 ~~**B17: `documents_for_read` regla↔schema**~~ → ✅ **hecho** (PR #820):
+  `buildDocumentForRead()` puro estampa `authorUid` + id `randomId()` (regla #15, antes
+  Math.random) + clamp [1,90]; DocumentReadConfirm lo usa y exige sesión.
+- [x] 🔴 ~~**B12: `comite_actas` write denegado**~~ → **DRIFT, ya resuelto en main**: la regla
+  actual (firestore.rules:665) permite create/update member-gated con `isValidComiteActa` +
+  createdAt/fecha inmutables; rules-tests `comiteActas.rules.test.ts` (2026-06-09). El shape
+  del cliente coincide con el validador. No re-trabajar.
+- [x] 🔴 ~~**B17: External Audit Portal sin gate de rol**~~ → **DRIFT, ya resuelto en main**:
+  `assertAdminCaller` aplicado en las 4 rutas admin (externalAuditPortal.ts:270,342,394,467).
+- [x] 🔴 ~~**B4/ZK: PDCA sin aristas**~~ → **DRIFT, ya resuelto en main**: `flowDepsFor`
+  (incidentFlow.ts:80-95) inyecta `createEdge` con el edge-store Firestore real (fix #650 R2).
+- [~] 🔴 **B20: i18n bypaseado a escala** — ~3.151/5.155 claves `t()` no existen en `common.json`.
+  ✅ **Mitigado** (PR #820): `validate-i18n.cjs` ahora escanea las claves literales usadas en src
+  y ratchetea las no-declaradas (`usedUndeclared` en el baseline, 3.151 sembradas — solo puede
+  encoger; código nuevo con clave sin declarar FALLA husky + vitest gate). **PENDIENTE**: codemod
+  que genere las claves es desde los defaults inline + traducción en/pt-BR por lotes (bajar el
+  baseline a 0 por módulos, vida-seguridad primero: incident_report.*, lone_worker.*).
+- [~] 🟡 **B22: corpus normativo incompleto** → ✅ **parcial** (PR #820): DS 132 (Seguridad
+  Minera), DS 76 (66 bis), DS 67 (cotización adicional), DS 148 (residuos peligrosos) y
+  Ley 19.628 (datos personales) incorporados al CL pack con URLs **verificadas contra BCN**
+  (idNorma 221064/257601/159800/226458/141599) + sembrados al corpus RAG con dominios; id
+  muerto `cl-ds-40` del mapeo → `cl-ds-44`. **PENDIENTE**: pipeline de ingesta de texto
+  completo BCN→chunks (hoy 1 chunk overview por norma) + NCh + índice Pinecone.
+- [x] 🟡 ~~**B19: systemEngineTrigger no-op / SIGTERM sin drain / CI sin lint**~~ → ✅ **hecho**
+  (PR #820): `makeSystemEventAuditor` (1 fila audit_logs idempotente por system event, Phase 1
+  prometida por el header); `gracefulShutdown()` con `server.close()` + budget 8s (antes
+  process.exit inmediato mataba requests en cada rollover); job `lint` en ci.yml (errors-gate)
+  con el repo llevado a **0 errores eslint** — el barrido encontró que
+  `tests/dr/seed-dr-dataset.cjs` NI PARSEABA (`0xdr…` hex inválido → el DR dry-run no podía
+  sembrar datos). `npm run lint` reparado (--cache incompatible con el parser firestore).
+- [ ] 🟡 **B23: doble event-bus sin consumidores**; 5 contexts sin audit; factory
+  `createProjectScopedStore` escribe sin audit (Regla #3) → trigger server o re-cablear.
+- [ ] 🟡 **A.1: inventario última milla** — 108 hooks + 146 componentes huérfanos
+  (`audit-2026-06/orphan-hooks-components.txt`); 77 escritores Firestore client-side sin audit
+  (`client-direct-writers.txt`); 53 colecciones sin regla (mayoría server-only — documentar).
+
+(Los demás hallazgos por bloque de la verificación 2026-06-10 — mark-paid sin DTE/tier,
+KnowledgeIngestion sin gate, score-gate RAG, SLM no embebido, biometría nativa, exceptions
+anti-spoof, stoppage/shiftHandover compute-only, etc. — ya tienen ítem en sus secciones B*
+de este tracker; ver además `AUDIT-2026-06-FULL.md` §"Hallazgos mayores".)
 
 ### Sesión 2026-06-08 — 33 PRs fusionados (#751–#784) + reconciliación del tracker
 

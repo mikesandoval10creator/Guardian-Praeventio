@@ -31,6 +31,39 @@ export interface SystemEngineTriggerHandle {
   unsubscribe: () => void;
 }
 
+/**
+ * Phase 1 server-side hook (AUDIT-2026-06 B19): persist ONE audit_logs row
+ * per system event. This is what the module header always promised, but
+ * server.ts never passed an `onEvent`, so the listener validated + deduped
+ * and then did nothing. Doc id is derived from the event id, so replays
+ * across replicas / reconnects collapse onto the same row (idempotent).
+ *
+ * `serverTimestamp` is injected (server.ts passes
+ * `() => admin.firestore.FieldValue.serverTimestamp()`) so this module
+ * stays import-light and unit-testable.
+ */
+export function makeSystemEventAuditor(
+  db: admin.firestore.Firestore,
+  serverTimestamp: () => unknown,
+): (event: SystemEvent) => Promise<void> {
+  return async (event: SystemEvent): Promise<void> => {
+    await db
+      .collection('audit_logs')
+      .doc(`sysevent_${event.id}`)
+      .set({
+        action: `system_event_${event.type}`,
+        module: 'systemEngine',
+        userId: event.actorUid ?? 'system',
+        tenantId: event.tenantId,
+        projectId: event.projectId ?? null,
+        eventId: event.id,
+        idempotencyKey: event.idempotencyKey,
+        eventTs: event.ts,
+        timestamp: serverTimestamp(),
+      });
+  };
+}
+
 const seenEventIds = new Set<string>();
 
 export function setupSystemEngineTrigger(

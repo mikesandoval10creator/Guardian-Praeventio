@@ -57,8 +57,49 @@ export default [
   // ── 1. JS recommended base ───────────────────────────────────────────────
   js.configs.recommended,
 
+  // ── 1b. Ajustes sobre la base JS ─────────────────────────────────────────
+  {
+    rules: {
+      // AUDIT-2026-06: `catch {}` vacío es el idioma best-effort establecido
+      // del repo (analytics, prefetch, vibration, etc.) — los 43 sitios son
+      // todos catch. La regla sigue atrapando if/else/loops vacíos.
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      // AUDIT-2026-06: `no-useless-assignment` produce falsos positivos
+      // documentados con el patrón `let ok = false; try { ok = await … }
+      // finally {…}` (no modela code paths de excepciones). Ese patrón es
+      // EXACTAMENTE el de nuestros flujos de firma biométrica
+      // (AcknowledgmentBanner, PurchaseOrderSignModal, StoppageResumeModal,
+      // verify middlewares) — "arreglar" código correcto para callar la
+      // regla sería churn de riesgo en paths de seguridad. Off con causa.
+      'no-useless-assignment': 'off',
+    },
+  },
+
   // ── 2. TypeScript recommended (flat configs) ─────────────────────────────
   ...tseslint.configs.recommended,
+
+  // ── 1c. Ejecutables Node CJS fuera de scripts/ (loadtest, tests/dr) ──────
+  {
+    files: ['loadtest/**/*.cjs', 'tests/**/*.cjs'],
+    rules: {
+      // CJS ejecutable: require() es el sistema de módulos, no una elección.
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        module: 'writable',
+        require: 'readonly',
+        __dirname: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        Buffer: 'readonly',
+      },
+    },
+  },
+
 
   // ── 3. Reglas TS/TSX del proyecto + react-hooks ──────────────────────────
   {
@@ -119,6 +160,8 @@ export default [
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-empty-function': 'off',
       'no-console': 'off',
+      // Specs node (tests/dr) cargan módulos CJS hermanos vía require().
+      '@typescript-eslint/no-require-imports': 'off',
     },
   },
 
