@@ -23,6 +23,7 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { verifySchedulerOrFallback } from '../middleware/verifySchedulerToken.js';
 import {
   ADMIN_ROLES,
   DOCTOR_ROLES,
@@ -408,17 +409,11 @@ router.post('/set-role', verifyAuth, async (req, res) => {
 // Per-collection errors do NOT fail the request — DR_RUNBOOK §3 commits
 // to "best-effort hourly replica"; a failure on one collection should
 // never starve the other.
-router.post('/replicate-critical', verifyAuth, async (req, res) => {
-  const callerUid = req.user!.uid;
+router.post('/replicate-critical', verifySchedulerOrFallback(verifyAuth), async (req, res) => {
+  const callerUid = (await resolveCronActor(req, res)) ?? null;
+  if (!callerUid) return undefined;
 
   try {
-    const callerRecord = await admin.auth().getUser(callerUid);
-    if (!isAdminRole(callerRecord.customClaims?.role)) {
-      return res
-        .status(403)
-        .json({ error: 'Forbidden: Requires admin role to drive critical replicate' });
-    }
-
     const result = await replicateCriticalData();
 
     // Audit trail — replicate runs are infrequent enough that we want one
@@ -445,15 +440,10 @@ router.post('/replicate-critical', verifyAuth, async (req, res) => {
 // Admin-gated so a stale token can't trigger an N-tenant email burst.
 // Optional `projectIds` body field allows ad-hoc replays for ops:
 //   POST /api/admin/jobs/weekly-digest { "projectIds": ["proj_1"] }
-router.post('/jobs/weekly-digest', verifyAuth, async (req, res) => {
-  const callerUid = req.user!.uid;
+router.post('/jobs/weekly-digest', verifySchedulerOrFallback(verifyAuth), async (req, res) => {
+  const callerUid = (await resolveCronActor(req, res)) ?? null;
+  if (!callerUid) return undefined;
   try {
-    const callerRecord = await admin.auth().getUser(callerUid);
-    if (!isAdminRole(callerRecord.customClaims?.role)) {
-      return res
-        .status(403)
-        .json({ error: 'Forbidden: Requires admin role to drive weekly digest' });
-    }
     const body = (req.body ?? {}) as { projectIds?: unknown };
     const projectIds = Array.isArray(body.projectIds)
       ? body.projectIds.filter((id): id is string => typeof id === 'string').slice(0, 200)
@@ -486,9 +476,9 @@ router.post('/jobs/weekly-digest', verifyAuth, async (req, res) => {
 // 05:00 Santiago (08:00 UTC). Admin-gated so a stale token cannot trigger
 // an N-tenant FCM burst. Wires the orchestrator to real Firestore /
 // Open-Meteo / FCM admin SDK; the orchestrator itself is DI-testeable.
-router.post('/jobs/climate-scan', verifyAuth, async (req, res) => {
-  if (!(await assertAdminCaller(req, res))) return undefined;
-  const callerUid = req.user!.uid;
+router.post('/jobs/climate-scan', verifySchedulerOrFallback(verifyAuth), async (req, res) => {
+  const callerUid = (await resolveCronActor(req, res)) ?? null;
+  if (!callerUid) return undefined;
   try {
     const deps: ClimateRiskScanDeps = {
       listActiveProjects: async () => {
@@ -654,6 +644,32 @@ async function assertAdminCaller(req: any, res: any): Promise<boolean> {
     return false;
   }
   return true;
+}
+
+/**
+ * Resolve the actor for an endpoint that serves BOTH Cloud Scheduler and a
+ * human operator (replicate-critical, weekly-digest, climate-scan). Used
+ * behind `verifySchedulerOrFallback(verifyAuth)`:
+ *   • machine tick   → `req.schedulerInvocation` true → actor 'cloud-scheduler'
+ *     (no Firebase user lookup; the OIDC SA was already pinned by the gate).
+ *   • human operator → fall back to the admin-role check.
+ * Returns the actor string to stamp in audit_logs, or null after writing the
+ * 401/403 response. Closes AUDIT-2026-06 B19: these crons were gated by plain
+ * verifyAuth, which rejects the scheduler's OIDC token → no cron ever ran.
+ */
+async function resolveCronActor(req: any, res: any): Promise<string | null> {
+  if (req.schedulerInvocation === true) return 'cloud-scheduler';
+  const callerUid = req.user?.uid;
+  if (!callerUid) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return null;
+  }
+  const callerRecord = await admin.auth().getUser(callerUid);
+  if (!isAdminRole(callerRecord.customClaims?.role)) {
+    res.status(403).json({ error: 'Forbidden: Requires admin role' });
+    return null;
+  }
+  return callerUid;
 }
 
 // GET /api/admin/quotas?tenantId=X&date=Y

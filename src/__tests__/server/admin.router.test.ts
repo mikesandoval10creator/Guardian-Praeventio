@@ -225,6 +225,46 @@ describe('POST /api/admin/replicate-critical', () => {
     expect(auditDoc.action).toBe('replicate_critical');
     expect(auditDoc.actor).toBe('admin1');
   });
+
+  // AUDIT-2026-06 B19 — Cloud Scheduler reaches this WITHOUT a human Firebase
+  // token. Before the fix the route used plain verifyAuth, so the scheduler
+  // OIDC/secret call got 401 and the hourly DR replica never ran. Now the
+  // scheduler credential is accepted and the machine actor is audited.
+  it('200 scheduler (shared secret): runs as cloud-scheduler actor, no human token', async () => {
+    const prev = process.env.SCHEDULER_SHARED_SECRET;
+    process.env.SCHEDULER_SHARED_SECRET = 'cron-secret';
+    try {
+      vi.mocked(replicateCriticalData).mockResolvedValueOnce({
+        collections: [],
+        window: '2026-05-31T00:00:00Z',
+      } as never);
+      const res = await request(buildApp())
+        .post('/api/admin/replicate-critical')
+        .set('Authorization', 'Bearer cron-secret');
+      expect(res.status).toBe(200);
+      expect(vi.mocked(replicateCriticalData)).toHaveBeenCalledTimes(1);
+      const auditDoc = [...H.db!._store.values()].find((d) => d.action === 'replicate_critical');
+      expect(auditDoc?.actor).toBe('cloud-scheduler');
+    } finally {
+      if (prev === undefined) delete process.env.SCHEDULER_SHARED_SECRET;
+      else process.env.SCHEDULER_SHARED_SECRET = prev;
+    }
+  });
+
+  it('401 scheduler with wrong shared secret', async () => {
+    const prev = process.env.SCHEDULER_SHARED_SECRET;
+    process.env.SCHEDULER_SHARED_SECRET = 'cron-secret';
+    try {
+      const res = await request(buildApp())
+        .post('/api/admin/replicate-critical')
+        .set('Authorization', 'Bearer wrong');
+      expect(res.status).toBe(401);
+      expect(vi.mocked(replicateCriticalData)).not.toHaveBeenCalled();
+    } finally {
+      if (prev === undefined) delete process.env.SCHEDULER_SHARED_SECRET;
+      else process.env.SCHEDULER_SHARED_SECRET = prev;
+    }
+  });
 });
 
 // ===========================================================================

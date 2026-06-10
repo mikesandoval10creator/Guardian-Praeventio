@@ -104,6 +104,7 @@ jobs:
             APP_BASE_URL=https://app.praeventio.net
             APP_URL=https://app.praeventio.net
             DWG_CONVERTER_URL=${{ secrets.DWG_CONVERTER_URL }}
+            SCHEDULER_SERVICE_ACCOUNT=climate-scan-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
           # §2.28 (2026-05-21) — PHOTOGRAMMETRY_WORKER_URL + MODAL_*_URL
           # removidas. Server-side photogrammetry (COLMAP / Modal serverless GPU)
           # DESCARTADA por directiva usuario: digital twin + maqueta 3D deben
@@ -320,5 +321,15 @@ jobs:
             "0 9 * * 1" \
             "/api/admin/jobs/weekly-digest" \
             "Weekly safety digest emailed to supervisors (Sprint 22 Y)."
+
+          # AUDIT-2026-06 B19 — lone-worker escalation (every 5 minutes). LIFE
+          # SAFETY: a solo worker who misses check-ins must escalate to
+          # supervisor → brigade → emergency services WITHOUT anyone pressing
+          # a button. The cron was never provisioned, so the escalation only
+          # ever ran when an operator manually POSTed the endpoint.
+          ensure_job "lone-worker-escalation" \
+            "*/5 * * * *" \
+            "/api/maintenance/run-lone-worker-escalation" \
+            "Lone-worker escalation sweep every 5 min (AUDIT-2026-06 B19). Reads active lone_worker_sessions, applies the pure escalation engine, multicasts FCM to supervisor/brigade/emergency_services."
 
           echo "✓ Maintenance scheduler jobs setup complete"
