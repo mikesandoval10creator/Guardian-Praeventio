@@ -7,6 +7,29 @@
 
 ## Progreso ejecutado (actualizado 2026-06-10)
 
+### Aristas de integración (2026-06-10)
+
+- [x] ✅ **Arista 1 — clima→permisos: viento verificado server-side en `validate-critical`.**
+  Antes, `windSpeedMps` venía exclusivamente del body del cliente, dejando decorativos los
+  umbrales DS 132 / ISO 12480 (11/15 m/s) de `criticalPermitValidators.ts:99-100` ante un
+  solicitante que sub-declara. Ahora, para kinds sensibles al viento (`izaje_critico` —
+  `src/server/routes/workPermits.ts:373`), el endpoint lee `projects/{id}.geo`
+  (`workPermits.ts:379-401`), resuelve un viento independiente vía
+  `environmentBackend.getForecast` con deadline duro de 3 s (`workPermits.ts:435-447`;
+  Promise.race en `weatherGate.ts:106-124` — jamás cuelga el endpoint) y valida con
+  `effective = max(declarado, server)` (`src/services/workPermits/weatherGate.ts:126-160`).
+  Sub-declaración ≥2 m/s bajo el server → issue advisory `WIND_CLIENT_UNDERREPORTED`
+  (`workPermits.ts:483-499`); server caído → nota es-CL "No fue posible verificar el viento
+  de forma independiente…" (`weatherGate.ts:67-68`). Respuesta expone
+  `weatherVerification:{source,serverWindMps,discrepancy,note?}` (`workPermits.ts:430,503-506`).
+  Sin geo o kind sin viento → comportamiento previo intacto. NOTA de verdad-de-código: el
+  proveedor real de `getForecast` es **OpenWeather** (`environmentBackend.ts:420`), no
+  Open-Meteo como decía el contexto — `source:'openweather'`. Endpoint sigue read-only
+  (sin audit_log; create/sign/close siguen siendo los eventos auditados). Tests: 15 unit
+  (`weatherGate.test.ts`) + 6 supertest router real
+  (`src/__tests__/server/workPermits.weatherVerification.test.ts`), suites previas de
+  workPermits verdes (193 tests).
+
 ### Sesión 2026-06-10 — Ola A: auditoría integral de TODO el código (PR #820)
 
 Verificación de lógica punta-a-punta al estado main@#819, cubriendo también las áreas SIN
