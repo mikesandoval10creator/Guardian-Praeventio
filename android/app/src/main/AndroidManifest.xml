@@ -85,4 +85,24 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- AUDIT-2026-06 B21 — runtime permissions no plugin manifest provides.
+
+         ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION — required by
+             @capacitor/geolocation (its plugin manifest deliberately does
+             NOT declare them). Without FINE, ACCESS_BACKGROUND_LOCATION
+             above is inert and the SOS / lone-worker GPS fix never
+             resolves on device.
+         CAMERA — the QR scanner (html5-qrcode) and the on-device
+             biometric/pose flows run inside the WebView via getUserMedia;
+             Android only surfaces the WebView permission prompt when the
+             app itself holds CAMERA.
+
+         BLE permissions (BLUETOOTH_SCAN/CONNECT/ADVERTISE + legacy) are
+         intentionally NOT declared here — they merge in from the
+         @praeventio/capacitor-mesh plugin manifest now that the package
+         is included in capacitor.settings.gradle. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.CAMERA" />
 </manifest>
