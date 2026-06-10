@@ -13,7 +13,7 @@
 
 > **Estado honesto**: ~70% E2E ponderado tras auditoría 2026-05-15 + verificación independiente 2026-05-19 (subió desde 62% del 2026-05-05 tras Sprints 39-56 + Wave F + Codex sweep). La cifra previa de 99% era optimista. Fuente única de verdad: [TODO.md](./TODO.md). Auditorías históricas en [docs/audits/](docs/audits/).
 
-**Cumplimiento:** DS 54, DS 44/2024, Ley 16.744 (Chile) — extensible a otras normativas LATAM.
+**Cumplimiento:** DS 44/2024 (vigente desde 01-02-2025; deroga y unifica DS 40 y DS 54 de 1969), Ley 16.744, DS 594 (Chile) — extensible a otras normativas LATAM.
 
 > "El riesgo se neutraliza en el diseño, no en la reacción." — El Guardián
 

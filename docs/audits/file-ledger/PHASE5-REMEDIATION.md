@@ -106,6 +106,14 @@ B23-Estado compartido, B24-Calidad tests**). Evidencia: `AUDIT-2026-06-FULL.md` 
   sembrar datos). `npm run lint` reparado (--cache incompatible con el parser firestore).
 - [ ] 🟡 **B23: doble event-bus sin consumidores**; 5 contexts sin audit; factory
   `createProjectScopedStore` escribe sin audit (Regla #3) → trigger server o re-cablear.
+- [ ] 🟡 **Informe externo 2026-06-10 (ver `docs/audits/AUDITORIA-EXTERNA-2026-06-REVISION.md`):**
+  (a) barrido de copy UI/prompts que cite DS 54 como norma VIGENTE (DS 44/2024 derogó DS 40 y
+  DS 54 desde 01-02-2025; README y pack CL ya corregidos); (b) **Ley 21.719** (plena vigencia
+  2026-12-01): DPIA biometría+geolocalización, registro de actividades de tratamiento,
+  notificación de brechas 72h, derechos ARCO+portabilidad — la base técnica existe (bóveda,
+  default-deny, audit inmutable, on-device #12), falta el artefacto formal; (c) elevar a ADR la
+  directiva "nunca push a APIs externas" (SISESAT/CUN queda como decisión consciente y
+  reversible, hoy vive en comentarios de incidentFlow.ts).
 - [ ] 🟡 **A.1: inventario última milla** — 108 hooks + 146 componentes huérfanos
   (`audit-2026-06/orphan-hooks-components.txt`); 77 escritores Firestore client-side sin audit
   (`client-direct-writers.txt`); 53 colecciones sin regla (mayoría server-only — documentar).
