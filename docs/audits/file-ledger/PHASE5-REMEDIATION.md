@@ -21,12 +21,17 @@ B23-Estado compartido, B24-Calidad tests**). Evidencia: `AUDIT-2026-06-FULL.md` 
 - B14 `networkBackend.ts` gate: canonicalización projectId + `assertProjectMember` (#679).
 
 **Hallazgos NUEVOS 🔴 (no estaban en este tracker; orden = prioridad de remediación):**
-- [ ] 🔴🛟 **B19: cero crons en prod** — Cloud Scheduler manda OIDC pero `verifySchedulerToken`
-  espera secret literal Y los endpoints están gateados por `verifyAuth` → 401 cada tick
-  (`continue-on-error` lo enmascara). FIX: middleware acepta OIDC del SA + quitar verifyAuth
-  de los endpoints scheduler (documentado público-firmado) + quitar continue-on-error.
-- [ ] 🔴🛟 **B19: `runLoneWorkerEscalation` jamás provisionado** — la escalación de trabajador
-  solitario (vida) no corre sola en prod. FIX: provisionarlo en deploy.yml + auth correcta.
+- [x] 🔴🛟 ~~**B19: cero crons en prod**~~ → ✅ **hecho** (PR #820): `verifySchedulerToken`
+  ahora acepta el token OIDC de Google del SA pin (`SCHEDULER_SERVICE_ACCOUNT`, match
+  exacto de `email` = anti-spoof) **o** el shared secret; `replicate-critical`/`weekly-digest`/
+  `climate-scan` pasan de `verifyAuth` puro a `verifySchedulerOrFallback(verifyAuth)` +
+  `resolveCronActor` (máquina audita `cloud-scheduler`, humano mantiene admin-check).
+  +OIDC tests (accept SA pin, reject SA ajeno/firma/aud/email-no-verif). `continue-on-error`
+  se mantiene a propósito (la SA de deploy no puede provisionar Scheduler; el enmascarado
+  nunca fue la causa — lo era la auth).
+- [x] 🔴🛟 ~~**B19: `runLoneWorkerEscalation` jamás provisionado**~~ → ✅ **hecho** (PR #820):
+  cron `lone-worker-escalation` `*/5` añadido a deploy.yml apuntando a
+  `/api/maintenance/run-lone-worker-escalation` (ya OIDC-gated por el fix de arriba).
 - [ ] 🔴🛟 **B19/B23: FCM crítico roto en móvil** — `backgroundTriggers.ts:213` lee `fcmToken`
   singular; el registro escribe `fcmTokens[]`. FIX: usar helper canónico `projectTokens.ts`.
 - [ ] 🔴🛟 **B21: mesh nativo fuera del build** — `packages/capacitor-mesh` no es dep npm ni
