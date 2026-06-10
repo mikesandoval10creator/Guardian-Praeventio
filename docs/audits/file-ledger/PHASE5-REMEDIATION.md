@@ -5,7 +5,68 @@
 > bloque, vida/privacidad primero. Verdad de referencia: `TODO.md`
 > §2.32/§2.33/§2.34 + los `DEEP-*.md` de este mismo directorio.
 
-## Progreso ejecutado (actualizado 2026-06-08)
+## Progreso ejecutado (actualizado 2026-06-10)
+
+### Sesión 2026-06-10 — Ola A: auditoría integral de TODO el código (PR #820)
+
+Verificación de lógica punta-a-punta al estado main@#819, cubriendo también las áreas SIN
+bloque (nuevos **B19-Plataforma, B20-i18n, B21-Mobile/Capacitor, B22-Corpus normativo,
+B23-Estado compartido, B24-Calidad tests**). Evidencia: `AUDIT-2026-06-FULL.md` +
+`audit-2026-06/*`. Dos correcciones de drift y un lote de hallazgos nuevos:
+
+**Drift corregido (estaba "pendiente" pero YA RESUELTO en main — no re-trabajar):**
+- B11 `visitors.ts` membership: `assertMemberAndResolveTenant:98-118` aplicado en los 4 endpoints (#711).
+- B8 LOTO write-path completo: `loto.ts` create/apply-lock/verify-zero-energy/release (verificado).
+- B12 rules-tests CPHS existen: `cphsMeetings.rules.test.ts` + `comiteActas.rules.test.ts` (2026-06-09).
+- B14 `networkBackend.ts` gate: canonicalización projectId + `assertProjectMember` (#679).
+
+**Hallazgos NUEVOS 🔴 (no estaban en este tracker; orden = prioridad de remediación):**
+- [ ] 🔴🛟 **B19: cero crons en prod** — Cloud Scheduler manda OIDC pero `verifySchedulerToken`
+  espera secret literal Y los endpoints están gateados por `verifyAuth` → 401 cada tick
+  (`continue-on-error` lo enmascara). FIX: middleware acepta OIDC del SA + quitar verifyAuth
+  de los endpoints scheduler (documentado público-firmado) + quitar continue-on-error.
+- [ ] 🔴🛟 **B19: `runLoneWorkerEscalation` jamás provisionado** — la escalación de trabajador
+  solitario (vida) no corre sola en prod. FIX: provisionarlo en deploy.yml + auth correcta.
+- [ ] 🔴🛟 **B19/B23: FCM crítico roto en móvil** — `backgroundTriggers.ts:213` lee `fcmToken`
+  singular; el registro escribe `fcmTokens[]`. FIX: usar helper canónico `projectTokens.ts`.
+- [ ] 🔴🛟 **B21: mesh nativo fuera del build** — `packages/capacitor-mesh` no es dep npm ni
+  está en `capacitor.settings.gradle` ni hay Xcode project → en dispositivo cae al stub web
+  (SOS offline mesh no funciona). FIX: wirear workspace + gradle + (iOS follow-up).
+- [ ] 🔴🛟 **B21: AndroidManifest sin permisos** ACCESS_FINE/COARSE_LOCATION, CAMERA, BLE →
+  GPS del SOS/QR/biometría muertos en APK (`AndroidManifest.xml:66-90`). FIX: declararlos.
+- [ ] 🔴🛟 **B21: `capacitor.settings.gradle` stale** — falta plugin FGS lone-worker (+proximity);
+  el `<service>` declarado referencia clase ausente. FIX: `npx cap sync` + commitear settings.
+- [ ] 🔴 **B19: triggers/jobs in-process × Cloud Run min-instances=0** → onSnapshot/intervals
+  mueren sin tráfico. FIX: `--min-instances=1 --no-cpu-throttling` o mover a Scheduler.
+- [ ] 🔴 **A.1: `ProjectHealthCheck.tsx:68`** (vivo en Analytics) llama `/api/projects/:id/health-check`
+  ELIMINADO en Round 14 → reintroducir endpoint con `assertProjectMember` y re-cablear.
+- [ ] 🔴 **A.1: `ProcessDetailModal.tsx:72`** (vivo en CuadrillasDashboard) se suscribe a colección
+  `hallazgos` SIN regla (lo canónico es `findings:677`) → leer `findings`.
+- [ ] 🔴 **B9: SiteBook 3 esquemas disjuntos** — cliente `site_book` / adapter `sitebook_entries` /
+  firma `site_book_entries` → la firma WebAuthn no encuentra la entrada creada. FIX: path canónico.
+- [ ] 🔴 **B17: `documents_for_read` regla↔schema** — regla exige `authorUid` que nadie estampa
+  (`firestore.rules:456` vs `readReceiptService.ts:34`) → save() cliente denegado siempre.
+- [ ] 🔴 **B12: `comite_actas` write denegado** — `ComiteParitario.tsx:73,111` escribe; la regla
+  solo concede read (`firestore.rules:630`). FIX: consolidar en CphsModule + ruta server auditada.
+- [ ] 🔴 **B17: External Audit Portal sin gate de rol** (`externalAuditPortal.ts:234,355,428`) —
+  cualquier miembro emite tokens de auditor cross-proyecto. FIX: admin + scope de proyectos.
+- [ ] 🔴 **B4/ZK: PDCA sin aristas** — `incidentFlow.ts:77-84` no inyecta `createEdge` → grafo
+  incidente→lección→capacitación desconectado (ISO 45001 §10.2). FIX: inyectar + edges server.
+- [ ] 🔴 **B20: i18n bypaseado a escala** — ~3.150/5.155 claves `t()` no existen en `common.json`
+  (2.745 default inline es) → en/pt-BR ven español; el gate es ciego a claves no declaradas.
+  FIX: generar claves desde defaults inline (codemod) + ratchet que cuente claves usadas.
+- [ ] 🟡 **B22: corpus normativo incompleto** — omite DS 132 (124 citas en código), DS 76/67/148,
+  Ley 19.628, NCh; RAG efectivo ~17 chunks. FIX: ingesta real BCN + pipeline de chunks.
+- [ ] 🟡 **B23: doble event-bus sin consumidores**; 5 contexts sin audit; factory
+  `createProjectScopedStore` escribe sin audit (Regla #3) → trigger server o re-cablear.
+- [ ] 🟡 **A.1: inventario última milla** — 108 hooks + 146 componentes huérfanos
+  (`audit-2026-06/orphan-hooks-components.txt`); 77 escritores Firestore client-side sin audit
+  (`client-direct-writers.txt`); 53 colecciones sin regla (mayoría server-only — documentar).
+
+(Los demás hallazgos por bloque de la verificación 2026-06-10 — mark-paid sin DTE/tier,
+KnowledgeIngestion sin gate, score-gate RAG, SLM no embebido, biometría nativa, exceptions
+anti-spoof, stoppage/shiftHandover compute-only, etc. — ya tienen ítem en sus secciones B*
+de este tracker; ver además `AUDIT-2026-06-FULL.md` §"Hallazgos mayores".)
 
 ### Sesión 2026-06-08 — 33 PRs fusionados (#751–#784) + reconciliación del tracker
 

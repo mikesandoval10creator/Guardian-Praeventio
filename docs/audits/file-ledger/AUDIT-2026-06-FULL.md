@@ -74,6 +74,56 @@ Subcolecciones pueden ser falsos positivos del matcher (verificar antes de tocar
 | **B23-Estado compartido** | contexts/stores/utils, providers huérfanos, migración createProjectScopedStore | `audit-2026-06/B19-plataforma-B23-estado.md` |
 | **B24-Calidad tests** | e2e fixme, wire-up contracts, mutation gaps | `audit-2026-06/B20-B22-B24-movil-i18n-corpus-tests.md` |
 
+### Top hallazgos A.2 (verificados 2026-06-10; detalle y file:line en los informes)
+
+**B19-Plataforma 🔴 (4):**
+1. **Cero crons corren en producción**: deploy provisiona Cloud Scheduler con OIDC, pero
+   `verifySchedulerToken` compara un secret literal que nunca llega y los endpoints de
+   climate-scan/weekly-digest/replicate-critical están además gateados por `verifyAuth`
+   → 401 en cada tick; `continue-on-error: true` enmascara el fallo.
+2. **`runLoneWorkerEscalation` (vida, cada 5 min) no se provisiona en ningún lado**; el
+   snippet del runbook usa un header `X-Scheduler-Token` que el middleware no lee.
+3. **FCM de incidente crítico roto en móvil**: `backgroundTriggers.ts:213` lee
+   `users.fcmToken` singular; el registro escribe `fcmTokens[]`; el helper canónico
+   `projectTokens.ts` existe y no se usa.
+4. **Triggers/jobs in-process con Cloud Run `min-instances=0`** → los onSnapshot/intervals
+   solo viven con tráfico; el "tiempo real" es ilusorio sin instancia caliente.
+   🟡: `requireTier` montado solo en oauthGoogle; limiters de cuota IA en MemoryStore
+   per-réplica; `systemEngineTrigger` no-op (server no pasa `onEvent`); materializer ZK
+   detrás de flag que nadie chequea; CI sin job ESLint; SIGTERM sin `server.close()`.
+
+**B21-Mobile/Capacitor 🔴 (3):**
+5. **Mesh nativo muerto en dispositivo**: el BLE real Kotlin/Swift (Sprint 46) existe en
+   `packages/capacitor-mesh/` pero el paquete NO es dependencia npm, NO está en
+   `android/capacitor.settings.gradle` y no hay proyecto Xcode → `registerPlugin('Mesh')`
+   cae al stub web: el SOS offline por mesh no funciona en celulares.
+6. **AndroidManifest sin permisos clave**: faltan ACCESS_FINE/COARSE_LOCATION, CAMERA y
+   BLE → GPS del SOS, escáner QR y biometría muertos en APK (`AndroidManifest.xml:66-90`).
+7. **`capacitor.settings.gradle` stale**: el plugin FGS (lone-worker foreground service) y
+   capgo-proximity no están incluidos; el `<service>` declarado referencia una clase
+   ausente del APK.
+   🟡: deep links/App Links en `praeventio.app` vs WebAuthn/correos en
+   `app.praeventio.net`; AASA con `TEAMID` placeholder. (✅ `allowBackup=false`.)
+
+**B20-i18n 🔴 (1):** ~3.150 de 5.155 claves `t()` usadas no existen en `common.json`
+(2.745 con default inline en español) → usuarios en/pt-BR ven español; el gate de paridad
+es ciego a claves no declaradas y su baseline cubre claves de vida (`incident_report.*`,
+`lone_worker.*`). (✅ tono tuteo consistente.)
+
+**B22-Corpus normativo 🟡:** RAG efectivo = ~17 chunks bag-of-words; índice vectorial sin
+pipeline de ingesta (siempre fallback); el corpus omite DS 132 (citado 124 veces en
+código), DS 76/67/148, Ley 19.628 y todas las NCh; "Legal Monitor" re-analiza 5 resúmenes
+estáticos. (✅ referencias BCN del corpus CL existente son verídicas.)
+
+**B23-Estado compartido 🟡:** 5 contexts escriben Firestore sin audit (Regla #3); doble
+registro FCM divergente (`fcmToken` vs `fcmTokens[]`); DOS event-buses duplicados con 0
+consumidores; factory `createProjectScopedStore` escribe sin audit.
+(✅ verifyAuth/idempotencia/cifrados/guards husky verificados reales.)
+
+**B24-Tests 🟡:** e2e de SOS/offline/lifecycle en `describe.fixme` (nunca corren);
+105/160 tests de rutas son wire-up-only y 68 dominios sin supertest; Stryker no muta 5
+motores incl. `ergonomicLegalTrigger.ts`.
+
 ## Hallazgos mayores de la verificación cruzada de bloques (2026-06-10)
 
 Confirmados contra código (detalle en informes de bloque y PHASE5-REMEDIATION.md):
