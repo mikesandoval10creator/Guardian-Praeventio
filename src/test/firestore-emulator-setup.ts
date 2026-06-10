@@ -77,13 +77,13 @@ afterEach(async () => {
   try {
     const res = await fetch(url, { method: 'DELETE' });
     if (!res.ok) {
-      // eslint-disable-next-line no-console
+
       console.warn(
         `[firestore-emulator-setup] clear endpoint respondió ${res.status} ${res.statusText}`,
       );
     }
   } catch (err) {
-    // eslint-disable-next-line no-console
+
     console.warn('[firestore-emulator-setup] clear falló (emulator down?):', err);
   }
 });

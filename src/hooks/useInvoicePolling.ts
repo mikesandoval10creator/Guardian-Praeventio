@@ -327,7 +327,7 @@ export function useInvoicePolling(
     return () => {
       controller.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [invoiceId, intervalMs, timeoutMs, backoffCapMs, settleStatusesKey]);
 
   return state;

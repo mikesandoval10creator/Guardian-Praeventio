@@ -112,7 +112,7 @@ function makeSession(overrides: Partial<SessionData> = {}): SessionData {
 
 // ── tests ───────────────────────────────────────────────────────────────
 describe('FirestoreSessionStore', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   let db: any;
   let store: FirestoreSessionStore;
 
@@ -299,7 +299,7 @@ describe('FirestoreSessionStore', () => {
       }),
     };
     const failingStore = new FirestoreSessionStore({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       db: failingDb as any,
     });
     const result = await new Promise<unknown>((resolve, reject) => {

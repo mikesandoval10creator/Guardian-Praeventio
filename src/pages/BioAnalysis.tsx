@@ -114,25 +114,25 @@ export function BioAnalysis() {
         acceptAllDevices: true,
         optionalServices: ['health_thermometer']
       });
-      
+
       setWearableConnected(true);
-      
+
       const server = await device.gatt?.connect();
       const service = await server?.getPrimaryService('health_thermometer');
       const characteristic = await service?.getCharacteristic('temperature_measurement');
-      
+
       characteristic?.startNotifications();
       characteristic?.addEventListener('characteristicvaluechanged', (e: any) => {
         const value = e.target.value;
         // Parse temperature (simplified)
         const temp = value.getUint32(1, true) / 100;
         setBodyTemp(temp);
-        
+
         if (temp > 38) {
           setAlerts(prev => [...prev, `Alerta Térmica: Temperatura corporal elevada (${temp}°C)`]);
         }
       });
-      
+
     } catch (error) {
       logger.error("Bluetooth error:", error);
       showToast("No se pudo conectar al wearable. Asegúrate de tener Bluetooth activado y permisos concedidos.", 'error');
@@ -151,7 +151,7 @@ export function BioAnalysis() {
         const vision = await FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
         );
-        
+
         const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
@@ -206,7 +206,7 @@ export function BioAnalysis() {
 
     const predictWebcam = () => {
       if (!video || !canvas || !cameraActive || !faceLandmarkerRef.current || !poseLandmarkerRef.current) return;
-      
+
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
@@ -222,10 +222,10 @@ export function BioAnalysis() {
       let currentFatigue = 0;
       let currentPosture = 100;
       let currentAttention = 100;
-      let newAlerts: string[] = [];
+      const newAlerts: string[] = [];
 
       const startTimeMs = performance.now();
-      
+
       // Face detection
       const faceResults = faceLandmarkerRef.current.detectForVideo(video, startTimeMs);
       if (faceResults.faceLandmarks) {
@@ -242,7 +242,7 @@ export function BioAnalysis() {
           const eyeBlinkLeft = blendshapes.find(b => b.categoryName === 'eyeBlinkLeft')?.score || 0;
           const eyeBlinkRight = blendshapes.find(b => b.categoryName === 'eyeBlinkRight')?.score || 0;
           const jawOpen = blendshapes.find(b => b.categoryName === 'jawOpen')?.score || 0;
-          
+
           // Fatigue logic
           if (eyeBlinkLeft > 0.5 && eyeBlinkRight > 0.5) {
             currentFatigue += 50;
@@ -250,7 +250,7 @@ export function BioAnalysis() {
           if (jawOpen > 0.3) {
             currentFatigue += 30; // Yawning
           }
-          
+
           // Attention logic (head pitch/yaw estimation from blendshapes or landmarks)
           const headPitch = blendshapes.find(b => b.categoryName === 'headPitch')?.score || 0;
           if (Math.abs(headPitch) > 0.3) {
@@ -266,7 +266,7 @@ export function BioAnalysis() {
         for (const landmark of poseResults.landmarks) {
           drawingUtils.drawLandmarks(landmark, { radius: 3, color: "#F59E0B" });
           drawingUtils.drawConnectors(landmark, PoseLandmarker.POSE_CONNECTIONS, { color: "#F59E0B", lineWidth: 2 });
-          
+
           // Basic posture logic (e.g., shoulders level)
           const leftShoulder = landmark[11];
           const rightShoulder = landmark[12];
@@ -337,7 +337,7 @@ export function BioAnalysis() {
     if (cameraActive) {
       requestRef.current = requestAnimationFrame(predictWebcam);
     }
-    
+
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
       if (canvasRef.current) {
@@ -388,7 +388,7 @@ export function BioAnalysis() {
       canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error("Could not get canvas context");
-      
+
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
 
       // Capture the UN-blurred pixel data for on-device EPP detection BEFORE
@@ -586,7 +586,7 @@ export function BioAnalysis() {
             {!isModelsLoaded ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
             <span>{!isModelsLoaded ? 'Cargando Modelos...' : cameraActive ? 'Detener Cámara' : 'Iniciar Cámara'}</span>
           </button>
-          
+
           {cameraActive && (
             <button
               onClick={captureAndAnalyze}
@@ -631,13 +631,13 @@ export function BioAnalysis() {
                   muted 
                   className="w-full h-full object-cover"
                 />
-                
+
                 {/* Canvas for mesh overlay */}
                 <canvas 
                   ref={canvasRef}
                   className="absolute inset-0 w-full h-full pointer-events-none z-10"
                 />
-                
+
                 {/* Overlay UI when analyzing */}
                 {isAnalyzing && (
                   <div className="absolute inset-0 pointer-events-none">
@@ -647,7 +647,7 @@ export function BioAnalysis() {
                       transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                       className="absolute left-0 right-0 h-1 bg-indigo-500/50 shadow-[0_0_20px_rgba(99,102,241,0.8)] z-10"
                     />
-                    
+
                     {/* Live Stats Overlay */}
                     <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md border border-white/10 rounded-xl p-3">
                       <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-widest">
@@ -692,7 +692,7 @@ export function BioAnalysis() {
                 )}
               </div>
             </div>
-            
+
             <div className="space-y-3">
               {alerts.length > 0 ? (
                 alerts.map((alert, i) => (
@@ -766,7 +766,7 @@ export function BioAnalysis() {
         <div className="space-y-6">
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
             <h3 className="text-sm font-black text-white uppercase tracking-widest mb-6">Métricas Biométricas</h3>
-            
+
             <div className="space-y-6">
               {/* Fatigue */}
               <div>

@@ -79,8 +79,8 @@ async function buildClientCheckers(): Promise<ResilienceCheckers> {
   // necesita 3 contadores. Si el módulo no carga, degradamos a
   // seedAvailable=false (el monitor lo flag como critical correctamente).
   const zkMetrics = async () => {
-    let memoryNodeCount = 0;
-    let idbNodeCount = 0;
+    const memoryNodeCount = 0;
+    const idbNodeCount = 0;
     let seedAvailable = false;
     try {
       const rr = await import('../services/zettelkasten/resilientRetrieval');

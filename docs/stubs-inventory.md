@@ -131,3 +131,11 @@ imports en vez de batch-grep.
 - **User-visible?**: YES — toggle visible pero disabled
 - **Why stub**: confirmar si intencional (feature gate) o pendiente wire
 - **Removal criteria**: si intencional, documentar reason inline + remover de inventory. Si pendiente wire, implementar.
+
+## ERP adapters sin implementación (oracle/dynamics/odoo → 501 honesto)
+- **File**: `src/server/routes/misc.ts:76` (schema) + `src/server/routes/misc.ts:241` (handler 501)
+- **Owner**: B14 (integraciones ERP)
+- **Sprint target**: TBD — se implementa el adapter cuando un cliente enterprise lo requiera
+- **User-visible?**: NO como éxito simulado — `oracle`/`dynamics`/`odoo` devuelven HTTP 501 `ErpNotImplementedError` con mensaje claro y audit log del intento; `mock` es el adapter de pruebas documentado. Adapters reales: `sap`/`buk`/`talana`.
+- **Why stub**: compatibilidad de schema (clientes pueden enviar el erpType y recibir un error honesto en vez de 400 confuso); evita simular éxito.
+- **Removal criteria**: implementar el adapter real correspondiente en `src/services/erp/` y moverlo a `SUPPORTED_ERP_ADAPTERS`.

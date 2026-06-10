@@ -148,11 +148,12 @@ export function validateStep(state: OnboardingState): string | null {
       return state.countries.length > 0 ? null : 'Selecciona al menos un país';
     case 'tier':
       return state.tier ? null : 'Selecciona un plan';
-    case 'team':
+    case 'team': {
       // Team invitations are optional but if any provided they must be valid.
       if (state.inviteEmails.length === 0) return null;
       const bad = state.inviteEmails.find((e) => !isValidEmail(e));
       return bad ? `Email inválido: ${bad}` : null;
+    }
     case 'project':
       return state.projectName.trim().length >= 2
         ? null

@@ -19,7 +19,7 @@
 /** Strip whitespace, dots, and hyphens; uppercase the verifier digit. */
 export function cleanRut(input: string): string {
   if (typeof input !== 'string') return '';
-  return input.replace(/[\s.\-]/g, '').toUpperCase();
+  return input.replace(/[\s.-]/g, '').toUpperCase();
 }
 
 /**

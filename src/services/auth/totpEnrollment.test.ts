@@ -3,7 +3,7 @@ import {
   startEnrollment,
   confirmEnrollment,
   verifyEnrolledCode,
-  useRecoveryCode,
+  useRecoveryCode as consumeRecoveryCode,
   countAvailableRecoveryCodes,
   disableEnrollment,
   TotpEnrollmentError,
@@ -109,7 +109,7 @@ describe('useRecoveryCode', () => {
       nowSec: Math.floor(now.getTime() / 1000),
     });
     const record = confirmEnrollment({ draft, userCode: code, now });
-    const result = useRecoveryCode(record, draft.recoveryCodesPlaintext[0]!);
+    const result = consumeRecoveryCode(record, draft.recoveryCodesPlaintext[0]!);
     expect(result.ok).toBe(true);
     expect(result.updatedRecord!.consumedRecoveryHashes).toHaveLength(1);
   });
@@ -121,9 +121,9 @@ describe('useRecoveryCode', () => {
       nowSec: Math.floor(now.getTime() / 1000),
     });
     let record = confirmEnrollment({ draft, userCode: code, now });
-    const first = useRecoveryCode(record, draft.recoveryCodesPlaintext[0]!);
+    const first = consumeRecoveryCode(record, draft.recoveryCodesPlaintext[0]!);
     record = first.updatedRecord!;
-    const second = useRecoveryCode(record, draft.recoveryCodesPlaintext[0]!);
+    const second = consumeRecoveryCode(record, draft.recoveryCodesPlaintext[0]!);
     expect(second.ok).toBe(false);
   });
 
@@ -134,7 +134,7 @@ describe('useRecoveryCode', () => {
       nowSec: Math.floor(now.getTime() / 1000),
     });
     const record = confirmEnrollment({ draft, userCode: code, now });
-    expect(useRecoveryCode(record, 'FAKE-CODE').ok).toBe(false);
+    expect(consumeRecoveryCode(record, 'FAKE-CODE').ok).toBe(false);
   });
 
   it('case-insensitive + ignora dashes', () => {
@@ -146,7 +146,7 @@ describe('useRecoveryCode', () => {
     const record = confirmEnrollment({ draft, userCode: code, now });
     const original = draft.recoveryCodesPlaintext[0]!; // formato XXXX-XXXX
     const variant = original.toLowerCase().replace('-', '');
-    expect(useRecoveryCode(record, variant).ok).toBe(true);
+    expect(consumeRecoveryCode(record, variant).ok).toBe(true);
   });
 });
 
@@ -169,7 +169,7 @@ describe('countAvailableRecoveryCodes', () => {
     });
     let record = confirmEnrollment({ draft, userCode: code, now });
     for (let i = 0; i < 3; i++) {
-      const r = useRecoveryCode(record, draft.recoveryCodesPlaintext[i]!);
+      const r = consumeRecoveryCode(record, draft.recoveryCodesPlaintext[i]!);
       record = r.updatedRecord!;
     }
     expect(countAvailableRecoveryCodes(record)).toBe(7);

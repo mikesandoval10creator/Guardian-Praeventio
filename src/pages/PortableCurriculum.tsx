@@ -63,7 +63,7 @@ function describeEvent(ev: CurriculumHistoryEvent): {
   const date = ev.timestamp ? new Date(ev.timestamp as any).toLocaleDateString('es-CL') : '';
   const action = ev.action;
   let project = action;
-  let role = ev.module ?? 'Praeventio';
+  const role = ev.module ?? 'Praeventio';
   let incidentFree = true;
   if (action.startsWith('training.') && action.endsWith('.completed')) {
     project = 'Capacitación completada';

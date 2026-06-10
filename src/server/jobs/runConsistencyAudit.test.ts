@@ -37,11 +37,10 @@ class FakeCollection extends FakeQuery {
     super(docs);
   }
   doc(id: string) {
-    const self = this;
     return {
-      collection(subname: string): FakeCollection {
+      collection: (subname: string): FakeCollection => {
         return (
-          self.subcollections[`${id}/${subname}`] ??
+          this.subcollections[`${id}/${subname}`] ??
           new FakeCollection([], {}, `${self.path}/${id}/${subname}`, self.writeSink)
         );
       },

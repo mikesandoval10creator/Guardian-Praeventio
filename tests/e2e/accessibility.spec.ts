@@ -48,7 +48,7 @@ async function runAxe(page: Page, testInfo: TestInfo, surface: string): Promise<
   );
 
   if (minor.length > 0) {
-    // eslint-disable-next-line no-console
+
     console.warn(
       `[a11y] ${minor.length} minor/moderate violations on ${surface}:`,
       minor.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length })),
@@ -60,7 +60,7 @@ async function runAxe(page: Page, testInfo: TestInfo, surface: string): Promise<
   }
 
   if (blocking.length > 0) {
-    // eslint-disable-next-line no-console
+
     console.error(
       `[a11y] BLOCKING violations on ${surface}:`,
       blocking.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length })),

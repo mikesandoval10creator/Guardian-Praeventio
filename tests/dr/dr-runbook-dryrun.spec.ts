@@ -41,7 +41,7 @@
 
 import { describe, it, beforeAll, afterAll, expect } from 'vitest';
 import admin from 'firebase-admin';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+
 const seedModule = require('./seed-dr-dataset.cjs') as {
   seed: () => Promise<{
     counts: Record<string, number>;
@@ -214,7 +214,7 @@ describe('DR runbook automated dry-run', () => {
       expect(zkPost).toBe(seedModule.COUNTS.zkNodes);
 
       // 4. Surface the timings so the workflow report can capture them.
-      // eslint-disable-next-line no-console
+
       console.log(
         JSON.stringify(
           {

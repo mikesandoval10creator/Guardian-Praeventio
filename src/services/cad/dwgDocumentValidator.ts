@@ -114,7 +114,7 @@ function sha256Hex(message: string): string {
   // Encode message as UTF-8 bytes.
   const bytes: number[] = [];
   for (let i = 0; i < message.length; i++) {
-    let c = message.charCodeAt(i);
+    const c = message.charCodeAt(i);
     if (c < 0x80) bytes.push(c);
     else if (c < 0x800) {
       bytes.push(0xc0 | (c >> 6), 0x80 | (c & 0x3f));

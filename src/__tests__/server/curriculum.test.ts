@@ -170,7 +170,7 @@ describe('POST /api/curriculum/referee/:token', () => {
     const resendSend = vi.fn(async () => ({ id: 'msg' }));
     handle = buildTestServer({ firestore: fs, resendSend });
     // Capture raw tokens by intercepting the resend call's html (it has the URL).
-    let capturedTokens: string[] = [];
+    const capturedTokens: string[] = [];
     handle.deps.resendSend = vi.fn(async (args: any) => {
       const m = /\/curriculum\/referee\/([0-9a-f]{64})/.exec(args.html ?? '');
       if (m) capturedTokens.push(m[1]);

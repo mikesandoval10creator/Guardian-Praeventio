@@ -12,7 +12,7 @@ import {
 // Stub minimal del TFunction que el builder consume.
 // El builder solo invoca `t(key, fallback)` — el TFunction real tiene
 // overloads más complejos pero acá basta con devolver el fallback.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 const tStub: any = (_key: string, fallback?: string): string => fallback ?? _key;
 
 const FREE_FEATURES: SubscriptionFeatureGates = {

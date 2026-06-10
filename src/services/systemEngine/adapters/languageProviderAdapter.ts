@@ -5,7 +5,7 @@
 
 export interface LanguageAdapterOptions { tenantId: string }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 export function useLanguageProviderAdapter(_opts: LanguageAdapterOptions): void {
   // Intentionally empty.
 }

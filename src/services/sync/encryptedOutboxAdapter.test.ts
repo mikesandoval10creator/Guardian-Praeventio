@@ -236,7 +236,7 @@ describe('end-to-end: cablear con GenericOutboxEngine', () => {
 
   it('engine + encrypted adapter: retry con backoff persiste cifrado', async () => {
     const adapter = createEncryptedOutboxAdapter<FakePayload>('incidents');
-    let nowMs = 1000;
+    const nowMs = 1000;
     const engine = new GenericOutboxEngine<FakePayload>({
       adapter,
       sender: async () => ({ kind: 'retry' as const, error: 'no net' }),

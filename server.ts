@@ -529,15 +529,15 @@ try {
   if (firebaseConfig?.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)') {
     const originalFirestore = admin.firestore;
     const { getFirestore } = await import('firebase-admin/firestore');
-    
+
     const firestoreWrapper = () => getFirestore(admin.app(), firebaseConfig.firestoreDatabaseId);
     Object.assign(firestoreWrapper, originalFirestore);
-    
+
     Object.defineProperty(admin, 'firestore', {
       get: () => firestoreWrapper,
       configurable: true
     });
-    
+
     console.log(`✅ Firebase Admin configured for databaseId: ${firebaseConfig.firestoreDatabaseId}`);
   }
 } catch (error) {
@@ -805,15 +805,15 @@ try {
     // eslint-disable-next-line no-console
     console.log('✅ Session store: Firestore (multi-instance safe)');
   } else if (process.env.NODE_ENV === 'production') {
-    // eslint-disable-next-line no-console
+
     console.error('FATAL: Firebase Admin not initialized — cannot use MemoryStore in production.');
     process.exit(1);
   } else {
-    // eslint-disable-next-line no-console
+
     console.warn('⚠ Session store: MemoryStore (dev only — NOT safe for multi-instance prod)');
   }
 } catch (err) {
-  // eslint-disable-next-line no-console
+
   console.warn('Session store init failed, falling back to MemoryStore:', err);
 }
 
@@ -1405,7 +1405,7 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
   } catch (trackerError) {
     // Observability layer faulted — log via console (NOT logger, to
     // avoid recursion through observability) and keep going.
-    // eslint-disable-next-line no-console
+
     console.warn('[observability] error tracker captureException failed:', trackerError);
   }
   try {

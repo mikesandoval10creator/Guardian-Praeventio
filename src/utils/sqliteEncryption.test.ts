@@ -39,7 +39,7 @@ function newMockConnection(secretStored: boolean): MockConnection {
 describe('ensureSqliteEncryptionSecret', () => {
   it('returns mode "secret" on first run and sets a 64-char hex passphrase', async () => {
     const conn = newMockConnection(false);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const mode = await ensureSqliteEncryptionSecret(conn as any);
     expect(mode).toBe('secret');
     expect(conn.isSecretStored).toHaveBeenCalledTimes(1);
@@ -52,7 +52,7 @@ describe('ensureSqliteEncryptionSecret', () => {
 
   it('returns mode "encryption" on subsequent runs without re-setting the secret', async () => {
     const conn = newMockConnection(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const mode = await ensureSqliteEncryptionSecret(conn as any);
     expect(mode).toBe('encryption');
     expect(conn.isSecretStored).toHaveBeenCalledTimes(1);
@@ -62,9 +62,9 @@ describe('ensureSqliteEncryptionSecret', () => {
   it('generates distinct passphrases across fresh devices', async () => {
     const connA = newMockConnection(false);
     const connB = newMockConnection(false);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     await ensureSqliteEncryptionSecret(connA as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     await ensureSqliteEncryptionSecret(connB as any);
     const passA = connA.setEncryptionSecret.mock.calls[0][0];
     const passB = connB.setEncryptionSecret.mock.calls[0][0];

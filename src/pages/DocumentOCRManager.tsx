@@ -31,7 +31,7 @@ export function DocumentOCRManager() {
     risks?: string[];
   } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isOnline = useOnlineStatus();
   const { addNode } = useRiskEngine();
@@ -44,7 +44,7 @@ export function DocumentOCRManager() {
       setFile(selectedFile);
       setScanResult(null);
       setOcrProgress(0);
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onload = () => {
@@ -57,8 +57,8 @@ export function DocumentOCRManager() {
   const extractStructuredData = (text: string) => {
     // Basic offline regex extraction for common permit fields
     const nameMatch = text.match(/(?:nombre|trabajador|solicitante)[\s:]+([A-Za-z\s]+)/i);
-    const dateMatch = text.match(/(?:fecha)[\s:]+([\d]{1,2}[\/\-][\d]{1,2}[\/\-][\d]{2,4})/i);
-    
+    const dateMatch = text.match(/(?:fecha)[\s:]+([\d]{1,2}[/-][\d]{1,2}[/-][\d]{2,4})/i);
+
     let type = 'Documento General';
     if (text.toLowerCase().includes('permiso de trabajo') || text.toLowerCase().includes('ptw')) {
       type = 'Permiso de Trabajo';
@@ -103,11 +103,11 @@ export function DocumentOCRManager() {
           }
         }
       );
-      
+
       const extractedText = result.data.text;
       const structured = extractStructuredData(extractedText);
       setScanResult(structured);
-      
+
     } catch (error) {
       logger.error("Error scanning document:", error);
       showToast("Error al procesar el documento. Intente con una imagen más clara.", 'error');

@@ -26,7 +26,7 @@ export interface ErrorFallbackProps {
 export function ErrorFallback({ error, resetError, eventId }: ErrorFallbackProps) {
   // Diagnostic aid for devs — never rendered to the page.
   if (typeof console !== 'undefined' && error !== undefined) {
-    // eslint-disable-next-line no-console
+
     console.error('[Praeventio Guard] Unrecoverable render error:', error);
   }
 

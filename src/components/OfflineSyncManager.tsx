@@ -56,7 +56,7 @@ export function OfflineSyncManager() {
               // diverging critical field to the human supervisor via the
               // ConflictResolutionDrawer; auto-resolve non-critical fields
               // via per-field LWW and write an audit row for each.
-              let resolvedUpdate: Record<string, unknown> = { ...updateData };
+              const resolvedUpdate: Record<string, unknown> = { ...updateData };
               let manualPending = false;
               if (originalUpdatedAt) {
                 const { getDoc } = await import('firebase/firestore');
@@ -224,7 +224,7 @@ export function OfflineSyncManager() {
           }
           await uploadBytes(storageRef, fileToUpload);
           const downloadUrl = await getDownloadURL(storageRef);
-          
+
           // Add document to Firestore
           try {
             const docRef = await addDoc(collection(db, action.collection), {
@@ -281,7 +281,7 @@ export function OfflineSyncManager() {
 
     const runSync = async () => {
       if (!isOnline) return;
-      
+
       const actions = await getPendingActions();
       if (actions.length === 0) return;
 

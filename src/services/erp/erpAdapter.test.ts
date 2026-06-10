@@ -69,7 +69,7 @@ describe('selectErpAdapter', () => {
 
   it('devuelve null para adapter desconocido', () => {
     const adapter = selectErpAdapter({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       env: { ERP_ADAPTER: 'oracle' as any },
     });
     expect(adapter).toBeNull();

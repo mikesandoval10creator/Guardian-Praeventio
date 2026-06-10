@@ -219,13 +219,13 @@ describe('subscribeToDrill — live Firestore stitching', () => {
     const unsub = subscribeToDrill(args, onUpdate, onError);
     return { onUpdate, onError, unsub, unsubMeta, unsubScans };
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   wire.metaNext = (_s: any) => {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   wire.scansNext = (_s: any) => {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   wire.metaErr = (_e: any) => {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   wire.scansErr = (_e: any) => {};
 
   const metaDoc = {

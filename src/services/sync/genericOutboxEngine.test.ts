@@ -314,7 +314,7 @@ describe('GenericOutboxEngine — flush', () => {
 
   it('deadLetters() expone los retenidos; clearDeadLetter() los remueve tras escalar', async () => {
     const adapter = createInMemoryOutboxAdapter<FakePayload>();
-    let now = 1000;
+    const now = 1000;
     const engine = new GenericOutboxEngine<FakePayload>({
       adapter,
       sender: async () => ({ kind: 'retry' as const, error: 'x' }),
@@ -337,7 +337,7 @@ describe('GenericOutboxEngine — flush', () => {
 
   it('capacidad: un dead-letter NUNCA es evictado para admitir un entry nuevo', async () => {
     const adapter = createInMemoryOutboxAdapter<FakePayload>();
-    let now = 1000;
+    const now = 1000;
     const engine = new GenericOutboxEngine<FakePayload>({
       adapter,
       sender: async () => ({ kind: 'retry' as const, error: 'x' }),
@@ -362,7 +362,7 @@ describe('GenericOutboxEngine — flush', () => {
 
   it('stats() separa pending de deadLettered', async () => {
     const adapter = createInMemoryOutboxAdapter<FakePayload>();
-    let now = 1000;
+    const now = 1000;
     const engine = new GenericOutboxEngine<FakePayload>({
       adapter,
       sender: async () => ({ kind: 'retry' as const, error: 'x' }),

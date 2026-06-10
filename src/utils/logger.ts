@@ -42,7 +42,7 @@ if (isNode) {
   // node:async_hooks for the browser build. Server boot resolves it via
   // CommonJS interop on first import.
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+
     const { AsyncLocalStorage } = (0, eval)('require')('node:async_hooks') as typeof import('node:async_hooks');
     requestStore = new AsyncLocalStorage<RequestLogContext>();
   } catch {

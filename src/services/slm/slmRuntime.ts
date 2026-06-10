@@ -508,7 +508,7 @@ export function createSlmRuntime(): SlmRuntime {
         const data = BigInt64Array.from(currentIds.map((n) => BigInt(n)));
         const tensor = new TensorCtor('int64', data, [1, currentIds.length]);
 
-        // eslint-disable-next-line no-await-in-loop
+
         const out = await model.session.run({ [inputName]: tensor });
         const logits = out[outputName];
         if (!logits) break;
@@ -592,7 +592,7 @@ export function createSlmRuntime(): SlmRuntime {
         const data = BigInt64Array.from(currentIds.map((n) => BigInt(n)));
         const tensor = new TensorCtor('int64', data, [1, currentIds.length]);
 
-        // eslint-disable-next-line no-await-in-loop
+
         const out = await model.session.run({ [inputName]: tensor });
         const logits = out[outputName];
         if (!logits) break;
