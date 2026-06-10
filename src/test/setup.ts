@@ -80,7 +80,9 @@ if (typeof globalThis.document !== 'undefined') {
 // warns when a file leaves a NEW timer/socket-shaped handle behind, naming the
 // file so the leak can be pinned. Zero effect on normal runs (env-gated).
 //   Usage: DETECT_HANDLES=1 npx vitest run <files> --no-file-parallelism 2>&1 | grep DETECT_HANDLES
-if (process.env.DETECT_HANDLES === '1') {
+// AUDIT-2026-06: also enabled on CI so the next hang names the leaky file
+// in the log instead of dying silently at the 30-min cap.
+if (process.env.DETECT_HANDLES === '1' || process.env.CI === 'true') {
   const { beforeAll, afterAll, expect } = await import('vitest');
   const LEAKY = /Timeout|Immediate|TCP|Socket|Pipe|FSReq|FileHandle|Server|TTY|Worker|ChildProcess/i;
   const tally = (arr: string[]): Record<string, number> =>
