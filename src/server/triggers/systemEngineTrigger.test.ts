@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { setupSystemEngineTrigger } from './systemEngineTrigger';
+import { makeSystemEventAuditor, setupSystemEngineTrigger } from './systemEngineTrigger';
 
 interface FakeChange {
   type: 'added' | 'modified' | 'removed';
@@ -94,3 +94,60 @@ function makeWellFormedEvent(id: string) {
     payload: { workerId: 'u1', projectId: 'pA', confidence: 0.9, accelMagnitude: 30 },
   };
 }
+
+// AUDIT-2026-06 B19 — the trigger header promised "Phase 1: persists a
+// server-side audit log for every system event", but server.ts never
+// passed an onEvent, so the listener validated + deduped and then did
+// NOTHING. makeSystemEventAuditor is the Phase 1 hook, wired in server.ts.
+describe('makeSystemEventAuditor', () => {
+  function makeAuditDb() {
+    const sets: Array<{ id: string; data: Record<string, unknown> }> = [];
+    const db = {
+      collection: vi.fn().mockImplementation((name: string) => ({
+        doc: (id: string) => ({
+          set: async (data: Record<string, unknown>) => {
+            if (name === 'audit_logs') sets.push({ id, data });
+          },
+        }),
+      })),
+    };
+    return { db: db as unknown as Parameters<typeof makeSystemEventAuditor>[0], sets };
+  }
+
+  const event = {
+    id: 'evt-1',
+    type: 'sos_triggered',
+    tenantId: 'tenant-a',
+    projectId: 'proj-1',
+    actorUid: 'uid-worker',
+    ts: 1765000000000,
+    idempotencyKey: 'ik-1',
+    payload: { lat: -33.4, lng: -70.6 },
+  } as never;
+
+  it('writes an idempotent audit_logs row keyed by the event id', async () => {
+    const { db, sets } = makeAuditDb();
+    const auditor = makeSystemEventAuditor(db, () => 'SERVER_TS');
+    await auditor(event);
+    expect(sets).toHaveLength(1);
+    expect(sets[0].id).toBe('sysevent_evt-1');
+    expect(sets[0].data).toMatchObject({
+      action: 'system_event_sos_triggered',
+      module: 'systemEngine',
+      userId: 'uid-worker',
+      tenantId: 'tenant-a',
+      projectId: 'proj-1',
+      eventId: 'evt-1',
+      idempotencyKey: 'ik-1',
+      eventTs: 1765000000000,
+      timestamp: 'SERVER_TS',
+    });
+  });
+
+  it('records system as actor when the event has no actorUid', async () => {
+    const { db, sets } = makeAuditDb();
+    const auditor = makeSystemEventAuditor(db, () => 'SERVER_TS');
+    await auditor({ ...(event as Record<string, unknown>), actorUid: null } as never);
+    expect(sets[0].data.userId).toBe('system');
+  });
+});

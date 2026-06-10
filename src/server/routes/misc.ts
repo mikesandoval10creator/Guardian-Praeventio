@@ -324,7 +324,7 @@ router.get('/legal/check-updates', verifyAuth, async (_req, res) => {
           lawTitle: string,
           lawContent: string,
           modules: string,
-        ) => Promise<unknown>)(
+        ) => Promise<Record<string, unknown>>)(
           law.title,
           law.content,
           modulesSummary,

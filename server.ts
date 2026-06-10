@@ -409,7 +409,8 @@ import restrictedZonesRouter from "./src/server/routes/restrictedZones.js";
 import importRouter from "./src/server/routes/import.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
-import { setupSystemEngineTrigger } from "./src/server/triggers/systemEngineTrigger.js";
+import { makeSystemEventAuditor, setupSystemEngineTrigger } from "./src/server/triggers/systemEngineTrigger.js";
+import { gracefulShutdown } from "./src/server/lifecycle.js";
 import systemEventsRouter from "./src/server/routes/systemEvents.js";
 // Sprint 35 audit P1 §1.3 — distributed lease so in-process cron jobs
 // (env polling 10min, project safety 6h) only run on ONE Cloud Run
@@ -1426,7 +1427,9 @@ let healthHandle: { stop: () => void } | null = null;
 let systemEngineHandle: { unsubscribe: () => void } | null = null;
 let mqttBrokerHandle: ConnectedBroker | null = null;
 
-app.listen(PORT, "0.0.0.0", () => {
+// AUDIT-2026-06 B19 — capture the handle so SIGTERM can drain in-flight
+// requests via server.close() instead of killing them with process.exit.
+const httpServer = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${PORT}`);
 
   if (admin.apps.length > 0) {
@@ -1442,6 +1445,12 @@ app.listen(PORT, "0.0.0.0", () => {
     // Cleanup is wired into SIGTERM (no leaked listener on rolling deploy).
     systemEngineHandle = setupSystemEngineTrigger({
       db: admin.firestore(),
+      // AUDIT-2026-06 B19 — the Phase 1 hook the module header always
+      // promised: one idempotent audit_logs row per system event. Without
+      // it the listener validated + deduped and then did NOTHING.
+      onEvent: makeSystemEventAuditor(admin.firestore(), () =>
+        admin.firestore.FieldValue.serverTimestamp(),
+      ),
     });
 
     // Proactive Project Health Checks (Every 6 hours to balance quota).
@@ -1512,16 +1521,26 @@ app.listen(PORT, "0.0.0.0", () => {
 // interval so the process can exit cleanly on SIGTERM (Cloud Run sends
 // SIGTERM ~10s before SIGKILL on revision rollover).
 process.on('SIGTERM', () => {
-  triggersHandle?.unsubscribe();
-  healthHandle?.stop();
-  systemEngineHandle?.unsubscribe();
-  // Sprint 27 (audit P0 H10) — clear the env polling interval too.
-  clearInterval(environmentalPollingHandle);
-  // Sprint 32 Bucket TT — release the MQTT broker subscription.
-  if (mqttBrokerHandle) {
-    mqttBrokerHandle.unsubscribe().catch(() => {
-      /* shutdown — swallow */
-    });
-  }
-  process.exit(0);
+  // AUDIT-2026-06 B19 — drain in-flight HTTP via server.close() before
+  // exiting (the old handler process.exit(0)'d immediately, killing
+  // responses mid-flight on every Cloud Run revision rollover). The 8s
+  // drain budget sits inside Cloud Run's ~10s SIGTERM→SIGKILL window.
+  gracefulShutdown({
+    server: httpServer,
+    cleanups: [
+      () => triggersHandle?.unsubscribe(),
+      () => healthHandle?.stop(),
+      () => systemEngineHandle?.unsubscribe(),
+      // Sprint 27 (audit P0 H10) — clear the env polling interval too.
+      () => clearInterval(environmentalPollingHandle),
+      // Sprint 32 Bucket TT — release the MQTT broker subscription.
+      () => {
+        if (mqttBrokerHandle) {
+          mqttBrokerHandle.unsubscribe().catch(() => {
+            /* shutdown — swallow */
+          });
+        }
+      },
+    ],
+  });
 });
