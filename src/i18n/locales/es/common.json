@@ -486,7 +486,28 @@
     "guide_earthquake_step_2": "Alejarse de ventanas, estanterías y objetos que puedan caer.",
     "guide_earthquake_step_3": "Si está al aire libre, alejarse de edificios, árboles y postes.",
     "guide_earthquake_step_4": "Esperar a que termine el movimiento para evacuar.",
-    "guide_earthquake_step_5": "No encender fósforos ni usar ascensores."
+    "guide_earthquake_step_5": "No encender fósforos ni usar ascensores.",
+    "medical_card": {
+      "title": "Ficha médica de emergencia",
+      "subtitle": "Solo en tu dispositivo. Se muestra a los rescatistas únicamente si lo autorizas, para acelerar tu atención en una emergencia.",
+      "blood_type": "Tipo de sangre",
+      "allergies": "Alergias",
+      "allergies_placeholder": "Ej: Penicilina, látex",
+      "consent": "Autorizo compartir esta ficha en una emergencia (a los rescatistas y por la red mesh Bluetooth) para acelerar mi atención.",
+      "saved": "Guardado",
+      "save": "Guardar ficha"
+    },
+    "public_call_medical": "Ambulancia",
+    "public_call_fire": "Bomberos",
+    "public_call_police": "Carabineros",
+    "public_button": "Emergencia",
+    "public_title": "Ayuda de emergencia",
+    "public_back": "Volver",
+    "public_close": "Cerrar",
+    "public_subtitle": "Llama directo o usa las guías sin conexión. No necesitas iniciar sesión.",
+    "public_first_aid": "Primeros auxilios",
+    "public_survival": "Modo supervivencia",
+    "public_find_dea": "Desfibrilador (DEA) más cercano"
   },
   "legal": {
     "cookie_title": "Cookies y privacidad",
@@ -2001,10 +2022,22 @@
       "choose_plan": "Elegir plan {{name}}",
       "footnote": "Planes enterprise hasta 5,000 trabajadores · Precios en USD",
       "plans": {
-        "free": { "name": "Gratuito", "price": "$0" },
-        "committee": { "name": "Comité", "price": "$10/mes" },
-        "department": { "name": "Departamento", "price": "$30/mes" },
-        "enterprise": { "name": "Enterprise", "price": "Desde $50/mes" }
+        "free": {
+          "name": "Gratuito",
+          "price": "$0"
+        },
+        "committee": {
+          "name": "Comité",
+          "price": "$10/mes"
+        },
+        "department": {
+          "name": "Departamento",
+          "price": "$30/mes"
+        },
+        "enterprise": {
+          "name": "Enterprise",
+          "price": "Desde $50/mes"
+        }
       }
     },
     "final_cta": {
@@ -2966,5 +2999,133 @@
     "action": {
       "acknowledge": "Confirmo lectura"
     }
+  },
+  "brigade": {
+    "aria": "Brigada emergencia readiness",
+    "title": "Brigada Emergencia",
+    "coverageOk": "Cobertura mínima OK",
+    "coverageFail": "Sin cobertura mínima",
+    "byRole": "Cobertura por rol",
+    "expiredTrainingsTitle": "Capacitaciones vencidas",
+    "resources": {
+      "aria": "Recursos",
+      "title": "Recursos",
+      "empty": "Sin recursos registrados"
+    },
+    "operational": "operativos",
+    "needAttention": "requieren atención",
+    "gapsTitle": "Faltan recursos",
+    "addMember": {
+      "title": "Agregar brigadista",
+      "uid": "UID del trabajador",
+      "role": "Rol",
+      "trainedAt": "Última capacitación"
+    },
+    "addResource": {
+      "title": "Agregar recurso",
+      "kind": "Tipo",
+      "location": "Ubicación",
+      "lastInspected": "Última inspección",
+      "nextExpiration": "Próximo vencimiento"
+    },
+    "inspectResource": {
+      "title": "Registrar inspección",
+      "inspectedAt": "Fecha de inspección",
+      "operational": "Recurso operativo tras la inspección",
+      "nextExpirationAt": "Próximo vencimiento (opcional)",
+      "notes": "Notas (opcional)",
+      "submit": "Registrar"
+    },
+    "page": {
+      "title": "Brigada de Emergencia",
+      "selectProject": "Selecciona un proyecto para gestionar la brigada y los recursos.",
+      "subtitle": "§74-78 — Brigadistas + Recursos (extintores, AED, lavaojos, botiquines).",
+      "error": "No se pudo cargar la brigada: {{msg}}"
+    },
+    "banner": {
+      "green": "Brigada lista — cobertura mínima y recursos al día",
+      "amber": "Brigada con 1 brecha — revisar cobertura o recursos próximos a vencer",
+      "rose": "Brigada con múltiples brechas — operación de respuesta comprometida",
+      "stats": "{{members}} brigadistas activos · {{ops}}% recursos operativos · {{gaps}} roles sin cubrir · {{attention}} recursos requieren atención"
+    },
+    "empty": {
+      "title": "Aún no hay brigada configurada",
+      "subtitle": "Designa los 3 roles mínimos (Líder, Primeros Auxilios e Incendios) y registra los recursos disponibles para activar la respuesta a emergencias."
+    },
+    "add": {
+      "member": "Agregar brigadista",
+      "resource": "Agregar recurso"
+    },
+    "members": {
+      "aria": "Brigadistas",
+      "title": "Brigadistas"
+    },
+    "member": {
+      "none": "Sin cobertura",
+      "gap": "Brecha",
+      "count": "{{count}} miembro(s)"
+    },
+    "resource": {
+      "lastInspected": "Insp.",
+      "expired": "Vencido",
+      "outOfService": "Fuera servicio",
+      "inspect": "Inspeccionar",
+      "daysLeft": "{{n}} días"
+    }
+  },
+  "evacuation": {
+    "aria": {
+      "board": "Tablero evacuación"
+    },
+    "dashboard": {
+      "title": "Conteo de Evacuación",
+      "idleHint": "No hay drill activo. Inicia un simulacro o, en emergencia real, dispara el conteo.",
+      "startDrill": "Iniciar simulacro",
+      "startReal": "Emergencia real",
+      "scan": "Escanear QR",
+      "end": "Finalizar"
+    },
+    "real": "EMERGENCIA REAL",
+    "drill": "Simulacro",
+    "coverage": "Cobertura",
+    "safe": "Seguros",
+    "missing": "Faltan",
+    "complete": "Todos seguros — drill puede cerrarse.",
+    "postmortem": {
+      "title": "Postmortem",
+      "coverage": "Cobertura final",
+      "elapsed": "Tiempo total",
+      "avgScan": "Tiempo prom. de scan"
+    },
+    "qr": {
+      "aria": "Escanear credencial QR del trabajador",
+      "title": "Escanear credencial",
+      "subtitle": "Conteo en punto de encuentro",
+      "processing": "Registrando…",
+      "hint": "Apunta la cámara hacia el QR del trabajador para registrarlo como seguro en el punto de encuentro."
+    },
+    "title": "Mapa de Evacuación Dinámico",
+    "subtitle": {
+      "default": "Gestión de rutas adaptativas basadas en el Grafo de Conocimiento",
+      "project": "Plan de evacuación inteligente para: {{name}}"
+    },
+    "plan": {
+      "title": "Plan de Emergencia (PE)"
+    },
+    "end_confirm": "¿Finalizar el drill? El historial queda guardado para el postmortem.",
+    "heading": "Tablero de Evacuación",
+    "subheading": "Cuando se active un drill o emergencia real, este tablero mostrará en tiempo real qué trabajadores ya están seguros en el punto de encuentro y quiénes faltan (con su última ubicación conocida).",
+    "no_drill": "Sin drill activo",
+    "no_drill_help": "En producción, el supervisor pre-popula la lista de trabajadores desde la base del proyecto. Para demo, puedes iniciar un drill con 5 trabajadores ficticios y probar el flujo de conteo.",
+    "start_demo": "Iniciar drill demo (5 trabajadores)",
+    "workers_safe": "trabajadores seguros",
+    "finalize": "Finalizar",
+    "missing_heading": "FALTANTES",
+    "mark_safe_aria": "Marcar a {{name}} como seguro",
+    "mark_safe": "Marcar seguro",
+    "safe_heading": "Seguros",
+    "disclaimer": "Tracking actualmente local — al definir la collection `evacuation_drills` (futuro Sprint) se agregará persistencia Firestore + sync entre supervisores.",
+    "active_label_real": "⚠️ EMERGENCIA REAL",
+    "active_label_drill": "Simulacro activo"
   }
 }
