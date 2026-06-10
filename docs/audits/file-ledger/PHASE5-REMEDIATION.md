@@ -85,9 +85,12 @@ B23-Estado compartido, B24-Calidad tests**). Evidencia: `AUDIT-2026-06-FULL.md` 
   `assertAdminCaller` aplicado en las 4 rutas admin (externalAuditPortal.ts:270,342,394,467).
 - [x] 🔴 ~~**B4/ZK: PDCA sin aristas**~~ → **DRIFT, ya resuelto en main**: `flowDepsFor`
   (incidentFlow.ts:80-95) inyecta `createEdge` con el edge-store Firestore real (fix #650 R2).
-- [ ] 🔴 **B20: i18n bypaseado a escala** — ~3.150/5.155 claves `t()` no existen en `common.json`
-  (2.745 default inline es) → en/pt-BR ven español; el gate es ciego a claves no declaradas.
-  FIX: generar claves desde defaults inline (codemod) + ratchet que cuente claves usadas.
+- [~] 🔴 **B20: i18n bypaseado a escala** — ~3.151/5.155 claves `t()` no existen en `common.json`.
+  ✅ **Mitigado** (PR #820): `validate-i18n.cjs` ahora escanea las claves literales usadas en src
+  y ratchetea las no-declaradas (`usedUndeclared` en el baseline, 3.151 sembradas — solo puede
+  encoger; código nuevo con clave sin declarar FALLA husky + vitest gate). **PENDIENTE**: codemod
+  que genere las claves es desde los defaults inline + traducción en/pt-BR por lotes (bajar el
+  baseline a 0 por módulos, vida-seguridad primero: incident_report.*, lone_worker.*).
 - [ ] 🟡 **B22: corpus normativo incompleto** — omite DS 132 (124 citas en código), DS 76/67/148,
   Ley 19.628, NCh; RAG efectivo ~17 chunks. FIX: ingesta real BCN + pipeline de chunks.
 - [x] 🟡 ~~**B19: systemEngineTrigger no-op / SIGTERM sin drain / CI sin lint**~~ → ✅ **hecho**

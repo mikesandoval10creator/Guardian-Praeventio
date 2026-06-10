@@ -74,6 +74,62 @@ function scan() {
   return { referenceCount: ref.size, missing };
 }
 
+// ── AUDIT-2026-06 B20: used-but-undeclared ratchet ─────────────────────────
+//
+// The parity gate above only compares DECLARED keys across locales. The 2026-06
+// audit found ~3.1k literal `t('key', 'inline default')` usages whose key does
+// not exist in es/common.json at all — those render the inline Spanish default
+// for EVERY locale and are invisible to the parity check. This scan makes them
+// visible and ratchets the list: it may only SHRINK (declare the key in `es`
+// + launch locales to remove it); NEW code using an undeclared literal key
+// fails the gate.
+//
+// Scope: literal first-arg keys only (`t('a.b.c'…)`). Dynamic keys
+// (template literals) can't be statically ratcheted and stay out of scope.
+
+const SRC_DIR = path.join(REPO_ROOT, 'src');
+const USED_KEY_RE = /\bt\(\s*['"]([A-Za-z0-9_][A-Za-z0-9_.-]*)['"]/g;
+
+function* walkSources(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      // Tests/rules-tests no son copy de usuario.
+      if (entry.name === '__tests__' || entry.name === 'rules-tests') continue;
+      yield* walkSources(full);
+    } else if (
+      /\.(ts|tsx)$/.test(entry.name) &&
+      !/\.(test|spec)\.(ts|tsx)$/.test(entry.name)
+    ) {
+      yield full;
+    }
+  }
+}
+
+/** Set of literal i18n keys referenced from product source. */
+function scanUsedKeys() {
+  const used = new Set();
+  for (const file of walkSources(SRC_DIR)) {
+    const text = fs.readFileSync(file, 'utf8');
+    let m;
+    while ((m = USED_KEY_RE.exec(text)) !== null) {
+      // Heurística anti-falsos-positivos: las claves i18n del proyecto son
+      // jerárquicas (contienen un punto). `t('x')` sin punto suele ser otra
+      // función `t` (formatters, tests de tipos, etc.).
+      if (m[1].includes('.')) used.add(m[1]);
+    }
+  }
+  return used;
+}
+
+/** Used literal keys that do NOT exist in the `es` reference, sorted. */
+function undeclaredUsed() {
+  const ref = loadKeys(REFERENCE);
+  if (!ref) throw new Error(`validate-i18n: reference '${REFERENCE}' not found.`);
+  return [...scanUsedKeys()].filter((k) => !ref.has(k)).sort();
+}
+
 function loadBaseline() {
   if (!fs.existsSync(BASELINE_PATH)) return null;
   try {
@@ -128,14 +184,45 @@ function main() {
     }
   }
 
+  // ── AUDIT-2026-06 B20: used-but-undeclared ratchet ──
+  const undeclared = undeclaredUsed();
+  const baseUndeclared = new Set(baseline.usedUndeclared || []);
+  if (baseline.usedUndeclared) {
+    const newUndeclared = undeclared.filter((k) => !baseUndeclared.has(k));
+    if (newUndeclared.length) {
+      failures += newUndeclared.length;
+      console.error(
+        `\n[i18n-parity] FAIL — ${newUndeclared.length} NEW t('key') usage(s) whose key ` +
+          `does not exist in '${REFERENCE}' common.json (inline default shown to EVERY locale):`,
+      );
+      newUndeclared.slice(0, 25).forEach((k) => console.error(`  ${k}`));
+      if (newUndeclared.length > 25) {
+        console.error(`  …and ${newUndeclared.length - 25} more`);
+      }
+      console.error(
+        `  → declare the key in src/i18n/locales/es/common.json (+ en, pt-BR)`,
+      );
+    }
+    const fixedUndeclared = [...baseUndeclared].filter((k) => !undeclared.includes(k));
+    if (fixedUndeclared.length) {
+      console.log(
+        `\n[i18n-parity] ✅ ${fixedUndeclared.length} formerly-undeclared key(s) now declared; ` +
+          `remove from baseline.usedUndeclared.`,
+      );
+    }
+  }
+
   console.log('');
   if (failures) {
     console.error(`[i18n-parity] FAIL: ${failures} new untranslated key(s).`);
     process.exit(1);
   }
   const total = REQUIRED.map((l) => `${l}:${missing[l].length}`).join(' · ');
+  const undeclaredNote = baseline.usedUndeclared
+    ? ` · undeclared-used: ${undeclared.length}/${baseUndeclared.size} baselined`
+    : '';
   console.log(
-    `[i18n-parity] PASS — launch-locale parity held (gap baselined: ${total}).`,
+    `[i18n-parity] PASS — launch-locale parity held (gap baselined: ${total}${undeclaredNote}).`,
   );
   process.exit(0);
 }
@@ -145,6 +232,8 @@ module.exports = {
   loadKeys,
   missingFor,
   scan,
+  scanUsedKeys,
+  undeclaredUsed,
   REFERENCE,
   REQUIRED,
   LOCALES_DIR,
