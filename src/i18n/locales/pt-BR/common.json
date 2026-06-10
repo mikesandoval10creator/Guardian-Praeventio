@@ -39,7 +39,66 @@
     "findings_heatmap": "Mapa de Calor de Achados",
     "soft_blocks": "Bloqueios Soft",
     "custody_chain": "Cadeia de Custódia",
-    "projects_compare": "Comparar Projetos"
+    "projects_compare": "Comparar Projetos",
+    "admin_group": "Admin",
+    "afiches": "Cartazes de Segurança",
+    "annual_review": "Análise Anual do SGSST",
+    "apprenticeship": "Aprendizes e Mentores",
+    "audit_portals": "Portais do Auditor",
+    "b2d_admin": "Painel B2D",
+    "confidential_reports": "Denúncias Confidenciais",
+    "consistency_audit": "Auditor de Consistência",
+    "corrective_actions": "Ações Corretivas",
+    "cphs": "Comitê Paritário (CPHS)",
+    "cphs_draft": "Ata do CPHS",
+    "critical_controls": "Controles Críticos",
+    "cuadrillas": "Equipes de Campo",
+    "culture_pulse": "Cultura Preventiva",
+    "data_confidence": "Confiabilidade dos Dados",
+    "digital_twin": "Gêmeo Digital 3D",
+    "document_read": "Leitura de Documentos",
+    "drills": "Gestor de Simulados",
+    "driving_safety": "Direção Segura",
+    "emergency_brigade": "Brigada de Emergência",
+    "engineering_controls": "Controles de Engenharia",
+    "ergonomics": "Ergonomia",
+    "evacuation_dashboard": "Painel de Evacuação",
+    "exceptions": "Exceções",
+    "fatigue": "Monitor de Fadiga",
+    "first_responder_map": "Primeiro Socorrista",
+    "human_body_viewer": "Visor Corporal DIAT",
+    "hygiene": "Higiene Ocupacional",
+    "inbox": "Caixa de Entrada",
+    "incident_trends": "Tendência de Incidentes",
+    "inspections": "Inspeções",
+    "knowledge_base": "Base de Conhecimento",
+    "leadership_decisions": "Decisões da Supervisão",
+    "legal_calendar": "Calendário Legal",
+    "lessons_learned": "Lições Aprendidas",
+    "lone_worker": "Trabalho Isolado",
+    "loto": "LOTO",
+    "maturity_index": "Índice de Maturidade",
+    "medicine": "Medicina",
+    "mining_contractors": "Contratadas de Mineração",
+    "my_data": "Meus Dados",
+    "occupational_health_group": "Saúde Ocupacional",
+    "operational_changes": "Gestão de Mudanças",
+    "pdca": "PDCA + Não Conformidades",
+    "portable_history": "Histórico Portátil",
+    "positive_observations": "Observações Positivas",
+    "pre_shift_risk": "Pré-turno",
+    "project_closure": "Encerramento de Projeto",
+    "qr_signature": "Assinatura QR",
+    "repeating_risks": "Padrões de Risco",
+    "residual_risk": "Risco Residual",
+    "root_cause": "Causa Raiz",
+    "safety_talks": "Diálogos Diários de Segurança",
+    "shift_handover": "Passagem de Turno",
+    "site_book": "Diário de Obra",
+    "stoppages": "Paralisações",
+    "suppliers": "Fornecedores",
+    "work_permits": "Permissões de Trabalho",
+    "worker_readiness": "Prontidão do Trabalhador"
   },
   "auth": {
     "login": "Entrar",
@@ -3128,6 +3187,396 @@
       "note": "Cobertura inicial. Orçamento mensal rateado (reposição): {{m}}.",
       "title": "Itens recomendados — {{industry}}",
       "total": "Total CLP estimado"
+    }
+  },
+  "annualReview": {
+    "achieved": "Alcançados",
+    "achievementRate": "Taxa de cumprimento",
+    "analysis": {
+      "ph": "Resuma achados, desempenho do SGSST, lições aprendidas, recomendações para o próximo ano…",
+      "unsaved": "Alterações não salvas — serão persistidas ao adicionar/remover objetivos ou ao concluir a análise."
+    },
+    "aria": "Resumo anual do SGSST",
+    "atRisk": "Em risco",
+    "concluded": {
+      "heading": "Análise encerrada",
+      "signedBy": "Assinada por"
+    },
+    "concludedChip": "Encerrada",
+    "conclusion": {
+      "btn": "Concluir análise",
+      "ph": "Resuma o fechamento do ano: conformidade, achados críticos, compromissos para {{year}}.",
+      "warning": "Ao concluir, o ano fica bloqueado: não será possível adicionar objetivos nem evidências."
+    },
+    "empty": {
+      "body": "Ainda não há objetivos preventivos definidos para {{year}}. Inicie a análise para registrar metas mensuráveis, evidências e conclusões assinadas.",
+      "cta": "Iniciar análise {{year}}",
+      "heading": "Inicie a análise crítica anual do SGSST"
+    },
+    "error": {
+      "conclusionTooShort": "A conclusão deve ter pelo menos 10 caracteres.",
+      "evidenceFields": "Selecione um objetivo e informe a URL/caminho da evidência.",
+      "noUser": "Você precisa fazer login para assinar.",
+      "numericInputs": "Linha de base e meta devem ser numéricas.",
+      "titleRequired": "O título é obrigatório."
+    },
+    "evidence": {
+      "attach": "Anexar evidência",
+      "attachBtn": "Anexar",
+      "captionPh": "Descrição (opcional)",
+      "empty": "Nenhuma evidência anexada ainda. Vincule documentos, auditorias, incidentes ou treinamentos a cada objetivo.",
+      "kind": {
+        "audit": "Auditoria",
+        "document": "Documento",
+        "incident": "Incidente",
+        "other": "Outro",
+        "training": "Treinamento"
+      },
+      "selectObjective": "Selecione o objetivo…",
+      "urlPh": "URL ou caminho (/documents/abc.pdf, https://…)"
+    },
+    "metric": {
+      "count_increase": "Aumentar quantidade",
+      "count_reduction": "Reduzir quantidade",
+      "percent_completion": "% concluído",
+      "percent_reduction": "% de redução"
+    },
+    "missed": "Não alcançados",
+    "needsAttention": "Exigem atenção",
+    "objective": {
+      "add": "Adicionar objetivo",
+      "addBtn": "Adicionar",
+      "baseline": "Linha de base",
+      "current": "Atual",
+      "target": "Meta",
+      "titlePh": "Título (ex.: Reduzir incidentes em 20%)"
+    },
+    "objectives": {
+      "empty": "Ainda não há objetivos. Adicione pelo menos um para iniciar o acompanhamento.",
+      "label": "objetivos"
+    },
+    "onTrack": "No caminho certo",
+    "page": {
+      "error": "Não foi possível carregar a análise anual: {{msg}}",
+      "selectProject": "Selecione um projeto para iniciar ou consultar a análise crítica anual do SGSST.",
+      "subtitle": "ISO 45001 §9.3 + DS 76 — ciclo PDCA anual: objetivos preventivos, evidências e conclusões assinadas.",
+      "title": "Análise Crítica Anual do SGSST"
+    },
+    "section": {
+      "analysis": "Análise e achados",
+      "conclusion": "Conclusões e assinatura",
+      "evidence": "Evidências",
+      "objectives": "Objetivos preventivos"
+    },
+    "title": "Análise Anual do SGSST",
+    "topPerformers": "Destaques do ano",
+    "year": "Ano"
+  },
+  "closure": {
+    "action": {
+      "adminOnly": "Apenas administradores podem encerrar formalmente.",
+      "blocked": "Resolva os bloqueios primeiro.",
+      "error": "Não foi possível concluir a ação.",
+      "finalize": "Encerrar formalmente",
+      "finalized": "Projeto encerrado formalmente. Dados retidos para auditoria.",
+      "initiate": "Iniciar encerramento",
+      "initiated": "Processo de encerramento iniciado."
+    },
+    "aria": "Encerramento do projeto",
+    "blocked": "Encerramento bloqueado",
+    "blockersTitle": "Bloqueios",
+    "confirm": "Confirmar encerramento do projeto",
+    "decision": {
+      "invalid": "Contexto e decisão devem ter pelo menos 5 caracteres.",
+      "logged": "Decisão registrada."
+    },
+    "decisions": {
+      "context": "Contexto",
+      "decision": "Decisão tomada",
+      "help": "Registre decisões que marcaram o resultado do projeto e seu desfecho retrospectivo.",
+      "negative": "Negativo",
+      "neutral": "Neutro",
+      "outcome": "Desfecho retrospectivo",
+      "positive": "Positivo",
+      "submit": "Registrar decisão",
+      "title": "Decisões críticas do projeto"
+    },
+    "lesson": {
+      "captured": "Lição capturada e publicada na biblioteca.",
+      "invalid": "Resumo e ação preventiva devem ter pelo menos 5 caracteres."
+    },
+    "lessons": {
+      "action": "Ação preventiva derivada",
+      "help": "As lições capturadas são publicadas na biblioteca F.12 com escopo de setor para que outros projetos as descubram.",
+      "industry": "Setor",
+      "submit": "Capturar lição",
+      "summary": "Resumo da lição",
+      "title": "Lições transferíveis para projetos futuros"
+    },
+    "page": {
+      "error": "Não foi possível carregar o encerramento: {{msg}}",
+      "selectProject": "Selecione um projeto para iniciar o encerramento formal.",
+      "subtitle": "§131-138 — Lições transferíveis + decisões críticas + resumos multiperfil.",
+      "title": "Encerramento de Projeto"
+    },
+    "pending": {
+      "actions": "Ações em aberto",
+      "decisions": "Decisões registradas",
+      "empty": "Sem bloqueios nem alertas.",
+      "incidents": "Incidentes em aberto",
+      "lessons": "Lições capturadas",
+      "permits": "Permissões de trabalho ativas",
+      "title": "Pendências que bloqueiam o encerramento"
+    },
+    "previewAudience": "Pré-visualização por público",
+    "readiness": {
+      "label": "Pronto para encerramento"
+    },
+    "ready": "Pronto para encerrar",
+    "state": {
+      "finalized": "Encerrado formalmente em {{at}}.",
+      "initiated": "Processo de encerramento iniciado.",
+      "open": "Processo de encerramento não iniciado."
+    },
+    "summary": {
+      "counts": "Lições: {{l}} · Decisões: {{d}} · Incidentes: {{i}} (críticos: {{c}})",
+      "empty": "Nenhum resumo disponível.",
+      "gerencia": "Gerência",
+      "role": "Perfil",
+      "supervisor": "Supervisor",
+      "title": "Resumo multiperfil",
+      "worker": "Trabalhador"
+    },
+    "title": "Encerramento de Projeto",
+    "warningsTitle": "Alertas"
+  },
+  "confidentialReports": {
+    "action": {
+      "close": "Encerrar",
+      "new": "Nova denúncia",
+      "respond": "Responder"
+    },
+    "card": {
+      "anonymous": "Anônimo",
+      "evidence": "Evidência",
+      "resolution": "Resolução",
+      "severity": "Gravidade"
+    },
+    "close": {
+      "errorEmpty": "A resolução não pode ficar vazia.",
+      "outcome": "Resultado",
+      "placeholder": "Descreva a resolução do caso, as medidas adotadas e o plano de acompanhamento.",
+      "resolution": "Resolução",
+      "submit": "Encerrar denúncia",
+      "substantiated": "Procedente",
+      "title": "Encerrar denúncia",
+      "transferred": "Encaminhado à autoridade externa",
+      "unsubstantiated": "Improcedente"
+    },
+    "error": "Não foi possível carregar as denúncias: {{msg}}",
+    "inbox": {
+      "empty": "Sem denúncias pendentes. Caixa de entrada vazia."
+    },
+    "mis": {
+      "empty": "Você não tem denúncias neste projeto. Denúncias anônimas não aparecem aqui por design — apenas as identificadas."
+    },
+    "modal": {
+      "anonymousHelp": "Sua identidade NUNCA é armazenada. Apenas um código irreversível para detectar retaliações.",
+      "anonymousLabel": "Anônimo (recomendado)",
+      "confirmation": "Denúncia enviada. Você receberá resposta em 5 dias úteis (art. 7 da Lei 21.643).",
+      "errorNarrative": "A descrição deve ter pelo menos 10 caracteres.",
+      "errorSubmit": "Não foi possível enviar a denúncia.",
+      "evidence": "Evidência (opcional)",
+      "evidencePlaceholder": "Testemunhas, documentos, e-mails, mensagens.",
+      "identifiedHelp": "Permite acompanhamento personalizado do caso. Mantido em estrita confidencialidade.",
+      "identifiedLabel": "Identificado",
+      "identityLegend": "Identidade",
+      "kind": "Categoria",
+      "narrative": "Descrição",
+      "narrativePlaceholder": "Descreva o fato em detalhes: o que aconteceu, quando, onde, quem.",
+      "severity": "Gravidade",
+      "submit": "Denunciar",
+      "title": "Nova denúncia confidencial"
+    },
+    "page": {
+      "selectProject": "Selecione um projeto para acessar o canal de denúncias.",
+      "subtitle": "Canal §211-213 — Lei 21.643 (Lei Karin) + proteção contra retaliações.",
+      "title": "Denúncias Confidenciais"
+    },
+    "privacy": {
+      "body": "Você pode denunciar de forma anônima ou identificada. A identidade anônima JAMAIS é armazenada — apenas um código pseudônimo irreversível para detectar retaliações. Qualquer ação adversa após a denúncia (demissão, mudança de turno, sanção) fica registrada para análise jurídica.",
+      "title": "Seus dados estão protegidos pela Lei 21.643"
+    },
+    "respond": {
+      "errorEmpty": "A mensagem não pode ficar vazia.",
+      "message": "Mensagem",
+      "placeholder": "Descreva o andamento, os próximos passos ou a solicitação de informações adicionais.",
+      "submit": "Enviar resposta",
+      "title": "Responder à denúncia"
+    },
+    "retaliation": {
+      "disclaimer": "Padrão detectado por hash anônimo — NÃO desanonimiza. Investigação humana obrigatória antes de concluir.",
+      "empty": "Nenhum padrão de retaliação detectado nos últimos 90 dias.",
+      "entry": "{{kind}} {{days}}d após a denúncia (hash: {{hash}}…)",
+      "title": "Alertas de retaliação (janela de 90d)"
+    },
+    "tab": {
+      "inbox": "Caixa do investigador",
+      "mis": "Minhas denúncias"
+    }
+  },
+  "drivingSafety": {
+    "action": {
+      "flagAlert": "Reportar",
+      "newRoute": "Nova rota",
+      "recordJourney": "Registrar viagem",
+      "resolveAlert": "Gerenciar"
+    },
+    "driver": {
+      "fatigue": "Fadiga",
+      "hoursWeek": "Horas/sem",
+      "incidents": "Incidentes 12m",
+      "license": "Habilitação",
+      "licenseDays": "vence em {{n}}d",
+      "licenseExpired": "vencida"
+    },
+    "drivers": {
+      "empty": "Não há motoristas cadastrados neste projeto.",
+      "error": "Não foi possível carregar os motoristas: {{msg}}"
+    },
+    "filter": {
+      "status": "Status:"
+    },
+    "modal": {
+      "alertFlag": "Reportar alerta de rota",
+      "alertKind": "Tipo de alerta",
+      "alertManage": "Gerenciar alerta",
+      "alertNote": "Observação (opcional)",
+      "alertNotePlaceholder": "Ex.: Gelo no km 45-50, visibilidade reduzida.",
+      "alertResolve": "Resolver atual",
+      "alertSubmit": "Reportar",
+      "criticality": "Criticidade",
+      "destination": "Destino",
+      "distance": "Distância (km)",
+      "errorAlert": "Não foi possível registrar o alerta.",
+      "errorDistance": "Distância inválida.",
+      "errorJourney": "Não foi possível registrar a viagem.",
+      "errorJourneyId": "Para encerrar uma viagem é necessário o ID.",
+      "errorName": "O nome deve ter pelo menos 2 caracteres.",
+      "errorPlaces": "Origem e destino são obrigatórios.",
+      "errorSpeed": "Velocidade fora do intervalo (5-200).",
+      "errorSubmit": "Não foi possível registrar a rota.",
+      "hazards": "Perigos (seleção múltipla)",
+      "journeyAction": "Ação",
+      "journeyEnd": "Encerrar viagem",
+      "journeyHours": "Horas (opcional, calculado automaticamente se vazio)",
+      "journeyId": "ID da viagem",
+      "journeyNote": "Observação (opcional)",
+      "journeyStart": "Iniciar viagem",
+      "journeySubmit": "Confirmar",
+      "journeyTitle": "Registrar viagem",
+      "maxSpeed": "Vel. máx. (km/h)",
+      "name": "Nome",
+      "newRouteTitle": "Nova rota crítica",
+      "origin": "Origem",
+      "submit": "Registrar",
+      "weatherSensitive": "Sensível ao clima (notificar quando as condições mudarem)"
+    },
+    "page": {
+      "selectProject": "Selecione um projeto para ver rotas críticas, motoristas e o ranking de segurança.",
+      "subtitle": "§69-71 — rotas críticas, motoristas e alertas em tempo real (assistido, não bloqueia).",
+      "title": "Direção Segura"
+    },
+    "ranking": {
+      "canOperate": "Apto para operar",
+      "empty": "Não há motoristas cadastrados para ranquear.",
+      "error": "Não foi possível carregar o ranking: {{msg}}",
+      "hours": "horas/sem",
+      "score": "Pontuação"
+    },
+    "route": {
+      "weatherSensitive": "Sensível ao clima"
+    },
+    "routes": {
+      "empty": "Não há rotas registradas para este filtro.",
+      "error": "Não foi possível carregar as rotas: {{msg}}"
+    },
+    "tab": {
+      "conductores": "Motoristas",
+      "ranking": "Ranking",
+      "rutas": "Rotas"
+    }
+  },
+  "incidentFlow": {
+    "assigned": {
+      "aria": "Microtreinamento atribuído",
+      "certified": "Certificação emitida",
+      "derivedFrom": "Derivado da lição:",
+      "passed": "Aprovado",
+      "retryHelper": "Sem punição — a atribuição continua aberta para tentar novamente.",
+      "running": "Iniciando...",
+      "scoreLabel": "Pontuação",
+      "start": "Fazer microtreinamento"
+    },
+    "investigation": {
+      "actionPlaceholder": "Ação preventiva específica",
+      "actionsLabel": "Ações preventivas",
+      "addAction": "Adicionar ação",
+      "aria": "Painel de investigação",
+      "conclude": "Concluir investigação",
+      "concludeHelper": "A ISO 45001 exige pelo menos 1 ação preventiva. Cada ação será rastreável como nó de encerramento.",
+      "concluding": "Concluindo...",
+      "factorLabel": "Fator contribuinte (opcional)",
+      "factorNone": "— sem classificação —",
+      "openSubmit": "Abrir investigação",
+      "opened": "Investigação aberta",
+      "opening": "Abrindo...",
+      "removeAction": "Remover ação",
+      "rootLabel": "Causa raiz (sem culpabilização)",
+      "rootMin": "caracteres no mínimo",
+      "rootPlaceholder": "Foco sistêmico: qual procedimento, qual recurso, qual decisão faltava. Não cite nomes de pessoas.",
+      "scopeLabel": "Escopo da investigação",
+      "scopePlaceholder": "Foco inicial: quais procedimentos / equipamentos / contextos revisar.",
+      "title": "Investigação do incidente"
+    },
+    "lessonForm": {
+      "aria": "Publicar lição aprendida",
+      "audienceCount": "trabalhadores",
+      "audienceLabel": "Público (uids separados por vírgula)",
+      "idLabel": "ID da lição",
+      "published": "Lição publicada",
+      "publishing": "Publicando...",
+      "riskCatsLabel": "Categorias de risco",
+      "submit": "Publicar lição",
+      "summaryLabel": "Resumo da lição",
+      "summaryPlaceholder": "Uma ou duas frases sistêmicas que qualquer pessoa do setor possa aplicar.",
+      "tagsLabel": "Tags",
+      "title": "Publicar lição aprendida"
+    },
+    "pdca": {
+      "aria": "Painel de encerramento PDCA",
+      "closeCta": "Encerrar investigação (PDCA Act → Close)",
+      "closureLabel": "Encerramento do ciclo",
+      "loading": "Carregando status PDCA...",
+      "nodesLabel": "Nós ZK",
+      "of": "de",
+      "thresholdHelper": "Encerramento disponível ao atingir {{percent}}% dos treinamentos concluídos.",
+      "title": "Encerramento PDCA do incidente",
+      "workers": "trabalhadores"
+    },
+    "reportForm": {
+      "aria": "Formulário de comunicação de acidente",
+      "descriptionLabel": "O que aconteceu",
+      "descriptionPlaceholder": "Descreva o evento sem culpar pessoas. Foco no sistema.",
+      "helper": "Reportar sempre soma pontos. Não há penalização: reportar cedo salva vidas.",
+      "locationLabel": "Local",
+      "locationPlaceholder": "Frente de trabalho 7, setor C",
+      "minChars": "caracteres no mínimo",
+      "photoAttached": "Foto anexada",
+      "severityLabel": "Gravidade estimada",
+      "submit": "Enviar comunicação",
+      "submitting": "Enviando...",
+      "title": "Comunicar acidente / quase acidente"
     }
   }
 }
