@@ -86,7 +86,7 @@ describe('resolveServerWindWithTimeout', () => {
     vi.useFakeTimers();
     const deps: WeatherGateDeps = {
       fetchForecast: vi.fn(
-        () => new Promise(() => undefined), // hangs forever
+        () => new Promise<never>(() => undefined), // hangs forever
       ),
     };
     const pending = resolveServerWindWithTimeout(deps, GEO, 3000);
