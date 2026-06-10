@@ -3,7 +3,9 @@
 // Plan 2026-05-23 §Fase B.4 — refactor: usa factory + counter custom.
 //
 // CRUD client-side para `SiteBookEntry`s. Schema:
-//   projects/{projectId}/site_book/{entry.id}
+//   projects/{projectId}/site_book_entries/{entry.id}   (SITE_BOOK_COLLECTION
+//     — el MISMO path que leen las rutas de firma WebAuthn; antes escribía
+//     'site_book' y la firma nunca encontraba la entrada: AUDIT-2026-06 B9)
 //   projects/{projectId}/site_book_counters/{year}  — counter atómico
 //
 // El counter NO va por el factory porque es un singleton path con shape
@@ -13,9 +15,9 @@
 
 import { db, doc, setDoc, getDoc } from '../firebase';
 import { createProjectScopedStore } from '../firestore/createProjectScopedStore';
-import type { SiteBookEntry } from './siteBookService';
+import { SITE_BOOK_COLLECTION, type SiteBookEntry } from './siteBookService';
 
-const store = createProjectScopedStore<SiteBookEntry>('site_book', {
+const store = createProjectScopedStore<SiteBookEntry>(SITE_BOOK_COLLECTION, {
   defaultLimit: 200,
   orderByField: 'recordedAt',
   activeFilter: { field: 'status', op: '==', value: 'open' },

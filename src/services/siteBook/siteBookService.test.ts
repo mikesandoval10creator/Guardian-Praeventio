@@ -210,3 +210,15 @@ describe('summarizeSiteBook', () => {
     expect(s.pendingSignatureCount).toBe(2);
   });
 });
+
+// AUDIT-2026-06 B9 — the UI store wrote projects/{pid}/site_book while the
+// WebAuthn sign routes read projects/{pid}/site_book_entries: signing could
+// NEVER find the entry the user just created. Both sides now import this
+// constant so the coupling is by code, not convention.
+import { SITE_BOOK_COLLECTION } from './siteBookService.js';
+
+describe('SITE_BOOK_COLLECTION', () => {
+  it('is the canonical signing subcollection', () => {
+    expect(SITE_BOOK_COLLECTION).toBe('site_book_entries');
+  });
+});
