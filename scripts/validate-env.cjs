@@ -53,6 +53,14 @@ const REQUIRED_PROD = [
 
   // === Telemetry & Errors ===
   { name: 'IOT_WEBHOOK_SECRET', purpose: 'HMAC telemetry HMAC', mode: 'prod', minLength: 32 },
+  // MQTT → telemetry_events bridge (claude/mqtt-wire 2026-06). Opcional por
+  // diseño: ausente ⇒ bridge limpiamente OFF (sin conexiones, un log al boot).
+  // Si está presente debe ser real (placeholder regex aplica); el resolver de
+  // src/server/triggers/mqttTelemetryBridge.ts exige además scheme
+  // mqtt(s)://|ws(s):// y degrada a OFF con log de error si no calza.
+  { name: 'MQTT_BROKER_URL', purpose: 'MQTT bridge sensores industriales (opcional; OFF si ausente)', mode: 'prod', optional: true },
+  { name: 'MQTT_USERNAME', purpose: 'Credencial broker MQTT (opcional)', mode: 'prod', optional: true },
+  { name: 'MQTT_PASSWORD', purpose: 'Credencial broker MQTT (opcional)', mode: 'prod', optional: true, minLength: 8 },
   { name: 'SENTRY_DSN', purpose: 'Error tracking server', mode: 'prod' },
   { name: 'VITE_SENTRY_DSN', purpose: 'Error tracking client', mode: 'prod' },
 

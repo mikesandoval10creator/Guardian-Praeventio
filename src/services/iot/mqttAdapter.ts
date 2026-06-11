@@ -1,27 +1,34 @@
 // SPDX-License-Identifier: MIT
 //
-// Sprint 32 Bucket TT — MQTT adapter (dual + in-memory).
+// Sprint 32 Bucket TT — MQTT adapter (broker + in-memory).
+// 2026-06 (claude/mqtt-wire) — real broker adapter implemented.
 //
-// See ADR 0015 for the strategy. Three implementations are provided:
+// See ADR 0015 for the strategy. Implementations provided:
 //
 //   • InMemoryAdapter        — EventEmitter pub/sub for tests & dev local.
-//   • createCloudIotCoreAdapter — factory for Google Cloud IoT Core
-//     (production default). Lazy-imports `googleapis` (already a dep) and
-//     `mqtt`. NOT wired into prod boot here — server.ts opt-in by
-//     IOT_BROKER_ADAPTER=cloud.
-//   • createEmqxAdapter      — factory for EMQX self-hosted (data
-//     residency alt). Lazy-imports `mqtt`. NOT wired into prod boot here.
+//   • createBrokerAdapter    — REAL MQTT broker client over the `mqtt`
+//     npm package (mqtt:// mqtts:// ws:// wss://). This is the production
+//     path for industrial gas/atmosphere sensors. Auto-reconnects with
+//     mqtt.js's built-in backoff (`reconnectPeriod`) and re-subscribes
+//     on reconnect (`resubscribe: true`, the mqtt.js default).
+//   • createEmqxAdapter      — EMQX self-hosted (data-residency alt).
+//     Now a thin delegate to `createBrokerAdapter` with mTLS PEMs.
+//   • createCloudIotCoreAdapter — SUPERSEDED. Google retired Cloud IoT
+//     Core in 2023; the factory remains only so legacy configs fail with
+//     a clear migration message (point MQTT_BROKER_URL at any standard
+//     broker instead). It must stay OFF the boot path.
 //
-// The lazy-import is intentional: `mqtt` is NOT a dependency of the
-// repo today. Tests run against InMemoryAdapter only; the cloud / emqx
-// factories throw a clear error if called without the package installed,
-// but importing this module never crashes.
+// Note: `mqtt@^5` IS a repo dependency (package.json) — older comments
+// claiming otherwise were stale. The dynamic import is kept so merely
+// importing this module never loads the client lib (server cold-start).
 //
 // Wildcard topic matching follows MQTT spec semantics:
 //   • `+`  matches a single level (e.g. `tenants/+/projects/p1/...`).
 //   • `#`  matches all remaining levels (terminal only, e.g. `tenants/t1/#`).
 
 import { EventEmitter } from 'node:events';
+import { randomId } from '../../utils/randomId.js';
+import { logger } from '../../utils/logger.js';
 import type { TelemetrySample } from './types.js';
 
 export type Qos = 0 | 1 | 2;
@@ -145,7 +152,188 @@ export class InMemoryAdapter implements MqttAdapter {
 }
 
 // ---------------------------------------------------------------------------
-// CloudIotCoreAdapter — default productive backend. Lazy-imported.
+// BrokerAdapter — real MQTT broker client (mqtt.js). Production path.
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimal structural surface of an `mqtt.MqttClient` — only what the
+ * adapter uses. Declared locally so tests can inject a fake client and
+ * the `mqtt` package stays a lazy import.
+ */
+export interface MqttLikeClient {
+  on(event: string, listener: (...args: unknown[]) => void): unknown;
+  subscribe(
+    topic: string,
+    opts: { qos: Qos },
+    cb?: (err?: Error | null) => void,
+  ): unknown;
+  unsubscribe(topic: string, cb?: (err?: Error | null) => void): unknown;
+  publish(
+    topic: string,
+    payload: string | Buffer,
+    opts: { qos: Qos; retain?: boolean },
+    cb?: (err?: Error | null) => void,
+  ): unknown;
+  end(force?: boolean, opts?: Record<string, never>, cb?: () => void): unknown;
+}
+
+export interface MqttConnectModule {
+  connect(url: string, opts: Record<string, unknown>): MqttLikeClient;
+}
+
+export interface BrokerAdapterOptions {
+  /** Broker URL — mqtt://, mqtts://, ws:// or wss://. */
+  url: string;
+  /** Broker credentials (broker-level auth — see trust model in the bridge). */
+  username?: string;
+  password?: string;
+  /** Optional mTLS PEM strings (EMQX / self-hosted brokers). */
+  ca?: string;
+  cert?: string;
+  key?: string;
+  /** Stable client id. Defaults to a random per-process id. */
+  clientId?: string;
+  /** mqtt.js auto-reconnect period. Default 5000 ms. */
+  reconnectPeriodMs?: number;
+  connectTimeoutMs?: number;
+  /**
+   * Test seam: inject a fake `mqtt` module. When absent the real package
+   * is dynamically imported (it IS a dependency — see header).
+   */
+  mqttModule?: MqttConnectModule;
+}
+
+/**
+ * Real `MqttAdapter` over a standard MQTT broker. Behavior contract:
+ *
+ *   • The factory NEVER blocks on the broker being reachable: mqtt.js
+ *     queues subscribe/publish while offline and replays them on connect,
+ *     and reconnects forever with `reconnectPeriod` backoff. A dead broker
+ *     therefore degrades the feature, never the server (fault isolation).
+ *   • Inbound payloads MUST be UTF-8 JSON matching the TelemetrySample
+ *     shape; anything else is counted + dropped (an open topic is full of
+ *     retained noise — the bridge layer re-validates and authorizes).
+ *   • Handler exceptions are swallowed (a listener must not poison the bus).
+ */
+export async function createBrokerAdapter(
+  opts: BrokerAdapterOptions,
+): Promise<MqttAdapter> {
+  const mqttModule: MqttConnectModule =
+    opts.mqttModule ?? ((await import('mqtt')).default as unknown as MqttConnectModule);
+
+  const client = mqttModule.connect(opts.url, {
+    clientId: opts.clientId ?? `praeventio-bridge-${randomId()}`,
+    username: opts.username,
+    password: opts.password,
+    ...(opts.ca ? { ca: opts.ca } : {}),
+    ...(opts.cert ? { cert: opts.cert } : {}),
+    ...(opts.key ? { key: opts.key } : {}),
+    reconnectPeriod: opts.reconnectPeriodMs ?? 5000,
+    connectTimeout: opts.connectTimeoutMs ?? 30_000,
+    clean: true,
+    // mqtt.js default, made explicit: re-subscribe registered topics on
+    // every reconnect so a broker restart doesn't silence the bridge.
+    resubscribe: true,
+  });
+
+  // pattern → handlers registered through subscribe().
+  const patterns = new Map<string, Set<SampleHandler>>();
+  let closed = false;
+  let droppedMalformed = 0;
+
+  client.on('connect', () => {
+    logger.info('iot_mqtt_broker_connected', { url: opts.url });
+  });
+  client.on('reconnect', () => {
+    logger.warn('iot_mqtt_broker_reconnecting', { url: opts.url });
+  });
+  client.on('error', (err: unknown) => {
+    // NEVER throw — mqtt.js keeps retrying; we only observe.
+    logger.warn('iot_mqtt_broker_error', {
+      url: opts.url,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  });
+  client.on('message', (...args: unknown[]) => {
+    const topic = args[0] as string;
+    const payload = args[1] as Buffer;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(payload.toString('utf8'));
+    } catch {
+      droppedMalformed += 1;
+      logger.warn('iot_mqtt_payload_not_json', { topic, droppedMalformed });
+      return;
+    }
+    if (!isLikelyTelemetrySample(parsed)) {
+      droppedMalformed += 1;
+      logger.warn('iot_mqtt_payload_not_sample', { topic, droppedMalformed });
+      return;
+    }
+    for (const [pattern, handlers] of patterns) {
+      if (!topicMatches(pattern, topic)) continue;
+      for (const handler of handlers) {
+        try {
+          handler(parsed as TelemetrySample, topic);
+        } catch (err) {
+          // Handler errors must not poison the bus (InMemoryAdapter parity).
+          logger.warn('iot_mqtt_handler_threw', {
+            topic,
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
+  });
+
+  return {
+    async publish(topic, payload, publishOpts: PublishOpts = {}) {
+      if (closed) throw new Error('BrokerAdapter closed');
+      const body = Buffer.isBuffer(payload) ? payload : JSON.stringify(payload);
+      await new Promise<void>((resolve, reject) => {
+        client.publish(
+          topic,
+          body,
+          { qos: publishOpts.qos ?? 1, retain: publishOpts.retain ?? false },
+          (err) => (err ? reject(err) : resolve()),
+        );
+      });
+    },
+    async subscribe(topic, handler) {
+      if (closed) throw new Error('BrokerAdapter closed');
+      let set = patterns.get(topic);
+      if (!set) {
+        set = new Set();
+        patterns.set(topic, set);
+      }
+      set.add(handler);
+      // Intentionally NOT awaiting the suback: while the broker is offline
+      // mqtt.js queues the subscription, so awaiting would hang boot. The
+      // callback only logs the outcome.
+      client.subscribe(topic, { qos: 1 }, (err) => {
+        if (err) {
+          logger.warn('iot_mqtt_subscribe_failed', { topic, message: err.message });
+        }
+      });
+    },
+    async unsubscribe(topic) {
+      patterns.delete(topic);
+      await new Promise<void>((resolve) => {
+        client.unsubscribe(topic, () => resolve());
+      });
+    },
+    async close() {
+      closed = true;
+      patterns.clear();
+      await new Promise<void>((resolve) => {
+        client.end(false, {}, () => resolve());
+      });
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// CloudIotCoreAdapter — SUPERSEDED (kept only for a clear failure message).
 // ---------------------------------------------------------------------------
 
 export interface CloudIotCoreOptions {
@@ -157,35 +345,20 @@ export interface CloudIotCoreOptions {
 }
 
 /**
- * Returns a `MqttAdapter` that bridges to Google Cloud IoT Core via the
- * `googleapis` cloudiot v1 client (already a dep) for control-plane
- * (device CRUD) and via the `mqtt` npm package for the data plane.
- *
- * Throws clearly if `mqtt` is not installed — keep this off the boot
- * path until the dep is added. The factory is async so the dynamic
- * import happens only when the operator opts in via env.
+ * SUPERSEDED (2026-06, claude/mqtt-wire): Google retired Cloud IoT Core
+ * in August 2023 — there is no service to connect to. The factory is kept
+ * only so legacy `IOT_BROKER_ADAPTER=cloud` configs fail with a clear
+ * migration message instead of a cryptic import error. The bridge config
+ * resolver (src/server/triggers/mqttTelemetryBridge.ts) refuses this
+ * adapter at boot, so this never runs in production.
  */
 export async function createCloudIotCoreAdapter(
   _opts: CloudIotCoreOptions,
 ): Promise<MqttAdapter> {
-  let mqttPkg: any;
-  try {
-    mqttPkg = await import('mqtt');
-  } catch (err) {
-    throw new Error(
-      'createCloudIotCoreAdapter: package "mqtt" is not installed. ' +
-        'Add it to package.json or set IOT_BROKER_ADAPTER=memory for dev.',
-      { cause: err },
-    );
-  }
-  // Stub: real implementation wires JWT short-lived password, MQTT
-  // bridge endpoint, etc. Out of scope for Bucket TT — we ship the
-  // contract + the in-memory implementation; cloud + emqx land in
-  // Sprint 33 H1 once the `mqtt` dep is approved.
-  void mqttPkg;
   throw new Error(
-    'createCloudIotCoreAdapter: not yet implemented. Use InMemoryAdapter or ' +
-      'createEmqxAdapter (also stubbed) until Sprint 33 H1.',
+    'createCloudIotCoreAdapter: Cloud IoT Core was retired by Google (2023) — ' +
+      'superseded by the generic broker adapter. Point MQTT_BROKER_URL at any ' +
+      'standard MQTT broker (EMQX, Mosquitto, HiveMQ) instead. See ADR 0015.',
   );
 }
 
@@ -204,30 +377,30 @@ export interface EmqxAdapterOptions {
   ca: string;
 }
 
-export async function createEmqxAdapter(_opts: EmqxAdapterOptions): Promise<MqttAdapter> {
-  try {
-    await import('mqtt');
-  } catch (err) {
-    throw new Error(
-      'createEmqxAdapter: package "mqtt" is not installed. ' +
-        'Add it to package.json or set IOT_BROKER_ADAPTER=memory for dev.',
-      { cause: err },
-    );
-  }
-  throw new Error(
-    'createEmqxAdapter: not yet implemented. Use InMemoryAdapter until Sprint 33 H1.',
-  );
+/**
+ * EMQX self-hosted (data-residency alternative, ADR 0015). Real since
+ * 2026-06 (claude/mqtt-wire): a thin delegate to the generic broker
+ * adapter with the mTLS PEM material EMQX clusters expect.
+ */
+export async function createEmqxAdapter(opts: EmqxAdapterOptions): Promise<MqttAdapter> {
+  return createBrokerAdapter({
+    url: opts.url,
+    ca: opts.ca,
+    cert: opts.cert,
+    key: opts.key,
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Factory selector — boot-time entry point. Default = memory.
 // ---------------------------------------------------------------------------
 
-export type IotBrokerAdapterName = 'cloud' | 'emqx' | 'memory';
+export type IotBrokerAdapterName = 'cloud' | 'emqx' | 'memory' | 'broker';
 
 export interface BuildAdapterOptions {
   cloud?: CloudIotCoreOptions;
   emqx?: EmqxAdapterOptions;
+  broker?: BrokerAdapterOptions;
 }
 
 export async function buildMqttAdapter(
@@ -243,6 +416,9 @@ export async function buildMqttAdapter(
     case 'emqx':
       if (!opts.emqx) throw new Error('buildMqttAdapter: opts.emqx is required for emqx');
       return createEmqxAdapter(opts.emqx);
+    case 'broker':
+      if (!opts.broker) throw new Error('buildMqttAdapter: opts.broker is required for broker');
+      return createBrokerAdapter(opts.broker);
     default: {
       const _exhaustive: never = name;
       throw new Error(`buildMqttAdapter: unknown adapter ${_exhaustive}`);
@@ -280,20 +456,35 @@ export interface ConnectMqttBrokerOptions {
   adapter: IotBrokerAdapterName;
   cloud?: CloudIotCoreOptions;
   emqx?: EmqxAdapterOptions;
+  broker?: BrokerAdapterOptions;
+  /**
+   * Pre-built adapter instance — takes precedence over `adapter` name.
+   * Lets the bridge boot module own adapter construction (and tests
+   * inject an InMemoryAdapter while exercising the full wrapper).
+   */
+  adapterInstance?: MqttAdapter;
   /**
    * Telemetry handler invoked once per inbound sample. The wrapper
-   * extracts `tenantId` + `projectId` from the topic so the handler
-   * gets a tenant-scoped context for the Firestore write.
+   * extracts `tenantId` + `projectId` + `deviceId` from the topic so the
+   * handler gets a tenant-scoped, device-attributable context for the
+   * Firestore write — topic identity is the trust anchor, NEVER payload
+   * fields (device-controlled, spoofable).
    */
   onTelemetry: (
     sample: TelemetrySample,
-    ctx: { tenantId: string; projectId: string; topic: string },
+    ctx: { tenantId: string; projectId: string; deviceId: string; topic: string },
   ) => void | Promise<void>;
   /**
    * Optional topic pattern override. Defaults to all tenants' telemetry:
    *   `tenants/+/projects/+/devices/+/telemetry`
    */
   topicPattern?: string;
+  /**
+   * Optional broker namespace prefix (e.g. `praeventio/prod`). Prepended
+   * to the subscribe pattern and stripped before canonical-topic parsing.
+   * No trailing slash.
+   */
+  topicPrefix?: string | null;
 }
 
 export interface ConnectedBroker {
@@ -322,18 +513,32 @@ export function parseCanonicalTelemetryTopic(
 export async function connectMqttBroker(
   opts: ConnectMqttBrokerOptions,
 ): Promise<ConnectedBroker> {
-  const adapter = await buildMqttAdapter(opts.adapter, {
-    cloud: opts.cloud,
-    emqx: opts.emqx,
-  });
-  const pattern = opts.topicPattern ?? 'tenants/+/projects/+/devices/+/telemetry';
+  const adapter =
+    opts.adapterInstance ??
+    (await buildMqttAdapter(opts.adapter, {
+      cloud: opts.cloud,
+      emqx: opts.emqx,
+      broker: opts.broker,
+    }));
+  const prefix =
+    typeof opts.topicPrefix === 'string' && opts.topicPrefix.length > 0
+      ? opts.topicPrefix
+      : null;
+  const canonicalPattern =
+    opts.topicPattern ?? 'tenants/+/projects/+/devices/+/telemetry';
+  const pattern = prefix ? `${prefix}/${canonicalPattern}` : canonicalPattern;
   await adapter.subscribe(pattern, (sample, topic) => {
-    const parsed = parseCanonicalTelemetryTopic(topic);
+    const canonicalTopic =
+      prefix && topic.startsWith(`${prefix}/`)
+        ? topic.slice(prefix.length + 1)
+        : topic;
+    const parsed = parseCanonicalTelemetryTopic(canonicalTopic);
     if (!parsed) return;
     void Promise.resolve(
       opts.onTelemetry(sample, {
         tenantId: parsed.tenantId,
         projectId: parsed.projectId,
+        deviceId: parsed.deviceId,
         topic,
       }),
     ).catch(() => {

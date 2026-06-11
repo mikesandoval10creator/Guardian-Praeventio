@@ -431,12 +431,13 @@ import medicalAptitudeRouter from "./src/server/routes/medicalAptitude.js";
 // Sprint K §23-24 — Control de Visitas + Inducción Express QR.
 // Pure event registry in src/services/visitorControl; route is the I/O wrapper.
 import visitorsRouter from "./src/server/routes/visitors.js";
+// claude/mqtt-wire (2026-06) — real MQTT → telemetry_events bridge. Config,
+// device-registration gate, fault isolation and lifecycle all live in the
+// trigger module; absent MQTT_BROKER_URL ⇒ bridge cleanly OFF (logged once).
 import {
-  connectMqttBroker,
-  type IotBrokerAdapterName,
-  type ConnectedBroker,
-} from "./src/services/iot/mqttAdapter.js";
-import { bridgeMqttToFirestore } from "./src/services/iot/firestoreBridge.js";
+  startMqttTelemetryBridge,
+  type MqttBridgeHandle,
+} from "./src/server/triggers/mqttTelemetryBridge.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 // `googleapis` import removed in Round 17 R2 Phase 2 — its sole use was the
@@ -1425,7 +1426,7 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
 let triggersHandle: { unsubscribe: () => void } | null = null;
 let healthHandle: { stop: () => void } | null = null;
 let systemEngineHandle: { unsubscribe: () => void } | null = null;
-let mqttBrokerHandle: ConnectedBroker | null = null;
+let mqttBridgeHandle: MqttBridgeHandle | null = null;
 
 // AUDIT-2026-06 B19 — capture the handle so SIGTERM can drain in-flight
 // requests via server.close() instead of killing them with process.exit.
@@ -1471,50 +1472,28 @@ const httpServer = app.listen(PORT, "0.0.0.0", () => {
       },
     });
 
-    // Sprint 32 Bucket TT (audit P0 W2) — MQTT broker boot.
+    // claude/mqtt-wire (2026-06) — MQTT → telemetry_events bridge boot.
     //
-    // Gated by env so dev / preview environments don't try to connect
-    // to a real broker (and the cloud / emqx factories are still
-    // stubbed — see ADR 0015). When IOT_BROKER_ENABLED is unset we log
-    // a warn and skip; existing routes (`/api/iot/devices/register`,
-    // `/api/telemetry/ingest`) keep working without a broker.
-    if (process.env.IOT_BROKER_ENABLED === '1') {
-      const adapterName = (process.env.IOT_BROKER_ADAPTER ?? 'memory') as IotBrokerAdapterName;
-      connectMqttBroker({
-        adapter: adapterName,
-        cloud: adapterName === 'cloud'
-          ? {
-              projectId: process.env.IOT_GCP_PROJECT_ID ?? '',
-              region: process.env.IOT_GCP_REGION ?? '',
-              registryId: process.env.IOT_GCP_REGISTRY_ID ?? '',
-              credentials: process.env.IOT_GCP_CREDENTIALS,
-            }
-          : undefined,
-        emqx: adapterName === 'emqx'
-          ? {
-              url: process.env.IOT_EMQX_URL ?? '',
-              cert: process.env.IOT_EMQX_CERT ?? '',
-              key: process.env.IOT_EMQX_KEY ?? '',
-              ca: process.env.IOT_EMQX_CA ?? '',
-            }
-          : undefined,
-        onTelemetry: async (sample, ctx) => {
-          await bridgeMqttToFirestore(sample, {
-            tenantId: ctx.tenantId,
-            projectId: ctx.projectId,
-          });
-        },
+    // Long-lived broker subscription (same lifecycle family as the
+    // Firestore triggers above). Industrial gas/atmosphere sensors publish
+    // to `[prefix/]tenants/{t}/projects/{p}/devices/{d}/telemetry`; only
+    // devices enrolled via POST /api/iot/devices/register are accepted and
+    // accepted samples land in the SAME top-level `telemetry_events` the
+    // HMAC ingest writes — the confined-space gas gate consumes both rails
+    // transparently. Absent MQTT_BROKER_URL ⇒ cleanly OFF (logged once
+    // inside the module); boot failures degrade the feature, never HTTP.
+    startMqttTelemetryBridge({
+      env: process.env,
+      db: admin.firestore(),
+      messaging: admin.messaging(),
+    })
+      .then((handle) => {
+        mqttBridgeHandle = handle;
       })
-        .then((handle) => {
-          mqttBrokerHandle = handle;
-          console.log(`[iot] MQTT broker connected (adapter=${adapterName})`);
-        })
-        .catch((err) => {
-          console.warn('[iot] MQTT broker boot failed (continuing without it):', err);
-        });
-    } else {
-      console.warn('[iot] MQTT broker disabled (set IOT_BROKER_ENABLED=1 to enable).');
-    }
+      .catch((err) => {
+        // startMqttTelemetryBridge never rejects by contract; belt-and-braces.
+        console.warn('[iot] MQTT bridge boot failed (continuing without it):', err);
+      });
   }
 });
 
@@ -1534,10 +1513,10 @@ process.on('SIGTERM', () => {
       () => systemEngineHandle?.unsubscribe(),
       // Sprint 27 (audit P0 H10) — clear the env polling interval too.
       () => clearInterval(environmentalPollingHandle),
-      // Sprint 32 Bucket TT — release the MQTT broker subscription.
+      // claude/mqtt-wire — release the MQTT bridge subscription + client.
       () => {
-        if (mqttBrokerHandle) {
-          mqttBrokerHandle.unsubscribe().catch(() => {
+        if (mqttBridgeHandle) {
+          mqttBridgeHandle.stop().catch(() => {
             /* shutdown — swallow */
           });
         }
