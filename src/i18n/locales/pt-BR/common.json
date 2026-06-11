@@ -3603,6 +3603,679 @@
       "epp": "EPI típico",
       "risks": "Riscos típicos a avaliar",
       "notes": "Notas preventivas"
+    },
+    "aria": "Progresso do onboarding da função",
+    "blockingTag": "Bloqueante",
+    "canOperate": "Habilitado para operar",
+    "markDoneBtn": "Marcar como feito",
+    "minutesLeft": "min restantes",
+    "progressLabel": "Progresso",
+    "startBtn": "Iniciar",
+    "title": "Onboarding",
+    "trackCompleted": "Trilha concluída"
+  },
+  "cphs": {
+    "aria": "Status do Comitê Paritário (CPHS)",
+    "compliant": "OK",
+    "electedFail": "Os representantes dos trabalhadores devem ser eleitos por votação.",
+    "employer": "Empregador",
+    "extractor": {
+      "add": "Adicionar",
+      "confidence": "confiança",
+      "heading": "Extrair acordos da ata",
+      "hint": "Cole a discussão da reunião; ações estruturadas (descrição, responsável, prazo) são propostas para adicionar como acordos. A revisão final é do comitê.",
+      "none": "Nenhuma ação detectada no texto.",
+      "placeholder": "Ex.: \"O supervisor deve revisar o andaime antes de sexta-feira…\"",
+      "run": "Extrair ações"
+    },
+    "quorumFail": "Quórum insuficiente — o DS 54 art. 66 exige no mínimo 3+3.",
+    "review": "Revisar",
+    "scheduled": "Agendadas",
+    "title": "Comitê Paritário (CPHS)",
+    "unsigned": "Sem assinatura",
+    "worker": "Trabalhadores"
+  },
+  "cphsDraft": {
+    "completeness": {
+      "label": "Completude dos dados",
+      "warn": "Faltam dados relevantes. Revise antes de assinar."
+    },
+    "download": {
+      "json": "Baixar como JSON"
+    },
+    "markdown": {
+      "title": "Rascunho (markdown)"
+    },
+    "metrics": {
+      "closedActions": "Ações fechadas",
+      "critical": "Críticos",
+      "incidents": "Incidentes",
+      "openActions": "Ações abertas",
+      "participants": "Participantes"
+    },
+    "page": {
+      "back": "Voltar ao CPHS",
+      "error": "Não foi possível gerar a ata: {{msg}}",
+      "selectProject": "Selecione um projeto para gerar o rascunho do último mês.",
+      "subtitle": "Rascunho do último mês — revisável e editável antes da assinatura do comitê.",
+      "title": "Ata CPHS automática"
+    },
+    "resolutions": {
+      "title": "Acordos sugeridos"
+    },
+    "sections": {
+      "title": "Seções incluídas"
+    }
+  },
+  "diagnostico": {
+    "activitiesHazards": "Atividades e Perigos",
+    "analyzing": "Analisando...",
+    "back": "Voltar",
+    "completed": "Diagnóstico Concluído",
+    "completedDescription": "A IA gerou uma base para a sua matriz IPER.",
+    "confirmCreate": "Confirmar e Criar Nós",
+    "controlsSuggested": "Controles Críticos Sugeridos:",
+    "facilities": "Instalações Presentes",
+    "generalData": "Dados Gerais da Operação",
+    "generateSeed": "Gerar Semente IPER",
+    "industry": "Indústria / Setor SII",
+    "knownHazards": "Perigos Críticos Conhecidos (Opcional)",
+    "location": "Localização / Geografia",
+    "mainActivities": "Atividades Principais",
+    "mainNormative": "Normas Principais:",
+    "nextStep": "Próximo Passo",
+    "reviewData": "Revisar Dados",
+    "saved": "Salvo no Zettelkasten",
+    "saving": "Salvando...",
+    "subtitle": "Avaliação de Linha de Base e Pré-carga IPER",
+    "summary": "Resumo da Análise de Base",
+    "title": "Diagnóstico Inicial",
+    "workersCount": "Efetivo Aproximado"
+  },
+  "drills": {
+    "aria": "Conformidade dos simulados",
+    "detail": {
+      "executeButton": "Registrar e calcular relatório",
+      "executeTitle": "Registrar execução",
+      "gapsLabel": "Lacunas observadas (uma por linha)",
+      "location": "Local",
+      "notes": "Observações gerais",
+      "participants": "Participantes",
+      "participation": "Participação",
+      "report": "Relatório de prontidão",
+      "requiredExternal": "Exigiu intervenção externa",
+      "responseSeconds": "Tempo de resposta (s)",
+      "responsible": "Responsável",
+      "scheduledAt": "Programado",
+      "speed": "Velocidade",
+      "status": "Status"
+    },
+    "execute": {
+      "errorFallback": "Não foi possível registrar a execução."
+    },
+    "filters": {
+      "kindAll": "Todos",
+      "kindLabel": "Tipo",
+      "statusLabel": "Status"
+    },
+    "lastWas": "Último:",
+    "never": "Nunca executado",
+    "new": {
+      "benchmarkSeconds": "Benchmark (s)",
+      "errorFallback": "Não foi possível salvar o simulado.",
+      "expectedCount": "Pessoas esperadas",
+      "kind": "Tipo",
+      "location": "Local (opcional)",
+      "planError": "O simulado não foi salvo: {{msg}}. Seus dados continuam no formulário — corrija e tente novamente.",
+      "planErrorTitle": "O simulado não foi planejado",
+      "responsible": "UID do responsável",
+      "scheduledAt": "Data e hora programadas",
+      "submit": "Planejar",
+      "title": "Planejar simulado",
+      "titleField": "Título (opcional)"
+    },
+    "overdueHeader": "Atrasados",
+    "overdueLabel": "atrasados",
+    "page": {
+      "emptyEncourage": "Planeje o primeiro simulado do mês — o DS 132 exige pelo menos um semestral por turno.",
+      "emptyTitle": "Ainda não há simulados neste filtro.",
+      "error": "Não foi possível carregar os simulados: {{msg}}",
+      "executeError": "O simulado não foi salvo: {{msg}}. Seus dados continuam no formulário — corrija e tente novamente.",
+      "executeErrorTitle": "A execução não foi registrada",
+      "newButton": "Novo Simulado",
+      "selectProject": "Selecione um projeto para planejar e registrar simulados.",
+      "subtitle": "DS 132 / DS 594 — planeje, execute e relate sua prontidão.",
+      "title": "Gestor de Simulados"
+    },
+    "schedule": "Agendar",
+    "title": "Simulados",
+    "upcomingHeader": "Próximos"
+  },
+  "engCtrl": {
+    "card": {
+      "evidenceLabel": "Evidência (opcional)",
+      "evidencePh": "Descreva o achado ou anexe uma referência.",
+      "fail": "Falha",
+      "freq": "A cada {{n}} dias",
+      "next": "Próxima verificação",
+      "observation": "Observação",
+      "recordCheck": "Registrar verificação",
+      "risk": "Risco",
+      "verify": "Verificar (OK)",
+      "verifyAria": "Registrar verificação OK"
+    },
+    "filter": {
+      "allRisks": "Todos os riscos"
+    },
+    "filters": {
+      "title": "Filtros"
+    },
+    "form": {
+      "cancel": "Cancelar",
+      "description": "Descrição",
+      "errorCreate": "Não foi possível criar o controle.",
+      "errorDescription": "A descrição deve ter pelo menos 3 caracteres.",
+      "errorFreq": "A frequência de verificação deve ser positiva (dias).",
+      "errorName": "O nome deve ter pelo menos 3 caracteres.",
+      "errorResponsible": "Indique um responsável ou faça login.",
+      "errorRisk": "Indique a categoria de risco que ele mitiga.",
+      "freq": "Frequência de verificação (dias)",
+      "hierarchyExplainer": "Prefira níveis mais altos da hierarquia (eliminação → substituição → engenharia) antes de administrativo ou EPI. ISO 31000 / 45001 §8.1.2.",
+      "level": "Nível",
+      "name": "Nome",
+      "namePh": "Guarda-corpo perimetral nível 2",
+      "new": "Novo controle",
+      "responsible": "Responsável (UID)",
+      "responsibleHint": "Se deixado em branco, é atribuído ao seu usuário.",
+      "responsiblePh": "UID do responsável",
+      "risk": "Categoria de risco",
+      "riskPh": "altura, elétrico, ruído…",
+      "save": "Salvar controle",
+      "title": "Novo controle"
+    },
+    "hierarchy": {
+      "title": "Hierarquia de controles"
+    },
+    "list": {
+      "empty": "Não há controles registrados para os filtros selecionados."
+    },
+    "page": {
+      "error": "Não foi possível carregar os controles: {{msg}}",
+      "partialRead": "Leitura parcial: o inventário pode estar incompleto. Tente recarregar.",
+      "selectProject": "Selecione um projeto para ver os controles aplicados.",
+      "subtitle": "Hierarquia ISO 31000 / 45001 §8.1.2 — {{count}} controles inventariados.",
+      "title": "Controles de Engenharia"
+    },
+    "status": {
+      "amber": "Próximo do vencimento",
+      "green": "Vigente",
+      "never": "Nunca verificado",
+      "red": "Verificação vencida"
+    }
+  },
+  "findingsHeatMap": {
+    "canvas": {
+      "aria": "Mapa de calor com {{cells}} zonas"
+    },
+    "controls": {
+      "gridSize": "Tamanho da célula (m)",
+      "lastN": "Últimos {{n}}",
+      "minSeverity": "Severidade mínima",
+      "period": "Período (dias)"
+    },
+    "empty": "Sem achados nos filtros aplicados — bom sinal!",
+    "hotspots": {
+      "cell": "Zona {{idx}}",
+      "findings": "achados",
+      "title": "Top 5 zonas críticas"
+    },
+    "page": {
+      "selectProject": "Selecione um projeto para ver a distribuição espacial dos achados.",
+      "subtitle": "Distribuição espacial por zona. {{cells}} célula(s) sobre {{points}} achado(s).",
+      "title": "Mapa de Calor de Achados"
+    }
+  },
+  "hazmat": {
+    "addBtn": "Adicionar substância",
+    "addTitle": "Adicionar substância",
+    "alert": {
+      "cautionTip": "Mantenha distância mínima de 3 m e ventilação adequada.",
+      "footer": "Base normativa: DS 43/2016 (Armazenamento de Substâncias Perigosas) + NCh 2245.",
+      "relocateGeneric": "Recomendação: transferir um dos itens para um local separado por barreira ou setor."
+    },
+    "allClasses": "Todas as classes",
+    "allCompatible": "Armazenamento compatível — nenhum problema detectado.",
+    "allLocations": "Todos os locais",
+    "caution": "Cautela",
+    "col": {
+      "cas": "CAS",
+      "class": "Classes",
+      "exp": "Validade",
+      "loc": "Local",
+      "name": "Nome",
+      "qty": "Quantidade"
+    },
+    "compatAria": "Compatibilidade química",
+    "compatTitle": "Compatibilidade química",
+    "deleteAria": "Excluir substância",
+    "disclaimerShort": "Aproximação conforme as Páginas Verdes do GRE (ERG). Consulte o GRE físico e o protocolo de emergência local para a resposta operacional.",
+    "distances": {
+      "isolation": "Isolamento Inicial:",
+      "protectionDay": "Ação Protetora (Dia):",
+      "protectionNight": "Ação Protetora (Noite):",
+      "title": "Distâncias GRE 2024"
+    },
+    "editAria": "Editar substância",
+    "editTitle": "Editar substância",
+    "empty": "Nenhuma substância registrada.",
+    "emptyFiltered": "Sem resultados para os filtros aplicados.",
+    "fld": {
+      "classes": "Classes de perigo *",
+      "epp": "EPI exigido (separar por vírgula)",
+      "exp": "Data de validade",
+      "loc": "Local *",
+      "name": "Nome comercial *",
+      "qty": "Quantidade *",
+      "sds": "URL da ficha de segurança (FISPQ)",
+      "unit": "Unidade"
+    },
+    "incompatible": "Incompatíveis",
+    "items": "Itens",
+    "managerAria": "Gestor de substâncias perigosas",
+    "managerTitle": "Substâncias perigosas — Inventário DS 43",
+    "mapInfo": "Baseado nas Páginas Verdes do GRE 2024 (Initial Isolation + Protective Action Distances). O polígono mostra a zona de ação protetora a favor do vento; largura calculada pela estabilidade atmosférica (Pasquill) conforme a velocidade do vento.",
+    "params": {
+      "class": "Classe ONU (UN Class)",
+      "title": "Parâmetros do Incidente"
+    },
+    "searchPh": "Buscar nome / CAS / ONU",
+    "status": {
+      "active": "Protocolo Ativo"
+    },
+    "subtitle": "Raio de Exposição e Evacuação GRE",
+    "title": "Mapeamento Hazmat"
+  },
+  "incidentBundle": {
+    "aria": "Pacote de evidências do incidente",
+    "audit": "Auditoria",
+    "completeness": "Completude",
+    "controls": "Controles",
+    "evidence": "Evidência",
+    "export": "Exportar",
+    "gapsLabel": "Lacunas a resolver",
+    "noGaps": "Nenhuma lacuna detectada — dossiê apresentável",
+    "norms": "Normas",
+    "page": {
+      "error": "Não foi possível montar o dossiê: {{msg}}",
+      "noId": "Falta o ID do incidente na URL.",
+      "selectProject": "Selecione um projeto para montar o dossiê.",
+      "subtitle": "Pacote automático para fiscalização · Incidente {{id}}",
+      "title": "Dossiê do incidente"
+    },
+    "photoEvidence": {
+      "title": "Evidência fotográfica"
+    },
+    "recommendationsLabel": "Recomendações",
+    "resolve": "Resolver",
+    "title": "Dossiê do incidente",
+    "trainings": "Treinam.",
+    "weight": "peso",
+    "workers": "Afetados"
+  },
+  "incidentTrends": {
+    "byKind": {
+      "subtitle": "Contagem bruta na janela atual (não ponderada).",
+      "title": "Distribuição por tipo"
+    },
+    "empty": "Não há incidentes registrados nesta janela.",
+    "error": "Não foi possível carregar a tendência: {{msg}}",
+    "filter": {
+      "group": "Agrupar:",
+      "window": "Janela:"
+    },
+    "leading": {
+      "closure": "Taxa de fechamento",
+      "closureHint": "% de incidentes fechados. Alto = o SGSST responde rápido.",
+      "daysOpen": "Média de dias em aberto",
+      "daysOpenHint": "Apenas fechados. Baixo = resposta rápida.",
+      "nearMiss": "Razão de quase acidentes",
+      "nearMissHint": "Mais relato bottom-up = melhor cultura preventiva."
+    },
+    "lowConfidence": "Baixa confiança",
+    "page": {
+      "selectProject": "Selecione um projeto para ver a série de incidentes e os indicadores proativos.",
+      "subtitle": "Série temporal + indicadores proativos (quase acidentes, taxa de fechamento, média de dias).",
+      "title": "Tendência de Incidentes"
+    },
+    "total": "{{count}} incidentes na janela"
+  },
+  "inspections": {
+    "card": {
+      "observations": "{{count}} observações",
+      "pendingSync": "Sincronização pendente",
+      "started": "Iniciada"
+    },
+    "chip": {
+      "offline": "Sem sinal — sincronização adiada",
+      "online": "Online — sincronização ativa"
+    },
+    "cta": {
+      "new": "Nova inspeção"
+    },
+    "detail": {
+      "complete": {
+        "cta": "Encerrar inspeção",
+        "hint": "Encerre a inspeção quando terminar de registrar as observações.",
+        "pendingOffline": "Sem sinal — as observações serão sincronizadas ao reconectar.",
+        "saving": "Salvando observação… aguarde antes de encerrar.",
+        "syncing": "Sincronizando {{count}} observações… aguarde antes de encerrar."
+      },
+      "completed": {
+        "at": "Concluída em"
+      },
+      "obs": {
+        "add": "Adicionar observação",
+        "empty": {
+          "list": "Ainda sem observações."
+        },
+        "emptyError": "Adicione uma nota ou foto antes de salvar.",
+        "list": "Observações ({{count}})",
+        "notes": "Nota",
+        "photo": "Foto (opcional)",
+        "placeholder": "Descreva o achado…",
+        "save": "Salvar observação"
+      }
+    },
+    "modal": {
+      "new": {
+        "confirm": "Iniciar inspeção",
+        "help": "Selecione o checklist a usar. Você pode adicionar observações mesmo sem sinal.",
+        "template": "Checklist",
+        "title": "Nova inspeção"
+      }
+    },
+    "page": {
+      "empty": "Não há inspeções neste estado. Inicie uma nova com o botão \"Nova inspeção\".",
+      "error": "Não foi possível carregar as inspeções: {{msg}}",
+      "selectProject": "Selecione um projeto para iniciar inspeções de campo.",
+      "subtitle": "Modo sem sinal — os achados são registrados localmente e sincronizados quando a rede voltar.",
+      "title": "Inspeções"
+    },
+    "start": {
+      "error": {
+        "not_signed_in": "Você precisa fazer login antes de iniciar uma inspeção."
+      }
+    }
+  },
+  "iper": {
+    "aria": "Matriz IPER 5x5",
+    "controlHigh": "Alta",
+    "controlLow": "Baixa",
+    "controlMedium": "Média",
+    "controlNone": "Sem controles",
+    "controls": "Efetividade dos controles existentes",
+    "noResidual": "Sem residual",
+    "probability": "Probabilidade",
+    "rawScore": "Pontuação bruta",
+    "residual": "Residual",
+    "severity": "Severidade",
+    "title": "IPER 5x5"
+  },
+  "loto": {
+    "addPoint": "Aplicar ponto de bloqueio",
+    "aria": "Status LOTO",
+    "authorized": "AUTORIZADO",
+    "blocked": "BLOQUEADO",
+    "create": {
+      "energies": "Energias a isolar",
+      "equipment": "ID do equipamento (ex.: CAEX-08)",
+      "heading": "Nova aplicação LOTO",
+      "submit": "Criar LOTO",
+      "work": "Descrição do trabalho"
+    },
+    "empty": {
+      "none_active": "Não há aplicações LOTO ativas.",
+      "select_project": "Selecione um projeto para gerenciar o LOTO."
+    },
+    "energiesIdentified": "Energias",
+    "feedback": {
+      "create_invalid": "Indique equipamento, descrição (≥3) e pelo menos uma energia.",
+      "created": "Aplicação LOTO criada.",
+      "lock_applied": "Cadeado registrado.",
+      "lock_invalid": "Preencha ponto, descrição e etiqueta do cadeado.",
+      "released": "LOTO liberado.",
+      "verified": "Energia zero verificada."
+    },
+    "leader": "Líder",
+    "lock": {
+      "desc": "Descrição do ponto",
+      "heading": "Aplicar cadeado / etiqueta",
+      "point": "ID do ponto (ex.: seccionadora-A)",
+      "submit": "Registrar cadeado",
+      "tag": "Etiqueta do cadeado (ex.: VERMELHO-12)"
+    },
+    "lockPoints": "Pontos de Bloqueio",
+    "releaseAll": "Liberar tudo",
+    "released": "LIBERADO",
+    "subtitle": "Registro digital do bloqueio e etiquetagem (Lock-Out / Tag-Out): energias isoladas, cadeados aplicados, verificação de energia zero e liberação. Complementa o procedimento físico com rastreabilidade legal — não substitui o cadeado real.",
+    "title": "LOTO Digital",
+    "verifyZero": "Verificar zero"
+  },
+  "permits": {
+    "approver": "Aprovador",
+    "aria": "Permissão de trabalho",
+    "cancel": "Cancelar",
+    "checklist": {
+      "aria": "Checklist da permissão",
+      "issue": "Emitir permissão",
+      "title": "Checklist prévio"
+    },
+    "epp": "EPI entregue",
+    "form": {
+      "errorAuth": "Faça login para solicitar uma permissão.",
+      "errorCreate": "Não foi possível criar a permissão.",
+      "errorTask": "A descrição deve ter pelo menos 3 caracteres.",
+      "kindLabel": "Tipo",
+      "submit": "Criar permissão",
+      "taskLabel": "Descrição da tarefa",
+      "title": "Nova permissão",
+      "zoneLabel": "Zona / local",
+      "zonePlaceholder": "ex.: Plataforma N3, área de tanques…"
+    },
+    "fulfill": "Encerrar como cumprida",
+    "kind": {
+      "all": "Todas"
+    },
+    "medical": "Aptidão médica",
+    "missingPrecondition": "Faltam pré-condições: a permissão não pode ser emitida.",
+    "new": "Nova permissão",
+    "page": {
+      "empty": "Não há permissões para os filtros aplicados. Crie uma nova para começar.",
+      "error": "Não foi possível carregar as permissões: {{msg}}",
+      "selectProject": "Selecione um projeto para ver as permissões de trabalho.",
+      "subtitle": "LOTO / Altura / A quente / Confinado / Escavação / Içamento — DS 594, DS 132, DS 109. {{count}} permissões carregadas.",
+      "title": "Central de Permissões de Trabalho"
+    },
+    "preconditions": "Pré-condições",
+    "sign": "Assinar / revalidar",
+    "training": "Treinamento vigente",
+    "validity": "Vigência",
+    "worker": "Trabalhador"
+  },
+  "preShiftRisk": {
+    "page": {
+      "error": "Não foi possível carregar o painel: {{msg}}",
+      "selectProject": "Selecione um projeto para ver o painel de risco do turno.",
+      "subtitle": "{{date}} · {{count}} fatores detectados",
+      "title": "Painel Pré-Turno"
+    },
+    "recommendDelay": "Recomenda-se adiar o início do turno",
+    "recommendations": {
+      "title": "Principais recomendações"
+    },
+    "score": {
+      "aria": "Pontuação global de risco do turno",
+      "label": "Risco do turno"
+    },
+    "section": {
+      "context": "Contexto do turno",
+      "equipment": {
+        "empty": "Equipamentos com manutenção em dia.",
+        "title": "Manutenção de equipamentos"
+      },
+      "incidents": {
+        "empty": "Sem incidentes nos últimos 7 dias.",
+        "title": "Incidentes nos últimos 7 dias"
+      },
+      "personnel": {
+        "empty": "Equipe em condições normais (sem alertas de fadiga ou novatos).",
+        "title": "Pessoal do turno"
+      },
+      "tasks": {
+        "empty": "Sem tarefas críticas planejadas para hoje.",
+        "title": "Tarefas críticas planejadas"
+      },
+      "weather": {
+        "empty": "Sem alertas climáticos relevantes.",
+        "title": "Clima do turno"
+      }
+    }
+  },
+  "preUse": {
+    "anomalyDetected": "Você detectou anomalias. Recomendamos NÃO operar o equipamento e reportar ao supervisor antes de continuar.",
+    "aria": "Checklist pré-uso",
+    "confirm": "Confirmar pré-uso",
+    "expected": {
+      "noAnomaly": "Esperado: sem anomalia",
+      "ok": "Esperado: OK"
+    },
+    "failed": "Anomalia",
+    "noChecklist": "Este equipamento não tem checklist pré-uso registrado. Reporte ao supervisor antes de operar.",
+    "notes": "Notas (opcional)",
+    "notesPlaceholder": "Descreva a anomalia...",
+    "passed": "OK",
+    "photo": "Foto (URL opcional)",
+    "result": {
+      "appliedStatus": "Status aplicado",
+      "auditHash": "Hash de auditoria",
+      "equipment": "Equipamento",
+      "notOperate": "RECOMENDAMOS NÃO OPERAR",
+      "proceed": "Você pode operar",
+      "reportSupervisor": "Recomendamos reportar ao supervisor"
+    },
+    "signature": "Assinatura — escreva seu nome completo",
+    "signaturePlaceholder": "Seu nome completo",
+    "title": "Pré-uso"
+  },
+  "residualRisk": {
+    "acceptFormally": "Aceitar formalmente",
+    "acceptPrompt": "Motivo da aceitação formal (fica como comprovante interno):",
+    "acceptancePending": "Pendente de aceitação formal pela gerência",
+    "acceptanceRequired": "Risco residual alto: exige aceitação formal documentada",
+    "acceptedBy": "Aceito formalmente por {{uid}} em {{date}}",
+    "aria": "Risco residual",
+    "controls": "controles",
+    "controlsCount": "Controles aplicados",
+    "form": {
+      "cancel": "Cancelar",
+      "category": "Categoria",
+      "controlId": "Controle aplicado (id)",
+      "effectiveness": "Efetividade",
+      "hazard": "Perigo",
+      "inherentSeverity": "Severidade inerente",
+      "justification": "Justificativa",
+      "kind": {
+        "administrative": "Administrativo",
+        "physical": "Físico"
+      },
+      "likelihood": "Probabilidade",
+      "register": "Registrar risco",
+      "residualSeverity": "Severidade residual",
+      "riskKind": "Tipo",
+      "submit": "Registrar"
+    },
+    "inherent": "Inerente",
+    "initial": "Inicial",
+    "justification": "Justificativa",
+    "kind": "Tipo",
+    "list": {
+      "aria": "Lista de riscos residuais",
+      "empty": "Ainda não há riscos residuais registrados.",
+      "title": "Riscos Residuais"
+    },
+    "nextReview": "Próxima revisão",
+    "page": {
+      "error": "Não foi possível carregar os riscos residuais: {{msg}}",
+      "selectProject": "Selecione um projeto para ver os riscos residuais e as aceitações formais pendentes.",
+      "subtitle": "ISO 31000 / ISO 45001 §6.1.2.2 — {{count}} riscos carregados.",
+      "title": "Risco Residual"
+    },
+    "reduction": "Redução",
+    "registerForm": {
+      "title": "Registrar risco residual"
+    },
+    "requestSignature": "Solicitar assinatura",
+    "residual": "Residual",
+    "suspicious": {
+      "criteria": "Uma severidade residual baixa é suspeita quando a inerente é muito alta (catastrophic/major) e a queda não se justifica com controles robustos. Revisar caso a caso — isso NÃO bloqueia a operação, apenas sinaliza para revisão humana.",
+      "title": "Criticidade Suspeita"
+    }
+  },
+  "rootCause": {
+    "actions": "Ações sugeridas",
+    "aria": "Análise de causa raiz",
+    "byCategory": "Por categoria 5M+1E",
+    "depth": "Profundidade",
+    "factors": "Fatores",
+    "failedControls": "Controles falhos identificados",
+    "fiveWhys": "5 Porquês",
+    "primary": "Fator principal",
+    "roots": "Raízes",
+    "title": "Causa Raiz",
+    "topFactors": "Principais fatores históricos",
+    "totalNodes": "Nós",
+    "treeAria": "Resumo da árvore de causa raiz",
+    "treeTitle": "Árvore de causa raiz"
+  },
+  "visitors": {
+    "ack": {
+      "agreement": "Li e aceito as regras de segurança do local.",
+      "empty": "Ainda não há versões de integração publicadas para este projeto.",
+      "signature": "Assinatura manual (escreva seu nome)",
+      "submit": "Confirmar integração",
+      "subtitle": "Aceite os termos antes de entrar no local.",
+      "title": "Integração expressa",
+      "version": "Versão da integração"
+    },
+    "card": {
+      "checkIn": "Entrada",
+      "checkOut": "Saída",
+      "host": "Acompanhante",
+      "induct": "Integração",
+      "inducted": "Integrado",
+      "pending": "Integração pendente",
+      "reason": "Motivo"
+    },
+    "errors": {
+      "noSession": "Você precisa fazer login."
+    },
+    "form": {
+      "company": "Empresa / Organização",
+      "fullName": "Nome completo",
+      "reason": "Motivo da visita",
+      "reasonPlaceholder": "Auditoria ISO 45001…",
+      "rut": "RUT",
+      "scan": "Escanear QR",
+      "submit": "Registrar entrada",
+      "title": "Nova visita"
+    },
+    "page": {
+      "emptyHint": "Registre uma nova visita para iniciar o controle de acesso.",
+      "emptyTitle": "Ainda não há visitas ativas.",
+      "newVisit": "Nova visita",
+      "selectProject": "Selecione um projeto para registrar visitas.",
+      "subtitle": "Visitas ativas: {{count}}",
+      "title": "Controle de Visitas"
     }
   }
 }

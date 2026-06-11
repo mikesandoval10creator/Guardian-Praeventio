@@ -3603,6 +3603,679 @@
       "epp": "Typical PPE",
       "risks": "Typical hazards to assess",
       "notes": "Preventive notes"
+    },
+    "aria": "Role onboarding progress",
+    "blockingTag": "Blocking",
+    "canOperate": "Cleared to operate",
+    "markDoneBtn": "Mark done",
+    "minutesLeft": "min left",
+    "progressLabel": "Progress",
+    "startBtn": "Start",
+    "title": "Onboarding",
+    "trackCompleted": "Track completed"
+  },
+  "cphs": {
+    "aria": "Joint Committee (CPHS) status",
+    "compliant": "OK",
+    "electedFail": "Worker representatives must be elected by ballot.",
+    "employer": "Employer",
+    "extractor": {
+      "add": "Add",
+      "confidence": "confidence",
+      "heading": "Extract agreements from the minutes",
+      "hint": "Paste the meeting discussion; structured actions (description, owner, deadline) are proposed to add as agreements. Final review belongs to the committee.",
+      "none": "No actions detected in the text.",
+      "placeholder": "E.g.: \"The supervisor must inspect the scaffold before Friday…\"",
+      "run": "Extract actions"
+    },
+    "quorumFail": "Insufficient quorum — DS 54 art. 66 requires at least 3+3.",
+    "review": "Review",
+    "scheduled": "Scheduled",
+    "title": "Joint Health & Safety Committee (CPHS)",
+    "unsigned": "Unsigned",
+    "worker": "Workers"
+  },
+  "cphsDraft": {
+    "completeness": {
+      "label": "Input completeness",
+      "warn": "Relevant data is missing. Review before signing."
+    },
+    "download": {
+      "json": "Download as JSON"
+    },
+    "markdown": {
+      "title": "Draft (markdown)"
+    },
+    "metrics": {
+      "closedActions": "Closed actions",
+      "critical": "Critical",
+      "incidents": "Incidents",
+      "openActions": "Open actions",
+      "participants": "Participants"
+    },
+    "page": {
+      "back": "Back to CPHS",
+      "error": "Could not generate the minutes: {{msg}}",
+      "selectProject": "Select a project to generate last month's draft.",
+      "subtitle": "Last month's draft — reviewable and editable before the committee signs.",
+      "title": "Automatic CPHS minutes"
+    },
+    "resolutions": {
+      "title": "Suggested agreements"
+    },
+    "sections": {
+      "title": "Included sections"
+    }
+  },
+  "diagnostico": {
+    "activitiesHazards": "Activities & Hazards",
+    "analyzing": "Analyzing...",
+    "back": "Back",
+    "completed": "Assessment Completed",
+    "completedDescription": "AI generated a baseline for your IPER matrix.",
+    "confirmCreate": "Confirm and Create Nodes",
+    "controlsSuggested": "Suggested Critical Controls:",
+    "facilities": "Facilities On Site",
+    "generalData": "General Site Data",
+    "generateSeed": "Generate IPER Seed",
+    "industry": "Industry / SII sector",
+    "knownHazards": "Known Critical Hazards (Optional)",
+    "location": "Location / Geography",
+    "mainActivities": "Main Activities",
+    "mainNormative": "Main Regulations:",
+    "nextStep": "Next Step",
+    "reviewData": "Review Data",
+    "saved": "Saved to Zettelkasten",
+    "saving": "Saving...",
+    "subtitle": "Baseline Assessment and IPER Preload",
+    "summary": "Baseline Analysis Summary",
+    "title": "Initial Assessment",
+    "workersCount": "Approximate Headcount"
+  },
+  "drills": {
+    "aria": "Drill compliance",
+    "detail": {
+      "executeButton": "Record and compute report",
+      "executeTitle": "Record execution",
+      "gapsLabel": "Observed gaps (one per line)",
+      "location": "Location",
+      "notes": "General remarks",
+      "participants": "Participants",
+      "participation": "Participation",
+      "report": "Readiness report",
+      "requiredExternal": "Required external intervention",
+      "responseSeconds": "Response time (s)",
+      "responsible": "Responsible",
+      "scheduledAt": "Scheduled",
+      "speed": "Speed",
+      "status": "Status"
+    },
+    "execute": {
+      "errorFallback": "Could not record the execution."
+    },
+    "filters": {
+      "kindAll": "All",
+      "kindLabel": "Type",
+      "statusLabel": "Status"
+    },
+    "lastWas": "Last:",
+    "never": "Never executed",
+    "new": {
+      "benchmarkSeconds": "Benchmark (s)",
+      "errorFallback": "Could not save the drill.",
+      "expectedCount": "Expected attendees",
+      "kind": "Type",
+      "location": "Location (optional)",
+      "planError": "The drill was not saved: {{msg}}. Your data is still in the form — fix and retry.",
+      "planErrorTitle": "The drill was not scheduled",
+      "responsible": "Responsible UID",
+      "scheduledAt": "Scheduled date and time",
+      "submit": "Schedule",
+      "title": "Schedule drill",
+      "titleField": "Title (optional)"
+    },
+    "overdueHeader": "Overdue",
+    "overdueLabel": "overdue",
+    "page": {
+      "emptyEncourage": "Schedule the first drill of the month — DS 132 requires at least one per shift every six months.",
+      "emptyTitle": "No drills in this filter yet.",
+      "error": "Could not load drills: {{msg}}",
+      "executeError": "The drill was not saved: {{msg}}. Your data is still in the form — fix and retry.",
+      "executeErrorTitle": "Execution was not recorded",
+      "newButton": "New Drill",
+      "selectProject": "Select a project to schedule and record drills.",
+      "subtitle": "DS 132 / DS 594 — schedule, run and report your readiness.",
+      "title": "Drill Manager"
+    },
+    "schedule": "Schedule",
+    "title": "Drills",
+    "upcomingHeader": "Upcoming"
+  },
+  "engCtrl": {
+    "card": {
+      "evidenceLabel": "Evidence (optional)",
+      "evidencePh": "Describe the finding or attach a reference.",
+      "fail": "Fail",
+      "freq": "Every {{n}} days",
+      "next": "Next verification",
+      "observation": "Observation",
+      "recordCheck": "Record verification",
+      "risk": "Risk",
+      "verify": "Verify (OK)",
+      "verifyAria": "Record OK verification"
+    },
+    "filter": {
+      "allRisks": "All risks"
+    },
+    "filters": {
+      "title": "Filters"
+    },
+    "form": {
+      "cancel": "Cancel",
+      "description": "Description",
+      "errorCreate": "Could not create the control.",
+      "errorDescription": "Description must be at least 3 characters.",
+      "errorFreq": "Verification frequency must be positive (days).",
+      "errorName": "Name must be at least 3 characters.",
+      "errorResponsible": "Provide a responsible person or sign in.",
+      "errorRisk": "Provide the risk category it mitigates.",
+      "freq": "Verification frequency (days)",
+      "hierarchyExplainer": "Prefer higher levels of the hierarchy (elimination → substitution → engineering) over administrative or PPE. ISO 31000 / 45001 §8.1.2.",
+      "level": "Level",
+      "name": "Name",
+      "namePh": "Perimeter guardrail level 2",
+      "new": "New control",
+      "responsible": "Responsible (UID)",
+      "responsibleHint": "If left empty, it is assigned to your user.",
+      "responsiblePh": "Responsible's UID",
+      "risk": "Risk category",
+      "riskPh": "height, electrical, noise…",
+      "save": "Save control",
+      "title": "New control"
+    },
+    "hierarchy": {
+      "title": "Hierarchy of controls"
+    },
+    "list": {
+      "empty": "No controls recorded for the selected filters."
+    },
+    "page": {
+      "error": "Could not load controls: {{msg}}",
+      "partialRead": "Partial read: the inventory may be incomplete. Try reloading.",
+      "selectProject": "Select a project to view the applied controls.",
+      "subtitle": "ISO 31000 / 45001 §8.1.2 hierarchy — {{count}} controls inventoried.",
+      "title": "Engineering Controls"
+    },
+    "status": {
+      "amber": "Due soon",
+      "green": "Current",
+      "never": "Never verified",
+      "red": "Verification overdue"
+    }
+  },
+  "findingsHeatMap": {
+    "canvas": {
+      "aria": "Heat map with {{cells}} zones"
+    },
+    "controls": {
+      "gridSize": "Cell size (m)",
+      "lastN": "Last {{n}}",
+      "minSeverity": "Minimum severity",
+      "period": "Period (days)"
+    },
+    "empty": "No findings for the applied filters — good sign!",
+    "hotspots": {
+      "cell": "Zone {{idx}}",
+      "findings": "findings",
+      "title": "Top 5 critical zones"
+    },
+    "page": {
+      "selectProject": "Select a project to view the spatial distribution of findings.",
+      "subtitle": "Spatial distribution by zone. {{cells}} cell(s) over {{points}} finding(s).",
+      "title": "Findings Heat Map"
+    }
+  },
+  "hazmat": {
+    "addBtn": "Add substance",
+    "addTitle": "Add substance",
+    "alert": {
+      "cautionTip": "Keep a minimum distance of 3 m and adequate ventilation.",
+      "footer": "Regulatory basis: DS 43/2016 (Hazardous Substances Storage) + NCh 2245.",
+      "relocateGeneric": "Recommendation: move one of the items to a location separated by a barrier or sector."
+    },
+    "allClasses": "All classes",
+    "allCompatible": "Compatible storage — no issues detected.",
+    "allLocations": "All locations",
+    "caution": "Caution",
+    "col": {
+      "cas": "CAS",
+      "class": "Classes",
+      "exp": "Expiry",
+      "loc": "Location",
+      "name": "Name",
+      "qty": "Quantity"
+    },
+    "compatAria": "Chemical compatibility",
+    "compatTitle": "Chemical compatibility",
+    "deleteAria": "Delete substance",
+    "disclaimerShort": "Approximation based on ERG Green Pages. Check the physical ERG and the local emergency protocol for operational response.",
+    "distances": {
+      "isolation": "Initial Isolation:",
+      "protectionDay": "Protective Action (Day):",
+      "protectionNight": "Protective Action (Night):",
+      "title": "ERG 2024 Distances"
+    },
+    "editAria": "Edit substance",
+    "editTitle": "Edit substance",
+    "empty": "No substances recorded.",
+    "emptyFiltered": "No results for the applied filters.",
+    "fld": {
+      "classes": "Hazard classes *",
+      "epp": "Required PPE (comma-separated)",
+      "exp": "Expiry date",
+      "loc": "Location *",
+      "name": "Trade name *",
+      "qty": "Quantity *",
+      "sds": "Safety data sheet URL (SDS)",
+      "unit": "Unit"
+    },
+    "incompatible": "Incompatible",
+    "items": "Items",
+    "managerAria": "Hazardous substances manager",
+    "managerTitle": "Hazardous substances — DS 43 inventory",
+    "mapInfo": "Based on ERG 2024 Green Pages (Initial Isolation + Protective Action Distances). The polygon shows the downwind protective action zone; width computed from atmospheric stability (Pasquill) by wind speed.",
+    "params": {
+      "class": "UN Class",
+      "title": "Incident Parameters"
+    },
+    "searchPh": "Search name / CAS / UN",
+    "status": {
+      "active": "Active Protocol"
+    },
+    "subtitle": "ERG Exposure and Evacuation Radius",
+    "title": "Hazmat Mapping"
+  },
+  "incidentBundle": {
+    "aria": "Incident evidence bundle",
+    "audit": "Audit",
+    "completeness": "Completeness",
+    "controls": "Controls",
+    "evidence": "Evidence",
+    "export": "Export",
+    "gapsLabel": "Gaps to resolve",
+    "noGaps": "No gaps detected — case file ready to present",
+    "norms": "Regulations",
+    "page": {
+      "error": "Could not build the case file: {{msg}}",
+      "noId": "The incident ID is missing from the URL.",
+      "selectProject": "Select a project to build the case file.",
+      "subtitle": "Automatic bundle for regulatory inspection · Incident {{id}}",
+      "title": "Incident case file"
+    },
+    "photoEvidence": {
+      "title": "Photographic evidence"
+    },
+    "recommendationsLabel": "Recommendations",
+    "resolve": "Resolve",
+    "title": "Incident case file",
+    "trainings": "Training",
+    "weight": "weight",
+    "workers": "Affected"
+  },
+  "incidentTrends": {
+    "byKind": {
+      "subtitle": "Raw count in the current window (unweighted).",
+      "title": "Distribution by type"
+    },
+    "empty": "No incidents recorded in this window.",
+    "error": "Could not load the trend: {{msg}}",
+    "filter": {
+      "group": "Group by:",
+      "window": "Window:"
+    },
+    "leading": {
+      "closure": "Closure rate",
+      "closureHint": "% of incidents closed. High = the OHS system responds quickly.",
+      "daysOpen": "Average days open",
+      "daysOpenHint": "Closed only. Low = fast response.",
+      "nearMiss": "Near-miss ratio",
+      "nearMissHint": "More bottom-up reporting = stronger prevention culture."
+    },
+    "lowConfidence": "Low confidence",
+    "page": {
+      "selectProject": "Select a project to view the incident series and leading indicators.",
+      "subtitle": "Time series + leading indicators (near-miss ratio, closure rate, average days).",
+      "title": "Incident Trends"
+    },
+    "total": "{{count}} incidents in the window"
+  },
+  "inspections": {
+    "card": {
+      "observations": "{{count}} observations",
+      "pendingSync": "Pending sync",
+      "started": "Started"
+    },
+    "chip": {
+      "offline": "No signal — sync deferred",
+      "online": "Online — sync active"
+    },
+    "cta": {
+      "new": "New inspection"
+    },
+    "detail": {
+      "complete": {
+        "cta": "Close inspection",
+        "hint": "Close the inspection once you finish capturing observations.",
+        "pendingOffline": "No signal — observations will sync when reconnected.",
+        "saving": "Saving observation… wait before closing.",
+        "syncing": "Syncing {{count}} observations… wait before closing."
+      },
+      "completed": {
+        "at": "Completed on"
+      },
+      "obs": {
+        "add": "Add observation",
+        "empty": {
+          "list": "No observations yet."
+        },
+        "emptyError": "Add a note or photo before saving.",
+        "list": "Observations ({{count}})",
+        "notes": "Note",
+        "photo": "Photo (optional)",
+        "placeholder": "Describe the finding…",
+        "save": "Save observation"
+      }
+    },
+    "modal": {
+      "new": {
+        "confirm": "Start inspection",
+        "help": "Select the checklist to use. You can add observations even without signal.",
+        "template": "Checklist",
+        "title": "New inspection"
+      }
+    },
+    "page": {
+      "empty": "No inspections in this state. Start a new one with the \"New inspection\" button.",
+      "error": "Could not load inspections: {{msg}}",
+      "selectProject": "Select a project to start field inspections.",
+      "subtitle": "Offline mode — findings are captured locally and synced when the network returns.",
+      "title": "Inspections"
+    },
+    "start": {
+      "error": {
+        "not_signed_in": "You must sign in before starting an inspection."
+      }
+    }
+  },
+  "iper": {
+    "aria": "IPER 5x5 matrix",
+    "controlHigh": "High",
+    "controlLow": "Low",
+    "controlMedium": "Medium",
+    "controlNone": "No controls",
+    "controls": "Effectiveness of existing controls",
+    "noResidual": "No residual",
+    "probability": "Probability",
+    "rawScore": "Raw score",
+    "residual": "Residual",
+    "severity": "Severity",
+    "title": "IPER 5x5"
+  },
+  "loto": {
+    "addPoint": "Apply lock point",
+    "aria": "LOTO status",
+    "authorized": "AUTHORIZED",
+    "blocked": "LOCKED OUT",
+    "create": {
+      "energies": "Energies to isolate",
+      "equipment": "Equipment ID (e.g. CAEX-08)",
+      "heading": "New LOTO application",
+      "submit": "Create LOTO",
+      "work": "Work description"
+    },
+    "empty": {
+      "none_active": "No active LOTO applications.",
+      "select_project": "Select a project to manage LOTO."
+    },
+    "energiesIdentified": "Energies",
+    "feedback": {
+      "create_invalid": "Provide equipment, description (≥3) and at least one energy.",
+      "created": "LOTO application created.",
+      "lock_applied": "Lock recorded.",
+      "lock_invalid": "Fill in point, description and lock tag.",
+      "released": "LOTO released.",
+      "verified": "Zero energy verified."
+    },
+    "leader": "Leader",
+    "lock": {
+      "desc": "Point description",
+      "heading": "Apply lock / tag",
+      "point": "Point ID (e.g. disconnector-A)",
+      "submit": "Record lock",
+      "tag": "Lock tag (e.g. RED-12)"
+    },
+    "lockPoints": "Lock Points",
+    "releaseAll": "Release all",
+    "released": "RELEASED",
+    "subtitle": "Digital record of Lock-Out / Tag-Out: isolated energies, applied locks, zero-energy verification and release. It complements the physical procedure with legal traceability — it does not replace the real lock.",
+    "title": "Digital LOTO",
+    "verifyZero": "Verify zero"
+  },
+  "permits": {
+    "approver": "Approver",
+    "aria": "Work permit",
+    "cancel": "Cancel",
+    "checklist": {
+      "aria": "Permit checklist",
+      "issue": "Issue permit",
+      "title": "Pre-issue checklist"
+    },
+    "epp": "PPE delivered",
+    "form": {
+      "errorAuth": "Sign in to request a permit.",
+      "errorCreate": "Could not create the permit.",
+      "errorTask": "Description must be at least 3 characters.",
+      "kindLabel": "Type",
+      "submit": "Create permit",
+      "taskLabel": "Task description",
+      "title": "New permit",
+      "zoneLabel": "Zone / location",
+      "zonePlaceholder": "e.g. Platform N3, tank area…"
+    },
+    "fulfill": "Close as fulfilled",
+    "kind": {
+      "all": "All"
+    },
+    "medical": "Medical fitness",
+    "missingPrecondition": "Preconditions missing: the permit cannot be issued.",
+    "new": "New permit",
+    "page": {
+      "empty": "No permits for the applied filters. Create a new one to get started.",
+      "error": "Could not load permits: {{msg}}",
+      "selectProject": "Select a project to view work permits.",
+      "subtitle": "LOTO / Heights / Hot work / Confined / Excavation / Lifting — DS 594, DS 132, DS 109. {{count}} permits loaded.",
+      "title": "Work Permit Center"
+    },
+    "preconditions": "Preconditions",
+    "sign": "Sign / re-validate",
+    "training": "Valid training",
+    "validity": "Validity",
+    "worker": "Worker"
+  },
+  "preShiftRisk": {
+    "page": {
+      "error": "Could not load the panel: {{msg}}",
+      "selectProject": "Select a project to view the shift risk panel.",
+      "subtitle": "{{date}} · {{count}} factors detected",
+      "title": "Pre-Shift Panel"
+    },
+    "recommendDelay": "Delaying the shift start is recommended",
+    "recommendations": {
+      "title": "Top recommendations"
+    },
+    "score": {
+      "aria": "Overall shift risk score",
+      "label": "Shift risk"
+    },
+    "section": {
+      "context": "Shift context",
+      "equipment": {
+        "empty": "Equipment maintenance up to date.",
+        "title": "Equipment maintenance"
+      },
+      "incidents": {
+        "empty": "No incidents in the last 7 days.",
+        "title": "Incidents in the last 7 days"
+      },
+      "personnel": {
+        "empty": "Team in normal condition (no fatigue or rookie alerts).",
+        "title": "Shift personnel"
+      },
+      "tasks": {
+        "empty": "No critical tasks planned for today.",
+        "title": "Planned critical tasks"
+      },
+      "weather": {
+        "empty": "No relevant weather alerts.",
+        "title": "Shift weather"
+      }
+    }
+  },
+  "preUse": {
+    "anomalyDetected": "You detected anomalies. We recommend NOT operating the equipment and reporting it to the supervisor before continuing.",
+    "aria": "Pre-use checklist",
+    "confirm": "Confirm pre-use",
+    "expected": {
+      "noAnomaly": "Expected: no anomaly",
+      "ok": "Expected: OK"
+    },
+    "failed": "Anomaly",
+    "noChecklist": "This equipment has no pre-use checklist on record. Report to the supervisor before operating.",
+    "notes": "Notes (optional)",
+    "notesPlaceholder": "Describe the anomaly...",
+    "passed": "OK",
+    "photo": "Photo (optional URL)",
+    "result": {
+      "appliedStatus": "Applied status",
+      "auditHash": "Audit hash",
+      "equipment": "Equipment",
+      "notOperate": "WE RECOMMEND NOT OPERATING",
+      "proceed": "You may operate",
+      "reportSupervisor": "We recommend reporting to the supervisor"
+    },
+    "signature": "Signature — type your full name",
+    "signaturePlaceholder": "Your full name",
+    "title": "Pre-use"
+  },
+  "residualRisk": {
+    "acceptFormally": "Formally accept",
+    "acceptPrompt": "Reason for formal acceptance (kept as internal record):",
+    "acceptancePending": "Pending formal acceptance by management",
+    "acceptanceRequired": "High residual risk: requires documented formal acceptance",
+    "acceptedBy": "Formally accepted by {{uid}} on {{date}}",
+    "aria": "Residual risk",
+    "controls": "controls",
+    "controlsCount": "Applied controls",
+    "form": {
+      "cancel": "Cancel",
+      "category": "Category",
+      "controlId": "Applied control (id)",
+      "effectiveness": "Effectiveness",
+      "hazard": "Hazard",
+      "inherentSeverity": "Inherent severity",
+      "justification": "Justification",
+      "kind": {
+        "administrative": "Administrative",
+        "physical": "Physical"
+      },
+      "likelihood": "Likelihood",
+      "register": "Register risk",
+      "residualSeverity": "Residual severity",
+      "riskKind": "Type",
+      "submit": "Register"
+    },
+    "inherent": "Inherent",
+    "initial": "Initial",
+    "justification": "Justification",
+    "kind": "Type",
+    "list": {
+      "aria": "Residual risk list",
+      "empty": "No residual risks recorded yet.",
+      "title": "Residual Risks"
+    },
+    "nextReview": "Next review",
+    "page": {
+      "error": "Could not load residual risks: {{msg}}",
+      "selectProject": "Select a project to view residual risks and pending formal acceptances.",
+      "subtitle": "ISO 31000 / ISO 45001 §6.1.2.2 — {{count}} risks loaded.",
+      "title": "Residual Risk"
+    },
+    "reduction": "Reduction",
+    "registerForm": {
+      "title": "Register residual risk"
+    },
+    "requestSignature": "Request signature",
+    "residual": "Residual",
+    "suspicious": {
+      "criteria": "A low residual severity is suspicious when the inherent one is very high (catastrophic/major) and the drop is not justified by robust controls. Review case by case — this does NOT block operation, it only flags for human review.",
+      "title": "Suspicious Criticality"
+    }
+  },
+  "rootCause": {
+    "actions": "Suggested actions",
+    "aria": "Root cause analysis",
+    "byCategory": "By 5M+1E category",
+    "depth": "Depth",
+    "factors": "Factors",
+    "failedControls": "Failed controls identified",
+    "fiveWhys": "5 Whys",
+    "primary": "Primary factor",
+    "roots": "Roots",
+    "title": "Root Cause",
+    "topFactors": "Top historical factors",
+    "totalNodes": "Nodes",
+    "treeAria": "Root cause tree summary",
+    "treeTitle": "Root cause tree"
+  },
+  "visitors": {
+    "ack": {
+      "agreement": "I have read and accept the site safety rules.",
+      "empty": "No induction versions published for this project yet.",
+      "signature": "Manual signature (type your name)",
+      "submit": "Confirm induction",
+      "subtitle": "Accept the terms before entering the site.",
+      "title": "Express induction",
+      "version": "Induction version"
+    },
+    "card": {
+      "checkIn": "Check-in",
+      "checkOut": "Check-out",
+      "host": "Host",
+      "induct": "Induction",
+      "inducted": "Inducted",
+      "pending": "Induction pending",
+      "reason": "Reason"
+    },
+    "errors": {
+      "noSession": "You must sign in."
+    },
+    "form": {
+      "company": "Company / Organization",
+      "fullName": "Full name",
+      "reason": "Reason for the visit",
+      "reasonPlaceholder": "ISO 45001 audit…",
+      "rut": "RUT",
+      "scan": "Scan QR",
+      "submit": "Register check-in",
+      "title": "New visit"
+    },
+    "page": {
+      "emptyHint": "Register a new visit to start access control.",
+      "emptyTitle": "No active visits yet.",
+      "newVisit": "New visit",
+      "selectProject": "Select a project to register visits.",
+      "subtitle": "Active visits: {{count}}",
+      "title": "Visitor Control"
     }
   }
 }
