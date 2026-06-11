@@ -52,8 +52,16 @@ demo, not yet re-measured against our fork.
 4. SLM unavailable + Gemini unavailable → `unavailable` status
 
 `OnnxSlmAdapter.fromEnv()` returns `null` when `SLM_OFFLINE_ENABLED` is
-off, so the hook gracefully degrades to "online-only, no fallback"
-without paying the dynamic-import cost.
+explicitly `false`, so the hook gracefully degrades to "online-only, no
+fallback" without paying the dynamic-import cost. **B14 (2026-06-11):
+the flag is ON by default** — `SLM_OFFLINE_ENABLED` is now a
+kill-switch (`false`/`0` disables); see
+`src/services/slm/slmFlag.ts#isSlmOfflineEnabled` for the resolution
+order. The default model is the pre-packaged Qwen 2.5 0.5B
+(`registry.ts#DEFAULT_MODEL_ID`), staged into `public/models/` by
+`scripts/prepackage-slm-models.mjs` during `prebuild` — zero CDN bytes
+in the default path. Phi-3 / Gemma remain opt-in multi-GB downloads
+(`registry.ts#requiresExplicitDownloadConsent`).
 
 ## Privacy
 

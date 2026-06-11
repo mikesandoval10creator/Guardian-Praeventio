@@ -118,14 +118,47 @@ export function buildAsesorAdapters(ctx: AsesorContext): OrchestratorAdapters {
     });
   }
 
-  // Tier 4: Gemini server (si caller lo provee).
-  if (ctx.callGeminiServer) {
-    adapters.gemini = makeGeminiTierAdapter({
-      callGemini: ctx.callGeminiServer,
-    });
-  }
+  // Tier 4: Gemini server. B14 (2026-06-11): si el caller no provee su
+  // propio caller, usamos el default contra `/api/ask-guardian` (mismo
+  // endpoint que el orchestrator legacy de AsesorChat) — así el panel
+  // resiliente montado desde el shell SIEMPRE tiene el tier Gemini
+  // disponible cuando hay red.
+  adapters.gemini = makeGeminiTierAdapter({
+    callGemini: ctx.callGeminiServer ?? callAskGuardianServer,
+  });
 
   return adapters;
+}
+
+/**
+ * Default Gemini caller — POST `/api/ask-guardian` con el ID token de
+ * Firebase (vía `lib/apiAuth`, dynamic import para mantener el módulo
+ * import-safe en SSR/tests sin Firebase bootstrapeado). Lanza en
+ * non-2xx para que el orchestrator caiga al siguiente tier.
+ */
+export async function callAskGuardianServer(
+  prompt: string,
+  _context?: Record<string, unknown>,
+): Promise<{ text: string; citations?: Array<{ uri: string; title?: string }> }> {
+  const { apiAuthHeaders } = await import('../../lib/apiAuth');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(await apiAuthHeaders()),
+  };
+  const res = await fetch('/api/ask-guardian', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ query: prompt }),
+  });
+  if (!res.ok) {
+    throw new Error(`ask-guardian HTTP ${res.status}`);
+  }
+  const data = (await res.json()) as { response?: string; answer?: string };
+  const text = data.response ?? data.answer ?? '';
+  if (!text) {
+    throw new Error('ask-guardian: empty response body');
+  }
+  return { text };
 }
 
 /**

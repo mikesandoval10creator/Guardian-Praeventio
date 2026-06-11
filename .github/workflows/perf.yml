@@ -25,6 +25,10 @@ jobs:
         run: npm run build
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+          # B14: CI validation lanes don't ship the bundle — skip the
+          # 483 MB SLM prepackage download. Release/deploy lanes MUST
+          # run the real prepackage (they don't set this).
+          SLM_PREPACKAGE_SKIP: '1'
       - name: Generate size report
         run: npx size-limit --json > size-report.json
       - name: Upload size report
@@ -59,6 +63,10 @@ jobs:
         run: npm run build
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+          # B14: CI validation lanes don't ship the bundle — skip the
+          # 483 MB SLM prepackage download. Release/deploy lanes MUST
+          # run the real prepackage (they don't set this).
+          SLM_PREPACKAGE_SKIP: '1'
       - name: Install Chromium system deps
         run: npx playwright install-deps chromium || sudo apt-get install -y libnss3 libatk-bridge2.0-0 libgtk-3-0 libxss1 libasound2t64 libgbm1
       - name: Run Lighthouse CI

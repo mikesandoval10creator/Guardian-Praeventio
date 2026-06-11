@@ -12,7 +12,7 @@
 // Diseñado para drop-in en cualquier route: el caller pasa los
 // adapters (que son inyectados desde el shell vía context o providers).
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Send,
@@ -23,12 +23,14 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { useResilientAi } from '../../hooks/useResilientAi';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { AiResponseCard } from './AiResponseCard';
-import type {
-  AiCitation,
-  AiDomain,
-  AiResponse,
-  OrchestratorAdapters,
+import {
+  resolveTiersForConnectivity,
+  type AiCitation,
+  type AiDomain,
+  type AiResponse,
+  type OrchestratorAdapters,
 } from '../../services/ai/resilientAiOrchestrator';
 
 interface ResilientAiAssistantPanelProps {
@@ -47,6 +49,12 @@ interface ResilientAiAssistantPanelProps {
   placeholder?: string;
   /** Cap de history. Default 5. */
   maxHistory?: number;
+  /**
+   * B14: borrador inicial (paridad con el evento `open-ai-chat` del
+   * chat legacy, que pre-carga `detail.query`). Solo aplica al montar /
+   * cuando cambia el valor.
+   */
+  initialDraft?: string;
 }
 
 interface HistoryEntry {
@@ -63,16 +71,29 @@ export function ResilientAiAssistantPanel({
   suggestions = [],
   placeholder,
   maxHistory = 5,
+  initialDraft,
 }: ResilientAiAssistantPanelProps) {
   const { t } = useTranslation();
   const [emergencyMode, setEmergencyMode] = useState(false);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(initialDraft ?? '');
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+
+  // B14: si el launcher entrega un nuevo borrador (evento
+  // `open-ai-chat` con `detail.query`), lo reflejamos en el input.
+  useEffect(() => {
+    if (initialDraft !== undefined) setDraft(initialDraft);
+  }, [initialDraft]);
+  // B14: orden de tiers según conectividad — online Gemini primario
+  // (calidad), SLM fallback; offline escalera local SLM → RAG →
+  // mensaje honesto. `answerEmergency` (emergencyMode) ignora esto y
+  // usa siempre solo tiers locales.
+  const isOnline = useOnlineStatus();
 
   const ai = useResilientAi({
     adapters,
     emergencyMode,
     tierTimeoutMs: emergencyMode ? 3000 : undefined,
+    allowedTiers: resolveTiersForConnectivity(isOnline),
   });
 
   const submit = useCallback(async () => {

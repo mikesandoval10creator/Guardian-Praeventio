@@ -339,16 +339,15 @@ export default defineConfig(({mode}) => {
         'express-session',
         'pdfkit',
         // Sprint 20 Bucket Epsilon T-1.2 — `onnxruntime-web` ships a WASM
-        // bundle that Vite's pre-bundler should NOT try to rewrite; it
-        // also pulls `comlink` transitively from the worker source. Excl.
+        // bundle that Vite's pre-bundler should NOT try to rewrite. Excl.
         'onnxruntime-web'
       ]
     },
-    // Sprint 20 Bucket Epsilon T-1.2 — emit Web Workers as ES modules
-    // so `new Worker(new URL('./worker/slmWorker.ts', import.meta.url),
-    // { type: 'module' })` works in dev and prod alike. Without
-    // `format: 'es'` Vite bundles workers as classic scripts and the
-    // worker's top-level `import * as Comlink` fails at runtime.
+    // Sprint 20 Bucket Epsilon T-1.2 (B14: worker unificado) — emit Web
+    // Workers as ES modules so `new Worker(new URL(
+    // './worker/slmRuntimeWorker.ts', import.meta.url), { type: 'module' })`
+    // works in dev and prod alike. Without `format: 'es'` Vite bundles
+    // workers as classic scripts and the worker's top-level imports fail.
     worker: {
       format: 'es' as const,
     },

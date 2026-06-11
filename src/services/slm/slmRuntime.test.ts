@@ -62,8 +62,9 @@ function buildFetchReturning(payload: ArrayBuffer): typeof fetch {
 // Qwen entry (no companions) so the fetch stub doesn't have to also
 // satisfy companion integrity. Split-bundle behaviour gets its own
 // `loadModel split` describe below.
-const QWEN_ID = MODEL_REGISTRY[1].id;
-const PHI_ID = MODEL_REGISTRY[0].id;
+// B14: ids by name (the registry order changed — Qwen is now [0]/default).
+const QWEN_ID = 'qwen-2.5-0.5b';
+const PHI_ID = 'phi-3-mini';
 
 describe('slmRuntime.loadModel', () => {
   let originalFetch: typeof fetch;
@@ -646,7 +647,7 @@ describe('resolveWeightUrl', () => {
 // capture the real hash on first verified download.
 // ─────────────────────────────────────────────────────────────────────────
 describe('slmRuntime.loadModel — fail-closed on unverified hash in production (§2.9)', () => {
-  const GEMMA_ID = MODEL_REGISTRY[2].id; // expectedSha256: null, gated
+  const GEMMA_ID = 'gemma-2-2b'; // expectedSha256: null, gated
 
   afterEach(() => {
     vi.unstubAllEnvs();

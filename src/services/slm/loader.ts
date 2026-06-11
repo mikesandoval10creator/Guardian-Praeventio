@@ -93,7 +93,29 @@ export async function loadModel(
     );
   }
 
-  const response = await fetchImpl(model.url);
+  // B14 (2026-06-11): pre-packaged asset takes precedence over the CDN.
+  // The default model (Qwen 0.5B) ships inside the build at
+  // `model.prePackagedPath` (same-origin, Workbox-precacheable), so the
+  // default path downloads ZERO bytes from HuggingFace. Only if the
+  // asset is missing (e.g. dev build without `npm run prepackage:slm`)
+  // do we fall back to `model.url`. Mirrors `slmRuntime.ts`.
+  let response: Response | null = null;
+  let cacheOrigin: 'cdn' | 'pre_packaged' = 'cdn';
+  if (model.prePackagedPath) {
+    try {
+      const prePacked = await fetchImpl(model.prePackagedPath);
+      if (prePacked.ok) {
+        response = prePacked;
+        cacheOrigin = 'pre_packaged';
+      }
+    } catch {
+      // Pre-packaged asset unavailable — fall through to the CDN.
+    }
+  }
+
+  if (!response) {
+    response = await fetchImpl(model.url);
+  }
   if (!response.ok) {
     throw new Error(
       `SLM loader: fetch failed for ${model.id} (HTTP ${response.status}).`,
@@ -155,7 +177,7 @@ export async function loadModel(
     model_id: model.id,
     model_bytes: bytes.byteLength,
     download_duration_ms: durationSince(startedAt),
-    cache_origin: 'cdn',
+    cache_origin: cacheOrigin,
   });
 
   return bytes;

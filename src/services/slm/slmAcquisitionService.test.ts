@@ -20,9 +20,10 @@ import {
 } from './slmAcquisitionService';
 import { MODEL_REGISTRY } from './registry';
 
-const QWEN_ID = MODEL_REGISTRY[1]!.id; // pre-packaged
-const PHI_ID = MODEL_REGISTRY[0]!.id;
-const GEMMA_ID = MODEL_REGISTRY[2]!.id; // gated, no pre-pack
+// B14: ids by name (registry order changed — Qwen is now first/default).
+const QWEN_ID = 'qwen-2.5-0.5b'; // pre-packaged
+const PHI_ID = 'phi-3-mini';
+const GEMMA_ID = 'gemma-2-2b'; // gated, no pre-pack
 
 // Helper: clear localStorage. fake-indexeddb leaves global storage intact.
 function clearStorage() {

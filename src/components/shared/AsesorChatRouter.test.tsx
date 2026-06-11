@@ -22,8 +22,9 @@ vi.mock('react-i18next', () => ({
 vi.mock('./AsesorChat', () => ({
   AsesorChat: () => <div data-testid="legacy-asesor-mock">legacy</div>,
 }));
-vi.mock('./ResilientAsesorPanel', () => ({
-  ResilientAsesorPanel: () => (
+// B14: el router monta el launcher flotante (que envuelve el panel).
+vi.mock('./ResilientAsesorLauncher', () => ({
+  ResilientAsesorLauncher: () => (
     <div data-testid="resilient-asesor-mock">resilient</div>
   ),
 }));

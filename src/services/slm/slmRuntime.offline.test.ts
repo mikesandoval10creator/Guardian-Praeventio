@@ -32,8 +32,9 @@ import {
 // Phi-3 mini real hashes (registry-pinned). The fake digest below maps
 // `principal` / `companion` strings to these hashes so the integrity
 // guard treats stubbed bytes as the real model.
-const PHI_ID = MODEL_REGISTRY[0]!.id;
-const QWEN_ID = MODEL_REGISTRY[1]!.id;
+// B14: ids by name (registry order changed — Qwen is now first/default).
+const PHI_ID = 'phi-3-mini';
+const QWEN_ID = 'qwen-2.5-0.5b';
 const PHI_PRINCIPAL_SHA =
   '16b8e5d28a757c37bbfa7d9420fd094c0c20e3615ca3c203b5b9501015045c8f';
 const PHI_COMPANION_SHA =
@@ -321,7 +322,7 @@ describe('slmRuntime — pre-packaged asset (zero-network first launch)', () => 
   });
 
   it('Qwen tiene prePackagedPath en el registry', () => {
-    const qwen = MODEL_REGISTRY[1]!;
+    const qwen = MODEL_REGISTRY.find((m) => m.id === 'qwen-2.5-0.5b')!;
     expect(qwen.prePackagedPath).toBe(
       '/models/qwen-2.5-0.5b/model_q4f16.onnx',
     );

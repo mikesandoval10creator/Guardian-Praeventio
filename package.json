@@ -9,7 +9,7 @@
   "scripts": {
     "cli": "node scripts/cli/praeventio.mjs",
     "dev": "tsx server.ts",
-    "prebuild": "node scripts/download-mediapipe-models.mjs && node scripts/render-well-known.mjs",
+    "prebuild": "node scripts/download-mediapipe-models.mjs && node scripts/render-well-known.mjs && node scripts/prepackage-slm-models.mjs --model=qwen-2.5-0.5b",
     "build": "vite build",
     "prepackage:slm": "node scripts/prepackage-slm-models.mjs",
     "prepackage:slm:dry": "node scripts/prepackage-slm-models.mjs --dry-run",
@@ -119,7 +119,6 @@
     "@vitejs/plugin-react": "^5.0.4",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
-    "comlink": "^4.4.2",
     "cookie-parser": "^1.4.7",
     "d3": "^7.9.0",
     "date-fns": "^4.1.0",

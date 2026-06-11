@@ -97,7 +97,18 @@ describe('GuardianOfflineService.fromEnv', () => {
     delete globalThis.__SLM_OFFLINE_ENABLED__;
   });
 
-  it('returns null when SLM_OFFLINE_ENABLED is off', () => {
+  // B14 (2026-06-11): flag default ON; env var es kill-switch.
+  it('returns an instance by default (flag ON, nothing set)', () => {
+    const svc = GuardianOfflineService.fromEnv({
+      fetchImpl: makeFakeFetch({ chunks: SAMPLE_CHUNKS }) as unknown as typeof fetch,
+      adapter: makeAdapter(),
+      cacheImpl: new MemCache(),
+    });
+    expect(svc).toBeInstanceOf(GuardianOfflineService);
+  });
+
+  it('returns null when the kill-switch SLM_OFFLINE_ENABLED="false" is set', () => {
+    process.env.SLM_OFFLINE_ENABLED = 'false';
     expect(GuardianOfflineService.fromEnv()).toBeNull();
   });
 

@@ -4,9 +4,17 @@
  * Fase 1 (Sprint 20, Bucket Gamma, T-1.1) ships three models so the loader
  * — which arrives in T-1.2 — can pick based on device capability:
  *
- *   - phi-3-mini   — default; balances quality vs. footprint (~2.7 GB con
- *                    .onnx + .onnx_data split).
- *   - qwen-2.5-0.5b — fallback for low-storage devices (~483 MB).
+ *   - qwen-2.5-0.5b — DEFAULT (B14, 2026-06-11). The ONLY model that ships
+ *                    pre-packaged inside the build (`prePackagedPath` →
+ *                    `public/models/qwen-2.5-0.5b/`, staged by
+ *                    `scripts/prepackage-slm-models.mjs` in `prebuild`).
+ *                    ~483 MB, same-origin, zero CDN bytes in the default
+ *                    path — the offline-first promise for faenas sin señal.
+ *   - phi-3-mini   — OPT-IN. Better quality but ~2.7 GB (.onnx +
+ *                    .onnx_data split) downloaded from HuggingFace CDN at
+ *                    runtime. Must NEVER be auto-selected: any UI offering
+ *                    it must require explicit user action with an es-CL
+ *                    size warning (multi-GB sobre red de faena).
  *   - gemma-2-2b   — premium opt-in; better generation quality. GATED por
  *                    Hugging Face — requiere aceptar términos Google.
  *
@@ -49,6 +57,29 @@ const HASH_COMPUTED_AT = '2026-05-13T19:00:00Z';
  */
 export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
   {
+    id: 'qwen-2.5-0.5b',
+    name: 'Qwen 2.5 0.5B Instruct (ONNX int4 f16)',
+    // Tamaño real verificado: 483 MB para q4f16 (no 280 MB como decía
+    // la doc legacy — onnx-community publica el archivo completo).
+    size: 483003582,
+    url: 'https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/resolve/main/onnx/model_q4f16.onnx',
+    weightFilename: 'onnx/model_q4f16.onnx',
+    tokenizerUrl: 'onnx-community/Qwen2.5-0.5B-Instruct',
+    format: 'onnx-int4',
+    license: 'Apache-2.0',
+    preferredBackend: 'wasm-simd',
+    quantization: 'int4',
+    // Sprint 54: SHA-256 real desde HF LFS oid.
+    expectedSha256: 'b11c1dd99efd57e6c6e5bc4443a019931a5fbd5dd500d48644d8225f5ce0b2cb',
+    hashComputedAt: HASH_COMPUTED_AT,
+    // B14 (2026-06-11): DEFAULT model. `npm run build` prebuild stages
+    // this artifact at `public/models/qwen-2.5-0.5b/model_q4f16.onnx`
+    // (scripts/prepackage-slm-models.mjs); loader + runtime prefer the
+    // pre-packaged path over any CDN download. 483 MB → cabe en Android
+    // Asset Pack o iOS asset catalog.
+    prePackagedPath: '/models/qwen-2.5-0.5b/model_q4f16.onnx',
+  },
+  {
     id: 'phi-3-mini',
     name: 'Phi-3 Mini 4K Instruct (ONNX int4)',
     // Tamaño real: model_q4.onnx 1.06GB + .onnx_data 1.66GB = ~2.7 GB.
@@ -77,28 +108,6 @@ export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
     ],
   },
   {
-    id: 'qwen-2.5-0.5b',
-    name: 'Qwen 2.5 0.5B Instruct (ONNX int4 f16)',
-    // Tamaño real verificado: 483 MB para q4f16 (no 280 MB como decía
-    // la doc legacy — onnx-community publica el archivo completo).
-    size: 483003582,
-    url: 'https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/resolve/main/onnx/model_q4f16.onnx',
-    weightFilename: 'onnx/model_q4f16.onnx',
-    tokenizerUrl: 'onnx-community/Qwen2.5-0.5B-Instruct',
-    format: 'onnx-int4',
-    license: 'Apache-2.0',
-    preferredBackend: 'wasm-simd',
-    quantization: 'int4',
-    // Sprint 54: SHA-256 real desde HF LFS oid.
-    expectedSha256: 'b11c1dd99efd57e6c6e5bc4443a019931a5fbd5dd500d48644d8225f5ce0b2cb',
-    hashComputedAt: HASH_COMPUTED_AT,
-    // Sprint 54 ext: pre-packaged path. Cuando el release pipeline copie
-    // el .onnx a `public/models/qwen-2.5-0.5b/model_q4f16.onnx` el
-    // runtime lo prefiere sobre la descarga HF. Modelo de 483 MB → cabe
-    // en Android Asset Pack o iOS asset catalog.
-    prePackagedPath: '/models/qwen-2.5-0.5b/model_q4f16.onnx',
-  },
-  {
     id: 'gemma-2-2b',
     name: 'Gemma 2 2B IT (ONNX int4) — GATED',
     // ~1.4 GB. Gemma usa Google's bespoke "Gemma Terms of Use" — gated
@@ -123,10 +132,14 @@ export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
 
 /**
  * The id of the model the app should attempt to load by default.
- * Currently Phi-3 Mini, which is permissively licensed (MIT) and offers
- * the best quality/size trade-off in the registry.
+ *
+ * B14 (2026-06-11): Qwen 2.5 0.5B — the ONLY pre-packaged model. The
+ * default path MUST NOT trigger multi-GB CDN downloads on a faena
+ * connection; Phi-3 / Gemma are opt-in behind explicit user action
+ * with an es-CL size warning. Tests pin this invariant
+ * (`registry.test.ts` — "default model ships pre-packaged").
  */
-export const DEFAULT_MODEL_ID = 'phi-3-mini';
+export const DEFAULT_MODEL_ID = 'qwen-2.5-0.5b';
 
 /**
  * Look up a model descriptor by its registry id.
@@ -150,6 +163,18 @@ export function getDefaultModel(): ModelDescriptor {
     );
   }
   return m;
+}
+
+/**
+ * B14 (2026-06-11): true when selecting this model implies a runtime
+ * CDN download (no pre-packaged asset in the build). UI surfaces MUST
+ * gate these behind explicit user action with an es-CL size warning —
+ * never auto-select them (faena connections cannot absorb multi-GB).
+ */
+export function requiresExplicitDownloadConsent(
+  model: ModelDescriptor,
+): boolean {
+  return !model.prePackagedPath;
 }
 
 /**

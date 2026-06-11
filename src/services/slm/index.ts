@@ -12,10 +12,11 @@
  *                            orchestrator, IndexedDB session queue,
  *                            and the queue → Zettelkasten reconciler.
  *
- * The actual worker source (`./worker/slmWorker.ts`) is intentionally
- * NOT re-exported: it's loaded as a separate chunk via `new Worker(...)`
- * inside `createSlmWorker`. Importing it from main-thread code would
- * pull the Comlink + worker bootstrap into the wrong bundle.
+ * B14 (2026-06-11): the legacy Comlink worker (`worker/slmWorker.ts`,
+ * whose generate() could return a MOCK) was removed. The ONE worker is
+ * `worker/slmRuntimeWorker.ts` (real runtime); its source is
+ * intentionally NOT re-exported — it's loaded as a separate chunk via
+ * `new Worker(...)` inside `worker/createSlmRuntimeProxyForBrowser.ts`.
  */
 
 export type {
@@ -49,8 +50,15 @@ export type {
   LoadProgressFn,
 } from './loader';
 
-export { createSlmWorker } from './workerProxy';
-export type { SlmWorkerProxy } from './workerProxy';
+// B14: unified worker-backed runtime (real inference off the main
+// thread). Shared singleton worker under the hood.
+export {
+  createWorkerBackedSlmRuntime,
+} from './workerRuntime';
+export type {
+  WorkerBackedSlmRuntime,
+  WorkerRuntimeModel,
+} from './workerRuntime';
 
 // T-1.4: main-thread facade — `geminiAdapter`-shaped surface that hides
 // the Comlink / model-loading plumbing from call sites.

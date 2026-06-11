@@ -502,3 +502,149 @@ describe('SlmRuntimeWorkerCore — ping', () => {
     );
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// B14 (2026-06-11) — tokenizer real por handle. El descriptor declara
+// `tokenizerUrl`; el core lo carga vía `tokenizerLoader` (inyectable) y
+// lo pasa al runtime en cada infer. Si la carga falla, infer FALLA
+// honesto (nunca byte-level gibberish presentado como respuesta).
+// ────────────────────────────────────────────────────────────────────────
+describe('SlmRuntimeWorkerCore — tokenizer real (B14)', () => {
+  const FAKE_TOKENIZER = {
+    encode: (t: string) => Array.from(t).map((c) => c.charCodeAt(0)),
+    decode: (ids: number[]) => ids.map((i) => String.fromCharCode(i)).join(''),
+  };
+
+  function makeDescriptorWithTokenizer() {
+    return {
+      tokenizerUrl: 'onnx-community/Qwen2.5-0.5B-Instruct',
+    } as unknown as LoadedModel['descriptor'];
+  }
+
+  it('carga el tokenizer del descriptor y lo pasa a runtime.infer', async () => {
+    const { dispatch, responses } = captureDispatch();
+    const inferOpts: unknown[] = [];
+    const stubRuntime = makeStubRuntime({
+      loadModel: async () => ({
+        modelId: 'qwen-2.5-0.5b',
+        descriptor: makeDescriptorWithTokenizer(),
+        observedSha256: 'c'.repeat(64),
+        backend: 'wasm-simd',
+        session: {} as never,
+      }),
+      infer: async (_m, _p, opts) => {
+        inferOpts.push(opts);
+        return 'respuesta tokenizada';
+      },
+    });
+    const tokenizerLoader = vi.fn(async () => FAKE_TOKENIZER);
+    const core = createWorkerCore(dispatch, {
+      runtimeFactory: () => stubRuntime,
+      tokenizerLoader,
+    });
+
+    await core.onMessage({
+      kind: 'load',
+      requestId: 'L1',
+      modelId: 'qwen-2.5-0.5b',
+    } satisfies LoadRequest);
+    const loaded = responses.find(
+      (r) => r.kind === 'load-complete',
+    ) as LoadCompleteEvent;
+    expect(tokenizerLoader).toHaveBeenCalledWith(
+      'onnx-community/Qwen2.5-0.5B-Instruct',
+    );
+
+    await core.onMessage({
+      kind: 'infer',
+      requestId: 'I1',
+      modelHandle: loaded.modelHandle,
+      prompt: 'hola',
+    } satisfies InferRequest);
+
+    const complete = responses.find(
+      (r) => r.kind === 'infer-complete',
+    ) as InferCompleteEvent;
+    expect(complete.text).toBe('respuesta tokenizada');
+    // El tokenizer cargado viajó hasta el runtime.
+    expect(
+      (inferOpts[0] as { tokenizer?: unknown })?.tokenizer,
+    ).toBe(FAKE_TOKENIZER);
+  });
+
+  it('si la carga del tokenizer falla, infer emite error (no gibberish byte-level)', async () => {
+    const { dispatch, responses } = captureDispatch();
+    const stubRuntime = makeStubRuntime({
+      loadModel: async () => ({
+        modelId: 'qwen-2.5-0.5b',
+        descriptor: makeDescriptorWithTokenizer(),
+        observedSha256: 'c'.repeat(64),
+        backend: 'wasm-simd',
+        session: {} as never,
+      }),
+    });
+    const core = createWorkerCore(dispatch, {
+      runtimeFactory: () => stubRuntime,
+      tokenizerLoader: async () => {
+        throw new Error('HF hub unreachable');
+      },
+    });
+
+    await core.onMessage({
+      kind: 'load',
+      requestId: 'L2',
+      modelId: 'qwen-2.5-0.5b',
+    } satisfies LoadRequest);
+    const loaded = responses.find(
+      (r) => r.kind === 'load-complete',
+    ) as LoadCompleteEvent;
+    // El load NO falla por el tokenizer (el modelo quedó cargado)…
+    expect(loaded).toBeDefined();
+
+    await core.onMessage({
+      kind: 'infer',
+      requestId: 'I2',
+      modelHandle: loaded.modelHandle,
+      prompt: 'hola',
+    } satisfies InferRequest);
+
+    // …pero infer falla HONESTO con error estructurado.
+    const err = responses.find((r) => r.kind === 'error');
+    expect(err).toBeDefined();
+    expect((err as { errorCode: string }).errorCode).toBe('infer_failure');
+    expect((err as { errorMessage: string }).errorMessage).toMatch(
+      /Tokenizer unavailable/,
+    );
+    expect(responses.find((r) => r.kind === 'infer-complete')).toBeUndefined();
+  });
+
+  it('descriptor sin tokenizerUrl (stubs legacy) infiere sin tokenizer — back-compat', async () => {
+    const { dispatch, responses } = captureDispatch();
+    const tokenizerLoader = vi.fn(async () => FAKE_TOKENIZER);
+    const core = createWorkerCore(dispatch, {
+      runtimeFactory: () => makeStubRuntime(),
+      tokenizerLoader,
+    });
+
+    await core.onMessage({
+      kind: 'load',
+      requestId: 'L3',
+      modelId: 'phi-3-mini',
+    } satisfies LoadRequest);
+    const loaded = responses.find(
+      (r) => r.kind === 'load-complete',
+    ) as LoadCompleteEvent;
+    expect(tokenizerLoader).not.toHaveBeenCalled();
+
+    await core.onMessage({
+      kind: 'infer',
+      requestId: 'I3',
+      modelHandle: loaded.modelHandle,
+      prompt: 'hola',
+    } satisfies InferRequest);
+    const complete = responses.find(
+      (r) => r.kind === 'infer-complete',
+    ) as InferCompleteEvent;
+    expect(complete.text).toBe('respuesta stub');
+  });
+});

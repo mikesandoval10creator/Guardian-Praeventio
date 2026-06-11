@@ -4459,5 +4459,8 @@
     "submit": "Enviar respuesta anónima",
     "submit_error": "No se pudo enviar tu respuesta. Reintenta.",
     "already_responded": "Ya respondiste esta campaña. Solo se admite una respuesta por persona."
+  },
+  "slmManager": {
+    "cdnDownloadWarning": "Requiere descargar {{size}} desde internet — no viene incluido en la app. En faena, descárgalo solo con Wi-Fi estable."
   }
 }

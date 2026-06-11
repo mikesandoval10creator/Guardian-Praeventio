@@ -4461,5 +4461,8 @@
     "submit": "Send anonymous response",
     "submit_error": "Your response could not be sent. Try again.",
     "already_responded": "You already answered this campaign. Only one response per person is allowed."
+  },
+  "slmManager": {
+    "cdnDownloadWarning": "Requires downloading {{size}} from the internet — not bundled with the app. On site, download it only over stable Wi-Fi."
   }
 }

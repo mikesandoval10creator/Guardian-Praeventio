@@ -352,6 +352,28 @@ export interface OrchestratorOptions {
 
 const DEFAULT_TIERS: AiTier[] = ['slm', 'zettelkasten', 'firestore', 'gemini'];
 
+/**
+ * B14 (2026-06-11) — connectivity-aware tier order, honoring the contract
+ * the legacy `services/slm/orchestrator.ts` always had:
+ *
+ *   - ONLINE  → Gemini is PRIMARY (quality); the on-device SLM is the
+ *               fallback when the server call fails. Then the local
+ *               knowledge tiers.
+ *   - OFFLINE → la escalera on-device: SLM → Zettelkasten (RAG con seed
+ *               bundle siempre disponible) → Firestore cache local.
+ *               Gemini se omite por completo (no hay red). Si todo
+ *               falla, el orchestrator entrega el canned fallback con
+ *               disclaimer honesto — nunca una respuesta fabricada.
+ *
+ * Callers (e.g. `ResilientAiAssistantPanel`) compute this per-ask from
+ * `navigator.onLine` and pass it as `allowedTiers`.
+ */
+export function resolveTiersForConnectivity(online: boolean): AiTier[] {
+  return online
+    ? ['gemini', 'slm', 'zettelkasten', 'firestore']
+    : ['slm', 'zettelkasten', 'firestore'];
+}
+
 export async function answer(
   query: AiQuery,
   adapters: OrchestratorAdapters,
@@ -373,7 +395,11 @@ export async function answer(
         tier: r.tier,
         confidence: r.result.confidence,
         citations: r.result.citations ?? [],
-        degraded: r.tier !== 'slm',
+        // B14: "degraded" = not served by the PREFERRED tier (the first
+        // allowed one). With the default order (slm first) this is
+        // byte-for-byte the old `tier !== 'slm'` semantics; with the
+        // online order (gemini first) a Gemini answer is NOT degraded.
+        degraded: r.tier !== allowed[0],
         latencyMs,
         tierErrors,
       };
