@@ -35,8 +35,12 @@ nuevas sino aristas nuevas. Estado verificado por grep/lectura el 2026-06-10:
   workPermits verdes (193 tests).
 - [ ] **A2 Fatiga→Pre-turno→Asignación**: `preShiftRisk.ts:210` ya lee fatigueRisk; falta el
   soft-block de asignación a maquinaria/conducción.
-- [ ] **A3 Vencimientos→Hallazgos automáticos**: `checkExpiredPpe.ts` notifica FCM y marca
-  expired pero NO crea finding con acción correctiva; replicar para recursos de brigada.
+- [x] ~~**(P0 informe deuda) conflictQueue en sync path / sensorBus man-down**~~ → ✅ **hechos**
+  (PRs #832/#833): ver TODO.md §16.2.1-§16.2.2 reconciliados con file:line.
+- [x] ~~**A3 Vencimientos→Hallazgos automáticos**~~ → ✅ **hecho** (PR #835): EPP vencido crea
+  finding idempotente (id determinista + get-then-set que jamás pisa un hallazgo cerrado) antes
+  del flip; NUEVO job `checkExpiredBrigadeResources` (extintor/DEA/manguera vencidos → finding
+  Crítica), montado fault-isolated en check-overdue (ya en Scheduler).
 - [~] **A4 Capacitación→Firma de permisos**: el motor YA exige training del kind
   (`workPermitEngine.ts:257,327`); falta que lea el currículum portable como fuente.
 - [ ] **A5 Lesión corporal repetida→evaluación REBA/RULA gatillada**: no existe.
@@ -67,9 +71,10 @@ nuevas sino aristas nuevas. Estado verificado por grep/lectura el 2026-06-10:
   alerta y modula SOLO el countdown — sin evidencia extra el flujo default queda intacto
   (test de no-regresión pinned). 27 tests motor + 6 hook-correlación + 4 BLE + 2 GPS +
   1 FallDetectionMonitor + 5 publish-bridge; suites previas de man-down/emergency verdes.
-- [ ] 🛟 **C1 Asistencia→Tablero de evacuación**: `Attendance.tsx` existe y el headcount de
-  evacuación también — desconectados. Conectados = lista NOMINAL en tiempo real de quién falta
-  en el punto de encuentro (los minutos que definen un rescate). La más valiosa de la capa.
+- [x] 🛟 ~~**C1 Asistencia→Tablero de evacuación**~~ → ✅ **hecho** (PR #834): iniciar
+  drill/emergencia pre-pobla la nómina desde `projects/{pid}/attendance` del día; faltantes POR
+  NOMBRE con última ubicación; motor puro `buildEvacuationRoster` (21 tests); demo = fallback
+  explícito rotulado.
 - [ ] **C2 Excepciones repetidas→MOC**: 3 desviaciones sobre el mismo procedimiento = procedimiento
   mal diseñado; `runConsistencyAudit` debería detectar el patrón y gatillar gestión del cambio.
 - [ ] 🛟 **C3 Telemetría→bloqueo operacional**: el ingest HMAC existe; lectura de gas sobre umbral
