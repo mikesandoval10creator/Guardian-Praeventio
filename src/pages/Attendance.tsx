@@ -189,9 +189,6 @@ export function Attendance() {
     setAccessState('scanning');
     
     try {
-      // Simulate scanning delay for UX
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
       // Evaluate Access (Torniquete Virtual)
       const evaluation = evaluateWorkerAccess(worker);
       setAccessResult({ worker, passed: evaluation.passed, reasons: evaluation.reasons });
