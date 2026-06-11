@@ -9,7 +9,7 @@ describe('drivingSafetyRouter (§69-71 migration contract)', () => {
     expect(typeof drivingSafetyRouter).toBe('function');
   });
 
-  it('registers all 5 expected paths', () => {
+  it('registers all expected paths', () => {
     const layers = (drivingSafetyRouter as unknown as {
       stack: Array<{ route?: { path: string; methods: Record<string, boolean> } }>;
     }).stack;
@@ -25,5 +25,8 @@ describe('drivingSafetyRouter (§69-71 migration contract)', () => {
     expect(methodsByPath['/:projectId/driving/drivers']?.has('get')).toBe(true);
     expect(methodsByPath['/:projectId/driving/drivers/:uid/journey']?.has('post')).toBe(true);
     expect(methodsByPath['/:projectId/driving/ranking']?.has('get')).toBe(true);
+    // D2 slice 2 — audited server endpoint replacing SafeDriving's
+    // client-side Firestore write.
+    expect(methodsByPath['/:projectId/driving/incidents']?.has('post')).toBe(true);
   });
 });

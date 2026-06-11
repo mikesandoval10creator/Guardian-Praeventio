@@ -2,11 +2,11 @@
 //
 // B11 + B6 — driving_incidents and read_receipts rules.
 //
-// Both are `projects/{pid}/...` client-SDK collections that had NO write rule
-// (default-denied in production):
-//   • driving_incidents (SafeDriving.tsx) — incident report; the schema has no
-//     creator-uid field, so it is member-gated (no anti-spoof), admin/supervisor
-//     delete.
+// Both are `projects/{pid}/...` collections:
+//   • driving_incidents (SafeDriving.tsx) — D2 slice 2: reports now go through
+//     the audited server endpoint (POST /api/sprint-k/:pid/driving/incidents,
+//     Admin SDK), so the CLIENT surface is closed: create/update denied for
+//     everyone (member, admin, owner), delete admin/supervisor only.
 //   • read_receipts (readReceiptStore, DS44/RIOHS) — legal acuse that a worker
 //     read a document; the worker writes ONLY their own receipt (workerUid ==
 //     caller, immutable), never deletable.
@@ -73,18 +73,26 @@ async function seed(coll: string, id: string, data: Record<string, unknown>) {
 const incident = { type: 'speeding', description: 'x', location: 'ruta 5', status: 'Reportado', timestamp: '2026-06-03T00:00:00Z', projectId: PID };
 const receipt = (workerUid: string) => ({ documentId: 'doc1', workerUid, status: 'pending', updatedAt: 1 });
 
-describe('driving_incidents — firestore.rules (B11)', () => {
-  it('member reports an incident', async () => {
-    await assertSucceeds(setDoc(ref(authed(MEMBER), 'driving_incidents', 'i1'), incident));
+describe('driving_incidents — firestore.rules (B11 → D2 slice 2: server-only writes)', () => {
+  it('member can NO LONGER create client-side (must use the audited endpoint)', async () => {
+    await assertFails(setDoc(ref(authed(MEMBER), 'driving_incidents', 'i1'), incident));
   });
-  it('non-member cannot report', async () => {
+  it('non-member cannot create either', async () => {
     await assertFails(setDoc(ref(authed(OUTSIDER), 'driving_incidents', 'i2'), incident));
   });
-  it('member can update an incident', async () => {
-    await seed('driving_incidents', 'i3', incident);
-    await assertSucceeds(setDoc(ref(authed(MEMBER), 'driving_incidents', 'i3'), { status: 'Cerrado' }, { merge: true }));
+  it('even an admin cannot create client-side (writes are server-stamped only)', async () => {
+    await assertFails(setDoc(ref(authed(ADMIN, 'admin'), 'driving_incidents', 'i2b'), incident));
   });
-  it('member cannot delete; admin can', async () => {
+  it('member cannot update a server-written incident (no status tampering)', async () => {
+    await seed('driving_incidents', 'i3', incident);
+    await assertFails(setDoc(ref(authed(MEMBER), 'driving_incidents', 'i3'), { status: 'Cerrado' }, { merge: true }));
+  });
+  it('member cannot spoof identity fields on create', async () => {
+    await assertFails(
+      setDoc(ref(authed(MEMBER), 'driving_incidents', 'i5'), { ...incident, reportedByUid: MEMBER }),
+    );
+  });
+  it('member cannot delete; admin can (moderation)', async () => {
     await seed('driving_incidents', 'i4', incident);
     await assertFails(deleteDoc(ref(authed(MEMBER), 'driving_incidents', 'i4')));
     await assertSucceeds(deleteDoc(ref(authed(ADMIN, 'admin'), 'driving_incidents', 'i4')));

@@ -164,10 +164,16 @@ Rules tests: `src/rules-tests/controlValidations.rules.test.ts`.
     claim someone else verified a critical safety control.
 23. **Validator Reassignment**: update flipping `validatedByUid` to another uid.
 
-## Driving incidents + read receipts — write rules (B11/B6, added 2026-06-03)
+## Driving incidents + read receipts — write rules (B11/B6, added 2026-06-03; tightened 2026-06-11 D2 slice 2)
 
-`projects/{pid}/driving_incidents/{id}` (SafeDriving; no creator-uid field →
-member-gated create/update, admin/supervisor delete) and
+`projects/{pid}/driving_incidents/{id}` (SafeDriving): originally member-gated
+create/update (the client wrote directly, with no creator-uid field). Since D2
+slice 2 the report goes through the audited server endpoint
+`POST /api/sprint-k/:projectId/driving/incidents` (verifyAuth +
+assertProjectMember + Idempotency-Key; `reportedByUid/Email/At` stamped from
+the verified token; audit_logs row + server-side RiskNetwork node), so the
+CLIENT write surface is closed: `create, update: if false` — even for admins.
+Delete remains admin/supervisor (moderation).
 `projects/{pid}/read_receipts/{documentId__workerUid}` (DS44/RIOHS acuse;
 worker-owned `workerUid == caller`, immutable, never deleted) had no write rule.
 Rules tests: `src/rules-tests/drivingAndReceipts.rules.test.ts`.
@@ -178,6 +184,10 @@ Rules tests: `src/rules-tests/drivingAndReceipts.rules.test.ts`.
     claim another worker acknowledged a mandatory document.
 25. **Receipt Hijack**: update flipping `workerUid` on an existing receipt.
 26. **Incident Delete**: a non-admin/supervisor deleting a `driving_incident`.
+26b. **Incident Client Write / Identity Spoof**: any client-SDK create/update on
+    `driving_incidents` (incl. `{ "reportedByUid": "<any>" }` or a status flip
+    to `"Cerrado"`) — writes happen ONLY via the audited endpoint, which
+    ignores body identity and stamps the actor from the verified token.
 
 ## Personalized plans + morning check-ins — write rules (B7, added 2026-06-03)
 

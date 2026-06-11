@@ -4277,5 +4277,11 @@
       "subtitle": "Active visits: {{count}}",
       "title": "Visitor Control"
     }
+  },
+  "safeDriving": {
+    "incident": {
+      "errorServer": "We could not register the report. Try again — the form keeps what you wrote.",
+      "errorOffline": "No connection: the report was NOT sent. Retry once you regain signal — the form keeps what you wrote."
+    }
   }
 }
