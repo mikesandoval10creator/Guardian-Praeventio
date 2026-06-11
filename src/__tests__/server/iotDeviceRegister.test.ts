@@ -148,4 +148,33 @@ describe('POST /api/iot/devices/register — real router, cross-tenant guard', (
     // Tenant is derived from projects/{pid}.tenantId, never from the request body.
     expect(res.body.tenantId).toBe(TENANT_ID);
   });
+
+  // claude/mqtt-wire (2026-06): the schema always accepted `secret` but the
+  // handler silently dropped it — the MQTT bridge's per-device HMAC needs it
+  // persisted on the device doc (and NEVER echoed back).
+  it('persists the optional per-device secret on the device doc without echoing it', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', ADMIN_MEMBER)
+      .send({ ...validBody, secret: 'device-secret-32-bytes-aaaaaaaaaa' });
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(res.body)).not.toContain('device-secret-32-bytes');
+    const doc = H.db!._dump()[`tenants/${TENANT_ID}/iot_devices/sensor-01`];
+    expect(doc).toMatchObject({
+      projectId: PROJECT_ID,
+      status: 'active',
+      secret: 'device-secret-32-bytes-aaaaaaaaaa',
+    });
+  });
+
+  it('omits the secret field entirely when none is supplied', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', ADMIN_MEMBER)
+      .send(validBody);
+    expect(res.status).toBe(200);
+    const doc = H.db!._dump()[`tenants/${TENANT_ID}/iot_devices/sensor-01`];
+    expect(doc).toBeDefined();
+    expect('secret' in doc).toBe(false);
+  });
 });

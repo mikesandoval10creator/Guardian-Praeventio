@@ -17,7 +17,8 @@
 //
 // Persistence:
 //   tenants/{tenantId}/iot_devices/{deviceId}
-//     { projectId, type, registeredBy, createdAt, status: 'active' }
+//     { projectId, type, registeredBy, createdAt, status: 'active',
+//       secret? }   // optional per-device HMAC key for the MQTT bridge
 //
 // Audit row:
 //   audit_logs/  { action: 'iot.device.register', module: 'iot', ... }
@@ -73,7 +74,7 @@ router.post(
   validate(RegisterDeviceSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
-    const { deviceId, projectId, type } = req.validated as z.infer<
+    const { deviceId, projectId, type, secret } = req.validated as z.infer<
       typeof RegisterDeviceSchema
     >;
 
@@ -144,6 +145,15 @@ router.post(
               registeredBy: callerUid,
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
               status: 'active',
+              // claude/mqtt-wire (2026-06): the schema always accepted an
+              // optional per-device secret but the handler silently dropped
+              // it. Persisted now — the MQTT bridge requires a payload HMAC
+              // (`sig`) from devices that have one (defense-in-depth over
+              // broker auth; see src/server/triggers/mqttTelemetryBridge.ts).
+              // Raw storage mirrors `tenants/{id}.iotSecret`; the collection
+              // has no client rules (default-deny ⇒ Admin-SDK-only) and the
+              // secret is NEVER echoed back by any read surface.
+              ...(secret ? { secret } : {}),
             },
             { merge: true },
           ),
