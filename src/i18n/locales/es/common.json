@@ -3602,5 +3602,11 @@
       "risks": "Riesgos típicos a evaluar",
       "notes": "Notas preventivas"
     }
+  },
+  "safeDriving": {
+    "incident": {
+      "errorServer": "No pudimos registrar el reporte. Inténtalo de nuevo — el formulario conserva lo que escribiste.",
+      "errorOffline": "Sin conexión: el reporte NO fue enviado. Reintenta cuando recuperes señal — el formulario conserva lo que escribiste."
+    }
   }
 }

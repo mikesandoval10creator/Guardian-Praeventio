@@ -718,10 +718,16 @@ service cloud.firestore {
         allow create, update: if isValidId(projectId) && isProjectMember(projectId);
         allow delete: if isAdmin() || isSupervisor();
       }
-      // Driving incidents (SafeDriving, client SDK). The schema has no confirmed
-      // creator-uid field → member-gated create/update; admin/supervisor delete.
+      // Driving incidents (SafeDriving). D2 slice 2: reports are created
+      // exclusively by the audited server endpoint
+      // POST /api/sprint-k/:projectId/driving/incidents (Admin SDK bypasses
+      // rules; reportedByUid is stamped from the verified token). No client
+      // code path writes here anymore (SafeDriving.tsx now POSTs; the offline
+      // sync queues — matrixSyncManager/`nodes`, inspectionOutbox, sosOutbox —
+      // never replay this collection), so client create/update is CLOSED.
+      // Delete stays admin/supervisor for moderation parity with siblings.
       match /driving_incidents/{incidentId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create, update: if false;
         allow delete: if isAdmin() || isSupervisor();
       }
       // Read receipts (DS44/RIOHS) — legal acknowledgement that a worker read a

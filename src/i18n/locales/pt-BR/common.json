@@ -3604,5 +3604,11 @@
       "risks": "Riscos típicos a avaliar",
       "notes": "Notas preventivas"
     }
+  },
+  "safeDriving": {
+    "incident": {
+      "errorServer": "Não foi possível registrar o relato. Tente novamente — o formulário mantém o que você escreveu.",
+      "errorOffline": "Sem conexão: o relato NÃO foi enviado. Tente novamente quando recuperar o sinal — o formulário mantém o que você escreveu."
+    }
   }
 }

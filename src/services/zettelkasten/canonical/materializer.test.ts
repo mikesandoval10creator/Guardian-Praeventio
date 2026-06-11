@@ -35,6 +35,9 @@ describe('bernoulliTypeToCanonicalNodeType', () => {
   it('default = Riesgo para tipos desconocidos', () => {
     expect(bernoulliTypeToCanonicalNodeType('unknown-gen-xyz')).toBe('Riesgo');
   });
+  it('mapea incident-reported → Incidente (paridad NodeType.INCIDENT, D2 slice 2)', () => {
+    expect(bernoulliTypeToCanonicalNodeType('incident-reported')).toBe('Incidente');
+  });
 });
 
 describe('materializeNode', () => {

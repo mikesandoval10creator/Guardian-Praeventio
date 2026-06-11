@@ -3604,5 +3604,11 @@
       "risks": "Typical hazards to assess",
       "notes": "Preventive notes"
     }
+  },
+  "safeDriving": {
+    "incident": {
+      "errorServer": "We could not register the report. Try again — the form keeps what you wrote.",
+      "errorOffline": "No connection: the report was NOT sent. Retry once you regain signal — the form keeps what you wrote."
+    }
   }
 }

@@ -90,6 +90,11 @@ const BERNOULLI_TYPE_TO_NODE_TYPE: Record<string, string> = {
   'dike-hydrostatic': 'Riesgo',
   'gas-dispersion': 'Riesgo',
   'safety-learning': 'Lección Aprendida',
+  // D2 slice 2 — `incident-reported` ZK nodes (incidentFlow + the SafeDriving
+  // on-route report endpoint) materialize as NodeType.INCIDENT ('Incidente'),
+  // matching what the old client-side `addNode({ type: NodeType.INCIDENT })`
+  // wrote, instead of the generic 'Riesgo' fallback.
+  'incident-reported': 'Incidente',
 };
 
 export function bernoulliTypeToCanonicalNodeType(t: string): string {
