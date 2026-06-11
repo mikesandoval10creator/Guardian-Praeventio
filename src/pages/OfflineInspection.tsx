@@ -859,7 +859,7 @@ function InspectionDetailModal({
     if (!notes.trim() && !photoName) {
       setObsError(
         t(
-          'inspections.detail.obs.empty',
+          'inspections.detail.obs.emptyError',
           'Agrega una nota o foto antes de guardar.',
         ) as string,
       );
