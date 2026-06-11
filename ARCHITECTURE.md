@@ -247,9 +247,16 @@ para mantener la suite de tests verde en cada paso.
 | `coach.ts`         | `/api/coach/chat` | 30 |
 | `legal.ts`         | `/api/legal/check-updates` | 40 |
 | `gemini.ts`        | `/api/gemini` (proxy + whitelist) | 130 |
-| `billing.ts`       | `/api/billing/verify`, `/api/billing/checkout`, `/api/billing/invoice/:id`, `/api/billing/invoice/:id/mark-paid` | 400 |
-| `billing-webpay.ts`| `/billing/webpay/return`, `/api/billing/webhook` (RTDN) | 350 |
-| `billing-mp.ts`    | `/api/billing/checkout/mercadopago`, `/api/billing/webhook/mercadopago` | 300 |
+| `billing.ts`       | Aggregator only — mounts the `billing/*` modules below in the pre-split order (deuda D3, 2026-06-11) | 82 |
+| `billing/googleplay.ts` | `/api/billing/verify`, `/api/billing/webhook` (RTDN) + Play API client init | 304 |
+| `billing/webpay.ts`     | `/api/billing/checkout`, `/billing/webpay/return` | 523 |
+| `billing/invoices.ts`   | `/api/billing/invoice/:id/mark-paid`, GET `/api/billing/invoice/:id` | 209 |
+| `billing/mercadopago.ts`| `/api/billing/checkout/mercadopago`, `/api/billing/webhook/mercadopago` | 440 |
+| `billing/khipu.ts`      | `/api/billing/khipu/webhook` (IPN) | 186 |
+| `billing/iapReceipts.ts`| `/api/billing/google-play/validate-receipt`, `/api/billing/app-store/validate-receipt` | 323 |
+| `billing/appstore.ts`   | `/api/billing/webhook/apple` (SSN v2) | 160 |
+| `billing/pricing.ts`    | Tier pricing constants + payment/currency validation (split step 1) | 53 |
+| `billing/shared.ts`     | `sentryCapture` observability helper | 24 |
 | `reports.ts`       | `/api/reports/generate-pdf` | 120 |
 | `erp.ts`           | `/api/erp/sync` | 50 |
 | `ask-guardian.ts`  | `/api/ask-guardian` | 100 |
