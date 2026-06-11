@@ -122,6 +122,29 @@ const REQUIRED_PROD = [
     optional: true,
     allowedValues: ['true', 'false'],
   },
+
+  // === Self-hosted AI provider (opcional — feature OFF si ausente) ===
+  // Endpoint OpenAI-compatible (vLLM / Ollama) para enrutar acciones IA
+  // sin depender de cuotas Gemini. Ver docs/runbooks/SELFHOSTED_AI.md.
+  // `example` se usa en los tests para construir un env sano que cumpla
+  // el `pattern`.
+  {
+    name: 'AI_SELFHOSTED_BASE_URL',
+    purpose: 'endpoint LLM self-hosted OpenAI-compatible (opcional; ausente = feature OFF)',
+    mode: 'prod',
+    optional: true,
+    pattern: '^https?:\\/\\/',
+    example: 'http://localhost:11434/v1',
+  },
+  {
+    name: 'AI_SELFHOSTED_MODEL',
+    purpose: 'modelo servido por el endpoint self-hosted (p.ej. mimo-7b)',
+    mode: 'prod',
+    // Requerido SOLO cuando el endpoint está configurado: sin modelo el
+    // provider queda OFF en runtime, así que el deploy debe declararlo.
+    requiredIf: (env) =>
+      Boolean(env.AI_SELFHOSTED_BASE_URL && String(env.AI_SELFHOSTED_BASE_URL).trim()),
+  },
 ];
 
 const PLACEHOLDER_REGEX = /^(YOUR_|MY_|REPLACE_|PLACEHOLDER|<.*>)/i;
@@ -214,6 +237,23 @@ function check(env, options = {}) {
     if (spec.minLength && String(value).length < spec.minLength) {
       errors.push(
         `TOO SHORT: ${spec.name} (${String(value).length} chars, min ${spec.minLength})`,
+      );
+      continue;
+    }
+
+    // Shape check (e.g. URLs deben empezar con http(s)://). En test mode
+    // se tolera igual que allowedValues: shape check ≠ prod policy.
+    if (spec.pattern && !new RegExp(spec.pattern).test(String(value))) {
+      if (mode === 'test') {
+        warnings.push(
+          `${spec.name} = "${String(value).slice(0, 20)}..." — pattern bypass in test mode ` +
+            `(prod pattern: ${spec.pattern})`,
+        );
+        continue;
+      }
+      errors.push(
+        `INVALID FORMAT: ${spec.name} — must match ${spec.pattern}` +
+          (spec.example ? ` (e.g. ${spec.example})` : ''),
       );
       continue;
     }

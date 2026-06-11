@@ -36,6 +36,10 @@ const { check, REQUIRED_PROD, PLACEHOLDER_REGEX, SECRET_MANAGER_SECRETS } = vali
     // Sprint 39 B.3: predicado opcional para enforcement condicional
     // (e.g. KMS_KEY_RESOURCE_NAME solo se exige si KMS_ADAPTER='cloud-kms').
     requiredIf?: (env: Record<string, string | undefined>) => boolean;
+    // Provider layer 2026-06: shape check (regex) + valor de ejemplo que
+    // lo satisface (usado por buildHealthyEnv).
+    pattern?: string;
+    example?: string;
   }>;
   PLACEHOLDER_REGEX: RegExp;
   SECRET_MANAGER_SECRETS: string[];
@@ -50,6 +54,11 @@ function buildHealthyEnv(): Record<string, string> {
   for (const spec of REQUIRED_PROD) {
     if (spec.allowedValues && spec.allowedValues.length > 0) {
       env[spec.name] = spec.allowedValues[0];
+      continue;
+    }
+    // Specs with a shape check carry an `example` that satisfies it.
+    if (spec.example) {
+      env[spec.name] = spec.example;
       continue;
     }
     // 64 chars covers any minLength up to 64.
@@ -167,6 +176,50 @@ describe('validate-env (Bucket U.1)', () => {
     expect(SECRET_MANAGER_SECRETS.length).toBe(22);
     // No duplicates.
     expect(new Set(SECRET_MANAGER_SECRETS).size).toBe(SECRET_MANAGER_SECRETS.length);
+  });
+
+  // === Self-hosted AI provider (provider layer 2026-06) ===
+
+  it('AI_SELFHOSTED_BASE_URL absent → no error (feature OFF) and no AI_SELFHOSTED_MODEL requirement', () => {
+    const env = buildHealthyEnv();
+    delete env.AI_SELFHOSTED_BASE_URL;
+    delete env.AI_SELFHOSTED_MODEL;
+    const result = check(env);
+    expect(result.errors).toEqual([]);
+  });
+
+  it('AI_SELFHOSTED_BASE_URL with a non-URL shape → INVALID FORMAT in prod mode', () => {
+    const env = buildHealthyEnv();
+    env.AI_SELFHOSTED_BASE_URL = 'localhost:11434'; // missing http(s)://
+    const result = check(env);
+    expect(
+      result.errors.some(
+        (e) => e.startsWith('INVALID FORMAT:') && e.includes('AI_SELFHOSTED_BASE_URL'),
+      ),
+    ).toBe(true);
+  });
+
+  it('AI_SELFHOSTED_BASE_URL set WITHOUT AI_SELFHOSTED_MODEL → MISSING (requiredIf)', () => {
+    const env = buildHealthyEnv();
+    env.AI_SELFHOSTED_BASE_URL = 'http://localhost:11434/v1';
+    delete env.AI_SELFHOSTED_MODEL;
+    const result = check(env);
+    expect(
+      result.errors.some((e) => e.startsWith('MISSING:') && e.includes('AI_SELFHOSTED_MODEL')),
+    ).toBe(true);
+  });
+
+  it('healthy self-hosted pair (URL + model) passes', () => {
+    const env = buildHealthyEnv();
+    env.AI_SELFHOSTED_BASE_URL = 'http://vllm.internal:8000/v1';
+    env.AI_SELFHOSTED_MODEL = 'XiaomiMiMo/MiMo-7B-RL';
+    expect(check(env).errors).toEqual([]);
+  });
+
+  it('test mode tolerates a bad URL shape (warning, not error)', () => {
+    const result = check({ AI_SELFHOSTED_BASE_URL: 'not-a-url' }, { mode: 'test' });
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.some((w) => w.includes('AI_SELFHOSTED_BASE_URL'))).toBe(true);
   });
 
   it('PLACEHOLDER_REGEX matches the documented prefixes', () => {

@@ -73,6 +73,7 @@ import {
   todayUtc,
 } from '../../services/observability/quotaTracker.js';
 import { geminiCircuit } from '../middleware/geminiCircuit.js';
+import { getAiProviderStats } from '../../services/ai/providerRouter.js';
 
 // Firebase Auth uid format constraint shared by privileged admin endpoints.
 const UID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
@@ -767,6 +768,10 @@ router.get('/circuit-state', verifyAuth, async (req, res) => {
         openDurationMs: geminiCircuit.OPEN_DURATION_MS,
       },
       state: geminiCircuit.snapshot(),
+      // Per-provider call counters (gemini vs selfhosted) — the keyed breaker
+      // snapshot above already includes the isolated 'selfhosted' key when it
+      // has recorded failures; these counters add success/failure/latency.
+      aiProviders: getAiProviderStats(),
     });
   } catch (error) {
     logger.error('admin_circuit_state_failed', error);
