@@ -34,7 +34,10 @@ import {
 } from 'lucide-react';
 
 import { useSlmAcquisition } from '../../hooks/useSlmAcquisition';
-import { MODEL_REGISTRY } from '../../services/slm/registry';
+import {
+  MODEL_REGISTRY,
+  requiresExplicitDownloadConsent,
+} from '../../services/slm/registry';
 import {
   formatBytesHuman,
   type AcquisitionStatus,
@@ -312,6 +315,21 @@ export function SlmManagerScreen({ allowedModelIds }: SlmManagerScreenProps) {
                       </span>
                     )}
                   </p>
+                  {/* B14: los modelos NO pre-empaquetados (Phi-3/Gemma)
+                      son descargas multi-GB desde internet — advertencia
+                      explícita antes de que el usuario los seleccione. */}
+                  {requiresExplicitDownloadConsent(m) && (
+                    <p
+                      data-testid={`slm-manager-download-warning-${m.id}`}
+                      className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5"
+                    >
+                      {t(
+                        'slmManager.cdnDownloadWarning',
+                        'Requiere descargar {{size}} desde internet — no viene incluido en la app. En faena, descárgalo solo con Wi-Fi estable.',
+                        { size: formatBytesHuman(total) },
+                      )}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"

@@ -68,6 +68,13 @@ import type { ModelDescriptor, SLMBackend } from './types';
 const DEFAULT_FETCH_TIMEOUT_MS = 60_000;
 
 /**
+ * Default generation stop ids: Llama-family EOS (2 — Phi-3/Gemma/test
+ * fakes) + Qwen 2.5 `<|endoftext|>` (151643) and `<|im_end|>` (151645),
+ * the registry default model.
+ */
+const DEFAULT_STOP_TOKEN_IDS: ReadonlyArray<number> = [2, 151643, 151645];
+
+/**
  * Thrown by `loadModel` when running in production and asked to load a model
  * whose expected SHA-256 is `null`/absent (e.g. a gated model whose hash the
  * release pipeline hasn't pinned yet). Fail-closed: an unverified payload
@@ -218,16 +225,45 @@ export interface InferOptions {
    * runtime contract verification, NOT fine for production AsesorChat.
    */
   tokenizer?: SlmTokenizerLike;
+  /**
+   * Token ids that terminate generation. Default covers the Llama
+   * family EOS (2) plus Qwen 2.5 `<|endoftext|>` (151643) and
+   * `<|im_end|>` (151645) — the registry default model.
+   */
+  stopTokens?: ReadonlyArray<number>;
 }
 
 /**
  * Minimal tokenizer surface accepted by `infer()`. Compatible with the
  * `encode(text) → number[]` / `decode(ids) → string` shape exposed by
  * `@huggingface/transformers` `AutoTokenizer` instances.
+ *
+ * B14 (2026-06-11): methods may also return Promises (the
+ * `tokenizer.ts#SlmTokenizer` wrapper is async) — the runtime `await`s
+ * every call, which is a no-op for sync implementations, so existing
+ * sync tokenizers keep working unchanged. The optional
+ * `applyChatTemplate` lets instruct models (Qwen 2.5) receive a
+ * properly templated prompt instead of raw text.
  */
 export interface SlmTokenizerLike {
-  encode(text: string): number[] | { input_ids: number[] };
-  decode(ids: number[], opts?: { skip_special_tokens?: boolean }): string;
+  encode(
+    text: string,
+  ):
+    | number[]
+    | { input_ids: number[] }
+    | Promise<number[] | { input_ids: number[] }>;
+  decode(
+    ids: number[],
+    opts?: { skip_special_tokens?: boolean },
+  ): string | Promise<string>;
+  /**
+   * Optional chat-template hook. When present, `infer`/`inferStream`
+   * feed the model `applyChatTemplate([{role:'user', content:prompt}])`
+   * instead of the raw prompt.
+   */
+  applyChatTemplate?(
+    messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
+  ): string | Promise<string>;
 }
 
 /**
@@ -477,9 +513,18 @@ export function createSlmRuntime(): SlmRuntime {
         );
       }
       const maxTokens = Math.max(1, Math.floor(opts.maxTokens ?? 64));
+      const stopTokens = opts.stopTokens ?? DEFAULT_STOP_TOKEN_IDS;
 
       const tokenizer = opts.tokenizer ?? createByteLevelTokenizer();
-      const encoded = tokenizer.encode(prompt);
+      // B14: instruct models need their chat template applied — raw
+      // prompts produce degenerate completions on Qwen/Phi instruct.
+      const promptText =
+        typeof tokenizer.applyChatTemplate === 'function'
+          ? await tokenizer.applyChatTemplate([
+              { role: 'user', content: prompt },
+            ])
+          : prompt;
+      const encoded = await tokenizer.encode(promptText);
       const promptIds = Array.isArray(encoded)
         ? encoded.map(Number)
         : encoded.input_ids.map(Number);
@@ -531,14 +576,13 @@ export function createSlmRuntime(): SlmRuntime {
           }
         }
 
-        // EOS id 2 — matches the Llama / Phi-3 / Gemma tokenizer family.
-        if (bestId === 2) break;
+        if (stopTokens.includes(bestId)) break;
         generated.push(bestId);
         currentIds.push(bestId);
       }
 
       try {
-        return tokenizer.decode(generated, { skip_special_tokens: true });
+        return await tokenizer.decode(generated, { skip_special_tokens: true });
       } catch {
         return tokenizer.decode(generated);
       }
@@ -561,8 +605,15 @@ export function createSlmRuntime(): SlmRuntime {
       }
 
       const maxTokens = Math.max(1, Math.floor(opts.maxTokens ?? 64));
+      const stopTokens = opts.stopTokens ?? DEFAULT_STOP_TOKEN_IDS;
       const tokenizer = opts.tokenizer ?? createByteLevelTokenizer();
-      const encoded = tokenizer.encode(prompt);
+      const promptText =
+        typeof tokenizer.applyChatTemplate === 'function'
+          ? await tokenizer.applyChatTemplate([
+              { role: 'user', content: prompt },
+            ])
+          : prompt;
+      const encoded = await tokenizer.encode(promptText);
       const promptIds = Array.isArray(encoded)
         ? encoded.map(Number)
         : encoded.input_ids.map(Number);
@@ -615,7 +666,7 @@ export function createSlmRuntime(): SlmRuntime {
           }
         }
 
-        if (bestId === 2) break; // EOS
+        if (stopTokens.includes(bestId)) break; // EOS
         generated.push(bestId);
         currentIds.push(bestId);
 
@@ -624,7 +675,7 @@ export function createSlmRuntime(): SlmRuntime {
         // el cumulative en el caller (que el worker maneja).
         if (opts.onToken) {
           try {
-            const tokenText = tokenizer.decode([bestId], {
+            const tokenText = await tokenizer.decode([bestId], {
               skip_special_tokens: true,
             });
             if (tokenText.length > 0) opts.onToken(tokenText);
@@ -637,7 +688,7 @@ export function createSlmRuntime(): SlmRuntime {
       }
 
       try {
-        return tokenizer.decode(generated, { skip_special_tokens: true });
+        return await tokenizer.decode(generated, { skip_special_tokens: true });
       } catch {
         return tokenizer.decode(generated);
       }

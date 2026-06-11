@@ -40,7 +40,12 @@ import {
   type WorkerRequest,
   type WorkerResponse,
 } from './slmRuntimeWorkerProtocol';
-import type { LoadedModel, OnnxRuntimeLike, SlmRuntime } from '../slmRuntime';
+import type {
+  LoadedModel,
+  OnnxRuntimeLike,
+  SlmRuntime,
+  SlmTokenizerLike,
+} from '../slmRuntime';
 
 // ────────────────────────────────────────────────────────────────────────
 // Worker version — sanity check para drift main/worker
@@ -70,6 +75,13 @@ export interface WorkerCoreOptions {
   runtimeFactory?: RuntimeFactory;
   /** Override ortFactory que se pasa a loadModel (tests). */
   ortFactory?: () => Promise<OnnxRuntimeLike>;
+  /**
+   * B14 (2026-06-11): loader del tokenizer real. Default: import
+   * dinámico de `../tokenizer#loadTokenizer` (BPE de
+   * `@huggingface/transformers`). Inyectable en tests. Recibe el
+   * `tokenizerUrl` del descriptor (HF repo id).
+   */
+  tokenizerLoader?: (tokenizerUrl: string) => Promise<SlmTokenizerLike>;
 }
 
 /**
@@ -97,6 +109,17 @@ export class SlmRuntimeWorkerCore {
   private runtimePromise: Promise<SlmRuntime> | null = null;
   /** Map<modelHandle, LoadedModel>. */
   private readonly loadedModels = new Map<string, LoadedModel>();
+  /**
+   * B14: tokenizer real por handle. `undefined` = el descriptor no
+   * declara `tokenizerUrl` (stubs de test) → el runtime usa su
+   * fallback. `null` = el descriptor SÍ declara tokenizer pero la
+   * carga falló → `infer` falla honesto (nunca gibberish al usuario;
+   * la escalera resiliente cae al siguiente tier).
+   */
+  private readonly tokenizers = new Map<
+    string,
+    SlmTokenizerLike | null | undefined
+  >();
   /** Map<requestId, AbortController> for cancellable infers. */
   private readonly activeInfers = new Map<string, ActiveInfer>();
 
@@ -173,6 +196,23 @@ export class SlmRuntimeWorkerCore {
 
       this.loadedModels.set(handle, loaded);
 
+      // B14: cargar el tokenizer REAL del modelo (BPE). Sin él, el
+      // runtime caería al tokenizer byte-level y el modelo generaría
+      // texto sin sentido — prohibido por anti-stub (#13). La carga
+      // corre DESPUÉS del load del modelo para no bloquearlo; un fallo
+      // se registra como `null` y `handleInfer` falla honesto.
+      const tokenizerUrl = loaded.descriptor?.tokenizerUrl;
+      if (tokenizerUrl) {
+        try {
+          const tokenizer = await this.loadTokenizer(tokenizerUrl);
+          this.tokenizers.set(handle, tokenizer);
+        } catch {
+          this.tokenizers.set(handle, null);
+        }
+      } else {
+        this.tokenizers.set(handle, undefined);
+      }
+
       const complete: LoadCompleteEvent = {
         kind: 'load-complete',
         requestId: req.requestId,
@@ -195,6 +235,24 @@ export class SlmRuntimeWorkerCore {
         req.requestId,
         'handle_not_found',
         new Error(`Model handle '${req.modelHandle}' not found`),
+      );
+      return;
+    }
+
+    // B14: honest-failure gate. Si el descriptor declara un tokenizer
+    // real pero su carga falló, NO inferimos con el fallback byte-level
+    // (produciría texto sin sentido presentado como respuesta). El
+    // error estructurado deja que la escalera resiliente caiga al
+    // siguiente tier (RAG corpus → mensaje offline honesto).
+    const tokenizer = this.tokenizers.get(req.modelHandle);
+    if (tokenizer === null) {
+      this.emitError(
+        req.requestId,
+        'infer_failure',
+        new Error(
+          `Tokenizer unavailable for model handle '${req.modelHandle}' ` +
+            '(declared tokenizerUrl failed to load); refusing byte-level fallback.',
+        ),
       );
       return;
     }
@@ -230,6 +288,7 @@ export class SlmRuntimeWorkerCore {
                 temperature?: number;
                 signal?: AbortSignal;
                 onToken?: (token: string) => void;
+                tokenizer?: SlmTokenizerLike;
               },
             ) => Promise<string>;
           }
@@ -237,6 +296,7 @@ export class SlmRuntimeWorkerCore {
         const finalText = await stream(model, req.prompt, {
           maxTokens: req.maxTokens,
           temperature: req.temperature,
+          tokenizer,
           signal: abortController.signal,
           onToken: (token: string) => {
             cumulativeText += token;
@@ -260,6 +320,7 @@ export class SlmRuntimeWorkerCore {
         // recibe al menos algo).
         const result = await runtime.infer(model, req.prompt, {
           maxTokens: req.maxTokens,
+          tokenizer,
         });
         cumulativeText = result;
         tokenCount = result.length; // aproximación cuando no hay tokenizer real
@@ -328,6 +389,7 @@ export class SlmRuntimeWorkerCore {
       const runtime = await this.getRuntime();
       await runtime.release(model);
       this.loadedModels.delete(req.modelHandle);
+      this.tokenizers.delete(req.modelHandle);
       const ack: ReleaseCompleteEvent = {
         kind: 'release-complete',
         requestId: req.requestId,
@@ -364,6 +426,26 @@ export class SlmRuntimeWorkerCore {
   // ─────────────────────────────────────────────────────────────────────
   // Helpers
   // ─────────────────────────────────────────────────────────────────────
+
+  /**
+   * B14: tokenizer loader. Default importa `../tokenizer` (wrapper de
+   * `@huggingface/transformers#AutoTokenizer`) y lo adapta al shape
+   * `SlmTokenizerLike` que `slmRuntime.infer*` acepta (async ok).
+   */
+  private async loadTokenizer(
+    tokenizerUrl: string,
+  ): Promise<SlmTokenizerLike> {
+    if (this.options.tokenizerLoader) {
+      return this.options.tokenizerLoader(tokenizerUrl);
+    }
+    const { loadTokenizer } = await import('../tokenizer');
+    const tok = await loadTokenizer(tokenizerUrl);
+    return {
+      encode: async (text: string) => (await tok.encode(text)).inputIds,
+      decode: (ids: number[]) => tok.decode(ids),
+      applyChatTemplate: (messages) => tok.applyChatTemplate(messages),
+    };
+  }
 
   private async getRuntime(): Promise<SlmRuntime> {
     if (!this.runtimePromise) {

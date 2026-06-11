@@ -290,3 +290,80 @@ describe('SLM loader — SHA-256 integrity', () => {
     expect(out.byteLength).toBe(5);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────
+// B14 (2026-06-11) — pre-packaged-first. The default model ships inside
+// the build (`prePackagedPath`); on a cache miss the loader MUST fetch
+// the same-origin asset and only fall back to the CDN `url` when the
+// asset is missing. Pins the "zero CDN bytes in the default path"
+// promise for faenas without connectivity budget.
+// ───────────────────────────────────────────────────────────────────────
+describe('SLM loader — pre-packaged asset takes precedence over CDN (B14)', () => {
+  const PREPACKAGED_MODEL: ModelDescriptor = {
+    ...TEST_MODEL,
+    id: 'test-loader-prepackaged',
+    expectedSha256: HELLO_SHA256,
+    prePackagedPath: '/models/test/model.onnx',
+  };
+
+  it('fetches the prePackagedPath (same-origin) and NEVER touches the CDN url', async () => {
+    const fetchSpy = vi.fn(async (url: string) => {
+      if (url === PREPACKAGED_MODEL.prePackagedPath) {
+        return buildArrayBufferResponse(helloBuffer());
+      }
+      throw new Error(`unexpected CDN fetch: ${url}`);
+    });
+
+    const out = await loadModel(PREPACKAGED_MODEL, {
+      fetchImpl: fetchSpy as unknown as typeof fetch,
+    });
+
+    expect(out.byteLength).toBe(5);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(PREPACKAGED_MODEL.prePackagedPath);
+    // Invariant: the HuggingFace CDN url was never requested.
+    const urls = fetchSpy.mock.calls.map((c) => c[0]);
+    expect(urls).not.toContain(PREPACKAGED_MODEL.url);
+  });
+
+  it('falls back to the CDN url when the pre-packaged asset is missing (404)', async () => {
+    const fetchSpy = vi.fn(async (url: string) => {
+      if (url === PREPACKAGED_MODEL.prePackagedPath) {
+        return {
+          ok: false,
+          status: 404,
+          headers: { get: () => null },
+          body: null,
+          arrayBuffer: async () => new ArrayBuffer(0),
+        } as unknown as Response;
+      }
+      return buildArrayBufferResponse(helloBuffer());
+    });
+
+    const out = await loadModel(PREPACKAGED_MODEL, {
+      fetchImpl: fetchSpy as unknown as typeof fetch,
+    });
+
+    expect(out.byteLength).toBe(5);
+    expect(fetchSpy).toHaveBeenCalledWith(PREPACKAGED_MODEL.prePackagedPath);
+    expect(fetchSpy).toHaveBeenCalledWith(PREPACKAGED_MODEL.url);
+  });
+
+  it('pre-packaged bytes still pass through the SHA-256 integrity gate', async () => {
+    const tampered = new Uint8Array([0x01, 0x02]).buffer;
+    const fetchSpy = vi.fn(async (url: string) => {
+      if (url === PREPACKAGED_MODEL.prePackagedPath) {
+        return buildArrayBufferResponse(tampered);
+      }
+      // CDN must not be consulted after a successful (but tampered)
+      // pre-packaged response: the integrity gate throws first.
+      return buildArrayBufferResponse(helloBuffer());
+    });
+
+    await expect(
+      loadModel(PREPACKAGED_MODEL, {
+        fetchImpl: fetchSpy as unknown as typeof fetch,
+      }),
+    ).rejects.toBeInstanceOf(SlmIntegrityError);
+  });
+});

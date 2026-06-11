@@ -4375,5 +4375,8 @@
     "risk_significativo": "RISCO SIGNIFICATIVO",
     "risk_alto": "RISCO ALTO",
     "risk_critico": "RISCO CRÍTICO"
+  },
+  "slmManager": {
+    "cdnDownloadWarning": "Requer baixar {{size}} da internet — não vem incluído no app. Em campo, baixe apenas com Wi-Fi estável."
   }
 }

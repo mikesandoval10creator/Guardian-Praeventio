@@ -8,12 +8,15 @@ import { answer } from './resilientAiOrchestrator';
 import { SEED_NODES } from '../zettelkasten/resilientRetrieval';
 
 describe('buildAsesorAdapters', () => {
-  it('sin contexts: SLM + Zettelkasten (seed) siempre disponibles', () => {
+  it('sin contexts: SLM + Zettelkasten (seed) + Gemini default siempre disponibles', () => {
     const a = buildAsesorAdapters({});
     expect(a.slm).toBeDefined();
     expect(a.zettelkasten).toBeDefined();
     expect(a.firestore).toBeUndefined();
-    expect(a.gemini).toBeUndefined();
+    // B14: el tier Gemini ya no requiere caller custom — default
+    // contra /api/ask-guardian para que el panel del shell tenga
+    // calidad online sin wiring extra.
+    expect(a.gemini).toBeDefined();
   });
 
   it('con searchFirestoreKnowledge: agrega firestore tier', () => {
@@ -147,5 +150,63 @@ describe('buildSeedOnlyAdapters', () => {
       a,
     );
     expect(r.tier).toBe('canned');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// B14 — default Gemini caller contra /api/ask-guardian
+// ────────────────────────────────────────────────────────────────────────
+vi.mock('../../lib/apiAuth', () => ({
+  apiAuthHeaders: vi.fn(async () => ({ Authorization: 'Bearer test-token' })),
+}));
+
+describe('callAskGuardianServer (B14 default Gemini caller)', () => {
+  it('POSTea el prompt con auth headers y mapea {response}', async () => {
+    const { callAskGuardianServer } = await import('./asesorAdaptersFactory');
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ response: 'respuesta del guardián' }),
+    }));
+    vi.stubGlobal('fetch', fetchSpy);
+    try {
+      const r = await callAskGuardianServer('¿qué dice el DS 44?');
+      expect(r.text).toBe('respuesta del guardián');
+      expect(fetchSpy).toHaveBeenCalledWith(
+        '/api/ask-guardian',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test-token',
+          }),
+          body: JSON.stringify({ query: '¿qué dice el DS 44?' }),
+        }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('lanza en non-2xx para que el orchestrator caiga al siguiente tier', async () => {
+    const { callAskGuardianServer } = await import('./asesorAdaptersFactory');
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 503 })));
+    try {
+      await expect(callAskGuardianServer('x')).rejects.toThrow(/503/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('lanza en body vacío — nunca entrega respuesta vacía como éxito', async () => {
+    const { callAskGuardianServer } = await import('./asesorAdaptersFactory');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) })),
+    );
+    try {
+      await expect(callAskGuardianServer('x')).rejects.toThrow(/empty/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

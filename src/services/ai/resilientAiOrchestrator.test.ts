@@ -3,6 +3,7 @@ import {
   answer,
   answerEmergency,
   detectDomain,
+  resolveTiersForConnectivity,
   type OrchestratorAdapters,
   type TierAdapter,
   type AiQuery,
@@ -234,5 +235,86 @@ describe('detectDomain', () => {
 
   it('fallback a general', () => {
     expect(detectDomain('hola, cómo estás?')).toBe('general');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// B14 (2026-06-11) — orden de tiers según conectividad + semántica
+// `degraded` relativa al tier preferido. Decisión de producto: online,
+// Gemini es primario (calidad) y el SLM su fallback; offline, la
+// escalera local SLM → RAG → (canned honesto), sin tocar Gemini.
+// ────────────────────────────────────────────────────────────────────────
+describe('resolveTiersForConnectivity (B14)', () => {
+  it('online → Gemini primero, SLM como fallback, luego tiers locales', () => {
+    expect(resolveTiersForConnectivity(true)).toEqual([
+      'gemini',
+      'slm',
+      'zettelkasten',
+      'firestore',
+    ]);
+  });
+
+  it('offline → escalera local sin Gemini', () => {
+    expect(resolveTiersForConnectivity(false)).toEqual([
+      'slm',
+      'zettelkasten',
+      'firestore',
+    ]);
+  });
+});
+
+describe('degraded relativo al tier preferido (B14)', () => {
+  const ok = (text: string): TierAdapter => async () => ({
+    text,
+    confidence: 0.9,
+    citations: [],
+  });
+  const boom: TierAdapter = async () => {
+    throw new Error('falló');
+  };
+
+  it('online: respuesta de Gemini NO es degraded (es el tier preferido)', async () => {
+    const r = await answer(
+      { prompt: 'hola' },
+      { gemini: ok('respuesta gemini'), slm: ok('respuesta slm') },
+      { allowedTiers: resolveTiersForConnectivity(true) },
+    );
+    expect(r.tier).toBe('gemini');
+    expect(r.degraded).toBe(false);
+  });
+
+  it('online: Gemini falla → SLM responde y SÍ es degraded', async () => {
+    const r = await answer(
+      { prompt: 'hola' },
+      { gemini: boom, slm: ok('respuesta slm') },
+      { allowedTiers: resolveTiersForConnectivity(true) },
+    );
+    expect(r.tier).toBe('slm');
+    expect(r.degraded).toBe(true);
+    expect(r.tierErrors[0]?.tier).toBe('gemini');
+  });
+
+  it('offline: SLM responde y NO es degraded; Gemini nunca se intenta', async () => {
+    const geminiSpy = vi.fn(ok('no debería llamarse'));
+    const r = await answer(
+      { prompt: 'hola' },
+      { gemini: geminiSpy, slm: ok('respuesta slm offline') },
+      { allowedTiers: resolveTiersForConnectivity(false) },
+    );
+    expect(r.tier).toBe('slm');
+    expect(r.degraded).toBe(false);
+    expect(geminiSpy).not.toHaveBeenCalled();
+  });
+
+  it('offline: todo falla → canned honesto con disclaimer (degraded)', async () => {
+    const r = await answer(
+      { prompt: 'me corté y hay sangrado' },
+      { slm: boom, zettelkasten: boom, firestore: boom },
+      { allowedTiers: resolveTiersForConnectivity(false) },
+    );
+    expect(r.tier).toBe('canned');
+    expect(r.degraded).toBe(true);
+    // Mensaje honesto es-CL: el usuario sabe que es respaldo, no IA.
+    expect(r.text).toMatch(/Respuesta de respaldo/);
   });
 });

@@ -1,155 +1,177 @@
 /**
- * Tests for the SLM main-thread facade (Fase 1 T-1.4).
+ * Tests for the SLM main-thread facade — B14 unified runtime.
  *
- * The four scenarios mirror the four code paths in `slmAdapter.ts`:
+ * The facade now delegates to the REAL runtime worker (workerRuntime →
+ * SlmRuntimeWorkerProxy → slmRuntime). These tests pin:
  *
- *   1. cold start                — ensureSlmReady loads + initializes
- *   2. warm reuse                — ensureSlmReady fast-paths for same id
- *   3. complete delegation       — complete forwards to worker.generate
- *   4. dispose lifecycle         — disposeSlm tears the worker down
+ *   1. cold start          — ensureSlmReady resolves the Qwen default
+ *                            and loads it through the runtime
+ *   2. warm reuse          — ensureSlmReady fast-paths for same id
+ *   3. complete delegation — complete() forwards to runtime inference
+ *                            and maps the response shape
+ *   4. honest failure      — runtime errors REJECT (no mock fallback)
+ *   5. dispose lifecycle   — disposeSlm releases + clears state
+ *   6. unknown model       — throws
  *
- * The worker proxy is mocked via `vi.mock('./workerProxy')` so the suite
- * never instantiates a real `Worker` (jsdom + `new URL(..., import.meta.url)`
- * is fragile under Vitest's node default environment).
- *
- * The loader path itself is exercised end-to-end in `loader.test.ts`; here
- * we mock `loadModel` so the adapter test isn't coupled to fetch / IDB.
+ * The runtime is injected via `__setRuntimeFactoryForTests` so no real
+ * Worker / ORT session is constructed.
  */
-
-import 'fake-indexeddb/auto';
-import { IDBFactory as FDBFactory } from 'fake-indexeddb';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { __resetCacheForTests } from './cache/modelCache';
 import {
   __resetSlmAdapterForTests,
-  __setWorkerFactoryForTests,
+  __setRuntimeFactoryForTests,
   complete,
   disposeSlm,
   ensureSlmReady,
   getActiveModelId,
 } from './slmAdapter';
-import type { ModelDescriptor, SLMQuery, SLMResponse } from './types';
+import { DEFAULT_MODEL_ID } from './registry';
+import type {
+  WorkerBackedSlmRuntime,
+  WorkerRuntimeModel,
+} from './workerRuntime';
 
-// The loader path (fetch → IndexedDB cache → SHA-256 integrity gate) is
-// exercised end-to-end in `loader.test.ts`. Here we stub `loadModel` so this
-// adapter lifecycle test is decoupled from fetch/IDB/integrity and asserts
-// ONLY the worker orchestration (load → init → reuse → dispose). Without the
-// stub the real loader enforces the registry's pinned `expectedSha256`, which
-// no synthetic in-memory byte buffer can satisfy.
-vi.mock('./loader', () => ({
-  loadModel: vi.fn(async () => new ArrayBuffer(8)),
-}));
-
-/**
- * In-memory worker stub. Records calls so the test can assert delegation
- * without a real Comlink proxy.
- */
-function makeWorkerStub() {
+function makeRuntimeStub(overrides: Partial<WorkerBackedSlmRuntime> = {}) {
   const calls = {
-    init: 0,
-    generate: 0,
-    terminate: 0,
-    lastQuery: null as SLMQuery | null,
-    lastModel: null as ModelDescriptor | null,
+    loadModel: 0,
+    infer: 0,
+    release: 0,
+    lastModelId: null as string | null,
+    lastPrompt: null as string | null,
   };
-  const fixedResponse: SLMResponse = {
-    text: '[stub-response]',
-    latencyMs: 12,
-    tokensGenerated: 4,
+  const loadedModel = (id: string): WorkerRuntimeModel => ({
+    modelId: id,
+    modelHandle: `${id}::handle`,
+    observedSha256: 'deadbeef',
     backend: 'wasm-simd',
+  });
+  const runtime: WorkerBackedSlmRuntime = {
+    loadModel: vi.fn(async (id: string) => {
+      calls.loadModel += 1;
+      calls.lastModelId = id;
+      return loadedModel(id);
+    }),
+    infer: vi.fn(async () => 'texto real'),
+    inferStream: vi.fn(async () => 'texto real'),
+    inferDetailed: vi.fn(async (_m, prompt: string) => {
+      calls.infer += 1;
+      calls.lastPrompt = prompt;
+      return { text: 'respuesta real del SLM', tokensGenerated: 5, latencyMs: 42 };
+    }),
+    release: vi.fn(async () => {
+      calls.release += 1;
+    }),
+    ...overrides,
   };
-  const proxy = {
-    init: vi.fn(async (model: ModelDescriptor, _bytes: ArrayBuffer) => {
-      calls.init += 1;
-      calls.lastModel = model;
-    }),
-    generate: vi.fn(async (q: SLMQuery) => {
-      calls.generate += 1;
-      calls.lastQuery = q;
-      return fixedResponse;
-    }),
-    dispose: vi.fn(async () => {
-      // no-op for the stub
-    }),
-    terminate: vi.fn(async () => {
-      calls.terminate += 1;
-    }),
-  };
-  return { proxy, calls, fixedResponse };
+  return { runtime, calls };
 }
 
-beforeEach(async () => {
-  // Fresh fake-indexeddb so the loader's cache lookups don't leak between cases.
-  (globalThis as { indexedDB: IDBFactory }).indexedDB = new FDBFactory();
-  __resetCacheForTests();
+beforeEach(() => {
   __resetSlmAdapterForTests();
 });
 
-afterEach(async () => {
-  // Clean state after each case so subsequent suites don't see a stale worker.
-  __setWorkerFactoryForTests(null);
+afterEach(() => {
+  __setRuntimeFactoryForTests(null);
   __resetSlmAdapterForTests();
-  __resetCacheForTests();
 });
 
-describe('SLM adapter (slmAdapter.ts)', () => {
-  it('ensureSlmReady loads default model and initializes the worker', async () => {
-    const { proxy, calls } = makeWorkerStub();
-    __setWorkerFactoryForTests(() => proxy as never);
+describe('SLM adapter (slmAdapter.ts) — unified real runtime (B14)', () => {
+  it('ensureSlmReady loads the registry default (Qwen pre-packaged) through the runtime', async () => {
+    const { runtime, calls } = makeRuntimeStub();
+    __setRuntimeFactoryForTests(() => runtime);
 
     const result = await ensureSlmReady();
 
-    expect(result.modelId).toBe('phi-3-mini');
-    expect(calls.init).toBe(1);
-    expect(calls.lastModel?.id).toBe('phi-3-mini');
-    expect(getActiveModelId()).toBe('phi-3-mini');
+    expect(result.modelId).toBe(DEFAULT_MODEL_ID);
+    expect(result.modelId).toBe('qwen-2.5-0.5b');
+    expect(calls.loadModel).toBe(1);
+    expect(calls.lastModelId).toBe('qwen-2.5-0.5b');
+    expect(getActiveModelId()).toBe('qwen-2.5-0.5b');
   });
 
-  it('ensureSlmReady reuses the worker on a second call with the same modelId', async () => {
-    const { proxy, calls } = makeWorkerStub();
-    __setWorkerFactoryForTests(() => proxy as never);
+  it('ensureSlmReady reuses the loaded model on a second call with the same modelId', async () => {
+    const { runtime, calls } = makeRuntimeStub();
+    __setRuntimeFactoryForTests(() => runtime);
+
+    await ensureSlmReady();
+    await ensureSlmReady({ modelId: DEFAULT_MODEL_ID });
+
+    expect(calls.loadModel).toBe(1);
+    expect(getActiveModelId()).toBe(DEFAULT_MODEL_ID);
+  });
+
+  it('switching models releases the previous handle before loading the new one', async () => {
+    const { runtime, calls } = makeRuntimeStub();
+    __setRuntimeFactoryForTests(() => runtime);
 
     await ensureSlmReady();
     await ensureSlmReady({ modelId: 'phi-3-mini' });
 
-    // Second call must NOT re-init.
-    expect(calls.init).toBe(1);
+    expect(calls.release).toBe(1);
+    expect(calls.loadModel).toBe(2);
     expect(getActiveModelId()).toBe('phi-3-mini');
   });
 
-  it('complete delegates to worker.generate and returns its response', async () => {
-    const { proxy, calls, fixedResponse } = makeWorkerStub();
-    __setWorkerFactoryForTests(() => proxy as never);
+  it('complete delegates to the real runtime and maps the SLMResponse shape', async () => {
+    const { runtime, calls } = makeRuntimeStub();
+    __setRuntimeFactoryForTests(() => runtime);
 
-    const out = await complete({ prompt: 'hello world' });
+    const out = await complete({ prompt: 'hola guardián' });
 
-    expect(out).toEqual(fixedResponse);
-    expect(calls.generate).toBe(1);
-    expect(calls.lastQuery?.prompt).toBe('hello world');
+    expect(out).toEqual({
+      text: 'respuesta real del SLM',
+      latencyMs: 42,
+      tokensGenerated: 5,
+      backend: 'wasm-simd',
+    });
+    expect(calls.infer).toBe(1);
+    expect(calls.lastPrompt).toBe('hola guardián');
   });
 
-  it('disposeSlm terminates the worker and clears active model id', async () => {
-    const { proxy, calls } = makeWorkerStub();
-    __setWorkerFactoryForTests(() => proxy as never);
+  it('complete REJECTS when inference fails — no mock fallback (anti-stub #13)', async () => {
+    const { runtime } = makeRuntimeStub({
+      inferDetailed: vi.fn(async () => {
+        throw new Error('[infer_failure] tokenizer unavailable');
+      }),
+    });
+    __setRuntimeFactoryForTests(() => runtime);
+
+    await expect(complete({ prompt: 'x' })).rejects.toThrow(/infer_failure/);
+  });
+
+  it('complete REJECTS when the model load fails (e.g. integrity mismatch)', async () => {
+    const { runtime } = makeRuntimeStub({
+      loadModel: vi.fn(async () => {
+        throw new Error('[integrity_failure] SHA-256 mismatch');
+      }),
+    });
+    __setRuntimeFactoryForTests(() => runtime);
+
+    await expect(complete({ prompt: 'x' })).rejects.toThrow(
+      /integrity_failure/,
+    );
+  });
+
+  it('disposeSlm releases the model and clears active model id (idempotent)', async () => {
+    const { runtime, calls } = makeRuntimeStub();
+    __setRuntimeFactoryForTests(() => runtime);
 
     await ensureSlmReady();
-    expect(getActiveModelId()).toBe('phi-3-mini');
+    expect(getActiveModelId()).toBe(DEFAULT_MODEL_ID);
 
     await disposeSlm();
-
-    expect(calls.terminate).toBe(1);
+    expect(calls.release).toBe(1);
     expect(getActiveModelId()).toBeNull();
 
-    // A second dispose should be a no-op (idempotent).
     await disposeSlm();
-    expect(calls.terminate).toBe(1);
+    expect(calls.release).toBe(1);
   });
 
   it('ensureSlmReady throws on an unknown model id', async () => {
-    const { proxy } = makeWorkerStub();
-    __setWorkerFactoryForTests(() => proxy as never);
+    const { runtime } = makeRuntimeStub();
+    __setRuntimeFactoryForTests(() => runtime);
 
     await expect(
       ensureSlmReady({ modelId: 'does-not-exist' }),

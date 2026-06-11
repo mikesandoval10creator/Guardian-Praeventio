@@ -46,6 +46,10 @@ jobs:
         run: npm run build
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+          # B14: CI validation lanes don't ship the bundle — skip the
+          # 483 MB SLM prepackage download. Release/deploy lanes MUST
+          # run the real prepackage (they don't set this).
+          SLM_PREPACKAGE_SKIP: '1'
 
       # `cap sync` requires android/ to exist on disk; this workflow validates
       # ONLY that the web build succeeds and the Capacitor CLI can parse the

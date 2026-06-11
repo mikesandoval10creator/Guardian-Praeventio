@@ -106,7 +106,15 @@ afterEach(() => {
 });
 
 describe('OnnxSlmAdapter.fromEnv', () => {
-  it('returns null when SLM_OFFLINE_ENABLED is off', () => {
+  // B14 (2026-06-11): flag is default ON; SLM_OFFLINE_ENABLED is now a
+  // kill-switch. Unset env → adapter available.
+  it('returns an adapter by default (flag ON, nothing set)', () => {
+    const adapter = OnnxSlmAdapter.fromEnv();
+    expect(adapter).toBeInstanceOf(OnnxSlmAdapter);
+  });
+
+  it('returns null when the kill-switch SLM_OFFLINE_ENABLED="false" is set', () => {
+    process.env.SLM_OFFLINE_ENABLED = 'false';
     expect(OnnxSlmAdapter.fromEnv()).toBeNull();
   });
 
@@ -116,10 +124,10 @@ describe('OnnxSlmAdapter.fromEnv', () => {
     expect(adapter).toBeInstanceOf(OnnxSlmAdapter);
   });
 
-  it('returns an adapter when the global debug override is set', () => {
-    (globalThis as Record<string, unknown>).__SLM_OFFLINE_ENABLED__ = 'true';
-    const adapter = OnnxSlmAdapter.fromEnv();
-    expect(adapter).toBeInstanceOf(OnnxSlmAdapter);
+  it('global debug override (false) disables even when env says true', () => {
+    process.env.SLM_OFFLINE_ENABLED = 'true';
+    (globalThis as Record<string, unknown>).__SLM_OFFLINE_ENABLED__ = false;
+    expect(OnnxSlmAdapter.fromEnv()).toBeNull();
   });
 });
 
@@ -144,9 +152,10 @@ describe('OnnxSlmAdapter.loadModel', () => {
     expect(adapter.isLoaded()).toBe(true);
 
     // Cache key derives from the cacheVersion — assert the bytes landed
-    // in IndexedDB so a second app launch will skip the network. The key
-    // segment is `int8` (the real quantization), not the legacy `q4`.
-    const cached = await loadCachedModel('onnx-tinyllama-1.1b-int8-test-v1');
+    // in IndexedDB so a second app launch will skip the network. B14: the
+    // key segment is the Qwen default (`qwen-2.5-0.5b-int4`); legacy
+    // TinyLlama-keyed rows are never served as this model.
+    const cached = await loadCachedModel('onnx-qwen-2.5-0.5b-int4-test-v1');
     expect(cached?.byteLength).toBe(128);
   });
 
@@ -301,13 +310,12 @@ describe('OnnxSlmAdapter.getModelInfo', () => {
   it('returns static metadata even before loadModel', () => {
     const adapter = new OnnxSlmAdapter({ cacheVersion: 'info-v1' });
     const info = adapter.getModelInfo();
-    expect(info.name).toMatch(/TinyLlama/i);
-    // Registry-accurate: the real upstream file
-    // (decoder_model_merged_quantized.onnx) is int8 dynamic quantization,
-    // not q4. getModelInfo() must report the real scheme.
-    expect(info.quantization).toBe('int8');
-    expect(info.name).toMatch(/int8/i);
-    expect(info.name).not.toMatch(/q4/i);
+    // B14: the default artifact is the pre-packaged Qwen 0.5B int4 —
+    // getModelInfo() must report the REAL model + quantization of the
+    // bytes the adapter actually loads.
+    expect(info.name).toMatch(/Qwen/i);
+    expect(info.quantization).toBe('int4');
+    expect(info.name).not.toMatch(/TinyLlama/i);
     expect(info.size).toBe(0); // not loaded yet
   });
 

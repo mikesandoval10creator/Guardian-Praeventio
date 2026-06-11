@@ -32,15 +32,16 @@
  */
 
 import { OnnxSlmAdapter } from './onnxAdapter';
+import { isSlmOfflineEnabled } from './slmFlag';
 
 /**
  * Static config para construir el servicio. Todas las URLs son lazy:
  * el service no descarga nada hasta que `preload()` o `ask()` se llama.
  */
 export interface GuardianOfflineConfig {
-  /** URL del modelo ONNX. Default: `/models/slm/tinyllama-1.1b-int8.onnx`. */
+  /** URL del modelo ONNX. Default: el Qwen pre-empaquetado (ver `onnxAdapter.ts`). */
   modelUrl?: string;
-  /** URL del tokenizer.json. Default: `/models/slm/tokenizer.json`. */
+  /** Tokenizer (HF repo id). Default: el de Qwen (ver `onnxAdapter.ts`). */
   tokenizerUrl?: string;
   /**
    * URL del corpus JSON. Carga lazy desde
@@ -333,34 +334,6 @@ class IndexedDbCache implements GuardianCacheLike {
 }
 
 /**
- * Read env flag — espejo del helper de onnxAdapter pero local
- * (evita exportar el helper interno).
- */
-function readEnvFlag(name: string): boolean {
-  try {
-    const meta = (import.meta as unknown as { env?: Record<string, unknown> }).env;
-    if (meta && isTruthy(meta[`VITE_${name}`])) return true;
-  } catch {
-    /* import.meta.env no siempre disponible en Node */
-  }
-  if (typeof process !== 'undefined' && process.env) {
-    if (isTruthy(process.env[name])) return true;
-  }
-  const g = globalThis as unknown as Record<string, unknown>;
-  if (isTruthy(g[`__${name}__`])) return true;
-  return false;
-}
-
-function isTruthy(v: unknown): boolean {
-  if (v === true) return true;
-  if (typeof v === 'string') {
-    const lower = v.toLowerCase();
-    return lower === '1' || lower === 'true' || lower === 'yes';
-  }
-  return false;
-}
-
-/**
  * GuardianOfflineService — cara publica.
  *
  * Lifecycle:
@@ -406,12 +379,13 @@ export class GuardianOfflineService {
   }
 
   /**
-   * Construye el service solo cuando el flag SLM_OFFLINE_ENABLED esta on.
+   * Construye el service salvo que el kill-switch SLM_OFFLINE_ENABLED
+   * este explicitamente en false (B14: default ON — ver `slmFlag.ts`).
    * Si esta off, retorna null — el caller sabe que no hay fallback offline
    * disponible y puede mostrar el banner correspondiente.
    */
   static fromEnv(config: GuardianOfflineConfig = {}): GuardianOfflineService | null {
-    if (!readEnvFlag('SLM_OFFLINE_ENABLED')) return null;
+    if (!isSlmOfflineEnabled()) return null;
     return new GuardianOfflineService(config);
   }
 
