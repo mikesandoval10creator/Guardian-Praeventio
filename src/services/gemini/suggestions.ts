@@ -14,6 +14,7 @@
 
 import { GoogleGenAI, Type } from '@google/genai';
 import { parseGeminiJson } from './parsing';
+import { AI_MODEL_FAST } from '../../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -34,7 +35,7 @@ export const suggestRisksWithAI = async (
   // for a deterministic figure.
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: `Basado en el rubro "${industry}" y el contexto del proyecto "${context}", sugiere 5 riesgos críticos que deberían estar en la matriz IPERC.
     Para cada riesgo, asigna un valor de Probabilidad (1-5) y Severidad (1-5) según la metodología de evaluación de riesgos.
 
@@ -90,7 +91,7 @@ export const suggestNormativesWithAI = async (industry: string): Promise<unknown
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: `Genera una lista de 3 normativas, leyes o decretos chilenos específicos y críticos para la industria: ${industry}. No incluyas la Ley 16.744 ni el DS 594 que son generales. Enfócate en riesgos específicos del rubro.`,
     config: {
       responseMimeType: 'application/json',

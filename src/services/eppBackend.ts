@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { parseGeminiJson } from './gemini/parsing';
+import { AI_MODEL_FAST } from '../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -17,7 +18,7 @@ export const predictEPPReplacement = async (eppItem: any, usageData: any) => {
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -52,7 +53,7 @@ export const auditEPPCompliance = async (workerId: string, assignedEPP: any[], r
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt,
     config: {
       responseMimeType: "application/json",

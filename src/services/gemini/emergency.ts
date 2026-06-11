@@ -17,6 +17,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { parseGeminiJson } from './parsing';
 import { GeminiDegradedError } from './degraded';
+import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -29,7 +30,7 @@ export const generateEmergencyPlan = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-pro-preview',
+    model: AI_MODEL_REASONING,
     contents: `Actúa como un experto en gestión de emergencias industriales.
     Genera un Plan de Emergencia detallado para el proyecto ${projectName} en la industria ${industry || 'general'}.
 
@@ -57,7 +58,7 @@ export const generateEmergencyScenario = async (context: string): Promise<unknow
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: `Genera un escenario de emergencia simulado basado en el siguiente contexto de la red de riesgos:
     ${context}
 
@@ -281,7 +282,7 @@ export const generateEmergencyPlanJSON = async (
   let response: { text?: string };
   try {
     response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: AI_MODEL_FAST,
       contents: prompt,
       config: {
         responseMimeType: 'application/json',

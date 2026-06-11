@@ -28,6 +28,7 @@
 
 import { CL_PACK } from '../../data/normativa/cl.js';
 import type { CoachDomain } from './prompts.js';
+import { AI_MODEL_EMBEDDINGS } from '../../config/aiModels.js';
 
 export type NormativeSource =
   | 'BCN'
@@ -325,7 +326,7 @@ export class NormativeRagService {
       const { GoogleGenAI } = await import('@google/genai');
       const ai = new GoogleGenAI({ apiKey });
       const res = await ai.models.embedContent({
-        model: 'text-embedding-004',
+        model: AI_MODEL_EMBEDDINGS,
         contents: text,
       });
       const values = res.embeddings?.[0]?.values;

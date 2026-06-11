@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { parseGeminiJson } from './gemini/parsing';
+import { AI_MODEL_FAST } from '../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -37,7 +38,7 @@ export const analyzePsychosocialRisks = async (surveyResults: any[], organizatio
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -79,7 +80,7 @@ export const generateStressPreventionTips = async (role: string, criticalRisks: 
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt
   });
 

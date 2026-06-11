@@ -19,9 +19,10 @@ import { GoogleGenAI } from '@google/genai';
 import type { RiskNode } from '../../types';
 import { logger } from '../../utils/logger';
 import { withExponentialBackoff } from './parsing';
+import { AI_MODEL_EMBEDDINGS, AI_MODEL_FAST } from '../../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const EMBEDDING_MODEL = 'text-embedding-004';
+const EMBEDDING_MODEL = AI_MODEL_EMBEDDINGS;
 
 /**
  * Cosine similarity entre dos vectores de igual dimensión.
@@ -102,7 +103,7 @@ export const autoConnectNodes = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: AI_MODEL_FAST,
       contents: prompt,
       config: {
         responseMimeType: 'application/json',

@@ -27,6 +27,7 @@ import {
 // `services/gemini/parsing.ts`. Helpers consumidos in-place sin cambio
 // de behavior.
 import { parseGeminiJson, withExponentialBackoff } from './gemini/parsing';
+import { AI_MODEL_FAST, AI_MODEL_FAST_LONGFORM, AI_MODEL_FAST_STABLE, AI_MODEL_REASONING, AI_MODEL_TTS } from '../config/aiModels.js';
 
 // §12.5.1 split step 1 (2026-05-28): governance helpers moved to
 // `services/gemini/governance.ts`. Re-exported here for backwards
@@ -121,7 +122,7 @@ export const generateRealisticIoTEvent = async (context: string) => {
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: `Genera un evento simulado de un sensor IoT industrial basado en el siguiente contexto:
     ${context}
     
@@ -159,7 +160,7 @@ export const simulateRiskPropagation = async (nodeTitle: string, context: string
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: `Simula la propagación de un riesgo en una red de seguridad industrial.
     
     Nodo de origen (riesgo inicial): "${nodeTitle}"
@@ -214,7 +215,7 @@ export const enrichNodeData = async (nodeData: Partial<RiskNode>): Promise<Parti
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: AI_MODEL_FAST,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -303,7 +304,7 @@ export const generatePredictiveForecast = async (projectName: string, context: s
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -355,7 +356,7 @@ export const generateOperationalTasks = async (normativeTitle: string, normative
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -377,7 +378,7 @@ export const forecastSafetyEvents = async (nodesContext: string, historicalData?
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: `Actúa como un analista predictivo de seguridad industrial.
     Realiza un pronóstico de eventos de seguridad para los próximos 7 días basado en la red de conocimiento actual y datos históricos.
     
@@ -422,7 +423,7 @@ export const analyzeRiskNetwork = async (nodesContext: string) => {
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: `Analiza la red neuronal de conocimiento de Praeventio Guard.
     
     NODOS ACTUALES:
@@ -451,7 +452,7 @@ export const predictAccidents = async (nodesContext: string, telemetryContext: s
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: `Actúa como "El Guardián", el núcleo de IA predictiva de Praeventio Guard.
     Analiza los datos históricos de la Red Neuronal y la telemetría actual para predecir posibles accidentes antes de que ocurran.
     
@@ -495,7 +496,7 @@ export const analyzeSiteMapDensity = async (nodesContext: string, workersContext
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: `Analiza la densidad y distribución geoespacial del proyecto para identificar riesgos por aglomeración o proximidad a peligros.
     
     RIESGOS E INCIDENTES (Red Neuronal):
@@ -542,7 +543,7 @@ export const generateTrainingQuiz = async (topic: string, description: string) =
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: `Genera un quiz de 3 preguntas de selección múltiple sobre el siguiente tema de capacitación:
     TEMA: ${topic}
     DESCRIPCIÓN: ${description}
@@ -579,7 +580,7 @@ export const validateRiskImageClick = async (imageBase64: string, x: number, y: 
   const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: {
       parts: [
         {
@@ -647,7 +648,7 @@ export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], 
   // 2. Use Gemini to translate the deterministic route into human instructions
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: `Actúa como un experto en logística de emergencias y evacuación industrial de Praeventio Guard. 
     Se ha calculado matemáticamente una ruta de evacuación segura que evita zonas de peligro. Tu tarea es traducir esta ruta en instrucciones claras, calmadas y precisas para el personal.
     
@@ -755,7 +756,7 @@ export const processAudioWithAI = async (base64Audio: string) => {
 
   // 1. Transcribe and get AI response
   const result = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: [
       {
         parts: [
@@ -791,7 +792,7 @@ export const processAudioWithAI = async (base64Audio: string) => {
 
   // 2. Generate Speech
   const ttsResponse = await ai.models.generateContent({
-    model: "gemini-2.5-flash-preview-tts",
+    model: AI_MODEL_TTS,
     contents: [{ parts: [{ text: aiText }] }],
     config: {
       responseModalities: [Modality.AUDIO],
@@ -817,7 +818,7 @@ export const analyzeVisionImage = async (base64Image: string) => {
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: [
       {
         parts: [
@@ -864,7 +865,7 @@ export const verifyEPPWithAI = async (base64Image: string, workerName: string, r
   confidence (number entre 0 y 1).`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: [
       {
         parts: [
@@ -904,7 +905,7 @@ export const analyzeRiskNetworkHealth = async (nodes: any[]) => {
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: `Analiza la salud de la red de conocimiento (Red Neuronal) de seguridad.
     Identifica:
     1. "Sinapsis Faltantes": Conexiones lógicas que deberían existir entre nodos (ej: un Riesgo y una Normativa, o un Trabajador y un EPP).
@@ -986,7 +987,7 @@ export const analyzeFeedPostForRiskNetwork = async (content: string, imageBase64
   }
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: { parts },
     config: {
       responseMimeType: "application/json",
@@ -1038,7 +1039,7 @@ export const calculateStructuralLoad = async (element: string, specs: string) =>
     `;
 
     const result = await ai.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
+      model: AI_MODEL_REASONING,
       contents: prompt
     });
     return result.text || 'No se pudo generar el cálculo.';
@@ -1072,7 +1073,7 @@ export const designHazmatStorage = async (storageType: string, volume: number, m
     `;
 
     const result = await ai.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
+      model: AI_MODEL_REASONING,
       contents: prompt
     });
     return result.text || 'No se pudo generar el diseño.';
@@ -1111,7 +1112,7 @@ export const evaluateMinsalCompliance = async (protocolTitle: string, context: s
     `;
 
     const result = await ai.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
+      model: AI_MODEL_REASONING,
       contents: prompt
     });
     return result.text || 'No se pudo generar la evaluación.';
@@ -1149,7 +1150,7 @@ Devuelve la respuesta en formato JSON con la siguiente estructura:
 
   try {
     const result = await ai.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
+      model: AI_MODEL_REASONING,
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -1194,7 +1195,7 @@ export const generateExecutiveSummary = async (stats: any, nodes: any[]) => {
   - recomendacionesClave: Array de 3 a 5 strings con acciones concretas.`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -1251,7 +1252,7 @@ export async function analyzeFaenaRiskWithAI(industry: string, context: string, 
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-preview',
+      model: AI_MODEL_FAST_LONGFORM,
       contents: prompt,
     });
 
@@ -1289,7 +1290,7 @@ export async function extractAcademicSummary(text: string) {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-preview',
+      model: AI_MODEL_FAST_LONGFORM,
       contents: redactPromptForVertex(prompt, 'extractAcademicSummary'),
     });
 
@@ -1323,7 +1324,7 @@ export const calculateComplianceSummary = async (projectId: string, nodes: any[]
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -1366,7 +1367,7 @@ export const processGlobalSafetyAudit = async (_projectId: string, projectData: 
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: AI_MODEL_REASONING,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -1403,7 +1404,7 @@ export const scanLegalUpdates = async (normativeTitle: string, normativeText: st
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
+    model: AI_MODEL_FAST_STABLE,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -1440,7 +1441,7 @@ export const getNutritionSuggestion = async (mood: number, role: string = 'Traba
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
+    model: AI_MODEL_FAST_STABLE,
     contents: prompt,
     config: {
       responseMimeType: "application/json",

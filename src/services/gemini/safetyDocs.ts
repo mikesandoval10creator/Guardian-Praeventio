@@ -13,6 +13,7 @@
 
 import { GoogleGenAI, Type } from '@google/genai';
 import { parseGeminiJson } from './parsing';
+import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -31,7 +32,7 @@ export const generatePTS = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-pro-preview',
+    model: AI_MODEL_REASONING,
     contents: `Actúa como un experto en prevención de riesgos chileno certificado en ISO 45001.
     Genera un documento de tipo ${documentType} para la tarea: "${taskName}".
     Descripción: ${taskDescription}
@@ -98,7 +99,7 @@ export const generatePTSWithManufacturerData = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-pro-preview',
+    model: AI_MODEL_REASONING,
     contents: `Actúa como un experto en prevención de riesgos y mantenimiento industrial chileno.
     Genera un documento de tipo ${documentType} para la tarea: "${taskName}".
     Descripción: ${taskDescription}
@@ -144,7 +145,7 @@ export const generateSafetyReport = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: `Eres "El Guardián", el núcleo de IA de Praeventio Guard. Genera un borrador profesional y exhaustivo de un documento de seguridad tipo ${reportType} (Procedimiento de Trabajo Seguro, Plan de Emergencia o Análisis Seguro de Trabajo) basado en el siguiente contexto:
 
     CONTEXTO:

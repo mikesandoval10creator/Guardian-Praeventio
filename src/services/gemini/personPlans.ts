@@ -17,6 +17,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { searchRelevantContext } from '../ragService';
 import { parseGeminiJson } from './parsing';
+import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -38,7 +39,7 @@ export const generateActionPlan = async (
     Proporciona una lista de tareas concretas, plazos sugeridos y responsables típicos.`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: promptContent,
     config: {
       systemInstruction:
@@ -88,7 +89,7 @@ export const generatePersonalizedSafetyPlan = async (
   const safetyStandardContext = await searchRelevantContext(searchTerms);
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-pro-preview',
+    model: AI_MODEL_REASONING,
     contents: `Genera un plan de seguridad personalizado para el trabajador ${workerName}.
     Rol: ${role}
     Historial de incidentes/capacitaciones: ${history}
@@ -134,7 +135,7 @@ export const generateTrainingRecommendations = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: `Actúa como un experto en capacitación de seguridad industrial.
     Genera recomendaciones de capacitación personalizadas para el trabajador ${workerName} (${workerRole}).
     Contexto del trabajador y riesgos asociados:
@@ -170,7 +171,7 @@ export const generateSafetyCapsule = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: `Genera una cápsula de seguridad de 1 minuto para el trabajador ${workerName} (${role}).
     Contexto de riesgos: ${context}
 
@@ -213,7 +214,7 @@ export const generateCompensatoryExercises = async (
   - exercises (array de objetos con: name (string), duration (string), instructions (string))`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: prompt,
     config: {
       responseMimeType: 'application/json',

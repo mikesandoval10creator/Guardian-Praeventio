@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { AI_MODEL_FAST } from '../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -29,7 +30,7 @@ export const getSafetyCoachResponse = async (uid: string, userStats: any, recent
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt
   });
 

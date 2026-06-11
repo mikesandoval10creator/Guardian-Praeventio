@@ -16,6 +16,7 @@
 
 import { GoogleGenAI, Modality } from '@google/genai';
 import { API_KEY, withExponentialBackoff } from './gemini/_shared.js';
+import { AI_MODEL_IMAGE_GENERATION } from '../config/aiModels.js';
 
 export interface MedicalIllustrationSuccess {
   imageBase64: string;
@@ -54,7 +55,7 @@ No text overlays. Purely visual anatomical reference.`;
   const genAI = new GoogleGenAI({ apiKey: API_KEY });
   return await withExponentialBackoff(async () => {
     const response = await genAI.models.generateContent({
-      model: 'gemini-2.0-flash-preview-image-generation',
+      model: AI_MODEL_IMAGE_GENERATION,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
     });

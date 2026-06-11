@@ -2,6 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { parseGeminiJson } from './gemini/parsing';
 import { MEDICINE_PROMPT } from "./coach/prompts.js";
 import { NormativeRagService, type NormativeChunk } from "./coach/normativeRag.js";
+import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../config/aiModels.js';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -57,7 +58,7 @@ Responde en JSON con la estructura:
   "periodicityInMonths": number, "regulatoryRef": string }[]`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: AI_MODEL_REASONING,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -118,7 +119,7 @@ ${JSON.stringify(medicalRecords)}
 Proporciona resumen, alertas y citations.`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -170,7 +171,7 @@ Crea 3-5 ejercicios cortos que se puedan realizar en el puesto de trabajo.
 Incluye explicación clínica y citations al protocolo aplicable.`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt,
     config: {
       responseMimeType: "application/json",

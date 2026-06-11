@@ -2,6 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { parseGeminiJson } from './gemini/parsing';
 import { LEGAL_PROMPT } from "./coach/prompts.js";
 import { NormativeRagService, type NormativeChunk } from "./coach/normativeRag.js";
+import { AI_MODEL_FAST_STABLE, AI_MODEL_REASONING } from '../config/aiModels.js';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -57,7 +58,7 @@ Respuesta en JSON estricto, incluyendo "citations" con TODAS las normas
 referenciadas.`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: AI_MODEL_REASONING,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -118,7 +119,7 @@ Operaciones Actuales:
 ${JSON.stringify(currentOperations)}`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
+    model: AI_MODEL_FAST_STABLE,
     contents: prompt,
     config: {
       responseMimeType: "application/json",

@@ -37,6 +37,7 @@ import { b2dAuth } from '../../middleware/b2dAuth.js';
 import { trackB2dUsage } from '../../../services/b2d/usage.js';
 import { getAiAdapter } from '../../../services/ai/index.js';
 import { logger } from '../../../utils/logger.js';
+import { AI_MODEL_FAST } from '../../../config/aiModels.js';
 
 const router = Router();
 
@@ -183,7 +184,7 @@ async function tryBuildWithGemini(input: CoachInput): Promise<
   const { systemInstruction, prompt } = buildGeminiPrompts(input);
   try {
     const response = await adapter.generate({
-      model: 'gemini-3-flash-preview',
+      model: AI_MODEL_FAST,
       prompt,
       systemInstruction,
       temperature: 0.3,

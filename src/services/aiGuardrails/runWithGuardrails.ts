@@ -41,6 +41,7 @@ import {
   type VersionedPrompt,
   getPrompt,
 } from './versionedPrompts.ts';
+import { AI_MODEL_FAST } from '../../config/aiModels';
 
 // ────────────────────────────────────────────────────────────────────────
 // Types
@@ -73,8 +74,8 @@ export interface RunWithGuardrailsInput {
   modelOverride?: string;
   /**
    * Override del modelo por defecto. Si no se especifica, se usa
-   * `gemini-3-flash-preview` (alineado con el call shape histórico de
-   * geminiBackend.ts).
+   * `AI_MODEL_FAST` de `src/config/aiModels.ts` (alineado con el call
+   * shape histórico de geminiBackend.ts).
    */
   temperature?: number;
 }
@@ -202,7 +203,7 @@ export async function runWithGuardrails(
 
   const adapter = input.adapter ?? getAiAdapter();
   const request: AiGenerateRequest = {
-    model: input.modelOverride ?? 'gemini-3-flash-preview',
+    model: input.modelOverride ?? AI_MODEL_FAST,
     prompt: rendered,
     maxOutputTokens: prompt.maxTokens,
     temperature: input.temperature,
