@@ -129,7 +129,9 @@ export function buildSidebarMenuGroups(
     // de hoy agregados de múltiples feeds (corrective actions, SIF,
     // exceptions, etc.) en una vista única ordenada por urgencia.
     { title: t('nav.inbox', 'Bandeja'), icon: InboxIcon, path: '/inbox', color: 'text-teal-500' },
-    { title: 'Safe Driving', icon: Car, path: '/safe-driving', color: 'text-blue-500' },
+    // Fase 5 D2 slice 1 — /safe-driving = SafeDrivingMode (SOS driver
+    // mode, life-safety). Copy fixed to es-CL (was hardcoded English).
+    { title: t('nav.safe_driving_mode', 'Modo Conducción Segura'), icon: Car, path: '/safe-driving', color: 'text-blue-500' },
     { title: t('nav.safety_feed', 'Muro Social'), icon: Users, path: '/safety-feed', color: 'text-[#4db6ac]' },
     { title: t('nav.projects', 'Proyectos'), icon: Briefcase, path: '/projects', color: 'text-blue-500' },
     { title: t('nav.cuadrillas', 'Cuadrillas'), icon: Users, path: '/cuadrillas', color: 'text-[#4db6ac]' },
@@ -241,6 +243,11 @@ export function buildSidebarMenuGroups(
     { title: t('nav.leadership_decisions', 'Decisiones Supervisión'), icon: User, path: '/leadership-decisions', color: 'text-blue-500' },
     // Sprint K §69-71 — Conducción Segura + Rutas Críticas.
     { title: t('nav.driving_safety', 'Conducción Segura'), icon: Car, path: '/driving-safety', color: 'text-blue-500' },
+    // Fase 5 D2 slice 1 (2026-06-11) — SafeDriving.tsx (reporte de
+    // incidentes de conducción + checklist pre-conducción) era
+    // inalcanzable por la colisión de ruta en /safe-driving. Re-pathed
+    // a /driving-incidents y expuesto acá para que deje de ser isla.
+    { title: t('nav.driving_incidents', 'Incidentes de Conducción'), icon: Car, path: '/driving-incidents', color: 'text-amber-500' },
     // Sprint K §211-213 — Reportes Confidenciales (Ley Karin 21.643).
     { title: t('nav.confidential_reports', 'Reportes Confidenciales'), icon: ShieldAlert, path: '/confidential-reports', color: 'text-rose-500' },
     // Sprint 55 Fase F.14 — Mapa de Calor de Hallazgos.
