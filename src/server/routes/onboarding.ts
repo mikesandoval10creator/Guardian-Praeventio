@@ -39,6 +39,7 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 import { EmailService } from '../../services/email/resendService.js';
 import { projectInvitationTemplate } from '../../services/email/templates.js';
 import { TIERS } from '../../services/pricing/tiers.js';
+import { SII_ACTIVIDADES_ECONOMICAS } from '../../data/sii/actividadesEconomicas.js';
 
 export const onboardingRouter = Router();
 
@@ -68,6 +69,15 @@ interface OnboardingPayload {
   inviteEmails: string[];
   projectName: string;
   workersCsv: string | null;
+  /** SII economic-activity code from the wizard autocomplete (optional). */
+  siiCode: number | null;
+  /**
+   * GP-* sector DERIVED server-side from the verified SII catalogue —
+   * the client-side mapping is never trusted (épica Rubros SII, slice 2).
+   */
+  sectorId: string | null;
+  /** Estimated headcount from the wizard's dotación question (optional). */
+  estimatedWorkers: number | null;
 }
 
 function validatePayload(body: unknown): { ok: true; data: OnboardingPayload } | { ok: false; error: string } {
@@ -89,6 +99,35 @@ function validatePayload(body: unknown): { ok: true; data: OnboardingPayload } |
     return { ok: false, error: 'invalid_invite_emails' };
   if (b.workersCsv != null && typeof b.workersCsv !== 'string')
     return { ok: false, error: 'invalid_workers_csv' };
+
+  // Optional SII rubro: must exist in the verified catalogue. The GP-*
+  // sector is derived HERE from that catalogue row — a client-supplied
+  // sectorId is ignored (never trust client identity/classification).
+  let siiCode: number | null = null;
+  let sectorId: string | null = null;
+  if (b.siiCode != null) {
+    if (typeof b.siiCode !== 'number' || !Number.isInteger(b.siiCode))
+      return { ok: false, error: 'invalid_sii_code' };
+    const actividad = SII_ACTIVIDADES_ECONOMICAS.find((e) => e.codigo === b.siiCode);
+    if (!actividad) return { ok: false, error: 'invalid_sii_code' };
+    siiCode = actividad.codigo;
+    sectorId = actividad.sectorId;
+  }
+
+  // Optional estimated headcount: positive integer with a sanity ceiling.
+  let estimatedWorkers: number | null = null;
+  if (b.estimatedWorkers != null) {
+    if (
+      typeof b.estimatedWorkers !== 'number' ||
+      !Number.isInteger(b.estimatedWorkers) ||
+      b.estimatedWorkers < 1 ||
+      b.estimatedWorkers > 1_000_000
+    ) {
+      return { ok: false, error: 'invalid_estimated_workers' };
+    }
+    estimatedWorkers = b.estimatedWorkers;
+  }
+
   return {
     ok: true,
     data: {
@@ -100,6 +139,9 @@ function validatePayload(body: unknown): { ok: true; data: OnboardingPayload } |
         : [],
       projectName: b.projectName.trim(),
       workersCsv: typeof b.workersCsv === 'string' ? b.workersCsv : null,
+      siiCode,
+      sectorId,
+      estimatedWorkers,
     },
   };
 }
@@ -126,6 +168,14 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
           industry: payload.industry,
           countries: payload.countries,
           tier: payload.tier,
+          // Épica Rubros SII slice 2 — written only when the wizard's
+          // autocomplete/dotación were used (server-derived sectorId).
+          ...(payload.siiCode != null
+            ? { siiCode: payload.siiCode, sectorId: payload.sectorId }
+            : {}),
+          ...(payload.estimatedWorkers != null
+            ? { estimatedWorkers: payload.estimatedWorkers }
+            : {}),
           configuredAt: admin.firestore.FieldValue.serverTimestamp(),
         },
         // For free tier we activate immediately. For paid tiers we
@@ -273,6 +323,9 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     invitedCount: invitedEmails.length,
     failedInvites: invitationFailures.length,
     csvProvided: !!payload.workersCsv,
+    siiCode: payload.siiCode,
+    sectorId: payload.sectorId,
+    estimatedWorkers: payload.estimatedWorkers,
   });
 
   logger.info('onboarding_completed', {

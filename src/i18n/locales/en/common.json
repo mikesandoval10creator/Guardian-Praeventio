@@ -3578,5 +3578,26 @@
       "submitting": "Submitting...",
       "title": "Report accident / near miss"
     }
+  },
+  "onboarding": {
+    "sii": {
+      "searchLabel": "Find your SII business activity (code or text)",
+      "searchPlaceholder": "E.g. 410010 or copper mining",
+      "noResults": "No results. You can pick your industry manually below.",
+      "selectedLabel": "Selected SII activity",
+      "sectorAuto": "Assigned prevention sector"
+    },
+    "dotacion": {
+      "label": "How many people work at your company? (estimate)",
+      "obligationsTitle": "Preventive obligations in Chile for your headcount"
+    },
+    "profile": {
+      "title": "Preventive profile for your sector",
+      "readOnlyHint": "For reference only: you can generate your risk matrix from the dashboard.",
+      "regulations": "Applicable regulations",
+      "epp": "Typical PPE",
+      "risks": "Typical hazards to assess",
+      "notes": "Preventive notes"
+    }
   }
 }
