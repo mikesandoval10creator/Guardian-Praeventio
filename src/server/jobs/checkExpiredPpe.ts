@@ -6,6 +6,9 @@
 // whose `expiresAt` (ISO string) has passed while `status` is still
 // `active`. For every expired assignment we:
 //
+//   • create a corrective-action finding in `projects/{pid}/findings`
+//     (Phase 5 arista A3 — deterministic id `epp-expiry_{assignmentId}`,
+//     so re-runs never duplicate and a closed finding is never reopened),
 //   • notify the project's supervisors via FCM push,
 //   • write an `audit_logs` row with `action: 'ppe.expired'`,
 //   • write a per-project `notifications` doc so the supervisor sees
@@ -23,6 +26,11 @@ import type { Firestore } from 'firebase-admin/firestore';
 import type { messaging as adminMessaging } from 'firebase-admin';
 import { tracedAsync } from '../../services/observability/tracing.js';
 import { logger } from '../../utils/logger.js';
+import {
+  ensureExpiryFinding,
+  formatDateCl,
+  priorityFromCriticality,
+} from './expiryFindings.js';
 
 /** Lazy accessors — keep firebase-admin out of import cycles. */
 type FirestoreFactory = () => Firestore;
@@ -66,6 +74,8 @@ export interface CheckExpiredPpeResult {
   expired: number;
   /** Number of supervisor push deliveries successfully dispatched. */
   notified: number;
+  /** Number of corrective-action findings created in projects/{pid}/findings. */
+  findingsCreated: number;
 }
 
 /**
@@ -109,6 +119,7 @@ async function checkExpiredPpeInner(
   let scanned = 0;
   let expired = 0;
   let notified = 0;
+  let findingsCreated = 0;
   const nowIso = now.toISOString();
 
   for (const projectDoc of projectsSnap.docs) {
@@ -129,11 +140,43 @@ async function checkExpiredPpeInner(
         eppItemId?: string;
         eppItemName?: string;
         expiresAt?: string | null;
+        criticality?: string;
       };
 
       // Defensive: only act on a string ISO date that's strictly past.
       if (!a.expiresAt || typeof a.expiresAt !== 'string') continue;
       if (a.expiresAt >= nowIso) continue;
+
+      // Phase 5 arista A3 — materialise the corrective-action finding
+      // BEFORE flipping the assignment: if this write throws, the status
+      // stays `active` and the next pass retries the whole unit of work.
+      // Deterministic id + get-then-set keeps replays from duplicating or
+      // clobbering a finding the team already closed.
+      const itemLabel = a.eppItemName ?? 'EPP sin nombre';
+      const workerLabel = a.workerName ?? a.workerId ?? 'trabajador sin identificar';
+      const findingId = `epp-expiry_${assignmentDoc.id}`;
+      const findingCreated = await ensureExpiryFinding(
+        db,
+        projectId,
+        findingId,
+        now,
+        {
+          title: `EPP vencido: ${itemLabel} — ${workerLabel}`,
+          description:
+            `El EPP "${itemLabel}" asignado a ${workerLabel} venció el ` +
+            `${formatDateCl(a.expiresAt)}. Reemplazar o recertificar el equipo ` +
+            `y registrar la nueva entrega al trabajador.`,
+          priority: priorityFromCriticality(a.criticality),
+          source: 'epp_expiry',
+          extra: {
+            assignmentId: assignmentDoc.id,
+            workerId: a.workerId ?? null,
+            eppItemId: a.eppItemId ?? null,
+            expiresAt: a.expiresAt,
+          },
+        },
+      );
+      if (findingCreated) findingsCreated += 1;
 
       // Flip status so the next pass doesn't re-notify.
       await assignmentDoc.ref.update({
@@ -154,6 +197,8 @@ async function checkExpiredPpeInner(
           eppItemId: a.eppItemId ?? null,
           eppItemName: a.eppItemName ?? null,
           expiresAt: a.expiresAt,
+          findingId,
+          findingCreated,
         },
         userId: null,
         userEmail: null,
@@ -208,5 +253,5 @@ async function checkExpiredPpeInner(
     }
   }
 
-  return { scanned, expired, notified };
+  return { scanned, expired, notified, findingsCreated };
 }

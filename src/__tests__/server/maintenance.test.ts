@@ -25,6 +25,7 @@ const H = vi.hoisted(() => ({
   // job mocks
   checkOverdueMaintenance: vi.fn(),
   checkExpiredPpe: vi.fn(),
+  checkExpiredBrigadeResources: vi.fn(),
   sendSusesoReminders: vi.fn(),
   runCalendarPreWarnCron: vi.fn(),
   runResilienceHealthAlertCron: vi.fn(),
@@ -91,6 +92,10 @@ vi.mock('../../server/jobs/checkOverdueMaintenance.js', () => ({
 
 vi.mock('../../server/jobs/checkExpiredPpe.js', () => ({
   checkExpiredPpe: H.checkExpiredPpe,
+}));
+
+vi.mock('../../server/jobs/checkExpiredBrigadeResources.js', () => ({
+  checkExpiredBrigadeResources: H.checkExpiredBrigadeResources,
 }));
 
 vi.mock('../../server/jobs/sendSusesoReminders.js', () => ({
@@ -177,7 +182,13 @@ beforeEach(() => {
 
   // Default happy stubs
   H.checkOverdueMaintenance.mockResolvedValue({ updated: 0, eventsFlipped: 0, skipped: 0 });
-  H.checkExpiredPpe.mockResolvedValue({ scanned: 0, expired: 0, notified: 0 });
+  H.checkExpiredPpe.mockResolvedValue({ scanned: 0, expired: 0, notified: 0, findingsCreated: 0 });
+  H.checkExpiredBrigadeResources.mockResolvedValue({
+    scanned: 0,
+    expired: 0,
+    notified: 0,
+    findingsCreated: 0,
+  });
   H.sendSusesoReminders.mockResolvedValue({
     scanned: 0,
     remindedTotal: 0,
@@ -250,7 +261,13 @@ describe('POST /api/maintenance/check-overdue', () => {
 
   it('200 — happy path: all 5 sub-jobs succeed, response shape is correct', async () => {
     H.checkOverdueMaintenance.mockResolvedValueOnce({ updated: 3, eventsFlipped: 3, skipped: 1 });
-    H.checkExpiredPpe.mockResolvedValueOnce({ scanned: 10, expired: 2, notified: 2 });
+    H.checkExpiredPpe.mockResolvedValueOnce({ scanned: 10, expired: 2, notified: 2, findingsCreated: 2 });
+    H.checkExpiredBrigadeResources.mockResolvedValueOnce({
+      scanned: 4,
+      expired: 1,
+      notified: 1,
+      findingsCreated: 1,
+    });
     H.sendSusesoReminders.mockResolvedValueOnce({
       scanned: 5,
       remindedTotal: 3,
@@ -274,7 +291,13 @@ describe('POST /api/maintenance/check-overdue', () => {
     expect(res.body.ok).toBe(true);
     expect(res.body.updated).toBe(3);
     expect(res.body.eventsFlipped).toBe(3);
-    expect(res.body.ppe).toMatchObject({ scanned: 10, expired: 2, notified: 2 });
+    expect(res.body.ppe).toMatchObject({ scanned: 10, expired: 2, notified: 2, findingsCreated: 2 });
+    expect(res.body.brigadeResources).toMatchObject({
+      scanned: 4,
+      expired: 1,
+      notified: 1,
+      findingsCreated: 1,
+    });
     expect(res.body.susesoReminders).toMatchObject({ scanned: 5, remindedTotal: 3 });
     expect(res.body.calendarPreWarn).toMatchObject({ scanned: 20, warned: 4 });
     expect(res.body.resilienceHealth).toMatchObject({ status: 'healthy', alertFired: false });
@@ -295,6 +318,25 @@ describe('POST /api/maintenance/check-overdue', () => {
     expect(res.body.updated).toBe(1);
     // ppe defaults to zeros because of isolation catch
     expect(res.body.ppe).toMatchObject({ scanned: 0, expired: 0, notified: 0 });
+  });
+
+  it('200 — brigade-resources sub-job throws: fault isolation, rest continue', async () => {
+    H.checkExpiredBrigadeResources.mockRejectedValueOnce(new Error('brigade boom'));
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('Authorization', AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    // brigadeResources defaults to zeros because of isolation catch
+    expect(res.body.brigadeResources).toMatchObject({
+      scanned: 0,
+      expired: 0,
+      notified: 0,
+      findingsCreated: 0,
+    });
   });
 
   it('200 — suseso sub-job throws: fault isolation', async () => {

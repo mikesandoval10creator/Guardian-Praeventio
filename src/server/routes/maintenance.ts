@@ -25,6 +25,11 @@ import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { checkOverdueMaintenance } from '../jobs/checkOverdueMaintenance.js';
 import { checkExpiredPpe } from '../jobs/checkExpiredPpe.js';
+// Phase 5 arista A3 (2026-06) — brigade resource expiry reaper. Mirrors the
+// PPE step: expired extintores/DEA/botiquines now materialise a corrective
+// finding in projects/{pid}/findings instead of relying on a human opening
+// the readiness report.
+import { checkExpiredBrigadeResources } from '../jobs/checkExpiredBrigadeResources.js';
 import { sendSusesoReminders } from '../jobs/sendSusesoReminders.js';
 import { sendToProjectSupervisors } from './emergency.js';
 import { verifySchedulerToken } from '../middleware/verifySchedulerToken.js';
@@ -84,10 +89,16 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
     // expired EPP assignments. Both jobs are independent and idempotent;
     // running them in sequence here keeps Cloud Scheduler config simple
     // (one cron entry instead of two).
-    let ppe: { scanned: number; expired: number; notified: number } = {
+    let ppe: {
+      scanned: number;
+      expired: number;
+      notified: number;
+      findingsCreated: number;
+    } = {
       scanned: 0,
       expired: 0,
       notified: 0,
+      findingsCreated: 0,
     };
     try {
       ppe = await checkExpiredPpe({
@@ -97,6 +108,34 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
     } catch (ppeErr) {
       logger.error('[maintenance] check-expired-ppe failed', ppeErr);
       captureRouteError(ppeErr, 'maintenance.check-expired-ppe');
+    }
+    // Phase 5 arista A3 — brigade resource expiry reaper. Independent +
+    // idempotent like the PPE step; failure here must not abort the rest.
+    let brigadeResources: {
+      scanned: number;
+      expired: number;
+      notified: number;
+      findingsCreated: number;
+    } = {
+      scanned: 0,
+      expired: 0,
+      notified: 0,
+      findingsCreated: 0,
+    };
+    try {
+      brigadeResources = await checkExpiredBrigadeResources({
+        notifySupervisors: ({ projectId, payload, db, messaging }) =>
+          sendToProjectSupervisors(projectId, payload, db, messaging),
+      });
+    } catch (brigadeErr) {
+      logger.error(
+        '[maintenance] check-expired-brigade-resources failed',
+        brigadeErr,
+      );
+      captureRouteError(
+        brigadeErr,
+        'maintenance.check-expired-brigade-resources',
+      );
     }
     // Sprint 28 follow-up — third step: SUSESO DIAT/DIEP deadline reminders.
     // Independent + idempotent like the prior two steps.
@@ -238,6 +277,7 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
     logger.info('[maintenance] check-overdue done', {
       ...maintenance,
       ppe,
+      brigadeResources,
       susesoReminders,
       calendarPreWarn,
       resilienceHealth,
@@ -249,6 +289,7 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
         ok: true,
         ...maintenance,
         ppe,
+        brigadeResources,
         susesoReminders,
         calendarPreWarn,
         resilienceHealth,
