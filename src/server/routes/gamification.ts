@@ -29,7 +29,11 @@ import {
   getLeaderboard,
   checkMedalEligibility,
 } from '../../services/gamificationBackend.js';
-import { POINT_VALUES, isPointReason } from '../../services/gamification/pointValues.js';
+import {
+  POINT_VALUES,
+  SERVER_AWARDED_REASONS,
+  isPointReason,
+} from '../../services/gamification/pointValues.js';
 
 const router = Router();
 
@@ -41,7 +45,10 @@ router.post('/gamification/points', verifyAuth, async (req, res) => {
   // self-grant unlimited points (leaderboard + medal-threshold abuse). The
   // client `amount`, if any, is ignored.
   const reason = req.body?.reason;
-  if (!isPointReason(reason)) {
+  // Server-awarded reasons (e.g. stoppage_justified) are granted by dedicated
+  // flows to a recipient who is NOT the caller — self-claiming them here
+  // would be XP farming, so they are rejected like unknown reasons.
+  if (!isPointReason(reason) || SERVER_AWARDED_REASONS.has(reason)) {
     return res.status(400).json({ error: 'invalid_reason' });
   }
   const amount = POINT_VALUES[reason];
