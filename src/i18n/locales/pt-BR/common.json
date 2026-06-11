@@ -3581,5 +3581,26 @@
       "submitting": "Enviando...",
       "title": "Comunicar acidente / quase acidente"
     }
+  },
+  "onboarding": {
+    "sii": {
+      "searchLabel": "Busque sua atividade econômica SII (código ou texto)",
+      "searchPlaceholder": "Ex.: 410010 ou extração de cobre",
+      "noResults": "Sem resultados. Você pode escolher o setor manualmente abaixo.",
+      "selectedLabel": "Atividade SII selecionada",
+      "sectorAuto": "Setor preventivo atribuído"
+    },
+    "dotacion": {
+      "label": "Quantas pessoas trabalham na sua empresa? (estimativa)",
+      "obligationsTitle": "Obrigações preventivas no Chile conforme seu efetivo"
+    },
+    "profile": {
+      "title": "Perfil preventivo do seu setor",
+      "readOnlyHint": "Informação de referência: você poderá gerar sua matriz de riscos no painel.",
+      "regulations": "Normas aplicáveis",
+      "epp": "EPI típico",
+      "risks": "Riscos típicos a avaliar",
+      "notes": "Notas preventivas"
+    }
   }
 }

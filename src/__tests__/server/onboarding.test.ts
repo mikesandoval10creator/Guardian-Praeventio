@@ -400,4 +400,84 @@ describe('POST /api/onboarding/complete', () => {
     expect(userDoc.onboarded).toBe(true);
     expect(userDoc.onboardedAt).toBeTruthy();
   });
+
+  // ── Épica Rubros SII — slice 2: optional siiCode + estimatedWorkers ──────
+  // The GP-* sectorId is DERIVED server-side from the verified catalogue
+  // (src/data/sii/actividadesEconomicas.ts) — the client-side mapping is
+  // never trusted.
+
+  it('persists siiCode, the catalogue-derived sectorId and estimatedWorkers into tenantConfig', async () => {
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/onboarding/complete')
+      .set('Authorization', 'Bearer test:uid-E:e@test.com')
+      .send(
+        validPayload({
+          industry: 'construction',
+          siiCode: 410010,
+          estimatedWorkers: 30,
+        }),
+      );
+
+    expect(res.status).toBe(200);
+    const userDoc = firestoreStore.get('users/uid-E') as Record<string, unknown>;
+    const cfg = userDoc.tenantConfig as Record<string, unknown>;
+    expect(cfg.siiCode).toBe(410010);
+    expect(cfg.sectorId).toBe('GP-CONS-RES'); // derived from the catalogue, not the client
+    expect(cfg.estimatedWorkers).toBe(30);
+
+    // Audit row carries the new fields.
+    const auditPayload = auditServerEventMock.mock.calls[0][3] as Record<string, unknown>;
+    expect(auditPayload.siiCode).toBe(410010);
+    expect(auditPayload.estimatedWorkers).toBe(30);
+  });
+
+  it('omits siiCode/sectorId/estimatedWorkers from tenantConfig when not provided', async () => {
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/onboarding/complete')
+      .set('Authorization', 'Bearer test:uid-F:f@test.com')
+      .send(validPayload());
+
+    expect(res.status).toBe(200);
+    const userDoc = firestoreStore.get('users/uid-F') as Record<string, unknown>;
+    const cfg = userDoc.tenantConfig as Record<string, unknown>;
+    expect(cfg.siiCode).toBeUndefined();
+    expect(cfg.sectorId).toBeUndefined();
+    expect(cfg.estimatedWorkers).toBeUndefined();
+  });
+
+  it('returns 400 when siiCode is not in the verified SII catalogue', async () => {
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/onboarding/complete')
+      .set('Authorization', 'Bearer test:uid-G:g@test.com')
+      .send(validPayload({ siiCode: 999999 }));
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_sii_code');
+    expect(firestoreStore.size).toBe(0);
+  });
+
+  it('returns 400 when siiCode is not a number', async () => {
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/onboarding/complete')
+      .set('Authorization', 'Bearer test:uid-G:g@test.com')
+      .send(validPayload({ siiCode: '410010; DROP TABLE' }));
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_sii_code');
+  });
+
+  it('returns 400 when estimatedWorkers is not a positive integer', async () => {
+    const app = await buildApp();
+    for (const bad of [-5, 0, 2.5, 'treinta']) {
+      const res = await request(app)
+        .post('/api/onboarding/complete')
+        .set('Authorization', 'Bearer test:uid-H:h@test.com')
+        .send(validPayload({ estimatedWorkers: bad }));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('invalid_estimated_workers');
+    }
+    expect(firestoreStore.size).toBe(0);
+  });
 });

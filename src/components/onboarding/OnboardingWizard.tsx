@@ -2,11 +2,21 @@
 //
 // 5-step wizard that lets a brand-new tenant configure themselves
 // without manual setup by Praeventio staff:
-//   1. Industry  — 12 verticals
+//   1. Industry  — 12 verticals + SII rubro autocomplete + dotación estimada
 //   2. Countries — multi-select 7 LATAM + EN
 //   3. Tier      — pricing comparison with "Most popular" highlight
 //   4. Team      — invite by emails (CSV or comma-separated)
-//   5. Project   — first project name + optional CSV worker import
+//   5. Project   — first project name + optional CSV worker import +
+//                  read-only sector risk-profile summary
+//
+// Épica Rubros SII — slice 2: the industry step also offers an
+// autocomplete over the verified SII economic-activity catalogue
+// (`searchRubros`); picking a rubro auto-selects the mapped vertical and
+// records `siiCode` + the GP-* `sectorId`. The estimated headcount drives
+// an informational DS 44/2024 obligations panel (delegado / CPHS ≥25 /
+// +depto ≥100, thresholds read from CL_PACK). The final step shows the
+// sector's preventive profile (`getRiskProfileForSector`) — read-only in
+// this slice; ZK seed instantiation is slice 3.
 //
 // State is held in a single reducer (pure, exported for tests). The
 // component is a thin shell around it; the back/next/submit handlers
@@ -14,8 +24,16 @@
 // jsdom render gymnastics on every assertion.
 
 import React, { useReducer, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, Check, Upload, Sparkles } from 'lucide-react';
 import { TIERS, type TierId, formatCurrency } from '../../services/pricing/tiers';
+import { searchRubros, findByCodigo, formatCodigoSii } from '../../services/sii/rubroSearch';
+import {
+  getRiskProfileForSector,
+  obligacionesPorDotacion,
+} from '../../services/sii/industryRiskProfile';
+import { CL_PACK } from '../../data/normativa/cl';
+import type { SiiActividadEconomica } from '../../data/sii/actividadesEconomicas';
 
 // ───────────────────────── Constants ─────────────────────────
 
@@ -58,11 +76,84 @@ export const POPULAR_TIER: TierId = 'titanio';
 export const STEPS = ['industry', 'countries', 'tier', 'team', 'project'] as const;
 export type Step = (typeof STEPS)[number];
 
+// ───────────────────────── SII rubro ↔ vertical mapping ─────────────────────────
+
+/**
+ * Longest-prefix map from the GP-* taxonomy (src/constants.ts) to the 12
+ * wizard verticals. Subsector overrides (e.g. GP-MIN-PET → oil-gas) beat
+ * their major-sector key. Sectors with no curated vertical fall back to
+ * 'services'.
+ */
+export const GP_TO_INDUSTRY: Record<string, IndustryId> = {
+  'GP-AGR': 'agriculture',
+  'GP-MIN': 'mining',
+  'GP-MIN-PET': 'oil-gas',
+  'GP-MANU': 'manufacturing',
+  'GP-MANU-COQ': 'oil-gas', // coque y refinación de petróleo
+  'GP-ELEC': 'services',
+  'GP-ENERG': 'services',
+  'GP-CONS': 'construction',
+  'GP-COM': 'retail',
+  'GP-TRANS': 'transport',
+  'GP-ALOJA': 'services',
+  'GP-INF': 'services',
+  'GP-FIN': 'finance',
+  'GP-RE': 'services',
+  'GP-PRO': 'services',
+  'GP-ADM': 'services',
+  'GP-PUB': 'public',
+  'GP-EDU': 'education',
+  'GP-SAL': 'healthcare',
+  'GP-ART': 'services',
+  'GP-SER': 'services',
+  'GP-HOG': 'services',
+  'GP-EXT': 'public',
+};
+
+/**
+ * Manual-selection fallback: maps a wizard vertical to a representative
+ * GP-* sector so the risk-profile summary still works when the user skipped
+ * the SII autocomplete. The rubro-derived subsector always wins over this.
+ */
+export const INDUSTRY_TO_GP: Record<IndustryId, string> = {
+  mining: 'GP-MIN',
+  construction: 'GP-CONS',
+  manufacturing: 'GP-MANU',
+  'oil-gas': 'GP-MIN-PET',
+  agriculture: 'GP-AGR',
+  retail: 'GP-COM',
+  healthcare: 'GP-SAL',
+  education: 'GP-EDU',
+  finance: 'GP-FIN',
+  transport: 'GP-TRANS',
+  services: 'GP-SER',
+  public: 'GP-PUB',
+};
+
+/** Longest-prefix lookup of the wizard vertical for a GP-* sector id. */
+export function industryForSector(sectorId: string): IndustryId {
+  let best: IndustryId = 'services';
+  let bestLength = -1;
+  for (const [key, value] of Object.entries(GP_TO_INDUSTRY)) {
+    if ((sectorId === key || sectorId.startsWith(`${key}-`)) && key.length > bestLength) {
+      best = value;
+      bestLength = key.length;
+    }
+  }
+  return best;
+}
+
 // ───────────────────────── State machine ─────────────────────────
 
 export interface OnboardingState {
   step: Step;
   industry: IndustryId | null;
+  /** SII economic-activity code chosen via the autocomplete (null = manual). */
+  siiCode: number | null;
+  /** GP-* subsector derived from the chosen rubro (null = manual selection). */
+  sectorId: string | null;
+  /** Estimated headcount for the DS 44/2024 obligations panel (optional). */
+  estimatedWorkers: number | null;
   countries: CountryCode[];
   tier: TierId | null;
   inviteEmails: string[];
@@ -75,6 +166,9 @@ export interface OnboardingState {
 export const INITIAL_STATE: OnboardingState = {
   step: 'industry',
   industry: null,
+  siiCode: null,
+  sectorId: null,
+  estimatedWorkers: null,
   countries: [],
   tier: null,
   inviteEmails: [],
@@ -86,6 +180,8 @@ export const INITIAL_STATE: OnboardingState = {
 
 export type Action =
   | { type: 'SET_INDUSTRY'; industry: IndustryId }
+  | { type: 'SET_RUBRO'; codigo: number; sectorId: string }
+  | { type: 'SET_WORKER_COUNT'; count: number | null }
   | { type: 'TOGGLE_COUNTRY'; code: CountryCode }
   | { type: 'SET_TIER'; tier: TierId }
   | { type: 'SET_EMAILS'; emails: string[] }
@@ -97,10 +193,36 @@ export type Action =
   | { type: 'SUBMIT_FAIL'; error: string }
   | { type: 'SUBMIT_OK' };
 
+/**
+ * Effective GP-* sector for the preventive profile: the rubro-derived
+ * subsector wins; a manual vertical falls back to its representative
+ * GP-* major sector; null until something is selected.
+ */
+export function effectiveSectorId(
+  state: Pick<OnboardingState, 'sectorId' | 'industry'>,
+): string | null {
+  if (state.sectorId) return state.sectorId;
+  if (state.industry) return INDUSTRY_TO_GP[state.industry];
+  return null;
+}
+
 export function reducer(state: OnboardingState, action: Action): OnboardingState {
   switch (action.type) {
     case 'SET_INDUSTRY':
-      return { ...state, industry: action.industry, error: null };
+      // Manual pick overrides (and clears) a previously chosen SII rubro —
+      // keeping a stale siiCode would persist a code that contradicts the
+      // vertical the user explicitly selected.
+      return { ...state, industry: action.industry, siiCode: null, sectorId: null, error: null };
+    case 'SET_RUBRO':
+      return {
+        ...state,
+        siiCode: action.codigo,
+        sectorId: action.sectorId,
+        industry: industryForSector(action.sectorId),
+        error: null,
+      };
+    case 'SET_WORKER_COUNT':
+      return { ...state, estimatedWorkers: action.count, error: null };
     case 'TOGGLE_COUNTRY': {
       const has = state.countries.includes(action.code);
       const countries = has
@@ -201,6 +323,10 @@ export interface OnboardingSubmitPayload {
   inviteEmails: string[];
   projectName: string;
   workersCsv: string | null;
+  /** SII rubro chosen via autocomplete; the server re-derives the GP sector. */
+  siiCode: number | null;
+  /** Estimated headcount (informational; drives DS 44/2024 obligations). */
+  estimatedWorkers: number | null;
 }
 
 async function defaultSubmit(payload: OnboardingSubmitPayload): Promise<void> {
@@ -240,6 +366,8 @@ export function OnboardingWizard({ onComplete, submitFn }: OnboardingWizardProps
         inviteEmails: state.inviteEmails,
         projectName: state.projectName.trim(),
         workersCsv: state.workersCsv,
+        siiCode: state.siiCode,
+        estimatedWorkers: state.estimatedWorkers,
       });
       dispatch({ type: 'SUBMIT_OK' });
       onComplete?.();
@@ -272,7 +400,14 @@ export function OnboardingWizard({ onComplete, submitFn }: OnboardingWizardProps
         {state.step === 'industry' && (
           <IndustryStep
             value={state.industry}
+            siiCode={state.siiCode}
+            sectorId={state.sectorId}
+            estimatedWorkers={state.estimatedWorkers}
             onChange={(industry) => dispatch({ type: 'SET_INDUSTRY', industry })}
+            onRubro={(rubro) =>
+              dispatch({ type: 'SET_RUBRO', codigo: rubro.codigo, sectorId: rubro.sectorId })
+            }
+            onWorkerCount={(count) => dispatch({ type: 'SET_WORKER_COUNT', count })}
           />
         )}
 
@@ -312,6 +447,7 @@ export function OnboardingWizard({ onComplete, submitFn }: OnboardingWizardProps
             onNameChange={(name) => dispatch({ type: 'SET_PROJECT_NAME', name })}
             workersCsv={state.workersCsv}
             onCsvChange={(csv) => dispatch({ type: 'SET_WORKERS_CSV', csv })}
+            sectorId={effectiveSectorId(state)}
           />
         )}
 
@@ -381,21 +517,99 @@ function ProgressDots({ current, total }: { current: number; total: number }) {
 
 function IndustryStep({
   value,
+  siiCode,
+  sectorId,
+  estimatedWorkers,
   onChange,
+  onRubro,
+  onWorkerCount,
 }: {
   value: IndustryId | null;
+  siiCode: number | null;
+  sectorId: string | null;
+  estimatedWorkers: number | null;
   onChange: (id: IndustryId) => void;
+  onRubro: (rubro: SiiActividadEconomica) => void;
+  onWorkerCount: (count: number | null) => void;
 }) {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState('');
+  const trimmed = query.trim();
+  const results = trimmed.length >= 2 ? searchRubros(trimmed, 8) : [];
+  const selectedRubro = siiCode != null ? findByCodigo(siiCode) : undefined;
+
   return (
     <div>
       <h2 className="text-lg font-semibold mb-4">¿Cuál es tu industria?</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+
+      {/* SII autocomplete — picks the rubro and auto-selects the vertical. */}
+      <label className="block text-sm text-slate-300 mb-1" htmlFor="sii-search-input">
+        {t('onboarding.sii.searchLabel', 'Busca tu rubro SII (código o actividad)')}
+      </label>
+      <input
+        id="sii-search-input"
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={t('onboarding.sii.searchPlaceholder', 'Ej: 410010 o extracción de cobre')}
+        data-testid="sii-search-input"
+        className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:border-teal-500 focus:outline-none"
+      />
+      {trimmed.length >= 2 && results.length > 0 && (
+        <ul
+          data-testid="sii-results"
+          className="mt-2 rounded-lg border border-slate-700 divide-y divide-slate-800 overflow-hidden"
+        >
+          {results.map((r) => (
+            <li key={r.codigo}>
+              <button
+                type="button"
+                data-testid={`sii-result-${r.codigo}`}
+                onClick={() => {
+                  onRubro(r);
+                  setQuery('');
+                }}
+                className="w-full text-left px-3 py-2 text-xs bg-slate-800 hover:bg-slate-700"
+              >
+                <span className="font-mono text-teal-400 mr-2">{formatCodigoSii(r.codigo)}</span>
+                {r.descripcion}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {trimmed.length >= 2 && results.length === 0 && (
+        <p data-testid="sii-no-results" className="mt-2 text-xs text-slate-400">
+          {t(
+            'onboarding.sii.noResults',
+            'Sin resultados. Puedes elegir la industria manualmente abajo.',
+          )}
+        </p>
+      )}
+      {siiCode != null && sectorId && (
+        <div
+          data-testid="sii-selected"
+          className="mt-2 px-3 py-2 rounded-lg bg-teal-950/40 border border-teal-700/50 text-xs text-teal-200"
+        >
+          <span className="font-semibold mr-1">
+            {t('onboarding.sii.selectedLabel', 'Rubro SII seleccionado')}:
+          </span>
+          <span className="font-mono">{formatCodigoSii(siiCode)}</span>
+          {selectedRubro ? ` — ${selectedRubro.descripcion}` : null}
+          <span className="block text-teal-400/80 mt-0.5">
+            {t('onboarding.sii.sectorAuto', 'Sector preventivo asignado')}: {sectorId}
+          </span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
         {INDUSTRIES.map((ind) => (
           <button
             key={ind.id}
             type="button"
             onClick={() => onChange(ind.id)}
             data-testid={`industry-${ind.id}`}
+            aria-pressed={value === ind.id}
             className={`px-4 py-3 rounded-lg text-sm border transition-colors ${
               value === ind.id
                 ? 'bg-teal-600 border-teal-400 text-white'
@@ -406,6 +620,61 @@ function IndustryStep({
           </button>
         ))}
       </div>
+
+      <DotacionSection estimatedWorkers={estimatedWorkers} onWorkerCount={onWorkerCount} />
+    </div>
+  );
+}
+
+function DotacionSection({
+  estimatedWorkers,
+  onWorkerCount,
+}: {
+  estimatedWorkers: number | null;
+  onWorkerCount: (count: number | null) => void;
+}) {
+  const { t } = useTranslation();
+  const obligaciones =
+    estimatedWorkers != null && estimatedWorkers > 0
+      ? obligacionesPorDotacion(estimatedWorkers, CL_PACK).obligaciones
+      : null;
+
+  return (
+    <div className="mt-6">
+      <label className="block text-sm text-slate-300 mb-1" htmlFor="workers-count-input">
+        {t('onboarding.dotacion.label', '¿Cuántas personas trabajan en tu empresa? (estimado)')}
+      </label>
+      <input
+        id="workers-count-input"
+        type="number"
+        min={1}
+        value={estimatedWorkers ?? ''}
+        onChange={(e) => {
+          const n = Number.parseInt(e.target.value, 10);
+          onWorkerCount(Number.isInteger(n) && n > 0 ? n : null);
+        }}
+        placeholder="30"
+        data-testid="workers-count-input"
+        className="w-full sm:w-48 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:border-teal-500 focus:outline-none"
+      />
+      {obligaciones && (
+        <div
+          data-testid="dotacion-obligaciones"
+          className="mt-3 px-4 py-3 rounded-lg bg-slate-800/70 border border-slate-700 text-xs text-slate-300"
+        >
+          <p className="font-semibold text-slate-200 mb-2">
+            {t(
+              'onboarding.dotacion.obligationsTitle',
+              'Obligaciones preventivas en Chile según tu dotación',
+            )}
+          </p>
+          <ul className="list-disc list-inside space-y-1">
+            {obligaciones.map((o) => (
+              <li key={o}>{o}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -565,11 +834,13 @@ function ProjectStep({
   onNameChange,
   workersCsv,
   onCsvChange,
+  sectorId,
 }: {
   name: string;
   onNameChange: (s: string) => void;
   workersCsv: string | null;
   onCsvChange: (csv: string | null) => void;
+  sectorId: string | null;
 }) {
   return (
     <div>
@@ -621,6 +892,81 @@ function ProjectStep({
           Puedes saltarte este paso e importar después.
         </span>
       </div>
+
+      {sectorId && <RiskProfileSummary sectorId={sectorId} />}
+    </div>
+  );
+}
+
+/**
+ * Read-only preventive-profile summary for the chosen sector (slice 2):
+ * applicable regulations + typical EPP + seed hazards. Instantiating the
+ * seeds as project hazards (ZK) is slice 3 — nothing here writes anywhere.
+ */
+function RiskProfileSummary({ sectorId }: { sectorId: string }) {
+  const { t } = useTranslation();
+  const profile = getRiskProfileForSector(sectorId);
+
+  return (
+    <div
+      data-testid="risk-profile-summary"
+      className="mt-6 px-4 py-4 rounded-lg bg-slate-800/70 border border-slate-700 text-xs text-slate-300"
+    >
+      <p className="font-semibold text-slate-100 text-sm">
+        {t('onboarding.profile.title', 'Perfil preventivo de tu sector')}{' '}
+        <span className="font-mono text-teal-400">{profile.sectorId}</span>
+      </p>
+      <p className="text-slate-500 mt-0.5 mb-3">
+        {t(
+          'onboarding.profile.readOnlyHint',
+          'Información referencial: podrás generar tu matriz de riesgos desde el panel.',
+        )}
+      </p>
+
+      <p className="font-semibold text-slate-200 mb-1">
+        {t('onboarding.profile.regulations', 'Normativa aplicable')}
+      </p>
+      <ul className="list-disc list-inside space-y-0.5 mb-3">
+        {profile.regulations.map((r) => (
+          <li key={r.id}>{r.title}</li>
+        ))}
+      </ul>
+
+      <p className="font-semibold text-slate-200 mb-1">
+        {t('onboarding.profile.epp', 'EPP típico')}
+      </p>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {profile.epp.map((e) => (
+          <span
+            key={e.label}
+            className="px-2 py-1 rounded-full bg-slate-900 border border-slate-700"
+          >
+            <span aria-hidden="true">{e.emoji}</span> {e.label}
+          </span>
+        ))}
+      </div>
+
+      <p className="font-semibold text-slate-200 mb-1">
+        {t('onboarding.profile.risks', 'Riesgos típicos a evaluar')}
+      </p>
+      <ul className="list-disc list-inside space-y-0.5">
+        {profile.riesgosTipicos.map((riesgo) => (
+          <li key={riesgo}>{riesgo}</li>
+        ))}
+      </ul>
+
+      {profile.notasPreventivas.length > 0 && (
+        <>
+          <p className="font-semibold text-slate-200 mt-3 mb-1">
+            {t('onboarding.profile.notes', 'Notas preventivas')}
+          </p>
+          <ul className="list-disc list-inside space-y-0.5">
+            {profile.notasPreventivas.map((nota) => (
+              <li key={nota}>{nota}</li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
