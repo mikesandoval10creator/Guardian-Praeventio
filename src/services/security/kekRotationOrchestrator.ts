@@ -22,8 +22,11 @@
  *     `rotationVersion` en cada record migrado para que un re-run
  *     pueda detectar "ya migrado" idempotente.
  *   - **In-flight protection**: si dos tabs disparan rotación
- *     simultánea, una gana via lock localStorage. La otra detecta
- *     y aborta.
+ *     simultánea, una gana el mutex y la otra detecta y aborta. El
+ *     mecanismo primario es la Web Locks API (`navigator.locks`) —
+ *     mutex real cross-tab con liberación automática si la tab muere.
+ *     Cuando el API no existe (Safari viejo / SSR / tests) se cae al
+ *     lock localStorage con double-check (no atómico, best-effort).
  *   - **Progress callback**: caller pasa `onProgress(processed,
  *     total)` para UI banner durante la migración.
  *   - **Inyección**: la `oldKek` la pasa el caller (típicamente
@@ -103,6 +106,13 @@ export class KekRotationError extends Error {
 
 // ────────────────────────────────────────────────────────────────────────
 // Lock — evita rotaciones simultáneas en distintas tabs
+//
+// Primario: Web Locks API. Es un mutex REAL provisto por el browser
+// (atómico cross-tab, auto-release cuando el holder muere o navega),
+// exactamente lo que una rotación de llaves criptográficas necesita.
+// Fallback: lock localStorage con double-check — el propio double-check
+// admite que localStorage no es atómico, así que solo se usa cuando
+// `navigator.locks` no existe (Safari viejo, SSR, jsdom/tests).
 // ────────────────────────────────────────────────────────────────────────
 
 const LOCK_KEY = 'praeventio:kek:rotation:lock:v1';
@@ -111,6 +121,27 @@ const LOCK_TTL_MS = 5 * 60 * 1000; // 5 min — más que cualquier rotación rea
 interface LockValue {
   acquiredAt: number;
   acquiredBy: string;
+}
+
+/**
+ * Shape mínimo de `navigator.locks` que usamos. Tipado estructural para
+ * no depender de que lib.dom incluya LockManager en todos los targets.
+ */
+interface WebLockManagerLike {
+  request<T>(
+    name: string,
+    options: { ifAvailable: boolean },
+    callback: (lock: unknown) => T | Promise<T>,
+  ): Promise<T>;
+}
+
+function getWebLocks(): WebLockManagerLike | null {
+  const nav = (globalThis as { navigator?: { locks?: WebLockManagerLike } })
+    .navigator;
+  if (nav?.locks && typeof nav.locks.request === 'function') {
+    return nav.locks;
+  }
+  return null;
 }
 
 // PR #482 codex round-4 P2: counter monotónico de fallback cuando Web
@@ -299,76 +330,106 @@ export async function runKekRotation(
 
   const startedAt = nowMsFn();
 
-  // Acquire lock unless bypass (tests).
-  let lockId: string | null = null;
-  if (!input.bypassLock) {
-    lockId = tryAcquireLock(nowMsFn());
-    if (!lockId) {
-      return {
-        total: 0,
-        processed: 0,
-        failed: 0,
-        alreadyMigrated: 0,
-        failures: [],
-        aborted: true,
-        abortedReason: 'lock_busy',
-        latencyMs: nowMsFn() - startedAt,
-      };
-    }
+  // Bypass (tests): rotación directa sin mutex.
+  if (input.bypassLock) {
+    return executeRotation(input, nowMsFn, startedAt);
   }
 
+  // Mecanismo primario: Web Locks API — mutex atómico cross-tab con
+  // liberación automática al resolver el callback (o si la tab crashea).
+  const webLocks = getWebLocks();
+  if (webLocks) {
+    const outcome = await webLocks.request(
+      LOCK_KEY,
+      { ifAvailable: true },
+      async (lock): Promise<KekRotationResult | null> => {
+        if (!lock) return null; // held by another tab
+        return executeRotation(input, nowMsFn, startedAt);
+      },
+    );
+    return outcome ?? lockBusyResult(nowMsFn() - startedAt);
+  }
+
+  // Fallback: lock localStorage best-effort (navigator.locks ausente).
+  const lockId = tryAcquireLock(nowMsFn());
+  if (!lockId) {
+    return lockBusyResult(nowMsFn() - startedAt);
+  }
   try {
-    const allKeys = await listEncryptedKeys();
-    if (allKeys.length === 0) {
-      return {
-        total: 0,
-        processed: 0,
-        failed: 0,
-        alreadyMigrated: 0,
-        failures: [],
-        aborted: true,
-        abortedReason: 'no_records',
-        latencyMs: nowMsFn() - startedAt,
-      };
-    }
-
-    let processed = 0;
-    let failed = 0;
-    let alreadyMigrated = 0;
-    const failures: Array<{ key: string; error: string }> = [];
-
-    for (let i = 0; i < allKeys.length; i++) {
-      const key = allKeys[i]!;
-      const r = await rotatePerRecord(key, input.oldKek, input.newKek);
-      if (r.status === 'rotated') {
-        processed++;
-      } else if (r.status === 'already-migrated') {
-        alreadyMigrated++;
-      } else if (r.status === 'failed') {
-        failed++;
-        failures.push({ key, error: r.error ?? 'unknown' });
-      }
-      // 'not-envelope' → simplemente skip sin contar como fail
-      input.onProgress?.(i + 1, allKeys.length);
-    }
-
-    return {
-      total: allKeys.length,
-      processed,
-      failed,
-      alreadyMigrated,
-      failures,
-      aborted: false,
-      latencyMs: nowMsFn() - startedAt,
-    };
+    return await executeRotation(input, nowMsFn, startedAt);
   } finally {
-    if (lockId) releaseLock(lockId);
+    releaseLock(lockId);
   }
 }
 
+function lockBusyResult(latencyMs: number): KekRotationResult {
+  return {
+    total: 0,
+    processed: 0,
+    failed: 0,
+    alreadyMigrated: 0,
+    failures: [],
+    aborted: true,
+    abortedReason: 'lock_busy',
+    latencyMs,
+  };
+}
+
+/** Cuerpo de la rotación — el caller ya resolvió el mutex. */
+async function executeRotation(
+  input: KekRotationInput,
+  nowMsFn: () => number,
+  startedAt: number,
+): Promise<KekRotationResult> {
+  const allKeys = await listEncryptedKeys();
+  if (allKeys.length === 0) {
+    return {
+      total: 0,
+      processed: 0,
+      failed: 0,
+      alreadyMigrated: 0,
+      failures: [],
+      aborted: true,
+      abortedReason: 'no_records',
+      latencyMs: nowMsFn() - startedAt,
+    };
+  }
+
+  let processed = 0;
+  let failed = 0;
+  let alreadyMigrated = 0;
+  const failures: Array<{ key: string; error: string }> = [];
+
+  for (let i = 0; i < allKeys.length; i++) {
+    const key = allKeys[i]!;
+    const r = await rotatePerRecord(key, input.oldKek, input.newKek);
+    if (r.status === 'rotated') {
+      processed++;
+    } else if (r.status === 'already-migrated') {
+      alreadyMigrated++;
+    } else if (r.status === 'failed') {
+      failed++;
+      failures.push({ key, error: r.error ?? 'unknown' });
+    }
+    // 'not-envelope' → simplemente skip sin contar como fail
+    input.onProgress?.(i + 1, allKeys.length);
+  }
+
+  return {
+    total: allKeys.length,
+    processed,
+    failed,
+    alreadyMigrated,
+    failures,
+    aborted: false,
+    latencyMs: nowMsFn() - startedAt,
+  };
+}
+
 /**
- * Helper para limpiar el lock si quedó stuck (post-crash). Solo para
- * desarrolladores / UI de emergencia en Settings.
+ * Helper para limpiar el lock localStorage (fallback) si quedó stuck
+ * (post-crash). Solo para desarrolladores / UI de emergencia en Settings.
+ * Con Web Locks no hace falta: el browser libera el lock al morir la tab.
  */
 export function forceReleaseRotationLock(): void {
   if (typeof localStorage === 'undefined') return;
@@ -380,7 +441,7 @@ export function forceReleaseRotationLock(): void {
 }
 
 /**
- * Lee el estado actual del lock sin modificarlo.
+ * Lee el estado actual del lock localStorage (fallback) sin modificarlo.
  */
 export function inspectRotationLock(
   nowMs: number = Date.now(),

@@ -133,13 +133,13 @@ export function Dashboard() {
     };
 
     // Defer until browser is idle so first paint isn't blocked
-    const id = 'requestIdleCallback' in window
+    const id: number | ReturnType<typeof setTimeout> = 'requestIdleCallback' in window
       ? window.requestIdleCallback(() => fetchInsights())
-      : setTimeout(fetchInsights, 500) as unknown as number;
+      : setTimeout(fetchInsights, 500);
 
     return () => {
       if ('cancelIdleCallback' in window) window.cancelIdleCallback(id as number);
-      else clearTimeout(id as unknown as ReturnType<typeof setTimeout>);
+      else clearTimeout(id as ReturnType<typeof setTimeout>);
     };
   }, [nodes.length, weather, seismic, isOnline]);
 
