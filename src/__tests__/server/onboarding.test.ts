@@ -480,4 +480,154 @@ describe('POST /api/onboarding/complete', () => {
     }
     expect(firestoreStore.size).toBe(0);
   });
+
+  // ── Épica Rubros SII — slice 3: seed risks + obligations on creation ─────
+  // When the wizard provides a rubro (siiCode) and/or a dotación
+  // (estimatedWorkers), the preventive profile must land as REAL initial
+  // records:
+  //   - risk seeds in the top-level `nodes` collection (the IPER UI's read
+  //     path: Matrix.tsx → useRiskEngine lists `nodes` by projectId),
+  //   - obligation seeds in `projects/{pid}/legal_obligations` (the
+  //     LegalCalendar page's read path),
+  //   - PLUS the canonical top-level `projects/{pid}` doc so the SPA
+  //     (ProjectContext members array-contains) and firestore.rules
+  //     isProjectMember/assertProjectMember actually recognize the project.
+
+  describe('slice 3 — seeds del rubro al crear proyecto', () => {
+    async function completeOnboarding(overrides: Record<string, unknown> = {}) {
+      const app = await buildApp();
+      return request(app)
+        .post('/api/onboarding/complete')
+        .set('Authorization', 'Bearer test:uid-S:s@test.com')
+        .send(
+          validPayload({
+            industry: 'construction',
+            siiCode: 410010, // GP-CONS-RES in the verified catalogue
+            estimatedWorkers: 30,
+            ...overrides,
+          }),
+        );
+    }
+
+    it('creates the canonical top-level projects/{pid} doc (members array, createdBy from token)', async () => {
+      const res = await completeOnboarding();
+      expect(res.status).toBe(200);
+      const pid = res.body.projectId as string;
+      const project = firestoreStore.get(`projects/${pid}`) as Record<string, unknown>;
+      expect(project).toBeDefined();
+      expect(project.name).toBe('Faena Norte');
+      expect(project.createdBy).toBe('uid-S');
+      expect(project.members).toEqual(['uid-S']);
+      expect(project.status).toBe('active');
+      // Rubro persisted on the project (inside `metadata`, an
+      // isValidProject-whitelisted key, so client updates keep passing rules).
+      const meta = project.metadata as Record<string, unknown>;
+      expect(meta.codigoActividadSii).toBe(410010);
+      expect(meta.sectorId).toBe('GP-CONS-RES');
+    });
+
+    it('seeds the rubro risks into the top-level nodes collection with deterministic ids', async () => {
+      const res = await completeOnboarding();
+      expect(res.status).toBe(200);
+      const pid = res.body.projectId as string;
+
+      const nodeKeys = [...firestoreStore.keys()].filter((k) => k.startsWith('nodes/'));
+      expect(nodeKeys.length).toBeGreaterThan(0);
+      // Idempotent deterministic id: re-running the flow for the same
+      // project overwrites instead of duplicating.
+      expect(nodeKeys).toContain(`nodes/seed-risk-GP-CONS-RES-1-${pid}`);
+
+      for (const key of nodeKeys) {
+        const node = firestoreStore.get(key) as Record<string, unknown>;
+        expect(node.projectId).toBe(pid);
+        expect(node.type).toBe('Riesgo');
+        const meta = node.metadata as Record<string, unknown>;
+        expect(meta.origin).toBe('sii_seed');
+        expect(meta.seedSource).toBe(410010);
+        // Identity stamped from the verified token, never from the client.
+        expect(meta.authorId).toBe('uid-S');
+      }
+      expect(res.body.seededRisks).toBe(nodeKeys.length);
+    });
+
+    it('seeds the dotación obligations into projects/{pid}/legal_obligations', async () => {
+      const res = await completeOnboarding({ estimatedWorkers: 120 });
+      expect(res.status).toBe(200);
+      const pid = res.body.projectId as string;
+
+      const oblKeys = [...firestoreStore.keys()].filter((k) =>
+        k.startsWith(`projects/${pid}/legal_obligations/`),
+      );
+      expect(oblKeys.length).toBeGreaterThan(0);
+      const labels = oblKeys
+        .map((k) => (firestoreStore.get(k) as Record<string, unknown>).label as string)
+        .join(' | ');
+      // 120 workers → CPHS + Departamento de Prevención (CL pack thresholds).
+      expect(labels).toMatch(/Comité Paritario/i);
+      expect(labels).toMatch(/Departamento de Prevención/i);
+      expect(res.body.seededObligations).toBe(oblKeys.length);
+    });
+
+    it('writes ONE audit row for the seeding action with counts', async () => {
+      const res = await completeOnboarding();
+      expect(res.status).toBe(200);
+      const seedAudits = auditServerEventMock.mock.calls.filter(
+        (c) => c[1] === 'onboarding.projectSeeded',
+      );
+      expect(seedAudits.length).toBe(1);
+      const details = seedAudits[0][3] as Record<string, unknown>;
+      expect(details.projectId).toBe(res.body.projectId);
+      expect(details.sectorId).toBe('GP-CONS-RES');
+      expect(details.riskSeeds).toBe(res.body.seededRisks);
+      expect(details.obligationSeeds).toBe(res.body.seededObligations);
+      // The onboarding.completed row still exists (separate concern).
+      expect(
+        auditServerEventMock.mock.calls.some((c) => c[1] === 'onboarding.completed'),
+      ).toBe(true);
+    });
+
+    it('without siiCode/estimatedWorkers: no seeds, no seeding audit, but the top-level project still exists', async () => {
+      const res = await completeOnboarding({ siiCode: undefined, estimatedWorkers: undefined });
+      expect(res.status).toBe(200);
+      const pid = res.body.projectId as string;
+      expect(firestoreStore.get(`projects/${pid}`)).toBeDefined();
+      expect([...firestoreStore.keys()].filter((k) => k.startsWith('nodes/'))).toEqual([]);
+      expect(
+        [...firestoreStore.keys()].filter((k) => k.includes('/legal_obligations/')),
+      ).toEqual([]);
+      expect(
+        auditServerEventMock.mock.calls.some((c) => c[1] === 'onboarding.projectSeeded'),
+      ).toBe(false);
+      expect(res.body.seededRisks).toBe(0);
+      expect(res.body.seededObligations).toBe(0);
+    });
+
+    it('estimatedWorkers without siiCode: obligations seeded, no risk nodes', async () => {
+      const res = await completeOnboarding({ siiCode: undefined, estimatedWorkers: 24 });
+      expect(res.status).toBe(200);
+      const pid = res.body.projectId as string;
+      expect([...firestoreStore.keys()].filter((k) => k.startsWith('nodes/'))).toEqual([]);
+      const oblKeys = [...firestoreStore.keys()].filter((k) =>
+        k.startsWith(`projects/${pid}/legal_obligations/`),
+      );
+      // 24 workers → delegado(a) SST (below the CPHS threshold).
+      expect(oblKeys.length).toBeGreaterThan(0);
+      const labels = oblKeys
+        .map((k) => (firestoreStore.get(k) as Record<string, unknown>).label as string)
+        .join(' | ');
+      expect(labels).toMatch(/delegado/i);
+    });
+
+    it('non-CL countries: dotación obligations are NOT seeded (CL-pack thresholds are Chilean law)', async () => {
+      const res = await completeOnboarding({ countries: ['PE'], estimatedWorkers: 120 });
+      expect(res.status).toBe(200);
+      expect(
+        [...firestoreStore.keys()].filter((k) => k.includes('/legal_obligations/')),
+      ).toEqual([]);
+      // Risk seeds are preventive (not legal citations) — still seeded.
+      expect(
+        [...firestoreStore.keys()].filter((k) => k.startsWith('nodes/')).length,
+      ).toBeGreaterThan(0);
+    });
+  });
 });
