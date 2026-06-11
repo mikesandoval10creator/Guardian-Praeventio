@@ -20,6 +20,10 @@ const FatigueMonitor = lazy(() => import('../pages/FatigueMonitor').then(module 
 // compute → audited history per project).
 const TmertEvaluation = lazy(() => import('../pages/TmertEvaluation').then(module => ({ default: module.TmertEvaluation })));
 const PrexorEvaluation = lazy(() => import('../pages/PrexorEvaluation').then(module => ({ default: module.PrexorEvaluation })));
+// PLANESI module (2026-06-11) — sílice cristalina respirable gets the same
+// treatment (engine src/services/protocols/planesi.ts, verified DS 594
+// Art. 66 + protocolo sílice MINSAL Res. Ex. 268/2015).
+const PlanesiEvaluation = lazy(() => import('../pages/PlanesiEvaluation').then(module => ({ default: module.PlanesiEvaluation })));
 
 export const HealthRoutes = [
   <Route key="hygiene" path="hygiene" element={<Hygiene />} />,
@@ -32,4 +36,5 @@ export const HealthRoutes = [
   <Route key="fatigue" path="fatigue" element={<FatigueMonitor />} />,
   <Route key="tmert" path="tmert" element={<TmertEvaluation />} />,
   <Route key="prexor" path="prexor" element={<PrexorEvaluation />} />,
+  <Route key="planesi" path="planesi" element={<PlanesiEvaluation />} />,
 ];

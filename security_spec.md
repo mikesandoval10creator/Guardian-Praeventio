@@ -874,11 +874,14 @@ stamps `actorUid` from the verified token. Rules tests:
 ## MINSAL protocol assessments (protocol_assessments) — server-only, deny client read+write (B-protocols, added 2026-06-11)
 
 `protocol_assessments/{assessmentId}` holds TMERT-EESS (trastornos
-musculoesqueléticos de extremidad superior, Norma Técnica MINSAL 2012) and
-PREXOR (exposición ocupacional a ruido, DS 594 Art. 75) evaluations — legally
-relevant prevention records. Unlike `ergonomic_assessments` (client SDK +
+musculoesqueléticos de extremidad superior, Norma Técnica MINSAL 2012),
+PREXOR (exposición ocupacional a ruido, DS 594 Art. 75) and PLANESI
+(sílice cristalina respirable, DS 594 Art. 66 + protocolo sílice MINSAL
+Res. Ex. 268/2015 — added 2026-06-11) evaluations — legally relevant
+prevention records. Unlike `ergonomic_assessments` (client SDK +
 member-gated rules), this collection is written AND read exclusively through
-the server routes `/api/sprint-k/:projectId/protocols/{tmert,prexor}/assessments`
+the server routes
+`/api/sprint-k/:projectId/protocols/{tmert,prexor,planesi}/assessments`
 + `GET …/protocols/assessments` (verifyAuth + `assertProjectMember`, Admin SDK,
 bypasses these rules). The server recomputes the verdict from the raw inputs via
 the pure engines and stamps `metadata.author` from the verified token, then
@@ -902,6 +905,13 @@ block exists so a future permissive rule isn't added by accident. Rules tests:
     project-membership gate (`assertProjectMember`) is enforced uniformly,
     instead of duplicating the tenancy check in rules for a server-owned
     collection.
+96. **Exposure-Grade Self-Fabrication (PLANESI)**: a member `set
+    /protocol_assessments/x` with `result.exposureGrade: 0` /
+    `result.exceedsLegalLimit: false` for a silica measurement the engine
+    grades 3 — the surveillance periodicity (Rx tórax, Tabla 7-1) derives
+    from the grade, so a falsified grade would silently stretch a legally
+    mandated health-surveillance deadline. Same server-only recompute
+    closes it (route POST …/protocols/planesi/assessments).
 
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
