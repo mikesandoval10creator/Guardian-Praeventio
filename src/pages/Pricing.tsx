@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Loader2,
   CreditCard,
+  Landmark,
   Smartphone,
   Sparkles,
   ShieldCheck,
@@ -665,6 +666,13 @@ function PricingInner() {
   const { projects } = useProject();
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  // 2026-06-11 (khipu cableado) — Chile now has TWO web rails: tarjeta
+  // (Webpay) y transferencia bancaria (Khipu). Clicking a tier opens this
+  // chooser instead of auto-starting Webpay.
+  const [methodChooser, setMethodChooser] = useState<{
+    tier: Tier;
+    legacyId: SubscriptionPlan;
+  } | null>(null);
   // Sprint 28 H25 — Tier downgrade flow UI state.
   const [downgradeModal, setDowngradeModal] = useState<{
     fromTier: TierId;
@@ -766,6 +774,84 @@ function PricingInner() {
     }
     // Note: on success we redirect away — leaving isProcessing set is fine
     // because the page unloads.
+  };
+
+  /**
+   * Web (non-native) Khipu checkout — transferencia bancaria (Chile).
+   * 2026-06-11 ("khipu cableado"). Posts to `/api/billing/khipu/checkout`
+   * with ONLY { planId, cycle } — the server resolves amount/currency from
+   * the canonical tier table and returns a `paymentUrl` we redirect to.
+   * Khipu then sends the user back to /pricing/success|failed?invoice=<id>
+   * (same banner UX as Webpay) and confirms server-side via the signed IPN
+   * webhook. If the rail isn't configured, the server answers an honest 503
+   * with es-CL copy that we surface as-is.
+   */
+  const startKhipuCheckout = async (tier: Tier, legacyId: SubscriptionPlan) => {
+    if (!user) {
+      addNotification({
+        title: t('pricing.checkout.login_required_title'),
+        message: t('pricing.checkout.login_required_msg'),
+        type: 'error',
+      });
+      return;
+    }
+
+    setCheckoutError(null);
+    setIsProcessing(legacyId);
+    try {
+      sessionStorage.setItem(
+        '__praeventio_pending_checkout',
+        JSON.stringify({ gateway: 'khipu', plan_code: tier.id, amount_clp: tier.clpRegular }),
+      );
+    } catch {}
+    try { analytics.track('payment.checkout.started', { gateway: 'khipu', plan_code: tier.id, amount_clp: tier.clpRegular }); } catch {}
+    try {
+      const authHeader = await apiAuthHeader();
+      const response = await fetch('/api/billing/khipu/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
+        },
+        body: JSON.stringify({ planId: tier.id, cycle: 'monthly' }),
+      });
+
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error(
+          (detail as { error?: string }).error ??
+            t('pricing.checkout.checkout_failed_status', { status: response.status }),
+        );
+      }
+
+      const data = (await response.json()) as {
+        invoiceId: string;
+        paymentId: string;
+        paymentUrl?: string;
+      };
+
+      if (!data.paymentUrl) {
+        throw new Error(t('pricing.checkout.khipu_unavailable'));
+      }
+
+      window.location.href = data.paymentUrl;
+    } catch (err) {
+      logger.error('khipu_checkout_start_failed', err, {
+        tierId: tier.id,
+        uid: user.uid,
+      });
+      const message =
+        err instanceof Error
+          ? err.message
+          : t('pricing.checkout.error_default');
+      setCheckoutError(message);
+      addNotification({
+        title: t('pricing.checkout.error_title'),
+        message: t('pricing.checkout.error_default'),
+        type: 'error',
+      });
+      setIsProcessing(null);
+    }
   };
 
   /**
@@ -931,14 +1017,15 @@ function PricingInner() {
     }
 
     // Web (non-native) → route by country.
-    //   CL              → Webpay (existing path).
+    //   CL              → chooser: Webpay (tarjeta) o Khipu (transferencia).
     //   PE/AR/CO/MX/BR  → MercadoPago.
     //   else            → fallback B2B contactando ventas (Stripe
     //                     descartado §2.12 cierre Fase C.2 2026-05-21).
     if (!isNative()) {
       const country = detectCountry(window.location.search);
       if (country === 'CL') {
-        await startWebpayCheckout(tier, legacyId);
+        // 2026-06-11 (khipu cableado): both CL rails are now selectable.
+        setMethodChooser({ tier, legacyId });
         return;
       }
       if ((MP_COUNTRIES as readonly string[]).includes(country)) {
@@ -1244,6 +1331,62 @@ function PricingInner() {
           </div>
         </div>
       </div>
+
+      {methodChooser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('pricing.checkout.method_title')}
+          onClick={() => setMethodChooser(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+              {t('pricing.checkout.method_title')}
+            </h3>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+              {t('pricing.checkout.method_subtitle', { tier: methodChooser.tier.nombre })}
+            </p>
+            <div className="mt-6 space-y-3">
+              <button
+                onClick={() => {
+                  const { tier, legacyId } = methodChooser;
+                  setMethodChooser(null);
+                  void startWebpayCheckout(tier, legacyId);
+                }}
+                disabled={isProcessing !== null}
+                className="w-full inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-widest text-xs px-5 py-3 rounded-xl transition-colors"
+              >
+                <CreditCard className="w-4 h-4" />
+                {t('pricing.checkout.method_webpay')}
+              </button>
+              <button
+                onClick={() => {
+                  const { tier, legacyId } = methodChooser;
+                  setMethodChooser(null);
+                  void startKhipuCheckout(tier, legacyId);
+                }}
+                disabled={isProcessing !== null}
+                className="w-full inline-flex items-center justify-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-200 dark:text-zinc-900 font-black uppercase tracking-widest text-xs px-5 py-3 rounded-xl transition-colors"
+              >
+                <Landmark className="w-4 h-4" />
+                {t('pricing.checkout.method_khipu')}
+              </button>
+              <button
+                onClick={() => setMethodChooser(null)}
+                className="w-full text-center text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 hover:underline pt-1"
+              >
+                {t('pricing.cta.close')}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {downgradeModal && (
         <TierDowngradeModal
