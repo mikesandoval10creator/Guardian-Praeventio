@@ -1,6 +1,8 @@
 // SystemEngine — Server-side trigger.
 //
-// Listens to `tenants/{tid}/system_events` via Firestore Admin onSnapshot.
+// Listens to every `system_events` subcollection (collectionGroup — today
+// `projects/{pid}/system_events` after the A4 re-scope) via Firestore Admin
+// onSnapshot.
 // Server-side policies (e.g. those that need admin privileges to fan out
 // FCM tokens or write to audit_logs) hook in here. The cleanup function
 // is wired into the SIGTERM handler so Cloud Run rolling deploys don't

@@ -1441,7 +1441,8 @@ const httpServer = app.listen(PORT, "0.0.0.0", () => {
     });
 
     // SystemEngine — server-side trigger. Listens via collectionGroup so a
-    // single subscription covers every tenant's system_events subcollection.
+    // single subscription covers every project's system_events subcollection
+    // (projects/{pid}/system_events since the A4 re-scope).
     // Cleanup is wired into SIGTERM (no leaked listener on rolling deploy).
     systemEngineHandle = setupSystemEngineTrigger({
       db: admin.firestore(),
