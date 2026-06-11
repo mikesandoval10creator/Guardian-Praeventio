@@ -390,6 +390,8 @@ import meetingPackRouter from "./src/server/routes/meetingPack.js";
 import routingRouter from "./src/server/routes/routing.js";
 // Protocols — IPER 5×5 + PREXOR auditory + TMERT MSD (Chilean MINSAL).
 import protocolsRouter from "./src/server/routes/protocols.js";
+// CEAL-SM/SUSESO — psychosocial risk surveillance (anonymous, k-gated).
+import cealSmRouter from "./src/server/routes/cealSm.js";
 // Portable worker history — Ley 19.628 + ADR 0012 compliant export.
 import workerHistoryRouter from "./src/server/routes/workerHistory.js";
 // Pricing calculator — Sprint K §172-179 (tier cost + comparison + ROI + PO).
@@ -1182,6 +1184,7 @@ app.use('/api/sprint-k', climateAwareSchedulingRouter);
 app.use('/api/sprint-k', meetingPackRouter);
 app.use('/api/sprint-k', routingRouter);
 app.use('/api/sprint-k', protocolsRouter);
+app.use('/api/sprint-k', cealSmRouter);
 app.use('/api/sprint-k', workerHistoryRouter);
 app.use('/api/sprint-k', pricingCalculatorRouter);
 app.use('/api/sprint-k', rootCauseRouter);

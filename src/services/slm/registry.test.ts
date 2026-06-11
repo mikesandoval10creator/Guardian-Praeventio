@@ -5,6 +5,7 @@ import {
   MODEL_REGISTRY,
   getDefaultModel,
   getModelById,
+  requiresExplicitDownloadConsent,
 } from './registry';
 
 /**
@@ -52,10 +53,40 @@ describe('SLM model registry', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("default model is 'phi-3-mini'", () => {
-    expect(DEFAULT_MODEL_ID).toBe('phi-3-mini');
+  // B14 (2026-06-11): Qwen-default decision. The default model is the
+  // ONE that ships pre-packaged inside the build — never a multi-GB CDN
+  // download on a faena connection.
+  it("default model is 'qwen-2.5-0.5b' (B14 Qwen-default)", () => {
+    expect(DEFAULT_MODEL_ID).toBe('qwen-2.5-0.5b');
     const def = getDefaultModel();
-    expect(def.id).toBe('phi-3-mini');
+    expect(def.id).toBe('qwen-2.5-0.5b');
+  });
+
+  it('default model ships pre-packaged — no CDN URL in the default path', () => {
+    const def = getDefaultModel();
+    // The runtime/loader prefer `prePackagedPath` (same-origin asset
+    // staged by scripts/prepackage-slm-models.mjs in prebuild).
+    expect(def.prePackagedPath).toBe('/models/qwen-2.5-0.5b/model_q4f16.onnx');
+    // No companion files → a single ~483 MB artifact, embeddable.
+    expect(def.companionFiles).toBeUndefined();
+    expect(totalDownloadBytes(def)).toBeLessThan(600 * MB);
+    // The default never needs explicit download consent.
+    expect(requiresExplicitDownloadConsent(def)).toBe(false);
+  });
+
+  it('Phi-3 y Gemma son opt-in: requieren consentimiento explícito de descarga', () => {
+    // Multi-GB CDN downloads — UI must show an es-CL size warning and
+    // require explicit user action before fetching these.
+    expect(requiresExplicitDownloadConsent(getModelById('phi-3-mini')!)).toBe(
+      true,
+    );
+    expect(requiresExplicitDownloadConsent(getModelById('gemma-2-2b')!)).toBe(
+      true,
+    );
+  });
+
+  it('the first registry entry IS the default (order contract)', () => {
+    expect(MODEL_REGISTRY[0]!.id).toBe(DEFAULT_MODEL_ID);
   });
 
   it('Phi-3 Mini principal weight is ~1GB (.onnx, sin contar .onnx_data companion)', () => {

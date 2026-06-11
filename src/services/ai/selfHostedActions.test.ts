@@ -121,3 +121,77 @@ describe('getSafetyAdvice spec', () => {
     expect(req.prompt).toContain('no disponible');
   });
 });
+
+describe('calculateStructuralLoad spec', () => {
+  it('mirrors the structural-engineering prompt (SWL, normativa, mandatory disclaimer)', async () => {
+    const req = await SELF_HOSTED_ACTION_SPECS.calculateStructuralLoad.build([
+      'Eslinga textil',
+      '2 ton, poliéster, 4 ramales',
+    ]);
+    expect(req.prompt).toContain('Ingeniero Estructural Senior');
+    expect(req.prompt).toContain('Elemento: Eslinga textil');
+    expect(req.prompt).toContain('Especificaciones: 2 ton, poliéster, 4 ramales');
+    expect(req.prompt).toContain('SWL - Safe Working Load');
+    expect(req.prompt).toContain('descargo de responsabilidad');
+    expect(req.prompt).toContain('ingeniero calculista certificado');
+    // No RAG, no redaction seam in the Gemini handler → builder stays pure.
+    expect(H.searchRelevantContext).not.toHaveBeenCalled();
+    expect(req.systemInstruction).toBeUndefined();
+  });
+
+  it('non-string args degrade to empty interpolation (never throws)', async () => {
+    const req = await SELF_HOSTED_ACTION_SPECS.calculateStructuralLoad.build([null, 42]);
+    expect(req.prompt).toContain('Elemento: ');
+    expect(req.prompt).toContain('Especificaciones: ');
+  });
+});
+
+describe('designHazmatStorage spec', () => {
+  it('mirrors the hazmat-design prompt (OGUC + DS 43 + NCh382, numeric volume interpolated)', async () => {
+    const req = await SELF_HOSTED_ACTION_SPECS.designHazmatStorage.build([
+      'Bodega de inflamables',
+      500,
+      'Clase 3',
+    ]);
+    expect(req.prompt).toContain('OGUC');
+    expect(req.prompt).toContain('DS 43');
+    expect(req.prompt).toContain('Tipo de Almacenamiento: Bodega de inflamables');
+    expect(req.prompt).toContain('Volumen/Cantidad Estimada: 500 (toneladas/litros)');
+    expect(req.prompt).toContain('Clase de Sustancia (NCh382): Clase 3');
+    expect(req.prompt).toContain('Sistemas contra Incendios');
+  });
+});
+
+describe('evaluateMinsalCompliance spec', () => {
+  it('mirrors the MINSAL audit prompt: RAG query per protocol/industry + audit sections', async () => {
+    const req = await SELF_HOSTED_ACTION_SPECS.evaluateMinsalCompliance.build([
+      'PREXOR',
+      'hallazgos: ruido sobre norma',
+      'minería',
+    ]);
+    expect(H.searchRelevantContext).toHaveBeenCalledWith(
+      'Exigencias y sanciones del protocolo MINSAL: PREXOR en la industria minería',
+    );
+    expect(req.prompt).toContain('Auditor Senior del Ministerio de Salud de Chile (MINSAL)');
+    expect(req.prompt).toContain('Protocolo: PREXOR');
+    expect(req.prompt).toContain('Industria: minería');
+    expect(req.prompt).toContain('hallazgos: ruido sobre norma');
+    expect(req.prompt).toContain('CONTEXTO-RAG-DS594');
+    expect(req.prompt).toContain('Brechas Identificadas');
+  });
+
+  it('defaults: industry → general/General, empty context → "Sin datos específicos"', async () => {
+    const req = await SELF_HOSTED_ACTION_SPECS.evaluateMinsalCompliance.build(['TMERT', '']);
+    expect(H.searchRelevantContext).toHaveBeenCalledWith(
+      'Exigencias y sanciones del protocolo MINSAL: TMERT en la industria general',
+    );
+    expect(req.prompt).toContain('Industria: General');
+    expect(req.prompt).toContain('Sin datos específicos registrados aún.');
+  });
+
+  it('a RAG outage degrades to a placeholder context — never throws', async () => {
+    H.searchRelevantContext.mockRejectedValue(new Error('firestore down'));
+    const req = await SELF_HOSTED_ACTION_SPECS.evaluateMinsalCompliance.build(['PLANESI', 'ctx']);
+    expect(req.prompt).toContain('No se encontró contexto legal relevante.');
+  });
+});

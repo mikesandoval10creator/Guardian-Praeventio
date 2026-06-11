@@ -918,6 +918,48 @@ block exists so a future permissive rule isn't added by accident. Rules tests:
     mandated health-surveillance deadline. Same server-only recompute
     closes it (route POST …/protocols/planesi/assessments).
 
+## CEAL-SM/SUSESO psychosocial campaigns (ceal_sm_campaigns) — server-only, anonymity-critical (added 2026-06-11)
+
+`ceal_sm_campaigns/{campaignId}` holds CEAL-SM/SUSESO surveillance campaigns
+(Protocolo de Vigilancia de Riesgos Psicosociales MINSAL oct. 2022, vigente
+2023-01-01) and `…/responses/{responderHash}` holds ANONYMOUS worker answers
+about their employer (54-item Sección II, instrument transcribed with legal
+citations in `src/services/protocols/cealSmDefinition.ts`). Anonymity is
+constitutive: the response doc id is `HMAC-SHA256(pepper,
+"ceal-sm:responder:v1:" + uid + ":" + campaignId).slice(0,32)` (own
+domain-separation label — never joinable with culture-pulse hashes), the doc
+never stores a uid, and the server suppresses ALL aggregates below 10
+responses (manual CEAL-SM §3.2.1.1: separately measured units under 10
+workers require signed informed consent, which this platform cannot verify).
+The only read/write paths are `/api/sprint-k/:projectId/ceal-sm/*`
+(verifyAuth + `assertProjectMember`, Admin SDK; campaign creation
+role-gated to admin/prevencionista and audited; the center verdict is always
+recomputed by the pure engine `src/services/protocols/cealSm.ts`).
+Default-deny read+write for every actor. Rules tests:
+`src/rules-tests/cealSmCampaigns.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+97. **De-anonymization Read**: a member/admin reading
+    `…/responses/{hash}` directly to inspect an individual answer set (or to
+    enumerate hashes while watching who is online) — denied; the only
+    egress is the k>=10 suppressed aggregate endpoint, and without the
+    server-side pepper the hash cannot be recomputed from a uid roster.
+98. **Ballot Stuffing**: a manager `set …/responses/x` with fabricated
+    low-risk answers to tilt the center verdict below the +13 "riesgo alto"
+    band (or duplicate responses to dilute prevalence) — denied; the server
+    route enforces one response per verified worker (idempotent responder
+    hash) inside the campaign window.
+99. **Participation Spoof**: an UPDATE that inflates/deflates a campaign's
+    `totalWorkers` so a 50% participation reads as the >=60% the Protocolo
+    requires for validity (or edits `closeAt` to reopen a closed window) —
+    denied (`update:false`); the campaign metadata is server-stamped at
+    creation by an audited admin/prevencionista call.
+100. **Aggregate Self-Fabrication**: a client persisting a precomputed
+    "riesgo bajo" center result anywhere in the campaign doc — denied; no
+    aggregate is ever stored client-side, the verdict is recomputed on every
+    results read from the raw anonymized answers by the pure engine.
+
 ### Seismic telemetry re-scope (`projects/{pid}/seismic_events` — A4 follow-up, 2026-06-11)
 
 The on-device seismic auto-detection overlay
@@ -937,16 +979,16 @@ cases incl. the tenant-path supersession pin, F1 harness).
 
 **Rejected payloads (Dirty-Dozen extension):**
 
-97. **Cross-Project Seismic Forge**: a member of project A creates a
+101. **Cross-Project Seismic Forge**: a member of project A creates a
     `seismic_events` doc under project B's path, or writes under A with
     `projectId: B` in the payload — denied by `isProjectMember(projectId)` +
     `incoming().projectId == projectId` (path-bound). Seismic telemetry cannot
     be injected across project boundaries.
-98. **Seismic-Event Tamper / Erasure**: any user (admin included) UPDATEs a
+102. **Seismic-Event Tamper / Erasure**: any user (admin included) UPDATEs a
     persisted event (e.g. lower a recorded `peakG` after an incident) or
     DELETEs one — denied (`update,delete:false`); the on-device accelerometer
     log is immutable evidence.
-99. **Schema-less Seismic Write**: a payload missing `detectedAt`/`peakG`, or
+103. **Schema-less Seismic Write**: a payload missing `detectedAt`/`peakG`, or
     with a non-numeric `peakG` (e.g. `"alto"`) — denied by the schema gate, so
     the telemetry stream cannot be polluted with unparseable rows. Writes to
     the superseded `tenants/{tid}/seismic_events` path — denied by the tenant

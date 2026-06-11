@@ -77,6 +77,8 @@ interface ResilientAsesorPanelProps {
     ref: string;
     label?: string;
   }) => void;
+  /** B14: borrador inicial (evento `open-ai-chat` con `detail.query`). */
+  initialDraft?: string;
 }
 
 export function ResilientAsesorPanel({
@@ -90,6 +92,7 @@ export function ResilientAsesorPanel({
   suggestions,
   maxHistory,
   onCitationClick,
+  initialDraft,
 }: ResilientAsesorPanelProps) {
   const { t } = useTranslation();
 
@@ -131,6 +134,7 @@ export function ResilientAsesorPanel({
       defaultDomain={defaultDomain}
       suggestions={defaultSuggestions as string[]}
       maxHistory={maxHistory}
+      initialDraft={initialDraft}
       onCitationClick={
         onCitationClick
           ? (c) => onCitationClick({ kind: c.kind, ref: c.ref, label: c.label })

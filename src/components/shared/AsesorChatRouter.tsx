@@ -25,13 +25,16 @@ const LegacyAsesorChat = lazy(() =>
   import('./AsesorChat').then((m) => ({ default: m.AsesorChat })),
 );
 
-const ResilientAsesorPanelLazy = lazy(() =>
-  import('./ResilientAsesorPanel').then((m) => ({
-    default: m.ResilientAsesorPanel,
+// B14 (2026-06-11): el panel resiliente se monta envuelto en el
+// launcher flotante (botón burbuja + ventana + listener `open-ai-chat`)
+// para paridad UX con el chat legacy cuando el router vive en el shell.
+const ResilientAsesorLauncherLazy = lazy(() =>
+  import('./ResilientAsesorLauncher').then((m) => ({
+    default: m.ResilientAsesorLauncher,
   })),
 );
 
-type ResilientAsesorPanelProps = ComponentProps<typeof ResilientAsesorPanelLazy>;
+type ResilientAsesorPanelProps = ComponentProps<typeof ResilientAsesorLauncherLazy>;
 
 interface AsesorChatRouterProps {
   /**
@@ -47,7 +50,7 @@ export function AsesorChatRouter({ resilientProps }: AsesorChatRouterProps) {
   if (enabled) {
     return (
       <Suspense fallback={null}>
-        <ResilientAsesorPanelLazy {...(resilientProps ?? {})} />
+        <ResilientAsesorLauncherLazy {...(resilientProps ?? {})} />
       </Suspense>
     );
   }

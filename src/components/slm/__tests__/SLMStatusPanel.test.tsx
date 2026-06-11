@@ -34,11 +34,11 @@ describe('SLMStatusPanel', () => {
     const region = screen.getByRole('region', { name: /estado del modelo slm offline/i });
     expect(region).toBeInTheDocument();
 
-    // Default model is Phi-3 Mini per the registry order.
-    expect(screen.getByText(/Phi-3 Mini/i)).toBeInTheDocument();
+    // B14: default model is Qwen 2.5 0.5B (the pre-packaged one).
+    expect(screen.getByText(/Qwen 2.5 0.5B/i)).toBeInTheDocument();
 
     // License badge surfaces the tag for auditability.
-    expect(screen.getByTestId('slm-status-license')).toHaveTextContent('MIT');
+    expect(screen.getByTestId('slm-status-license')).toHaveTextContent('Apache-2.0');
 
     // Idle status badge label.
     expect(screen.getByTestId('slm-status-badge')).toHaveTextContent(/no descargado/i);
@@ -65,7 +65,7 @@ describe('SLMStatusPanel', () => {
     });
 
     fireEvent.click(screen.getByTestId('slm-status-primary'));
-    expect(onDownload).toHaveBeenCalledWith('phi-3-mini');
+    expect(onDownload).toHaveBeenCalledWith('qwen-2.5-0.5b');
   });
 
   it('switches the primary action to "Cambiar modelo" when bytes are cached', async () => {

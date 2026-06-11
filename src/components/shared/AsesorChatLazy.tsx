@@ -14,11 +14,19 @@
 //
 // Behavioural parity with the eager component: when `open-ai-chat` fires
 // before the chunk is ready, we mount immediately and re-dispatch the
-// event so `AsesorChat` opens with the same `detail.query` payload.
+// event so the chat opens with the same `detail.query` payload.
+//
+// B14 (2026-06-11): the lazy chunk is now `AsesorChatRouter` — the
+// feature-flag router that mounts the RESILIENT assistant by default
+// (5-tier orchestrator: Gemini online-primary → on-device SLM → RAG →
+// honest fallback) and keeps the legacy `AsesorChat` as explicit
+// opt-out (`praeventio:asesor:legacy-optout:v2`). Before this change
+// the router existed but was never mounted — RootLayout loaded the
+// legacy chat directly, so the resilient pipeline never reached users.
 import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 
 const AsesorChat = lazy(() =>
-  import('./AsesorChat').then((m) => ({ default: m.AsesorChat })),
+  import('./AsesorChatRouter').then((m) => ({ default: m.AsesorChatRouter })),
 );
 
 // `requestIdleCallback` / `cancelIdleCallback` come from the DOM lib — the

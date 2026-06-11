@@ -2,13 +2,10 @@
 
 > Inventario de stubs/mocks/NotImplementedError en código productivo. CLAUDE.md regla 13 requiere que cada uno aparezca aquí con owner + sprint target + gate de visibilidad.
 
-## SLM ONNX inference returns mock
-- **File**: `src/services/slm/worker/slmWorker.ts:58`
-- **Owner**: Brecha B (SLM offline real)
-- **Sprint target**: TBD (post-PR #511-513)
-- **User-visible?**: NO — gated by `slmTokenWindowOpen` check + 5-tier orchestrator fallback (Gemini cloud takes over)
-- **Why stub**: ONNX runtime integration pendiente. Opensource refs: `onnxruntime-web`, `@xenova/transformers`.
-- **Removal criteria**: cuando ONNX se integre, `slmWorker.generate()` retorna real tokens del modelo Phi-3/Qwen/Gemma.
+## SLM ONNX inference returns mock — ✅ RESUELTO 2026-06-11 (B14, stub ELIMINADO)
+- **File (histórico)**: `src/services/slm/worker/slmWorker.ts:58` — **archivo borrado**, junto con `workerProxy.ts` (Comlink).
+- **Resolución**: runtime unificado. `slmAdapter.ts` ahora delega al runtime REAL (`src/services/slm/workerRuntime.ts` → `worker/slmRuntimeWorker.ts` → `slmRuntime.ts`): registry-aware (Qwen 0.5B pre-empaquetado por defecto), SHA-256 integrity, tokenizer BPE real por handle (`worker/slmRuntimeWorkerCore.ts` — `tokenizers` map), ORT WebGPU/WASM.
+- **Anti-stub**: ya no existe fallback mock — los fallos rechazan honesto (`infer_failure` / `integrity_failure`) y la escalera resiliente (`resilientAiOrchestrator.ts`) cae a RAG corpus → mensaje de respaldo con disclaimer. Tests: `src/services/slm/slmAdapter.test.ts` ("no mock fallback"), `worker/slmRuntimeWorkerCore.test.ts` ("no gibberish byte-level").
 
 ## Vertex AI Trainer descartado oficialmente
 - **File**: `src/services/ml/vertexTrainer.ts:1-30`

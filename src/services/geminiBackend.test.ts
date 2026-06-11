@@ -4,6 +4,12 @@
 // re-exported from sub-modules under gemini/*). Sub-module functions
 // have their own sibling test files.
 //
+// Split steps 13-16 (2026-06-11) moved predictions/riskNetwork/compliance/
+// engineering into gemini/*; their describe blocks below are KEPT on purpose:
+// they now exercise the moved code THROUGH the barrel re-export, pinning the
+// verbatim movement (billing-split precedent). New sibling suites exist at
+// gemini/{predictions,riskNetwork,compliance,engineering}.test.ts.
+//
 // Strategy:
 //  1. Mock @google/genai so NO real API call is made.
 //  2. Mock heavy transitive deps (ragService, routingBackend, gemini/pii,

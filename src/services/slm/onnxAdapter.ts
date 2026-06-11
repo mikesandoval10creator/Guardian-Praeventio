@@ -45,6 +45,7 @@ import {
   sampleNucleus,
   type SamplingConfig,
 } from './sampling';
+import { isSlmOfflineEnabled } from './slmFlag';
 import { loadTokenizer, type SlmTokenizer } from './tokenizer';
 
 /**
@@ -84,9 +85,9 @@ export interface SlmGenerateOptions {
  * ignored and re-downloaded.
  */
 export interface OnnxAdapterConfig {
-  /** URL of the ONNX weights file. Default: `/models/slm/tinyllama-1.1b-int8.onnx`. */
+  /** URL of the ONNX weights file. Default: `/models/qwen-2.5-0.5b/model_q4f16.onnx` (pre-packaged). */
   modelUrl?: string;
-  /** URL of the tokenizer.json (HuggingFace format). Default: `/models/slm/tokenizer.json`. */
+  /** HF repo id (or URL) for the tokenizer. Default: `onnx-community/Qwen2.5-0.5B-Instruct`. */
   tokenizerUrl?: string;
   /** Cache key suffix; bump to invalidate prior on-disk weights. */
   cacheVersion?: string;
@@ -170,20 +171,21 @@ export interface OnnxModelInfo {
 
 // Registry-accurate constants for the REAL artifact this adapter loads.
 //
-// `scripts/download-slm-model.mjs` downloads
-// `Xenova/TinyLlama-1.1B-Chat-v1.0/onnx/decoder_model_merged_quantized.onnx`
-// — which is the int8 dynamically-quantized merged decoder (~1.1 GB), NOT a
-// 4-bit (q4) export. The adapter previously advertised `q4` in its name,
-// quantization field, URL, and cache key, so `getModelInfo()` reported a
-// quantization the on-disk weights do NOT have. We correct the registry to
-// the real model: int8. The on-disk filename + cache key are bumped to
-// `int8` (a new cacheVersion is implied by the new key prefix, so any old
-// mislabeled IDB rows are ignored rather than served as "q4").
-const DEFAULT_MODEL_URL = '/models/slm/tinyllama-1.1b-int8.onnx';
-const DEFAULT_TOKENIZER_URL = '/models/slm/tokenizer.json';
+// B14 (2026-06-11): the default artifact is now **Qwen 2.5 0.5B Instruct**
+// — the ONE model the build actually pre-packages at
+// `public/models/qwen-2.5-0.5b/model_q4f16.onnx` (see
+// `scripts/prepackage-slm-models.mjs` + `registry.ts#prePackagedPath`).
+// The previous default (`/models/slm/tinyllama-1.1b-int8.onnx`) pointed
+// at a TinyLlama artifact that no build step ever shipped, so the
+// default path 404'd in production and the adapter silently degraded.
+// Same-origin fetch → zero CDN bytes in the default path.
+const DEFAULT_MODEL_URL = '/models/qwen-2.5-0.5b/model_q4f16.onnx';
+// HF repo id for the tokenizer (resolved by `@huggingface/transformers`
+// via `tokenizer.ts#loadTokenizer`). Must match the weights above.
+const DEFAULT_TOKENIZER_URL = 'onnx-community/Qwen2.5-0.5B-Instruct';
 const DEFAULT_CACHE_VERSION = 'v1';
-const DEFAULT_MODEL_NAME = 'TinyLlama 1.1B Chat (ONNX int8)';
-const DEFAULT_QUANTIZATION = 'int8';
+const DEFAULT_MODEL_NAME = 'Qwen 2.5 0.5B Instruct (ONNX int4 f16)';
+const DEFAULT_QUANTIZATION = 'int4';
 
 /**
  * Sampling defaults — see `sampling.ts` for the full rationale. These
@@ -201,23 +203,23 @@ const DEFAULT_REPETITION_PENALTY = 1.1;
 const REPETITION_WINDOW = 50;
 
 /**
- * EOS token id for TinyLlama 1.1B Chat (Llama tokenizer family). The
- * end-of-sentence id is 2; we also stop on the assistant chat-template
- * marker once we have the real tokenizer wired (id varies per
- * checkpoint, so we keep it data-driven rather than hardcoded).
+ * EOS token ids for Qwen 2.5 Instruct (Qwen2 tokenizer family):
+ * `<|endoftext|>` = 151643 and `<|im_end|>` = 151645. We keep the
+ * legacy Llama-family EOS (2) in the list so injected test tokenizers
+ * with tiny vocabularies still terminate.
  */
-const DEFAULT_STOP_TOKENS = [2];
+const DEFAULT_STOP_TOKENS = [2, 151643, 151645];
 
 /**
- * Cache key under which we persist the TinyLlama bytes in `modelCache`.
+ * Cache key under which we persist the Qwen bytes in `modelCache`.
  * Suffixed with `cacheVersion` so a new weights upload invalidates old
- * IndexedDB rows without needing a manual eviction. The `int8` segment
- * matches the real quantization of the on-disk artifact (see
- * DEFAULT_QUANTIZATION) — the old `q4`-keyed rows are a different key and
- * are therefore never served as if they were this model.
+ * IndexedDB rows without needing a manual eviction. The model segment
+ * changed from `tinyllama-1.1b-int8` to `qwen-2.5-0.5b-int4` in B14 —
+ * old TinyLlama-keyed rows are a different key and are therefore never
+ * served as if they were this model.
  */
 function makeCacheKey(version: string): string {
-  return `onnx-tinyllama-1.1b-int8-${version}`;
+  return `onnx-qwen-2.5-0.5b-int4-${version}`;
 }
 
 /**
@@ -293,20 +295,16 @@ export class OnnxSlmAdapter {
   }
 
   /**
-   * Construct an adapter only when the `SLM_OFFLINE_ENABLED` feature
-   * flag is true; otherwise return `null` so callers can short-circuit
-   * cheaply without paying the dynamic-import cost.
+   * Construct an adapter unless the `SLM_OFFLINE_ENABLED` kill-switch
+   * is explicitly OFF; `null` lets callers short-circuit cheaply
+   * without paying the dynamic-import cost.
    *
-   * Reads, in order:
-   *   1. `import.meta.env.VITE_SLM_OFFLINE_ENABLED` (Vite client bundle)
-   *   2. `process.env.SLM_OFFLINE_ENABLED`         (SSR / tests)
-   *   3. `globalThis.__SLM_OFFLINE_ENABLED__`      (debug menu override)
-   *
-   * Truthy values: `'1'`, `'true'`, `true`. Anything else → disabled.
+   * B14 (2026-06-11): the flag is now **default ON** — see
+   * `slmFlag.ts#isSlmOfflineEnabled` for the resolution order and the
+   * kill-switch contract (`SLM_OFFLINE_ENABLED=false` disables).
    */
   static fromEnv(config: OnnxAdapterConfig = {}): OnnxSlmAdapter | null {
-    const flag = readEnvFlag('SLM_OFFLINE_ENABLED');
-    if (!flag) {
+    if (!isSlmOfflineEnabled()) {
       return null;
     }
     return new OnnxSlmAdapter(config);
@@ -428,7 +426,10 @@ export class OnnxSlmAdapter {
     maxTokens: number,
     temperature: number,
   ): Promise<string> {
-    const tokenizer: SlmTokenizer = await loadTokenizer();
+    // B14: tokenizer must match the configured weights (Qwen default) —
+    // the previous no-arg call silently loaded the TinyLlama tokenizer
+    // regardless of which model the adapter was configured for.
+    const tokenizer: SlmTokenizer = await loadTokenizer(this.tokenizerUrl);
 
     const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [];
     if (opts.systemPrompt && opts.systemPrompt.length > 0) {
@@ -576,40 +577,6 @@ export class OnnxSlmAdapter {
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────
-
-/**
- * Read a feature flag from the three environments we ship into:
- * Vite's `import.meta.env`, Node `process.env`, and an explicit
- * `globalThis.__SLM_OFFLINE_ENABLED__` debug-menu override.
- *
- * The `import.meta.env` path is wrapped in a try/catch because Node
- * test runners don't always populate `import.meta.env` and accessing
- * it can throw under specific Vitest configurations.
- */
-function readEnvFlag(name: string): boolean {
-  try {
-    const meta = (import.meta as unknown as { env?: Record<string, unknown> })
-      .env;
-    if (meta && isTruthy(meta[`VITE_${name}`])) return true;
-  } catch {
-    // import.meta.env is not always available in Node test contexts.
-  }
-  if (typeof process !== 'undefined' && process.env) {
-    if (isTruthy(process.env[name])) return true;
-  }
-  const g = globalThis as unknown as Record<string, unknown>;
-  if (isTruthy(g[`__${name}__`])) return true;
-  return false;
-}
-
-function isTruthy(v: unknown): boolean {
-  if (v === true) return true;
-  if (typeof v === 'string') {
-    const lower = v.toLowerCase();
-    return lower === '1' || lower === 'true' || lower === 'yes';
-  }
-  return false;
-}
 
 function clampPositive(
   v: number | undefined,

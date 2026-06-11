@@ -30,32 +30,38 @@ import {
 // Tier 1 — SLM offline
 // ────────────────────────────────────────────────────────────────────────
 
+/**
+ * Shape estructural del runtime que el tier SLM consume. El handle de
+ * modelo es opaco para el adapter (solo lo devuelve a `infer`/`release`).
+ */
+export interface SlmTierRuntime {
+  loadModel: (
+    id: string,
+  ) => Promise<{
+    modelId: string;
+    session?: unknown;
+    release?: () => Promise<void>;
+  }>;
+  infer: (
+    model: unknown,
+    prompt: string,
+  ) => Promise<string>;
+  /**
+   * Codex P2 fix (PR #250): SLM streaming. Optional para que los
+   * mocks de tests no tengan que implementarlo; el adapter chequea
+   * `typeof runtime.inferStream === 'function'` antes de invocarlo.
+   */
+  inferStream?: (
+    model: unknown,
+    prompt: string,
+    opts?: { onToken?: (token: string) => void; signal?: AbortSignal },
+  ) => Promise<string>;
+  release: (model: unknown) => Promise<void>;
+}
+
 export interface SlmAdapterDeps {
   /** Override del runtime factory (tests). */
-  runtimeFactory?: () => Promise<{
-    loadModel: (
-      id: string,
-    ) => Promise<{
-      modelId: string;
-      session: unknown;
-      release?: () => Promise<void>;
-    }>;
-    infer: (
-      model: unknown,
-      prompt: string,
-    ) => Promise<string>;
-    /**
-     * Codex P2 fix (PR #250): SLM streaming. Optional para que los
-     * mocks de tests no tengan que implementarlo; el adapter chequea
-     * `typeof runtime.inferStream === 'function'` antes de invocarlo.
-     */
-    inferStream?: (
-      model: unknown,
-      prompt: string,
-      opts?: { onToken?: (token: string) => void; signal?: AbortSignal },
-    ) => Promise<string>;
-    release: (model: unknown) => Promise<void>;
-  }>;
+  runtimeFactory?: () => Promise<SlmTierRuntime>;
   /** Override del id del modelo. Default DEFAULT_MODEL_ID. */
   modelId?: string;
 }
@@ -64,6 +70,13 @@ export interface SlmAdapterDeps {
  * Tier 1: invoca el SLM local. Carga el runtime + modelo on-demand;
  * cachea el handle entre llamadas para amortizar el costo de
  * `loadModel` (que incluye fetch + integrity + ORT session create).
+ *
+ * B14 (2026-06-11): el factory default ahora es el runtime worker-backed
+ * (`workerRuntime.ts` → `slmRuntimeWorker.ts`): inferencia REAL fuera
+ * del main thread, con tokenizer BPE y el modelo Qwen pre-empaquetado.
+ * Antes corría `createSlmRuntime()` en el main thread (jank + tokenizer
+ * byte-level sin sentido). Si el Worker API no existe (SSR), el factory
+ * lanza y el orchestrator cae limpio al siguiente tier.
  */
 export function makeSlmTierAdapter(deps: SlmAdapterDeps = {}): TierAdapter {
   let cachedModel: LoadedModel | null = null;
@@ -73,8 +86,11 @@ export function makeSlmTierAdapter(deps: SlmAdapterDeps = {}): TierAdapter {
     const factory =
       deps.runtimeFactory ??
       (async () => {
-        const mod = await import('../slm/slmRuntime');
-        return mod.createSlmRuntime();
+        const mod = await import('../slm/workerRuntime');
+        // El handle (WorkerRuntimeModel) es opaco para este adapter —
+        // el cast estructural es seguro porque solo se re-entrega a
+        // `infer`/`inferStream`/`release` del mismo runtime.
+        return mod.createWorkerBackedSlmRuntime() as unknown as SlmTierRuntime;
       });
     const targetId = deps.modelId ?? (await getDefaultModelId());
 
