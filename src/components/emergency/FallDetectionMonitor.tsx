@@ -19,6 +19,13 @@ import { analytics } from '../../services/analytics';
 // reduce man-down false positives. Reuses this existing detection callback —
 // no new hardware listeners.
 import { publishSensorEvent } from '../../services/sensorBus/publishSensorEvent';
+// Phase 5 D1 wiring — proximityModeDetector's declared consumer. The carry
+// mode (in_pocket / in_helmet_mount / face_down / …) scales the impact
+// threshold via policyForMode().fallDetectionMultiplier ("inPocket →
+// aumentar sensibilidad detección impactos", engine header). The hook reuses
+// THIS component's existing accelerometer stream (no second motion listener)
+// and publishes mode transitions to the sensorBus ('device_mode' kind).
+import { useProximityMode } from '../../hooks/useProximityMode';
 
 /**
  * Threshold the accelerometer heuristic uses (m/s² magnitude). Mirrors the
@@ -54,6 +61,14 @@ export function FallDetectionMonitor() {
   const [showModal, setShowModal] = useState(false);
   const [countdown, setCountdown] = useState(15);
 
+  // Carry-mode classification (D1). Inert ('normal', multiplier 1.0) until a
+  // proximity source exists — see proximityPluginAdapter for the native gap.
+  const { modeState, policy, pushAccelSample } = useProximityMode({
+    workerUid: user?.uid ?? null,
+    projectId: selectedProject?.id ?? null,
+    enabled: Boolean(user) && fdEnabled && !fdLoading,
+  });
+
   /**
    * Single dispatch path so the countdown-expiry branch and the
    * "Necesito Ayuda" branch agree on what the canonical SOS escalation
@@ -84,7 +99,14 @@ export function FallDetectionMonitor() {
         projectId: selectedProject?.id ?? null,
         value: FALL_THRESHOLD_MS_SQ,
         unit: 'm/s2',
-        meta: { source: 'FallDetectionMonitor', accelWindowMs: FALL_ACCEL_WINDOW_MS },
+        meta: {
+          source: 'FallDetectionMonitor',
+          accelWindowMs: FALL_ACCEL_WINDOW_MS,
+          // Carry-mode context for the correlation engine / black box: an
+          // impact while in_pocket or face_down reads very differently from
+          // one while the device is in hand.
+          deviceMode: modeState.currentMode,
+        },
       });
 
       // Vibrate to alert the user
@@ -108,10 +130,23 @@ export function FallDetectionMonitor() {
     }
   };
 
-  const { start, stop, isSupported, permissionGranted, requestPermission } = useAccelerometer({
-    threshold: FALL_THRESHOLD_MS_SQ,
+  // D1: the carry-mode policy scales the impact threshold — in_pocket (1.3x)
+  // / in_helmet_mount (1.5x) / face_down (2.0x) LOWER the m/s² bar so a
+  // muffled pocket impact still triggers the prompt. 'normal' keeps the
+  // historical 25 m/s² exactly (multiplier 1.0 — no behavior change without
+  // proximity evidence). useAccelerometer reads the threshold via a ref, so
+  // the running listener picks up the new value without re-subscribing.
+  const { data, start, stop, isSupported, permissionGranted, requestPermission } = useAccelerometer({
+    threshold: FALL_THRESHOLD_MS_SQ / policy.fallDetectionMultiplier,
     onFallDetected: handleFallDetected
   });
+
+  // Forward the existing motion stream into the carry-mode classifier —
+  // deliberately no second hardware listener (on native, Motion.stop tears
+  // down listeners app-wide; fall detection is life-safety).
+  useEffect(() => {
+    if (data) pushAccelSample(data);
+  }, [data, pushAccelSample]);
 
   useEffect(() => {
     // Opt-in: solo arrancamos el acelerómetro si el usuario activó

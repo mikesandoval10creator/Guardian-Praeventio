@@ -26,6 +26,7 @@ Convenciones:
   re-ejecutan el handler. Reusar la key con un body distinto devuelve
   `422 idempotency_key_reused_with_different_params`. Routes opt-in:
   `/api/billing/checkout`, `/api/billing/checkout/mercadopago`,
+  `/api/billing/khipu/checkout`,
   `/api/onboarding/complete`, `/api/zettelkasten/nodes`,
   `/api/dte/create`, `/api/iot/devices/register`,
   `/api/emergency/notify-brigada`. Audit signals: `idempotency.cache_hit`
@@ -458,6 +459,40 @@ de cada scope OAuth.
 
 ---
 
+## Billing — Khipu (CL transferencia bancaria)
+
+### `POST /api/billing/khipu/checkout` — checkout Chile vía transferencia
+- **src/server/routes/billing/khipu.ts** · `verifyAuth` + `idempotencyKey()`.
+- **Body**: `{ planId (≤64, tier canónico), cycle?: monthly|annual }`.
+  Monto y moneda se resuelven SERVER-side (CLP neto + IVA ceil) desde la
+  tabla canónica de tiers — cualquier monto enviado por el cliente se ignora.
+- **Response 200**: `{ invoiceId, paymentId, paymentUrl, expiresAt }`.
+- **Errors**: 400 planId/cycle inválido · 503 Khipu no configurado
+  (sin `KHIPU_RECEIVER_ID`/`KHIPU_SECRET` — regla #13, honesto) ·
+  502 Khipu API failure · 500.
+- **Audit**: `billing.khipu.payment.created` con
+  `{invoiceId, paymentId, planId, cycle, currency, amount}` (uid/email
+  estampados desde el token verificado).
+- **Correlación**: `transaction_id` Khipu = `invoiceId` → el webhook
+  resuelve `invoices/{id}` vía `getPaymentStatus().buyOrder`.
+
+### `POST /api/billing/khipu/webhook` — IPN Khipu
+- **src/server/routes/billing/khipu.ts** · público (sin `verifyAuth`):
+  la confianza viene de la firma HMAC-SHA256 (`X-Khipu-Signature`,
+  `t=<unix>,s=<hex>`, drift ±300 s, compare constant-time) sobre el body RAW.
+- **Idempotencia**: `processed_khipu/{notification_id|payment_id}`
+  (lock-then-complete vía `withIdempotency`).
+- **Side effects (completed)**: invoice → `paid`; activa
+  `users/{uid}.subscription` (paymentMethod `khipu`); DTE auto-issue
+  (`decideDteIssue` + `tryAutoIssueDte`, gate `DTE_AUTO_ISSUE`) — paridad
+  con Webpay return / MP IPN. `cancelled|expired` → invoice `rejected`.
+- **Errors**: 401 firma inválida · 400 JSON inválido · 500 (mantiene el
+  retry loop de Khipu).
+- **Audit**: `billing.khipu-ipn.completed|cancelled|expired` +
+  `billing.webhook.success|replay`.
+
+---
+
 ## Curriculum claims
 
 ### `POST /api/curriculum/claim` — worker crea claim firmado
@@ -506,6 +541,27 @@ de cada scope OAuth.
 - **Audit**: `curriculum.referee.signed` o `curriculum.referee.declined`
   con `{claimId, refereeEmail}`. El service en
   `src/services/curriculum/claims.ts` lockea el doc post-verify (append-only).
+
+---
+
+## Rubros SII
+
+### `GET /api/sii/:projectId/rubro-benchmarks` — benchmarks anónimos por rubro
+- **`src/server/routes/rubroBenchmarks.ts`** (mount `/api/sii`) · `verifyAuth`
+  + `assertProjectMember`.
+- **Response 200**: `{ available:false, reason:'sin_rubro' }` si el proyecto
+  no tiene `codigoActividadSii`/`sectorId`; si tiene rubro →
+  `{ available, eligible, requiredProjects, requiredTenants, rubro, mine }`
+  y, SOLO cuando `eligible` (k-anonimato: ≥5 proyectos de ≥3 tenants),
+  además `{ k, kTenants, perMetric: { incidentes12m, hallazgosAbiertosPct,
+  obligacionesAlDiaPct } }` con `{ count, median, p25, p75 }` por métrica.
+- **Privacidad**: nunca expone ids/nombres/valores de OTROS proyectos ni
+  tenants; bajo el umbral ni siquiera ecoa el `k` exacto. La query
+  cross-tenant corre solo con Admin SDK (cero colecciones client-readable
+  nuevas). Motor puro: `src/services/sii/rubroBenchmarks.ts`.
+- **Errors**: 400 projectId inválido · 401 · 403 no-miembro (igual para
+  proyecto inexistente — sin oráculo de existencia) · 500.
+- **Audit**: ninguno (endpoint read-only; regla #3 aplica a cambios de estado).
 
 ---
 

@@ -310,6 +310,11 @@
       "login_required_title": "Inicia sesión primero",
       "login_required_msg": "Necesitas iniciar sesión para suscribirte a un plan pago.",
       "provider_unavailable": "El proveedor de pagos no está disponible. Reintenta en unos segundos o contacta a contacto@praeventio.net.",
+      "khipu_unavailable": "Khipu no está disponible en este momento. Reintenta en unos segundos o paga con tarjeta vía Webpay.",
+      "method_title": "Elige tu medio de pago",
+      "method_subtitle": "Plan {{tier}} — ambos medios son seguros y en pesos chilenos (CLP).",
+      "method_webpay": "Tarjeta de crédito o débito (Webpay)",
+      "method_khipu": "Transferencia bancaria (Khipu)",
       "mp_unavailable": "MercadoPago no está disponible. Reintenta en unos segundos o contacta a contacto@praeventio.net.",
       "international_title": "Pagos internacionales",
       "international_msg": "Por el momento sólo procesamos pagos en Chile y mercados LATAM. Escríbenos a contacto@praeventio.net para tu país.",
@@ -3603,7 +3608,699 @@
       "epp": "EPP típico",
       "risks": "Riesgos típicos a evaluar",
       "notes": "Notas preventivas"
+    },
+    "aria": "Progreso de onboarding del rol",
+    "blockingTag": "Bloqueante",
+    "canOperate": "Habilitado para operar",
+    "markDoneBtn": "Marcar hecho",
+    "minutesLeft": "min restantes",
+    "progressLabel": "Progreso",
+    "startBtn": "Iniciar",
+    "title": "Onboarding",
+    "trackCompleted": "Track completado"
+  },
+  "cphs": {
+    "aria": "Estado del Comité Paritario",
+    "compliant": "OK",
+    "electedFail": "Representantes de trabajadores deben ser electos por sufragio.",
+    "employer": "Empleador",
+    "extractor": {
+      "add": "Agregar",
+      "confidence": "confianza",
+      "heading": "Extraer acuerdos del acta",
+      "hint": "Pega la discusión de la reunión; se proponen acciones estructuradas (descripción, responsable, plazo) para agregar como acuerdos. La revisión final es del comité.",
+      "none": "No se detectaron acciones en el texto.",
+      "placeholder": "Ej: \"El supervisor debe revisar el andamio antes del viernes…\"",
+      "run": "Extraer acciones"
+    },
+    "quorumFail": "Quórum insuficiente — DS 54 art. 66 exige 3+3 mínimo.",
+    "review": "Revisar",
+    "scheduled": "Agendadas",
+    "title": "Comité Paritario (CPHS)",
+    "unsigned": "Sin firma",
+    "worker": "Trabajadores"
+  },
+  "cphsDraft": {
+    "completeness": {
+      "label": "Completitud del input",
+      "warn": "Faltan datos relevantes. Revisa antes de firmar."
+    },
+    "download": {
+      "json": "Descargar como JSON"
+    },
+    "markdown": {
+      "title": "Borrador (markdown)"
+    },
+    "metrics": {
+      "closedActions": "Acciones cerradas",
+      "critical": "Críticos",
+      "incidents": "Incidentes",
+      "openActions": "Acciones abiertas",
+      "participants": "Participantes"
+    },
+    "page": {
+      "back": "Volver a CPHS",
+      "error": "No se pudo generar la minuta: {{msg}}",
+      "selectProject": "Selecciona un proyecto para generar el borrador del último mes.",
+      "subtitle": "Borrador del último mes — revisable y editable antes de la firma del comité.",
+      "title": "Minuta CPHS automática"
+    },
+    "resolutions": {
+      "title": "Acuerdos sugeridos"
+    },
+    "sections": {
+      "title": "Secciones incluidas"
     }
+  },
+  "diagnostico": {
+    "activitiesHazards": "Actividades y Peligros",
+    "analyzing": "Analizando...",
+    "back": "Atrás",
+    "completed": "Diagnóstico Completado",
+    "completedDescription": "La IA ha generado una base para tu matriz IPER.",
+    "confirmCreate": "Confirmar y Crear Nodos",
+    "controlsSuggested": "Controles Críticos Sugeridos:",
+    "facilities": "Instalaciones Presentes",
+    "generalData": "Datos Generales de la Faena",
+    "generateSeed": "Generar Semilla IPER",
+    "industry": "Industria / Rubro SII",
+    "knownHazards": "Peligros Críticos Conocidos (Opcional)",
+    "location": "Ubicación / Geografía",
+    "mainActivities": "Actividades Principales",
+    "mainNormative": "Normativa Principal:",
+    "nextStep": "Siguiente Paso",
+    "reviewData": "Revisar Datos",
+    "saved": "Guardado en Zettelkasten",
+    "saving": "Guardando...",
+    "subtitle": "Evaluación de Línea Base y Pre-carga IPER",
+    "summary": "Resumen de Análisis Base",
+    "title": "Diagnóstico Inicial",
+    "workersCount": "Dotación Aproximada"
+  },
+  "drills": {
+    "aria": "Cumplimiento simulacros",
+    "detail": {
+      "executeButton": "Registrar y calcular reporte",
+      "executeTitle": "Registrar ejecución",
+      "gapsLabel": "Brechas observadas (una por línea)",
+      "location": "Ubicación",
+      "notes": "Observaciones generales",
+      "participants": "Participantes",
+      "participation": "Participación",
+      "report": "Reporte de preparación",
+      "requiredExternal": "Requirió intervención externa",
+      "responseSeconds": "Tiempo respuesta (s)",
+      "responsible": "Responsable",
+      "scheduledAt": "Programado",
+      "speed": "Velocidad",
+      "status": "Estado"
+    },
+    "execute": {
+      "errorFallback": "No se pudo registrar la ejecución."
+    },
+    "filters": {
+      "kindAll": "Todos",
+      "kindLabel": "Tipo",
+      "statusLabel": "Estado"
+    },
+    "lastWas": "Último:",
+    "never": "Nunca ejecutado",
+    "new": {
+      "benchmarkSeconds": "Benchmark (s)",
+      "errorFallback": "No se pudo guardar el simulacro.",
+      "expectedCount": "Personas esperadas",
+      "kind": "Tipo",
+      "location": "Ubicación (opcional)",
+      "planError": "El simulacro no se guardó: {{msg}}. Tus datos siguen en el formulario — corrige y reintenta.",
+      "planErrorTitle": "No se planificó el simulacro",
+      "responsible": "UID responsable",
+      "scheduledAt": "Fecha y hora programada",
+      "submit": "Planificar",
+      "title": "Planificar simulacro",
+      "titleField": "Título (opcional)"
+    },
+    "overdueHeader": "Atrasados",
+    "overdueLabel": "atrasados",
+    "page": {
+      "emptyEncourage": "Planifica el primer simulacro del mes — DS 132 exige al menos uno semestral por turno.",
+      "emptyTitle": "Aún no hay simulacros en este filtro.",
+      "error": "No se pudieron cargar los simulacros: {{msg}}",
+      "executeError": "El simulacro no se guardó: {{msg}}. Tus datos siguen en el formulario — corrige y reintenta.",
+      "executeErrorTitle": "No se registró la ejecución",
+      "newButton": "Nuevo Simulacro",
+      "selectProject": "Selecciona un proyecto para planificar y registrar simulacros.",
+      "subtitle": "DS 132 / DS 594 — planifica, ejecuta y reporta tu preparación.",
+      "title": "Gestor de Simulacros"
+    },
+    "schedule": "Agendar",
+    "title": "Simulacros",
+    "upcomingHeader": "Próximos"
+  },
+  "engCtrl": {
+    "card": {
+      "evidenceLabel": "Evidencia (opcional)",
+      "evidencePh": "Describe el hallazgo o adjunta una referencia.",
+      "fail": "Falla",
+      "freq": "Cada {{n}} días",
+      "next": "Próxima verificación",
+      "observation": "Observación",
+      "recordCheck": "Registrar verificación",
+      "risk": "Riesgo",
+      "verify": "Verificar (OK)",
+      "verifyAria": "Registrar verificación OK"
+    },
+    "filter": {
+      "allRisks": "Todos los riesgos"
+    },
+    "filters": {
+      "title": "Filtros"
+    },
+    "form": {
+      "cancel": "Cancelar",
+      "description": "Descripción",
+      "errorCreate": "No se pudo crear el control.",
+      "errorDescription": "La descripción debe tener al menos 3 caracteres.",
+      "errorFreq": "La frecuencia de verificación debe ser positiva (días).",
+      "errorName": "El nombre debe tener al menos 3 caracteres.",
+      "errorResponsible": "Indica un responsable o inicia sesión.",
+      "errorRisk": "Indica la categoría de riesgo que mitiga.",
+      "freq": "Frecuencia de verificación (días)",
+      "hierarchyExplainer": "Prefiere niveles altos de la jerarquía (eliminación → sustitución → ingeniería) antes que administrativo o EPP. ISO 31000 / 45001 §8.1.2.",
+      "level": "Nivel",
+      "name": "Nombre",
+      "namePh": "Baranda perimetral nivel 2",
+      "new": "Nuevo control",
+      "responsible": "Responsable (UID)",
+      "responsibleHint": "Si lo dejas vacío, se asigna a tu usuario.",
+      "responsiblePh": "UID del responsable",
+      "risk": "Categoría de riesgo",
+      "riskPh": "altura, eléctrico, ruido…",
+      "save": "Guardar control",
+      "title": "Nuevo control"
+    },
+    "hierarchy": {
+      "title": "Jerarquía de controles"
+    },
+    "list": {
+      "empty": "No hay controles registrados para los filtros seleccionados."
+    },
+    "page": {
+      "error": "No se pudieron cargar los controles: {{msg}}",
+      "partialRead": "Lectura parcial: el inventario puede estar incompleto. Intenta recargar.",
+      "selectProject": "Selecciona un proyecto para ver los controles aplicados.",
+      "subtitle": "Jerarquía ISO 31000 / 45001 §8.1.2 — {{count}} controles inventariados.",
+      "title": "Controles de Ingeniería"
+    },
+    "status": {
+      "amber": "Próximo a vencer",
+      "green": "Vigente",
+      "never": "Nunca verificado",
+      "red": "Verificación vencida"
+    }
+  },
+  "findingsHeatMap": {
+    "canvas": {
+      "aria": "Mapa de calor con {{cells}} zonas"
+    },
+    "controls": {
+      "gridSize": "Tamaño celda (m)",
+      "lastN": "Últimos {{n}}",
+      "minSeverity": "Severidad mínima",
+      "period": "Período (días)"
+    },
+    "empty": "Sin hallazgos en los filtros aplicados — ¡buena señal!",
+    "hotspots": {
+      "cell": "Zona {{idx}}",
+      "findings": "hallazgos",
+      "title": "Top 5 zonas críticas"
+    },
+    "page": {
+      "selectProject": "Selecciona un proyecto para ver la distribución espacial de los hallazgos.",
+      "subtitle": "Distribución espacial por zona. {{cells}} celda(s) sobre {{points}} hallazgo(s).",
+      "title": "Mapa de Calor de Hallazgos"
+    }
+  },
+  "hazmat": {
+    "addBtn": "Agregar sustancia",
+    "addTitle": "Agregar sustancia",
+    "alert": {
+      "cautionTip": "Mantener distancia mínima 3 m y ventilación adecuada.",
+      "footer": "Base normativa: DS 43/2016 (Almacenamiento Sustancias Peligrosas) + NCh 2245.",
+      "relocateGeneric": "Recomendación: trasladar uno de los items a una ubicación separada por barrera o sector."
+    },
+    "allClasses": "Todas las clases",
+    "allCompatible": "Almacenamiento compatible — sin problemas detectados.",
+    "allLocations": "Todas las ubicaciones",
+    "caution": "Precaución",
+    "col": {
+      "cas": "CAS",
+      "class": "Clases",
+      "exp": "Vencimiento",
+      "loc": "Ubicación",
+      "name": "Nombre",
+      "qty": "Cantidad"
+    },
+    "compatAria": "Compatibilidad química",
+    "compatTitle": "Compatibilidad química",
+    "deleteAria": "Eliminar sustancia",
+    "disclaimerShort": "Aproximación según GRE Green Pages. Consulta el GRE físico y al protocolo de emergencia local para respuesta operativa.",
+    "distances": {
+      "isolation": "Aislamiento Inicial:",
+      "protectionDay": "Acción Protectora (Día):",
+      "protectionNight": "Acción Protectora (Noche):",
+      "title": "Distancias GRE 2024"
+    },
+    "editAria": "Editar sustancia",
+    "editTitle": "Editar sustancia",
+    "empty": "Sin sustancias registradas.",
+    "emptyFiltered": "Sin resultados para los filtros aplicados.",
+    "fld": {
+      "classes": "Clases de peligro *",
+      "epp": "EPP requerido (separar por coma)",
+      "exp": "Fecha de vencimiento",
+      "loc": "Ubicación *",
+      "name": "Nombre comercial *",
+      "qty": "Cantidad *",
+      "sds": "URL hoja de seguridad (SDS)",
+      "unit": "Unidad"
+    },
+    "incompatible": "Incompatibles",
+    "items": "Items",
+    "managerAria": "Gestor de sustancias peligrosas",
+    "managerTitle": "Sustancias peligrosas — Inventario DS 43",
+    "mapInfo": "Basado en GRE 2024 Green Pages (Initial Isolation + Protective Action Distances). El polígono muestra la zona de acción protectora a favor del viento; ancho calculado por estabilidad atmosférica (Pasquill) según velocidad de viento.",
+    "params": {
+      "class": "Clase NU (UN Class)",
+      "title": "Parámetros del Incidente"
+    },
+    "searchPh": "Buscar nombre / CAS / UN",
+    "status": {
+      "active": "Protocolo Activo"
+    },
+    "subtitle": "Radio de Exposición y Evacuación GRE",
+    "title": "Mapeo Hazmat"
+  },
+  "incidentBundle": {
+    "aria": "Paquete de evidencia del incidente",
+    "audit": "Auditoría",
+    "completeness": "Completitud",
+    "controls": "Controles",
+    "evidence": "Evidencia",
+    "export": "Exportar",
+    "gapsLabel": "Brechas por resolver",
+    "noGaps": "Sin brechas detectadas — expediente presentable",
+    "norms": "Normativas",
+    "page": {
+      "error": "No se pudo construir el expediente: {{msg}}",
+      "noId": "Falta el ID del incidente en la URL.",
+      "selectProject": "Selecciona un proyecto para construir el expediente.",
+      "subtitle": "Bundle automático para fiscalización · Incidente {{id}}",
+      "title": "Expediente de incidente"
+    },
+    "photoEvidence": {
+      "title": "Evidencia fotográfica"
+    },
+    "recommendationsLabel": "Recomendaciones",
+    "resolve": "Resolver",
+    "title": "Expediente de incidente",
+    "trainings": "Capacit.",
+    "weight": "peso",
+    "workers": "Afectados"
+  },
+  "incidentTrends": {
+    "byKind": {
+      "subtitle": "Conteo crudo en la ventana actual (no ponderado).",
+      "title": "Distribución por tipo"
+    },
+    "empty": "No hay incidentes registrados en esta ventana.",
+    "error": "No se pudo cargar la tendencia: {{msg}}",
+    "filter": {
+      "group": "Agrupar:",
+      "window": "Ventana:"
+    },
+    "leading": {
+      "closure": "Tasa de cierre",
+      "closureHint": "% de incidentes cerrados. Alto = SGSST responde rápido.",
+      "daysOpen": "Días promedio abierto",
+      "daysOpenHint": "Solo cerrados. Bajo = respuesta rápida.",
+      "nearMiss": "Razón near-miss",
+      "nearMissHint": "Más reporte bottom-up = mejor cultura preventiva."
+    },
+    "lowConfidence": "Baja confianza",
+    "page": {
+      "selectProject": "Selecciona un proyecto para ver la serie de incidentes y leading indicators.",
+      "subtitle": "Serie temporal + indicadores proactivos (near-miss, tasa de cierre, días promedio).",
+      "title": "Tendencia de Incidentes"
+    },
+    "total": "{{count}} incidentes en la ventana"
+  },
+  "inspections": {
+    "card": {
+      "observations": "{{count}} observaciones",
+      "pendingSync": "Pendiente sincronizar",
+      "started": "Iniciada"
+    },
+    "chip": {
+      "offline": "Sin señal — sync diferido",
+      "online": "Online — sync activo"
+    },
+    "cta": {
+      "new": "Nueva inspección"
+    },
+    "detail": {
+      "complete": {
+        "cta": "Cerrar inspección",
+        "hint": "Cierra la inspección cuando termines de capturar observaciones.",
+        "pendingOffline": "Sin señal — las observaciones se sincronizarán al reconectar.",
+        "saving": "Guardando observación… espera antes de cerrar.",
+        "syncing": "Sincronizando {{count}} observaciones… espera antes de cerrar."
+      },
+      "completed": {
+        "at": "Completada el"
+      },
+      "obs": {
+        "add": "Agregar observación",
+        "empty": {
+          "list": "Sin observaciones aún."
+        },
+        "emptyError": "Agrega una nota o foto antes de guardar.",
+        "list": "Observaciones ({{count}})",
+        "notes": "Nota",
+        "photo": "Foto (opcional)",
+        "placeholder": "Describe el hallazgo…",
+        "save": "Guardar observación"
+      }
+    },
+    "modal": {
+      "new": {
+        "confirm": "Iniciar inspección",
+        "help": "Selecciona el checklist a usar. Puedes agregar observaciones aunque no tengas señal.",
+        "template": "Checklist",
+        "title": "Nueva inspección"
+      }
+    },
+    "page": {
+      "empty": "No hay inspecciones en este estado. Inicia una nueva con el botón \"Nueva inspección\".",
+      "error": "No se pudieron cargar las inspecciones: {{msg}}",
+      "selectProject": "Selecciona un proyecto para iniciar inspecciones de terreno.",
+      "subtitle": "Modo sin señal — los hallazgos se capturan localmente y se sincronizan al volver la red.",
+      "title": "Inspecciones"
+    },
+    "start": {
+      "error": {
+        "not_signed_in": "Debes iniciar sesión antes de iniciar una inspección."
+      }
+    }
+  },
+  "iper": {
+    "aria": "Matriz IPER 5x5",
+    "controlHigh": "Alta",
+    "controlLow": "Baja",
+    "controlMedium": "Media",
+    "controlNone": "Sin controles",
+    "controls": "Efectividad controles existentes",
+    "noResidual": "Sin residual",
+    "probability": "Probabilidad",
+    "rawScore": "Score bruto",
+    "residual": "Residual",
+    "severity": "Severidad",
+    "title": "IPER 5x5"
+  },
+  "loto": {
+    "addPoint": "Aplicar lock point",
+    "aria": "Estado LOTO",
+    "authorized": "AUTORIZADO",
+    "blocked": "BLOQUEADO",
+    "create": {
+      "energies": "Energías a aislar",
+      "equipment": "ID del equipo (ej. CAEX-08)",
+      "heading": "Nueva aplicación LOTO",
+      "submit": "Crear LOTO",
+      "work": "Descripción del trabajo"
+    },
+    "empty": {
+      "none_active": "No hay aplicaciones LOTO activas.",
+      "select_project": "Selecciona un proyecto para gestionar LOTO."
+    },
+    "energiesIdentified": "Energías",
+    "feedback": {
+      "create_invalid": "Indica equipo, descripción (≥3) y al menos una energía.",
+      "created": "Aplicación LOTO creada.",
+      "lock_applied": "Candado registrado.",
+      "lock_invalid": "Completa punto, descripción y tag del candado.",
+      "released": "LOTO liberado.",
+      "verified": "Cero energía verificado."
+    },
+    "leader": "Líder",
+    "lock": {
+      "desc": "Descripción del punto",
+      "heading": "Aplicar candado / tarjeta",
+      "point": "ID punto (ej. seccionador-A)",
+      "submit": "Registrar candado",
+      "tag": "Tag del candado (ej. ROJO-12)"
+    },
+    "lockPoints": "Lock Points",
+    "releaseAll": "Liberar todo",
+    "released": "LIBERADO",
+    "subtitle": "Registro digital del bloqueo y etiquetado (Lock-Out / Tag-Out): energías aisladas, candados aplicados, verificación de cero energía y liberación. Complementa el procedimiento físico con trazabilidad legal — no sustituye al candado real.",
+    "title": "LOTO Digital",
+    "verifyZero": "Verificar cero"
+  },
+  "permits": {
+    "approver": "Aprobador",
+    "aria": "Permiso de trabajo",
+    "cancel": "Cancelar",
+    "checklist": {
+      "aria": "Checklist de permiso",
+      "issue": "Emitir permiso",
+      "title": "Checklist previo"
+    },
+    "epp": "EPP entregado",
+    "form": {
+      "errorAuth": "Inicia sesión para solicitar un permiso.",
+      "errorCreate": "No se pudo crear el permiso.",
+      "errorTask": "La descripción debe tener al menos 3 caracteres.",
+      "kindLabel": "Tipo",
+      "submit": "Crear permiso",
+      "taskLabel": "Descripción de la tarea",
+      "title": "Nuevo permiso",
+      "zoneLabel": "Zona / ubicación",
+      "zonePlaceholder": "p.ej. Plataforma N3, área de tanques…"
+    },
+    "fulfill": "Cerrar como cumplido",
+    "kind": {
+      "all": "Todas"
+    },
+    "medical": "Aptitud médica",
+    "missingPrecondition": "Faltan pre-condiciones: permiso no puede emitirse.",
+    "new": "Nuevo permiso",
+    "page": {
+      "empty": "No hay permisos para los filtros aplicados. Crea uno nuevo para empezar.",
+      "error": "No se pudieron cargar los permisos: {{msg}}",
+      "selectProject": "Selecciona un proyecto para ver los permisos de trabajo.",
+      "subtitle": "LOTO / Altura / Caliente / Confinado / Excavación / Izaje — DS 594, DS 132, DS 109. {{count}} permisos cargados.",
+      "title": "Centro de Permisos de Trabajo"
+    },
+    "preconditions": "Pre-condiciones",
+    "sign": "Firmar / re-validar",
+    "training": "Capacitación vigente",
+    "validity": "Vigencia",
+    "worker": "Trabajador"
+  },
+  "preShiftRisk": {
+    "page": {
+      "error": "No se pudo cargar el panel: {{msg}}",
+      "selectProject": "Selecciona un proyecto para ver el panel de riesgo del turno.",
+      "subtitle": "{{date}} · {{count}} factores detectados",
+      "title": "Panel Pre-Turno"
+    },
+    "recommendDelay": "Se recomienda postergar el inicio del turno",
+    "recommendations": {
+      "title": "Top recomendaciones"
+    },
+    "score": {
+      "aria": "Score global de riesgo del turno",
+      "label": "Riesgo del turno"
+    },
+    "section": {
+      "context": "Contexto del turno",
+      "equipment": {
+        "empty": "Equipos con mantención al día.",
+        "title": "Mantención de equipos"
+      },
+      "incidents": {
+        "empty": "Sin incidentes en los últimos 7 días.",
+        "title": "Incidentes últimos 7 días"
+      },
+      "personnel": {
+        "empty": "Equipo en condiciones normales (sin alertas de fatiga o novatos).",
+        "title": "Personal del turno"
+      },
+      "tasks": {
+        "empty": "Sin tareas críticas planificadas para hoy.",
+        "title": "Tareas críticas planificadas"
+      },
+      "weather": {
+        "empty": "Sin alertas climáticas relevantes.",
+        "title": "Clima del turno"
+      }
+    }
+  },
+  "preUse": {
+    "anomalyDetected": "Detectaste anomalías. Recomendamos NO operar el equipo y reportarlo al supervisor antes de continuar.",
+    "aria": "Checklist pre-uso",
+    "confirm": "Confirmar pre-uso",
+    "expected": {
+      "noAnomaly": "Esperado: sin anomalía",
+      "ok": "Esperado: OK"
+    },
+    "failed": "Anomalía",
+    "noChecklist": "Este equipo no tiene un checklist pre-uso registrado. Reporta al supervisor antes de operar.",
+    "notes": "Notas (opcional)",
+    "notesPlaceholder": "Describe la anomalía...",
+    "passed": "OK",
+    "photo": "Foto (URL opcional)",
+    "result": {
+      "appliedStatus": "Estado aplicado",
+      "auditHash": "Hash auditoría",
+      "equipment": "Equipo",
+      "notOperate": "RECOMENDAMOS NO OPERAR",
+      "proceed": "Puedes operar",
+      "reportSupervisor": "Recomendamos reportar al supervisor"
+    },
+    "signature": "Firma — escribe tu nombre completo",
+    "signaturePlaceholder": "Tu nombre completo",
+    "title": "Pre-uso"
+  },
+  "residualRisk": {
+    "acceptFormally": "Aceptar formalmente",
+    "acceptPrompt": "Razón de aceptación formal (queda como comprobante interno):",
+    "acceptancePending": "Pendiente de aceptación formal por gerencia",
+    "acceptanceRequired": "Riesgo residual alto: requiere aceptación formal documentada",
+    "acceptedBy": "Aceptado formalmente por {{uid}} el {{date}}",
+    "aria": "Riesgo residual",
+    "controls": "controles",
+    "controlsCount": "Controles aplicados",
+    "form": {
+      "cancel": "Cancelar",
+      "category": "Categoría",
+      "controlId": "Control aplicado (id)",
+      "effectiveness": "Efectividad",
+      "hazard": "Peligro",
+      "inherentSeverity": "Severidad inherente",
+      "justification": "Justificación",
+      "kind": {
+        "administrative": "Administrativo",
+        "physical": "Físico"
+      },
+      "likelihood": "Probabilidad",
+      "register": "Registrar riesgo",
+      "residualSeverity": "Severidad residual",
+      "riskKind": "Tipo",
+      "submit": "Registrar"
+    },
+    "inherent": "Inherente",
+    "initial": "Inicial",
+    "justification": "Justificación",
+    "kind": "Tipo",
+    "list": {
+      "aria": "Lista de riesgos residuales",
+      "empty": "No hay riesgos residuales registrados todavía.",
+      "title": "Riesgos Residuales"
+    },
+    "nextReview": "Próxima revisión",
+    "page": {
+      "error": "No se pudieron cargar los riesgos residuales: {{msg}}",
+      "selectProject": "Selecciona un proyecto para ver los riesgos residuales y aceptaciones formales pendientes.",
+      "subtitle": "ISO 31000 / ISO 45001 §6.1.2.2 — {{count}} riesgos cargados.",
+      "title": "Riesgo Residual"
+    },
+    "reduction": "Reducción",
+    "registerForm": {
+      "title": "Registrar riesgo residual"
+    },
+    "requestSignature": "Solicitar firma",
+    "residual": "Residual",
+    "suspicious": {
+      "criteria": "La severidad residual baja es sospechosa cuando la inherente es muy alta (catastrophic/major) y la caída no se justifica con controles robustos. Revisar caso por caso — esto NO bloquea operación, sólo señala para revisión humana.",
+      "title": "Criticidad Sospechosa"
+    }
+  },
+  "rootCause": {
+    "actions": "Acciones sugeridas",
+    "aria": "Análisis de causa raíz",
+    "byCategory": "Por categoría 5M+1E",
+    "depth": "Profundidad",
+    "factors": "Factores",
+    "failedControls": "Controles fallidos identificados",
+    "fiveWhys": "5 Porqués",
+    "primary": "Factor principal",
+    "roots": "Raíces",
+    "title": "Causa Raíz",
+    "topFactors": "Top factores históricos",
+    "totalNodes": "Nodos",
+    "treeAria": "Resumen árbol causa raíz",
+    "treeTitle": "Árbol causa raíz"
+  },
+  "visitors": {
+    "ack": {
+      "agreement": "He leído y acepto las reglas de seguridad de la faena.",
+      "empty": "Aún no hay versiones de inducción publicadas para este proyecto.",
+      "signature": "Firma manual (escribe tu nombre)",
+      "submit": "Confirmar inducción",
+      "subtitle": "Acepta los términos antes de ingresar a faena.",
+      "title": "Inducción express",
+      "version": "Versión de inducción"
+    },
+    "card": {
+      "checkIn": "Ingreso",
+      "checkOut": "Salida",
+      "host": "Acompañante",
+      "induct": "Inducción",
+      "inducted": "Inducido",
+      "pending": "Inducción pendiente",
+      "reason": "Motivo"
+    },
+    "errors": {
+      "noSession": "Debes iniciar sesión."
+    },
+    "form": {
+      "company": "Empresa / Organización",
+      "fullName": "Nombre completo",
+      "reason": "Motivo de la visita",
+      "reasonPlaceholder": "Auditoría ISO 45001…",
+      "rut": "RUT",
+      "scan": "Escanear QR",
+      "submit": "Registrar ingreso",
+      "title": "Nueva visita"
+    },
+    "page": {
+      "emptyHint": "Registra una nueva visita para iniciar el control de acceso.",
+      "emptyTitle": "Aún no hay visitas activas.",
+      "newVisit": "Nueva visita",
+      "selectProject": "Selecciona un proyecto para registrar visitas.",
+      "subtitle": "Visitas activas: {{count}}",
+      "title": "Control de Visitas"
+    }
+  },
+  "safeDriving": {
+    "incident": {
+      "errorServer": "No pudimos registrar el reporte. Inténtalo de nuevo — el formulario conserva lo que escribiste.",
+      "errorOffline": "Sin conexión: el reporte NO fue enviado. Reintenta cuando recuperes señal — el formulario conserva lo que escribiste."
+    }
+  },
+  "rubro_benchmarks": {
+    "title": "Comparación con tu rubro",
+    "your_rubro": "Tu rubro",
+    "not_enough": "Aún no hay suficientes proyectos de tu rubro para comparar (se requieren al menos {{n}}).",
+    "mine": "Tú",
+    "median": "Mediana",
+    "range": "p25–p75",
+    "no_data": "s/d",
+    "privacy_note": "Datos agregados y anónimos de {{k}} proyectos del mismo rubro SII.",
+    "metric_incidentes12m": "Incidentes (últimos 12 meses)",
+    "metric_hallazgosAbiertosPct": "Hallazgos abiertos (%)",
+    "metric_obligacionesAlDiaPct": "Obligaciones al día (%)"
   },
   "protocols_minsal": {
     "disclaimer": "Praeventio evalúa exposición ocupacional según protocolos MINSAL; no emite diagnósticos. La calificación de salud corresponde al médico del organismo administrador (Ley 16.744).",

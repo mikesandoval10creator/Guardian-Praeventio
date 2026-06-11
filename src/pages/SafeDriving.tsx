@@ -5,22 +5,19 @@ import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { getMapLoaderConfig } from '../components/maps/mapConfig';
 import {
   Map as MapIcon,
-  Navigation, 
-  AlertTriangle, 
-  Clock, 
-  Truck, 
+  Navigation,
+  AlertTriangle,
+  Clock,
+  Truck,
   ShieldAlert,
   PhoneCall,
   CheckCircle2,
   Camera,
   Loader2
 } from 'lucide-react';
-import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
-import { NodeType } from '../types';
-
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { apiAuthHeader } from '../lib/apiAuth';
+import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
 
 const containerStyle = {
@@ -44,6 +41,7 @@ export function SafeDriving() {
   const [incidentType, setIncidentType] = useState<'Accidente' | 'Falla Mecánica' | null>(null);
   const [loading, setLoading] = useState(false);
   const [reported, setReported] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [showChecklistDetail, setShowChecklistDetail] = useState(false);
 
@@ -58,8 +56,13 @@ export function SafeDriving() {
     'Triángulos de emergencia',
   ];
   
-  const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
+
+  // Idempotency key — persists across retries of the SAME report so a
+  // flaky-network re-tap replays the server's cached response instead of
+  // duplicating the incident; regenerates after a successful send. Same
+  // Stripe-pattern as IncidentReport.tsx.
+  const [idempotencyKey, setIdempotencyKey] = useState(() => `drv-${randomId()}`);
 
   const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
@@ -71,9 +74,20 @@ export function SafeDriving() {
     setMap(null);
   }, []);
 
+  // D2 slice 2 — the report goes through the audited server endpoint
+  // (POST /api/sprint-k/:projectId/driving/incidents) instead of a direct
+  // client-side Firestore write. The server stamps the reporter's identity
+  // from the verified token, writes the audit_logs row and creates the
+  // RiskNetwork node (previously client-side addNode).
+  //
+  // Offline handling mirrors the closest life-relevant sibling
+  // (IncidentReport.tsx): on network failure we show the es-CL error and
+  // KEEP the form contents — nothing is silently dropped — and the
+  // Idempotency-Key makes the eventual re-tap duplicate-safe.
   const handleSendReport = async () => {
     if (!incidentType || !description || !selectedProject) return;
     setLoading(true);
+    setError(null);
     try {
       let locationString = 'Ubicación desconocida';
       try {
@@ -86,47 +100,44 @@ export function SafeDriving() {
         locationString = 'Ubicación no disponible (Permiso denegado o error)';
       }
 
-      const { handleFirestoreError, OperationType } = await import('../services/firebase');
-      
-      let docRef;
-      try {
-        // 1. Save to dedicated driving_incidents collection
-        docRef = await addDoc(collection(db, `projects/${selectedProject.id}/driving_incidents`), {
-          type: incidentType,
-          description: description,
-          location: locationString,
-          status: 'Reportado',
-          timestamp: new Date().toISOString(),
-          projectId: selectedProject.id,
-          createdAt: serverTimestamp()
-        });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, `projects/${selectedProject.id}/driving_incidents`);
+      const authHeader = await apiAuthHeader();
+      const res = await fetch(
+        `/api/sprint-k/${selectedProject.id}/driving/incidents`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authHeader ? { 'Authorization': authHeader } : {}),
+            'Idempotency-Key': idempotencyKey,
+          },
+          body: JSON.stringify({
+            type: incidentType,
+            description,
+            location: locationString,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        logger.error('driving_incident_report_failed', { status: res.status, error: body.error });
+        setError(t(
+          'safeDriving.incident.errorServer',
+          'No pudimos registrar el reporte. Inténtalo de nuevo — el formulario conserva lo que escribiste.',
+        ));
         return;
       }
 
-      // 2. Save to Risk Network
-      const node = await addNode({
-        type: NodeType.INCIDENT,
-        title: `Incidente en Ruta: ${incidentType}`,
-        description: description,
-        tags: ['Seguridad Vial', incidentType, 'Urgente'],
-        projectId: selectedProject.id,
-        connections: [],
-        metadata: {
-          incidentId: docRef.id,
-          type: incidentType,
-          status: 'Reportado',
-          timestamp: new Date().toISOString(),
-          location: locationString
-        }
-      });
-      
       setReported(true);
       setDescription('');
       setIncidentType(null);
-    } catch (error) {
-      logger.error('Error sending report:', error);
+      setIdempotencyKey(`drv-${randomId()}`); // next report = fresh key
+    } catch (err) {
+      // Network failure (sin señal en ruta) — NUNCA descartar en silencio.
+      logger.error('driving_incident_report_failed', { error: err });
+      setError(t(
+        'safeDriving.incident.errorOffline',
+        'Sin conexión: el reporte NO fue enviado. Reintenta cuando recuperes señal — el formulario conserva lo que escribiste.',
+      ));
     } finally {
       setLoading(false);
     }
@@ -353,8 +364,17 @@ export function SafeDriving() {
           </div>
 
           <div className="space-y-6">
+            {error && (
+              <div
+                role="alert"
+                className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-200 text-sm flex items-start gap-2"
+              >
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
-              <button 
+              <button
                 onClick={() => setIncidentType('Accidente')}
                 className={`flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${
                   incidentType === 'Accidente' ? 'border-red-500 bg-red-50 dark:bg-red-500/10' : 'border-zinc-200 dark:border-zinc-800 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-500/10'

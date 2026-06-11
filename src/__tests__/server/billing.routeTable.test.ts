@@ -46,6 +46,11 @@ describe('billing route table (no-regression pin, split D3)', () => {
       'POST /checkout/mercadopago',
       'POST /webhook/mercadopago',
       'POST /khipu/webhook',
+      // 2026-06-11 (khipu cableado): checkout endpoint added DELIBERATELY —
+      // the third automated rail (Webpay, MercadoPago, Khipu) gets its own
+      // payment-creation endpoint. Appended after the webhook so the
+      // pre-existing rows stay byte-identical.
+      'POST /khipu/checkout',
       'POST /google-play/validate-receipt',
       'POST /app-store/validate-receipt',
       'POST /webhook/apple',

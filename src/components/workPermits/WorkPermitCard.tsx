@@ -116,7 +116,7 @@ export function WorkPermitCard({ permit, now, onCancel, onFulfill }: WorkPermitC
           />
           <PreconditionRow
             ok={checklistOk}
-            label={t('permits.checklist', 'Checklist previo')}
+            label={t('permits.checklist.title', 'Checklist previo')}
             testId={`permit-pre-checklist-${permit.id}`}
           />
         </ul>
