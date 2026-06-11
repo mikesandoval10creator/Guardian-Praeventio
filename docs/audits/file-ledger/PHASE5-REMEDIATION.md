@@ -77,9 +77,17 @@ nuevas sino aristas nuevas. Estado verificado por grep/lectura el 2026-06-10:
   explícito rotulado.
 - [ ] **C2 Excepciones repetidas→MOC**: 3 desviaciones sobre el mismo procedimiento = procedimiento
   mal diseñado; `runConsistencyAudit` debería detectar el patrón y gatillar gestión del cambio.
-- [ ] 🛟 **C3 Telemetría→bloqueo operacional**: el ingest HMAC existe; lectura de gas sobre umbral
-  en zona → soft-block automático de permisos de espacio confinado de esa zona + alerta. El
-  sensor hoy informa; conectado, detiene.
+- [x] 🛟 ~~**C3 Telemetría→bloqueo operacional**~~ → ✅ **#845**: motor puro
+  `src/services/workPermits/gasGate.ts` (umbrales O₂ 19.5–23.5 % / LEL REUTILIZADOS de
+  `criticalPermitValidators` — cero constantes duplicadas); para kinds sensibles a gas,
+  `validate-critical` y el path de FIRMA consultan la telemetría de la zona server-side con
+  deadline duro 3 s (Promise.race, precedente weatherGate); firmar bloqueado → 409
+  `gas_telemetry_block` con lecturas + mensaje es-CL, salvo override de rol supervisor-tier
+  del token VERIFICADO que escribe su propia fila de audit con snapshot de lecturas. Sin
+  lecturas frescas NO bloquea (la ausencia de datos no detiene el trabajo) + nota es-CL de
+  medición manual obligatoria. SOFT-block por directiva (precedente horometerEngine): jamás
+  detención física. Vida-seguridad sin tier-gating (ADR 0021). 67 tests; workPermits 227/227.
+  Índice compuesto nuevo en `firestore.indexes.json` para la consulta por zona.
 - [ ] **C4 OCR→Zettelkasten/Hazmat**: `DocumentOCRManager` existe; apuntarlo a HDS de químicos /
   certificados / mantenciones → nodos estructurados → HazmatStorageDesigner con
   incompatibilidades reales. El papel legado entra al grafo por la cámara.
@@ -120,6 +128,42 @@ nuevas sino aristas nuevas. Estado verificado por grep/lectura el 2026-06-10:
 - [ ] **B7 Indicadores líderes compuestos→índice predictivo por proyecto**: no existe (componer
   pulso de cultura + observaciones + ratio near-miss + tasa de cierre; insignia del tier-3).
 
+
+### Sesión 2026-06-11 (tarde) — tanda 2: SII slice 3, C3 gas-gate, A4 SystemEngine, i18n W3, proximity (PRs #844-#849)
+
+- [x] **#846 🔥 hotfix CI global**: bomba de calendario en `photoEvidence` — `buildArtifact` no
+  pasaba su `now` a `validatePayload` (caía al reloj REAL); el fixture `capturedAt=2026-05-12`
+  cruzó la ventana de 30 días el 2026-06-11T10:00Z (el run de #843 pasó a las 09:59) y desde
+  entonces TODO run de Tests fallaba en cualquier rama. Fix: un solo reloj
+  (`photoEvidenceEngine.ts:178` ahora `{ now: input.now, ...validationOptions }`) + 2 tests de
+  regresión que pinean el contrato.
+- [x] **#844 SII slice 3** + **#845 arista C3** — marcados en sus secciones (épica Rubros SII /
+  Capa 3) con detalle file:line.
+- [x] **#847 A4 SystemEngine doblemente muerto** → eventos re-scopeados a
+  `projects/{pid}/system_events`. Forense: `eventLog.ts` escribía a `tenants/{tid}/system_events`
+  con `tenantId = window.__GP_TENANT_ID__ || 'default'` (global JAMÁS asignado); sin match block,
+  el catchall de `tenants/` (`create:false`) denegaba toda escritura y la lectura exigía
+  `isMemberOfTenant()` sobre claims que ningún flujo acuña (solo existen `role` y
+  `assignedSiteIds`) → cero sync cross-device desde siempre; el engine vivía solo de
+  `onLocalEmit`. Ahora: path por proyecto (la tenancy real), sin proyecto → local-only explícito,
+  regla #4 completa (match block inmutable + 7 rules-tests `authenticatedContext` + Dirty Dozen).
+- [x] **#848 i18n wave 3**: ratchet **2.700 → 2.222** (−478); 477 claves es/en/pt-BR reales en
+  19 namespaces de cumplimiento (cphs, drills, hazmat, inspections, loto, permits, residualRisk,
+  rootCause, visitors, …); fixes de copy es-CL vía clave (regla #2: "Worker"→"Trabajador", refs
+  internas "§23-24 Sprint K" fuera de subtítulos visibles). Excluidos con precedente: defaults
+  con `${}` (interpolación pendiente).
+- [x] **#849 isla D1 proximityModeDetector** → cableado: motor puro de MODO DE PORTE
+  (normal/bolsillo/casco/boca-abajo) → `useProximityMode` (bridge DI) → sensorBus
+  (`'device_mode'`) → consumidor `FallDetectionMonitor` (umbral de impacto ÷
+  `fallDetectionMultiplier`: en bolsillo el prompt dispara a 19,2 m/s² en vez de 25; modo normal
+  = 1.0, cero cambio sin evidencia). **Hallazgo regla #13**: `@capgo/capacitor-proximity` v8.1.2
+  NO expone eventos near/far a JS (el contrato del motor fue escrito contra una API inexistente)
+  → adapter retorna null con pin-tests + stubs-inventory + TODO(sprint-D1-followup) para el
+  bridge nativo; cadena TS completa real vía DI, se enciende e2e al aterrizar el plugin.
+- Nota operacional: dos agentes (proximity/i18n) se perdieron por diferir el push al `npm test`
+  global y dos más quedaron sin commitear esperando watchers — cierre manual en sus worktrees.
+  Regla de orquestación nueva: el agente pushea apenas validan SUS suites; el gate global lo
+  corre CI.
 
 ### Sesión 2026-06-11 — Ola D: informe externo "Deuda Técnica de CÓDIGO" (PRs #838-#841)
 
@@ -720,10 +764,20 @@ CIIU4.CL) al clasificar el proyecto en el onboarding. Reutiliza piezas existente
   - TDD: 52 tests nuevos (catálogo: 6 dígitos, sin duplicados, sectorIds existentes,
     spot-checks 410010/040000/089110/492300; búsqueda exacta/prefijo/texto/tildes; perfil por
     sector con ids reales del pack; bordes de dotación 0/10/24/25/99/100).
-- [ ] **Slice 2** — wiring wizard + autocompletado de rubro SII en el paso `industry` del
-  `OnboardingWizard` (UI es-CL), persistir `codigoActividadSii` en el proyecto.
-- [ ] **Slice 3** — instanciación de semillas al crear proyecto (riesgos típicos + obligaciones
-  por dotación → registros iniciales del proyecto, con audit_logs).
+- [x] ~~**Slice 2** — wiring wizard + autocompletado de rubro SII~~ → ✅ **#836** (autocompletado
+  en el paso `industry` del `OnboardingWizard`; `codigoActividadSii` persistido server-side con
+  sectorId derivado del catálogo).
+- [x] ~~**Slice 3** — instanciación de semillas al crear proyecto~~ → ✅ **#844**: builder puro
+  `src/services/sii/projectSeeds.ts` (`buildProjectSeeds` reusa `getRiskProfileForSector` +
+  `obligacionesPorDotacion`); riesgos típicos → `nodes` top-level (el read path EXACTO del módulo
+  IPER, sin P×S fabricado — DS 44/2024 art. 21 deja la clasificación con el empleador,
+  `criticidad: 'Por evaluar'`, marcados `origin:'sii_seed'`); obligaciones →
+  `projects/{pid}/legal_obligations` (LegalCalendar, solo países CL); ids deterministas
+  idempotentes; audit `onboarding.projectSeeded`. **Bug real corregido de paso**: el proyecto del
+  onboarding solo existía en `tenants/{uid}/projects/{pid}` — forma que NADA lee (ProjectContext,
+  rules `isProjectMember`, `assertProjectMember` leen `projects/{pid}`) → ahora se escribe también
+  el doc canónico (`onboarding.ts:249`). `faenaOnboardingBundle` NO reusado (dominio distinto:
+  acreditación POR TRABAJADOR; veredicto en el commit). 22 tests nuevos; suites 231/231.
 - [ ] **Slice 4** — agregación anónima por rubro (benchmarks entre proyectos del mismo código
   SII, sin PII, k-anonimato).
 
