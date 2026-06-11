@@ -50,6 +50,17 @@ import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 import { isUpstreamGeminiParseError } from './_geminiErrors.js';
 import { AI_MODEL_CHAT, AI_MODEL_FAST_STABLE } from '../../config/aiModels.js';
+// AI provider layer — per-action routing to a self-hosted OpenAI-compatible
+// endpoint (vLLM/Ollama). Without AI_SELFHOSTED_* config, resolveProvider()
+// returns 'gemini' for every action and the legacy path below runs unchanged.
+import {
+  resolveProvider,
+  hasSelfHostedActionSpec,
+  dispatchSelfHostedAction,
+  selfHostedFallsBackToGemini,
+  recordProviderCall,
+  SELFHOSTED_CIRCUIT_KEY,
+} from '../../services/ai/providerRouter.js';
 
 function sentryCapture(
   err: unknown,
@@ -481,6 +492,87 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
   // all without touching individual handlers in geminiBackend.ts.
   const tenantId: string = req.user?.uid ?? 'unknown';
   const tier: string = req.user?.tier ?? req.user?.subscriptionTier ?? 'bronze';
+
+  // ── AI provider layer (self-hosted | Gemini) ────────────────────────────
+  // Same chokepoint rationale as Bucket X: routing here covers every
+  // whitelisted RPC without touching 80+ handler call sites. With no
+  // AI_SELFHOSTED_* config this whole block is skipped (resolveProvider()
+  // → 'gemini') and the legacy path below runs byte-identical.
+  //
+  // Chain for a selfhosted-routed action:
+  //   ok                          → 200 { result } (accounted at costUsd 0)
+  //   fails / breaker open        → AI_SELFHOSTED_FALLBACK_GEMINI != '0'
+  //                                 (default): legacy Gemini path below,
+  //                                 which carries its own degraded ladder;
+  //                                 fallback OFF: ladder (RAG → canned),
+  //                                 else 503.
+  // The self-hosted breaker uses its OWN key ('selfhosted') so a broken
+  // local model never trips the Gemini breaker, and vice versa.
+  if (resolveProvider(action) === 'selfhosted' && hasSelfHostedActionSpec(action)) {
+    let selfHostedBlocked = false;
+    try {
+      // Per-tenant quota is provider-agnostic (abuse ceiling); the circuit
+      // gate runs on the ISOLATED selfhosted key, NOT the gemini key.
+      await assertGeminiAllowed(tenantId, tier, SELFHOSTED_CIRCUIT_KEY);
+    } catch (err: any) {
+      if (err?.code === 'gemini_quota_exceeded') {
+        return res.status(429).json({
+          error: 'quota_exceeded',
+          reason: err.quota?.reason ?? 'requests_exceeded',
+          usage: err.quota?.usage,
+          limit: err.quota?.limit,
+        });
+      }
+      if (err?.code === 'gemini_circuit_open') {
+        selfHostedBlocked = true; // treat as a self-hosted failure → chain
+      } else {
+        throw err;
+      }
+    }
+    if (!selfHostedBlocked) {
+      const attempt = await dispatchSelfHostedAction(action, callArgs);
+      if (attempt.status === 'ok') {
+        res.json({ result: attempt.text });
+        // Same flat accounting as the Gemini path, at zero cost: the
+        // per-tenant quota row still counts the request, the breaker
+        // success is recorded on the isolated selfhosted key.
+        const tokensIn = Math.ceil(JSON.stringify(args ?? []).length / 4);
+        const tokensOut = Math.ceil(attempt.text.length / 4);
+        await recordGeminiOutcome(tenantId, 'success', {
+          tokens: tokensIn + tokensOut,
+          costUsd: 0,
+          circuitKey: SELFHOSTED_CIRCUIT_KEY,
+        });
+        return undefined;
+      }
+      // 'skipped' (config raced off / spec missing) keeps the Gemini path
+      // silently; 'failed' enters the configured fallback chain below.
+      if (attempt.status === 'failed') selfHostedBlocked = true;
+    }
+    if (selfHostedBlocked && !selfHostedFallsBackToGemini()) {
+      // Gemini fallback disabled — run the degraded ladder (RAG → canned)
+      // directly so the worker still gets a real answer when possible.
+      if (hasServerSlmFallback(action)) {
+        try {
+          const fb = await geminiSlmFallback(action, callArgs);
+          if (fb) {
+            return res.json({ result: fb.text, degraded: true, fallbackTier: fb.tier });
+          }
+        } catch (fallbackErr) {
+          logger.error('gemini_server_fallback_failed', fallbackErr as Error, { action });
+          sentryCapture(fallbackErr, { endpoint: '/api/gemini', tags: { action, phase: 'fallback-selfhosted' } });
+        }
+      }
+      // No internals leaked — generic unavailability, mirrors the breaker 503.
+      return res.status(503).json({ error: 'selfhosted_unavailable', message: 'AI temporarily unavailable.' });
+    }
+    // selfHostedBlocked && fallback enabled → continue into the legacy
+    // Gemini path below (gate + dispatch + its own ladder).
+  }
+
+  // Observability: per-call provider/latency/outcome (no prompt content).
+  const geminiDispatchStartedAt = Date.now();
+
   try {
     await assertGeminiAllowed(tenantId, tier);
   } catch (err: any) {
@@ -555,6 +647,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
             // that is an upstream MISS, so record a breaker FAILURE (ADR 0019)
             // before returning the degraded answer, so sustained empties still
             // trip the circuit.
+            recordProviderCall('gemini', 'failure', Date.now() - geminiDispatchStartedAt, action);
             await recordGeminiOutcome(tenantId, 'failure');
             return res.json({ result: fb.text, degraded: true, fallbackTier: fb.tier });
           }
@@ -573,6 +666,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
       const resultLen = JSON.stringify(result ?? null).length;
       const tokensIn = Math.ceil(argsLen / 4);
       const tokensOut = Math.ceil(resultLen / 4);
+      recordProviderCall('gemini', 'success', Date.now() - geminiDispatchStartedAt, action);
       await recordGeminiOutcome(tenantId, 'success', {
         tokens: tokensIn + tokensOut,
         // Most RPCs use Flash internally; Pro is reserved for the
@@ -592,6 +686,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     }
     logger.error('gemini_proxy_failed', error, { action });
     sentryCapture(error, { endpoint: '/api/gemini', tags: { method: 'POST', action, tenantId } });
+    recordProviderCall('gemini', 'failure', Date.now() - geminiDispatchStartedAt, action);
     await recordGeminiOutcome(tenantId, 'failure');
     // A life-safety action surfaced a usable fallback alongside the upstream
     // failure (e.g. emergency-plan generation). The breaker failure is already
