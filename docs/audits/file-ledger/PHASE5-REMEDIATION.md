@@ -168,6 +168,24 @@ B23-Estado compartido, B24-Calidad tests**). Evidencia: `AUDIT-2026-06-FULL.md` 
   mismo path muerto server-side (la cápsula siempre resumía 0 hallazgos — test pin sourceNodes).
   QUEDA 🟡: fragmentación residual — weeklyDigest lee `tenants/{tid}/findings` e insights lee
   `findings` top-level; cada path tiene escritor propio → decisión de migración, no re-point ciego.
+- [x] 🔴🛟 **A3 conflictQueue en sync path ✅** (2026-06-11, rama `claude/sync-conflict-queue-wire`):
+  el motor §16.2.2 existía completo (engine `src/services/sync/conflictQueue.ts` + resolver +
+  router `/api/sprint-k` `src/server/routes/conflictQueue.ts` + productor parcial en
+  `OfflineSyncManager.tsx:115-149`) pero `matrixSyncManager.flush()` subía el batch SIN comparar
+  contra el remoto → dos ediciones offline del mismo incidente = una se perdía en silencio
+  (last-write-wins). Ahora: set canónico de 5 doc-types
+  (`src/services/sync/safetyCriticalDocTypes.ts:35` `SAFETY_CRITICAL_DOC_TYPES`); pre-flush guard
+  `checkSafetyCriticalConflict` (`src/services/syncManager.ts:311` — `getDoc` remoto +
+  `detectConflicts`, el MISMO detector que usa OfflineSyncManager) y desvío
+  `divertToConflictQueue` (`src/services/syncManager.ts:385`): marca la op local `conflict`
+  (retenida, jamás re-flush — espejo del patrón `deadLettered` de `syncStateMachine.ts`), emite
+  `sync-critical-conflict` (drawer in-session) y POST best-effort autenticado al enqueue del
+  server (que estampa identidad + escribe audit_logs). Resolución humana limpia la op retenida
+  (listener `sync-critical-conflict-resolved`, `syncManager.ts:79`) o `restoreServerVersion`.
+  Remoto ilegible → defer (nunca blind-write); doc-types no críticos → cero lecturas remotas,
+  comportamiento previo intacto. Tests TDD: 5 (`src/services/syncManager.conflict.test.ts`,
+  syncManager REAL con Firestore/fetch mockeados) + 6 (`safetyCriticalDocTypes.test.ts`);
+  regresión verde: syncManager 5, sync/* + OfflineSyncManager 106, conflictQueueRoute 12.
 - [x] 🔴 ~~**B9: SiteBook esquemas disjuntos (cliente vs firma)**~~ → ✅ **hecho** (PR #820):
   `SITE_BOOK_COLLECTION = 'site_book_entries'` en el servicio puro, importado por el store
   cliente Y las rutas de firma (acople por código). QUEDA 🟡: el adapter CRDT
