@@ -126,6 +126,9 @@ function deriveModule(pathname: string): ModuleType {
   if (pathname.startsWith('/training')) return 'training';
   if (pathname.startsWith('/findings')) return 'findings';
   if (pathname.startsWith('/safe-driving')) return 'safe_driving';
+  // Fase 5 D2 slice 1 — SafeDriving (incidentes) re-pathed from
+  // /safe-driving to /driving-incidents; same knowledge-module context.
+  if (pathname.startsWith('/driving-incidents')) return 'safe_driving';
   return 'dashboard';
 }
 

@@ -1,5 +1,6 @@
 // Real-router supertest for src/server/routes/stoppage.ts
 // Coverage target: POST /:projectId/stoppage/{declare,mark-precondition-fulfilled,resume,cancel,summarize}
+// (/resolve lives in stoppageResolve.router.test.ts — split deliberately, see that file's header)
 // The route is stateless (pure-engine calls) + assertProjectMember (Firestore read only).
 // No audit_logs writes happen in this route — engine is pure, no side effects.
 
@@ -20,7 +21,12 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
     const uid = req.header('x-test-uid');
     if (!uid) return void res.status(401).json({ error: 'unauthorized' });
-    (req as Request & { user: Record<string, unknown> }).user = { uid };
+    // Role comes from the VERIFIED token claim in prod (verifyAuth.ts); the
+    // test surrogate reads it from a header so each case can pick a role.
+    (req as Request & { user: Record<string, unknown> }).user = {
+      uid,
+      role: req.header('x-test-role') ?? undefined,
+    };
     next();
   },
 }));

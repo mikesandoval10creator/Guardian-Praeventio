@@ -93,6 +93,48 @@ describe('validatePayload', () => {
 });
 
 describe('buildArtifact', () => {
+  it('valida frescura contra input.now, NO contra el reloj real (regresión 2026-06-11)', () => {
+    // Antes del fix, buildArtifact no pasaba `now` a validatePayload y la
+    // ventana de 30 días se evaluaba contra el reloj REAL: el fixture
+    // capturedAt=2026-05-12 expiró el 2026-06-11T10:00Z y toda la suite
+    // (y cualquier caller con now pineado) reventó en CI. Estos dos casos
+    // pinean el contrato "un solo reloj para todo el build":
+    // 1. capturedAt 40 días antes del now PINEADO → rancia, aunque el
+    //    reloj real diga otra cosa.
+    expect(() =>
+      buildArtifact({
+        payload: payload({ capturedAt: '2026-04-02T10:00:00Z' }),
+        contentHash: VALID_HASH,
+        linkages: [],
+        now: NOW,
+      }),
+    ).toThrowError(/30 días/);
+    // 2. El fixture válido (12 h dentro del now pineado) construye SIEMPRE,
+    //    sin importar cuánto haya avanzado el reloj real desde entonces.
+    const a = buildArtifact({
+      payload: payload(),
+      contentHash: VALID_HASH,
+      linkages: [],
+      now: NOW,
+    });
+    expect(a.capturedAt).toBe('2026-05-12T10:00:00Z');
+  });
+
+  it('validationOptions.now explícito tiene precedencia sobre input.now', () => {
+    // Caller que valida contra una ventana histórica distinta de la del
+    // timestamp de registro: el override explícito manda.
+    const historicNow = new Date('2026-04-10T00:00:00Z');
+    expect(() =>
+      buildArtifact({
+        payload: payload({ capturedAt: '2026-04-09T10:00:00Z' }),
+        contentHash: VALID_HASH,
+        linkages: [],
+        now: NOW, // con este solo, capturedAt estaría dentro de la ventana
+        validationOptions: { now: historicNow },
+      }),
+    ).not.toThrow();
+  });
+
   it('hash inválido (no SHA-256 hex 64 chars) → tira', () => {
     expect(() =>
       buildArtifact({

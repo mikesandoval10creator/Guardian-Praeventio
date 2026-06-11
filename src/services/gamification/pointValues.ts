@@ -19,7 +19,24 @@ export const POINT_VALUES = {
   zone_violation_reported: 20,
   incident_reported: 15,
   sos_resolved: 40,
+  // Arista B4 — paralización resuelta con veredicto JUSTIFICADA: premia
+  // estructuralmente el coraje de detener trabajos ante un riesgo real
+  // (stop-work authority). Server-awarded only (see SERVER_AWARDED_REASONS):
+  // granted by POST /:projectId/stoppage/resolve to the DECLARER; the public
+  // /gamification/points endpoint rejects it so callers cannot self-claim.
+  stoppage_justified: 30,
 } as const;
+
+/**
+ * Reasons that may ONLY be awarded by server-side flows where the recipient
+ * is someone other than the caller (e.g. the stoppage-resolution prize goes
+ * to the worker who declared the stoppage). The public
+ * POST /api/gamification/points endpoint — which always awards to the caller
+ * — must reject these to prevent XP self-farming.
+ */
+export const SERVER_AWARDED_REASONS: ReadonlySet<PointReason> = new Set([
+  'stoppage_justified',
+]);
 
 export type PointReason = keyof typeof POINT_VALUES;
 

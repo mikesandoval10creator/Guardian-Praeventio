@@ -54,6 +54,25 @@ export interface Stoppage {
   cancelledAt?: string;
   cancelledByUid?: string;
   cancelledReason?: string;
+  /** Veredicto post-cierre (justificada/no_justificada). Inmutable una vez emitido. */
+  resolution?: StoppageResolution;
+}
+
+/** Veredicto a-posteriori sobre la legitimidad de la paralización (arista B4). */
+export type StoppageVerdict = 'justificada' | 'no_justificada';
+
+/**
+ * Resolución (veredicto) emitida por un rol aprobador DESPUÉS del cierre del
+ * ciclo (resumed o cancelled). Cuando `verdict === 'justificada'` el sistema
+ * premia al declarante (observación positiva + XP) — ver
+ * `src/server/routes/stoppage.ts` POST /:projectId/stoppage/resolve.
+ */
+export interface StoppageResolution {
+  verdict: StoppageVerdict;
+  resolvedByUid: string;
+  resolvedByRole: string;
+  resolvedAt: string;
+  comment?: string;
 }
 
 export interface ResumptionPrecondition {
@@ -217,6 +236,59 @@ export function cancelStoppage(
     cancelledAt: now.toISOString(),
     cancelledByUid,
     cancelledReason: reason.trim(),
+  };
+}
+
+/** True iff `role` can approve resumption / emit verdicts. */
+export function isApproverRole(role: string): boolean {
+  return APPROVER_ROLES.includes(role);
+}
+
+/**
+ * Emits the a-posteriori verdict over a CLOSED stoppage (resumed or
+ * cancelled). The verdict is the supervisor-level review of whether stopping
+ * work was legitimate; `justificada` is the hook that triggers the structural
+ * reward to the declarer (positive observation + XP — arista B4).
+ *
+ * Pure function: idempotency is enforced here (ALREADY_RESOLVED) and at the
+ * persistence layer (the route reads + writes inside a transaction).
+ */
+export function resolveStoppage(
+  stoppage: Stoppage,
+  verdict: StoppageVerdict,
+  resolvedByUid: string,
+  resolvedByRole: string,
+  comment?: string,
+  now: Date = new Date(),
+): Stoppage {
+  if (stoppage.resolution) {
+    throw new StoppageValidationError(
+      'ALREADY_RESOLVED',
+      `stoppage '${stoppage.id}' already has verdict '${stoppage.resolution.verdict}'`,
+    );
+  }
+  if (stoppage.status !== 'resumed' && stoppage.status !== 'cancelled') {
+    throw new StoppageValidationError(
+      'NOT_CLOSED',
+      `cannot emit verdict on stoppage in status '${stoppage.status}' — lifecycle must be closed (resumed|cancelled)`,
+    );
+  }
+  if (!isApproverRole(resolvedByRole)) {
+    throw new StoppageValidationError(
+      'ROLE_NOT_ALLOWED',
+      `role '${resolvedByRole}' cannot emit a stoppage verdict`,
+    );
+  }
+  const trimmedComment = comment?.trim();
+  return {
+    ...stoppage,
+    resolution: {
+      verdict,
+      resolvedByUid,
+      resolvedByRole,
+      resolvedAt: now.toISOString(),
+      ...(trimmedComment ? { comment: trimmedComment } : {}),
+    },
   };
 }
 

@@ -8,6 +8,14 @@ const Calendar = lazy(() => import('../pages/Calendar').then(module => ({ defaul
 const Assets = lazy(() => import('../pages/Assets').then(module => ({ default: module.Assets })));
 const SiteMap = lazy(() => import('../pages/SiteMap').then(module => ({ default: module.SiteMap })));
 const Attendance = lazy(() => import('../pages/Attendance').then(module => ({ default: module.Attendance })));
+// Fase 5 D2 slice 1 (2026-06-11) — re-pathed from `safe-driving` to
+// `driving-incidents` to resolve the route COLLISION with App.tsx, which
+// mounts `SafeDrivingMode` (SOS driver mode — life-safety) at
+// `safe-driving`. This route group is spread BEFORE the inline App route,
+// so the duplicate path here shadowed SafeDrivingMode entirely. The
+// SafeDriving page core is incident reporting + pre-drive checklist, so
+// `driving-incidents` is the semantic home. Pinned by
+// OperationsRoutes.test.tsx.
 const SafeDriving = lazy(() => import('../pages/SafeDriving').then(module => ({ default: module.SafeDriving })));
 const Telemetry = lazy(() => import('../pages/Telemetry').then(module => ({ default: module.Telemetry })));
 const DocumentOCRManager = lazy(() => import('../pages/DocumentOCRManager').then(module => ({ default: module.DocumentOCRManager })));
@@ -47,7 +55,7 @@ export const OperationsRoutes = [
   <Route key="assets" path="assets" element={<Assets />} />,
   <Route key="site-map" path="site-map" element={<SiteMap />} />,
   <Route key="attendance" path="attendance" element={<Attendance />} />,
-  <Route key="safe-driving" path="safe-driving" element={<SafeDriving />} />,
+  <Route key="driving-incidents" path="driving-incidents" element={<SafeDriving />} />,
   <Route key="telemetry" path="telemetry" element={<Telemetry />} />,
   <Route key="document-ocr" path="document-ocr" element={<DocumentOCRManager />} />,
   <Route key="autocad" path="autocad" element={<AutoCADViewer />} />,

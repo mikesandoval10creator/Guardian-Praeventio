@@ -175,7 +175,12 @@ export interface BuildArtifactInput {
 }
 
 export function buildArtifact(input: BuildArtifactInput): EvidenceArtifact {
-  validatePayload(input.payload, input.validationOptions);
+  // One clock for the whole build: `input.now` must also govern the
+  // capturedAt freshness window. Before this, validation silently fell
+  // back to the real clock even when the caller pinned `now`, so any
+  // fixture/test (and any caller replaying historic evidence) went
+  // stale the moment the wall clock drifted 30 días past capturedAt.
+  validatePayload(input.payload, { now: input.now, ...input.validationOptions });
   if (!input.contentHash || !/^[a-f0-9]{64}$/i.test(input.contentHash)) {
     throw new PhotoEvidenceValidationError(
       'invalid_mime', // reused code; específico no estaba listado

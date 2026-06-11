@@ -51,6 +51,11 @@ import { getMapLoaderConfig } from '../components/maps/mapConfig';
 import { useAppMode } from '../contexts/AppModeContext';
 import { useProject } from '../contexts/ProjectContext';
 import { useSpeedMonitor } from '../services/driving/speedTrigger';
+// Fase 5 D2 slice 1 — aggressive-brake telemetry (useDriving.ts was an
+// orphan: 3 mutators, zero importers). Derives longitudinal deceleration
+// from the GPS speed monitor below and reports sustained ≥0.5g braking
+// fire-and-forget; failures are swallowed so driving UX never breaks.
+import { useBrakeTelemetry } from '../hooks/useDriving';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 import {
@@ -78,6 +83,8 @@ export function Driving(): React.ReactElement {
   const { mode } = useAppMode();
   const { selectedProject } = useProject();
   const speed = useSpeedMonitor(mode === 'driving');
+  // Best-effort brake telemetry over the same GPS feed (offline tolerated).
+  useBrakeTelemetry(selectedProject?.id ?? null, speed, mode === 'driving');
   const { toasts, show, dismiss } = useToast(2500);
 
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
