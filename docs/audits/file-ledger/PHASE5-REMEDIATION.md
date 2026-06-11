@@ -102,7 +102,17 @@ nuevas sino aristas nuevas. Estado verificado por grep/lectura el 2026-06-10:
 - [ ] **B3 Portal del mandante→KPIs de contratistas DS 76**: los portales de auditor con
   audiencias existen (`auditPortal/`); falta la audiencia "mandante" con indicadores de SUS
   contratistas. Adopción en cascada minera→contratistas.
-- [ ] **B4 Paralización justificada→reconocimiento+XP**: no existe; efecto cultural alto, costo bajo.
+- [x] ~~**B4 Paralización justificada→reconocimiento+XP**~~ → ✅ **hecho** (PR #841): veredicto
+  de paralización con premio server-authoritative. Motor puro `resolveStoppage()`
+  (`src/services/stoppage/stoppageEngine.ts:256` — transiciones NOT_CLOSED / ROLE_NOT_ALLOWED /
+  ALREADY_RESOLVED) + endpoint `POST /:projectId/stoppage/resolve`
+  (`src/server/routes/stoppage.ts:347`): verifyAuth + assertProjectMember + gate de rol por
+  claim del token, read-modify-write en `runTransaction` (idempotente — re-resolver da 409 y
+  jamás duplica el premio), sin auto-premio si resolutor == declarante, audit_logs en cada
+  veredicto. XP `stoppage_justified: 30` (`src/services/gamification/pointValues.ts:27`)
+  marcado `SERVER_AWARDED_REASONS` (`pointValues.ts:37`) y `/api/gamification/points` rechaza
+  reasons server-only (`src/server/routes/gamification.ts:51`) — el cliente no puede
+  auto-reclamarlo. 636 líneas de tests (router real supertest + motor).
 - [ ] **B5 Trabajador nuevo→inducción personalizada**: no existe (riesgos repetidos de la faena +
   lecciones + currículum portable → ruta de inducción específica).
 - [ ] **B6 QR físico en equipo→inspección viva**: no existe (escaneo = inspección con
@@ -110,6 +120,37 @@ nuevas sino aristas nuevas. Estado verificado por grep/lectura el 2026-06-10:
 - [ ] **B7 Indicadores líderes compuestos→índice predictivo por proyecto**: no existe (componer
   pulso de cultura + observaciones + ratio near-miss + tasa de cierre; insignia del tier-3).
 
+
+### Sesión 2026-06-11 — Ola D: informe externo "Deuda Técnica de CÓDIGO" (PRs #838-#841)
+
+Informe externo D1-D9 verificado contra código y ejecutado en 4 PRs paralelos:
+
+- [x] **D4 delays fake + D5 lock de concurrencia KEK** → ✅ **#838**:
+  `src/pages/Attendance.tsx` ya no simula 1.500 ms de "escaneo" (el delay teatral está
+  eliminado — grep `Simulate scanning` = 0) ni `TacticalOnboardingModal` 500 ms/doc; la
+  rotación KEK ahora toma mutex real vía **Web Locks API**
+  (`src/services/security/kekRotationOrchestrator.ts:344` `navigator.locks.request(LOCK_KEY,
+  { ifAvailable: true }, cb)`) con fallback localStorage para Safari viejo/SSR
+  (`kekRotationOrchestrator.ts:115`) — dos pestañas ya no pueden rotar a la vez.
+- [x] **D3 god-file billing** → ✅ **#839**: `src/server/routes/billing.ts` 2.077→**82 LOC**
+  (agregador puro); lógica movida verbatim a `src/server/routes/billing/`: webpay(523),
+  mercadopago(440), iapReceipts(323), googleplay(304), invoices(209), khipu(186),
+  appstore(160) + shared/pricing. Las 12 rutas HTTP quedaron **pineadas idénticas** en
+  `src/__tests__/server/billing.routeTable.test.ts` (incl. `/billing/webpay/return` que
+  Transbank tiene registrado). anyRatchet total 159 sin cambio = prueba de movimiento verbatim.
+- [x] **D6 modelos AI hardcodeados** → ✅ **#840**: `src/config/aiModels.ts` — constantes
+  semánticas por caso de uso (`AI_MODEL_CHAT/REASONING/FAST/FAST_STABLE/FAST_LONGFORM/LITE/
+  VISION/VISION_FAST/IMAGE_GENERATION/TTS/EMBEDDINGS`, `aiModels.ts:73+`) con override por
+  env var; 51 literales `gemini-*` reemplazados en 33 archivos. Grep `gemini-[0-9]` fuera de
+  tests/config = **0** — actualizar de modelo es ahora 1 línea o 1 env var.
+- [x] **D1 islas (triage)** → ✅ analizado (con #841); veredictos registrados para la ola de
+  wiring: `domainEventStore` → WIRE (herramienta de replay), `faenaOnboardingBundle` → WIRE
+  (núcleo DS 44, encadena con slice 3 de Rubros SII), `proximityModeDetector` → WIRE al
+  sensorBus, `uxModeAdapter` → WIRE (medio), `bundleSizeAnalyzer` → WIRE-CI,
+  `culturalConventions` → DEFER, `eventStore` → falso positivo (vivo vía CQRSArchitecture).
+- Restantes del informe D: **D2** consolidación driving (4 páginas — análisis en curso),
+  **D7** gaps de test backend legacy (money/health/legal), **D8** catch-vacíos, **D6b**
+  triage de 167 TODOs — en cola priorizada.
 
 ### Sesión 2026-06-10 — Ola A: auditoría integral de TODO el código (PR #820)
 
