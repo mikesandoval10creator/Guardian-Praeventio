@@ -1688,7 +1688,7 @@ Podar **214 branches** en `origin/` (claude/* 10-17d + dev/sprint-* 10-53 + feat
 
 > Directiva usuario: verificar punto por punto, no asumir. Muestreo amplio de §16 contra el código → **la mayoría de los items "no implementados" ya están construidos** desde que se escribieron esos docs archive. Confirmado-hecho (Rule #1):
 >
-> - §16.2.2 `conflict_queue` (safety docs nunca last-write-wins) → `src/services/sync/conflictQueue.ts` + `conflictResolver.ts` ✅
+> - §16.2.2 `conflict_queue` (safety docs nunca last-write-wins) → `src/services/sync/conflictQueue.ts` + `conflictResolver.ts` ✅ · **2026-06-11: desvío cableado en el sync path** — `matrixSyncManager.flush()` ahora compara contra el remoto antes de escribir y deriva a resolución humana: `src/services/syncManager.ts:311` (`checkSafetyCriticalConflict`) + `src/services/syncManager.ts:385` (`divertToConflictQueue` → evento `sync-critical-conflict` + POST `/api/sprint-k/:pid/conflict-queue/enqueue`, op local retenida en estado `conflict`); set canónico de los 5 doc-types en `src/services/sync/safetyCriticalDocTypes.ts:35` ✅
 > - §16.2.3 `safeNormativeQuery` (SLM no alucina ley si RAG <0.75) → `src/services/rag/safeNormativeQuery.ts` (`MIN_SIMILARITY=0.75`) + tested ✅ (+ guard a nivel prompt en `chat.ts`)
 > - §16.8.4 `autoTrigger` test → `src/services/emergency/autoTrigger.test.ts` ✅ · §16.8.6 MorningRoutine SÍ persiste (`setDoc`) ✅
 > - §16.2.1 event bus / systemEngine → `services/eventBus/` + `services/systemEngine/` (foundation presente)
@@ -1719,7 +1719,7 @@ Podar **214 branches** en `origin/` (claude/* 10-17d + dev/sprint-* 10-53 + feat
 | ID | Item | Evidencia | Prioridad |
 |---|---|---|---|
 | §16.2.1 | **Event bus central Zustand (`sensorBus`)**. 54 hooks sensor son islas — sin correlación multi-sensor no se reducen falsos positivos. Regla: caída+inactividad+BLE desconectado=critical. | `archive/IMPLEMENTATION_ROADMAP.md:645-737` + `TDA:333-335`. Grep 0 hits. | **CRÍTICA** |
-| §16.2.2 | **`conflict_queue` safety docs**. Para `inspection`/`incident_report`/`emergency_alert`/`medical_record`/`training_completion` NUNCA "last_write_wins" — resolución humana obligatoria. | `archive/IMPLEMENTATION_ROADMAP.md:1083-1102`. Grep NO encuentra `conflict_queue`. | **CRÍTICA** |
+| §16.2.2 | ~~**`conflict_queue` safety docs**. Para `inspection`/`incident_report`/`emergency_alert`/`medical_record`/`training_completion` NUNCA "last_write_wins" — resolución humana obligatoria.~~ ✅ **RESUELTO end-to-end (2026-06-11)**: engine + router ya existían; el desvío en el sync path quedó cableado en `src/services/syncManager.ts:311,385` con set canónico `src/services/sync/safetyCriticalDocTypes.ts:35` (ver bullet de verificación arriba). | `archive/IMPLEMENTATION_ROADMAP.md:1083-1102`. | ~~**CRÍTICA**~~ ✅ |
 | §16.2.3 | **`safeNormativeQuery()`**. SLM responde "no tengo información verificada" si RAG <0.75 score, NUNCA alucina texto normativo. | `archive/IMPLEMENTATION_ROADMAP.md:1110-1140`. Grep 0 hits. | **CRÍTICA** |
 | §16.2.4 | **Sync predictiva por topología ZK**. `buildPrefetchPlan(workerUid)` lee Calendar 4h → resuelve nodos por tipo tarea. 50MB cap. | `archive/IMPLEMENTATION_ROADMAP.md:578-639`. `topologyAwarePrefetch.ts` foundation parcial. | ALTA |
 | §16.2.5 | **Outbox 3-capas alertas emergencia**: FCM → SMS (descartado) → Llamada voz a 60s. Decisión: ¿voice fallback o single-channel? | `archive/IMPLEMENTATION_ROADMAP.md:379-430`. | ALTA |
