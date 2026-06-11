@@ -148,9 +148,29 @@ Informe externo D1-D9 verificado contra código y ejecutado en 4 PRs paralelos:
   (núcleo DS 44, encadena con slice 3 de Rubros SII), `proximityModeDetector` → WIRE al
   sensorBus, `uxModeAdapter` → WIRE (medio), `bundleSizeAnalyzer` → WIRE-CI,
   `culturalConventions` → DEFER, `eventStore` → falso positivo (vivo vía CQRSArchitecture).
-- Restantes del informe D: **D2** consolidación driving (4 páginas — análisis en curso),
-  **D7** gaps de test backend legacy (money/health/legal), **D8** catch-vacíos, **D6b**
-  triage de 167 TODOs — en cola priorizada.
+- [x] **D2 driving (slice 1)** → ✅ **#842**: la "colisión de 4 páginas" escondía un bug de
+  producción REAL — `/safe-driving` estaba montado dos veces y el tie-break lo ganaba
+  `SafeDriving` (OperationsRoutes), dejando **inaccesible `SafeDrivingMode`** (modo conductor
+  con botón SOS — vida-seguridad; el header "Modo Conducción Segura" de
+  `RootLayout.tsx:276` apuntaba a una página que nunca se renderizaba). Ahora `/safe-driving`
+  → SafeDrivingMode sin ambigüedad y SafeDriving (reporte de incidentes + checklist
+  pre-conducción) vive en `/driving-incidents` (`src/routes/OperationsRoutes.tsx:58`) con
+  entrada de menú "Incidentes de Conducción" (`sidebarMenuGroups.ts:250`) + claves i18n
+  es/en/pt-BR. Hook huérfano `useDriving.ts` (0 importers) CABLEADO: `useBrakeTelemetry`
+  (`useDriving.ts:90`) deriva desaceleración de fixes GPS (a = Δv/Δt, sin IMU inventado) y
+  reporta frenadas agresivas fire-and-forget desde `Driving.tsx:59`. `useDrivingSafety` ya
+  estaba cableado en `DrivingSafety.tsx:50-64` (informe externo desactualizado). Tests de
+  ruteo RED-first pinean ambos paths. Pendiente slice 2: merge conceptual de páginas,
+  endpoint server para `driving_incidents` (hoy escritura cliente),
+  `haversineMetersRemote`/`accumulateTripMileageRemote` sin consumidor.
+- Nota CI (#841): el job Tests se congeló 4/4 veces con `stoppage.router.test.ts` como único
+  archivo que jamás completaba (worker colgado, pool esperando hasta el watchdog);
+  irreproducible local (aislado y suite completa, node 20/22 × CI=true × 4 workers, 218 s
+  verde). Mitigación que lo cerró: suite `/resolve` separada verbatim en
+  `src/__tests__/server/stoppageResolve.router.test.ts` (forense en su header) — el run
+  siguiente pasó en 6 m 24 s.
+- Restantes del informe D: **D7** gaps de test backend legacy (money/health/legal), **D8**
+  catch-vacíos, **D6b** triage de 167 TODOs, **D2 slice 2** — en cola priorizada.
 
 ### Sesión 2026-06-10 — Ola A: auditoría integral de TODO el código (PR #820)
 
