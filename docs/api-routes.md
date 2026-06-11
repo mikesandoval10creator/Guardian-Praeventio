@@ -206,7 +206,9 @@ de cada scope OAuth.
 - **server.ts:1090** · público pero gated por `X-IoT-Secret`
   (timing-safe vs `IOT_WEBHOOK_SECRET`); fallback en body deprecado.
 - **Body**: `{ type ∈ {iot,wearable,machinery,environmental,machine},
-  source (≤64), metric (≤64), value: number, unit?, status?, projectId? }`.
+  source (≤64), metric (≤64), value: number, unit?, status?, projectId?,
+  zoneId? (≤128 — une lecturas de gas con `work_permits.zoneId` para el
+  soft-block de espacios confinados, arista C3) }`.
 - **Response 200**: `{ success, aiValidation }`.
 - **Errors**: 400 missing/invalid fields · 401 secret · 500.
 - **Audit**: `telemetry_events.add(...)` (colección dedicada, no audit_logs).

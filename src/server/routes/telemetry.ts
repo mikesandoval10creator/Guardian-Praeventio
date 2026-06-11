@@ -174,6 +174,16 @@ router.post('/telemetry/ingest', async (req, res) => {
     return res.status(400).json({ error: 'Invalid metric' });
   }
 
+  // Arista C3 (2026-06-11): optional zone tag so gas readings can be joined
+  // to work-permit zones (`work_permits.zoneId`) by the confined-space gas
+  // gate (src/server/routes/workPermits.ts). Device-controlled → sanitized;
+  // anything malformed degrades to null rather than rejecting the sample.
+  const rawZoneId = (req.body ?? {}).zoneId;
+  const zoneId =
+    typeof rawZoneId === 'string' && rawZoneId.length > 0 && rawZoneId.length <= 128
+      ? rawZoneId
+      : null;
+
   try {
     const db = admin.firestore();
 
@@ -192,6 +202,7 @@ router.post('/telemetry/ingest', async (req, res) => {
       threatLevel,
       aiValidation: validation,
       projectId: projectId || 'global',
+      zoneId,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
 
