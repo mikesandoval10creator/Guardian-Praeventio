@@ -20,6 +20,12 @@ const FatigueMonitor = lazy(() => import('../pages/FatigueMonitor').then(module 
 // compute → audited history per project).
 const TmertEvaluation = lazy(() => import('../pages/TmertEvaluation').then(module => ({ default: module.TmertEvaluation })));
 const PrexorEvaluation = lazy(() => import('../pages/PrexorEvaluation').then(module => ({ default: module.PrexorEvaluation })));
+// CEAL-SM/SUSESO (2026-06-11) — riesgos psicosociales laborales get their own
+// UI (Protocolo de Vigilancia MINSAL oct. 2022; replaced SUSESO/ISTAS21 in
+// 2023). Management page (campaigns + k-gated semáforo) + anonymous worker
+// response flow. Engine: src/services/protocols/cealSm.ts.
+const CealSmCampaigns = lazy(() => import('../pages/CealSmCampaigns').then(module => ({ default: module.CealSmCampaigns })));
+const CealSmResponder = lazy(() => import('../pages/CealSmResponder').then(module => ({ default: module.CealSmResponder })));
 
 export const HealthRoutes = [
   <Route key="hygiene" path="hygiene" element={<Hygiene />} />,
@@ -32,4 +38,6 @@ export const HealthRoutes = [
   <Route key="fatigue" path="fatigue" element={<FatigueMonitor />} />,
   <Route key="tmert" path="tmert" element={<TmertEvaluation />} />,
   <Route key="prexor" path="prexor" element={<PrexorEvaluation />} />,
+  <Route key="ceal-sm" path="ceal-sm" element={<CealSmCampaigns />} />,
+  <Route key="ceal-sm-responder" path="ceal-sm/responder" element={<CealSmResponder />} />,
 ];

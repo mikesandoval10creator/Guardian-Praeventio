@@ -903,5 +903,47 @@ block exists so a future permissive rule isn't added by accident. Rules tests:
     instead of duplicating the tenancy check in rules for a server-owned
     collection.
 
+## CEAL-SM/SUSESO psychosocial campaigns (ceal_sm_campaigns) — server-only, anonymity-critical (added 2026-06-11)
+
+`ceal_sm_campaigns/{campaignId}` holds CEAL-SM/SUSESO surveillance campaigns
+(Protocolo de Vigilancia de Riesgos Psicosociales MINSAL oct. 2022, vigente
+2023-01-01) and `…/responses/{responderHash}` holds ANONYMOUS worker answers
+about their employer (54-item Sección II, instrument transcribed with legal
+citations in `src/services/protocols/cealSmDefinition.ts`). Anonymity is
+constitutive: the response doc id is `HMAC-SHA256(pepper,
+"ceal-sm:responder:v1:" + uid + ":" + campaignId).slice(0,32)` (own
+domain-separation label — never joinable with culture-pulse hashes), the doc
+never stores a uid, and the server suppresses ALL aggregates below 10
+responses (manual CEAL-SM §3.2.1.1: separately measured units under 10
+workers require signed informed consent, which this platform cannot verify).
+The only read/write paths are `/api/sprint-k/:projectId/ceal-sm/*`
+(verifyAuth + `assertProjectMember`, Admin SDK; campaign creation
+role-gated to admin/prevencionista and audited; the center verdict is always
+recomputed by the pure engine `src/services/protocols/cealSm.ts`).
+Default-deny read+write for every actor. Rules tests:
+`src/rules-tests/cealSmCampaigns.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+96. **De-anonymization Read**: a member/admin reading
+    `…/responses/{hash}` directly to inspect an individual answer set (or to
+    enumerate hashes while watching who is online) — denied; the only
+    egress is the k>=10 suppressed aggregate endpoint, and without the
+    server-side pepper the hash cannot be recomputed from a uid roster.
+97. **Ballot Stuffing**: a manager `set …/responses/x` with fabricated
+    low-risk answers to tilt the center verdict below the +13 "riesgo alto"
+    band (or duplicate responses to dilute prevalence) — denied; the server
+    route enforces one response per verified worker (idempotent responder
+    hash) inside the campaign window.
+98. **Participation Spoof**: an UPDATE that inflates/deflates a campaign's
+    `totalWorkers` so a 50% participation reads as the >=60% the Protocolo
+    requires for validity (or edits `closeAt` to reopen a closed window) —
+    denied (`update:false`); the campaign metadata is server-stamped at
+    creation by an audited admin/prevencionista call.
+99. **Aggregate Self-Fabrication**: a client persisting a precomputed
+    "riesgo bajo" center result anywhere in the campaign doc — denied; no
+    aggregate is ever stored client-side, the verdict is recomputed on every
+    results read from the raw anonymized answers by the pure engine.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
