@@ -44,6 +44,7 @@ import { WeatherBulletin } from '../components/dashboard/WeatherBulletin';
 import { WeatherSafetyRecommendations } from '../components/WeatherSafetyRecommendations';
 import { SunTrackerContainer } from '../components/SunTrackerContainer';
 import { ComplianceCard } from '../components/dashboard/ComplianceCard';
+import { RubroBenchmarksCard } from '../components/dashboard/RubroBenchmarksCard';
 import { DashboardQuickActions } from '../components/dashboard/DashboardQuickActions';
 import { EPPRequiredWidget } from '../components/dashboard/EPPRequiredWidget';
 import { ManDownSupervisorWidget } from '../components/dashboard/ManDownSupervisorWidget';
@@ -265,6 +266,11 @@ export function Dashboard() {
           onClick={() => setIsComplianceModalOpen(true)}
         />
       </div>
+
+      {/* Épica Rubros SII slice 4 — anonymous benchmarks vs the same SII
+          rubro (k-anonymity enforced server-side). Renders nothing when the
+          project has no rubro or the endpoint is unavailable. */}
+      <RubroBenchmarksCard />
 
       {/* Recomendaciones SST contextuales — DS 594, Ley 16.744. Sprint A wire
           merged via PR #514. Gates on `!weather.unavailable` to avoid the

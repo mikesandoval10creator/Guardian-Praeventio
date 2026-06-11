@@ -3602,5 +3602,18 @@
       "risks": "Riesgos típicos a evaluar",
       "notes": "Notas preventivas"
     }
+  },
+  "rubro_benchmarks": {
+    "title": "Comparación con tu rubro",
+    "your_rubro": "Tu rubro",
+    "not_enough": "Aún no hay suficientes proyectos de tu rubro para comparar (se requieren al menos {{n}}).",
+    "mine": "Tú",
+    "median": "Mediana",
+    "range": "p25–p75",
+    "no_data": "s/d",
+    "privacy_note": "Datos agregados y anónimos de {{k}} proyectos del mismo rubro SII.",
+    "metric_incidentes12m": "Incidentes (últimos 12 meses)",
+    "metric_hallazgosAbiertosPct": "Hallazgos abiertos (%)",
+    "metric_obligacionesAlDiaPct": "Obligaciones al día (%)"
   }
 }

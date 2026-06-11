@@ -509,6 +509,27 @@ de cada scope OAuth.
 
 ---
 
+## Rubros SII
+
+### `GET /api/sii/:projectId/rubro-benchmarks` — benchmarks anónimos por rubro
+- **`src/server/routes/rubroBenchmarks.ts`** (mount `/api/sii`) · `verifyAuth`
+  + `assertProjectMember`.
+- **Response 200**: `{ available:false, reason:'sin_rubro' }` si el proyecto
+  no tiene `codigoActividadSii`/`sectorId`; si tiene rubro →
+  `{ available, eligible, requiredProjects, requiredTenants, rubro, mine }`
+  y, SOLO cuando `eligible` (k-anonimato: ≥5 proyectos de ≥3 tenants),
+  además `{ k, kTenants, perMetric: { incidentes12m, hallazgosAbiertosPct,
+  obligacionesAlDiaPct } }` con `{ count, median, p25, p75 }` por métrica.
+- **Privacidad**: nunca expone ids/nombres/valores de OTROS proyectos ni
+  tenants; bajo el umbral ni siquiera ecoa el `k` exacto. La query
+  cross-tenant corre solo con Admin SDK (cero colecciones client-readable
+  nuevas). Motor puro: `src/services/sii/rubroBenchmarks.ts`.
+- **Errors**: 400 projectId inválido · 401 · 403 no-miembro (igual para
+  proyecto inexistente — sin oráculo de existencia) · 500.
+- **Audit**: ninguno (endpoint read-only; regla #3 aplica a cambios de estado).
+
+---
+
 ## Notas finales
 
 ### Rutas con audit log faltante (TODO post-R16)

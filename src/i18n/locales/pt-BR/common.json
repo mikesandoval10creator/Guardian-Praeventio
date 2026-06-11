@@ -3604,5 +3604,18 @@
       "risks": "Riscos típicos a avaliar",
       "notes": "Notas preventivas"
     }
+  },
+  "rubro_benchmarks": {
+    "title": "Comparação com o seu setor",
+    "your_rubro": "Seu setor (SII)",
+    "not_enough": "Ainda não há projetos suficientes do seu setor para comparar (são necessários pelo menos {{n}}).",
+    "mine": "Você",
+    "median": "Mediana",
+    "range": "p25–p75",
+    "no_data": "s/d",
+    "privacy_note": "Dados agregados e anônimos de {{k}} projetos do mesmo setor SII.",
+    "metric_incidentes12m": "Incidentes (últimos 12 meses)",
+    "metric_hallazgosAbiertosPct": "Achados em aberto (%)",
+    "metric_obligacionesAlDiaPct": "Obrigações em dia (%)"
   }
 }
