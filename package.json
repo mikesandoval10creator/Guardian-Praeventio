@@ -55,7 +55,7 @@
     "test:mutation:auth": "stryker run stryker.config.json --mutate=src/server/middleware/verifyAuth.ts",
     "test:mutation:slm": "stryker run stryker.config.json --mutate=src/services/slm/{orchestrator,offlineQueue,reconciliation}.ts",
     "test:mutation:ergonomics": "stryker run stryker.config.json --mutate=src/services/ergonomics/{rula,reba}.ts",
-    "test:mutation:protocols": "stryker run stryker.config.json --mutate=src/services/protocols/{tmert,iper,prexor}.ts",
+    "test:mutation:protocols": "stryker run stryker.config.json --mutate=src/services/protocols/{tmert,iper,prexor,planesi}.ts",
     "test:mutation:safety": "stryker run stryker.config.json --mutate=src/services/safety/{ergonomicAssessments,iperAssessments}.ts",
     "size": "size-limit",
     "lhci": "lhci autorun",
