@@ -1698,120 +1698,128 @@ Podar **214 branches** en `origin/` (claude/* 10-17d + dev/sprint-* 10-53 + feat
 >
 > **Pinecone + COLMAP cloud → DESCARTADOS** (ver §9 — la fotogrametría interna ya cubre COLMAP). Las líneas de abajo se conservan como histórico; **este bloque las supersede.**
 
+### 🔍 RECONCILIACIÓN 2026-06-11 — verificación ítem por ítem contra HEAD (supersede el muestreo 2026-05-30 donde contradiga)
+
+> Cada fila de §16.1–§16.10 lleva ahora una anotación **HEAD 2026-06-11** con file:line real (Regla #1). El snapshot mentía en ambas direcciones; correcciones al propio bloque 2026-05-30:
+>
+> - §16.2.2 estaba marcado ✅ a secas → **hecho parcial**: motor + endpoint sí (`src/services/sync/conflictQueue.ts`, router montado `server.ts:1021-1022`), pero `src/services/syncManager.ts` NO atraviesa la cola — integración al sync path en curso (rama `claude/sync-conflict-queue-wire`).
+> - §16.2.1 "foundation presente" (eventBus/systemEngine) confundía motores: `src/services/sensorBus/sensorBus.ts` + test existen, pero es **isla** — solo `src/services/iot/probabilityFailureScoring.ts` y `src/services/battery/batteryAdvisor.ts` lo consumen; ningún hook sensor publica. Cableado en curso (rama `claude/sensorbus-mandown-wire`).
+> - Scheduler token: resuelto vía OIDC pin de SA en PR #820 — `src/server/middleware/verifySchedulerToken.ts:3-16` acepta OIDC; `SCHEDULER_SHARED_SECRET` ahora opcional (`verifySchedulerToken.ts:112,130`).
+> - Doc-drift interno detectado (no editado, solo anotado): §13 B1 dice "geminiBackend.ts 2923 LOC" — HEAD real: **1478 LOC** con 14 módulos ya extraídos en `src/services/gemini/` (ver §16.5.1). §16.10.5 cita LOC de páginas que **crecieron** desde el snapshot.
+
 ### 16.1 MASTER_PROPOSAL_2026-05 — Sprints 10-19 no implementados
 
 | ID | Item | Evidencia | Prioridad |
 |---|---|---|---|
-| §16.1.1 | **`/api/ask-guardian` con Gemini function-calling REAL** (no prefix injection). 3 tools: `getWeatherTool`, `getSeismicTool`, `searchNormativaBCN`. Output JSON `{causa_raiz, riesgos[], plan_accion}`. Prompt caching. | `archive/MASTER_PROPOSAL_2026-05.md:262-285` + Grep 0 hits `function_call` en src/server. `gemini.ts:273-282` solo env-context prefix. | ALTA |
-| §16.1.2 | **Blender → glTF pipeline** Digital Twin / EPP / cuerpo DS 594. 3 assets: `human-body-7regions-ds594.glb`, `faena-mining-base.glb`, `epp-modular.glb`. Draco + KTX2. | `archive/MASTER_PROPOSAL_2026-05.md:337-341,484-494`. Hoy procedural fallback. | MEDIA |
-| §16.1.3 | **MaestrIA pipeline 4-agentes foto→hallazgo**: Detector(Gemini Vision)→Evaluador(DS 594)→Estimador→Redactor PDF firmable. UI "PIPELINE PROGRESS". Foto in → hallazgo formal <30s. | `archive/MASTER_PROPOSAL_2026-05.md:343-347` + `PLAN_PARTE4:112-121`. Grep 0 hits src/services/maestria/. | ALTA |
-| §16.1.4 | **ARIA 5 agentes Vertex AI Agent Builder**: Sentinel→KB Builder→Investigator→Q&A→Work Order Writer. MCP `gp-iper` bus. ManDown event → orden trabajo + Calendar <2min. | `archive/MASTER_PROPOSAL_2026-05.md:349-355`. Grep 0 hits src/services/aria/. | ALTA |
-| §16.1.5 | **MCP servers internos** `gp-zettelkasten`, `gp-bernoulli`, `gp-iper`, `gp-environment`. Bus tipado vs callbacks. | `archive/MASTER_PROPOSAL_2026-05.md:130-135`. Grep 0 hits. | MEDIA |
-| §16.1.6 | **5 smart actions Proto-1 ausentes** en `useZettelkastenIntelligence`: `create-worker-epp-connection`, `suggest-normatives-for-project`, `link-industry-to-project`, `suggest-epp-for-worker`, `auto-link-training-to-worker`. | `archive/MASTER_PROPOSAL_2026-05.md:77-83`. Hook existe pero patterns canónicos no. | MEDIA |
-| §16.1.7 | **`AcademicContentProcessor` pipeline real** (695 LOC Proto-1). Hoy `AcademicProcessor.tsx` liviano. | `archive/MASTER_PROPOSAL_2026-05.md:76`. | BAJA |
-| §16.1.8 | **Recovery `docs/legacy/analisis_funcional.md` + `auditoria01.md` + `PLAN_MAESTRO_skeleton.md`** via shallow clone `firebase-version`. | `archive/MASTER_PROPOSAL_2026-05.md:391-396` + `PLAN_PARTE3:177-187`. | BAJA |
-| §16.1.9 | **`CLAUDE.md` raíz** generado con skill `init`. Onboarding <30min. | `archive/MASTER_PROPOSAL_2026-05.md:395`. Grep NO existe. | BAJA |
-| §16.1.10 | **API-First B2B con OpenAPI spec + Postman MCP**. Bloquea ERP/HRM tier Enterprise (SAP/Buk/Workday). | `archive/MASTER_PROPOSAL_2026-05.md:399-405`. NO existe `docs/api/openapi.yaml`. | ALTA |
-| §16.1.11 | **Canva brand kit HSE** (12 plantillas operativas). | `archive/MASTER_PROPOSAL_2026-05.md:399-406`. Grep 0 hits. | BAJA |
+| §16.1.1 | **`/api/ask-guardian` con Gemini function-calling REAL** (no prefix injection). 3 tools: `getWeatherTool`, `getSeismicTool`, `searchNormativaBCN`. Output JSON `{causa_raiz, riesgos[], plan_accion}`. Prompt caching. | `archive/MASTER_PROPOSAL_2026-05.md:262-285`. **HEAD 2026-06-11: mayormente hecho (diseño distinto)** — ruta REAL `src/server/routes/gemini.ts:264` con RAG + contexto ambiental clima+sismo (`gemini.ts:81-103,324`, `lookupProjectGeo`/`fetchEnvContextWithTimeout`) + SSE (`gemini.ts:354-355`). Function-calling real existe (`src/services/geminiBackend.ts:741-773`, `reportIncidentDeclaration`); weather/seísmo/BCN se implementaron como contexto inyectado pre-prompt, NO como function tools. Gap restante: migrar a `functionDeclarations` si se quiere tool-use puro. | 🟡 PARCIAL (antes ALTA) |
+| §16.1.2 | **Blender → glTF pipeline** Digital Twin / EPP / cuerpo DS 594. 3 assets: `human-body-7regions-ds594.glb`, `faena-mining-base.glb`, `epp-modular.glb`. Draco + KTX2. | `archive/MASTER_PROPOSAL_2026-05.md:337-341,484-494`. **HEAD 2026-06-11: parcial** — 12+ assets GLB/USDZ reales existen (`public/models/ar/*.glb`: hydrant, aed, emergency_shower, …) y la fotogrametría on-device (`src/services/digitalTwin/onDeviceReconstruction/`) supersede parte del pipeline; los 3 assets Blender específicos NO existen. | MEDIA |
+| §16.1.3 | **MaestrIA pipeline 4-agentes foto→hallazgo**: Detector(Gemini Vision)→Evaluador(DS 594)→Estimador→Redactor PDF firmable. UI "PIPELINE PROGRESS". Foto in → hallazgo formal <30s. | `archive/MASTER_PROPOSAL_2026-05.md:343-347` + `PLAN_PARTE4:112-121`. **HEAD 2026-06-11: sigue pendiente** — `src/services/maestria/` no existe, 0 hits. | ALTA |
+| §16.1.4 | **ARIA 5 agentes Vertex AI Agent Builder**: Sentinel→KB Builder→Investigator→Q&A→Work Order Writer. MCP `gp-iper` bus. ManDown event → orden trabajo + Calendar <2min. | `archive/MASTER_PROPOSAL_2026-05.md:349-355`. **HEAD 2026-06-11: sigue pendiente** — `src/services/aria/` no existe, 0 hits. | ALTA |
+| §16.1.5 | **MCP servers internos** `gp-zettelkasten`, `gp-bernoulli`, `gp-iper`, `gp-environment`. Bus tipado vs callbacks. | `archive/MASTER_PROPOSAL_2026-05.md:130-135`. **HEAD 2026-06-11: sigue pendiente** — 0 hits `gp-*`; `.mcp.json` solo registra `context-optimizer`. | MEDIA |
+| §16.1.6 | **5 smart actions Proto-1 ausentes** en `useZettelkastenIntelligence`: `create-worker-epp-connection`, `suggest-normatives-for-project`, `link-industry-to-project`, `suggest-epp-for-worker`, `auto-link-training-to-worker`. | `archive/MASTER_PROPOSAL_2026-05.md:77-83`. **HEAD 2026-06-11: hecho parcial** — las 5 actions EXISTEN (`src/hooks/useZettelkastenIntelligence.ts:70-102` + `src/services/zettelkasten/smartActions.ts:7-11`) y se renderizan en `src/components/knowledge/SmartConnectionsPanel.tsx:113-150`, pero el onClick está sin cablear (`SmartConnectionsPanel.tsx:119` — "Smart action wiring pendiente — ver Bloque L"). | 🟡 PARCIAL |
+| §16.1.7 | **`AcademicContentProcessor` pipeline real** (695 LOC Proto-1). Hoy `AcademicProcessor.tsx` liviano. | `archive/MASTER_PROPOSAL_2026-05.md:76`. **HEAD 2026-06-11: sigue pendiente** — `src/pages/AcademicProcessor.tsx` sigue liviano (~7 KB). | BAJA |
+| §16.1.8 | **Recovery `docs/legacy/analisis_funcional.md` + `auditoria01.md` + `PLAN_MAESTRO_skeleton.md`** via shallow clone `firebase-version`. | `archive/MASTER_PROPOSAL_2026-05.md:391-396` + `PLAN_PARTE3:177-187`. **HEAD 2026-06-11: sigue pendiente** — `docs/legacy/` no existe. | BAJA |
+| §16.1.9 | **`CLAUDE.md` raíz** generado con skill `init`. Onboarding <30min. | `archive/MASTER_PROPOSAL_2026-05.md:395`. **HEAD 2026-06-11: ✅ HECHO** — `CLAUDE.md` raíz existe (~19 KB, layout + convenciones + comandos). | ✅ HECHO |
+| §16.1.10 | **API-First B2B con OpenAPI spec + Postman MCP**. Bloquea ERP/HRM tier Enterprise (SAP/Buk/Workday). | `archive/MASTER_PROPOSAL_2026-05.md:399-405`. **HEAD 2026-06-11: ✅ HECHO** — `docs/api/openapi.yaml` existe; servido por `src/server/routes/openapi.ts` montado en `server.ts:762` (`/api/openapi.json` + `/api/openapi.html`); cobertura pinneada por `src/__tests__/contracts/openapiCoverage.test.ts`. (Postman MCP como canal de publicación sigue opcional.) | ✅ HECHO |
+| §16.1.11 | **Canva brand kit HSE** (12 plantillas operativas). | `archive/MASTER_PROPOSAL_2026-05.md:399-406`. **HEAD 2026-06-11: sigue pendiente** — 0 hits. | BAJA |
 
 ### 16.2 IMPLEMENTATION_ROADMAP — puentes arquitectónicos críticos
 
 | ID | Item | Evidencia | Prioridad |
 |---|---|---|---|
-| §16.2.1 | **Event bus central Zustand (`sensorBus`)**. 54 hooks sensor son islas — sin correlación multi-sensor no se reducen falsos positivos. Regla: caída+inactividad+BLE desconectado=critical. | `archive/IMPLEMENTATION_ROADMAP.md:645-737` + `TDA:333-335`. Grep 0 hits. | **CRÍTICA** |
-| §16.2.2 | **`conflict_queue` safety docs**. Para `inspection`/`incident_report`/`emergency_alert`/`medical_record`/`training_completion` NUNCA "last_write_wins" — resolución humana obligatoria. | `archive/IMPLEMENTATION_ROADMAP.md:1083-1102`. Grep NO encuentra `conflict_queue`. | **CRÍTICA** |
-| §16.2.3 | **`safeNormativeQuery()`**. SLM responde "no tengo información verificada" si RAG <0.75 score, NUNCA alucina texto normativo. | `archive/IMPLEMENTATION_ROADMAP.md:1110-1140`. Grep 0 hits. | **CRÍTICA** |
-| §16.2.4 | **Sync predictiva por topología ZK**. `buildPrefetchPlan(workerUid)` lee Calendar 4h → resuelve nodos por tipo tarea. 50MB cap. | `archive/IMPLEMENTATION_ROADMAP.md:578-639`. `topologyAwarePrefetch.ts` foundation parcial. | ALTA |
-| §16.2.5 | **Outbox 3-capas alertas emergencia**: FCM → SMS (descartado) → Llamada voz a 60s. Decisión: ¿voice fallback o single-channel? | `archive/IMPLEMENTATION_ROADMAP.md:379-430`. | ALTA |
-| §16.2.6 | **Test de campo 10 escenarios pre-piloto**: bolsillo 6h, sin señal 2h, caída-colchón <3s, batería 15%, cambio turno, 50 trabajadores k6, IAP falso, token revocado, supervisor sin señal, SHA256 mismatch. | `archive/IMPLEMENTATION_ROADMAP.md:1362-1376`. | ALTA |
-| §16.2.7 | **Pilot fase 1-4 protocolizado** (semana 1-2 doc-only → 14-18 turno noche 24/7). 2-3 empresas voluntarias. | `archive/IMPLEMENTATION_ROADMAP.md:1377-1388`. | MEDIA |
-| §16.2.8 | **Battery-aware polling**. BLE/HR/GPS reducen polling <20% batería. Total <12%/h turno 12h. | `archive/IMPLEMENTATION_ROADMAP.md:1054-1080`. Grep 0 hits `BATTERY_MODE_CHANGED`. | ALTA |
-| §16.2.9 | **Session expiration 8h**. 3 checks en `verifyAuth`: `tokenIssuedAt<revokedAfter`, `tokenAge>8h` re-auth, `decoded.role!==userRecord.role` → ROLE_CHANGED. | `archive/IMPLEMENTATION_ROADMAP.md:1176-1200`. Parcial en §7. | ALTA |
-| §16.2.10 | **MediaPipe local bundle** (`public/models/mediapipe/pose_landmarker_lite.task`). Hoy CDN — viola Ley 19.628 faenas privadas. | `archive/IMPLEMENTATION_ROADMAP.md:1008-1017` + `TDA:175-183`. | ALTA |
-| §16.2.11 | **AIPostureAnalysisModal LIVE**. MediaPipe local + OffscreenCanvas + Worker 5fps + reba/rula streaming. Bucket OO.4. | `archive/IMPLEMENTATION_ROADMAP.md:968-1004`. Grep 0 hits `mediapipePoseWorker.ts`. | MEDIA |
+| §16.2.1 | **Event bus central Zustand (`sensorBus`)**. 54 hooks sensor son islas — sin correlación multi-sensor no se reducen falsos positivos. Regla: caída+inactividad+BLE desconectado=critical. | `archive/IMPLEMENTATION_ROADMAP.md:645-737` + `TDA:333-335`. **HEAD 2026-06-11: hecho parcial — motor sí, cableado de hooks en curso.** `src/services/sensorBus/sensorBus.ts` + `sensorBus.test.ts` existen, pero es isla: solo `src/services/iot/probabilityFailureScoring.ts` y `src/services/battery/batteryAdvisor.ts` lo consumen; ningún hook sensor publica eventos todavía (rama `claude/sensorbus-mandown-wire`). | 🟡 PARCIAL (**CRÍTICA** el wire) |
+| §16.2.2 | **`conflict_queue` safety docs**. Para `inspection`/`incident_report`/`emergency_alert`/`medical_record`/`training_completion` NUNCA "last_write_wins" — resolución humana obligatoria. | `archive/IMPLEMENTATION_ROADMAP.md:1083-1102`. **HEAD 2026-06-11: hecho parcial — motor+endpoint sí, integración al sync path en curso.** `src/services/sync/conflictQueue.ts` + `conflictResolver.ts` existen; router montado (`server.ts:1021-1022` → `src/server/routes/conflictQueue.ts`, B16). PERO `src/services/syncManager.ts` NO atraviesa la cola (rama `claude/sync-conflict-queue-wire`). | 🟡 PARCIAL (**CRÍTICA** el wire) |
+| §16.2.3 | **`safeNormativeQuery()`**. SLM responde "no tengo información verificada" si RAG <0.75 score, NUNCA alucina texto normativo. | `archive/IMPLEMENTATION_ROADMAP.md:1110-1140`. **HEAD 2026-06-11: ✅ HECHO Y CABLEADO** — `src/services/rag/safeNormativeQuery.ts` (MIN_SIMILARITY 0.75, `safeNormativeQuery.ts:11`); `src/services/ragService.ts:185-205` delega al guardrail (`safeNormativeContextOrFallback`); `src/server/routes/gemini.ts:392` consume vía `searchRelevantContext`. | ✅ HECHO |
+| §16.2.4 | **Sync predictiva por topología ZK**. `buildPrefetchPlan(workerUid)` lee Calendar 4h → resuelve nodos por tipo tarea. 50MB cap. | `archive/IMPLEMENTATION_ROADMAP.md:578-639`. **HEAD 2026-06-11: hecho parcial** — `buildPrefetchPlan` REAL en `src/services/sync/monotonicSync.ts:143` + `src/services/sync/topologyAwarePrefetch.ts` (C.11), pero sin consumidores fuera de tests — isla pendiente de wire. | 🟡 PARCIAL |
+| §16.2.5 | **Outbox 3-capas alertas emergencia**: FCM → SMS (descartado) → Llamada voz a 60s. Decisión: ¿voice fallback o single-channel? | `archive/IMPLEMENTATION_ROADMAP.md:379-430`. **HEAD 2026-06-11: hecho parcial** — `src/services/emergency/sosOutbox.ts` con retry + dead-letter (`sosOutbox.ts:53-201`, B1) + `sosOrchestrator.ts` con mesh packet (`sosOrchestrator.ts:186-255`). Voice-call fallback NO implementado — la decisión sigue abierta. | 🟡 PARCIAL + DECISIÓN |
+| §16.2.6 | **Test de campo 10 escenarios pre-piloto**: bolsillo 6h, sin señal 2h, caída-colchón <3s, batería 15%, cambio turno, 50 trabajadores k6, IAP falso, token revocado, supervisor sin señal, SHA256 mismatch. | `archive/IMPLEMENTATION_ROADMAP.md:1362-1376`. **HEAD 2026-06-11: parcial** — load test SOS existe y supera el escenario de carga (`loadtest/sos-1000-concurrent.yml` + `loadtest/sos-processor.cjs`); los 9 escenarios físicos de campo siguen pendientes (requieren hardware/faena). | 🟡 PARCIAL |
+| §16.2.7 | **Pilot fase 1-4 protocolizado** (semana 1-2 doc-only → 14-18 turno noche 24/7). 2-3 empresas voluntarias. | `archive/IMPLEMENTATION_ROADMAP.md:1377-1388`. **HEAD 2026-06-11: sigue pendiente** — sin doc de protocolo piloto en `docs/`. | MEDIA |
+| §16.2.8 | **Battery-aware polling**. BLE/HR/GPS reducen polling <20% batería. Total <12%/h turno 12h. | `archive/IMPLEMENTATION_ROADMAP.md:1054-1080`. **HEAD 2026-06-11: hecho parcial** — `src/services/battery/batteryAdvisor.ts` (+test) existe y consume sensorBus, pero es isla: ningún hook ajusta su polling según el advisor. | 🟡 PARCIAL |
+| §16.2.9 | **Session expiration 8h**. 3 checks en `verifyAuth`: `tokenIssuedAt<revokedAfter`, `tokenAge>8h` re-auth, `decoded.role!==userRecord.role` → ROLE_CHANGED. | `archive/IMPLEMENTATION_ROADMAP.md:1176-1200`. **HEAD 2026-06-11: mayormente hecho** — `MAX_SESSION_HOURS` enforcement desde `auth_time` (`src/server/middleware/verifyAuth.ts:61-67,122-139`) + revoked-token handling (`verifyAuth.ts:164-171`, `checkRevoked`). El 3er check (`decoded.role !== userRecord.role` → ROLE_CHANGED) no encontrado — único gap. | 🟡 CASI HECHO |
+| §16.2.10 | **MediaPipe local bundle** (`public/models/mediapipe/pose_landmarker_lite.task`). Hoy CDN — viola Ley 19.628 faenas privadas. | `archive/IMPLEMENTATION_ROADMAP.md:1008-1017` + `TDA:175-183`. **HEAD 2026-06-11: ✅ HECHO (local-first)** — `scripts/download-mediapipe-models.mjs` baja modelos+wasm a `public/models/mediapipe/` con SHA-256 pinneado, invocado por `npm run prebuild`; `src/hooks/useMediaPipePose.ts:53-64` prueba local primero (HEAD probe). Matiz: fallback CDN SOLO si el dev no corrió prebuild (dev-only). | ✅ HECHO |
+| §16.2.11 | **AIPostureAnalysisModal LIVE**. MediaPipe local + OffscreenCanvas + Worker 5fps + reba/rula streaming. Bucket OO.4. | `archive/IMPLEMENTATION_ROADMAP.md:968-1004`. **HEAD 2026-06-11: hecho parcial** — `src/components/ergonomics/AIPostureAnalysisModal.tsx` existe y está montado (`src/pages/Ergonomics.tsx:23,228`), análisis FOTO on-device real vía `useMediaPipePose.analyzeImage` (`AIPostureAnalysisModal.tsx:85,153-156`). Modo LIVE video 5fps + worker sigue pendiente (`AIPostureAnalysisModal.tsx:35` lo anota como requisito futuro; no existe `analyzeVideo` ni `mediapipePoseWorker.ts`). | 🟡 PARCIAL |
 
 ### 16.3 TECHNICAL_DEBT_AUDIT — debt no resuelto
 
 | ID | Item | Evidencia | Prioridad |
 |---|---|---|---|
-| §16.3.1 | **SLM Worker errores tipados** (4 puntos `slmWorker.ts:18,185,267,464`). | `archive/TECHNICAL_DEBT_AUDIT.md:158-168`. | MEDIA |
-| §16.3.2 | **`@ts-ignore` 4 puntos prod**: `GuardianVoiceAssistant.tsx:14`, `billing.ts:125`, `billingService.ts:45`, `adService.ts:78`. | `archive/TECHNICAL_DEBT_AUDIT.md:74-87`. | BAJA |
-| §16.3.3 | **WebXR `immersive-ar` real** (no placeholder simulado). Hit-test + dom-overlay. ARCore/RealityKit. | `archive/TECHNICAL_DEBT_AUDIT.md:230-242` + `IMPLEMENTATION_ROADMAP:925-962`. | MEDIA |
+| §16.3.1 | **SLM Worker errores tipados** (4 puntos `slmWorker.ts:18,185,267,464`). | `archive/TECHNICAL_DEBT_AUDIT.md:158-168`. **HEAD 2026-06-11: parcial/reubicado** — el worker vive ahora en `src/services/slm/worker/slmWorker.ts`; sigue con inference mock (`slmWorker.ts:58`) — tracked en §13 A_SLM. Errores: `throw new Error` genérico (`slmWorker.ts:294,337`), refactor a errores tipados no hecho. | MEDIA |
+| §16.3.2 | **`@ts-ignore` 4 puntos prod**: `GuardianVoiceAssistant.tsx:14`, `billing.ts:125`, `billingService.ts:45`, `adService.ts:78`. | `archive/TECHNICAL_DEBT_AUDIT.md:74-87`. **HEAD 2026-06-11: ✅ RESUELTO (los 4 puntos citados)** — `GuardianVoiceAssistant.tsx` ya no existe; `src/server/routes/billing.ts`, `src/services/billingService.ts` y `src/services/adService.ts` sin `@ts-ignore`. Quedan usos justificados en `src/services/observability/tracing.ts:90-96` (optional deps) y `src/pages/SafetyCoach.tsx:48` (dynamic import) — fuera de alcance de este ítem. | ✅ HECHO |
+| §16.3.3 | **WebXR `immersive-ar` real** (no placeholder simulado). Hit-test + dom-overlay. ARCore/RealityKit. | `archive/TECHNICAL_DEBT_AUDIT.md:230-242` + `IMPLEMENTATION_ROADMAP:925-962`. **HEAD 2026-06-11: ✅ HECHO** — `src/components/ar/XRSession.tsx:114-115` (`requestSession('immersive-ar', { requiredFeatures: ['hit-test'], optionalFeatures: ['anchors','dom-overlay','light-estimation'] })`) + hit-test real (`XRSession.tsx:170-172`) + reticle 3D; consumido por `ArViewLink.tsx` / `ARObjectOverlay.tsx`. | ✅ HECHO |
 
 ### 16.4 PLAN_PARTE3_PROTOTIPO2 — blueprint + decisiones
 
 | ID | Item | Evidencia | Prioridad |
 |---|---|---|---|
-| §16.4.1 | **Workshop scoping nodos 321-512** (Inteligencia Colectiva / Ecosistema Enterprise / Expansión Regional / AI Avanzada). 192 nodos hoja sin spec. ¿Workshop o abandono "512 nodos"? | `archive/PLAN_PARTE3:155-173`. | DECISIÓN USUARIO |
-| §16.4.2 | **Custom claim `assignedSiteIds[]`** RBAC scoping O(1) vs Firestore lookup. 6h. | `archive/PLAN_PARTE3:127-145`. | MEDIA |
-| §16.4.3 | **`audit_log` mutaciones normativa**. Cada cambio `regulatory/jurisdictions/` emite audit entry. | `archive/PLAN_PARTE3:119`. | MEDIA |
+| §16.4.1 | **Workshop scoping nodos 321-512** (Inteligencia Colectiva / Ecosistema Enterprise / Expansión Regional / AI Avanzada). 192 nodos hoja sin spec. ¿Workshop o abandono "512 nodos"? | `archive/PLAN_PARTE3:155-173`. **HEAD 2026-06-11: sin cambios** — sigue siendo decisión de producto. | DECISIÓN USUARIO |
+| §16.4.2 | **Custom claim `assignedSiteIds[]`** RBAC scoping O(1) vs Firestore lookup. 6h. | `archive/PLAN_PARTE3:127-145`. **HEAD 2026-06-11: hecho parcial** — motor existe: `src/services/auth/customClaims.ts:21` (`ASSIGNED_SITES_CLAIM`) + `projectMembership.ts` + tests; usado en `src/rules-tests/storageRules.rules.test.ts`. PERO ninguna ruta server ni `firestore.rules` lo consume aún — wire pendiente. | 🟡 PARCIAL |
+| §16.4.3 | **`audit_log` mutaciones normativa**. Cada cambio `regulatory/jurisdictions/` emite audit entry. | `archive/PLAN_PARTE3:119`. **HEAD 2026-06-11: hecho parcial (integración diferida por diseño)** — `src/services/compliance/normativeAuditLog.ts` existe (hash chain tamper-proof, append-only) pero sin consumidores: la normativa sigue hardcoded en código (`normativeAuditLog.ts:15-17` lo documenta — se invocará cuando exista CRUD regulatory en Firestore). | 🟡 PARCIAL (diferido) |
 
 ### 16.5 AUDIT.md (2026-04-27)
 
-| §16.5.1 | **`geminiBackend.ts` god-file split** (~2664 líneas → 12 modules: vision, embeddings, RAG, ergonomics, classify). | `archive/AUDIT.md:120-123` + `INFORME_ESTADO:239`. | MEDIA |
+| §16.5.1 | **`geminiBackend.ts` god-file split** (~2664 líneas → 12 modules: vision, embeddings, RAG, ergonomics, classify). | `archive/AUDIT.md:120-123` + `INFORME_ESTADO:239`. **HEAD 2026-06-11: mayormente hecho** — `src/services/geminiBackend.ts` bajó a **1478 LOC** (pico 2923) con 14 módulos extraídos en `src/services/gemini/` (chat, embeddings, emergency, governance, operations, parsing, personPlans, pii, risk, safetyDocs, suggestions, degraded, geminiSlmFallback, _shared), cada uno con test. ⚠️ Doc-drift: §13 B1 de este TODO aún dice "2923 LOC". | 🟡 CASI HECHO |
 
 ### 16.6 PLAN_PARTE2_PROTOTIPO1 — UI rich perdidas
 
-| §16.6.1 | **`GeminiChat` persona técnica legal** (cuando pregunta 100% normativa). 3h. | `archive/PLAN_PARTE2:85-87`. | BAJA |
-| §16.6.2 | **ManDown UI completa**: timer re-escalación + mapa eventos + badge supervisor ACK. ~6h. | `archive/PLAN_PARTE2:73-75`. | MEDIA |
-| §16.6.3 | **Geofence visual rico**: polygon-on-map color riesgo + tooltips. ~4h. | `archive/PLAN_PARTE2:77-79`. | MEDIA |
-| §16.6.4 | **`AfichesSeguridad` descarga PDF** (14 templates industria + QR). | `archive/PLAN_PARTE2:130`. | BAJA |
-| §16.6.5 | **`HumanBodyViewer` rutinas auto-generadas** desde `ergonomicAssessments`. | `archive/PLAN_PARTE2:134`. | BAJA |
+| §16.6.1 | **`GeminiChat` persona técnica legal** (cuando pregunta 100% normativa). 3h. | `archive/PLAN_PARTE2:85-87`. **HEAD 2026-06-11: ✅ HECHO** — `src/services/gemini/chat.ts:48-70`: persona "asistente legal y normativo estricto" + RAG BCN (`searchRelevantContext`) + regla de oro anti-alucinación. | ✅ HECHO |
+| §16.6.2 | **ManDown UI completa**: timer re-escalación + mapa eventos + badge supervisor ACK. ~6h. | `archive/PLAN_PARTE2:73-75`. **HEAD 2026-06-11: mayormente hecho** — timer re-escalación: `src/services/loneWorker/manDownTimer.ts` (+test); ACK supervisor: `src/components/dashboard/ManDownSupervisorWidget.tsx:15-57` (`status pending/acknowledged/resolved`, `acknowledgedBy/At`). Falta solo el mapa de eventos. | 🟡 CASI HECHO |
+| §16.6.3 | **Geofence visual rico**: polygon-on-map color riesgo + tooltips. ~4h. | `archive/PLAN_PARTE2:77-79`. **HEAD 2026-06-11: hecho parcial (huérfano)** — `src/components/zones/RestrictedZonesMapOverlay.tsx:3,60,97-100` implementa polígonos Google Maps con color por severidad/riesgo, pero NO está montado en ninguna página — wire pendiente. | 🟡 PARCIAL (montar) |
+| §16.6.4 | **`AfichesSeguridad` descarga PDF** (14 templates industria + QR). | `archive/PLAN_PARTE2:130`. **HEAD 2026-06-11: ✅ HECHO** — `src/pages/AfichesSeguridad.tsx:5` (jsPDF) + `:355` (export PDF desde preview). | ✅ HECHO |
+| §16.6.5 | **`HumanBodyViewer` rutinas auto-generadas** desde `ergonomicAssessments`. | `archive/PLAN_PARTE2:134`. **HEAD 2026-06-11: sigue pendiente** — `src/pages/HumanBodyViewer.tsx` + `src/components/occupational-health/HumanBodyViewer.tsx` existen pero sin generación de rutinas desde `ergonomicAssessments` (0 hits). | BAJA |
 
 ### 16.7 ROADMAP.md — Fase 10x
 
-| §16.7.1 | **Wake Word "Hey Guardián"** (Capacitor native + background mic). | `archive/ROADMAP.md:75`. | DECISIÓN USUARIO |
-| §16.7.2 | **Acciones contextuales nodos del grafo** (botones inline generar PTS / ver normativa / asignar capacitación). | `archive/ROADMAP.md:76`. | BAJA |
-| §16.7.3 | **Reconocimiento social Muro Dinámico** ("Enterado y Aplicando" / "Kudos de Seguridad"). | `archive/ROADMAP.md:77`. | BAJA |
-| §16.7.4 | **Telemetría IoT ↔ Probabilidad Falla** (aristas rojas RiskNetwork). | `archive/ROADMAP.md:86`. | BAJA |
-| §16.7.5 | **Dashboard Cumplimiento SUSESO** (cálculo interno Tasas Acc/Sin). Reemplaza scraping descartado. | `archive/ROADMAP.md:87`. | MEDIA |
-| §16.7.6 | **Alerting threshold-cross** (ej. 25 trabajadores → notificación CPHS DS 54). | `archive/ROADMAP.md:88`. | BAJA |
+| §16.7.1 | **Wake Word "Hey Guardián"** (Capacitor native + background mic). | `archive/ROADMAP.md:75`. **HEAD 2026-06-11: sigue pendiente** — 0 hits wake word. Decisión privacidad sigue abierta. | DECISIÓN USUARIO |
+| §16.7.2 | **Acciones contextuales nodos del grafo** (botones inline generar PTS / ver normativa / asignar capacitación). | `archive/ROADMAP.md:76`. **HEAD 2026-06-11: hecho parcial** — `SmartConnectionsPanel.tsx:113-150` renderiza acciones por contexto de nodo, pero onClick sin cablear (mismo gap que §16.1.6, `SmartConnectionsPanel.tsx:119`). | 🟡 PARCIAL |
+| §16.7.3 | **Reconocimiento social Muro Dinámico** ("Enterado y Aplicando" / "Kudos de Seguridad"). | `archive/ROADMAP.md:77`. **HEAD 2026-06-11: ✅ HECHO** — `src/services/socialRecognition/wallEngine.ts:4,18,60,232` ('Enterado y Aplicando' + `kudos_seguridad` con XP) + `src/pages/MuralDinamico.tsx` ruteado en `src/routes/RiskRoutes.tsx`. | ✅ HECHO |
+| §16.7.4 | **Telemetría IoT ↔ Probabilidad Falla** (aristas rojas RiskNetwork). | `archive/ROADMAP.md:86`. **HEAD 2026-06-11: hecho parcial** — `src/services/iot/probabilityFailureScoring.ts` (+test) existe y consume sensorBus, pero es isla: las aristas rojas en RiskNetwork no están cableadas. | 🟡 PARCIAL |
+| §16.7.5 | **Dashboard Cumplimiento SUSESO** (cálculo interno Tasas Acc/Sin). Reemplaza scraping descartado. | `archive/ROADMAP.md:87`. **HEAD 2026-06-11: hecho parcial** — motor real: `src/services/compliance/ds67/ds67Service.ts` + `src/server/routes/safetyPerformance.ts:71` (severityRate) + `src/server/routes/ds67ds76.ts` + `src/hooks/useSafetyPerformance.ts` + `src/components/safetyPerformance/SpiDashboard.tsx`. PERO `SpiDashboard` no está montado en ninguna página — wire pendiente. | 🟡 PARCIAL (montar) |
+| §16.7.6 | **Alerting threshold-cross** (ej. 25 trabajadores → notificación CPHS DS 54). | `archive/ROADMAP.md:88`. **HEAD 2026-06-11: sigue pendiente** — sin threshold-cross en `src/server/jobs/` ni triggers. | BAJA |
 
 ### 16.8 STATE_OF_FUNCTIONALITY — gaps específicos
 
-| §16.8.1 | **9 generadores Bernoulli sin UI dedicada**: `confinedSpaceHVAC`, `dikeHydrostaticMonitor`, `gasDispersionCloud`, `gasLeakDetection`, `microWindEnergy`, `mistingDustSuppression`, `pulmonaryAltitude`, `slamPhotogrammetryNode`, `respiratorFatigue`. CalculatorHub.tsx agrupa pero algunos quieren panel propio. | `archive/STATE_OF_FUNCTIONALITY:130`. | MEDIA |
-| §16.8.2 | **Pinecone API key real** vs fallback in-memory. | `archive/STATE_OF_FUNCTIONALITY:323`. NO en §5. | DECISIÓN USUARIO |
-| §16.8.3 | **Khipu adapter wire**. Código+tests existen, no wireado en `Pricing.tsx`. | `STATE_OF_FUNCTIONALITY:rojo pero código existe`. | DECISIÓN USUARIO |
-| §16.8.4 | **`autoTrigger.ts` test unitario** (DeviceMotion sismic). Crítico: dispara modo emergencia. | `archive/STATE_OF_FUNCTIONALITY:201`. | ALTA |
-| §16.8.5 | **TacticalOnboardingModal persist progreso**. Skip-if-completed flag. | `archive/STATE_OF_FUNCTIONALITY:119`. | BAJA |
-| §16.8.6 | **MorningRoutine slot persistencia respuestas**. UI lista, falta `addDoc(routine_checkins)` + +5 XP. ~2h. | `archive/STATE_OF_FUNCTIONALITY:192,308`. | MEDIA |
+| §16.8.1 | **9 generadores Bernoulli sin UI dedicada**: `confinedSpaceHVAC`, `dikeHydrostaticMonitor`, `gasDispersionCloud`, `gasLeakDetection`, `microWindEnergy`, `mistingDustSuppression`, `pulmonaryAltitude`, `slamPhotogrammetryNode`, `respiratorFatigue`. CalculatorHub.tsx agrupa pero algunos quieren panel propio. | `archive/STATE_OF_FUNCTIONALITY:130`. **HEAD 2026-06-11: hecho parcial** — varios YA tienen panel propio además de CalculatorHub (`src/components/engineering/ConfinedSpacePanel.tsx`, `HazmatStorageDesigner.tsx` para gasDispersion, etc. — 8 de 9 referenciados fuera del hub); `respiratorFatigue` solo en CalculatorHub. | 🟡 CASI HECHO |
+| §16.8.2 | **Pinecone API key real** vs fallback in-memory. | `archive/STATE_OF_FUNCTIONALITY:323`. **HEAD 2026-06-11: ❌ DESCARTADO** — decisión usuario 2026-05-30, ver §9 ("Pinecone (vector DB cloud) — Descartado; RAG usa fallback in-memory/interno gated por env"). Ya NO es decisión pendiente. | ❌ DESCARTADO (§9) |
+| §16.8.3 | **Khipu adapter wire**. Código+tests existen, no wireado en `Pricing.tsx`. | `STATE_OF_FUNCTIONALITY:rojo pero código existe`. **HEAD 2026-06-11: hecho parcial** — server-side CABLEADO: `src/services/billing/khipuAdapter.ts` importado en `src/server/routes/billing.ts:92` + webhook IPN con firma + dedupe (`billing.ts:1484-1564`). Front: `src/pages/Pricing.tsx` aún no ofrece initiation Khipu (solo comentario `:50`) — la decisión de exponerlo sigue abierta. | 🟡 PARCIAL + DECISIÓN |
+| §16.8.4 | **`autoTrigger.ts` test unitario** (DeviceMotion sismic). Crítico: dispara modo emergencia. | `archive/STATE_OF_FUNCTIONALITY:201`. **HEAD 2026-06-11: ✅ HECHO** — `src/services/emergency/autoTrigger.test.ts` + `autoTrigger.usgs.test.ts`. | ✅ HECHO |
+| §16.8.5 | **TacticalOnboardingModal persist progreso**. Skip-if-completed flag. | `archive/STATE_OF_FUNCTIONALITY:119`. **HEAD 2026-06-11: sigue pendiente** — el modal vive ahora en `src/components/workers/TacticalOnboardingModal.tsx` (300 LOC, montado por `AddWorkerModal.tsx`) pero sin persistencia ni skip-flag (0 hits localStorage/setDoc). | BAJA |
+| §16.8.6 | **MorningRoutine slot persistencia respuestas**. UI lista, falta `addDoc(routine_checkins)` + +5 XP. ~2h. | `archive/STATE_OF_FUNCTIONALITY:192,308`. **HEAD 2026-06-11: ✅ HECHO** — `src/components/hygiene/MorningRoutine.tsx:50-60` (`persistMorningCheckIn` → `setDoc` + `completedAt`) invocado en `:229`, con XP (`:117,204`). | ✅ HECHO |
 
 ### 16.9 INFORME_AVANCE_NOTEBOOK_LLM
 
-| §16.9.1 | **X.509 device cert flow IoT MQTT**. Auth sensores producción industrial. | `archive/INFORME_NOTEBOOK:92`. | ALTA |
-| §16.9.2 | **RLHF bucket feedback → fine-tuning** SLM/Gemini. `aiFeedback` captura pero no cierra loop. | `archive/INFORME_NOTEBOOK:99`. | BAJA |
-| §16.9.3 | **Streaming SSE Gemini** (token-by-token rendering Asesor). | `archive/INFORME_NOTEBOOK:99`. | MEDIA |
+| §16.9.1 | **X.509 device cert flow IoT MQTT**. Auth sensores producción industrial. | `archive/INFORME_NOTEBOOK:92`. **HEAD 2026-06-11: motor listo, integración runtime y OPS pendientes** — código completo en `src/services/iot/` (mqttClient, mqttAdapter, firestoreBridge, edgeFilter, ingestRuleEngine); `server.ts:1479-1514` SÍ bootea el broker pero solo con `IOT_BROKER_ENABLED=1` (default off) y los adapters `cloud`/`emqx` siguen stubbed (ADR 0015); plumbing X.509 existe (emqx cert/key/ca, `server.ts:1492-1498`). Consumo UI: solo `src/pages/IoTEdgeFiltering.tsx`. OPS pendiente: broker real + emisión certificados X.509. | 🟡 PARCIAL + OPS |
+| §16.9.2 | **RLHF bucket feedback → fine-tuning** SLM/Gemini. `aiFeedback` captura pero no cierra loop. | `archive/INFORME_NOTEBOOK:99`. **HEAD 2026-06-11: hecho parcial** — loop de agregación SÍ cerrado: `src/server/routes/aiFeedback.ts` + job `src/server/jobs/aggregateAiFeedback.ts:49`. Fine-tuning con ese dataset sigue pendiente. | 🟡 PARCIAL |
+| §16.9.3 | **Streaming SSE Gemini** (token-by-token rendering Asesor). | `archive/INFORME_NOTEBOOK:99`. **HEAD 2026-06-11: hecho parcial** — server REAL: `src/server/routes/gemini.ts:354-355,675,710` (`text/event-stream` cuando `stream:true`). Cliente: `src/hooks/useStreamedGuardian.ts` existe pero huérfano — ninguna página lo consume aún (el Asesor no renderiza token-by-token). | 🟡 PARCIAL (wire front) |
 
 ### 16.10 INFORME_ESTADO_2026-04-29
 
-| §16.10.1 | **Marketplace Google Workspace add-on** (Titanio+ tier). OAuth Consent + Marketplace review. | `archive/INFORME_ESTADO:250`. | DECISIÓN USUARIO |
-| §16.10.2 | **SOC 2 Type I path** (Vanta/Drata + Access Control / Change Mgmt / IR / BCP / Vendor). 6 meses external review. Enterprise+. | `archive/INFORME_ESTADO:251`. | ESTRATÉGICA |
-| §16.10.3 | **PGP key publicada** `/.well-known/pgp-key.asc`. Vuln-disclosure + auditor trust. | `archive/INFORME_ESTADO:300`. | MEDIA |
-| §16.10.4 | **`status.praeventio.net`** status page. | `archive/INFORME_ESTADO:301`. | BAJA |
-| §16.10.5 | **Refactor Pages >700 LOC** (Training 868, Gamification 794, Matrix 766, SiteMap 746). | `archive/INFORME_ESTADO:260` + `AUDIT:127`. | BAJA |
-| §16.10.6 | **Lighthouse CI status posts en PRs** (`LHCI_GITHUB_APP_TOKEN`). | `archive/INFORME_ESTADO:302`. | BAJA |
+| §16.10.1 | **Marketplace Google Workspace add-on** (Titanio+ tier). OAuth Consent + Marketplace review. | `archive/INFORME_ESTADO:250`. **HEAD 2026-06-11: sin cambios** — sin código marketplace; sigue siendo decisión. | DECISIÓN USUARIO |
+| §16.10.2 | **SOC 2 Type I path** (Vanta/Drata + Access Control / Change Mgmt / IR / BCP / Vendor). 6 meses external review. Enterprise+. | `archive/INFORME_ESTADO:251`. **HEAD 2026-06-11: sin cambios** — estratégica, sin evidencia de inicio en repo. | ESTRATÉGICA |
+| §16.10.3 | **PGP key publicada** `/.well-known/pgp-key.asc`. Vuln-disclosure + auditor trust. | `archive/INFORME_ESTADO:300`. **HEAD 2026-06-11: ✅ HECHO** — `public/.well-known/pgp-key.asc` (junto a `security.txt`), renderizado/verificado por `scripts/render-well-known.mjs` en prebuild. | ✅ HECHO |
+| §16.10.4 | **`status.praeventio.net`** status page. | `archive/INFORME_ESTADO:301`. **HEAD 2026-06-11: sigue pendiente** — solo menciones en `docs/runbooks/INCIDENT_RESPONSE.md`. | BAJA |
+| §16.10.5 | **Refactor Pages >700 LOC** (Training 868, Gamification 794, Matrix 766, SiteMap 746). | `archive/INFORME_ESTADO:260` + `AUDIT:127`. **HEAD 2026-06-11: sigue pendiente y EMPEORÓ** — LOC reales: Training 931 (+63), Matrix 848 (+82), Gamification 803 (+9), SiteMap 740 (−6). | BAJA |
+| §16.10.6 | **Lighthouse CI status posts en PRs** (`LHCI_GITHUB_APP_TOKEN`). | `archive/INFORME_ESTADO:302`. **HEAD 2026-06-11: ✅ HECHO (código)** — `.github/workflows/perf.yml:47-67` job "Lighthouse CI" con `npx lhci autorun` + `LHCI_GITHUB_APP_TOKEN`. OPS: los status posts requieren el secret configurado en GitHub. | ✅ HECHO (+OPS secret) |
 
-### 16.11 Resumen ejecutivo §12
+### 16.11 Resumen ejecutivo §12 — actualizado 2026-06-11 tras reconciliación contra HEAD
 
-**Prioridades CRÍTICAS (3) — implementar próximo sprint:**
-- §16.2.1 Event bus central `sensorBus` (correlación multi-sensor)
-- §16.2.2 `conflict_queue` safety docs (resolución humana)
-- §16.2.3 `safeNormativeQuery()` (SLM no alucina normativa)
+**Prioridades CRÍTICAS originales (3) — estado real:**
+- §16.2.1 `sensorBus` → 🟡 motor hecho (`src/services/sensorBus/sensorBus.ts`), **CRÍTICO el wire de hooks** (rama `claude/sensorbus-mandown-wire`)
+- §16.2.2 `conflict_queue` → 🟡 motor+endpoint hechos (`server.ts:1021-1022`), **CRÍTICO el wire al sync path** — `syncManager.ts` aún lo bypasea (rama `claude/sync-conflict-queue-wire`)
+- §16.2.3 `safeNormativeQuery()` → ✅ HECHO Y CABLEADO (`ragService.ts:185-205` → `gemini.ts:392`)
 
-**Prioridades ALTAS (12):**
-- §16.1.1, §16.1.3, §16.1.4, §16.1.10 (Sprints 10/12/13 + OpenAPI)
-- §16.2.4-§16.2.6, §16.2.8-§16.2.10 (Roadmap critical paths)
-- §16.8.4, §16.9.1 (autoTrigger test + X.509 IoT)
+**ALTAS originales (12) — estado real:**
+- ✅ Hechas: §16.1.10 (OpenAPI, `server.ts:762`), §16.2.10 (MediaPipe local-first), §16.8.4 (autoTrigger tests)
+- 🟡 Parciales (motor sí, wire/OPS no): §16.1.1 (ask-guardian real, tools como contexto), §16.2.4-§16.2.6, §16.2.8, §16.2.9 (solo falta ROLE_CHANGED check), §16.9.1 (MQTT flag-gated, adapters stubbed, OPS X.509)
+- ⏳ Pendientes de verdad: §16.1.3 (MaestrIA), §16.1.4 (ARIA)
 
-**Decisiones del usuario pendientes (6):**
+**Decisiones del usuario pendientes (5 — Pinecone ya descartado §9):**
 - §16.4.1 ¿workshop 321-512 nodos o abandono "512 nodos"?
 - §16.7.1 Wake Word — privacidad
-- §16.8.2 Pinecone — pagar o aceptar degradado?
-- §16.8.3 Khipu — wire o dormant?
+- §16.8.3 Khipu — server ya cableado (webhook `billing.ts:1484-1564`); ¿exponer en Pricing o dormant?
 - §16.10.1 Marketplace Google Workspace add-on
 - §16.10.2 SOC 2 Type I path (estratégico)
 
-**MEDIAS y BAJAS (~25):** refinamientos UX, recovery legacy, features Fase 10x posteriores. Ver tablas §16.1-§16.10.
+**Patrón dominante post-reconciliación:** el gap típico ya NO es "no existe" sino **"motor existe pero isla"** (sensorBus, conflictQueue↔syncManager, batteryAdvisor, topologyAwarePrefetch, RestrictedZonesMapOverlay, SpiDashboard, useStreamedGuardian, normativeAuditLog, customClaims assignedSiteIds). Coincide con la directiva Phase 5: huérfanos→montar. Ver tablas §16.1-§16.10 (anotación **HEAD 2026-06-11** por fila).
 
 ---
 
