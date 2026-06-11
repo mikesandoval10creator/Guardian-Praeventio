@@ -31,6 +31,14 @@ import { checkExpiredPpe } from '../jobs/checkExpiredPpe.js';
 // the readiness report.
 import { checkExpiredBrigadeResources } from '../jobs/checkExpiredBrigadeResources.js';
 import { sendSusesoReminders } from '../jobs/sendSusesoReminders.js';
+// B5/B15 (2026-06-11) — DTE issue queue drain. Failed post-payment DTE
+// emissions (PSE down) persist to `dte_issue_queue`; this step retries them
+// with the dteIssueQueue backoff ladder. Mirrors the PPE step: independent,
+// idempotent, fault-isolated. No-op (gateClosed) while DTE_AUTO_ISSUE!='true'.
+import {
+  runDteIssueQueueDrain,
+  type DteIssueQueueDrainResult,
+} from '../jobs/runDteIssueQueueDrain.js';
 import { sendToProjectSupervisors } from './emergency.js';
 import { verifySchedulerToken } from '../middleware/verifySchedulerToken.js';
 // Sprint 29 Bucket DD F-E — predictive×calendar pre-warn cron.
@@ -149,6 +157,25 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
     } catch (susesoErr) {
       logger.error('[maintenance] suseso-reminders failed', susesoErr);
       captureRouteError(susesoErr, 'maintenance.suseso-reminders');
+    }
+    // B5/B15 — fourth step: DTE issue queue drain (retries DTE emissions
+    // that failed transiently post-payment). Independent + idempotent like
+    // the prior steps; failure here must not abort the rest.
+    let dteQueue: DteIssueQueueDrainResult = {
+      gateClosed: false,
+      scanned: 0,
+      attempted: 0,
+      issued: 0,
+      retried: 0,
+      permanentFailures: 0,
+      skippedNotDue: 0,
+      errors: 0,
+    };
+    try {
+      dteQueue = await runDteIssueQueueDrain();
+    } catch (dteErr) {
+      logger.error('[maintenance] dte-issue-queue-drain failed', dteErr);
+      captureRouteError(dteErr, 'maintenance.dte-issue-queue-drain');
     }
     // Sprint 29 Bucket DD F-E — predictive × calendar pre-warn.
     // Wired after SUSESO reminders so failures stay isolated. Factories
@@ -279,6 +306,7 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
       ppe,
       brigadeResources,
       susesoReminders,
+      dteQueue,
       calendarPreWarn,
       resilienceHealth,
       tookMs,
@@ -291,6 +319,7 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
         ppe,
         brigadeResources,
         susesoReminders,
+        dteQueue,
         calendarPreWarn,
         resilienceHealth,
         tookMs,

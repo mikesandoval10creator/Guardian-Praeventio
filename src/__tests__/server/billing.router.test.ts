@@ -145,6 +145,23 @@ const M = vi.hoisted(() => ({
   })),
   mpIsConfigured: vi.fn(() => false),
   mpCreatePreference: vi.fn(async () => ({ id: 'pref-1', init_point: 'https://mp.test/pay' })),
+  // B5/B15 — DTE decision + emitter, overridable per-test (mark-paid parity).
+  decideDte: vi.fn(
+    (_req?: unknown): Record<string, unknown> => ({
+      shouldIssue: false,
+      documentKind: null,
+      reason: 'test',
+      idempotencyKey: 'idem-test',
+    }),
+  ),
+  tryAutoIssue: vi.fn(
+    async (
+      _invoice?: unknown,
+    ): Promise<{ ok: boolean; skipped?: string; errorMessage?: string; result?: { ok: boolean; folio?: number } }> => ({
+      ok: true,
+      result: { ok: true, folio: 1001 },
+    }),
+  ),
 }));
 
 vi.mock('../../services/billing/webpayAdapter.js', () => ({
@@ -232,16 +249,20 @@ vi.mock('../../services/billing/appleSsn.js', () => ({
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DTE orchestrator — stub decision
+// DTE orchestrator — stub decision (overridable via M.decideDte) + emitter
+// (M.tryAutoIssue). The rest of services/billing/invoice.js stays REAL —
+// the checkout handlers use its pure helpers (buildInvoice / totals).
 // ─────────────────────────────────────────────────────────────────────────────
 vi.mock('../../services/dte/dteAutoIssueOrchestrator.js', () => ({
-  decideDteIssue: vi.fn(() => ({
-    shouldIssue: false,
-    documentKind: null,
-    reason: 'test',
-    idempotencyKey: 'idem-test',
-  })),
+  decideDteIssue: (...args: unknown[]) => M.decideDte(...(args as [unknown])),
 }));
+vi.mock('../../services/billing/invoice.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/billing/invoice.js')>();
+  return {
+    ...actual,
+    tryAutoIssueDte: (...args: unknown[]) => M.tryAutoIssue(...(args as [unknown])),
+  };
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // auditLog — pass-through (best-effort in real code)
@@ -364,6 +385,13 @@ beforeEach(() => {
     outcome: 'paid' as const,
     invoiceId: 'inv-mp-1',
   });
+  M.decideDte.mockReset().mockReturnValue({
+    shouldIssue: false,
+    documentKind: null,
+    reason: 'test',
+    idempotencyKey: 'idem-test',
+  });
+  M.tryAutoIssue.mockReset().mockResolvedValue({ ok: true, result: { ok: true, folio: 1001 } });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -591,6 +619,173 @@ describe('POST /api/billing/invoice/:id/mark-paid', () => {
     const auditRow = H.db!._store.get(auditKeys[0]) as Record<string, unknown>;
     expect(auditRow.action).toBe('billing.mark-paid');
     expect(auditRow.module).toBe('billing');
+  });
+
+  // ── B5/B15 — paridad de los 4 rieles (2026-06-11) ──────────────────────────
+  // The MANUAL rail must deliver the same completion as webpay-return / MP
+  // IPN / Khipu IPN: subscription activation + DTE attempt, exactly once.
+
+  const seedB2bInvoice = (id = 'inv-b2b-1') => {
+    H.db!._seed(`invoices/${id}`, {
+      status: 'pending-payment',
+      createdBy: 'uid-owner',
+      lineItems: [{ tierId: 'comite-paritario', description: 'Suscripción', quantity: 1, unitAmount: 42017, currency: 'CLP' }],
+      totals: { subtotal: 42017, iva: 7983, total: 50000, currency: 'CLP' },
+      cliente: { nombre: 'Empresa SpA', rut: '76.123.456-0', email: 'pagos@empresa.cl' },
+      paymentMethod: 'manual-transfer',
+    });
+  };
+  const asAdmin = () => {
+    H.getUser.mockImplementation(async (uid: string) => ({
+      uid,
+      customClaims: { role: 'admin' },
+    }));
+  };
+
+  it('admin marks paid → owner subscription ACTIVATED from the invoice tier + audit row carries the outcome', async () => {
+    asAdmin();
+    seedB2bInvoice();
+    const res = await request(buildApp())
+      .post('/api/billing/invoice/inv-b2b-1/mark-paid')
+      .set('x-test-uid', 'uid-admin')
+      .set('x-test-email', 'admin@praeventio.net');
+    expect(res.status).toBe(200);
+    expect((res.body as Record<string, unknown>).success).toBe(true);
+    expect((res.body as Record<string, unknown>).subscriptionActivation).toBe('activated');
+
+    // Entitlement: users/{uid}.subscription mirrors the Khipu completed branch.
+    const user = H.db!._store.get('users/uid-owner') as Record<string, any>;
+    expect(user).toBeTruthy();
+    expect(user.subscription.status).toBe('active');
+    expect(user.subscription.tierId).toBe('comite-paritario');
+    expect(user.subscription.paymentMethod).toBe('manual');
+    expect(user.subscription.lastInvoiceId).toBe('inv-b2b-1');
+
+    // Audit row stamps identity from the VERIFIED token + activation outcome.
+    const auditRows = [...H.db!._store.keys()]
+      .filter((k) => k.startsWith('audit_logs/'))
+      .map((k) => H.db!._store.get(k) as Record<string, unknown>);
+    const row = auditRows.find((r) => r.action === 'billing.mark-paid');
+    expect(row).toBeTruthy();
+    expect(row!.userId).toBe('uid-admin');
+    expect(row!.userEmail).toBe('admin@praeventio.net');
+    const details = row!.details as Record<string, unknown>;
+    expect(details.subscriptionActivation).toBe('activated');
+    expect(details.ownerUid).toBe('uid-owner');
+    expect(details.tierId).toBe('comite-paritario');
+  });
+
+  it('admin marks paid with shouldIssue decision → DTE emission ATTEMPTED via tryAutoIssueDte', async () => {
+    asAdmin();
+    seedB2bInvoice('inv-b2b-dte');
+    M.decideDte.mockReturnValue({
+      shouldIssue: true,
+      documentKind: 'factura_electronica',
+      reason: 'has_company_tax_id',
+      idempotencyKey: 'idem-markpaid-dte',
+      amountClp: 50000,
+      paymentGateway: 'manual',
+    });
+    const res = await request(buildApp())
+      .post('/api/billing/invoice/inv-b2b-dte/mark-paid')
+      .set('x-test-uid', 'uid-admin');
+    expect(res.status).toBe(200);
+    expect(M.tryAutoIssue).toHaveBeenCalledTimes(1);
+    const invoiceArg = M.tryAutoIssue.mock.calls[0]![0] as unknown as Record<string, unknown>;
+    expect(invoiceArg.id).toBe('inv-b2b-dte');
+    expect(invoiceArg.status).toBe('paid');
+    // Successful emission → nothing queued for retry.
+    expect([...H.db!._store.keys()].some((k) => k.startsWith('dte_issue_queue/'))).toBe(false);
+    // Audit row records the DTE outcome.
+    const row = [...H.db!._store.keys()]
+      .filter((k) => k.startsWith('audit_logs/'))
+      .map((k) => H.db!._store.get(k) as Record<string, unknown>)
+      .find((r) => r.action === 'billing.mark-paid');
+    const dte = (row!.details as Record<string, any>).dte;
+    expect(dte.shouldIssue).toBe(true);
+    expect(dte.issued).toBe(true);
+    expect(dte.folio).toBe(1001);
+  });
+
+  it('DTE provider DOWN → job persisted to dte_issue_queue (deterministic id), response still succeeds', async () => {
+    asAdmin();
+    seedB2bInvoice('inv-b2b-down');
+    M.decideDte.mockReturnValue({
+      shouldIssue: true,
+      documentKind: 'factura_electronica',
+      reason: 'has_company_tax_id',
+      idempotencyKey: 'idem-markpaid-down',
+      amountClp: 50000,
+      paymentGateway: 'manual',
+    });
+    M.tryAutoIssue.mockResolvedValue({ ok: false, errorMessage: 'bsale 503' });
+
+    const res = await request(buildApp())
+      .post('/api/billing/invoice/inv-b2b-down/mark-paid')
+      .set('x-test-uid', 'uid-admin');
+    // Fail-soft: the payment marking must never 500 because the PSE is down.
+    expect(res.status).toBe(200);
+    expect((res.body as Record<string, unknown>).success).toBe(true);
+
+    const queueDoc = H.db!._store.get('dte_issue_queue/idem-markpaid-down') as Record<string, any>;
+    expect(queueDoc).toBeTruthy();
+    expect(queueDoc.status).toBe('pending');
+    expect(queueDoc.attempts).toBe(0);
+    expect(queueDoc.source).toBe('mark-paid');
+    expect(queueDoc.invoice.id).toBe('inv-b2b-down');
+  });
+
+  it('double-mark → activates exactly ONCE (second call replays alreadyPaid, no second DTE attempt)', async () => {
+    asAdmin();
+    seedB2bInvoice('inv-b2b-twice');
+    M.decideDte.mockReturnValue({
+      shouldIssue: true,
+      documentKind: 'factura_electronica',
+      reason: 'has_company_tax_id',
+      idempotencyKey: 'idem-markpaid-twice',
+      amountClp: 50000,
+      paymentGateway: 'manual',
+    });
+    const app = buildApp();
+
+    const first = await request(app)
+      .post('/api/billing/invoice/inv-b2b-twice/mark-paid')
+      .set('x-test-uid', 'uid-admin');
+    expect(first.status).toBe(200);
+    expect((first.body as Record<string, unknown>).subscriptionActivation).toBe('activated');
+    expect(M.tryAutoIssue).toHaveBeenCalledTimes(1);
+
+    const second = await request(app)
+      .post('/api/billing/invoice/inv-b2b-twice/mark-paid')
+      .set('x-test-uid', 'uid-admin');
+    expect(second.status).toBe(200);
+    expect((second.body as Record<string, unknown>).alreadyPaid).toBe(true);
+    // No second activation / emission / audit success row.
+    expect(M.tryAutoIssue).toHaveBeenCalledTimes(1);
+    const markPaidRows = [...H.db!._store.keys()]
+      .filter((k) => k.startsWith('audit_logs/'))
+      .map((k) => H.db!._store.get(k) as Record<string, unknown>)
+      .filter((r) => r.action === 'billing.mark-paid');
+    expect(markPaidRows).toHaveLength(1);
+    const user = H.db!._store.get('users/uid-owner') as Record<string, any>;
+    expect(user.subscription.status).toBe('active');
+  });
+
+  it('409 when a concurrent mark-paid holds a FRESH in-progress lock (no double-activation race)', async () => {
+    asAdmin();
+    seedB2bInvoice('inv-b2b-race');
+    // Simulate the other admin's request mid-flight.
+    H.db!._seed('processed_markpaid/inv-b2b-race', {
+      status: 'in_progress',
+      lockedAtMs: Date.now(),
+    });
+    const res = await request(buildApp())
+      .post('/api/billing/invoice/inv-b2b-race/mark-paid')
+      .set('x-test-uid', 'uid-admin');
+    expect(res.status).toBe(409);
+    // Neither activation nor emission happened on this request.
+    expect(H.db!._store.get('users/uid-owner')).toBeUndefined();
+    expect(M.tryAutoIssue).not.toHaveBeenCalled();
   });
 });
 

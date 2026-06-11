@@ -34,6 +34,7 @@ const H = vi.hoisted(() => ({
   runExceptionAutoExpire: vi.fn(),
   runWorkPermitAutoExpire: vi.fn(),
   runLegalCalendarReminders: vi.fn(),
+  runDteIssueQueueDrain: vi.fn(),
   sendToProjectSupervisors: vi.fn(),
   fcmAdapterSendToTokens: vi.fn(),
   iterateAllProjects: vi.fn(),
@@ -130,6 +131,11 @@ vi.mock('../../server/jobs/runLegalCalendarReminders.js', () => ({
   runLegalCalendarReminders: H.runLegalCalendarReminders,
 }));
 
+// B5/B15 — DTE issue queue drain (fourth check-overdue step).
+vi.mock('../../server/jobs/runDteIssueQueueDrain.js', () => ({
+  runDteIssueQueueDrain: H.runDteIssueQueueDrain,
+}));
+
 // emergency.js re-exports sendToProjectSupervisors used by check-expired-ppe
 vi.mock('../../server/routes/emergency.js', () => ({
   sendToProjectSupervisors: H.sendToProjectSupervisors,
@@ -223,6 +229,16 @@ beforeEach(() => {
     remindersEmitted: 0,
     skippedNotDue: 0,
     skippedIdempotent: 0,
+    errors: 0,
+  });
+  H.runDteIssueQueueDrain.mockResolvedValue({
+    gateClosed: true,
+    scanned: 0,
+    attempted: 0,
+    issued: 0,
+    retried: 0,
+    permanentFailures: 0,
+    skippedNotDue: 0,
     errors: 0,
   });
   H.iterateAllProjects.mockResolvedValue(0);
@@ -350,6 +366,50 @@ describe('POST /api/maintenance/check-overdue', () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.susesoReminders).toMatchObject({ scanned: 0, remindedTotal: 0 });
+  });
+
+  // ── B5/B15 — DTE issue queue drain step (mirrors the PPE mounting) ────────
+
+  it('200 — dte-queue drain is invoked and its counts surface in the response', async () => {
+    H.runDteIssueQueueDrain.mockResolvedValueOnce({
+      gateClosed: false,
+      scanned: 3,
+      attempted: 2,
+      issued: 1,
+      retried: 1,
+      permanentFailures: 0,
+      skippedNotDue: 1,
+      errors: 0,
+    });
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('Authorization', AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(H.runDteIssueQueueDrain).toHaveBeenCalledTimes(1);
+    expect(res.body.dteQueue).toMatchObject({
+      gateClosed: false,
+      scanned: 3,
+      attempted: 2,
+      issued: 1,
+      retried: 1,
+    });
+  });
+
+  it('200 — dte-queue drain throws: fault isolation, rest continue', async () => {
+    H.runDteIssueQueueDrain.mockRejectedValueOnce(new Error('drain boom'));
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('Authorization', AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    // dteQueue defaults to zeros because of the isolation catch.
+    expect(res.body.dteQueue).toMatchObject({ scanned: 0, issued: 0, permanentFailures: 0 });
   });
 
   it('200 — calendar-prewarn sub-job throws: fault isolation', async () => {
