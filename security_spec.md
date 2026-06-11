@@ -871,5 +871,37 @@ stamps `actorUid` from the verified token. Rules tests:
     (missing `payload`, `idempotencyKey`, `ts`, `type`, `tenantId`) — denied
     by the schema gate.
 
+## MINSAL protocol assessments (protocol_assessments) — server-only, deny client read+write (B-protocols, added 2026-06-11)
+
+`protocol_assessments/{assessmentId}` holds TMERT-EESS (trastornos
+musculoesqueléticos de extremidad superior, Norma Técnica MINSAL 2012) and
+PREXOR (exposición ocupacional a ruido, DS 594 Art. 75) evaluations — legally
+relevant prevention records. Unlike `ergonomic_assessments` (client SDK +
+member-gated rules), this collection is written AND read exclusively through
+the server routes `/api/sprint-k/:projectId/protocols/{tmert,prexor}/assessments`
++ `GET …/protocols/assessments` (verifyAuth + `assertProjectMember`, Admin SDK,
+bypasses these rules). The server recomputes the verdict from the raw inputs via
+the pure engines and stamps `metadata.author` from the verified token, then
+emits an `audit_logs` row (`protocols.<protocol>.assessment_recorded`).
+Default-deny both `read` and `write` for every actor; the explicit `if false`
+block exists so a future permissive rule isn't added by accident. Rules tests:
+`src/rules-tests/protocolAssessments.rules.test.ts`.
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+93. **Verdict Self-Fabrication**: a member `set /protocol_assessments/x` with
+    `result.overallRisk: "bajo"` for a task the engine scores `alto` — a
+    client-writable rule would let the evaluator bypass the server-side
+    recompute and persist a falsified MINSAL verdict.
+94. **Verdict Downgrade / History Tamper**: an UPDATE that mutates
+    `result.overallRisk` (or `result.dosePercent`) on an existing assessment,
+    or a DELETE that erases it — the history is append-only server-side
+    (Ley 16.744 Art. 76 trail; the only write path is the audited route).
+95. **Direct Read Bypass**: any client (member, admin, anonymous) reading the
+    collection directly — reads must flow through the server route so the
+    project-membership gate (`assertProjectMember`) is enforced uniformly,
+    instead of duplicating the tenancy check in rules for a server-owned
+    collection.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

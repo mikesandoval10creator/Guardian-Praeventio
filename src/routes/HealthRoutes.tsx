@@ -14,6 +14,12 @@ const SunTracker = lazy(() => import('../pages/SunTracker').then(module => ({ de
 // pero el componente no estaba wireado a ninguna page. Esta route cierra
 // el gap. Anonymous-friendly (idb-keyval); login para sync entre devices.
 const FatigueMonitor = lazy(() => import('../pages/FatigueMonitor').then(module => ({ default: module.FatigueMonitor })));
+// B-protocols (2026-06-11) — TMERT-EESS + PREXOR get their own UI. The pure
+// engines under src/services/protocols/ were "invisible": HTTP compute routes
+// existed but no persistence/UI. These pages close the gap (form → server
+// compute → audited history per project).
+const TmertEvaluation = lazy(() => import('../pages/TmertEvaluation').then(module => ({ default: module.TmertEvaluation })));
+const PrexorEvaluation = lazy(() => import('../pages/PrexorEvaluation').then(module => ({ default: module.PrexorEvaluation })));
 
 export const HealthRoutes = [
   <Route key="hygiene" path="hygiene" element={<Hygiene />} />,
@@ -24,4 +30,6 @@ export const HealthRoutes = [
   <Route key="human-body" path="human-body" element={<HumanBodyViewer />} />,
   <Route key="sun-tracker" path="sun-tracker" element={<SunTracker />} />,
   <Route key="fatigue" path="fatigue" element={<FatigueMonitor />} />,
+  <Route key="tmert" path="tmert" element={<TmertEvaluation />} />,
+  <Route key="prexor" path="prexor" element={<PrexorEvaluation />} />,
 ];

@@ -1230,6 +1230,22 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // B-protocols (2026-06-11) — MINSAL protocol assessments (TMERT-EESS /
+    // PREXOR). Engines: src/services/protocols/{tmert,prexor}.ts. Written
+    // and read ONLY via the server routes under
+    // /api/sprint-k/:projectId/protocols/* (verifyAuth +
+    // assertProjectMember, Admin SDK — bypasses these rules). The server
+    // recomputes the verdict from the raw inputs and stamps
+    // `metadata.author` from the verified token, so a client-writable rule
+    // would reopen the verdict/identity-spoof hole the server closes.
+    // Default-deny would already cover it; the explicit block prevents a
+    // future permissive rule from being added by accident (same rationale
+    // as webauthn_challenges). Rules tests:
+    // src/rules-tests/protocolAssessments.rules.test.ts.
+    match /protocol_assessments/{assessmentId} {
+      allow read, write: if false; // server-only via Admin SDK
+    }
+
     // Round 16 R2 — closes R15 R4 gap (gamification_scores).
     // Per-user-per-game best-score doc, id `${uid}_${gameId}` (claw machine,
     // pool game, etc.). DEVIATES from append-only-after-sign pattern:

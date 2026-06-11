@@ -83,3 +83,82 @@ export async function evaluateTmertRemote(
   );
   return json<EvaluateTmertResponse>(res);
 }
+
+// ── 4. assessment persistence (B-protocols) ────────────────────────────
+//
+// The server recomputes the verdict from the raw inputs (a client-supplied
+// result is never trusted), stamps the evaluator uid from the verified
+// token, persists into `protocol_assessments` (server-only collection) and
+// emits the audit_logs row. See src/server/routes/protocols.ts.
+
+export type ProtocolAssessmentKind = 'TMERT' | 'PREXOR';
+
+export interface ProtocolAssessment {
+  id: string;
+  projectId: string;
+  protocol: ProtocolAssessmentKind;
+  taskName: string;
+  workerId: string | null;
+  inputs: unknown;
+  result: TmertResult | PrexorResult;
+  computedAt: string;
+  metadata: { author: string; signedAt: string | null };
+}
+
+export interface RecordTmertAssessmentInput {
+  input: TmertInput;
+  taskName: string;
+  workerId?: string;
+}
+export interface RecordTmertAssessmentResponse {
+  id: string;
+  result: TmertResult;
+}
+
+export async function recordTmertAssessment(
+  projectId: string,
+  input: RecordTmertAssessmentInput,
+): Promise<RecordTmertAssessmentResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/protocols/tmert/assessments`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+  return json<RecordTmertAssessmentResponse>(res);
+}
+
+export interface RecordPrexorAssessmentInput {
+  measurements: PrexorMeasurement[];
+  taskName: string;
+  workerId?: string;
+}
+export interface RecordPrexorAssessmentResponse {
+  id: string;
+  result: PrexorResult;
+}
+
+export async function recordPrexorAssessment(
+  projectId: string,
+  input: RecordPrexorAssessmentInput,
+): Promise<RecordPrexorAssessmentResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/protocols/prexor/assessments`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+  return json<RecordPrexorAssessmentResponse>(res);
+}
+
+export interface ListProtocolAssessmentsResponse {
+  assessments: ProtocolAssessment[];
+}
+
+export async function listProtocolAssessments(
+  projectId: string,
+  protocol?: ProtocolAssessmentKind,
+): Promise<ListProtocolAssessmentsResponse> {
+  const qs = protocol ? `?protocol=${protocol}` : '';
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/protocols/assessments${qs}`,
+    { method: 'GET' },
+  );
+  return json<ListProtocolAssessmentsResponse>(res);
+}
