@@ -152,9 +152,6 @@ export function TacticalOnboardingModal({ isOpen, onClose, workerData }: Tactica
           },
           file: file
         });
-        
-        // Simulate processing time
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       setStep('success');

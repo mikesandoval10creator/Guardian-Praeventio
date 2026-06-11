@@ -260,6 +260,143 @@ describe('runKekRotation — lock', () => {
   });
 });
 
+describe('runKekRotation — Web Locks API (primary lock mechanism)', () => {
+  // jsdom no implementa navigator.locks — lo definimos por test y lo
+  // limpiamos en afterEach para que el resto de la suite siga ejercitando
+  // el fallback localStorage real.
+  function installWebLocks(grant: boolean) {
+    const requestSpy = vi.fn(
+      async (
+        name: string,
+        _options: { ifAvailable: boolean },
+        cb: (lock: unknown) => unknown,
+      ) => {
+        return await cb(grant ? { name, mode: 'exclusive' } : null);
+      },
+    );
+    Object.defineProperty(navigator, 'locks', {
+      value: { request: requestSpy },
+      configurable: true,
+    });
+    return requestSpy;
+  }
+
+  beforeEach(() => {
+    (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB =
+      new FDBFactory() as unknown as IDBFactory;
+    __resetEncryptedKvForTests();
+    __resetDeviceKekForTests();
+    clearLockStorage();
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'locks');
+    __resetEncryptedKvForTests();
+    __resetDeviceKekForTests();
+    clearLockStorage();
+  });
+
+  it('adquiere via navigator.locks.request con ifAvailable y rota bajo el lock', async () => {
+    const requestSpy = installWebLocks(true);
+    const oldKek = await getOrCreateDeviceKek();
+    await setEncrypted('phi-1', 'dato');
+    const newKek = await rotateDeviceKek();
+
+    const r = await runKekRotation({ oldKek, newKek });
+
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+    expect(requestSpy).toHaveBeenCalledWith(
+      'praeventio:kek:rotation:lock:v1',
+      { ifAvailable: true },
+      expect.any(Function),
+    );
+    expect(r.aborted).toBe(false);
+    expect(r.processed).toBe(1);
+    expect(await getEncrypted('phi-1')).toBe('dato');
+  });
+
+  it('contención: lock null (otra tab lo tiene) → aborta lock_busy sin tocar records', async () => {
+    installWebLocks(false);
+    const oldKek = await getOrCreateDeviceKek();
+    await setEncrypted('phi-1', 'dato');
+    const newKek = await rotateDeviceKek();
+
+    const r = await runKekRotation({ oldKek, newKek });
+    expect(r.aborted).toBe(true);
+    expect(r.abortedReason).toBe('lock_busy');
+    expect(r.processed).toBe(0);
+    expect(r.total).toBe(0);
+
+    // El record NO fue rotado: un re-run con bypass lo procesa recién ahora.
+    const r2 = await runKekRotation({ oldKek, newKek, bypassLock: true });
+    expect(r2.processed).toBe(1);
+  });
+
+  it('el lock se libera al resolver: dos rotaciones secuenciales adquieren ambas', async () => {
+    const requestSpy = installWebLocks(true);
+    const oldKek = await getOrCreateDeviceKek();
+    await setEncrypted('phi-1', 'dato');
+    const newKek = await rotateDeviceKek();
+
+    const r1 = await runKekRotation({ oldKek, newKek });
+    const r2 = await runKekRotation({ oldKek, newKek });
+
+    // Web Locks libera automáticamente cuando el callback resuelve —
+    // el segundo request adquiere de nuevo y detecta already-migrated.
+    expect(requestSpy).toHaveBeenCalledTimes(2);
+    expect(r1.processed).toBe(1);
+    expect(r2.alreadyMigrated).toBe(1);
+  });
+
+  it('con Web Locks disponible IGNORA el lock localStorage (no compite con él)', async () => {
+    installWebLocks(true);
+    // Lock localStorage "tomado" por otra tab vieja que no soporta Web
+    // Locks no debería existir en la práctica, pero el mecanismo primario
+    // es la única autoridad cuando está disponible.
+    localStorage.setItem(
+      'praeventio:kek:rotation:lock:v1',
+      JSON.stringify({ acquiredAt: Date.now(), acquiredBy: 'other-tab' }),
+    );
+    const oldKek = await getOrCreateDeviceKek();
+    await setEncrypted('phi-1', 'dato');
+    const newKek = await rotateDeviceKek();
+
+    const r = await runKekRotation({ oldKek, newKek });
+    expect(r.aborted).toBe(false);
+    expect(r.processed).toBe(1);
+    // No tocó el valor localStorage de la otra tab.
+    expect(
+      (JSON.parse(localStorage.getItem('praeventio:kek:rotation:lock:v1')!) as { acquiredBy: string })
+        .acquiredBy,
+    ).toBe('other-tab');
+  });
+
+  it('bypassLock=true NO llama a navigator.locks', async () => {
+    const requestSpy = installWebLocks(true);
+    const oldKek = await getOrCreateDeviceKek();
+    await setEncrypted('phi-1', 'dato');
+    const newKek = await rotateDeviceKek();
+
+    const r = await runKekRotation({ oldKek, newKek, bypassLock: true });
+    expect(requestSpy).not.toHaveBeenCalled();
+    expect(r.processed).toBe(1);
+  });
+
+  it('fallback: sin navigator.locks usa el lock localStorage (lock_busy si está tomado)', async () => {
+    // Garantizar ausencia explícita del API (Safari viejo / SSR / tests).
+    Reflect.deleteProperty(navigator, 'locks');
+    localStorage.setItem(
+      'praeventio:kek:rotation:lock:v1',
+      JSON.stringify({ acquiredAt: Date.now(), acquiredBy: 'other-tab-id' }),
+    );
+    const oldKek = await freshKek();
+    const newKek = await freshKek();
+    const r = await runKekRotation({ oldKek, newKek });
+    expect(r.aborted).toBe(true);
+    expect(r.abortedReason).toBe('lock_busy');
+  });
+});
+
 describe('inspectRotationLock + forceReleaseRotationLock', () => {
   beforeEach(() => {
     clearLockStorage();
