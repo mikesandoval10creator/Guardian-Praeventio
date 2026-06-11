@@ -9,6 +9,16 @@ import { db, collection, addDoc, serverTimestamp } from '../services/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { saveBlackBox } from '../utils/offlineStorage';
 import { logger } from '../utils/logger';
+import { useSensorBus } from '../services/sensorBus/sensorBus';
+import { publishSensorEvent } from '../services/sensorBus/publishSensorEvent';
+import {
+  evaluateManDownEvidence,
+  LOCAL_DEVICE_UID,
+  BATTERY_EVIDENCE_WINDOW_MS,
+  MANDOWN_COUNTDOWN_DEFAULT_S,
+  MANDOWN_COUNTDOWN_CRITICAL_S,
+} from '../services/sensorBus/manDownCorrelation';
+import { getBatterySnapshot } from '../services/battery/batteryAdvisor';
 
 interface ManDownOptions {
   onManDownConfirmed?: (impactData: { userId?: string; userName?: string; timestamp: string }) => void;
@@ -18,7 +28,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   const { onManDownConfirmed } = options;
   const [isActive, setIsActive] = useState(false);
   const [isAlerting, setIsAlerting] = useState(false);
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(MANDOWN_COUNTDOWN_DEFAULT_S);
   const lastMovementTime = useRef(Date.now());
   const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
@@ -125,7 +135,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     acknowledgedRef.current = true;
     stopAlarmLoop();
     setIsAlerting(false);
-    setCountdown(10);
+    setCountdown(MANDOWN_COUNTDOWN_DEFAULT_S);
 
     const ref = mandownEventRef.current;
     mandownEventRef.current = null;
@@ -148,6 +158,35 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     }
   };
 
+  // ── sensorBus wiring (TODO.md §16.2.1) ────────────────────────────────
+  // Battery evidence republish cadence: stay fresh inside the engine's
+  // 5-min evidence window with 1 min of slack.
+  const BATTERY_REPUBLISH_MS = BATTERY_EVIDENCE_WINDOW_MS - 60_000;
+  const lastBatteryPublishRef = useRef(0);
+
+  // Publishes the current battery snapshot to the sensor bus so the
+  // correlation engine can use "battery critical" as escalation evidence.
+  // batteryAdvisor stays pure-ish (no bus dependency) — we bridge here.
+  const publishBatteryEvidence = async () => {
+    try {
+      const snap = await getBatterySnapshot();
+      if (snap.level == null) return; // Battery API unavailable → no evidence.
+      publishSensorEvent({
+        kind: 'battery',
+        severity:
+          snap.mode === 'critical' ? 'critical' : snap.mode === 'normal' ? 'info' : 'warning',
+        workerUid: user?.uid ?? null,
+        projectId: selectedProject?.id ?? null,
+        value: snap.level,
+        unit: 'fraction',
+        meta: { charging: snap.charging, mode: snap.mode },
+      });
+    } catch (err) {
+      // Evidence publishing must never break detection (life-safety first).
+      logger.warn('useManDownDetection: battery evidence publish failed', { err });
+    }
+  };
+
   const startDetection = () => {
     // Pre-warm shared AudioContext from this user gesture so the sensor-driven
     // alarm later has an unblocked context (Chrome/Safari autoplay policy).
@@ -167,6 +206,9 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     startListening();
     lastMovementTime.current = Date.now();
     accHistoryRef.current = [];
+    // Seed battery evidence on the bus (refreshed periodically below).
+    lastBatteryPublishRef.current = Date.now();
+    void publishBatteryEvidence();
   };
 
   const stopDetection = () => {
@@ -180,7 +222,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
 
   const cancelCountdown = () => {
     setIsAlerting(false);
-    setCountdown(10);
+    setCountdown(MANDOWN_COUNTDOWN_DEFAULT_S);
     if (countdownRef.current) clearInterval(countdownRef.current);
     // If the countdown was cancelled before reaching 0, no alarm has started yet,
     // but defensively stop any loop just in case.
@@ -349,7 +391,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
         lastMovementTime.current = Date.now();
         if (isAlerting) {
           setIsAlerting(false);
-          setCountdown(10);
+          setCountdown(MANDOWN_COUNTDOWN_DEFAULT_S);
           if (countdownRef.current) clearInterval(countdownRef.current);
         }
       }
@@ -361,11 +403,51 @@ export function useManDownDetection(options: ManDownOptions = {}) {
 
     timerRef.current = setInterval(() => {
       const now = Date.now();
+      // Keep the battery evidence fresh inside the engine's window.
+      if (now - lastBatteryPublishRef.current >= BATTERY_REPUBLISH_MS) {
+        lastBatteryPublishRef.current = now;
+        void publishBatteryEvidence();
+      }
       if (now - lastMovementTime.current > INACTIVITY_THRESHOLD && !isAlertingRef.current) {
+        // §16.2.1: publish sustained immobility FIRST so both the bus's own
+        // fall+inactivity+ble-off rule and the evaluation below can see it.
+        publishSensorEvent({
+          kind: 'inactivity',
+          severity: 'warning',
+          workerUid: user?.uid ?? null,
+          projectId: selectedProject?.id ?? null,
+          value: now - lastMovementTime.current,
+          unit: 'ms',
+          meta: { source: 'useManDownDetection' },
+        });
+        // Multi-sensor correlation (anti-false-positive, TODO.md §16.2.1):
+        // impact + immobility + (BLE disconnected | battery critical) on the
+        // bus ⇒ 'critical' ⇒ reduced self-cancel countdown. With no extra
+        // evidence the verdict is 'none'/'suspect' and the DEFAULT 10s flow
+        // is untouched — the bus only ever ADDS confidence, never blocks.
+        let startCountdownS = MANDOWN_COUNTDOWN_DEFAULT_S;
+        try {
+          const evidence = evaluateManDownEvidence(
+            Array.from(useSensorBus.getState().readings.values()),
+            new Date(now),
+            { workerUid: user?.uid ?? LOCAL_DEVICE_UID },
+          );
+          if (evidence.level === 'critical') {
+            startCountdownS = MANDOWN_COUNTDOWN_CRITICAL_S;
+            logger.warn(
+              'useManDownDetection: critical multi-sensor evidence — reduced countdown',
+              { reasons: evidence.reasons },
+            );
+          }
+        } catch (err) {
+          // Correlation failures must never delay or break the alert.
+          logger.error('useManDownDetection: evidence evaluation failed', { err });
+        }
         setIsAlerting(true);
         // Mirror immediately so the next 1s tick (before React commits the
         // state) doesn't stack a second countdown.
         isAlertingRef.current = true;
+        setCountdown(startCountdownS);
         // Start countdown
         countdownRef.current = setInterval(() => {
           setCountdown(prev => {

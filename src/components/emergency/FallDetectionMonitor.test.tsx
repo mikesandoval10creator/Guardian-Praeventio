@@ -111,6 +111,7 @@ vi.mock('framer-motion', () => ({
 }));
 
 import { FallDetectionMonitor } from './FallDetectionMonitor';
+import { useSensorBus } from '../../services/sensorBus/sensorBus';
 
 function triggerFall() {
   // Production accelerometer would call this on impact; we drive it manually.
@@ -124,6 +125,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   triggerEmergencyMock.mockClear();
   capturedOnFallDetected = null;
+  useSensorBus.getState().reset();
 });
 
 afterEach(() => {
@@ -186,6 +188,20 @@ describe('FallDetectionMonitor — H6 SOS dispatcher wire-up', () => {
     }
 
     expect(triggerEmergencyMock).not.toHaveBeenCalled();
+  });
+
+  it('publishes the impact to the sensorBus the moment the fall is detected (TODO.md §16.2.1)', () => {
+    render(<FallDetectionMonitor />);
+    expect(useSensorBus.getState().readings.get('user_test_001::fall')).toBeUndefined();
+
+    triggerFall();
+
+    // Published BEFORE the user answers the modal — the correlation engine
+    // needs the raw impact even if the worker later cancels.
+    const r = useSensorBus.getState().readings.get('user_test_001::fall');
+    expect(r).toBeDefined();
+    expect(r?.severity).toBe('critical');
+    expect(r?.projectId).toBe('proj_test_001');
   });
 
   it('dispatches immediately when the user taps "Necesito Ayuda" (no countdown wait)', () => {

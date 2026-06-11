@@ -6,6 +6,10 @@ import { db } from '../services/firebase';
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
 import { logger } from '../utils/logger';
+// §16.2.1 sensorBus wiring: every accepted fix is mirrored to the central bus
+// so correlation rules (man-down → "send the rescue pair to the last GPS")
+// have a fresh last-known location. Reuses the existing watch callback only.
+import { publishSensorEvent } from '../services/sensorBus/publishSensorEvent';
 
 export const useGeolocationTracking = () => {
   const { selectedProject } = useProject();
@@ -92,6 +96,19 @@ export const useGeolocationTracking = () => {
         const roundedLng = Math.round(longitude * 10000) / 10000;
 
         setLastLocation({ lat: roundedLat, lng: roundedLng });
+
+        // §16.2.1: publish GPS-alive evidence to the sensor bus regardless of
+        // accuracy — even a coarse fix is a usable last-known location for a
+        // rescue, while the Firestore record below stays gated at <50 m.
+        publishSensorEvent({
+          kind: 'gps',
+          severity: 'info',
+          workerUid: user.uid,
+          projectId: selectedProject.id,
+          value: accuracy,
+          unit: 'm',
+          meta: { lat: roundedLat, lng: roundedLng },
+        });
 
         // Solo guardar si la precisión es razonable (< 50 metros)
         if (accuracy < 50) {

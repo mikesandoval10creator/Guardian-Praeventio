@@ -14,6 +14,11 @@ import { AlertTriangle, X, CheckCircle2 } from 'lucide-react';
 // Bien" or "Necesito Ayuda"). We track raw detection because the
 // post-detection branches are separate dashboard funnels.
 import { analytics } from '../../services/analytics';
+// §16.2.1 sensorBus wiring: the raw impact is published to the central bus so
+// the multi-sensor correlation (fall + inactivity + BLE off → critical) can
+// reduce man-down false positives. Reuses this existing detection callback —
+// no new hardware listeners.
+import { publishSensorEvent } from '../../services/sensorBus/publishSensorEvent';
 
 /**
  * Threshold the accelerometer heuristic uses (m/s² magnitude). Mirrors the
@@ -68,6 +73,19 @@ export function FallDetectionMonitor() {
     if (!showModal) {
       setShowModal(true);
       setCountdown(15);
+
+      // §16.2.1: publish the impact to the sensorBus BEFORE the user answers
+      // the modal — the correlation engine needs the raw detection either way
+      // (a real fall victim may never answer). Non-throwing by contract.
+      publishSensorEvent({
+        kind: 'fall',
+        severity: 'critical',
+        workerUid: user?.uid ?? null,
+        projectId: selectedProject?.id ?? null,
+        value: FALL_THRESHOLD_MS_SQ,
+        unit: 'm/s2',
+        meta: { source: 'FallDetectionMonitor', accelWindowMs: FALL_ACCEL_WINDOW_MS },
+      });
 
       // Vibrate to alert the user
       if (navigator.vibrate) {
