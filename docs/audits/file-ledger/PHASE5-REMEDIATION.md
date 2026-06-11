@@ -47,7 +47,26 @@ nuevas sino aristas nuevas. Estado verificado por grep/lectura el 2026-06-10:
   (`projectClosure.ts` closure/lessons + LessonsAdapter); la precarga al próximo proyecto = slice 3
   de la épica Rubros SII (mismo mecanismo).
 
-**Capa 3 — sensores, patrones y mundo físico (verificada 2026-06-10, ninguna conectada):**
+**Capa 3 — sensores, patrones y mundo físico (verificada 2026-06-10):**
+- [x] 🛟 **A2 sensorBus cableado + regla anti-falso-positivo man-down ✅** (2026-06-11,
+  TODO.md §16.2.1). El bus existía pero ningún hook de sensor publicaba; ahora la cadena
+  vida está cableada. Motor PURO (regla #9, mutation-ready)
+  `src/services/sensorBus/manDownCorrelation.ts:147` `evaluateManDownEvidence(events, now)`:
+  impacto solo → `suspect` (countdown normal 10s); impacto+inmovilidad → `suspect` con razón
+  extra; impacto+inmovilidad+(BLE off | batería crítica) → `critical` → countdown reducido a
+  5s (`MANDOWN_COUNTDOWN_CRITICAL_S`, `manDownCorrelation.ts:80`; ventanas: impacto/inmovilidad
+  60s, BLE 120s, batería 300s; la lectura MÁS RECIENTE por kind manda — una reconexión limpia
+  el dropout). Publicadores (callbacks existentes, cero listeners de hardware nuevos, vía
+  `publishSensorEvent` no-throwing `src/services/sensorBus/publishSensorEvent.ts:33`):
+  impacto `FallDetectionMonitor.tsx:80`; inmovilidad sostenida
+  `useManDownDetection.ts:414`; BLE peer-visto/scan-vacío/scan-error
+  `useBluetoothMesh.ts:39,120,155` (sentinel `LOCAL_DEVICE_UID` — sin auth context,
+  `manDownCorrelation.ts:36`); GPS `useGeolocationTracking.ts:103`; batería
+  `useManDownDetection.ts:170-211` (seed al armar + republish c/4min, severity desde
+  `batteryAdvisor.mode`). Consumo: `useManDownDetection.ts:430-450` evalúa al levantar la
+  alerta y modula SOLO el countdown — sin evidencia extra el flujo default queda intacto
+  (test de no-regresión pinned). 27 tests motor + 6 hook-correlación + 4 BLE + 2 GPS +
+  1 FallDetectionMonitor + 5 publish-bridge; suites previas de man-down/emergency verdes.
 - [ ] 🛟 **C1 Asistencia→Tablero de evacuación**: `Attendance.tsx` existe y el headcount de
   evacuación también — desconectados. Conectados = lista NOMINAL en tiempo real de quién falta
   en el punto de encuentro (los minutos que definen un rescate). La más valiosa de la capa.

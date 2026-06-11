@@ -1,8 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { BleClient, BleDevice } from '@capacitor-community/bluetooth-le';
 import { Capacitor } from '@capacitor/core';
 import { saveBreadcrumb, getBreadcrumbs } from '../utils/offlineStorage';
 import { logger } from '../utils/logger';
+// §16.2.1 sensorBus wiring: BLE peer visibility is correlation evidence for
+// man-down (fall + inactivity + BLE disconnected → critical). This hook has
+// no auth context, so events publish under the LOCAL_DEVICE_UID sentinel —
+// the correlation engine attributes them to the local worker.
+import { publishSensorEvent } from '../services/sensorBus/publishSensorEvent';
 
 interface BluetoothDevice {
   id: string;
@@ -23,8 +28,19 @@ export function useBluetoothMesh() {
   const [peerBreadcrumbs, setPeerBreadcrumbs] = useState<PeerBreadcrumb[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Peers discovered during the CURRENT scan window — used to decide whether
+  // the scan ended "isolated" (zero peers → disconnection evidence).
+  const scanFoundCountRef = useRef(0);
+
   // Save a breadcrumb ping for a discovered BLE peer and record locally
   const registerPeerContact = useCallback(async (deviceId: string, deviceName: string) => {
+    // §16.2.1: a visible peer = BLE connectivity OK. Published synchronously
+    // (before the async GPS/breadcrumb work) so the bus sees it immediately.
+    publishSensorEvent({
+      kind: 'ble_proximity',
+      severity: 'info',
+      meta: { deviceId, deviceName },
+    });
     const lastKnown = (() => {
       try {
         const raw = localStorage.getItem('guardian_last_gps');
@@ -79,7 +95,9 @@ export function useBluetoothMesh() {
       setError(null);
 
       if (Capacitor.isNativePlatform()) {
+        scanFoundCountRef.current = 0;
         await BleClient.requestLEScan({}, (result) => {
+          scanFoundCountRef.current += 1;
           const deviceName = result.device.name || 'Dispositivo Desconocido';
           setNearbyDevices(prev => {
             const existing = prev.find(d => d.id === result.device.deviceId);
@@ -94,6 +112,17 @@ export function useBluetoothMesh() {
         setTimeout(async () => {
           await BleClient.stopLEScan();
           setIsScanning(false);
+          // §16.2.1: a full scan window with ZERO peers = the worker is out
+          // of BLE range of every beacon/companion — disconnection evidence
+          // for the man-down correlation. A found peer already published
+          // 'info' above, which supersedes any earlier warning on the bus.
+          if (scanFoundCountRef.current === 0) {
+            publishSensorEvent({
+              kind: 'ble_proximity',
+              severity: 'warning',
+              meta: { reason: 'scan_empty' },
+            });
+          }
         }, 10000);
       } else {
         const device = await (navigator as any).bluetooth.requestDevice({
@@ -117,9 +146,17 @@ export function useBluetoothMesh() {
 
     } catch (err: any) {
       if (err.name === 'NotFoundError') {
-        // User cancelled or no devices found
+        // User cancelled or no devices found — NOT disconnection evidence
+        // (web picker dismissal is a user gesture, not radio state).
       } else {
         setError(err.message || 'Error al escanear dispositivos Bluetooth.');
+        // §16.2.1: a failed scan (adapter off/unavailable) means we cannot
+        // see peers — counts as disconnection evidence on the bus.
+        publishSensorEvent({
+          kind: 'ble_proximity',
+          severity: 'warning',
+          meta: { reason: 'scan_error' },
+        });
       }
       setIsScanning(false);
     }

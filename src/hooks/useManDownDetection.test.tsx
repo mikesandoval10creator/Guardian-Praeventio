@@ -75,6 +75,28 @@ vi.mock('../services/driving/commuteSession', () => ({
 }));
 
 import { useManDownDetection } from './useManDownDetection';
+import { useSensorBus } from '../services/sensorBus/sensorBus';
+import {
+  MANDOWN_COUNTDOWN_DEFAULT_S,
+  MANDOWN_COUNTDOWN_CRITICAL_S,
+} from '../services/sensorBus/manDownCorrelation';
+
+// Publish a real reading to the REAL singleton bus (the hook consumes the same
+// instance) — no reimplementation of the correlation engine in tests.
+function publishToBus(
+  kind: 'fall' | 'ble_proximity' | 'inactivity' | 'battery',
+  severity: 'info' | 'warning' | 'critical',
+  workerUid = 'u1',
+) {
+  useSensorBus.getState().publishReading({
+    readingId: `test-${kind}-${Date.now()}-${Math.random()}`,
+    kind,
+    severity,
+    workerUid,
+    projectId: 'p1',
+    at: new Date().toISOString(),
+  });
+}
 
 // Advance fake time one second at a time, flushing React between ticks. This
 // mimics real-world timing (React commits state + re-runs effects between the
@@ -92,6 +114,8 @@ async function tickSeconds(n: number) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
+  // The hook publishes/consumes the real singleton sensor bus — isolate tests.
+  useSensorBus.getState().reset();
   // Reset shared state to defaults each test.
   h.state.acceleration = { x: null, y: null, z: null };
   h.state.project = { id: 'p1', name: 'Mina X', settings: {} };
@@ -210,6 +234,93 @@ describe('useManDownDetection — acknowledge', () => {
       await result.current.acknowledgeAlert();
     });
     expect(h.updateDoc).not.toHaveBeenCalled();
+  });
+});
+
+describe('useManDownDetection — sensorBus correlation (TODO.md §16.2.1)', () => {
+  it('publishes the sustained-immobility evidence to the bus when the alert raises', async () => {
+    const { result } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    expect(useSensorBus.getState().readings.get('u1::inactivity')).toBeUndefined();
+    await tickSeconds(31);
+    expect(result.current.isAlerting).toBe(true);
+    const r = useSensorBus.getState().readings.get('u1::inactivity');
+    expect(r).toBeDefined();
+    expect(r?.severity).toBe('warning');
+    expect(r?.projectId).toBe('p1');
+  });
+
+  it('NO-REGRESSION: with no extra bus evidence the countdown stays at the 10s default', async () => {
+    const { result } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    await tickSeconds(31);
+    expect(result.current.isAlerting).toBe(true);
+    expect(result.current.countdown).toBe(MANDOWN_COUNTDOWN_DEFAULT_S);
+    // Full alert only after the default 10s countdown (30s + 10s + slack).
+    await tickSeconds(9);
+    expect(h.addNode).not.toHaveBeenCalled();
+    await tickSeconds(2);
+    expect(h.addNode).toHaveBeenCalledTimes(1);
+  });
+
+  it('impact + immobility + BLE disconnected on the bus → CRITICAL: reduced countdown, faster escalation', async () => {
+    const { result } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    // Impact + BLE dropout detected by their own hooks moments before.
+    act(() => {
+      publishToBus('fall', 'critical');
+      publishToBus('ble_proximity', 'warning');
+    });
+    await tickSeconds(31);
+    expect(result.current.isAlerting).toBe(true);
+    expect(result.current.countdown).toBe(MANDOWN_COUNTDOWN_CRITICAL_S);
+    // Escalates after only 5s instead of 10s.
+    await tickSeconds(5);
+    expect(h.addNode).toHaveBeenCalledTimes(1);
+    expect(h.triggerEmergency).toHaveBeenCalledWith('man_down', 'p1');
+  });
+
+  it('impact alone on the bus (suspect) keeps the default countdown — no premature escalation', async () => {
+    const { result } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    act(() => publishToBus('fall', 'critical'));
+    await tickSeconds(31);
+    expect(result.current.isAlerting).toBe(true);
+    expect(result.current.countdown).toBe(MANDOWN_COUNTDOWN_DEFAULT_S);
+  });
+
+  it("another worker's impact never reduces the local countdown", async () => {
+    const { result } = renderHook(() => useManDownDetection());
+    act(() => result.current.startDetection());
+    act(() => {
+      publishToBus('fall', 'critical', 'other-worker');
+      publishToBus('ble_proximity', 'warning', 'other-worker');
+    });
+    await tickSeconds(31);
+    expect(result.current.countdown).toBe(MANDOWN_COUNTDOWN_DEFAULT_S);
+  });
+
+  it('publishes a battery reading on startDetection and escalates via the battery-critical path', async () => {
+    // jsdom has no Battery API — inject one reporting 5% discharging.
+    (navigator as unknown as { getBattery?: () => Promise<unknown> }).getBattery =
+      async () => ({ level: 0.05, charging: false });
+    try {
+      const { result } = renderHook(() => useManDownDetection());
+      await act(async () => {
+        result.current.startDetection();
+      });
+      const batt = useSensorBus.getState().readings.get('u1::battery');
+      expect(batt).toBeDefined();
+      expect(batt?.severity).toBe('critical');
+      expect(batt?.value).toBe(0.05);
+
+      act(() => publishToBus('fall', 'critical'));
+      await tickSeconds(31);
+      // impact + immobility + battery critical → critical → reduced countdown.
+      expect(result.current.countdown).toBe(MANDOWN_COUNTDOWN_CRITICAL_S);
+    } finally {
+      delete (navigator as unknown as { getBattery?: unknown }).getBattery;
+    }
   });
 });
 
