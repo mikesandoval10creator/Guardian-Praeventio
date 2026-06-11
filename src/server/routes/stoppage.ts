@@ -22,6 +22,16 @@
 //   POST /:projectId/stoppage/summarize
 //     body: { stoppages: Stoppage[] }
 //     200:  { summary }
+//
+//   POST /:projectId/stoppage/resolve            (arista B4 — STATEFUL)
+//     body: { stoppageId, verdict: justificada|no_justificada, comment? }
+//     Approver-role gated (claim from the verified token). Reads + updates
+//     projects/{pid}/stoppages/{id} inside a transaction (idempotent —
+//     re-resolving returns 409 and never duplicates the prize). On verdict
+//     'justificada' the declarer is structurally rewarded: a positive
+//     observation (canonical PositiveObservationsAdapter path) + XP
+//     (POINT_VALUES.stoppage_justified via gamificationBackend.awardPoints).
+//     200:  { stoppage, recognition: { recipientUid, xpAwarded, observationId } | null }
 
 import { Router } from 'express';
 import { z } from 'zod';
@@ -34,11 +44,14 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import {
   declareStoppage,
   markPreconditionFulfilled,
   resume,
   cancelStoppage,
+  resolveStoppage,
+  isApproverRole,
   summarize,
   StoppageValidationError,
   type Stoppage,
@@ -46,6 +59,9 @@ import {
   type StoppageScope,
   type StoppageStatus,
 } from '../../services/stoppage/stoppageEngine.js';
+import { awardPoints } from '../../services/gamificationBackend.js';
+import { POINT_VALUES } from '../../services/gamification/pointValues.js';
+import { PositiveObservationsAdapter } from '../../services/positiveObservations/positiveObservationsFirestoreAdapter.js';
 
 const router = Router();
 
@@ -279,6 +295,185 @@ router.post(
     } catch (err) {
       logger.error?.('stoppage.summarize.error', err);
       captureRouteError(err, 'stoppage.summarize');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────
+// 6. resolve — veredicto post-cierre + premio estructural (arista B4)
+// ────────────────────────────────────────────────────────────────────────
+//
+// Unlike the stateless endpoints above, /resolve is SERVER-AUTHORITATIVE:
+// the stoppage is read from Firestore (projects/{pid}/stoppages/{id} — the
+// path the client stoppageStore persists to), never trusted from the body.
+// Otherwise a caller could fabricate a "justified stoppage" payload and farm
+// XP/recognitions for arbitrary uids.
+
+/** Same pattern as positiveObservations.ts — projectId → tenantId lookup. */
+async function resolveTenantId(
+  callerUid: string,
+  projectId: string,
+  db: admin.firestore.Firestore,
+): Promise<string | null> {
+  const proj = await db.collection('projects').doc(projectId).get();
+  const data = proj.exists ? proj.data() : null;
+  if (data && typeof data.tenantId === 'string') return data.tenantId;
+  const members = await db
+    .collection('projects')
+    .doc(projectId)
+    .collection('members')
+    .where('uid', '==', callerUid)
+    .limit(1)
+    .get();
+  if (!members.empty) {
+    const tid = members.docs[0]?.data()?.tenantId;
+    if (typeof tid === 'string') return tid;
+  }
+  return null;
+}
+
+class StoppageNotFoundError extends Error {}
+
+const resolveSchema = z.object({
+  stoppageId: z.string().min(1).max(200),
+  verdict: z.enum(['justificada', 'no_justificada']),
+  comment: z.string().min(1).max(2000).optional(),
+});
+
+const POSITIVE_OBS_MAX_DESCRIPTION = 2000;
+
+router.post(
+  '/:projectId/stoppage/resolve',
+  verifyAuth,
+  validate(resolveSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    // Server-authoritative role: comes from the VERIFIED token claim stamped
+    // by verifyAuth — never from the request body (a body role would let any
+    // member self-promote into verdict authority).
+    const callerRole = req.user!.role ?? 'worker';
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof resolveSchema>;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+    if (!isApproverRole(callerRole)) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+
+    const db = admin.firestore();
+    const stoppageRef = db
+      .collection('projects')
+      .doc(projectId)
+      .collection('stoppages')
+      .doc(body.stoppageId);
+
+    try {
+      // Read-modify-write on the same doc → transaction (CLAUDE.md #19).
+      // The engine throws ALREADY_RESOLVED inside the txn, so two concurrent
+      // resolvers cannot both commit a verdict (idempotent prize).
+      const resolved = await db.runTransaction(async (txn) => {
+        const snap = await txn.get(stoppageRef);
+        if (!snap.exists) throw new StoppageNotFoundError(body.stoppageId);
+        const next = resolveStoppage(
+          snap.data() as Stoppage,
+          body.verdict,
+          callerUid,
+          callerRole,
+          body.comment,
+        );
+        txn.update(stoppageRef, { resolution: next.resolution });
+        return next;
+      });
+
+      // Prize — only for a JUSTIFIED stoppage, and never self-awarded (the
+      // resolver cannot reward a stoppage they declared themselves).
+      let recognition:
+        | { recipientUid: string; xpAwarded: number; observationId: string | null }
+        | null = null;
+      if (
+        resolved.resolution!.verdict === 'justificada' &&
+        resolved.declaredByUid !== callerUid
+      ) {
+        try {
+          // 1. Positive observation through the canonical adapter (§214-215).
+          //    Deterministic doc id keyed by stoppage → idempotent at the
+          //    persistence level too.
+          const observationId = `stoppage-justified-${resolved.id}`;
+          let observationWritten = false;
+          const tenantId = await resolveTenantId(callerUid, projectId, db);
+          if (tenantId) {
+            const adapter = new PositiveObservationsAdapter(db, tenantId, projectId);
+            const description =
+              // Spanish-CL user-facing copy (CLAUDE.md #2).
+              `Paralización justificada: detuvo los trabajos ante un riesgo real (${resolved.reason}). Reconocimiento automático por ejercer la autoridad de detención.`.slice(
+                0,
+                POSITIVE_OBS_MAX_DESCRIPTION,
+              );
+            await adapter.save({
+              id: observationId,
+              observedWorkerUid: resolved.declaredByUid,
+              observerUid: callerUid,
+              observerRole: callerRole,
+              kind: 'safe_behavior',
+              description,
+              observedAt: resolved.declaredAt,
+              location: `${resolved.scope}:${resolved.scopeTargetId}`,
+              shared: true,
+            });
+            observationWritten = true;
+          } else {
+            logger.warn?.('stoppage.resolve.tenantNotFound', { projectId });
+          }
+          // 2. XP through the canonical server-side gamification path.
+          await awardPoints(
+            resolved.declaredByUid,
+            POINT_VALUES.stoppage_justified,
+            'stoppage_justified',
+          );
+          recognition = {
+            recipientUid: resolved.declaredByUid,
+            xpAwarded: POINT_VALUES.stoppage_justified,
+            observationId: observationWritten ? observationId : null,
+          };
+        } catch (err) {
+          // The verdict (legal act) already committed — a prize failure is
+          // severe but must not 5xx the resolution. Surfaced via logs/Sentry.
+          logger.error?.('stoppage.resolve.prizeFailed', err);
+          captureRouteError(err, 'stoppage.resolve.prize');
+        }
+      }
+
+      // Audit trail (CLAUDE.md #3/#14) — awaited, non-blocking on failure.
+      try {
+        await auditServerEvent(
+          req,
+          'stoppage.resolve',
+          'stoppage',
+          {
+            stoppageId: resolved.id,
+            verdict: resolved.resolution!.verdict,
+            declaredByUid: resolved.declaredByUid,
+            recognitionAwarded: recognition !== null,
+            xpAwarded: recognition?.xpAwarded ?? 0,
+          },
+          { projectId },
+        );
+      } catch (err) {
+        logger.error?.('audit_event_failed', err);
+      }
+
+      return res.json({ stoppage: resolved, recognition });
+    } catch (err) {
+      if (err instanceof StoppageNotFoundError) {
+        return res.status(404).json({ error: 'stoppage_not_found' });
+      }
+      if (err instanceof StoppageValidationError && err.code === 'ALREADY_RESOLVED') {
+        return res.status(409).json({ error: 'already_resolved' });
+      }
+      const m = asEngineError(err);
+      if (m) return res.status(m.code).json(m.body);
+      logger.error?.('stoppage.resolve.error', err);
+      captureRouteError(err, 'stoppage.resolve');
       return res.status(500).json({ error: 'internal_error' });
     }
   },

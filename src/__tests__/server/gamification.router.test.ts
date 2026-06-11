@@ -91,6 +91,18 @@ describe('POST /gamification/points', () => {
     expect(vi.mocked(awardPoints)).not.toHaveBeenCalled();
   });
 
+  it('400 invalid_reason for a server-only reason (stoppage_justified cannot be self-claimed)', async () => {
+    const res = await request(buildApp())
+      .post('/api/gamification/points')
+      .set('x-test-uid', 'w1')
+      // In POINT_VALUES, but only the stoppage-resolution flow may award it —
+      // and to the DECLARER, not the caller. Self-claim must be rejected.
+      .send({ reason: 'stoppage_justified' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_reason');
+    expect(vi.mocked(awardPoints)).not.toHaveBeenCalled();
+  });
+
   it('400 invalid_reason when no reason is supplied', async () => {
     const res = await request(buildApp())
       .post('/api/gamification/points')

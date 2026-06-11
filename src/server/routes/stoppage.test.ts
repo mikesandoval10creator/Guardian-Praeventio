@@ -24,6 +24,7 @@ describe('stoppageRouter (wire-up contract)', () => {
     '/:projectId/stoppage/resume',
     '/:projectId/stoppage/cancel',
     '/:projectId/stoppage/summarize',
+    '/:projectId/stoppage/resolve',
   ])('registers POST %s', (path) => {
     expect(hasPost(path)).toBe(true);
   });

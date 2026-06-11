@@ -4,9 +4,12 @@ import {
   markPreconditionFulfilled,
   resume,
   cancelStoppage,
+  resolveStoppage,
+  isApproverRole,
   summarize,
   StoppageValidationError,
   type DeclareStoppageInput,
+  type Stoppage,
 } from './stoppageEngine.js';
 
 const NOW = new Date('2026-05-11T12:00:00Z');
@@ -142,6 +145,111 @@ describe('cancelStoppage', () => {
     expect(() => cancelStoppage(s, 'admin', 'razón válida xxx', NOW)).toThrow(
       /INVALID_TRANSITION/,
     );
+  });
+});
+
+describe('resolveStoppage (veredicto post-cierre — arista B4)', () => {
+  function resumedStoppage(): Stoppage {
+    let s = declareStoppage(input());
+    s = markPreconditionFulfilled(s, 'pc1', 'u', undefined, NOW);
+    s = markPreconditionFulfilled(s, 'pc2', 'u', undefined, NOW);
+    return resume(s, 'sup-1', 'supervisor', NOW);
+  }
+
+  it('emite veredicto justificada sobre stoppage resumed', () => {
+    const r = resolveStoppage(
+      resumedStoppage(),
+      'justificada',
+      'sup-1',
+      'supervisor',
+      'Riesgo real verificado en terreno',
+      NOW,
+    );
+    expect(r.resolution).toEqual({
+      verdict: 'justificada',
+      resolvedByUid: 'sup-1',
+      resolvedByRole: 'supervisor',
+      resolvedAt: NOW.toISOString(),
+      comment: 'Riesgo real verificado en terreno',
+    });
+    // El resto del stoppage queda intacto.
+    expect(r.status).toBe('resumed');
+    expect(r.declaredByUid).toBe('prev-1');
+  });
+
+  it('emite veredicto no_justificada sobre stoppage cancelled (sin comment)', () => {
+    const c = cancelStoppage(
+      declareStoppage(input()),
+      'admin-1',
+      'duplicada con otra ya activa',
+      NOW,
+    );
+    const r = resolveStoppage(c, 'no_justificada', 'adm-1', 'admin', undefined, NOW);
+    expect(r.resolution?.verdict).toBe('no_justificada');
+    expect(r.resolution?.comment).toBeUndefined();
+  });
+
+  it('rechaza resolver stoppage active (NOT_CLOSED)', () => {
+    expect(() =>
+      resolveStoppage(declareStoppage(input()), 'justificada', 's', 'supervisor', undefined, NOW),
+    ).toThrow(/NOT_CLOSED/);
+  });
+
+  it('rechaza resolver stoppage pending_resumption (NOT_CLOSED)', () => {
+    let s = declareStoppage(input());
+    s = markPreconditionFulfilled(s, 'pc1', 'u', undefined, NOW);
+    s = markPreconditionFulfilled(s, 'pc2', 'u', undefined, NOW);
+    expect(() =>
+      resolveStoppage(s, 'justificada', 's', 'supervisor', undefined, NOW),
+    ).toThrow(/NOT_CLOSED/);
+  });
+
+  it('rechaza role no aprobador (ROLE_NOT_ALLOWED)', () => {
+    expect(() =>
+      resolveStoppage(resumedStoppage(), 'justificada', 'op-1', 'operador', undefined, NOW),
+    ).toThrow(/ROLE_NOT_ALLOWED/);
+  });
+
+  it('rechaza re-resolver (ALREADY_RESOLVED) — idempotencia del premio', () => {
+    const once = resolveStoppage(resumedStoppage(), 'justificada', 's', 'supervisor', undefined, NOW);
+    let caught: unknown;
+    try {
+      resolveStoppage(once, 'justificada', 's', 'supervisor', undefined, NOW);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(StoppageValidationError);
+    expect((caught as StoppageValidationError).code).toBe('ALREADY_RESOLVED');
+  });
+
+  it('trimea el comment y omite comment vacío', () => {
+    const r = resolveStoppage(
+      resumedStoppage(),
+      'justificada',
+      's',
+      'supervisor',
+      '  ok  ',
+      NOW,
+    );
+    expect(r.resolution?.comment).toBe('ok');
+    const r2 = resolveStoppage(
+      resumedStoppage(),
+      'justificada',
+      's',
+      'supervisor',
+      '   ',
+      NOW,
+    );
+    expect(r2.resolution?.comment).toBeUndefined();
+  });
+});
+
+describe('isApproverRole', () => {
+  it.each(['supervisor', 'prevencionista', 'gerente', 'admin'])('%s → true', (role) => {
+    expect(isApproverRole(role)).toBe(true);
+  });
+  it.each(['operador', 'worker', ''])('%s → false', (role) => {
+    expect(isApproverRole(role)).toBe(false);
   });
 });
 
