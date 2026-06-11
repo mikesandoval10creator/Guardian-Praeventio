@@ -39,6 +39,24 @@ function makeSos(fromUid: string, bornAtMs: number = NOW, projectId: string = PR
   });
 }
 
+function makeSupervisorEvent(fromUid: string, bornAtMs: number = NOW, projectId: string = PROJECT) {
+  return buildPacket({
+    type: 'event_to_supervisor',
+    fromUid,
+    toUid: 'supervisors',
+    bornAtMs,
+    projectId,
+    payload: {
+      eventType: 'medical' as const,
+      workerUid: fromUid,
+      location: { lat: -33.45, lng: -70.66, accuracyM: 10 },
+      capturedAtMs: bornAtMs,
+      description: 'Trabajador con malestar en sector 3',
+      projectId,
+    },
+  });
+}
+
 describe('MeshRelayQueue — store-carry-forward', () => {
   let queue: MeshRelayQueue;
 
@@ -142,6 +160,74 @@ describe('MeshRelayQueue — store-carry-forward', () => {
       const myOwn = makeBreadcrumb('self');
       const result = await queue.receive([myOwn]);
       expect(result.enqueued).toHaveLength(0);
+    });
+  });
+
+  // B16 wire (2026-06) — packets addressed to 'supervisors' were NEVER
+  // delivered locally because isSupervisor() was hardcoded false (the
+  // Sprint 26 role wire never landed). The role now arrives via the
+  // `isSupervisor` option (MeshProvider wires the cached users/{uid}.role).
+  describe("receive — toUid:'supervisors' delivery (B16 wire)", () => {
+    it('delivers supervisor-addressed packets locally when isSupervisor() is true', async () => {
+      const supQueue = new MeshRelayQueue({
+        selfUid: 'self',
+        projectId: PROJECT,
+        now: () => NOW,
+        isSupervisor: () => true,
+      });
+      const result = await supQueue.receive([makeSupervisorEvent('peer-1')]);
+      expect(result.forLocal).toHaveLength(1);
+      expect(result.forLocal[0].toUid).toBe('supervisors');
+    });
+
+    it('does NOT deliver locally when isSupervisor() is false — but KEEPS relaying (life-safety: never drop)', async () => {
+      const workerQueue = new MeshRelayQueue({
+        selfUid: 'self',
+        projectId: PROJECT,
+        now: () => NOW,
+        isSupervisor: () => false,
+      });
+      const result = await workerQueue.receive([makeSupervisorEvent('peer-1')]);
+      expect(result.forLocal).toHaveLength(0);
+      // The packet keeps riding the mesh toward a supervisor node.
+      expect(result.enqueued).toHaveLength(1);
+      expect(result.dropped).toHaveLength(0);
+    });
+
+    it('treats an absent isSupervisor option as not-a-supervisor (relay-only, legacy behavior)', async () => {
+      // `queue` from the outer beforeEach has no isSupervisor option.
+      const result = await queue.receive([makeSupervisorEvent('peer-1')]);
+      expect(result.forLocal).toHaveLength(0);
+      expect(result.enqueued).toHaveLength(1);
+    });
+
+    it('a throwing isSupervisor callback degrades to false and never breaks the relay path', async () => {
+      const brokenQueue = new MeshRelayQueue({
+        selfUid: 'self',
+        projectId: PROJECT,
+        now: () => NOW,
+        isSupervisor: () => {
+          throw new Error('role store unavailable');
+        },
+      });
+      const result = await brokenQueue.receive([makeSupervisorEvent('peer-1')]);
+      expect(result.forLocal).toHaveLength(0);
+      expect(result.enqueued).toHaveLength(1);
+    });
+
+    it('reflects a LIVE role change (callback is re-evaluated per receive)', async () => {
+      let role = 'worker';
+      const liveQueue = new MeshRelayQueue({
+        selfUid: 'self',
+        projectId: PROJECT,
+        now: () => NOW,
+        isSupervisor: () => role === 'prevencionista',
+      });
+      const first = await liveQueue.receive([makeSupervisorEvent('peer-1', NOW)]);
+      expect(first.forLocal).toHaveLength(0);
+      role = 'prevencionista';
+      const second = await liveQueue.receive([makeSupervisorEvent('peer-2', NOW + 1)]);
+      expect(second.forLocal).toHaveLength(1);
     });
   });
 

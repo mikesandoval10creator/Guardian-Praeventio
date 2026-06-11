@@ -727,10 +727,14 @@ on every tier (ADR 0021) → member-gated, never tier-gated. New rules:
 - `projects/{pid}/notifications` — member create/update (mark-read), admin delete.
 - `projects/{pid}/epp_verifications` — member create, **immutable**, admin delete.
 - `projects/{pid}/trainings` — member create/update (status), admin delete.
-- `tenants/{tid}/seismic_events` — tenant-member create **bound to the path tenant**
-  (`incoming().tenantId == tenantId`), immutable thereafter.
+- ~~`tenants/{tid}/seismic_events`~~ — **superseded 2026-06** (A4 follow-up): the
+  writer keyed the path with the never-assigned `window.__GP_TENANT_ID__` global
+  and `isMemberOfTenant()` claims no flow mints, so the path was unreachable in
+  production. Re-scoped to `projects/{pid}/seismic_events` — see the dedicated
+  section below (entries 97-99). The tenant match block was removed; writes
+  there fall to the tenant catch-all default-deny.
 
-Rules tests: `src/rules-tests/emergencyOpsCollections.rules.test.ts` (29 cases, F1
+Rules tests: `src/rules-tests/emergencyOpsCollections.rules.test.ts` (32 cases, F1
 harness). `EmergenciaAvanzada`'s `emergency_events` write was also realigned to the
 canonical `{status:'active', triggeredBy:uid}` shape the rule already enforces, and
 all four handlers wrapped in try/catch so a denied write never aborts the SOS flow.
@@ -754,13 +758,14 @@ all four handlers wrapped in try/catch so a denied write never aborts the SOS fl
     `notifications` doc or UPDATE/DELETE an `emergency_plans` doc — denied
     (admin/supervisor-only), preventing a worker from silently dropping a
     supervisor's alert or rewriting an approved emergency plan.
-76. **Cross-Tenant Seismic Forge**: a member of tenant B, authenticated against the
-    `tenants/A/seismic_events` path, submits a payload whose `tenantId` claims a
-    different tenant — denied by `incoming().tenantId == tenantId` (path-bound
-    anti-spoof). Seismic telemetry cannot be injected across tenant boundaries.
-77. **Seismic-Event Tamper**: any user tries to UPDATE/DELETE a `seismic_events`
-    row (e.g. lower a recorded `peakG`) — denied (`update,delete:false`); the
-    on-device accelerometer log is immutable.
+76. **Cross-Tenant Seismic Forge** *(superseded 2026-06 — see entry 97)*: a member
+    of tenant B, authenticated against the `tenants/A/seismic_events` path, submits
+    a payload whose `tenantId` claims a different tenant — the whole tenant path is
+    now denied outright (catch-all default-deny; the collection moved to
+    `projects/{pid}/seismic_events`).
+77. **Seismic-Event Tamper** *(superseded 2026-06 — see entry 98)*: any user tries
+    to UPDATE/DELETE a `seismic_events` row — still denied; the immutability
+    guarantee carried over to the project-scoped block.
 
 ### Default-denied UI collections (🔵 missing rules)
 
@@ -912,6 +917,40 @@ block exists so a future permissive rule isn't added by accident. Rules tests:
     from the grade, so a falsified grade would silently stretch a legally
     mandated health-surveillance deadline. Same server-only recompute
     closes it (route POST …/protocols/planesi/assessments).
+
+### Seismic telemetry re-scope (`projects/{pid}/seismic_events` — A4 follow-up, 2026-06-11)
+
+The on-device seismic auto-detection overlay
+(`src/components/shared/EmergencyOverlay.tsx` → `SismicAutoOverlay`, CLIENT SDK)
+logged one row per sismo trigger to `tenants/{tid}/seismic_events` keyed by
+`window.__GP_TENANT_ID__ || 'default'` — the same never-assigned global that
+killed systemEngine cross-device sync (PR #847) — behind `isMemberOfTenant()`
+claims no flow mints. Every production write was PERMISSION_DENIED. Re-scoped to
+the project (the real tenancy unit): member read + member create with schema
+validation (`detectedAt` string, `peakG` number), path-bound `projectId`, full
+immutability (`update,delete:false`). With no project selected the client skips
+the write cleanly — the life-safety overlay itself never depends on persistence.
+The old tenant match block was removed (no writer; dormant client-writable
+surface); the path falls back to the tenant catch-all default-deny. Rules tests:
+`src/rules-tests/emergencyOpsCollections.rules.test.ts` (project-scoped suite, 8
+cases incl. the tenant-path supersession pin, F1 harness).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+97. **Cross-Project Seismic Forge**: a member of project A creates a
+    `seismic_events` doc under project B's path, or writes under A with
+    `projectId: B` in the payload — denied by `isProjectMember(projectId)` +
+    `incoming().projectId == projectId` (path-bound). Seismic telemetry cannot
+    be injected across project boundaries.
+98. **Seismic-Event Tamper / Erasure**: any user (admin included) UPDATEs a
+    persisted event (e.g. lower a recorded `peakG` after an incident) or
+    DELETEs one — denied (`update,delete:false`); the on-device accelerometer
+    log is immutable evidence.
+99. **Schema-less Seismic Write**: a payload missing `detectedAt`/`peakG`, or
+    with a non-numeric `peakG` (e.g. `"alto"`) — denied by the schema gate, so
+    the telemetry stream cannot be polluted with unparseable rows. Writes to
+    the superseded `tenants/{tid}/seismic_events` path — denied by the tenant
+    catch-all default-deny (supersession pin in the rules tests).
 
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

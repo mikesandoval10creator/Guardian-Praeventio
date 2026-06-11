@@ -27,7 +27,7 @@ const h = vi.hoisted(() => ({
   queueCtorMock: vi.fn(),
   captureExceptionMock: vi.fn(),
   refs: {
-    firebase: { user: null as { uid: string } | null },
+    firebase: { user: null as { uid: string } | null, userRole: 'worker' as string },
     project: { selectedProject: null as { id: string } | null },
   },
 }));
@@ -91,7 +91,7 @@ describe('MeshProvider — ADR-0013 last-mile (Sprint 35)', () => {
     h.facadeCtorMock.mockReset();
     h.queueCtorMock.mockReset();
     h.captureExceptionMock.mockReset();
-    h.refs.firebase = { user: { uid: 'u-self' } };
+    h.refs.firebase = { user: { uid: 'u-self' }, userRole: 'worker' };
     h.refs.project = { selectedProject: { id: 'p-1' } };
   });
 
@@ -166,8 +166,66 @@ describe('MeshProvider — ADR-0013 last-mile (Sprint 35)', () => {
     expect(nonNullRegistrations).toHaveLength(0);
   });
 
+  // B16 wire (2026-06) — the queue's supervisors-delivery role check is fed
+  // from FirebaseContext.userRole (cached users/{uid}.role, the only
+  // offline-trustable role source). It must be a LIVE callback: a role
+  // arriving after mount (getDoc resolves late) must NOT tear down the BLE
+  // transport, so the provider passes a ref-backed function instead of a
+  // value and keeps the effect deps at [uid, projectId].
+  it('pasa isSupervisor() reflejando el userRole cacheado (supervisor-class → true)', async () => {
+    h.refs.firebase = { user: { uid: 'u-self' }, userRole: 'prevencionista' };
+    render(
+      <MeshProvider>
+        <div />
+      </MeshProvider>,
+    );
+    await flush();
+
+    const opts = h.queueCtorMock.mock.calls[0][0];
+    expect(typeof opts.isSupervisor).toBe('function');
+    expect(opts.isSupervisor()).toBe(true);
+  });
+
+  it('isSupervisor() es false para roles worker-class', async () => {
+    h.refs.firebase = { user: { uid: 'u-self' }, userRole: 'operario' };
+    render(
+      <MeshProvider>
+        <div />
+      </MeshProvider>,
+    );
+    await flush();
+
+    const opts = h.queueCtorMock.mock.calls[0][0];
+    expect(opts.isSupervisor()).toBe(false);
+  });
+
+  it('un cambio de rol post-mount actualiza isSupervisor() SIN reconstruir la queue/transport', async () => {
+    h.refs.firebase = { user: { uid: 'u-self' }, userRole: 'worker' };
+    const { rerender } = render(
+      <MeshProvider>
+        <div />
+      </MeshProvider>,
+    );
+    await flush();
+    const opts = h.queueCtorMock.mock.calls[0][0];
+    expect(opts.isSupervisor()).toBe(false);
+
+    // users/{uid}.role resolves late (e.g. Firestore getDoc after mount).
+    h.refs.firebase = { user: { uid: 'u-self' }, userRole: 'supervisor' };
+    rerender(
+      <MeshProvider>
+        <div />
+      </MeshProvider>,
+    );
+    await flush();
+
+    // Same queue instance (no BLE restart), live callback sees the new role.
+    expect(h.queueCtorMock).toHaveBeenCalledTimes(1);
+    expect(opts.isSupervisor()).toBe(true);
+  });
+
   it('sin uid (auth aún no resuelta) → early return, no facade', async () => {
-    h.refs.firebase = { user: null };
+    h.refs.firebase = { user: null, userRole: 'worker' };
     render(
       <MeshProvider>
         <div />

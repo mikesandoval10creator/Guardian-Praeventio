@@ -24,6 +24,10 @@ import { GeofenceAlert } from "./components/emergency/GeofenceAlert";
 // 35 was about to bump 380→420KB; this code-split holds 380.
 const GuardianVoiceAssistant = lazy(() => import('./components/ai/GuardianVoiceAssistant').then(m => ({ default: m.GuardianVoiceAssistant })));
 const OfflineSyncManager = lazy(() => import('./components/OfflineSyncManager').then(m => ({ default: m.OfflineSyncManager })));
+// B16 wire (2026-06) — Sprint 39 H.3 left the sync-queue badge orphan
+// (engine + server route ready, UI never mounted). Rendered next to the
+// connectivity indicator so the worker can SEE what is still pending sync.
+const SyncQueueIndicator = lazy(() => import('./components/syncStatus/SyncQueueIndicator').then(m => ({ default: m.SyncQueueIndicator })));
 const SurvivalPing = lazy(() => import('./components/SurvivalPing').then(m => ({ default: m.SurvivalPing })));
 const FallDetectionMonitor = lazy(() => import('./components/emergency/FallDetectionMonitor').then(m => ({ default: m.FallDetectionMonitor })));
 const DrivingSuggestion = lazy(() => import('./components/driving/DrivingSuggestion').then(m => ({ default: m.DrivingSuggestion })));
@@ -552,6 +556,7 @@ export default function App() {
               <OfflineIndicator />
               <Suspense fallback={null}>
                 <OfflineSyncManager />
+                <SyncQueueIndicator />
                 <SurvivalPing />
                 <PWAUpdateToast />
               </Suspense>
