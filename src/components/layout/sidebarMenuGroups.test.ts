@@ -139,6 +139,29 @@ describe('buildSidebarMenuGroups — Plan §P2', () => {
     });
   });
 
+  describe('conducción — colisión /safe-driving resuelta (Fase 5 D2 slice 1)', () => {
+    it('expone /driving-incidents (reporte de incidentes de conducción — SafeDriving)', () => {
+      const groups = buildSidebarMenuGroups(tStub, FREE_FEATURES, false);
+      const allPaths = groups.flatMap((g) => g.items.map((i) => i.path));
+      expect(allPaths).toContain('/driving-incidents');
+    });
+
+    it('mantiene /safe-driving (Modo Conducción — SOS) y /driving-safety (rutas críticas)', () => {
+      const groups = buildSidebarMenuGroups(tStub, FREE_FEATURES, false);
+      const allPaths = groups.flatMap((g) => g.items.map((i) => i.path));
+      expect(allPaths).toContain('/safe-driving');
+      expect(allPaths).toContain('/driving-safety');
+    });
+
+    it('la entry de incidentes usa copy es-CL', () => {
+      const groups = buildSidebarMenuGroups(tStub, FREE_FEATURES, false);
+      const item = groups
+        .flatMap((g) => g.items)
+        .find((i) => i.path === '/driving-incidents');
+      expect(item?.title).toBe('Incidentes de Conducción');
+    });
+  });
+
   describe('integridad', () => {
     it('paths son únicos cross-groups (no entries duplicadas)', () => {
       const groups = buildSidebarMenuGroups(tStub, ORO_FEATURES, true);
