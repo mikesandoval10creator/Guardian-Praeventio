@@ -34,17 +34,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // `browserEnvelope` + `deviceKek` rely on `crypto.subtle` end-to-end, so
 // we pin the Node-native webcrypto implementation at module load time
 // before any test imports the SUT.
-if (
-  !(globalThis as { crypto?: { subtle?: unknown } }).crypto ||
-  typeof (globalThis as { crypto?: { subtle?: unknown } }).crypto?.subtle ===
-    'undefined'
-) {
-  Object.defineProperty(globalThis, 'crypto', {
-    value: webcrypto,
-    configurable: true,
-    writable: true,
-  });
-}
+// AUDIT-2026-06: the pin is now UNCONDITIONAL. The previous guard only
+// fired when `crypto.subtle` was missing — but a sibling test file running
+// earlier in the same worker can leave a crypto whose subtle is jsdom's
+// non-functional stub (defined but broken), silently degrading encryption
+// and making the no-plaintext-leak assertions below flake by test order.
+Object.defineProperty(globalThis, 'crypto', {
+  value: webcrypto,
+  configurable: true,
+  writable: true,
+});
 
 import {
   __resetDeviceKekForTests,

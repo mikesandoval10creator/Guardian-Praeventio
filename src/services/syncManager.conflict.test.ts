@@ -17,7 +17,7 @@
 //   (e) supervisor resolution (`sync-critical-conflict-resolved`) drops
 //       the retained local op so it can never replay over the decision.
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {describe, it, expect, beforeEach, vi, afterEach, afterAll} from 'vitest';
 import type { RiskNode } from '../types';
 
 // --- Mocks (registered BEFORE importing the SUT) ---
@@ -60,6 +60,16 @@ vi.mock('../lib/apiAuth', () => ({
 
 const fetchMock = vi.fn(async () => ({ ok: true, status: 201, json: async () => ({ ok: true }) }));
 vi.stubGlobal('fetch', fetchMock);
+
+// Worker hygiene — never leak the fetch stub into sibling test files
+// scheduled in the same worker.
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.stubGlobal('fetch', fetchMock);
+});
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
 
 // --- SUT (singleton, imported after mocks) ---
 const { matrixSyncManager } = await import('./syncManager');
