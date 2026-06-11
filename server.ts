@@ -118,6 +118,9 @@ import complianceRouter from "./src/server/routes/compliance.js";
 // Mining) PDF generators. Mounted under /api/compliance so the URL space
 // matches Ley 19.628 endpoints (one compliance surface, not two).
 import ds67ds76Router from "./src/server/routes/ds67ds76.js";
+// Épica B1 (capa 2) — DS 67 cotización-adicional simulator over the real
+// siniestralidad of the project (pure engine + incident aggregation).
+import ds67SimulatorRouter from "./src/server/routes/ds67.js";
 // Sprint 38 — Generic compliance emission endpoint per ADR-0017
 // (multi-jurisdiction document generation). Pre-existing router that
 // remained unmounted; activated here as part of Sprint E backend debt
@@ -994,6 +997,11 @@ app.use('/api/compliance', complianceRouter);
 // Sprint 31 Bucket PP — DS 67 + DS 76 PDF reglamento generators. Same
 // /api/compliance surface; the routes are namespaced under /ds67 and /ds76.
 app.use('/api/compliance', ds67ds76Router);
+
+// Épica B1 — DS 67 siniestralidad simulator (read-only compute). Routes are
+// namespaced under /:projectId/ds67/simulator/* — no clash with the /ds67
+// PDF generators above.
+app.use('/api/compliance', ds67SimulatorRouter);
 
 // Sprint 38 — ADR-0017 generic emission endpoint:
 //   POST /api/compliance/emit/:type with body { country, payload }
