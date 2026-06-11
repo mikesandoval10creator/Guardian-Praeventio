@@ -268,6 +268,38 @@
       ]
     },
     {
+      "collectionGroup": "protocol_assessments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "projectId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "computedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "protocol_assessments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "projectId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "protocol",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "computedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "gamification_scores",
       "queryScope": "COLLECTION",
       "fields": [

@@ -37,6 +37,8 @@ import {
   Database,
   Droplet,
   Droplets,
+  Ear,
+  Hand,
   FileText,
   Folder,
   Gamepad2,
@@ -320,6 +322,9 @@ export function buildSidebarMenuGroups(
         { title: t('nav.medicine', 'Medicina'), icon: HeartPulse, path: '/medicine', color: 'text-rose-400' },
         { title: t('nav.hygiene', 'Higiene Industrial'), icon: Droplets, path: '/hygiene', color: 'text-blue-400' },
         { title: t('nav.ergonomics', 'Ergonomía'), icon: UserCheck, path: '/ergonomics', color: 'text-amber-400' },
+        // B-protocols — TMERT-EESS + PREXOR con UI propia (gestión MINSAL).
+        { title: t('nav.tmert', 'TMERT-EESS'), icon: Hand, path: '/tmert', color: 'text-amber-400' },
+        { title: t('nav.prexor', 'PREXOR Ruido'), icon: Ear, path: '/prexor', color: 'text-sky-400' },
         // Sprint K vidas críticas wire — Monitor de Fatiga.
         { title: t('nav.fatigue', 'Monitor de Fatiga'), icon: Moon, path: '/fatigue', color: 'text-violet-500' },
       ],

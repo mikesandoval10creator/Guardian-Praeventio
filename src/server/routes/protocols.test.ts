@@ -22,6 +22,8 @@ describe('protocolsRouter (wire-up contract)', () => {
     '/:projectId/protocols/iper',
     '/:projectId/protocols/prexor',
     '/:projectId/protocols/tmert',
+    '/:projectId/protocols/tmert/assessments',
+    '/:projectId/protocols/prexor/assessments',
   ];
 
   for (const path of paths) {
@@ -29,4 +31,14 @@ describe('protocolsRouter (wire-up contract)', () => {
       expect(hasPost(path)).toBe(true);
     });
   }
+
+  it('registers GET /:projectId/protocols/assessments', () => {
+    expect(
+      layers.some(
+        (l) =>
+          l.route?.path === '/:projectId/protocols/assessments' &&
+          l.route?.methods.get === true,
+      ),
+    ).toBe(true);
+  });
 });
