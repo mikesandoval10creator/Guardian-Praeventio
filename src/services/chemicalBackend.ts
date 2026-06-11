@@ -2,6 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { parseGeminiJson } from './gemini/parsing';
 import { CHEMICAL_PROMPT } from "./coach/prompts.js";
 import { NormativeRagService, type NormativeChunk } from "./coach/normativeRag.js";
+import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../config/aiModels.js';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -58,7 +59,7 @@ Responde en JSON estricto incluyendo el array "citations" con las
 referencias normativas que respaldan cada hallazgo.`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -125,7 +126,7 @@ Define:
 Responde en JSON e incluye "citations" con las normas usadas.`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: AI_MODEL_REASONING,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -171,7 +172,7 @@ Considera la toxicidad (LPP DS 594 anexo 4), inflamabilidad (categorías GHS)
 y costo-efectividad. Cita la normativa que respalda la jerarquía de control.`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: prompt
   });
 

@@ -3,6 +3,7 @@ import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { generateEmbedding } from "./ragService.js";
 import { logger } from '../utils/logger';
+import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../config/aiModels.js';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -25,7 +26,7 @@ const generateInitialDataForIndustry = async (industry: string) => {
 
   logger.debug(`Calling Gemini for IPERC (${industry})...`);
   const ipercResponse = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL_FAST,
     contents: ipercPrompt,
     config: {
       responseMimeType: "application/json",
@@ -53,7 +54,7 @@ const generateInitialDataForIndustry = async (industry: string) => {
 
   logger.debug(`Calling Gemini for PTS (${industry})...`);
   const ptsResponse = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: AI_MODEL_REASONING,
     contents: ptsPrompt,
   });
 

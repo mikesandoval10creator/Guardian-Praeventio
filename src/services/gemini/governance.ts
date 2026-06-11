@@ -26,6 +26,7 @@ import {
   checkQuotaLimit,
   type QuotaCheck,
 } from '../observability/quotaTracker.js';
+import { GEMINI_MODEL_IDS } from '../../config/aiModels.js';
 
 /**
  * Throws when the circuit is open for `circuitKey` or the tenant's
@@ -63,14 +64,17 @@ export async function assertGeminiAllowed(
  * pricing page; revisit when model SKUs change. Anything we can't
  * classify falls back to Pro pricing so we never under-bill.
  */
+// Keyed by CONCRETE SKU (GEMINI_MODEL_IDS), not by use-case constant:
+// pricing follows the model, and an env-overridden use case pointing at
+// an unknown SKU must fall back to Pro pricing (never under-bill).
 const GEMINI_PRICING_USD_PER_M_TOKENS: Record<string, { in: number; out: number }> = {
-  'gemini-2.0-flash': { in: 0.075, out: 0.3 },
-  'gemini-2.5-flash': { in: 0.1, out: 0.4 },
-  'gemini-3.1-flash-preview': { in: 0.1, out: 0.4 },
-  'gemini-3.1-pro-preview': { in: 1.25, out: 5.0 },
+  [GEMINI_MODEL_IDS.FLASH_20]: { in: 0.075, out: 0.3 },
+  [GEMINI_MODEL_IDS.FLASH_25]: { in: 0.1, out: 0.4 },
+  [GEMINI_MODEL_IDS.FLASH_31_PREVIEW]: { in: 0.1, out: 0.4 },
+  [GEMINI_MODEL_IDS.PRO_31_PREVIEW]: { in: 1.25, out: 5.0 },
 } as const;
 
-const DEFAULT_GEMINI_MODEL_KEY = 'gemini-3.1-pro-preview';
+const DEFAULT_GEMINI_MODEL_KEY = GEMINI_MODEL_IDS.PRO_31_PREVIEW;
 
 /**
  * Estimate USD cost for a Gemini call given approximate input/output

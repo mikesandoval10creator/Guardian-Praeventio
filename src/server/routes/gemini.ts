@@ -49,6 +49,7 @@ import { tracedAsync } from '../../services/observability/tracing.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 import { isUpstreamGeminiParseError } from './_geminiErrors.js';
+import { AI_MODEL_CHAT, AI_MODEL_FAST_STABLE } from '../../config/aiModels.js';
 
 function sentryCapture(
   err: unknown,
@@ -357,7 +358,7 @@ ${envBlock}
       res.setHeader('Connection', 'keep-alive');
 
       const responseStream = await ai.models.generateContentStream({
-        model: 'gemini-3.1-pro-preview',
+        model: AI_MODEL_CHAT,
         contents: prompt,
       });
 
@@ -375,14 +376,14 @@ ${envBlock}
       const inTokens = Math.ceil(prompt.length / 4);
       await recordGeminiOutcome(tenantId, 'success', {
         tokens: inTokens + streamedTokens,
-        costUsd: estimateGeminiCostUsd('gemini-3.1-pro-preview', inTokens, streamedTokens),
+        costUsd: estimateGeminiCostUsd(AI_MODEL_CHAT, inTokens, streamedTokens),
       });
     } else {
       const result = await tracedAsync(
         'ask-guardian.generateContent',
-        { tenantId, projectId: typeof projectId === 'string' ? projectId : null, model: 'gemini-3.1-pro-preview' },
+        { tenantId, projectId: typeof projectId === 'string' ? projectId : null, model: AI_MODEL_CHAT },
         () => ai.models.generateContent({
-          model: 'gemini-3.1-pro-preview',
+          model: AI_MODEL_CHAT,
           contents: prompt,
         }),
       );
@@ -409,7 +410,7 @@ ${envBlock}
         : Math.ceil((result.text ?? '').length / 4);
       await recordGeminiOutcome(tenantId, 'success', {
         tokens: tokensIn + tokensOut,
-        costUsd: estimateGeminiCostUsd('gemini-3.1-pro-preview', tokensIn, tokensOut),
+        costUsd: estimateGeminiCostUsd(AI_MODEL_CHAT, tokensIn, tokensOut),
       });
     }
   } catch (error) {
@@ -576,7 +577,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
         tokens: tokensIn + tokensOut,
         // Most RPCs use Flash internally; Pro is reserved for the
         // ask-guardian path. Use Flash pricing as the default.
-        costUsd: estimateGeminiCostUsd('gemini-2.0-flash', tokensIn, tokensOut),
+        costUsd: estimateGeminiCostUsd(AI_MODEL_FAST_STABLE, tokensIn, tokensOut),
       });
     } else {
       res.status(400).json({ error: `Action ${action} not found` });
@@ -728,7 +729,7 @@ router.post(
     let streamedChars = 0;
     try {
       const responseStream = await ai.models.generateContentStream({
-        model: 'gemini-3.1-pro-preview',
+        model: AI_MODEL_CHAT,
         contents: prompt,
       });
 
@@ -750,7 +751,7 @@ router.post(
       res.end();
       await recordGeminiOutcome(tenantId, 'success', {
         tokens: totalTokens,
-        costUsd: estimateGeminiCostUsd('gemini-3.1-pro-preview', inTokens, outTokens),
+        costUsd: estimateGeminiCostUsd(AI_MODEL_CHAT, inTokens, outTokens),
       });
     } catch (error) {
       logger.error('gemini_stream_failed', error);

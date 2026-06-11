@@ -3,6 +3,7 @@ import { parseGeminiJson } from './gemini/parsing';
 import { GoogleGenAI, Type } from "@google/genai";
 import { processGlobalSafetyAudit, calculateComplianceSummary } from "./geminiBackend.js";
 import { logger } from '../utils/logger';
+import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../config/aiModels.js';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -79,7 +80,7 @@ export const autoValidateTelemetry = async (telemetryEvent: any) => {
     
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+            model: AI_MODEL_FAST,
             contents: prompt,
             config: { responseMimeType: "application/json" }
         });
@@ -109,7 +110,7 @@ export const predictGlobalIncidents = async (context: string, envContext: string
     `;
 
     const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: AI_MODEL_REASONING,
         contents: prompt,
         config: {
             responseMimeType: "application/json",

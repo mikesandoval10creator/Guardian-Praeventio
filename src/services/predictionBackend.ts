@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { parseGeminiJson } from './gemini/parsing';
 import { withSentryScope } from './observability/sentryInstrumentation';
+import { AI_MODEL_REASONING } from '../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -41,7 +42,7 @@ async function generatePredictiveForecastImpl(projectName: string, context: stri
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: AI_MODEL_REASONING,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -102,7 +103,7 @@ async function analyzeRiskCorrelationsImpl(nodes: any[], events: any[]) {
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: AI_MODEL_REASONING,
     contents: prompt,
     config: {
       responseMimeType: "application/json",

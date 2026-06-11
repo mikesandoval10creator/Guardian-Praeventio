@@ -107,7 +107,7 @@ src/data/normativa/         # corpus de leyes (BCN, ISO, NCh)
 
 ### AI (`src/services/ai`, `src/services/gemini*`)
 ```
-src/services/geminiBackend.ts   # 2923 LOC — god-file en migración (R18)
+src/services/geminiBackend.ts   # 1479 LOC — god-file en migración (R18)
 src/services/geminiService.ts   # cliente HTTP que llama /api/gemini
 src/services/ragService.ts      # vector search sobre normativa
 src/services/ai/                # destino post-split (gemini/{domain}.ts)

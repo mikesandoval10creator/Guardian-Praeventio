@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { logger } from '../utils/logger';
 import { autoConnectNodes } from "./geminiBackend";
 import { assertProjectMember } from "./auth/projectMembership";
+import { AI_MODEL_EMBEDDINGS } from '../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -31,7 +32,7 @@ const AUTO_CONNECT_RECENT_LIMIT = 50;
 const getEmbedding = async (text: string): Promise<number[]> => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY not configured");
   const ai = new GoogleGenAI({ apiKey: API_KEY });
-  const result = await ai.models.embedContent({ model: "text-embedding-004", contents: text });
+  const result = await ai.models.embedContent({ model: AI_MODEL_EMBEDDINGS, contents: text });
   return result.embeddings?.[0]?.values ?? [];
 };
 

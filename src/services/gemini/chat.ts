@@ -17,6 +17,7 @@ import { GoogleGenAI } from '@google/genai';
 import { logger } from '../../utils/logger';
 import { redactPii } from '../observability/piiRedactor';
 import { searchRelevantContext } from '../ragService';
+import { AI_MODEL_CHAT, AI_MODEL_FAST } from '../../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -63,7 +64,7 @@ export const queryBCN = async (query: string): Promise<string | undefined> => {
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
+      model: AI_MODEL_CHAT,
       contents: redactPromptForVertex(prompt, 'queryBCN'),
       config: {
         systemInstruction:
@@ -137,7 +138,7 @@ export const getChatResponse = async (
   }));
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-pro-preview',
+    model: AI_MODEL_CHAT,
     contents: [
       ...safeHistory,
       {
@@ -190,7 +191,7 @@ export const getSafetyAdvice = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: `Genera un consejo de seguridad breve (máximo 100 caracteres) basado en las siguientes condiciones climáticas:
     Temperatura: ${weather.temp}°C, UV: ${weather.uv}, Calidad Aire: ${weather.airQuality ?? 'no disponible'}`,
     config: {

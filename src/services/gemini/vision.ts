@@ -18,6 +18,7 @@
 
 import { GoogleGenAI, Type } from '@google/genai';
 import { parseGeminiJson } from './parsing';
+import { AI_MODEL_VISION, AI_MODEL_VISION_FAST } from '../../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -29,7 +30,7 @@ export const analyzePostureWithAI = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-pro-preview',
+    model: AI_MODEL_VISION,
     contents: [
       {
         inlineData: {
@@ -73,7 +74,7 @@ export const analyzeSafetyImage = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-pro-preview',
+    model: AI_MODEL_VISION,
     contents: [
       {
         inlineData: {
@@ -124,7 +125,7 @@ export const analyzeBioImage = async (base64Image: string): Promise<unknown> => 
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-flash-image-preview',
+    model: AI_MODEL_VISION_FAST,
     contents: {
       parts: [
         {

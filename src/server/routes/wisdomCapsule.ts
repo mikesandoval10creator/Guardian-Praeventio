@@ -9,7 +9,7 @@
 //   1. Hallazgos del día anterior del project.
 //   2. Alertas predictivas atendidas en las últimas 24h.
 // Returns a 30-60s summary anonymized at the cuadrilla level (never
-// individual uids). Calls Gemini (gemini-1.5-flash) when GEMINI_API_KEY
+// individual uids). Calls Gemini (`AI_MODEL_LITE`) when GEMINI_API_KEY
 // is set; falls back to a deterministic local summary if absent OR if
 // the LLM call fails OR exceeds a 3s timeout.
 //
@@ -29,6 +29,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
+import { AI_MODEL_LITE } from '../../config/aiModels.js';
 
 const router = Router();
 
@@ -118,7 +119,7 @@ export async function summarizeWithGemini(args: {
   try {
     const ai = new GoogleGenAI({ apiKey });
     const result = await Promise.race([
-      ai.models.generateContent({ model: 'gemini-1.5-flash', contents: prompt }),
+      ai.models.generateContent({ model: AI_MODEL_LITE, contents: prompt }),
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000)),
     ]);
     const r = result as {
