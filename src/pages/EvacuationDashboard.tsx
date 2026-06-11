@@ -25,6 +25,14 @@
 // con onSnapshot real-time es scope siguiente (cuando se defina la
 // collection `evacuation_drills` en firestore.rules — TODO §2.X).
 //
+// Phase 5 arista C1 (2026-06): al iniciar un drill/emergencia real la
+// nómina `expectedWorkers` se pre-popula desde la ASISTENCIA DE HOY del
+// proyecto (`projects/{id}/attendance`, escrita por Attendance.tsx) vía el
+// motor puro `buildEvacuationRoster`. Resultado: el headcount deja de ser
+// "¿cuántos deberían estar?" y pasa a ser la lista NOMINAL de quién falta
+// en el punto de encuentro. El drill demo (5 ficticios) queda solo como
+// fallback EXPLÍCITO cuando no hay asistencia registrada hoy.
+//
 // Banking-grade preserved: las scan operations son idempotentes
 // (workerUid uniq); scannedByUid forzado server-side (recordScan en service
 // ya lo respeta). NO leak entre projects: tenant-scoped via project member
@@ -37,6 +45,7 @@ import { get as idbGet, set as idbSet } from 'idb-keyval';
 
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
+import { db, collection, query, where, getDocs } from '../services/firebase';
 import {
   computeStatus,
   recordScan,
@@ -44,19 +53,27 @@ import {
   type EvacuationDrill,
   type EvacuationStatus,
 } from '../services/evacuation/evacuationHeadcount';
+import {
+  buildEvacuationRoster,
+  type AttendanceRecord,
+} from '../services/evacuation/rosterFromAttendance';
+import { randomId } from '../utils/randomId';
+import { logger } from '../utils/logger';
 
 const STORAGE_KEY = (projectId: string) => `praeventio:evacuation:drill:${projectId}`;
 
+const DEMO_DRILL_PREFIX = 'demo-drill-';
+
 /**
- * Fixture inicial cuando no hay drill activo. Lo usamos para que la página
- * sea navegable sin haber configurado workers en Firestore aún. En prod
- * real, el supervisor genera el drill desde un botón "Iniciar evacuación"
- * que pre-popula `expectedWorkers` desde la collection `workers/`.
+ * Fixture de FALLBACK cuando no hay asistencia registrada hoy (faena sin
+ * torniquete configurado aún). Es explícito: el botón demo solo aparece
+ * después de intentar pre-poblar con la asistencia real y encontrarla
+ * vacía, y el drill resultante queda rotulado "Modo demo" en la UI.
  */
 function createDemoDrill(projectId: string, supervisorUid: string): EvacuationDrill {
   const nowIso = new Date().toISOString();
   return {
-    id: `demo-drill-${Date.now()}`,
+    id: `${DEMO_DRILL_PREFIX}${randomId()}`,
     projectId,
     kind: 'drill',
     startedAt: nowIso,
@@ -79,6 +96,9 @@ export function EvacuationDashboard() {
   const { selectedProject } = useProject();
   const [drill, setDrill] = useState<EvacuationDrill | null>(null);
   const [tick, setTick] = useState(0);
+  const [startState, setStartState] = useState<
+    'idle' | 'loading' | 'no_attendance' | 'fetch_failed'
+  >('idle');
 
   const projectId = selectedProject?.id ?? 'demo-project';
   const supervisorUid = user?.uid ?? 'anonymous-supervisor';
@@ -112,9 +132,64 @@ export function EvacuationDashboard() {
     return computeStatus(drill);
   }, [drill, tick]);
 
-  const startDrill = useCallback(async () => {
+  /**
+   * Inicia el conteo pre-poblando `expectedWorkers` con la asistencia REAL
+   * de HOY del proyecto: quienes registraron ingreso (Check-In en
+   * `projects/{id}/attendance`) sin salida posterior. Si hoy no hay
+   * asistencia, NO inventa nómina — ofrece el modo demo como fallback
+   * explícito.
+   */
+  const startFromAttendance = useCallback(
+    async (kind: 'drill' | 'real') => {
+      setStartState('loading');
+      try {
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const snap = await getDocs(
+          query(
+            collection(db, `projects/${projectId}/attendance`),
+            // timestamp es ISO-8601 → la comparación lexicográfica de
+            // Firestore equivale a la cronológica. Pre-filtro del día;
+            // buildEvacuationRoster re-filtra (día local + ≤ now).
+            where('timestamp', '>=', startOfDay.toISOString()),
+          ),
+        );
+        const records = snap.docs.map((doc) => doc.data() as AttendanceRecord);
+        const now = new Date();
+        const roster = buildEvacuationRoster(records, [], now);
+        if (roster.expected.length === 0) {
+          setStartState('no_attendance');
+          return;
+        }
+        const d: EvacuationDrill = {
+          id: `drill-${randomId()}`,
+          projectId,
+          kind,
+          startedAt: now.toISOString(),
+          startedByUid: supervisorUid,
+          meetingPointId: 'meeting-point-main',
+          expectedWorkers: roster.expected.map((w) => ({
+            uid: w.uid,
+            fullName: w.fullName,
+            ...(w.lastKnownLocation ? { lastKnownLocation: w.lastKnownLocation } : {}),
+          })),
+          scans: [],
+        };
+        setDrill(d);
+        setStartState('idle');
+        await idbSet(STORAGE_KEY(projectId), d);
+      } catch (err) {
+        logger.error('evacuation_attendance_roster_failed', { err, projectId });
+        setStartState('fetch_failed');
+      }
+    },
+    [projectId, supervisorUid],
+  );
+
+  const startDemoDrill = useCallback(async () => {
     const d = createDemoDrill(projectId, supervisorUid);
     setDrill(d);
+    setStartState('idle');
     await idbSet(STORAGE_KEY(projectId), d);
   }, [projectId, supervisorUid]);
 
@@ -177,17 +252,61 @@ export function EvacuationDashboard() {
           <p className="text-sm text-muted-token">
             {t(
               'evacuation.no_drill_help',
-              'En producción, el supervisor pre-popula la lista de trabajadores desde la base del proyecto. Para demo, puedes iniciar un drill con 5 trabajadores ficticios y probar el flujo de conteo.',
+              'Al iniciar, la nómina de esperados se pre-popula con la asistencia de HOY del proyecto: quienes marcaron ingreso y no han registrado salida.',
             )}
           </p>
-          <button
-            type="button"
-            onClick={() => void startDrill()}
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-sm font-black uppercase tracking-widest transition-all"
-          >
-            <Play className="w-4 h-4" aria-hidden="true" />
-            {t('evacuation.start_demo', 'Iniciar drill demo (5 trabajadores)')}
-          </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => void startFromAttendance('drill')}
+              disabled={startState === 'loading'}
+              data-testid="evac-start-drill"
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-black uppercase tracking-widest transition-all"
+            >
+              <Play className="w-4 h-4" aria-hidden="true" />
+              {t('evacuation.dashboard.startDrill', 'Iniciar simulacro')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void startFromAttendance('real')}
+              disabled={startState === 'loading'}
+              data-testid="evac-start-real"
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white text-sm font-black uppercase tracking-widest transition-all"
+            >
+              <AlertTriangle className="w-4 h-4" aria-hidden="true" />
+              {t('evacuation.dashboard.startReal', 'Emergencia real')}
+            </button>
+          </div>
+
+          {(startState === 'no_attendance' || startState === 'fetch_failed') && (
+            <div
+              className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3"
+              data-testid={
+                startState === 'no_attendance' ? 'evac-no-attendance' : 'evac-attendance-error'
+              }
+            >
+              <p className="text-sm font-bold text-amber-700 dark:text-amber-300">
+                {startState === 'no_attendance'
+                  ? t(
+                      'evacuation.no_attendance_today',
+                      'Sin asistencia registrada hoy en este proyecto — no hay nómina real que pre-poblar.',
+                    )
+                  : t(
+                      'evacuation.attendance_error',
+                      'No se pudo leer la asistencia del día. Reintenta o usa el modo demo.',
+                    )}
+              </p>
+              <button
+                type="button"
+                onClick={() => void startDemoDrill()}
+                data-testid="evac-start-demo"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-default-token text-xs font-black uppercase tracking-widest text-muted-token hover:text-rose-500 hover:border-rose-500/40 transition-colors"
+              >
+                <Play className="w-3.5 h-3.5" aria-hidden="true" />
+                {t('evacuation.start_demo', 'Iniciar drill demo (5 trabajadores)')}
+              </button>
+            </div>
+          )}
         </section>
       </main>
     );
@@ -218,6 +337,14 @@ export function EvacuationDashboard() {
                 ? t('evacuation.active_label_real', '⚠️ EMERGENCIA REAL')
                 : t('evacuation.active_label_drill', 'Simulacro activo')}
             </h1>
+            {drill.id.startsWith(DEMO_DRILL_PREFIX) && (
+              <p
+                className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase tracking-widest mb-1"
+                data-testid="evac-demo-badge"
+              >
+                {t('evacuation.demo_mode', 'Modo demo — nómina ficticia')}
+              </p>
+            )}
             <p className={`text-5xl sm:text-7xl font-black tabular-nums leading-none ${coverageColor}`}>
               {status!.coveragePercent}%
             </p>
@@ -257,7 +384,7 @@ export function EvacuationDashboard() {
               {t('evacuation.missing_heading', 'FALTANTES')} ({status!.missing.length})
             </h2>
           </div>
-          <ul className="space-y-2">
+          <ul className="space-y-2" data-testid="evac-missing-list">
             {status!.missing.map((w) => (
               <li
                 key={w.uid}
@@ -298,7 +425,7 @@ export function EvacuationDashboard() {
               {t('evacuation.safe_heading', 'Seguros')} ({status!.safe.length})
             </h2>
           </div>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2" data-testid="evac-safe-list">
             {status!.safe.map((w) => (
               <li
                 key={w.uid}

@@ -3158,7 +3158,10 @@
     "missing": "Missing",
     "missing_heading": "MISSING",
     "no_drill": "No active drill",
-    "no_drill_help": "In production, the supervisor pre-populates the worker list from the project base. For demo, you can start a drill with 5 mock workers and try the headcount flow.",
+    "no_drill_help": "When you start, the expected roster is pre-populated with TODAY's project attendance: workers who checked in and have not checked out.",
+    "no_attendance_today": "No attendance recorded today for this project — there is no real roster to pre-populate.",
+    "attendance_error": "Could not read today's attendance. Retry or use demo mode.",
+    "demo_mode": "Demo mode — mock roster",
     "plan": {
       "title": "Emergency Plan (EP)"
     },
