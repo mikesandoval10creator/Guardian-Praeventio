@@ -1231,7 +1231,8 @@ service cloud.firestore {
     }
 
     // B-protocols (2026-06-11) — MINSAL protocol assessments (TMERT-EESS /
-    // PREXOR). Engines: src/services/protocols/{tmert,prexor}.ts. Written
+    // PREXOR / PLANESI). Engines:
+    // src/services/protocols/{tmert,prexor,planesi}.ts. Written
     // and read ONLY via the server routes under
     // /api/sprint-k/:projectId/protocols/* (verifyAuth +
     // assertProjectMember, Admin SDK — bypasses these rules). The server
