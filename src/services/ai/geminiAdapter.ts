@@ -8,7 +8,7 @@
  *
  *   const ai = new GoogleGenAI({ apiKey: API_KEY });
  *   const response = await ai.models.generateContent({
- *     model: 'gemini-3-flash-preview',
+ *     model: AI_MODEL_FAST, // from src/config/aiModels.ts
  *     contents: '...prompt...',
  *     config: { responseMimeType, temperature, ... }
  *   });

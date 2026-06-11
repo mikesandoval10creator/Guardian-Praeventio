@@ -28,6 +28,7 @@ import { logger } from '../../utils/logger';
 import { redactPii } from '../observability/piiRedactor';
 import { searchRelevantContext } from '../ragService';
 import { parseGeminiJson, withExponentialBackoff } from './parsing';
+import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -61,7 +62,7 @@ export const generateISOAuditChecklist = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-pro-preview',
+    model: AI_MODEL_REASONING,
     contents: `Genera un checklist de auditoría basado en la norma ISO 45001 para el tema: "${topic}".
 
     Utiliza el siguiente contexto de riesgos del proyecto para adaptar las preguntas:
@@ -132,7 +133,7 @@ export const processDocumentToNodes = async (text: string): Promise<RiskNode[]> 
           3. tags: Una lista de etiquetas relevantes para categorizar el nodo.`;
       const response = await withExponentialBackoff(() =>
         ai.models.generateContent({
-          model: 'gemini-3.1-pro-preview',
+          model: AI_MODEL_REASONING,
           contents: redactPromptForVertex(chunkPrompt, 'processDocumentToNodes'),
           config: {
             responseMimeType: 'application/json',
@@ -170,7 +171,7 @@ export const auditAISuggestion = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: `Actúa como el "Guardián de la Ética" de Praeventio Guard.
     Audita la siguiente sugerencia de IA contra la normativa de seguridad y los valores de la empresa.
 
@@ -207,7 +208,7 @@ export const analyzeDocumentCompliance = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: `Analiza el cumplimiento normativo del siguiente documento.
     TEXTO DEL DOCUMENTO:
     ${documentText}
@@ -265,7 +266,7 @@ export const investigateIncidentWithAI = async (
     5. Lección Aprendida Global para la red neuronal de riesgos.
     6. Referencia a formularios legales chilenos (DIAT/DIEP) si aplica.`;
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-pro-preview',
+    model: AI_MODEL_REASONING,
     contents: redactPromptForVertex(incidentPrompt, 'investigateIncidentWithAI'),
     config: {
       responseMimeType: 'application/json',
@@ -319,7 +320,7 @@ export const auditProjectComplianceWithAI = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: `Actúa como un auditor senior de cumplimiento de seguridad y salud ocupacional.
     Realiza una auditoría de cumplimiento para el proyecto ${projectName}.
 
@@ -367,7 +368,7 @@ export const analyzeAttendancePatterns = async (
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: `Analiza los siguientes patrones de asistencia de trabajadores en busca de riesgos de fatiga o seguridad para el proyecto ${projectName}.
     DATOS DE ASISTENCIA:
     ${attendanceData}

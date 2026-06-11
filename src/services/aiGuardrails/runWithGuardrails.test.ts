@@ -12,6 +12,7 @@ import {
   findUnresolvedPlaceholders,
   GUARDRAIL_FALLBACK_TEXT,
 } from './runWithGuardrails.ts';
+import { AI_MODEL_FAST } from '../../config/aiModels.ts';
 
 // ────────────────────────────────────────────────────────────────────────
 // Fake adapter — inyectable, controla la respuesta del "LLM"
@@ -318,7 +319,7 @@ describe('runWithGuardrails — backwards compatibility', () => {
     // runWithGuardrails. Debe seguir funcionando sin modificación.
     const adapter = makeFakeAdapter('respuesta cruda del LLM');
     const r = await adapter.generate({
-      model: 'gemini-3-flash-preview',
+      model: AI_MODEL_FAST,
       prompt: 'cualquier prompt',
     });
     expect(r.text).toBe('respuesta cruda del LLM');

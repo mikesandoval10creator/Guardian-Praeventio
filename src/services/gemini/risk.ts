@@ -23,6 +23,7 @@ import { withSentryScope } from '../observability/sentryInstrumentation';
 import { redactPii } from '../observability/piiRedactor';
 import { queryCommunityKnowledge } from '../ragService';
 import { parseGeminiJson } from './parsing';
+import { AI_MODEL_FAST, AI_MODEL_REASONING } from '../../config/aiModels';
 
 // TODO(§12.5.1 step 6 → step 2 merge): cuando PR #555 (gemini/pii.ts)
 // mergee a main, reemplazar este helper inline por `import {
@@ -73,7 +74,7 @@ export const analyzeFastCheck = async (observation: string): Promise<unknown> =>
     4. Acción inmediata recomendada.
     5. Lista de etiquetas (tags) relevantes.`;
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: AI_MODEL_FAST,
         contents: redactPromptForVertex(fastCheckPrompt, 'analyzeFastCheck'),
         config: {
           responseMimeType: 'application/json',
@@ -104,7 +105,7 @@ async function predictGlobalIncidentsImpl(
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: AI_MODEL_FAST,
     contents: `Actúa como un sistema de predicción de riesgos industriales.
     Analiza el siguiente contexto de la red de riesgos y las condiciones ambientales actuales para predecir posibles incidentes.
 
@@ -207,7 +208,7 @@ async function analyzeRiskWithAIImpl(
   const fallback = async () => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: AI_MODEL_FAST,
       contents: safePrompt,
       config: {
         responseMimeType: 'application/json',
@@ -278,7 +279,7 @@ export const analyzeRootCauses = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
+      model: AI_MODEL_REASONING,
       contents: redactPromptForVertex(prompt, 'analyzeRootCauses'),
       config: {
         responseMimeType: 'application/json',

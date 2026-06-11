@@ -54,7 +54,7 @@ export type AiProvider = 'gemini-consumer' | 'vertex-ai' | 'noop';
  *   - multimodal (image / audio parts).
  */
 export interface AiGenerateRequest {
-  /** Model identifier, e.g. `'gemini-1.5-pro'` or `'gemini-3-flash-preview'`. */
+  /** Model identifier — prefer the `AI_MODEL_*` constants from `src/config/aiModels.ts`. */
   model: string;
   /** Single-turn user prompt. Multi-turn comes later. */
   prompt: string;

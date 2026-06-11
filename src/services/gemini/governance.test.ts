@@ -30,6 +30,7 @@ import {
   estimateGeminiCostUsd,
   recordGeminiOutcome,
 } from './governance';
+import { GEMINI_MODEL_IDS } from '../../config/aiModels';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -39,27 +40,27 @@ beforeEach(() => {
 
 describe('estimateGeminiCostUsd', () => {
   it('flash 2.0: 1M in + 1M out = 0.075 + 0.30', () => {
-    const usd = estimateGeminiCostUsd('gemini-2.0-flash', 1_000_000, 1_000_000);
+    const usd = estimateGeminiCostUsd(GEMINI_MODEL_IDS.FLASH_20, 1_000_000, 1_000_000);
     expect(usd).toBeCloseTo(0.375, 5);
   });
 
   it('pro 3.1: 1M in + 1M out = 1.25 + 5.00', () => {
-    const usd = estimateGeminiCostUsd('gemini-3.1-pro-preview', 1_000_000, 1_000_000);
+    const usd = estimateGeminiCostUsd(GEMINI_MODEL_IDS.PRO_31_PREVIEW, 1_000_000, 1_000_000);
     expect(usd).toBeCloseTo(6.25, 5);
   });
 
   it('modelo desconocido cae a Pro pricing (never under-bill)', () => {
     const unknown = estimateGeminiCostUsd('gemini-unicorn', 1_000_000, 0);
-    const pro = estimateGeminiCostUsd('gemini-3.1-pro-preview', 1_000_000, 0);
+    const pro = estimateGeminiCostUsd(GEMINI_MODEL_IDS.PRO_31_PREVIEW, 1_000_000, 0);
     expect(unknown).toBe(pro);
   });
 
   it('0 tokens = $0', () => {
-    expect(estimateGeminiCostUsd('gemini-2.0-flash', 0, 0)).toBe(0);
+    expect(estimateGeminiCostUsd(GEMINI_MODEL_IDS.FLASH_20, 0, 0)).toBe(0);
   });
 
   it('redondea a 6 decimales', () => {
-    const usd = estimateGeminiCostUsd('gemini-2.0-flash', 1, 1);
+    const usd = estimateGeminiCostUsd(GEMINI_MODEL_IDS.FLASH_20, 1, 1);
     expect(Number.isFinite(usd)).toBe(true);
     expect(usd.toString().split('.')[1]?.length ?? 0).toBeLessThanOrEqual(6);
   });

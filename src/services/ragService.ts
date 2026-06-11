@@ -3,6 +3,7 @@ import { fetchLawFromBCN, CRITICAL_LAWS } from "./bcnService.js";
 import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { logger } from '../utils/logger';
+import { AI_MODEL_EMBEDDINGS } from '../config/aiModels.js';
 
 interface VectorDocument {
   id: string;
@@ -64,7 +65,7 @@ export const generateEmbedding = async (text: string): Promise<number[]> => {
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await withExponentialBackoff(() => 
     ai.models.embedContent({
-      model: "text-embedding-004",
+      model: AI_MODEL_EMBEDDINGS,
       contents: text,
     })
   );
