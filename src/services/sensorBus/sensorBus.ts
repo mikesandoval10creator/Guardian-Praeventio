@@ -39,7 +39,11 @@ export type SensorKind =
   | 'battery'
   | 'oxygen'
   | 'temperature'
-  | 'lone_worker_panic';
+  | 'lone_worker_panic'
+  // Device carry-mode transitions (normal/in_pocket/near_head/in_helmet_mount/
+  // face_down) classified by proximityModeDetector via useProximityMode.
+  // face_down publishes as 'warning' (possible unconscious worker).
+  | 'device_mode';
 
 export type SensorSeverity = 'info' | 'warning' | 'critical';
 

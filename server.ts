@@ -300,6 +300,8 @@ import orgMetricsRouter from "./src/server/routes/orgMetrics.js";
 import reportsAutomationRouter from "./src/server/routes/reportsAutomation.js";
 import safetyMetricsRouter from "./src/server/routes/safetyMetrics.js";
 import projectComparatorRouter from "./src/server/routes/projectComparator.js";
+// Épica Rubros SII slice 4 — anonymous per-rubro benchmarks (k-anonymity).
+import rubroBenchmarksRouter from "./src/server/routes/rubroBenchmarks.js";
 import predictiveAlertsRouter from "./src/server/routes/predictiveAlerts.js";
 import structuralLoadsRouter from "./src/server/routes/structuralLoads.js";
 // Spaced Repetition (SM-2) — Sprint K §85-89 post-training learning retention.
@@ -1128,6 +1130,9 @@ app.use('/api/sprint-k', orgMetricsRouter);
 app.use('/api/sprint-k', reportsAutomationRouter);
 app.use('/api/sprint-k', safetyMetricsRouter);
 app.use('/api/sprint-k', projectComparatorRouter);
+// Épica Rubros SII slice 4 — GET /api/sii/:projectId/rubro-benchmarks
+// (anonymous cross-tenant rubro benchmarks; k-anonymity enforced server-side).
+app.use('/api/sii', rubroBenchmarksRouter);
 app.use('/api/sprint-k', predictiveAlertsRouter);
 app.use('/api/sprint-k', spacedRepetitionRouter);
 app.use('/api/sprint-k', continuityRouter);

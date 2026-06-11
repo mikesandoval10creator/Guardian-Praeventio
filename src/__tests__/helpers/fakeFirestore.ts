@@ -60,6 +60,7 @@ export const FieldValue = {
 export const Timestamp = {
   now: () => ({ toDate: () => new Date(), toMillis: () => Date.now(), seconds: 0, nanoseconds: 0 }),
   fromDate: (d: Date) => ({ toDate: () => d, toMillis: () => d.getTime() }),
+  fromMillis: (ms: number) => ({ toDate: () => new Date(ms), toMillis: () => ms }),
 };
 
 function applyWrite(base: DocData, patch: DocData, opts: { merge?: boolean } = {}): DocData {

@@ -278,7 +278,7 @@ export function PreShiftRisk() {
           <Section
             testId="pre-shift-risk-weather"
             icon={<Sun className="w-4 h-4" aria-hidden="true" />}
-            title={t('preShiftRisk.section.weather', 'Clima del turno')}
+            title={t('preShiftRisk.section.weather.title', 'Clima del turno')}
             empty={t(
               'preShiftRisk.section.weather.empty',
               'Sin alertas climáticas relevantes.',
@@ -290,7 +290,7 @@ export function PreShiftRisk() {
           <Section
             testId="pre-shift-risk-personnel"
             icon={<UserPlus className="w-4 h-4" aria-hidden="true" />}
-            title={t('preShiftRisk.section.personnel', 'Personal del turno')}
+            title={t('preShiftRisk.section.personnel.title', 'Personal del turno')}
             empty={t(
               'preShiftRisk.section.personnel.empty',
               'Equipo en condiciones normales (sin alertas de fatiga o novatos).',
@@ -303,7 +303,7 @@ export function PreShiftRisk() {
             testId="pre-shift-risk-tasks"
             icon={<ShieldAlert className="w-4 h-4" aria-hidden="true" />}
             title={t(
-              'preShiftRisk.section.tasks',
+              'preShiftRisk.section.tasks.title',
               'Tareas críticas planificadas',
             )}
             empty={t(
@@ -318,7 +318,7 @@ export function PreShiftRisk() {
             testId="pre-shift-risk-equipment"
             icon={<Wrench className="w-4 h-4" aria-hidden="true" />}
             title={t(
-              'preShiftRisk.section.equipment',
+              'preShiftRisk.section.equipment.title',
               'Mantención de equipos',
             )}
             empty={t(
@@ -333,7 +333,7 @@ export function PreShiftRisk() {
             testId="pre-shift-risk-incidents"
             icon={<Activity className="w-4 h-4" aria-hidden="true" />}
             title={t(
-              'preShiftRisk.section.incidents',
+              'preShiftRisk.section.incidents.title',
               'Incidentes últimos 7 días',
             )}
             empty={t(

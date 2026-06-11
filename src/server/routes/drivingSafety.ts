@@ -10,27 +10,32 @@
 // Este router reconstruye el contrato completo desde el hook
 // (`useDrivingSafety.ts`) + el servicio `drivingSafetyService.ts`.
 //
-// 5 endpoints (matching hook):
+// 7 endpoints (matching hook + D2 slice 2):
 //   GET  /:projectId/driving/routes[?status=active|critical|all]
 //   POST /:projectId/driving/routes
 //   POST /:projectId/driving/routes/:id/alert
 //   GET  /:projectId/driving/drivers
 //   POST /:projectId/driving/drivers/:uid/journey
 //   GET  /:projectId/driving/ranking
+//   POST /:projectId/driving/incidents      (SafeDriving on-route report)
 //
 // Storage:
 //   tenants/{tid}/projects/{pid}/driving_routes/{id}
 //   tenants/{tid}/projects/{pid}/driving_drivers/{workerUid}
+//   projects/{pid}/driving_incidents/{id}   (legacy path SafeDriving used)
 
 import { Router } from 'express';
 import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'node:crypto';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+import { serverWriteNodes } from '../services/serverZkNodeWriter.js';
+import type { RiskNodePayload } from '../../services/zettelkasten/types.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -634,6 +639,132 @@ router.get(
     } catch (err) {
       logger.error?.('drivingSafety.ranking.error', err);
       captureRouteError(err, 'drivingSafety.ranking');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ── POST /:projectId/driving/incidents ────────────────────────────────
+//
+// D2 slice 2 — server endpoint for SafeDriving's on-route incident report.
+// Previously `SafeDriving.tsx` wrote client-side straight into
+// `projects/{pid}/driving_incidents`, bypassing the audit-log invariant
+// (CLAUDE.md #3) and carrying no creator identity. This endpoint:
+//   • stamps reportedByUid / reportedByEmail / reportedAt from the VERIFIED
+//     token — nothing in the body can spoof the actor,
+//   • persists to the SAME legacy path `projects/{pid}/driving_incidents`
+//     the UI already used, so any existing data/readers stay coherent.
+//     NOTE: deliberately NOT `guard()` — that helper 404s projects without
+//     a tenantId, but this collection is project-scoped (no tenant prefix)
+//     and an on-route incident report is life-relevant: a legacy project
+//     must still be able to report,
+//   • ports the previous client-side RiskNetwork node (NodeType.INCIDENT)
+//     to the canonical server-side ZK tri-write (`serverWriteNodes`:
+//     legacy zettelkasten_nodes + canonical nodes + its own audit row),
+//   • writes the drivingSafety audit row (awaited — CLAUDE.md #14),
+//   • honours `Idempotency-Key` (same Stripe-pattern as
+//     POST /api/incidents/report) so offline re-taps never duplicate.
+
+const drivingIncidentSchema = z.object({
+  type: z.enum(['Accidente', 'Falla Mecánica']),
+  description: z.string().min(1).max(4000),
+  location: z.string().max(256).optional(),
+});
+
+router.post(
+  '/:projectId/driving/incidents',
+  verifyAuth,
+  idempotencyKey(),
+  validate(drivingIncidentSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const callerEmail: string | null = req.user!.email ?? null;
+    const { projectId } = req.params;
+    // req.validated (not req.body): zod-parsed payload with unknown keys
+    // stripped — a body-supplied `reportedByUid` never reaches the handler.
+    const body = req.validated as z.infer<typeof drivingIncidentSchema>;
+    try {
+      await assertProjectMember(callerUid, projectId, admin.firestore());
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+    try {
+      const db = admin.firestore();
+      const now = new Date().toISOString();
+      const location = body.location ?? 'Ubicación no disponible';
+      // Identity fields are server-stamped from the verified token.
+      const incident = {
+        type: body.type,
+        description: body.description,
+        location,
+        status: 'Reportado',
+        timestamp: now,
+        projectId,
+        reportedByUid: callerUid,
+        reportedByEmail: callerEmail,
+        reportedAt: now,
+      };
+      const docRef = await db
+        .collection(`projects/${projectId}/driving_incidents`)
+        .add({
+          ...incident,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+      // RiskNetwork node — ports the old client `addNode({ type:
+      // NodeType.INCIDENT, ... })` server-side. Best-effort: the incident
+      // doc is already persisted; a node failure must never lose the report.
+      let nodeId: string | null = null;
+      try {
+        const nodePayload: RiskNodePayload = {
+          title: `Incidente en Ruta: ${body.type}`,
+          description: body.description,
+          type: 'incident-reported',
+          severity: body.type === 'Accidente' ? 'high' : 'medium',
+          metadata: {
+            incidentId: docRef.id,
+            type: body.type,
+            status: 'Reportado',
+            timestamp: now,
+            location,
+          },
+          connections: [],
+          references: [],
+        };
+        const written = await serverWriteNodes(
+          [nodePayload],
+          { projectId },
+          { createdBy: callerUid, createdByEmail: callerEmail },
+        );
+        nodeId = written.ids?.[0] ?? null;
+      } catch (err) {
+        logger.warn?.('drivingSafety.incident.node_write_failed', err);
+      }
+
+      try {
+        await auditServerEvent(
+          req,
+          'drivingSafety.incident.report',
+          'drivingSafety',
+          { incidentId: docRef.id, type: body.type, location, nodeId },
+          { projectId },
+        );
+      } catch (err) {
+        // auditServerEvent already swallows internally; defensive wrap per
+        // CLAUDE.md #14 — audit failure is severe but must not fail the
+        // worker's report.
+        logger.error?.('drivingSafety.incident.audit_failed', err);
+      }
+
+      return res
+        .status(201)
+        .json({ ok: true, incident: { id: docRef.id, ...incident }, nodeId });
+    } catch (err) {
+      logger.error?.('drivingSafety.incident.error', err);
+      captureRouteError(err, 'drivingSafety.incident');
       return res.status(500).json({ error: 'internal_error' });
     }
   },

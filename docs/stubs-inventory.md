@@ -139,3 +139,11 @@ imports en vez de batch-grep.
 - **User-visible?**: NO como éxito simulado — `oracle`/`dynamics`/`odoo` devuelven HTTP 501 `ErpNotImplementedError` con mensaje claro y audit log del intento; `mock` es el adapter de pruebas documentado. Adapters reales: `sap`/`buk`/`talana`.
 - **Why stub**: compatibilidad de schema (clientes pueden enviar el erpType y recibir un error honesto en vez de 400 confuso); evita simular éxito.
 - **Removal criteria**: implementar el adapter real correspondiente en `src/services/erp/` y moverlo a `SUPPORTED_ERP_ADAPTERS`.
+
+## Proximity event bridge ausente en @capgo/capacitor-proximity (D1 wiring)
+- **File**: `src/services/proximitySensor/proximityPluginAdapter.ts:49-67` (`loadProximityPlugin()` retorna `null` en toda plataforma)
+- **Owner**: mobile (D1 islands follow-up — `TODO(sprint-D1-followup)` inline)
+- **Sprint target**: TBD — requiere trabajo nativo (extender `packages/capacitor-mesh` o fork de @capgo con `notifyListeners('proximityChanged')` + `getCurrent()`)
+- **User-visible?**: NO — sin fuente de proximidad, `useProximityMode` queda en modo `normal` con política neutra (multiplier 1.0): el umbral de caída sigue siendo exactamente 25 m/s², cero cambio de comportamiento.
+- **Why stub**: `@capgo/capacitor-proximity` v8.1.2 solo expone `enable()/disable()/getStatus()`; Android atenúa la ventana nativamente e iOS togglea `UIDevice.isProximityMonitoringEnabled` — NINGUNO puentea near/far a JS (cero `notifyListeners` en el fuente del plugin). Se rechazó usar `visibilitychange` como proxy: alimentaría un umbral de vida-seguridad con señal ambigua y el monitoreo nativo puede apagar la pantalla y pausar el stream DeviceMotion del que depende la detección de caídas.
+- **Removal criteria**: cuando exista el bridge nativo, retornar el plugin adaptado en `loadProximityPlugin()`; los pin-tests de `proximityPluginAdapter.test.ts` fallan ruidosamente para forzar el retiro de esta entrada. El resto de la cadena TS (engine → `useProximityMode` → sensorBus `device_mode` → threshold de `FallDetectionMonitor`) ya está cableada y testeada vía el contrato DI.
