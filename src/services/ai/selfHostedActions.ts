@@ -16,6 +16,13 @@
 //   queryBCN         — mirrors src/services/gemini/chat.ts queryBCN
 //   getSafetyAdvice  — mirrors src/services/gemini/chat.ts getSafetyAdvice
 //
+// Split-wave additions (2026-06-11) — Markdown/free-text advisory actions
+// whose handlers moved out of geminiBackend.ts in the same wave:
+//
+//   calculateStructuralLoad  — mirrors src/services/gemini/engineering.ts
+//   designHazmatStorage      — mirrors src/services/gemini/engineering.ts
+//   evaluateMinsalCompliance — mirrors src/services/gemini/compliance.ts
+//
 // Structured-JSON and legal-critical actions stay on Gemini until evaluated
 // (see docs/runbooks/SELFHOSTED_AI.md). An action listed in
 // `AI_PROVIDER_ACTIONS_SELFHOSTED` WITHOUT a spec here keeps using Gemini —
@@ -161,6 +168,105 @@ async function buildGetSafetyAdvice(args: unknown[]): Promise<SelfHostedChatRequ
 }
 
 /**
+ * Mirror of src/services/gemini/engineering.ts `calculateStructuralLoad`.
+ * Markdown free-text output; no RAG and no redaction seam in the Gemini
+ * handler (inputs are equipment specs, not personal data), so the builder
+ * stays pure. The Gemini handler's try/catch → Spanish error string lives in
+ * the caller-side fallback, not in this builder.
+ */
+async function buildCalculateStructuralLoad(args: unknown[]): Promise<SelfHostedChatRequest> {
+  const element = asStr(args[0]);
+  const specs = asStr(args[1]);
+  return {
+    prompt: `
+      Actúa como un Ingeniero Estructural Senior y Experto en Prevención de Riesgos.
+      Necesito calcular la capacidad de carga y entender el funcionamiento seguro del siguiente elemento:
+      Elemento: ${element}
+      Especificaciones: ${specs}
+
+      Por favor, proporciona un análisis detallado que incluya:
+      1. **Carga Segura de Trabajo (SWL - Safe Working Load) o Capacidad Portante**: Estimación basada en estándares de la industria.
+      2. **Carga de Ruptura (Breaking Strength)**: Estimación teórica.
+      3. **Factor de Seguridad**: El factor recomendado para este tipo de elemento y por qué.
+      4. **Normativa Aplicable**: Menciona normativas chilenas (NCh) o internacionales (ASTM, ASME, OSHA) relevantes.
+      5. **Recomendaciones Críticas de Uso**: Qué inspeccionar antes de usar y qué evitar para prevenir fallas catastróficas.
+
+      Responde en formato Markdown, estructurado, claro y profesional. Usa fórmulas si es necesario (en formato LaTeX, ej. $F = m \times a$).
+      ADVERTENCIA: Incluye un descargo de responsabilidad indicando que estos cálculos son teóricos y referenciales, y que siempre deben ser validados por un ingeniero calculista certificado en terreno.
+    `,
+  };
+}
+
+/**
+ * Mirror of src/services/gemini/engineering.ts `designHazmatStorage`.
+ * `volume` arrives as a number from the dispatcher and is interpolated
+ * exactly like the Gemini handler does.
+ */
+async function buildDesignHazmatStorage(args: unknown[]): Promise<SelfHostedChatRequest> {
+  const storageType = asStr(args[0]);
+  const volume = typeof args[1] === 'number' ? String(args[1]) : asStr(args[1]);
+  const materialClass = asStr(args[2]);
+  return {
+    prompt: `
+      Actúa como un Experto en Normativa Chilena (OGUC - Ordenanza General de Urbanismo y Construcciones) y DS 43 (Reglamento de Almacenamiento de Sustancias Peligrosas).
+      Necesito diseñar una bodega o instalación con las siguientes características:
+      Tipo de Almacenamiento: ${storageType}
+      Volumen/Cantidad Estimada: ${volume} (toneladas/litros)
+      Clase de Sustancia (NCh382): ${materialClass}
+
+      Proporciona un informe técnico detallado para la construcción y habilitación que incluya:
+      1. **Clasificación de la Instalación**: Según OGUC y DS 43.
+      2. **Requisitos Constructivos (OGUC)**: Resistencia al fuego (RF) exigida para muros, techos y puertas.
+      3. **Distancias de Seguridad**: Distancias a muros medianeros, otras bodegas y zonas de público.
+      4. **Sistemas de Contención**: Requisitos para derrames (volumen de contención, pendientes).
+      5. **Ventilación y Sistemas Eléctricos**: Requisitos de renovación de aire y equipos a prueba de explosión (si aplica).
+      6. **Sistemas contra Incendios**: Extintores, red húmeda, detectores automáticos.
+      7. **Trámites y Permisos**: Qué permisos sectoriales se requieren (Seremi de Salud, Dirección de Obras Municipales).
+
+      Responde en formato Markdown, estructurado y profesional.
+    `,
+  };
+}
+
+/**
+ * Mirror of src/services/gemini/compliance.ts `evaluateMinsalCompliance`.
+ * Same RAG query shape as the Gemini handler; the RAG outage fallback comes
+ * from `fetchLegalContext` (the prompt instructs the model not to invent law
+ * when the context is empty — same posture as queryBCN).
+ */
+async function buildEvaluateMinsalCompliance(args: unknown[]): Promise<SelfHostedChatRequest> {
+  const protocolTitle = asStr(args[0]);
+  const context = asStr(args[1]);
+  const industry = asStr(args[2]);
+
+  const legalContext = await fetchLegalContext(
+    `Exigencias y sanciones del protocolo MINSAL: ${protocolTitle} en la industria ${industry || 'general'}`,
+  );
+
+  return {
+    prompt: `
+      Actúa como un Auditor Senior del Ministerio de Salud de Chile (MINSAL) y experto en la Ley 16.744, utilizando siempre como base la Biblioteca del Congreso Nacional de Chile (BCN).
+      Necesito evaluar el nivel de cumplimiento del siguiente protocolo en mi proyecto:
+      Protocolo: ${protocolTitle}
+      Industria: ${industry || 'General'}
+      Contexto Actual del Proyecto (Hallazgos, Riesgos, Incidentes):
+      ${context || 'Sin datos específicos registrados aún.'}
+
+      CONTEXTO LEGAL Y REQUISITOS (RAG):
+      ${legalContext}
+
+      Por favor, genera un informe de auditoría estructurado que incluya:
+      1. **Estado de Cumplimiento Estimado**: (Cumple, En Riesgo, No Cumple) basado en el contexto.
+      2. **Brechas Identificadas**: Qué falta según las exigencias del protocolo (ej. evaluaciones ambientales, vigilancia médica, capacitación).
+      3. **Plan de Acción Inmediato**: Pasos operativos claros para cerrar las brechas.
+      4. **Multas o Sanciones Potenciales**: Qué riesgos legales enfrenta la empresa si no regulariza la situación (referencia a la ley y multas del Código Sanitario).
+
+      Responde en formato Markdown, estructurado, claro y profesional.
+    `,
+  };
+}
+
+/**
  * Registry: action name → request builder. ONLY actions present here can be
  * served by the self-hosted provider; everything else keeps using Gemini even
  * when listed in `AI_PROVIDER_ACTIONS_SELFHOSTED`.
@@ -169,6 +275,9 @@ export const SELF_HOSTED_ACTION_SPECS: Readonly<Record<string, SelfHostedActionS
   getChatResponse: { build: buildGetChatResponse },
   queryBCN: { build: buildQueryBCN },
   getSafetyAdvice: { build: buildGetSafetyAdvice },
+  calculateStructuralLoad: { build: buildCalculateStructuralLoad },
+  designHazmatStorage: { build: buildDesignHazmatStorage },
+  evaluateMinsalCompliance: { build: buildEvaluateMinsalCompliance },
 };
 
 export function hasSelfHostedActionSpec(action: string): boolean {

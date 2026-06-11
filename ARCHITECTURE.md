@@ -107,7 +107,7 @@ src/data/normativa/         # corpus de leyes (BCN, ISO, NCh)
 
 ### AI (`src/services/ai`, `src/services/gemini*`)
 ```
-src/services/geminiBackend.ts   # 1479 LOC — god-file en migración (R18)
+src/services/geminiBackend.ts   # 748 LOC — god-file en migración (R18); steps 13-16 movieron predictions/riskNetwork/compliance/engineering a src/services/gemini/*
 src/services/geminiService.ts   # cliente HTTP que llama /api/gemini
 src/services/ragService.ts      # vector search sobre normativa
 src/services/ai/                # destino post-split (gemini/{domain}.ts)
@@ -276,9 +276,10 @@ Cada PR de migración:
 
 ## 5. GeminiBackend.ts split strategy (R18)
 
-`src/services/geminiBackend.ts` exporta 72 funciones (60 directas + 12
-barrel re-exports) para el proxy `/api/gemini`. Split propuesto en
-`src/services/gemini/`:
+`src/services/geminiBackend.ts` exporta 11 funciones directas + 15 barrel
+re-exports (`export * from`) + los re-exports nominales de los módulos ya
+extraídos a `src/services/gemini/*` (steps 1-16) para el proxy
+`/api/gemini`. Split propuesto en `src/services/gemini/`:
 
 | Módulo | Funciones | Dominio |
 |---|---|---|
