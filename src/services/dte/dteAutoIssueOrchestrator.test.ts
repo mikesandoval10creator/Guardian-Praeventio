@@ -193,4 +193,14 @@ describe('decideDteIssue', () => {
     const d = decideDteIssue({ ...baseRequest, paymentGateway: 'mercadopago' });
     expect(d.paymentGateway).toBe('mercadopago');
   });
+
+  // 2026-06-11 (khipu cableado): Khipu joins the automated rails — paid
+  // bank-transfer payments must emit DTE exactly like Webpay/MercadoPago.
+  it('gateway khipu es soportado → emite boleta para consumidor con email+nombre', () => {
+    const d = decideDteIssue({ ...baseRequest, paymentGateway: 'khipu' });
+    expect(d.reason).not.toBe('unsupported_gateway');
+    expect(d.shouldIssue).toBe(true);
+    expect(d.documentKind).toBe('boleta_electronica');
+    expect(d.paymentGateway).toBe('khipu');
+  });
 });

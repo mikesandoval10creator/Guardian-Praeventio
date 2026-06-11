@@ -26,6 +26,7 @@ Convenciones:
   re-ejecutan el handler. Reusar la key con un body distinto devuelve
   `422 idempotency_key_reused_with_different_params`. Routes opt-in:
   `/api/billing/checkout`, `/api/billing/checkout/mercadopago`,
+  `/api/billing/khipu/checkout`,
   `/api/onboarding/complete`, `/api/zettelkasten/nodes`,
   `/api/dte/create`, `/api/iot/devices/register`,
   `/api/emergency/notify-brigada`. Audit signals: `idempotency.cache_hit`
@@ -455,6 +456,40 @@ de cada scope OAuth.
   `{invoiceId, preferenceId, tierKey, billingCycle, country, currency, amount}`.
 - **Idempotencia**: ninguna a nivel server — el cliente NO debe retry-ear
   en 5xx sin verificar primero. Round 16 agregará webhook IPN dedicado.
+
+---
+
+## Billing — Khipu (CL transferencia bancaria)
+
+### `POST /api/billing/khipu/checkout` — checkout Chile vía transferencia
+- **src/server/routes/billing/khipu.ts** · `verifyAuth` + `idempotencyKey()`.
+- **Body**: `{ planId (≤64, tier canónico), cycle?: monthly|annual }`.
+  Monto y moneda se resuelven SERVER-side (CLP neto + IVA ceil) desde la
+  tabla canónica de tiers — cualquier monto enviado por el cliente se ignora.
+- **Response 200**: `{ invoiceId, paymentId, paymentUrl, expiresAt }`.
+- **Errors**: 400 planId/cycle inválido · 503 Khipu no configurado
+  (sin `KHIPU_RECEIVER_ID`/`KHIPU_SECRET` — regla #13, honesto) ·
+  502 Khipu API failure · 500.
+- **Audit**: `billing.khipu.payment.created` con
+  `{invoiceId, paymentId, planId, cycle, currency, amount}` (uid/email
+  estampados desde el token verificado).
+- **Correlación**: `transaction_id` Khipu = `invoiceId` → el webhook
+  resuelve `invoices/{id}` vía `getPaymentStatus().buyOrder`.
+
+### `POST /api/billing/khipu/webhook` — IPN Khipu
+- **src/server/routes/billing/khipu.ts** · público (sin `verifyAuth`):
+  la confianza viene de la firma HMAC-SHA256 (`X-Khipu-Signature`,
+  `t=<unix>,s=<hex>`, drift ±300 s, compare constant-time) sobre el body RAW.
+- **Idempotencia**: `processed_khipu/{notification_id|payment_id}`
+  (lock-then-complete vía `withIdempotency`).
+- **Side effects (completed)**: invoice → `paid`; activa
+  `users/{uid}.subscription` (paymentMethod `khipu`); DTE auto-issue
+  (`decideDteIssue` + `tryAutoIssueDte`, gate `DTE_AUTO_ISSUE`) — paridad
+  con Webpay return / MP IPN. `cancelled|expired` → invoice `rejected`.
+- **Errors**: 401 firma inválida · 400 JSON inválido · 500 (mantiene el
+  retry loop de Khipu).
+- **Audit**: `billing.khipu-ipn.completed|cancelled|expired` +
+  `billing.webhook.success|replay`.
 
 ---
 

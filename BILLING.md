@@ -223,12 +223,29 @@ plumbed straight through to jose's `clockTolerance`.
     `withSentryScope('khipu', ...)`.
 - ✅ Sandbox credentials (`KhipuAdapter.SANDBOX_DEFAULTS`) are the default —
   dev / CI / E2E never touch a real merchant.
-- ✅ `POST /api/billing/khipu/webhook` route shipped in `src/server/routes/billing.ts`.
+- ✅ `POST /api/billing/khipu/webhook` route shipped in
+  `src/server/routes/billing/khipu.ts`.
   Reads raw body for HMAC, dedupes via `processed_khipu/{notification_id}`
   (lock-then-complete via the shared `withIdempotency` helper), re-fetches
   canonical state, updates `invoices/{id}.status` to `paid` / `rejected`,
-  writes an `audit_logs` row.
-- ✅ Unit tests with mocked `fetch` (`khipuAdapter.test.ts`, 20 cases).
+  writes an `audit_logs` row. On `completed` it also activates
+  `users/{uid}.subscription` and runs the DTE auto-issue wire
+  (`decideDteIssue` + `tryAutoIssueDte`, gated by `DTE_AUTO_ISSUE`) — same
+  completion path as Webpay return / MP IPN (2026-06-11, khipu cableado).
+- ✅ `POST /api/billing/khipu/checkout` (2026-06-11, khipu cableado) in
+  `src/server/routes/billing/khipu.ts`: `verifyAuth` + idempotency-key,
+  body `{ planId, cycle? }` validated against the canonical tier table,
+  amount/currency resolved SERVER-side (CLP net + IVA ceil), creates the
+  Khipu payment with `transaction_id = invoiceId` (webhook correlation),
+  persists the `invoices/{id}` pending record + `audit_logs` row
+  (`billing.khipu.payment.created`), returns `{ invoiceId, paymentId,
+  paymentUrl }`. Without `KHIPU_RECEIVER_ID`/`KHIPU_SECRET` it answers an
+  honest 503 ("Khipu no está configurado…"), mirroring MercadoPago.
+- ✅ Client surface: `src/pages/Pricing.tsx` — Chile shows a payment-method
+  chooser (tarjeta Webpay / transferencia Khipu) before redirecting.
+- ✅ Unit tests with mocked `fetch` (`khipuAdapter.test.ts`, 20 cases) +
+  real-router supertest (`billing.router.test.ts` — checkout 401/400/503/
+  200/502, webhook activation + replay idempotency).
 - ⚠️ Production credentials require Khipu cobrador onboarding (KYC).
 
 Khipu permite pagos por transferencia bancaria CL sin pasar por la red
@@ -380,11 +397,13 @@ Decisión definitiva: Praeventio no usará Stripe. Las alternativas son:
 
 ### Khipu (CL web alternativa)
 
-- [ ] Crear cuenta Khipu Cobros + sandbox.
-- [ ] Implementar `KhipuAdapter` (`createPayment` + `verifyNotification`).
-- [ ] `POST /api/billing/khipu/webhook` con verificación HMAC.
-- [ ] Idempotencia `processed_khipu/{notification_id}`.
-- [ ] Tests unitarios mockeados (siguiendo patrón `webpayAdapter.test.ts`).
+- [ ] Crear cuenta Khipu Cobros + sandbox (onboarding KYC — único pendiente).
+- [x] Implementar `KhipuAdapter` (`createPayment` + `verifyWebhookSignature`).
+- [x] `POST /api/billing/khipu/webhook` con verificación HMAC.
+- [x] Idempotencia `processed_khipu/{notification_id}`.
+- [x] `POST /api/billing/khipu/checkout` + activación de suscripción + DTE
+      en el webhook (2026-06-11, khipu cableado).
+- [x] Tests unitarios mockeados (siguiendo patrón `webpayAdapter.test.ts`).
 
 ### Google Play Billing
 

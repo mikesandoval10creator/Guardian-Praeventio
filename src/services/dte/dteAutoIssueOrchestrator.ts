@@ -26,7 +26,7 @@ import crypto from 'node:crypto';
 
 // ─── Public types ─────────────────────────────────────────────────────────
 
-export type DtePaymentGateway = 'webpay' | 'mercadopago' | 'manual';
+export type DtePaymentGateway = 'webpay' | 'mercadopago' | 'khipu' | 'manual';
 
 export interface DtePayerInfo {
   /** Chilean RUT in `X.XXX.XXX-X` or `XXXXXXXX-X` format. Optional. */
@@ -181,6 +181,9 @@ export function buildIdempotencyKey(
 const SUPPORTED_GATEWAYS: ReadonlySet<DtePaymentGateway> = new Set<DtePaymentGateway>([
   'webpay',
   'mercadopago',
+  // 2026-06-11 (khipu cableado): Khipu is the third automated rail — paid
+  // bank-transfer payments emit DTE exactly like Webpay/MercadoPago.
+  'khipu',
   'manual',
 ]);
 

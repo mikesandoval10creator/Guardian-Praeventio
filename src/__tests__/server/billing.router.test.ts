@@ -127,6 +127,13 @@ const M = vi.hoisted(() => ({
     amount: 50000,
     paymentId: 'kh-pay-1',
   })),
+  khipuIsConfigured: vi.fn(() => true),
+  khipuCreate: vi.fn(async (_tx: Record<string, unknown>) => ({
+    paymentId: 'kh-new-1',
+    paymentUrl: 'https://khipu.test/pay/kh-new-1',
+    expiresAt: '2026-06-12T00:00:00.000Z',
+    raw: {},
+  })),
   mpOidc: vi.fn(
     async (): Promise<{ valid: boolean; reason?: string }> => ({ valid: false, reason: 'no-oidc' }),
   ),
@@ -161,8 +168,11 @@ vi.mock('../../services/billing/khipuAdapter.js', () => ({
     fromEnv: () => ({
       verifyWebhookSignature: M.khipuVerify,
       getPaymentStatus: M.khipuGetStatus,
+      isConfigured: () => M.khipuIsConfigured(),
+      createPayment: M.khipuCreate,
     }),
   },
+  KhipuAdapterError: class KhipuAdapterError extends Error {},
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -339,6 +349,13 @@ beforeEach(() => {
     buyOrder: 'inv-khipu-1',
     amount: 50000,
     paymentId: 'kh-pay-1',
+  });
+  M.khipuIsConfigured.mockReset().mockReturnValue(true);
+  M.khipuCreate.mockReset().mockResolvedValue({
+    paymentId: 'kh-new-1',
+    paymentUrl: 'https://khipu.test/pay/kh-new-1',
+    expiresAt: '2026-06-12T00:00:00.000Z',
+    raw: {},
   });
   M.mpAnyFormat.mockReturnValue(true);
   M.mpOidc.mockResolvedValue({ valid: false, reason: 'no-oidc' });
@@ -844,6 +861,180 @@ describe('POST /api/billing/khipu/webhook', () => {
     expect(res.status).toBe(200);
     const invoice = H.db!._store.get('invoices/inv-khipu-cancel') as Record<string, unknown>;
     expect(invoice.status).toBe('rejected');
+  });
+
+  // 2026-06-11 (khipu cableado) — webhook completion parity with the other
+  // AUTOMATED rails (webpay return / MP IPN): a completed Khipu payment must
+  // activate users/{uid}.subscription, not just mark the invoice paid.
+  it('completed payment activates the owner subscription (paymentMethod khipu)', async () => {
+    H.db!._seed('invoices/inv-khipu-1', {
+      status: 'pending-payment',
+      createdBy: 'uid-A',
+      lineItems: [{ tierId: 'comite-paritario' }],
+    });
+    const res = await request(buildApp())
+      .post('/api/billing/khipu/webhook')
+      .set('Content-Type', 'application/json')
+      .set('x-khipu-signature', 't=12345,s=validhex')
+      .send(JSON.stringify(khipuPayload));
+    expect(res.status).toBe(200);
+    const user = H.db!._store.get('users/uid-A') as Record<string, any>;
+    expect(user).toBeTruthy();
+    expect(user.subscription.status).toBe('active');
+    expect(user.subscription.tierId).toBe('comite-paritario');
+    expect(user.subscription.paymentMethod).toBe('khipu');
+    expect(user.subscription.lastInvoiceId).toBe('inv-khipu-1');
+  });
+
+  it('replayed webhook does NOT re-activate (idempotent — activation exactly once)', async () => {
+    H.db!._seed('invoices/inv-khipu-1', {
+      status: 'pending-payment',
+      createdBy: 'uid-A',
+      lineItems: [{ tierId: 'comite-paritario' }],
+    });
+    const app = buildApp();
+    const first = await request(app)
+      .post('/api/billing/khipu/webhook')
+      .set('Content-Type', 'application/json')
+      .set('x-khipu-signature', 't=12345,s=validhex')
+      .send(JSON.stringify(khipuPayload));
+    expect(first.status).toBe(200);
+    expect(M.khipuGetStatus).toHaveBeenCalledTimes(1);
+
+    const replay = await request(app)
+      .post('/api/billing/khipu/webhook')
+      .set('Content-Type', 'application/json')
+      .set('x-khipu-signature', 't=12345,s=validhex')
+      .send(JSON.stringify(khipuPayload));
+    expect(replay.status).toBe(200);
+    // work() skipped on replay → no second status fetch, no second activation.
+    expect(M.khipuGetStatus).toHaveBeenCalledTimes(1);
+    const user = H.db!._store.get('users/uid-A') as Record<string, any>;
+    expect(user.subscription.status).toBe('active');
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// POST /api/billing/khipu/checkout — Khipu payment creation (third automated
+// rail; 2026-06-11 "khipu cableado")
+// ═════════════════════════════════════════════════════════════════════════════
+describe('POST /api/billing/khipu/checkout', () => {
+  const validBody = { planId: 'comite-paritario', cycle: 'monthly' };
+
+  it('401 without auth token', async () => {
+    const res = await request(buildApp())
+      .post('/api/billing/khipu/checkout')
+      .send(validBody);
+    expect(res.status).toBe(401);
+    expect(M.khipuCreate).not.toHaveBeenCalled();
+  });
+
+  it('400 on missing planId', async () => {
+    const res = await request(buildApp())
+      .post('/api/billing/khipu/checkout')
+      .set('x-test-uid', 'uid-A')
+      .send({});
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>).error).toMatch(/planId/i);
+  });
+
+  it('400 on unknown planId', async () => {
+    const res = await request(buildApp())
+      .post('/api/billing/khipu/checkout')
+      .set('x-test-uid', 'uid-A')
+      .send({ planId: 'super-premium-xyz' });
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>).error).toMatch(/planId/i);
+    expect(M.khipuCreate).not.toHaveBeenCalled();
+  });
+
+  it('400 on invalid cycle', async () => {
+    const res = await request(buildApp())
+      .post('/api/billing/khipu/checkout')
+      .set('x-test-uid', 'uid-A')
+      .send({ ...validBody, cycle: 'weekly' });
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>).error).toMatch(/cycle/i);
+  });
+
+  it('503 honest when KHIPU_* credentials are absent (rule #13 — no stub disfrazado)', async () => {
+    M.khipuIsConfigured.mockReturnValue(false);
+    const res = await request(buildApp())
+      .post('/api/billing/khipu/checkout')
+      .set('x-test-uid', 'uid-A')
+      .send(validBody);
+    expect(res.status).toBe(503);
+    expect((res.body as Record<string, unknown>).error).toMatch(/Khipu no está configurado/);
+    expect(M.khipuCreate).not.toHaveBeenCalled();
+  });
+
+  it('200 happy path — amount is SERVER-computed (client-sent amount ignored), pending invoice + audit row persisted', async () => {
+    const res = await request(buildApp())
+      .post('/api/billing/khipu/checkout')
+      .set('x-test-uid', 'uid-A')
+      .set('x-test-email', 'cliente@empresa.cl')
+      // Hostile client tries to pay $1 — the server must ignore it.
+      .send({ ...validBody, amount: 1, totals: { total: 1 } });
+    expect(res.status).toBe(200);
+
+    const body = res.body as { invoiceId: string; paymentId: string; paymentUrl: string };
+    expect(body.paymentId).toBe('kh-new-1');
+    expect(body.paymentUrl).toBe('https://khipu.test/pay/kh-new-1');
+    expect(body.invoiceId).toMatch(/^inv_khipu_/);
+
+    // Adapter called with the canonical comite-paritario price:
+    // net 10075 → IVA ceil → total 11990 CLP (BILLING_TIER_FALLBACK).
+    expect(M.khipuCreate).toHaveBeenCalledTimes(1);
+    const tx = M.khipuCreate.mock.calls[0]![0] as Record<string, unknown>;
+    expect(tx.amount).toBe(11990);
+    expect(tx.currency).toBe('CLP');
+    expect(tx.buyOrder).toBe(body.invoiceId);
+    expect(String(tx.notifyUrl)).toMatch(/\/api\/billing\/khipu\/webhook$/);
+    expect(String(tx.returnUrl)).toContain('/pricing/success?invoice=');
+    expect(String(tx.cancelUrl)).toContain('/pricing/failed?invoice=');
+
+    // Pending invoice the webhook can correlate via buyOrder === invoiceId.
+    const invoice = H.db!._store.get(`invoices/${body.invoiceId}`) as Record<string, any>;
+    expect(invoice).toBeTruthy();
+    expect(invoice.status).toBe('pending-payment');
+    expect(invoice.paymentMethod).toBe('khipu');
+    expect(invoice.createdBy).toBe('uid-A');
+    expect(invoice.khipuPaymentId).toBe('kh-new-1');
+    expect(invoice.totals.total).toBe(11990);
+    expect(invoice.lineItems[0].tierId).toBe('comite-paritario');
+
+    // Audit row with identity stamped from the verified token.
+    const auditRows = [...H.db!._store.keys()]
+      .filter((k) => k.startsWith('audit_logs/'))
+      .map((k) => H.db!._store.get(k) as Record<string, unknown>);
+    const row = auditRows.find((r) => r.action === 'billing.khipu.payment.created');
+    expect(row).toBeTruthy();
+    expect(row!.userId).toBe('uid-A');
+    expect(row!.userEmail).toBe('cliente@empresa.cl');
+    expect((row!.details as Record<string, unknown>).amount).toBe(11990);
+  });
+
+  it('annual cycle computes the annual CLP total server-side', async () => {
+    const res = await request(buildApp())
+      .post('/api/billing/khipu/checkout')
+      .set('x-test-uid', 'uid-A')
+      .send({ planId: 'comite-paritario', cycle: 'annual' });
+    expect(res.status).toBe(200);
+    const tx = M.khipuCreate.mock.calls[0]![0] as Record<string, unknown>;
+    // net anual 81504 → ceil(81504 * 1.19) = 96990.
+    expect(tx.amount).toBe(96990);
+  });
+
+  it('502 when the Khipu API rejects payment creation', async () => {
+    const { KhipuAdapterError } = await import('../../services/billing/khipuAdapter.js');
+    M.khipuCreate.mockRejectedValueOnce(new KhipuAdapterError('createPayment', 'Khipu returned 400', 400));
+    const res = await request(buildApp())
+      .post('/api/billing/khipu/checkout')
+      .set('x-test-uid', 'uid-A')
+      .send(validBody);
+    expect(res.status).toBe(502);
+    // No internals leaked.
+    expect(JSON.stringify(res.body)).not.toContain('Khipu returned 400');
   });
 });
 
