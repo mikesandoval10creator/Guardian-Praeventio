@@ -101,9 +101,15 @@ nuevas sino aristas nuevas. Estado verificado por grep/lectura el 2026-06-10:
   proyecto cerrado debería alimentar su ranking histórico automáticamente.
 
 **Capa 2 — actores externos y negocio:**
-- [ ] 💰 **B1 Incidentes→Siniestralidad→Simulador cotización adicional DS 67**: NO existe (lo que
-  hay en `ds67ds76.ts` son formularios PDF). El DS 67 ya está en el pack (cl-ds-67). Argumento de
-  venta nº1: proyectar "con esta tendencia tu cotización sube X% = $Y/año". ÉPICA prioritaria.
+- [x] 💰 ~~**B1 Incidentes→Siniestralidad→Simulador cotización adicional DS 67**~~ → ✅ **#853**:
+  motor puro `src/services/compliance/ds67Simulator.ts` con la **tabla art. 5 completa** (21 filas
+  0,00%→6,80%) y tabla art. 2 j transcritas del texto oficial BCN (idNorma=159800, extracción
+  doble con acuerdo verbatim, cada umbral con `// LEGAL SOURCE:` y pineado borde-por-borde en 60
+  tests); días perdidos precargados de incidentes REALES con badge de procedencia (dual-path),
+  dotación/planilla/invalideces siempre manuales (el schema no los tiene — jamás fabricados);
+  `prefill`+`simulate` con verifyAuth+assertProjectMember; página `/ds67-simulator`
+  (ComplianceRoutes) es-CL con la rebaja en verde (argumento de retención) y disclaimer
+  mutualidad/ISL.
 - [ ] **B2 Incidente→DIAT prellenada→reloj legal**: generación DIAT existe
   (`susesoCertificate.ts`) pero sin cadena auto-prellenada desde el incidente ni gatillo del
   recordatorio de plazo en el calendario legal.
@@ -128,6 +134,53 @@ nuevas sino aristas nuevas. Estado verificado por grep/lectura el 2026-06-10:
 - [ ] **B7 Indicadores líderes compuestos→índice predictivo por proyecto**: no existe (componer
   pulso de cultura + observaciones + ratio near-miss + tasa de cierre; insignia del tier-3).
 
+
+### Sesión 2026-06-11 (noche) — tanda 3: decisiones del usuario ejecutadas (PRs #851-#857)
+
+**Decisiones del usuario registradas hoy**: TMERT/PREXOR/JSA/Bowtie → UI propia ✓ (TMERT/PREXOR
+hecho, JSA/Bowtie en cola); PLANESI = sílice → UI propia (roadmap investigado, en cola) + barrido
+de protocolos MINSAL faltantes (psicosocial CEAL-SM, UV solar, hipobaria) → UI propia c/u; Khipu
+→ cablear ✓; MQTT → ahora ✓; DTE/Bsale → dormante con flag hasta credenciales reales (explicado:
+boleta/factura electrónica SII vía Bsale); IA → independencia de cuotas Gemini vía modelo abierto
+auto-hosteado (Xiaomi MiMo u otro) ✓ capa base.
+
+- [x] **#851 SII slice 4** + **#853 DS 67 💰** — marcados en sus secciones (épica Rubros SII
+  COMPLETA 1-4 / Capa 2 B1).
+- [x] **#852 D2 slice 2**: incidentes de conducción vía `POST /:projectId/driving/incidents`
+  (`drivingSafety.ts:646-770` — identidad del token, idempotencia, audit awaited); nodo
+  RiskNetwork portado server-side (tri-write canónico best-effort); rules apretadas a
+  `create:false` con evidencia de grep (único writer era `SafeDriving.tsx:94`; ningún outbox
+  replays la colección) + Dirty Dozen 26b; offline espejo de IncidentReport (banner es-CL,
+  formulario retenido, Idempotency-Key entre reintentos).
+- [x] **#854 Khipu cableado**: checkout `POST /api/billing/khipu/checkout` (monto SIEMPRE
+  server-side, 503 honesto sin credenciales). **Hallazgo**: el webhook pre-existente solo flipeaba
+  la invoice a `paid` — NO activaba `users/{uid}.subscription` NI emitía DTE; ahora hace ambas
+  dentro de `withIdempotency` (replay no re-activa), espejo de webpay/MP. Pricing.tsx con selector
+  de método para Chile. Blocker prod restante: KYC de cobrador Khipu (credenciales).
+- [x] **#855 TMERT/PREXOR UI propia**: lo genuinamente faltante era persistencia+historial+UI (las
+  rutas de cómputo stateless YA existían — claim de auditoría desactualizado). Colección
+  `protocol_assessments` **solo Admin SDK** con veredicto RECOMPUTADO server-side (cierra el hoyo
+  de auto-fabricación que `ergonomic_assessments` cliente-SDK tiene); regla #4 completa (8
+  rules-tests emulador + Dirty Dozen #93-95); páginas `/tmert` + `/prexor` es-CL con marco legal y
+  disclaimer ADR 0012; ~73 claves i18n. **Roadmap PLANESI investigado**: criterio 0,1 mg/m³ ya en
+  `NormativeContext.tsx:284-363`; reusar `persistAssessment()` + extender `PROTOCOL_KINDS`.
+- [x] **#856 MQTT**: la "isla" era una CADENA de 4 quiebres — adapters stub (con `mqtt@5` en
+  package.json desde siempre), boot que solo alcanzaba el adapter memory, bridge escribiendo a
+  una subcolección que NADA leía (el gas-gate lee `telemetry_events` top-level), y cero auth de
+  dispositivo (el registro descartaba el `secret` de su propio schema). Ahora: adapter mqtt.js
+  real (EMQX; Cloud IoT Core superseded — Google lo retiró 2023), bridge long-lived estilo
+  backgroundTriggers, store consolidado al schema del ingest HMAC, trust model fail-closed
+  (dispositivo enrolado + HMAC RFC 8785 por dispositivo). Integración testeada: publicación O₂
+  16,5% → doc → `evaluateGasTelemetry` bloquea. 69 tests.
+- [x] **#857 capa de proveedor IA auto-hosteado** (decisión MiMo/independencia): chokepoint real =
+  dispatcher `/api/gemini` (`gemini.ts:479` — no hay wrapper único; `generateContent` vive en ~84
+  sitios); cliente OpenAI-compatible (vLLM/Ollama, cero deps), ruteo por acción por env, breaker
+  propio aislado del de Gemini, fallback selfhosted→Gemini→escalera; sin config = byte-idéntico
+  (testeado). Honestidad regla #13: specs de prompt server-side solo para el trío de la escalera
+  SLM (`getChatResponse`/`queryBCN`/`getSafetyAdvice`); extender = agregar specs por acción
+  (encadena con el split de geminiBackend). Runbook `docs/runbooks/SELFHOSTED_AI.md`. 63 tests.
+  **PENDIENTE B14 (siguiente)**: SLM on-device embebido (Qwen default + flag ON) — complementario
+  a esta capa (device vs server).
 
 ### Sesión 2026-06-11 (tarde) — tanda 2: SII slice 3, C3 gas-gate, A4 SystemEngine, i18n W3, proximity (PRs #844-#849)
 
@@ -778,8 +831,15 @@ CIIU4.CL) al clasificar el proyecto en el onboarding. Reutiliza piezas existente
   rules `isProjectMember`, `assertProjectMember` leen `projects/{pid}`) → ahora se escribe también
   el doc canónico (`onboarding.ts:249`). `faenaOnboardingBundle` NO reusado (dominio distinto:
   acreditación POR TRABAJADOR; veredicto en el commit). 22 tests nuevos; suites 231/231.
-- [ ] **Slice 4** — agregación anónima por rubro (benchmarks entre proyectos del mismo código
-  SII, sin PII, k-anonimato).
+- [x] ~~**Slice 4** — agregación anónima por rubro~~ → ✅ **#851** (ÉPICA COMPLETA 1-4): motor puro
+  `src/services/sii/rubroBenchmarks.ts` con gate **k=5 proyectos Y ≥3 tenants** (espejo de
+  `PULSE_ANONYMITY_THRESHOLD` `culturePulse.ts:222`, Ley 19.628); mediana/p25/p75 (no promedios);
+  bajo umbral ni el k exacto se revela (pineado por test). Métricas con data paths reales:
+  incidentes 12m (dual-path de `incidentTrends.ts:276-312`), % hallazgos abiertos, % obligaciones
+  al día (sembradas por slice 3). Ruta `GET /api/sii/:projectId/rubro-benchmarks` (Admin SDK
+  exclusivo — cero colecciones client-readable nuevas); `RubroBenchmarksCard` en
+  `Dashboard.tsx:269-273`. `projectComparator` NO reusado (output incluye projectId/Name —
+  incompatible con anonimato). 27 tests.
 
 ## Fase 5.3 — Doc-drift sweep (bajo riesgo, intercalable)
 - [ ] Actualizar: `ARCHITECTURE.md` (LOC/refs #20), `stubs-inventory.md` (mesh real + SystemEngine montado), `CLAUDE.md` (#13/#17), runbooks photogrammetry (superseded), `TRACKING_PLAN.md` (analytics impl), `BERNOULLI_EXTENSIONS.md` (16 motores), `gemini-split-plan.md`, `ADR 0013` (UUID mesh), `ADR 0005/0006` superseded, links rotos terraform/README.
