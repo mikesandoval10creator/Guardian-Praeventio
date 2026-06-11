@@ -40,6 +40,11 @@ import { EmailService } from '../../services/email/resendService.js';
 import { projectInvitationTemplate } from '../../services/email/templates.js';
 import { TIERS } from '../../services/pricing/tiers.js';
 import { SII_ACTIVIDADES_ECONOMICAS } from '../../data/sii/actividadesEconomicas.js';
+// Épica Rubros SII slice 3 — pure seed builder (risk nodes + legal
+// obligations from the rubro's preventive profile) + the CL pack whose
+// thresholds drive the dotación obligations.
+import { buildProjectSeeds } from '../../services/sii/projectSeeds.js';
+import { CL_PACK } from '../../data/normativa/cl.js';
 
 export const onboardingRouter = Router();
 
@@ -221,11 +226,135 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
       industry: payload.industry,
       countries: payload.countries,
       source: 'onboarding-wizard',
+      // Épica Rubros SII slice 3 — the rubro lives on the project too, not
+      // only on users/{uid}.tenantConfig.
+      ...(payload.siiCode != null
+        ? { codigoActividadSii: payload.siiCode, sectorId: payload.sectorId }
+        : {}),
+      ...(payload.estimatedWorkers != null
+        ? { estimatedWorkers: payload.estimatedWorkers }
+        : {}),
+    });
+
+    // Slice 3 — also create the CANONICAL top-level `projects/{pid}` doc
+    // (same id). The rest of the platform keys off this collection:
+    // ProjectContext lists `projects` where members array-contains uid,
+    // firestore.rules `isProjectMember()` and the server-side
+    // `assertProjectMember()` both read `projects/{pid}.members` /
+    // `.createdBy`. Without this mirror the onboarding project (and any
+    // seed written for it) is invisible and unreadable in the SPA.
+    // Every key used here is in the isValidProject() whitelist of
+    // firestore.rules, so subsequent CLIENT updates keep passing rules;
+    // the rubro fields ride inside the whitelisted `metadata` map.
+    await db.collection('projects').doc(projectId).set({
+      name: payload.projectName,
+      industry: payload.industry,
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      createdBy: uid,
+      members: [uid],
+      // Same default the Projects page form uses for a brand-new project.
+      riskLevel: 'Medio',
+      ...(payload.estimatedWorkers != null
+        ? { workersCount: payload.estimatedWorkers }
+        : {}),
+      metadata: {
+        origin: 'onboarding-wizard',
+        ...(payload.siiCode != null
+          ? { codigoActividadSii: payload.siiCode, sectorId: payload.sectorId }
+          : {}),
+      },
     });
   } catch (projErr) {
     logger.error('onboarding_project_create_failed', projErr as Error, { uid });
     captureRouteError(projErr, 'onboarding.project_create', { uid });
     return res.status(500).json({ error: 'project_create_failed' });
+  }
+
+  // â”€â”€ 2b. Seed rubro risks + dotación obligations (slice 3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // The preventive profile of the rubro becomes REAL initial records:
+  //   - risk seeds → top-level `nodes` (the IPER module's read path:
+  //     Matrix.tsx → useRiskEngine lists `nodes` by projectId). Written via
+  //     Admin SDK server-side; readable by the creator through the
+  //     member/author branches of the `nodes` rules.
+  //   - obligation seeds → `projects/{pid}/legal_obligations` (the
+  //     LegalCalendar page's read path; member-readable subcollection).
+  // Deterministic ids make re-runs overwrite instead of duplicate.
+  // Best-effort: a seed failure must not lose the onboarding the user just
+  // completed — log + capture, but keep the 200.
+  let seededRisks = 0;
+  let seededObligations = 0;
+  if (payload.siiCode != null || payload.estimatedWorkers != null) {
+    try {
+      // Dotación thresholds are Chilean law (Ley 16.744 / DS 44 via the CL
+      // pack) — only seed obligations for tenants operating in CL. Risk
+      // seeds are preventive content (not legal citations) and apply always.
+      const operatesInChile = payload.countries.includes('CL');
+      const seeds = buildProjectSeeds({
+        projectId,
+        siiCode: payload.siiCode,
+        sectorId: payload.sectorId,
+        workerCount: operatesInChile ? payload.estimatedWorkers : null,
+        pack: CL_PACK,
+        now: new Date(),
+      });
+
+      for (const seed of seeds.riskSeeds) {
+        await db
+          .collection('nodes')
+          .doc(seed.id)
+          .set({
+            ...seed.doc,
+            // Identity from the verified token — never client-supplied.
+            metadata: { ...seed.doc.metadata, authorId: uid },
+          });
+        seededRisks += 1;
+      }
+
+      for (const seed of seeds.obligationSeeds) {
+        await db
+          .collection('projects')
+          .doc(projectId)
+          .collection('legal_obligations')
+          .doc(seed.id)
+          .set(seed.doc);
+        seededObligations += 1;
+      }
+
+      if (seededRisks > 0 || seededObligations > 0) {
+        // Audit invariant (rule #3/#14): one awaited row for the seeding
+        // state change, uid/email stamped from the token by auditServerEvent.
+        try {
+          await auditServerEvent(
+            req,
+            'onboarding.projectSeeded',
+            'onboarding',
+            {
+              projectId,
+              siiCode: payload.siiCode,
+              sectorId: payload.sectorId,
+              estimatedWorkers: payload.estimatedWorkers,
+              riskSeeds: seededRisks,
+              obligationSeeds: seededObligations,
+            },
+            { projectId },
+          );
+        } catch (auditErr) {
+          logger.error('audit_event_failed', auditErr as Error, {
+            action: 'onboarding.projectSeeded',
+            projectId,
+          });
+          captureRouteError(auditErr, 'onboarding.seed_audit', { uid, projectId });
+        }
+      }
+    } catch (seedErr) {
+      logger.warn('onboarding_seed_failed', {
+        uid,
+        projectId,
+        err: (seedErr as Error)?.message,
+      });
+      captureRouteError(seedErr, 'onboarding.project_seed', { uid, projectId });
+    }
   }
 
   // â”€â”€ 3. Team invitations (best-effort) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -326,6 +455,8 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     siiCode: payload.siiCode,
     sectorId: payload.sectorId,
     estimatedWorkers: payload.estimatedWorkers,
+    seededRisks,
+    seededObligations,
   });
 
   logger.info('onboarding_completed', {
@@ -341,6 +472,8 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     invitedEmails,
     invitationFailures,
     pendingPayment: isPaidTier,
+    seededRisks,
+    seededObligations,
   });
 });
 
