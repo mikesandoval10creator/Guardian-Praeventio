@@ -95,6 +95,22 @@ export interface IzajeMetadata {
   riggingInspected: boolean;
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// Gas atmosphere thresholds (DS 594 + protocolo MINSAL espacios confinados)
+// ────────────────────────────────────────────────────────────────────────
+// Exported as the SINGLE source of truth for gas limits: consumed both by
+// `validateExcavation` below (declared pre-entry measurement) and by the
+// telemetry gas gate (`gasGate.ts`, arista C3) so the soft-block on
+// confined-space permit signing uses exactly the same table. Do NOT
+// duplicate these numbers elsewhere.
+
+/** Safe oxygen range (volume %). Below = deficiency, above = enrichment. */
+export const GAS_OXYGEN_MIN_PCT = 19.5;
+export const GAS_OXYGEN_MAX_PCT = 23.5;
+/** LEL (% of lower explosive limit): ≥10 blocks, ≥5 warrants re-measuring. */
+export const GAS_LEL_BLOCKING_PCT = 10;
+export const GAS_LEL_ADVISORY_PCT = 5;
+
 /** Umbral wind speed — ISO 12480 + buenas prácticas mineras. */
 const IZAJE_WIND_ADVISORY_MPS = 11; // ~40 km/h: pausar carga si supera
 const IZAJE_WIND_BLOCKING_MPS = 15; // ~54 km/h: NO izar
@@ -304,26 +320,26 @@ export function validateExcavation(
       });
     } else {
       const { oxygenPct, lelPct } = m.atmosphereMeasurement;
-      if (oxygenPct < 19.5 || oxygenPct > 23.5) {
+      if (oxygenPct < GAS_OXYGEN_MIN_PCT || oxygenPct > GAS_OXYGEN_MAX_PCT) {
         issues.push({
           severity: 'blocking',
           code: 'OXYGEN_OUT_OF_RANGE',
-          message: `O₂ ${oxygenPct}% fuera de rango seguro (19.5%–23.5%).`,
+          message: `O₂ ${oxygenPct}% fuera de rango seguro (${GAS_OXYGEN_MIN_PCT}%–${GAS_OXYGEN_MAX_PCT}%).`,
           context: { oxygenPct },
         });
       }
-      if (lelPct >= 10) {
+      if (lelPct >= GAS_LEL_BLOCKING_PCT) {
         issues.push({
           severity: 'blocking',
           code: 'LEL_TOO_HIGH',
-          message: `LEL ${lelPct}% ≥ 10%. Atmósfera potencialmente explosiva.`,
+          message: `LEL ${lelPct}% ≥ ${GAS_LEL_BLOCKING_PCT}%. Atmósfera potencialmente explosiva.`,
           context: { lelPct },
         });
-      } else if (lelPct >= 5) {
+      } else if (lelPct >= GAS_LEL_ADVISORY_PCT) {
         issues.push({
           severity: 'advisory',
           code: 'LEL_ELEVATED',
-          message: `LEL ${lelPct}% entre 5%–10%. Re-medir antes de tareas con punto de ignición.`,
+          message: `LEL ${lelPct}% entre ${GAS_LEL_ADVISORY_PCT}%–${GAS_LEL_BLOCKING_PCT}%. Re-medir antes de tareas con punto de ignición.`,
           context: { lelPct },
         });
       }

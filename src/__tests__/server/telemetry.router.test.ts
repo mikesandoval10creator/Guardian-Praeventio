@@ -397,6 +397,29 @@ describe('POST /api/telemetry/ingest — autoValidateTelemetry integration', () 
     );
   });
 
+  // Arista C3 (2026-06-11): the gas soft-block on confined-space permits joins
+  // telemetry to permits via `zoneId`. The ingest persists it when present so
+  // the workPermits gas gate can query `projectId + zoneId + timestamp`.
+  it('persists a valid zoneId so readings can be joined to work-permit zones', async () => {
+    const res = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-secret', ENV_SECRET)
+      .send({ ...validPayload, projectId: 'proj-7', zoneId: 'zona-7' });
+    expect(res.status).toBe(200);
+    const stored = eventRows()[0][1];
+    expect(stored.zoneId).toBe('zona-7');
+  });
+
+  it('stores zoneId as null when absent or invalid (device-controlled field, sanitized)', async () => {
+    const res = await request(buildApp())
+      .post('/api/telemetry/ingest')
+      .set('x-iot-secret', ENV_SECRET)
+      .send({ ...validPayload, zoneId: 12345 });
+    expect(res.status).toBe(200);
+    const stored = eventRows()[0][1];
+    expect(stored.zoneId).toBeNull();
+  });
+
   it('keeps the body status when validation is non-anomalous', async () => {
     vi.mocked(autoValidateTelemetry).mockResolvedValueOnce({
       isAnomalous: false,
