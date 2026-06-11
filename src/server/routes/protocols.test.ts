@@ -22,8 +22,10 @@ describe('protocolsRouter (wire-up contract)', () => {
     '/:projectId/protocols/iper',
     '/:projectId/protocols/prexor',
     '/:projectId/protocols/tmert',
+    '/:projectId/protocols/planesi',
     '/:projectId/protocols/tmert/assessments',
     '/:projectId/protocols/prexor/assessments',
+    '/:projectId/protocols/planesi/assessments',
   ];
 
   for (const path of paths) {

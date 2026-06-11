@@ -874,11 +874,14 @@ stamps `actorUid` from the verified token. Rules tests:
 ## MINSAL protocol assessments (protocol_assessments) — server-only, deny client read+write (B-protocols, added 2026-06-11)
 
 `protocol_assessments/{assessmentId}` holds TMERT-EESS (trastornos
-musculoesqueléticos de extremidad superior, Norma Técnica MINSAL 2012) and
-PREXOR (exposición ocupacional a ruido, DS 594 Art. 75) evaluations — legally
-relevant prevention records. Unlike `ergonomic_assessments` (client SDK +
+musculoesqueléticos de extremidad superior, Norma Técnica MINSAL 2012),
+PREXOR (exposición ocupacional a ruido, DS 594 Art. 75) and PLANESI
+(sílice cristalina respirable, DS 594 Art. 66 + protocolo sílice MINSAL
+Res. Ex. 268/2015 — added 2026-06-11) evaluations — legally relevant
+prevention records. Unlike `ergonomic_assessments` (client SDK +
 member-gated rules), this collection is written AND read exclusively through
-the server routes `/api/sprint-k/:projectId/protocols/{tmert,prexor}/assessments`
+the server routes
+`/api/sprint-k/:projectId/protocols/{tmert,prexor,planesi}/assessments`
 + `GET …/protocols/assessments` (verifyAuth + `assertProjectMember`, Admin SDK,
 bypasses these rules). The server recomputes the verdict from the raw inputs via
 the pure engines and stamps `metadata.author` from the verified token, then
@@ -902,6 +905,13 @@ block exists so a future permissive rule isn't added by accident. Rules tests:
     project-membership gate (`assertProjectMember`) is enforced uniformly,
     instead of duplicating the tenancy check in rules for a server-owned
     collection.
+96. **Exposure-Grade Self-Fabrication (PLANESI)**: a member `set
+    /protocol_assessments/x` with `result.exposureGrade: 0` /
+    `result.exceedsLegalLimit: false` for a silica measurement the engine
+    grades 3 — the surveillance periodicity (Rx tórax, Tabla 7-1) derives
+    from the grade, so a falsified grade would silently stretch a legally
+    mandated health-surveillance deadline. Same server-only recompute
+    closes it (route POST …/protocols/planesi/assessments).
 
 ## CEAL-SM/SUSESO psychosocial campaigns (ceal_sm_campaigns) — server-only, anonymity-critical (added 2026-06-11)
 
@@ -925,22 +935,22 @@ Default-deny read+write for every actor. Rules tests:
 
 **Rejected payloads (Dirty-Dozen extension):**
 
-96. **De-anonymization Read**: a member/admin reading
+97. **De-anonymization Read**: a member/admin reading
     `…/responses/{hash}` directly to inspect an individual answer set (or to
     enumerate hashes while watching who is online) — denied; the only
     egress is the k>=10 suppressed aggregate endpoint, and without the
     server-side pepper the hash cannot be recomputed from a uid roster.
-97. **Ballot Stuffing**: a manager `set …/responses/x` with fabricated
+98. **Ballot Stuffing**: a manager `set …/responses/x` with fabricated
     low-risk answers to tilt the center verdict below the +13 "riesgo alto"
     band (or duplicate responses to dilute prevalence) — denied; the server
     route enforces one response per verified worker (idempotent responder
     hash) inside the campaign window.
-98. **Participation Spoof**: an UPDATE that inflates/deflates a campaign's
+99. **Participation Spoof**: an UPDATE that inflates/deflates a campaign's
     `totalWorkers` so a 50% participation reads as the >=60% the Protocolo
     requires for validity (or edits `closeAt` to reopen a closed window) —
     denied (`update:false`); the campaign metadata is server-stamped at
     creation by an audited admin/prevencionista call.
-99. **Aggregate Self-Fabrication**: a client persisting a precomputed
+100. **Aggregate Self-Fabrication**: a client persisting a precomputed
     "riesgo bajo" center result anywhere in the campaign doc — denied; no
     aggregate is ever stored client-side, the verdict is recomputed on every
     results read from the raw anonymized answers by the pure engine.

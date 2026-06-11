@@ -1,4 +1,4 @@
-// Praeventio Guard — Protocols (IPER + PREXOR + TMERT) client hook (3 mutators).
+// Praeventio Guard — Protocols (IPER + PREXOR + TMERT + PLANESI) client hook.
 
 import type { IperInput, IperResult } from '../services/protocols/iper';
 import type {
@@ -6,6 +6,7 @@ import type {
   PrexorResult,
 } from '../services/protocols/prexor';
 import type { TmertInput, TmertResult } from '../services/protocols/tmert';
+import type { PlanesiInput, PlanesiResult } from '../services/protocols/planesi';
 import { apiAuthHeaders } from '../lib/apiAuth';
 
 async function authedFetch(
@@ -84,14 +85,30 @@ export async function evaluateTmertRemote(
   return json<EvaluateTmertResponse>(res);
 }
 
-// ── 4. assessment persistence (B-protocols) ────────────────────────────
+// ── 4. planesi ─────────────────────────────────────────────────────────
+
+export interface EvaluatePlanesiInput { input: PlanesiInput }
+export interface EvaluatePlanesiResponse { result: PlanesiResult }
+
+export async function evaluatePlanesiRemote(
+  projectId: string,
+  input: EvaluatePlanesiInput,
+): Promise<EvaluatePlanesiResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/protocols/planesi`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+  return json<EvaluatePlanesiResponse>(res);
+}
+
+// ── 5. assessment persistence (B-protocols) ────────────────────────────
 //
 // The server recomputes the verdict from the raw inputs (a client-supplied
 // result is never trusted), stamps the evaluator uid from the verified
 // token, persists into `protocol_assessments` (server-only collection) and
 // emits the audit_logs row. See src/server/routes/protocols.ts.
 
-export type ProtocolAssessmentKind = 'TMERT' | 'PREXOR';
+export type ProtocolAssessmentKind = 'TMERT' | 'PREXOR' | 'PLANESI';
 
 export interface ProtocolAssessment {
   id: string;
@@ -100,7 +117,7 @@ export interface ProtocolAssessment {
   taskName: string;
   workerId: string | null;
   inputs: unknown;
-  result: TmertResult | PrexorResult;
+  result: TmertResult | PrexorResult | PlanesiResult;
   computedAt: string;
   metadata: { author: string; signedAt: string | null };
 }
@@ -145,6 +162,27 @@ export async function recordPrexorAssessment(
     { method: 'POST', body: JSON.stringify(input) },
   );
   return json<RecordPrexorAssessmentResponse>(res);
+}
+
+export interface RecordPlanesiAssessmentInput {
+  input: PlanesiInput;
+  taskName: string;
+  workerId?: string;
+}
+export interface RecordPlanesiAssessmentResponse {
+  id: string;
+  result: PlanesiResult;
+}
+
+export async function recordPlanesiAssessment(
+  projectId: string,
+  input: RecordPlanesiAssessmentInput,
+): Promise<RecordPlanesiAssessmentResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/protocols/planesi/assessments`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+  return json<RecordPlanesiAssessmentResponse>(res);
 }
 
 export interface ListProtocolAssessmentsResponse {

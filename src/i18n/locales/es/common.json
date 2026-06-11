@@ -103,7 +103,8 @@
     "work_permits": "Permisos de Trabajo",
     "worker_readiness": "Preparación Trabajador",
     "tmert": "TMERT-EESS",
-    "prexor": "PREXOR Ruido"
+    "prexor": "PREXOR Ruido",
+    "planesi": "PLANESI Sílice"
   },
   "auth": {
     "login": "Iniciar Sesión",
@@ -4373,6 +4374,32 @@
     "risk_significativo": "RIESGO SIGNIFICATIVO",
     "risk_alto": "RIESGO ALTO",
     "risk_critico": "RIESGO CRÍTICO"
+  },
+  "planesi": {
+    "title": "PLANESI",
+    "subtitle": "Sílice cristalina respirable — D.S. 594 Art. 66 + protocolo MINSAL",
+    "legal_frame": "Evaluación según el D.S. 594 Art. 66 (LPP cuarzo 0,08 mg/m³ · cristobalita y tridimita 0,04 mg/m³, fracción respirable) y el Protocolo de Vigilancia del Ambiente de Trabajo y de la Salud de los Trabajadores con Exposición a Sílice (MINSAL, Res. Ex. 268/2015). El LPP se corrige por jornada (Fj, Art. 62) y altura geográfica (Fa, Art. 63). Vigilancia ambiental según Nivel de Riesgo (Tabla 6-2) y vigilancia de la salud según Grado de Exposición (Tabla 7-1; ingreso desde el 50% del LPP).",
+    "task_placeholder": "Ej: Perforación frente 3",
+    "measurement_title": "Medición ambiental (muestreo personal)",
+    "concentration": "Concentración medida (mg/m³)",
+    "silica_type": "Tipo de sílice cristalizada",
+    "silica_cuarzo": "Cuarzo (LPP 0,08 mg/m³)",
+    "silica_cristobalita": "Cristobalita (LPP 0,04 mg/m³)",
+    "silica_tridimita": "Tridimita (LPP 0,04 mg/m³)",
+    "hours_per_day": "Horas de exposición por día",
+    "weekly_hours": "Jornada semanal en horas (opcional)",
+    "weekly_placeholder": "Ej: 48 — aplica Fj = 0,90",
+    "critical_task": "Tarea de exposición aguda: limpieza abrasiva con chorro de arena u operación de chancador de cuarzo (control anual, Tabla 7-1 nota 1)",
+    "input_required": "Revisa la concentración y las horas de exposición.",
+    "percent_lpp": "% del LPP corregido",
+    "corrected_lpp": "LPP corregido",
+    "exceeds_limit": "Supera el límite permisible ponderado del D.S. 594 Art. 66",
+    "within_limit": "Dentro del límite permisible ponderado del D.S. 594 Art. 66",
+    "activated": "Concentración sobre 0,1 mg/m³ de sílice libre cristalizada: activar programa PLANESI (procedimiento interno).",
+    "grade_0": "BAJO 50% LPP",
+    "grade_1": "GRADO 1",
+    "grade_2": "GRADO 2",
+    "grade_3": "GRADO 3"
   },
   "ceal_sm": {
     "title": "CEAL-SM / SUSESO",

@@ -1,15 +1,19 @@
-// Praeventio Guard — Protocols (IPER + PREXOR + TMERT) HTTP surface.
+// Praeventio Guard — Protocols (IPER + PREXOR + TMERT + PLANESI) HTTP surface.
 //
 // Stateless compute endpoints over engines under `src/services/protocols/`:
 //
 //   POST /:projectId/protocols/iper      { input }    → IperResult
 //   POST /:projectId/protocols/prexor    { measurements } → PrexorResult
 //   POST /:projectId/protocols/tmert     { input }    → TmertResult
+//   POST /:projectId/protocols/planesi   { input }    → PlanesiResult
 //
 // Pure compute — no Firestore writes. Canonical Chilean health protocols:
 // - IPER 5×5 risk matrix (probability × severity)
 // - PREXOR auditory exposure (DS 594 — exchange rate 3 dB)
 // - TMERT musculoskeletal disorders (Protocolo MINSAL 2012)
+// - PLANESI respirable crystalline silica (DS 594 Art. 66 + protocolo
+//   sílice MINSAL Res. Ex. 268/2015 — see src/services/protocols/planesi.ts
+//   for the verified legal sources)
 //
 // Persistence surface (B-protocols — "TMERT/PREXOR invisibles": engines had
 // no persistence/UI). Mirrors the ergonomic_assessments append-only
@@ -19,7 +23,8 @@
 //
 //   POST /:projectId/protocols/tmert/assessments   { input, taskName, workerId? }
 //   POST /:projectId/protocols/prexor/assessments  { measurements, taskName, workerId? }
-//   GET  /:projectId/protocols/assessments[?protocol=TMERT|PREXOR]
+//   POST /:projectId/protocols/planesi/assessments { input, taskName, workerId? }
+//   GET  /:projectId/protocols/assessments[?protocol=TMERT|PREXOR|PLANESI]
 //
 // The persisted `result` is ALWAYS recomputed server-side from the raw
 // inputs — a client-supplied verdict is never trusted — and
@@ -50,6 +55,10 @@ import {
   evaluateTmert,
   type TmertInput,
 } from '../../services/protocols/tmert.js';
+import {
+  evaluatePlanesi,
+  type PlanesiInput,
+} from '../../services/protocols/planesi.js';
 
 const router = Router();
 
@@ -183,11 +192,52 @@ router.post(
 );
 
 // ────────────────────────────────────────────────────────────────────────
-// 4. Assessment persistence (TMERT + PREXOR) — append-only project history
+// 4. planesi
+// ────────────────────────────────────────────────────────────────────────
+
+const planesiInputShape = z.object({
+  concentrationMgM3: z.number().min(0).max(1000),
+  exposureHoursPerDay: z.number().min(0).max(24),
+  weeklyHours: z.number().gt(0).max(168).optional(),
+  silicaType: z.enum(['cuarzo', 'cristobalita', 'tridimita']).optional(),
+  atmosphericPressureMmHg: z.number().min(400).max(800).optional(),
+  criticalSilicaTask: z.boolean().optional(),
+});
+
+const planesiSchema = z.object({
+  input: planesiInputShape as unknown as z.ZodType<PlanesiInput>,
+});
+
+router.post(
+  '/:projectId/protocols/planesi',
+  verifyAuth,
+  validate(planesiSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof planesiSchema>;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+    try {
+      const result = evaluatePlanesi(body.input);
+      return res.json({ result });
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('PLANESI:')) {
+        return res.status(400).json({ error: 'validation_error', message: err.message });
+      }
+      logger.error?.('protocols.planesi.error', err);
+      captureRouteError(err, 'protocols.planesi');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────
+// 5. Assessment persistence (TMERT + PREXOR + PLANESI) — append-only
+//    project history
 // ────────────────────────────────────────────────────────────────────────
 
 const ASSESSMENTS_COLLECTION = 'protocol_assessments';
-const PROTOCOL_KINDS = ['TMERT', 'PREXOR'] as const;
+const PROTOCOL_KINDS = ['TMERT', 'PREXOR', 'PLANESI'] as const;
 type ProtocolKind = (typeof PROTOCOL_KINDS)[number];
 
 // Shared metadata for a persisted assessment. `taskName` is the puesto de
@@ -220,6 +270,11 @@ const prexorAssessmentSchema = z.object({
     )
     .min(1)
     .max(1000) as unknown as z.ZodType<PrexorMeasurement[]>,
+  ...assessmentMetaShape,
+});
+
+const planesiAssessmentSchema = z.object({
+  input: planesiInputShape as unknown as z.ZodType<PlanesiInput>,
   ...assessmentMetaShape,
 });
 
@@ -363,8 +418,49 @@ router.post(
   },
 );
 
+router.post(
+  '/:projectId/protocols/planesi/assessments',
+  verifyAuth,
+  validate(planesiAssessmentSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.validated as z.infer<typeof planesiAssessmentSchema>;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+    try {
+      const result = evaluatePlanesi(body.input);
+      return await persistAssessment({
+        req,
+        res,
+        protocol: 'PLANESI',
+        projectId,
+        callerUid,
+        taskName: body.taskName,
+        workerId: body.workerId,
+        inputs: body.input,
+        result: result as unknown as Record<string, unknown>,
+        auditSummary: {
+          percentOfLpp: result.percentOfLpp,
+          ambientRiskLevel: result.ambientRiskLevel,
+          exposureGrade: result.exposureGrade,
+          surveillanceRequired: result.surveillanceRequired,
+          planesiActivated: result.planesiActivated,
+          exceedsLegalLimit: result.exceedsLegalLimit,
+        },
+      });
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('PLANESI:')) {
+        return res.status(400).json({ error: 'validation_error', message: err.message });
+      }
+      logger.error?.('protocols.planesi.assessment.error', err);
+      captureRouteError(err, 'protocols.planesi.assessment');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 // ────────────────────────────────────────────────────────────────────────
-// 5. Per-project assessment history (member read, via Admin SDK)
+// 6. Per-project assessment history (member read, via Admin SDK)
 // ────────────────────────────────────────────────────────────────────────
 
 router.get('/:projectId/protocols/assessments', verifyAuth, async (req, res) => {

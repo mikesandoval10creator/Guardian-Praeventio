@@ -31,6 +31,7 @@
     "src/services/protocols/tmert.ts",
     "src/services/protocols/iper.ts",
     "src/services/protocols/prexor.ts",
+    "src/services/protocols/planesi.ts",
     "src/services/ergonomics/reba.ts",
     "src/services/ergonomics/rula.ts"
   ],

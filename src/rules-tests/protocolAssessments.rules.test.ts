@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //
-// B-protocols (2026-06-11) — `protocol_assessments` (TMERT-EESS / PREXOR
-// MINSAL evaluations) rules. The collection is server-only: assessments are
+// B-protocols (2026-06-11) — `protocol_assessments` (TMERT-EESS / PREXOR /
+// PLANESI MINSAL evaluations) rules. The collection is server-only: assessments are
 // computed + persisted by /api/sprint-k/:projectId/protocols/* (verifyAuth +
 // assertProjectMember, Admin SDK) which recomputes the verdict from raw
 // inputs and stamps `metadata.author` from the verified token. A
@@ -87,7 +87,7 @@ function authed(uid: string, role = 'worker'): CtxDb {
   return requireEnv().authenticatedContext(uid, verifiedToken(role)).firestore();
 }
 
-describe('protocol_assessments (TMERT/PREXOR MINSAL) — firestore.rules', () => {
+describe('protocol_assessments (TMERT/PREXOR/PLANESI MINSAL) — firestore.rules', () => {
   it('a project MEMBER cannot read an assessment directly (reads go through the server route)', async () => {
     await assertFails(getDoc(ref(authed(MEMBER), DOC_ID)));
   });
@@ -106,6 +106,19 @@ describe('protocol_assessments (TMERT/PREXOR MINSAL) — firestore.rules', () =>
 
   it('a project member cannot CREATE an assessment (cannot self-fabricate a verdict)', async () => {
     await assertFails(setDoc(ref(authed(MEMBER), 'forged-1'), validAssessment));
+  });
+
+  it('a member cannot CREATE a PLANESI assessment either (exposure-grade self-fabrication, Dirty Dozen #96)', async () => {
+    await assertFails(
+      setDoc(ref(authed(MEMBER), 'forged-planesi'), {
+        ...validAssessment,
+        protocol: 'PLANESI',
+        inputs: { concentrationMgM3: 0.5, exposureHoursPerDay: 8 },
+        // Engine truth for 0,5 mg/m³ cuarzo is grade 3 — a client-writable
+        // rule would let this forged "grade 0" stretch the Rx-tórax deadline.
+        result: { exposureGrade: 0, exceedsLegalLimit: false },
+      }),
+    );
   });
 
   it('a member cannot UPDATE an existing assessment (cannot downgrade a risk verdict)', async () => {

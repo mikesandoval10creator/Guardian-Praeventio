@@ -103,7 +103,8 @@
     "work_permits": "Work Permits",
     "worker_readiness": "Worker Readiness",
     "tmert": "TMERT-EESS",
-    "prexor": "PREXOR Noise"
+    "prexor": "PREXOR Noise",
+    "planesi": "PLANESI Silica"
   },
   "auth": {
     "login": "Sign In",
@@ -4375,6 +4376,32 @@
     "risk_significativo": "SIGNIFICANT RISK",
     "risk_alto": "HIGH RISK",
     "risk_critico": "CRITICAL RISK"
+  },
+  "planesi": {
+    "title": "PLANESI",
+    "subtitle": "Respirable crystalline silica — D.S. 594 Art. 66 + MINSAL protocol",
+    "legal_frame": "Evaluation per D.S. 594 Art. 66 (PEL quartz 0.08 mg/m³ · cristobalite and tridymite 0.04 mg/m³, respirable fraction) and the MINSAL Silica Exposure Surveillance Protocol (Res. Ex. 268/2015). The PEL is corrected for shift length (Fj, Art. 62) and altitude (Fa, Art. 63). Ambient surveillance follows the Risk Level (Table 6-2) and health surveillance follows the Exposure Grade (Table 7-1; entry from 50% of the PEL).",
+    "task_placeholder": "E.g.: Drilling face 3",
+    "measurement_title": "Ambient measurement (personal sampling)",
+    "concentration": "Measured concentration (mg/m³)",
+    "silica_type": "Crystalline silica type",
+    "silica_cuarzo": "Quartz (PEL 0.08 mg/m³)",
+    "silica_cristobalita": "Cristobalite (PEL 0.04 mg/m³)",
+    "silica_tridimita": "Tridymite (PEL 0.04 mg/m³)",
+    "hours_per_day": "Exposure hours per day",
+    "weekly_hours": "Weekly shift hours (optional)",
+    "weekly_placeholder": "E.g.: 48 — applies Fj = 0.90",
+    "critical_task": "Acute-exposure task: abrasive sandblasting or quartz crusher operation (annual control, Table 7-1 note 1)",
+    "input_required": "Check the concentration and exposure hours.",
+    "percent_lpp": "% of corrected PEL",
+    "corrected_lpp": "Corrected PEL",
+    "exceeds_limit": "Exceeds the D.S. 594 Art. 66 permissible exposure limit",
+    "within_limit": "Within the D.S. 594 Art. 66 permissible exposure limit",
+    "activated": "Concentration above 0.1 mg/m³ of free crystalline silica: activate the PLANESI program (internal procedure).",
+    "grade_0": "BELOW 50% PEL",
+    "grade_1": "GRADE 1",
+    "grade_2": "GRADE 2",
+    "grade_3": "GRADE 3"
   },
   "ceal_sm": {
     "title": "CEAL-SM / SUSESO",
