@@ -1247,6 +1247,23 @@ service cloud.firestore {
       allow read, write: if false; // server-only via Admin SDK
     }
 
+    // CEAL-SM/SUSESO psychosocial campaigns (Protocolo MINSAL oct. 2022) —
+    // server-only, same rationale as protocol_assessments PLUS anonymity:
+    // the `responses` subcollection holds anonymous worker answers about
+    // their employer (doc id = peppered responder hash, never a uid). Any
+    // client read would bypass the k>=10 aggregate suppression gate in
+    // /api/sprint-k/:projectId/ceal-sm/* and allow per-respondent answer
+    // inspection; any client write would let a manager fabricate responses
+    // and tilt the center verdict. Explicit deny so a future permissive
+    // rule isn't added by accident. Rules tests:
+    // src/rules-tests/cealSmCampaigns.rules.test.ts.
+    match /ceal_sm_campaigns/{campaignId} {
+      allow read, write: if false; // server-only via Admin SDK (k-gated)
+      match /responses/{responderHash} {
+        allow read, write: if false; // anonymous answers — never client-visible
+      }
+    }
+
     // Round 16 R2 — closes R15 R4 gap (gamification_scores).
     // Per-user-per-game best-score doc, id `${uid}_${gameId}` (claw machine,
     // pool game, etc.). DEVIATES from append-only-after-sign pattern:
