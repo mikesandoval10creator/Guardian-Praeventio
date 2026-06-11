@@ -260,6 +260,8 @@ export function buildSidebarMenuGroups(
     { title: t('nav.projects_compare', 'Comparar Proyectos'), icon: BarChart3, path: '/projects-compare', color: 'text-blue-500' },
     // F.29 — Tendencia de Incidentes + Leading Indicators.
     { title: t('nav.incident_trends', 'Tendencia Incidentes'), icon: BarChart3, path: '/incident-trends', color: 'text-amber-500' },
+    // Épica B1 capa 2 — Simulador cotización adicional DS 67 (siniestralidad → $).
+    { title: t('nav.ds67_simulator', 'Simulador DS 67'), icon: BarChart3, path: '/ds67-simulator', color: 'text-teal-500' },
     // Sprint K §244-250 — Aprendices + Mentoría + Autorización Progresiva.
     { title: t('nav.apprenticeship', 'Aprendices y Mentores'), icon: UserCheck, path: '/apprenticeship', color: 'text-teal-500' },
     // Sprint 42 Fase F.18 — Historial Profesional Portátil del Trabajador.

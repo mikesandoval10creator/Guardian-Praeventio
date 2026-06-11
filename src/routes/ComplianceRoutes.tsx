@@ -31,6 +31,9 @@ const SafetyTalks = lazy(() => import('../pages/SafetyTalks').then(m => ({ defau
 const AuditPortals = lazy(() => import('../pages/AuditPortals').then(m => ({ default: m.AuditPortals })));
 // Sprint K wire UI (2026-05-23) — Confirmación de lectura de documentos críticos.
 const DocumentReadConfirm = lazy(() => import('../pages/DocumentReadConfirm').then(m => ({ default: m.DocumentReadConfirm })));
+// Épica B1 capa 2 (2026-06-11) — Simulador de cotización adicional DS 67
+// desde la siniestralidad real (incidentes → días perdidos → tabla art. 5).
+const Ds67Simulator = lazy(() => import('../pages/Ds67Simulator').then(m => ({ default: m.Ds67Simulator })));
 
 export const ComplianceRoutes = [
   <Route key="normatives" path="normatives" element={<Normatives />} />,
@@ -50,4 +53,5 @@ export const ComplianceRoutes = [
   <Route key="safety-talks" path="safety-talks" element={<SafetyTalks />} />,
   <Route key="audit-portals" path="audit-portals" element={<AuditPortals />} />,
   <Route key="document-read" path="document-read" element={<DocumentReadConfirm />} />,
+  <Route key="ds67-simulator" path="ds67-simulator" element={<Ds67Simulator />} />,
 ];
