@@ -20,9 +20,13 @@ Theme, Language, Normative, AppMode) and the rest of the app. It provides:
 
 - Not a replacement for the React contexts. They still own their state.
 - Not a new in-memory pub/sub. The bus is **Firestore**: writes to
-  `tenants/{tid}/system_events` are emits, `onSnapshot` queries are
+  `projects/{projectId}/system_events` are emits, `onSnapshot` queries are
   subscriptions. This gives multi-instance fan-out, offline buffering,
-  server↔client crossing, and persistence for free.
+  server↔client crossing, and persistence for free. (A4 re-scope 2026-06:
+  the bus is keyed by the SELECTED PROJECT — the app's real tenancy unit —
+  not by the old `tenants/{tid}` path, which was default-denied by
+  firestore.rules and keyed by a global no install ever assigned. With no
+  project selected the engine runs local-only.)
 - Not a re-implementation of the Eulerian Zettelkasten analyzer
   (`services/euler/*` already does that). The SystemEngine consumes the
   metrics and emits health-change events.
@@ -129,7 +133,9 @@ The `enabled` prop is the master kill-switch. Default is `true`.
 
 `emit()` is hybrid:
 
-- **Online** → write to `tenants/{tid}/system_events` and mirror to
+- **No project selected** → local-only: in-process subscribers fire, the
+  Firestore hop is skipped explicitly (no write, no queue, no error).
+- **Online** → write to `projects/{projectId}/system_events` and mirror to
   `audit_logs` via the existing `/api/audit-log` endpoint.
 - **Offline** → enqueue in IndexedDB store `system_events_outbox` (DB
   `praeventio-systemengine`). The `SystemEngineProvider` listens for the
@@ -149,9 +155,10 @@ which has its own HMAC + reconciliation contract for SLM sessions.
   (e.g. server-side policies that need admin SDK) plug into the
   `onEvent` callback.
 - `src/server/routes/systemEvents.ts` — `POST /api/system-events/emit`
-  with `verifyAuth + idempotencyKey + Zod`. The verified token's
-  `tenantId` claim is the authoritative tenant; tenant-id mismatches in
-  the body return 403.
+  with `verifyAuth + idempotencyKey + Zod`. Authorization is
+  `assertProjectMember()` against the event's `projectId`; the server
+  stamps `actorUid` from the verified token (anti-spoof). Project-less
+  events are rejected with 400 (clients keep those local-only).
 
 ## Tests
 

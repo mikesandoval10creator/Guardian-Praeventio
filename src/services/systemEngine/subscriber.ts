@@ -1,12 +1,19 @@
 // SystemEngine — Subscriber.
 //
 // `useSystemEvent(filter, cb)` is the only client-side subscription path.
-// Under the hood it's `onSnapshot` on `tenants/{tid}/system_events`, so all
-// the existing Firestore replication / IndexedDB persistence guarantees
-// apply automatically — no extra infrastructure.
+// Under the hood it's `onSnapshot` on `projects/{projectId}/system_events`,
+// so all the existing Firestore replication / IndexedDB persistence
+// guarantees apply automatically — no extra infrastructure.
 //
-// `onLocalEmit` (from eventLog) is also wired in so callers see in-process
-// emits before the Firestore round-trip completes.
+// A4 re-scope (2026-06): the subscription used to target
+// `tenants/{tid}/system_events`, a path firestore.rules default-denied and
+// whose tenant key (`__GP_TENANT_ID__`) no install ever assigned — every
+// snapshot returned nothing. The bus is now keyed by the SELECTED PROJECT
+// (the app's real tenancy unit, gated by `isProjectMember()`); without a
+// projectId the hook stays explicitly local-only.
+//
+// `onLocalEmit` (from eventLog) is always wired in so callers see
+// in-process emits before (or instead of) the Firestore round-trip.
 
 import { useEffect, useRef } from 'react';
 import { collection, onSnapshot, orderBy, query, where, limit, type QueryConstraint, type Unsubscribe } from 'firebase/firestore';
@@ -17,9 +24,15 @@ import { onLocalEmit } from './eventLog';
 import { isSystemEvent, type SystemEvent, type SystemEventType } from './eventTypes';
 
 export interface SubscribeFilter {
-  tenantId: string;
-  types?: SystemEventType[];
+  /**
+   * Path key for the Firestore bus (`projects/{projectId}/system_events`).
+   * Omitted/empty → local-only mode: in-process emits are still delivered,
+   * but no Firestore subscription is opened (explicit, not erroring).
+   */
   projectId?: string;
+  /** Informational filter — matched against the event payload, not the path. */
+  tenantId?: string;
+  types?: SystemEventType[];
   /** Max snapshot size; default 100 (bus is high-frequency, UI rarely needs more). */
   pageSize?: number;
 }
@@ -27,8 +40,9 @@ export interface SubscribeFilter {
 export type SubscribeCallback = (event: SystemEvent) => void;
 
 /**
- * React hook. Subscribes to `tenants/{tid}/system_events` and invokes `cb`
- * for every new event matching the filter. Auto-cleanup on unmount.
+ * React hook. Subscribes to `projects/{projectId}/system_events` and invokes
+ * `cb` for every new event matching the filter. Auto-cleanup on unmount.
+ * Without a `projectId` only in-process emits are delivered (local-only).
  */
 export function useSystemEvent(
   filter: SubscribeFilter,
@@ -39,21 +53,27 @@ export function useSystemEvent(
 
   // Stable dep key so we don't tear down/up onSnapshot on every render.
   const depKey = JSON.stringify({
-    t: filter.tenantId,
+    t: filter.tenantId ?? null,
     types: filter.types?.slice().sort() ?? null,
     p: filter.projectId ?? null,
     n: filter.pageSize ?? 100,
   });
 
   useEffect(() => {
-    if (!filter.tenantId) return undefined;
-
     const unsubLocal = onLocalEmit((event) => {
       if (!matches(event, filter)) return;
       try { cbRef.current(event); } catch (err) {
         logger.warn('systemEngine.subscriber: cb threw on local emit', { err: String(err) });
       }
     });
+
+    // No project selected → local-only mode by design: skip the Firestore
+    // subscription entirely (no dead onSnapshot, no permission noise).
+    if (!filter.projectId) {
+      return () => {
+        unsubLocal();
+      };
+    }
 
     let unsubFirestore: Unsubscribe | null = null;
     try {
@@ -62,10 +82,7 @@ export function useSystemEvent(
         // `in` accepts ≤30 values per Firestore. We chunk only if needed.
         constraints.push(where('type', 'in', filter.types.slice(0, 30)));
       }
-      if (filter.projectId) {
-        constraints.push(where('projectId', '==', filter.projectId));
-      }
-      const q = query(collection(db, `tenants/${filter.tenantId}/system_events`), ...constraints);
+      const q = query(collection(db, `projects/${filter.projectId}/system_events`), ...constraints);
       unsubFirestore = onSnapshot(
         q,
         (snap) => {

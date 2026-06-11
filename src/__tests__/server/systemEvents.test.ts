@@ -1,8 +1,14 @@
 // Real-router supertest for the SystemEngine emit endpoint
-// (src/server/routes/systemEvents.ts) — the server-side bus write that stamps
-// tenantId from the verified token so a worker on tenant A cannot inject events
-// into tenant B. Mounts the ACTUAL router + real SystemEventSchema through the
-// reusable fakeFirestore (the route had 0 tests).
+// (src/server/routes/systemEvents.ts) — the server-side bus write.
+//
+// A4 re-scope (2026-06): the bus moved from `tenants/{tid}/system_events`
+// (doubly dead: no tenant claim was ever minted AND firestore.rules
+// default-denied the path) to `projects/{pid}/system_events` — the app's
+// real tenancy unit. The endpoint now authorizes via REAL
+// assertProjectMember() against the projects collection (no tenant claim
+// needed) and stamps actorUid from the verified token so a caller cannot
+// emit as someone else. Mounts the ACTUAL router + real SystemEventSchema
+// + real membership check through the reusable fakeFirestore.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
@@ -23,10 +29,7 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
       res.status(401).json({ error: 'unauthorized' });
       return;
     }
-    (req as Request & { user: Record<string, unknown> }).user = {
-      uid,
-      tenantId: req.header('x-test-tenant') || undefined,
-    };
+    (req as Request & { user: Record<string, unknown> }).user = { uid };
     next();
   },
 }));
@@ -49,10 +52,11 @@ function buildApp() {
 
 const EMIT = '/api/system-events/emit';
 
-// A valid SystemEvent envelope + fall_detected payload.
+// A valid SystemEvent envelope + fall_detected payload, project-scoped.
 const event = {
   id: 'evt-1',
-  tenantId: 't1',
+  tenantId: 'default',
+  projectId: 'p1',
   ts: 1_717_000_000_000,
   idempotencyKey: 'idem-evt-1',
   type: 'fall_detected' as const,
@@ -61,6 +65,13 @@ const event = {
 
 beforeEach(() => {
   H.db = createFakeFirestore();
+  // w1 is a member of p1; w-outsider is not.
+  H.db._seed('projects/p1', {
+    name: 'Faena Norte',
+    members: ['w1'],
+    createdBy: 'creator-1',
+    status: 'active',
+  });
 });
 
 describe('POST /system-events/emit', () => {
@@ -69,38 +80,69 @@ describe('POST /system-events/emit', () => {
     expect(res.status).toBe(401);
   });
 
-  it('403 when the caller has no tenant claim', async () => {
-    const res = await request(buildApp())
-      .post(EMIT)
-      .set('x-test-uid', 'w1') // no x-test-tenant
-      .send({ event });
-    expect(res.status).toBe(403);
-    expect(res.body.error).toBe('missing tenant claim');
-  });
-
-  it("403 when the event's tenantId differs from the caller's claim (no cross-tenant inject)", async () => {
+  it('400 when the event has no envelope projectId (the bus is project-scoped)', async () => {
+    const { projectId: _omit, ...withoutProject } = event;
     const res = await request(buildApp())
       .post(EMIT)
       .set('x-test-uid', 'w1')
-      .set('x-test-tenant', 't2') // claim t2, event says t1
-      .send({ event });
-    expect(res.status).toBe(403);
-    expect(res.body.error).toBe('tenant mismatch');
+      .send({ event: withoutProject });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('missing projectId');
   });
 
-  it('200 emits + persists to the tenant bus when the claim matches', async () => {
+  it("403 when the caller is not a member of the event's project (no cross-project inject)", async () => {
+    const res = await request(buildApp())
+      .post(EMIT)
+      .set('x-test-uid', 'w-outsider')
+      .send({ event });
+    expect(res.status).toBe(403);
+  });
+
+  it('403 when the projectId does not exist (default-deny on unknown projects)', async () => {
     const res = await request(buildApp())
       .post(EMIT)
       .set('x-test-uid', 'w1')
-      .set('x-test-tenant', 't1')
+      .send({
+        event: {
+          ...event,
+          projectId: 'p-ghost',
+          payload: { ...event.payload, projectId: 'p-ghost' },
+        },
+      });
+    expect(res.status).toBe(403);
+  });
+
+  it('200 emits + persists to the project bus when the caller is a member', async () => {
+    const res = await request(buildApp())
+      .post(EMIT)
+      .set('x-test-uid', 'w1')
       .send({ event });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true, eventId: 'evt-1' });
-    // It wrote to the tenant-scoped bus, stamping the actor.
+    // It wrote to the PROJECT-scoped bus, stamping the actor from the token.
     const stored = (
-      await H.db!.collection('tenants/t1/system_events').doc('evt-1').get()
+      await H.db!.collection('projects/p1/system_events').doc('evt-1').get()
     ).data() as Record<string, unknown>;
     expect(stored.type).toBe('fall_detected');
+    expect(stored.actorUid).toBe('w1');
+    expect(stored.projectId).toBe('p1');
+    // Nothing landed on the legacy dead path.
+    const legacy = await H.db!
+      .collection('tenants/default/system_events')
+      .doc('evt-1')
+      .get();
+    expect(legacy.exists).toBe(false);
+  });
+
+  it('cannot spoof actorUid: the server overwrites any client-supplied value', async () => {
+    const res = await request(buildApp())
+      .post(EMIT)
+      .set('x-test-uid', 'w1')
+      .send({ event: { ...event, id: 'evt-2', idempotencyKey: 'idem-evt-2', actorUid: 'victim-uid' } });
+    expect(res.status).toBe(200);
+    const stored = (
+      await H.db!.collection('projects/p1/system_events').doc('evt-2').get()
+    ).data() as Record<string, unknown>;
     expect(stored.actorUid).toBe('w1');
   });
 
@@ -108,7 +150,6 @@ describe('POST /system-events/emit', () => {
     const res = await request(buildApp())
       .post(EMIT)
       .set('x-test-uid', 'w1')
-      .set('x-test-tenant', 't1')
       .send({ event: { ...event, payload: { workerId: 'w1' } } }); // missing required fields
     expect(res.status).toBe(400);
   });

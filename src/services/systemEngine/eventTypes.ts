@@ -1,8 +1,10 @@
 // SystemEngine — Event schema (discriminated union).
 //
-// The bus is Firestore: writes to `tenants/{tid}/system_events` are emits,
-// `onSnapshot` queries are subscriptions. This file defines the typed
-// envelopes every emitter and policy must agree on.
+// The bus is Firestore: writes to `projects/{projectId}/system_events` are
+// emits, `onSnapshot` queries are subscriptions (A4 re-scope 2026-06 — the
+// old `tenants/{tid}` path was default-denied and its tenant key never
+// assigned; `tenantId` in the envelope is informational only). This file
+// defines the typed envelopes every emitter and policy must agree on.
 //
 // Adding a new event type:
 //   1) Define a Zod schema for the payload (NOT for the envelope).

@@ -38,7 +38,11 @@ import { tierChangeReactivityPolicy } from '../services/systemEngine/policies/ti
 import { logger } from '../utils/logger';
 
 export interface SystemEngineProviderProps {
-  /** Logical tenant id; usually fetched from the verified user claim. */
+  /**
+   * Logical tenant id — INFORMATIONAL only since the A4 re-scope: it is
+   * stamped inside event envelopes but the bus path is keyed by the
+   * selected PROJECT (`projects/{pid}/system_events`).
+   */
   tenantId: string;
   /** Master kill-switch. When false, nothing in the engine runs. */
   enabled?: boolean;
@@ -113,6 +117,10 @@ function SystemEngineInner({
 
   // Subscribe to every event type and run the decision engine.
   // Closure-stable: cb captures latest tenantId/projectId from refs.
+  // A4 re-scope (2026-06): the bus is PROJECT-scoped
+  // (`projects/{pid}/system_events`) — the selected project keys the
+  // Firestore subscription. With no project selected the engine stays
+  // local-only (useSystemEvent skips the snapshot, onLocalEmit still runs).
   const projectRef = useRef(selectedProject?.id);
   projectRef.current = selectedProject?.id;
   // Live emergency state via ref so the decide-context callbacks (which are
@@ -124,6 +132,7 @@ function SystemEngineInner({
   emergencyActiveRef.current = isEmergencyActive;
   useSystemEvent(
     {
+      projectId: selectedProject?.id,
       tenantId,
       types: ALL_EVENT_TYPES.slice(0, 30) as never,
       pageSize: 100,

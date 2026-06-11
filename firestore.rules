@@ -406,6 +406,33 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      // SystemEngine bus (ADR-0013 Flow Infinito) — A4 re-scope 2026-06.
+      // The client EventLog (src/services/systemEngine/eventLog.ts) writes
+      // typed events here via the CLIENT SDK; useSystemEvent onSnapshots the
+      // same path. The bus previously targeted tenants/{tid}/system_events,
+      // which was default-denied (tenants catch-all `create:false`) AND keyed
+      // by a tenant id no install ever assigned — every cross-device emit was
+      // PERMISSION_DENIED. The PROJECT is the real tenancy unit, so the rule
+      // mirrors the zone_violations sibling: member read + member create with
+      // envelope schema validation, path-bound projectId (no cross-project
+      // inject) and emitter anti-spoof (`actorUid` must be the caller or
+      // null). Events are IMMUTABLE — update/delete denied for everyone; the
+      // server-side collectionGroup trigger mirrors each event to audit_logs.
+      match /system_events/{eventId} {
+        allow read: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().keys().hasAll(['id', 'tenantId', 'projectId', 'ts', 'idempotencyKey', 'type', 'payload'])
+          && incoming().id is string && incoming().id == eventId
+          && incoming().tenantId is string
+          && incoming().projectId == projectId
+          && incoming().ts is number
+          && incoming().idempotencyKey is string
+          && incoming().type is string
+          && incoming().payload is map
+          && (!('actorUid' in incoming()) || incoming().actorUid == null || incoming().actorUid == request.auth.uid);
+        allow update, delete: if false;
+      }
+
       // Digital Twin reconstruction jobs — server writes only, members read.
       // NOTE: this collection has NO writers in the codebase (phantom/legacy).
       // The REAL on-device photogrammetry job store writes `reconstruction_jobs`

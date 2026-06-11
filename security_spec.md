@@ -824,5 +824,42 @@ cases, Storage emulator). AV/quarantine is a documented deferred follow-up.
     `tenants/{tid}/**` or `quarantine/**`, or any other unmatched path — denied
     by the explicit default-deny. Unauthenticated uploads anywhere — denied.
 
+### SystemEngine bus (`projects/{pid}/system_events` — A4 re-scope)
+
+The Flow Infinito event bus (ADR-0013, `src/services/systemEngine/eventLog.ts`
++ `subscriber.ts`, CLIENT SDK) previously targeted
+`tenants/{tid}/system_events` — a path that was doubly dead in production: the
+tenants catch-all default-denied every client write AND the tenant key
+(`window.__GP_TENANT_ID__`) was never assigned anywhere. Re-scoped to the
+project (the real tenancy unit): member read + member create with envelope
+schema validation, path-bound `projectId`, emitter anti-spoof on `actorUid`,
+and full immutability (`update,delete:false`). The server emit endpoint
+(`POST /api/system-events/emit`) authorizes via `assertProjectMember()` and
+stamps `actorUid` from the verified token. Rules tests:
+`src/rules-tests/systemEvents.rules.test.ts` (10 cases, F1 harness).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+89. **Cross-Project Event Inject**: a member of project A writes a
+    `system_events` doc under project B's path, or writes under A with
+    `projectId: B` in the envelope — denied by `isProjectMember(projectId)` +
+    `incoming().projectId == projectId` (path-bound). Same via the server
+    endpoint — denied by `assertProjectMember()` (403, unknown projects
+    included).
+90. **Emitter Spoof**: an event whose `actorUid` is another user's uid —
+    denied (`actorUid` must be `null` or `request.auth.uid`); the server
+    endpoint additionally overwrites any client-supplied `actorUid` with the
+    verified token's uid.
+91. **Bus Tamper / History Rewrite**: any user (admin included) UPDATEs an
+    emitted event (e.g. rewrite a `sos_triggered` payload) or DELETEs one to
+    erase bus history — denied (`update,delete:false`); the event log is
+    append-only and each event is mirrored to `audit_logs` by the server-side
+    collectionGroup trigger.
+92. **Doc-Id / Envelope Mismatch**: an event written under a doc id different
+    from its envelope `id` (breaking idempotent replay + the audit mirror
+    keying) — denied by `incoming().id == eventId`. Malformed envelopes
+    (missing `payload`, `idempotencyKey`, `ts`, `type`, `tenantId`) — denied
+    by the schema gate.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

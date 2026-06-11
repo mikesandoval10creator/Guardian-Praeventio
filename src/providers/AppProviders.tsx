@@ -76,10 +76,14 @@ interface AppProvidersProps {
 
 export function AppProviders({ children }: AppProvidersProps) {
   // SystemEngine (geofence→SOS / tier-reactivity) — off by default (flag).
-  // tenantId mirrors EmergencyOverlay's source so both read the same value.
+  // A4 re-scope (2026-06): the bus is PROJECT-scoped — SystemEngineProvider
+  // reads the selected project from ProjectContext itself, so the
+  // `window.__GP_TENANT_ID__ || 'default'` derivation (an orphan global
+  // that was never assigned anywhere) is gone. `tenantId` is informational
+  // metadata stamped inside event envelopes; 'default' is the literal
+  // value every install resolved to before, so this is behavior-identical.
   const engineEnabled = systemEngineEnabled();
-  const engineTenantId =
-    (typeof window !== 'undefined' && window.__GP_TENANT_ID__) || 'default';
+  const engineTenantId = 'default';
 
   // Provider order matters here.
   //

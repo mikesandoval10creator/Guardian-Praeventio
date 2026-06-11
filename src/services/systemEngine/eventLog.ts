@@ -4,16 +4,28 @@
 //   1. Validate via Zod (fail-closed: invalid events are rejected before any
 //      side effect).
 //   2. Idempotency check against the last-1h ring buffer in IDB.
-//   3. If online → write to `tenants/{tid}/system_events/{eventId}` and
-//      mirror to `audit_logs` for the immutable persistent trail.
-//   4. If offline → enqueue in IDB. The sync worker drains on `online`.
-//   5. Notify in-process subscribers immediately (low-latency UI; the
+//   3. If the envelope has NO `projectId` → local-only: in-process
+//      subscribers were already notified, the Firestore hop is explicitly
+//      skipped (no write, no queue, no error).
+//   4. If online → write to `projects/{projectId}/system_events/{eventId}`
+//      and mirror to `audit_logs` for the immutable persistent trail.
+//   5. If offline → enqueue in IDB. The sync worker drains on `online`.
+//   6. Notify in-process subscribers immediately (low-latency UI; the
 //      Firestore round-trip arrives later when online).
+//
+// A4 re-scope (2026-06): the bus used to write `tenants/{tenantId}/…`,
+// which was doubly dead in production — `window.__GP_TENANT_ID__` was never
+// assigned (every install fell to 'default') AND firestore.rules has no
+// `system_events` block under the tenants catch-all (`create:false`), so
+// every cross-device write was PERMISSION_DENIED. The PROJECT is the real
+// tenancy unit the whole app uses (`projects/{pid}` + `isProjectMember()`),
+// so the path key is now the envelope's `projectId`. `tenantId` stays in
+// the event payload as informational metadata only.
 //
 // The IDB store is a thin wrapper, deliberately separate from
 // `slm/offlineQueue.ts` (which has its own HMAC + reconciliation contract).
 
-import { addDoc, collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { openDB, type IDBPDatabase } from 'idb';
 
 import { db, auth } from '../firebase';
@@ -130,6 +142,14 @@ export async function emit(
     }
   }
 
+  // No selected project → the engine stays LOCAL-ONLY by design (the bus
+  // path is project-scoped). Skip the Firestore hop and the offline queue
+  // explicitly: a project-less event can never be delivered cross-device,
+  // so queuing it would only accumulate undeliverable records.
+  if (!validated.projectId) {
+    return { ok: true, eventId: validated.id };
+  }
+
   if (!isOnline()) {
     try {
       await enqueueOffline(validated);
@@ -140,7 +160,7 @@ export async function emit(
   }
 
   try {
-    const path = `tenants/${validated.tenantId}/system_events`;
+    const path = `projects/${validated.projectId}/system_events`;
     await setDoc(doc(db, path, validated.id), {
       ...validated,
       serverTs: serverTimestamp(),
@@ -236,7 +256,17 @@ export async function drainOutbox(): Promise<{ drained: number; failed: number }
     for (const record of all) {
       try {
         const { _enqueuedAt: _, ...event } = record as SystemEvent & { _enqueuedAt: number };
-        const path = `tenants/${event.tenantId}/system_events`;
+        if (!event.projectId) {
+          // Legacy record from the pre-rescope (tenant-pathed) code, or a
+          // project-less event: undeliverable on the project bus. Drop it
+          // so the outbox doesn't accumulate poison records forever.
+          logger.warn('systemEngine.eventLog: dropping undeliverable outbox record without projectId', {
+            eventId: event.id,
+          });
+          await store.delete(event.id);
+          continue;
+        }
+        const path = `projects/${event.projectId}/system_events`;
         await setDoc(doc(db, path, event.id), { ...event, serverTs: serverTimestamp() });
         await store.delete(event.id);
         drained++;
