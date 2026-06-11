@@ -3085,7 +3085,10 @@
     "missing": "Faltam",
     "missing_heading": "FALTANTES",
     "no_drill": "Nenhum simulado ativo",
-    "no_drill_help": "Em produção, o supervisor pré-popula a lista de trabalhadores a partir da base do projeto. Para demo, você pode iniciar um simulado com 5 trabalhadores fictícios e testar o fluxo de contagem.",
+    "no_drill_help": "Ao iniciar, a lista de esperados é pré-populada com a presença de HOJE do projeto: quem marcou entrada e não registrou saída.",
+    "no_attendance_today": "Sem presença registrada hoje neste projeto — não há lista real para pré-popular.",
+    "attendance_error": "Não foi possível ler a presença do dia. Tente novamente ou use o modo demo.",
+    "demo_mode": "Modo demo — lista fictícia",
     "plan": {
       "title": "Plano de Emergência (PE)"
     },
