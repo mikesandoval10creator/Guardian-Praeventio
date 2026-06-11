@@ -6,6 +6,7 @@
     "loneWorker": "check-in/end-session state changes — audit added in Ola 2 (PR #628); kept here as a guard-invisible note"
   },
   "rule3_exempt": {
+    "billing/iapReceipts": "moved VERBATIM from billing.ts in the D3 split (PR #839) — same handlers, zero behavior change; the validate-receipt paths update entitlements inside the upstream IAP verification flow whose audit posture is covered by the original 'billing' baseline note above. Adding audit here would be a behavior change out of scope for a movement-only split; tracked as follow-up with the billing audit sweep.",
     "cphsMinute": "read-only aggregation; produces an in-memory draft, never persisted (guard matched an adapter ctor)",
     "dataQuality": "pure read; scanAll() is deterministic over already-fetched data, no Firestore writes",
     "equipment": "single GET; EquipmentAdapter.listByStatus is read-only (guard matched `new EquipmentAdapter`)",
@@ -15,12 +16,12 @@
     "openapi": "GET-only public static OpenAPI spec + Swagger UI; res.set() headers matched, no Firestore writes",
     "preShiftRisk": "read-only GET; aggregates collections + pure composeShiftRiskPanel, no writes",
     "riskRadar": "read-only GET; in-memory buildRepeatingRiskRadar over incidents, no writes",
+    "rubroBenchmarks": "read-only GET; aggregates anonymous k-anonymity benchmarks across same-sector projects via Admin SDK, no writes (guard matched the sector query helpers)",
     "softBlocking": "pure compute, zero Firestore writes; client persists the override-audit struct downstream",
     "systemEvents": "internal event-bus relay (infra enqueue to system_events, idempotency-deduped), not a business record",
     "vulnerability": "read-only GET; adapter.getLatest snapshot, no writes",
     "waste": "read-only GET; adapter.list* only, no writes",
-    "workerReadiness": "read-only GET; joins collections + pure computeReadiness(), no writes",
-    "billing/iapReceipts": "moved VERBATIM from billing.ts in the D3 split (PR #839) — same handlers, zero behavior change; the validate-receipt paths update entitlements inside the upstream IAP verification flow whose audit posture is covered by the original 'billing' baseline note above. Adding audit here would be a behavior change out of scope for a movement-only split; tracked as follow-up with the billing audit sweep."
+    "workerReadiness": "read-only GET; joins collections + pure computeReadiness(), no writes"
   },
   "rule3_pending": {},
   "rule19_pending": {},

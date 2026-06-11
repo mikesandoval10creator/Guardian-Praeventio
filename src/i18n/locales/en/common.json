@@ -4283,5 +4283,18 @@
       "errorServer": "We could not register the report. Try again — the form keeps what you wrote.",
       "errorOffline": "No connection: the report was NOT sent. Retry once you regain signal — the form keeps what you wrote."
     }
+  },
+  "rubro_benchmarks": {
+    "title": "How you compare within your industry",
+    "your_rubro": "Your industry (SII)",
+    "not_enough": "Not enough projects from your industry to compare yet (at least {{n}} are required).",
+    "mine": "You",
+    "median": "Median",
+    "range": "p25–p75",
+    "no_data": "n/a",
+    "privacy_note": "Aggregated, anonymous data from {{k}} projects of the same SII industry.",
+    "metric_incidentes12m": "Incidents (last 12 months)",
+    "metric_hallazgosAbiertosPct": "Open findings (%)",
+    "metric_obligacionesAlDiaPct": "Obligations up to date (%)"
   }
 }
