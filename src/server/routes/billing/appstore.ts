@@ -134,7 +134,10 @@ export function registerAppleSsnRoutes(billingApiRouter: Router): void {
           source: 'apple',
           txn: payload.notificationUUID,
           notificationType: payload.notificationType,
-        }).catch(() => {});
+        }).then((ok: boolean) => {
+          // P0 informe 2026-06-12: auditServerEvent nunca lanza — boolean.
+          if (!ok) logger.error('billing_audit_write_failed', new Error('audit_write_failed'), { event: 'billing.webhook.replay', source: 'apple', txn: payload.notificationUUID });
+        });
       } else if (
         outcome.kind === 'fresh-success' ||
         outcome.kind === 'stale-retry'
@@ -144,7 +147,9 @@ export function registerAppleSsnRoutes(billingApiRouter: Router): void {
           txn: payload.notificationUUID,
           notificationType: payload.notificationType,
           outcome: outcome.kind,
-        }).catch(() => {});
+        }).then((ok: boolean) => {
+          if (!ok) logger.error('billing_audit_write_failed', new Error('audit_write_failed'), { event: 'billing.webhook.success', source: 'apple', txn: payload.notificationUUID });
+        });
       }
 
       // All four outcomes ACK 200 — see contract notes in idempotency.ts.

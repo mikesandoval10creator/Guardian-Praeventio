@@ -331,7 +331,10 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
           source: 'mercadopago',
           txn: paymentId ?? null,
           invoiceId: result.invoiceId || null,
-        }).catch(() => {});
+        }).then((ok: boolean) => {
+          // P0 informe 2026-06-12: auditServerEvent nunca lanza — boolean.
+          if (!ok) logger.error('billing_audit_write_failed', new Error('audit_write_failed'), { event: 'billing.webhook.replay', source: 'mercadopago', txn: paymentId ?? null });
+        });
       } else if (
         result.idempotencyKind === 'fresh-success' ||
         result.idempotencyKind === 'stale-retry'
@@ -342,7 +345,9 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
           invoiceId: result.invoiceId || null,
           outcome: result.outcome,
           idempotencyKind: result.idempotencyKind,
-        }).catch(() => {});
+        }).then((ok: boolean) => {
+          if (!ok) logger.error('billing_audit_write_failed', new Error('audit_write_failed'), { event: 'billing.webhook.success', source: 'mercadopago', txn: paymentId ?? null });
+        });
 
         // Sprint 49 D.8.b → 2026-05-15: DTE auto-issue REAL.
         // ANTES: solo decideDteIssue + log, sin invocar el emitter.

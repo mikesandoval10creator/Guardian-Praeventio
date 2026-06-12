@@ -280,13 +280,18 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
           source: 'google-play',
           txn: messageId,
           previousResult: outcome.previousResult,
-        }).catch(() => {});
+        }).then((ok: boolean) => {
+          // P0 informe 2026-06-12: auditServerEvent nunca lanza — boolean.
+          if (!ok) logger.error('billing_audit_write_failed', new Error('audit_write_failed'), { event: 'billing.webhook.replay', source: 'google-play', txn: messageId });
+        });
       } else if (outcome.kind === 'fresh-success' || outcome.kind === 'stale-retry') {
         await auditServerEvent(req, 'billing.webhook.success', 'billing', {
           source: 'google-play',
           txn: messageId,
           outcome: outcome.kind,
-        }).catch(() => {});
+        }).then((ok: boolean) => {
+          if (!ok) logger.error('billing_audit_write_failed', new Error('audit_write_failed'), { event: 'billing.webhook.success', source: 'google-play', txn: messageId });
+        });
       }
 
       // All four outcomes ACK 200 to suppress Pub/Sub redelivery — see

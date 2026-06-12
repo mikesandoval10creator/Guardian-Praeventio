@@ -64,3 +64,7 @@ public/models/mediapipe/*.wasm
 public/models/mediapipe/*.wasm.partial
 public/models/mediapipe/*.js
 public/models/mediapipe/*.js.partial
+
+# Dev-server / verification markers (sesion cowork local tooling)
+dev-server*.txt
+verificar*.txt
