@@ -433,6 +433,27 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      // Seismic auto-detection telemetry — A4 follow-up re-scope 2026-06.
+      // src/components/shared/EmergencyOverlay.tsx (SismicAutoOverlay) logs one
+      // row per on-device sismo trigger via the CLIENT SDK. It previously wrote
+      // tenants/{tid}/seismic_events keyed by `window.__GP_TENANT_ID__ ||
+      // 'default'` — a global no install ever assigns — behind
+      // isMemberOfTenant() claims no flow mints, so every production write was
+      // PERMISSION_DENIED (the same double-death as system_events, PR #847).
+      // Re-scoped to the PROJECT (the real tenancy unit). Life-safety telemetry
+      // is FREE on every tier (ADR 0021): member read + member create with
+      // schema validation, path-bound projectId (no cross-project inject),
+      // immutable once written (the accelerometer log is evidence).
+      match /seismic_events/{eventId} {
+        allow read: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().keys().hasAll(['detectedAt', 'peakG', 'projectId'])
+          && incoming().detectedAt is string
+          && incoming().peakG is number
+          && incoming().projectId == projectId;
+        allow update, delete: if false;
+      }
+
       // Digital Twin reconstruction jobs — server writes only, members read.
       // NOTE: this collection has NO writers in the codebase (phantom/legacy).
       // The REAL on-device photogrammetry job store writes `reconstruction_jobs`
@@ -1502,18 +1523,15 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
 
-      // Seismic auto-detection telemetry (src/components/shared/EmergencyOverlay.tsx
-      // → tenants/{tid}/seismic_events). The on-device accelerometer logs one row
-      // per sismo trigger via the CLIENT SDK; the tenant catch-all above denies all
-      // client writes, so this was default-denied. Life-safety telemetry is FREE
-      // (ADR 0021) → tenant-member create, bound to the path tenant so a member of
-      // tenant A cannot forge an event into tenant B. Immutable once written.
-      match /seismic_events/{eventId} {
-        allow read: if isSignedIn() && isMemberOfTenant(tenantId);
-        allow create: if isSignedIn() && isMemberOfTenant(tenantId)
-          && incoming().tenantId == tenantId;
-        allow update, delete: if false;
-      }
+      // A4 follow-up re-scope 2026-06: tenants/{tid}/seismic_events is GONE.
+      // The §365 fix added a tenant-member create rule here, but the writer
+      // (EmergencyOverlay) keyed the path with `window.__GP_TENANT_ID__ ||
+      // 'default'` (a global no install ever assigns) and isMemberOfTenant()
+      // requires claims no flow mints — the path was unreachable in
+      // production AND a dormant client-writable surface. The collection now
+      // lives under projects/{pid}/seismic_events (see the projects block),
+      // mirroring the PR #847 system_events re-scope. Writes here fall to
+      // the tenant catch-all default-deny above.
 
       // Fase D.4 — tenant-scoped supervisor-only subcollection.
       // Used by audit_summaries, supervisor_briefings, cross_project_kpis, …

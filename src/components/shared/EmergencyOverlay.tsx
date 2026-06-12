@@ -33,7 +33,7 @@ interface SeismicLogPayload {
   detectedAt: string;
   peakG: number;
   location: { lat: number; lng: number } | null;
-  tenantId: string;
+  projectId: string;
 }
 
 /**
@@ -41,16 +41,24 @@ interface SeismicLogPayload {
  * "Agáchate · Cúbrete · Sujétate" trio, optional Triángulo de la Vida tip
  * (afternoon + indoor heuristic), and a 30s auto-dismiss / tap-to-dismiss.
  *
- * Persists one row to `tenants/{tenantId}/seismic_events/{id}` per trigger.
+ * Persists one row to `projects/{projectId}/seismic_events/{id}` per trigger.
+ *
+ * A4 follow-up re-scope (2026-06): this used to write
+ * `tenants/{tid}/seismic_events` keyed by `window.__GP_TENANT_ID__ ||
+ * 'default'` — the same never-assigned global that killed systemEngine
+ * cross-device sync (PR #847) — behind `isMemberOfTenant()` claims no flow
+ * mints, so every write was PERMISSION_DENIED in production. The PROJECT is
+ * the real tenancy unit; with no project selected the write is skipped
+ * cleanly (the life-safety overlay itself never depends on persistence).
  */
 function SismicAutoOverlay({
   peakG,
   onDismiss,
-  tenantId,
+  projectId,
 }: {
   peakG: number;
   onDismiss: () => void;
-  tenantId: string;
+  projectId: string | null;
 }): React.ReactElement {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [logged, setLogged] = useState(false);
@@ -74,23 +82,29 @@ function SismicAutoOverlay({
     }
   }, []);
 
-  // Persist exactly once.
+  // Persist exactly once. No selected project → skip cleanly: a
+  // project-less event has no deliverable path on the project-scoped
+  // collection, and the overlay (the life-safety part) renders regardless.
   useEffect(() => {
     if (logged) return;
     setLogged(true);
+    if (!projectId) {
+      logger.info('SismicAutoOverlay: no project selected — seismic telemetry write skipped');
+      return;
+    }
     const payload: SeismicLogPayload = {
       detectedAt: new Date().toISOString(),
       peakG,
       location,
-      tenantId,
+      projectId,
     };
-    addDoc(collection(db, `tenants/${tenantId}/seismic_events`), {
+    addDoc(collection(db, `projects/${projectId}/seismic_events`), {
       ...payload,
       createdAt: serverTimestamp(),
     }).catch((err) =>
       logger.warn('SismicAutoOverlay: failed to persist seismic_event', { err }),
     );
-  }, [logged, peakG, location, tenantId]);
+  }, [logged, peakG, location, projectId]);
 
   // Indoor heuristic: afternoon (12:00–20:00) + GPS at coarse fix is a weak
   // proxy for "user is inside a building". Without a known-buildings index
@@ -260,13 +274,14 @@ export function EmergencyOverlay() {
   // the UI only when no sismo/climate auto-event is active.
   if (emergencyAutoEvent) {
     if (emergencyAutoEvent.reason === 'sismo') {
-      const tenantId =
-        (typeof window !== 'undefined' && window.__GP_TENANT_ID__) || 'default';
+      // A4 follow-up (2026-06): the write target is the selected PROJECT —
+      // the `window.__GP_TENANT_ID__ || 'default'` derivation (an orphan
+      // global no install ever assigned, PR #847 forensics) is gone.
       return (
         <SismicAutoOverlay
           peakG={emergencyAutoEvent.peakG}
           onDismiss={dismissEmergency}
-          tenantId={String(tenantId)}
+          projectId={selectedProject?.id ?? null}
         />
       );
     }

@@ -73,6 +73,19 @@ export interface MeshRelayQueueOptions {
    * Excepciones del listener se capturan — NO rompen el path de relay.
    */
   onRelaySuccess?: (event: MeshRelaySuccessEvent) => void;
+  /**
+   * B16 wire (2026-06) — closes the Sprint 26 TODO where this was
+   * hardcoded false. Live callback answering "is the owner of this node
+   * supervisor-class right now?" for packets addressed to 'supervisors'
+   * (event_to_supervisor, lone-worker gps_breadcrumb, IoT/pose edge
+   * events). MeshProvider wires it from the device's cached
+   * users/{uid}.role (FirebaseContext.userRole) — the only
+   * offline-trustable role source when the mesh runs without network.
+   * A callback per receive (not a frozen boolean) so a role that
+   * resolves AFTER the queue is constructed still takes effect without
+   * restarting the BLE transport. Absent/throwing → treated as false.
+   */
+  isSupervisor?: () => boolean;
 }
 
 export interface RelayResult {
@@ -110,6 +123,7 @@ export class MeshRelayQueue {
   private readonly nowFn: () => number;
   private readonly onRelaySuccess?: (event: MeshRelaySuccessEvent) => void;
   private readonly signingKey: MeshSigningKey | null;
+  private readonly isSupervisorFn?: () => boolean;
 
   private queue: MeshPacket[] = [];
   /** Set de packet IDs vistos recientemente. Cleanup por TTL. */
@@ -123,6 +137,7 @@ export class MeshRelayQueue {
     this.nowFn = options.now ?? Date.now;
     this.onRelaySuccess = options.onRelaySuccess;
     this.signingKey = options.signingKey ?? null;
+    this.isSupervisorFn = options.isSupervisor;
   }
 
   /** Estado actual (lectura). Útil para UI badge "N pendientes". */
@@ -363,8 +378,28 @@ export class MeshRelayQueue {
   }
 
   private isSupervisor(): boolean {
-    // Sprint 26 wire: leerá de FirebaseContext role. Por ahora no
-    // sabemos — los supervisors se identifican por audience explícita.
-    return false;
+    // B16 wire (2026-06) — the Sprint 26 TODO ("leerá de FirebaseContext
+    // role") landed: the caller supplies the live role via the
+    // `isSupervisor` option (MeshProvider wires FirebaseContext.userRole,
+    // i.e. the cached users/{uid}.role — the only role source the device
+    // can trust offline; no auth claim is reachable without network).
+    //
+    // Life-safety decision: when the role is unknown / not supervisor we
+    // do NOT deliver locally, but the packet is NEVER dropped — receive()
+    // keeps relaying it (shouldRelay) until a node whose cached role IS
+    // supervisor-class delivers it. We deliberately rejected
+    // deliver-to-all-with-flag: 'supervisors'-addressed packets are
+    // supervisor-targeted worker telemetry/events (event_to_supervisor,
+    // lone-worker breadcrumbs, IoT/pose edge events) and surfacing them on
+    // every peer would leak them to the whole crew; the raw SOS path is
+    // unaffected because SOS packets are toUid:'broadcast'
+    // (meshFallback.ts buildPacket). A throwing callback degrades to
+    // "not a supervisor" — the relay path must never break on a role read.
+    if (!this.isSupervisorFn) return false;
+    try {
+      return this.isSupervisorFn() === true;
+    } catch {
+      return false;
+    }
   }
 }

@@ -32,6 +32,7 @@ let firebaseMock: { user: { uid: string; displayName: string | null } | null } =
 };
 // Reassigned per test so assertions see a fresh spy (mirrors emergencyMock).
 let setDocSpy = vi.fn((..._args: unknown[]) => Promise.resolve());
+let addDocSpy = vi.fn((..._args: unknown[]) => Promise.resolve({ id: 'fake' }));
 
 vi.mock('../../contexts/EmergencyContext', () => ({
   useEmergency: () => emergencyMock,
@@ -55,8 +56,9 @@ vi.mock('../../services/firebase', () => ({
 }));
 
 vi.mock('firebase/firestore', () => ({
-  collection: vi.fn(() => ({})),
-  addDoc: vi.fn(() => Promise.resolve({ id: 'fake' })),
+  // Capture the path so tests can pin WHERE seismic telemetry is written.
+  collection: vi.fn((_db: unknown, path: string) => ({ path })),
+  addDoc: (...args: unknown[]) => addDocSpy(...args),
   doc: vi.fn((_db: unknown, path: string, id: string) => ({ path, id })),
   setDoc: (...args: unknown[]) => setDocSpy(...args),
 }));
@@ -81,6 +83,7 @@ beforeEach(() => {
   projectMock = { selectedProject: { id: 'p1', name: 'Mina X' } };
   firebaseMock = { user: { uid: 'u1', displayName: 'Juan' } };
   setDocSpy = vi.fn((..._args: unknown[]) => Promise.resolve());
+  addDocSpy = vi.fn((..._args: unknown[]) => Promise.resolve({ id: 'fake' }));
   // Stub geolocation so the check-in's best-effort GPS resolves (a no-op stub
   // would hang the persist Promise).
   Object.defineProperty(global.navigator, 'geolocation', {
@@ -222,6 +225,38 @@ describe('EmergencyOverlay', () => {
     expect(setDocSpy).toHaveBeenCalledTimes(1);
     const payload = setDocSpy.mock.calls[0]![1] as Record<string, unknown>;
     expect(payload).toMatchObject({ workerId: 'u1', status: 'danger', triageLevel: 'rojo' });
+  });
+
+  // A4 follow-up (2026-06): seismic telemetry used to write
+  // tenants/{window.__GP_TENANT_ID__ || 'default'}/seismic_events — the same
+  // never-assigned global that killed systemEngine sync (PR #847), gated by
+  // tenant claims no flow mints → every write was PERMISSION_DENIED in prod.
+  // Re-scoped to projects/{pid}/seismic_events with the project from context.
+  it('persists seismic telemetry to projects/{pid}/seismic_events (project from context)', async () => {
+    appModeMock.emergencyAutoEvent = { reason: 'sismo', peakG: 0.31 };
+    await act(async () => {
+      render(<EmergencyOverlay />);
+    });
+    expect(addDocSpy).toHaveBeenCalledTimes(1);
+    const [collRef, payload] = addDocSpy.mock.calls[0] as unknown as [
+      { path: string },
+      Record<string, unknown>,
+    ];
+    expect(collRef.path).toBe('projects/p1/seismic_events');
+    expect(payload).toMatchObject({ peakG: 0.31, projectId: 'p1' });
+    expect(payload).not.toHaveProperty('tenantId');
+    expect(typeof payload.detectedAt).toBe('string');
+  });
+
+  it('skips the seismic write cleanly when NO project is selected — overlay still renders', async () => {
+    projectMock = { selectedProject: null };
+    appModeMock.emergencyAutoEvent = { reason: 'sismo', peakG: 0.2 };
+    await act(async () => {
+      render(<EmergencyOverlay />);
+    });
+    // Life-safety UI is never blocked by the missing write target.
+    expect(screen.getByText(/SISMO DETECTADO/i)).toBeTruthy();
+    expect(addDocSpy).not.toHaveBeenCalled();
   });
 
   it('does not persist when project or user is absent (guarded)', async () => {

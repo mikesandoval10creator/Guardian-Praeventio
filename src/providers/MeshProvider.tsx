@@ -39,9 +39,10 @@
 // with `activeFacade = null` — `enqueueOutbound` will return
 // `'no-transport'` exactly as in dev, and the rest of the app works.
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 import { useFirebase } from '../contexts/FirebaseContext';
+import { isAdminRole, isSupervisorRole } from '../types/roles';
 import { useProject } from '../contexts/ProjectContext';
 import { registerMeshTransport } from '../services/emergency/meshFallback';
 import { MeshRelayQueue } from '../services/mesh/meshRelayQueue';
@@ -72,11 +73,20 @@ function reportMeshError(err: unknown, step: string): void {
 }
 
 export function MeshProvider({ children }: MeshProviderProps) {
-  const { user } = useFirebase();
+  const { user, userRole } = useFirebase();
   const { selectedProject } = useProject();
 
   const uid = user?.uid ?? null;
   const projectId = selectedProject?.id ?? null;
+
+  // B16 wire (2026-06) — supervisors-delivery role for the relay queue.
+  // Ref-backed so a role that resolves AFTER mount (users/{uid}.role getDoc
+  // lands late, or the role changes mid-session) reaches the queue WITHOUT
+  // entering the effect deps — tearing down/restarting the BLE transport on
+  // a role refresh would drop in-flight packets. Admin-class roles
+  // (admin/gerente) also receive supervisor-addressed life-safety events.
+  const roleRef = useRef(userRole);
+  roleRef.current = userRole;
 
   useEffect(() => {
     // Auth or project context still resolving — early return per
@@ -108,6 +118,11 @@ export function MeshProvider({ children }: MeshProviderProps) {
         // Sprint 32 B3 wire — relayer earns +50 XP on each SOS rebroadcast
         // (Flow Infinito Phase 3: Consolidación de Conocimiento).
         onRelaySuccess: makeRelayXpHandler(),
+        // B16 wire — live role check so packets addressed to 'supervisors'
+        // are delivered locally on supervisor/admin devices (was hardcoded
+        // false since Sprint 26, i.e. never delivered anywhere).
+        isSupervisor: () =>
+          isSupervisorRole(roleRef.current) || isAdminRole(roleRef.current),
       });
 
       facade = new TransportFacade({

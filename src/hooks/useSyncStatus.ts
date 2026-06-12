@@ -1,12 +1,101 @@
-// Praeventio Guard — Sync Status client hook (5 mutators).
+// Praeventio Guard — Sync Status client hook (5 mutators + real-queue hook).
+//
+// B16 wire (2026-06): `useSyncQueueStatus` below is the hook the app shell
+// actually mounts (SyncQueueIndicator). It reads the REAL central offline
+// queue — OfflineSyncStateMachine (src/services/sync/syncStateMachine.ts),
+// the same queue OfflineSyncManager drains — and derives the visible
+// summary/badge ON-DEVICE via the pure syncQueueTracker engine. The 5 HTTP
+// wrappers that follow are kept for server-verified flows, but they are NOT
+// in the badge path: the badge exists precisely for when the worker is
+// offline, so its derivation can never depend on an HTTP round-trip.
+
+import { useEffect, useMemo, useState } from 'react';
 
 import { apiAuthHeaders } from '../lib/apiAuth';
+import {
+  offlineSync,
+  type OfflineSyncStateMachine,
+  type SyncOperation,
+  type SyncStateSnapshot,
+} from '../services/sync/syncStateMachine';
+import {
+  deriveBadge,
+  summarizeQueue,
+  type SyncStatus,
+} from '../services/syncStatus/syncQueueTracker';
 import type {
   SyncItem,
   QueueSummary,
   SyncBadge,
   CreateItemInput,
 } from '../services/syncStatus/syncQueueTracker';
+
+// ── 0. useSyncQueueStatus — REAL queue → visible badge (B16 wire) ──────
+
+export interface SyncQueueStatus {
+  summary: QueueSummary;
+  badge: SyncBadge;
+  /** Fuerza un drain inmediato de la cola real (fire-and-forget). */
+  retry: () => void;
+}
+
+/**
+ * Maps a state-machine SyncOperation onto the tracker's SyncItem shape so
+ * the pure engine (summarizeQueue/deriveBadge) can run over the REAL queue.
+ * `synced` never appears here by construction: synced ops leave the queue.
+ */
+function opToItem(op: SyncOperation, machineSyncing: boolean): SyncItem {
+  const status: SyncStatus = op.deadLettered
+    ? 'sync_failed'
+    : machineSyncing
+      ? 'syncing'
+      : op.attempts > 0
+        ? 'sync_error'
+        : 'saved_local';
+  return {
+    id: op.id,
+    collection: op.collection,
+    op: op.type === 'set' ? 'update' : op.type,
+    payload: (op.data ?? {}) as Record<string, unknown>,
+    status,
+    createdAt: new Date(op.createdAt).toISOString(),
+    attempts: op.attempts,
+    ...(op.lastAttemptMs
+      ? { lastAttemptAt: new Date(op.lastAttemptMs).toISOString() }
+      : {}),
+    ...(op.lastError ? { lastError: op.lastError } : {}),
+  };
+}
+
+export function useSyncQueueStatus(
+  machine: OfflineSyncStateMachine = offlineSync,
+): SyncQueueStatus {
+  const [snap, setSnap] = useState<SyncStateSnapshot>(() => machine.getState());
+
+  useEffect(() => {
+    // subscribe fires synchronously with the current snapshot, so the first
+    // post-mount render is already consistent with the hydrated queue.
+    return machine.subscribe(setSnap);
+  }, [machine]);
+
+  return useMemo(() => {
+    const syncing = snap.state === 'online_syncing';
+    const items = [
+      ...snap.operations.map((op) => opToItem(op, syncing)),
+      // Dead-letters are excluded from the snapshot's pending ops but they
+      // are exactly what the worker must see ("N fallidos" → escalate).
+      ...machine.deadLetters().map((op) => opToItem(op, false)),
+    ];
+    const summary = summarizeQueue(items);
+    return {
+      summary,
+      badge: deriveBadge(summary),
+      retry: () => {
+        void machine.syncNow();
+      },
+    };
+  }, [snap, machine]);
+}
 
 async function authedFetch(
   path: string,

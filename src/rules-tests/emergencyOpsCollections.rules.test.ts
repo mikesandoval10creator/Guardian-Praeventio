@@ -14,7 +14,13 @@
 //   projects/{pid}/notifications      — member create/update, admin delete
 //   projects/{pid}/epp_verifications  — member create, immutable, admin delete
 //   projects/{pid}/trainings          — member create/update, admin delete
-//   tenants/{tid}/seismic_events      — tenant-member create, path-bound, immutable
+//   projects/{pid}/seismic_events     — member create, path-bound, immutable
+//
+// A4 follow-up re-scope (2026-06): seismic_events moved from
+// tenants/{tid} (unreachable in prod — `window.__GP_TENANT_ID__` never
+// assigned + isMemberOfTenant claims never minted) to projects/{pid},
+// mirroring the PR #847 system_events re-scope. The tenant-scoped suite
+// below now PINS the deny (the old path must stay dead).
 //
 // F1 fail-closed harness (authenticatedContext; Admin SDK only seeds
 // preconditions, never an assertion). Run via `npm run test:rules` (JDK 21).
@@ -30,7 +36,6 @@ import { createRulesTestEnv, verifiedToken } from './_harness';
 
 const PID = 'proj-emerg-1';
 const TID = 'tenant-emerg-1';
-const OTHER_TID = 'tenant-emerg-2';
 const MEMBER = 'member-uid-1';
 const OUTSIDER = 'outsider-uid-9';
 const ADMIN = 'admin-uid-1';
@@ -82,20 +87,12 @@ function tenantAuthed(uid: string, tenantId: string, role = 'worker') {
     .authenticatedContext(uid, { ...verifiedToken(role), tenantId })
     .firestore();
 }
-function tenantRef(ctxDb: CtxDb, tenantId: string, name: string, id: string) {
-  return doc(ctxDb as unknown as Parameters<typeof doc>[0], 'tenants', tenantId, name, id);
-}
 function tenantColl(ctxDb: CtxDb, tenantId: string, name: string) {
   return collection(ctxDb as unknown as Parameters<typeof collection>[0], 'tenants', tenantId, name);
 }
 async function seed(name: string, id: string, data: Record<string, unknown>) {
   await requireEnv().withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'projects', PID, name, id), data);
-  });
-}
-async function seedTenant(tenantId: string, name: string, id: string, data: Record<string, unknown>) {
-  await requireEnv().withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), 'tenants', tenantId, name, id), data);
   });
 }
 
@@ -220,29 +217,64 @@ describe('trainings — firestore.rules (§365)', () => {
   });
 });
 
-describe('seismic_events — firestore.rules (§365, tenant-scoped)', () => {
-  const ev = (tenantId: string) => ({ detectedAt: '2026-06-08T00:00:00.000Z', peakG: 0.42, location: null, tenantId, createdAt: '2026-06-08T00:00:00.000Z' });
+describe('seismic_events — firestore.rules (A4 follow-up, project-scoped)', () => {
+  // Exactly the shape SismicAutoOverlay writes (EmergencyOverlay.tsx):
+  // detectedAt + peakG + location (nullable) + projectId + createdAt.
+  const ev = (projectId: string = PID) => ({
+    detectedAt: '2026-06-11T00:00:00.000Z',
+    peakG: 0.42,
+    location: null,
+    projectId,
+    createdAt: '2026-06-11T00:00:00.000Z',
+  });
 
-  it('a tenant member can CREATE a seismic event bound to their tenant', async () => {
-    await assertSucceeds(addDoc(tenantColl(tenantAuthed(MEMBER, TID), TID, 'seismic_events'), ev(TID)));
+  it('a project member can CREATE a seismic event bound to their project', async () => {
+    await assertSucceeds(addDoc(coll(authed(MEMBER), 'seismic_events'), ev()));
   });
-  it('a tenant member can READ seismic events', async () => {
-    await seedTenant(TID, 'seismic_events', 'e1', ev(TID));
-    await assertSucceeds(getDoc(tenantRef(tenantAuthed(MEMBER, TID), TID, 'seismic_events', 'e1')));
+  it('a project member can READ seismic events', async () => {
+    await seed('seismic_events', 'e1', ev());
+    await assertSucceeds(getDoc(ref(authed(MEMBER), 'seismic_events', 'e1')));
   });
-  it('a non-tenant user CANNOT read seismic events (tenant isolation)', async () => {
-    await seedTenant(TID, 'seismic_events', 'e1', ev(TID));
-    await assertFails(getDoc(tenantRef(tenantAuthed(OUTSIDER, OTHER_TID), TID, 'seismic_events', 'e1')));
+  it('a non-member CANNOT create a seismic event', async () => {
+    await assertFails(addDoc(coll(authed(OUTSIDER), 'seismic_events'), ev()));
   });
-  it('a member of tenant B CANNOT forge an event into tenant A (path-bound)', async () => {
-    // Authenticated against TID but the payload claims OTHER_TID → rejected.
+  it('a non-member CANNOT read seismic events (cross-project isolation)', async () => {
+    await seed('seismic_events', 'e1', ev());
+    await assertFails(getDoc(ref(authed(OUTSIDER), 'seismic_events', 'e1')));
+  });
+  it('a member CANNOT forge an event whose projectId differs from the path (cross-project inject)', async () => {
     await assertFails(
-      setDoc(tenantRef(tenantAuthed(MEMBER, TID), TID, 'seismic_events', 'spoof'), ev(OTHER_TID)),
+      setDoc(ref(authed(MEMBER), 'seismic_events', 'spoof'), ev('other-project')),
     );
   });
-  it('a seismic event is IMMUTABLE — no update or delete', async () => {
-    await seedTenant(TID, 'seismic_events', 'e1', ev(TID));
-    await assertFails(updateDoc(tenantRef(tenantAuthed(MEMBER, TID), TID, 'seismic_events', 'e1'), { peakG: 9 }));
-    await assertFails(deleteDoc(tenantRef(tenantAuthed(MEMBER, TID), TID, 'seismic_events', 'e1')));
+  it('a member CANNOT create a schema-violating event (missing peakG / detectedAt / wrong types)', async () => {
+    const { peakG: _g, ...noPeakG } = ev();
+    await assertFails(setDoc(ref(authed(MEMBER), 'seismic_events', 'e2'), noPeakG));
+    const { detectedAt: _d, ...noDetectedAt } = ev();
+    await assertFails(setDoc(ref(authed(MEMBER), 'seismic_events', 'e3'), noDetectedAt));
+    await assertFails(
+      setDoc(ref(authed(MEMBER), 'seismic_events', 'e4'), { ...ev(), peakG: 'alto' }),
+    );
+  });
+  it('a seismic event is IMMUTABLE — no update or delete (admin included)', async () => {
+    await seed('seismic_events', 'e1', ev());
+    await assertFails(updateDoc(ref(authed(MEMBER), 'seismic_events', 'e1'), { peakG: 9 }));
+    await assertFails(deleteDoc(ref(authed(MEMBER), 'seismic_events', 'e1')));
+    await assertFails(deleteDoc(ref(authed(ADMIN, 'admin'), 'seismic_events', 'e1')));
+  });
+
+  // Supersession pin: the old tenants/{tid}/seismic_events path must STAY
+  // dead — its match block was removed (no writer; dormant client-writable
+  // surface) and writes fall to the tenant catch-all default-deny.
+  it('the superseded tenants/{tid}/seismic_events path DENIES create (even with tenant claims)', async () => {
+    await assertFails(
+      addDoc(tenantColl(tenantAuthed(MEMBER, TID), TID, 'seismic_events'), {
+        detectedAt: '2026-06-11T00:00:00.000Z',
+        peakG: 0.42,
+        location: null,
+        tenantId: TID,
+        createdAt: '2026-06-11T00:00:00.000Z',
+      }),
+    );
   });
 });
