@@ -189,6 +189,20 @@ function buildCspString(nonce: string): string {
   const directives = { ...CSP_STATIC_DIRECTIVES };
   if (isDev) {
     directives['connect-src'] = `${directives['connect-src']} ws://localhost:* http://localhost:* ws://127.0.0.1:* http://127.0.0.1:*`;
+    // HOTFIX sesión cowork 2026-06-11 (descubierto en el primer `npm run dev`
+    // real en navegador post-Sprint 20 13th wave): per CSP spec,
+    // `script-src-elem` OVERRIDE-a a `script-src` para elementos <script>.
+    // El mapa estático no incluye 'unsafe-inline', así que el PREÁMBULO
+    // INLINE de @vitejs/plugin-react quedaba bloqueado en dev → React jamás
+    // montaba (#root vacío, violaciones en /api/csp-report, cero errores de
+    // consola post-attach). Espejamos las directivas dev de script-src.
+    // ⚠️ Para las sesiones cloud: en PROD `script-src-elem` tampoco lleva el
+    // nonce — si el index.html buildeado conserva algún <script> inline con
+    // nonce, está igual de bloqueado. Revisar y consolidar (¿basta borrar
+    // script-src-elem y dejar que script-src gobierne?). Ver bitácora en
+    // docs/COWORK_REQUIREMENTS.md §Hallazgos dev-local.
+    directives['script-src-elem'] =
+      "'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com";
   }
 
   const otherDirectives = Object.entries(directives)

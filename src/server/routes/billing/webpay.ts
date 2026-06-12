@@ -302,7 +302,11 @@ export function registerWebpayRoutes(
             txn: tokenWs,
             invoiceId: lock.invoiceId ?? null,
             previousOutcome: lock.outcome,
-          }).catch(() => {});
+          }).then((ok: boolean) => {
+            // P0 informe 2026-06-12: antes `.catch(() => {})` silenciaba la
+            // falla de audit. auditServerEvent nunca lanza — devuelve boolean.
+            if (!ok) logger.error('billing_audit_write_failed', new Error('audit_write_failed'), { event: 'billing.webhook.replay', source: 'webpay', txn: tokenWs });
+          });
           return res.redirect(redirectFor(lock.outcome, lock.invoiceId ?? null));
         }
         // In-flight from another worker. Mirror RTDN's "ack and let UI handle

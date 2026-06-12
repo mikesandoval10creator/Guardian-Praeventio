@@ -280,7 +280,10 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
             source: 'khipu',
             txn: dedupeKey,
             paymentId,
-          }).catch(() => {});
+          }).then((ok: boolean) => {
+            // P0 informe 2026-06-12: auditServerEvent nunca lanza — boolean.
+            if (!ok) logger.error('billing_audit_write_failed', new Error('audit_write_failed'), { event: 'billing.webhook.replay', source: 'khipu', txn: dedupeKey });
+          });
         } else if (
           outcome.kind === 'fresh-success' ||
           outcome.kind === 'stale-retry'
@@ -290,7 +293,9 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
             txn: dedupeKey,
             paymentId,
             outcome: outcome.kind,
-          }).catch(() => {});
+          }).then((ok: boolean) => {
+            if (!ok) logger.error('billing_audit_write_failed', new Error('audit_write_failed'), { event: 'billing.webhook.success', source: 'khipu', txn: dedupeKey });
+          });
         }
 
         return res.status(200).json({ received: true });

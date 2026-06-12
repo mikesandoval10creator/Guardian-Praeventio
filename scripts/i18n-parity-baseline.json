@@ -828,8 +828,6 @@
     "erpIntegration.title",
     "errors.go_home",
     "errors.reload",
-    "evacuation.aria.active",
-    "evacuation.aria.idle",
     "evacuationRoutes.activeEmergency",
     "evacuationRoutes.connectingSeismic",
     "evacuationRoutes.evacStatus",

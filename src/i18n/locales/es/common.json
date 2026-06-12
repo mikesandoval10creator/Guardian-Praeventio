@@ -3145,7 +3145,9 @@
   },
   "evacuation": {
     "aria": {
-      "board": "Tablero evacuación"
+      "active": "Tablero de evacuación activa",
+      "board": "Tablero evacuación",
+      "idle": "Panel de evacuación"
     },
     "dashboard": {
       "title": "Conteo de Evacuación",
