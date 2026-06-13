@@ -21,6 +21,9 @@ export function SafeDrivingMode() {
   const [reportSaved, setReportSaved] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Web Speech API has no DOM lib types — same `any` suppression as the
+  // SpeechRecognition ctor resolution below.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const dictatedTextRef = useRef('');
   // Idempotency key — persists across retries of the SAME dictated report so a
@@ -117,8 +120,9 @@ export function SafeDrivingMode() {
     recognition.lang = 'es-CL';
     recognition.continuous = true;
     recognition.interimResults = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onresult = (e: any) => {
-      const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join(' ');
+      const transcript = Array.from(e.results).map((r) => r[0].transcript).join(' ');
       dictatedTextRef.current = transcript;
       setDictatedText(transcript);
     };
