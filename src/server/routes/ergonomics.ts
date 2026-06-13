@@ -21,6 +21,8 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
+import { callerTenantOr403 } from '../auth/callerTenant.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -33,8 +35,40 @@ import {
   calculateRula,
   type RulaInput,
 } from '../../services/ergonomics/rula.js';
+import {
+  triggerLegalConsequencesIfNeeded,
+  crossesLegalThreshold,
+} from '../../services/safety/ergonomicLegalTrigger.js';
+import type { MinimalFolioStore } from '../../services/suseso/folioGenerator.js';
 
 const router = Router();
+
+// Admin-SDK folioStore for the DS-594 art. 110 legal trigger. The DIEP
+// folio counter lives at `tenants/{tid}/suseso_counters/{year}-DIEP`, which
+// `firestore.rules` denies to ALL clients (server-only). The browser wizard
+// therefore CANNOT allocate a folio with the client SDK — it must round-trip
+// through this route. Mirrors `buildFolioStore` in routes/suseso.ts.
+function buildFolioStore(): MinimalFolioStore {
+  const fs = admin.firestore();
+  return {
+    async runTransaction(fn) {
+      return fs.runTransaction(async (tx) => {
+        return fn({
+          async get(path: string) {
+            const ref = fs.doc(path);
+            const snap = await tx.get(ref);
+            return snap.exists
+              ? { exists: true, data: snap.data() as { lastSeq?: number } }
+              : { exists: false };
+          },
+          set(path: string, value: { lastSeq: number }) {
+            tx.set(fs.doc(path), value);
+          },
+        });
+      });
+    },
+  };
+}
 
 async function guard(
   callerUid: string,
@@ -204,6 +238,86 @@ router.post(
       }
       logger.error?.('ergonomics.calculateRula.error', err);
       captureRouteError(err, 'ergonomics.calculateRula');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────
+// 3. legal-trigger — DS-594 art. 110 DIEP folio + Zettelkasten node + audit
+// ────────────────────────────────────────────────────────────────────────
+//
+// WHY a server route: REBA>=11 / RULA>=7 cross the legal action threshold and
+// must pre-allocate a DIEP folio (Circular SUSESO 3596 / ISO 11226). That
+// folio counter is Admin-SDK-only (firestore.rules denies clients), so the
+// browser wizard (AddErgonomicsModal) cannot do it directly — it persists the
+// technical assessment with the client SDK, then fire-and-forget POSTs here so
+// the legal consequence still fires in PRODUCTION (the previous wiring never
+// supplied folioStore+tenantId, so the trigger was dead code in the browser).
+//
+// The assessment itself is already saved + audited by the client; this route
+// only emits the LEGAL side-effects. Identity + tenant come from the verified
+// token, never the body (CLAUDE.md #3). Audit write is awaited (CLAUDE.md #14).
+
+const legalTriggerSchema = z.object({
+  assessmentId: z.string().min(1),
+  workerId: z.string().min(1),
+  type: z.enum(['REBA', 'RULA']),
+  score: z.number().finite(),
+  computedAt: z.string().min(1),
+  // Echoed back for the cross-tenant guard; authoritative value is the token.
+  tenantId: z.string().min(1).optional(),
+});
+
+router.post(
+  '/:projectId/ergonomics/legal-trigger',
+  verifyAuth,
+  validate(legalTriggerSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof legalTriggerSchema>;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+
+    // Tenant is authoritative from the verified token — never the body.
+    const tenantId = callerTenantOr403(req, res, body.tenantId);
+    if (tenantId === null) return undefined;
+
+    // Below the legal threshold there is nothing to do — short-circuit so a
+    // routine assessment never wastes a folio or writes a misleading audit.
+    if (!crossesLegalThreshold(body.type, body.score)) {
+      return res.json({ triggered: false });
+    }
+
+    try {
+      const result = await triggerLegalConsequencesIfNeeded(
+        {
+          assessmentId: body.assessmentId,
+          workerId: body.workerId,
+          projectId,
+          tenantId,
+          type: body.type,
+          score: body.score,
+          computedAt: body.computedAt,
+        },
+        {
+          folioStore: buildFolioStore(),
+          // Server-stamped audit (actor from the verified token). The default
+          // `logAuditAction` only works in the browser (auth.currentUser +
+          // relative fetch), so on the server we route through auditServerEvent.
+          auditLog: async (action, _module, details) => {
+            await auditServerEvent(req, action, 'safety', details, { projectId });
+          },
+        },
+      );
+      return res.json({
+        triggered: result.triggered,
+        diepFolio: result.diepFolio ?? null,
+        derivedNodeId: result.nodeSpec?.id ?? null,
+      });
+    } catch (err) {
+      logger.error?.('ergonomics.legalTrigger.error', err);
+      captureRouteError(err, 'ergonomics.legalTrigger');
       return res.status(500).json({ error: 'internal_error' });
     }
   },

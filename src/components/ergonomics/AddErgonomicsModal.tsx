@@ -18,6 +18,8 @@ import { NodeType, type Worker } from '../../types';
 import { calculateReba, type RebaInput, type RebaResult } from '../../services/ergonomics/reba';
 import { calculateRula, type RulaInput, type RulaResult } from '../../services/ergonomics/rula';
 import { recordErgonomicAssessment } from '../../services/safety/ergonomicAssessments';
+import { crossesLegalThreshold } from '../../services/safety/ergonomicLegalTrigger';
+import { dispatchLegalTrigger } from '../../services/safety/dispatchLegalTrigger';
 import { logger } from '../../utils/logger';
 
 interface AddErgonomicsModalProps {
@@ -367,6 +369,24 @@ export function AddErgonomicsModal({
         connections: [],
         projectId,
       });
+
+      // 3. DS-594 art. 110 legal trigger. REBA>=11 / RULA>=7 cross the legal
+      //    action threshold and must pre-allocate a DIEP folio + Zettelkasten
+      //    node + audit. The folio counter is Admin-SDK-only (firestore.rules
+      //    denies clients), so we fire-and-forget POST to the server route
+      //    rather than building a client folioStore (which would always be
+      //    rejected). NEVER blocks the save — the technical record is the
+      //    source of truth; the legal consequence is a server-side side-effect.
+      if (crossesLegalThreshold(kind, finalScore)) {
+        void dispatchLegalTrigger({
+          projectId,
+          assessmentId: persisted.id,
+          workerId,
+          type: kind,
+          score: finalScore,
+          computedAt: new Date().toISOString(),
+        });
+      }
 
       close();
     } catch (err) {

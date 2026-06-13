@@ -36,6 +36,21 @@ import { logAuditAction } from '../auditService';
 import { getErrorTracker } from '../observability';
 import type { FamilyNodeSpec } from '../zettelkasten/families/climateNodeRegistry';
 
+/**
+ * Audit-writer contract. The browser path uses the default `logAuditAction`
+ * (POST /api/audit-log, actor stamped server-side from the token). The
+ * SERVER path (Express route) injects an Admin-SDK-backed writer that stamps
+ * the actor from the verified token directly, because `logAuditAction`'s
+ * `auth.currentUser` + relative `fetch` only exist in the browser. Either
+ * way the actor identity comes from the token, never from a payload field.
+ */
+export type LegalTriggerAuditLog = (
+  action: string,
+  module: string,
+  details: Record<string, unknown>,
+  projectId?: string,
+) => Promise<unknown>;
+
 /** REBA legal action threshold (DS-594 art. 110 / Hignett & McAtamney 2000). */
 export const REBA_LEGAL_THRESHOLD = 11;
 /** RULA legal action threshold (Circular SUSESO 3596 / McAtamney & Corlett 1993). */
@@ -96,8 +111,9 @@ function buildNodeSpec(input: ErgonomicLegalTriggerInput): FamilyNodeSpec {
  */
 export async function triggerLegalConsequencesIfNeeded(
   input: ErgonomicLegalTriggerInput,
-  deps: { folioStore: MinimalFolioStore },
+  deps: { folioStore: MinimalFolioStore; auditLog?: LegalTriggerAuditLog },
 ): Promise<ErgonomicLegalTriggerResult> {
+  const writeAudit: LegalTriggerAuditLog = deps.auditLog ?? logAuditAction;
   if (!crossesLegalThreshold(input.type, input.score)) {
     return { triggered: false };
   }
@@ -137,7 +153,7 @@ export async function triggerLegalConsequencesIfNeeded(
 
   // Step 3 — audit log. Independent of folio success.
   try {
-    await logAuditAction(
+    await writeAudit(
       'ergonomic.legal_threshold_crossed',
       'safety',
       {
