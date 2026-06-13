@@ -32,6 +32,11 @@ import type {
   ImportResult,
   ImportRowError,
 } from '../../services/etl/csvAdapter';
+import {
+  importCrewsViaApi,
+  importProcessesViaApi,
+  type ApiRowError,
+} from '../../services/etl/organicCsvSync';
 import { logger } from '../../utils/logger';
 
 interface CsvImportExportModalProps {
@@ -43,7 +48,23 @@ interface CsvImportExportModalProps {
   collectionName?: string;
   /** Optional title; defaults to a Spanish label per entity type. */
   title?: string;
+  /**
+   * Live rows to serialise on export. REQUIRED for the server-routed
+   * entities (`crews`, `processes`): their data lives in the TOP-LEVEL
+   * Firestore collections that only the server writes, so the modal cannot
+   * read them via the project subcollection path. The parent dashboard, which
+   * already subscribes to that data, passes it in. For the legacy
+   * Firestore-backed entities (workers/findings/training/inspections) this is
+   * unused and export falls back to a direct Firestore read.
+   */
+  liveExportRows?: any[];
 }
+
+/** Entities whose canonical writer is a server endpoint (not the client). */
+const SERVER_ROUTED: Partial<Record<EtlEntityType, true>> = {
+  crews: true,
+  processes: true,
+};
 
 const ENTITY_LABEL: Record<EtlEntityType, string> = {
   workers: 'Trabajadores',
@@ -61,6 +82,7 @@ export function CsvImportExportModal({
   projectId,
   collectionName,
   title,
+  liveExportRows,
 }: CsvImportExportModalProps) {
   const adapter = useMemo(() => getAdapter(entityType), [entityType]);
   const [csvText, setCsvText] = useState('');
@@ -68,12 +90,14 @@ export function CsvImportExportModal({
   const [phase, setPhase] = useState<'input' | 'preview' | 'done' | 'exporting'>('input');
   const [busy, setBusy] = useState(false);
   const [importStats, setImportStats] = useState<{ written: number; failed: number } | null>(null);
+  const [importRowErrors, setImportRowErrors] = useState<ApiRowError[]>([]);
   const [exportError, setExportError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const collectionPath = collectionName ?? entityType;
   const label = title ?? ENTITY_LABEL[entityType];
+  const isServerRouted = SERVER_ROUTED[entityType] === true;
 
   const reset = useCallback(() => {
     setCsvText('');
@@ -81,6 +105,7 @@ export function CsvImportExportModal({
     setPhase('input');
     setBusy(false);
     setImportStats(null);
+    setImportRowErrors([]);
     setExportError(null);
   }, []);
 
@@ -119,7 +144,34 @@ export function CsvImportExportModal({
   const confirmImport = useCallback(async () => {
     if (!preview) return;
     setBusy(true);
+    setImportRowErrors([]);
     try {
+      if (isServerRouted) {
+        // crews/processes are written ONLY by the server (POST /api/crews,
+        // POST /api/processes); the client cannot write the subcollection.
+        // Re-cabled here with per-row error reporting instead of the old
+        // silent addDoc-to-read-only-subcollection path.
+        if (!projectId) {
+          setImportStats({ written: 0, failed: preview.success.length });
+          setImportRowErrors(
+            preview.success.map((_: unknown, i: number) => ({
+              row: i + 1,
+              reason: 'proyecto no seleccionado',
+            })),
+          );
+          setPhase('done');
+          return;
+        }
+        const apiResult =
+          entityType === 'crews'
+            ? await importCrewsViaApi(preview.success, { projectId })
+            : await importProcessesViaApi(preview.success, { projectId });
+        setImportStats({ written: apiResult.written, failed: apiResult.failed });
+        setImportRowErrors(apiResult.rowErrors);
+        setPhase('done');
+        return;
+      }
+
       const stats = await adapter.importToFirestore(preview.success, {
         projectId,
         collection: collectionPath,
@@ -127,23 +179,28 @@ export function CsvImportExportModal({
       setImportStats(stats);
       setPhase('done');
     } catch (err) {
-      logger.error('[CsvImportExportModal] importToFirestore failed', { err });
+      logger.error('[CsvImportExportModal] import failed', { err, entityType });
       setImportStats({ written: 0, failed: preview.success.length });
       setPhase('done');
     } finally {
       setBusy(false);
     }
-  }, [adapter, preview, projectId, collectionPath]);
+  }, [adapter, preview, projectId, collectionPath, isServerRouted, entityType]);
 
   const downloadExport = useCallback(async () => {
     setBusy(true);
     setPhase('exporting');
     setExportError(null);
     try {
-      const csv = await adapter.exportFromFirestore({
-        projectId,
-        collection: collectionPath,
-      });
+      // crews/processes live in the TOP-LEVEL collections the dashboard
+      // already subscribes to. Serialise that live data instead of querying
+      // the read-only project subcollection (which is always empty).
+      const csv = isServerRouted
+        ? adapter.serialize(liveExportRows ?? [])
+        : await adapter.exportFromFirestore({
+            projectId,
+            collection: collectionPath,
+          });
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const ts = new Date().toISOString().replace(/[:.]/g, '-');
@@ -162,7 +219,7 @@ export function CsvImportExportModal({
     } finally {
       setBusy(false);
     }
-  }, [adapter, entityType, projectId, collectionPath]);
+  }, [adapter, entityType, projectId, collectionPath, isServerRouted, liveExportRows]);
 
   return (
     <AnimatePresence>
@@ -329,6 +386,22 @@ export function CsvImportExportModal({
                       <p className="text-[10px] font-bold uppercase text-zinc-500">Fallidos</p>
                     </div>
                   </div>
+
+                  {importRowErrors.length > 0 && (
+                    <div className="space-y-1 max-h-48 overflow-y-auto text-left">
+                      <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1 flex items-center gap-2">
+                        <FileWarning className="w-3 h-3" /> Filas con error
+                      </p>
+                      {importRowErrors.map((err, i) => (
+                        <div
+                          key={i}
+                          className="text-xs p-2 rounded-lg bg-rose-500/5 border border-rose-500/20 text-rose-700 dark:text-rose-400"
+                        >
+                          <span className="font-bold">Fila {err.row}:</span> {err.reason}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

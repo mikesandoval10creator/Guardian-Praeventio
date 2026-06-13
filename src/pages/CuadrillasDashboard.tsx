@@ -147,6 +147,10 @@ export function CuadrillasDashboard() {
         onClose={() => setShowCsvModal(null)}
         entityType={showCsvModal ?? 'processes'}
         projectId={projectId || null}
+        // Export reads the TOP-LEVEL collections this dashboard already
+        // subscribes to (server is the only writer); the project subcollection
+        // the adapter used to query is always empty.
+        liveExportRows={showCsvModal === 'crews' ? crews : processes}
       />
 
       {/* 3-pane grid */}
