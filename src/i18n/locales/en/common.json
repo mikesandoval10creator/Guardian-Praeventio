@@ -461,6 +461,8 @@
     "cardiovascular": "Cardiovascular Control",
     "ergonomic_control": "Ergonomic Control",
     "psychosocial_control": "Psychosocial Control",
+    "exam_other": "Other exams",
+    "surveillance_empty": "No data yet. Record occupational exams to see active surveillance.",
     "health_alert": "Health Alert",
     "health_alert_text": "A 15% increase in consultations for visual fatigue has been detected in the administrative area. Lighting review and active breaks are recommended.",
     "modal_new_title": "New Consultation",
