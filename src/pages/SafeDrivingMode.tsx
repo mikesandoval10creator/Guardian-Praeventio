@@ -1,42 +1,101 @@
 import React, { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Car, Phone, MapPin, Mic, ShieldAlert, MicOff, CheckCircle2 } from 'lucide-react';
+import { Car, Phone, MapPin, Mic, ShieldAlert, MicOff, CheckCircle2, AlertTriangle, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../services/firebase';
-import { collection, addDoc } from 'firebase/firestore';
 import { useProject } from '../contexts/ProjectContext';
-import { useFirebase } from '../contexts/FirebaseContext';
 import { useEmergency } from '../contexts/EmergencyContext';
+import { apiAuthHeader } from '../lib/apiAuth';
+import { randomId } from '../utils/randomId';
+import { logger } from '../utils/logger';
 import { WeatherBulletin } from '../components/WeatherBulletin';
 
 export function SafeDrivingMode() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { selectedProject } = useProject();
-  const { user } = useFirebase();
   const { triggerEmergency } = useEmergency();
   const [isEmergency, setIsEmergency] = useState(false);
   const [sosConfirmedAt, setSosConfirmedAt] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [dictatedText, setDictatedText] = useState('');
   const [reportSaved, setReportSaved] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  // Web Speech API has no DOM lib types — same `any` suppression as the
+  // SpeechRecognition ctor resolution below.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const dictatedTextRef = useRef('');
+  // Idempotency key — persists across retries of the SAME dictated report so a
+  // flaky-network re-tap replays the server's cached response instead of
+  // duplicating the incident; regenerates after a successful send. Mirrors
+  // SafeDriving.tsx.
+  const idempotencyKeyRef = useRef(`drv-${randomId()}`);
 
+  // The dictated voice note is persisted through the SAME audited server
+  // endpoint SafeDriving.tsx uses (POST /api/sprint-k/:pid/driving/incidents).
+  // Previously this wrote client-side with addDoc to `driving_reports`, a path
+  // with NO firestore.rules block (default-deny) — every write was rejected and
+  // the empty catch swallowed the error, so reports silently vanished. The
+  // server stamps the reporter's identity from the verified token, writes the
+  // audit_logs row and the RiskNetwork node. A hands-free dictation is a
+  // non-acute on-route observation → kind 'Falla Mecánica' (vs. 'Accidente',
+  // reserved for the explicit crash button in SafeDriving.tsx).
   const saveReport = async (text: string) => {
-    if (!text.trim() || !selectedProject) return;
+    const trimmed = text.trim();
+    if (!trimmed || !selectedProject) return;
+    setIsSaving(true);
+    setReportError(null);
     try {
-      await addDoc(collection(db, `projects/${selectedProject.id}/driving_reports`), {
-        content: text.trim(),
-        userId: user?.uid || null,
-        createdAt: new Date().toISOString(),
-        type: 'DrivingReport',
-      });
+      const authHeader = await apiAuthHeader();
+      const res = await fetch(
+        `/api/sprint-k/${selectedProject.id}/driving/incidents`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authHeader ? { Authorization: authHeader } : {}),
+            'Idempotency-Key': idempotencyKeyRef.current,
+          },
+          body: JSON.stringify({
+            type: 'Falla Mecánica',
+            description: trimmed,
+          }),
+          // En zona sin señal el fetch puede colgarse indefinidamente y dejar al
+          // conductor con isSaving=true para siempre. Un timeout de 15 s aborta
+          // y cae al branch offline (reportErrorOffline) con su texto intacto.
+          signal: AbortSignal.timeout(15000),
+        },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        logger.error('driving_dictation_report_failed', { status: res.status, error: body.error });
+        setReportError(t(
+          'safeDrivingMode.reportErrorServer',
+          'No pudimos guardar el reporte. Tu texto sigue aquí — toca Reintentar.',
+        ));
+        return;
+      }
+      idempotencyKeyRef.current = `drv-${randomId()}`; // next report = fresh key
       setReportSaved(true);
       setTimeout(() => setReportSaved(false), 3000);
-    } catch {
-      // silent — text remains visible so user can copy it manually
+    } catch (err) {
+      // Network failure or AbortSignal.timeout (sin señal en ruta) — NUNCA
+      // descartar en silencio: el texto dictado permanece visible y el botón
+      // Reintentar reenvía. El TimeoutError/AbortError del signal cae aquí y se
+      // muestra como error offline (el destino no respondió a tiempo).
+      logger.error('driving_dictation_report_failed', { error: err });
+      setReportError(t(
+        'safeDrivingMode.reportErrorOffline',
+        'Sin conexión: el reporte NO fue enviado. Reintenta cuando recuperes señal — tu texto sigue aquí.',
+      ));
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const retrySaveReport = () => {
+    void saveReport(dictatedTextRef.current);
   };
 
   const handleDictate = () => {
@@ -56,18 +115,21 @@ export function SafeDrivingMode() {
     dictatedTextRef.current = '';
     setDictatedText('');
     setReportSaved(false);
+    setReportError(null);
     const recognition = new SpeechRecognition();
     recognition.lang = 'es-CL';
     recognition.continuous = true;
     recognition.interimResults = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onresult = (e: any) => {
-      const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join(' ');
+      const rows = e.results as ArrayLike<{ 0: { transcript: string } }>;
+      const transcript = Array.from(rows).map((r) => r[0].transcript).join(' ');
       dictatedTextRef.current = transcript;
       setDictatedText(transcript);
     };
     recognition.onend = () => {
       setIsListening(false);
-      saveReport(dictatedTextRef.current);
+      void saveReport(dictatedTextRef.current);
     };
     recognitionRef.current = recognition;
     recognition.start();
@@ -130,6 +192,29 @@ export function SafeDrivingMode() {
             </div>
           )}
         </button>
+
+        {/* Dictation persistence error — surfaced (never swallowed) with a
+            one-tap retry. The dictated text stays in `dictatedText` above so
+            nothing is lost. */}
+        {reportError && !isListening && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-4 px-6 py-4 rounded-2xl bg-rose-500/10 border-2 border-rose-500/40"
+          >
+            <div className="flex items-center gap-3 text-rose-300 text-sm font-bold">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <span>{reportError}</span>
+            </div>
+            <button
+              onClick={retrySaveReport}
+              disabled={isSaving}
+              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-black uppercase tracking-widest text-xs transition-colors disabled:opacity-50 shrink-0"
+            >
+              <RotateCcw className={`w-4 h-4 ${isSaving ? 'animate-spin' : ''}`} />
+              {t('safeDrivingMode.reportRetry', 'Reintentar')}
+            </button>
+          </div>
+        )}
 
         {/* Two large action buttons */}
         <div className="flex gap-6 h-64">

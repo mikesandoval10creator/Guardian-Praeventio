@@ -4470,5 +4470,10 @@
   },
   "slmManager": {
     "cdnDownloadWarning": "Requires downloading {{size}} from the internet — not bundled with the app. On site, download it only over stable Wi-Fi."
+  },
+  "safeDrivingMode": {
+    "reportErrorServer": "We couldn't save the report. Your text is still here — tap Retry.",
+    "reportErrorOffline": "Offline: the report was NOT sent. Retry once you regain signal — your text is still here.",
+    "reportRetry": "Retry"
   }
 }

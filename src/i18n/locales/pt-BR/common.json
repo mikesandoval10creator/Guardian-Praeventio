@@ -4470,5 +4470,10 @@
   },
   "slmManager": {
     "cdnDownloadWarning": "Requer baixar {{size}} da internet — não vem incluído no app. Em campo, baixe apenas com Wi-Fi estável."
+  },
+  "safeDrivingMode": {
+    "reportErrorServer": "Não foi possível salvar o relato. Seu texto continua aqui — toque em Tentar novamente.",
+    "reportErrorOffline": "Sem conexão: o relato NÃO foi enviado. Tente novamente quando recuperar o sinal — seu texto continua aqui.",
+    "reportRetry": "Tentar novamente"
   }
 }
