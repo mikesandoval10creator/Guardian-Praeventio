@@ -27,7 +27,7 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import { createRulesTestEnv, verifiedToken } from './_harness';
 
 const PID = 'proj-nodes-rut-1';
@@ -182,11 +182,39 @@ describe('nodes worker-RUT read gate — isPublic bypass (PRIVACY 2026-06-08, #7
     await assertSucceeds(getDoc(nodeRef(authed(SUPERVISOR, 'prevencionista'), PUBLIC_PII_NODE)));
   });
 
-  it('BASELINE — anon CANNOT read even a public NON-RUT node (nodes is verified-only)', async () => {
-    await assertFails(getDoc(nodeRef(anon() as unknown as CtxDb, PUBLIC_PLAIN_NODE)));
+  it('PUBLIC WEB (#876) — anon CAN GET a public NON-RUT node by id (QR-scan page)', async () => {
+    // The anonymous QR-scan page (PublicNodeView.tsx, /public/node/:nodeId,
+    // OUTSIDE the auth-gated RootLayout) fetches THIS node by id. A node flagged
+    // isPublic:true with NO worker RUT is public knowledge (a risk/control card),
+    // so anon may GET it. Enumeration is still blocked — see the `list` tests below.
+    await assertSucceeds(getDoc(nodeRef(anon() as unknown as CtxDb, PUBLIC_PLAIN_NODE)));
   });
 
   it('NO REGRESSION — a verified non-member CAN still read a public NON-RUT node', async () => {
     await assertSucceeds(getDoc(nodeRef(authed(NON_MEMBER), PUBLIC_PLAIN_NODE)));
+  });
+});
+
+// GET vs LIST split (#876, 2026-06-13) — the anonymous public branch is granted
+// on `get` ONLY. A node is shareable by its id (QR scan), but the public knowledge
+// graph must NOT be enumerable: neither anon nor a cross-tenant verified user may
+// LIST/crawl public nodes. Listing requires project membership.
+describe('nodes anti-enumeration — get-not-list (#876)', () => {
+  function nodesCol(db: CtxDb) {
+    return collection(db as unknown as Parameters<typeof collection>[0], 'nodes');
+  }
+
+  it('THE SPLIT — anon CANNOT list/enumerate public nodes (no anon `list` clause)', async () => {
+    // Even querying ONLY for public nodes is denied: the public branch lives on
+    // `get`, not `list`, so the whole knowledge graph stays uncrawlable by anon.
+    await assertFails(
+      getDocs(query(nodesCol(anon() as unknown as CtxDb), where('isPublic', '==', true))),
+    );
+  });
+
+  it('a verified NON-MEMBER (other tenant) CANNOT list a project\'s nodes', async () => {
+    await assertFails(
+      getDocs(query(nodesCol(authed(NON_MEMBER)), where('projectId', '==', PID))),
+    );
   });
 });

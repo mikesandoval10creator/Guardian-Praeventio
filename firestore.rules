@@ -930,13 +930,29 @@ service cloud.firestore {
       // DS 67/109 PII nodes private even if mis-flagged isPublic (defence in depth
       // — same guard as the verified branch). All the OTHER access paths (author,
       // admin/supervisor, project member) stay verified-only.
-      allow read: if (existing().isPublic == true && !nodeHasWorkerRut(existing()))
+      //
+      // GET vs LIST split (2026-06-13, #876 — anti-enumeration): `read` is broken
+      // into `get` (single-doc fetch by id) and `list` (collection query). The
+      // anonymous public branch is granted on `get` ONLY — the QR-scan page
+      // fetches exactly one node by its id, so anon never needs to LIST. Keeping
+      // anon (and cross-tenant verified users) off the `list` surface prevents
+      // enumeration of the whole knowledge graph: you can open a public node if
+      // you already hold its id, but you cannot crawl every public node. `list`
+      // is therefore membership-scoped (verified author/admin/supervisor/member),
+      // mirroring the verified branch of the old `read` rule with no public clause.
+      allow get: if (existing().isPublic == true && !nodeHasWorkerRut(existing()))
         || (isEmailVerified() && (
           existing().metadata.authorId == request.auth.uid ||
           isAdmin() ||
           isSupervisor() ||
           (isProjectMember(existing().projectId) && !nodeHasWorkerRut(existing()))
         ));
+      allow list: if isEmailVerified() && (
+          existing().metadata.authorId == request.auth.uid ||
+          isAdmin() ||
+          isSupervisor() ||
+          (isProjectMember(existing().projectId) && !nodeHasWorkerRut(existing()))
+        );
       allow create: if isEmailVerified() && isValidNode(incoming()) && incoming().metadata.authorId == request.auth.uid;
       allow update: if isEmailVerified() && isValidNode(incoming()) && (
         isAdmin() || 
