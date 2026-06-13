@@ -21,6 +21,10 @@
 //       /`safetyPosts`, so a user could self-grant XP and manipulate the
 //       leaderboard. Those keys are removed from the owner's hasOnly() set; only
 //       non-gameable session/profile fields remain owner-writable.
+//       Review #876 hardening: `role` is ALSO removed from the owner-update set
+//       (privilege-escalation vector) and the bootstrap `create` rule now
+//       rejects pre-loaded `medals`/`completedTrainings`/`safetyPosts`/
+//       `completedChallenges`/`role` (previously only `points == 0` was checked).
 //
 // Uses the F1 fail-closed harness (`./_harness`): the emulator must be up or the
 // suite FAILS (never silent-pass). Run via `npm run test:rules`.
@@ -259,7 +263,7 @@ describe('(C) user_stats XP server-authoritative — firestore.rules', () => {
     await assertSucceeds(
       setDoc(
         statsRef(authed(MEMBER), MEMBER),
-        { loginStreak: 4, lastLogin: '2026-06-13T00:00:00Z', displayName: 'Ana', role: 'Usuario', updatedAt: '2026-06-13T00:00:00Z' },
+        { loginStreak: 4, lastLogin: '2026-06-13T00:00:00Z', displayName: 'Ana', updatedAt: '2026-06-13T00:00:00Z' },
         { merge: true },
       ),
     );
@@ -270,6 +274,61 @@ describe('(C) user_stats XP server-authoritative — firestore.rules', () => {
       setDoc(
         statsRef(authed(OTHER_MEMBER), MEMBER),
         { loginStreak: 99, lastLogin: '2026-06-13T00:00:00Z', updatedAt: '2026-06-13T00:00:00Z' },
+        { merge: true },
+      ),
+    );
+  });
+
+  // ── review #876 hardening ──────────────────────────────────────────────────
+  // (A) `role` is a privilege-escalation vector: the owner must NOT be able to
+  //     write `role` into their own user_stats doc. It was removed from the
+  //     owner-update hasOnly() set, so this falls through to deny.
+  it('SECURITY #876 — owner CANNOT update user_stats with role:supervisor (privilege escalation)', async () => {
+    await assertFails(
+      setDoc(
+        statsRef(authed(MEMBER), MEMBER),
+        { loginStreak: 4, lastLogin: '2026-06-13T00:00:00Z', role: 'supervisor', updatedAt: '2026-06-13T00:00:00Z' },
+        { merge: true },
+      ),
+    );
+  });
+
+  // (B) bootstrap create must reject pre-loaded server-authoritative XP. The
+  //     create doc starts a FRESH user (the beforeEach seed is for MEMBER), so
+  //     we create the OTHER_MEMBER doc with medals/completedTrainings already
+  //     set — must be denied even though points == 0.
+  it('SECURITY #876 — owner CANNOT create user_stats with medals/completedTrainings pre-loaded', async () => {
+    await assertFails(
+      setDoc(statsRef(authed(OTHER_MEMBER), OTHER_MEMBER), {
+        points: 0,
+        medals: ['gold-cheat'],
+        completedTrainings: 99,
+        loginStreak: 0,
+        updatedAt: '2026-06-13T00:00:00Z',
+      }),
+    );
+  });
+
+  it('SECURITY #876 — owner CAN create a clean bootstrap user_stats (mirrors useGamification initialStats)', async () => {
+    await assertSucceeds(
+      setDoc(statsRef(authed(OTHER_MEMBER), OTHER_MEMBER), {
+        points: 0,
+        medals: [],
+        lastLogin: '2026-06-13T00:00:00Z',
+        loginStreak: 1,
+        completedChallenges: {},
+        displayName: 'Ana',
+      }),
+    );
+  });
+
+  // (C) `completedChallenges` is server-authoritative too — the owner must not
+  //     be able to seed/extend it directly to cross a medal threshold.
+  it('SECURITY #876 — owner CANNOT update completedChallenges directly', async () => {
+    await assertFails(
+      setDoc(
+        statsRef(authed(MEMBER), MEMBER),
+        { completedChallenges: { report_hazard: '2026-06-13T00:00:00Z' }, updatedAt: '2026-06-13T00:00:00Z' },
         { merge: true },
       ),
     );

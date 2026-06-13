@@ -950,16 +950,39 @@ service cloud.firestore {
     match /user_stats/{userId} {
       allow read: if isValidId(userId) && (isOwner(userId) || isAdmin() || isSupervisor());
       // XP is SERVER-AUTHORITATIVE (ADR / leaderboard integrity). `points`,
-      // `medals`, `completedTrainings` and `safetyPosts` are awarded ONLY by the
-      // server (POST /api/gamification/points + /check-medals, Admin SDK — which
-      // bypasses these rules). The owner-update path previously let the owner
-      // self-edit `points`/`medals`/`completedTrainings`/`safetyPosts`, which
-      // nullified the server-authoritative XP and made the leaderboard trivially
+      // `medals`, `completedTrainings`, `safetyPosts` and `completedChallenges`
+      // are awarded ONLY by the server (POST /api/gamification/points +
+      // /check-medals, Admin SDK — which bypasses these rules). The owner-update
+      // path previously let the owner self-edit those XP fields, which nullified
+      // the server-authoritative XP and made the leaderboard trivially
       // manipulable. The owner may now only touch their own non-gameable session
       // /profile fields; any attempt to change an XP field falls through to deny.
+      //
+      // SECURITY (2026-06-13, review #876): `role` was REMOVED from this
+      // allow-list. A user must never be able to write `role` into their own
+      // user_stats doc — it is a privilege-escalation vector because a
+      // server-side path that reads the whole user_stats doc could treat that
+      // self-asserted role as authoritative. Role is provisioned exclusively by
+      // admin/server flows on the canonical `users/{uid}` doc, never here.
       allow update: if isValidId(userId) && isOwner(userId)
-        && incoming().diff(existing()).affectedKeys().hasOnly(['loginStreak', 'lastLogin', 'displayName', 'role', 'updatedAt']);
-      allow create: if isValidId(userId) && isOwner(userId) && incoming().points == 0;
+        && incoming().diff(existing()).affectedKeys().hasOnly(['loginStreak', 'lastLogin', 'displayName', 'updatedAt']);
+      // SECURITY (2026-06-13, review #876): bootstrap create must NOT let the
+      // owner pre-load server-authoritative XP. Previously only `points == 0`
+      // was checked, leaving `medals`/`completedTrainings`/`safetyPosts`/
+      // `completedChallenges` free to seed at create time (same leaderboard
+      // bypass as the closed update path). Each of those fields, IF present,
+      // must be the empty server-default: `medals` is an array → []; the
+      // `completedChallenges` map (challenge -> ISO date) → {};
+      // `completedTrainings`/`safetyPosts` are counters → 0. A client may omit
+      // them entirely (the server fills them on first award). `role` is rejected
+      // outright — same privilege-escalation guard as the update path.
+      allow create: if isValidId(userId) && isOwner(userId)
+        && incoming().points == 0
+        && (!('medals' in incoming()) || incoming().medals == [])
+        && (!('completedChallenges' in incoming()) || incoming().completedChallenges == {})
+        && (!('completedTrainings' in incoming()) || incoming().completedTrainings == 0)
+        && (!('safetyPosts' in incoming()) || incoming().safetyPosts == 0)
+        && !('role' in incoming());
       allow delete: if isAdmin();
     }
 

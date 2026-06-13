@@ -67,7 +67,10 @@ router.post('/gamification/points', verifyAuth, async (req, res) => {
     return res.json({ success: true, awarded: amount });
   } catch (error: any) {
     captureRouteError(error, 'gamification.handler', { uid: req.user?.uid });
-    return res.status(500).json({ error: error.message });
+    // Rule #8 — 5xx bodies never leak internals in production.
+    return res.status(500).json({
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message,
+    });
   }
 });
 
@@ -77,7 +80,10 @@ router.get('/gamification/leaderboard', verifyAuth, async (req, res) => {
     res.json({ success: true, leaderboard });
   } catch (error: any) {
     captureRouteError(error, 'gamification.handler', { uid: req.user?.uid });
-    res.status(500).json({ error: error.message });
+    // Rule #8 — 5xx bodies never leak internals in production.
+    res.status(500).json({
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message,
+    });
   }
 });
 
@@ -98,7 +104,10 @@ router.post('/gamification/check-medals', verifyAuth, async (req, res) => {
     res.json({ success: true, newMedals });
   } catch (error: any) {
     captureRouteError(error, 'gamification.handler', { uid: req.user?.uid });
-    res.status(500).json({ error: error.message });
+    // Rule #8 — 5xx bodies never leak internals in production.
+    res.status(500).json({
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message,
+    });
   }
 });
 
@@ -155,7 +164,10 @@ router.post(
 
       return res.json({ success: true, response });
     } catch (error: any) {
-      return res.status(500).json({ error: error.message });
+      // Rule #8 — 5xx bodies never leak internals in production.
+      return res.status(500).json({
+        error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message,
+      });
     }
   },
 );

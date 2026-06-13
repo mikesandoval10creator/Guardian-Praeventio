@@ -59,31 +59,32 @@ export function useGamification() {
           await updateDoc(docRef, {
             lastLogin: new Date().toISOString(),
             loginStreak: newStreak,
-            displayName: user.displayName || user.email || 'Usuario',
-            role: data.role || 'Usuario'
+            displayName: user.displayName || user.email || 'Usuario'
           });
           data.loginStreak = newStreak;
         } else if (!data.displayName) {
           await updateDoc(docRef, {
-            displayName: user.displayName || user.email || 'Usuario',
-            role: data.role || 'Usuario'
+            displayName: user.displayName || user.email || 'Usuario'
           });
         }
         
         setStats(data);
       } else {
-        // Initialize stats
+        // Initialize stats. SECURITY (review #876): `role` is NOT written to
+        // user_stats by the client — it is a privilege-escalation vector and is
+        // rejected by firestore.rules. Role is sourced from the auth token /
+        // `users/{uid}` (admin-provisioned); the leaderboard reads it server-side
+        // via getLeaderboard() and the UI falls back to 'Usuario'.
         const initialStats: UserStats = {
           points: 0,
           medals: [],
           lastLogin: new Date().toISOString(),
           loginStreak: 1,
           completedChallenges: {},
-          displayName: user.displayName || user.email || 'Usuario',
-          role: 'Usuario'
+          displayName: user.displayName || user.email || 'Usuario'
         };
         await setDoc(docRef, initialStats);
-        setStats(initialStats);
+        setStats({ ...initialStats, role: 'Usuario' });
       }
       setLoading(false);
     };
