@@ -228,7 +228,7 @@ export function ComiteParitario() {
             {t('comiteParitario.title', 'Comité Paritario')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            {t('comiteParitario.subtitle', 'Gestión DS 54 - Actas y Acuerdos')}
+            {t('comiteParitario.subtitle', 'Gestión DS 44/2024 - Actas y Acuerdos')}
           </p>
         </div>
         <div className="flex gap-3">

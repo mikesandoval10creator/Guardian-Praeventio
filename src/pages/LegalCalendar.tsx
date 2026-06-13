@@ -82,7 +82,7 @@ export function LegalCalendar() {
       setFeedback(
         written > 0
           ? t('legal_calendar.feedback.bootstrap_ok', {
-              defaultValue: 'Inicializadas {{n}} obligaciones estándar (DS 76, DS 132, DS 54, etc.).',
+              defaultValue: 'Inicializadas {{n}} obligaciones estándar (DS 76, DS 132, DS 44/2024, etc.).',
               n: written,
             })
           : t('legal_calendar.feedback.already_init', 'El calendario ya estaba inicializado.'),
@@ -128,7 +128,7 @@ export function LegalCalendar() {
           <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
             {t(
               'legal_calendar.subtitle',
-              'Obligaciones legales recurrentes: auditorías, mediciones ambientales, renovaciones de capacitación, reuniones CPHS, reportes mutualidad, simulacros, exámenes ocupacionales, renovación de documentos y permisos. DS 76 / DS 132 / DS 54 / Ley 16.744.',
+              'Obligaciones legales recurrentes: auditorías, mediciones ambientales, renovaciones de capacitación, reuniones CPHS, reportes mutualidad, simulacros, exámenes ocupacionales, renovación de documentos y permisos. DS 76 / DS 132 / DS 44/2024 / Ley 16.744.',
             )}
           </p>
         </header>

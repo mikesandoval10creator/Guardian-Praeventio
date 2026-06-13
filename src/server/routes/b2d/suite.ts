@@ -77,7 +77,7 @@ const CANONICAL_CITATIONS = [
   'ISO 45001:2018',
   'DS 594/1999 (condiciones sanitarias y ambientales)',
   'DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)',
-  'DS 54/1969 (Comité Paritario > 25 trabajadores)',
+  'DS 44/2024, ex DS 54/1969 (Comité Paritario > 25 trabajadores)',
   'Ley 16.744 (seguro accidentes del trabajo)',
 ];
 
@@ -134,7 +134,7 @@ function buildGeminiPrompts(input: CoachInput): {
   const systemInstruction =
     `Eres un asistente experto en prevención de riesgos laborales para ` +
     `Chile y LATAM. Cumples con DS 44/2024 (reemplaza DS 40/1969 derogado ` +
-    `2025-02-01), DS 54, DS 594, Ley 16.744 e ISO 45001:2018. ` +
+    `2025-02-01), DS 44/2024 (ex DS 54), DS 594, Ley 16.744 e ISO 45001:2018. ` +
     `Responde en ${langLabel}, citando normas específicas cuando aplique. ` +
     `NUNCA recomiendas invocar APIs estatales (SUSESO/SII/MINSAL/OSHA) ` +
     `directamente — solo recomienda que el usuario gestione el trámite. ` +

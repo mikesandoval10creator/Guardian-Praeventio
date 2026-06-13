@@ -202,7 +202,7 @@
       ],
       "comite-paritario": [
         "Everything in Free",
-        "Full Joint Committee management (DS 54)",
+        "Full Joint Committee management (DS 44/2024)",
         "Quick risk assessments",
         "Basic PDF/Excel reports",
         "Multi-country at no extra cost"
@@ -978,7 +978,7 @@
       "syncing": "Syncing schedule..."
     },
     "legal_obligations": {
-      "comite_paritario_title": "Comité Paritario Meeting (DS 54)",
+      "comite_paritario_title": "Comité Paritario Meeting (DS 44/2024)",
       "comite_paritario_description": "Mandatory monthly meeting of the Joint Health and Safety Committee.",
       "depto_prevencion_title": "Prevention Dept. Report (DS 44/2024)",
       "depto_prevencion_description": "Monthly accident-rate and preventive-management report submission.",
@@ -2023,7 +2023,7 @@
       "enter": "Enter"
     },
     "hero": {
-      "compliance_badge": "Compliant with DS 54 . DS 44/2024 . Law 16.744",
+      "compliance_badge": "Compliant with DS 44/2024 . Law 16.744",
       "title_line_1": "The revolution of",
       "title_line_2": "risk prevention",
       "subtitle": "Risk management, team wellbeing, and regulatory compliance - all in one AI-powered platform",
@@ -2053,7 +2053,7 @@
       },
       "ai": {
         "title": "Artificial Intelligence",
-        "desc": "Gemini Pro generates automatic JSAs, assesses risks, and guides you through DS 54, DS 44/2024 (replaces DS 40/1969), and Law 16.744."
+        "desc": "Gemini Pro generates automatic JSAs, assesses risks, and guides you through DS 44/2024 (replaces DS 40/1969 and the former DS 54), and Law 16.744."
       },
       "training": {
         "title": "Training",
@@ -2927,12 +2927,12 @@
   },
   "legal_calendar": {
     "title": "Legal calendar",
-    "subtitle": "Recurring legal obligations: audits, environmental measurements, training renewals, CPHS meetings, mutual reports, drills, occupational exams, document and permit renewals. DS 76 / DS 132 / DS 54 / Law 16.744.",
+    "subtitle": "Recurring legal obligations: audits, environmental measurements, training renewals, CPHS meetings, mutual reports, drills, occupational exams, document and permit renewals. DS 76 / DS 132 / DS 44/2024 / Law 16.744.",
     "empty": {
       "select_project": "Select a project."
     },
     "feedback": {
-      "bootstrap_ok": "Initialized {{n}} standard obligations (DS 76, DS 132, DS 54, etc.).",
+      "bootstrap_ok": "Initialized {{n}} standard obligations (DS 76, DS 132, DS 44/2024, etc.).",
       "already_init": "Calendar was already initialized.",
       "advanced": "\"{{label}}\" advanced to next cycle."
     },
@@ -3643,7 +3643,7 @@
       "placeholder": "E.g.: \"The supervisor must inspect the scaffold before Friday…\"",
       "run": "Extract actions"
     },
-    "quorumFail": "Insufficient quorum — DS 54 art. 66 requires at least 3+3.",
+    "quorumFail": "Insufficient quorum — DS 44/2024 (former DS 54 art. 66) requires at least 3+3.",
     "review": "Review",
     "scheduled": "Scheduled",
     "title": "Joint Health & Safety Committee (CPHS)",

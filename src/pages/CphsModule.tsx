@@ -43,7 +43,7 @@ export function validateCommitteeDraft(draft: {
     );
   }
   if (!workersAreElected(draft.members)) {
-    reasons.push('Los representantes de los trabajadores deben ser elegidos por sufragio (DS 54 art. 66).');
+    reasons.push('Los representantes de los trabajadores deben ser elegidos por sufragio (DS 44/2024, ex DS 54 art. 66).');
   }
   if (
     !draft.period.start ||
