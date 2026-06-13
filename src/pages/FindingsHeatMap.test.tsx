@@ -41,8 +41,11 @@ vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
 
-const now = new Date('2026-05-17T12:00:00Z');
-const recent = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
+// `recent` se ancla al reloj REAL (Date.now), no a una fecha absoluta: el
+// componente filtra con `new Date()` y ventana de 30 días, así que un fixture
+// con fecha fija (antes 2026-05-17) envejece fuera de la ventana y rompe el
+// test al pasar el tiempo (dejaba filtered.length=0 → empty-state, sin canvas).
+const recent = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
 
 function f(over: Partial<FindingPoint> = {}): FindingPoint {
   return {
