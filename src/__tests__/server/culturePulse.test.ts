@@ -210,6 +210,37 @@ describe('POST /culture-pulse/survey/:id/respond', () => {
     expect(stored.answers).toEqual(validAnswers);
   });
 
+  it('audit row for respond uses the anonymized hash — NOT the raw uid', async () => {
+    // Ley Karín 21.643 / Ley 19.628: the response doc is anonymous, but the
+    // audit trail must not re-identify the respondent either. The actor stamped
+    // into audit_logs MUST be the stable responderHash, never the token uid.
+    seedSurvey('wv1');
+    const res = await request(buildApp())
+      .post(`${PULSE}/survey/wv1/respond`)
+      .set('x-test-uid', 'w1')
+      .send({ workerRole: 'operario', area: 'mina', answers: validAnswers });
+    expect(res.status).toBe(201);
+
+    const hash = responderHash('w1', 'wv1');
+    const dump = H.db!._dump();
+    const auditRows = Object.entries(dump)
+      .filter(([path]) => path.startsWith('audit_logs/'))
+      .map(([, data]) => data as Record<string, unknown>)
+      .filter((row) => row.action === 'culturePulse.respondSurvey');
+
+    expect(auditRows).toHaveLength(1);
+    const row = auditRows[0];
+    // The actor is the anonymizing hash, not the raw uid.
+    expect(row.userId).toBe(hash);
+    expect(row.userId).not.toBe('w1');
+    expect(row.userEmail).toBeNull();
+    // No raw uid leaks anywhere in the persisted audit row.
+    expect(JSON.stringify(row)).not.toContain('"w1"');
+    // The event stays auditable: it names the survey wave it belongs to.
+    expect(row.module).toBe('culturePulse');
+    expect((row.details as Record<string, unknown>).surveyId).toBe('wv1');
+  });
+
   it('409 already_responded on a second submission by the same worker', async () => {
     seedSurvey('wv1');
     H.db!._seed(`${CP_COLL}/wv1/responses/${responderHash('w1', 'wv1')}`, {

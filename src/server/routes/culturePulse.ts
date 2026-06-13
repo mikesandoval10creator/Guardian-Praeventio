@@ -652,12 +652,19 @@ router.post(
       // write. Details stay anonymity-safe (no answers, no raw responder uid) —
       // the response doc itself never persists `responderUid` (Ley Karín 21.643
       // / Ley 19.628); only `projectId` + `surveyId` identify the affected wave.
+      //
+      // PRIVACY: the audit actor is the SAME domain-separated, server-keyed
+      // responderHash — NOT the raw token uid. `auditServerEvent` otherwise
+      // stamps `req.user.uid`, which would link uid↔surveyId in `audit_logs`
+      // and re-identify the respondent off-server (defeating the anonymity
+      // contract above). The event stays fully auditable (a survey was
+      // answered, by whom-as-stable-hash) without naming the worker.
       await auditServerEvent(
         req,
         'culturePulse.respondSurvey',
         'culturePulse',
         { projectId, surveyId },
-        { projectId },
+        { projectId, actorOverride: { uid: responderHash, email: null } },
       );
       return res.status(201).json({ ok: true });
     } catch (err) {
