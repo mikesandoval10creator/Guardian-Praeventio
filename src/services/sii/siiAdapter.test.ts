@@ -18,6 +18,7 @@ import {
   calculateDteTotals,
   noopSiiAdapter,
   SiiAdapterError,
+  SiiNotConfiguredError,
   SiiNotImplementedError,
 } from './siiAdapter';
 import { bsaleAdapter } from './bsaleAdapter';
@@ -180,6 +181,66 @@ describe('getSiiAdapter() facade', () => {
   it('selects libredte when SII_PSE=libredte', () => {
     process.env.SII_PSE = 'libredte';
     expect(getSiiAdapter().name).toBe('libredte');
+  });
+});
+
+// sii-noop-guard (2026-06-12): the noop adapter answers `accepted` for every
+// emission, so resolving to it in PRODUCTION would make an un-emitted DTE look
+// issued. `getSiiAdapter()` must fail-closed in prod and only keep the noop
+// fallback in dev/test.
+describe('getSiiAdapter() production fail-closed (sii-noop-guard)', () => {
+  const originalPse = process.env.SII_PSE;
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    if (originalPse === undefined) delete process.env.SII_PSE;
+    else process.env.SII_PSE = originalPse;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it('throws SiiNotConfiguredError in prod when SII_PSE is unset', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.SII_PSE;
+    expect(() => getSiiAdapter()).toThrow(SiiNotConfiguredError);
+  });
+
+  it('throws SiiNotConfiguredError in prod when SII_PSE=noop (explicit)', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SII_PSE = 'noop';
+    expect(() => getSiiAdapter()).toThrow(SiiNotConfiguredError);
+  });
+
+  it('throws SiiNotConfiguredError in prod for unrecognized SII_PSE values', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SII_PSE = 'definitely-not-a-real-pse';
+    expect(() => getSiiAdapter()).toThrow(SiiNotConfiguredError);
+  });
+
+  it('surfaces the requested SII_PSE on the error for ops triage', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SII_PSE = 'noop';
+    try {
+      getSiiAdapter();
+      throw new Error('expected getSiiAdapter() to throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(SiiNotConfiguredError);
+      expect((err as SiiNotConfiguredError).requestedPse).toBe('noop');
+    }
+  });
+
+  it('still returns a REAL PSE in prod when SII_PSE names one (no throw)', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SII_PSE = 'bsale';
+    expect(getSiiAdapter().name).toBe('bsale');
+  });
+
+  it('keeps the noop fallback OUTSIDE production (dev/test never crash)', () => {
+    process.env.NODE_ENV = 'development';
+    delete process.env.SII_PSE;
+    expect(getSiiAdapter().name).toBe('noop');
+    process.env.NODE_ENV = 'test';
+    expect(getSiiAdapter().name).toBe('noop');
   });
 });
 

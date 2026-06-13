@@ -222,6 +222,73 @@ describe('validate-env (Bucket U.1)', () => {
     expect(result.warnings.some((w) => w.includes('AI_SELFHOSTED_BASE_URL'))).toBe(true);
   });
 
+  // === SII PSE credentials (sii-noop-guard 2026-06-12) ===
+
+  it('SII_PSE absent → no error (prod fails-closed at runtime, not at env check)', () => {
+    const env = buildHealthyEnv();
+    delete env.SII_PSE;
+    delete env.BSALE_ACCESS_TOKEN;
+    delete env.BSALE_OFFICE_ID;
+    delete env.OPENFACTURA_API_KEY;
+    delete env.SIMPLEAPI_API_KEY;
+    delete env.LIBREDTE_API_TOKEN;
+    const result = check(env);
+    expect(result.errors).toEqual([]);
+  });
+
+  it('SII_PSE=bsale WITHOUT credentials → MISSING for both BSALE_* vars', () => {
+    const env = buildHealthyEnv();
+    env.SII_PSE = 'bsale';
+    delete env.BSALE_ACCESS_TOKEN;
+    delete env.BSALE_OFFICE_ID;
+    const result = check(env);
+    expect(
+      result.errors.some((e) => e.startsWith('MISSING:') && e.includes('BSALE_ACCESS_TOKEN')),
+    ).toBe(true);
+    expect(
+      result.errors.some((e) => e.startsWith('MISSING:') && e.includes('BSALE_OFFICE_ID')),
+    ).toBe(true);
+  });
+
+  it('SII_PSE=bsale WITH credentials → passes', () => {
+    const env = buildHealthyEnv();
+    env.SII_PSE = 'bsale';
+    env.BSALE_ACCESS_TOKEN = 'bsale-real-token-abcdef0123456789';
+    env.BSALE_OFFICE_ID = '42';
+    expect(check(env).errors).toEqual([]);
+  });
+
+  it('SII_PSE=openfactura WITHOUT its key → MISSING OPENFACTURA_API_KEY', () => {
+    const env = buildHealthyEnv();
+    env.SII_PSE = 'openfactura';
+    delete env.OPENFACTURA_API_KEY;
+    const result = check(env);
+    expect(
+      result.errors.some((e) => e.startsWith('MISSING:') && e.includes('OPENFACTURA_API_KEY')),
+    ).toBe(true);
+    // The Bsale creds are NOT required when SII_PSE=openfactura.
+    expect(result.errors.some((e) => e.includes('BSALE_ACCESS_TOKEN'))).toBe(false);
+  });
+
+  it('SII_PSE=noop is a valid (allowed) value and requires no PSE creds', () => {
+    const env = buildHealthyEnv();
+    env.SII_PSE = 'noop';
+    delete env.BSALE_ACCESS_TOKEN;
+    delete env.BSALE_OFFICE_ID;
+    delete env.OPENFACTURA_API_KEY;
+    const result = check(env);
+    expect(result.errors).toEqual([]);
+  });
+
+  it('SII_PSE with an unknown value → INVALID VALUE', () => {
+    const env = buildHealthyEnv();
+    env.SII_PSE = 'factura-imaginaria';
+    const result = check(env);
+    expect(
+      result.errors.some((e) => e.startsWith('INVALID VALUE:') && e.includes('SII_PSE')),
+    ).toBe(true);
+  });
+
   it('PLACEHOLDER_REGEX matches the documented prefixes', () => {
     expect(PLACEHOLDER_REGEX.test('YOUR_KEY')).toBe(true);
     expect(PLACEHOLDER_REGEX.test('MY_KEY')).toBe(true);

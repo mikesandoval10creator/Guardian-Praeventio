@@ -22,6 +22,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { callerTenantOr403 } from '../auth/callerTenant.js';
+import { getWebauthnRpId } from '../auth/rpId.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -265,7 +266,7 @@ router.get('/ds67/:formId/sign-challenge', verifyAuth, async (req, res) => {
       challengeId,
       challenge: Buffer.from(challenge).toString('base64'),
       formId: req.params.formId,
-      rpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+      rpId: getWebauthnRpId(),
     });
   } catch (err) {
     logger.error('ds67_sign_challenge_failed', { err: String(err) });
@@ -314,7 +315,7 @@ router.post(
           type: webauthnAssertion.type,
           challengeId: webauthnAssertion.challengeId,
           expectedOrigin: process.env.APP_BASE_URL ?? 'http://localhost:5173',
-          expectedRpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+          expectedRpId: getWebauthnRpId(),
           challengesDb: buildWebAuthnDb(),
           credentialsDb: buildWebAuthnCredentialsDb(),
         });
@@ -432,7 +433,7 @@ router.get('/ds76/:formId/sign-challenge', verifyAuth, async (req, res) => {
       challengeId,
       challenge: Buffer.from(challenge).toString('base64'),
       formId: req.params.formId,
-      rpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+      rpId: getWebauthnRpId(),
     });
   } catch (err) {
     logger.error('ds76_sign_challenge_failed', { err: String(err) });
@@ -479,7 +480,7 @@ router.post(
           type: webauthnAssertion.type,
           challengeId: webauthnAssertion.challengeId,
           expectedOrigin: process.env.APP_BASE_URL ?? 'http://localhost:5173',
-          expectedRpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+          expectedRpId: getWebauthnRpId(),
           challengesDb: buildWebAuthnDb(),
           credentialsDb: buildWebAuthnCredentialsDb(),
         });

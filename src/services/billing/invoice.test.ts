@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { buildInvoice, calculateInvoiceTotals } from './invoice.js';
-import type { CheckoutRequest, InvoiceLineItem } from './types.js';
+import { afterEach, describe, it, expect } from 'vitest';
+import { buildInvoice, calculateInvoiceTotals, tryAutoIssueDte } from './invoice.js';
+import type { CheckoutRequest, Invoice, InvoiceLineItem } from './types.js';
 
 const cliente = {
   nombre: 'Constructora Demo Ltda.',
@@ -249,5 +249,84 @@ describe('buildInvoice', () => {
     expect(Number.isFinite(issued)).toBe(true);
     expect(issued).toBeGreaterThanOrEqual(before);
     expect(issued).toBeLessThanOrEqual(after);
+  });
+});
+
+// sii-noop-guard (2026-06-12): `tryAutoIssueDte` must NEVER emit through an
+// unconfigured PSE in production. Without a real `SII_PSE` the only adapter
+// available is the `noop` fake (accepted for an UN-emitted DTE) — so in prod
+// it must skip honestly (`not-configured`) instead of pretending the factura
+// was issued. The payment flow is unaffected (the caller already swallows
+// skips); the queue drain records the honest skip and the worker can retry
+// once a PSE is wired.
+describe('tryAutoIssueDte production fail-closed (sii-noop-guard)', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalPse = process.env.SII_PSE;
+  const originalBsaleToken = process.env.BSALE_ACCESS_TOKEN;
+  const originalBsaleOffice = process.env.BSALE_OFFICE_ID;
+
+  function restore(key: string, value: string | undefined): void {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+
+  afterEach(() => {
+    restore('NODE_ENV', originalNodeEnv);
+    restore('SII_PSE', originalPse);
+    restore('BSALE_ACCESS_TOKEN', originalBsaleToken);
+    restore('BSALE_OFFICE_ID', originalBsaleOffice);
+  });
+
+  const paidClpInvoice: Invoice = {
+    id: 'inv_dte_001',
+    emisorRut: '78231119-0',
+    emisorRazonSocial: 'Praeventio Guard SpA',
+    cliente: { nombre: 'Constructora Demo Ltda.', rut: '76.123.456-7', email: 'finanzas@constructora.cl' },
+    lineItems: [
+      { tierId: 'comite-paritario', description: 'Plan Comité Paritario', quantity: 1, unitAmount: 10075, currency: 'CLP' },
+    ],
+    totals: { subtotal: 10075, iva: 1915, total: 11990, currency: 'CLP' },
+    paymentMethod: 'webpay',
+    issuedAt: '2026-06-12T12:00:00.000Z',
+    status: 'paid',
+  };
+
+  it('skips with not-configured in prod when SII_PSE is unset (never noop-accepted)', async () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.SII_PSE;
+    const result = await tryAutoIssueDte(paidClpInvoice, { autoIssueEnabled: true });
+    expect(result.ok).toBe(false);
+    expect(result.skipped).toBe('not-configured');
+    // Crucially never reports a fake success.
+    expect(result.result).toBeUndefined();
+  });
+
+  it('skips with not-configured in prod when SII_PSE=noop (explicit)', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SII_PSE = 'noop';
+    const result = await tryAutoIssueDte(paidClpInvoice, { autoIssueEnabled: true });
+    expect(result.ok).toBe(false);
+    expect(result.skipped).toBe('not-configured');
+  });
+
+  it('does NOT short-circuit when SII_PSE=bsale but creds absent → no-adapter (real adapter resolution)', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SII_PSE = 'bsale';
+    delete process.env.BSALE_ACCESS_TOKEN;
+    delete process.env.BSALE_OFFICE_ID;
+    const result = await tryAutoIssueDte(paidClpInvoice, { autoIssueEnabled: true });
+    expect(result.ok).toBe(false);
+    // Past the prod gate: the Bsale adapter is resolved but unavailable.
+    expect(result.skipped).toBe('no-adapter');
+  });
+
+  it('outside production an unset SII_PSE falls through to adapter resolution (dev keeps working)', async () => {
+    process.env.NODE_ENV = 'test';
+    delete process.env.SII_PSE;
+    delete process.env.BSALE_ACCESS_TOKEN;
+    delete process.env.BSALE_OFFICE_ID;
+    const result = await tryAutoIssueDte(paidClpInvoice, { autoIssueEnabled: true });
+    // In dev/test with no Bsale creds it stops at no-adapter, NOT not-configured.
+    expect(result.skipped).toBe('no-adapter');
   });
 });
