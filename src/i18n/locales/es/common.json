@@ -1,4 +1,8 @@
 {
+  "climateRoutes": {
+    "calculating": "Evaluando ruta…",
+    "assessmentUnavailable": "No pudimos completar la evaluación climática de la ruta. Conduce con precaución y reintenta cuando tengas mejor conexión."
+  },
   "app": {
     "name": "Praeventio Guard",
     "tagline": "El Guardián de tu Seguridad"

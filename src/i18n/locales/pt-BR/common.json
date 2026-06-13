@@ -1,4 +1,8 @@
 {
+  "climateRoutes": {
+    "calculating": "Avaliando rota…",
+    "assessmentUnavailable": "Não foi possível concluir a avaliação climática da rota. Dirija com cautela e tente novamente quando tiver uma conexão melhor."
+  },
   "app": {
     "name": "Praeventio Guard",
     "tagline": "O Guardião da sua Segurança"
