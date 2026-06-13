@@ -7,24 +7,39 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { analytics } from '../../services/analytics';
 
+// Schema MUST match the writer in src/hooks/useManDownDetection.ts:
+//   - `triggeredAt` (serverTimestamp), NOT `timestamp` — querying/ordering by a
+//     field the writer never sets makes Firestore EXCLUDE the doc, so the widget
+//     was permanently blind to every event the hook produced.
+//   - `status` lifecycle is `'active'` → `'acknowledged'` (and `'resolved'` per
+//     firestore.rules). It is never `'pending'`, so the old `=== 'pending'`
+//     filter matched nothing.
+//   - `location` is a free-form GPS string (e.g. "-33.45, -70.66" or an error
+//     message), NOT a `{ lat, lng }` object.
+type TimestampLike = { toDate: () => Date } | Date | null | undefined;
+
 interface ManDownEvent {
   id: string;
   workerId: string;
   workerName?: string;
-  timestamp: { toDate: () => Date } | Date;
-  status: 'pending' | 'acknowledged' | 'resolved';
+  triggeredAt?: TimestampLike;
+  status: 'active' | 'acknowledged' | 'resolved';
   acknowledgedBy?: string;
-  acknowledgedAt?: { toDate: () => Date } | Date;
-  location?: { lat: number; lng: number };
+  acknowledgedByName?: string;
+  acknowledgedAt?: TimestampLike;
+  location?: string;
 }
 
-function toDate(v: ManDownEvent['timestamp']): Date {
+function toDate(v: TimestampLike): Date {
   if (!v) return new Date();
   if (v instanceof Date) return v;
-  return (v as { toDate: () => Date }).toDate();
+  if (typeof (v as { toDate?: unknown }).toDate === 'function') {
+    return (v as { toDate: () => Date }).toDate();
+  }
+  return new Date();
 }
 
-function fmt(v: ManDownEvent['timestamp']): string {
+function fmt(v: TimestampLike): string {
   return toDate(v).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
 }
 
@@ -38,7 +53,7 @@ export function ManDownSupervisorWidget() {
     if (!selectedProject?.id) return undefined;
     const q = query(
       collection(db, 'projects', selectedProject.id, 'mandown_events'),
-      orderBy('timestamp', 'desc'),
+      orderBy('triggeredAt', 'desc'),
       limit(10),
     );
     return onSnapshot(q, (snap) => {
@@ -54,7 +69,11 @@ export function ManDownSupervisorWidget() {
         doc(db, 'projects', selectedProject.id, 'mandown_events', eventId),
         {
           status: 'acknowledged',
-          acknowledgedBy: user.displayName ?? user.email ?? user.uid,
+          // Mirror the hook's ack shape (useManDownDetection.acknowledgeAlert):
+          // identity uid in `acknowledgedBy`, human-readable name in
+          // `acknowledgedByName`. firestore.rules allows exactly these keys.
+          acknowledgedBy: user.uid,
+          acknowledgedByName: user.displayName ?? user.email ?? null,
           acknowledgedAt: new Date(),
         },
       );
@@ -66,7 +85,7 @@ export function ManDownSupervisorWidget() {
       // emergency.fall.detected origin. Catalog row 60.
       try {
         const ev = events.find((e) => e.id === eventId);
-        const startedMs = ev ? toDate(ev.timestamp).getTime() : Date.now();
+        const startedMs = ev ? toDate(ev.triggeredAt).getTime() : Date.now();
         analytics.track('risk.resolved', {
           risk_id: eventId,
           risk_class: 'fall',
@@ -79,8 +98,10 @@ export function ManDownSupervisorWidget() {
     }
   };
 
-  const pending = events.filter((e) => e.status === 'pending');
-  const recent = events.filter((e) => e.status !== 'pending').slice(0, 3);
+  // `active` = unacknowledged man-down still demanding a supervisor response.
+  // Anything else (`acknowledged` / `resolved`) is shown as recent history.
+  const pending = events.filter((e) => e.status === 'active');
+  const recent = events.filter((e) => e.status !== 'active').slice(0, 3);
 
   if (events.length === 0) return null;
 
@@ -117,12 +138,12 @@ export function ManDownSupervisorWidget() {
                   </span>
                   <span className="text-[10px] text-red-400 ml-auto shrink-0 flex items-center gap-1">
                     <Clock className="w-3 h-3" />
-                    {fmt(ev.timestamp)}
+                    {fmt(ev.triggeredAt)}
                   </span>
                 </div>
                 {ev.location && (
                   <p className="text-[10px] text-red-500 dark:text-red-400 mt-0.5">
-                    {ev.location.lat.toFixed(5)}, {ev.location.lng.toFixed(5)}
+                    {ev.location}
                   </p>
                 )}
               </div>
@@ -149,7 +170,7 @@ export function ManDownSupervisorWidget() {
                 <span className="text-[11px] truncate flex-1">
                   {ev.workerName ?? ev.workerId}
                 </span>
-                <span className="text-[10px] shrink-0">{fmt(ev.timestamp)}</span>
+                <span className="text-[10px] shrink-0">{fmt(ev.triggeredAt)}</span>
               </div>
             ))}
           </div>
