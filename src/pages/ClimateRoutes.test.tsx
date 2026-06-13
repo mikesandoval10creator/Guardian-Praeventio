@@ -152,6 +152,17 @@ beforeEach(() => {
   stubGoogleMaps();
 });
 
+// Click the calculate button only once it shows its IDLE label. While an
+// assessment is in flight the button swaps to "Evaluando ruta…", so a
+// synchronous getByText('Calcular Ruta Óptima') right after a status `waitFor`
+// can race the loading state on a slow runner — the source of the #872 CI flake
+// (status badge and button label are separate state). `findByText` retries until
+// the button is idle, making the click deterministic without weakening any
+// assertion (assessment call counts are unchanged).
+async function clickCalcular() {
+  fireEvent.click(await screen.findByText('Calcular Ruta Óptima'));
+}
+
 describe('ClimateRoutes — "Calcular Ruta Óptima" runs the real assessment', () => {
   it('invokes Google Directions AND the climate engine when clicked', async () => {
     assessRouteClimateMock.mockResolvedValue(makeAssessment('danger'));
@@ -162,7 +173,7 @@ describe('ClimateRoutes — "Calcular Ruta Óptima" runs the real assessment', (
     const callsAfterMount = assessRouteClimateMock.mock.calls.length;
     const routeCallsAfterMount = routeCall.mock.calls.length;
 
-    fireEvent.click(screen.getByText('Calcular Ruta Óptima'));
+    await clickCalcular();
 
     // The click must hit BOTH the real Directions service and the engine —
     // not a local status cycle.
@@ -186,7 +197,7 @@ describe('ClimateRoutes — "Calcular Ruta Óptima" runs the real assessment', (
     // Next assessment returns danger → after the click the UI reflects danger,
     // because status is sourced ONLY from the assessment.
     assessRouteClimateMock.mockResolvedValueOnce(makeAssessment('danger'));
-    fireEvent.click(screen.getByText('Calcular Ruta Óptima'));
+    await clickCalcular();
 
     await waitFor(() => expect(screen.getByText('Ruta Intransitable')).toBeTruthy());
     // No way to reach danger without the engine having produced it.
@@ -206,7 +217,7 @@ describe('ClimateRoutes — "Calcular Ruta Óptima" runs the real assessment', (
     render(<ClimateRoutes />);
     await waitFor(() => expect(screen.getByText('Precaución Requerida')).toBeTruthy());
 
-    fireEvent.click(screen.getByText('Calcular Ruta Óptima'));
+    await clickCalcular();
     await waitFor(() => expect(assessRouteClimateMock).toHaveBeenCalledTimes(2));
     expect(screen.getByText('Precaución Requerida')).toBeTruthy();
     expect(screen.queryByText('Ruta Intransitable')).toBeNull();
@@ -226,7 +237,7 @@ describe('ClimateRoutes — "Calcular Ruta Óptima" runs the real assessment', (
       await waitFor(() => expect(screen.getByText('Ruta Intransitable')).toBeTruthy());
 
       assessRouteClimateMock.mockRejectedValueOnce(new Error('NASA offline'));
-      fireEvent.click(screen.getByText('Calcular Ruta Óptima'));
+      await clickCalcular();
 
       await waitFor(() => expect(assessRouteClimateMock).toHaveBeenCalledTimes(2));
       // The status MUST NOT have degraded to safe.
@@ -245,7 +256,7 @@ describe('ClimateRoutes — "Calcular Ruta Óptima" runs the real assessment', (
       await waitFor(() => expect(screen.getByText('Ruta Segura')).toBeTruthy());
 
       assessRouteClimateMock.mockRejectedValueOnce(new Error('EONET 503'));
-      fireEvent.click(screen.getByText('Calcular Ruta Óptima'));
+      await clickCalcular();
 
       await waitFor(() => expect(assessRouteClimateMock).toHaveBeenCalledTimes(2));
       await waitFor(() => expect(screen.getByText('Precaución Requerida')).toBeTruthy());
