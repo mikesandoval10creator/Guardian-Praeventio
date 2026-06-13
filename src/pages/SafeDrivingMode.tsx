@@ -122,7 +122,8 @@ export function SafeDrivingMode() {
     recognition.interimResults = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onresult = (e: any) => {
-      const transcript = Array.from(e.results).map((r) => r[0].transcript).join(' ');
+      const rows = e.results as ArrayLike<{ 0: { transcript: string } }>;
+      const transcript = Array.from(rows).map((r) => r[0].transcript).join(' ');
       dictatedTextRef.current = transcript;
       setDictatedText(transcript);
     };
