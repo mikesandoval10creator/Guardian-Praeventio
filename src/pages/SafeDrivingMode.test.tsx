@@ -63,14 +63,15 @@ beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
   lastRecognition = null;
-  // A real constructor (not an arrow) so `new SpeechRecognition()` works.
-  function SpeechRecognitionCtor(this: FakeRecognition) {
-    lastRecognition = this;
-    Object.assign(this, new FakeRecognition());
+  // A real constructor (not an arrow) so `new SpeechRecognition()` works. It
+  // returns the instance explicitly (so `new` uses it) instead of aliasing
+  // `this` — keeps the capture without tripping no-this-alias.
+  function SpeechRecognitionCtor() {
+    const rec = new FakeRecognition();
+    lastRecognition = rec;
+    return rec;
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (window as any).SpeechRecognition = SpeechRecognitionCtor;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (window as any).webkitSpeechRecognition = SpeechRecognitionCtor;
 });
 
