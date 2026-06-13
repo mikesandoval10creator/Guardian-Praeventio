@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { awardPoints as awardPointsServer, checkMedals as checkMedalsServer } from '../services/gamificationService';
+import { isPointReason } from '../services/gamification/pointValues';
 import confetti from 'canvas-confetti';
 
 export interface UserStats {
@@ -89,25 +91,32 @@ export function useGamification() {
     fetchStats();
   }, [user]);
 
-  const addPoints = async (amount: number, _reason: string) => {
+  // XP is SERVER-AUTHORITATIVE (firestore.rules user_stats: the owner can no
+  // longer write `points`/`medals`/`completedTrainings`/`safetyPosts` — a direct
+  // client write now permission-denies). All point/medal awards must flow through
+  // POST /api/gamification/points + /check-medals (Admin SDK, leaderboard-safe).
+  // The server awards the canonical POINT_VALUES[reason] and ignores any amount,
+  // so the legacy `amount` arg is advisory UI only. `reason` must be a whitelisted
+  // PointReason for the award to persist; non-whitelisted reasons (in-app mini-
+  // games without a canonical value) update the optimistic UI only.
+  const addPoints = async (amount: number, reason: string) => {
     if (!user) return;
-    const docRef = doc(db, 'user_stats', user.uid);
-    await updateDoc(docRef, {
-      points: increment(amount)
-    });
+    if (isPointReason(reason)) {
+      await awardPointsServer(reason); // server-authoritative; also fires medal check
+    }
     setStats(prev => ({ ...prev, points: prev.points + amount }));
     // Here we could also trigger a toast notification for points earned
   };
 
   const unlockMedal = async (medalId: string) => {
     if (!user || stats.medals.includes(medalId)) return;
-    const docRef = doc(db, 'user_stats', user.uid);
+    // Medals are server-authoritative: ask the server to re-evaluate eligibility
+    // (POST /api/gamification/check-medals re-derives medals from real stats and
+    // writes them via the Admin SDK). The client cannot self-grant a medal.
+    await checkMedalsServer();
     const newMedals = [...stats.medals, medalId];
-    await updateDoc(docRef, {
-      medals: newMedals
-    });
     setStats(prev => ({ ...prev, medals: newMedals }));
-    
+
     // Trigger confetti
     const duration = 3 * 1000;
     const animationEnd = Date.now() + duration;
@@ -136,16 +145,16 @@ export function useGamification() {
 
   const completeChallenge = async (challengeId: string, points: number) => {
     if (!user) return;
-    const docRef = doc(db, 'user_stats', user.uid);
     const now = new Date().toISOString();
-    
-    await updateDoc(docRef, {
-      [`completedChallenges.${challengeId}`]: now,
-      points: increment(points)
-    });
-    
-    setStats(prev => ({ 
-      ...prev, 
+    // `points` + `completedChallenges` are server-authoritative — persist via the
+    // server award when the challenge maps to a whitelisted PointReason; otherwise
+    // update the optimistic UI only (the legacy direct client write is forbidden
+    // by firestore.rules). The server records completedChallenges[reason] itself.
+    if (isPointReason(challengeId)) {
+      await awardPointsServer(challengeId);
+    }
+    setStats(prev => ({
+      ...prev,
       points: prev.points + points,
       completedChallenges: {
         ...prev.completedChallenges,

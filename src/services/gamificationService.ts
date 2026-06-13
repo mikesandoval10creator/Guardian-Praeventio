@@ -35,6 +35,21 @@ export async function awardPoints(reason: PointReason): Promise<void> {
   }
 }
 
+/**
+ * Ask the server to re-evaluate the caller's medal eligibility. Medals are
+ * server-authoritative (firestore.rules forbids the owner from writing
+ * `user_stats.medals`); the server re-derives them from real stats and writes
+ * via the Admin SDK. Fire-and-forget — gamification is non-critical.
+ */
+export async function checkMedals(): Promise<void> {
+  try {
+    const headers = await authHeaders();
+    await fetch('/api/gamification/check-medals', { method: 'POST', headers });
+  } catch {
+    // Non-critical — never throw.
+  }
+}
+
 export async function getLeaderboard(): Promise<any[]> {
   try {
     const headers = await authHeaders();
