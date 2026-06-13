@@ -341,6 +341,8 @@ Los 394 tests fallidos previos fueron arreglados entre 2026-05-15 y 2026-05-19, 
 
 ### 2.20 ✅ Fetch wrappers — apiAuthHeader migración COMPLETA (CERRADO 2026-06-01)
 
+⚠️ CORRECCIÓN 2026-06-13: la migración NO estaba 100% — HealthVaultShare.tsx mandaba idToken crudo SIN 'Bearer '; cerrado por #870 (HealthVaultShare.tsx:97,126 usan apiAuthHeader()).
+
 **CIERRE 2026-06-01:** migración incremental completada. **30 hooks/components** migrados de
 `Bearer ${await user.getIdToken()}` hand-rolled a `...(await apiAuthHeaders())` (ola de 6
 subagentes paralelos + verificación central). **3 callers correctamente NO migrados**
@@ -911,8 +913,7 @@ varios contradicen un ✅ previo (Rule #1).
   `applyFullRelease` son código muerto; `LotoStatusPanel` huérfano. El control que
   "previene energización" **no está cableado**. (§2.29 lo eximió como "read-only" —
   exención técnicamente válida que **ocultaba** esta brecha de vida.)
-- 🟡 **AlertScheduler con probes vacíos** — `RootLayout.tsx:467` `probes={[]}` → el
-  pipeline predictivo Bernoulli está dormido en prod.
+- ✅ **AlertScheduler con probes REALES (#798)** — `src/components/layout/RootLayout.tsx` `PredictiveSchedulerSlot` (≈L451-510) hace `fetchStructuralLoadProbes(pid)` (inputs físicos de `projects/{pid}/structural_loads` × viento HORARIO real de Open-Meteo en las coordenadas del proyecto) y pasa `probes={probes}` + `schedulerWindow` a `<AlertSchedulerMount/>`, refrescando cada 10 min. Sin coordenadas/forecast/input físico ⇒ NO probe (silencio honesto, nunca un viento fabricado). El pipeline predictivo Bernoulli está VIVO en prod.
 - ✅ **Ruta de evacuación insegura RESUELTA (Fase 5, 2026-06-03)** (era DEEP-EX-03):
   `routingBackend.ts` esquivaba UN solo peligro por waypoint (`break`) sin re-chequear
   el punto reubicado → la ruta podía atravesar un 2º peligro. Nuevo
@@ -944,7 +945,7 @@ varios contradicen un ✅ previo (Rule #1).
   (`AIPostureAnalysisModal.tsx:206-210`) sube la foto del trabajador (matiz Regla #12:
   foto estática subida manualmente, no frame en vivo).
 - 🟡 **`culturePulse.respondSurvey` audita `userId`** (`:657`) → re-identificación de
-  encuesta "anónima".
+  encuesta "anónima". → ✅ #875 (culturePulse.ts:633 responderHash HMAC-SHA256 + :667 actorOverride → audit guarda el hash, no el uid).
 
 **P2 — Integridad / robustez:**
 - ✅ **Gamificación auto-otorga puntos RESUELTO** (#712, 2026-06-06) — monto server-authoritative
@@ -981,10 +982,8 @@ varios contradicen un ✅ previo (Rule #1).
   100% huérfano**; `eventBus/*` sin listeners; cadena RAG-coach huérfana; subsistemas muertos
   (cost calculator 928 LOC, EPP purchase-order, twin instanced, AR placement,
   `ProjectScopedPage` scaffold).
-- **Duplicados a consolidar:** doble-MQTT (cloud `NotImplementedError` vs WS client),
-  doble-DS76, doble PDF SUSESO, `changeMgmt` vs `operationalChange`.
-- **IoT MQTT** no conecta a broker (`mqttAdapter.ts` cloud/EMQX `NotImplementedError`);
-  comentario `:16` "mqtt is NOT a dependency" **falso** (`package.json:151`).
+- **Duplicados a consolidar:** doble-DS76, doble PDF SUSESO, `changeMgmt` vs `operationalChange`. (El doble-MQTT cloud `NotImplementedError` vs WS client YA fue consolidado al adapter mqtt.js real + schema de ingest HMAC — #856.)
+- **IoT MQTT productivo (✅ #856)** — `src/server/triggers/mqttTelemetryBridge.ts` es el subscriber server-side de larga vida (booteado desde server.ts, familia de `backgroundTriggers`): adapter mqtt.js real (EMQX), `MQTT_BROKER_URL` ⇒ conecta, parsea tópicos canónicos, sanitiza, gate de dispositivo fail-closed (`tenants/{t}/iot_devices/{d}` activo + projectId), HMAC RFC 8785 opcional por dispositivo, y persiste a `telemetry_events` top-level (consumido por el gas-gate). `mqtt@5` SIEMPRE estuvo en `package.json`; Cloud IoT Core quedó SUPERSEDED (Google lo retiró 2023), no stubbed.
 - **Sugerencia:** crear bloque **B-DigitalTwin** (~25 archivos hoy sin bloque; pipeline
   on-device MiDaS ONNX real).
 
@@ -1081,7 +1080,7 @@ quedan analytics/ar/driving/onDeviceAdapter); P13 SLM sin verificar sha256 del C
 
 **Notas operacionales:** push de incidente CRÍTICO al CPHS no llega a dispositivos
 modernos (`backgroundTriggers.ts:213` lee `fcmToken` legacy singular); `predictionBackend`
-usa `gemini-3.1-pro-preview` facturado a precio Flash (sub-metering).
+usa `gemini-3.1-pro-preview` facturado a precio Flash (sub-metering). → ✅ #871 (gemini.ts:294 modelForAction + :744 estimateGeminiCostUsd factura por SKU real Pro/Flash ~16.7×).
 
 **Aguantó el escrutinio (sólido):** billing/pagos, clúster cripto (AES-256-GCM/CloudKMS),
 Zettelkasten v2 core, motores puros (IPER/REBA/analítica), aislamiento server.
@@ -1120,7 +1119,7 @@ repo completo (3.545 archivos, menos 77 binarios) queda leído línea por línea
 - 🟡 **CI lint/ratchets — PARCIAL** (#659): guards #13/#17 ahora wired en husky + job CI lint+ratchets.
   PENDIENTE: confirmar que TODOS los ratchets (#3/#19/any/i18n) tienen backstop CI no-bypaseable.
 - 🔴 **Mismatch de dominio** `praeventio.app` (manifest/AASA) vs `app.praeventio.net`
-  (server/WebAuthn) + `WEBAUTHN_RP_ID`≠`WEBAUTHN_RPID` → **passkeys y deep-links rotos en prod**. *(PENDIENTE)*
+  (server/WebAuthn) + `WEBAUTHN_RP_ID`≠`WEBAUTHN_RPID` → **passkeys y deep-links rotos en prod**. *(PENDIENTE)* → PARCIAL ✅ #868: WEBAUTHN_RP_ID seteado en deploy.yml:115 + helper fail-loud src/server/auth/rpId.ts (throw en prod) cableado en las 4 rutas (curriculum/suseso/dte/ds67ds76). PENDIENTE solo la unificación de dominio canónico (manifest/AASA) y el typo de nombre de env.
 - ✅ **iOS `CBUUID` RESUELTO** (#777) — UUID hex válido `00001234-12AE-3E45-…`, idéntico en iOS/Android (interop BLE).
 - 🔴 `render-well-known.mjs:31` hardcodea el SHA-256 del cert Play de prod (fail-open). *(PENDIENTE)*
 - ✅ **voseo es-AR → "tú" chileno RESUELTO** (#736) — grep de `Reintentá`/`Seleccioná`/`vos sos` en `es/common.json` = 0.
@@ -1762,7 +1761,7 @@ Podar **214 branches** en `origin/` (claude/* 10-17d + dev/sprint-* 10-53 + feat
 ### 16.6 PLAN_PARTE2_PROTOTIPO1 — UI rich perdidas
 
 | §16.6.1 | **`GeminiChat` persona técnica legal** (cuando pregunta 100% normativa). 3h. | `archive/PLAN_PARTE2:85-87`. **HEAD 2026-06-11: ✅ HECHO** — `src/services/gemini/chat.ts:48-70`: persona "asistente legal y normativo estricto" + RAG BCN (`searchRelevantContext`) + regla de oro anti-alucinación. | ✅ HECHO |
-| §16.6.2 | **ManDown UI completa**: timer re-escalación + mapa eventos + badge supervisor ACK. ~6h. | `archive/PLAN_PARTE2:73-75`. **HEAD 2026-06-11: mayormente hecho** — timer re-escalación: `src/services/loneWorker/manDownTimer.ts` (+test); ACK supervisor: `src/components/dashboard/ManDownSupervisorWidget.tsx:15-57` (`status pending/acknowledged/resolved`, `acknowledgedBy/At`). Falta solo el mapa de eventos. | 🟡 CASI HECHO |
+| §16.6.2 | **ManDown UI completa**: timer re-escalación + mapa eventos + badge supervisor ACK. ~6h. | `archive/PLAN_PARTE2:73-75`. **HEAD 2026-06-11: mayormente hecho** — timer re-escalación: `src/services/loneWorker/manDownTimer.ts` (+test); ACK supervisor: `src/components/dashboard/ManDownSupervisorWidget.tsx:15-57` (`status pending/acknowledged/resolved`, `acknowledgedBy/At`). Falta solo el mapa de eventos. ✅ #866 (ManDownSupervisorWidget.tsx:56,103 lee triggeredAt + status==='active'; ack awaited :68). | 🟡 CASI HECHO |
 | §16.6.3 | **Geofence visual rico**: polygon-on-map color riesgo + tooltips. ~4h. | `archive/PLAN_PARTE2:77-79`. **HEAD 2026-06-11: hecho parcial (huérfano)** — `src/components/zones/RestrictedZonesMapOverlay.tsx:3,60,97-100` implementa polígonos Google Maps con color por severidad/riesgo, pero NO está montado en ninguna página — wire pendiente. | 🟡 PARCIAL (montar) |
 | §16.6.4 | **`AfichesSeguridad` descarga PDF** (14 templates industria + QR). | `archive/PLAN_PARTE2:130`. **HEAD 2026-06-11: ✅ HECHO** — `src/pages/AfichesSeguridad.tsx:5` (jsPDF) + `:355` (export PDF desde preview). | ✅ HECHO |
 | §16.6.5 | **`HumanBodyViewer` rutinas auto-generadas** desde `ergonomicAssessments`. | `archive/PLAN_PARTE2:134`. **HEAD 2026-06-11: sigue pendiente** — `src/pages/HumanBodyViewer.tsx` + `src/components/occupational-health/HumanBodyViewer.tsx` existen pero sin generación de rutinas desde `ergonomicAssessments` (0 hits). | BAJA |

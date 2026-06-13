@@ -8,7 +8,7 @@ them.
 
 **Praeventio Guard** — occupational risk-prevention PWA for critical industries
 in Latin America (mining, construction, remote operations). Compliance target:
-Chile (Ley 16.744, DS 54, DS 44/2024); extensible to other LATAM regimes.
+Chile (Ley 16.744, DS 44/2024 [vigente 01-02-2025, deroga DS 40 y el ex DS 54], DS 594); extensible to other LATAM regimes.
 
 - Frontend: React 19 + Vite + TypeScript + Tailwind 4, React Router 7, 219
   lazy-loaded pages under `src/pages/`.
@@ -306,3 +306,5 @@ Nueva colección = reglas + ≥5 rules-tests (authenticatedContext) + Dirty Doze
 Actualizar TODO.md (resuelto con file:line) al avanzar.
 
 Hecho (B1): sosOutbox dead-letter + routingBackend hazard-clearing.
+
+Estado 2026-06-13: el roadmap activo es el plan híbrido controlado `revisa-si-el-workflow-mighty-goose.md` (olas 0-7). **OLA 0 (15 fixes quirúrgicos #866-#880) está CERRADA 2026-06-13** (ver `docs/audits/file-ledger/PHASE5-REMEDIATION.md` §"OLA 0 … CERRADA"); sigue OLA 1 (VIDA visible).
