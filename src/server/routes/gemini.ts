@@ -51,7 +51,6 @@ import { logger } from '../../utils/logger.js';
 import { isUpstreamGeminiParseError } from './_geminiErrors.js';
 import {
   AI_MODEL_CHAT,
-  AI_MODEL_FAST,
   AI_MODEL_FAST_LONGFORM,
   AI_MODEL_FAST_STABLE,
   AI_MODEL_REASONING,
