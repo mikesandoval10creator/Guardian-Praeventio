@@ -33,6 +33,14 @@ export const BILLING_TIER_FALLBACK: Record<string, BillingTier> = {
   'empresarial': { clpRegular: 1260496, clpAnual: 12099960, usdRegular: 1578, usdAnual: 15780 },
   'corporativo': { clpRegular: 2521000, clpAnual: 24201600, usdRegular: 3158, usdAnual: 31580 },
   'ilimitado': { clpRegular: 5042008, clpAnual: 48403252, usdRegular: 6315, usdAnual: 63150 },
+  // Sprint 31 OO — Tier Global Titanio (multi-jurisdicción). Canonical display
+  // figures in tiers.ts: clpRegular 949990, clpAnual 9119990, usdRegular 999.
+  // Net (pre-IVA) CLP = round(display / 1.19) — same rule as the monthly rows
+  // above (949990/1.19 = 798311; 9119990/1.19 = 7663857). usdAnual = usdRegular
+  // * 10, matching every other row. Without this entry the webpay/MP/khipu
+  // checkout endpoints returned 400 "Unknown tierId" for the canonical
+  // 'global-titanio' id (the parity test below pins this against tiers.ts).
+  'global-titanio': { clpRegular: 798311, clpAnual: 7663857, usdRegular: 999, usdAnual: 9990 },
 };
 
 export function resolveBillingTier(tierId: string): BillingTier | null {
