@@ -49,7 +49,14 @@ import { tracedAsync } from '../../services/observability/tracing.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 import { isUpstreamGeminiParseError } from './_geminiErrors.js';
-import { AI_MODEL_CHAT, AI_MODEL_FAST_STABLE } from '../../config/aiModels.js';
+import {
+  AI_MODEL_CHAT,
+  AI_MODEL_FAST,
+  AI_MODEL_FAST_LONGFORM,
+  AI_MODEL_FAST_STABLE,
+  AI_MODEL_REASONING,
+  AI_MODEL_VISION,
+} from '../../config/aiModels.js';
 // AI provider layer — per-action routing to a self-hosted OpenAI-compatible
 // endpoint (vLLM/Ollama). Without AI_SELFHOSTED_* config, resolveProvider()
 // returns 'gemini' for every action and the legacy path below runs unchanged.
@@ -227,6 +234,67 @@ const ALLOWED_GEMINI_ACTIONS = [
   'getNutritionSuggestion',
   'scanLegalUpdates',
 ];
+
+// Bucket X under-billing fix — the post-call quota accounting below charges a
+// FLAT token estimate (args/result JSON length / 4) at the model's per-SKU
+// rate. Until now every whitelisted RPC was billed at `AI_MODEL_FAST_STABLE`
+// (the cheapest Flash SKU), but many actions run on a MUCH more expensive
+// model internally (e.g. the prediction / legal / emergency-plan paths use
+// `AI_MODEL_REASONING` — Gemini Pro, ~17× the per-token rate). Charging Flash
+// rates for Pro calls under-meters real spend and lets a tenant burn far past
+// their cost ceiling before the quota gate trips.
+//
+// This map records the REAL model each whitelisted action dispatches to, so
+// the cost passed to the tracker matches the SKU actually billed by Google.
+// The model is the one used by the EXPORT the dispatcher resolves via
+// `geminiBackend[action]` (explicit `export {…}` re-exports shadow the barrel's
+// `export *`, so e.g. `generatePredictiveForecast` → gemini/predictions FAST,
+// not predictionBackend REASONING). Anything not listed defaults to
+// `AI_MODEL_FAST_STABLE` (verified Flash-tier at the call site). When in doubt
+// the governance pricing table (gemini/governance.ts) falls back to Pro pricing
+// for unknown SKUs — so this map only needs the over-default (expensive) cases
+// to be exhaustive; missing FAST entries can never UNDER-bill.
+const GEMINI_ACTION_MODEL: Record<string, string> = {
+  // ── Reasoning (Gemini Pro) — the expensive path that was under-billed ──
+  generateISOAuditChecklist: AI_MODEL_REASONING, // gemini/operations.ts
+  processDocumentToNodes: AI_MODEL_REASONING, // gemini/operations.ts
+  investigateIncidentWithAI: AI_MODEL_REASONING, // gemini/operations.ts
+  evaluateMinsalCompliance: AI_MODEL_REASONING, // gemini/compliance.ts
+  processGlobalSafetyAudit: AI_MODEL_REASONING, // gemini/compliance.ts
+  generatePTS: AI_MODEL_REASONING, // gemini/safetyDocs.ts
+  generatePTSWithManufacturerData: AI_MODEL_REASONING, // gemini/safetyDocs.ts
+  generatePersonalizedSafetyPlan: AI_MODEL_REASONING, // gemini/personPlans.ts
+  generateEmergencyPlan: AI_MODEL_REASONING, // gemini/emergency.ts
+  calculateStructuralLoad: AI_MODEL_REASONING, // gemini/engineering.ts
+  designHazmatStorage: AI_MODEL_REASONING, // gemini/engineering.ts (shadows chemicalBackend)
+  analyzeRootCauses: AI_MODEL_REASONING, // gemini/risk.ts
+  auditLegalGap: AI_MODEL_REASONING, // legalBackend.ts
+  mapRisksToSurveillance: AI_MODEL_REASONING, // medicineBackend.ts
+  generateModuleRecommendations: AI_MODEL_REASONING, // geminiBackend.ts
+  analyzeRiskCorrelations: AI_MODEL_REASONING, // predictionBackend.ts (not shadowed)
+  // ── Conversational (Gemini Pro via AI_MODEL_CHAT) ──
+  queryBCN: AI_MODEL_CHAT, // gemini/chat.ts
+  getChatResponse: AI_MODEL_CHAT, // gemini/chat.ts
+  // ── Vision (Gemini Pro via AI_MODEL_VISION) ──
+  analyzeSafetyImage: AI_MODEL_VISION, // gemini/vision.ts
+  // ── Fast long-form Markdown (preview Flash SKU, distinct rate) ──
+  analyzeFaenaRiskWithAI: AI_MODEL_FAST_LONGFORM, // geminiBackend.ts
+  // ── Fast default-but-explicit (FLASH_3_PREVIEW differs from FAST_STABLE) ──
+  // The bulk of actions run on AI_MODEL_FAST; listing them all is brittle, so
+  // they fall through to the AI_MODEL_FAST_STABLE default below. AI_MODEL_FAST
+  // (FLASH_3_PREVIEW) is not in the pricing table → Pro fallback (never under-
+  // bills), so the default is conservative for those too.
+};
+
+/**
+ * Resolve the REAL Gemini model SKU a whitelisted action dispatches to, for
+ * cost accounting. Falls back to `AI_MODEL_FAST_STABLE` for unmapped actions
+ * (Flash-tier call sites). Keeps the flat token estimate unchanged — only the
+ * per-SKU RATE applied to it is corrected.
+ */
+function modelForAction(action: string): string {
+  return GEMINI_ACTION_MODEL[action] ?? AI_MODEL_FAST_STABLE;
+}
 
 // F3 — identity-from-token. A few whitelisted actions take the CALLER'S uid as
 // an argument that their backend then PERSISTS (e.g. node authorship written via
@@ -669,9 +737,12 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
       recordProviderCall('gemini', 'success', Date.now() - geminiDispatchStartedAt, action);
       await recordGeminiOutcome(tenantId, 'success', {
         tokens: tokensIn + tokensOut,
-        // Most RPCs use Flash internally; Pro is reserved for the
-        // ask-guardian path. Use Flash pricing as the default.
-        costUsd: estimateGeminiCostUsd(AI_MODEL_FAST_STABLE, tokensIn, tokensOut),
+        // Charge at the REAL model the action dispatched to (Bucket X
+        // under-billing fix): reasoning/chat/vision actions run on Gemini Pro
+        // (~17× Flash), so billing them at Flash under-meters spend and lets a
+        // tenant blow past their cost ceiling. `modelForAction` resolves the
+        // SKU; unmapped Flash-tier actions keep the AI_MODEL_FAST_STABLE rate.
+        costUsd: estimateGeminiCostUsd(modelForAction(action), tokensIn, tokensOut),
       });
     } else {
       res.status(400).json({ error: `Action ${action} not found` });
