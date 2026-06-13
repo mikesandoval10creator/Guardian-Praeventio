@@ -212,8 +212,25 @@ export function ClimateRoutes() {
               />
             </div>
 
-            <Button className="w-full" onClick={() => setRouteStatus(routeStatus === 'safe' ? 'warning' : routeStatus === 'warning' ? 'danger' : 'safe')}>
-              {t('climateRoutes.calculateOptimal', 'Calcular Ruta Óptima')}
+            {/* 2026-06-13: el onClick antes SOLO ciclaba routeStatus
+                (safe→warning→danger) sin invocar nada — podía mostrar
+                "Ruta Segura" sin haber consultado NASA/EONET. Ahora dispara
+                el cálculo REAL con los inputs actuales; el status se deriva
+                EXCLUSIVAMENTE del assessment dentro de calculateRoute(). */}
+            <Button
+              className="w-full"
+              type="button"
+              onClick={() => { void calculateRoute(); }}
+              disabled={!isLoaded || isCalculating || isAssessing}
+            >
+              {isCalculating || isAssessing ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {t('climateRoutes.calculating', 'Evaluando ruta…')}
+                </span>
+              ) : (
+                t('climateRoutes.calculateOptimal', 'Calcular Ruta Óptima')
+              )}
             </Button>
           </div>
 

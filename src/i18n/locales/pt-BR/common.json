@@ -1,4 +1,7 @@
 {
+  "climateRoutes": {
+    "calculating": "Avaliando rota…"
+  },
   "app": {
     "name": "Praeventio Guard",
     "tagline": "O Guardião da sua Segurança"
