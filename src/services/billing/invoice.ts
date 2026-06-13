@@ -213,7 +213,7 @@ export interface AutoIssueDteOptions {
 
 export interface AutoIssueDteResult {
   ok: boolean;
-  skipped?: 'disabled' | 'usd' | 'no-adapter' | 'invalid-status';
+  skipped?: 'disabled' | 'usd' | 'no-adapter' | 'invalid-status' | 'not-configured';
   result?: DteResult;
   errorMessage?: string;
 }
@@ -238,6 +238,20 @@ export async function tryAutoIssueDte(
 
   let adapter = options.adapter;
   if (adapter === undefined) {
+    // PRODUCTION FAIL-CLOSED: never emit through the noop / unconfigured PSE.
+    // In prod, `SII_PSE` MUST name a real PSE — otherwise the only adapter
+    // available is the `noop` fake that reports `accepted` for an UN-emitted
+    // DTE (a tax/compliance hazard). Skip honestly instead of pretending the
+    // factura was issued; the queue drain records `skipped:not-configured` and
+    // the payment flow is untouched. Dev/test keep going to the env-backed
+    // Bsale adapter (or `no-adapter` when its creds are unset).
+    if (process.env.NODE_ENV === 'production') {
+      const pse = (process.env.SII_PSE ?? '').toLowerCase().trim();
+      const REAL_PSE_KEYS = new Set(['openfactura', 'simpleapi', 'bsale', 'libredte']);
+      if (!REAL_PSE_KEYS.has(pse)) {
+        return { ok: false, skipped: 'not-configured' };
+      }
+    }
     // Lazy-import so the pure invoice math stays dependency-free.
     const { BsaleAdapter } = await import('../sii/bsaleAdapter.js');
     adapter = BsaleAdapter.fromEnv();

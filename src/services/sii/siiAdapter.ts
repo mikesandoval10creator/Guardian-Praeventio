@@ -122,6 +122,33 @@ export class SiiNotImplementedError extends SiiAdapterError {
 }
 
 /**
+ * Thrown by `getSiiAdapter()` in PRODUCTION when no real PSE is configured
+ * (i.e. the resolver would otherwise fall back to the `noop` success-shaped
+ * fake). The noop adapter answers `accepted` for every emission, so silently
+ * returning it in prod would make an UN-emitted DTE look issued — a tax /
+ * compliance hazard (a factura that never reached the SII via the PSE
+ * intermedio). Callers MUST treat this as "DTE backend not configured" and
+ * fail soft (queue + retry, or skip honestly) — never as a success.
+ *
+ * Dev / test keep the noop fallback so CI never crashes on an unset
+ * `SII_PSE`; this error is production-only.
+ */
+export class SiiNotConfiguredError extends SiiAdapterError {
+  /** The raw `SII_PSE` value that resolved to noop (or `''` when unset). */
+  readonly requestedPse: string;
+  constructor(requestedPse: string) {
+    super(
+      'getSiiAdapter',
+      `No real SII PSE is configured in production (SII_PSE="${requestedPse}" resolved to the noop fallback). ` +
+        'Refusing to emit a SIMULATED-accepted DTE. Set SII_PSE to a real PSE ' +
+        '(bsale) with its credentials. See SII_INTEGRATION.md.',
+    );
+    this.name = 'SiiNotConfiguredError';
+    this.requestedPse = requestedPse;
+  }
+}
+
+/**
  * Build a `DteResponse` shape with safe defaults. The PSE stubs use this
  * (the `noopSiiAdapter` does, the others throw before they need it) so the
  * exact response shape stays consistent across PSEs and snapshot tests
