@@ -66,8 +66,8 @@ interface SyncOpts {
 function resolveFetch(opts: SyncOpts): FetchLike {
   if (opts.fetchImpl) return opts.fetchImpl;
   // Bind to preserve the global `this` and keep the shape narrow.
-  return ((input, init) =>
-    fetch(input, init as RequestInit)) as unknown as FetchLike;
+  return ((input: string, init?: RequestInit) =>
+    fetch(input, init)) as unknown as FetchLike;
 }
 
 /**
