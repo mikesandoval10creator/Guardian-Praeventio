@@ -29,7 +29,7 @@ const h = vi.hoisted(() => ({
   // Captured onSnapshot callback so the test can push docs at will.
   snapshotCb: null as null | ((snap: { docs: Array<{ id: string; data: () => unknown }> }) => void),
   // Captured updateDoc calls for ACK assertions.
-  updateDoc: vi.fn(async () => undefined),
+  updateDoc: vi.fn(async (..._args: unknown[]) => undefined),
   doc: vi.fn(() => ({ __doc: true })),
   track: vi.fn(),
 }));
