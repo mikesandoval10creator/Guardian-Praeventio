@@ -90,7 +90,11 @@ export function HealthVaultShare() {
     setError(null);
     setSubmitting(true);
     try {
-      const authHeader = await user?.getIdToken();
+      // apiAuthHeader() returns the FULL header string with the `Bearer `
+      // (or `E2E `) prefix. verifyAuth.ts requires that prefix — sending the
+      // raw idToken made every POST /share fail with 401. Centralizing here
+      // also wires the E2E path so the QR flow works in Playwright.
+      const authHeader = await apiAuthHeader();
       const res = await fetch('/api/health-vault/share', {
         method: 'POST',
         headers: {
@@ -118,7 +122,8 @@ export function HealthVaultShare() {
 
   async function handleRevoke(tokenId: string) {
     try {
-      const authHeader = await user?.getIdToken();
+      // Same Bearer-prefix requirement as handleSubmit — use apiAuthHeader().
+      const authHeader = await apiAuthHeader();
       await fetch(`/api/health-vault/share/${tokenId}/revoke`, {
         method: 'POST',
         headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) },
