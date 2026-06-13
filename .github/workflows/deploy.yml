@@ -15,6 +15,14 @@ permissions:
   contents: read
   id-token: write
 
+# Serialize deploys of main HEAD: a newer run supersedes an older in-flight one
+# instead of two deploys racing the same Cloud Run service (#18). Cloud Run
+# revisions are atomic — traffic only shifts on a successful `gcloud run deploy`
+# — so cancelling a superseded run never leaves a half-promoted revision.
+concurrency:
+  group: deploy-cloud-run-main
+  cancel-in-progress: true
+
 env:
   PROJECT_ID: praeventio-541ad
   # H16: alineado con cloudbuild.yaml (data residency Chile, Ley 19.628)
@@ -113,6 +121,9 @@ jobs:
             APP_BASE_URL=https://app.praeventio.net
             APP_URL=https://app.praeventio.net
             WEBAUTHN_RP_ID=app.praeventio.net
+            # Release traceability (#18): tag every prod Sentry event with the
+            # exact deployed commit so errors map back to a revision/source.
+            SENTRY_RELEASE=${{ github.sha }}
             DWG_CONVERTER_URL=${{ secrets.DWG_CONVERTER_URL }}
             SCHEDULER_SERVICE_ACCOUNT=climate-scan-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
           # §2.28 (2026-05-21) — PHOTOGRAMMETRY_WORKER_URL + MODAL_*_URL

@@ -497,7 +497,7 @@ try {
       : process.env.NODE_ENV === 'staging'
         ? 'staging'
         : 'development') as 'production' | 'staging' | 'development',
-    release: process.env.APP_VERSION ?? 'dev',
+    release: process.env.SENTRY_RELEASE ?? process.env.APP_VERSION ?? 'dev',
     sampleRate: process.env.SENTRY_TRACES_SAMPLE_RATE
       ? Number(process.env.SENTRY_TRACES_SAMPLE_RATE)
       : 0.1,
