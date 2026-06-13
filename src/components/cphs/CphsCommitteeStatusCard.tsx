@@ -2,7 +2,7 @@
 //
 // Read-only status card del Comité Paritario de Higiene y Seguridad (CPHS):
 //   - Estado del comité (active / expired / dissolved)
-//   - Quórum DS 54 art. 66 (mínimo 3 empleador + 3 trabajador)
+//   - Quórum DS 44/2024 (ex DS 54 art. 66) (mínimo 3 empleador + 3 trabajador)
 //   - Cumplimiento ISO 45001:2018 §5.4 (consulta efectiva, electos)
 //   - Próximas reuniones agendadas
 //   - Actas firmadas vs pendientes
@@ -129,7 +129,7 @@ export function CphsCommitteeStatusCard({
         >
           {!status.quorumOk && (
             <p data-testid="cphs-warn-quorum">
-              ⚠ {t('cphs.quorumFail', 'Quórum insuficiente — DS 54 art. 66 exige 3+3 mínimo.')}
+              ⚠ {t('cphs.quorumFail', 'Quórum insuficiente — DS 44/2024 (ex DS 54 art. 66) exige 3+3 mínimo.')}
             </p>
           )}
           {!status.electedOk && (

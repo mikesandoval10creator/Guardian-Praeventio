@@ -202,7 +202,7 @@
       ],
       "comite-paritario": [
         "Tudo do plano grátis",
-        "Gestão completa de Comissão Paritária (DS 54)",
+        "Gestão completa de Comissão Paritária (DS 44/2024)",
         "Avaliações rápidas de risco",
         "Relatórios básicos PDF/Excel",
         "Multi-país sem custo adicional"
@@ -978,7 +978,7 @@
       "syncing": "Sincronizando agenda..."
     },
     "legal_obligations": {
-      "comite_paritario_title": "Reunião Comité Paritario (DS 54)",
+      "comite_paritario_title": "Reunião Comité Paritario (DS 44/2024)",
       "comite_paritario_description": "Reunião mensal obrigatória do Comité Paritario de Higiene e Segurança.",
       "depto_prevencion_title": "Relatório Depto. Prevención (DS 44/2024)",
       "depto_prevencion_description": "Entrega do relatório mensal de acidentabilidade e gestão preventiva.",
@@ -2023,7 +2023,7 @@
       "enter": "Acessar"
     },
     "hero": {
-      "compliance_badge": "Conformidade DS 54 · DS 44/2024 · Lei 16.744",
+      "compliance_badge": "Conformidade DS 44/2024 · Lei 16.744",
       "title_line_1": "A revolução da",
       "title_line_2": "prevenção de riscos",
       "subtitle": "Gestão de riscos, bem-estar da equipe e conformidade regulatória — tudo em uma plataforma com IA",
@@ -2053,7 +2053,7 @@
       },
       "ai": {
         "title": "Inteligência Artificial",
-        "desc": "O Gemini Pro gera APRs automáticas, avalia riscos e orienta você com as normas DS 54, DS 44/2024 (substitui o DS 40/1969) e a Lei 16.744."
+        "desc": "O Gemini Pro gera APRs automáticas, avalia riscos e orienta você com as normas DS 44/2024 (substitui o DS 40/1969 e o antigo DS 54) e a Lei 16.744."
       },
       "training": {
         "title": "Treinamentos",
@@ -2699,12 +2699,12 @@
   },
   "legal_calendar": {
     "title": "Calendário legal",
-    "subtitle": "Obrigações legais recorrentes: auditorias, medições ambientais, renovações de capacitação, reuniões CPHS, relatórios mutual, simulados, exames ocupacionais, renovação de documentos e permissões. DS 76 / DS 132 / DS 54 / Lei 16.744.",
+    "subtitle": "Obrigações legais recorrentes: auditorias, medições ambientais, renovações de capacitação, reuniões CPHS, relatórios mutual, simulados, exames ocupacionais, renovação de documentos e permissões. DS 76 / DS 132 / DS 44/2024 / Lei 16.744.",
     "empty": {
       "select_project": "Selecione um projeto."
     },
     "feedback": {
-      "bootstrap_ok": "Inicializadas {{n}} obrigações padrão (DS 76, DS 132, DS 54, etc.).",
+      "bootstrap_ok": "Inicializadas {{n}} obrigações padrão (DS 76, DS 132, DS 44/2024, etc.).",
       "already_init": "O calendário já estava inicializado.",
       "advanced": "\"{{label}}\" avançada para o próximo ciclo."
     },
@@ -3643,7 +3643,7 @@
       "placeholder": "Ex.: \"O supervisor deve revisar o andaime antes de sexta-feira…\"",
       "run": "Extrair ações"
     },
-    "quorumFail": "Quórum insuficiente — o DS 54 art. 66 exige no mínimo 3+3.",
+    "quorumFail": "Quórum insuficiente — o DS 44/2024 (ex DS 54 art. 66) exige no mínimo 3+3.",
     "review": "Revisar",
     "scheduled": "Agendadas",
     "title": "Comitê Paritário (CPHS)",

@@ -39,7 +39,7 @@ const PLANS: Plan[] = [
   { id: 'enterprise', workers: '250+', color: 'border-violet-500' },
 ];
 
-const COMPLIANCE_BADGES = ['DS 54', 'DS 44/2024', 'Ley 16.744', 'ISO 45001', 'OHSAS 18001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
+const COMPLIANCE_BADGES = ['DS 44/2024', 'Ley 16.744', 'ISO 45001', 'OHSAS 18001', 'SUSESO', 'ISL', 'ACHS', 'IST'];
 
 // Steps. Copy in i18n under `landing.how.<id>.{title,desc}`.
 const HOW_STEPS = [

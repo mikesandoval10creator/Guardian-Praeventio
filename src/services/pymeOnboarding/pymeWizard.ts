@@ -76,7 +76,7 @@ export function computeMaturity(input: PymeWizardInput): MaturityReport {
 
   // CPHS obligatorio >=25 workers
   if (input.workerCount >= 25 && !input.hasCphs) {
-    missing.push('Formar CPHS — obligatorio para empresas con ≥25 trabajadores (DS 54).');
+    missing.push('Formar CPHS — obligatorio para empresas con ≥25 trabajadores (DS 44/2024, ex DS 54).');
   } else if (input.hasCphs) {
     score += 15;
   } else if (input.workerCount < 25) {
