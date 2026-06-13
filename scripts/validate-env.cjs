@@ -101,6 +101,56 @@ const REQUIRED_PROD = [
   { name: 'APPLE_ISSUER_ID', purpose: 'Apple Connect Issuer ID (UUID)', mode: 'prod' },
   { name: 'ANDROID_PACKAGE_NAME', purpose: 'Android package name', mode: 'prod' },
 
+  // === SII DTE / PSE intermedio (Boleta/Factura electrónica) ===
+  // `SII_PSE` selecciona el PSE en `src/services/sii/index.ts:getSiiAdapter()`.
+  // Opcional: si NO está seteado a un PSE real, en prod `getSiiAdapter()` y
+  // `tryAutoIssueDte` fallan-cerrado (NUNCA noop-accepted simulado). Pero si
+  // un deploy SÍ declara un PSE, exigimos sus credenciales aquí — sin ellas
+  // el adapter quedaría `isAvailable=false` y la emisión nunca ocurriría,
+  // dejando facturas pagadas sin DTE en silencio.
+  {
+    name: 'SII_PSE',
+    purpose: 'PSE intermedio para DTE (openfactura|simpleapi|bsale|libredte; ausente = fail-closed en prod)',
+    mode: 'prod',
+    optional: true,
+    allowedValues: ['openfactura', 'simpleapi', 'bsale', 'libredte', 'noop'],
+  },
+  // Bsale es el único PSE real implementado hoy (Sprint 23). Si SII_PSE=bsale
+  // exigimos ambos: el token y la oficina (BsaleAdapter.isAvailable los pide).
+  {
+    name: 'BSALE_ACCESS_TOKEN',
+    purpose: 'Bsale PSE access_token (requerido si SII_PSE=bsale)',
+    mode: 'prod',
+    requiredIf: (env) => String(env.SII_PSE ?? '').toLowerCase().trim() === 'bsale',
+  },
+  {
+    name: 'BSALE_OFFICE_ID',
+    purpose: 'Bsale oficina id (requerido si SII_PSE=bsale)',
+    mode: 'prod',
+    requiredIf: (env) => String(env.SII_PSE ?? '').toLowerCase().trim() === 'bsale',
+  },
+  // PSEs aún en stub (throw SiiNotImplementedError). Si un deploy los declara,
+  // exigimos su credencial documentada para que el contrato de deploy sea
+  // honesto el día que se implementen (mismo nombre que usa siiPreflightCheck).
+  {
+    name: 'OPENFACTURA_API_KEY',
+    purpose: 'OpenFactura PSE API key (requerido si SII_PSE=openfactura)',
+    mode: 'prod',
+    requiredIf: (env) => String(env.SII_PSE ?? '').toLowerCase().trim() === 'openfactura',
+  },
+  {
+    name: 'SIMPLEAPI_API_KEY',
+    purpose: 'SimpleAPI PSE API key (requerido si SII_PSE=simpleapi)',
+    mode: 'prod',
+    requiredIf: (env) => String(env.SII_PSE ?? '').toLowerCase().trim() === 'simpleapi',
+  },
+  {
+    name: 'LIBREDTE_API_TOKEN',
+    purpose: 'LibreDTE PSE API token (requerido si SII_PSE=libredte)',
+    mode: 'prod',
+    requiredIf: (env) => String(env.SII_PSE ?? '').toLowerCase().trim() === 'libredte',
+  },
+
   // === AI ===
   { name: 'GEMINI_API_KEY', purpose: 'Gemini LLM', mode: 'prod' },
 

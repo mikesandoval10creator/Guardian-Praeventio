@@ -20,6 +20,7 @@ import {
   calculateDteTotals,
   noopSiiAdapter,
   SiiAdapterError,
+  SiiNotConfiguredError,
   SiiNotImplementedError,
 } from './siiAdapter';
 import { simpleApiAdapter } from './simpleApiAdapter';
@@ -47,6 +48,14 @@ const SII_PSE_KEYS: ReadonlySet<SiiPseKey> = new Set<SiiPseKey>([
 /**
  * Resolve the active SII adapter from env. Pure dispatch — does not call
  * the PSE, so it is safe to import at module top level.
+ *
+ * PRODUCTION FAIL-CLOSED: the `noop` adapter answers `accepted` for every
+ * emission, so resolving to it in prod would make an UN-emitted DTE look
+ * issued (a tax/compliance hazard). When `NODE_ENV === 'production'` and the
+ * resolved key would be `noop` — i.e. `SII_PSE` is unset, empty, an
+ * unrecognized value, or the literal `noop` — this throws
+ * `SiiNotConfiguredError` instead of silently returning the fake. Dev / test
+ * keep the noop fallback so CI never crashes on an unset `SII_PSE`.
  */
 export function getSiiAdapter(): SiiAdapter {
   const raw = (process.env.SII_PSE ?? 'noop').toLowerCase().trim();
@@ -64,6 +73,10 @@ export function getSiiAdapter(): SiiAdapter {
       return libredteAdapter;
     case 'noop':
     default:
+      if (process.env.NODE_ENV === 'production') {
+        // Never hand back a SIMULATED-accepted adapter in prod.
+        throw new SiiNotConfiguredError(process.env.SII_PSE ?? '');
+      }
       return noopSiiAdapter;
   }
 }
@@ -77,6 +90,7 @@ export {
   noopSiiAdapter,
   openfacturaAdapter,
   SiiAdapterError,
+  SiiNotConfiguredError,
   SiiNotImplementedError,
   simpleApiAdapter,
 };
