@@ -78,6 +78,25 @@ describe('crews', () => {
     expect(stored.xp).toBe(0); // economy starts at 0, never negative
   });
 
+  it('POST /crews writes a crew.created audit_log (CLAUDE.md #3)', async () => {
+    const res = await request(buildApp())
+      .post('/api/crews')
+      .set(uid)
+      .send({ projectId: 'p1', name: 'Cuadrilla A', memberUids: ['m1'] });
+    expect(res.status).toBe(201);
+    const auditKeys = [...H.db!._store.keys()].filter((k) => k.startsWith('audit_logs/'));
+    expect(auditKeys.length).toBe(1);
+    const log = H.db!._store.get(auditKeys[0]) as {
+      action: string; module: string; userId: string; projectId: string | null;
+      details: { crewId: string; projectId: string };
+    };
+    expect(log.action).toBe('crew.created');
+    expect(log.module).toBe('organic');
+    expect(log.userId).toBe('u1'); // stamped from token, not body
+    expect(log.projectId).toBe('p1');
+    expect(log.details.crewId).toBe(res.body.id);
+  });
+
   it('POST /crews 400 on missing name', async () => {
     const res = await request(buildApp()).post('/api/crews').set(uid).send({ projectId: 'p1', memberUids: [] });
     expect(res.status).toBe(400);
@@ -105,6 +124,27 @@ describe('processes + XP economy', () => {
       .set(uid)
       .send({ crewId: 'c1', projectId: 'p1', type: 'NOPE', name: 'x' });
     expect(bad.status).toBe(400);
+  });
+
+  it('POST /processes writes a process.started audit_log (CLAUDE.md #3)', async () => {
+    const res = await request(buildApp())
+      .post('/api/processes')
+      .set(uid)
+      .send({ crewId: 'c1', projectId: 'p1', type: 'soldadura', name: 'Soldar viga' });
+    expect(res.status).toBe(201);
+    const auditKeys = [...H.db!._store.keys()].filter((k) => k.startsWith('audit_logs/'));
+    expect(auditKeys.length).toBe(1);
+    const log = H.db!._store.get(auditKeys[0]) as {
+      action: string; module: string; userId: string; projectId: string | null;
+      details: { processId: string; crewId: string; projectId: string; type: string };
+    };
+    expect(log.action).toBe('process.started');
+    expect(log.module).toBe('organic');
+    expect(log.userId).toBe('u1'); // stamped from token, not body
+    expect(log.projectId).toBe('p1');
+    expect(log.details.processId).toBe(res.body.id);
+    expect(log.details.crewId).toBe('c1');
+    expect(log.details.type).toBe('soldadura');
   });
 
   it('POST /processes/:id/close awards crew XP atomically (positive economy)', async () => {

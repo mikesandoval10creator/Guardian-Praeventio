@@ -33,6 +33,8 @@ import {
 } from '../../services/organic/processService.js';
 import type { ProcessType, ProcessStatus } from '../../types/organic.js';
 import { sentryAdapter } from '../../services/observability/sentryAdapter.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
+import { logger } from '../../utils/logger.js';
 
 const router = Router();
 
@@ -76,9 +78,27 @@ router.post('/crews', verifyAuth, organicLimiter, assertProjectMemberFromBody(),
       xp: 0,
       lastIncidentAt: null,
     });
+    // CLAUDE.md #3/#14: crew creation is a state-changing operation, so it must
+    // hit audit_logs. The helper stamps uid/email from the verified token (NOT
+    // the body); the try/catch keeps an audit failure from 5xx-ing the create.
+    try {
+      await auditServerEvent(req, 'crew.created', 'organic', {
+        crewId: docRef.id,
+        projectId,
+      }, { projectId });
+    } catch (auditErr) {
+      logger.error('organic_audit_event_failed', {
+        action: 'crew.created',
+        crewId: docRef.id,
+        message: (auditErr as Error)?.message,
+      });
+      sentryAdapter.captureException(auditErr as Error, { tags: { route: 'organic.crew.created' } });
+    }
     return res.status(201).json({ success: true, id: docRef.id });
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal'),
+    });
   }
 });
 
@@ -139,9 +159,29 @@ router.post('/processes', verifyAuth, organicLimiter, assertProjectMemberFromBod
       alertsResponded: 0,
       xpAwardedAtClose: null,
     });
+    // CLAUDE.md #3/#14: starting a process changes state, so it must hit
+    // audit_logs. uid/email come from the verified token (NOT the body); the
+    // try/catch keeps an audit failure from 5xx-ing the create.
+    try {
+      await auditServerEvent(req, 'process.started', 'organic', {
+        processId: docRef.id,
+        crewId,
+        projectId,
+        type,
+      }, { projectId });
+    } catch (auditErr) {
+      logger.error('organic_audit_event_failed', {
+        action: 'process.started',
+        processId: docRef.id,
+        message: (auditErr as Error)?.message,
+      });
+      sentryAdapter.captureException(auditErr as Error, { tags: { route: 'organic.process.started' } });
+    }
     return res.status(201).json({ success: true, id: docRef.id });
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal'),
+    });
   }
 });
 
