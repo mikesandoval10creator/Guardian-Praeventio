@@ -64,6 +64,9 @@ export function makeIaRateLimitStore(prefix: string): Store | undefined {
     process.env.NODE_ENV === 'production' ||
     process.env.PRAEVENTIO_FORCE_IA_FS_STORE === '1';
   if (!expectAdmin) return undefined;
+  // `FirestoreRateLimitStore` ahora declara `implements Store`, así que el
+  // handle es directamente asignable al contrato de express-rate-limit — sin
+  // doble cast `as unknown as Store`.
   return makeLazyFirestoreRateLimitStore(
     () => {
       // Resuelto per-request (no en import time): para entonces `server.ts`
@@ -76,7 +79,7 @@ export function makeIaRateLimitStore(prefix: string): Store | undefined {
       return admin.firestore();
     },
     { prefix },
-  ) as unknown as Store;
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────

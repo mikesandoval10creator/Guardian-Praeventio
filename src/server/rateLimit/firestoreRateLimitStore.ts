@@ -23,6 +23,7 @@
 //   - `windowMs` se setea desde el limiter al crear el store via init().
 
 import type { Firestore } from 'firebase-admin/firestore';
+import type { Store } from 'express-rate-limit';
 
 export interface FirestoreRateLimitStoreOptions {
   /**
@@ -69,12 +70,19 @@ export interface IncrementResponse {
  *   - resetKey(key) — borra contador específico
  *   - resetAll() — borra todos los contadores (admin only)
  */
-export class FirestoreRateLimitStore {
+export class FirestoreRateLimitStore implements Store {
   /** Handle eager (si se pasó `db`) o memoizado tras resolver `getDb`. */
   private dbHandle: Firestore | undefined;
   private readonly getDb: (() => Firestore) | undefined;
   private readonly collectionName: string;
-  private readonly prefix: string;
+  /**
+   * Prefix que se antepone a cada key (vía `encodeKey`). Público y readonly
+   * porque la interfaz `Store` de express-rate-limit lo lee para su chequeo
+   * anti-doble-conteo (evita falsos positivos cuando una misma key se cuenta
+   * en dos limiters con prefijos distintos). Exponerlo con el valor real es
+   * más correcto que dejar que el lib lo vea como `undefined`.
+   */
+  readonly prefix: string;
   private windowMs: number = 60_000; // default 1 min, override desde init()
 
   /** Express-rate-limit verifica esta property para detectar stores async. */

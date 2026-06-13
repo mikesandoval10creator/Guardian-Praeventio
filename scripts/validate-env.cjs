@@ -153,6 +153,19 @@ const REQUIRED_PROD = [
 
   // === AI ===
   { name: 'GEMINI_API_KEY', purpose: 'Gemini LLM', mode: 'prod' },
+  // PRAEVENTIO_FORCE_IA_FS_STORE: test/override flag que fuerza el store
+  // Firestore (compartido entre pods) de los rate-limiters IA fuera de prod
+  // (ver src/server/middleware/limiters.ts:makeIaRateLimitStore). En prod el
+  // store Firestore se activa SIEMPRE por NODE_ENV=production, así que este
+  // flag NO es necesario en deploys reales — por eso es optional. Si está
+  // presente solo acepta '0'|'1'.
+  {
+    name: 'PRAEVENTIO_FORCE_IA_FS_STORE',
+    purpose: 'fuerza el store Firestore de los rate-limiters IA fuera de prod (test override; en prod se activa por NODE_ENV)',
+    mode: 'prod',
+    optional: true,
+    allowedValues: ['0', '1'],
+  },
 
   // === Photogrammetry (opcional — features se desactivan si missing) ===
   {
