@@ -603,8 +603,9 @@ El componente raíz de la SPA:
 **Esfuerzo:** 0.5 sprint
 **Solución:** Agregar middleware `requireTier('premium')` en rutas protegidas.
 
-### 6.1.2 `.catch(() => {})` en Billing
+### 6.1.2 `.catch(() => {})` en Billing — ✅ RESUELTO (PR #865)
 **Archivos:** `billing/googleplay.ts`, `billing/appstore.ts`, `billing/webpay.ts`, `billing/mercadopago.ts`, `billing/khipu.ts`, `dte.ts`
+**Estado:** Cerrado. Los call-sites de billing reemplazaron el `.catch(() => {})` silencioso por el patrón no-throw de dte.ts (`auditServerEvent` devuelve boolean, nunca lanza → `.then(ok => !ok && logger.error('billing_audit_write_failed', …))`); un fallo de auditoría queda registrado sin romper el pago. Ref: webpay.ts:306-307, dte.ts:461-465; confirmado en COWORK_REQUIREMENTS.md:143 y TIER-GATING-SERVER-SIDE-SPEC.md:53.
 **Problema:** Promesas de auditoría y logging son silenciadas con `.catch(() => {})`. Si el logging de un pago falla, no hay registro.
 **Impacto:** Pérdida de trazabilidad en pagos — un pago podría procesarse sin audit log.
 **Esfuerzo:** 0.5 sprint
