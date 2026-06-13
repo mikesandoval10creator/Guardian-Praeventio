@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Map, Navigation, CloudRain, AlertTriangle, Route, ShieldAlert, Thermometer, Wind, Loader2 } from 'lucide-react';
+import { Navigation, CloudRain, AlertTriangle, Route, ShieldAlert, Thermometer, Wind, Loader2 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
-import { GoogleMap, useJsApiLoader, DirectionsRenderer } from '@react-google-maps/api';
+import { useJsApiLoader } from '@react-google-maps/api';
 import { getMapLoaderConfig } from '../components/maps/mapConfig';
 import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
@@ -13,20 +13,11 @@ import {
   type RouteAssessmentResult,
 } from '../services/routing/routeClimateAssessment';
 
-const containerStyle = {
-  width: '100%',
-  height: '100%'
-};
-
-// Default center (Santiago, Chile)
-const defaultCenter = { lat: -33.4489, lng: -70.6693 };
-
 export function ClimateRoutes() {
   const { t } = useTranslation();
   const [origin, setOrigin] = useState('Santiago, Chile');
   const [destination, setDestination] = useState('Valparaíso, Chile');
   const [routeStatus, setRouteStatus] = useState<'safe' | 'warning' | 'danger'>('warning');
-  const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   // 2026-05-16 (Sprint E): assessment combinado NASA POWER + EONET.
   // Reemplaza la heurística pura de keywords de Sprint D (que ya era
@@ -57,7 +48,6 @@ export function ClimateRoutes() {
         destination: destination,
         travelMode: window.google.maps.TravelMode.DRIVING,
       });
-      setDirectionsResponse(results);
 
       // 2026-05-16 (Sprint E): assessment REAL combinando:
       //   - Google Directions: distancia, duración, summary (paso cordillerano)
@@ -88,8 +78,10 @@ export function ClimateRoutes() {
       let lngMin = Infinity;
       let lngMax = -Infinity;
       const path = route0?.overview_path ?? [];
-      if (path.length > 0) {
-        const mid = path[Math.floor(path.length / 2)]!;
+      const mid = path[Math.floor(path.length / 2)];
+      const firstLeg = legs[0];
+      const lastLeg = legs[legs.length - 1];
+      if (mid) {
         midpointLat = mid.lat();
         midpointLng = mid.lng();
         for (const p of path) {
@@ -100,9 +92,9 @@ export function ClimateRoutes() {
           if (lo < lngMin) lngMin = lo;
           if (lo > lngMax) lngMax = lo;
         }
-      } else if (legs.length > 0) {
-        const startLatLng = legs[0]!.start_location;
-        const endLatLng = legs[legs.length - 1]!.end_location;
+      } else if (firstLeg && lastLeg) {
+        const startLatLng = firstLeg.start_location;
+        const endLatLng = lastLeg.end_location;
         midpointLat = (startLatLng.lat() + endLatLng.lat()) / 2;
         midpointLng = (startLatLng.lng() + endLatLng.lng()) / 2;
         latMin = Math.min(startLatLng.lat(), endLatLng.lat());
@@ -111,7 +103,10 @@ export function ClimateRoutes() {
         lngMax = Math.max(startLatLng.lng(), endLatLng.lng());
       } else {
         // Sin path ni legs: no podemos hacer assessment climático.
-        setRouteStatus('safe');
+        // 2026-06-13 (review #872 hallazgo B): igual que en el catch,
+        // NO afirmamos "Ruta Segura" sin evidencia. Preservamos un
+        // "danger" previo y en otro caso quedamos en "warning".
+        setRouteStatus((prev) => (prev === 'danger' ? 'danger' : 'warning'));
         setAssessment(null);
         setIsCalculating(false);
         return;
@@ -140,9 +135,45 @@ export function ClimateRoutes() {
         setAssessment(result);
       } catch (err) {
         logger.error('Route climate assessment failed', err);
-        // Last resort: heurística mínima sin NASA/EONET.
-        setRouteStatus('safe');
-        setAssessment(null);
+        // 2026-06-13 (review #872 hallazgo B): NUNCA degradar a "safe"
+        // cuando el assessment lanza. Afirmar "Ruta Segura" sin evidencia
+        // es peligroso — si la ruta venía marcada "danger" (Ruta
+        // Intransitable) y NASA/EONET o el procesamiento de geometría cae,
+        // ocultaríamos un riesgo real. Política fail-safe:
+        //   - el status NO baja de lo que ya teníamos: preservamos un
+        //     "danger" previo, y en cualquier otro caso fijamos "warning"
+        //     (precaución) — jamás "safe" sin dato que lo respalde.
+        //   - exponemos un assessment honesto de "datos insuficientes"
+        //     (todas las fuentes en failedSources) para que la UI muestre
+        //     el copy "no pudimos consultar las fuentes" en lugar de
+        //     "sin riesgos detectados".
+        setRouteStatus((prev) => (prev === 'danger' ? 'danger' : 'warning'));
+        setAssessment({
+          status: 'warning',
+          reasons: [
+            {
+              level: 'warning',
+              category: 'distance_duration',
+              message: t(
+                'climateRoutes.assessmentUnavailable',
+                'No pudimos completar la evaluación climática de la ruta. Conduce con precaución y reintenta cuando tengas mejor conexión.',
+              ),
+              source: 'HEURISTIC',
+            },
+          ],
+          metrics: {
+            avgWindMs: null,
+            maxWindMs: null,
+            totalPrecipMm: null,
+            frostHourCount: 0,
+            activeEventCount: 0,
+            distanceKm: totalDistanceM / 1000,
+            durationHours: totalDurationS / 3600,
+            isMountainPass: false,
+          },
+          activeEvents: [],
+          failedSources: ['NASA_POWER', 'EONET'],
+        });
       } finally {
         setIsAssessing(false);
       }
@@ -152,7 +183,7 @@ export function ClimateRoutes() {
     } finally {
       setIsCalculating(false);
     }
-  }, [origin, destination]);
+  }, [origin, destination, showToast, t]);
 
   // Calculate initial route when map loads
   useEffect(() => {

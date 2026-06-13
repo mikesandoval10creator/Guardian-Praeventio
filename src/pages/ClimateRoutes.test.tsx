@@ -23,12 +23,19 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { RouteAssessmentResult } from '../services/routing/routeClimateAssessment';
 import { ClimateRoutes } from './ClimateRoutes';
 
+// Stable `t` / `show` references across renders — real react-i18next and
+// useToast return memoized callbacks. A fresh function each render would give
+// `calculateRoute` (which now lists `t`/`showToast` in its deps, per review
+// #872 hallazgo A) a new identity every render and loop the mount effect.
+const tFn = (_k: string, fallback?: string) =>
+  typeof fallback === 'string' ? fallback : _k;
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (_k: string, fallback?: string) => (typeof fallback === 'string' ? fallback : _k),
-  }),
+  useTranslation: () => ({ t: tFn }),
 }));
 vi.mock('framer-motion', () => ({
+  // ToastContainer (rendered unconditionally by ClimateRoutes) imports
+  // AnimatePresence — without it the whole tree throws before any assertion.
+  AnimatePresence: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   motion: new Proxy(
     {},
     {
@@ -65,8 +72,10 @@ vi.mock('../components/maps/mapConfig', () => ({ getMapLoaderConfig: () => ({}) 
 vi.mock('../utils/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
+const showToastFn = vi.fn();
+const dismissToastFn = vi.fn();
 vi.mock('../hooks/useToast', () => ({
-  useToast: () => ({ toasts: [], show: vi.fn(), dismiss: vi.fn() }),
+  useToast: () => ({ toasts: [], show: showToastFn, dismiss: dismissToastFn }),
 }));
 
 // The real climate engine (NASA POWER + EONET) — mocked so we control the
@@ -187,20 +196,61 @@ describe('ClimateRoutes — "Calcular Ruta Óptima" runs the real assessment', (
     });
   });
 
-  it('does not change status when the engine produces no new assessment (no blind cycle)', async () => {
-    // Engine rejects on the click → calculateRoute falls back to status 'safe'
-    // with assessment=null (honest degrade), it must NEVER fabricate a
-    // warning/danger out of a manual cycle.
-    assessRouteClimateMock.mockResolvedValueOnce(makeAssessment('safe'));
+  it('never fabricates a status from a manual cycle (no blind safe→warning→danger)', async () => {
+    // Pin the absence of the old behaviour: the click does not advance a
+    // local cycle — the status is ALWAYS sourced from the engine. Here the
+    // engine keeps returning 'warning', so the UI stays on 'warning' no
+    // matter how many times we click (the old code would have cycled to
+    // 'danger' then 'safe').
+    assessRouteClimateMock.mockResolvedValue(makeAssessment('warning'));
     render(<ClimateRoutes />);
-    await waitFor(() => expect(screen.getByText('Ruta Segura')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Precaución Requerida')).toBeTruthy());
 
-    assessRouteClimateMock.mockRejectedValueOnce(new Error('NASA offline'));
     fireEvent.click(screen.getByText('Calcular Ruta Óptima'));
-
-    // Engine was consulted; the prior cycle behaviour (safe→warning) is gone.
     await waitFor(() => expect(assessRouteClimateMock).toHaveBeenCalledTimes(2));
-    expect(screen.queryByText('Precaución Requerida')).toBeNull();
-    expect(screen.getByText('Ruta Segura')).toBeTruthy();
+    expect(screen.getByText('Precaución Requerida')).toBeTruthy();
+    expect(screen.queryByText('Ruta Intransitable')).toBeNull();
+    expect(screen.queryByText('Ruta Segura')).toBeNull();
+  });
+
+  // Review #872 hallazgo B — the dangerous degradation regression.
+  describe('does NOT degrade to "Ruta Segura" when the assessment throws', () => {
+    it('preserves a previous DANGER status when the engine throws (life-safety)', async () => {
+      // Route was previously assessed as Intransitable (danger). NASA/EONET or
+      // the geometry processing then throws on the next click. The OLD catch
+      // did setRouteStatus('safe') — flipping "Ruta Intransitable" to "Ruta
+      // Segura" with ZERO evidence, a potentially fatal false reassurance.
+      // The fix must keep DANGER, never claim safety.
+      assessRouteClimateMock.mockResolvedValueOnce(makeAssessment('danger'));
+      render(<ClimateRoutes />);
+      await waitFor(() => expect(screen.getByText('Ruta Intransitable')).toBeTruthy());
+
+      assessRouteClimateMock.mockRejectedValueOnce(new Error('NASA offline'));
+      fireEvent.click(screen.getByText('Calcular Ruta Óptima'));
+
+      await waitFor(() => expect(assessRouteClimateMock).toHaveBeenCalledTimes(2));
+      // The status MUST NOT have degraded to safe.
+      expect(screen.queryByText('Ruta Segura')).toBeNull();
+      // It stays at the prior danger level — we never lower an active warning
+      // on unverified failure.
+      expect(screen.getByText('Ruta Intransitable')).toBeTruthy();
+    });
+
+    it('falls back to PRECAUCIÓN (never safe) when the engine throws from a non-danger state', async () => {
+      // Previous state was safe; the engine throws on the click. We must not
+      // re-assert "Ruta Segura" blindly — fail-safe is precaution + an honest
+      // "no pudimos consultar las fuentes" assessment, not a green light.
+      assessRouteClimateMock.mockResolvedValueOnce(makeAssessment('safe'));
+      render(<ClimateRoutes />);
+      await waitFor(() => expect(screen.getByText('Ruta Segura')).toBeTruthy());
+
+      assessRouteClimateMock.mockRejectedValueOnce(new Error('EONET 503'));
+      fireEvent.click(screen.getByText('Calcular Ruta Óptima'));
+
+      await waitFor(() => expect(assessRouteClimateMock).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.getByText('Precaución Requerida')).toBeTruthy());
+      // No green light without evidence.
+      expect(screen.queryByText('Ruta Segura')).toBeNull();
+    });
   });
 });
