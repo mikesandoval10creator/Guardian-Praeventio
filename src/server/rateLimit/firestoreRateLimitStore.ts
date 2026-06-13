@@ -23,10 +23,27 @@
 //   - `windowMs` se setea desde el limiter al crear el store via init().
 
 import type { Firestore } from 'firebase-admin/firestore';
+import type { Store } from 'express-rate-limit';
 
 export interface FirestoreRateLimitStoreOptions {
-  /** Firestore Admin instance. */
-  db: Firestore;
+  /**
+   * Firestore Admin instance. Pásalo cuando el handle ya está disponible al
+   * construir el store (caso de los limiters montados desde `server.ts`, que
+   * corre DESPUÉS de `admin.initializeApp()`).
+   *
+   * Para limiters construidos en module-load (p.ej. `src/server/middleware/
+   * limiters.ts`, importado vía routers ANTES de que `server.ts` inicialice
+   * Admin) usa `getDb` en su lugar — resuelve el handle perezosamente, en el
+   * primer `increment()`, cuando Admin ya está listo. Da exactamente uno de
+   * los dos: `db` o `getDb`.
+   */
+  db?: Firestore;
+  /**
+   * Resolver perezoso del handle Firestore. Se invoca (y memoiza) en el primer
+   * acceso real a la DB, no al construir el store. Necesario cuando el limiter
+   * se crea antes de `admin.initializeApp()` por orden de imports ESM.
+   */
+  getDb?: () => Firestore;
   /** Collection name. Default `_rate_limits`. */
   collectionName?: string;
   /** Prefix para evitar colisiones si se montan varios limiters. */
@@ -53,19 +70,49 @@ export interface IncrementResponse {
  *   - resetKey(key) — borra contador específico
  *   - resetAll() — borra todos los contadores (admin only)
  */
-export class FirestoreRateLimitStore {
-  private readonly db: Firestore;
+export class FirestoreRateLimitStore implements Store {
+  /** Handle eager (si se pasó `db`) o memoizado tras resolver `getDb`. */
+  private dbHandle: Firestore | undefined;
+  private readonly getDb: (() => Firestore) | undefined;
   private readonly collectionName: string;
-  private readonly prefix: string;
+  /**
+   * Prefix que se antepone a cada key (vía `encodeKey`). Público y readonly
+   * porque la interfaz `Store` de express-rate-limit lo lee para su chequeo
+   * anti-doble-conteo (evita falsos positivos cuando una misma key se cuenta
+   * en dos limiters con prefijos distintos). Exponerlo con el valor real es
+   * más correcto que dejar que el lib lo vea como `undefined`.
+   */
+  readonly prefix: string;
   private windowMs: number = 60_000; // default 1 min, override desde init()
 
   /** Express-rate-limit verifica esta property para detectar stores async. */
   readonly localKeys = false;
 
   constructor(opts: FirestoreRateLimitStoreOptions) {
-    this.db = opts.db;
+    if (!opts.db && !opts.getDb) {
+      throw new Error(
+        'FirestoreRateLimitStore: pasa `db` (handle eager) o `getDb` (resolver perezoso).',
+      );
+    }
+    this.dbHandle = opts.db;
+    this.getDb = opts.getDb;
     this.collectionName = opts.collectionName ?? '_rate_limits';
     this.prefix = opts.prefix ?? '';
+  }
+
+  /**
+   * Resuelve (y memoiza) el handle Firestore. Para el caso `getDb`, el handle
+   * NO existe al construir el store —se resuelve aquí, en el primer acceso
+   * real, cuando `admin.initializeApp()` ya corrió. Una vez resuelto se cachea.
+   */
+  private get db(): Firestore {
+    if (!this.dbHandle) {
+      if (!this.getDb) {
+        throw new Error('FirestoreRateLimitStore: no Firestore handle available.');
+      }
+      this.dbHandle = this.getDb();
+    }
+    return this.dbHandle;
   }
 
   /**
@@ -250,7 +297,32 @@ export class FirestoreRateLimitStore {
  */
 export function makeFirestoreRateLimitStore(
   db: Firestore,
-  opts?: Omit<FirestoreRateLimitStoreOptions, 'db'>,
+  opts?: Omit<FirestoreRateLimitStoreOptions, 'db' | 'getDb'>,
 ): FirestoreRateLimitStore {
   return new FirestoreRateLimitStore({ db, ...opts });
+}
+
+/**
+ * Variante de `makeFirestoreRateLimitStore` para limiters construidos en
+ * module-load, ANTES de que `admin.initializeApp()` corra.
+ *
+ * Caso de uso: `src/server/middleware/limiters.ts` exporta singletons creados
+ * al evaluar el módulo. Los routers que los importan (gemini, b2d) son imports
+ * estáticos en `server.ts`, así que su árbol de módulos se evalúa ANTES del
+ * cuerpo top-level de `server.ts` —donde vive `admin.initializeApp()`. Pasar
+ * `admin.firestore()` eager ahí devolvería un handle inválido (o `apps.length`
+ * todavía 0). Este factory difiere la resolución del handle al primer
+ * `increment()` (per-request), cuando Admin ya está inicializado.
+ *
+ *   const store = makeLazyFirestoreRateLimitStore(
+ *     () => admin.firestore(),
+ *     { prefix: 'gemini:' },
+ *   );
+ *   export const geminiLimiter = rateLimit({ ..., store });
+ */
+export function makeLazyFirestoreRateLimitStore(
+  getDb: () => Firestore,
+  opts?: Omit<FirestoreRateLimitStoreOptions, 'db' | 'getDb'>,
+): FirestoreRateLimitStore {
+  return new FirestoreRateLimitStore({ getDb, ...opts });
 }

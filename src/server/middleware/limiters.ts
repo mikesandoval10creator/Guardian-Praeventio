@@ -23,8 +23,64 @@
 // validation error (a bare `req.ip` lets IPv6 users bypass per-IP buckets
 // because each /128 looks unique). After this change a server restart no
 // longer logs the `ERR_ERL_KEY_GEN_IPV6` warning.
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator, type Store } from 'express-rate-limit';
 import type { Request } from 'express';
+import admin from 'firebase-admin';
+import { makeLazyFirestoreRateLimitStore } from '../rateLimit/firestoreRateLimitStore.js';
+
+// ─────────────────────────────────────────────────────────────────────────
+// Multi-replica IA spend cap (audit: ia-limiters-store).
+//
+// `geminiLimiter`, `b2dFreeLimiter` y `geminiGlobalDailyLimiter` controlan
+// gasto de IA. Con MemoryStore default, cada réplica de Cloud Run lleva su
+// PROPIO contador → el presupuesto efectivo es N× (N = número de pods). Para
+// el cap GLOBAL diario eso es especialmente grave: el límite "1000 req/día
+// total" se vuelve "1000 × N".
+//
+// Igual que `server.ts` hace con los limiters `csp:` / `api:`, montamos un
+// store Firestore (transaccional, compartido entre pods) con prefijo propio
+// por limiter — express-rate-limit exige un store por limiter, NO se pueden
+// compartir instancias.
+//
+// Diferencia clave vs. `server.ts`: estos singletons se construyen al EVALUAR
+// el módulo (import time), y los routers que los importan (gemini, b2d) son
+// imports estáticos de `server.ts`, así que este módulo corre ANTES de
+// `admin.initializeApp()`. Por eso usamos `makeLazyFirestoreRateLimitStore`,
+// que difiere `admin.firestore()` al primer request (cuando Admin ya existe).
+//
+// Fallback dev: en dev single-process Admin no se inicializa (sin
+// credenciales), y un store Firestore perezoso fallaría-soft en CADA request
+// (totalHits:1 siempre → el limiter NUNCA dispara). Eso es PEOR que el
+// MemoryStore default, que al menos cuenta dentro del único proceso. Por eso
+// solo adjuntamos el store Firestore cuando esperamos Admin: en producción
+// `server.ts` GARANTIZA `admin.initializeApp()` (si falla, `process.exit(1)`).
+// En no-producción devolvemos `undefined` → MemoryStore (correcto single-proc).
+//
+// Test override: PRAEVENTIO_FORCE_IA_FS_STORE=1 fuerza el store Firestore para
+// poder pinear la inyección en tests sin levantar NODE_ENV=production.
+// ─────────────────────────────────────────────────────────────────────────
+export function makeIaRateLimitStore(prefix: string): Store | undefined {
+  const expectAdmin =
+    process.env.NODE_ENV === 'production' ||
+    process.env.PRAEVENTIO_FORCE_IA_FS_STORE === '1';
+  if (!expectAdmin) return undefined;
+  // `FirestoreRateLimitStore` ahora declara `implements Store`, así que el
+  // handle es directamente asignable al contrato de express-rate-limit — sin
+  // doble cast `as unknown as Store`.
+  return makeLazyFirestoreRateLimitStore(
+    () => {
+      // Resuelto per-request (no en import time): para entonces `server.ts`
+      // ya corrió `admin.initializeApp()`. Si por algún motivo no está listo,
+      // lanzamos y el store lo atrapa fail-soft (deja pasar el request — mejor
+      // que tumbar la app si Firestore parpadea).
+      if (admin.apps.length === 0) {
+        throw new Error('firebase-admin not initialized — IA limiter store unavailable');
+      }
+      return admin.firestore();
+    },
+    { prefix },
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Shared keyGenerator strategies. Extracted (2026-05-29) from the inline
@@ -63,7 +119,9 @@ export function b2dFreeKey(req: Request): string {
   return ipKeyGenerator(req.ip ?? '') || 'b2d-anonymous';
 }
 
-// Stricter per-user rate limit for expensive AI calls
+// Stricter per-user rate limit for expensive AI calls.
+// Firestore-backed store (prefijo propio) para que el cap sea compartido entre
+// réplicas de Cloud Run — sin esto cada pod tenía su propia cuota de 30.
 export const geminiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
@@ -71,6 +129,7 @@ export const geminiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Límite de consultas IA alcanzado. Intenta de nuevo en 15 minutos.' },
+  store: makeIaRateLimitStore('gemini-uid:'),
 });
 
 // Per-user invoice-status polling rate limit. Pricing.tsx polls this
@@ -277,8 +336,15 @@ export const erpSyncLimiter = rateLimit({
 // Sprint 25 (CI fix) — windowMs is capped to 24 days because the
 // MemoryStore in express-rate-limit â‰¥7.5 validates it against the
 // signed-32-bit timer ceiling (~24.8 days, 2_147_483_647 ms). 30 days
-// would crash the boot with ERR_ERL_WINDOW_MS. Production needs a
-// Redis store to recover the true monthly window — TODO.
+// would crash the boot with ERR_ERL_WINDOW_MS. The window stays at 24 days
+// even with the Firestore store below: the limiter is constructed
+// unconditionally and falls back to MemoryStore in dev (no Admin), whose
+// validator still runs at construction. Closing the last ~6 days to a true
+// monthly window would need the MemoryStore path gone entirely.
+//
+// Firestore-backed store (prefijo propio): el cap free-tier de B2D ahora es
+// compartido entre réplicas de Cloud Run. Antes, con MemoryStore default, cada
+// pod permitía 1000 req → el cap real era 1000×N.
 export const b2dFreeLimiter = rateLimit({
   windowMs: 24 * 24 * 60 * 60 * 1000, // 24-day rolling window — see note above
   max: parseInt(process.env.B2D_FREE_CAP ?? '1000', 10),
@@ -286,8 +352,13 @@ export const b2dFreeLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'b2d_free_cap_reached', resetAfterDays: 30 },
+  store: makeIaRateLimitStore('b2d-free:'),
 });
 
+// Firestore-backed store (prefijo propio): el cap GLOBAL diario de IA es el más
+// crítico de los tres — con MemoryStore default, "1000 req/día total" se volvía
+// "1000 × N pods". El store compartido hace que TODO el tráfico (clave fija
+// `gemini-global-bucket`) cuente contra un único contador en Firestore.
 export const geminiGlobalDailyLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000, // 24h sliding window
   max: parseInt(process.env.GEMINI_DAILY_GLOBAL_CAP ?? '1000', 10),
@@ -301,4 +372,5 @@ export const geminiGlobalDailyLimiter = rateLimit({
     message: 'Cuota diaria global de IA alcanzada. Reintenta mañana o aumenta GEMINI_DAILY_GLOBAL_CAP.',
   },
   skipFailedRequests: true, // no contar requests fallados (4xx/5xx) hacia el cap
+  store: makeIaRateLimitStore('gemini-global:'),
 });
