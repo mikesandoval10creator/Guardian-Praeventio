@@ -33,27 +33,42 @@ export function PublicNodeView() {
     async function fetchNode() {
       if (!nodeId) return;
       try {
-        const nodeRef = doc(db, 'zettelkasten', nodeId);
+        // Read the canonical `nodes` collection (server-written via
+        // networkBackend / /api/zettelkasten/nodes). The OLD code read a
+        // separate `zettelkasten` collection that has no Firestore rule nor any
+        // writer, so this public page ALWAYS hit "Acceso Denegado". firestore.rules
+        // grants anonymous read to a `nodes` doc only when isPublic == true AND it
+        // carries no worker RUT; we mirror that gate here so a worker's badge QR
+        // resolves to the public risk/control card, while private and RUT-bearing
+        // nodes stay hidden.
+        const nodeRef = doc(db, 'nodes', nodeId);
         const nodeSnap = await getDoc(nodeRef);
 
         if (nodeSnap.exists()) {
           const nodeData = { id: nodeSnap.id, ...nodeSnap.data() } as RiskNode;
-          
-          if (nodeData.isPublic === false) {
-             setError('Nodo no encontrado o no es público.');
-             setLoading(false);
-             return;
+
+          // Public web requires an explicit isPublic:true flag. Defence in depth:
+          // never surface a node whose metadata carries a worker RUT (DS 67/109
+          // PII) even if it were mis-flagged public — the rule denies the read
+          // anyway, but we fail safe in the UI too.
+          if (nodeData.isPublic !== true || nodeData.metadata?.workerRut) {
+            setError('Nodo no encontrado o no es público.');
+            setLoading(false);
+            return;
           }
-          
+
           setNode(nodeData);
 
-          // Fetch connections
+          // Fetch connections (only the public, non-RUT ones survive the rule).
           if (nodeData.connections && nodeData.connections.length > 0) {
-            const connPromises = nodeData.connections.map(id => getDoc(doc(db, 'zettelkasten', id)));
+            const connPromises = nodeData.connections.map(id =>
+              getDoc(doc(db, 'nodes', id)).catch(() => null),
+            );
             const connSnaps = await Promise.all(connPromises);
             const connData = connSnaps
-              .filter(s => s.exists())
-              .map(s => ({ id: s.id, ...s.data() } as RiskNode));
+              .filter((s): s is NonNullable<typeof s> => s != null && s.exists())
+              .map(s => ({ id: s.id, ...s.data() } as RiskNode))
+              .filter(n => n.isPublic === true && !n.metadata?.workerRut);
             setConnections(connData);
           }
         } else {

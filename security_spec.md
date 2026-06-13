@@ -994,5 +994,53 @@ cases incl. the tenant-path supersession pin, F1 harness).
     the superseded `tenants/{tid}/seismic_events` path — denied by the tenant
     catch-all default-deny (supersession pin in the rules tests).
 
+## Rules-trio (root_cause_analyses + nodes public read + user_stats XP) — added 2026-06-13
+
+Three firestore.rules holes closed in one block. Rules tests:
+`src/rules-tests/rulesTrio.rules.test.ts`.
+
+**(A) `projects/{pid}/root_cause_analyses/{incidentId}`** — the 5-Why analyses
+persisted client-side by `rootCauseStore.ts` (RootCauseInvestigation.tsx). This is
+a DIFFERENT collection from `root_causes` (the generic `createProjectScopedStore`
+factory): the page writes to `root_cause_analyses`, which had NO write rule, so the
+`{subCollection=**}` master-gate granted read-only and every `save()` was
+default-denied in production. New rule: member create with anti-spoof on the real
+schema field `analyzedByUid` (rootCauseClassifier.ts `buildAnalysis()`); the owner
+uid is immutable on update; delete is **false** (compliance record).
+
+**(B) `/nodes/{nodeId}` anonymous public read** — the public QR-scan page
+`PublicNodeView.tsx` (route `/public/node/:nodeId`, OUTSIDE the auth-gated
+RootLayout) was re-wired from a phantom `zettelkasten` collection (no rule, no
+writer → always "Acceso Denegado") to the canonical `nodes` collection. The read
+rule now grants ANONYMOUS read to a node flagged `isPublic == true` that carries NO
+worker RUT (`!nodeHasWorkerRut`). All other read paths (author / admin / supervisor
+/ project member) stay verified-only, and RUT-bearing nodes are NEVER publicly
+readable even if mis-flagged public (PII defence in depth; same guard as #776).
+
+**(C) `/user_stats/{userId}` XP server-authoritative** — the owner-update rule used
+to allow `points`/`medals`/`completedTrainings`/`safetyPosts` in its `hasOnly()`
+set, so any user could self-grant XP and manipulate the leaderboard, nullifying the
+server-authoritative award path (`POST /api/gamification/points` + `/check-medals`,
+Admin SDK). Those four keys are removed; the owner may now only write non-gameable
+session/profile fields (`loginStreak`, `lastLogin`, `displayName`, `role`,
+`updatedAt`). The client `useGamification` hook was re-pointed to the server award
+service (it no longer attempts the now-forbidden direct write).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+104. **Root-Cause Analyst Spoof**: `{ "analyzedByUid": "supervisor_id" }` on
+     `/projects/p1/root_cause_analyses/inc1` (create/update) — falsely attribute a
+     5-Why analysis to another person, or reassign it on update.
+105. **Root-Cause Erasure**: any delete on `/projects/p1/root_cause_analyses/*`
+     (immutable compliance record, even for admin).
+106. **Private-Node Public Scrape**: an anonymous read of a `nodes` doc that is NOT
+     `isPublic == true` (e.g. `isPublic:false` or absent).
+107. **RUT Leak via Public Flag**: an anonymous (or any) read of a `nodes` doc
+     flagged `isPublic:true` that carries `metadata.workerRut` — the worker's
+     national ID stays private regardless of the public flag.
+108. **XP Self-Grant**: an owner `set /user_stats/<self>` bumping `points`,
+     `medals`, `completedTrainings`, or `safetyPosts` (leaderboard manipulation).
+109. **Cross-User Stats Tamper**: a user updating another user's `user_stats`.
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

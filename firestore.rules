@@ -663,6 +663,22 @@ service cloud.firestore {
           && incoming().analyzedByUid == existing().analyzedByUid;
         allow delete: if false;
       }
+      // 5-Why root-cause analyses persisted CLIENT-SIDE by rootCauseStore.ts
+      // (RootCauseInvestigation.tsx → projects/{pid}/root_cause_analyses/{incidentId}).
+      // This is a DIFFERENT collection from `root_causes` above (the generic
+      // createProjectScopedStore factory) — the page writes here, so without
+      // this rule the {subCollection=**} master-gate granted read-only and every
+      // client save() was default-denied in production. Anti-spoof on the real
+      // schema field `analyzedByUid` (rootCauseClassifier.ts buildAnalysis()):
+      // the supervisor who closes the analysis signs it with their own UID and
+      // it stays immutable on update. Compliance record (no client delete).
+      match /root_cause_analyses/{analysisId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().analyzedByUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().analyzedByUid == existing().analyzedByUid;
+        allow delete: if false;
+      }
       // DEA — desfibriladores externos (Ley 21.156). Equipo que salva vidas:
       // cualquier miembro del proyecto registra/actualiza un DEA (anti-spoof en
       // createdBy), las inspecciones son un registro INMUTABLE de cumplimiento,
@@ -903,13 +919,40 @@ service cloud.firestore {
       // the worker's national ID to any verified account. Guarding the public
       // branch closes that bypass: a RUT-bearing node is NEVER publicly readable
       // regardless of isPublic; genuinely public non-RUT nodes are unaffected.
-      allow read: if isEmailVerified() && (
-        (existing().isPublic == true && !nodeHasWorkerRut(existing())) ||
-        existing().metadata.authorId == request.auth.uid ||
-        isAdmin() ||
-        isSupervisor() ||
-        (isProjectMember(existing().projectId) && !nodeHasWorkerRut(existing()))
-      );
+      // PUBLIC WEB (2026-06-13): the anonymous QR-scan page
+      // (src/pages/PublicNodeView.tsx, route /public/node/:nodeId — OUTSIDE the
+      // auth-gated RootLayout) reads THIS canonical `nodes` collection. Praeventio
+      // is an explorable public web (product_public_nologin_lifesaving): a node
+      // explicitly flagged isPublic:true and carrying NO worker RUT is public
+      // knowledge (a risk/control card on a worker badge), so it is readable by
+      // ANYONE, including unauthenticated callers — this branch deliberately does
+      // NOT require isEmailVerified(). The !nodeHasWorkerRut() guard keeps the
+      // DS 67/109 PII nodes private even if mis-flagged isPublic (defence in depth
+      // — same guard as the verified branch). All the OTHER access paths (author,
+      // admin/supervisor, project member) stay verified-only.
+      //
+      // GET vs LIST split (2026-06-13, #876 — anti-enumeration): `read` is broken
+      // into `get` (single-doc fetch by id) and `list` (collection query). The
+      // anonymous public branch is granted on `get` ONLY — the QR-scan page
+      // fetches exactly one node by its id, so anon never needs to LIST. Keeping
+      // anon (and cross-tenant verified users) off the `list` surface prevents
+      // enumeration of the whole knowledge graph: you can open a public node if
+      // you already hold its id, but you cannot crawl every public node. `list`
+      // is therefore membership-scoped (verified author/admin/supervisor/member),
+      // mirroring the verified branch of the old `read` rule with no public clause.
+      allow get: if (existing().isPublic == true && !nodeHasWorkerRut(existing()))
+        || (isEmailVerified() && (
+          existing().metadata.authorId == request.auth.uid ||
+          isAdmin() ||
+          isSupervisor() ||
+          (isProjectMember(existing().projectId) && !nodeHasWorkerRut(existing()))
+        ));
+      allow list: if isEmailVerified() && (
+          existing().metadata.authorId == request.auth.uid ||
+          isAdmin() ||
+          isSupervisor() ||
+          (isProjectMember(existing().projectId) && !nodeHasWorkerRut(existing()))
+        );
       allow create: if isEmailVerified() && isValidNode(incoming()) && incoming().metadata.authorId == request.auth.uid;
       allow update: if isEmailVerified() && isValidNode(incoming()) && (
         isAdmin() || 
@@ -922,8 +965,40 @@ service cloud.firestore {
 
     match /user_stats/{userId} {
       allow read: if isValidId(userId) && (isOwner(userId) || isAdmin() || isSupervisor());
-      allow update: if isValidId(userId) && isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['points', 'completedTrainings', 'safetyPosts', 'medals', 'loginStreak', 'lastLogin', 'updatedAt']);
-      allow create: if isValidId(userId) && isOwner(userId) && incoming().points == 0;
+      // XP is SERVER-AUTHORITATIVE (ADR / leaderboard integrity). `points`,
+      // `medals`, `completedTrainings`, `safetyPosts` and `completedChallenges`
+      // are awarded ONLY by the server (POST /api/gamification/points +
+      // /check-medals, Admin SDK — which bypasses these rules). The owner-update
+      // path previously let the owner self-edit those XP fields, which nullified
+      // the server-authoritative XP and made the leaderboard trivially
+      // manipulable. The owner may now only touch their own non-gameable session
+      // /profile fields; any attempt to change an XP field falls through to deny.
+      //
+      // SECURITY (2026-06-13, review #876): `role` was REMOVED from this
+      // allow-list. A user must never be able to write `role` into their own
+      // user_stats doc — it is a privilege-escalation vector because a
+      // server-side path that reads the whole user_stats doc could treat that
+      // self-asserted role as authoritative. Role is provisioned exclusively by
+      // admin/server flows on the canonical `users/{uid}` doc, never here.
+      allow update: if isValidId(userId) && isOwner(userId)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['loginStreak', 'lastLogin', 'displayName', 'updatedAt']);
+      // SECURITY (2026-06-13, review #876): bootstrap create must NOT let the
+      // owner pre-load server-authoritative XP. Previously only `points == 0`
+      // was checked, leaving `medals`/`completedTrainings`/`safetyPosts`/
+      // `completedChallenges` free to seed at create time (same leaderboard
+      // bypass as the closed update path). Each of those fields, IF present,
+      // must be the empty server-default: `medals` is an array → []; the
+      // `completedChallenges` map (challenge -> ISO date) → {};
+      // `completedTrainings`/`safetyPosts` are counters → 0. A client may omit
+      // them entirely (the server fills them on first award). `role` is rejected
+      // outright — same privilege-escalation guard as the update path.
+      allow create: if isValidId(userId) && isOwner(userId)
+        && incoming().points == 0
+        && (!('medals' in incoming()) || incoming().medals == [])
+        && (!('completedChallenges' in incoming()) || incoming().completedChallenges == {})
+        && (!('completedTrainings' in incoming()) || incoming().completedTrainings == 0)
+        && (!('safetyPosts' in incoming()) || incoming().safetyPosts == 0)
+        && !('role' in incoming());
       allow delete: if isAdmin();
     }
 
