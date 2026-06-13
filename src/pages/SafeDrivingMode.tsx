@@ -58,6 +58,10 @@ export function SafeDrivingMode() {
             type: 'Falla Mecánica',
             description: trimmed,
           }),
+          // En zona sin señal el fetch puede colgarse indefinidamente y dejar al
+          // conductor con isSaving=true para siempre. Un timeout de 15 s aborta
+          // y cae al branch offline (reportErrorOffline) con su texto intacto.
+          signal: AbortSignal.timeout(15000),
         },
       );
       if (!res.ok) {
@@ -73,8 +77,10 @@ export function SafeDrivingMode() {
       setReportSaved(true);
       setTimeout(() => setReportSaved(false), 3000);
     } catch (err) {
-      // Network failure (sin señal en ruta) — NUNCA descartar en silencio: el
-      // texto dictado permanece visible y el botón Reintentar reenvía.
+      // Network failure or AbortSignal.timeout (sin señal en ruta) — NUNCA
+      // descartar en silencio: el texto dictado permanece visible y el botón
+      // Reintentar reenvía. El TimeoutError/AbortError del signal cae aquí y se
+      // muestra como error offline (el destino no respondió a tiempo).
       logger.error('driving_dictation_report_failed', { error: err });
       setReportError(t(
         'safeDrivingMode.reportErrorOffline',
@@ -118,7 +124,7 @@ export function SafeDrivingMode() {
     };
     recognition.onend = () => {
       setIsListening(false);
-      saveReport(dictatedTextRef.current);
+      void saveReport(dictatedTextRef.current);
     };
     recognitionRef.current = recognition;
     recognition.start();
