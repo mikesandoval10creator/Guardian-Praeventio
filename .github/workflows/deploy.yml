@@ -112,6 +112,7 @@ jobs:
             KMS_ADAPTER=cloud-kms
             APP_BASE_URL=https://app.praeventio.net
             APP_URL=https://app.praeventio.net
+            WEBAUTHN_RP_ID=app.praeventio.net
             DWG_CONVERTER_URL=${{ secrets.DWG_CONVERTER_URL }}
             SCHEDULER_SERVICE_ACCOUNT=climate-scan-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
           # §2.28 (2026-05-21) — PHOTOGRAMMETRY_WORKER_URL + MODAL_*_URL

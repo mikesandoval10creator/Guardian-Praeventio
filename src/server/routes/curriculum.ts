@@ -28,6 +28,7 @@ import admin from 'firebase-admin';
 import { Resend } from 'resend';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { getWebauthnRpId } from '../auth/rpId.js';
 import {
   refereeLimiter,
   webauthnVerifyLimiter,
@@ -116,7 +117,10 @@ function resolveExpectedOriginAtBoot(): string {
 }
 
 const EXPECTED_ORIGIN = resolveExpectedOriginAtBoot();
-const EXPECTED_RP_ID = process.env.WEBAUTHN_RP_ID ?? 'localhost';
+// Boot-resolved RP ID. getWebauthnRpId() fails loud in production when the
+// env is unset rather than silently verifying against `localhost` (which
+// rejected every valid passkey signature — the P0 prod bug this fixes).
+const EXPECTED_RP_ID = getWebauthnRpId();
 const RP_NAME = process.env.WEBAUTHN_RP_NAME ?? 'Praeventio Guard';
 
 // Resend client — lazily reuses RESEND_API_KEY at module-load. The same

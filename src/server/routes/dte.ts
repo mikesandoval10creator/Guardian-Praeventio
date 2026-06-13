@@ -26,6 +26,7 @@ import { Router, type Request, type Response } from 'express';
 import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { getWebauthnRpId } from '../auth/rpId.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { isAdminRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
@@ -205,7 +206,7 @@ dteRouter.get('/sign-challenge', verifyAuth, async (req: Request, res: Response)
     return res.json({
       challengeId,
       challenge: Buffer.from(challenge).toString('base64'),
-      rpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+      rpId: getWebauthnRpId(),
       ttlSeconds: 300,
     });
   } catch (err) {
@@ -414,7 +415,7 @@ dteRouter.post('/generate', verifyAuth, idempotencyKey(), async (req: Request, r
         type: body.biometric.type,
         challengeId: body.biometric.challengeId,
         expectedOrigin: process.env.APP_BASE_URL ?? 'http://localhost:5173',
-        expectedRpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+        expectedRpId: getWebauthnRpId(),
         challengesDb: buildWebAuthnDb(),
         credentialsDb: buildWebAuthnCredentialsDb(),
       });
