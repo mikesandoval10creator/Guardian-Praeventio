@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 // Sprint 36 G1 fix — ADR 0012 enforcement: vistas médicas DEBEN renderizar
@@ -29,6 +29,7 @@ import { AnatomyLibrary } from '../components/medicine/AnatomyLibrary';
 import { VigilanciaScheduler } from '../components/medicine/VigilanciaScheduler';
 import { DrugInteractions } from '../components/medicine/DrugInteractions';
 import { Ds109Modal } from '../components/medicine/Ds109Modal';
+import { computeSurveillanceBreakdown } from './medicineMetrics';
 import { FileCheck } from 'lucide-react';
 
 export function Medicine() {
@@ -52,12 +53,18 @@ export function Medicine() {
   );
 
   const stats = {
-    aptitude: medicalNodes.length > 0 
+    aptitude: medicalNodes.length > 0
       ? Math.round((medicalNodes.filter(n => n.metadata.result === 'Apto').length / medicalNodes.length) * 100)
       : 0,
     restrictions: medicalNodes.filter(n => n.metadata.result === 'Apto con restricción').length,
     pending: medicalNodes.filter(n => n.metadata.status === 'scheduled').length
   };
+
+  // REAL active-surveillance breakdown derived from the project's actual
+  // MEDICINE records, grouped by their real `examType`. Replaces the previously
+  // hardcoded 45 / 28 / 15 program counts (which had no source in the data
+  // model). Empty → honest "Sin datos aún" state, never a fabricated number.
+  const surveillance = useMemo(() => computeSurveillanceBreakdown(medicalNodes), [medicalNodes]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
@@ -237,23 +244,28 @@ export function Medicine() {
               <ShieldCheck className="w-5 h-5 text-[#4db6ac]" />
               {t('medicine.surveillance')}
             </h3>
-            <div className="space-y-4">
-              {[
-                { label: t('medicine.cardiovascular'), count: 45, color: 'bg-rose-500' },
-                { label: t('medicine.ergonomic_control'), count: 28, color: 'bg-orange-500' },
-                { label: t('medicine.psychosocial_control'), count: 15, color: 'bg-indigo-500' },
-              ].map((stat, i) => (
-                <div key={i} className="space-y-2">
-                  <div className="flex justify-between text-xs font-medium">
-                    <span className="text-zinc-400">{stat.label}</span>
-                    <span className="text-white">{stat.count}</span>
+            {surveillance.hasData ? (
+              <div className="space-y-4">
+                {surveillance.rows.map((row) => (
+                  <div key={row.examType} className="space-y-2">
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-zinc-400">
+                        {row.i18nKey ? t(row.i18nKey) : t('medicine.exam_other')}
+                      </span>
+                      <span className="text-white">{row.count}</span>
+                    </div>
+                    <div className="h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#4db6ac] rounded-full"
+                        style={{ width: `${Math.round((row.count / surveillance.max) * 100)}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
-                    <div className={`h-full ${stat.color} rounded-full`} style={{ width: `${(stat.count / 50) * 100}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-500">{t('medicine.surveillance_empty')}</p>
+            )}
           </div>
 
           <div className="bg-rose-500/10 border border-rose-500/20 rounded-3xl p-6">

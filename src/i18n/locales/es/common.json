@@ -461,6 +461,8 @@
     "cardiovascular": "Control Cardiovascular",
     "ergonomic_control": "Control Ergonómico",
     "psychosocial_control": "Control Psicosocial",
+    "exam_other": "Otros exámenes",
+    "surveillance_empty": "Sin datos aún. Registra exámenes ocupacionales para ver la vigilancia activa.",
     "health_alert": "Alerta de Salud",
     "health_alert_text": "Se ha detectado un aumento del 15% en consultas por fatiga visual en el área administrativa. Se recomienda revisión de iluminación y pausas activas.",
     "modal_new_title": "Nueva Consulta",
