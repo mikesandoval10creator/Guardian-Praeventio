@@ -32,6 +32,13 @@ export interface SosEvent {
   clientEventId: string;
   workerUid: string;
   reason: SosEventReason;
+  /**
+   * Proyecto al que pertenece el SOS. REQUERIDO para reenviar desde la cola:
+   * `POST /api/emergency/sos` valida `projectId` (assertProjectMember) y 400ea
+   * sin él. Se persiste en la entry para reconstruir el envío al reconectar.
+   * Opcional en el tipo por compatibilidad con el orchestrator/tests previos.
+   */
+  projectId?: string;
   coords?: { lat: number; lng: number; accuracyMeters?: number };
   /** ISO-8601 — momento del evento, NO de la inserción en la cola. */
   occurredAt: string;

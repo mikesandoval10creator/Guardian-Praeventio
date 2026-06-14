@@ -100,8 +100,10 @@ export function SOSButton(): React.ReactElement | null {
 
   const fireSOS = useCallback(async (): Promise<void> => {
     setSubmitting(true);
+    // Hoisted so the catch can attach the captured location to the queued SOS.
+    let geo: GeoPoint | null = null;
     try {
-      const geo = await captureGeo();
+      geo = await captureGeo();
       // §2.20 (2026-05-23) — usar apiAuthHeader unified (prefiere E2E
       // header en MODE=test, cae a Bearer del idToken en producción).
       // SOSButton es vidas-críticas: el botón debe funcionar incluso si
@@ -143,10 +145,37 @@ export function SOSButton(): React.ReactElement | null {
       } catch { /* analytics must never break user flow */ }
       showToast('Alerta enviada — supervisores notificados');
     } catch (err) {
-      logger.warn('SOSButton: /api/emergency/sos failed; falling back to tel:', { err });
+      logger.warn('SOSButton: /api/emergency/sos failed; queueing offline + tel: fallback', { err });
+      // Offline-first: persist the SOS so it RETRIES on reconnect instead of
+      // being lost (the engine retains it, dead-letters after max retries — it
+      // is never silently dropped). Requires a projectId (the server gates on
+      // it). tel: stays the immediate human fallback, independent of the queue.
+      const projectId = selectedProject?.id;
+      let queued = false;
+      if (projectId) {
+        try {
+          const { enqueueSos } = await import('../../services/emergency/sosOutboxClient');
+          await enqueueSos({
+            clientEventId:
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                ? crypto.randomUUID()
+                : `sos-${Date.now()}`,
+            workerUid: user?.uid ?? 'anonymous',
+            reason: 'manual_button',
+            projectId,
+            coords: geo ? { lat: geo.lat, lng: geo.lng } : undefined,
+            occurredAt: new Date().toISOString(),
+          });
+          queued = true;
+        } catch (qerr) {
+          logger.error('SOSButton: failed to queue offline SOS', { qerr });
+        }
+      }
       const phone = selectedProject?.phone;
       if (phone && typeof window !== 'undefined') {
         window.location.href = `tel:${phone.replace(/[^+\d]/g, '')}`;
+      } else if (queued) {
+        showToast('Sin red: tu alerta quedó en cola y se reenviará al recuperar señal.');
       } else {
         showToast('No se pudo enviar la alerta — contacta al supervisor.');
       }
