@@ -464,6 +464,16 @@ router.post(
               level: decision.level,
               message: decision.message,
               triggeredAt: decision.triggeredAt,
+              // Worker's last-known location so the responder can actually GO to
+              // them (not just see which session escalated). FCM data values
+              // must be strings; omitted when the session has no location.
+              ...(decision.lastKnownLocation
+                ? {
+                    lat: String(decision.lastKnownLocation.lat),
+                    lng: String(decision.lastKnownLocation.lng),
+                    locAt: decision.lastKnownLocation.at,
+                  }
+                : {}),
             },
             android: { priority: 'high' },
             apns: { headers: { 'apns-priority': '10' } },

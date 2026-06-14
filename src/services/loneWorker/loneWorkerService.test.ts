@@ -92,6 +92,21 @@ describe('decideEscalation', () => {
     expect(e?.level).toBe('emergency_services');
   });
 
+  it('attaches the session lastKnownLocation so a responder knows WHERE the worker is', () => {
+    const s = session({
+      startedAt: new Date(NOW.getTime() - 90 * 60_000).toISOString(),
+      lastKnownLocation: { lat: -33.45, lng: -70.66, at: '2026-05-11T11:30:00Z' },
+    });
+    const e = decideEscalation(s, NOW);
+    expect(e?.level).toBe('brigade');
+    expect(e?.lastKnownLocation).toEqual({ lat: -33.45, lng: -70.66, at: '2026-05-11T11:30:00Z' });
+  });
+
+  it('omits lastKnownLocation when the session never recorded one', () => {
+    const s = session({ startedAt: new Date(NOW.getTime() - 40 * 60_000).toISOString() });
+    expect(decideEscalation(s, NOW)?.lastKnownLocation).toBeUndefined();
+  });
+
   it('active → null (no escalamiento)', () => {
     const s = session({
       startedAt: new Date(NOW.getTime() - 10 * 60_000).toISOString(),

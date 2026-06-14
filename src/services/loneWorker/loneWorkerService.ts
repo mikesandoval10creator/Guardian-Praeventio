@@ -35,6 +35,13 @@ export interface EscalationDecision {
   level: 'supervisor' | 'brigade' | 'emergency_services';
   message: string;
   triggeredAt: string;
+  /**
+   * Última ubicación conocida del trabajador (de `session.lastKnownLocation`,
+   * que `recordCheckIn` mantiene). Viaja con la decisión para que el responder
+   * sepa DÓNDE está el trabajador caído — antes la escalación solo llevaba IDs.
+   * Ausente si la sesión nunca registró ubicación.
+   */
+  lastKnownLocation?: { lat: number; lng: number; at: string };
 }
 
 /**
@@ -67,26 +74,33 @@ export function decideEscalation(
 ): EscalationDecision | null {
   const status = deriveLoneWorkerStatus(session, now);
   const at = now.toISOString();
+  const loc = session.lastKnownLocation;
+  const decide = (
+    level: EscalationDecision['level'],
+    message: string,
+  ): EscalationDecision => ({
+    level,
+    message,
+    triggeredAt: at,
+    ...(loc ? { lastKnownLocation: loc } : {}),
+  });
 
   switch (status) {
     case 'overdue_warning':
-      return {
-        level: 'supervisor',
-        message: `Trabajador ${session.workerUid} no responde check-in (>1× intervalo)`,
-        triggeredAt: at,
-      };
+      return decide(
+        'supervisor',
+        `Trabajador ${session.workerUid} no responde check-in (>1× intervalo)`,
+      );
     case 'overdue_critical':
-      return {
-        level: 'brigade',
-        message: `Trabajador ${session.workerUid} sin contacto (>2× intervalo) — activar brigada`,
-        triggeredAt: at,
-      };
+      return decide(
+        'brigade',
+        `Trabajador ${session.workerUid} sin contacto (>2× intervalo) — activar brigada`,
+      );
     case 'help_requested':
-      return {
-        level: 'emergency_services',
-        message: `Trabajador ${session.workerUid} solicitó ayuda activamente`,
-        triggeredAt: at,
-      };
+      return decide(
+        'emergency_services',
+        `Trabajador ${session.workerUid} solicitó ayuda activamente`,
+      );
     default:
       return null;
   }
