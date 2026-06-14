@@ -1041,6 +1041,22 @@ service (it no longer attempts the now-forbidden direct write).
 108. **XP Self-Grant**: an owner `set /user_stats/<self>` bumping `points`,
      `medals`, `completedTrainings`, or `safetyPosts` (leaderboard manipulation).
 109. **Cross-User Stats Tamper**: a user updating another user's `user_stats`.
+110. **Evac Headcount Cross-Tenant Read**: a member of tenant B reading
+     `tenants/A/projects/{pid}/evacuations/{drillId}` (or its `/scans/*`) — the
+     live "who is safe vs missing" headcount stays inside the tenant.
+111. **Ghost Drill / Forged Status**: any client `create`/`update`/`delete` on
+     `tenants/{tid}/projects/{pid}/evacuations/{drillId}` (e.g. forging
+     `status:'ended'`) — drills are written ONLY by the audited server route
+     (start/scan/end via Admin SDK).
+112. **Ghost Scan**: a client creating `evacuations/{drillId}/scans/{workerUid}`
+     to fake that a missing worker reached the meeting point (server-stamped only).
+113. **Site-Geometry Cross-Tenant Read**: a member of tenant B reading
+     `tenants/A/projects/{pid}/site_geometry/*` (the digital-twin footprint that
+     feeds A* evacuation routing).
+114. **Site-Geometry Authoring Bypass**: a plain worker (non admin/supervisor)
+     creating/updating a `site_geometry` polygon, or a write with a degenerate
+     ring (`coordinates` not a list / < 3 points). NB: the ring is stored as
+     `{lng,lat}` maps — a directly-nested `[lng,lat][]` is rejected by Firestore.
 
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

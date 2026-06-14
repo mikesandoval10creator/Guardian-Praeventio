@@ -27,8 +27,13 @@ export interface SitePolygonRecord {
   label: string;
   heightM: number;
   notes?: string;
-  /** Outer ring as [lng, lat] pairs (closed). */
-  coordinates: [number, number][];
+  /**
+   * Outer ring as {lng, lat} points (closed). Firestore does NOT support
+   * directly-nested arrays, so the ring is stored as an array of MAPS rather
+   * than [lng, lat] pairs — a raw [number, number][] write is rejected with
+   * "Nested arrays are not supported" (it silently broke every savePolygon).
+   */
+  coordinates: { lng: number; lat: number }[];
   updatedAt?: unknown;
 }
 
@@ -50,7 +55,8 @@ export async function savePolygon(
     label: props.label,
     heightM: props.heightM,
     notes: props.notes,
-    coordinates: feature.geometry.coordinates[0],
+    // Firestore rejects nested arrays → store the ring as {lng,lat} maps.
+    coordinates: feature.geometry.coordinates[0].map(([lng, lat]) => ({ lng, lat })),
     updatedAt: serverTimestamp(),
   };
   await setDoc(doc(db, path), record);
@@ -59,6 +65,13 @@ export async function savePolygon(
 
 /** Re-hydrate a Firestore record into the GeoJSON feature shape. */
 export function recordToFeature(rec: SitePolygonRecord): SiteGeometryFeature {
+  // Stored as {lng,lat} maps (Firestore has no nested arrays). Tolerate a
+  // legacy [lng,lat] pair shape too so any pre-existing doc still rehydrates.
+  const ring = (rec.coordinates ?? []).map((c) =>
+    Array.isArray(c)
+      ? ([c[0], c[1]] as [number, number])
+      : ([c.lng, c.lat] as [number, number]),
+  );
   return buildFeature(
     {
       id: rec.id,
@@ -67,7 +80,7 @@ export function recordToFeature(rec: SitePolygonRecord): SiteGeometryFeature {
       heightM: rec.heightM,
       notes: rec.notes,
     },
-    rec.coordinates,
+    ring,
   );
 }
 

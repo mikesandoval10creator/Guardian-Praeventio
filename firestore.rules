@@ -1783,6 +1783,60 @@ service cloud.firestore {
             || isAdmin()
           );
       }
+
+      // ===============================================================
+      // OLA 1 (VIDA, 2026-06-14) — per-project life-safety subcollections.
+      //
+      // The tenants/{tid} block previously had ONLY a single-level catch-all
+      // (`match /{subcoll}/{docId}`, 4-segment paths). The 6-segment paths
+      // tenants/{tid}/projects/{pid}/<X>/<id> therefore fell to the global
+      // default-deny (see the ar_anchors comment above: "migrar a path
+      // 4-niveles ... con rule wrap"). That wrap is THIS block. Without it the
+      // digital-twin A* evacuation map and the live evacuation headcount were
+      // dead in production (their CLIENT reads were PERMISSION_DENIED) even
+      // though their consumers are mounted. Life-safety = FREE on every tier
+      // (ADR 0021); never tier-gate these.
+      match /projects/{projectId} {
+        // Digital-twin site geometry — polygons (buildings/zones/obstacles)
+        // that feed the A* evacuation route in DynamicEvacuationMap. DRAWN
+        // client-side by an admin/supervisor (siteGeometryStore.savePolygon →
+        // setDoc) and read live by every tenant member (the route is shown to
+        // workers during an evacuation). Shape: {id,type,label,heightM,
+        // notes?,coordinates:[lng,lat][],updatedAt}.
+        match /site_geometry/{geomId} {
+          allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+          allow create, update: if isSignedIn()
+            && isMemberOfTenant(tenantId)
+            && (isAdmin() || isSupervisorOfTenant(tenantId))
+            && incoming().label is string
+            && incoming().label.size() > 0
+            && incoming().label.size() <= 200
+            && incoming().type is string
+            && incoming().heightM is number
+            && incoming().coordinates is list
+            && incoming().coordinates.size() >= 3;
+          allow delete: if isSignedIn()
+            && isMemberOfTenant(tenantId)
+            && (isAdmin() || isSupervisorOfTenant(tenantId));
+        }
+
+        // Evacuation drills — live headcount during a REAL evacuation (who is
+        // safe vs still missing). Written ONLY by the audited server route
+        // (evacuationHeadcount.ts: start/scan/end via Admin SDK, which bypasses
+        // these rules and server-stamps startedByUid/scannedByUid). Clients
+        // never write. Read by every tenant member so supervisors AND workers
+        // see the headcount in real time.
+        match /evacuations/{drillId} {
+          allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+          allow create, update, delete: if false;
+
+          // Per-worker QR scan rows — server-stamped, append-only.
+          match /scans/{workerUid} {
+            allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+            allow create, update, delete: if false;
+          }
+        }
+      }
     }
 
     // ===============================================================
