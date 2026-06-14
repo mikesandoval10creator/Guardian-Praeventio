@@ -1058,5 +1058,34 @@ service (it no longer attempts the now-forbidden direct write).
      ring (`coordinates` not a list / < 3 points). NB: the ring is stored as
      `{lng,lat}` maps — a directly-nested `[lng,lat][]` is rejected by Firestore.
 
+## Server-only-write tenant stores — read-gate + client-write-deny (OLA 2 blindaje, added 2026-06-14)
+
+Three per-project subcollections under `tenants/{tid}/projects/{pid}/` previously
+had NO rule. Unlike `projects/{pid}/**` (covered by the recursive master-gate),
+the `tenants/{tid}/projects/{pid}` block has no recursive catch-all, so these
+fell to the global default-deny. All three are written ONLY by audited server
+routes via the Admin SDK (which bypasses rules + server-stamps identity); clients
+never write. The new rules make the posture explicit so a future client READ
+works and an accidental client WRITE can never land. Rules tests:
+`src/rules-tests/tenantServerWriteStores.rules.test.ts`.
+- `positive_observations` (`src/server/routes/positiveObservations.ts`),
+  `photo_evidence` (`src/server/routes/photoEvidence.ts`),
+  `splat_captures` (`src/services/digitalTwin/gaussianSplatFirestoreAdapter.ts`).
+- read: any member of the tenant (`isMemberOfTenant(tenantId)`).
+- create/update/delete: **false** for ALL clients (server-only via Admin SDK).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+115. **Server-Store Write Forgery**: any client `setDoc`/`update`/`delete` on
+     `tenants/t1/projects/p1/{positive_observations,photo_evidence,splat_captures}/x`
+     — all three are server-only; no role grants a direct client write.
+116. **Server-Store Cross-Tenant Read**: a member of tenant B reading any of the
+     three collections under tenant A — per-tenant membership governs; a claim in
+     another tenant grants nothing.
+117. **XP/Recognition Self-Forge via positive_observations**: a worker creating a
+     `positive_observations` doc to fabricate a safe-behavior recognition for
+     themselves — denied (server-only; the audited route stamps observerUid and
+     blocks self-award).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
