@@ -13,6 +13,16 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+    # JOB-level env so EVERY build in this job inherits it — including the
+    # build that `andresz1/size-limit-action` runs internally (it executes its
+    # own `npm run build`, separate from the "Build" step below). Setting the
+    # SLM skip only at step level let the action's build run the real prebuild
+    # → SLM prepackage → HuggingFace fetch, and a transient HF 429 flaked the
+    # gate (blocked #878 and #902). The size budget measures the JS bundle
+    # only, never the SLM model. Release/deploy lanes never set this skip.
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      SLM_PREPACKAGE_SKIP: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,12 +33,6 @@ jobs:
         run: npm ci --legacy-peer-deps
       - name: Build
         run: npm run build
-        env:
-          NODE_OPTIONS: --max-old-space-size=4096
-          # B14: CI validation lanes don't ship the bundle — skip the
-          # 483 MB SLM prepackage download. Release/deploy lanes MUST
-          # run the real prepackage (they don't set this).
-          SLM_PREPACKAGE_SKIP: '1'
       - name: Generate size report
         run: npx size-limit --json > size-report.json
       - name: Upload size report
