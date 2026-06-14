@@ -2711,12 +2711,14 @@
       "field_reason": "Motivo (mín 15 caracteres)",
       "reason_placeholder": "Describí el riesgo identificado, condiciones observadas, normativa aplicable…",
       "preconditions_note": "Precondiciones por defecto: inspección visual + autorización SST + registro fotográfico. Podés editarlas después por stoppage individual.",
-      "submit": "Declarar"
+      "submit": "Declarar",
+      "voluntary_only": "Como trabajador podés declarar una detención voluntaria (stop-work). Las demás categorías las declara un supervisor, prevencionista o gerente."
     },
     "feedback": {
       "need_project": "Necesitás un proyecto activo y estar autenticado.",
       "declared_success": "Paralización declarada ({{id}}). Aparece en lista activa.",
-      "declare_failed": "No se pudo declarar: {{msg}}"
+      "declare_failed": "No se pudo declarar: {{msg}}",
+      "precondition_failed": "No se pudo marcar la precondición: {{msg}}"
     },
     "list": {
       "active_heading": "Paralizaciones activas ({{count}})",

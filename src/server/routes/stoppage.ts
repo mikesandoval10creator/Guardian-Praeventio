@@ -42,6 +42,7 @@ import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { randomId } from '../../utils/randomId.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -163,13 +164,16 @@ class StoppageNotFoundError extends Error {}
 // 1. declare
 // ────────────────────────────────────────────────────────────────────────
 
+// declaredByUid + declaredByRole are server-stamped from the VERIFIED token,
+// and the id is server-minted (no client RNG). A body-supplied role would let
+// any member fabricate an approver-level declaration: only `detencion_voluntaria`
+// is open to any role (worker stop-work authority); every other category
+// requires an approver role, enforced by the engine against the TOKEN role.
 const declareSchema = z.object({
-  id: z.string().min(1).max(200),
   category: z.enum(CATEGORIES),
   scope: z.enum(SCOPES),
   scopeTargetId: z.string().min(1).max(200),
   reason: z.string().min(1).max(5000),
-  declaredByRole: z.string().min(1).max(200),
   resumptionPreconditions: z
     .array(z.object({ id: z.string().min(1).max(200), label: z.string().min(1).max(500) }))
     .min(1)
@@ -182,15 +186,36 @@ router.post(
   validate(declareSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
+    const callerRole = req.user!.role ?? 'worker';
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof declareSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const stoppage = declareStoppage({
         ...body,
+        id: randomId(),
         projectId,
         declaredByUid: callerUid,
+        declaredByRole: callerRole,
       });
+      // CLAUDE.md #3: declaring a stoppage is a juridical state change — audit
+      // it with the server-stamped actor (awaited, non-blocking on failure).
+      try {
+        await auditServerEvent(
+          req,
+          'stoppage.declare',
+          'stoppage',
+          {
+            stoppageId: stoppage.id,
+            category: stoppage.category,
+            scope: stoppage.scope,
+            declaredByRole: callerRole,
+          },
+          { projectId },
+        );
+      } catch (err) {
+        logger.error?.('audit_event_failed', err);
+      }
       return res.json({ stoppage });
     } catch (err) {
       const m = asEngineError(err);
@@ -222,12 +247,33 @@ router.post(
     const body = req.body as z.infer<typeof markPreconditionSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // verifierUid is the SERVER-stamped caller (token), never client-supplied —
+      // a client cannot attribute the verification of a precondition to someone
+      // else.
       const stoppage = markPreconditionFulfilled(
         body.stoppage,
         body.preconditionId,
         callerUid,
         body.evidenceUrl,
       );
+      // CLAUDE.md #3: marking a resumption precondition fulfilled is a
+      // state change on a juridical record — audit it (awaited, non-blocking).
+      try {
+        await auditServerEvent(
+          req,
+          'stoppage.markPrecondition',
+          'stoppage',
+          {
+            stoppageId: stoppage.id,
+            preconditionId: body.preconditionId,
+            newStatus: stoppage.status,
+            hasEvidence: body.evidenceUrl !== undefined,
+          },
+          { projectId },
+        );
+      } catch (err) {
+        logger.error?.('audit_event_failed', err);
+      }
       return res.json({ stoppage });
     } catch (err) {
       const m = asEngineError(err);

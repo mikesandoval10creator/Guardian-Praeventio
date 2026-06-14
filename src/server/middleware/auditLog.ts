@@ -37,6 +37,7 @@
 import type { Request } from 'express';
 import admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
 
 export interface AuditServerEventOptions {
   /** Optional projectId tag for tenant-scoped events. */
@@ -89,6 +90,17 @@ export async function auditServerEvent(
       userId,
       message: error?.message,
     });
+    // CLAUDE.md #14: a broken COMPLIANCE trail must be visible in Sentry, not
+    // only in logs (a Firestore audit outage would otherwise be silent). The
+    // capture is itself guarded — observability must never throw.
+    try {
+      getErrorTracker().captureException(
+        error instanceof Error ? error : new Error(String(error)),
+        { endpoint: 'auditServerEvent', tags: { action, module } },
+      );
+    } catch (captureErr: any) {
+      logger.warn?.('audit_sentry_capture_failed', { message: captureErr?.message });
+    }
     return false;
   }
 }

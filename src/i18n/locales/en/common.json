@@ -2711,12 +2711,14 @@
       "field_reason": "Reason (min 15 characters)",
       "reason_placeholder": "Describe the identified risk, conditions observed, applicable regulation…",
       "preconditions_note": "Default preconditions: visual inspection + OHS authorization + photo record. You can edit them later per individual stoppage.",
-      "submit": "Declare"
+      "submit": "Declare",
+      "voluntary_only": "As a worker you can declare a voluntary stop-work. Other categories are declared by a supervisor, safety officer, or manager."
     },
     "feedback": {
       "need_project": "You need an active project and to be authenticated.",
       "declared_success": "Stoppage declared ({{id}}). Appears in active list.",
-      "declare_failed": "Could not declare: {{msg}}"
+      "declare_failed": "Could not declare: {{msg}}",
+      "precondition_failed": "Could not mark the precondition: {{msg}}"
     },
     "list": {
       "active_heading": "Active stoppages ({{count}})",
