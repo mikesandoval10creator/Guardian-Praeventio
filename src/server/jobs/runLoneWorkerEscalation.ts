@@ -133,12 +133,16 @@ export async function runLoneWorkerEscalationCron(
         }
       }
 
-      // Persist escalation marker
+      // Persist escalation marker. Includes the worker's last-known location
+      // (when the session has it) so the responder feed — readable by project
+      // members via the recursive master gate — shows WHERE the worker is, not
+      // just which session escalated.
       await escalationDocRef.set({
         sessionId: doc.id,
         level: decision.level,
         message: decision.message,
         triggeredAtIso: decision.triggeredAt,
+        lastKnownLocation: decision.lastKnownLocation ?? null,
         notified: Boolean(notifyHook),
       });
 
