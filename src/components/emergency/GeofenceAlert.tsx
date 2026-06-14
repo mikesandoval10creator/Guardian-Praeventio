@@ -1,8 +1,10 @@
-import React, { useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, MapPin, MapPinOff } from 'lucide-react';
 import { GeofenceZone } from '../../hooks/useGeofence';
 import { useGeofenceWithEvents } from '../../hooks/useGeofenceWithEvents';
+import { listRestrictedZonesBySite } from '../../hooks/useRestrictedZones';
+import { mapActiveRestrictedZones } from '../../services/zones/restrictedZoneToGeofence';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -17,6 +19,11 @@ import { logger } from '../../utils/logger';
 // geofence→SOS escalation is wired (below), it would have fired a FALSE SOS. It
 // is now empty in prod (an unconfigured project shows no geocerca — honest) and
 // kept only under import.meta.env.DEV so the UI can still be exercised locally.
+//
+// OLA 1 (2026-06-14): real configured zones now load from the AUDITED
+// /api/zones/by-site route (listRestrictedZonesBySite), so a project that
+// defines zones gets a LIVE geofence (+ geofence→SOS escalation) in prod. This
+// demo is only the last-resort DEV fallback when no real zones exist.
 const FALLBACK_ZONES: GeofenceZone[] = import.meta.env.DEV
   ? [
       {
@@ -38,12 +45,39 @@ export function GeofenceAlert() {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
 
+  // Real configured zones from the audited server route. Empty until loaded /
+  // when the project has none — geofencing degrades to "no alert" honestly.
+  const [realZones, setRealZones] = useState<GeofenceZone[]>([]);
+  useEffect(() => {
+    const pid = selectedProject?.id;
+    if (!pid) {
+      setRealZones([]);
+      return undefined;
+    }
+    let cancelled = false;
+    listRestrictedZonesBySite(pid)
+      .then((res) => {
+        if (!cancelled) setRealZones(mapActiveRestrictedZones(res.zones ?? []));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        logger.warn('GeofenceAlert: restricted-zones fetch failed', { err: String(err) });
+        setRealZones([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProject?.id]);
+
   const activeProjectZones = useMemo(() => {
+    // Prefer real configured zones; fall back to legacy project settings, then
+    // the DEV-only demo (empty in prod).
+    if (realZones.length > 0) return realZones;
     if (selectedProject?.settings?.geofences && Array.isArray(selectedProject.settings.geofences)) {
       return selectedProject.settings.geofences as GeofenceZone[];
     }
     return FALLBACK_ZONES;
-  }, [selectedProject]);
+  }, [realZones, selectedProject]);
 
   const handleZoneEntry = useCallback((enteredZones: GeofenceZone[]) => {
     if (!selectedProject) return;
