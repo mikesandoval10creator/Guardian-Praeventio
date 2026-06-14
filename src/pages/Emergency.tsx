@@ -35,6 +35,8 @@ import {
 import { Link } from 'react-router-dom';
 import { useProject } from '../contexts/ProjectContext';
 import { useEmergency } from '../contexts/EmergencyContext';
+import { useAppMode } from '../contexts/AppModeContext';
+import { resolveEmergencyModeTransition } from '../services/emergency/emergencyModeSync';
 import { useManDownDetection } from '../hooks/useManDownDetection';
 import { useEmergencyMedicalCard, shareableCard } from '../hooks/useEmergencyMedicalCard';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -64,6 +66,7 @@ export function Emergency() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { triggerEmergency } = useEmergency();
+  const { mode, setMode } = useAppMode();
   const { user } = useFirebase();
   const { card: medicalCard } = useEmergencyMedicalCard();
   const [showTriageBeacon, setShowTriageBeacon] = useState(false);
@@ -145,6 +148,19 @@ export function Emergency() {
       releaseWakeLock();
     };
   }, [selectedProject?.id, requestWakeLock, releaseWakeLock]);
+
+  // BUG FIX (OLA 1): the worker-facing SOS button (RootLayout, global) renders
+  // ONLY when AppMode === 'emergency' (SOSButton returns null otherwise). A
+  // DECLARED project emergency previously drove only the local `isCrisisMode`
+  // banner + wake-lock — it never flipped AppMode — so the SOS button stayed
+  // INVISIBLE during a real emergency on this screen. Mirror the declared
+  // emergency into AppMode so the button appears. resolveEmergencyModeTransition
+  // only toggles emergency↔normal (never clobbers 'driving'); runtime setMode is
+  // safe — the AppMode persist layer never resurrects 'emergency' on reload.
+  React.useEffect(() => {
+    const next = resolveEmergencyModeTransition(isCrisisMode, mode);
+    if (next) setMode(next);
+  }, [isCrisisMode, mode, setMode]);
 
   const toggleCrisisMode = async () => {
     if (!selectedProject?.id) return;
