@@ -1836,6 +1836,35 @@ service cloud.firestore {
             allow create, update, delete: if false;
           }
         }
+
+        // OLA 2 (blindaje, 2026-06-14) — server-only-write tenant stores that
+        // previously had NO rule under this block (no recursive catch-all here,
+        // unlike projects/{pid}/** which the master-gate covers). They are
+        // written ONLY by audited server routes via the Admin SDK (which bypasses
+        // these rules + server-stamps identity); clients NEVER write. The rule
+        // makes that posture EXPLICIT: tenant members may READ, all client writes
+        // are denied — so a future client read works and an accidental client
+        // write can never land. Life-safety/cultural data: free on every tier.
+
+        // Positive safety observations (behavioral recognition; server route
+        // positiveObservations.ts stamps observerUid/observedWorkerUid).
+        match /positive_observations/{observationId} {
+          allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+          allow create, update, delete: if false;
+        }
+
+        // Content-addressed photo evidence (server route photoEvidence.ts).
+        match /photo_evidence/{contentHash} {
+          allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+          allow create, update, delete: if false;
+        }
+
+        // Gaussian-splat 3D captures — digital-twin geometry (server adapter
+        // gaussianSplatFirestoreAdapter.ts).
+        match /splat_captures/{captureId} {
+          allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+          allow create, update, delete: if false;
+        }
       }
     }
 
