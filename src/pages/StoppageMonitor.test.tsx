@@ -58,17 +58,20 @@ vi.mock('../components/stoppage/StoppageResumeModal', () => ({
   },
 }));
 
-const updateStoppageStatus = vi.fn(async () => undefined);
-const saveStoppage = vi.fn(async () => undefined);
+const updateStoppageStatus = vi.fn(async (..._a: unknown[]) => undefined);
+const saveStoppage = vi.fn(async (..._a: unknown[]) => undefined);
 let mockList: Stoppage[] = [];
+let mockSubError = false;
 vi.mock('../services/stoppage/stoppageStore', () => ({
   saveStoppage: (...a: unknown[]) => saveStoppage(...a),
   updateStoppageStatus: (...a: unknown[]) => updateStoppageStatus(...a),
   subscribeActiveStoppages: (
     _pid: string,
     onData: (list: Stoppage[]) => void,
+    onError: (err: unknown) => void,
   ) => {
-    onData(mockList);
+    if (mockSubError) onError(new Error('sub-denied'));
+    else onData(mockList);
     return () => undefined;
   },
 }));
@@ -100,6 +103,7 @@ beforeEach(() => {
   mockUserRole = 'supervisor';
   mockProject = { id: 'proj-1', name: 'Proyecto Alfa' };
   mockList = [];
+  mockSubError = false;
   modalProps = null;
 });
 
@@ -156,5 +160,15 @@ describe('<StoppageMonitor /> resume rewire', () => {
 
     await screen.findByText(/debe firmarla un supervisor/i);
     expect(screen.queryByTestId('stoppages.resumeSign')).toBeNull();
+  });
+
+  it('a failed live subscription fails LOUD — shows an error and suppresses the false "all clear"', async () => {
+    mockSubError = true;
+    render(<StoppageMonitor />);
+
+    await screen.findByTestId('stoppages.subError');
+    // The misleading "no active stoppages" success state must NOT be shown when
+    // the feed failed (a false negative on a life-safety list).
+    expect(screen.queryByText(/no hay paralizaciones activas/i)).toBeNull();
   });
 });

@@ -238,6 +238,7 @@ export function resume(
     status: 'resumed',
     resumedAt: now.toISOString(),
     resumedByUid,
+    resumedByRole,
   };
 }
 

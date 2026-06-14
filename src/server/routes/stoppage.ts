@@ -122,9 +122,30 @@ const stoppageSchema = z.object({
   resumptionPreconditions: z.array(preconditionSchema).max(1000),
   resumedAt: z.string().min(10).max(64).optional(),
   resumedByUid: z.string().min(1).max(200).optional(),
+  resumedByRole: z.string().min(1).max(200).optional(),
+  // Resumption/resolution seals: write-once server-side, but DECLARED here so
+  // zod does not strip them off a Stoppage that already carries them as it
+  // passes through the stateless endpoints (/cancel, /summarize).
+  resumption: z
+    .object({
+      justification: z.string().max(5000),
+      measuresAdopted: z.array(z.string().max(500)).max(100),
+      signatureAttested: z.boolean(),
+      resumedByRole: z.string().min(1).max(200),
+    })
+    .optional(),
   cancelledAt: z.string().min(10).max(64).optional(),
   cancelledByUid: z.string().min(1).max(200).optional(),
   cancelledReason: z.string().max(5000).optional(),
+  resolution: z
+    .object({
+      verdict: z.enum(['justificada', 'no_justificada']),
+      resolvedByUid: z.string().min(1).max(200),
+      resolvedByRole: z.string().min(1).max(200),
+      resolvedAt: z.string().min(10).max(64),
+      comment: z.string().max(2000).optional(),
+    })
+    .optional(),
 }) as unknown as z.ZodType<Stoppage>;
 
 function asEngineError(err: unknown): { code: number; body: { error: string } } | null {
@@ -278,6 +299,15 @@ router.post(
             `stoppage '${body.stoppageId}' already resumed`,
           );
         }
+        // Only a stoppage that is PENDING resumption can be lifted (a cancelled
+        // or still-active one is a lifecycle conflict, not bad input). A generic
+        // message avoids leaking the raw internal status the engine would echo.
+        if (current.status !== 'pending_resumption') {
+          throw new StoppageValidationError(
+            'NOT_PENDING_RESUMPTION',
+            'stoppage is not pending resumption',
+          );
+        }
         // Defence-in-depth: never lift a stoppage whose preconditions aren't ALL
         // verified, even if a client wrote status='pending_resumption' directly
         // (the client store can patch status; rules allow project members to).
@@ -330,6 +360,9 @@ router.post(
       }
       if (err instanceof StoppageValidationError && err.code === 'ALREADY_RESUMED') {
         return res.status(409).json({ error: 'already_resumed' });
+      }
+      if (err instanceof StoppageValidationError && err.code === 'NOT_PENDING_RESUMPTION') {
+        return res.status(409).json({ error: 'not_pending_resumption' });
       }
       const m = asEngineError(err);
       if (m) return res.status(m.code).json(m.body);

@@ -87,6 +87,7 @@ export function StoppageMonitor() {
 
   const [stoppages, setStoppages] = useState<Stoppage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [subError, setSubError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   // The stoppage whose resumption the responsible role is signing (modal open
@@ -111,6 +112,7 @@ export function StoppageMonitor() {
       return undefined;
     }
     setLoading(true);
+    setSubError(null);
     // Plan §B.5 (2026-05-23): subscribeActiveStoppages aplica where('status',
     // 'in', ['active', 'pending_resumption']) server-side — antes traíamos
     // todo (incluido resumed/cancelled históricos) y filtrábamos client-side.
@@ -123,15 +125,26 @@ export function StoppageMonitor() {
       projectId,
       (list) => {
         setStoppages(list);
+        setSubError(null);
         setLoading(false);
       },
       (err) => {
-        logger.warn('stoppages_sub_error', { err: String(err) });
+        // Fail-loud: a silently-empty list reads as "no active stoppages" (all
+        // clear) when the feed actually failed — an approver could miss a live
+        // stoppage awaiting their signed resumption. Surface a blocking error
+        // and suppress the misleading empty-state below.
+        logger.error('stoppages_sub_error', { err: String(err) });
+        setSubError(
+          t(
+            'stoppages.sub_error',
+            'No se pudieron cargar las paralizaciones. Reintentá; no asumas que no hay ninguna activa.',
+          ),
+        );
         setLoading(false);
       },
     );
     return () => unsub();
-  }, [selectedProject?.id]);
+  }, [selectedProject?.id, t]);
 
   const summary = useMemo(() => summarize(stoppages), [stoppages]);
 
@@ -254,6 +267,17 @@ export function StoppageMonitor() {
           <>
             <StoppageSummaryCard summary={summary} projectLabel={selectedProject.name} />
 
+            {subError && (
+              <div
+                role="alert"
+                data-testid="stoppages.subError"
+                className="rounded-xl border border-rose-300 bg-rose-50 dark:bg-rose-900/20 dark:border-rose-700 p-3 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2"
+              >
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+                <span>{subError}</span>
+              </div>
+            )}
+
             {feedback && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-3 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
@@ -365,10 +389,14 @@ export function StoppageMonitor() {
                 })}
               </h2>
               {activeStoppages.length === 0 ? (
-                <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 p-4 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" />
-                  {t('stoppages.list.empty_active', 'No hay paralizaciones activas en este proyecto.')}
-                </div>
+                // Suppress the "all clear" message when the feed failed — that
+                // would be a dangerous false negative on a life-safety list.
+                subError ? null : (
+                  <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 p-4 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    {t('stoppages.list.empty_active', 'No hay paralizaciones activas en este proyecto.')}
+                  </div>
+                )
               ) : (
                 <ul className="space-y-3">
                   {activeStoppages.map((s) => (

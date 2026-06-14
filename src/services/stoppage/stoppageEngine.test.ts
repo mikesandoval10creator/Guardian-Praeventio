@@ -108,6 +108,8 @@ describe('resume', () => {
     const r = resume(s, 'sup-1', 'supervisor', NOW);
     expect(r.status).toBe('resumed');
     expect(r.resumedAt).toBe(NOW.toISOString());
+    expect(r.resumedByUid).toBe('sup-1');
+    expect(r.resumedByRole).toBe('supervisor');
   });
 
   it('rechaza reanudar si preconditions no completas', () => {

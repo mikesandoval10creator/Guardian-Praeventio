@@ -417,6 +417,19 @@ describe('POST /:projectId/stoppage/resume', () => {
     expect(storedStoppage().status).toBe('pending_resumption');
   });
 
+  it('409 when the stoppage is NOT pending resumption (cancelled) — lifecycle conflict, no status leak', async () => {
+    seedPendingScenario({ status: 'cancelled' });
+    const res = await request(buildApp())
+      .post(ENDPOINT)
+      .set(asRole(MEMBER_UID, 'supervisor'))
+      .send(validBody);
+    expect(res.status).toBe(409);
+    expect((res.body as Record<string, unknown>).error).toBe('not_pending_resumption');
+    // The raw internal status string is never echoed back to the caller (#8).
+    expect(JSON.stringify(res.body)).not.toContain('cancelled');
+    expect(storedStoppage().status).toBe('cancelled'); // unchanged
+  });
+
   it('200 happy path — status→resumed, uid+role server-stamped, resumption + audit persisted', async () => {
     seedPendingScenario();
     const res = await request(buildApp())

@@ -2736,6 +2736,7 @@
       "approver_only": "Resumption must be signed by a supervisor, safety officer, or manager.",
       "success": "Resumption signed and recorded ({{id}})."
     },
+    "sub_error": "Could not load stoppages. Retry; do not assume there are none active.",
     "history": {
       "heading": "Recent history",
       "audit_trail_hint_prefix": "For complete history of finalized or cancelled stoppages, see ",
