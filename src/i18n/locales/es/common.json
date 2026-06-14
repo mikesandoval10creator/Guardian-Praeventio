@@ -3211,7 +3211,8 @@
     "aria": {
       "active": "Tablero de evacuación activa",
       "board": "Tablero evacuación",
-      "idle": "Panel de evacuación"
+      "idle": "Panel de evacuación",
+      "postmortem": "Resumen de evacuación"
     },
     "dashboard": {
       "title": "Conteo de Evacuación",
@@ -3232,7 +3233,8 @@
       "coverage": "Cobertura final",
       "elapsed": "Tiempo total",
       "avgScan": "Tiempo prom. de scan",
-      "startNew": "Iniciar nuevo conteo"
+      "startNew": "Iniciar nuevo conteo",
+      "stillMissing": "No localizados"
     },
     "qr": {
       "aria": "Escanear credencial QR del trabajador",

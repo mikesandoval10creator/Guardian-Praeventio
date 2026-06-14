@@ -3211,7 +3211,8 @@
     "aria": {
       "active": "Active evacuation board",
       "idle": "Evacuation panel",
-      "board": "Evacuation board"
+      "board": "Evacuation board",
+      "postmortem": "Evacuation summary"
     },
     "complete": "Everyone safe — the drill can be closed.",
     "coverage": "Coverage",
@@ -3243,6 +3244,7 @@
     "postmortem": {
       "avgScan": "Avg. scan time",
       "startNew": "Start a new count",
+      "stillMissing": "Not located",
       "coverage": "Final coverage",
       "elapsed": "Total time",
       "title": "Postmortem"

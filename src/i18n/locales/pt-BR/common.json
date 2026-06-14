@@ -3083,7 +3083,8 @@
     "aria": {
       "active": "Painel de evacuação ativo",
       "idle": "Painel de evacuação",
-      "board": "Painel de evacuação"
+      "board": "Painel de evacuação",
+      "postmortem": "Resumo de evacuação"
     },
     "complete": "Todos seguros — o simulado pode ser encerrado.",
     "coverage": "Cobertura",
@@ -3115,6 +3116,7 @@
     "postmortem": {
       "avgScan": "Tempo médio de scan",
       "startNew": "Iniciar nova contagem",
+      "stillMissing": "Não localizados",
       "coverage": "Cobertura final",
       "elapsed": "Tempo total",
       "title": "Postmortem"

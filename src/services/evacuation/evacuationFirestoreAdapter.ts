@@ -78,6 +78,20 @@ export class EvacuationAdapter {
   }
 
   /**
+   * Drills ACTIVOS (no finalizados). Usado para el guard de "un solo drill
+   * activo por proyecto" — filtra por `endedAt == null` (serializeDrill escribe
+   * `endedAt: d.endedAt ?? null`, así que la igualdad es confiable) SIN ventana
+   * de recencia, para no perder un drill activo antiguo bajo muchos finalizados.
+   */
+  async listActive(): Promise<EvacuationDrill[]> {
+    const snap = await this.db
+      .collection(DRILLS_PATH(this.tenantId, this.projectId))
+      .where('endedAt', '==', null)
+      .get();
+    return snap.docs.map((d: any) => this.deserializeDrill(d.data()));
+  }
+
+  /**
    * Lista drills recientes (sin scans para velocidad).
    */
   async listRecent(limit: number = 20): Promise<EvacuationDrill[]> {
