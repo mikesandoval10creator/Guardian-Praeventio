@@ -3242,6 +3242,7 @@
     },
     "postmortem": {
       "avgScan": "Avg. scan time",
+      "startNew": "Start a new count",
       "coverage": "Final coverage",
       "elapsed": "Total time",
       "title": "Postmortem"

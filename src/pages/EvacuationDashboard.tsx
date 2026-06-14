@@ -24,7 +24,7 @@
 //
 // Life-safety surface — free on every tier, never tier-gated. No fabricated data.
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ShieldAlert, Loader2, AlertTriangle, Info } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -137,15 +137,26 @@ export function EvacuationDashboard() {
     };
   }, [projectId, tenantId, activeRetryKey]);
 
-  // The board reports its active drill id (id on start, null on end). We mirror
-  // it into local state so that, IN-SESSION, ending a drill returns the
-  // supervisor to the start screen instead of stranding them on the postmortem.
-  const handleDrillIdChange = useCallback((drillId: string | null) => {
-    setActiveDrillId(drillId);
-  }, []);
-
-  const showBoard = activeDrillId != null || rosterState === 'ready';
   const resolvingActive = activeDrillId === undefined;
+
+  // The roster gates STARTING a new drill only (a roster-less count reports a
+  // false "100% / 0 missing" all-clear). It never gates resuming/ending an
+  // ACTIVE drill — so the board is ALWAYS rendered once we can show it, and the
+  // roster failure surfaces as a non-blocking hint on the start screen (never
+  // masking a resumed drill or its postmortem).
+  const canStartNew = rosterState === 'ready';
+  const startBlockedHint =
+    rosterState === 'empty'
+      ? t(
+          'evac_dashboard.no_attendance',
+          'Sin asistencia registrada hoy. Un conteo de evacuación necesita la nómina presente para saber QUIÉN falta: registrá la asistencia (check-in) del turno y volvé a esta pantalla.',
+        )
+      : rosterState === 'error'
+        ? t(
+            'evac_dashboard.attendance_error',
+            'No se pudo cargar la asistencia de hoy; sin la nómina no se puede iniciar un conteo de evacuación confiable. Reintentá (recargá) o registrá la asistencia.',
+          )
+        : undefined;
 
   return (
     <section className="p-4 space-y-4" data-testid="evacDashboard.page" aria-label={t('evac_dashboard.title', 'Tablero de evacuación')}>
@@ -179,6 +190,8 @@ export function EvacuationDashboard() {
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
       ) : activeLookupError ? (
+        // Could not verify whether a drill is already running → block start so
+        // the supervisor cannot create a concurrent duplicate (server also 409s).
         <div className="flex flex-col items-start gap-2 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-700 dark:bg-rose-900/20 dark:text-rose-200" data-testid="evacDashboard.lookupError">
           <span className="flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
@@ -196,36 +209,19 @@ export function EvacuationDashboard() {
             {t('evac_dashboard.retry', 'Reintentar')}
           </button>
         </div>
-      ) : showBoard ? (
+      ) : (
+        // Board ALWAYS renders here: it owns the start→active→postmortem→idle
+        // lifecycle. canStartNew/startBlockedHint gate only the START action; a
+        // resumed drill + its postmortem are never hidden by roster state.
         <LiveEvacuationDashboard
           projectId={projectId}
           tenantId={tenantId}
           expectedWorkers={expectedWorkers}
           meetingPointId="meeting-point-main"
           initialDrillId={activeDrillId ?? undefined}
-          onDrillIdChange={handleDrillIdChange}
+          canStartNew={canStartNew}
+          startBlockedHint={startBlockedHint}
         />
-      ) : rosterState === 'error' ? (
-        <div className="flex items-start gap-2 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-700 dark:bg-rose-900/20 dark:text-rose-200" data-testid="evacDashboard.rosterError">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
-          <span>
-            {t(
-              'evac_dashboard.attendance_error',
-              'No se pudo cargar la asistencia de hoy. Reintentá; sin la nómina no se puede iniciar un conteo de evacuación confiable.',
-            )}
-          </span>
-        </div>
-      ) : (
-        // rosterState === 'empty' and no active drill.
-        <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200" data-testid="evacDashboard.noAttendance">
-          <Info className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
-          <span>
-            {t(
-              'evac_dashboard.no_attendance',
-              'Sin asistencia registrada hoy. Un conteo de evacuación necesita la nómina presente para saber QUIÉN falta: registrá la asistencia (check-in) del turno y volvé a esta pantalla.',
-            )}
-          </span>
-        </div>
       )}
     </section>
   );

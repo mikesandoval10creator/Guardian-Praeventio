@@ -1,18 +1,21 @@
 // @vitest-environment jsdom
 //
-// Praeventio Guard — OLA 1 evacuation dashboard CONSOLIDATION test.
+// Praeventio Guard — OLA 1 evacuation dashboard CONSOLIDATION test (container).
 //
-// The page is a thin container around the LIVE server-backed board (real-time +
-// audited), replacing the IndexedDB single-device implementation. Verifies the
-// two safety rules from the adversarial review:
-//   1. A headcount needs a ROSTER — no attendance ⇒ honest guidance, NO startable
-//      board (an empty roster would report a false "100% / 0 missing" all-clear).
+// The page is a thin container around the LIVE server-backed board. The board
+// owns the start→active→postmortem→idle lifecycle and is ALWAYS rendered once we
+// can show it; the container only gates "can we show it at all" (project /
+// tenant / active-drill-known) and passes roster-derived START enablement.
+// Safety rules verified:
+//   1. No roster ⇒ board renders but START is gated (canStartNew=false + hint) —
+//      a roster-less count would report a false "100% / 0 missing" all-clear.
 //   2. RESUME is by live query for the ACTIVE (non-ended) drill — an ended drill
-//      is never resumed (no stale-marker lockout); ending in-session returns to
-//      the start screen.
+//      is never resumed (no stale-marker lockout).
+//   3. A failed active-drill lookup BLOCKS (no board) so no concurrent double-start.
+//   4. No tenant claim ⇒ terminal guidance, never an infinite spinner.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { EvacuationDashboard } from './EvacuationDashboard';
 
 vi.mock('react-i18next', () => ({
@@ -31,7 +34,7 @@ const getDocs = vi.fn(async (arg: { path?: string }) => {
   const path = arg?.path ?? '';
   if (path.includes('/attendance')) {
     if (attendanceError) throw new Error('attendance-denied');
-    return { docs: [] }; // buildEvacuationRoster is mocked → roster comes from mockRosterExpected
+    return { docs: [] };
   }
   if (path.includes('/evacuations')) {
     if (evacuationsError) throw new Error('evacuations-denied');
@@ -60,7 +63,8 @@ type BoardProps = {
   expectedWorkers: unknown[];
   meetingPointId: string;
   initialDrillId?: string;
-  onDrillIdChange?: (id: string | null) => void;
+  canStartNew?: boolean;
+  startBlockedHint?: string;
 };
 let boardProps: BoardProps | null = null;
 vi.mock('../components/evacuation/EvacuationDashboard', () => ({
@@ -69,9 +73,9 @@ vi.mock('../components/evacuation/EvacuationDashboard', () => ({
     return (
       <div
         data-testid="liveBoard"
-        data-tenant={props.tenantId}
-        data-expected={props.expectedWorkers.length}
+        data-can-start={String(props.canStartNew)}
         data-initial={props.initialDrillId ?? ''}
+        data-blocked={props.startBlockedHint ?? ''}
       />
     );
   },
@@ -96,7 +100,7 @@ describe('<EvacuationDashboard /> consolidation container', () => {
     expect(screen.queryByTestId('liveBoard')).toBeNull();
   });
 
-  it('tenant claim still loading → spinner (board needs tenantId for the live path)', () => {
+  it('tenant claim still loading → spinner', () => {
     mockTenant = { tenantId: null, loading: true };
     render(<EvacuationDashboard />);
     expect(screen.getByTestId('evacDashboard.loading')).toBeTruthy();
@@ -107,12 +111,57 @@ describe('<EvacuationDashboard /> consolidation container', () => {
     mockTenant = { tenantId: null, loading: false };
     render(<EvacuationDashboard />);
     expect(screen.getByTestId('evacDashboard.noTenant')).toBeTruthy();
-    expect(screen.queryByTestId('evacDashboard.loading')).toBeNull();
     expect(screen.queryByTestId('liveBoard')).toBeNull();
   });
 
-  it('active-drill lookup FAILS → blocking guidance, NO startable board (prevents double-start)', async () => {
-    mockRosterExpected = [{ uid: 'w1', fullName: 'Ana' }]; // roster ready — would otherwise show a startable board
+  it('roster ready, no active drill → board with start ENABLED, no block hint', async () => {
+    mockRosterExpected = [
+      { uid: 'w1', fullName: 'Ana' },
+      { uid: 'w2', fullName: 'Bruno' },
+    ];
+    render(<EvacuationDashboard />);
+    await waitFor(() => expect(screen.getByTestId('liveBoard')).toBeTruthy());
+    expect(boardProps!.canStartNew).toBe(true);
+    expect(boardProps!.startBlockedHint).toBeUndefined();
+    expect(boardProps!.expectedWorkers).toHaveLength(2);
+    expect(boardProps!.initialDrillId).toBeUndefined();
+  });
+
+  it('NO attendance → board still renders but START is gated (canStartNew=false + hint)', async () => {
+    mockRosterExpected = [];
+    render(<EvacuationDashboard />);
+    await waitFor(() => expect(screen.getByTestId('liveBoard')).toBeTruthy());
+    expect(boardProps!.canStartNew).toBe(false);
+    expect(boardProps!.startBlockedHint).toBeTruthy();
+  });
+
+  it('attendance fetch fails → board renders, START gated + hint (failure not masked)', async () => {
+    attendanceError = true;
+    render(<EvacuationDashboard />);
+    await waitFor(() => expect(screen.getByTestId('liveBoard')).toBeTruthy());
+    expect(boardProps!.canStartNew).toBe(false);
+    expect(boardProps!.startBlockedHint).toBeTruthy();
+  });
+
+  it('an ENDED drill is never resumed (no lockout) — board renders without initialDrillId', async () => {
+    mockRosterExpected = [{ uid: 'w1', fullName: 'Ana' }];
+    evacuationsDocs = [{ id: 'd-ended', startedAt: '2026-06-14T08:00:00Z', endedAt: '2026-06-14T09:00:00Z' }];
+    render(<EvacuationDashboard />);
+    await waitFor(() => expect(screen.getByTestId('liveBoard')).toBeTruthy());
+    expect(boardProps!.initialDrillId).toBeUndefined();
+  });
+
+  it('an ACTIVE drill resumes via query even with an empty roster (board shown, start still gated)', async () => {
+    mockRosterExpected = [];
+    evacuationsDocs = [{ id: 'd-active', startedAt: '2026-06-14T08:00:00Z' }];
+    render(<EvacuationDashboard />);
+    await waitFor(() => expect(screen.getByTestId('liveBoard')).toBeTruthy());
+    expect(boardProps!.initialDrillId).toBe('d-active');
+    expect(boardProps!.canStartNew).toBe(false); // empty roster still gates a NEW start
+  });
+
+  it('active-drill lookup FAILS → blocking guidance, NO board (prevents double-start)', async () => {
+    mockRosterExpected = [{ uid: 'w1', fullName: 'Ana' }];
     evacuationsError = true;
     render(<EvacuationDashboard />);
     await waitFor(() => expect(screen.getByTestId('evacDashboard.lookupError')).toBeTruthy());
@@ -124,60 +173,8 @@ describe('<EvacuationDashboard /> consolidation container', () => {
     evacuationsError = true;
     render(<EvacuationDashboard />);
     await waitFor(() => expect(screen.getByTestId('evacDashboard.lookupError')).toBeTruthy());
-    evacuationsError = false; // the transient failure clears
+    evacuationsError = false;
     fireEvent.click(screen.getByTestId('evacDashboard.lookupRetry'));
     await waitFor(() => expect(screen.getByTestId('liveBoard')).toBeTruthy());
-  });
-
-  it('roster ready, no active drill → startable board with expectedWorkers + tenantId', async () => {
-    mockRosterExpected = [
-      { uid: 'w1', fullName: 'Ana' },
-      { uid: 'w2', fullName: 'Bruno' },
-    ];
-    render(<EvacuationDashboard />);
-    await waitFor(() => expect(screen.getByTestId('liveBoard')).toBeTruthy());
-    expect(boardProps!.tenantId).toBe('tenant-1');
-    expect(boardProps!.expectedWorkers).toHaveLength(2);
-    expect(boardProps!.initialDrillId).toBeUndefined();
-  });
-
-  it('NO attendance + no active drill → honest guidance, NO startable board (avoids false all-clear)', async () => {
-    mockRosterExpected = [];
-    render(<EvacuationDashboard />);
-    await waitFor(() => expect(screen.getByTestId('evacDashboard.noAttendance')).toBeTruthy());
-    expect(screen.queryByTestId('liveBoard')).toBeNull();
-  });
-
-  it('attendance fetch fails + no active drill → error guidance (not silent), no startable board', async () => {
-    attendanceError = true;
-    render(<EvacuationDashboard />);
-    await waitFor(() => expect(screen.getByTestId('evacDashboard.rosterError')).toBeTruthy());
-    expect(screen.queryByTestId('liveBoard')).toBeNull();
-  });
-
-  it('an ENDED drill is never resumed (no stale-marker lockout) → shows guidance, not a dead board', async () => {
-    mockRosterExpected = [];
-    evacuationsDocs = [{ id: 'd-ended', startedAt: '2026-06-14T08:00:00Z', endedAt: '2026-06-14T09:00:00Z' }];
-    render(<EvacuationDashboard />);
-    await waitFor(() => expect(screen.getByTestId('evacDashboard.noAttendance')).toBeTruthy());
-    expect(screen.queryByTestId('liveBoard')).toBeNull();
-  });
-
-  it('an ACTIVE drill resumes via query — even with an empty roster', async () => {
-    mockRosterExpected = [];
-    evacuationsDocs = [{ id: 'd-active', startedAt: '2026-06-14T08:00:00Z' }];
-    render(<EvacuationDashboard />);
-    await waitFor(() => expect(screen.getByTestId('liveBoard')).toBeTruthy());
-    expect(boardProps!.initialDrillId).toBe('d-active');
-  });
-
-  it('onDrillIdChange(null) in-session (drill ended) returns to guidance when roster empty', async () => {
-    mockRosterExpected = [];
-    evacuationsDocs = [{ id: 'd-active', startedAt: '2026-06-14T08:00:00Z' }];
-    render(<EvacuationDashboard />);
-    await waitFor(() => expect(screen.getByTestId('liveBoard')).toBeTruthy());
-    act(() => boardProps!.onDrillIdChange!(null));
-    await waitFor(() => expect(screen.getByTestId('evacDashboard.noAttendance')).toBeTruthy());
-    expect(screen.queryByTestId('liveBoard')).toBeNull();
   });
 });

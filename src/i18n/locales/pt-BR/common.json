@@ -3114,6 +3114,7 @@
     },
     "postmortem": {
       "avgScan": "Tempo médio de scan",
+      "startNew": "Iniciar nova contagem",
       "coverage": "Cobertura final",
       "elapsed": "Tempo total",
       "title": "Postmortem"

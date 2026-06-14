@@ -3231,7 +3231,8 @@
       "title": "Postmortem",
       "coverage": "Cobertura final",
       "elapsed": "Tiempo total",
-      "avgScan": "Tiempo prom. de scan"
+      "avgScan": "Tiempo prom. de scan",
+      "startNew": "Iniciar nuevo conteo"
     },
     "qr": {
       "aria": "Escanear credencial QR del trabajador",

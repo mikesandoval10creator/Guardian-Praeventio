@@ -50,12 +50,15 @@ export interface EvacuationDashboardProps {
   /** Drill activo si el supervisor entra a pantalla con uno en curso. */
   initialDrillId?: string;
   /**
-   * Notified when the active drill id changes: the id on start, `null` when the
-   * drill ends. Lets a container persist the active drill (e.g. localStorage) so
-   * a supervisor who reloads mid-evacuation resumes the SAME drill instead of
-   * starting a duplicate. Optional — the board works standalone without it.
+   * Whether STARTING a new drill is allowed. A container gates this on having a
+   * real roster (attendance) — a headcount with no roster reports a false
+   * "100% / 0 missing" all-clear. Default true (standalone use). When false the
+   * start buttons are disabled and `startBlockedHint` is shown. Does NOT affect
+   * resuming/ending an already-active drill.
    */
-  onDrillIdChange?: (drillId: string | null) => void;
+  canStartNew?: boolean;
+  /** Localized reason shown when `canStartNew` is false (e.g. "no attendance"). */
+  startBlockedHint?: string;
   /** Override clock — sólo tests. */
   nowProvider?: () => Date;
 }
@@ -73,7 +76,8 @@ export function EvacuationDashboard({
   expectedWorkers,
   meetingPointId,
   initialDrillId,
-  onDrillIdChange,
+  canStartNew = true,
+  startBlockedHint,
   nowProvider,
 }: EvacuationDashboardProps) {
   const { t } = useTranslation();
@@ -129,14 +133,13 @@ export function EvacuationDashboard({
           expectedWorkers,
         });
         setDrillId(res.drill.id);
-        onDrillIdChange?.(res.drill.id);
       } catch (e) {
         setError((e as Error).message ?? 'start_failed');
       } finally {
         setBusy('idle');
       }
     },
-    [projectId, meetingPointId, expectedWorkers, start, onDrillIdChange],
+    [projectId, meetingPointId, expectedWorkers, start],
   );
 
   const handleEnd = useCallback(async () => {
@@ -146,15 +149,25 @@ export function EvacuationDashboard({
     try {
       const res = await end({ projectId, drillId });
       setPostmortem(res.postmortem);
-      // Drill is over — clear the active-drill resume marker so a reload starts
-      // fresh (the postmortem stays on screen for this session).
-      onDrillIdChange?.(null);
+      // The board stays mounted showing the postmortem; the supervisor reads the
+      // close-out record and explicitly starts a new count via the postmortem's
+      // "Iniciar nuevo conteo" button (resetForNewDrill). We do NOT tear down
+      // here — that previously destroyed the postmortem.
     } catch (e) {
       setError((e as Error).message ?? 'end_failed');
     } finally {
       setBusy('idle');
     }
-  }, [drillId, projectId, end, onDrillIdChange]);
+  }, [drillId, projectId, end]);
+
+  // Return to the idle/start screen after reading the postmortem — deterministic
+  // regardless of roster state (the container no longer drives teardown).
+  const resetForNewDrill = useCallback(() => {
+    setDrillId(null);
+    setDrill(null);
+    setPostmortem(null);
+    setError(null);
+  }, []);
 
   const handleScannedQr = useCallback(
     async (workerUid: string) => {
@@ -204,11 +217,21 @@ export function EvacuationDashboard({
           )}
         </p>
 
+        {!canStartNew && startBlockedHint && (
+          <div
+            className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200"
+            data-testid="evacuation-start-blocked"
+          >
+            <AlertOctagon className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>{startBlockedHint}</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => handleStart('drill')}
-            disabled={busy !== 'idle'}
+            disabled={busy !== 'idle' || !canStartNew}
             data-testid="evacuation-start-drill"
             className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white shadow transition hover:opacity-90 disabled:opacity-50"
             style={{ backgroundColor: TEAL }}
@@ -223,7 +246,7 @@ export function EvacuationDashboard({
           <button
             type="button"
             onClick={() => handleStart('real')}
-            disabled={busy !== 'idle'}
+            disabled={busy !== 'idle' || !canStartNew}
             data-testid="evacuation-start-real"
             className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white bg-rose-600 shadow transition hover:bg-rose-700 disabled:opacity-50"
           >
@@ -421,6 +444,16 @@ export function EvacuationDashboard({
               {postmortem.averageTimeToScanSec}s
             </span>
           </p>
+          <button
+            type="button"
+            onClick={resetForNewDrill}
+            data-testid="evacuation-postmortem-new"
+            className="mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow transition hover:opacity-90"
+            style={{ backgroundColor: TEAL }}
+          >
+            <Play className="w-3.5 h-3.5" aria-hidden="true" />
+            {t('evacuation.postmortem.startNew', 'Iniciar nuevo conteo')}
+          </button>
         </div>
       )}
 
