@@ -40,6 +40,7 @@ import {
   patchLoneWorkerSession,
   subscribeActiveLoneWorkerSessions,
 } from '../services/loneWorker/loneWorkerStore';
+import { startLoneWorkerSessionApi } from '../hooks/useLoneWorker';
 import { logger } from '../utils/logger';
 
 const INTERVAL_PRESETS = [15, 30, 60, 120];
@@ -139,20 +140,21 @@ export function LoneWorkerMonitor() {
     setSubmitting(true);
     setFeedback(null);
     try {
-      const id = `lws_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const startedAt = new Date().toISOString();
       const loc = await requestLocation();
-      const session: LoneWorkerSession = {
-        id,
-        workerUid: user.uid,
-        startedAt,
+      // Audited server creation point (same as LoneWorker.tsx): the route
+      // stamps workerUid from the token + mints the id (no client RNG) + writes
+      // audit_logs. This page is self-tracking ("vos sos el worker"), so the
+      // token uid matches the worker. Call the route FIRST, then persist the
+      // canonical session it returns — a route failure (403/network) blocks
+      // before any persist so the worker is never falsely told it started.
+      const { session: started } = await startLoneWorkerSessionApi(selectedProject.id, {
         checkInIntervalMin: intervalMin,
-        checkIns: [],
-        status: 'active',
+        startedAt,
         ...(loc ? { lastKnownLocation: { ...loc, at: startedAt } } : {}),
-      };
-      await saveLoneWorkerSession(selectedProject.id, session);
-      setFeedback(`Sesión iniciada (${id.slice(0, 12)}). Recordá hacer check-in cada ${intervalMin} min.`);
+      });
+      await saveLoneWorkerSession(selectedProject.id, started);
+      setFeedback(`Sesión iniciada (${started.id.slice(0, 12)}). Recordá hacer check-in cada ${intervalMin} min.`);
       setShowForm(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -189,7 +191,7 @@ export function LoneWorkerMonitor() {
         setFeedback(msg);
       }
     },
-    [selectedProject, requestLocation],
+    [selectedProject, requestLocation, t],
   );
 
   const handleEndSession = useCallback(
@@ -213,7 +215,7 @@ export function LoneWorkerMonitor() {
         setFeedback(msg);
       }
     },
-    [selectedProject],
+    [selectedProject, t],
   );
 
   return (

@@ -4,6 +4,7 @@ import {
   decideEscalation,
   recordCheckIn,
   endSession,
+  startLoneWorkerSession,
   type LoneWorkerSession,
 } from './loneWorkerService.js';
 
@@ -140,5 +141,33 @@ describe('endSession', () => {
     const s = endSession(session(), NOW.toISOString());
     expect(s.endedAt).toBe(NOW.toISOString());
     expect(s.status).toBe('ended');
+  });
+});
+
+describe('startLoneWorkerSession', () => {
+  it('construye una sesión fresca activa sin check-ins ni endedAt', () => {
+    const s = startLoneWorkerSession(
+      { id: 'srv-1', workerUid: 'w9', checkInIntervalMin: 20 },
+      NOW,
+    );
+    expect(s.id).toBe('srv-1');
+    expect(s.workerUid).toBe('w9');
+    expect(s.status).toBe('active');
+    expect(s.checkIns).toEqual([]);
+    expect(s.endedAt).toBeUndefined();
+    expect(s.checkInIntervalMin).toBe(20);
+    expect(s.startedAt).toBe(NOW.toISOString()); // default = now
+  });
+
+  it('respeta startedAt explícito y propaga lastKnownLocation', () => {
+    const s = startLoneWorkerSession({
+      id: 'srv-2',
+      workerUid: 'w9',
+      startedAt: '2026-05-11T10:00:00Z',
+      checkInIntervalMin: 15,
+      lastKnownLocation: { lat: -33.45, lng: -70.66, at: '2026-05-11T10:00:00Z' },
+    });
+    expect(s.startedAt).toBe('2026-05-11T10:00:00Z');
+    expect(s.lastKnownLocation).toEqual({ lat: -33.45, lng: -70.66, at: '2026-05-11T10:00:00Z' });
   });
 });

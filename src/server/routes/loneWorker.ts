@@ -7,6 +7,7 @@
 // for mutating calls (check-in, end-session).
 //
 // Endpoints:
+//   POST /:projectId/lone-worker/start-session   { checkInIntervalMin, startedAt?, lastKnownLocation? }
 //   POST /:projectId/lone-worker/check-in        { session, checkIn }
 //   POST /:projectId/lone-worker/end-session     { session, endedAt? }
 //   POST /:projectId/lone-worker/derive-status   { session, now? }
@@ -14,9 +15,18 @@
 //   POST /:projectId/lone-worker/admin-overview  { sessions, now? }
 //
 // Anti-blame note (mirror of read-receipts.acknowledge):
-//   • A worker can only check-in for themselves (`session.workerUid === caller`).
+//   • A worker starts/checks-in their OWN session: start-session stamps
+//     `workerUid` from the verified TOKEN (never the body) and mints the id
+//     server-side; check-in requires `session.workerUid === caller`.
 //   • Anyone with project membership can end-session (supervisors close out).
 //   • Admin-overview is project-membership gated; no per-worker filtering.
+//
+// Persistence model: these routes are pure-compute + audit only (the engine is
+// stateless). The client persists the returned session to Firestore
+// (`projects/{pid}/lone_worker_sessions/{id}`, rules gate create to
+// workerUid==auth.uid). start-session is the AUDITED creation point so every
+// started lone-worker session is traced (the man-down escalation cron reads
+// these docs — a session that began must leave an audit trail).
 
 import { Router } from 'express';
 import { z } from 'zod';
@@ -31,7 +41,9 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { randomId } from '../../utils/randomId.js';
 import {
+  startLoneWorkerSession,
   recordCheckIn,
   endSession,
   deriveLoneWorkerStatus,
@@ -93,6 +105,59 @@ const sessionSchema = z.object({
   endedAt: z.string().min(10).optional(),
   status: statusSchema,
 }) as unknown as z.ZodType<LoneWorkerSession>;
+
+// ────────────────────────────────────────────────────────────────────────
+// 0. start-session — worker begins a monitored solo-work session (AUDITED)
+// ────────────────────────────────────────────────────────────────────────
+//
+// The previous flow built the session entirely client-side and wrote it
+// straight to Firestore with NO audit_logs entry — the only lone-worker
+// lifecycle action that wasn't audited. workerUid + id are now server-stamped
+// (identity from the token, id from randomId — no client RNG). The session is
+// still persisted client-side; this route is the audited creation record.
+const startSessionSchema = z.object({
+  checkInIntervalMin: z.number().int().min(1).max(720),
+  startedAt: z.string().min(10).optional(),
+  lastKnownLocation: lastKnownLocationSchema.optional(),
+});
+
+router.post(
+  '/:projectId/lone-worker/start-session',
+  verifyAuth,
+  idempotencyKey(),
+  validate(startSessionSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.validated as z.infer<typeof startSessionSchema>;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+    try {
+      // workerUid + id are server-stamped: a worker starts their OWN session,
+      // and the id is server-minted (no client Math.random). The engine
+      // normalizes to a fresh active session (no carried-over check-ins).
+      const session = startLoneWorkerSession({
+        id: randomId(),
+        workerUid: callerUid,
+        startedAt: body.startedAt,
+        checkInIntervalMin: body.checkInIntervalMin,
+        ...(body.lastKnownLocation ? { lastKnownLocation: body.lastKnownLocation } : {}),
+      });
+      // CLAUDE.md #3: the START of a lone-worker session is a safety-critical
+      // state change — audit it with the server-stamped actor.
+      await auditServerEvent(req, 'loneWorker.startSession', 'loneWorker', {
+        sessionId: session.id,
+        workerUid: session.workerUid,
+        checkInIntervalMin: session.checkInIntervalMin,
+        projectId,
+      }, { projectId });
+      return res.json({ session });
+    } catch (err) {
+      logger.error?.('loneWorker.startSession.error', err);
+      captureRouteError(err, 'loneWorker.startSession', { callerUid, projectId });
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
 
 // ────────────────────────────────────────────────────────────────────────
 // 1. check-in  — worker pulses heartbeat (or "help")

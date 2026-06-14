@@ -37,6 +37,7 @@ import {
   saveLoneWorkerSession,
   patchLoneWorkerSession,
 } from '../services/loneWorker/loneWorkerStore';
+import { startLoneWorkerSessionApi } from '../hooks/useLoneWorker';
 import type { LoneWorkerSession } from '../services/loneWorker/loneWorkerService';
 import { logger } from '../utils/logger';
 
@@ -174,19 +175,20 @@ export function LoneWorker() {
     setFeedback(null);
     try {
       const startedAt = new Date().toISOString();
-      const id = `lws_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const loc = await requestLocation();
-      const next: LoneWorkerSession = {
-        id,
-        workerUid: user.uid,
-        startedAt,
+      // Go through the AUDITED server route first: it stamps workerUid from the
+      // token + mints the session id (no client RNG) + writes audit_logs. Then
+      // persist the canonical session it returns so the supervisor monitor and
+      // the man-down escalation cron see it. A route failure (e.g. not a project
+      // member) blocks before any persist → the worker is never falsely told the
+      // session started.
+      const { session: started } = await startLoneWorkerSessionApi(projectId, {
         checkInIntervalMin: DEFAULT_INTERVAL_MIN,
-        checkIns: [],
-        status: 'active',
+        startedAt,
         ...(loc ? { lastKnownLocation: { ...loc, at: startedAt } } : {}),
-      };
-      await saveLoneWorkerSession(projectId, next);
-      setSession(next);
+      });
+      await saveLoneWorkerSession(projectId, started);
+      setSession(started);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.warn('lone_worker_checkin_start_failed', { err: msg });
