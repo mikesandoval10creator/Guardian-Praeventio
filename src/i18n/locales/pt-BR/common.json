@@ -2434,7 +2434,8 @@
     "feedback": {
       "need_project": "Você precisa de um projeto ativo e estar autenticado.",
       "declared_success": "Paralisação declarada ({{id}}). Aparece na lista ativa.",
-      "declare_failed": "Não foi possível declarar: {{msg}}"
+      "declare_failed": "Não foi possível declarar: {{msg}}",
+      "precondition_failed": "Não foi possível marcar a precondição: {{msg}}"
     },
     "list": {
       "active_heading": "Paralisações ativas ({{count}})",

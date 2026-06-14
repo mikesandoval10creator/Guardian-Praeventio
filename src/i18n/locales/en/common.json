@@ -2717,7 +2717,8 @@
     "feedback": {
       "need_project": "You need an active project and to be authenticated.",
       "declared_success": "Stoppage declared ({{id}}). Appears in active list.",
-      "declare_failed": "Could not declare: {{msg}}"
+      "declare_failed": "Could not declare: {{msg}}",
+      "precondition_failed": "Could not mark the precondition: {{msg}}"
     },
     "list": {
       "active_heading": "Active stoppages ({{count}})",

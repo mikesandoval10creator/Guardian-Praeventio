@@ -228,10 +228,17 @@ export function StoppageMonitor() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn('handleFulfillPrecondition failed', { err: msg });
-        setFeedback(msg);
+        // Spanish-CL copy (CLAUDE.md #2) — mirror the declare path; the raw
+        // error/engine code is an interpolation, not the whole feedback body.
+        setFeedback(
+          t('stoppages.feedback.precondition_failed', {
+            defaultValue: 'No se pudo marcar la precondición: {{msg}}',
+            msg,
+          }),
+        );
       }
     },
-    [user, selectedProject],
+    [user, selectedProject, t],
   );
 
   return (
