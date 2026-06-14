@@ -33,6 +33,7 @@ const DevPosterSeeder = lazy(() => import('../pages/DevPosterSeeder').then(modul
 // Foreground Service to keep the check-in alive when the WebView is
 // backgrounded; no-op on web/iOS.
 const LoneWorker = lazy(() => import('../pages/LoneWorker').then(module => ({ default: module.LoneWorker })));
+const RestrictedZonesEditor = lazy(() => import('../pages/RestrictedZonesEditor').then(module => ({ default: module.RestrictedZonesEditor })));
 // §201-210 — Agenda con Bloques de Foco. Tiempo protegido (inspección,
 // capacitación, auditoría, admin) que el prevencionista reserva para no
 // ser interrumpido. Core wave: vista semanal + form de creación; las
@@ -70,6 +71,9 @@ export const OperationsRoutes = [
   // to SHADOW this route — both declared `lone-worker`, first-match won, so
   // this worker page was unreachable. Split to /lone-worker/check-in.
   <Route key="lone-worker-checkin" path="lone-worker/check-in" element={<LoneWorker />} />,
+  // OLA 1 — admin/supervisor define restricted zones (map-draw) that drive the
+  // geofence→SOS escalation. Server enforces the write role.
+  <Route key="restricted-zones" path="restricted-zones" element={<RestrictedZonesEditor />} />,
   <Route key="focus-agenda" path="focus-agenda" element={<FocusAgenda />} />,
   <Route key="site-book" path="site-book" element={<SiteBook />} />,
   <Route key="shift-handover" path="shift-handover" element={<ShiftHandover />} />,

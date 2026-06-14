@@ -246,6 +246,8 @@ export function buildSidebarMenuGroups(
     // FGS) at /lone-worker/check-in, distinct from the supervisor monitor above
     // (was shadowed by it — same path collision).
     { title: t('nav.lone_worker_checkin', 'Mi Check-in Solitario'), icon: ClipboardCheck, path: '/lone-worker/check-in', color: 'text-teal-500' },
+    // OLA 1 — restricted-zone editor (map-draw) → activates geofence→SOS.
+    { title: t('nav.restricted_zones', 'Zonas Restringidas'), icon: OctagonAlert, path: '/restricted-zones', color: 'text-rose-500' },
     // Sprint K §276-277 — Bitácora de Decisiones de Supervisión.
     { title: t('nav.leadership_decisions', 'Decisiones Supervisión'), icon: User, path: '/leadership-decisions', color: 'text-blue-500' },
     // Sprint K §69-71 — Conducción Segura + Rutas Críticas.
