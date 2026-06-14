@@ -144,7 +144,21 @@ describe('<EvacuationDashboard /> (live board)', () => {
     render(<EvacuationDashboard {...baseProps} initialDrillId="d-gone" />);
 
     await waitFor(() => expect(screen.getByTestId('evacuation-stale-resume')).toBeTruthy());
-    // Start buttons are still available so the supervisor can begin a fresh count.
-    expect(screen.getByTestId('evacuation-start-drill')).toBeTruthy();
+    // Start buttons are still available AND interactive so the supervisor can
+    // begin a fresh count (load-bearing: the notice must not disable them).
+    expect((screen.getByTestId('evacuation-start-drill') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('a count active on another device WITHOUT a returned id → friendly join hint, not a raw key', async () => {
+    H.start.mockRejectedValueOnce(new H.EvacuationAlreadyActiveError(null));
+    render(<EvacuationDashboard {...baseProps} />);
+
+    fireEvent.click(screen.getByTestId('evacuation-start-drill'));
+
+    // Can't auto-join (no id) → human-readable guidance, never the raw
+    // 'drill_already_active' internal key, and no drill adopted.
+    const err = await screen.findByTestId('evacuation-dashboard-error');
+    expect(err.textContent ?? '').not.toBe('drill_already_active');
+    expect(err.textContent ?? '').toMatch(/otro dispositivo/i);
   });
 });

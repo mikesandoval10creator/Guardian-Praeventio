@@ -3100,6 +3100,7 @@
       "end": "Encerrar",
       "idleHint": "Nenhum simulado ativo. Inicie um simulado ou, em emergência real, dispare a contagem.",
       "staleResume": "A evacuação que você tentava retomar não existe mais (foi encerrada ou removida em outro dispositivo). Inicie uma nova contagem se for o caso.",
+      "alreadyActive": "Já existe uma contagem de evacuação ativa em outro dispositivo. Recarregue a tela para entrar nela.",
       "scan": "Escanear QR",
       "startDrill": "Iniciar simulado",
       "startReal": "Emergência real",

@@ -236,16 +236,20 @@ export function useEvacuationHeadcount() {
         body: JSON.stringify(input),
       });
       // 409 = a drill is already active for this project (started on another
-      // device). Surface the existing drillId so the caller can JOIN it rather
-      // than show a raw error.
+      // device). Read the body ONCE here and ALWAYS throw — we must NOT fall
+      // through to json() below, which would call res.json() a second time on an
+      // already-drained body stream (→ a misleading http_409 in the browser).
       if (res.status === 409) {
         const body = (await res.json().catch(() => ({}))) as {
           error?: string;
+          message?: string;
           drillId?: string;
         };
         if (body.error === 'drill_already_active') {
+          // Surface the existing drillId so the caller can JOIN it.
           throw new EvacuationAlreadyActiveError(body.drillId ?? null);
         }
+        throw new Error(body.message ?? body.error ?? 'http_409');
       }
       return json<StartEvacuationResponse>(res);
     },

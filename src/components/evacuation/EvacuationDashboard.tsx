@@ -148,12 +148,27 @@ export function EvacuationDashboard({
         });
         setDrillId(res.drill.id);
       } catch (e) {
-        // Cross-device: another supervisor already started a count. Instead of a
-        // raw "drill_already_active" error, JOIN the in-progress drill so this
-        // device shows the live headcount (never two concurrent counts).
-        if (e instanceof EvacuationAlreadyActiveError && e.drillId) {
-          setDrillId(e.drillId);
+        // Cross-device: another supervisor already started a count. Detect by
+        // instanceof OR by name (robust if a future lazy-chunk split ever gives
+        // the class two identities across module boundaries — a failed detect
+        // here would degrade a real-emergency join to a raw error).
+        const alreadyActive =
+          e instanceof EvacuationAlreadyActiveError ||
+          (e as { name?: string })?.name === 'EvacuationAlreadyActiveError';
+        const existingId = (e as { drillId?: string | null })?.drillId ?? null;
+        if (alreadyActive && existingId) {
+          // JOIN the in-progress drill (never two concurrent counts).
+          setDrillId(existingId);
           setError(null);
+        } else if (alreadyActive) {
+          // A count is active but its id wasn't returned — can't auto-join; tell
+          // the supervisor how to join rather than show the raw internal key.
+          setError(
+            t(
+              'evacuation.dashboard.alreadyActive',
+              'Ya hay un conteo de evacuación activo en otro dispositivo. Recargá la pantalla para unirte.',
+            ),
+          );
         } else {
           setError((e as Error).message ?? 'start_failed');
         }
@@ -161,7 +176,7 @@ export function EvacuationDashboard({
         setBusy('idle');
       }
     },
-    [projectId, meetingPointId, expectedWorkers, start],
+    [projectId, meetingPointId, expectedWorkers, start, t],
   );
 
   const handleEnd = useCallback(async () => {
