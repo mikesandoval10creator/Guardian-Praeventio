@@ -83,6 +83,7 @@
     "legal_calendar": "Calendario Legal",
     "lessons_learned": "Lecciones Aprendidas",
     "lone_worker": "Trabajo Solitario",
+    "lone_worker_checkin": "Mi Check-in Solitario",
     "loto": "LOTO",
     "maturity_index": "Índice de Madurez",
     "medicine": "Medicina",
@@ -2533,7 +2534,12 @@
     "fgs_not_running": "FGS no estaba corriendo.",
     "fgs_not_native": "Plataforma web — foreground service no aplica.",
     "fgs_no_plugin": "Plugin no disponible en este build.",
-    "fgs_error_unknown": "desconocido"
+    "fgs_error_unknown": "desconocido",
+    "select_project": "Seleccioná un proyecto para usar el check-in de trabajo solitario.",
+    "no_active_session": "No tenés una sesión de trabajo solitario activa.",
+    "start_session": "Iniciar sesión ({{min}} min)",
+    "start_need_project": "Seleccioná un proyecto para iniciar tu sesión.",
+    "persist_failed": "No se pudo guardar el check-in. Reintentá."
   },
   "lone_worker_page": {
     "title": "Trabajo solitario",

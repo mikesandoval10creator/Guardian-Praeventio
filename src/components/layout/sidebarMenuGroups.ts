@@ -242,6 +242,10 @@ export function buildSidebarMenuGroups(
     // Service loneWorkerService.ts + card LoneWorkerCard.tsx existían
     // pero faltaba la page. Check-in periódico + escalamiento.
     { title: t('nav.lone_worker', 'Trabajo Solitario'), icon: UserCheck, path: '/lone-worker', color: 'text-teal-500' },
+    // OLA 1 (2026-06-14) — worker-facing check-in surface (big-button + Android
+    // FGS) at /lone-worker/check-in, distinct from the supervisor monitor above
+    // (was shadowed by it — same path collision).
+    { title: t('nav.lone_worker_checkin', 'Mi Check-in Solitario'), icon: ClipboardCheck, path: '/lone-worker/check-in', color: 'text-teal-500' },
     // Sprint K §276-277 — Bitácora de Decisiones de Supervisión.
     { title: t('nav.leadership_decisions', 'Decisiones Supervisión'), icon: User, path: '/leadership-decisions', color: 'text-blue-500' },
     // Sprint K §69-71 — Conducción Segura + Rutas Críticas.
