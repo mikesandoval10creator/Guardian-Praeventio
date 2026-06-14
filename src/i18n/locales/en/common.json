@@ -3227,6 +3227,8 @@
     "dashboard": {
       "end": "Finish",
       "idleHint": "No active drill. Start a drill or, in a real emergency, trigger the headcount.",
+      "staleResume": "The evacuation you were resuming no longer exists (it ended or was deleted on another device). Start a new count if appropriate.",
+      "alreadyActive": "An evacuation count is already active on another device. Reload the screen to join it.",
       "scan": "Scan QR",
       "startDrill": "Start drill",
       "startReal": "Real emergency",

@@ -40,6 +40,7 @@ vi.mock('firebase/firestore', () => ({
 import {
   useEvacuationHeadcount,
   subscribeToDrill,
+  EvacuationAlreadyActiveError,
 } from './useEvacuationHeadcount';
 
 // ── fetch fixtures ────────────────────────────────────────────────────────
@@ -168,6 +169,38 @@ describe('useEvacuationHeadcount — error handling', () => {
     await expect(
       result.current.scanQr({ projectId: 'p1', drillId: 'd1', workerUid: 'w1', meetingPointId: 'mp1' }),
     ).rejects.toThrow('forbidden');
+  });
+
+  it('start on 409 drill_already_active throws EvacuationAlreadyActiveError carrying the existing drillId', async () => {
+    // The real server shape: { error: 'drill_already_active', drillId }.
+    fetchMock.mockResolvedValue(errJson(409, { error: 'drill_already_active', drillId: 'd-existing' }));
+    const { result } = renderHook(() => useEvacuationHeadcount());
+    let caught: unknown;
+    try {
+      await result.current.start(startInput);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(EvacuationAlreadyActiveError);
+    expect((caught as EvacuationAlreadyActiveError).drillId).toBe('d-existing');
+  });
+
+  it('start on a NON-drill_already_active 409 surfaces that error (body read once, no fall-through)', async () => {
+    // A 409 with a different error must throw THAT error — not http_409 from a
+    // second res.json() on an already-drained body (the start handler reads the
+    // 409 body once and always throws).
+    fetchMock.mockResolvedValue(errJson(409, { error: 'some_other_conflict' }));
+    const { result } = renderHook(() => useEvacuationHeadcount());
+    await expect(result.current.start(startInput)).rejects.toThrow('some_other_conflict');
+    // And it is NOT mistyped as the join error.
+    let caught: unknown;
+    fetchMock.mockResolvedValue(errJson(409, { error: 'some_other_conflict' }));
+    try {
+      await result.current.start(startInput);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).not.toBeInstanceOf(EvacuationAlreadyActiveError);
   });
 
   it('throws http_<status> when the error body has neither message nor error', async () => {

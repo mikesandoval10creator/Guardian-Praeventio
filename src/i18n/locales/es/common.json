@@ -3225,6 +3225,8 @@
     "dashboard": {
       "title": "Conteo de Evacuación",
       "idleHint": "No hay drill activo. Inicia un simulacro o, en emergencia real, dispara el conteo.",
+      "staleResume": "La evacuación que intentabas retomar ya no existe (finalizó o se eliminó en otro dispositivo). Iniciá un nuevo conteo si corresponde.",
+      "alreadyActive": "Ya hay un conteo de evacuación activo en otro dispositivo. Recargá la pantalla para unirte.",
       "startDrill": "Iniciar simulacro",
       "startReal": "Emergencia real",
       "scan": "Escanear QR",

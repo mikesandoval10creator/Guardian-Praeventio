@@ -18,12 +18,26 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (_k: string, fb?: string) => (typeof fb === 'string' ? fb : _k) }),
 }));
 
-const H = vi.hoisted(() => ({
-  start: vi.fn(),
-  scanQr: vi.fn(),
-  end: vi.fn(),
-  emitDrill: null as EvacuationDrill | null,
-}));
+const H = vi.hoisted(() => {
+  // Defined in hoisted scope so the SAME class object is both exported from the
+  // mocked module (what the board's `instanceof` checks) and thrown by tests.
+  class EvacuationAlreadyActiveError extends Error {
+    drillId: string | null;
+    constructor(drillId: string | null) {
+      super('drill_already_active');
+      this.name = 'EvacuationAlreadyActiveError';
+      this.drillId = drillId;
+    }
+  }
+  return {
+    start: vi.fn(),
+    scanQr: vi.fn(),
+    end: vi.fn(),
+    emitDrill: null as EvacuationDrill | null,
+    emitNull: false, // force subscribeToDrill to report a missing (vanished) drill
+    EvacuationAlreadyActiveError,
+  };
+});
 
 vi.mock('../../hooks/useEvacuationHeadcount', () => ({
   useEvacuationHeadcount: () => ({ start: H.start, scanQr: H.scanQr, end: H.end }),
@@ -31,9 +45,11 @@ vi.mock('../../hooks/useEvacuationHeadcount', () => ({
     _args: unknown,
     onUpdate: (d: EvacuationDrill | null) => void,
   ) => {
-    if (H.emitDrill) onUpdate(H.emitDrill);
+    if (H.emitNull) onUpdate(null);
+    else if (H.emitDrill) onUpdate(H.emitDrill);
     return () => {};
   },
+  EvacuationAlreadyActiveError: H.EvacuationAlreadyActiveError,
 }));
 
 vi.mock('./EvacuationQRScanner', () => ({ EvacuationQRScanner: () => <div data-testid="qr-scanner" /> }));
@@ -62,6 +78,7 @@ function activeDrill(over: Partial<EvacuationDrill> = {}): EvacuationDrill {
 beforeEach(() => {
   vi.clearAllMocks();
   H.emitDrill = null;
+  H.emitNull = false;
 });
 
 describe('<EvacuationDashboard /> (live board)', () => {
@@ -106,5 +123,42 @@ describe('<EvacuationDashboard /> (live board)', () => {
     fireEvent.click(screen.getByTestId('evacuation-postmortem-new'));
     await waitFor(() => expect(screen.getByTestId('evacuation-dashboard-idle')).toBeTruthy());
     expect(screen.queryByTestId('evacuation-dashboard-postmortem-d1')).toBeNull();
+  });
+
+  it('starting when a drill is already active (another device) → JOINS it, no raw error', async () => {
+    // The server 409s with the existing drillId; the board adopts it.
+    H.emitDrill = activeDrill({ id: 'd-existing' });
+    H.start.mockRejectedValueOnce(new H.EvacuationAlreadyActiveError('d-existing'));
+    render(<EvacuationDashboard {...baseProps} />);
+
+    fireEvent.click(screen.getByTestId('evacuation-start-drill'));
+
+    // It resumes onto the in-progress drill instead of showing 'drill_already_active'.
+    await waitFor(() => expect(screen.getByTestId('evacuation-dashboard-d-existing')).toBeTruthy());
+    expect(screen.queryByTestId('evacuation-dashboard-error')).toBeNull();
+  });
+
+  it('resuming a drill that no longer exists → stale-resume notice (not a silent start screen)', async () => {
+    // Subscribed to a drillId but the doc is gone (ended/deleted on another device).
+    H.emitNull = true;
+    render(<EvacuationDashboard {...baseProps} initialDrillId="d-gone" />);
+
+    await waitFor(() => expect(screen.getByTestId('evacuation-stale-resume')).toBeTruthy());
+    // Start buttons are still available AND interactive so the supervisor can
+    // begin a fresh count (load-bearing: the notice must not disable them).
+    expect((screen.getByTestId('evacuation-start-drill') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('a count active on another device WITHOUT a returned id → friendly join hint, not a raw key', async () => {
+    H.start.mockRejectedValueOnce(new H.EvacuationAlreadyActiveError(null));
+    render(<EvacuationDashboard {...baseProps} />);
+
+    fireEvent.click(screen.getByTestId('evacuation-start-drill'));
+
+    // Can't auto-join (no id) → human-readable guidance, never the raw
+    // 'drill_already_active' internal key, and no drill adopted.
+    const err = await screen.findByTestId('evacuation-dashboard-error');
+    expect(err.textContent ?? '').not.toBe('drill_already_active');
+    expect(err.textContent ?? '').toMatch(/otro dispositivo/i);
   });
 });
