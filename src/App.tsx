@@ -14,6 +14,7 @@ import { OfflineIndicator } from "./components/OfflineIndicator";
 import { EmergencyOverlay } from "./components/shared/EmergencyOverlay";
 import { GeolocationTracker } from "./components/GeolocationTracker";
 import { GeofenceAlert } from "./components/emergency/GeofenceAlert";
+import { SosDeadLetterBanner } from "./components/emergency/SosDeadLetterBanner";
 // Sprint 36 — bundle audit P1 §1.4: heavy non-critical companions (voice
 // assistant, offline sync, consent banner, fall detection, driving
 // suggestion, wisdom watcher, deep-link handler, PWA toast, survival
@@ -415,6 +416,7 @@ function AppRoutes() {
         <WisdomCapsuleWatcher />
       </Suspense>
       <GeofenceAlert />
+      <SosDeadLetterBanner />
       <Suspense fallback={<ConsciousnessLoader />}>
       <Routes>
         <Route
