@@ -65,7 +65,11 @@ export const OperationsRoutes = [
   <Route key="digital-twin" path="digital-twin" element={<DigitalTwinFaena />} />,
   <Route key="digital-twin-ar" path="digital-twin/ar" element={<DigitalTwinAR />} />,
   <Route key="dev-poster-seeder" path="dev/poster-seeder" element={<DevPosterSeeder />} />,
-  <Route key="lone-worker" path="lone-worker" element={<LoneWorker />} />,
+  // Worker-facing check-in surface (big-button + Android FGS). Distinct path
+  // from the supervisor monitor at /lone-worker (EmergencyRoutes), which used
+  // to SHADOW this route — both declared `lone-worker`, first-match won, so
+  // this worker page was unreachable. Split to /lone-worker/check-in.
+  <Route key="lone-worker-checkin" path="lone-worker/check-in" element={<LoneWorker />} />,
   <Route key="focus-agenda" path="focus-agenda" element={<FocusAgenda />} />,
   <Route key="site-book" path="site-book" element={<SiteBook />} />,
   <Route key="shift-handover" path="shift-handover" element={<ShiftHandover />} />,

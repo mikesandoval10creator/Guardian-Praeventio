@@ -83,6 +83,7 @@
     "legal_calendar": "Calendário Legal",
     "lessons_learned": "Lições Aprendidas",
     "lone_worker": "Trabalho Isolado",
+    "lone_worker_checkin": "Meu Check-in Isolado",
     "loto": "LOTO",
     "maturity_index": "Índice de Maturidade",
     "medicine": "Medicina",
@@ -3182,7 +3183,12 @@
     "platform_android": "Android nativo",
     "platform_label": "Plataforma",
     "platform_web": "Web / iOS (no-op)",
-    "title": "Trabalhador solitário"
+    "title": "Trabalhador solitário",
+    "select_project": "Selecione um projeto para usar o check-in de trabalho isolado.",
+    "no_active_session": "Você não tem uma sessão de trabalho isolado ativa.",
+    "start_session": "Iniciar sessão ({{min}} min)",
+    "start_need_project": "Selecione um projeto para iniciar sua sessão.",
+    "persist_failed": "Não foi possível salvar o check-in. Tente novamente."
   },
   "oc": {
     "actions": {
