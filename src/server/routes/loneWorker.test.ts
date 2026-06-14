@@ -19,6 +19,7 @@ describe('loneWorkerRouter (wire-up contract)', () => {
   });
 
   const paths = [
+    '/:projectId/lone-worker/start-session',
     '/:projectId/lone-worker/check-in',
     '/:projectId/lone-worker/end-session',
     '/:projectId/lone-worker/derive-status',
@@ -32,11 +33,11 @@ describe('loneWorkerRouter (wire-up contract)', () => {
     });
   }
 
-  it('registers exactly 5 POST endpoints', () => {
+  it('registers exactly 6 POST endpoints', () => {
     const postRoutes = layers.filter(
       (l) => l.route?.methods.post === true,
     );
-    expect(postRoutes.length).toBe(5);
+    expect(postRoutes.length).toBe(6);
   });
 
   it('all routes are nested under /:projectId/lone-worker/', () => {

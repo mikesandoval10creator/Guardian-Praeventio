@@ -35,6 +35,35 @@ async function json<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
+// ── 0. start-session (audited creation point) ──────────────────────────
+//
+// workerUid + the session id are server-stamped (identity from the token, id
+// server-minted). The caller sends only the cadence + optional start metadata;
+// the route returns the canonical fresh session to persist.
+
+export interface StartSessionInput {
+  checkInIntervalMin: number;
+  startedAt?: string;
+  lastKnownLocation?: { lat: number; lng: number; at: string };
+}
+export interface StartSessionResponse {
+  session: LoneWorkerSession;
+}
+
+export async function startLoneWorkerSessionApi(
+  projectId: string,
+  input: StartSessionInput,
+  idempotencyKey?: string,
+): Promise<StartSessionResponse> {
+  const headers: Record<string, string> = {};
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/lone-worker/start-session`,
+    { method: 'POST', body: JSON.stringify(input), headers },
+  );
+  return json<StartSessionResponse>(res);
+}
+
 // ── 1. check-in ────────────────────────────────────────────────────────
 
 export interface CheckInInput {

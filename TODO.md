@@ -1049,8 +1049,9 @@ sistémicos** (arreglar la clase, no el síntoma). Los más graves re-verificado
   (`src/services/sync/genericOutboxEngine.ts`); +13 tests reales. Pendiente sólo: surjir
   dead-letters en UI (item 🔵 B16 `SyncQueueBadge`).
 - **P3 — Identidad/rol/tenantId del cliente sin verificar contra el token — MAYORMENTE CERRADO:**
-  ✅ `sif.ts` (#709), ✅ `suseso.ts`/`ds67ds76.ts` tenantId (#707/#708), ✅ dispatcher F3 (#678).
-  PENDIENTE: `stoppage.ts:216` (resumedByRole), `exceptions.ts` (approvedByRole), `networkBackend.ts` (authorUid), `microtraining.ts:187`.
+  ✅ `sif.ts` (#709), ✅ `suseso.ts`/`ds67ds76.ts` tenantId (#707/#708), ✅ dispatcher F3 (#678),
+  ✅ `stoppage.ts` `/resume` resumedByRole → rol del token + isApproverRole 403 + audit + 409 (#901, `src/server/routes/stoppage.ts` resume handler).
+  PENDIENTE: `stoppage.ts` DECLARE+precondition aún client-side con rol hardcoded (`task_a070c074`), `exceptions.ts` (approvedByRole), `networkBackend.ts` (authorUid), `microtraining.ts:187`.
 - **P4 — Firmas WebAuthn presence-checked pero nunca verificadas cripto — PARCIAL:**
   ✅ DTE (#765), ✅ referee honest-label (#766), ✅ Login web (#775). PENDIENTE: Login nativo, aptitud médica, kms-sign-rsa.
 - **P5 — Records firmados MUTABLES — PARCIAL:** ✅ `site_book` gate + test corregidos (#771);

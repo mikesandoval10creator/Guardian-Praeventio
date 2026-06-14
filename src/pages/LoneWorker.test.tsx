@@ -72,12 +72,14 @@ vi.mock('../services/loneWorker/loneWorkerStore', () => ({
   patchLoneWorkerSession: (...args: unknown[]) => patchLoneWorkerSession(...args),
 }));
 
-// Audited check-in/end hook the widget posts through.
+// Audited hooks the page/widget post through (start-session, check-in, end).
 const recordLoneWorkerCheckIn = vi.fn();
 const endLoneWorkerSession = vi.fn();
+const startLoneWorkerSessionApi = vi.fn();
 vi.mock('../hooks/useLoneWorker', () => ({
   recordLoneWorkerCheckIn: (...a: unknown[]) => recordLoneWorkerCheckIn(...a),
   endLoneWorkerSession: (...a: unknown[]) => endLoneWorkerSession(...a),
+  startLoneWorkerSessionApi: (...a: unknown[]) => startLoneWorkerSessionApi(...a),
 }));
 
 const startLoneWorkerFgs = vi.fn().mockResolvedValue({ applied: false, reason: 'not_native' });
@@ -113,6 +115,8 @@ beforeEach(() => {
   subMode = 'data';
   saveLoneWorkerSession.mockResolvedValue(undefined);
   patchLoneWorkerSession.mockResolvedValue(undefined);
+  // Default: the audited start route succeeds, returning the canonical session.
+  startLoneWorkerSessionApi.mockResolvedValue({ session: session({ workerUid: 'worker-1' }) });
 });
 
 describe('<LoneWorker /> worker check-in page', () => {
@@ -138,19 +142,41 @@ describe('<LoneWorker /> worker check-in page', () => {
     expect(screen.queryByTestId('loneWorker.widget')).toBeNull();
   });
 
-  it('no active session → start button persists a new session for the caller', async () => {
+  it('no active session → start goes through the AUDITED route, then persists the returned session', async () => {
     mockActiveSessions = [];
+    startLoneWorkerSessionApi.mockResolvedValueOnce({
+      session: session({ id: 'lws_server_1', workerUid: 'worker-1', status: 'active' }),
+    });
     render(<LoneWorker />);
     const startBtn = await screen.findByTestId('loneWorker.start');
     fireEvent.click(startBtn);
+    // 1) The audited server route is hit FIRST (writes audit_logs server-side).
+    await waitFor(() => expect(startLoneWorkerSessionApi).toHaveBeenCalledOnce());
+    const [pidArg, inputArg] = startLoneWorkerSessionApi.mock.calls[0];
+    expect(pidArg).toBe('proj-1');
+    expect((inputArg as { checkInIntervalMin: number }).checkInIntervalMin).toBe(15);
+    // 2) The CANONICAL session the route returned (server-stamped id/uid) is persisted.
     await waitFor(() => expect(saveLoneWorkerSession).toHaveBeenCalledOnce());
     const [projectIdArg, sessionArg] = saveLoneWorkerSession.mock.calls[0];
     expect(projectIdArg).toBe('proj-1');
+    expect((sessionArg as LoneWorkerSession).id).toBe('lws_server_1');
     expect((sessionArg as LoneWorkerSession).workerUid).toBe('worker-1');
     expect((sessionArg as LoneWorkerSession).status).toBe('active');
   });
 
-  it('start FAILURE → feedback shown, no widget (worker not falsely told session started)', async () => {
+  it('start BLOCKED by the audited route (e.g. not a project member) → no persist, no widget', async () => {
+    mockActiveSessions = [];
+    startLoneWorkerSessionApi.mockRejectedValueOnce(new Error('forbidden'));
+    render(<LoneWorker />);
+    fireEvent.click(await screen.findByTestId('loneWorker.start'));
+    await waitFor(() => expect(startLoneWorkerSessionApi).toHaveBeenCalled());
+    // The audited gate failed → nothing persisted, worker not falsely told it started.
+    expect(saveLoneWorkerSession).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('loneWorker.widget')).toBeNull();
+    expect(screen.getByTestId('loneWorker.empty')).toBeTruthy();
+  });
+
+  it('start FAILURE at persist (after the audited route) → feedback shown, no widget', async () => {
     mockActiveSessions = [];
     saveLoneWorkerSession.mockRejectedValueOnce(new Error('firestore down'));
     render(<LoneWorker />);

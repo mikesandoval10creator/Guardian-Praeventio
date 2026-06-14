@@ -106,6 +106,37 @@ export function decideEscalation(
   }
 }
 
+/**
+ * Construye una sesión de trabajo solitario FRESCA y canónica: estado 'active',
+ * sin check-ins, sin endedAt. Es el punto de creación que usa la ruta server
+ * auditada `POST /:projectId/lone-worker/start-session` — `workerUid` e `id`
+ * los estampa el servidor (identidad desde el token, id sin RNG de cliente).
+ * Normalizar aquí garantiza que un "inicio" jamás arrastre check-ins previos ni
+ * un endedAt, sin importar la entrada.
+ */
+export interface StartLoneWorkerSessionInput {
+  id: string;
+  workerUid: string;
+  startedAt?: string;
+  checkInIntervalMin: number;
+  lastKnownLocation?: { lat: number; lng: number; at: string };
+}
+
+export function startLoneWorkerSession(
+  input: StartLoneWorkerSessionInput,
+  now: Date = new Date(),
+): LoneWorkerSession {
+  return {
+    id: input.id,
+    workerUid: input.workerUid,
+    startedAt: input.startedAt ?? now.toISOString(),
+    checkInIntervalMin: input.checkInIntervalMin,
+    checkIns: [],
+    status: 'active',
+    ...(input.lastKnownLocation ? { lastKnownLocation: input.lastKnownLocation } : {}),
+  };
+}
+
 export function recordCheckIn(
   session: LoneWorkerSession,
   checkIn: { at?: string; lat?: number; lng?: number; status?: 'ok' | 'help' },
