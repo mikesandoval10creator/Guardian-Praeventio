@@ -4474,6 +4474,10 @@
   "safeDrivingMode": {
     "reportErrorServer": "We couldn't save the report. Your text is still here — tap Retry.",
     "reportErrorOffline": "Offline: the report was NOT sent. Retry once you regain signal — your text is still here.",
-    "reportRetry": "Retry"
+    "reportRetry": "Retry",
+    "commuteStart": "Start Commute",
+    "commuteEnd": "End Commute",
+    "commuteBusy": "Working…",
+    "commuteError": "We couldn't update the commute. Please retry."
   }
 }

@@ -4474,6 +4474,10 @@
   "safeDrivingMode": {
     "reportErrorServer": "No pudimos guardar el reporte. Tu texto sigue aquí — toca Reintentar.",
     "reportErrorOffline": "Sin conexión: el reporte NO fue enviado. Reintenta cuando recuperes señal — tu texto sigue aquí.",
-    "reportRetry": "Reintentar"
+    "reportRetry": "Reintentar",
+    "commuteStart": "Iniciar Trayecto",
+    "commuteEnd": "Terminar Trayecto",
+    "commuteBusy": "Procesando…",
+    "commuteError": "No pudimos actualizar el trayecto. Reintenta."
   }
 }

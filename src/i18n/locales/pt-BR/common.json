@@ -4474,6 +4474,10 @@
   "safeDrivingMode": {
     "reportErrorServer": "Não foi possível salvar o relato. Seu texto continua aqui — toque em Tentar novamente.",
     "reportErrorOffline": "Sem conexão: o relato NÃO foi enviado. Tente novamente quando recuperar o sinal — seu texto continua aqui.",
-    "reportRetry": "Tentar novamente"
+    "reportRetry": "Tentar novamente",
+    "commuteStart": "Iniciar Trajeto",
+    "commuteEnd": "Encerrar Trajeto",
+    "commuteBusy": "Processando…",
+    "commuteError": "Não foi possível atualizar o trajeto. Tente novamente."
   }
 }
