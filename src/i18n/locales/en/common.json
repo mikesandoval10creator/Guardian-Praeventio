@@ -2539,7 +2539,11 @@
     "no_active_session": "You have no active lone-worker session.",
     "start_session": "Start session ({{min}} min)",
     "start_need_project": "Select a project to start your session.",
-    "persist_failed": "Could not save the check-in. Please retry."
+    "persist_failed": "Could not save the check-in. Please retry.",
+    "help_not_sent": "⚠️ Your HELP request was not saved. Call by radio or phone NOW — the automatic escalation will NOT fire.",
+    "checkin_not_saved": "The check-in was not saved. Retry; if it persists, notify your supervisor.",
+    "session_load_failed": "Could not load your lone-worker session. Check your connection — do NOT start another (avoid duplicates).",
+    "retry": "Retry"
   },
   "lone_worker_page": {
     "title": "Lone worker",

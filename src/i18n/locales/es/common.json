@@ -2539,7 +2539,11 @@
     "no_active_session": "No tenés una sesión de trabajo solitario activa.",
     "start_session": "Iniciar sesión ({{min}} min)",
     "start_need_project": "Seleccioná un proyecto para iniciar tu sesión.",
-    "persist_failed": "No se pudo guardar el check-in. Reintentá."
+    "persist_failed": "No se pudo guardar el check-in. Reintentá.",
+    "help_not_sent": "⚠️ Tu pedido de AYUDA no se guardó. Avisa por radio o teléfono AHORA — la escalación automática NO saldrá.",
+    "checkin_not_saved": "El check-in no se guardó. Reintentá; si persiste, avisa a tu supervisor.",
+    "session_load_failed": "No se pudo cargar tu sesión de trabajo solitario. Revisá tu conexión — NO inicies otra para no duplicar.",
+    "retry": "Reintentar"
   },
   "lone_worker_page": {
     "title": "Trabajo solitario",

@@ -3188,7 +3188,11 @@
     "no_active_session": "Você não tem uma sessão de trabalho isolado ativa.",
     "start_session": "Iniciar sessão ({{min}} min)",
     "start_need_project": "Selecione um projeto para iniciar sua sessão.",
-    "persist_failed": "Não foi possível salvar o check-in. Tente novamente."
+    "persist_failed": "Não foi possível salvar o check-in. Tente novamente.",
+    "help_not_sent": "⚠️ Seu pedido de AJUDA não foi salvo. Avise por rádio ou telefone AGORA — a escalação automática NÃO sairá.",
+    "checkin_not_saved": "O check-in não foi salvo. Tente novamente; se persistir, avise seu supervisor.",
+    "session_load_failed": "Não foi possível carregar sua sessão de trabalho isolado. Verifique sua conexão — NÃO inicie outra para não duplicar.",
+    "retry": "Tentar novamente"
   },
   "oc": {
     "actions": {

@@ -93,6 +93,20 @@
       ]
     },
     {
+      "collectionGroup": "lone_worker_sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "zone_violations",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
