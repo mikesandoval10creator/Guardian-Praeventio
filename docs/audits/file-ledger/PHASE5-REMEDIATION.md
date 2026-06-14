@@ -27,7 +27,24 @@ Los 15 PRs quirúrgicos (#866–#880) están en `main`, verificados real-wired p
 | #879 vigilancia-real | Medicine 'Vigilancia Activa' datos reales/empty honesto (sin 45/28/15) | `medicineMetrics.ts:82,115` ↔ `Medicine.tsx:67,247` |
 | #880 unblocker-heatmap | fixture FindingsHeatMap anclado al reloj real (desbloqueó Stryker dry-run en todas las ramas) | `FindingsHeatMap.test.tsx:48` |
 
-PENDIENTE OLA 0 (nunca arrancados): B-R12 deps-security (npm audit grpc/otel), B-R13 copy DS54→DS44 (landing/policy/certs/B2D), B-R14 deploy-infra (SENTRY_RELEASE/concurrency/HMR derivado de PORT), B-R15 ci-gates (job ESLint en CI + validate:env en boot prod). Verificación: workflow adversarial wztlinmfy 12/12 present+real-wired.
+PENDIENTE OLA 0: B-R12 deps-security ✅ (#884 — `npm audit fix` no-breaking, 64→25 vulns, crítico eliminado); B-R13 copy DS54→DS44 ✅ (#882); B-R14 deploy-infra PARCIAL ✅ (#883 — concurrency + SENTRY_RELEASE; HMR + `validate:env` boot DESCARTADOS por decisión del usuario 2026-06-14: fail-closed tumbaría SOS si un secreto de pago es placeholder; HMR tiene guard "do not modify"); B-R15 ci-gates: ESLint gate + Validate-env ya existen en CI (solo el boot-gate quedó descartado). **OLA 0 efectivamente CERRADA.**
+
+## OLA 1 — VIDA visible (en progreso, 2026-06-14)
+
+Cablear capacidad de salvar-vidas ya construida que el operador no veía. Cada bloque: TDD conductual + verificación profunda + vida NUNCA tier-gated (ADR 0021).
+
+| Bloque | PR | Qué revive | file:line |
+| --- | --- | --- | --- |
+| evac+twin rules | #885 ✅ | A* gemelo digital + headcount evacuación (default-deny en prod) + bug array-anidado en savePolygon | `firestore.rules` `match /tenants/{tid}/projects/{pid}/{site_geometry,evacuations}`; `siteGeometryStore.ts` coords `{lng,lat}`; rules-tests 16 |
+| commute/trayecto | #886 ✅ | botón Iniciar/Terminar Trayecto → Ley 16.744 art.5 (tag tipo:'trayecto' en caída) | `SafeDrivingMode.tsx` + `commuteSession.ts` setActiveCommuteSession + `/api/commute` |
+| SOS visible | #887 ✅ | botón SOS aparecía null en emergencia declarada (AppMode nunca entraba 'emergency') | `Emergency.tsx` effect + `emergencyModeSync.ts` resolveEmergencyModeTransition |
+| geofence | #888 ✅ | zona DEMO Santiago FABRICADA (SOS falso) DEV-gated + escalación geofence→SOS dormida cableada | `GeofenceAlert.tsx` useGeofenceWithEvents + `useGeofenceWithEvents.test.ts` |
+| SOS offline | #889 🟢 | SOS sin red ya no se pierde: cola IndexedDB durable + reintento + dead-letter | `sosOutbox.indexeddb.ts` + `sosOutboxClient.ts` + `SOSButton.tsx` + `RootLayout.tsx` |
+| lone-worker ubicación (C5) | #890 🟢 | la escalación lleva lastKnownLocation (feed + FCM) → el responder sabe DÓNDE | `loneWorkerService.ts` decideEscalation + `runLoneWorkerEscalation.ts` marker + `maintenance.ts` FCM |
+
+**Correcciones verificadas al scoping (el digest se equivocó):** (1) el master-gate `match /{subCollection=**}/{docId}` (firestore.rules:359) da lectura recursiva a `projects/{pid}/**` → las "colecciones sin regla" bajo `projects/` (lone_worker escalations, etc.) YA son legibles; solo `tenants/{tid}/...` necesita regla. (2) StoppageMonitor SÍ persiste el resume (vía `updateStoppageStatus`); el gap real es que bypasea la ruta server auditada + rol hardcoded + modal firmado huérfano (compliance, no pérdida de datos).
+
+**Follow-ups OLA 1 (anotados):** superficie UI "tu alerta SOS no salió" (completa #889, toca RootLayout); join DEA/refugio más cercano en escalación (completa #890); mandown-cron (runManDownEscalation espejo de lone-worker → SAMU automático); stop-work resume auditado+firmado (rewire tangenciado); sos-e2e des-fixme (con #887 ya en main, falta seed phone + assert tel: + corrida full-stack).
 
 ## Progreso ejecutado (actualizado 2026-06-10)
 
