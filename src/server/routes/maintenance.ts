@@ -62,6 +62,12 @@ import { runLoneWorkerEscalationCron } from '../jobs/runLoneWorkerEscalation.js'
 import type {
   EscalationDecision,
 } from '../../services/loneWorker/loneWorkerService.js';
+// OLA 1 C5 (2026-06-14) — route a lone-worker escalation to the NEAREST DEA
+// (defibrillator). The read-only listAll + nearestDea join lives in
+// nearestDeaForProject (service) so it's unit-testable AND the DeaAdapter
+// constructor stays out of this route file (the convention guard's coarse
+// heuristic flags an Adapter construction in a route as a mutating route).
+import { nearestDeaForProject } from '../../services/dea/nearestDeaForProject.js';
 // Plan v2 Bloque F6 — wire 3 jobs implementados pero no montados (Sprint 39):
 // excepciones expiradas, work_permits expirados, recordatorios obligaciones
 // legales. El motor puro deriva el estado, pero hasta que el cron materialize
@@ -423,6 +429,32 @@ router.post(
       ): Promise<void> => {
         const projectId = projectDoc.id;
         aggregated.projectsScanned += 1;
+        const tenantId =
+          (projectDoc.data() as { tenantId?: string }).tenantId ?? projectId;
+
+        // Nearest-DEA finder (read-only; the listAll + nearestDea join lives in
+        // nearestDeaForProject). Only invoked when an escalation actually has a
+        // location — escalations are rare. Failure is non-fatal: the escalation
+        // still goes out, just without the AED hint.
+        const nearestDeaFor = async (loc: {
+          lat: number;
+          lng: number;
+        }): Promise<{ location: string; distanceM: number; coords?: { lat: number; lng: number } } | null> => {
+          try {
+            return await nearestDeaForProject(
+              db as unknown as Parameters<typeof nearestDeaForProject>[0],
+              tenantId,
+              projectId,
+              loc,
+            );
+          } catch (err) {
+            logger.warn('[maintenance] lone-worker nearest-DEA lookup failed', {
+              projectId,
+              err: String(err),
+            });
+            return null;
+          }
+        };
 
         const notifyForLevel = async (
           sessionId: string,
@@ -452,6 +484,21 @@ router.post(
               `no_recipients_for_level: project=${projectId} level=${decision.level}`,
             );
           }
+          // Nearest DEA (AED) to the worker — routes the responder to the closest
+          // defibrillator. FCM data values must be strings; omitted if there is
+          // no location or no located DEA in the project.
+          const deaData: Record<string, string> = {};
+          if (decision.lastKnownLocation) {
+            const near = await nearestDeaFor(decision.lastKnownLocation);
+            if (near) {
+              deaData.nearestDeaLocation = near.location;
+              deaData.nearestDeaDistanceM = String(Math.round(near.distanceM));
+              if (near.coords) {
+                deaData.nearestDeaLat = String(near.coords.lat);
+                deaData.nearestDeaLng = String(near.coords.lng);
+              }
+            }
+          }
           const result = await sendMulticastChunked(messaging, tokens, {
             notification: {
               title,
@@ -474,6 +521,7 @@ router.post(
                     locAt: decision.lastKnownLocation.at,
                   }
                 : {}),
+              ...deaData,
             },
             android: { priority: 'high' },
             apns: { headers: { 'apns-priority': '10' } },
