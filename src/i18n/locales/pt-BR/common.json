@@ -2448,6 +2448,12 @@
       "heading": "Precondições para retomar",
       "mark_fulfilled": "Marcar cumprida"
     },
+    "resume": {
+      "cta": "Assinar retomada",
+      "approver_only": "A retomada deve ser assinada por um supervisor, técnico de SST ou gerente.",
+      "success": "Retomada assinada e registrada ({{id}})."
+    },
+    "sub_error": "Não foi possível carregar as paralisações. Tente novamente; não presuma que não há nenhuma ativa.",
     "history": {
       "heading": "Histórico recente",
       "audit_trail_hint_prefix": "Para histórico completo de paralisações finalizadas ou canceladas, consulte ",

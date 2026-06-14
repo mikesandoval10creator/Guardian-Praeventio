@@ -2731,6 +2731,12 @@
       "heading": "Precondiciones para reanudar",
       "mark_fulfilled": "Marcar cumplida"
     },
+    "resume": {
+      "cta": "Firmar reanudación",
+      "approver_only": "La reanudación debe firmarla un supervisor, prevencionista o gerente.",
+      "success": "Reanudación firmada y registrada ({{id}})."
+    },
+    "sub_error": "No se pudieron cargar las paralizaciones. Reintentá; no asumas que no hay ninguna activa.",
     "history": {
       "heading": "Historial reciente",
       "audit_trail_hint_prefix": "Para historial completo de paralizaciones finalizadas o canceladas, consultá ",

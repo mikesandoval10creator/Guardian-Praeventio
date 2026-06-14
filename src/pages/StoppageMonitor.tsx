@@ -29,15 +29,17 @@ import {
   Plus,
   Loader2,
   AlertTriangle,
+  ShieldCheck,
 } from 'lucide-react';
 
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { StoppageSummaryCard } from '../components/stoppage/StoppageSummaryCard';
+import { StoppageResumeModal } from '../components/stoppage/StoppageResumeModal';
 import {
   declareStoppage,
   markPreconditionFulfilled,
-  resume as resumeStoppage,
+  isApproverRole,
   summarize,
   type Stoppage,
   type StoppageCategory,
@@ -80,13 +82,19 @@ export function StoppageMonitor() {
     { id: 'document', label: t('stoppages.precondition.document', 'Registro fotográfico + ZK node') },
   ];
 
-  const { user } = useFirebase();
+  const { user, userRole } = useFirebase();
   const { selectedProject } = useProject();
 
   const [stoppages, setStoppages] = useState<Stoppage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [subError, setSubError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // The stoppage whose resumption the responsible role is signing (modal open
+  // state). Resumption is a JURIDICAL act sealed with a biometric signature and
+  // persisted server-side — never auto-fired when preconditions complete.
+  const [resumeTarget, setResumeTarget] = useState<Stoppage | null>(null);
+  const canApproveResume = isApproverRole(userRole);
 
   // Form state.
   const [category, setCategory] = useState<StoppageCategory>('detencion_voluntaria');
@@ -104,6 +112,7 @@ export function StoppageMonitor() {
       return undefined;
     }
     setLoading(true);
+    setSubError(null);
     // Plan §B.5 (2026-05-23): subscribeActiveStoppages aplica where('status',
     // 'in', ['active', 'pending_resumption']) server-side — antes traíamos
     // todo (incluido resumed/cancelled históricos) y filtrábamos client-side.
@@ -116,15 +125,26 @@ export function StoppageMonitor() {
       projectId,
       (list) => {
         setStoppages(list);
+        setSubError(null);
         setLoading(false);
       },
       (err) => {
-        logger.warn('stoppages_sub_error', { err: String(err) });
+        // Fail-loud: a silently-empty list reads as "no active stoppages" (all
+        // clear) when the feed actually failed — an approver could miss a live
+        // stoppage awaiting their signed resumption. Surface a blocking error
+        // and suppress the misleading empty-state below.
+        logger.error('stoppages_sub_error', { err: String(err) });
+        setSubError(
+          t(
+            'stoppages.sub_error',
+            'No se pudieron cargar las paralizaciones. Reintentá; no asumas que no hay ninguna activa.',
+          ),
+        );
         setLoading(false);
       },
     );
     return () => unsub();
-  }, [selectedProject?.id]);
+  }, [selectedProject?.id, t]);
 
   const summary = useMemo(() => summarize(stoppages), [stoppages]);
 
@@ -185,9 +205,11 @@ export function StoppageMonitor() {
   };
 
   /**
-   * Marca una precondición como cumplida + actualiza Firestore. Si
-   * tras esto todas las precondiciones están cumplidas, intenta
-   * automáticamente la transición a 'resumed'.
+   * Marca una precondición como cumplida + actualiza Firestore. Cuando todas
+   * quedan cumplidas el stoppage transiciona a 'pending_resumption' — pero la
+   * reanudación NO es automática: exige que un rol aprobador firme la
+   * reanudación en el modal (acto jurídico, ruta server-side auditada). El
+   * antiguo auto-resume client-side con rol hardcodeado 'supervisor' se eliminó.
    */
   const handleFulfillPrecondition = useCallback(
     async (stoppage: Stoppage, preconditionId: string) => {
@@ -198,15 +220,6 @@ export function StoppageMonitor() {
           resumptionPreconditions: updated.resumptionPreconditions,
           status: updated.status,
         });
-        // Si todas cumplidas → intentar resumption.
-        if (updated.status === 'pending_resumption') {
-          const resumed = resumeStoppage(updated, user.uid, 'supervisor');
-          await updateStoppageStatus(selectedProject.id, stoppage.id, {
-            status: resumed.status,
-            resumedAt: resumed.resumedAt,
-            resumedByUid: resumed.resumedByUid,
-          });
-        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn('handleFulfillPrecondition failed', { err: msg });
@@ -253,6 +266,17 @@ export function StoppageMonitor() {
         ) : (
           <>
             <StoppageSummaryCard summary={summary} projectLabel={selectedProject.name} />
+
+            {subError && (
+              <div
+                role="alert"
+                data-testid="stoppages.subError"
+                className="rounded-xl border border-rose-300 bg-rose-50 dark:bg-rose-900/20 dark:border-rose-700 p-3 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2"
+              >
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+                <span>{subError}</span>
+              </div>
+            )}
 
             {feedback && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-3 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
@@ -365,10 +389,14 @@ export function StoppageMonitor() {
                 })}
               </h2>
               {activeStoppages.length === 0 ? (
-                <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 p-4 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" />
-                  {t('stoppages.list.empty_active', 'No hay paralizaciones activas en este proyecto.')}
-                </div>
+                // Suppress the "all clear" message when the feed failed — that
+                // would be a dangerous false negative on a life-safety list.
+                subError ? null : (
+                  <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 p-4 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    {t('stoppages.list.empty_active', 'No hay paralizaciones activas en este proyecto.')}
+                  </div>
+                )
               ) : (
                 <ul className="space-y-3">
                   {activeStoppages.map((s) => (
@@ -425,11 +453,53 @@ export function StoppageMonitor() {
                           ))}
                         </ul>
                       </div>
+
+                      {s.status === 'pending_resumption' &&
+                        (canApproveResume ? (
+                          <button
+                            type="button"
+                            onClick={() => setResumeTarget(s)}
+                            data-testid="stoppages.resumeSign"
+                            className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-teal-700 bg-teal-600 px-3 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-teal-700 transition-colors"
+                          >
+                            <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+                            {t('stoppages.resume.cta', 'Firmar reanudación')}
+                          </button>
+                        ) : (
+                          <p className="text-[10px] italic text-zinc-500 dark:text-zinc-400">
+                            {t(
+                              'stoppages.resume.approver_only',
+                              'La reanudación debe firmarla un supervisor, prevencionista o gerente.',
+                            )}
+                          </p>
+                        ))}
                     </li>
                   ))}
                 </ul>
               )}
             </section>
+
+            {resumeTarget && selectedProject && (
+              <StoppageResumeModal
+                open
+                projectId={selectedProject.id}
+                stoppage={resumeTarget}
+                resumedByRole={userRole}
+                onClose={() => setResumeTarget(null)}
+                onResumed={(next) => {
+                  setResumeTarget(null);
+                  // The live subscription drops the resumed stoppage from the
+                  // active list (status leaves active|pending_resumption).
+                  setFeedback(
+                    t('stoppages.resume.success', {
+                      defaultValue: 'Reanudación firmada y registrada ({{id}}).',
+                      id: next.id.slice(0, 12),
+                    }),
+                  );
+                }}
+                onError={(msg) => setFeedback(msg)}
+              />
+            )}
 
             {/* Plan §B.5 + §B.6 (2026-05-23): el historial reciente in-page
                 se removió porque ahora la subscription server-side trae solo

@@ -50,6 +50,15 @@ export interface Stoppage {
   /** Reanudación cuando se cumplen. */
   resumedAt?: string;
   resumedByUid?: string;
+  /** Rol (claim del token) del aprobador que firmó la reanudación. */
+  resumedByRole?: string;
+  /**
+   * Metadatos del acto de reanudación (justificación + medidas + atestación de
+   * firma biométrica). Lo escribe el servidor en POST /resume — ver
+   * `src/server/routes/stoppage.ts`. La reanudación es un acto JURÍDICO sellado
+   * con firma; estos campos son el rastro de ese sello.
+   */
+  resumption?: StoppageResumption;
   /** Cancelación = paralización mal declarada o duplicada. */
   cancelledAt?: string;
   cancelledByUid?: string;
@@ -73,6 +82,23 @@ export interface StoppageResolution {
   resolvedByRole: string;
   resolvedAt: string;
   comment?: string;
+}
+
+/**
+ * Sello del acto de reanudación. Escrito server-side en POST /resume tras
+ * verificar (a) que el rol del caller (claim del token) es aprobador, (b) que
+ * todas las preconditions están fulfilled y (c) que el caller atestó la firma
+ * biométrica. NUNCA reanuda maquinaria — solo registra la decisión humana.
+ */
+export interface StoppageResumption {
+  /** Justificación libre del responsable (≥15 chars). */
+  justification: string;
+  /** Medidas concretas adoptadas que habilitan la reanudación. */
+  measuresAdopted: string[];
+  /** El responsable atestó la firma biométrica (sello legal; siempre true). */
+  signatureAttested: boolean;
+  /** Rol del responsable que firmó (claim del token, no del cliente). */
+  resumedByRole: string;
 }
 
 export interface ResumptionPrecondition {
@@ -212,6 +238,7 @@ export function resume(
     status: 'resumed',
     resumedAt: now.toISOString(),
     resumedByUid,
+    resumedByRole,
   };
 }
 

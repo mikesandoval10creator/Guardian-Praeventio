@@ -69,39 +69,46 @@ export async function markStoppagePreconditionFulfilledApi(
   return json<{ stoppage: Stoppage }>(res);
 }
 
-// ── 3. resume ─────────────────────────────────────────────────────────
+// ── 3. resume (server-authoritative) ──────────────────────────────────
+//
+// Fused single resume client (was: dead `resumeStoppageApi` echo-stub +
+// `resumeStoppage` stub). The server route is SERVER-AUTHORITATIVE: it reads
+// the stoppage by id, derives the approver role from the verified token (the
+// `resumedByRole` carried by the modal is display-only and intentionally NOT
+// sent), requires the signature attestation, and persists + audits the act.
 
-export async function resumeStoppageApi(
+export interface ResumeStoppageClientInput {
+  /** The pending_resumption stoppage being lifted (only its id reaches the wire). */
+  stoppage: Stoppage;
+  /** Free-form justification (≥15 chars, enforced client + server). */
+  justification: string;
+  /** Concrete measures that enable the resumption (≥1). */
+  measuresAdopted: string[];
+  /** Caller's role — display-only; the server uses the token claim. */
+  resumedByRole: string;
+  /** Biometric signature attested — the server rejects a resume without it. */
+  signatureAttested: boolean;
+}
+
+export async function resumeStoppage(
   projectId: string,
-  input: { stoppage: Stoppage; resumedByRole: string },
+  input: ResumeStoppageClientInput,
+  idempotencyKey: string,
 ): Promise<{ stoppage: Stoppage }> {
   const res = await authedFetch(
     `/api/sprint-k/${projectId}/stoppage/resume`,
-    { method: 'POST', body: JSON.stringify(input) },
+    {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({
+        stoppageId: input.stoppage.id,
+        justification: input.justification,
+        measuresAdopted: input.measuresAdopted,
+        signatureAttested: input.signatureAttested,
+      }),
+    },
   );
   return json<{ stoppage: Stoppage }>(res);
-}
-
-/**
- * Stub — orphan UI consumer `src/components/stoppage/StoppageResumeModal.tsx`
- * calls this as `resumeStoppage(projectId, { stoppage, justification,
- * measuresAdopted, resumedByRole, signatureAttested }, idempotencyKey)`,
- * with a richer payload than {@link resumeStoppageApi} accepts. Until the
- * modal is mounted in a route, the stub echoes back the input stoppage.
- * Tracked TODO §13.
- */
-export async function resumeStoppage(
-  _projectId: string,
-  input: {
-    stoppage: Stoppage;
-    justification: string;
-    measuresAdopted: string[];
-    resumedByRole: string;
-    signatureAttested: boolean;
-  },
-  _idempotencyKey: string,
-): Promise<{ stoppage: Stoppage }> {
-  return { stoppage: input.stoppage };
 }
 
 // ── 4. cancel ─────────────────────────────────────────────────────────
