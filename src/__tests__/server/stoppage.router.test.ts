@@ -1,8 +1,10 @@
-// Real-router supertest for src/server/routes/stoppage.ts
-// Coverage target: POST /:projectId/stoppage/{declare,mark-precondition-fulfilled,resume,cancel,summarize}
-// (/resolve lives in stoppageResolve.router.test.ts — split deliberately, see that file's header)
-// The route is stateless (pure-engine calls) + assertProjectMember (Firestore read only).
-// No audit_logs writes happen in this route — engine is pure, no side effects.
+// Real-router supertest for src/server/routes/stoppage.ts — STATELESS endpoints.
+// Coverage target: POST /:projectId/stoppage/{declare,mark-precondition-fulfilled,cancel,summarize}
+// (/resume and /resolve are server-authoritative — read + write + audit on the
+//  Firestore stoppage doc — and live in stoppageResolve.router.test.ts; the split
+//  is deliberate, see that file's header.)
+// The endpoints here are stateless pure-engine calls + assertProjectMember
+// (Firestore read only); no audit_logs writes happen in this file's targets.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
@@ -242,67 +244,6 @@ describe('POST /:projectId/stoppage/mark-precondition-fulfilled', () => {
       .post(ENDPOINT)
       .set(asUser(MEMBER_UID))
       .send({ stoppage: cancelledStoppage, preconditionId: 'pc-1' });
-    expect(res.status).toBe(400);
-  });
-});
-
-// ============================================================================
-// POST /:projectId/stoppage/resume
-// ============================================================================
-describe('POST /:projectId/stoppage/resume', () => {
-  const ENDPOINT = `/api/${PROJECT}/stoppage/resume`;
-
-  const validBody = {
-    stoppage: pendingStoppage,
-    resumedByRole: 'supervisor',
-  };
-
-  it('401 without auth token', async () => {
-    const res = await request(buildApp()).post(ENDPOINT).send(validBody);
-    expect(res.status).toBe(401);
-  });
-
-  it('403 for non-member caller', async () => {
-    const res = await request(buildApp())
-      .post(ENDPOINT)
-      .set(asUser(OTHER_UID))
-      .send(validBody);
-    expect(res.status).toBe(403);
-  });
-
-  it('400 for invalid body — missing stoppage', async () => {
-    const res = await request(buildApp())
-      .post(ENDPOINT)
-      .set(asUser(MEMBER_UID))
-      .send({ resumedByRole: 'supervisor' });
-    expect(res.status).toBe(400);
-  });
-
-  it('200 happy path — status → resumed, resumedByUid = caller', async () => {
-    const res = await request(buildApp())
-      .post(ENDPOINT)
-      .set(asUser(MEMBER_UID))
-      .send(validBody);
-    expect(res.status).toBe(200);
-    const s = (res.body as { stoppage: Record<string, unknown> }).stoppage;
-    expect(s.status).toBe('resumed');
-    expect(s.resumedByUid).toBe(MEMBER_UID);
-    expect(typeof s.resumedAt).toBe('string');
-  });
-
-  it('400 from engine — stoppage still active (not all preconditions met)', async () => {
-    const res = await request(buildApp())
-      .post(ENDPOINT)
-      .set(asUser(MEMBER_UID))
-      .send({ stoppage: activeStoppage, resumedByRole: 'supervisor' });
-    expect(res.status).toBe(400);
-  });
-
-  it('400 from engine — operario role cannot approve resumption', async () => {
-    const res = await request(buildApp())
-      .post(ENDPOINT)
-      .set(asUser(MEMBER_UID))
-      .send({ stoppage: pendingStoppage, resumedByRole: 'operario' });
     expect(res.status).toBe(400);
   });
 });

@@ -29,15 +29,17 @@ import {
   Plus,
   Loader2,
   AlertTriangle,
+  ShieldCheck,
 } from 'lucide-react';
 
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { StoppageSummaryCard } from '../components/stoppage/StoppageSummaryCard';
+import { StoppageResumeModal } from '../components/stoppage/StoppageResumeModal';
 import {
   declareStoppage,
   markPreconditionFulfilled,
-  resume as resumeStoppage,
+  isApproverRole,
   summarize,
   type Stoppage,
   type StoppageCategory,
@@ -80,13 +82,18 @@ export function StoppageMonitor() {
     { id: 'document', label: t('stoppages.precondition.document', 'Registro fotográfico + ZK node') },
   ];
 
-  const { user } = useFirebase();
+  const { user, userRole } = useFirebase();
   const { selectedProject } = useProject();
 
   const [stoppages, setStoppages] = useState<Stoppage[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // The stoppage whose resumption the responsible role is signing (modal open
+  // state). Resumption is a JURIDICAL act sealed with a biometric signature and
+  // persisted server-side — never auto-fired when preconditions complete.
+  const [resumeTarget, setResumeTarget] = useState<Stoppage | null>(null);
+  const canApproveResume = isApproverRole(userRole);
 
   // Form state.
   const [category, setCategory] = useState<StoppageCategory>('detencion_voluntaria');
@@ -185,9 +192,11 @@ export function StoppageMonitor() {
   };
 
   /**
-   * Marca una precondición como cumplida + actualiza Firestore. Si
-   * tras esto todas las precondiciones están cumplidas, intenta
-   * automáticamente la transición a 'resumed'.
+   * Marca una precondición como cumplida + actualiza Firestore. Cuando todas
+   * quedan cumplidas el stoppage transiciona a 'pending_resumption' — pero la
+   * reanudación NO es automática: exige que un rol aprobador firme la
+   * reanudación en el modal (acto jurídico, ruta server-side auditada). El
+   * antiguo auto-resume client-side con rol hardcodeado 'supervisor' se eliminó.
    */
   const handleFulfillPrecondition = useCallback(
     async (stoppage: Stoppage, preconditionId: string) => {
@@ -198,15 +207,6 @@ export function StoppageMonitor() {
           resumptionPreconditions: updated.resumptionPreconditions,
           status: updated.status,
         });
-        // Si todas cumplidas → intentar resumption.
-        if (updated.status === 'pending_resumption') {
-          const resumed = resumeStoppage(updated, user.uid, 'supervisor');
-          await updateStoppageStatus(selectedProject.id, stoppage.id, {
-            status: resumed.status,
-            resumedAt: resumed.resumedAt,
-            resumedByUid: resumed.resumedByUid,
-          });
-        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn('handleFulfillPrecondition failed', { err: msg });
@@ -425,11 +425,53 @@ export function StoppageMonitor() {
                           ))}
                         </ul>
                       </div>
+
+                      {s.status === 'pending_resumption' &&
+                        (canApproveResume ? (
+                          <button
+                            type="button"
+                            onClick={() => setResumeTarget(s)}
+                            data-testid="stoppages.resumeSign"
+                            className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-teal-700 bg-teal-600 px-3 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-teal-700 transition-colors"
+                          >
+                            <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+                            {t('stoppages.resume.cta', 'Firmar reanudación')}
+                          </button>
+                        ) : (
+                          <p className="text-[10px] italic text-zinc-500 dark:text-zinc-400">
+                            {t(
+                              'stoppages.resume.approver_only',
+                              'La reanudación debe firmarla un supervisor, prevencionista o gerente.',
+                            )}
+                          </p>
+                        ))}
                     </li>
                   ))}
                 </ul>
               )}
             </section>
+
+            {resumeTarget && selectedProject && (
+              <StoppageResumeModal
+                open
+                projectId={selectedProject.id}
+                stoppage={resumeTarget}
+                resumedByRole={userRole}
+                onClose={() => setResumeTarget(null)}
+                onResumed={(next) => {
+                  setResumeTarget(null);
+                  // The live subscription drops the resumed stoppage from the
+                  // active list (status leaves active|pending_resumption).
+                  setFeedback(
+                    t('stoppages.resume.success', {
+                      defaultValue: 'Reanudación firmada y registrada ({{id}}).',
+                      id: next.id.slice(0, 12),
+                    }),
+                  );
+                }}
+                onError={(msg) => setFeedback(msg)}
+              />
+            )}
 
             {/* Plan §B.5 + §B.6 (2026-05-23): el historial reciente in-page
                 se removió porque ahora la subscription server-side trae solo

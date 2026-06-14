@@ -11,8 +11,12 @@
 //     body: { stoppage, preconditionId, evidenceUrl? }  // verifierUid = caller
 //     200:  { stoppage }
 //
-//   POST /:projectId/stoppage/resume
-//     body: { stoppage, resumedByRole }  // resumedByUid = caller
+//   POST /:projectId/stoppage/resume            (STATEFUL — server-authoritative)
+//     body: { stoppageId, justification, measuresAdopted, signatureAttested }
+//     Approver-role gated (claim from the verified token, NEVER the body).
+//     Reads + updates projects/{pid}/stoppages/{id} inside a transaction; the
+//     biometric-signature attestation is mandatory (400 without it). resumedByUid
+//     + resumedByRole are server-stamped from the caller. Audited.
 //     200:  { stoppage }
 //
 //   POST /:projectId/stoppage/cancel
@@ -130,6 +134,10 @@ function asEngineError(err: unknown): { code: number; body: { error: string } } 
   return null;
 }
 
+/** Raised by the server-authoritative handlers (/resume, /resolve) when the
+ * referenced stoppage doc does not exist → mapped to HTTP 404. */
+class StoppageNotFoundError extends Error {}
+
 // ────────────────────────────────────────────────────────────────────────
 // 1. declare
 // ────────────────────────────────────────────────────────────────────────
@@ -214,9 +222,18 @@ router.post(
 // 3. resume
 // ────────────────────────────────────────────────────────────────────────
 
+// Unlike declare/mark/cancel (stateless pure-engine ops over a client-supplied
+// stoppage), /resume is SERVER-AUTHORITATIVE: the stoppage is read from
+// Firestore by id (never trusted from the body), the approver role comes from
+// the VERIFIED token claim (a body role would let any project member
+// self-promote into resume authority), and the act is sealed with a mandatory
+// biometric-signature attestation. The system NEVER restarts machinery — it
+// only records the human decision (founder directive #2).
 const resumeSchema = z.object({
-  stoppage: stoppageSchema,
-  resumedByRole: z.string().min(1).max(200),
+  stoppageId: z.string().min(1).max(200),
+  justification: z.string().min(15).max(5000),
+  measuresAdopted: z.array(z.string().min(1).max(500)).min(1).max(100),
+  signatureAttested: z.boolean(),
 });
 
 router.post(
@@ -225,13 +242,95 @@ router.post(
   validate(resumeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
+    // Server-authoritative role: from the VERIFIED token claim, never the body.
+    const callerRole = req.user!.role ?? 'worker';
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof resumeSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
+    // Only an approver role can lift a stoppage. A worker holds stop-work
+    // authority to DECLARE one, but the legal authority to RESUME is reserved.
+    if (!isApproverRole(callerRole)) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    // The biometric signature is the legal seal of the resumption; fail-closed
+    // without it (mirrors the StoppageResumeModal client guard).
+    if (body.signatureAttested !== true) {
+      return res.status(400).json({ error: 'signature_required' });
+    }
+
+    const db = admin.firestore();
+    const stoppageRef = db
+      .collection('projects')
+      .doc(projectId)
+      .collection('stoppages')
+      .doc(body.stoppageId);
+
     try {
-      const stoppage = resume(body.stoppage, callerUid, body.resumedByRole);
-      return res.json({ stoppage });
+      // Read-modify-write on the same doc → transaction (CLAUDE.md #19), so two
+      // concurrent resumes cannot both commit.
+      const resumed = await db.runTransaction(async (txn) => {
+        const snap = await txn.get(stoppageRef);
+        if (!snap.exists) throw new StoppageNotFoundError(body.stoppageId);
+        const current = snap.data() as Stoppage;
+        if (current.status === 'resumed') {
+          throw new StoppageValidationError(
+            'ALREADY_RESUMED',
+            `stoppage '${body.stoppageId}' already resumed`,
+          );
+        }
+        // Defence-in-depth: never lift a stoppage whose preconditions aren't ALL
+        // verified, even if a client wrote status='pending_resumption' directly
+        // (the client store can patch status; rules allow project members to).
+        const allFulfilled = current.resumptionPreconditions.every((p) => p.fulfilled);
+        if (!allFulfilled) {
+          throw new StoppageValidationError(
+            'PRECONDITIONS_UNFULFILLED',
+            'cannot resume — not all resumption preconditions are fulfilled',
+          );
+        }
+        const next = resume(current, callerUid, callerRole);
+        const resumption = {
+          justification: body.justification.trim(),
+          measuresAdopted: body.measuresAdopted,
+          signatureAttested: true,
+          resumedByRole: callerRole,
+        };
+        txn.update(stoppageRef, {
+          status: next.status,
+          resumedAt: next.resumedAt,
+          resumedByUid: next.resumedByUid,
+          resumedByRole: callerRole,
+          resumption,
+        });
+        return { ...next, resumedByRole: callerRole, resumption };
+      });
+
+      // Audit trail (CLAUDE.md #3/#14) — awaited, non-blocking on failure.
+      try {
+        await auditServerEvent(
+          req,
+          'stoppage.resume',
+          'stoppage',
+          {
+            stoppageId: resumed.id,
+            resumedByRole: callerRole,
+            measuresCount: body.measuresAdopted.length,
+            signatureAttested: true,
+          },
+          { projectId },
+        );
+      } catch (err) {
+        logger.error?.('audit_event_failed', err);
+      }
+
+      return res.json({ stoppage: resumed });
     } catch (err) {
+      if (err instanceof StoppageNotFoundError) {
+        return res.status(404).json({ error: 'stoppage_not_found' });
+      }
+      if (err instanceof StoppageValidationError && err.code === 'ALREADY_RESUMED') {
+        return res.status(409).json({ error: 'already_resumed' });
+      }
       const m = asEngineError(err);
       if (m) return res.status(m.code).json(m.body);
       logger.error?.('stoppage.resume.error', err);
@@ -332,8 +431,6 @@ async function resolveTenantId(
   }
   return null;
 }
-
-class StoppageNotFoundError extends Error {}
 
 const resolveSchema = z.object({
   stoppageId: z.string().min(1).max(200),

@@ -2731,6 +2731,11 @@
       "heading": "Preconditions to resume",
       "mark_fulfilled": "Mark fulfilled"
     },
+    "resume": {
+      "cta": "Sign resumption",
+      "approver_only": "Resumption must be signed by a supervisor, safety officer, or manager.",
+      "success": "Resumption signed and recorded ({{id}})."
+    },
     "history": {
       "heading": "Recent history",
       "audit_trail_hint_prefix": "For complete history of finalized or cancelled stoppages, see ",
