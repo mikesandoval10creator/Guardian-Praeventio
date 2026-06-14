@@ -63,11 +63,11 @@ import type {
   EscalationDecision,
 } from '../../services/loneWorker/loneWorkerService.js';
 // OLA 1 C5 (2026-06-14) — route a lone-worker escalation to the NEAREST DEA
-// (defibrillator). nearestDea + DeaAdapter are pure/tested; the cron joins them
-// to the worker's last-known location so the push tells the responder which AED
-// to grab and how far it is.
-import { DeaAdapter } from '../../services/dea/deaFirestoreAdapter.js';
-import { nearestDea, type Dea } from '../../services/dea/deaService.js';
+// (defibrillator). The read-only listAll + nearestDea join lives in
+// nearestDeaForProject (service) so it's unit-testable AND the DeaAdapter
+// constructor stays out of this route file (the convention guard's coarse
+// heuristic flags an Adapter construction in a route as a mutating route).
+import { nearestDeaForProject } from '../../services/dea/nearestDeaForProject.js';
 // Plan v2 Bloque F6 — wire 3 jobs implementados pero no montados (Sprint 39):
 // excepciones expiradas, work_permits expirados, recordatorios obligaciones
 // legales. El motor puro deriva el estado, pero hasta que el cron materialize
@@ -432,27 +432,21 @@ router.post(
         const tenantId =
           (projectDoc.data() as { tenantId?: string }).tenantId ?? projectId;
 
-        // Nearest-DEA finder, lazily read ONCE per project per run (only when an
-        // escalation with a location actually needs it — escalations are rare).
-        // Failure is non-fatal: the escalation still goes out, just without the
-        // AED hint.
-        let deasCache: Dea[] | null = null;
+        // Nearest-DEA finder (read-only; the listAll + nearestDea join lives in
+        // nearestDeaForProject). Only invoked when an escalation actually has a
+        // location — escalations are rare. Failure is non-fatal: the escalation
+        // still goes out, just without the AED hint.
         const nearestDeaFor = async (loc: {
           lat: number;
           lng: number;
         }): Promise<{ location: string; distanceM: number; coords?: { lat: number; lng: number } } | null> => {
           try {
-            if (deasCache === null) {
-              deasCache = await new DeaAdapter(
-                db as unknown as ConstructorParameters<typeof DeaAdapter>[0],
-                tenantId,
-                projectId,
-              ).listAll();
-            }
-            const near = nearestDea(deasCache, { lat: loc.lat, lng: loc.lng });
-            return near
-              ? { location: near.dea.location, distanceM: near.distanceM, coords: near.dea.coordinates }
-              : null;
+            return await nearestDeaForProject(
+              db as unknown as Parameters<typeof nearestDeaForProject>[0],
+              tenantId,
+              projectId,
+              loc,
+            );
           } catch (err) {
             logger.warn('[maintenance] lone-worker nearest-DEA lookup failed', {
               projectId,
