@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Car, Phone, MapPin, Mic, ShieldAlert, MicOff, CheckCircle2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Car, Phone, MapPin, Mic, ShieldAlert, MicOff, CheckCircle2, AlertTriangle, RotateCcw, Route } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '../contexts/ProjectContext';
 import { useEmergency } from '../contexts/EmergencyContext';
 import { apiAuthHeader } from '../lib/apiAuth';
 import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
+import { setActiveCommuteSession } from '../services/driving/commuteSession';
 import { WeatherBulletin } from '../components/WeatherBulletin';
 
 export function SafeDrivingMode() {
@@ -21,6 +22,11 @@ export function SafeDrivingMode() {
   const [reportSaved, setReportSaved] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Legal commute (trayecto) session — Ley 16.744 art.5. While a commute is
+  // active, a fall/ManDown is tagged tipo:'trayecto' for SUSESO.
+  const [commuteSessionId, setCommuteSessionId] = useState<string | null>(null);
+  const [commuteBusy, setCommuteBusy] = useState(false);
+  const [commuteError, setCommuteError] = useState<string | null>(null);
   // Web Speech API has no DOM lib types — same `any` suppression as the
   // SpeechRecognition ctor resolution below.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,6 +151,66 @@ export function SafeDrivingMode() {
     setSosConfirmedAt(new Date().toLocaleTimeString('es-CL'));
   };
 
+  // Start/stop a legal commute (trayecto, Ley 16.744 art.5). Persistence flows
+  // through the audited /api/commute server route (server resolves tenantId +
+  // Admin-SDK write — no client Firestore rule needed); setActiveCommuteSession
+  // flips the in-memory hint so a fall during the commute is tagged
+  // tipo:'trayecto' for SUSESO (useManDownDetection). A failure is surfaced —
+  // never swallowed — because an untracked commute loses the legal classification.
+  const handleToggleCommute = async () => {
+    if (!selectedProject || commuteBusy) return;
+    setCommuteBusy(true);
+    setCommuteError(null);
+    try {
+      const authHeader = await apiAuthHeader();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(authHeader ? { Authorization: authHeader } : {}),
+      };
+      if (commuteSessionId) {
+        const res = await fetch('/api/commute/end', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ sessionId: commuteSessionId }),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          logger.error('commute_end_failed', { status: res.status, error: body.error });
+          setCommuteError(t('safeDrivingMode.commuteError', 'No pudimos actualizar el trayecto. Reintenta.'));
+          return;
+        }
+        setCommuteSessionId(null);
+        setActiveCommuteSession(null);
+      } else {
+        const res = await fetch('/api/commute/start', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ projectId: selectedProject.id, type: 'home-to-site' }),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          logger.error('commute_start_failed', { status: res.status, error: body.error });
+          setCommuteError(t('safeDrivingMode.commuteError', 'No pudimos actualizar el trayecto. Reintenta.'));
+          return;
+        }
+        const body = (await res.json()) as { sessionId?: string };
+        if (!body.sessionId) {
+          setCommuteError(t('safeDrivingMode.commuteError', 'No pudimos actualizar el trayecto. Reintenta.'));
+          return;
+        }
+        setCommuteSessionId(body.sessionId);
+        setActiveCommuteSession({ projectId: selectedProject.id, sessionId: body.sessionId });
+      }
+    } catch (err) {
+      logger.error('commute_toggle_failed', { error: err });
+      setCommuteError(t('safeDrivingMode.commuteError', 'No pudimos actualizar el trayecto. Reintenta.'));
+    } finally {
+      setCommuteBusy(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
       {/* Top Bar */}
@@ -243,6 +309,31 @@ export function SafeDrivingMode() {
             </div>
           )}
         </div>
+
+        {/* Legal commute (trayecto) start/stop — Ley 16.744 art.5. Tagging a
+            fall during the commute as tipo:'trayecto' for SUSESO needs an active
+            session, which this toggle sets (audited server route + in-memory hint). */}
+        <button
+          onClick={() => void handleToggleCommute()}
+          disabled={commuteBusy || !selectedProject}
+          aria-pressed={!!commuteSessionId}
+          aria-label={commuteSessionId ? 'Terminar trayecto' : 'Iniciar trayecto'}
+          className={`rounded-[3rem] border-4 flex items-center justify-center gap-4 py-6 transition-all active:scale-95 disabled:opacity-40 ${
+            commuteSessionId ? 'bg-amber-600 border-amber-500' : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800'
+          }`}
+        >
+          <Route className={`w-10 h-10 ${commuteSessionId ? 'text-white' : 'text-amber-500'}`} aria-hidden="true" />
+          <span className={`text-xl font-black uppercase tracking-widest ${commuteSessionId ? 'text-white' : 'text-amber-400'}`}>
+            {commuteBusy
+              ? t('safeDrivingMode.commuteBusy', 'Procesando…')
+              : commuteSessionId
+                ? t('safeDrivingMode.commuteEnd', 'Terminar Trayecto')
+                : t('safeDrivingMode.commuteStart', 'Iniciar Trayecto')}
+          </span>
+        </button>
+        {commuteError && (
+          <p role="alert" className="text-amber-400 text-sm text-center font-bold -mt-2">{commuteError}</p>
+        )}
 
         {/* Emergency Button (Massive) */}
         <button

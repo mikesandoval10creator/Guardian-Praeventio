@@ -157,3 +157,52 @@ describe('SafeDrivingMode — voice dictation via audited endpoint', () => {
     expect(screen.getByRole('alert').textContent).toContain('Sin conexión');
   });
 });
+
+describe('SafeDrivingMode — legal commute (trayecto, Ley 16.744 art.5)', () => {
+  it('start POSTs /api/commute/start with the projectId + commute type and toggles to "Terminar"', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, sessionId: 'cs_42' }) });
+    render(<SafeDrivingMode />);
+
+    fireEvent.click(screen.getByText('Iniciar Trayecto'));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/commute/start');
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body).toEqual({ projectId: 'proj-1', type: 'home-to-site' });
+    // Identity/tenant are NEVER client-supplied (server resolves from token).
+    expect(body.tenantId).toBeUndefined();
+    expect(body.userId).toBeUndefined();
+    // Active session started → the button flips to the end action.
+    await waitFor(() => expect(screen.getByText('Terminar Trayecto')).toBeTruthy());
+  });
+
+  it('end POSTs /api/commute/end with the sessionId and toggles back to "Iniciar"', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, sessionId: 'cs_42' }) });
+    render(<SafeDrivingMode />);
+    fireEvent.click(screen.getByText('Iniciar Trayecto'));
+    await waitFor(() => expect(screen.getByText('Terminar Trayecto')).toBeTruthy());
+
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ success: true }) });
+    fireEvent.click(screen.getByText('Terminar Trayecto'));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toBe('/api/commute/end');
+    expect(JSON.parse(init.body as string)).toEqual({ sessionId: 'cs_42' });
+    await waitFor(() => expect(screen.getByText('Iniciar Trayecto')).toBeTruthy());
+  });
+
+  it('surfaces an error (never silent) when commute start fails', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: 'commute start failed' }) });
+    render(<SafeDrivingMode />);
+
+    fireEvent.click(screen.getByText('Iniciar Trayecto'));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+    expect(screen.getByRole('alert').textContent).toContain('trayecto');
+    // Stays on the start action (no false "active" state).
+    expect(screen.getByText('Iniciar Trayecto')).toBeTruthy();
+  });
+});

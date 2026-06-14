@@ -135,7 +135,21 @@ export function getActiveSession(): { projectId: string; sessionId: string } | n
   return _activeSession;
 }
 
-/** Test helper. Prefer `useCommuteSession.start/end`. */
+/**
+ * Public setter for the active commute session. The driver-mode UI
+ * (SafeDrivingMode) persists the session via the audited /api/commute server
+ * route (Admin SDK — no client write rule needed) and calls this to flip the
+ * in-memory hint so a fall/ManDown during the commute is tagged tipo:'trayecto'
+ * for SUSESO (read by useManDownDetection via getActiveSession()). Pass null on
+ * commute end.
+ */
+export function setActiveCommuteSession(
+  s: { projectId: string; sessionId: string } | null,
+): void {
+  _activeSession = s;
+}
+
+/** Test helper. Prefer `useCommuteSession.start/end` or `setActiveCommuteSession`. */
 export function _setActiveSessionForTesting(
   s: { projectId: string; sessionId: string } | null,
 ): void {
