@@ -51,6 +51,11 @@ export function EvacuationDashboard() {
   // The currently-active (non-ended) drill, discovered by query — the resume
   // source of truth. `undefined` = still resolving; `null` = none active.
   const [activeDrillId, setActiveDrillId] = useState<string | null | undefined>(undefined);
+  // If the active-drill lookup FAILS we must NOT silently fall through to a
+  // startable board — that would let the supervisor double-start a concurrent
+  // drill (the server now also guards this with a 409, but the UI blocks first).
+  const [activeLookupError, setActiveLookupError] = useState(false);
+  const [activeRetryKey, setActiveRetryKey] = useState(0);
 
   // Pre-populate the expected roster from TODAY's attendance (the headcount
   // denominator). Failure → 'error' (visible, retryable), empty → 'empty'.
@@ -104,6 +109,8 @@ export function EvacuationDashboard() {
       return undefined;
     }
     let cancelled = false;
+    setActiveDrillId(undefined);
+    setActiveLookupError(false);
     (async () => {
       try {
         const snap = await getDocs(
@@ -117,17 +124,18 @@ export function EvacuationDashboard() {
         setActiveDrillId(active.length > 0 ? active[0].id : null);
       } catch (err) {
         if (cancelled) return;
-        // A failed lookup must NOT block starting a fresh drill — degrade to
-        // "no active drill" (the supervisor can start; a real active drill is
-        // still safe because the server rejects a duplicate-start per project).
+        // A failed lookup must NOT fall through to a startable board: we cannot
+        // know whether a drill is already running, and starting would create a
+        // concurrent duplicate. Surface a blocking, retryable error instead.
         logger.warn('evacuation_active_drill_lookup_failed', { err: String(err), projectId });
+        setActiveLookupError(true);
         setActiveDrillId(null);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [projectId, tenantId]);
+  }, [projectId, tenantId, activeRetryKey]);
 
   // The board reports its active drill id (id on start, null on end). We mirror
   // it into local state so that, IN-SESSION, ending a drill returns the
@@ -150,9 +158,43 @@ export function EvacuationDashboard() {
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-500 dark:border-white/10 dark:bg-zinc-900/60" data-testid="evacDashboard.noProject">
           {t('evac_dashboard.no_project', 'Seleccioná un proyecto para gestionar su evacuación.')}
         </div>
-      ) : tenantLoading || !tenantId || rosterState === 'loading' || resolvingActive ? (
+      ) : tenantLoading ? (
         <div className="flex items-center justify-center py-12 text-zinc-500" data-testid="evacDashboard.loading">
           <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      ) : !tenantId ? (
+        // Signed-in-without-tenant-claim / logged-out: terminal guidance, never
+        // an indefinite spinner (the old IndexedDB page didn't need a tenant).
+        <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200" data-testid="evacDashboard.noTenant">
+          <Info className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+          <span>
+            {t(
+              'evac_dashboard.no_tenant',
+              'Tu sesión no tiene una organización asignada. Iniciá sesión con tu cuenta de la empresa para gestionar la evacuación.',
+            )}
+          </span>
+        </div>
+      ) : rosterState === 'loading' || resolvingActive ? (
+        <div className="flex items-center justify-center py-12 text-zinc-500" data-testid="evacDashboard.loading">
+          <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      ) : activeLookupError ? (
+        <div className="flex flex-col items-start gap-2 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-700 dark:bg-rose-900/20 dark:text-rose-200" data-testid="evacDashboard.lookupError">
+          <span className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+            {t(
+              'evac_dashboard.lookup_failed',
+              'No se pudo verificar si hay una evacuación en curso. Reintentá antes de iniciar una nueva para no duplicar el conteo.',
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={() => setActiveRetryKey((k) => k + 1)}
+            data-testid="evacDashboard.lookupRetry"
+            className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-rose-500"
+          >
+            {t('evac_dashboard.retry', 'Reintentar')}
+          </button>
         </div>
       ) : showBoard ? (
         <LiveEvacuationDashboard

@@ -240,6 +240,30 @@ describe('POST /api/evacuation/start', () => {
     expect(typeof res.body.drill.id).toBe('string');
     expect(res.body.drill.id.startsWith('drill_')).toBe(true);
   });
+
+  it('409 when an ACTIVE (non-ended) drill already exists — no concurrent double-start', async () => {
+    seedProject(H.db!);
+    seedDrill(H.db!); // drillData() has endedAt: null → active
+    const res = await request(buildApp())
+      .post('/api/evacuation/start')
+      .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
+      .send(validBody);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('drill_already_active');
+  });
+
+  it('200 starts when only ENDED drills exist (ended drill is not a duplicate)', async () => {
+    seedProject(H.db!);
+    seedDrill(H.db!, { endedAt: new Date().toISOString() });
+    const res = await request(buildApp())
+      .post('/api/evacuation/start')
+      .set(asUser(MEMBER_UID))
+      .set('x-test-role', 'supervisor')
+      .send({ ...validBody, id: 'fresh-drill-after-ended' });
+    expect(res.status).toBe(200);
+    expect(res.body.drill.id).toBe('fresh-drill-after-ended');
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

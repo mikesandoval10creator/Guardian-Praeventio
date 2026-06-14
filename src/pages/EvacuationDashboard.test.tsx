@@ -12,7 +12,7 @@
 //      the start screen.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { EvacuationDashboard } from './EvacuationDashboard';
 
 vi.mock('react-i18next', () => ({
@@ -25,6 +25,7 @@ vi.mock('../contexts/ProjectContext', () => ({ useProject: () => ({ selectedProj
 vi.mock('../hooks/useTenantId', () => ({ useTenantId: () => mockTenant }));
 
 let attendanceError = false;
+let evacuationsError = false;
 let evacuationsDocs: Array<Record<string, unknown>> = [];
 const getDocs = vi.fn(async (arg: { path?: string }) => {
   const path = arg?.path ?? '';
@@ -33,6 +34,7 @@ const getDocs = vi.fn(async (arg: { path?: string }) => {
     return { docs: [] }; // buildEvacuationRoster is mocked → roster comes from mockRosterExpected
   }
   if (path.includes('/evacuations')) {
+    if (evacuationsError) throw new Error('evacuations-denied');
     return { docs: evacuationsDocs.map((d) => ({ data: () => d })) };
   }
   return { docs: [] };
@@ -82,6 +84,7 @@ beforeEach(() => {
   mockRosterExpected = [];
   evacuationsDocs = [];
   attendanceError = false;
+  evacuationsError = false;
   boardProps = null;
 });
 
@@ -98,6 +101,32 @@ describe('<EvacuationDashboard /> consolidation container', () => {
     render(<EvacuationDashboard />);
     expect(screen.getByTestId('evacDashboard.loading')).toBeTruthy();
     expect(screen.queryByTestId('liveBoard')).toBeNull();
+  });
+
+  it('signed in WITHOUT a tenant claim → terminal guidance, not an infinite spinner', () => {
+    mockTenant = { tenantId: null, loading: false };
+    render(<EvacuationDashboard />);
+    expect(screen.getByTestId('evacDashboard.noTenant')).toBeTruthy();
+    expect(screen.queryByTestId('evacDashboard.loading')).toBeNull();
+    expect(screen.queryByTestId('liveBoard')).toBeNull();
+  });
+
+  it('active-drill lookup FAILS → blocking guidance, NO startable board (prevents double-start)', async () => {
+    mockRosterExpected = [{ uid: 'w1', fullName: 'Ana' }]; // roster ready — would otherwise show a startable board
+    evacuationsError = true;
+    render(<EvacuationDashboard />);
+    await waitFor(() => expect(screen.getByTestId('evacDashboard.lookupError')).toBeTruthy());
+    expect(screen.queryByTestId('liveBoard')).toBeNull();
+  });
+
+  it('retry after a lookup failure re-queries and recovers', async () => {
+    mockRosterExpected = [{ uid: 'w1', fullName: 'Ana' }];
+    evacuationsError = true;
+    render(<EvacuationDashboard />);
+    await waitFor(() => expect(screen.getByTestId('evacDashboard.lookupError')).toBeTruthy());
+    evacuationsError = false; // the transient failure clears
+    fireEvent.click(screen.getByTestId('evacDashboard.lookupRetry'));
+    await waitFor(() => expect(screen.getByTestId('liveBoard')).toBeTruthy());
   });
 
   it('roster ready, no active drill → startable board with expectedWorkers + tenantId', async () => {
