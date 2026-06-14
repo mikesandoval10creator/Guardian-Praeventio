@@ -19,17 +19,29 @@ interface FakeEvent {
   failWriteKeys?: string[];
 }
 
-function buildDb(opts: { events: FakeEvent[]; expectedCollectionPath?: string }) {
+function buildDb(opts: {
+  events: FakeEvent[];
+  expectedCollectionPath?: string;
+  /** When true, the top-level active-events scan .get() rejects. */
+  failScan?: boolean;
+}) {
   const writes: Array<{ path: string; data: unknown }> = [];
   const expected = opts.expectedCollectionPath ?? 'mandown_events';
 
   const eventsCol = {
-    where(_field: string, _op: string, _val: unknown) {
+    where(field: string, op: string, val: unknown) {
       return {
         async get() {
+          if (opts.failScan) throw new Error('scan boom');
+          // Actually apply the predicate so the production query's
+          // .where('status','==','active') filter is verified (resolved/cancelled
+          // events must NOT be re-escalated). Only the equality op is needed here.
+          const matches = opts.events.filter((e) =>
+            op === '==' ? (e.data as Record<string, unknown>)[field] === val : true,
+          );
           return {
-            size: opts.events.length,
-            docs: opts.events.map((e) => ({ id: e.id, data: () => e.data })),
+            size: matches.length,
+            docs: matches.map((e) => ({ id: e.id, data: () => e.data })),
           };
         },
       };
@@ -236,5 +248,53 @@ describe('runManDownEscalationCron', () => {
     });
     expect(r.escalationsEmitted).toBe(1);
     expect(writes[0].path).toBe(`${projectScoped}/evt1/escalations/evt1_supervisor_${DAY}`);
+  });
+
+  it('only status==active events escalate — resolved/cancelled are filtered out', async () => {
+    const { db, writes } = buildDb({
+      events: [
+        activeEvent({ id: 'active-1', elapsedSec: 600 }),
+        // Past t3 but already resolved/cancelled → must NOT be re-paged to SAMU.
+        {
+          id: 'resolved-1',
+          data: {
+            status: 'resolved',
+            workerId: 'w',
+            location: '-33.45, -70.66',
+            triggeredAt: triggeredSecondsAgo(600),
+          },
+        },
+        {
+          id: 'cancelled-1',
+          data: {
+            status: 'cancelled',
+            workerId: 'w',
+            location: '-33.45, -70.66',
+            triggeredAt: triggeredSecondsAgo(600),
+          },
+        },
+      ],
+    });
+    const notify = vi.fn().mockResolvedValue(undefined);
+    const r = await runManDownEscalationCron({ db, now: NOW, notify });
+    // Only the active event is scanned + escalated (3 levels).
+    expect(r.eventsScanned).toBe(1);
+    expect(r.escalationsEmitted).toBe(3);
+    expect(writes.every((w) => w.path.includes('/active-1/'))).toBe(true);
+  });
+
+  it('scan failure → errors=1, resolves without throwing (route keeps sweeping)', async () => {
+    const { db, writes } = buildDb({
+      events: [activeEvent({ elapsedSec: 600 })],
+      failScan: true,
+    });
+    const notify = vi.fn();
+    const r = await runManDownEscalationCron({ db, now: NOW, notify });
+    expect(r.errors).toBe(1);
+    expect(r.eventsScanned).toBe(0);
+    expect(r.escalationsEmitted).toBe(0);
+    expect(r.finishedAtIso).not.toBe('');
+    expect(notify).not.toHaveBeenCalled();
+    expect(writes).toHaveLength(0);
   });
 });

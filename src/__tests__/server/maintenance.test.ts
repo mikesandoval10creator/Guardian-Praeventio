@@ -41,6 +41,7 @@ const H = vi.hoisted(() => ({
   iterateAllProjects: vi.fn(),
   resolveProjectMemberTokens: vi.fn(),
   sendMulticastChunked: vi.fn(),
+  captureRouteError: vi.fn(),
 }));
 
 // ── firebase-admin mock ───────────────────────────────────────────────────────
@@ -79,7 +80,7 @@ vi.mock('../../server/middleware/verifySchedulerToken.js', () => ({
 // ── infrastructure mocks ──────────────────────────────────────────────────────
 
 vi.mock('../../server/middleware/captureRouteError.js', () => ({
-  captureRouteError: vi.fn(),
+  captureRouteError: (...args: unknown[]) => H.captureRouteError(...args),
 }));
 
 vi.mock('../../utils/logger.js', () => ({
@@ -880,6 +881,95 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
       lng: '-70.66',
     });
     expect(res.body.notifications.delivered).toBe(1);
+  });
+
+  // Drive the REAL notify closure through a cron mock that propagates notify's
+  // throw, so the route's per-project error isolation is exercised. Guards the
+  // life-safety invariant: notify MUST throw on no-recipients / no-delivery so
+  // the cron skips the idempotency marker and the next sweep retries.
+  const driveNotifyOnce = () =>
+    H.runManDownEscalationCron.mockImplementationOnce(
+      async (deps: { notify?: (info: unknown) => Promise<void> }) => {
+        await deps.notify?.({
+          eventId: 'evt-x',
+          workerId: 'w-x',
+          workerName: null,
+          level: 'emergency_services',
+          triggeredAtIso: '2026-05-12T11:00:00Z',
+          message: 'man down',
+          location: null,
+        });
+        return {
+          eventsScanned: 1,
+          escalationsEmitted: 1,
+          escalationsSkippedIdempotent: 0,
+          byLevel: { supervisor: 0, brigade: 0, emergency_services: 1 },
+          startedAtIso: new Date().toISOString(),
+          finishedAtIso: new Date().toISOString(),
+          errors: 0,
+        };
+      },
+    );
+
+  const oneProject = (id = 'proj-md-throw') =>
+    H.iterateAllProjects.mockImplementationOnce(
+      async (_db: unknown, _ps: unknown, onProject: (doc: unknown) => Promise<void>) => {
+        await onProject({ id, data: () => ({}) });
+        return 1;
+      },
+    );
+
+  it('200 — NO recipients for the level → notify throws → per-project error counted, no silent "delivered"', async () => {
+    oneProject();
+    H.resolveProjectMemberTokens.mockResolvedValueOnce({ tokens: [], emails: [] });
+    driveNotifyOnce();
+
+    const res = await request(buildApp()).post(URL).set('Authorization', AUTH).send();
+
+    expect(res.status).toBe(200);
+    expect(res.body.errors).toBe(1); // notify threw → cron promise rejected → onError
+    expect(H.sendMulticastChunked).not.toHaveBeenCalled(); // never reached FCM
+  });
+
+  it('200 — FCM delivered to zero devices → notify throws → per-project error counted', async () => {
+    oneProject();
+    H.resolveProjectMemberTokens.mockResolvedValueOnce({ tokens: ['tkn-1'], emails: [] });
+    H.sendMulticastChunked.mockResolvedValueOnce({
+      attempted: 1,
+      successCount: 0,
+      failureCount: 1,
+      errorCount: 0,
+      chunkCount: 1,
+    });
+    driveNotifyOnce();
+
+    const res = await request(buildApp()).post(URL).set('Authorization', AUTH).send();
+
+    expect(res.status).toBe(200);
+    expect(res.body.errors).toBe(1); // no-delivery throw propagated
+  });
+
+  it('200 — cron returns soft errors (errors>0) → surfaced to the error tracker', async () => {
+    oneProject('proj-md-soft');
+    H.runManDownEscalationCron.mockResolvedValueOnce({
+      eventsScanned: 3,
+      escalationsEmitted: 0,
+      escalationsSkippedIdempotent: 0,
+      byLevel: { supervisor: 0, brigade: 0, emergency_services: 0 },
+      startedAtIso: new Date().toISOString(),
+      finishedAtIso: new Date().toISOString(),
+      errors: 2,
+    });
+
+    const res = await request(buildApp()).post(URL).set('Authorization', AUTH).send();
+
+    expect(res.status).toBe(200);
+    expect(res.body.errors).toBe(2);
+    expect(H.captureRouteError).toHaveBeenCalledWith(
+      expect.any(Error),
+      'maintenance.man-down-escalation.softErrors',
+      expect.objectContaining({ projectId: 'proj-md-soft' }),
+    );
   });
 
   it('500 — iterateAllProjects itself throws → 500 internal_error', async () => {

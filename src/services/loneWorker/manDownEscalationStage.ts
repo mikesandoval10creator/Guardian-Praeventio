@@ -68,8 +68,11 @@ export function manDownThresholds(
  * would page emergency_services while never paging the supervisor who is closest
  * and fastest. For a possibly-unconscious worker, under-paging is the dangerous
  * failure mode — mirrors the multi-stage rationale in `manDownTimer.ts`. The
- * cron deduplicates already-emitted levels via idempotency markers, so emitting
- * the full set here never double-pages across sweeps.
+ * cron deduplicates already-emitted levels via per-(event, level, UTC-day)
+ * idempotency markers, so emitting the full set here does not double-page WITHIN
+ * a day. (An event that stays unacknowledged across a UTC-midnight boundary is
+ * intentionally re-escalated once the next day — re-asserting an unresolved
+ * life-safety event — consistent with the lone-worker cron.)
  *
  * Returns `[]` for non-finite or negative elapsed (clock skew / bad data) —
  * the cron then leaves the event untouched rather than guessing.

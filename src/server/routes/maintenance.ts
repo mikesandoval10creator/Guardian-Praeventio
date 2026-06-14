@@ -746,6 +746,42 @@ router.post(
                 `failed=${result.failureCount})`,
             );
           }
+          // CLAUDE.md #3/#14 — record the escalation in the append-only audit
+          // trail. A Ley 16.744 / DS 44 post-incident review needs WHEN the
+          // system auto-paged WHOM (esp. emergency_services). Server-stamped
+          // (scheduler-initiated, no user). Awaited + fault-isolated: an audit
+          // failure logs + captures but must NOT skip the idempotency marker —
+          // the page DID deliver, so we never rethrow here (re-paging on an
+          // audit hiccup would be worse). Mirrors peer crons (checkExpiredPpe,
+          // checkExpiredBrigadeResources) which audit directly with a null uid.
+          try {
+            await db.collection('audit_logs').add({
+              action: 'man_down.escalation_emitted',
+              module: 'man_down',
+              userId: null,
+              userEmail: null,
+              projectId,
+              eventId: info.eventId,
+              level: info.level,
+              workerId: info.workerId,
+              triggeredAt: info.triggeredAtIso,
+              recipientsAttempted: result.attempted,
+              recipientsDelivered: result.successCount,
+              source: 'cron.run-man-down-escalation',
+              createdAt: new Date().toISOString(),
+            });
+          } catch (auditErr) {
+            logger.error('audit_event_failed', {
+              context: 'man_down_escalation',
+              projectId,
+              eventId: info.eventId,
+              level: info.level,
+              err: String(auditErr),
+            });
+            captureRouteError(auditErr, 'maintenance.man-down-escalation.audit', {
+              projectId,
+            });
+          }
         };
 
         await runManDownEscalationCron({
@@ -761,6 +797,17 @@ router.post(
             aggregated.byLevel.brigade += r.byLevel.brigade;
             aggregated.byLevel.emergency_services += r.byLevel.emergency_services;
             aggregated.errors += r.errors;
+            if (r.errors > 0) {
+              // Cron self-caught failures (scan / marker / notify) are RETURNED,
+              // not thrown — surface them to the error tracker so a project whose
+              // man-down escalation is silently failing pages ops, instead of the
+              // 1-minute sweep reporting HTTP 200 forever with only a warn line.
+              captureRouteError(
+                new Error(`man_down_cron_soft_errors: ${r.errors}`),
+                'maintenance.man-down-escalation.softErrors',
+                { projectId, eventsScanned: r.eventsScanned },
+              );
+            }
           },
           (err) => {
             logger.error('[maintenance] man-down per-project failed', {
