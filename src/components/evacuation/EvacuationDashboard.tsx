@@ -33,6 +33,7 @@ import {
 import {
   useEvacuationHeadcount,
   subscribeToDrill,
+  EvacuationAlreadyActiveError,
 } from '../../hooks/useEvacuationHeadcount.js';
 import { EvacuationQRScanner } from './EvacuationQRScanner.js';
 
@@ -89,6 +90,11 @@ export function EvacuationDashboard({
   const [busy, setBusy] = useState<'idle' | 'start' | 'end' | 'scan'>('idle');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set when we are subscribed to a specific drill (resume) but its doc does
+  // NOT exist — it finished/was deleted on another device. We then show a
+  // notice instead of silently dropping to the start screen (which would read
+  // as "nothing was in progress").
+  const [staleResume, setStaleResume] = useState(false);
   const [tick, setTick] = useState(0);
 
   // Re-render every second so elapsed counter stays live.
@@ -102,11 +108,19 @@ export function EvacuationDashboard({
   useEffect(() => {
     if (!drillId) {
       setDrill(null);
+      setStaleResume(false);
       return undefined;
     }
+    setStaleResume(false);
     const unsub = subscribeToDrill(
       { tenantId, projectId, drillId },
-      (next) => setDrill(next),
+      (next) => {
+        setDrill(next);
+        // Subscribed to a specific drill but it does not exist (ended/deleted
+        // on another device). A drill we just ENDED keeps its doc (endedAt set),
+        // so a null here is a genuine vanished-resume, not a normal close-out.
+        setStaleResume(next === null);
+      },
       (err) => setError(err.message ?? 'subscription_error'),
     );
     return () => unsub();
@@ -134,7 +148,15 @@ export function EvacuationDashboard({
         });
         setDrillId(res.drill.id);
       } catch (e) {
-        setError((e as Error).message ?? 'start_failed');
+        // Cross-device: another supervisor already started a count. Instead of a
+        // raw "drill_already_active" error, JOIN the in-progress drill so this
+        // device shows the live headcount (never two concurrent counts).
+        if (e instanceof EvacuationAlreadyActiveError && e.drillId) {
+          setDrillId(e.drillId);
+          setError(null);
+        } else {
+          setError((e as Error).message ?? 'start_failed');
+        }
       } finally {
         setBusy('idle');
       }
@@ -266,6 +288,22 @@ export function EvacuationDashboard({
             'No hay drill activo. Inicia un simulacro o, en emergencia real, dispara el conteo.',
           )}
         </p>
+
+        {staleResume && (
+          <div
+            className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200"
+            data-testid="evacuation-stale-resume"
+            role="alert"
+          >
+            <AlertOctagon className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              {t(
+                'evacuation.dashboard.staleResume',
+                'La evacuación que intentabas retomar ya no existe (finalizó o se eliminó en otro dispositivo). Iniciá un nuevo conteo si corresponde.',
+              )}
+            </span>
+          </div>
+        )}
 
         {!canStartNew && startBlockedHint && (
           <div

@@ -77,6 +77,20 @@ export interface StartEvacuationResponse {
   drill: EvacuationDrill;
 }
 
+/**
+ * Thrown by `start` when the server returns 409 because another device already
+ * has an active drill for this project. Carries the existing `drillId` so the
+ * caller can JOIN (resume) the in-progress count instead of surfacing a raw
+ * error — the realistic cross-device case: a second supervisor opening the
+ * screen mid-evacuation and hitting "start".
+ */
+export class EvacuationAlreadyActiveError extends Error {
+  constructor(public readonly drillId: string | null) {
+    super('drill_already_active');
+    this.name = 'EvacuationAlreadyActiveError';
+  }
+}
+
 export interface ScanQrInput {
   projectId: string;
   drillId: string;
@@ -221,6 +235,18 @@ export function useEvacuationHeadcount() {
         method: 'POST',
         body: JSON.stringify(input),
       });
+      // 409 = a drill is already active for this project (started on another
+      // device). Surface the existing drillId so the caller can JOIN it rather
+      // than show a raw error.
+      if (res.status === 409) {
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          drillId?: string;
+        };
+        if (body.error === 'drill_already_active') {
+          throw new EvacuationAlreadyActiveError(body.drillId ?? null);
+        }
+      }
       return json<StartEvacuationResponse>(res);
     },
     [],
