@@ -56,6 +56,14 @@ export function LoneWorker() {
   const [loading, setLoading] = useState<boolean>(true);
   const [starting, setStarting] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  // Persist failure of a check-in/help — FAIL LOUD (the escalation cron reads
+  // Firestore; a swallowed write would silently drop a real help request).
+  const [persistError, setPersistError] = useState<null | 'help' | 'checkin'>(null);
+  // Subscription read failure (denied/index/offline) — must NOT masquerade as
+  // "no session" (that invites a duplicate session + hides a failed read on a
+  // life-safety surface).
+  const [subError, setSubError] = useState<boolean>(false);
+  const [subRetryKey, setSubRetryKey] = useState<number>(0);
 
   // ── Worker's OWN active session (real data, no mock) ──────────────────────
   // subscribeActiveLoneWorkerSessions returns the project's live (non-ended)
@@ -65,23 +73,28 @@ export function LoneWorker() {
     if (!projectId) {
       setSession(null);
       setLoading(false);
+      setSubError(false);
       return undefined;
     }
     setLoading(true);
+    setSubError(false);
     const unsub = subscribeActiveLoneWorkerSessions(
       projectId,
       (list) => {
         const mine = list.find((s) => s.workerUid === workerUid) ?? null;
         setSession(mine);
+        setSubError(false);
         setLoading(false);
       },
       (err) => {
+        // Distinguish a FAILED read from "genuinely no session" — see subError.
         logger.warn('lone_worker_checkin_sub_error', { err: String(err) });
+        setSubError(true);
         setLoading(false);
       },
     );
     return () => unsub();
-  }, [projectId, workerUid]);
+  }, [projectId, workerUid, subRetryKey]);
 
   // ── Android foreground service lifecycle ──────────────────────────────────
   useEffect(() => {
@@ -110,6 +123,18 @@ export function LoneWorker() {
       });
     };
   }, [workerUid, t]);
+
+  // Keep the FGS persistent-notification cadence in sync with the worker's REAL
+  // session interval (the mount effect uses the default until the session loads,
+  // which would otherwise show "Check-in cada 15 min" for a 30-min session).
+  // startLoneWorkerFgs is idempotent (updates the notification when running).
+  useEffect(() => {
+    if (!session) return;
+    void startLoneWorkerFgs({
+      workerUid,
+      checkInIntervalSec: session.checkInIntervalMin * 60,
+    });
+  }, [session?.checkInIntervalMin, workerUid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleManualStop = useCallback(async () => {
     const r = await stopLoneWorkerFgs();
@@ -173,23 +198,40 @@ export function LoneWorker() {
 
   // Persist the engine's returned session (from the audited server route) so
   // the supervisor monitor's live subscription reflects the check-in/end.
+  //
+  // The server route is pure-compute + audit only — it does NOT persist the
+  // session; THIS write is the only thing that lands the check-in/help in the
+  // Firestore doc the 5-minute escalation cron reads. So the persist must be
+  // AWAITED and verified: on failure we roll back the optimistic UI (so the
+  // screen matches Firestore, not a phantom success) and FAIL LOUD. A 'help'
+  // press that fails to persist would otherwise be silently downgraded — the
+  // cron never sees status:'help_requested', so it never escalates to
+  // emergency_services, while the worker believes help is on the way.
   const handleSessionUpdated = useCallback(
-    (next: LoneWorkerSession) => {
+    async (next: LoneWorkerSession) => {
+      const prev = session;
+      const wasHelp =
+        next.status === 'help_requested' || next.checkIns.some((c) => c.status === 'help');
+      // Optimistic for snappy feedback; rolled back on failure below.
       setSession(next.status === 'ended' || next.endedAt ? null : next);
+      setPersistError(null);
       if (!projectId) return;
-      void patchLoneWorkerSession(projectId, next.id, {
-        checkIns: next.checkIns,
-        status: next.status,
-        ...(next.lastKnownLocation ? { lastKnownLocation: next.lastKnownLocation } : {}),
-        ...(next.endedAt ? { endedAt: next.endedAt } : {}),
-      }).catch((err) => {
-        logger.warn('lone_worker_checkin_persist_failed', { err: String(err) });
-        setFeedback(
-          t('lone_worker.persist_failed', 'No se pudo guardar el check-in. Reintentá.'),
-        );
-      });
+      try {
+        await patchLoneWorkerSession(projectId, next.id, {
+          checkIns: next.checkIns,
+          status: next.status,
+          ...(next.lastKnownLocation ? { lastKnownLocation: next.lastKnownLocation } : {}),
+          ...(next.endedAt ? { endedAt: next.endedAt } : {}),
+        });
+      } catch (err) {
+        logger.warn('lone_worker_checkin_persist_failed', { err: String(err), help: wasHelp });
+        // The write the cron reads did NOT land — revert the optimistic UI and
+        // fail loud (banner, not a small toast), especially for 'help'.
+        setSession(prev);
+        setPersistError(wasHelp ? 'help' : 'checkin');
+      }
     },
-    [projectId, t],
+    [projectId, session],
   );
 
   return (
@@ -209,6 +251,25 @@ export function LoneWorker() {
         </div>
       )}
 
+      {/* FAIL LOUD: a check-in/help that did NOT persist must never look sent. */}
+      {persistError && (
+        <div
+          role="alert"
+          data-testid="loneWorker.persistError"
+          className="rounded-xl border-2 border-rose-500 bg-rose-50 p-3 text-sm font-bold text-rose-800 dark:border-rose-500 dark:bg-rose-900/30 dark:text-rose-100"
+        >
+          {persistError === 'help'
+            ? t(
+                'lone_worker.help_not_sent',
+                '⚠️ Tu pedido de AYUDA no se guardó. Avisa por radio o teléfono AHORA — la escalación automática NO saldrá.',
+              )
+            : t(
+                'lone_worker.checkin_not_saved',
+                'El check-in no se guardó. Reintentá; si persiste, avisa a tu supervisor.',
+              )}
+        </div>
+      )}
+
       {/* Worker's own session: real check-in widget OR honest empty-state. */}
       {!projectId ? (
         <div
@@ -220,6 +281,26 @@ export function LoneWorker() {
       ) : loading ? (
         <div className="flex items-center justify-center py-12 text-zinc-500" data-testid="loneWorker.loading">
           <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      ) : subError ? (
+        <div
+          className="rounded-2xl border border-rose-300 bg-rose-50 p-5 text-center space-y-3 dark:border-rose-700 dark:bg-rose-900/20"
+          data-testid="loneWorker.subError"
+        >
+          <p className="text-sm font-medium text-rose-700 dark:text-rose-200">
+            {t(
+              'lone_worker.session_load_failed',
+              'No se pudo cargar tu sesión de trabajo solitario. Revisá tu conexión — NO inicies otra para no duplicar.',
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={() => setSubRetryKey((k) => k + 1)}
+            data-testid="loneWorker.subRetry"
+            className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-rose-500"
+          >
+            {t('lone_worker.retry', 'Reintentar')}
+          </button>
         </div>
       ) : session ? (
         <LoneWorkerCheckInWidget
