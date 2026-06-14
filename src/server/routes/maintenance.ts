@@ -68,6 +68,13 @@ import type {
 // constructor stays out of this route file (the convention guard's coarse
 // heuristic flags an Adapter construction in a route as a mutating route).
 import { nearestDeaForProject } from '../../services/dea/nearestDeaForProject.js';
+// OLA 1 — man-down graduated escalation cron (sibling to lone-worker A20).
+// Vidas dependen: un trabajador caído/inmóvil que nadie reconoce debe escalar
+// supervisor → brigade → emergency_services sin que nadie pulse un botón.
+import {
+  runManDownEscalationCron,
+  type ManDownEscalationInfo,
+} from '../jobs/runManDownEscalation.js';
 // Plan v2 Bloque F6 — wire 3 jobs implementados pero no montados (Sprint 39):
 // excepciones expiradas, work_permits expirados, recordatorios obligaciones
 // legales. El motor puro deriva el estado, pero hasta que el cron materialize
@@ -618,6 +625,174 @@ router.post(
         ok: false,
         error: 'internal_error',
         message: 'lone-worker-escalation failed',
+      });
+    }
+  },
+);
+
+// OLA 1 — man-down graduated escalation cron.
+//
+//   POST /api/maintenance/run-man-down-escalation
+//
+// Cloud Scheduler corre esto CADA MINUTO sobre `projects/{pid}/mandown_events`
+// con status='active'. El motor puro (`loneWorker/manDownEscalationStage.ts`)
+// decide qué niveles corresponden según el tiempo sin ACK; este endpoint
+// enumera proyectos, invoca el cron por cada uno con el path scoped, y emite
+// FCM al bucket de cada nivel (supervisor → brigade → emergency_services).
+// Idempotente por (eventId, level, día).
+//
+// Cadencia 1 min (más agresiva que lone-worker, 5 min): un trabajador caído
+// puede estar inconsciente y `useManDownDetection` ya disparó UN aviso al
+// detectar; sin re-escalación nadie amplía el círculo. Vidas dependen.
+//
+// Auth: `verifySchedulerToken` (Cloud Scheduler shared secret).
+router.post(
+  '/run-man-down-escalation',
+  verifySchedulerToken,
+  async (_req, res) => {
+    const start = Date.now();
+    try {
+      const db = admin.firestore();
+      const messaging = admin.messaging();
+
+      const aggregated = {
+        projectsScanned: 0,
+        eventsScanned: 0,
+        escalationsEmitted: 0,
+        escalationsSkippedIdempotent: 0,
+        byLevel: { supervisor: 0, brigade: 0, emergency_services: 0 },
+        errors: 0,
+        notifications: {
+          attempted: 0,
+          delivered: 0,
+          failed: 0,
+          chunks: 0,
+          chunkErrors: 0,
+        },
+      };
+
+      const titleForLevel = (level: ManDownEscalationInfo['level']): string => {
+        switch (level) {
+          case 'supervisor':
+            return '🟠 Hombre caído — alerta supervisor';
+          case 'brigade':
+            return '⚠️ Hombre caído sin confirmación — activar brigada';
+          case 'emergency_services':
+            return '🚨 Hombre caído — PROTOCOLO EMERGENCIA';
+        }
+      };
+
+      const perProject = async (
+        projectDoc: FirebaseFirestore.QueryDocumentSnapshot,
+      ): Promise<void> => {
+        const projectId = projectDoc.id;
+        aggregated.projectsScanned += 1;
+
+        // Reuses LONE_WORKER_ROLE_BUCKETS — man-down levels are aligned with the
+        // lone-worker role buckets so recipient resolution is identical. Same
+        // retry semantics as lone-worker: no-recipients / chunk-errors /
+        // all-failed throw so the cron skips the idempotency marker and the next
+        // 1-minute pass retries. Vidas dependen.
+        const notify = async (info: ManDownEscalationInfo): Promise<void> => {
+          const roles = LONE_WORKER_ROLE_BUCKETS[info.level];
+          const { tokens } = await resolveProjectMemberTokens(projectId, roles, db);
+          if (tokens.length === 0) {
+            logger.warn('[maintenance] man-down no tokens for project/level', {
+              projectId,
+              eventId: info.eventId,
+              level: info.level,
+            });
+            throw new Error(
+              `no_recipients_for_level: project=${projectId} level=${info.level}`,
+            );
+          }
+          const result = await sendMulticastChunked(messaging, tokens, {
+            notification: {
+              title: titleForLevel(info.level),
+              body: `${info.message} (proyecto ${projectId}).`,
+            },
+            data: {
+              kind: 'man_down_escalation',
+              eventId: info.eventId,
+              projectId,
+              level: info.level,
+              workerId: info.workerId,
+              message: info.message,
+              triggeredAt: info.triggeredAtIso,
+              // Worker's last-known coords (FCM data values must be strings).
+              // Omitted when the event's GPS was unavailable.
+              ...(info.location
+                ? {
+                    lat: String(info.location.lat),
+                    lng: String(info.location.lng),
+                  }
+                : {}),
+            },
+            android: { priority: 'high' },
+            apns: { headers: { 'apns-priority': '10' } },
+          });
+          aggregated.notifications.attempted += result.attempted;
+          aggregated.notifications.delivered += result.successCount;
+          aggregated.notifications.failed += result.failureCount;
+          aggregated.notifications.chunks += result.chunkCount;
+          aggregated.notifications.chunkErrors += result.errorCount;
+          if (
+            result.errorCount > 0 ||
+            (result.attempted > 0 && result.successCount === 0)
+          ) {
+            throw new Error(
+              `fcm_multicast_no_delivery: chunks=${result.errorCount}/${result.chunkCount} ` +
+                `(attempted=${result.attempted}, delivered=${result.successCount}, ` +
+                `failed=${result.failureCount})`,
+            );
+          }
+        };
+
+        await runManDownEscalationCron({
+          db,
+          collectionPath: `projects/${projectId}/mandown_events`,
+          notify,
+        }).then(
+          (r) => {
+            aggregated.eventsScanned += r.eventsScanned;
+            aggregated.escalationsEmitted += r.escalationsEmitted;
+            aggregated.escalationsSkippedIdempotent += r.escalationsSkippedIdempotent;
+            aggregated.byLevel.supervisor += r.byLevel.supervisor;
+            aggregated.byLevel.brigade += r.byLevel.brigade;
+            aggregated.byLevel.emergency_services += r.byLevel.emergency_services;
+            aggregated.errors += r.errors;
+          },
+          (err) => {
+            logger.error('[maintenance] man-down per-project failed', {
+              projectId,
+              err: String(err),
+            });
+            captureRouteError(err, 'maintenance.man-down-escalation.project', {
+              projectId,
+            });
+            aggregated.errors += 1;
+          },
+        );
+      };
+
+      await iterateAllProjects(db, PROJECT_PAGE_SIZE, perProject);
+
+      logger.info('[maintenance] man-down-escalation done', {
+        ...aggregated,
+        tookMs: Date.now() - start,
+      });
+      return res.status(200).json({
+        ok: true,
+        ...aggregated,
+        tookMs: Date.now() - start,
+      });
+    } catch (err) {
+      logger.error('[maintenance] man-down-escalation failed', err);
+      captureRouteError(err, 'maintenance.man-down-escalation');
+      return res.status(500).json({
+        ok: false,
+        error: 'internal_error',
+        message: 'man-down-escalation failed',
       });
     }
   },

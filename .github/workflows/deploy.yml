@@ -353,4 +353,15 @@ jobs:
             "/api/maintenance/run-lone-worker-escalation" \
             "Lone-worker escalation sweep every 5 min (AUDIT-2026-06 B19). Reads active lone_worker_sessions, applies the pure escalation engine, multicasts FCM to supervisor/brigade/emergency_services."
 
+          # OLA 1 — man-down escalation (every minute). LIFE SAFETY: a fallen /
+          # immobile worker whose phone fired one detection alert must escalate
+          # supervisor → brigade → emergency_services WITHOUT anyone pressing a
+          # button if no acknowledgment arrives. 1-min cadence (vs 5-min lone
+          # worker) because the worker may be unconscious; thresholds are
+          # 60/240/540s. Reads active projects/{pid}/mandown_events.
+          ensure_job "man-down-escalation" \
+            "* * * * *" \
+            "/api/maintenance/run-man-down-escalation" \
+            "Man-down escalation sweep every minute (OLA 1). Reads active mandown_events, applies the pure stage resolver, multicasts FCM to supervisor/brigade/emergency_services. Idempotent by (eventId, level, day)."
+
           echo "✓ Maintenance scheduler jobs setup complete"

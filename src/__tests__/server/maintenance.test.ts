@@ -31,6 +31,7 @@ const H = vi.hoisted(() => ({
   runResilienceHealthAlertCron: vi.fn(),
   runB2dMrrSnapshot: vi.fn(),
   runLoneWorkerEscalationCron: vi.fn(),
+  runManDownEscalationCron: vi.fn(),
   runExceptionAutoExpire: vi.fn(),
   runWorkPermitAutoExpire: vi.fn(),
   runLegalCalendarReminders: vi.fn(),
@@ -117,6 +118,10 @@ vi.mock('../../server/jobs/runB2dMrrSnapshot.js', () => ({
 
 vi.mock('../../server/jobs/runLoneWorkerEscalation.js', () => ({
   runLoneWorkerEscalationCron: H.runLoneWorkerEscalationCron,
+}));
+
+vi.mock('../../server/jobs/runManDownEscalation.js', () => ({
+  runManDownEscalationCron: H.runManDownEscalationCron,
 }));
 
 vi.mock('../../server/jobs/runExceptionAutoExpire.js', () => ({
@@ -215,6 +220,15 @@ beforeEach(() => {
   });
   H.runLoneWorkerEscalationCron.mockResolvedValue({
     sessionsScanned: 0,
+    escalationsEmitted: 0,
+    escalationsSkippedIdempotent: 0,
+    byLevel: { supervisor: 0, brigade: 0, emergency_services: 0 },
+    startedAtIso: new Date().toISOString(),
+    finishedAtIso: new Date().toISOString(),
+    errors: 0,
+  });
+  H.runManDownEscalationCron.mockResolvedValue({
+    eventsScanned: 0,
     escalationsEmitted: 0,
     escalationsSkippedIdempotent: 0,
     byLevel: { supervisor: 0, brigade: 0, emergency_services: 0 },
@@ -704,6 +718,182 @@ describe('POST /api/maintenance/run-lone-worker-escalation', () => {
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toBe('internal_error');
     expect(res.body.message).toBe('lone-worker-escalation failed');
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 3b. POST /api/maintenance/run-man-down-escalation
+//    Gate: verifySchedulerToken
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/maintenance/run-man-down-escalation', () => {
+  const URL = '/api/maintenance/run-man-down-escalation';
+
+  it('401 — missing Authorization header', async () => {
+    const res = await request(buildApp()).post(URL).send();
+    expect(res.status).toBe(401);
+  });
+
+  it('401 — wrong bearer token', async () => {
+    const res = await request(buildApp())
+      .post(URL)
+      .set('Authorization', 'Bearer evil-secret')
+      .send();
+    expect(res.status).toBe(401);
+  });
+
+  it('200 — no projects: response shape correct with zero aggregates', async () => {
+    H.iterateAllProjects.mockImplementationOnce(async () => 0);
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('Authorization', AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.projectsScanned).toBe(0);
+    expect(res.body.eventsScanned).toBe(0);
+    expect(res.body.escalationsEmitted).toBe(0);
+    expect(res.body.errors).toBe(0);
+    expect(res.body.notifications).toMatchObject({
+      attempted: 0, delivered: 0, failed: 0, chunks: 0, chunkErrors: 0,
+    });
+    expect(typeof res.body.tookMs).toBe('number');
+  });
+
+  it('200 — one project, cron emits 3 escalations: aggregates rolled up', async () => {
+    H.iterateAllProjects.mockImplementationOnce(
+      async (
+        _db: unknown,
+        _ps: unknown,
+        onProject: (doc: unknown) => Promise<void>,
+      ) => {
+        const fakeDoc = { id: 'proj-md-1', data: () => ({ tenantId: 'tenant-1' }) };
+        await onProject(fakeDoc);
+        return 1;
+      },
+    );
+    H.runManDownEscalationCron.mockResolvedValueOnce({
+      eventsScanned: 2,
+      escalationsEmitted: 3,
+      escalationsSkippedIdempotent: 1,
+      byLevel: { supervisor: 1, brigade: 1, emergency_services: 1 },
+      startedAtIso: new Date().toISOString(),
+      finishedAtIso: new Date().toISOString(),
+      errors: 0,
+    });
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('Authorization', AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.projectsScanned).toBe(1);
+    expect(res.body.eventsScanned).toBe(2);
+    expect(res.body.escalationsEmitted).toBe(3);
+    expect(res.body.byLevel).toMatchObject({ supervisor: 1, brigade: 1, emergency_services: 1 });
+  });
+
+  it('200 — per-project cron throws: errors counter incremented, overall 200', async () => {
+    H.iterateAllProjects.mockImplementationOnce(
+      async (
+        _db: unknown,
+        _ps: unknown,
+        onProject: (doc: unknown) => Promise<void>,
+      ) => {
+        const fakeDoc = { id: 'proj-err', data: () => ({}) };
+        await onProject(fakeDoc);
+        return 1;
+      },
+    );
+    H.runManDownEscalationCron.mockRejectedValueOnce(new Error('per-project crash'));
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('Authorization', AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.errors).toBe(1);
+  });
+
+  it('200 — cron notify hook resolves tokens + multicasts (FCM wiring exercised)', async () => {
+    // Drive the real notify closure: iterateAllProjects invokes perProject,
+    // and the cron mock calls the provided notify with a supervisor escalation.
+    H.iterateAllProjects.mockImplementationOnce(
+      async (
+        _db: unknown,
+        _ps: unknown,
+        onProject: (doc: unknown) => Promise<void>,
+      ) => {
+        const fakeDoc = { id: 'proj-md-2', data: () => ({}) };
+        await onProject(fakeDoc);
+        return 1;
+      },
+    );
+    H.runManDownEscalationCron.mockImplementationOnce(
+      async (deps: { notify?: (info: unknown) => Promise<void> }) => {
+        await deps.notify?.({
+          eventId: 'evt-9',
+          workerId: 'w-9',
+          workerName: 'Ana',
+          level: 'supervisor',
+          triggeredAtIso: '2026-05-12T11:58:00Z',
+          message: 'Trabajador Ana caído o inmóvil — alerta supervisor (man down)',
+          location: { lat: -33.45, lng: -70.66 },
+        });
+        return {
+          eventsScanned: 1,
+          escalationsEmitted: 1,
+          escalationsSkippedIdempotent: 0,
+          byLevel: { supervisor: 1, brigade: 0, emergency_services: 0 },
+          startedAtIso: new Date().toISOString(),
+          finishedAtIso: new Date().toISOString(),
+          errors: 0,
+        };
+      },
+    );
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('Authorization', AUTH)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(H.resolveProjectMemberTokens).toHaveBeenCalledWith(
+      'proj-md-2',
+      ['supervisor'],
+      expect.anything(),
+    );
+    expect(H.sendMulticastChunked).toHaveBeenCalledOnce();
+    const [, tokens, payload] = H.sendMulticastChunked.mock.calls[0];
+    expect(tokens).toEqual(['tkn-1']);
+    expect(payload.data).toMatchObject({
+      kind: 'man_down_escalation',
+      eventId: 'evt-9',
+      level: 'supervisor',
+      lat: '-33.45',
+      lng: '-70.66',
+    });
+    expect(res.body.notifications.delivered).toBe(1);
+  });
+
+  it('500 — iterateAllProjects itself throws → 500 internal_error', async () => {
+    H.iterateAllProjects.mockRejectedValueOnce(new Error('iterate failed'));
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('Authorization', AUTH)
+      .send();
+
+    expect(res.status).toBe(500);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toBe('internal_error');
+    expect(res.body.message).toBe('man-down-escalation failed');
   });
 });
 
