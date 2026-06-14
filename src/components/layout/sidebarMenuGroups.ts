@@ -238,6 +238,8 @@ export function buildSidebarMenuGroups(
     // /stoppages cierra el gap. Cualquier worker puede declarar
     // detencion_voluntaria; categorías superiores exigen role superior.
     { title: t('nav.stoppages', 'Paralizaciones'), icon: OctagonAlert, path: '/stoppages', color: 'text-rose-500' },
+    // OLA 1 — SIF (Serious Injury/Fatality) precursor review page.
+    { title: t('nav.sif_precursors', 'Precursores SIF'), icon: AlertOctagon, path: '/sif', color: 'text-rose-500' },
     // Sprint K vidas críticas wire (2026-05-23) — Trabajo solitario.
     // Service loneWorkerService.ts + card LoneWorkerCard.tsx existían
     // pero faltaba la page. Check-in periódico + escalamiento.

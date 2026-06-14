@@ -85,9 +85,10 @@ export function useSifPendingReview(projectId: string | null) {
 export async function recordSifExecutiveReview(
   projectId: string,
   precursorId: string,
-  payload: { reviewedByUid: string; reviewedAt: string; reviewNotes?: string },
+  payload: { reviewNotes?: string },
 ): Promise<void> {
-  // §2.20 (2026-05-23) — apiAuthHeader unified.
+  // §2.20 (2026-05-23) — apiAuthHeader unified. The reviewer uid + timestamp are
+  // stamped server-side (B4) — only reviewNotes is client-supplied.
   const authHeader = await apiAuthHeader();
   const res = await fetch(
     `/api/sprint-k/${projectId}/sif/${precursorId}/executive-review`,
@@ -98,6 +99,25 @@ export async function recordSifExecutiveReview(
         ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+}
+
+export async function recordSifMandanteNotification(
+  projectId: string,
+  precursorId: string,
+): Promise<void> {
+  // The notifier uid + timestamp are stamped server-side (B4). No body needed.
+  const authHeader = await apiAuthHeader();
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/sif/${precursorId}/notify-mandante`,
+    {
+      method: 'POST',
+      headers: authHeader ? { Authorization: authHeader } : undefined,
     },
   );
   if (!res.ok) {

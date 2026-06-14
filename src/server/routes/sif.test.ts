@@ -32,4 +32,16 @@ describe('sifRouter (F.3 migration contract)', () => {
     );
     expect(layer).toBeDefined();
   });
+
+  it('registers POST /:projectId/sif/:id/notify-mandante', () => {
+    const layers = (sifRouter as unknown as {
+      stack: Array<{ route?: { path: string; methods: Record<string, boolean> } }>;
+    }).stack;
+    const layer = layers.find(
+      (l) =>
+        l.route?.path === '/:projectId/sif/:id/notify-mandante' &&
+        l.route?.methods.post === true,
+    );
+    expect(layer).toBeDefined();
+  });
 });

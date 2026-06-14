@@ -3,9 +3,10 @@
 // Endpoints dedicados para `/api/sprint-k/:projectId/sif/*`.
 // Migrado del monolito `sprintK.ts` (2026-05-18).
 //
-// 2 endpoints:
+// 3 endpoints:
 //   GET  /:projectId/sif/pending-review            → precursors pendientes
 //   POST /:projectId/sif/:id/executive-review      → grabar revisión ejecutiva
+//   POST /:projectId/sif/:id/notify-mandante       → registrar notificación al mandante
 
 import { Router } from 'express';
 import { z } from 'zod';
@@ -118,6 +119,34 @@ router.post(
     } catch (err) {
       logger.error?.('sif.review.error', err);
       captureRouteError(err, 'sif.review');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// Records that the client mandante was notified of a SIF precursor. Same B4
+// security model as executive-review: the notifier (uid) and timestamp are
+// stamped SERVER-SIDE from the verified token + clock, never the body — this is
+// an accountability record (who informed the mandante, when). It does NOT push
+// to any external/state system (founder directive: we record; the company
+// handles delivery) — it only marks the internal compliance timestamp.
+router.post(
+  '/:projectId/sif/:id/notify-mandante',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, id } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const adapter = new SIFAdapter(admin.firestore(), g.tenantId, projectId);
+      // notifier = authenticated caller; notifiedAt = server clock.
+      await adapter.recordMandanteNotification(id, callerUid, new Date().toISOString());
+      await auditServerEvent(req, 'sif.notify-mandante', 'sif', { projectId, precursorId: id }, { projectId });
+      return res.status(204).end();
+    } catch (err) {
+      logger.error?.('sif.notifyMandante.error', err);
+      captureRouteError(err, 'sif.notifyMandante');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
