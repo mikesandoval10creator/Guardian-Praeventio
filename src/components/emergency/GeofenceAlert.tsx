@@ -1,29 +1,38 @@
 import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, MapPin, MapPinOff } from 'lucide-react';
-import { useGeofence, GeofenceZone } from '../../hooks/useGeofence';
+import { GeofenceZone } from '../../hooks/useGeofence';
+import { useGeofenceWithEvents } from '../../hooks/useGeofenceWithEvents';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useNotifications } from '../../contexts/NotificationContext';
-import { db, serverTimestamp } from '../../services/firebase';
+import { db, serverTimestamp, auth } from '../../services/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { logger } from '../../utils/logger';
 
-// Fallback zones if none provided by project
-const FALLBACK_ZONES: GeofenceZone[] = [
-  {
-    id: 'zone-1',
-    name: 'Área de Químicos Peligrosos',
-    type: 'HAZMAT',
-    coordinates: [[
-      [-70.6500, -33.4500],
-      [-70.6400, -33.4500],
-      [-70.6400, -33.4600],
-      [-70.6500, -33.4600],
-      [-70.6500, -33.4500]
-    ]]
-  }
-];
+// Demo geocerca — DEV ONLY. This hardcoded HAZMAT polygon over central Santiago
+// was previously shipped as the prod fallback for ANY project without configured
+// zones (and nothing writes `settings.geofences`), so every worker near those
+// coordinates saw a FABRICATED "Área de Químicos Peligrosos" alert — and once the
+// geofence→SOS escalation is wired (below), it would have fired a FALSE SOS. It
+// is now empty in prod (an unconfigured project shows no geocerca — honest) and
+// kept only under import.meta.env.DEV so the UI can still be exercised locally.
+const FALLBACK_ZONES: GeofenceZone[] = import.meta.env.DEV
+  ? [
+      {
+        id: 'zone-1',
+        name: 'Área de Químicos Peligrosos (DEMO)',
+        type: 'HAZMAT',
+        coordinates: [[
+          [-70.6500, -33.4500],
+          [-70.6400, -33.4500],
+          [-70.6400, -33.4600],
+          [-70.6500, -33.4600],
+          [-70.6500, -33.4500]
+        ]]
+      },
+    ]
+  : [];
 
 export function GeofenceAlert() {
   const { selectedProject } = useProject();
@@ -46,8 +55,17 @@ export function GeofenceAlert() {
     }).catch((err) => logger.error('GeofenceAlert: failed to log zone violation', { err }));
   }, [selectedProject, user]);
 
-  const { activeZones, permissionState } = useGeofence(
+  // Use the event-emitting wrapper so a zone crossing emits `geofence_crossed`
+  // onto the SystemEngine bus → geofenceToSosPolicy (registered in
+  // SystemEngineProvider) → recommend/notify supervisors for HAZMAT/RESTRICTED.
+  // Previously this used the RAW useGeofence (no emit), so the registered
+  // escalation policy was starved and a worker entering a hazmat zone got only a
+  // local banner + a zone_violations row — no supervisor fan-out. (Inert until a
+  // project has real configured zones; the demo no longer ships in prod.)
+  const tenantId = auth.currentUser?.tenantId ?? 'default';
+  const { activeZones, permissionState } = useGeofenceWithEvents(
     activeProjectZones,
+    { tenantId, projectId: selectedProject?.id ?? '', workerId: user?.uid ?? '' },
     handleZoneEntry,
   );
 
