@@ -100,6 +100,7 @@
     "qr_signature": "QR Signature",
     "repeating_risks": "Risk Patterns",
     "residual_risk": "Residual Risk",
+    "sif_precursors": "SIF Precursors",
     "root_cause": "Root Cause",
     "safety_talks": "Daily Safety Talks",
     "shift_handover": "Shift Handover",
@@ -2573,6 +2574,15 @@
     "err_until": "Invalid end date.",
     "err_window": "The end must be after the start.",
     "err_save": "Could not save the zone."
+  },
+  "sif_page": {
+    "title": "SIF Precursors",
+    "subtitle": "Near-misses with serious-injury or fatality (SIF) potential. They require executive review and, where applicable, client (mandante) notification.",
+    "no_project": "Select a project to view its SIF precursors.",
+    "load_failed": "Could not load the SIF precursors.",
+    "reviewed_ok": "Executive review recorded.",
+    "notified_ok": "Mandante notification recorded.",
+    "action_failed": "Could not record the action."
   },
   "lone_worker_page": {
     "title": "Lone worker",

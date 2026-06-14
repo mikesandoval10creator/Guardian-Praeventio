@@ -33,13 +33,10 @@ import { logger } from '../utils/logger';
  * no-ops (Codex P2 PR #309).
  */
 function routeForItem(item: InboxItem): string {
-  // SIF precursors live under the SIF dashboard which the prevencionista
-  // accesses from /hub/risks; the executive review CTA is on the panel
-  // itself. Until the SIF detail page lands as its own route, the
-  // /executive-dashboard view shows the precursor list — best deep link
-  // we can reach today.
+  // SIF precursors have a dedicated review page (OLA 1): /sif renders the
+  // pending-executive-review list with the review + notify-mandante CTAs.
   if (item.kind === 'sif_precursor_pending') {
-    return '/executive-dashboard';
+    return '/sif';
   }
   if (item.kind === 'corrective_action_open') {
     return '/corrective-actions';

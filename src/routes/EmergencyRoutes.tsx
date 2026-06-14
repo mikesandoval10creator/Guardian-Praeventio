@@ -32,6 +32,10 @@ const StoppageMonitor = lazy(() => import('../pages/StoppageMonitor').then(modul
 // Vidas críticas: trabajador remoto/aislado con check-in periódico +
 // escalamiento automático supervisor → brigada → emergencia.
 const LoneWorkerMonitor = lazy(() => import('../pages/LoneWorkerMonitor').then(module => ({ default: module.LoneWorkerMonitor })));
+// OLA 1 — SIF (Serious Injury/Fatality) precursor review page. The <SIFAlert />
+// panel + useSif hook existed but had no consuming page (Inbox deep-linked to
+// /executive-dashboard as a stopgap).
+const SifPrecursors = lazy(() => import('../pages/SifPrecursors').then(module => ({ default: module.SifPrecursors })));
 
 export const EmergencyRoutes = [
   <Route key="emergency" path="emergency" element={<Emergency />} />,
@@ -52,4 +56,5 @@ export const EmergencyRoutes = [
   <Route key="stoppages" path="stoppages" element={<StoppageMonitor />} />,
   <Route key="lone-worker" path="lone-worker" element={<LoneWorkerMonitor />} />,
   <Route key="first-responder-map" path="first-responder-map" element={<FirstResponderMap />} />,
+  <Route key="sif" path="sif" element={<SifPrecursors />} />,
 ];

@@ -100,6 +100,7 @@
     "qr_signature": "Assinatura QR",
     "repeating_risks": "Padrões de Risco",
     "residual_risk": "Risco Residual",
+    "sif_precursors": "Precursores SIF",
     "root_cause": "Causa Raiz",
     "safety_talks": "Diálogos Diários de Segurança",
     "shift_handover": "Passagem de Turno",
@@ -3222,6 +3223,15 @@
     "err_until": "Data de término inválida.",
     "err_window": "O término deve ser posterior ao início.",
     "err_save": "Não foi possível salvar a zona."
+  },
+  "sif_page": {
+    "title": "Precursores SIF",
+    "subtitle": "Quase-acidentes com potencial de lesão grave ou fatal (SIF). Exigem revisão executiva e, quando aplicável, notificação ao mandante.",
+    "no_project": "Selecione um projeto para ver seus precursores SIF.",
+    "load_failed": "Não foi possível carregar os precursores SIF.",
+    "reviewed_ok": "Revisão executiva registrada.",
+    "notified_ok": "Notificação ao mandante registrada.",
+    "action_failed": "Não foi possível registrar a ação."
   },
   "oc": {
     "actions": {
