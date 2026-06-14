@@ -62,6 +62,12 @@ import { runLoneWorkerEscalationCron } from '../jobs/runLoneWorkerEscalation.js'
 import type {
   EscalationDecision,
 } from '../../services/loneWorker/loneWorkerService.js';
+// OLA 1 C5 (2026-06-14) — route a lone-worker escalation to the NEAREST DEA
+// (defibrillator). nearestDea + DeaAdapter are pure/tested; the cron joins them
+// to the worker's last-known location so the push tells the responder which AED
+// to grab and how far it is.
+import { DeaAdapter } from '../../services/dea/deaFirestoreAdapter.js';
+import { nearestDea, type Dea } from '../../services/dea/deaService.js';
 // Plan v2 Bloque F6 — wire 3 jobs implementados pero no montados (Sprint 39):
 // excepciones expiradas, work_permits expirados, recordatorios obligaciones
 // legales. El motor puro deriva el estado, pero hasta que el cron materialize
@@ -423,6 +429,38 @@ router.post(
       ): Promise<void> => {
         const projectId = projectDoc.id;
         aggregated.projectsScanned += 1;
+        const tenantId =
+          (projectDoc.data() as { tenantId?: string }).tenantId ?? projectId;
+
+        // Nearest-DEA finder, lazily read ONCE per project per run (only when an
+        // escalation with a location actually needs it — escalations are rare).
+        // Failure is non-fatal: the escalation still goes out, just without the
+        // AED hint.
+        let deasCache: Dea[] | null = null;
+        const nearestDeaFor = async (loc: {
+          lat: number;
+          lng: number;
+        }): Promise<{ location: string; distanceM: number; coords?: { lat: number; lng: number } } | null> => {
+          try {
+            if (deasCache === null) {
+              deasCache = await new DeaAdapter(
+                db as unknown as ConstructorParameters<typeof DeaAdapter>[0],
+                tenantId,
+                projectId,
+              ).listAll();
+            }
+            const near = nearestDea(deasCache, { lat: loc.lat, lng: loc.lng });
+            return near
+              ? { location: near.dea.location, distanceM: near.distanceM, coords: near.dea.coordinates }
+              : null;
+          } catch (err) {
+            logger.warn('[maintenance] lone-worker nearest-DEA lookup failed', {
+              projectId,
+              err: String(err),
+            });
+            return null;
+          }
+        };
 
         const notifyForLevel = async (
           sessionId: string,
@@ -452,6 +490,21 @@ router.post(
               `no_recipients_for_level: project=${projectId} level=${decision.level}`,
             );
           }
+          // Nearest DEA (AED) to the worker — routes the responder to the closest
+          // defibrillator. FCM data values must be strings; omitted if there is
+          // no location or no located DEA in the project.
+          const deaData: Record<string, string> = {};
+          if (decision.lastKnownLocation) {
+            const near = await nearestDeaFor(decision.lastKnownLocation);
+            if (near) {
+              deaData.nearestDeaLocation = near.location;
+              deaData.nearestDeaDistanceM = String(Math.round(near.distanceM));
+              if (near.coords) {
+                deaData.nearestDeaLat = String(near.coords.lat);
+                deaData.nearestDeaLng = String(near.coords.lng);
+              }
+            }
+          }
           const result = await sendMulticastChunked(messaging, tokens, {
             notification: {
               title,
@@ -474,6 +527,7 @@ router.post(
                     locAt: decision.lastKnownLocation.at,
                   }
                 : {}),
+              ...deaData,
             },
             android: { priority: 'high' },
             apns: { headers: { 'apns-priority': '10' } },
