@@ -1,23 +1,28 @@
 // Praeventio Guard — OLA 1 (2026-06-14): evacuation dashboard CONSOLIDATION.
 //
-// This page is now a thin CONTAINER around the live, server-backed evacuation
-// board (`components/evacuation/EvacuationDashboard.tsx`). It replaces the
-// previous IndexedDB single-device implementation, which was dangerous for a
-// real evacuation: a "marcar seguro" on one supervisor's phone was invisible to
+// This page is a thin CONTAINER around the live, server-backed evacuation board
+// (`components/evacuation/EvacuationDashboard.tsx`). It replaces the previous
+// IndexedDB single-device implementation, which was dangerous for a real
+// evacuation: a "marcar seguro" on one supervisor's phone was invisible to
 // everyone else (no real-time sync, no audit trail). The live board subscribes
 // to Firestore (`tenants/{tid}/projects/{pid}/evacuations/{drillId}` + scans)
-// and mutates ONLY through the audited server routes (/api/evacuation/*), so
-// headcount is consistent across devices and every scan is auditable.
+// and mutates ONLY through the audited server routes (/api/evacuation/*).
 //
-// What we KEEP from the old page: pre-populating `expectedWorkers` from TODAY's
-// attendance (`projects/{id}/attendance` → buildEvacuationRoster) so the
-// headcount is the NOMINAL who's-missing list, not a guess. What we ADD:
-// resume-across-reload (the IDB page persisted the active drill; we keep that
-// capability with a localStorage marker fed by the board's onDrillIdChange) so a
-// supervisor who reloads mid-evacuation rejoins the SAME drill, never a duplicate.
+// Two safety rules this container enforces (both from an adversarial review):
 //
-// Life-safety surface — free on every tier, never tier-gated. No fabricated
-// data: when there is no attendance, we say so honestly (workers self-scan).
+//   1. A headcount needs a ROSTER. "Who's missing" is only meaningful against a
+//      denominator (who SHOULD be at the meeting point). With no attendance the
+//      board would report "100% / 0 faltantes" — a false all-clear. So we only
+//      let the supervisor START a drill when today's attendance yields a real
+//      expected roster; otherwise we tell them to register attendance first.
+//
+//   2. RESUME is driven by a live query for the ACTIVE (non-ended) drill, NOT a
+//      localStorage marker. A drill ended on another device / by an auto-trigger
+//      stamps `endedAt` (the doc survives); a stale marker would resume onto the
+//      dead drill and silently lock the supervisor out of starting a new count.
+//      Querying for `!endedAt` can never resume a finished drill.
+//
+// Life-safety surface — free on every tier, never tier-gated. No fabricated data.
 
 import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -33,8 +38,6 @@ import {
 import { EvacuationDashboard as LiveEvacuationDashboard } from '../components/evacuation/EvacuationDashboard';
 import { logger } from '../utils/logger';
 
-const ACTIVE_DRILL_KEY = (projectId: string) => `praeventio:evac:active:${projectId}`;
-
 type RosterState = 'loading' | 'ready' | 'empty' | 'error';
 
 export function EvacuationDashboard() {
@@ -45,10 +48,12 @@ export function EvacuationDashboard() {
 
   const [expectedWorkers, setExpectedWorkers] = useState<EvacuationDrill['expectedWorkers']>([]);
   const [rosterState, setRosterState] = useState<RosterState>('loading');
-  const [initialDrillId, setInitialDrillId] = useState<string | undefined>(undefined);
+  // The currently-active (non-ended) drill, discovered by query — the resume
+  // source of truth. `undefined` = still resolving; `null` = none active.
+  const [activeDrillId, setActiveDrillId] = useState<string | null | undefined>(undefined);
 
-  // Pre-populate the expected roster from TODAY's attendance (kept from the old
-  // page — the valuable part). Failure degrades to "self-scan" honestly.
+  // Pre-populate the expected roster from TODAY's attendance (the headcount
+  // denominator). Failure → 'error' (visible, retryable), empty → 'empty'.
   useEffect(() => {
     if (!projectId) {
       setRosterState('loading');
@@ -89,34 +94,50 @@ export function EvacuationDashboard() {
     };
   }, [projectId]);
 
-  // Resume an active drill after a reload (the live board loses its in-memory
-  // drillId otherwise → supervisor could start a duplicate during a real
-  // evacuation). The board reports the active drill id via onDrillIdChange.
+  // Discover the ACTIVE (non-ended) drill so a supervisor who reloads
+  // mid-evacuation resumes the SAME drill. Querying for !endedAt can never
+  // resume a finished drill (no stale-marker lockout). Drills per project are
+  // few, so a full read + client filter avoids a composite index.
   useEffect(() => {
-    if (!projectId) {
-      setInitialDrillId(undefined);
-      return;
+    if (!projectId || !tenantId) {
+      setActiveDrillId(undefined);
+      return undefined;
     }
-    try {
-      const stored = window.localStorage.getItem(ACTIVE_DRILL_KEY(projectId));
-      setInitialDrillId(stored ?? undefined);
-    } catch {
-      setInitialDrillId(undefined);
-    }
-  }, [projectId]);
-
-  const handleDrillIdChange = useCallback(
-    (drillId: string | null) => {
-      if (!projectId) return;
+    let cancelled = false;
+    (async () => {
       try {
-        if (drillId) window.localStorage.setItem(ACTIVE_DRILL_KEY(projectId), drillId);
-        else window.localStorage.removeItem(ACTIVE_DRILL_KEY(projectId));
-      } catch {
-        /* localStorage unavailable (private mode) — board still works in-session. */
+        const snap = await getDocs(
+          collection(db, `tenants/${tenantId}/projects/${projectId}/evacuations`),
+        );
+        if (cancelled) return;
+        const active = snap.docs
+          .map((d) => d.data() as EvacuationDrill)
+          .filter((dr) => !dr.endedAt)
+          .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+        setActiveDrillId(active.length > 0 ? active[0].id : null);
+      } catch (err) {
+        if (cancelled) return;
+        // A failed lookup must NOT block starting a fresh drill — degrade to
+        // "no active drill" (the supervisor can start; a real active drill is
+        // still safe because the server rejects a duplicate-start per project).
+        logger.warn('evacuation_active_drill_lookup_failed', { err: String(err), projectId });
+        setActiveDrillId(null);
       }
-    },
-    [projectId],
-  );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, tenantId]);
+
+  // The board reports its active drill id (id on start, null on end). We mirror
+  // it into local state so that, IN-SESSION, ending a drill returns the
+  // supervisor to the start screen instead of stranding them on the postmortem.
+  const handleDrillIdChange = useCallback((drillId: string | null) => {
+    setActiveDrillId(drillId);
+  }, []);
+
+  const showBoard = activeDrillId != null || rosterState === 'ready';
+  const resolvingActive = activeDrillId === undefined;
 
   return (
     <section className="p-4 space-y-4" data-testid="evacDashboard.page" aria-label={t('evac_dashboard.title', 'Tablero de evacuación')}>
@@ -129,47 +150,40 @@ export function EvacuationDashboard() {
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-500 dark:border-white/10 dark:bg-zinc-900/60" data-testid="evacDashboard.noProject">
           {t('evac_dashboard.no_project', 'Seleccioná un proyecto para gestionar su evacuación.')}
         </div>
-      ) : tenantLoading || !tenantId ? (
+      ) : tenantLoading || !tenantId || rosterState === 'loading' || resolvingActive ? (
         <div className="flex items-center justify-center py-12 text-zinc-500" data-testid="evacDashboard.loading">
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
-      ) : rosterState === 'loading' ? (
-        <div className="flex items-center justify-center py-12 text-zinc-500" data-testid="evacDashboard.rosterLoading">
-          <Loader2 className="w-6 h-6 animate-spin" />
+      ) : showBoard ? (
+        <LiveEvacuationDashboard
+          projectId={projectId}
+          tenantId={tenantId}
+          expectedWorkers={expectedWorkers}
+          meetingPointId="meeting-point-main"
+          initialDrillId={activeDrillId ?? undefined}
+          onDrillIdChange={handleDrillIdChange}
+        />
+      ) : rosterState === 'error' ? (
+        <div className="flex items-start gap-2 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-700 dark:bg-rose-900/20 dark:text-rose-200" data-testid="evacDashboard.rosterError">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+          <span>
+            {t(
+              'evac_dashboard.attendance_error',
+              'No se pudo cargar la asistencia de hoy. Reintentá; sin la nómina no se puede iniciar un conteo de evacuación confiable.',
+            )}
+          </span>
         </div>
       ) : (
-        <>
-          {rosterState === 'empty' && (
-            <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200" data-testid="evacDashboard.noAttendance">
-              <Info className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
-              <span>
-                {t(
-                  'evac_dashboard.no_attendance',
-                  'Sin asistencia registrada hoy — la nómina esperada está vacía. Iniciá igual: los trabajadores se cuentan al escanear en el punto de encuentro.',
-                )}
-              </span>
-            </div>
-          )}
-          {rosterState === 'error' && (
-            <div className="flex items-start gap-2 rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-700 dark:bg-rose-900/20 dark:text-rose-200" data-testid="evacDashboard.rosterError">
-              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
-              <span>
-                {t(
-                  'evac_dashboard.attendance_error',
-                  'No se pudo cargar la asistencia para la nómina esperada. Podés iniciar igual; los escaneos en el punto de encuentro se registran de todos modos.',
-                )}
-              </span>
-            </div>
-          )}
-          <LiveEvacuationDashboard
-            projectId={projectId}
-            tenantId={tenantId}
-            expectedWorkers={expectedWorkers}
-            meetingPointId="meeting-point-main"
-            initialDrillId={initialDrillId}
-            onDrillIdChange={handleDrillIdChange}
-          />
-        </>
+        // rosterState === 'empty' and no active drill.
+        <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200" data-testid="evacDashboard.noAttendance">
+          <Info className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+          <span>
+            {t(
+              'evac_dashboard.no_attendance',
+              'Sin asistencia registrada hoy. Un conteo de evacuación necesita la nómina presente para saber QUIÉN falta: registrá la asistencia (check-in) del turno y volvé a esta pantalla.',
+            )}
+          </span>
+        </div>
       )}
     </section>
   );

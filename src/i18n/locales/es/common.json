@@ -2587,8 +2587,8 @@
   "evac_dashboard": {
     "title": "Tablero de evacuación",
     "no_project": "Seleccioná un proyecto para gestionar su evacuación.",
-    "no_attendance": "Sin asistencia registrada hoy — la nómina esperada está vacía. Iniciá igual: los trabajadores se cuentan al escanear en el punto de encuentro.",
-    "attendance_error": "No se pudo cargar la asistencia para la nómina esperada. Podés iniciar igual; los escaneos en el punto de encuentro se registran de todos modos."
+    "no_attendance": "Sin asistencia registrada hoy. Un conteo de evacuación necesita la nómina presente para saber QUIÉN falta: registrá la asistencia (check-in) del turno y volvé a esta pantalla.",
+    "attendance_error": "No se pudo cargar la asistencia de hoy. Reintentá; sin la nómina no se puede iniciar un conteo de evacuación confiable."
   },
   "lone_worker_page": {
     "title": "Trabajo solitario",

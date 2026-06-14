@@ -2587,8 +2587,8 @@
   "evac_dashboard": {
     "title": "Evacuation dashboard",
     "no_project": "Select a project to manage its evacuation.",
-    "no_attendance": "No attendance recorded today — the expected roster is empty. Start anyway: workers are counted as they scan at the meeting point.",
-    "attendance_error": "Could not load attendance for the expected roster. You can start anyway; meeting-point scans are recorded regardless."
+    "no_attendance": "No attendance recorded today. An evacuation count needs the present roster to know WHO is missing: record the shift's attendance (check-in) and return to this screen.",
+    "attendance_error": "Could not load today's attendance. Retry; without the roster a reliable evacuation count cannot be started."
   },
   "lone_worker_page": {
     "title": "Lone worker",
