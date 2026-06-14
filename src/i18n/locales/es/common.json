@@ -2584,6 +2584,15 @@
     "notified_ok": "Notificación al mandante registrada.",
     "action_failed": "No se pudo registrar la acción."
   },
+  "evac_dashboard": {
+    "title": "Tablero de evacuación",
+    "no_project": "Seleccioná un proyecto para gestionar su evacuación.",
+    "no_attendance": "Sin asistencia registrada hoy. Un conteo de evacuación necesita la nómina presente para saber QUIÉN falta: registrá la asistencia (check-in) del turno y volvé a esta pantalla.",
+    "attendance_error": "No se pudo cargar la asistencia de hoy. Reintentá; sin la nómina no se puede iniciar un conteo de evacuación confiable.",
+    "no_tenant": "Tu sesión no tiene una organización asignada (o no se pudo leer). Reintentá; si persiste, iniciá sesión con tu cuenta de la empresa.",
+    "lookup_failed": "No se pudo verificar si hay una evacuación en curso. Reintentá antes de iniciar una nueva para no duplicar el conteo.",
+    "retry": "Reintentar"
+  },
   "lone_worker_page": {
     "title": "Trabajo solitario",
     "subtitle": "Control de trabajadores operando en zonas remotas o aisladas. Check-in periódico obligatorio; sin respuesta se escala automáticamente (supervisor → brigada → servicios de emergencia).",
@@ -3202,7 +3211,8 @@
     "aria": {
       "active": "Tablero de evacuación activa",
       "board": "Tablero evacuación",
-      "idle": "Panel de evacuación"
+      "idle": "Panel de evacuación",
+      "postmortem": "Resumen de evacuación"
     },
     "dashboard": {
       "title": "Conteo de Evacuación",
@@ -3222,7 +3232,9 @@
       "title": "Postmortem",
       "coverage": "Cobertura final",
       "elapsed": "Tiempo total",
-      "avgScan": "Tiempo prom. de scan"
+      "avgScan": "Tiempo prom. de scan",
+      "startNew": "Iniciar nuevo conteo",
+      "stillMissing": "No localizados"
     },
     "qr": {
       "aria": "Escanear credencial QR del trabajador",

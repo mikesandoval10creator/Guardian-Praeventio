@@ -230,6 +230,17 @@ router.post(
         tenantId,
         body.projectId,
       );
+      // One active evacuation per project. The client cannot reliably dedup (its
+      // active-drill lookup may have failed), so the SERVER is the authority:
+      // reject a start while ANY non-ended drill exists, to prevent two
+      // concurrent drills fracturing headcount/scans mid-emergency. listActive
+      // filters endedAt==null with NO recency window (an old still-active drill
+      // under many finished ones is still caught). A failed read throws → caught
+      // below → 500 (fail-safe: do not start when unverifiable).
+      const active = (await adapter.listActive())[0];
+      if (active) {
+        return res.status(409).json({ error: 'drill_already_active', drillId: active.id });
+      }
       await adapter.startDrill(drill);
       // CLAUDE.md #3: evacuation drill lifecycle must be audited.
       await auditServerEvent(req, 'evacuation.drill.start', 'evacuation', {

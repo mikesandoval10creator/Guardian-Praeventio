@@ -2584,6 +2584,15 @@
     "notified_ok": "Mandante notification recorded.",
     "action_failed": "Could not record the action."
   },
+  "evac_dashboard": {
+    "title": "Evacuation dashboard",
+    "no_project": "Select a project to manage its evacuation.",
+    "no_attendance": "No attendance recorded today. An evacuation count needs the present roster to know WHO is missing: record the shift's attendance (check-in) and return to this screen.",
+    "attendance_error": "Could not load today's attendance. Retry; without the roster a reliable evacuation count cannot be started.",
+    "no_tenant": "Your session has no organization assigned (or it could not be read). Retry; if it persists, sign in with your company account.",
+    "lookup_failed": "Could not verify whether an evacuation is already in progress. Retry before starting a new one to avoid duplicating the count.",
+    "retry": "Retry"
+  },
   "lone_worker_page": {
     "title": "Lone worker",
     "subtitle": "Control of workers operating in remote or isolated zones. Mandatory periodic check-in; without response, escalation is automatic (supervisor → brigade → emergency services).",
@@ -3202,7 +3211,8 @@
     "aria": {
       "active": "Active evacuation board",
       "idle": "Evacuation panel",
-      "board": "Evacuation board"
+      "board": "Evacuation board",
+      "postmortem": "Evacuation summary"
     },
     "complete": "Everyone safe — the drill can be closed.",
     "coverage": "Coverage",
@@ -3233,6 +3243,8 @@
     },
     "postmortem": {
       "avgScan": "Avg. scan time",
+      "startNew": "Start a new count",
+      "stillMissing": "Not located",
       "coverage": "Final coverage",
       "elapsed": "Total time",
       "title": "Postmortem"

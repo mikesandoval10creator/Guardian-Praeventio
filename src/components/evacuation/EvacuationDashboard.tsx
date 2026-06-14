@@ -49,6 +49,16 @@ export interface EvacuationDashboardProps {
   meetingPointId: string;
   /** Drill activo si el supervisor entra a pantalla con uno en curso. */
   initialDrillId?: string;
+  /**
+   * Whether STARTING a new drill is allowed. A container gates this on having a
+   * real roster (attendance) — a headcount with no roster reports a false
+   * "100% / 0 missing" all-clear. Default true (standalone use). When false the
+   * start buttons are disabled and `startBlockedHint` is shown. Does NOT affect
+   * resuming/ending an already-active drill.
+   */
+  canStartNew?: boolean;
+  /** Localized reason shown when `canStartNew` is false (e.g. "no attendance"). */
+  startBlockedHint?: string;
   /** Override clock — sólo tests. */
   nowProvider?: () => Date;
 }
@@ -66,6 +76,8 @@ export function EvacuationDashboard({
   expectedWorkers,
   meetingPointId,
   initialDrillId,
+  canStartNew = true,
+  startBlockedHint,
   nowProvider,
 }: EvacuationDashboardProps) {
   const { t } = useTranslation();
@@ -137,12 +149,25 @@ export function EvacuationDashboard({
     try {
       const res = await end({ projectId, drillId });
       setPostmortem(res.postmortem);
+      // The board stays mounted showing the postmortem; the supervisor reads the
+      // close-out record and explicitly starts a new count via the postmortem's
+      // "Iniciar nuevo conteo" button (resetForNewDrill). We do NOT tear down
+      // here — that previously destroyed the postmortem.
     } catch (e) {
       setError((e as Error).message ?? 'end_failed');
     } finally {
       setBusy('idle');
     }
   }, [drillId, projectId, end]);
+
+  // Return to the idle/start screen after reading the postmortem — deterministic
+  // regardless of roster state (the container no longer drives teardown).
+  const resetForNewDrill = useCallback(() => {
+    setDrillId(null);
+    setDrill(null);
+    setPostmortem(null);
+    setError(null);
+  }, []);
 
   const handleScannedQr = useCallback(
     async (workerUid: string) => {
@@ -170,6 +195,56 @@ export function EvacuationDashboard({
         ? 'bg-amber-500'
         : 'bg-rose-500';
 
+  // ── Drill ended → postmortem (TOP-LEVEL, decoupled from `drill`) ─────
+  // Rendered before the !drill / active branches and gated ONLY on `postmortem`,
+  // so a live-subscription update (even one that nulls `drill`, e.g. the doc is
+  // deleted/expired) can never tear down the close-out record. The supervisor
+  // leaves it explicitly via "Iniciar nuevo conteo" (resetForNewDrill).
+  if (postmortem) {
+    return (
+      <section
+        className="rounded-2xl border border-default-token bg-surface p-6 shadow-mode dark:bg-zinc-900 dark:border-zinc-700 space-y-3"
+        data-testid={`evacuation-dashboard-postmortem-${postmortem.drillId}`}
+        aria-label={t('evacuation.aria.postmortem', 'Resumen de evacuación') as string}
+      >
+        <header className="flex items-center gap-2">
+          <CheckCheck className="w-5 h-5" style={{ color: TEAL }} aria-hidden="true" />
+          <h2 className="text-sm font-black uppercase tracking-wide text-primary-token dark:text-white">
+            {t('evacuation.postmortem.title', 'Postmortem')}
+          </h2>
+        </header>
+        <p className="text-sm">
+          {t('evacuation.postmortem.coverage', 'Cobertura final')}:{' '}
+          <span className="font-bold tabular-nums">{postmortem.finalCoveragePercent}%</span>{' '}
+          ({postmortem.totalSafe}/{postmortem.totalExpected})
+        </p>
+        <p className="text-sm">
+          {t('evacuation.postmortem.elapsed', 'Tiempo total')}:{' '}
+          <span className="font-bold tabular-nums">{formatElapsed(postmortem.totalElapsedSec)}</span>
+        </p>
+        <p className="text-sm">
+          {t('evacuation.postmortem.avgScan', 'Tiempo prom. de scan')}:{' '}
+          <span className="font-bold tabular-nums">{postmortem.averageTimeToScanSec}s</span>
+        </p>
+        {postmortem.missingWorkers.length > 0 && (
+          <p className="text-sm font-bold text-rose-600 dark:text-rose-400">
+            {t('evacuation.postmortem.stillMissing', 'No localizados')}: {postmortem.missingWorkers.length}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={resetForNewDrill}
+          data-testid="evacuation-postmortem-new"
+          className="mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow transition hover:opacity-90"
+          style={{ backgroundColor: TEAL }}
+        >
+          <Play className="w-3.5 h-3.5" aria-hidden="true" />
+          {t('evacuation.postmortem.startNew', 'Iniciar nuevo conteo')}
+        </button>
+      </section>
+    );
+  }
+
   // ── No drill active → show start buttons ────────────────────────────
   if (!drill) {
     return (
@@ -192,11 +267,21 @@ export function EvacuationDashboard({
           )}
         </p>
 
+        {!canStartNew && startBlockedHint && (
+          <div
+            className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200"
+            data-testid="evacuation-start-blocked"
+          >
+            <AlertOctagon className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>{startBlockedHint}</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => handleStart('drill')}
-            disabled={busy !== 'idle'}
+            disabled={busy !== 'idle' || !canStartNew}
             data-testid="evacuation-start-drill"
             className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white shadow transition hover:opacity-90 disabled:opacity-50"
             style={{ backgroundColor: TEAL }}
@@ -211,7 +296,7 @@ export function EvacuationDashboard({
           <button
             type="button"
             onClick={() => handleStart('real')}
-            disabled={busy !== 'idle'}
+            disabled={busy !== 'idle' || !canStartNew}
             data-testid="evacuation-start-real"
             className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white bg-rose-600 shadow transition hover:bg-rose-700 disabled:opacity-50"
           >
@@ -380,36 +465,6 @@ export function EvacuationDashboard({
         >
           {t('evacuation.complete', 'Todos seguros — drill puede cerrarse.')}
         </p>
-      )}
-
-      {postmortem && (
-        <div
-          className="rounded-xl p-3 border border-amber-500/30 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200 space-y-1"
-          data-testid={`evacuation-dashboard-postmortem-${drill.id}`}
-        >
-          <p className="text-xs font-black uppercase tracking-wide">
-            {t('evacuation.postmortem.title', 'Postmortem')}
-          </p>
-          <p className="text-[11px]">
-            {t('evacuation.postmortem.coverage', 'Cobertura final')}:{' '}
-            <span className="font-bold tabular-nums">
-              {postmortem.finalCoveragePercent}%
-            </span>{' '}
-            ({postmortem.totalSafe}/{postmortem.totalExpected})
-          </p>
-          <p className="text-[11px]">
-            {t('evacuation.postmortem.elapsed', 'Tiempo total')}:{' '}
-            <span className="font-bold tabular-nums">
-              {formatElapsed(postmortem.totalElapsedSec)}
-            </span>
-          </p>
-          <p className="text-[11px]">
-            {t('evacuation.postmortem.avgScan', 'Tiempo prom. de scan')}:{' '}
-            <span className="font-bold tabular-nums">
-              {postmortem.averageTimeToScanSec}s
-            </span>
-          </p>
-        </div>
       )}
 
       {error && (
