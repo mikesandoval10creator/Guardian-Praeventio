@@ -2711,7 +2711,8 @@
       "field_reason": "Motivo (mín 15 caracteres)",
       "reason_placeholder": "Describí el riesgo identificado, condiciones observadas, normativa aplicable…",
       "preconditions_note": "Precondiciones por defecto: inspección visual + autorización SST + registro fotográfico. Podés editarlas después por stoppage individual.",
-      "submit": "Declarar"
+      "submit": "Declarar",
+      "voluntary_only": "Como trabajador podés declarar una detención voluntaria (stop-work). Las demás categorías las declara un supervisor, prevencionista o gerente."
     },
     "feedback": {
       "need_project": "Necesitás un proyecto activo y estar autenticado.",

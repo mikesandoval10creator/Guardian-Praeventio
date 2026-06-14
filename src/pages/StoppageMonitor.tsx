@@ -37,8 +37,6 @@ import { useProject } from '../contexts/ProjectContext';
 import { StoppageSummaryCard } from '../components/stoppage/StoppageSummaryCard';
 import { StoppageResumeModal } from '../components/stoppage/StoppageResumeModal';
 import {
-  declareStoppage,
-  markPreconditionFulfilled,
   isApproverRole,
   summarize,
   type Stoppage,
@@ -50,6 +48,10 @@ import {
   updateStoppageStatus,
   subscribeActiveStoppages,
 } from '../services/stoppage/stoppageStore';
+import {
+  declareStoppageApi,
+  markStoppagePreconditionFulfilledApi,
+} from '../hooks/useStoppage';
 import { logger } from '../utils/logger';
 
 // Plan 2026-05-23 §Fase B.6 — i18n sweep. Strings derivados via t() con
@@ -168,18 +170,15 @@ export function StoppageMonitor() {
     setSubmitting(true);
     setFeedback(null);
     try {
-      const stoppage = declareStoppage({
-        id: `stp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        projectId: selectedProject.id,
+      // Audited server route: declaredByUid + declaredByRole come from the
+      // verified token (a worker cannot fabricate an approver-level declare for
+      // a non-voluntary category) and the id is server-minted (no client RNG).
+      // Then persist the canonical stoppage the route returns.
+      const { stoppage } = await declareStoppageApi(selectedProject.id, {
         category,
         scope,
         scopeTargetId: scopeTargetId || selectedProject.id,
         reason,
-        declaredByUid: user.uid,
-        // Sin info exacta del role del user, asumimos 'supervisor' como
-        // default permisivo; detencion_voluntaria no requiere role
-        // específico (stop-work authority del trabajador).
-        declaredByRole: 'supervisor',
         resumptionPreconditions: DEFAULT_PRECONDITIONS,
       });
       await saveStoppage(stoppage, selectedProject.id);
@@ -215,7 +214,13 @@ export function StoppageMonitor() {
     async (stoppage: Stoppage, preconditionId: string) => {
       if (!user || !selectedProject) return;
       try {
-        const updated = markPreconditionFulfilled(stoppage, preconditionId, user.uid);
+        // Route through the AUDITED server route — it stamps verifierUid from
+        // the token (a client cannot attribute a verification to someone else)
+        // and writes audit_logs — then persist the returned stoppage.
+        const { stoppage: updated } = await markStoppagePreconditionFulfilledApi(
+          selectedProject.id,
+          { stoppage, preconditionId },
+        );
         await updateStoppageStatus(selectedProject.id, stoppage.id, {
           resumptionPreconditions: updated.resumptionPreconditions,
           status: updated.status,
@@ -298,12 +303,27 @@ export function StoppageMonitor() {
                     <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value as StoppageCategory)}
+                      data-testid="stoppages.form.category"
                       className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
                     >
-                      {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                        <option key={k} value={k}>{v}</option>
-                      ))}
+                      {/* Non-approvers may only declare voluntary stop-work (their
+                          own authority). Other categories require an approver role
+                          and the SERVER rejects them from a non-approver token —
+                          gate the options so the form never offers a 400. */}
+                      {Object.entries(CATEGORY_LABELS)
+                        .filter(([k]) => canApproveResume || k === 'detencion_voluntaria')
+                        .map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
                     </select>
+                    {!canApproveResume && (
+                      <span className="block text-[10px] text-zinc-500 dark:text-zinc-400">
+                        {t(
+                          'stoppages.form.voluntary_only',
+                          'Como trabajador podés declarar una detención voluntaria (stop-work). Las demás categorías las declara un supervisor, prevencionista o gerente.',
+                        )}
+                      </span>
+                    )}
                   </label>
                   <label className="space-y-1 text-xs">
                     <span className="font-bold text-zinc-700 dark:text-zinc-300">

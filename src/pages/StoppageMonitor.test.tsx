@@ -1,20 +1,25 @@
 // @vitest-environment jsdom
 //
-// Praeventio Guard — OLA 1 stop-work RESUME rewire (block #3) behavioral test.
+// Praeventio Guard — OLA 1 stop-work behavioral tests (blocks #3 + declare hardening).
 //
-// The dangerous legacy behavior this pins out of existence: when the last
-// resumption precondition was marked fulfilled, the page AUTO-resumed the
-// stoppage client-side with a hardcoded role 'supervisor' and a direct
-// Firestore write — no human signature, no server authz, no audit. Resuming a
-// stoppage is a JURIDICAL act; it must now go through the signed
-// StoppageResumeModal → server-authoritative audited route.
+// RESUME rewire (#3): when the last resumption precondition was marked fulfilled
+// the page used to AUTO-resume client-side with a hardcoded role 'supervisor' and
+// a direct write — no signature, no server authz, no audit. Now: precondition
+// marking + resume both go through AUDITED server routes; resume opens the signed
+// modal.
+//
+// DECLARE hardening: declaring + marking-preconditions now go through the audited
+// server routes (declaredByRole/verifierUid stamped from the token, id
+// server-minted) instead of a client build with a hardcoded 'supervisor' role
+// and a Math.random() id. Non-approvers may only declare voluntary stop-work.
 //
 // Verified here:
-//   1. Marking the last precondition does NOT auto-resume (no status:'resumed'
-//      write); it only persists the precondition + 'pending_resumption'.
-//   2. A pending stoppage shows a "Firmar reanudación" CTA for an APPROVER role,
-//      and clicking it opens the signed modal with the right props.
-//   3. A non-approver role never sees the CTA — only the approver-only note.
+//   1. Marking the last precondition routes through the audited API (no
+//      auto-resume, no status:'resumed' write).
+//   2. A pending stoppage shows a "Firmar reanudación" CTA for an APPROVER and
+//      opens the signed modal; a non-approver sees only the approver-only note.
+//   3. Declare goes through the audited route (no client id/role) then persists.
+//   4. A non-approver only sees the voluntary stop-work category.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -76,6 +81,14 @@ vi.mock('../services/stoppage/stoppageStore', () => ({
   },
 }));
 
+// Audited server-route hooks the page declares/marks-preconditions through.
+const declareStoppageApi = vi.fn();
+const markStoppagePreconditionFulfilledApi = vi.fn();
+vi.mock('../hooks/useStoppage', () => ({
+  declareStoppageApi: (...a: unknown[]) => declareStoppageApi(...a),
+  markStoppagePreconditionFulfilledApi: (...a: unknown[]) => markStoppagePreconditionFulfilledApi(...a),
+}));
+
 vi.mock('../utils/logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() } }));
 
 function makeStoppage(over: Partial<Stoppage> = {}): Stoppage {
@@ -105,18 +118,30 @@ beforeEach(() => {
   mockList = [];
   mockSubError = false;
   modalProps = null;
+  // Defaults: the audited routes succeed and return canonical stoppages.
+  declareStoppageApi.mockResolvedValue({ stoppage: makeStoppage({ id: 'stp_server_1', status: 'active' }) });
+  markStoppagePreconditionFulfilledApi.mockResolvedValue({
+    stoppage: makeStoppage({
+      status: 'pending_resumption',
+      resumptionPreconditions: [{ id: 'pc-1', label: 'Inspección', fulfilled: true }],
+    }),
+  });
 });
 
 describe('<StoppageMonitor /> resume rewire', () => {
-  it('marking the LAST precondition does NOT auto-resume — only persists pending_resumption', async () => {
+  it('marking a precondition routes through the AUDITED API, then persists — no auto-resume', async () => {
     mockList = [makeStoppage()]; // one active stoppage, one unfulfilled precondition
     render(<StoppageMonitor />);
 
     fireEvent.click(await screen.findByText('Marcar cumplida'));
 
-    await waitFor(() => expect(updateStoppageStatus).toHaveBeenCalled());
-    // It persists the precondition + the pending_resumption transition…
-    expect(updateStoppageStatus).toHaveBeenCalledTimes(1);
+    // It goes through the audited server route (verifierUid stamped server-side).
+    await waitFor(() => expect(markStoppagePreconditionFulfilledApi).toHaveBeenCalledOnce());
+    const [pid, input] = markStoppagePreconditionFulfilledApi.mock.calls[0];
+    expect(pid).toBe('proj-1');
+    expect((input as { preconditionId: string }).preconditionId).toBe('pc-1');
+    // Then it persists the returned stoppage's pending_resumption transition…
+    await waitFor(() => expect(updateStoppageStatus).toHaveBeenCalledTimes(1));
     const patch = updateStoppageStatus.mock.calls[0][2] as Record<string, unknown>;
     expect(patch.status).toBe('pending_resumption');
     // …but NEVER auto-writes status:'resumed' (the removed dangerous behavior).
@@ -170,5 +195,55 @@ describe('<StoppageMonitor /> resume rewire', () => {
     // The misleading "no active stoppages" success state must NOT be shown when
     // the feed failed (a false negative on a life-safety list).
     expect(screen.queryByText(/no hay paralizaciones activas/i)).toBeNull();
+  });
+});
+
+describe('<StoppageMonitor /> declare hardening', () => {
+  it('declare goes through the AUDITED route (no client id/role), then persists the returned stoppage', async () => {
+    mockUserRole = 'supervisor';
+    declareStoppageApi.mockResolvedValueOnce({
+      stoppage: makeStoppage({ id: 'stp_server_1', status: 'active' }),
+    });
+    render(<StoppageMonitor />);
+
+    fireEvent.click(screen.getByRole('button', { name: /declarar paralización/i }));
+    // Reason must be ≥15 chars to enable the submit.
+    fireEvent.change(screen.getByPlaceholderText(/describí el riesgo/i), {
+      target: { value: 'Riesgo de derrumbe en talud norte por lluvia intensa' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Declarar$/ }));
+
+    await waitFor(() => expect(declareStoppageApi).toHaveBeenCalledOnce());
+    const [pid, input] = declareStoppageApi.mock.calls[0];
+    expect(pid).toBe('proj-1');
+    // The client sends NO id and NO declaredByRole — the server stamps both.
+    expect(input).not.toHaveProperty('id');
+    expect(input).not.toHaveProperty('declaredByRole');
+    expect((input as { category: string }).category).toBe('detencion_voluntaria');
+    // The canonical (server-stamped id) stoppage the route returned is persisted.
+    await waitFor(() => expect(saveStoppage).toHaveBeenCalledOnce());
+    expect((saveStoppage.mock.calls[0][0] as Stoppage).id).toBe('stp_server_1');
+  });
+
+  it('a NON-approver only sees the voluntary stop-work category + a note (server-enforced)', async () => {
+    mockUserRole = 'operario';
+    render(<StoppageMonitor />);
+
+    fireEvent.click(screen.getByRole('button', { name: /declarar paralización/i }));
+    const select = screen.getByTestId('stoppages.form.category') as HTMLSelectElement;
+    const options = Array.from(select.querySelectorAll('option'));
+    expect(options).toHaveLength(1);
+    expect(options[0].getAttribute('value')).toBe('detencion_voluntaria');
+    expect(screen.getByText(/como trabajador podés declarar/i)).toBeTruthy();
+  });
+
+  it('an APPROVER sees all stoppage categories', async () => {
+    mockUserRole = 'supervisor';
+    render(<StoppageMonitor />);
+
+    fireEvent.click(screen.getByRole('button', { name: /declarar paralización/i }));
+    const select = screen.getByTestId('stoppages.form.category') as HTMLSelectElement;
+    expect(select.querySelectorAll('option').length).toBeGreaterThan(1);
+    expect(screen.queryByText(/como trabajador podés declarar/i)).toBeNull();
   });
 });

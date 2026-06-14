@@ -35,13 +35,14 @@ async function json<T>(res: Response): Promise<T> {
 
 // ── 1. declare ────────────────────────────────────────────────────────
 
+// id + declaredByRole are NOT part of the client input: the server mints the
+// id (no client RNG) and derives declaredByRole from the verified token (a
+// client role would let a worker fabricate an approver-level declaration).
 export interface DeclareStoppageClientInput {
-  id: string;
   category: StoppageCategory;
   scope: StoppageScope;
   scopeTargetId: string;
   reason: string;
-  declaredByRole: string;
   resumptionPreconditions: Array<{ id: string; label: string }>;
 }
 

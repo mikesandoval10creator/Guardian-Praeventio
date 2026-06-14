@@ -2428,7 +2428,8 @@
       "field_reason": "Motivo (mín 15 caracteres)",
       "reason_placeholder": "Descreva o risco identificado, condições observadas, norma aplicável…",
       "preconditions_note": "Precondições padrão: inspeção visual + autorização SST + registro fotográfico. Você pode editá-las depois por stoppage individual.",
-      "submit": "Declarar"
+      "submit": "Declarar",
+      "voluntary_only": "Como trabalhador você pode declarar uma parada voluntária (stop-work). As demais categorias são declaradas por um supervisor, técnico de SST ou gerente."
     },
     "feedback": {
       "need_project": "Você precisa de um projeto ativo e estar autenticado.",
