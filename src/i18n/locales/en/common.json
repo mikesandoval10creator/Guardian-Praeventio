@@ -2584,6 +2584,12 @@
     "notified_ok": "Mandante notification recorded.",
     "action_failed": "Could not record the action."
   },
+  "evac_dashboard": {
+    "title": "Evacuation dashboard",
+    "no_project": "Select a project to manage its evacuation.",
+    "no_attendance": "No attendance recorded today — the expected roster is empty. Start anyway: workers are counted as they scan at the meeting point.",
+    "attendance_error": "Could not load attendance for the expected roster. You can start anyway; meeting-point scans are recorded regardless."
+  },
   "lone_worker_page": {
     "title": "Lone worker",
     "subtitle": "Control of workers operating in remote or isolated zones. Mandatory periodic check-in; without response, escalation is automatic (supervisor → brigade → emergency services).",

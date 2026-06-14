@@ -49,6 +49,13 @@ export interface EvacuationDashboardProps {
   meetingPointId: string;
   /** Drill activo si el supervisor entra a pantalla con uno en curso. */
   initialDrillId?: string;
+  /**
+   * Notified when the active drill id changes: the id on start, `null` when the
+   * drill ends. Lets a container persist the active drill (e.g. localStorage) so
+   * a supervisor who reloads mid-evacuation resumes the SAME drill instead of
+   * starting a duplicate. Optional — the board works standalone without it.
+   */
+  onDrillIdChange?: (drillId: string | null) => void;
   /** Override clock — sólo tests. */
   nowProvider?: () => Date;
 }
@@ -66,6 +73,7 @@ export function EvacuationDashboard({
   expectedWorkers,
   meetingPointId,
   initialDrillId,
+  onDrillIdChange,
   nowProvider,
 }: EvacuationDashboardProps) {
   const { t } = useTranslation();
@@ -121,13 +129,14 @@ export function EvacuationDashboard({
           expectedWorkers,
         });
         setDrillId(res.drill.id);
+        onDrillIdChange?.(res.drill.id);
       } catch (e) {
         setError((e as Error).message ?? 'start_failed');
       } finally {
         setBusy('idle');
       }
     },
-    [projectId, meetingPointId, expectedWorkers, start],
+    [projectId, meetingPointId, expectedWorkers, start, onDrillIdChange],
   );
 
   const handleEnd = useCallback(async () => {
@@ -137,12 +146,15 @@ export function EvacuationDashboard({
     try {
       const res = await end({ projectId, drillId });
       setPostmortem(res.postmortem);
+      // Drill is over — clear the active-drill resume marker so a reload starts
+      // fresh (the postmortem stays on screen for this session).
+      onDrillIdChange?.(null);
     } catch (e) {
       setError((e as Error).message ?? 'end_failed');
     } finally {
       setBusy('idle');
     }
-  }, [drillId, projectId, end]);
+  }, [drillId, projectId, end, onDrillIdChange]);
 
   const handleScannedQr = useCallback(
     async (workerUid: string) => {

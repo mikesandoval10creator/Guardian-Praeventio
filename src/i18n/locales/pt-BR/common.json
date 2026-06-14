@@ -3233,6 +3233,12 @@
     "notified_ok": "Notificação ao mandante registrada.",
     "action_failed": "Não foi possível registrar a ação."
   },
+  "evac_dashboard": {
+    "title": "Painel de evacuação",
+    "no_project": "Selecione um projeto para gerenciar sua evacuação.",
+    "no_attendance": "Sem presença registrada hoje — a lista esperada está vazia. Inicie mesmo assim: os trabalhadores são contados ao escanear no ponto de encontro.",
+    "attendance_error": "Não foi possível carregar a presença para a lista esperada. Você pode iniciar mesmo assim; os escaneamentos no ponto de encontro são registrados de qualquer forma."
+  },
   "oc": {
     "actions": {
       "exportCsv": "Exportar CSV"
