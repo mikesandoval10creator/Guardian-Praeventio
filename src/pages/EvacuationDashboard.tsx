@@ -86,7 +86,21 @@ export function EvacuationDashboard() {
           ...(w.lastKnownLocation ? { lastKnownLocation: w.lastKnownLocation } : {}),
         }));
         setExpectedWorkers(expected);
-        setRosterState(expected.length === 0 ? 'empty' : 'ready');
+        // Distinguish "no attendance" from "attendance EXISTS but is unreadable"
+        // (schema drift dropped every record in buildEvacuationRoster). The latter
+        // is a data FAILURE, not no-data — surfacing it as 'error' avoids telling
+        // the supervisor to "register attendance" when attendance is actually there.
+        if (expected.length > 0) {
+          setRosterState('ready');
+        } else if (snap.docs.length > 0) {
+          logger.warn('evacuation_attendance_unreadable', {
+            projectId,
+            docs: snap.docs.length,
+          });
+          setRosterState('error');
+        } else {
+          setRosterState('empty');
+        }
       } catch (err) {
         if (cancelled) return;
         logger.error('evacuation_attendance_roster_failed', { err: String(err), projectId });
@@ -176,14 +190,25 @@ export function EvacuationDashboard() {
       ) : !tenantId ? (
         // Signed-in-without-tenant-claim / logged-out: terminal guidance, never
         // an indefinite spinner (the old IndexedDB page didn't need a tenant).
-        <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200" data-testid="evacDashboard.noTenant">
-          <Info className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
-          <span>
+        <div className="flex flex-col items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200" data-testid="evacDashboard.noTenant">
+          <span className="flex items-start gap-2">
+            <Info className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
             {t(
               'evac_dashboard.no_tenant',
-              'Tu sesión no tiene una organización asignada. Iniciá sesión con tu cuenta de la empresa para gestionar la evacuación.',
+              'Tu sesión no tiene una organización asignada (o no se pudo leer). Reintentá; si persiste, iniciá sesión con tu cuenta de la empresa.',
             )}
           </span>
+          {/* useTenantId collapses a transient token-read failure into the same
+              null as a genuine missing claim — a reload re-reads the token so a
+              transient failure isn't a dead-end on this life-safety screen. */}
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            data-testid="evacDashboard.tenantRetry"
+            className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-amber-500"
+          >
+            {t('evac_dashboard.retry', 'Reintentar')}
+          </button>
         </div>
       ) : rosterState === 'loading' || resolvingActive ? (
         <div className="flex items-center justify-center py-12 text-zinc-500" data-testid="evacDashboard.loading">

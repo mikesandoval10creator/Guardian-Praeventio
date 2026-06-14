@@ -3241,7 +3241,7 @@
     "no_project": "Selecione um projeto para gerenciar sua evacuação.",
     "no_attendance": "Sem presença registrada hoje. Uma contagem de evacuação precisa da lista presente para saber QUEM está faltando: registre a presença (check-in) do turno e volte a esta tela.",
     "attendance_error": "Não foi possível carregar a presença de hoje. Tente novamente; sem a lista não é possível iniciar uma contagem de evacuação confiável.",
-    "no_tenant": "Sua sessão não tem uma organização atribuída. Entre com a conta da empresa para gerenciar a evacuação.",
+    "no_tenant": "Sua sessão não tem uma organização atribuída (ou não foi possível lê-la). Tente novamente; se persistir, entre com a conta da empresa.",
     "lookup_failed": "Não foi possível verificar se há uma evacuação em andamento. Tente novamente antes de iniciar uma nova para não duplicar a contagem.",
     "retry": "Tentar novamente"
   },

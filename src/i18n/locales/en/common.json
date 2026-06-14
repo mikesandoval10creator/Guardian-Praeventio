@@ -2589,7 +2589,7 @@
     "no_project": "Select a project to manage its evacuation.",
     "no_attendance": "No attendance recorded today. An evacuation count needs the present roster to know WHO is missing: record the shift's attendance (check-in) and return to this screen.",
     "attendance_error": "Could not load today's attendance. Retry; without the roster a reliable evacuation count cannot be started.",
-    "no_tenant": "Your session has no organization assigned. Sign in with your company account to manage the evacuation.",
+    "no_tenant": "Your session has no organization assigned (or it could not be read). Retry; if it persists, sign in with your company account.",
     "lookup_failed": "Could not verify whether an evacuation is already in progress. Retry before starting a new one to avoid duplicating the count.",
     "retry": "Retry"
   },

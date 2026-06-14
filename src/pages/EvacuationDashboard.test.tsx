@@ -28,13 +28,16 @@ vi.mock('../contexts/ProjectContext', () => ({ useProject: () => ({ selectedProj
 vi.mock('../hooks/useTenantId', () => ({ useTenantId: () => mockTenant }));
 
 let attendanceError = false;
+let attendanceDocsExist = false;
 let evacuationsError = false;
 let evacuationsDocs: Array<Record<string, unknown>> = [];
 const getDocs = vi.fn(async (arg: { path?: string }) => {
   const path = arg?.path ?? '';
   if (path.includes('/attendance')) {
     if (attendanceError) throw new Error('attendance-denied');
-    return { docs: [] };
+    // buildEvacuationRoster is mocked → the actual records don't matter, only
+    // whether docs EXIST (for the "unreadable attendance" path).
+    return { docs: attendanceDocsExist ? [{ data: () => ({ workerId: 'x' }) }] : [] };
   }
   if (path.includes('/evacuations')) {
     if (evacuationsError) throw new Error('evacuations-denied');
@@ -88,6 +91,7 @@ beforeEach(() => {
   mockRosterExpected = [];
   evacuationsDocs = [];
   attendanceError = false;
+  attendanceDocsExist = false;
   evacuationsError = false;
   boardProps = null;
 });
@@ -107,11 +111,24 @@ describe('<EvacuationDashboard /> consolidation container', () => {
     expect(screen.queryByTestId('liveBoard')).toBeNull();
   });
 
-  it('signed in WITHOUT a tenant claim → terminal guidance, not an infinite spinner', () => {
+  it('signed in WITHOUT a tenant claim → terminal guidance + retry (not an infinite spinner)', () => {
     mockTenant = { tenantId: null, loading: false };
     render(<EvacuationDashboard />);
     expect(screen.getByTestId('evacDashboard.noTenant')).toBeTruthy();
+    // A transient token-read failure collapses to the same null — offer a retry,
+    // not a dead-end.
+    expect(screen.getByTestId('evacDashboard.tenantRetry')).toBeTruthy();
     expect(screen.queryByTestId('liveBoard')).toBeNull();
+  });
+
+  it('attendance docs EXIST but yield no roster (schema drift) → board renders, start gated with the ERROR hint (not a false "no attendance")', async () => {
+    attendanceDocsExist = true; // docs present...
+    mockRosterExpected = []; // ...but every record dropped by buildEvacuationRoster
+    render(<EvacuationDashboard />);
+    await waitFor(() => expect(screen.getByTestId('liveBoard')).toBeTruthy());
+    expect(boardProps!.canStartNew).toBe(false);
+    // The hint must be the unreadable/error one, NOT "register attendance".
+    expect(boardProps!.startBlockedHint).toMatch(/no se pudo cargar/i);
   });
 
   it('roster ready, no active drill → board with start ENABLED, no block hint', async () => {
