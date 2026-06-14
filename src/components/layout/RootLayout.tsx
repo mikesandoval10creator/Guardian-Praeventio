@@ -87,10 +87,18 @@ export function RootLayout() {
     const loadMfaStatus = async () => {
       const mfa = await get('mfa_setup_completed');
       setMfaSetupCompleted(mfa === 'true');
-      
+
       // theme preference is managed by ThemeContext
     };
     loadMfaStatus();
+  }, []);
+
+  // Drain any SOS queued offline (incl. from a previous session that closed
+  // before delivery) on app start, and arm the reconnect re-flush, so an
+  // undelivered life-safety alert is never lost. (Idempotent — see
+  // registerSosFlushOnReconnect.)
+  useEffect(() => {
+    void import('../../services/emergency/sosOutboxClient').then((m) => m.registerSosFlushOnReconnect());
   }, []);
 
   // Initialize background watcher
