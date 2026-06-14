@@ -4,26 +4,44 @@
 //
 // Verifies the activation fix: GeofenceAlert fetches the project's REAL zones
 // from the audited /api/zones/by-site route and feeds the MAPPED GeofenceZones
-// to useGeofenceWithEvents (which drives the geofence→SOS escalation). Before
-// this, prod had no real zone source and the escalation was inert.
+// — plus the correct escalation context (projectId/workerId) and entry handler —
+// to useGeofenceWithEvents (which drives the geofence→SOS escalation). Also
+// covers the fail-loud degraded path on fetch failure. Before this PR, prod had
+// no real zone source and the escalation was inert.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import type { GeofenceZone } from '../../hooks/useGeofence';
 import type { RestrictedZone } from '../../services/zones/restrictedZonesEngine';
 
-// Capture the zones GeofenceAlert hands to the geofence engine.
-const geofenceCalls: GeofenceZone[][] = [];
+interface GeofenceCall {
+  zones: GeofenceZone[];
+  opts: { tenantId: string; projectId: string; workerId: string };
+  onZoneEntry: ((zones: GeofenceZone[]) => void) | undefined;
+}
+
+const H = vi.hoisted(() => ({
+  geofenceCalls: [] as GeofenceCall[],
+  listRestrictedZonesBySite: vi.fn(),
+  addNotification: vi.fn(),
+}));
+
+// Capture the FULL hook call: zones (arg1) + escalation opts (arg2) + the entry
+// handler (arg3). A regression that wires an empty projectId/workerId or drops
+// the handler would otherwise ship green.
 vi.mock('../../hooks/useGeofenceWithEvents', () => ({
-  useGeofenceWithEvents: (zones: GeofenceZone[]) => {
-    geofenceCalls.push(zones);
+  useGeofenceWithEvents: (
+    zones: GeofenceZone[],
+    opts: GeofenceCall['opts'],
+    onZoneEntry: GeofenceCall['onZoneEntry'],
+  ) => {
+    H.geofenceCalls.push({ zones, opts, onZoneEntry });
     return { activeZones: [], permissionState: 'granted' as const };
   },
 }));
 
-const listRestrictedZonesBySite = vi.fn();
 vi.mock('../../hooks/useRestrictedZones', () => ({
-  listRestrictedZonesBySite: (...a: unknown[]) => listRestrictedZonesBySite(...a),
+  listRestrictedZonesBySite: (...a: unknown[]) => H.listRestrictedZonesBySite(...a),
 }));
 
 let mockSelectedProject: { id: string; settings?: unknown } | null = null;
@@ -34,7 +52,7 @@ vi.mock('../../contexts/FirebaseContext', () => ({
   useFirebase: () => ({ user: { uid: 'w-1', displayName: 'Worker' } }),
 }));
 vi.mock('../../contexts/NotificationContext', () => ({
-  useNotifications: () => ({ addNotification: vi.fn() }),
+  useNotifications: () => ({ addNotification: H.addNotification }),
 }));
 vi.mock('../../services/firebase', () => ({
   db: {},
@@ -80,41 +98,73 @@ function rzone(over: Partial<RestrictedZone> = {}): RestrictedZone {
   };
 }
 
+const lastCall = () => H.geofenceCalls[H.geofenceCalls.length - 1];
+
 beforeEach(() => {
   vi.clearAllMocks();
-  geofenceCalls.length = 0;
+  H.geofenceCalls.length = 0;
   mockSelectedProject = { id: 'proj-1' };
 });
 
 describe('<GeofenceAlert /> real-zone wiring', () => {
-  it('fetches the project zones and feeds the MAPPED real zone to the geofence engine', async () => {
-    listRestrictedZonesBySite.mockResolvedValueOnce({ zones: [rzone()] });
+  it('feeds the MAPPED real zone AND the correct escalation context to the engine', async () => {
+    H.listRestrictedZonesBySite.mockResolvedValueOnce({ zones: [rzone()] });
     render(<GeofenceAlert />);
-    expect(listRestrictedZonesBySite).toHaveBeenCalledWith('proj-1');
+    expect(H.listRestrictedZonesBySite).toHaveBeenCalledWith('proj-1');
     await waitFor(() => {
-      const last = geofenceCalls[geofenceCalls.length - 1];
-      expect(last.some((z) => z.id === 'zone-real')).toBe(true);
+      expect(lastCall().zones.some((z) => z.id === 'zone-real')).toBe(true);
     });
-    const mapped = geofenceCalls[geofenceCalls.length - 1].find((z) => z.id === 'zone-real')!;
+    const mapped = lastCall().zones.find((z) => z.id === 'zone-real')!;
     expect(mapped.type).toBe('HAZMAT'); // atex → HAZMAT
-    expect(mapped.coordinates[0][0]).toEqual(mapped.coordinates[0][mapped.coordinates[0].length - 1]);
+    expect(mapped.coordinates[0][0]).toEqual(
+      mapped.coordinates[0][mapped.coordinates[0].length - 1],
+    );
+    // Escalation context must carry real identity (geofence→SOS routes by these).
+    expect(lastCall().opts.projectId).toBe('proj-1');
+    expect(lastCall().opts.workerId).toBe('w-1');
+    expect(lastCall().opts.tenantId).toBe('tenant-1');
+    expect(typeof lastCall().onZoneEntry).toBe('function');
   });
 
   it('drops expired zones — no phantom geofence', async () => {
-    listRestrictedZonesBySite.mockResolvedValueOnce({
+    H.listRestrictedZonesBySite.mockResolvedValueOnce({
       zones: [rzone({ id: 'expired', activeUntil: '2021-01-01T00:00:00Z' })],
     });
     render(<GeofenceAlert />);
-    await waitFor(() => expect(listRestrictedZonesBySite).toHaveBeenCalled());
-    // Give the resolved promise a tick to flush.
+    await waitFor(() => expect(H.listRestrictedZonesBySite).toHaveBeenCalled());
     await Promise.resolve();
-    const last = geofenceCalls[geofenceCalls.length - 1];
-    expect(last.some((z) => z.id === 'expired')).toBe(false);
+    expect(lastCall().zones.some((z) => z.id === 'expired')).toBe(false);
   });
 
-  it('no project → no fetch, geofence gets no real zones', async () => {
+  it('fetch FAILURE → worker is told (degraded banner) and the real zone is NOT silently present', async () => {
+    H.listRestrictedZonesBySite.mockRejectedValueOnce(new Error('http_403'));
+    render(<GeofenceAlert />);
+    await waitFor(() =>
+      expect(H.addNotification).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'error' }),
+      ),
+    );
+    // The error notification is the zone-load one (not the permission one).
+    const calledWithZoneError = H.addNotification.mock.calls.some(
+      (c) => typeof c[0]?.title === 'string' && /zonas restringidas/i.test(c[0].title),
+    );
+    expect(calledWithZoneError).toBe(true);
+    // The real zone never loaded → not handed to the engine.
+    expect(lastCall().zones.some((z) => z.id === 'zone-real')).toBe(false);
+  });
+
+  it('null-guard: server returns no zones field → no crash, no real zones', async () => {
+    H.listRestrictedZonesBySite.mockResolvedValueOnce({});
+    render(<GeofenceAlert />);
+    await waitFor(() => expect(H.listRestrictedZonesBySite).toHaveBeenCalled());
+    await Promise.resolve();
+    expect(lastCall().zones.some((z) => z.id === 'zone-real')).toBe(false);
+    expect(H.addNotification).not.toHaveBeenCalled(); // empty != error
+  });
+
+  it('no project → no fetch', async () => {
     mockSelectedProject = null;
     render(<GeofenceAlert />);
-    expect(listRestrictedZonesBySite).not.toHaveBeenCalled();
+    expect(H.listRestrictedZonesBySite).not.toHaveBeenCalled();
   });
 });

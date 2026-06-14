@@ -73,6 +73,36 @@ describe('restrictedZoneToGeofenceZone', () => {
     expect(restrictedZoneToGeofenceZone(zone({ perimeter: undefined }))).toBeNull();
     expect(restrictedZoneToGeofenceZone(zone({ perimeter: [[-70.65, -33.45]] }))).toBeNull();
   });
+
+  it('returns null for a degenerate already-closed 3-point ring (turf would throw)', () => {
+    // first === last → only 2 distinct vertices → closeRing keeps length 3 → < 4
+    // positions → cannot form a polygon. The server schema (min(3)) accepts this,
+    // so the adapter must reject it rather than feed turf a throwing input that
+    // useGeofence silently swallows (zone dropped, no alert).
+    expect(
+      restrictedZoneToGeofenceZone(
+        zone({
+          perimeter: [
+            [-70.65, -33.45],
+            [-70.64, -33.45],
+            [-70.65, -33.45],
+          ],
+        }),
+      ),
+    ).toBeNull();
+    // all-identical points too
+    expect(
+      restrictedZoneToGeofenceZone(
+        zone({
+          perimeter: [
+            [-70.65, -33.45],
+            [-70.65, -33.45],
+            [-70.65, -33.45],
+          ],
+        }),
+      ),
+    ).toBeNull();
+  });
 });
 
 describe('isZoneActiveNow', () => {
@@ -92,6 +122,18 @@ describe('isZoneActiveNow', () => {
         NOW,
       ),
     ).toBe(true);
+  });
+
+  // Malformed-date defensive branches (server schema enforces only string
+  // length, not date validity). These pin the deliberate fail directions.
+  it('fail-CLOSED on an unparseable activeFrom (corrupt start → treated inactive)', () => {
+    expect(isZoneActiveNow(zone({ activeFrom: 'not-a-date' }), NOW)).toBe(false);
+  });
+  it('ignores an unparseable activeUntil (corrupt end → stays active)', () => {
+    expect(isZoneActiveNow(zone({ activeFrom: '2020-01-01T00:00:00Z', activeUntil: 'garbage' }), NOW)).toBe(true);
+  });
+  it('boundary: activeFrom exactly === now is active (>, not >=)', () => {
+    expect(isZoneActiveNow(zone({ activeFrom: NOW.toISOString() }), NOW)).toBe(true);
   });
 });
 

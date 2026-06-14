@@ -5,6 +5,7 @@ import { GeofenceZone } from '../../hooks/useGeofence';
 import { useGeofenceWithEvents } from '../../hooks/useGeofenceWithEvents';
 import { listRestrictedZonesBySite } from '../../hooks/useRestrictedZones';
 import { mapActiveRestrictedZones } from '../../services/zones/restrictedZoneToGeofence';
+import type { RestrictedZone } from '../../services/zones/restrictedZonesEngine';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -45,39 +46,76 @@ export function GeofenceAlert() {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
 
-  // Real configured zones from the audited server route. Empty until loaded /
-  // when the project has none — geofencing degrades to "no alert" honestly.
-  const [realZones, setRealZones] = useState<GeofenceZone[]>([]);
+  // RAW configured zones from the audited server route. We keep the raw
+  // RestrictedZone[] (not the mapped result) so the active-window filter can be
+  // RE-EVALUATED over time — a zone scheduled to activate later in the shift, or
+  // one that expires mid-shift, must cross its activeFrom/activeUntil boundary
+  // during a long-running PWA session, not be frozen at fetch time.
+  const [rawZones, setRawZones] = useState<RestrictedZone[]>([]);
+  // Distinguish "loaded, genuinely no zones" from "fetch FAILED" — conflating
+  // them would silently disable the geofence (a life-safety path) on a transient
+  // 500/403/offline with the worker seeing a fully green UI.
+  const [zoneLoadError, setZoneLoadError] = useState(false);
+  // Bumped on a timer so the active-window memo re-runs without a refetch.
+  const [nowTick, setNowTick] = useState(0);
+
   useEffect(() => {
     const pid = selectedProject?.id;
     if (!pid) {
-      setRealZones([]);
+      setRawZones([]);
+      setZoneLoadError(false);
       return undefined;
     }
     let cancelled = false;
-    listRestrictedZonesBySite(pid)
-      .then((res) => {
-        if (!cancelled) setRealZones(mapActiveRestrictedZones(res.zones ?? []));
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        logger.warn('GeofenceAlert: restricted-zones fetch failed', { err: String(err) });
-        setRealZones([]);
-      });
+    const load = () =>
+      listRestrictedZonesBySite(pid)
+        .then((res) => {
+          if (cancelled) return;
+          setRawZones(res.zones ?? []);
+          setZoneLoadError(false);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          logger.warn('GeofenceAlert: restricted-zones fetch failed', { err: String(err) });
+          // Do NOT clear last-known zones on a transient failure (avoid dropping
+          // protection on a blip); flag the error so the worker is told + retry.
+          setZoneLoadError(true);
+        });
+    void load();
+    // Retry when connectivity returns — a 2s outage at mount must not disable the
+    // geofence for the whole session.
+    const onOnline = () => {
+      void load();
+    };
+    window.addEventListener('online', onOnline);
     return () => {
       cancelled = true;
+      window.removeEventListener('online', onOnline);
     };
   }, [selectedProject?.id]);
 
+  // Re-evaluate the active window every 60s so zones cross activeFrom/activeUntil
+  // mid-session (the engine semantics this mirrors are per-request server-side).
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick((t) => t + 1), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // Worker-visible degraded-protection signal on fetch failure (mirrors the
+  // permission-denied toast). Fires once per error episode; resets on recovery.
+  const zoneErrorToastFiredRef = useRef(false);
+
   const activeProjectZones = useMemo(() => {
+    void nowTick; // re-derive active window when the minute ticks
+    const mapped = mapActiveRestrictedZones(rawZones, new Date());
     // Prefer real configured zones; fall back to legacy project settings, then
     // the DEV-only demo (empty in prod).
-    if (realZones.length > 0) return realZones;
+    if (mapped.length > 0) return mapped;
     if (selectedProject?.settings?.geofences && Array.isArray(selectedProject.settings.geofences)) {
       return selectedProject.settings.geofences as GeofenceZone[];
     }
     return FALLBACK_ZONES;
-  }, [realZones, selectedProject]);
+  }, [rawZones, nowTick, selectedProject]);
 
   const handleZoneEntry = useCallback((enteredZones: GeofenceZone[]) => {
     if (!selectedProject) return;
@@ -125,6 +163,24 @@ export function GeofenceAlert() {
       });
     }
   }, [permissionState, addNotification]);
+
+  // Tell the worker when the zone fetch failed — otherwise a transient outage
+  // silently disables the geofence while the UI looks green. Fires once per
+  // error episode; resets on recovery so a later failure re-alerts.
+  useEffect(() => {
+    if (zoneLoadError && !zoneErrorToastFiredRef.current) {
+      zoneErrorToastFiredRef.current = true;
+      addNotification({
+        title: 'Zonas restringidas no disponibles',
+        message:
+          'No se pudieron cargar las zonas restringidas — la geocerca puede no estar activa. Reintentando al recuperar conexión.',
+        type: 'error',
+      });
+    }
+    if (!zoneLoadError) {
+      zoneErrorToastFiredRef.current = false;
+    }
+  }, [zoneLoadError, addNotification]);
 
   return (
     <AnimatePresence>

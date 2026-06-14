@@ -48,11 +48,18 @@ function closeRing(ring: Array<[number, number]>): Array<[number, number]> {
 export function restrictedZoneToGeofenceZone(zone: RestrictedZone): GeofenceZone | null {
   const perimeter = zone.perimeter;
   if (!perimeter || perimeter.length < 3) return null;
+  const ring = closeRing(perimeter);
+  // A GeoJSON LinearRing needs >= 4 positions; @turf/helpers' polygon() throws
+  // "Each LinearRing of a Polygon must have 4 or more Positions" otherwise, and
+  // useGeofence swallows that throw (returns false) — silently dropping the zone
+  // from geofencing. A degenerate perimeter (e.g. 3 points already closed, i.e.
+  // only 2 distinct vertices) can't form a polygon, so skip it honestly here.
+  if (ring.length < 4) return null;
   return {
     id: zone.id,
     name: zone.name,
     type: KIND_TO_TYPE[zone.kind] ?? 'RESTRICTED',
-    coordinates: [closeRing(perimeter)],
+    coordinates: [ring],
   };
 }
 
