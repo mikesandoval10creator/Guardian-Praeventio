@@ -104,6 +104,7 @@ import miscRouter from "./src/server/routes/misc.js";
 import organicRouter from "./src/server/routes/organic.js";
 import wisdomCapsuleRouter from "./src/server/routes/wisdomCapsule.js";
 import subscriptionRouter from "./src/server/routes/subscription.js";
+import accountRouter from "./src/server/routes/account.js";
 import zettelkastenRouter from "./src/server/routes/zettelkasten.js";
 import commuteRouter from "./src/server/routes/commute.js";
 import emergencyRouter from "./src/server/routes/emergency.js";
@@ -1277,6 +1278,9 @@ if (process.env.NODE_ENV !== "production") {
 app.use("/api/billing", billingApiRouter);
 // Round 22 — audit fix CRITICAL #1: subscription upgrade with payment verify
 app.use("/api/subscription", subscriptionRouter);
+// Cascarón soft-delete (block 3a): POST /api/account/anonymize — 2FA-gated
+// irreversible PII anonymization (Ley 21.719 / GDPR / Apple).
+app.use("/api/account", accountRouter);
 app.use("/billing", billingWebpayRouter);
 // Sprint 23 Bucket GG — DTE / SII admin endpoints. Mount AFTER /api/billing
 // because the auto-issue path is invoked from billing handlers; mounting the
