@@ -72,10 +72,22 @@ describe('runLegalObligationReconcile', () => {
     expect(r.skippedNoHeadcount).toBe(true);
   });
 
-  it('skips a missing project doc without throwing (one bad doc must not abort the run)', async () => {
+  it('skips a missing project doc without throwing (distinct flag; must not abort the run)', async () => {
     const db = createFakeFirestore();
     const r = await runLegalObligationReconcile({ db: asFirestore(db), projectId: 'ghost', now: NOW });
-    expect(r.skippedNoHeadcount).toBe(true);
+    expect(r.skippedMissingDoc).toBe(true);
+    expect(r.skippedNoHeadcount).toBe(false);
     expect(r.created).toEqual([]);
+  });
+
+  it('treats a project with no country field as CL (platform default) and reconciles', async () => {
+    const db = createFakeFirestore();
+    db._seed('projects/p1', {
+      workersCount: 30,
+      metadata: { sectorId: 'GP-CONS-RES', codigoActividadSii: 410010 },
+    }); // NO country field — onboarding does not persist one; default must be CL
+    const r = await runLegalObligationReconcile({ db: asFirestore(db), projectId: 'p1', now: NOW });
+    expect(r.skippedNonChile).toBe(false);
+    expect(r.created.some((id) => /cphs/i.test(id))).toBe(true);
   });
 });

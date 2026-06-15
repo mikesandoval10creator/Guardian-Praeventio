@@ -41,8 +41,10 @@ export interface LegalObligationReconcileResult {
   alreadyPresent: number;
   /** Skipped because the project does not operate in Chile (dotación law is CL). */
   skippedNonChile: boolean;
-  /** Skipped because the project doc is missing or has no usable headcount. */
+  /** Skipped because the project exists but has no usable headcount. */
   skippedNoHeadcount: boolean;
+  /** Skipped because the project doc does not exist (distinct from no-headcount). */
+  skippedMissingDoc: boolean;
 }
 
 interface ProjectDocShape {
@@ -68,16 +70,23 @@ export async function runLegalObligationReconcile(
     alreadyPresent: 0,
     skippedNonChile: false,
     skippedNoHeadcount: false,
+    skippedMissingDoc: false,
   };
 
   const projectSnap = await db.collection('projects').doc(projectId).get();
   if (!projectSnap.exists) {
-    result.skippedNoHeadcount = true;
+    result.skippedMissingDoc = true;
     return result;
   }
   const project = (projectSnap.data() ?? {}) as ProjectDocShape;
 
-  // Dotación thresholds are Chilean law — only reconcile CL projects.
+  // Dotación thresholds are Chilean law — only reconcile CL projects. CL is the
+  // platform default when `country` is absent (CLAUDE.md compliance target is
+  // Chile, and the onboarding wizard does NOT persist a `country` field on the
+  // project doc — see onboarding.ts), so a missing field MUST resolve to CL or
+  // the cron would never reconcile any real project. A spurious obligation on a
+  // genuinely non-CL doc is benign: it is a calm internal reminder that never
+  // blocks anything and is never pushed to an organism.
   const country = typeof project.country === 'string' ? project.country : 'CL';
   if (country !== 'CL') {
     result.skippedNonChile = true;
@@ -130,7 +139,7 @@ export async function runLegalObligationReconcile(
   await batch.commit();
   result.created = toCreate.map((s) => s.id);
 
-  logger.info?.('[legal-reconcile] obligations materialised', {
+  logger.info('[legal-reconcile] obligations materialised', {
     projectId,
     workersCount,
     created: result.created.length,

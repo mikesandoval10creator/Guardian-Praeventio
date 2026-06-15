@@ -962,12 +962,12 @@ router.post(
                 { projectId, actorOverride: { uid: 'system:legal-reconcile-cron', email: null } },
               );
             } catch (auditErr) {
-              logger.error('[maintenance] legal-reconcile audit failed', { projectId, err: String(auditErr) });
+              logger.error('[maintenance] legal-reconcile audit failed', auditErr, { projectId });
               captureRouteError(auditErr, 'maintenance.legal-reconcile-audit', { projectId });
             }
           }
         } catch (err) {
-          logger.error('[maintenance] legal-obligation-reconcile failed', { projectId, err: String(err) });
+          logger.error('[maintenance] legal-obligation-reconcile failed', err, { projectId });
           captureRouteError(err, 'maintenance.legal-obligation-reconcile', { projectId });
           legalReconcile.errors += 1;
         }
