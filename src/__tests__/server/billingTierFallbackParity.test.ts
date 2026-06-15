@@ -43,14 +43,14 @@ describe('BILLING_TIER_FALLBACK ↔ tiers.ts parity', () => {
     },
   );
 
-  it('includes global-titanio (the tier that previously 400ed at checkout)', () => {
-    const resolved = resolveBillingTier('global-titanio');
+  it('includes diamante (the unlimited + multi-jurisdiction jewel)', () => {
+    const resolved = resolveBillingTier('diamante');
     expect(resolved).toEqual({
       // Net (pre-IVA) CLP = round(canonical display / 1.19).
-      clpRegular: 798311, // round(949990 / 1.19)
-      clpAnual: 7663857, // round(9119990 / 1.19)
-      usdRegular: 999, // canonical USD, unchanged
-      usdAnual: 9990, // usdRegular * 10
+      clpRegular: 3277311, // round(3900000 / 1.19)
+      clpAnual: 29495798, // round(35100000 / 1.19)
+      usdRegular: 4200, // canonical USD
+      usdAnual: 42000, // usdRegular * 10
     });
   });
 

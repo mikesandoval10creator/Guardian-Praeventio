@@ -28,8 +28,8 @@ describe('TierDowngradeModal', () => {
     render(
       <TierDowngradeModal
         fromTier="oro"
-        toTier="comite-paritario"
-        toTierLabel="Comité Paritario"
+        toTier="plata"
+        toTierLabel="Plata"
         currentUsage={{ workers: 80, projects: 23 }}
         targetCapacity={{ workers: 25, projects: 5 }}
         onConfirm={vi.fn()}
@@ -63,7 +63,7 @@ describe('TierDowngradeModal', () => {
       render(
         <TierDowngradeModal
           fromTier="oro"
-          toTier="comite-paritario"
+          toTier="plata"
           currentUsage={{ workers: 80, projects: 5 }}
           targetCapacity={{ workers: 25, projects: 5 }}
           onConfirm={vi.fn()}
@@ -78,7 +78,7 @@ describe('TierDowngradeModal', () => {
         category: 'workers',
         action: 'archive-oldest',
         fromTier: 'oro',
-        toTier: 'comite-paritario',
+        toTier: 'plata',
         excess: 55,
       });
     } finally {
@@ -95,7 +95,7 @@ describe('TierDowngradeModal', () => {
     render(
       <TierDowngradeModal
         fromTier="oro"
-        toTier="comite-paritario"
+        toTier="plata"
         currentUsage={{ workers: 5, projects: 1 }}
         targetCapacity={{ workers: 25, projects: 5 }}
         onConfirm={onConfirm}

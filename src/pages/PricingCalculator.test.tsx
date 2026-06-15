@@ -139,9 +139,9 @@ describe('<PricingCalculator /> Sprint K §171-179', () => {
     renderPage();
     const workers = screen.getByTestId('pc-workers') as HTMLInputElement;
     fireEvent.change(workers, { target: { value: '50000' } });
-    // 50k trabajadores debería empujar a `ilimitado` o `global-titanio`.
+    // 50k trabajadores debería empujar a `diamante` (la cima ilimitada).
     const recoSection = screen.getByTestId('pricing-calculator-recommendation');
     const text = recoSection.textContent ?? '';
-    expect(text.toLowerCase()).toMatch(/ilimitado|global/i);
+    expect(text.toLowerCase()).toMatch(/diamante/i);
   });
 });

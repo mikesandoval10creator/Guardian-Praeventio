@@ -181,6 +181,9 @@
     },
     "workspace_native_tag": "Workspace Native",
     "badges": {
+      "cobre": "Great for multi-site",
+      "oro": "Most popular SMB",
+      "platino": "For enterprises",
       "gratis": "Always free",
       "departamento_prevencion": "Most popular for SME",
       "diamante": "Most popular B2B",
@@ -202,6 +205,13 @@
         "ISO 45001 global fallback",
         "Basic PPE inventory",
         "Always-on emergency button"
+      ],
+      "cobre": [
+        "Everything in Free",
+        "Up to 3 multi-site operations",
+        "Up to 24 workers per site (no Committee)",
+        "Document export",
+        "Chat support"
       ],
       "comite-paritario": [
         "Everything in Free",
@@ -238,9 +248,16 @@
         "99.5% monthly SLA",
         "On-site onboarding"
       ],
+      "platino": [
+        "Everything in Titanium",
+        "Multi-tenant + dedicated CSM",
+        "Vertex AI fine-tuned",
+        "API access",
+        "Advanced analytics + custom branding"
+      ],
       "diamante": [
         "Workspace Native: SSO + CASA Tier",
-        "1,000 workers / 100 projects",
+        "Unlimited workers and projects + multi-country",
         "Annual security audit",
         "Private API with enterprise rate limits",
         "24/7 support with < 1h response time"

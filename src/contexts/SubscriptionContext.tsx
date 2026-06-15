@@ -6,6 +6,7 @@ import { useProject } from './ProjectContext';
 import { logger } from '../utils/logger';
 import {
   normalizeSubscriptionPlanId,
+  planMeetsMinimum,
   PLAN_RANK,
   type SubscriptionPlan,
 } from '../services/pricing/subscriptionPlan';
@@ -44,11 +45,12 @@ export interface SubscriptionFeatures {
 // server `requireTier` middleware compare against the SAME ranks (directive
 // #11). `PLAN_RANK` is imported above.
 
+// 7-metal scheme (2026-06-15): Platino absorbed empresarial/corporativo, so the
+// enterprise features (analytics, branding, vertex, API, multi-tenant) all land
+// at Platino; Diamante (top) inherits everything.
 const RANK_ORO = PLAN_RANK.oro;
 const RANK_TITANIO = PLAN_RANK.titanio;
-const RANK_DIAMANTE = PLAN_RANK.platino; // diamante in modern naming
-const RANK_EMPRESARIAL = PLAN_RANK.empresarial;
-const RANK_CORPORATIVO = PLAN_RANK.corporativo;
+const RANK_PLATINO = PLAN_RANK.platino;
 
 /**
  * Pure feature-flag resolver for a given plan. Always returns a fresh object
@@ -60,11 +62,11 @@ export function getFeaturesForPlan(plan: SubscriptionPlan): SubscriptionFeatures
     canUseExecutiveDashboard: rank >= RANK_ORO,
     canUseSSO: rank >= RANK_TITANIO,
     canUseGoogleWorkspaceAddon: rank >= RANK_TITANIO,
-    canUseAdvancedAnalytics: rank >= RANK_DIAMANTE,
-    canUseCustomBranding: rank >= RANK_DIAMANTE,
-    canUseVertexFineTune: rank >= RANK_EMPRESARIAL,
-    canUseAPIAccess: rank >= RANK_EMPRESARIAL,
-    canUseMultiTenant: rank >= RANK_CORPORATIVO,
+    canUseAdvancedAnalytics: rank >= RANK_PLATINO,
+    canUseCustomBranding: rank >= RANK_PLATINO,
+    canUseVertexFineTune: rank >= RANK_PLATINO,
+    canUseAPIAccess: rank >= RANK_PLATINO,
+    canUseMultiTenant: rank >= RANK_PLATINO,
   };
 }
 
@@ -84,16 +86,13 @@ interface SubscriptionContextType {
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
 const PLAN_LIMITS: Record<SubscriptionPlan, number> = {
-  free: 10,
-  comite: 25,
-  departamento: 100,
-  plata: 250,
-  oro: 500,
-  titanio: 750,
-  platino: 1000,
-  empresarial: 2500,
-  corporativo: 5000,
-  ilimitado: Infinity
+  free: 3,
+  cobre: 72,
+  plata: 99,
+  oro: 499,
+  titanio: 1999,
+  platino: 9999,
+  diamante: Infinity,
 };
 
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -198,7 +197,8 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   );
 
   const isPremium = plan !== 'free';
-  const isEnterprise = ['empresarial', 'corporativo', 'ilimitado'].includes(plan);
+  // 7-metal scheme: "enterprise" = Platino+ (absorbed empresarial/corporativo).
+  const isEnterprise = planMeetsMinimum(plan, 'platino');
   const features = useMemo(() => getFeaturesForPlan(plan), [plan]);
   // Legacy boolean kept for backward compatibility, now backed by the
   // tighter feature flag (oro+ instead of any-paid).

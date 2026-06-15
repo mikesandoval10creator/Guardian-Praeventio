@@ -181,6 +181,9 @@
     },
     "workspace_native_tag": "Workspace Native",
     "badges": {
+      "cobre": "Ideal multi-faena",
+      "oro": "Más popular PYME",
+      "platino": "Para corporativos",
       "gratis": "Siempre gratis",
       "departamento_prevencion": "Más popular para PYME",
       "diamante": "Más popular B2B",
@@ -202,6 +205,13 @@
         "ISO 45001 fallback global",
         "Inventario básico de EPP",
         "Botón de emergencia siempre activo"
+      ],
+      "cobre": [
+        "Todo lo del plan gratis",
+        "Hasta 3 faenas multi-sitio",
+        "Hasta 24 trabajadores por faena (sin Comité)",
+        "Exportación de documentos",
+        "Soporte por chat"
       ],
       "comite-paritario": [
         "Todo lo del plan gratis",
@@ -238,9 +248,16 @@
         "SLA 99.5% mensual",
         "Onboarding en sitio"
       ],
+      "platino": [
+        "Todo lo de Titanio",
+        "Multi-tenant + CSM dedicado",
+        "Vertex AI fine-tuned",
+        "Acceso a API",
+        "Analytics avanzado + branding propio"
+      ],
       "diamante": [
         "Workspace Native: SSO + CASA Tier",
-        "1.000 trabajadores / 100 proyectos",
+        "Trabajadores y proyectos ilimitados + multi-país",
         "Auditoría de seguridad anual",
         "API privada con rate-limit empresarial",
         "Soporte 24/7 con tiempo de respuesta < 1h"

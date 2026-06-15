@@ -160,19 +160,19 @@ describe('POST /:projectId/regulatory/active-jurisdictions', () => {
     expect(res.body.jurisdictions).toEqual(['ISO-45001']);
   });
 
-  it('200 global-titanio tier with extraCountries expands jurisdictions', async () => {
+  it('200 diamante tier with extraCountries expands jurisdictions', async () => {
     const res = await request(buildApp())
       .post(url)
       .set('x-test-uid', CALLER_UID)
       .send({
         ctx: { country: 'CL', extraCountries: ['MX', 'BR'] },
-        tier: 'global-titanio',
+        tier: 'diamante',
       });
     expect(res.status).toBe(200);
     const { jurisdictions } = res.body as { jurisdictions: string[] };
     expect(jurisdictions).toContain('ISO-45001');
     expect(jurisdictions).toContain('CL');
-    // global-titanio supports multi-jurisdiction — MX and/or BR should appear
+    // diamante supports multi-jurisdiction — MX and/or BR should appear
     expect(jurisdictions.length).toBeGreaterThan(2);
   });
 

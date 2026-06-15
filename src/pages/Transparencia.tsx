@@ -18,7 +18,7 @@ import {
 } from '../components/pricing/CurrencyToggle';
 import { PricingCalculator } from '../components/pricing/PricingCalculator';
 
-const OVERAGE_TIER_IDS = ['comite-paritario', 'departamento-prevencion', 'plata', 'oro'] as const;
+const OVERAGE_TIER_IDS = ['cobre', 'plata', 'oro'] as const;
 
 function Bucket2DSvg() {
   return (

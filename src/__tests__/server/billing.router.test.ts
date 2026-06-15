@@ -328,7 +328,7 @@ function buildApp() {
 
 // Minimal valid checkout body
 const validCheckout = {
-  tierId: 'comite-paritario',
+  tierId: 'plata',
   cycle: 'monthly',
   currency: 'CLP',
   paymentMethod: 'webpay',
@@ -1114,7 +1114,7 @@ describe('POST /api/billing/khipu/webhook', () => {
 // rail; 2026-06-11 "khipu cableado")
 // ═════════════════════════════════════════════════════════════════════════════
 describe('POST /api/billing/khipu/checkout', () => {
-  const validBody = { planId: 'comite-paritario', cycle: 'monthly' };
+  const validBody = { planId: 'plata', cycle: 'monthly' };
 
   it('401 without auth token', async () => {
     const res = await request(buildApp())
@@ -1177,11 +1177,11 @@ describe('POST /api/billing/khipu/checkout', () => {
     expect(body.paymentUrl).toBe('https://khipu.test/pay/kh-new-1');
     expect(body.invoiceId).toMatch(/^inv_khipu_/);
 
-    // Adapter called with the canonical comite-paritario price:
-    // net 10075 → IVA ceil → total 11990 CLP (BILLING_TIER_FALLBACK).
+    // Adapter called with the canonical plata price:
+    // net 16798 → IVA ceil → total 19990 CLP (BILLING_TIER_FALLBACK).
     expect(M.khipuCreate).toHaveBeenCalledTimes(1);
     const tx = M.khipuCreate.mock.calls[0]![0] as Record<string, unknown>;
-    expect(tx.amount).toBe(11990);
+    expect(tx.amount).toBe(19990);
     expect(tx.currency).toBe('CLP');
     expect(tx.buyOrder).toBe(body.invoiceId);
     expect(String(tx.notifyUrl)).toMatch(/\/api\/billing\/khipu\/webhook$/);
@@ -1195,8 +1195,8 @@ describe('POST /api/billing/khipu/checkout', () => {
     expect(invoice.paymentMethod).toBe('khipu');
     expect(invoice.createdBy).toBe('uid-A');
     expect(invoice.khipuPaymentId).toBe('kh-new-1');
-    expect(invoice.totals.total).toBe(11990);
-    expect(invoice.lineItems[0].tierId).toBe('comite-paritario');
+    expect(invoice.totals.total).toBe(19990);
+    expect(invoice.lineItems[0].tierId).toBe('plata');
 
     // Audit row with identity stamped from the verified token.
     const auditRows = [...H.db!._store.keys()]
@@ -1206,18 +1206,18 @@ describe('POST /api/billing/khipu/checkout', () => {
     expect(row).toBeTruthy();
     expect(row!.userId).toBe('uid-A');
     expect(row!.userEmail).toBe('cliente@empresa.cl');
-    expect((row!.details as Record<string, unknown>).amount).toBe(11990);
+    expect((row!.details as Record<string, unknown>).amount).toBe(19990);
   });
 
   it('annual cycle computes the annual CLP total server-side', async () => {
     const res = await request(buildApp())
       .post('/api/billing/khipu/checkout')
       .set('x-test-uid', 'uid-A')
-      .send({ planId: 'comite-paritario', cycle: 'annual' });
+      .send({ planId: 'plata', cycle: 'annual' });
     expect(res.status).toBe(200);
     const tx = M.khipuCreate.mock.calls[0]![0] as Record<string, unknown>;
-    // net anual 81504 → ceil(81504 * 1.19) = 96990.
-    expect(tx.amount).toBe(96990);
+    // net anual 151185 → ceil(151185 * 1.19) = 179911.
+    expect(tx.amount).toBe(179911);
   });
 
   it('502 when the Khipu API rejects payment creation', async () => {

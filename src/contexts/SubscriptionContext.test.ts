@@ -35,12 +35,8 @@ describe('getFeaturesForPlan', () => {
     expect(getFeaturesForPlan('free')).toEqual(ALL_FALSE);
   });
 
-  it('comite plan: all features locked (paid baseline still below oro)', () => {
-    expect(getFeaturesForPlan('comite')).toEqual(ALL_FALSE);
-  });
-
-  it('departamento plan: all features locked (paid baseline still below oro)', () => {
-    expect(getFeaturesForPlan('departamento')).toEqual(ALL_FALSE);
+  it('cobre plan: all features locked (below oro threshold)', () => {
+    expect(getFeaturesForPlan('cobre')).toEqual(ALL_FALSE);
   });
 
   it('plata plan: all features locked (still below oro threshold)', () => {
@@ -63,51 +59,17 @@ describe('getFeaturesForPlan', () => {
     });
   });
 
-  it('platino (legacy diamante slot) plan: adds advanced analytics + custom branding', () => {
-    // 'platino' is the legacy id mapped to the diamante tier in Pricing.tsx.
-    expect(getFeaturesForPlan('platino')).toEqual({
-      canUseSSO: true,
-      canUseGoogleWorkspaceAddon: true,
-      canUseExecutiveDashboard: true,
-      canUseAdvancedAnalytics: true,
-      canUseCustomBranding: true,
-      canUseVertexFineTune: false,
-      canUseAPIAccess: false,
-      canUseMultiTenant: false,
-    });
-  });
-
-  it('empresarial plan: adds Vertex fine-tune + API access', () => {
-    expect(getFeaturesForPlan('empresarial')).toEqual({
-      canUseSSO: true,
-      canUseGoogleWorkspaceAddon: true,
-      canUseExecutiveDashboard: true,
-      canUseAdvancedAnalytics: true,
-      canUseCustomBranding: true,
-      canUseVertexFineTune: true,
-      canUseAPIAccess: true,
-      canUseMultiTenant: false,
-    });
-  });
-
-  it('corporativo plan: every flag enabled (multi-tenant unlocks here)', () => {
-    expect(getFeaturesForPlan('corporativo')).toEqual({
-      canUseSSO: true,
-      canUseGoogleWorkspaceAddon: true,
-      canUseExecutiveDashboard: true,
-      canUseAdvancedAnalytics: true,
-      canUseCustomBranding: true,
-      canUseVertexFineTune: true,
-      canUseAPIAccess: true,
-      canUseMultiTenant: true,
-    });
-  });
-
-  it('ilimitado plan: every flag enabled (top tier inherits all)', () => {
-    const features = getFeaturesForPlan('ilimitado');
-    // Every flag should be true
+  it('platino plan: enterprise band — every flag enabled (absorbs empresarial/corporativo)', () => {
+    const features = getFeaturesForPlan('platino');
     (Object.keys(features) as Array<keyof SubscriptionFeatures>).forEach((k) => {
-      expect(features[k], `expected ${k} to be true on ilimitado`).toBe(true);
+      expect(features[k], `expected ${k} to be true on platino`).toBe(true);
+    });
+  });
+
+  it('diamante plan: the jewel — every flag enabled (top tier inherits all)', () => {
+    const features = getFeaturesForPlan('diamante');
+    (Object.keys(features) as Array<keyof SubscriptionFeatures>).forEach((k) => {
+      expect(features[k], `expected ${k} to be true on diamante`).toBe(true);
     });
   });
 
@@ -119,18 +81,15 @@ describe('getFeaturesForPlan', () => {
     expect(getFeaturesForPlan('oro').canUseExecutiveDashboard).toBe(true);
   });
 
-  it('handles every legacy SubscriptionPlan id without throwing', () => {
+  it('handles every SubscriptionPlan id without throwing', () => {
     const allPlans: SubscriptionPlan[] = [
       'free',
-      'comite',
-      'departamento',
+      'cobre',
       'plata',
       'oro',
       'titanio',
       'platino',
-      'empresarial',
-      'corporativo',
-      'ilimitado',
+      'diamante',
     ];
     for (const p of allPlans) {
       expect(() => getFeaturesForPlan(p)).not.toThrow();

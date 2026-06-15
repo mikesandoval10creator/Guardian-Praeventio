@@ -49,9 +49,11 @@ export const EMPTY_TMERT: TmertInput = {
   exposureHoursPerDay: 0,
 };
 
-/** Sample CheckoutRequest used by billing-flow smoke. */
+/** Sample CheckoutRequest used by billing-flow smoke. The amounts below are an
+ *  illustrative IVA-reconciliation pair (net 10075 + 19% = 11990 retail); the
+ *  tierId is just a valid label, not this tier's real price. */
 export const SAMPLE_CHECKOUT: CheckoutRequest = {
-  tierId: 'comite-paritario',
+  tierId: 'cobre',
   cycle: 'monthly',
   currency: 'CLP',
   totalWorkers: 25,
@@ -67,8 +69,8 @@ export const SAMPLE_CHECKOUT: CheckoutRequest = {
 /** A single CLP line item — totals → withIVA(10075). */
 export const ONE_LINE_ITEM_CLP: InvoiceLineItem[] = [
   {
-    tierId: 'comite-paritario',
-    description: 'Suscripción comite-paritario (monthly)',
+    tierId: 'cobre',
+    description: 'Suscripción de ejemplo (monthly)',
     quantity: 1,
     unitAmount: 10075,
     currency: 'CLP',

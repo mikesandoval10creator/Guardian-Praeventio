@@ -2,38 +2,46 @@ import type { TierId } from './tiers';
 
 export const SUBSCRIPTION_PLANS = [
   'free',
-  'comite',
-  'departamento',
+  'cobre',
   'plata',
   'oro',
   'titanio',
   'platino',
-  'empresarial',
-  'corporativo',
-  'ilimitado',
+  'diamante',
 ] as const;
 
 export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
 
 export const TIER_TO_SUBSCRIPTION_PLAN: Record<TierId, SubscriptionPlan> = {
   gratis: 'free',
-  'comite-paritario': 'comite',
-  'departamento-prevencion': 'departamento',
+  cobre: 'cobre',
   plata: 'plata',
   oro: 'oro',
   titanio: 'titanio',
-  diamante: 'platino',
-  empresarial: 'empresarial',
-  corporativo: 'corporativo',
-  ilimitado: 'ilimitado',
-  'global-titanio': 'ilimitado',
+  platino: 'platino',
+  diamante: 'diamante',
 };
 
 const SUBSCRIPTION_PLAN_SET: ReadonlySet<string> = new Set(SUBSCRIPTION_PLANS);
 
+// Legacy aliases — map the PRE-collapse (2026-06-15) tier ids + plan names onto
+// the 7-metal scheme so any stale string (old Firestore value, old test, old
+// link) normalizes cleanly. closest-capacity-UP, never downgrade:
+//   comité/comite-paritario → Plata (CPHS band)
+//   departamento(-prevencion) → Oro (DPRP band)
+//   empresarial/corporativo → Platino (enterprise band)
+//   ilimitado/global-titanio → Diamante (unlimited + global)
 const LEGACY_ALIASES: Record<string, SubscriptionPlan> = {
-  premium: 'departamento',
-  basic: 'comite',
+  premium: 'oro',
+  basic: 'cobre',
+  comite: 'plata',
+  'comite-paritario': 'plata',
+  departamento: 'oro',
+  'departamento-prevencion': 'oro',
+  empresarial: 'platino',
+  corporativo: 'platino',
+  ilimitado: 'diamante',
+  'global-titanio': 'diamante',
 };
 
 export function isSubscriptionPlan(value: unknown): value is SubscriptionPlan {
@@ -60,7 +68,7 @@ export function subscriptionPlanMatchesPaidTier(
 }
 
 /**
- * Canonical plan ranking, lowest (free) → highest (ilimitado). SINGLE SOURCE OF
+ * Canonical plan ranking, lowest (free) → highest (diamante). SINGLE SOURCE OF
  * TRUTH for tier comparisons, used by BOTH the client feature matrix
  * (`SubscriptionContext`) and the SERVER enforcement middleware
  * (`requireTier`). Tier-gating is UX-only on the client (directive #11) — the
@@ -69,15 +77,12 @@ export function subscriptionPlanMatchesPaidTier(
  */
 export const PLAN_RANK: Record<SubscriptionPlan, number> = {
   free: 0,
-  comite: 1,
-  departamento: 2,
-  plata: 3,
-  oro: 4,
-  titanio: 5,
-  platino: 6, // legacy id for the modern "diamante" slot (titanio < platino < empresarial)
-  empresarial: 7,
-  corporativo: 8,
-  ilimitado: 9,
+  cobre: 1,
+  plata: 2,
+  oro: 3,
+  titanio: 4,
+  platino: 5,
+  diamante: 6,
 };
 
 /**

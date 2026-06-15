@@ -23,12 +23,12 @@ describe('POST /api/subscription/upgrade — paid-invoice gate (DT-01/DT-05)', (
     fs.store.set('invoices/inv_unpaid', {
       createdBy: 'uid-A',
       status: 'pending-payment',
-      lineItems: [{ tierId: 'ilimitado', quantity: 1 }],
+      lineItems: [{ tierId: 'diamante', quantity: 1 }],
     });
     const res = await request(handle.app)
       .post('/api/subscription/upgrade')
       .set('Authorization', 'Bearer test:uid-A:a@test.com')
-      .send({ planId: 'ilimitado' });
+      .send({ planId: 'diamante' });
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('no_paid_invoice_for_plan');
     // User was NOT promoted.
@@ -39,12 +39,12 @@ describe('POST /api/subscription/upgrade — paid-invoice gate (DT-01/DT-05)', (
     fs.store.set('invoices/inv_other', {
       createdBy: 'uid-other',
       status: 'paid',
-      lineItems: [{ tierId: 'ilimitado' }],
+      lineItems: [{ tierId: 'diamante' }],
     });
     const res = await request(handle.app)
       .post('/api/subscription/upgrade')
       .set('Authorization', 'Bearer test:uid-A:a@test.com')
-      .send({ planId: 'ilimitado' });
+      .send({ planId: 'diamante' });
     expect(res.status).toBe(403);
   });
 
@@ -52,12 +52,12 @@ describe('POST /api/subscription/upgrade — paid-invoice gate (DT-01/DT-05)', (
     fs.store.set('invoices/inv_lower', {
       createdBy: 'uid-A',
       status: 'paid',
-      lineItems: [{ tierId: 'comite' }],
+      lineItems: [{ tierId: 'plata' }],
     });
     const res = await request(handle.app)
       .post('/api/subscription/upgrade')
       .set('Authorization', 'Bearer test:uid-A:a@test.com')
-      .send({ planId: 'ilimitado' });
+      .send({ planId: 'diamante' });
     expect(res.status).toBe(403);
   });
 
@@ -87,7 +87,8 @@ describe('POST /api/subscription/upgrade — paid-invoice gate (DT-01/DT-05)', (
     });
   });
 
-  it('accepts canonical pricing tier ids when they map to the requested legacy plan', async () => {
+  it('accepts a legacy invoice tier id that normalizes to the requested plan', async () => {
+    // Pre-collapse 'departamento-prevencion' → 'oro' via LEGACY_ALIASES.
     fs.store.set('invoices/inv_canonical', {
       createdBy: 'uid-A',
       status: 'paid',
@@ -96,12 +97,11 @@ describe('POST /api/subscription/upgrade — paid-invoice gate (DT-01/DT-05)', (
     const res = await request(handle.app)
       .post('/api/subscription/upgrade')
       .set('Authorization', 'Bearer test:uid-A:a@test.com')
-      .send({ planId: 'departamento' });
+      .send({ planId: 'oro' });
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ success: true, planId: 'departamento' });
+    expect(res.body).toMatchObject({ success: true, planId: 'oro' });
     expect((fs.store.get('users/uid-A') as any).subscription).toMatchObject({
-      planId: 'departamento',
-      tierId: 'departamento-prevencion',
+      planId: 'oro',
       status: 'active',
     });
   });

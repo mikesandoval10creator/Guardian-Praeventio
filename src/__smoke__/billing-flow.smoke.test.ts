@@ -16,17 +16,17 @@ import { calculateMonthlyCost, getTierById, withIVA } from '../services/pricing/
 import { ONE_LINE_ITEM_CLP, SAMPLE_CHECKOUT } from './setup';
 
 describe('smoke: billing tier → invoice → audit', () => {
-  it('comite-paritario base CLP price is 11990', () => {
-    const tier = getTierById('comite-paritario');
-    expect(tier.clpRegular).toBe(11990);
+  it('cobre base CLP price is 9990', () => {
+    const tier = getTierById('cobre');
+    expect(tier.clpRegular).toBe(9990);
   });
 
-  it('calculateMonthlyCost(comite-paritario, 30, 3) = 11990 + 5*990 = 16940', () => {
-    const cost = calculateMonthlyCost('comite-paritario', 30, 3);
-    expect(cost.base).toBe(11990);
-    expect(cost.workerOverage).toBe(5 * 990);
+  it('calculateMonthlyCost(cobre, 80, 3) = 9990 + 8*990 = 17910', () => {
+    const cost = calculateMonthlyCost('cobre', 80, 3);
+    expect(cost.base).toBe(9990);
+    expect(cost.workerOverage).toBe(8 * 990);
     expect(cost.projectOverage).toBe(0);
-    expect(cost.total).toBe(16940);
+    expect(cost.total).toBe(17910);
   });
 
   it('withIVA(10075) → { subtotal: 10075, iva: 1915, total: 11990 }', () => {
@@ -67,7 +67,7 @@ describe('smoke: billing tier → invoice → audit', () => {
     );
     expect(invoice.totals.subtotal).toBe(sumOfLines);
     expect(invoice.totals.subtotal + invoice.totals.iva).toBe(invoice.totals.total);
-    // Retail display price for Comité Paritario monthly is $11,990 incl IVA.
+    // Illustrative IVA reconciliation: net 10075 + 19% = 11990 retail.
     expect(invoice.totals.total).toBe(11990);
     expect(invoice.status).toBe('draft');
   });

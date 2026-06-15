@@ -1,35 +1,38 @@
 /**
  * Praeventio Guard - Pricing Tiers (single source of truth)
  *
- * 11 tiers covering Gratis, Comité Paritario, Departamento Prevención,
- * Plata, Oro, Titanio, Diamante, Empresarial, Corporativo, Ilimitado
- * and Global Titanio.
+ * 7 metal+jewel tiers (2026-06-15 collapse, no customers yet → clean rebuild,
+ * no migration): Gratis, Cobre, Plata, Oro, Titanio, Platino, Diamante.
  *
- * All tiers include: calendar predictions full, multi-país ilimitado,
- * ISO 45001 fallback universal cuando GPS detecta país sin pack local.
+ * The customer-facing ladder. Legal modules (CPHS at ≥25/faena, Departamento de
+ * Prevención at ≥100) unlock by HEADCOUNT, decoupled from the plan name (see
+ * the headcount-trigger function). Plata roughly coincides with the CPHS band
+ * and Oro with the DPRP band, but the gating is data-driven, not name-driven.
  *
- * Lower tiers (Gratis through Oro) charge overage per extra worker / project.
- * Premium tiers (Titanio+) have NO overage — predictable enterprise pricing
- * with hard upgrade required when limits are exceeded.
+ * All tiers include: calendar predictions full, multi-país ilimitado, ISO 45001
+ * fallback universal cuando GPS detecta país sin pack local, Zettelkasten, and
+ * every life-safety feature (ADR 0021 — never tier-gated).
+ *
+ * Lower tiers (Cobre through Oro) charge overage per extra worker / project.
+ * Premium tiers (Titanio+) have NO overage — predictable pricing with a hard
+ * upgrade required when limits are exceeded. Annual = clpRegular × 9 (≈25% off,
+ * "ahorra 3 meses"). Diamante is the jewel: unlimited + multi-jurisdiction +
+ * per-region data residency (UF indexation deferred; CLP placeholder for now).
  */
 
 export type TierId =
   | 'gratis'
-  | 'comite-paritario'
-  | 'departamento-prevencion'
+  | 'cobre'
   | 'plata'
   | 'oro'
   | 'titanio'
-  | 'diamante'
-  | 'empresarial'
-  | 'corporativo'
-  | 'ilimitado'
-  | 'global-titanio';
+  | 'platino'
+  | 'diamante';
 
 /**
  * Sprint 31 OO — Data residency tiers.
  *  - 'latam': single jurisdicción (datos en CL/región LATAM).
- *  - 'multi': multi-jurisdicción simultáneo (Tier Global).
+ *  - 'multi': multi-jurisdicción simultáneo (Tier Diamante).
  */
 export type DataResidency = 'latam' | 'multi';
 
@@ -58,7 +61,7 @@ export interface Tier {
   /**
    * Sprint 31 OO — Maximum simultaneous jurisdictions this tier may
    * activate (ISO 45001 baseline does NOT count). Most tiers are
-   * single-jurisdiction (1). Tier Global Titanio is `Infinity`.
+   * single-jurisdiction (1). Tier Diamante is `Infinity`.
    */
   jurisdictionsMax?: number;
   /**
@@ -77,7 +80,7 @@ export const TIERS: readonly Tier[] = [
   {
     id: 'gratis',
     nombre: 'Gratis',
-    trabajadoresMax: 10,
+    trabajadoresMax: 3,
     proyectosMax: 1,
     clpRegular: 0,
     clpIntro3mo: 0,
@@ -86,126 +89,82 @@ export const TIERS: readonly Tier[] = [
     workspaceTier: 'none',
   },
   {
-    id: 'comite-paritario',
-    nombre: 'Comité Paritario',
-    trabajadoresMax: 25,
+    // Intermedio multi-faena: hasta 3 faenas, cada una bajo el umbral CPHS
+    // (<25), sin necesidad de Comité Paritario por faena (DS 44/2024 art. 23,
+    // que cuenta por faena). "Bueno, bonito y barato".
+    id: 'cobre',
+    nombre: 'Cobre',
+    trabajadoresMax: 72,
     proyectosMax: 3,
-    clpRegular: 11990,
-    clpIntro3mo: 7990,
-    clpAnual: 96990,
-    usdRegular: 13,
+    clpRegular: 9990,
+    clpIntro3mo: 6990,
+    clpAnual: 89910, // 9990 × 9 — ahorra 3 meses (≈25%)
+    usdRegular: 11,
     workspaceTier: 'none',
     trabajadorExtraClp: 990,
     proyectoExtraClp: 5990,
   },
   {
-    id: 'departamento-prevencion',
-    nombre: 'Departamento Prevención',
-    trabajadoresMax: 100,
+    // Banda en que el Comité Paritario (CPHS) suele activarse (≥25/faena).
+    id: 'plata',
+    nombre: 'Plata',
+    trabajadoresMax: 99,
     proyectosMax: 10,
-    clpRegular: 30990,
-    clpIntro3mo: 21990,
-    clpAnual: 288990,
-    usdRegular: 33,
+    clpRegular: 19990,
+    clpIntro3mo: 13990,
+    clpAnual: 179910,
+    usdRegular: 22,
     workspaceTier: 'none',
     trabajadorExtraClp: 490,
     proyectoExtraClp: 4990,
   },
   {
-    id: 'plata',
-    nombre: 'Plata',
-    trabajadoresMax: 250,
-    proyectosMax: 25,
-    clpRegular: 50990,
-    clpIntro3mo: 35990,
-    clpAnual: 480990,
-    usdRegular: 54,
+    // Banda en que el Departamento de Prevención de Riesgos se activa (≥100).
+    id: 'oro',
+    nombre: 'Oro',
+    trabajadoresMax: 499,
+    proyectosMax: 50,
+    clpRegular: 79990,
+    clpIntro3mo: 55990,
+    clpAnual: 719910,
+    usdRegular: 88,
     workspaceTier: 'none',
     trabajadorExtraClp: 290,
     proyectoExtraClp: 3990,
   },
   {
-    id: 'oro',
-    nombre: 'Oro',
-    trabajadoresMax: 500,
-    proyectosMax: 50,
-    clpRegular: 90990,
-    clpIntro3mo: 63990,
-    clpAnual: 864990,
-    usdRegular: 96,
-    workspaceTier: 'none',
-    trabajadorExtraClp: 190,
-    proyectoExtraClp: 2990,
-  },
-  {
     id: 'titanio',
     nombre: 'Titanio',
-    trabajadoresMax: 750,
-    proyectosMax: 75,
+    trabajadoresMax: 1999,
+    proyectosMax: 100,
     clpRegular: 249990,
     clpIntro3mo: 174990,
-    clpAnual: 2399990,
-    usdRegular: 263,
+    clpAnual: 2249910,
+    usdRegular: 270,
     workspaceTier: 'sso-basic',
   },
   {
-    id: 'diamante',
-    nombre: 'Diamante',
-    trabajadoresMax: 1000,
-    proyectosMax: 100,
-    clpRegular: 499990,
-    clpIntro3mo: 349990,
-    clpAnual: 4799990,
-    usdRegular: 526,
-    workspaceTier: 'sso-casa',
-  },
-  {
-    id: 'empresarial',
-    nombre: 'Empresarial',
-    trabajadoresMax: 2500,
-    proyectosMax: 250,
-    clpRegular: 1499990,
-    clpIntro3mo: 1049990,
-    clpAnual: 14399990,
-    usdRegular: 1578,
-    workspaceTier: 'multi-tenant',
-  },
-  {
-    id: 'corporativo',
-    nombre: 'Corporativo',
-    trabajadoresMax: 5000,
+    id: 'platino',
+    nombre: 'Platino',
+    trabajadoresMax: 9999,
     proyectosMax: 500,
-    clpRegular: 2999990,
-    clpIntro3mo: 2099990,
-    clpAnual: 28799990,
-    usdRegular: 3158,
+    clpRegular: 899990,
+    clpIntro3mo: 629990,
+    clpAnual: 8099910,
+    usdRegular: 970,
     workspaceTier: 'multi-tenant-csm',
   },
   {
-    id: 'ilimitado',
-    nombre: 'Ilimitado',
+    // La joya: ilimitado + multi-jurisdicción + residencia de datos por región.
+    // TODO(uf): indexar a UF (anclado ~100 UF); CLP placeholder por ahora.
+    id: 'diamante',
+    nombre: 'Diamante',
     trabajadoresMax: Infinity,
     proyectosMax: Infinity,
-    clpRegular: 5999990,
-    clpIntro3mo: 4199990,
-    clpAnual: 57599990,
-    usdRegular: 6315,
-    workspaceTier: 'vertex-finetuned',
-  },
-  {
-    // Sprint 31 OO — Tier Global Titanio (multi-jurisdicción simultáneo).
-    // Premio: empresas multinacionales con cobertura ISO 45001 + tu país +
-    // cualquier jurisdicción adicional sin negociación caso-a-caso.
-    // El usuario fija el precio final; USD 999/month es el sugerido.
-    id: 'global-titanio',
-    nombre: 'Global Titanio',
-    trabajadoresMax: Infinity,
-    proyectosMax: Infinity,
-    // CLP base = 999 USD * 950 CLP/USD ≈ 949990 (anclado al .990).
-    clpRegular: 949990,
-    clpIntro3mo: 664990,
-    clpAnual: 9119990,
-    usdRegular: 999,
+    clpRegular: 3900000,
+    clpIntro3mo: 2730000,
+    clpAnual: 35100000,
+    usdRegular: 4200,
     workspaceTier: 'vertex-finetuned',
     jurisdictionsMax: Infinity,
     dataResidency: 'multi',
@@ -225,11 +184,8 @@ const TIER_INDEX: Record<TierId, number> = TIERS.reduce((acc, t, i) => {
 
 const PREMIUM_TIERS: ReadonlySet<TierId> = new Set<TierId>([
   'titanio',
+  'platino',
   'diamante',
-  'empresarial',
-  'corporativo',
-  'ilimitado',
-  'global-titanio',
 ]);
 
 export function getTierById(id: TierId): Tier {
@@ -293,7 +249,7 @@ export interface MonthlyCost {
 
 /**
  * Compute the monthly CLP cost for a tier given current usage.
- * - Lower tiers (Comité through Oro) add overage per extra worker / project.
+ * - Lower tiers (Cobre through Oro) add overage per extra worker / project.
  * - Premium tiers (Titanio+) THROW if usage exceeds capacity — forcing upgrade.
  * - Gratis returns 0 if within limits, throws if exceeded.
  */
