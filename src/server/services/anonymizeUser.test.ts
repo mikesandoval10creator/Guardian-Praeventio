@@ -11,9 +11,16 @@ import {
 } from './anonymizeUser.js';
 
 function buildDeps(subCounts: Record<string, number> = {}) {
-  const updateUser = vi.fn(async () => undefined);
-  const revoke = vi.fn(async () => undefined);
-  const setClaims = vi.fn(async () => undefined);
+  // Type the mocks via the impl signature (same pattern as userLifecycle.test)
+  // so `.mock.calls[0]` is a proper tuple — no `as` cast, which tripped CI's
+  // stricter TS2352 even though local tsc allowed it.
+  const updateUser = vi.fn(
+    (_uid: string, _patch: Record<string, unknown>): Promise<void> => Promise.resolve(),
+  );
+  const revoke = vi.fn((_uid: string): Promise<void> => Promise.resolve());
+  const setClaims = vi.fn(
+    (_uid: string, _claims: Record<string, unknown>): Promise<void> => Promise.resolve(),
+  );
   const authAdmin = (() => ({
     updateUser,
     revokeRefreshTokens: revoke,
@@ -52,13 +59,13 @@ describe('anonymizeUser', () => {
     await anonymizeUser(deps, { uid: 'uid-1', now: NOW });
 
     expect(updateUser).toHaveBeenCalledOnce();
-    const [authUid, patch] = updateUser.mock.calls[0] as [string, Record<string, unknown>];
+    const [authUid, patch] = updateUser.mock.calls[0];
     expect(authUid).toBe('uid-1');
     expect(patch).toMatchObject({ displayName: null, photoURL: null, phoneNumber: null, disabled: true });
     expect(patch.email).toBe('deleted+uid-1@anonymized.invalid');
 
     expect(revoke).toHaveBeenCalledExactlyOnceWith('uid-1');
-    const [, claims] = setClaims.mock.calls[0] as [string, Record<string, unknown>];
+    const [, claims] = setClaims.mock.calls[0];
     expect(claims).toMatchObject({ role: 'anonymized', anonymizedAt: NOW });
   });
 
