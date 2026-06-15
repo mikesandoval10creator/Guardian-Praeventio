@@ -43,3 +43,33 @@ export function getWebauthnRpId(): string {
   }
   return 'localhost';
 }
+
+/**
+ * Resolve the expected WebAuthn ceremony ORIGIN (full https:// URL) from the
+ * environment, fail-LOUD in production. The sibling of `getWebauthnRpId`, but
+ * for origin binding. Routes had used `process.env.APP_BASE_URL ?? 'http://
+ * localhost:5173'` inline — fine for signing (a wrong-origin signature is
+ * voidable) but UNSAFE for the irreversible account-anonymize endpoint, where a
+ * localhost-bound assertion passing in a misconfigured prod deploy = permanent
+ * data loss. Mirrors the boot guard in curriculum.ts.
+ *
+ * @throws Error in production when APP_BASE_URL/APP_URL is unset or http://.
+ */
+export function getWebauthnExpectedOrigin(): string {
+  const origin = process.env.APP_BASE_URL ?? process.env.APP_URL;
+  if (process.env.NODE_ENV === 'production') {
+    if (!origin || origin.length === 0) {
+      throw new Error(
+        '[webauthn] APP_BASE_URL/APP_URL is required in production for WebAuthn ' +
+          'origin binding. Set it (e.g. https://app.praeventio.net) in the Cloud Run env.',
+      );
+    }
+    if (origin.startsWith('http://')) {
+      throw new Error(
+        '[webauthn] expectedOrigin must be https:// in production — refusing an http:// origin.',
+      );
+    }
+    return origin;
+  }
+  return origin ?? 'http://localhost:5173';
+}

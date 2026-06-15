@@ -29,7 +29,7 @@ import crypto from 'node:crypto';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { webauthnVerifyLimiter } from '../middleware/limiters.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
-import { getWebauthnRpId } from '../auth/rpId.js';
+import { getWebauthnRpId, getWebauthnExpectedOrigin } from '../auth/rpId.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { anonymizeUser } from '../services/anonymizeUser.js';
@@ -80,7 +80,7 @@ accountRouter.post('/anonymize', verifyAuth, webauthnVerifyLimiter, async (req, 
       clientExtensionResults: (biometric.clientExtensionResults ?? {}) as Record<string, unknown>,
       type: String(biometric.type ?? ''),
       challengeId: String(biometric.challengeId ?? ''),
-      expectedOrigin: process.env.APP_BASE_URL ?? 'http://localhost:5173',
+      expectedOrigin: getWebauthnExpectedOrigin(),
       expectedRpId: getWebauthnRpId(),
       challengesDb: buildWebAuthnDb(),
       credentialsDb: buildWebAuthnCredentialsDb(),
