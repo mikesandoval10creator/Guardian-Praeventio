@@ -22,7 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import { CL_PACK } from '../../data/normativa/cl';
 import { getRiskProfileForSector } from './industryRiskProfile';
-import { buildProjectSeeds } from './projectSeeds';
+import { buildProjectSeeds, reconcileObligationSeeds } from './projectSeeds';
 
 const NOW = new Date('2026-06-11T12:00:00.000Z');
 
@@ -201,5 +201,56 @@ describe('buildProjectSeeds — obligation seeds by headcount (CL pack threshold
     expect(labels).toMatch(/Comité Paritario/i);
     // monthlyMeetingsRequired=false → no recurring monthly session entry
     expect(obls.some((o) => o.doc.recurrence === 'monthly')).toBe(false);
+  });
+});
+
+describe('reconcileObligationSeeds — headcount-growth diff (legal-unlock by dotación)', () => {
+  const seeds30 = buildProjectSeeds(baseInput({ workerCount: 30 })).obligationSeeds;
+
+  it('with no existing obligations, every freshly-required seed is toCreate', () => {
+    const { toCreate, alreadyPresent } = reconcileObligationSeeds(seeds30, new Set());
+    expect(alreadyPresent).toEqual([]);
+    expect(toCreate.map((s) => s.id)).toEqual(seeds30.map((s) => s.id));
+  });
+
+  it('is idempotent: when all ids already exist, nothing is created', () => {
+    const existing = new Set(seeds30.map((s) => s.id));
+    const { toCreate, alreadyPresent } = reconcileObligationSeeds(seeds30, existing);
+    expect(toCreate).toEqual([]);
+    expect(alreadyPresent).toEqual(seeds30.map((s) => s.id));
+  });
+
+  it('crossing 24→30 surfaces the CPHS obligations never seeded at onboarding', () => {
+    // Onboarding seeded a sub-25 dotación: only the delegado-SST obligation.
+    const onboardingIds = new Set(
+      buildProjectSeeds(baseInput({ workerCount: 24 })).obligationSeeds.map((s) => s.id),
+    );
+    const { toCreate } = reconcileObligationSeeds(seeds30, onboardingIds);
+    expect(toCreate.map((s) => s.doc.label).join(' | ')).toMatch(/Comité Paritario/i);
+    // the delegado-SST seed is not in the ≥25 set, so it is neither created nor deleted here
+    expect(toCreate.every((s) => !/delegado/i.test(s.doc.label))).toBe(true);
+  });
+
+  it('crossing 99→100 surfaces only the new Departamento de Prevención seed', () => {
+    const seeds100 = buildProjectSeeds(baseInput({ workerCount: 100 })).obligationSeeds;
+    const ids99 = new Set(
+      buildProjectSeeds(baseInput({ workerCount: 99 })).obligationSeeds.map((s) => s.id),
+    );
+    const { toCreate, alreadyPresent } = reconcileObligationSeeds(seeds100, ids99);
+    expect(toCreate.map((s) => s.doc.label).join(' | ')).toMatch(/Departamento de Prevención/i);
+    // CPHS seeds were already there from the 99-worker onboarding → not recreated
+    expect(alreadyPresent.length).toBeGreaterThan(0);
+    expect(toCreate.every((s) => !/Comité Paritario/i.test(s.doc.label))).toBe(true);
+  });
+
+  it('never proposes a deletion when the roster shrinks (no negative diff)', () => {
+    // A project that shrank 30→10: current seeds are delegado-only, but the
+    // CPHS docs still exist. Reconcile must NOT try to remove them.
+    const seeds10 = buildProjectSeeds(baseInput({ workerCount: 10 })).obligationSeeds;
+    const existing = new Set(seeds30.map((s) => s.id)); // CPHS docs present
+    const result = reconcileObligationSeeds(seeds10, existing);
+    expect(result).not.toHaveProperty('toDelete');
+    // delegado-SST id wasn't in the 30-worker set → it's the only thing to create
+    expect(result.toCreate.every((s) => /delegado/i.test(s.doc.label))).toBe(true);
   });
 });
