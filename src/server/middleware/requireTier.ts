@@ -53,6 +53,17 @@ async function readCallerPlanId(uid: string): Promise<unknown> {
   return fromSub ?? (data as { subscriptionPlan?: unknown }).subscriptionPlan;
 }
 
+/**
+ * Public reader for a user's authoritative subscription plan id — for
+ * scale-gate evaluation OUTSIDE the requireTier middleware (e.g. checking a
+ * project OWNER's plan when a different member invites a teammate). Returns
+ * `undefined` when the user/plan is absent; THROWS on a Firestore error so the
+ * caller picks its own posture (report-only swallows; enforce fails closed).
+ */
+export async function readSubscriptionPlanId(uid: string): Promise<unknown> {
+  return readCallerPlanId(uid);
+}
+
 export function requireTier(minPlan: SubscriptionPlan) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const uid = req.user?.uid;

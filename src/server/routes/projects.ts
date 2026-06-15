@@ -53,6 +53,13 @@ import { serverAnalytics } from '../../services/analytics/serverAdapter.js';
 import type { Role as AnalyticsRole } from '../../services/analytics/types.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
+// Tier-gating server-side, Fase 1 (report-only) — docs/security/
+// TIER-GATING-SERVER-SIDE-SPEC.md. Inviting a member grows a project's app
+// seats; we log (never block) when that would exceed the project OWNER's plan
+// cap, to validate the caps table in prod before enforcing. ADR 0021: this is
+// a management/scale cap (adding a teammate), never a life-safety action.
+import { readSubscriptionPlanId } from '../middleware/requireTier.js';
+import { evaluateScaleCap } from '../../services/pricing/scaleCaps.js';
 
 function sentryCapture(
   err: unknown,
@@ -223,6 +230,44 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
       return res
         .status(409)
         .json({ error: 'A pending invitation already exists for this email' });
+    }
+
+    // Scale-gate (REPORT-ONLY, Fase 1): log — but never block — when adding
+    // this seat would exceed the project owner's plan cap. The owner's plan
+    // governs the project's seat budget (subscription is per-user; tenant=uid).
+    // A cap-eval failure is swallowed: report-only must never affect invites.
+    try {
+      const ownerUid =
+        typeof projectData.createdBy === 'string' ? projectData.createdBy : undefined;
+      if (ownerUid) {
+        const ownerPlan = await readSubscriptionPlanId(ownerUid);
+        const currentSeats = Array.isArray(projectData.members)
+          ? projectData.members.length
+          : 0;
+        const decision = evaluateScaleCap({
+          plan: ownerPlan,
+          kind: 'workers',
+          current: currentSeats,
+          delta: 1,
+        });
+        if (!decision.withinCap) {
+          logger.warn('tier_gate_would_block', {
+            gate: 'workers',
+            mode: 'report-only',
+            projectId,
+            ownerUid,
+            plan: decision.plan,
+            cap: decision.cap,
+            current: decision.current,
+            projected: decision.projected,
+          });
+        }
+      }
+    } catch (capErr) {
+      logger.warn('scale_gate_eval_failed', {
+        projectId,
+        err: capErr instanceof Error ? capErr.message : String(capErr),
+      });
     }
 
     const token = crypto.randomBytes(32).toString('hex');
