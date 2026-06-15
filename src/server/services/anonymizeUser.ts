@@ -13,6 +13,8 @@
 //   4. `users/{uid}` — redact the PII fields, tombstone email, stamp
 //      `anonymizedAt`. Server-side via the Admin SDK (bypasses rules).
 //   5. Purge the PII subcollections (medical / wellness / schedule / vault).
+//   5b. Redact author identity (name/photo + own comments) on the user's
+//      community posts, cross-project, via the `safety_posts` collection group.
 //   6. Write the immutable `anonymization_events/{uid}` proof (export checksum
 //      + what was redacted). Last, so it only records a completed scrub.
 //
@@ -77,6 +79,8 @@ export interface AnonymizeUserResult {
   fieldsRedacted: string[];
   /** Per-subcollection count of documents purged. */
   subcollectionsScrubbed: Record<string, number>;
+  /** Count of community posts whose author identity was redacted (cross-project). */
+  safetyPostsRedacted: number;
   applied: true;
 }
 
@@ -107,6 +111,51 @@ async function purgeSubcollection(
     await batch.commit();
   }
   return refs.length;
+}
+
+/** Label shown in place of an anonymized user's name on community posts. */
+const ANON_AUTHOR_LABEL = 'Usuario anonimizado';
+
+/**
+ * Redact the de-normalized identity (userName/userPhoto) on every community
+ * post the user AUTHORED, anywhere — via a `safety_posts` collection-group
+ * query (enabled by the fieldOverride in firestore.indexes.json). Also scrubs
+ * the user's name from any comment they wrote embedded in those posts. The post
+ * itself survives (community history stays), attributed to an anonymous shell.
+ * Chunked at the 500-op batch limit. Returns the number of posts touched.
+ */
+async function scrubAuthoredSafetyPosts(
+  db: admin.firestore.Firestore,
+  uid: string,
+): Promise<number> {
+  const snap = await db.collectionGroup('safety_posts').where('userId', '==', uid).get();
+  const docs = snap.docs;
+  for (let i = 0; i < docs.length; i += BATCH_LIMIT) {
+    const chunk = docs.slice(i, i + BATCH_LIMIT);
+    const batch = db.batch();
+    for (const postDoc of chunk) {
+      const data = postDoc.data() as {
+        comments?: Array<{ userId?: string; userName?: string } & Record<string, unknown>>;
+      };
+      const patch: Record<string, unknown> = {
+        userName: ANON_AUTHOR_LABEL,
+        userPhoto: admin.firestore.FieldValue.delete(),
+      };
+      // Comments are an embedded array — rewrite it, scrubbing only the
+      // anonymized user's OWN comments (others' names are not ours to touch).
+      if (Array.isArray(data.comments)) {
+        patch.comments = data.comments.map((c) =>
+          c && c.userId === uid ? { ...c, userName: ANON_AUTHOR_LABEL } : c,
+        );
+      }
+      batch.update(
+        postDoc.ref,
+        patch as FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData>,
+      );
+    }
+    await batch.commit();
+  }
+  return docs.length;
 }
 
 export async function anonymizeUser(
@@ -157,12 +206,11 @@ export async function anonymizeUser(
     subcollectionsScrubbed[sub] = await purgeSubcollection(db, uid, sub);
   }
 
-  // NOTE(cascaron-block-2b): project-scoped denormalized identity in
-  // `projects/{pid}/safety_posts.{userName,userPhoto}` (and embedded comments)
-  // is NOT reached here — it needs a `collectionGroup('safety_posts')
-  // .where('userId','==',uid)` fan-out (+ composite index). Tracked as the
-  // follow-up sweep; MUST land before the Settings UI (block 3) goes live so no
-  // community post keeps a name/photo after anonymization.
+  // 5b. Redact the user's de-normalized identity on community posts (cross-
+  // project `safety_posts` collection group), including their own embedded
+  // comments. The posts survive, attributed to an anonymous shell — community
+  // history stays intact while the person is de-identified.
+  const safetyPostsRedacted = await scrubAuthoredSafetyPosts(db, uid);
 
   const fieldsRedacted = [
     'email',
@@ -172,6 +220,9 @@ export async function anonymizeUser(
     ...ANONYMIZATION_USERS_DOC_REDACT,
     'user_stats.userName',
     'user_stats.userPhoto',
+    'safety_posts.userName',
+    'safety_posts.userPhoto',
+    'safety_posts.comments[].userName',
   ];
 
   // 6. Immutable proof-of-anonymization (server-only collection from block 1).
@@ -179,9 +230,17 @@ export async function anonymizeUser(
     dataExportChecksum: input.dataExportChecksum ?? null,
     fieldsRedacted,
     subcollectionsScrubbed,
+    safetyPostsRedacted,
     authDisabled: true,
     createdAt: anonymizedAt,
   });
 
-  return { uid, anonymizedAt, fieldsRedacted, subcollectionsScrubbed, applied: true };
+  return {
+    uid,
+    anonymizedAt,
+    fieldsRedacted,
+    subcollectionsScrubbed,
+    safetyPostsRedacted,
+    applied: true,
+  };
 }

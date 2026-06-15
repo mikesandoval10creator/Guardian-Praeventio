@@ -10,7 +10,10 @@ import {
   ANONYMIZATION_PII_SUBCOLLECTIONS,
 } from './anonymizeUser.js';
 
-function buildDeps(subCounts: Record<string, number> = {}) {
+function buildDeps(
+  subCounts: Record<string, number> = {},
+  safetyPosts: Array<Record<string, unknown>> = [],
+) {
   // Type the mocks via the impl signature (same pattern as userLifecycle.test)
   // so `.mock.calls[0]` is a proper tuple — no `as` cast, which tripped CI's
   // stricter TS2352 even though local tsc allowed it.
@@ -29,6 +32,7 @@ function buildDeps(subCounts: Record<string, number> = {}) {
 
   const setCalls: Array<{ coll: string; id: string; data: Record<string, unknown>; merge?: boolean }> = [];
   const batchDeletes: unknown[] = [];
+  const batchUpdates: Array<{ ref: unknown; patch: Record<string, unknown> }> = [];
   const commit = vi.fn(async () => undefined);
 
   function docRef(coll: string, id: string) {
@@ -43,12 +47,24 @@ function buildDeps(subCounts: Record<string, number> = {}) {
     };
   }
 
+  // Fake collection-group result for safety_posts (each doc exposes ref + data()).
+  const postDocs = safetyPosts.map((p, i) => ({ ref: { __post: i }, data: () => p }));
+
   const db = {
     collection: (coll: string) => ({ doc: (id: string) => docRef(coll, id) }),
-    batch: () => ({ delete: (ref: unknown) => batchDeletes.push(ref), commit }),
+    collectionGroup: (_name: string) => ({
+      where: (_f: string, _op: string, _v: unknown) => ({
+        get: async () => ({ docs: postDocs }),
+      }),
+    }),
+    batch: () => ({
+      delete: (ref: unknown) => batchDeletes.push(ref),
+      update: (ref: unknown, patch: Record<string, unknown>) => batchUpdates.push({ ref, patch }),
+      commit,
+    }),
   } as unknown as import('firebase-admin').firestore.Firestore;
 
-  return { deps: { authAdmin, db }, updateUser, revoke, setClaims, setCalls, batchDeletes, commit };
+  return { deps: { authAdmin, db }, updateUser, revoke, setClaims, setCalls, batchDeletes, batchUpdates, commit };
 }
 
 const NOW = 1_750_000_000_000;
@@ -113,6 +129,32 @@ describe('anonymizeUser', () => {
     for (const sub of ANONYMIZATION_PII_SUBCOLLECTIONS) {
       expect(result.subcollectionsScrubbed[sub]).toBe(subCounts[sub as keyof typeof subCounts] ?? 0);
     }
+  });
+
+  it('redacts authored community posts + the user\'s own embedded comments (cross-project)', async () => {
+    const posts = [
+      {
+        userId: 'uid-sp',
+        userName: 'Real Name',
+        userPhoto: 'p.jpg',
+        comments: [
+          { userId: 'uid-sp', userName: 'Real Name', text: 'mine' },
+          { userId: 'other', userName: 'Otra', text: 'theirs' },
+        ],
+      },
+      { userId: 'uid-sp', userName: 'Real Name' }, // no comments
+    ];
+    const { deps, batchUpdates } = buildDeps({}, posts);
+    const result = await anonymizeUser(deps, { uid: 'uid-sp', now: NOW });
+
+    expect(result.safetyPostsRedacted).toBe(2);
+    expect(batchUpdates.length).toBe(2);
+    const first = batchUpdates[0].patch;
+    expect(first.userName).toBe('Usuario anonimizado');
+    expect(first.userPhoto).toBeDefined(); // FieldValue.delete() sentinel
+    const comments = first.comments as Array<{ userId: string; userName: string }>;
+    expect(comments[0].userName).toBe('Usuario anonimizado'); // own comment scrubbed
+    expect(comments[1].userName).toBe('Otra'); // another user's comment preserved
   });
 
   it('writes the immutable anonymization_events proof with the export checksum', async () => {
