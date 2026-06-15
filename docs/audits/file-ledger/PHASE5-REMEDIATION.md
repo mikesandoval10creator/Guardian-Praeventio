@@ -63,6 +63,18 @@ Cablear capacidad de salvar-vidas ya construida que el operador no veía. Cada b
 
 **Pendiente OLA 2:** 4º gap `predictive_alert_acks` (top-level, server-write, LOW); tier-gating server-side (ingresos, mayor valor activo); RAG tenant-scope (privacidad); retención PII; CPHS server; F4 WebAuthn verify. **OJO: el "rules gap" resultó deuda de convención (#4)+future-proof, NO falla activa de vida — re-priorizar OLA 2 hacia valor-activo.**
 
+### Modelo de negocio v2 + experiencia (co-diseño 2026-06-14, parte de la deuda técnica)
+
+El fundador co-diseñó el rediseño completo de modelo de negocio + experiencia y
+decidió que es **parte de la deuda técnica** (incorporado a este plan). Roadmap
+durable: [`BUSINESS-MODEL-V2-ROADMAP.md`](./BUSINESS-MODEL-V2-ROADMAP.md) (10
+funciones, planes metales+joya 11→7, doble economía, widgets contextuales,
+secuencia, impacto de deuda; detalle estratégico en memoria
+`product-business-model-v2-2026-06-14`). Arranque autorizado por la **Fundación
+OLA 2**: (1) gate por escala server-side `requireTier` (report-only→enforce, según
+`docs/security/TIER-GATING-SERVER-SIDE-SPEC.md`), (2) cascarón soft-delete, (3)
+rename a metales. Cada función entra DENTRO de su ola con el mismo modelo híbrido.
+
 ## Progreso ejecutado (actualizado 2026-06-10)
 
 ### Aristas de integración (diseño 2026-06-10, verificadas contra código)
