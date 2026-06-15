@@ -6,6 +6,7 @@ import { useProject } from './ProjectContext';
 import { logger } from '../utils/logger';
 import {
   normalizeSubscriptionPlanId,
+  planMeetsMinimum,
   PLAN_RANK,
   type SubscriptionPlan,
 } from '../services/pricing/subscriptionPlan';
@@ -196,7 +197,8 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   );
 
   const isPremium = plan !== 'free';
-  const isEnterprise = ['empresarial', 'corporativo', 'ilimitado'].includes(plan);
+  // 7-metal scheme: "enterprise" = Platino+ (absorbed empresarial/corporativo).
+  const isEnterprise = planMeetsMinimum(plan, 'platino');
   const features = useMemo(() => getFeaturesForPlan(plan), [plan]);
   // Legacy boolean kept for backward compatibility, now backed by the
   // tighter feature flag (oro+ instead of any-paid).

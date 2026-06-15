@@ -67,7 +67,7 @@ describe('smoke: billing tier → invoice → audit', () => {
     );
     expect(invoice.totals.subtotal).toBe(sumOfLines);
     expect(invoice.totals.subtotal + invoice.totals.iva).toBe(invoice.totals.total);
-    // Retail display price for Comité Paritario monthly is $11,990 incl IVA.
+    // Illustrative IVA reconciliation: net 10075 + 19% = 11990 retail.
     expect(invoice.totals.total).toBe(11990);
     expect(invoice.status).toBe('draft');
   });
