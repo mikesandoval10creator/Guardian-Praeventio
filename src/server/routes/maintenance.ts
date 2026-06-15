@@ -23,6 +23,7 @@ import { Router } from 'express';
 import admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { checkOverdueMaintenance } from '../jobs/checkOverdueMaintenance.js';
 import { checkExpiredPpe } from '../jobs/checkExpiredPpe.js';
 // Phase 5 arista A3 (2026-06) — brigade resource expiry reaper. Mirrors the
@@ -84,6 +85,7 @@ import {
 import { runExceptionAutoExpire } from '../jobs/runExceptionAutoExpire.js';
 import { runWorkPermitAutoExpire } from '../jobs/runWorkPermitAutoExpire.js';
 import { runLegalCalendarReminders } from '../jobs/runLegalCalendarReminders.js';
+import { runLegalObligationReconcile } from '../jobs/runLegalObligationReconcile.js';
 // PR #482 codex P1 — los datos de lone_worker / exceptions / work_permits /
 // legal_obligations viven project-scoped (`projects/{pid}/<col>`), no en root.
 // Estos helpers resuelven tokens por role + chunkean envíos FCM en lotes
@@ -863,7 +865,7 @@ router.post(
 router.post(
   '/run-daily-housekeeping',
   verifySchedulerToken,
-  async (_req, res) => {
+  async (req, res) => {
     const start = Date.now();
     // PR #482 codex P2 (round 2): top-level try/catch — antes el
     // `projects/{}` initial get() podía rechazarse fuera del catch
@@ -882,6 +884,10 @@ router.post(
         errors: 0,
         notifications: { attempted: 0, delivered: 0, failed: 0, chunks: 0, chunkErrors: 0 },
       };
+      // Headcount-triggered legal-obligation reconcile (CPHS≥25 / Depto
+      // Prevención≥100). Runs BEFORE the reminder pass below so an obligation
+      // a roster change just made mandatory is reminded in the same run.
+      const legalReconcile = { projectsReconciled: 0, obligationsCreated: 0, errors: 0 };
       let projectsScanned = 0;
       const responsibleRoles = LONE_WORKER_ROLE_BUCKETS.supervisor;
 
@@ -936,6 +942,34 @@ router.post(
           logger.error('[maintenance] work-permit-auto-expire failed', { projectId, err: String(err) });
           captureRouteError(err, 'maintenance.work-permit-auto-expire', { projectId });
           workPermits.errors += 1;
+        }
+
+        // Reconcile headcount-triggered obligations FIRST so any obligation a
+        // roster change just made mandatory exists before the reminder pass.
+        try {
+          const rec = await runLegalObligationReconcile({ db, projectId });
+          if (rec.created.length > 0) {
+            legalReconcile.projectsReconciled += 1;
+            legalReconcile.obligationsCreated += rec.created.length;
+            // Audit invariant (#3/#14): one awaited row per project that changed,
+            // system actor (the cron has no user). Failure is logged, never aborts.
+            try {
+              await auditServerEvent(
+                req,
+                'legal.obligationsReconciled',
+                'legal',
+                { projectId, created: rec.created, source: 'daily-housekeeping' },
+                { projectId, actorOverride: { uid: 'system:legal-reconcile-cron', email: null } },
+              );
+            } catch (auditErr) {
+              logger.error('[maintenance] legal-reconcile audit failed', auditErr, { projectId });
+              captureRouteError(auditErr, 'maintenance.legal-reconcile-audit', { projectId });
+            }
+          }
+        } catch (err) {
+          logger.error('[maintenance] legal-obligation-reconcile failed', err, { projectId });
+          captureRouteError(err, 'maintenance.legal-obligation-reconcile', { projectId });
+          legalReconcile.errors += 1;
         }
 
         try {
@@ -1018,6 +1052,7 @@ router.post(
         projectsScanned,
         exceptions,
         workPermits,
+        legalReconcile,
         legalReminders,
         tookMs: Date.now() - start,
       });
@@ -1026,6 +1061,7 @@ router.post(
         projectsScanned,
         exceptions,
         workPermits,
+        legalReconcile,
         legalReminders,
         tookMs: Date.now() - start,
       });
