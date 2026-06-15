@@ -26,6 +26,10 @@ import { useNavigate } from 'react-router-dom';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
 import { isE2EMode } from '../lib/e2eAuth';
+import { apiAuthHeader } from '../lib/apiAuth';
+// Cascarón soft-delete (block 3b): reuse the canonical client WebAuthn ceremony
+// to gate the irreversible /api/account/anonymize call with the user's huella.
+import { requestComplianceSignature } from '../services/auth/webauthnComplianceSign';
 import { useFallDetectionPreference } from '../hooks/useFallDetectionPreference';
 import { BunkerManager } from '../components/BunkerManager';
 // Sprint 30 Bucket KK — WebAuthn keys management UI.
@@ -704,12 +708,82 @@ export function Settings() {
     }
   };
 
-  const handleDeleteAccount = () => {
-    addNotification({
-      title: t('settings.delete_restricted_title', 'Acción Restringida'),
-      message: t('settings.delete_restricted_msg', 'Para eliminar tu cuenta permanentemente, por favor contacta al administrador del sistema.'),
-      type: 'warning'
-    });
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  // Cascarón soft-delete (block 3b): irreversible anonymization, gated by the
+  // user's huella (WebAuthn) and preceded by a data export (Ley 21.719).
+  const handleDeleteAccount = async () => {
+    if (!user || deletingAccount) return;
+    const confirmed = window.confirm(
+      t(
+        'settings.delete_confirm',
+        '⚠️ Esto ANONIMIZA tu cuenta de forma IRREVERSIBLE: tus datos personales se borran y quedas como un cascarón anónimo (tu historial se conserva sin tu identidad). NO se puede deshacer. Se descargará una copia de tus datos. ¿Continuar y firmar con tu huella?',
+      ),
+    );
+    if (!confirmed) return;
+    setDeletingAccount(true);
+    try {
+      const authHeader = await apiAuthHeader();
+      // 2FA: sign a server-issued challenge with the registered authenticator.
+      const sig = await requestComplianceSignature('', user.uid, '', {
+        signChallengeUrl: '/api/auth/webauthn/challenge',
+        authHeader,
+      });
+      const res = await fetch('/api/account/anonymize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { Authorization: authHeader } : {}),
+        },
+        body: JSON.stringify({ biometric: sig.webauthnAssertion }),
+      });
+      if (!res.ok) {
+        addNotification({
+          title: t('settings.delete_failed_title', 'No se pudo anonimizar'),
+          message: t(
+            'settings.delete_failed_msg',
+            'La verificación con huella falló o hubo un error. Tu cuenta NO fue modificada.',
+          ),
+          type: 'error',
+        });
+        return;
+      }
+      const data = (await res.json()) as { dataExport?: string };
+      // Ley 21.719 portability: hand the user their data as a download.
+      if (typeof data.dataExport === 'string' && data.dataExport.length > 0) {
+        try {
+          const blob = new Blob([data.dataExport], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `praeventio-mis-datos-${user.uid}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+        } catch {
+          /* download is best-effort — the scrub already succeeded */
+        }
+      }
+      addNotification({
+        title: t('settings.delete_done_title', 'Cuenta anonimizada'),
+        message: t(
+          'settings.delete_done_msg',
+          'Tu identidad fue eliminada y se descargó una copia de tus datos. Cerrando sesión…',
+        ),
+        type: 'success',
+      });
+      await handleLogout();
+    } catch (err) {
+      const cancelled = err instanceof Error && /cancel/i.test(err.name);
+      addNotification({
+        title: t('settings.delete_failed_title', 'No se pudo anonimizar'),
+        message: cancelled
+          ? t('settings.delete_cancelled_msg', 'Cancelaste la firma con huella. Tu cuenta NO fue modificada.')
+          : t('settings.delete_failed_msg', 'La verificación con huella falló o hubo un error. Tu cuenta NO fue modificada.'),
+        type: cancelled ? 'warning' : 'error',
+      });
+    } finally {
+      setDeletingAccount(false);
+    }
   };
 
   // Sprint 34 D4 — sidebar items con ID estable + labelKey i18n
@@ -862,11 +936,14 @@ export function Settings() {
           >
             {t('settings.logout_global', 'Cerrar Sesión Global')}
           </button>
-          <button 
+          <button
             onClick={handleDeleteAccount}
-            className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-rose-500 hover:bg-rose-600 text-white text-[10px] sm:text-sm font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-rose-500/20 active:scale-95"
+            disabled={deletingAccount}
+            className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-rose-500 hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[10px] sm:text-sm font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-rose-500/20 active:scale-95"
           >
-            {t('settings.delete_account', 'Eliminar Cuenta')}
+            {deletingAccount
+              ? t('settings.delete_processing', 'Anonimizando…')
+              : t('settings.delete_account', 'Eliminar Cuenta')}
           </button>
         </div>
       </div>

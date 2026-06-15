@@ -1921,6 +1921,13 @@
     "danger_desc": "Estas ações são permanentes e não podem ser desfeitas. Por favor, prossiga com extrema cautela.",
     "logout_global": "Encerrar Sessão Global",
     "delete_account": "Excluir Conta",
+    "delete_processing": "Anonimizando…",
+    "delete_confirm": "⚠️ Isto ANONIMIZA sua conta de forma IRREVERSÍVEL: seus dados pessoais são apagados e você vira um casco anônimo (seu histórico é mantido sem sua identidade). NÃO pode ser desfeito. Uma cópia dos seus dados será baixada. Continuar e assinar com sua digital?",
+    "delete_done_title": "Conta anonimizada",
+    "delete_done_msg": "Sua identidade foi removida e uma cópia dos seus dados foi baixada. Encerrando sessão…",
+    "delete_failed_title": "Não foi possível anonimizar",
+    "delete_failed_msg": "A verificação por digital falhou ou ocorreu um erro. Sua conta NÃO foi modificada.",
+    "delete_cancelled_msg": "Você cancelou a assinatura por digital. Sua conta NÃO foi modificada.",
     "delete_restricted_title": "Ação Restrita",
     "delete_restricted_msg": "Para excluir sua conta permanentemente, por favor entre em contato com o administrador do sistema.",
     "auth": {
