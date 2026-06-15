@@ -264,9 +264,16 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
         }
       }
     } catch (capErr) {
+      // Report-only must never affect the invite; log + Sentry for observability
+      // (matches every other catch in this file — keep the full stack trace).
       logger.warn('scale_gate_eval_failed', {
         projectId,
         err: capErr instanceof Error ? capErr.message : String(capErr),
+      });
+      sentryCapture(capErr, {
+        endpoint: '/api/projects/:id/invite',
+        trigger: 'scale-gate-report-only',
+        tags: { projectId },
       });
     }
 

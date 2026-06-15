@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { scaleCapsForPlan, evaluateScaleCap } from './scaleCaps.js';
+import { SUBSCRIPTION_PLANS } from './subscriptionPlan.js';
 
 describe('scaleCapsForPlan', () => {
   it('maps each paid plan to its tier caps', () => {
@@ -39,6 +40,18 @@ describe('scaleCapsForPlan', () => {
     expect(scaleCapsForPlan('premium')).toEqual({ trabajadoresMax: 100, proyectosMax: 10 });
     expect(scaleCapsForPlan('basic')).toEqual({ trabajadoresMax: 25, proyectosMax: 3 });
   });
+
+  it('every declared plan resolves to caps > 0 (guards an orphaned plan with no tier row)', () => {
+    // If a future plan is added to SUBSCRIPTION_PLANS without a TIERS entry,
+    // scaleCapsForPlan would return {0,0} → block everything in enforce mode.
+    // This test fails CI before that ships. (The runtime also fails closed to
+    // free caps as a belt-and-suspenders.)
+    for (const plan of SUBSCRIPTION_PLANS) {
+      const caps = scaleCapsForPlan(plan);
+      expect(caps.trabajadoresMax, `${plan}.trabajadoresMax`).toBeGreaterThan(0);
+      expect(caps.proyectosMax, `${plan}.proyectosMax`).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe('evaluateScaleCap', () => {
@@ -64,6 +77,12 @@ describe('evaluateScaleCap', () => {
       .toMatchObject({ projected: 25, withinCap: true });
     expect(evaluateScaleCap({ plan: 'comite', kind: 'workers', current: -5 }))
       .toMatchObject({ current: 0, projected: 1, withinCap: true });
+  });
+
+  it('clamps a negative delta to 0 so it cannot "subtract past" the cap', () => {
+    // current already over cap; a hostile negative delta must NOT flip withinCap true.
+    const d = evaluateScaleCap({ plan: 'free', kind: 'workers', current: 20, delta: -50 });
+    expect(d).toMatchObject({ current: 20, projected: 20, withinCap: false });
   });
 
   it('never blocks an unlimited plan', () => {

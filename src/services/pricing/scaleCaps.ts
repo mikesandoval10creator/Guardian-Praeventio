@@ -42,8 +42,8 @@ export interface ScaleCaps {
  * An unknown / missing plan fails CLOSED to the `free` plan via
  * `normalizeSubscriptionPlanId`, matching `requireTier`'s posture.
  */
-export function scaleCapsForPlan(plan: unknown): ScaleCaps {
-  const normalized = normalizeSubscriptionPlanId(plan) ?? 'free';
+/** MAX caps across every tier that maps to `normalized` (0/0 if none map). */
+function capsForNormalizedPlan(normalized: SubscriptionPlan): ScaleCaps {
   let trabajadoresMax = 0;
   let proyectosMax = 0;
   for (const tier of TIERS) {
@@ -52,6 +52,21 @@ export function scaleCapsForPlan(plan: unknown): ScaleCaps {
     proyectosMax = Math.max(proyectosMax, tier.proyectosMax);
   }
   return { trabajadoresMax, proyectosMax };
+}
+
+/** Free-plan caps, the fail-closed floor (gratis tier → 10 / 1). */
+const FREE_CAPS: ScaleCaps = capsForNormalizedPlan('free');
+
+export function scaleCapsForPlan(plan: unknown): ScaleCaps {
+  const normalized = normalizeSubscriptionPlanId(plan) ?? 'free';
+  const caps = capsForNormalizedPlan(normalized);
+  // A recognized plan with NO tier mapping is a misconfiguration (a plan added
+  // to SUBSCRIPTION_PLANS without a TIERS row). Fail CLOSED to the free caps
+  // rather than return {0,0} — which would log every action as over-cap in
+  // Fase 1 and BLOCK every action in Fase 2. The "every plan resolves to caps
+  // > 0" test (scaleCaps.test.ts) prevents this from ever shipping.
+  if (caps.trabajadoresMax === 0 && caps.proyectosMax === 0) return { ...FREE_CAPS };
+  return caps;
 }
 
 export type ScaleKind = 'workers' | 'projects';
@@ -85,7 +100,11 @@ export function evaluateScaleCap(args: {
   const caps = scaleCapsForPlan(plan);
   const cap = args.kind === 'workers' ? caps.trabajadoresMax : caps.proyectosMax;
   const current = Math.max(0, args.current);
-  const delta = args.delta ?? 1;
+  // Clamp delta to ≥0: a negative/non-finite delta must never make `projected`
+  // smaller than `current` (which would let a caller "subtract past" the cap in
+  // enforce mode). `undefined` means the default single-item add.
+  const rawDelta = args.delta ?? 1;
+  const delta = Number.isFinite(rawDelta) ? Math.max(0, rawDelta) : 1;
   const projected = current + delta;
   return { kind: args.kind, plan, cap, current, projected, withinCap: projected <= cap };
 }
