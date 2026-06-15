@@ -137,29 +137,29 @@ describe('assertTenantHasJurisdiction (Sprint 31 OO)', () => {
     ).toBe(false);
   });
 
-  it('allows non-native country on global-titanio when declared in extraCountries', () => {
+  it('allows non-native country on diamante when declared in extraCountries', () => {
     expect(
       assertTenantHasJurisdiction(
         { country: 'CL', extraCountries: ['BR', 'US'] },
         'BR',
-        'global-titanio',
+        'diamante',
       ),
     ).toBe(true);
     expect(
       assertTenantHasJurisdiction(
         { country: 'CL', extraCountries: ['BR', 'US'] },
         'US-OSHA',
-        'global-titanio',
+        'diamante',
       ),
     ).toBe(true);
   });
 
-  it('denies undeclared jurisdiction even on global-titanio (must be in extraCountries)', () => {
+  it('denies undeclared jurisdiction even on diamante (must be in extraCountries)', () => {
     expect(
       assertTenantHasJurisdiction(
         { country: 'CL', extraCountries: ['BR'] },
         'JP',
-        'global-titanio',
+        'diamante',
       ),
     ).toBe(false);
   });
@@ -172,10 +172,10 @@ describe('assertTenantHasJurisdiction (Sprint 31 OO)', () => {
     expect(active).toEqual(['ISO-45001', 'CL']);
   });
 
-  it('getActiveJurisdictions for global-titanio expands with extraCountries', () => {
+  it('getActiveJurisdictions for diamante expands with extraCountries', () => {
     const active = getActiveJurisdictions(
       { country: 'CL', extraCountries: ['BR', 'US', 'EU'] },
-      'global-titanio',
+      'diamante',
     );
     expect(active).toContain('ISO-45001');
     expect(active).toContain('CL');

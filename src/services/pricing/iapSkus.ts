@@ -92,16 +92,12 @@ export interface IapSkuEntry {
 }
 
 const PAID_TIER_IDS: readonly TierId[] = [
-  'comite-paritario',
-  'departamento-prevencion',
+  'cobre',
   'plata',
   'oro',
   'titanio',
+  'platino',
   'diamante',
-  'empresarial',
-  'corporativo',
-  'ilimitado',
-  'global-titanio',
 ];
 
 export const ALL_IAP_SKUS: Readonly<Record<string, IapSkuEntry>> = (() => {

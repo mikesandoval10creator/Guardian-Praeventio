@@ -9,92 +9,80 @@ import {
   type TierId,
 } from './tiers';
 
-describe('TIERS data integrity', () => {
-  it('contains exactly 11 tiers (10 nacionales + global-titanio)', () => {
-    expect(TIERS.length).toBe(11);
+describe('TIERS data integrity (7-metal scheme)', () => {
+  it('contains exactly 7 tiers (Gratis + 5 metales + Diamante)', () => {
+    expect(TIERS.length).toBe(7);
   });
 
   it('exposes the canonical ids in order', () => {
     const ids: TierId[] = [
       'gratis',
-      'comite-paritario',
-      'departamento-prevencion',
+      'cobre',
       'plata',
       'oro',
       'titanio',
+      'platino',
       'diamante',
-      'empresarial',
-      'corporativo',
-      'ilimitado',
-      'global-titanio',
     ];
     expect(TIERS.map((t) => t.id)).toEqual(ids);
   });
 });
 
 describe('getTierById', () => {
-  it('returns gratis tier with $0 prices', () => {
+  it('returns gratis tier with $0 prices and a 3-person cap', () => {
     const t = getTierById('gratis');
     expect(t.clpRegular).toBe(0);
     expect(t.usdRegular).toBe(0);
-    expect(t.trabajadoresMax).toBe(10);
+    expect(t.trabajadoresMax).toBe(3);
     expect(t.proyectosMax).toBe(1);
   });
 
-  it('returns comite-paritario tier with clpRegular 11990', () => {
-    expect(getTierById('comite-paritario').clpRegular).toBe(11990);
-    expect(getTierById('comite-paritario').clpIntro3mo).toBe(7990);
-    expect(getTierById('comite-paritario').clpAnual).toBe(96990);
-    expect(getTierById('comite-paritario').usdRegular).toBe(13);
+  it('returns cobre (intermediate multi-faena) tier with overage', () => {
+    const t = getTierById('cobre');
+    expect(t.clpRegular).toBe(9990);
+    expect(t.clpIntro3mo).toBe(6990);
+    expect(t.clpAnual).toBe(89910); // 9990 × 9 — save 3 months
+    expect(t.usdRegular).toBe(11);
+    expect(t.trabajadoresMax).toBe(72);
+    expect(t.proyectosMax).toBe(3);
+    expect(t.trabajadorExtraClp).toBe(990);
   });
 
-  it('returns departamento-prevencion tier with clpRegular 30990', () => {
-    expect(getTierById('departamento-prevencion').clpRegular).toBe(30990);
-    expect(getTierById('departamento-prevencion').usdRegular).toBe(33);
+  it('returns plata tier with clpRegular 19990', () => {
+    expect(getTierById('plata').clpRegular).toBe(19990);
+    expect(getTierById('plata').usdRegular).toBe(22);
+    expect(getTierById('plata').trabajadoresMax).toBe(99);
   });
 
-  it('returns plata tier with clpRegular 50990', () => {
-    expect(getTierById('plata').clpRegular).toBe(50990);
-    expect(getTierById('plata').usdRegular).toBe(54);
-  });
-
-  it('returns oro tier with clpRegular 90990', () => {
-    expect(getTierById('oro').clpRegular).toBe(90990);
-    expect(getTierById('oro').usdRegular).toBe(96);
+  it('returns oro tier with clpRegular 79990', () => {
+    expect(getTierById('oro').clpRegular).toBe(79990);
+    expect(getTierById('oro').usdRegular).toBe(88);
+    expect(getTierById('oro').trabajadoresMax).toBe(499);
   });
 
   it('returns titanio tier with clpRegular 249990 and sso-basic workspace', () => {
     const t = getTierById('titanio');
     expect(t.clpRegular).toBe(249990);
-    expect(t.usdRegular).toBe(263);
+    expect(t.usdRegular).toBe(270);
     expect(t.workspaceTier).toBe('sso-basic');
   });
 
-  it('returns diamante tier with clpRegular 499990', () => {
+  it('returns platino tier (enterprise band) with clpRegular 899990', () => {
+    const t = getTierById('platino');
+    expect(t.clpRegular).toBe(899990);
+    expect(t.usdRegular).toBe(970);
+    expect(t.workspaceTier).toBe('multi-tenant-csm');
+  });
+
+  it('returns diamante (the jewel) with Infinity capacities + multi residency', () => {
     const t = getTierById('diamante');
-    expect(t.clpRegular).toBe(499990);
-    expect(t.usdRegular).toBe(526);
-    expect(t.workspaceTier).toBe('sso-casa');
-  });
-
-  it('returns empresarial tier with clpRegular 1499990', () => {
-    expect(getTierById('empresarial').clpRegular).toBe(1499990);
-    expect(getTierById('empresarial').usdRegular).toBe(1578);
-    expect(getTierById('empresarial').workspaceTier).toBe('multi-tenant');
-  });
-
-  it('returns corporativo tier with clpRegular 2999990', () => {
-    expect(getTierById('corporativo').clpRegular).toBe(2999990);
-    expect(getTierById('corporativo').usdRegular).toBe(3158);
-    expect(getTierById('corporativo').workspaceTier).toBe('multi-tenant-csm');
-  });
-
-  it('returns ilimitado tier with Infinity capacities', () => {
-    const t = getTierById('ilimitado');
-    expect(t.clpRegular).toBe(5999990);
-    expect(t.usdRegular).toBe(6315);
+    expect(t.clpRegular).toBe(3900000);
+    expect(t.usdRegular).toBe(4200);
     expect(t.trabajadoresMax).toBe(Infinity);
     expect(t.proyectosMax).toBe(Infinity);
+    expect(t.jurisdictionsMax).toBe(Infinity);
+    expect(t.dataResidency).toBe('multi');
+    expect(t.multiJurisdiction).toBe(true);
     expect(t.workspaceTier).toBe('vertex-finetuned');
   });
 
@@ -142,125 +130,74 @@ describe('withIVA', () => {
 });
 
 describe('calculateMonthlyCost', () => {
-  it('Comité Paritario, 18 workers, 1 project → no overage', () => {
-    const r = calculateMonthlyCost('comite-paritario', 18, 1);
-    expect(r.base).toBe(11990);
+  it('Cobre, 50 workers, 2 projects → no overage', () => {
+    const r = calculateMonthlyCost('cobre', 50, 2);
+    expect(r.base).toBe(9990);
     expect(r.workerOverage).toBe(0);
     expect(r.projectOverage).toBe(0);
-    expect(r.total).toBe(11990);
+    expect(r.total).toBe(9990);
   });
 
-  it('Comité Paritario, 30 workers, 3 projects → worker overage', () => {
-    const r = calculateMonthlyCost('comite-paritario', 30, 3);
-    expect(r.base).toBe(11990);
-    expect(r.workerOverage).toBe(5 * 990);
+  it('Cobre, 80 workers, 3 projects → worker overage at 990', () => {
+    const r = calculateMonthlyCost('cobre', 80, 3);
+    expect(r.base).toBe(9990);
+    expect(r.workerOverage).toBe(8 * 990); // 80 - 72
     expect(r.projectOverage).toBe(0);
-    expect(r.total).toBe(11990 + 5 * 990); // 16940
+    expect(r.total).toBe(9990 + 8 * 990);
   });
 
-  it('Comité Paritario, 24 workers, 4 projects → project overage', () => {
-    const r = calculateMonthlyCost('comite-paritario', 24, 4);
-    expect(r.base).toBe(11990);
-    expect(r.workerOverage).toBe(0);
-    expect(r.projectOverage).toBe(1 * 5990);
-    expect(r.total).toBe(11990 + 5990); // 17980
-  });
-
-  it('Oro, 800 workers, 1 project → 300 worker overage at 190', () => {
-    const r = calculateMonthlyCost('oro', 800, 1);
-    expect(r.base).toBe(90990);
-    expect(r.workerOverage).toBe(300 * 190);
-    expect(r.projectOverage).toBe(0);
-    expect(r.total).toBe(90990 + 300 * 190); // 147990
+  it('Oro, 600 workers, 1 project → 101 worker overage at 290', () => {
+    const r = calculateMonthlyCost('oro', 600, 1);
+    expect(r.base).toBe(79990);
+    expect(r.workerOverage).toBe(101 * 290); // 600 - 499
+    expect(r.total).toBe(79990 + 101 * 290);
   });
 
   it('Titanio premium tier with overflow throws to force upgrade', () => {
-    expect(() => calculateMonthlyCost('titanio', 1000, 100)).toThrow(/upgrade/i);
+    expect(() => calculateMonthlyCost('titanio', 5000, 200)).toThrow(/upgrade/i);
   });
 
   it('Titanio within limits returns base only', () => {
-    const r = calculateMonthlyCost('titanio', 500, 50);
+    const r = calculateMonthlyCost('titanio', 1000, 50);
     expect(r.base).toBe(249990);
     expect(r.workerOverage).toBe(0);
-    expect(r.projectOverage).toBe(0);
     expect(r.total).toBe(249990);
   });
 
   it('Gratis within limits returns 0', () => {
-    const r = calculateMonthlyCost('gratis', 5, 1);
+    const r = calculateMonthlyCost('gratis', 3, 1);
     expect(r.total).toBe(0);
   });
 
-  it('Ilimitado always returns base', () => {
-    const r = calculateMonthlyCost('ilimitado', 50000, 1000);
-    expect(r.total).toBe(5999990);
-  });
-
-  it('Global Titanio always returns base regardless of usage', () => {
-    const r = calculateMonthlyCost('global-titanio', 50000, 1000);
-    expect(r.total).toBe(949990);
+  it('Diamante always returns base regardless of usage', () => {
+    const r = calculateMonthlyCost('diamante', 50000, 1000);
+    expect(r.total).toBe(3900000);
     expect(r.workerOverage).toBe(0);
     expect(r.projectOverage).toBe(0);
   });
 });
 
-// Sprint 31 OO — Tier Global Titanio (multi-jurisdicción).
-describe('Tier Global Titanio (Sprint 31 OO)', () => {
-  it('exists with USD 999 and CLP base 949990', () => {
-    const t = getTierById('global-titanio');
-    expect(t.usdRegular).toBe(999);
-    expect(t.clpRegular).toBe(949990);
-  });
-
-  it('has Infinity capacity for workers, projects and jurisdictions', () => {
-    const t = getTierById('global-titanio');
-    expect(t.trabajadoresMax).toBe(Infinity);
-    expect(t.proyectosMax).toBe(Infinity);
-    expect(t.jurisdictionsMax).toBe(Infinity);
-  });
-
-  it('declares dataResidency multi (vs latam single)', () => {
-    expect(getTierById('global-titanio').dataResidency).toBe('multi');
-  });
-
-  it('flags multiJurisdiction true so AI orchestrator activates Vertex globally', () => {
-    expect(getTierById('global-titanio').multiJurisdiction).toBe(true);
-  });
-
-  it('keeps Vertex Fine-Tuned workspace tier (premium parity)', () => {
-    expect(getTierById('global-titanio').workspaceTier).toBe('vertex-finetuned');
-  });
-
-  it('is treated as a premium tier (no overage; throws-or-base only)', () => {
-    // Premium tiers never produce overage entries. We assert by routing
-    // 100k workers through calculateMonthlyCost and checking the totals.
-    const r = calculateMonthlyCost('global-titanio', 100_000, 10_000);
-    expect(r.workerOverage + r.projectOverage).toBe(0);
-    expect(r.total).toBe(949990);
-  });
-});
-
 describe('suggestUpgrade', () => {
-  it('Comité Paritario @ 60 workers suggests upgrade (overage > delta)', () => {
-    // overage = 35 * 990 = 34650; delta to departamento = 30990 - 11990 = 19000
-    expect(suggestUpgrade('comite-paritario', 60, 1)).toBe('departamento-prevencion');
+  it('Cobre @ 90 workers suggests upgrade (overage > delta to Plata)', () => {
+    // overage = (90-72)*990 = 17820; delta to plata = 19990 - 9990 = 10000
+    expect(suggestUpgrade('cobre', 90, 1)).toBe('plata');
   });
 
-  it('Comité Paritario @ 26 workers does NOT suggest upgrade (overage < delta)', () => {
-    // overage = 1 * 990 = 990; delta = 19000
-    expect(suggestUpgrade('comite-paritario', 26, 1)).toBeNull();
+  it('Cobre @ 75 workers does NOT suggest upgrade (overage < delta)', () => {
+    // overage = 3*990 = 2970; delta = 10000
+    expect(suggestUpgrade('cobre', 75, 1)).toBeNull();
   });
 
   it('within limits returns null', () => {
-    expect(suggestUpgrade('comite-paritario', 20, 1)).toBeNull();
+    expect(suggestUpgrade('cobre', 50, 1)).toBeNull();
   });
 
-  it('Oro at high workers suggests titanio upgrade', () => {
-    // overage = 1500 * 190 = 285000; delta to titanio = 249990 - 90990 = 159000
-    expect(suggestUpgrade('oro', 2000, 1)).toBe('titanio');
+  it('Oro at very high workers suggests titanio upgrade', () => {
+    // overage = (1200-499)*290 = 203290; delta to titanio = 249990 - 79990 = 170000
+    expect(suggestUpgrade('oro', 1200, 1)).toBe('titanio');
   });
 
   it('Premium tiers (Titanio+) return null because no overage', () => {
-    expect(suggestUpgrade('titanio', 500, 50)).toBeNull();
+    expect(suggestUpgrade('titanio', 1000, 50)).toBeNull();
   });
 });

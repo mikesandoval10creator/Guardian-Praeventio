@@ -10,11 +10,9 @@ import {
 
 describe('iapSkuForTier', () => {
   it('mapea tier+monthly al SKU canónico', () => {
-    expect(iapSkuForTier('comite-paritario', 'monthly')).toBe(
-      'praeventio_comite_paritario_monthly',
-    );
+    expect(iapSkuForTier('plata', 'monthly')).toBe('praeventio_plata_monthly');
     expect(iapSkuForTier('oro', 'monthly')).toBe('praeventio_oro_monthly');
-    expect(iapSkuForTier('empresarial', 'monthly')).toBe('praeventio_empresarial_monthly');
+    expect(iapSkuForTier('platino', 'monthly')).toBe('praeventio_platino_monthly');
   });
 
   it('mapea tier+annual al SKU canónico', () => {
@@ -31,19 +29,15 @@ describe('iapSkuForTier', () => {
     expect(() => iapSkuForTier('oro', 'weekly')).toThrow(/cycle inválido/);
   });
 
-  it('normaliza tier ids con hyphens (departamento-prevencion)', () => {
-    expect(iapSkuForTier('departamento-prevencion', 'monthly')).toBe(
-      'praeventio_departamento_prevencion_monthly',
-    );
-    expect(iapSkuForTier('global-titanio', 'annual')).toBe(
-      'praeventio_global_titanio_annual',
-    );
+  it('genera SKUs para los ids del esquema 7-metal (sin hyphens)', () => {
+    expect(iapSkuForTier('cobre', 'monthly')).toBe('praeventio_cobre_monthly');
+    expect(iapSkuForTier('titanio', 'annual')).toBe('praeventio_titanio_annual');
   });
 });
 
 describe('ALL_IAP_SKUS', () => {
-  it('incluye 10 paid tiers × 2 cycles = 20 SKUs total', () => {
-    expect(Object.keys(ALL_IAP_SKUS).length).toBe(20);
+  it('incluye 6 paid tiers × 2 cycles = 12 SKUs total', () => {
+    expect(Object.keys(ALL_IAP_SKUS).length).toBe(12);
   });
 
   it('NO incluye gratis (no es paid)', () => {
@@ -71,8 +65,8 @@ describe('tierForIapSku (reverse lookup)', () => {
       tierId: 'oro',
       cycle: 'monthly',
     });
-    expect(tierForIapSku('praeventio_empresarial_annual')).toEqual({
-      tierId: 'empresarial',
+    expect(tierForIapSku('praeventio_platino_annual')).toEqual({
+      tierId: 'platino',
       cycle: 'annual',
     });
   });
@@ -90,7 +84,7 @@ describe('assertSkuMatchesTier (anti-fraud)', () => {
       assertSkuMatchesTier('praeventio_oro_monthly', 'oro'),
     ).not.toThrow();
     expect(() =>
-      assertSkuMatchesTier('praeventio_ilimitado_annual', 'ilimitado'),
+      assertSkuMatchesTier('praeventio_diamante_annual', 'diamante'),
     ).not.toThrow();
   });
 

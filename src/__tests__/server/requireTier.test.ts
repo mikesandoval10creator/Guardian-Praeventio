@@ -77,16 +77,16 @@ describe('requireTier', () => {
 
   it('402 (free) when the user doc has no plan at all', async () => {
     seedPlan('u1', undefined); // doc exists, no subscription
-    const res = await request(buildApp('comite')).get('/gated').set('x-test-uid', 'u1');
+    const res = await request(buildApp('cobre')).get('/gated').set('x-test-uid', 'u1');
     expect(res.status).toBe(402);
     expect(res.body.currentPlan).toBe('free');
   });
 
-  it('honours a legacy plan alias (premium → departamento, rank 2)', async () => {
-    seedPlan('u1', 'premium'); // normalizes to departamento (rank 2)
-    const ok = await request(buildApp('comite')).get('/gated').set('x-test-uid', 'u1'); // need ≥1
+  it('honours a legacy plan alias (premium → oro, rank 3)', async () => {
+    seedPlan('u1', 'premium'); // normalizes to oro (rank 3)
+    const ok = await request(buildApp('cobre')).get('/gated').set('x-test-uid', 'u1'); // need ≥1
     expect(ok.status).toBe(200);
-    const denied = await request(buildApp('oro')).get('/gated').set('x-test-uid', 'u1'); // need ≥4
+    const denied = await request(buildApp('titanio')).get('/gated').set('x-test-uid', 'u1'); // need ≥4
     expect(denied.status).toBe(402);
   });
 

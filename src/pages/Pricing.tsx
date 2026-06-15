@@ -112,11 +112,8 @@ const TIER_TO_LEGACY_PLAN: Record<TierId, SubscriptionPlan> = TIER_TO_SUBSCRIPTI
 
 const PREMIUM_TIER_IDS: ReadonlySet<TierId> = new Set([
   'titanio',
+  'platino',
   'diamante',
-  'empresarial',
-  'corporativo',
-  'ilimitado',
-  'global-titanio',
 ]);
 
 // Sprint 37 W61 — i18n refactor: feature lists now live in
@@ -127,19 +124,19 @@ const PREMIUM_TIER_IDS: ReadonlySet<TierId> = new Set([
 // resolved via i18n (`pricing.badges.{tierId}`).
 const TIER_BADGE_TONES: Partial<Record<TierId, 'green' | 'gold' | 'blue' | 'silver'>> = {
   gratis: 'green',
-  'departamento-prevencion': 'blue',
+  cobre: 'silver',
+  oro: 'blue',
+  platino: 'silver',
   diamante: 'gold',
-  corporativo: 'silver',
-  'global-titanio': 'gold',
 };
 
-// i18n badge key (replaces hyphens to keep dot-path safe).
+// i18n badge key (TierIds are already dot-path safe in the 7-metal scheme).
 const TIER_BADGE_KEY: Partial<Record<TierId, string>> = {
   gratis: 'gratis',
-  'departamento-prevencion': 'departamento_prevencion',
+  cobre: 'cobre',
+  oro: 'oro',
+  platino: 'platino',
   diamante: 'diamante',
-  corporativo: 'corporativo',
-  'global-titanio': 'global_titanio',
 };
 
 function badgeClasses(tone: 'green' | 'gold' | 'blue' | 'silver'): string {

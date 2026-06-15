@@ -29,7 +29,7 @@ function recommendTier(workers: number, projects: number): Tier {
       return t;
     }
   }
-  return getTierById('ilimitado');
+  return getTierById('diamante');
 }
 
 /**

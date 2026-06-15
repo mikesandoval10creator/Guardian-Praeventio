@@ -86,16 +86,12 @@ const JURISDICTION_CODES = [
 
 const TIER_IDS = [
   'gratis',
-  'comite-paritario',
-  'departamento-prevencion',
+  'cobre',
   'plata',
   'oro',
   'titanio',
+  'platino',
   'diamante',
-  'empresarial',
-  'corporativo',
-  'ilimitado',
-  'global-titanio',
 ] as const;
 
 const tenantContextSchema = z.object({

@@ -5,10 +5,9 @@
 //
 //   - Most tiers are single-jurisdicción (LATAM data residency, 1 active
 //     country specific code on top of the ISO 45001 baseline).
-//   - Premium tiers (titanio, diamante, empresarial, corporativo,
-//     ilimitado) keep the same single-jurisdicción posture — they buy
-//     more workers/projects, NOT more countries.
-//   - Tier Global Titanio explicitly multiplies jurisdictions: Infinity.
+//   - Premium tiers (titanio, platino) keep the same single-jurisdicción
+//     posture — they buy more workers/projects, NOT more countries.
+//   - Tier Diamante (the jewel) explicitly multiplies jurisdictions: Infinity.
 //
 // ISO 45001 NEVER counts toward the limit — it is the universal
 // baseline and ships with every tier.
@@ -68,6 +67,6 @@ export function assertJurisdictionLimit(
     reason:
       `Tier "${tenantTierId}" permite ${limit === Infinity ? 'sin límite' : limit} jurisdicción(es) ` +
       `simultánea(s) además de ISO 45001; se solicitaron ${countableCount}. ` +
-      `Considera el tier "global-titanio" para multi-jurisdicción simultáneo.`,
+      `Considera el tier "diamante" para multi-jurisdicción simultáneo.`,
   };
 }
