@@ -228,3 +228,50 @@ export function buildProjectSeeds(input: ProjectSeedsInput): ProjectSeeds {
     obligationSeeds: buildObligationSeeds(input),
   };
 }
+
+export interface ObligationReconcileResult {
+  /**
+   * Seeds whose deterministic id is NOT yet in the project — i.e. the
+   * obligations a headcount change just made mandatory.
+   */
+  toCreate: ObligationSeed[];
+  /** Ids already present in the project (idempotent no-op). */
+  alreadyPresent: string[];
+}
+
+/**
+ * Diffs freshly-computed dotación obligation seeds against the obligation ids
+ * that already exist in the project's `legal_obligations` subcollection, and
+ * returns ONLY the seeds whose deterministic id is missing — i.e. the
+ * obligations a headcount change just made mandatory (crossing the pack
+ * thresholds: 25 → CPHS, 100 → Departamento de Prevención for the CL pack).
+ *
+ * Onboarding seeds dotación obligations once, from the *estimated* headcount
+ * (`onboarding.ts` → `buildProjectSeeds`). When the real roster later grows past
+ * a threshold, nothing re-evaluates — so the CPHS / Departamento de Prevención
+ * obligation is never materialised and the reminder cron never alerts. This
+ * function is the pure core of that re-evaluation; the server route owns the
+ * single Firestore read (existing ids) and the idempotent upsert of `toCreate`.
+ *
+ * Pure / IO-free (rule #9 style): the existence check is supplied as a Set so
+ * this stays deterministic and mutation-testable.
+ *
+ * NEVER proposes deletions. An obligation no longer produced for the current
+ * dotación (e.g. the delegado-SST seed once the project crosses into CPHS
+ * territory, or every obligation if the roster shrinks) is intentionally left
+ * untouched: superseding a legal obligation is an admin/supervisor decision, not
+ * an automatic side effect, and `firestore.rules` already gates
+ * `legal_obligations` deletes behind isAdmin()/isSupervisor().
+ */
+export function reconcileObligationSeeds(
+  seeds: readonly ObligationSeed[],
+  existingIds: ReadonlySet<string>,
+): ObligationReconcileResult {
+  const toCreate: ObligationSeed[] = [];
+  const alreadyPresent: string[] = [];
+  for (const seed of seeds) {
+    if (existingIds.has(seed.id)) alreadyPresent.push(seed.id);
+    else toCreate.push(seed);
+  }
+  return { toCreate, alreadyPresent };
+}

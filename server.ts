@@ -326,6 +326,10 @@ import regulatoryFrameworkRouter from "./src/server/routes/regulatoryFramework.j
 // Compliance block (B5) — legal-obligations calendar was orphaned; consumers
 // useLegalCalendar / useLegalObligations hit 404. Paths /:projectId/legal-calendar/*.
 import legalObligationsRouter from "./src/server/routes/legalObligations.js";
+// Legal-unlock by dotación — re-evaluate headcount-triggered obligations
+// (CPHS≥25 / Depto Prevención≥100) when the roster grows past onboarding.
+// Path: POST /api/legal/:projectId/reconcile-obligations.
+import legalReconcileRouter from "./src/server/routes/legalReconcile.js";
 // Medical Catalogs (diagnoses ICD-10 + drugs ATC + anatomy DS 594) — Sprint 21 R.
 import medicalCatalogsRouter from "./src/server/routes/medicalCatalogs.js";
 // PIN Sign (firma por PIN sin biometría) — Sprint K F.25.
@@ -1149,6 +1153,8 @@ app.use('/api/sprint-k', mentalLoadRouter);
 app.use('/api/sprint-k', regulatoryFrameworkRouter);
 // B5 — legal obligations calendar (upcoming/overdue/acknowledge/snooze/history).
 app.use('/api/sprint-k', legalObligationsRouter);
+// Legal-unlock by dotación — headcount-triggered obligation reconciliation.
+app.use('/api/legal', legalReconcileRouter);
 app.use('/api/sprint-k', medicalCatalogsRouter);
 app.use('/api/sprint-k', pinSignRouter);
 app.use('/api/sprint-k', coachRagRouter);
