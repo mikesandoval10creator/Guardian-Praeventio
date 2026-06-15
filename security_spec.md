@@ -1087,5 +1087,30 @@ works and an accidental client WRITE can never land. Rules tests:
      themselves — denied (server-only; the audited route stamps observerUid and
      blocks self-award).
 
+### anonymization_events — cascarón soft-delete proof (Ley 21.719, added 2026-06-15)
+
+`anonymization_events/{uid}` holds ONE immutable record per user proving their
+data was exported (SHA-256 checksum) before irreversible PII anonymization (the
+"cascarón": scrub PII to an empty shell, KEEP uid + immutable history, disable
+auth). Written ONLY by the Admin SDK from the account-anonymize endpoint; the
+owner may READ their own record (proof of export) but no client may write it, so
+the compliance proof can never be forged, tampered, or erased. Rules tests:
+`src/rules-tests/anonymizationEvents.rules.test.ts`.
+- read: `isOwner(uid)` (email-verified + own uid).
+- create/update/delete: **false** for ALL clients (server-only via Admin SDK).
+
+**Rejected payloads (Dirty-Dozen extension):**
+
+118. **Anonymization-Proof Forgery**: a user `setDoc`-ing
+     `anonymization_events/{ownUid}` to fabricate a "data exported + erased"
+     record without the server ever running the cascarón — denied (server-only;
+     only the Admin SDK from the audited endpoint writes it).
+119. **Export-Checksum Tampering**: the owner `update`-ing `dataExportChecksum`
+     (or `fieldsRedacted`) after creation to falsify what was exported/scrubbed —
+     denied (immutable; no client update path).
+120. **Cross-User Anonymization Read**: a user reading another user's
+     `anonymization_events/{otherUid}` to learn whether/when they de-identified —
+     denied (`isOwner(uid)` only; a claim on another account grants nothing).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

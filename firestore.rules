@@ -1138,6 +1138,18 @@ service cloud.firestore {
       allow update, delete: if false; // Immutable audit trail
     }
 
+    match /anonymization_events/{uid} {
+      // Cascarón soft-delete (Ley 21.719 / GDPR / Apple). ONE immutable record
+      // per user proving their data was exported (checksum) BEFORE irreversible
+      // PII anonymization. Written ONLY by the Admin SDK from the account
+      // anonymization endpoint (scrub PII + disable auth + keep uid for the
+      // audit trail). The owner may READ their own record (proof of export);
+      // ALL client writes are denied so it can never be forged or erased.
+      // Client-denial exercised by src/rules-tests/anonymizationEvents.rules.test.ts.
+      allow read: if isOwner(uid);
+      allow create, update, delete: if false; // server-only via Admin SDK
+    }
+
     match /vector_store/{docId} {
       allow read: if isEmailVerified() && (
         isAdmin() || isSupervisor() || 
