@@ -54,7 +54,7 @@ describe('anonymizeUser', () => {
     expect(updateUser).toHaveBeenCalledOnce();
     const [authUid, patch] = updateUser.mock.calls[0] as [string, Record<string, unknown>];
     expect(authUid).toBe('uid-1');
-    expect(patch).toMatchObject({ displayName: null, photoURL: null, disabled: true });
+    expect(patch).toMatchObject({ displayName: null, photoURL: null, phoneNumber: null, disabled: true });
     expect(patch.email).toBe('deleted+uid-1@anonymized.invalid');
 
     expect(revoke).toHaveBeenCalledExactlyOnceWith('uid-1');
@@ -75,6 +75,24 @@ describe('anonymizeUser', () => {
       // FieldValue.delete() sentinel is present for every redacted field.
       expect(userSet!.data[field], `${field} must be redacted`).toBeDefined();
     }
+  });
+
+  it('scrubs the denormalized identity in user_stats/{uid}', async () => {
+    const { deps, setCalls } = buildDeps();
+    await anonymizeUser(deps, { uid: 'uid-2b', now: NOW });
+    const statsSet = setCalls.find((c) => c.coll === 'user_stats' && c.id === 'uid-2b');
+    expect(statsSet, 'user_stats doc must be scrubbed').toBeTruthy();
+    expect(statsSet!.merge).toBe(true);
+    expect(statsSet!.data.userName).toBeDefined();
+    expect(statsSet!.data.userPhoto).toBeDefined();
+  });
+
+  it('chunks subcollection purges at the 500-op Firestore batch limit', async () => {
+    const { deps, batchDeletes, commit } = buildDeps({ medical_exams: 501 });
+    const result = await anonymizeUser(deps, { uid: 'uid-big', now: NOW });
+    expect(batchDeletes.length).toBe(501); // all docs deleted
+    expect(commit).toHaveBeenCalledTimes(2); // 500 + 1 → two batches
+    expect(result.subcollectionsScrubbed.medical_exams).toBe(501);
   });
 
   it('purges every PII subcollection and reports the counts', async () => {

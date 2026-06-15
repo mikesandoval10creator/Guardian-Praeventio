@@ -25,6 +25,12 @@
 //
 // Identity ALWAYS comes from the verified token at the endpoint; this service
 // scrubs ONLY the uid it is handed, never a client-supplied one.
+//
+// PARTIAL FAILURE: steps run sequentially and THROW on the first error (no
+// try/catch) — the proof (step 6) is written LAST so it never records a scrub
+// that didn't complete. Re-running is safe/idempotent (auth scrub + redactions
+// + deletes converge). The endpoint MUST audit `account.anonymization_initiated`
+// BEFORE calling this so intent survives a mid-scrub failure.
 
 import admin from 'firebase-admin';
 
@@ -74,22 +80,32 @@ export interface AnonymizeUserResult {
   applied: true;
 }
 
-/** A unique, syntactically-valid, non-routable tombstone email per uid. */
+/**
+ * A unique, syntactically-valid, non-routable tombstone email per uid.
+ * `.invalid` is an IANA-reserved TLD that can never resolve. Assumes Firebase
+ * UIDs have no `+`/`@` (true for Firebase-generated 28-char ids); a federated
+ * provider with an exotic uid format would need escaping here.
+ */
 function tombstoneEmail(uid: string): string {
   return `deleted+${uid}@anonymized.invalid`;
 }
 
-/** Delete every doc in `users/{uid}/{sub}` via a batch; returns the count. */
+/** Firestore batches cap at 500 ops — purge in chunks so large vaults succeed. */
+const BATCH_LIMIT = 500;
+
+/** Delete every doc in `users/{uid}/{sub}`, chunked at 500; returns the count. */
 async function purgeSubcollection(
   db: admin.firestore.Firestore,
   uid: string,
   sub: string,
 ): Promise<number> {
   const refs = await db.collection('users').doc(uid).collection(sub).listDocuments();
-  if (refs.length === 0) return 0;
-  const batch = db.batch();
-  for (const ref of refs) batch.delete(ref);
-  await batch.commit();
+  for (let i = 0; i < refs.length; i += BATCH_LIMIT) {
+    const chunk = refs.slice(i, i + BATCH_LIMIT);
+    const batch = db.batch();
+    for (const ref of chunk) batch.delete(ref);
+    await batch.commit();
+  }
   return refs.length;
 }
 
@@ -109,6 +125,7 @@ export async function anonymizeUser(
   await authAdmin().updateUser(uid, {
     displayName: null,
     photoURL: null,
+    phoneNumber: null,
     email,
     disabled: true,
   });
@@ -124,17 +141,37 @@ export async function anonymizeUser(
   }
   await db.collection('users').doc(uid).set(redact, { merge: true });
 
+  // 4b. Scrub the denormalized identity baked into user_stats/{uid}
+  // (leaderboard/CV surfaces copy userName/userPhoto at write time).
+  await db.collection('user_stats').doc(uid).set(
+    {
+      userName: admin.firestore.FieldValue.delete(),
+      userPhoto: admin.firestore.FieldValue.delete(),
+    },
+    { merge: true },
+  );
+
   // 5. Purge PII subcollections.
   const subcollectionsScrubbed: Record<string, number> = {};
   for (const sub of ANONYMIZATION_PII_SUBCOLLECTIONS) {
     subcollectionsScrubbed[sub] = await purgeSubcollection(db, uid, sub);
   }
 
+  // NOTE(cascaron-block-2b): project-scoped denormalized identity in
+  // `projects/{pid}/safety_posts.{userName,userPhoto}` (and embedded comments)
+  // is NOT reached here — it needs a `collectionGroup('safety_posts')
+  // .where('userId','==',uid)` fan-out (+ composite index). Tracked as the
+  // follow-up sweep; MUST land before the Settings UI (block 3) goes live so no
+  // community post keeps a name/photo after anonymization.
+
   const fieldsRedacted = [
     'email',
     'displayName',
     'photoURL',
+    'phoneNumber',
     ...ANONYMIZATION_USERS_DOC_REDACT,
+    'user_stats.userName',
+    'user_stats.userPhoto',
   ];
 
   // 6. Immutable proof-of-anonymization (server-only collection from block 1).
