@@ -14,15 +14,15 @@
 //   4. audit log (denied/ok semantics depending on the source).
 
 import type { Policy } from './policy.types';
-
-const PLAN_RANK: Record<string, number> = {
-  free: 0, comite: 1, departamento: 2, plata: 3, oro: 4,
-  titanio: 5, platino: 6, empresarial: 7, corporativo: 8, ilimitado: 9,
-};
+// Use the canonical PLAN_RANK via planRank() — NOT a local copy. A duplicated
+// rank table here silently drifts when the canonical ranks change (e.g. adding
+// an intermediate tier renumbers everything). planRank() also normalizes legacy
+// aliases + fails closed to rank 0 for unknown plans.
+import { planRank } from '../../pricing/subscriptionPlan.js';
 
 function direction(from: string, to: string): 'upgrade' | 'downgrade' | 'sidestep' {
-  const f = PLAN_RANK[from] ?? 0;
-  const t = PLAN_RANK[to] ?? 0;
+  const f = planRank(from);
+  const t = planRank(to);
   if (t > f) return 'upgrade';
   if (t < f) return 'downgrade';
   return 'sidestep';
