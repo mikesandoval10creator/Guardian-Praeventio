@@ -1871,6 +1871,13 @@
     "danger_desc": "These actions are permanent and cannot be undone. Please proceed with extreme caution.",
     "logout_global": "Global Logout",
     "delete_account": "Delete Account",
+    "delete_processing": "Anonymizing…",
+    "delete_confirm": "⚠️ This IRREVERSIBLY anonymizes your account: your personal data is erased and you become an anonymous shell (your history is kept without your identity). It CANNOT be undone. A copy of your data will be downloaded. Continue and sign with your fingerprint?",
+    "delete_done_title": "Account anonymized",
+    "delete_done_msg": "Your identity was removed and a copy of your data was downloaded. Signing out…",
+    "delete_failed_title": "Could not anonymize",
+    "delete_failed_msg": "Fingerprint verification failed or an error occurred. Your account was NOT modified.",
+    "delete_cancelled_msg": "You cancelled the fingerprint signature. Your account was NOT modified.",
     "delete_restricted_title": "Restricted Action",
     "delete_restricted_msg": "To permanently delete your account, please contact the system administrator.",
     "auth": {
