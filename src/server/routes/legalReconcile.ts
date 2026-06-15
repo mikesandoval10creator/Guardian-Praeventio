@@ -24,6 +24,7 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
@@ -53,9 +54,16 @@ interface ProjectDocShape {
 //   materialises any that a roster change just made mandatory. Idempotent:
 //   re-running it when nothing changed creates nothing.
 // ────────────────────────────────────────────────────────────────────────
-router.post('/:projectId/reconcile-obligations', verifyAuth, async (req, res) => {
+router.post('/:projectId/reconcile-obligations', verifyAuth, idempotencyKey(), async (req, res) => {
   const callerUid = req.user!.uid;
   const { projectId } = req.params;
+
+  // Firestore doc-id safety: projectId is the only client-controlled segment of
+  // the doc paths below. Reject anything outside the isValidId charset before it
+  // reaches Firestore (defense in depth; Express already blocks an encoded "/").
+  if (!projectId || !/^[A-Za-z0-9_-]{1,128}$/.test(projectId)) {
+    return res.status(400).json({ error: 'invalid_project_id' });
+  }
 
   // Project-membership gate (same contract as the legal-calendar router).
   try {
@@ -117,13 +125,19 @@ router.post('/:projectId/reconcile-obligations', verifyAuth, async (req, res) =>
       existingIds,
     );
 
-    for (const seed of toCreate) {
-      await db
+    // Atomic upsert: a WriteBatch keeps the new obligations consistent (no
+    // partial write that could 500 after some docs already landed) and makes
+    // the audit row track a single committed state change.
+    if (toCreate.length > 0) {
+      const batch = db.batch();
+      const obligations = db
         .collection('projects')
         .doc(projectId)
-        .collection(SUBCOLLECTION)
-        .doc(seed.id)
-        .set(seed.doc);
+        .collection(SUBCOLLECTION);
+      for (const seed of toCreate) {
+        batch.set(obligations.doc(seed.id), seed.doc);
+      }
+      await batch.commit();
     }
 
     // Audit invariant (#3/#14): one awaited row when state changed. uid/email
@@ -151,14 +165,22 @@ router.post('/:projectId/reconcile-obligations', verifyAuth, async (req, res) =>
       }
     }
 
+    // `note` distinguishes a structural no-op (non-CL project, or a project doc
+    // with missing/zero headcount — possibly a misconfiguration) from a genuine
+    // "everything already present" reconcile, without echoing the raw headcount
+    // (that lives in the audit row, not the response).
+    let note: string | undefined;
+    if (!operatesInChile) note = 'non_cl_project';
+    else if (workersCount == null || workersCount <= 0) note = 'no_eligible_headcount';
+
     return res.json({
       created: toCreate.map((s) => ({ id: s.id, label: s.doc.label })),
       createdCount: toCreate.length,
       alreadyPresent: alreadyPresent.length,
-      workersCount,
+      ...(note ? { note } : {}),
     });
   } catch (err) {
-    logger.error?.('legalReconcile.error', err);
+    logger.error('legalReconcile.error', err as Error, { callerUid, projectId });
     captureRouteError(err, 'legalReconcile', { callerUid, projectId });
     return res.status(500).json({ error: 'internal_error' });
   }

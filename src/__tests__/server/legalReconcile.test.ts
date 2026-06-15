@@ -40,6 +40,10 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
   },
 }));
 
+vi.mock('../../server/middleware/idempotencyKey.js', () => ({
+  idempotencyKey: () => (_req: Request, _res: Response, next: NextFunction) => next(),
+}));
+
 vi.mock('../../server/middleware/captureRouteError.js', () => ({
   captureRouteError: vi.fn(),
 }));
@@ -157,12 +161,31 @@ describe('POST /api/legal/:projectId/reconcile-obligations', () => {
     expect(auditRows().length).toBe(auditsAfterFirst);
   });
 
-  it('200 — non-CL project: dotación obligations are NOT materialised', async () => {
+  it('200 — non-CL project: dotación obligations are NOT materialised (note flags it)', async () => {
     seedProject({ country: 'AR', workersCount: 200 });
     const res = await request(buildApp()).post(url()).set('x-test-uid', CALLER_UID);
     expect(res.status).toBe(200);
     expect(res.body.createdCount).toBe(0);
+    expect(res.body.note).toBe('non_cl_project');
     expect(storedObligationIds()).toEqual([]);
+  });
+
+  it('200 — misconfigured headcount (field missing) is flagged, not a silent no-op', async () => {
+    // CL project whose workersCount never got written (e.g. a field-name typo
+    // upstream). The reconcile must NOT look like a legitimate "all present".
+    seedProject({ workersCount: undefined });
+    const res = await request(buildApp()).post(url()).set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(200);
+    expect(res.body.createdCount).toBe(0);
+    expect(res.body.note).toBe('no_eligible_headcount');
+  });
+
+  it('400 — malformed projectId is rejected before any Firestore access', async () => {
+    const res = await request(buildApp())
+      .post(`${PREFIX}/has spaces/reconcile-obligations`)
+      .set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_project_id');
   });
 
   it('200 — sub-25 roster materialises the delegado-SST obligation, not a CPHS', async () => {
