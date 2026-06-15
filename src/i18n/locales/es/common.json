@@ -769,6 +769,14 @@
     "view_details": "Ver Detalles",
     "dismiss_aria": "Descartar alerta"
   },
+  "legal_alert": {
+    "cphs_title": "Comité Paritario obligatorio",
+    "cphs_body": "Tu faena alcanzó {{workers}} trabajadores: la ley exige constituir un Comité Paritario (CPHS).",
+    "dprp_title": "Departamento de Prevención obligatorio",
+    "dprp_body": "Tu faena alcanzó {{workers}} trabajadores: la ley exige un Departamento de Prevención de Riesgos.",
+    "cta": "Ver calendario legal",
+    "dismiss": "Descartar"
+  },
   "pending_invites": {
     "single_prefix": "Tienes una invitación pendiente a ",
     "multiple_prefix": "Tienes ",

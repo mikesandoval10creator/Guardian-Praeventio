@@ -769,6 +769,14 @@
     "view_details": "Ver Detalhes",
     "dismiss_aria": "Descartar alerta"
   },
+  "legal_alert": {
+    "cphs_title": "Comitê Paritário obrigatório",
+    "cphs_body": "Seu canteiro atingiu {{workers}} trabalhadores: a lei exige constituir um Comitê Paritário (CPHS).",
+    "dprp_title": "Departamento de Prevenção obrigatório",
+    "dprp_body": "Seu canteiro atingiu {{workers}} trabalhadores: a lei exige um Departamento de Prevenção de Riscos.",
+    "cta": "Ver calendário legal",
+    "dismiss": "Dispensar"
+  },
   "pending_invites": {
     "single_prefix": "Você tem um convite pendente para ",
     "multiple_prefix": "Você tem ",

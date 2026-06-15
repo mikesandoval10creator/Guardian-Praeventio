@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ProjectSelector } from "./ProjectSelector";
+import { LegalStatusAlert } from "./LegalStatusAlert";
 import { logOut } from "../../services/firebase";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import { useSubscription } from "../../contexts/SubscriptionContext";
@@ -150,6 +151,9 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
           <div className="mb-6 px-3">
             <ProjectSelector />
           </div>
+
+          {/* Advisory: headcount-triggered legal obligation (CPHS≥25 / DPRP≥100). */}
+          <LegalStatusAlert />
 
           <div className="space-y-2">
             {menuGroups.map((group) => {
