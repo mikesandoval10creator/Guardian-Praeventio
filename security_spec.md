@@ -1112,5 +1112,21 @@ the compliance proof can never be forged, tampered, or erased. Rules tests:
      `anonymization_events/{otherUid}` to learn whether/when they de-identified —
      denied (`isOwner(uid)` only; a claim on another account grants nothing).
 
+### predictive_alert_acks — server-only ack audit trail (added 2026-06-15)
+
+`predictive_alert_acks/{ackId}` records a crew acknowledging a predictive alert.
+It is written ONLY by the Admin SDK from `/api/organic` (organic.ts), with
+`ackedBy` stamped from the verified token and `xpAwarded` recorded. No client
+reads it today. The rule is fully server-only (`allow read, write: if false`);
+exercised by `src/rules-tests/predictiveAlertAcks.rules.test.ts`.
+
+121. **Ack XP/Attribution Forgery**: a client `setDoc`-ing
+     `predictive_alert_acks/{id}` with `ackedBy: ownUid, xpAwarded: 9999` to
+     fabricate an acknowledgement and inflate XP / mis-attribute credit —
+     denied (server-only; only the audited Admin SDK path writes it).
+122. **Ack Trail Read/Tamper**: any client reading, updating, or deleting an ack
+     (to learn crew response data or erase the trail) — denied (no client read
+     or write path exists; Admin SDK bypasses rules server-side).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
