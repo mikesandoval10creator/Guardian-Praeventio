@@ -31,6 +31,10 @@ import {
 } from './sitebookSign.js';
 import { SITE_BOOK_COLLECTION, type SiteBookEntry } from '../../services/siteBook/siteBookService.js';
 import { verifyWebAuthnAssertion } from '../auth/webauthnAssertion.js';
+import {
+  assertProjectMember,
+  ProjectMembershipError,
+} from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 
@@ -118,6 +122,21 @@ sitebookSignRouter.post('/sign/options', verifyAuth, async (req: Request, res: R
   if (typeof entryId !== 'string' || typeof projectId !== 'string' || typeof payloadHashHex !== 'string') {
     return res.status(400).json({ error: 'entryId, projectId, payloadHashHex required' });
   }
+  // P0 IDOR fix: projectId/entryId come from the client body. The Admin SDK in
+  // loadSiteBookEntry/saveSignedSiteBookEntry BYPASSES Firestore rules, so we
+  // MUST re-enforce the tenant boundary here (CLAUDE.md #6) — exactly as the
+  // sibling sitebook.ts read/create routes do. Without this, any worker from
+  // any tenant could issue a challenge for (and then sign) another tenant's
+  // legal site-book entry. Runs before any entry read so a non-member learns
+  // nothing about the entry.
+  try {
+    await assertProjectMember(callerUid, projectId, admin.firestore());
+  } catch (err) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    throw err;
+  }
   try {
     const deps: SignOptionsDeps = {
       challengesDb: buildWebAuthnDb(),
@@ -152,6 +171,19 @@ sitebookSignRouter.post('/sign/verify', verifyAuth, async (req: Request, res: Re
     assertion === null
   ) {
     return res.status(400).json({ error: 'malformed_body' });
+  }
+  // P0 IDOR fix (see /sign/options): re-enforce the project-membership
+  // boundary before verifying/persisting — the Admin SDK in
+  // loadSiteBookEntry/saveSignedSiteBookEntry bypasses Firestore rules.
+  // Without this, a worker from another tenant could apply their own
+  // biometric signature to (and lock) this tenant's legal site-book entry.
+  try {
+    await assertProjectMember(callerUid, projectId, admin.firestore());
+  } catch (err) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    throw err;
   }
   try {
     const deps: SignVerifyDeps = {
