@@ -8,7 +8,7 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../services/firebase';
 import { logger } from '../../utils/logger';
 import { useProject } from '../../contexts/ProjectContext';
-import { evaluateSafetyRecommendations } from './vitalitySignals';
+import { evaluateSafetyRecommendations, computeVitalityIndex } from './vitalitySignals';
 
 // ADR 0012 — Praeventio NUNCA diagnostica. Este monitor observa SEÑALES
 // fisiológicas/ambientales (frecuencia cardíaca, calor, carga) y emite
@@ -20,8 +20,9 @@ export function VitalityMonitor() {
   const [temperature, setTemperature] = useState(25);
   const [altitude, setAltitude] = useState(1000); // meters
   const [toolWeight, setToolWeight] = useState(5); // kg
-  const [vitality, setVitality] = useState(100);
-  const [hydrationNeeded, setHydrationNeeded] = useState(false);
+  // Hydration prompt is derived from REAL conditions (below); this only tracks
+  // that the worker acknowledged the suggested break, so we don't keep nagging.
+  const [hydrationAck, setHydrationAck] = useState(false);
   const { selectedProject } = useProject();
   const metrics = useHealthMetrics({ autoSyncMs: 60_000 });
   // Avoid duplicate Firestore writes for the same trigger window.
@@ -108,34 +109,35 @@ export function VitalityMonitor() {
     toolWeight,
   ]);
 
+  // Real physical-load index from the CURRENT signals (entered conditions +
+  // real HR/activity telemetry) — deterministic, computed by the unit-tested
+  // computeVitalityIndex. This replaces the previous setInterval that drained a
+  // fabricated 100→0 "battery" over a simulated shift and showed it as a live %.
+  const vitality = useMemo(
+    () =>
+      computeVitalityIndex({
+        temperature,
+        altitude,
+        toolWeight,
+        hrSustainedHigh: heartStats.sustainedHigh,
+        hrIrregular: heartStats.irregular,
+        stepsLowAfterShift,
+      }),
+    [temperature, altitude, toolWeight, heartStats.sustainedHigh, heartStats.irregular, stepsLowAfterShift],
+  );
+
+  // Hydration break suggested on a REAL condition (heat / sustained-high HR /
+  // low load index), not a simulated drain. `hydrationAck` lets the worker
+  // dismiss it; it re-arms once conditions normalize.
+  const hydrationTrigger = temperature >= 30 || heartStats.sustainedHigh || vitality < 50;
+  const hydrationNeeded = hydrationTrigger && !hydrationAck;
   useEffect(() => {
-    // Calculate vitality drain based on environmental factors
-    // Base drain is 10% per hour.
-    // High temp (>30C) adds drain.
-    // High altitude (>2500m) adds drain.
-    // Heavy tools (>10kg) adds drain.
+    if (!hydrationTrigger && hydrationAck) setHydrationAck(false);
+  }, [hydrationTrigger, hydrationAck]);
 
-    let drainRate = 10;
-    if (temperature > 30) drainRate += (temperature - 30) * 2;
-    if (altitude > 2500) drainRate += (altitude - 2500) / 100;
-    if (toolWeight > 10) drainRate += (toolWeight - 10) * 1.5;
-
-    // Simulate vitality dropping over a "shift" (accelerated for demo)
-    const interval = setInterval(() => {
-      setVitality(prev => {
-        const next = Math.max(0, prev - (drainRate / 60)); // drain per minute simulated
-        if (next < 40) setHydrationNeeded(true);
-        return next;
-      });
-    }, 1000); // Update every second for demo purposes
-
-    return () => clearInterval(interval);
-  }, [temperature, altitude, toolWeight]);
-
-  const handleHydrate = () => {
-    setVitality(Math.min(100, vitality + 30));
-    setHydrationNeeded(false);
-  };
+  // Acknowledge the suggested break — we do NOT fabricate a physiological
+  // "refill"; the index reflects the actual current conditions.
+  const handleHydrate = () => setHydrationAck(true);
 
   const getBatteryColor = () => {
     if (vitality > 70) return 'text-emerald-500 bg-emerald-500';
@@ -152,7 +154,7 @@ export function VitalityMonitor() {
             Monitor de Vitalidad
           </h3>
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
-            Energía y Desgaste Físico
+            Carga física según condiciones actuales
           </p>
         </div>
         <div className="text-right">

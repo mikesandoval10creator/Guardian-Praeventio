@@ -53,3 +53,42 @@ export function evaluateSafetyRecommendations(
   }
   return out;
 }
+
+export interface VitalityIndexInput {
+  /** Entered ambient temperature (°C). */
+  temperature: number;
+  /** Entered altitude (m). */
+  altitude: number;
+  /** Entered manual load (kg). */
+  toolWeight: number;
+  /** Real telemetry: HR > 120 bpm sustained ~5 min. */
+  hrSustainedHigh: boolean;
+  /** Real telemetry: high HR variability. */
+  hrIrregular: boolean;
+  /** Real telemetry: low step count after shift. */
+  stepsLowAfterShift: boolean;
+}
+
+/**
+ * Physical-load index (0–100, higher = lower load / more headroom) derived
+ * DETERMINISTICALLY from the CURRENT signals: the entered ambient conditions
+ * (temp/altitude/load) plus real heart-rate/activity telemetry when present.
+ *
+ * This replaces VitalityMonitor's previous `setInterval` "battery" that drained
+ * a fabricated 100→0 counter over a simulated shift ("accelerated for demo") and
+ * presented it as a live reading. There is no real "vitality drain" sensor; the
+ * honest value is a snapshot of how demanding the current conditions are. It is
+ * a safety signal, NOT a diagnosis (ADR 0012).
+ */
+export function computeVitalityIndex(input: VitalityIndexInput): number {
+  let score = 100;
+  // Ambient load (entered conditions).
+  if (input.temperature > 30) score -= Math.min(30, (input.temperature - 30) * 3);
+  if (input.altitude > 2500) score -= Math.min(20, (input.altitude - 2500) / 100);
+  if (input.toolWeight > 10) score -= Math.min(20, (input.toolWeight - 10) * 2);
+  // Physiological signals (real telemetry when available; false when absent).
+  if (input.hrSustainedHigh) score -= 25;
+  if (input.hrIrregular) score -= 15;
+  if (input.stepsLowAfterShift) score -= 10;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
