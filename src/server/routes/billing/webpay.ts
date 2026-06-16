@@ -46,7 +46,7 @@ import {
   decideDteIssue,
   type DteIssueRequest,
 } from '../../../services/dte/dteAutoIssueOrchestrator.js';
-import { normalizeSubscriptionPlanId } from '../../../services/pricing/subscriptionPlan.js';
+import { normalizeSubscriptionPlanId, cycleFromInvoiceDoc } from '../../../services/pricing/subscriptionPlan.js';
 import { sentryCapture } from './shared.js';
 
 export function registerWebpayRoutes(
@@ -355,6 +355,7 @@ export function registerWebpayRoutes(
                   updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                   lastInvoiceId: invoiceId,
                   paymentMethod: 'webpay',
+                  cycle: cycleFromInvoiceDoc(invoiceData),
                 },
               },
               { merge: true },

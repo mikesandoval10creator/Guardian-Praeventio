@@ -30,6 +30,7 @@ import {
   isSubscriptionPlan,
   normalizeSubscriptionPlanId,
   subscriptionPlanMatchesPaidTier,
+  cycleFromInvoiceDoc,
 } from "../../services/pricing/subscriptionPlan.js";
 
 export const subscriptionRouter = Router();
@@ -53,6 +54,9 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
   // Volume per-user is low (a paying customer has <50 lifetime invoices)
   // so this is well within latency budget.
   let paidTierId: string | null = null;
+  // Capture the SAME invoice that matched the requested plan so we persist its
+  // cycle (not the first paid invoice's) onto the subscription doc.
+  let paidInvoiceData: Record<string, unknown> | null = null;
   try {
     const paidInvoices = await db
       .collection("invoices")
@@ -69,11 +73,13 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
       );
       if (lineItem?.tierId) {
         paidTierId = lineItem.tierId;
+        paidInvoiceData = data;
         return true;
       }
       // Legacy schema: top-level tierId
       if (subscriptionPlanMatchesPaidTier(planId, data?.tierId)) {
         paidTierId = data.tierId;
+        paidInvoiceData = data;
         return true;
       }
       return false;
@@ -106,6 +112,7 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
           tierId: paidTierId ?? normalizedPlanId,
           status: "active",
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          cycle: cycleFromInvoiceDoc(paidInvoiceData),
         },
       },
       { merge: true },

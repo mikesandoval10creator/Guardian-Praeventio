@@ -31,7 +31,7 @@ import {
   type DteIssueRequest,
 } from '../../../services/dte/dteAutoIssueOrchestrator.js';
 import { withIdempotency } from '../../../services/billing/idempotency.js';
-import { normalizeSubscriptionPlanId } from '../../../services/pricing/subscriptionPlan.js';
+import { normalizeSubscriptionPlanId, cycleFromInvoiceDoc } from '../../../services/pricing/subscriptionPlan.js';
 import {
   buildDteQueueInvoicePayload,
   enqueueDteIssueJob,
@@ -111,6 +111,7 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     lastInvoiceId: invoiceId,
                     paymentMethod: 'manual',
+                    cycle: cycleFromInvoiceDoc(current),
                   },
                 },
                 { merge: true },

@@ -58,6 +58,7 @@ import {
 } from 'jose';
 
 import { logger } from '../../utils/logger.js';
+import { cycleFromProductId } from '../pricing/subscriptionPlan.js';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Apple notification types we care about.
@@ -442,14 +443,20 @@ export async function applyAppleEntitlement(
   // ops can tell the two flows apart. NEVER overwrite the Google Play
   // purchaseToken if one is already set; this user has dual-platform
   // history that the support team may need to reconcile by hand.
-  await userRef.update({
+  const subscriptionUpdate: Record<string, unknown> = {
     'subscription.status': status,
     'subscription.expiryDate': expiryDate,
     'subscription.provider': 'app-store',
     'subscription.appleOriginalTransactionId':
       originalTransactionId ?? null,
     'subscription.updatedAt': now().toISOString(),
-  });
+  };
+  // Only a grant carries a (new) purchased cycle; revoke/expire must NOT
+  // clobber the cycle the user originally bought.
+  if (action === 'grant') {
+    subscriptionUpdate['subscription.cycle'] = cycleFromProductId(tx?.productId);
+  }
+  await userRef.update(subscriptionUpdate);
 
   return {
     action,
