@@ -380,6 +380,10 @@ export function registerWebpayRoutes(
           }
         } catch (subErr) {
           logger.error('webpay_subscription_update_failed', subErr as Error, { invoiceId });
+          // The invoice read failed → `cycle` is still the DEFAULT, so the audit
+          // row below stamps the fallback, not a derived value. Emit a distinct
+          // signal so a read blip isn't mistaken for a genuine monthly invoice.
+          logger.warn('billing_cycle_unresolved', { invoiceId, rail: 'webpay' });
           sentryCapture(subErr, { endpoint: 'billing.webpay.subscriptionUpdate', tags: { invoiceId } });
         }
 

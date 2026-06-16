@@ -155,6 +155,10 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         // One-time purchase: `productId` is used as a Firestore field-path key
         // below, so reject any value that isn't a plain key (a '.' would create
         // nested fields = path injection; real Play SKUs are [a-z0-9_]).
+        // CONVENTION: one-time product IDs MUST stay dot-free — Play Console
+        // technically allows '.', but a dotted one-time SKU would be rejected
+        // here (fail-loud 400, traceable via iap_invalid_product_key) rather
+        // than silently corrupting purchased_products. Register them dot-free.
         if (!/^[A-Za-z0-9_-]+$/.test(String(productId ?? ''))) {
           logger.error('iap_invalid_product_key', undefined, { uid, productId });
           sentryCapture(new Error('iap_invalid_product_key'), {

@@ -149,8 +149,11 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                 if (resolved.source === 'default' && cycleSnap.exists) {
                   logger.warn('billing_cycle_defaulted', { invoiceId, rail: 'khipu' });
                 }
-              } catch {
-                logger.warn('khipu_ipn_cycle_resolve_failed', { invoiceId });
+              } catch (cycleErr) {
+                logger.warn('khipu_ipn_cycle_resolve_failed', {
+                  invoiceId,
+                  err: cycleErr instanceof Error ? cycleErr.message : String(cycleErr),
+                });
               }
 
               await db.collection('audit_logs').add({
