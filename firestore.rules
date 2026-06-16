@@ -1150,6 +1150,17 @@ service cloud.firestore {
       allow create, update, delete: if false; // server-only via Admin SDK
     }
 
+    match /predictive_alert_acks/{ackId} {
+      // Server-only audit trail: records a crew acknowledging a predictive
+      // alert, written ONLY by the Admin SDK from /api/organic (organic.ts —
+      // ackedBy stamped from the verified token, plus xpAwarded). NO client
+      // access: a client write could forge `ackedBy` or inflate `xpAwarded`
+      // (XP-integrity vector), and nothing reads it client-side today. When a
+      // dashboard read is built, add a scoped read rule + its rules-test.
+      // Client-denial exercised by src/rules-tests/predictiveAlertAcks.rules.test.ts.
+      allow read, write: if false; // server-only via Admin SDK
+    }
+
     match /vector_store/{docId} {
       allow read: if isEmailVerified() && (
         isAdmin() || isSupervisor() || 
