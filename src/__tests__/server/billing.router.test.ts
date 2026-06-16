@@ -296,9 +296,18 @@ vi.mock('googleapis', () => ({
 // ─────────────────────────────────────────────────────────────────────────────
 // normalizeSubscriptionPlanId
 // ─────────────────────────────────────────────────────────────────────────────
-vi.mock('../../services/pricing/subscriptionPlan.js', () => ({
-  normalizeSubscriptionPlanId: (id: string) => id ?? 'comite',
-}));
+vi.mock('../../services/pricing/subscriptionPlan.js', async () => {
+  // Keep the REAL cycle helpers (cycleFromInvoiceDoc / cycleFromProductId /
+  // DEFAULT_SUBSCRIPTION_CYCLE) so activation persists the cycle faithfully;
+  // only the plan normalization is stubbed permissive for these tests.
+  const actual = await vi.importActual<typeof import('../../services/pricing/subscriptionPlan.js')>(
+    '../../services/pricing/subscriptionPlan.js',
+  );
+  return {
+    ...actual,
+    normalizeSubscriptionPlanId: (id: string) => id ?? 'comite',
+  };
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // import REAL routers after all mocks are in place
@@ -625,7 +634,7 @@ describe('POST /api/billing/invoice/:id/mark-paid', () => {
   // The MANUAL rail must deliver the same completion as webpay-return / MP
   // IPN / Khipu IPN: subscription activation + DTE attempt, exactly once.
 
-  const seedB2bInvoice = (id = 'inv-b2b-1') => {
+  const seedB2bInvoice = (id = 'inv-b2b-1', cycle?: 'monthly' | 'annual') => {
     H.db!._seed(`invoices/${id}`, {
       status: 'pending-payment',
       createdBy: 'uid-owner',
@@ -633,6 +642,7 @@ describe('POST /api/billing/invoice/:id/mark-paid', () => {
       totals: { subtotal: 42017, iva: 7983, total: 50000, currency: 'CLP' },
       cliente: { nombre: 'Empresa SpA', rut: '76.123.456-0', email: 'pagos@empresa.cl' },
       paymentMethod: 'manual-transfer',
+      ...(cycle ? { cycle } : {}),
     });
   };
   const asAdmin = () => {
@@ -660,6 +670,9 @@ describe('POST /api/billing/invoice/:id/mark-paid', () => {
     expect(user.subscription.tierId).toBe('comite-paritario');
     expect(user.subscription.paymentMethod).toBe('manual');
     expect(user.subscription.lastInvoiceId).toBe('inv-b2b-1');
+    // Cycle is now persisted on the subscription doc; this invoice has no
+    // structured cycle (legacy shape) so it falls back to the safe default.
+    expect(user.subscription.cycle).toBe('monthly');
 
     // Audit row stamps identity from the VERIFIED token + activation outcome.
     const auditRows = [...H.db!._store.keys()]
@@ -673,6 +686,19 @@ describe('POST /api/billing/invoice/:id/mark-paid', () => {
     expect(details.subscriptionActivation).toBe('activated');
     expect(details.ownerUid).toBe('uid-owner');
     expect(details.tierId).toBe('comite-paritario');
+  });
+
+  it('round-trip: an annual invoice activates subscription.cycle === annual (cycle from server invoice, not the request)', async () => {
+    asAdmin();
+    seedB2bInvoice('inv-b2b-annual', 'annual');
+    const res = await request(buildApp())
+      .post('/api/billing/invoice/inv-b2b-annual/mark-paid')
+      .set('x-test-uid', 'uid-admin')
+      .set('x-test-email', 'admin@praeventio.net');
+    expect(res.status).toBe(200);
+    expect((res.body as Record<string, unknown>).subscriptionActivation).toBe('activated');
+    const user = H.db!._store.get('users/uid-owner') as Record<string, any>;
+    expect(user.subscription.cycle).toBe('annual');
   });
 
   it('admin marks paid with shouldIssue decision → DTE emission ATTEMPTED via tryAutoIssueDte', async () => {

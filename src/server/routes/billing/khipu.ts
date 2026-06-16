@@ -26,7 +26,7 @@ import { withIdempotency } from '../../../services/billing/idempotency.js';
 import { calculateInvoiceTotals } from '../../../services/billing/invoice.js';
 import type { Invoice, InvoiceLineItem } from '../../../services/billing/types.js';
 import { resolveBillingTier } from './pricing.js';
-import { normalizeSubscriptionPlanId } from '../../../services/pricing/subscriptionPlan.js';
+import { normalizeSubscriptionPlanId, cycleFromInvoiceDoc } from '../../../services/pricing/subscriptionPlan.js';
 // DTE auto-issue orchestrator (pure decision) — same wire as webpay/MP.
 import {
   decideDteIssue,
@@ -169,6 +169,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                         lastInvoiceId: invoiceId,
                         paymentMethod: 'khipu',
+                        cycle: cycleFromInvoiceDoc(invoiceData),
                       },
                     },
                     { merge: true },
@@ -410,6 +411,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
         id: invoiceId,
         status: 'pending-payment',
         paymentMethod: 'khipu',
+        cycle,
         khipuPaymentId: payment.paymentId,
         cliente: {
           nombre: callerEmail ?? 'Cliente Praeventio',

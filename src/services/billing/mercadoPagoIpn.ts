@@ -39,7 +39,7 @@
 import crypto from 'crypto';
 import admin from 'firebase-admin';
 import { jwtVerify, importJWK, errors as joseErrors, type JWTPayload } from 'jose';
-import { normalizeSubscriptionPlanId } from '../pricing/subscriptionPlan.js';
+import { normalizeSubscriptionPlanId, cycleFromInvoiceDoc } from '../pricing/subscriptionPlan.js';
 
 import { mercadoPagoAdapter } from './mercadoPagoAdapter.js';
 import { withIdempotency } from './idempotency.js';
@@ -691,6 +691,7 @@ export async function processMercadoPagoIpn(
                   updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                   lastInvoiceId: invoiceId,
                   paymentMethod: 'mercadopago',
+                  cycle: cycleFromInvoiceDoc(invoiceData),
                 },
               },
               { merge: true },

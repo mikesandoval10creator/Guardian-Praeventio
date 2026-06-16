@@ -22,7 +22,7 @@ import { googlePlayWebhookLimiter } from '../../middleware/limiters.js';
 import { logger } from '../../../utils/logger.js';
 import { withIdempotency } from '../../../services/billing/idempotency.js';
 import { auditServerEvent } from '../../middleware/auditLog.js';
-import { normalizeSubscriptionPlanId } from '../../../services/pricing/subscriptionPlan.js';
+import { normalizeSubscriptionPlanId, cycleFromProductId } from '../../../services/pricing/subscriptionPlan.js';
 import { sentryCapture } from './shared.js';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -127,6 +127,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
           'subscription.expiryDate': expiryDate,
           'subscription.purchaseToken': purchaseToken,
           'subscription.orderId': subData.orderId,
+          'subscription.cycle': cycleFromProductId(productId),
           'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
         });
       } else {
@@ -253,6 +254,8 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
               await userDoc.ref.update({
                 'subscription.status': isActive ? 'active' : 'expired',
                 'subscription.expiryDate': expiryDate,
+                // subscriptionId IS the SKU/productId for v3 single-product subs.
+                'subscription.cycle': cycleFromProductId(subscriptionId),
                 'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
               });
             }

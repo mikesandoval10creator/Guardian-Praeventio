@@ -178,6 +178,7 @@ export function registerMercadoPagoRoutes(billingApiRouter: Router): void {
         id: invoiceId,
         status: 'pending-payment',
         paymentMethod: 'mercadopago',
+        cycle: body.billingCycle,
         mercadoPagoPreferenceId: preference.id,
         country,
         cliente: {
