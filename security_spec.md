@@ -1128,5 +1128,19 @@ exercised by `src/rules-tests/predictiveAlertAcks.rules.test.ts`.
      (to learn crew response data or erase the trail) — denied (no client read
      or write path exists; Admin SDK bypasses rules server-side).
 
+### ufRates — server-only UF rate cache (added 2026-06-16)
+
+`ufRates/{docId}` (e.g. `ufRates/current`) caches the Unidad de Fomento value,
+written ONLY by the daily `runUfRateRefresh` cron (Admin SDK) from public Banco
+Central data. The pricing layer reads it server-side to compute the Diamante
+tier's CLP amount. Server-only (`allow read, write: if false`); exercised by
+`src/rules-tests/ufRates.rules.test.ts`.
+
+123. **UF Rate Forgery**: a client `setDoc`-ing `ufRates/current` with
+     `valueClp: 1` to mis-price the Diamante tier (pay ~$1 for a 100-UF plan) —
+     denied (server-only; only the audited cron writes it via Admin SDK).
+124. **UF Cache Read/Tamper**: any client reading, updating, or deleting the
+     cached rate — denied (no client path exists; pricing reads server-side).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
