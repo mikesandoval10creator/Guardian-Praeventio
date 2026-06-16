@@ -172,9 +172,10 @@ describe('GET /api/insights/:projectId/risk-ranking', () => {
     let callCount = 0;
     (brokenDb as any).collection = (path: string) => {
       callCount++;
-      // First call is projects (membership check) - let it pass
-      // 2nd+ calls (risks/controls) - throw
-      if (callCount > 1) throw new Error('Firestore exploded');
+      // Call 1 = requireTier reading users/{uid} (tier gate, report-only),
+      // call 2 = projects (membership check) - let both pass; call 3+
+      // (risks/controls) - throw.
+      if (callCount > 2) throw new Error('Firestore exploded');
       return originalCollection(path);
     };
     H.db = brokenDb as any;
@@ -464,7 +465,8 @@ describe('GET /api/insights/:projectId/safety-talks', () => {
     let callCount = 0;
     (brokenDb as any).collection = (path: string) => {
       callCount++;
-      if (callCount > 1) throw new Error('Firestore is down');
+      // Call 1 = requireTier users/{uid} read, call 2 = membership; throw after.
+      if (callCount > 2) throw new Error('Firestore is down');
       return originalCollection(path);
     };
     H.db = brokenDb as any;
@@ -598,7 +600,8 @@ describe('GET /api/insights/:projectId/role-view', () => {
     let callCount = 0;
     (brokenDb as any).collection = (path: string) => {
       callCount++;
-      if (callCount > 1) throw new Error('DB offline');
+      // Call 1 = requireTier users/{uid} read, call 2 = membership; throw after.
+      if (callCount > 2) throw new Error('DB offline');
       return originalCollection(path);
     };
     H.db = brokenDb as any;

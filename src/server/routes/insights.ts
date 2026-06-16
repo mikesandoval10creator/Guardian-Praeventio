@@ -19,6 +19,8 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { requireTier } from '../middleware/requireTier.js';
+import { tierGateEnforced } from '../middleware/tierRouteTable.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -100,7 +102,7 @@ async function resolveTenantId(
 // GET /api/insights/:projectId/risk-ranking
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-router.get('/:projectId/risk-ranking', verifyAuth, async (req, res) => {
+router.get('/:projectId/risk-ranking', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'insights' }), async (req, res) => {
   const callerUid = req.user!.uid;
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
@@ -144,7 +146,7 @@ router.get('/:projectId/risk-ranking', verifyAuth, async (req, res) => {
 // `type` is filtered in-memory (no composite index). Mirrors the §2.15
 // RiskNodeMarkers fix. See ADR 0020 (Zettelkasten-canonical source).
 // ────────────────────────────────────────────────────────────────────────
-router.get('/:projectId/top-risks', verifyAuth, async (req, res) => {
+router.get('/:projectId/top-risks', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'insights' }), async (req, res) => {
   const callerUid = req.user!.uid;
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
@@ -203,7 +205,7 @@ router.get('/:projectId/top-risks', verifyAuth, async (req, res) => {
 // controls library. Replaces the idle `useWeakControls` stub that read the
 // empty flat `controls` collection. See ADR 0020.
 // ────────────────────────────────────────────────────────────────────────
-router.get('/:projectId/weak-controls', verifyAuth, async (req, res) => {
+router.get('/:projectId/weak-controls', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'insights' }), async (req, res) => {
   const callerUid = req.user!.uid;
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
@@ -268,7 +270,7 @@ function coerceFindingDate(value: unknown): string | number | null {
   return null;
 }
 
-router.get('/:projectId/risk-timeseries', verifyAuth, async (req, res) => {
+router.get('/:projectId/risk-timeseries', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'insights' }), async (req, res) => {
   const callerUid = req.user!.uid;
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
@@ -313,7 +315,7 @@ router.get('/:projectId/risk-timeseries', verifyAuth, async (req, res) => {
 // GET /api/insights/:projectId/safety-talks
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-router.get('/:projectId/safety-talks', verifyAuth, async (req, res) => {
+router.get('/:projectId/safety-talks', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'insights' }), async (req, res) => {
   const callerUid = req.user!.uid;
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
@@ -386,7 +388,7 @@ router.get('/:projectId/safety-talks', verifyAuth, async (req, res) => {
 
 const VALID_ROLES: UserRole[] = ['worker', 'site_chief', 'prevention', 'management'];
 
-router.get('/:projectId/role-view', verifyAuth, async (req, res) => {
+router.get('/:projectId/role-view', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'insights' }), async (req, res) => {
   const callerUid = req.user!.uid;
   const callerEmail = req.user!.email ?? null;
   const callerRole = req.user!.role ?? 'worker';

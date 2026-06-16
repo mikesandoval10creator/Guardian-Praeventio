@@ -28,6 +28,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { requireTier } from '../middleware/requireTier.js';
+import { tierGateEnforced } from '../middleware/tierRouteTable.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
@@ -86,6 +88,7 @@ const compareSchema = z.object({
 router.post(
   '/:projectId/multi-project/compare',
   verifyAuth,
+  requireTier('platino', { enforce: tierGateEnforced(), route: 'multiProject' }),
   validate(compareSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
@@ -114,6 +117,7 @@ const bestPracticesSchema = z.object({
 router.post(
   '/:projectId/multi-project/best-practices',
   verifyAuth,
+  requireTier('platino', { enforce: tierGateEnforced(), route: 'multiProject' }),
   validate(bestPracticesSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
@@ -142,6 +146,7 @@ const riskProjectsSchema = z.object({
 router.post(
   '/:projectId/multi-project/risk-projects',
   verifyAuth,
+  requireTier('platino', { enforce: tierGateEnforced(), route: 'multiProject' }),
   validate(riskProjectsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;

@@ -22,6 +22,7 @@ vi.mock('../../utils/logger.js', () => ({
 vi.mock('../../server/middleware/captureRouteError.js', () => ({ captureRouteError: vi.fn() }));
 
 import { requireTier } from '../../server/middleware/requireTier.js';
+import { logger } from '../../utils/logger.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
 // Stub "verifyAuth": x-test-uid header → req.user.uid; absent → 401.
@@ -96,5 +97,61 @@ describe('requireTier', () => {
     const res = await request(buildApp('oro')).get('/gated').set('x-test-uid', 'u1');
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('tier_check_failed');
+  });
+});
+
+// Report-only is the safe rollout phase 1 (TIER-GATING-SERVER-SIDE-SPEC.md §4):
+// the gate NEVER blocks — it logs `tier_gate_would_block` so the route→tier
+// table can be validated against real traffic before flipping enforce on.
+function buildAppRO(minPlan: Parameters<typeof requireTier>[0]) {
+  const app = express();
+  app.get(
+    '/gated',
+    authStub,
+    requireTier(minPlan, { enforce: false, route: 'test' }),
+    (_req, res) => res.json({ ok: true }),
+  );
+  return app;
+}
+function buildAppNoAuthRO(minPlan: Parameters<typeof requireTier>[0]) {
+  const app = express();
+  // No auth layer → req.user undefined → report-only must DEFER (next), never 401.
+  app.get('/gated', requireTier(minPlan, { enforce: false }), (_req, res) =>
+    res.json({ ok: true }),
+  );
+  return app;
+}
+
+describe('requireTier report-only (enforce: false)', () => {
+  beforeEach(() => vi.mocked(logger.warn).mockClear());
+
+  it('serves a below-minimum caller (200) and logs tier_gate_would_block', async () => {
+    seedPlan('u1', 'plata'); // rank 2 < titanio (5)
+    const res = await request(buildAppRO('titanio')).get('/gated').set('x-test-uid', 'u1');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      'tier_gate_would_block',
+      expect.objectContaining({ requiredPlan: 'titanio', currentPlan: 'plata' }),
+    );
+  });
+
+  it('serves through when the plan lookup throws (no fail-closed in report-only)', async () => {
+    seedPlan('u1', 'plata');
+    H.db!._failReads('users/');
+    const res = await request(buildAppRO('titanio')).get('/gated').set('x-test-uid', 'u1');
+    expect(res.status).toBe(200);
+  });
+
+  it('defers (200) instead of 401 when there is no authenticated caller', async () => {
+    const res = await request(buildAppNoAuthRO('titanio')).get('/gated');
+    expect(res.status).toBe(200);
+  });
+
+  it('still serves a sufficient plan without a would-block log', async () => {
+    seedPlan('u1', 'platino'); // rank 6 ≥ titanio (5)
+    const res = await request(buildAppRO('titanio')).get('/gated').set('x-test-uid', 'u1');
+    expect(res.status).toBe(200);
+    expect(vi.mocked(logger.warn)).not.toHaveBeenCalledWith('tier_gate_would_block', expect.anything());
   });
 });

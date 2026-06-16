@@ -20,6 +20,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { requireTier } from '../middleware/requireTier.js';
+import { tierGateEnforced } from '../middleware/tierRouteTable.js';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
@@ -143,6 +145,7 @@ const composeSchema = z.object({
 router.post(
   '/:projectId/role-summary/compose',
   verifyAuth,
+  requireTier('platino', { enforce: tierGateEnforced(), route: 'multiRoleSummary' }),
   validate(composeSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
@@ -172,6 +175,7 @@ const composeAllSchema = z.object({
 router.post(
   '/:projectId/role-summary/compose-all',
   verifyAuth,
+  requireTier('platino', { enforce: tierGateEnforced(), route: 'multiRoleSummary' }),
   validate(composeAllSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;
@@ -216,6 +220,7 @@ const filterLessonsSchema = z.object({
 router.post(
   '/:projectId/role-summary/filter-lessons',
   verifyAuth,
+  requireTier('platino', { enforce: tierGateEnforced(), route: 'multiRoleSummary' }),
   validate(filterLessonsSchema),
   async (req, res) => {
     const callerUid = req.user!.uid;

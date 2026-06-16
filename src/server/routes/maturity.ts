@@ -18,6 +18,8 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { requireTier } from '../middleware/requireTier.js';
+import { tierGateEnforced } from '../middleware/tierRouteTable.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
@@ -79,7 +81,7 @@ async function guard(
 
 // ── GET /:projectId/maturity-index ────────────────────────────────────
 
-router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
+router.get('/:projectId/maturity-index', verifyAuth, requireTier('platino', { enforce: tierGateEnforced(), route: 'maturity' }), async (req, res) => {
   const callerUid = req.user!.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);

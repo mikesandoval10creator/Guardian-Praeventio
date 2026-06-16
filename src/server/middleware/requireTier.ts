@@ -64,10 +64,31 @@ export async function readSubscriptionPlanId(uid: string): Promise<unknown> {
   return readCallerPlanId(uid);
 }
 
-export function requireTier(minPlan: SubscriptionPlan) {
+export interface RequireTierOptions {
+  /**
+   * When `false`, the gate is REPORT-ONLY: a caller below `minPlan` is logged
+   * as `tier_gate_would_block` and the request proceeds (next()). This is the
+   * safe rollout phase 1 (TIER-GATING-SERVER-SIDE-SPEC.md §4) — it validates
+   * the route→tier table in prod WITHOUT risking a mis-indexed paid customer
+   * being denied. Defaults to `true` (enforce: a direct `requireTier('x')`
+   * call hard-blocks, preserving existing gated routes).
+   */
+  enforce?: boolean;
+  /** Label for telemetry so each gated mount is attributable in logs. */
+  route?: string;
+}
+
+export function requireTier(minPlan: SubscriptionPlan, opts: RequireTierOptions = {}) {
+  const enforce = opts.enforce !== false;
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const uid = req.user?.uid;
     if (!uid) {
+      // No verified caller. In report-only mode we don't own auth policy, so
+      // defer to the route's own verifyAuth instead of 401-ing here.
+      if (!enforce) {
+        next();
+        return;
+      }
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
@@ -75,18 +96,36 @@ export function requireTier(minPlan: SubscriptionPlan) {
     try {
       planId = await readCallerPlanId(uid);
     } catch (err) {
-      // Fail-closed: we could not verify the plan, so we must NOT serve a
-      // paid-gated feature.
-      logger.error('require_tier_lookup_failed', err, { uid, minPlan });
+      // Could not verify the plan. Enforce → fail-CLOSED (deny). Report-only →
+      // don't penalize a paying user for a transient Firestore blip; log + pass.
+      logger.error('require_tier_lookup_failed', err, { uid, minPlan, route: opts.route });
       captureRouteError(err, 'requireTier.lookup', { uid });
+      if (!enforce) {
+        next();
+        return;
+      }
       res.status(403).json({ error: 'tier_check_failed' });
       return;
     }
     if (!planMeetsMinimum(planId, minPlan)) {
+      const currentPlan = normalizeSubscriptionPlanId(planId) ?? 'free';
+      if (!enforce) {
+        // Report-only: surface the would-block as a demand signal + table
+        // validation, but let the request through.
+        logger.warn('tier_gate_would_block', {
+          uid,
+          route: opts.route,
+          requiredPlan: minPlan,
+          currentPlan,
+        });
+        next();
+        return;
+      }
+      logger.warn('tier_gate_blocked', { uid, route: opts.route, requiredPlan: minPlan, currentPlan });
       res.status(402).json({
         error: 'upgrade_required',
         requiredPlan: minPlan,
-        currentPlan: normalizeSubscriptionPlanId(planId) ?? 'free',
+        currentPlan,
       });
       return;
     }
