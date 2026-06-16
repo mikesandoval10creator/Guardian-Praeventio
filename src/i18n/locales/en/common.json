@@ -769,6 +769,14 @@
     "view_details": "View Details",
     "dismiss_aria": "Dismiss alert"
   },
+  "legal_alert": {
+    "cphs_title": "Joint Committee required",
+    "cphs_body": "Your site reached {{workers}} workers: the law requires forming a Joint Health & Safety Committee (CPHS).",
+    "dprp_title": "Risk Prevention Department required",
+    "dprp_body": "Your site reached {{workers}} workers: the law requires a Risk Prevention Department.",
+    "cta": "View legal calendar",
+    "dismiss": "Dismiss"
+  },
   "pending_invites": {
     "single_prefix": "You have a pending invitation to ",
     "multiple_prefix": "You have ",
