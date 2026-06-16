@@ -15,7 +15,13 @@ export interface WeatherSnapshot {
   sunset?: number;
   location?: string;
   uvi?: number;
+  /** Real UV index from the orchestrator (the field it actually populates; null = unknown). */
+  uv?: number | null;
   aqi?: number;
+  /** Real air-quality label from the orchestrator; null/absent → unknown (don't fabricate). */
+  airQuality?: string | null;
+  /** Honest sentinel: the weather provider (OpenWeather) is not configured/available. */
+  unavailable?: boolean;
 }
 
 interface WeatherBulletinProps {
@@ -145,9 +151,17 @@ export function WeatherBulletin({ weather, loading }: WeatherBulletinProps) {
   const sunset  = weather?.sunset  ?? estimated.sunset;
   const isDaytime = now >= sunrise && now <= sunset;
 
-  const uvi = weather?.uvi ?? estimateUVI(weather?.condition, now, sunrise, sunset);
+  // Honesty fix (2026-06-16): the orchestrator emits an honest sentinel
+  // `{ unavailable: true }` when OpenWeather isn't configured — but this card
+  // only checked `weather ?` (truthy even then) and rendered 0°C + a fabricated
+  // AQI/UV as if real telemetry. Gate ALL readings on `available`; show an
+  // honest "no disponible" state otherwise. Read the real `uv` field (the
+  // orchestrator populates `uv`, not `uvi`), falling back to a labelled estimate.
+  const available = !!weather && weather.unavailable !== true;
+  const uvi = weather?.uv ?? weather?.uvi ?? estimateUVI(weather?.condition, now, sunrise, sunset);
+  const uvIsReal = weather?.uv != null || weather?.uvi != null;
   const aqi = estimateAQI(weather?.condition);
-  const recs = weather ? getSafetyRecs(weather, uvi, aqi.value, isDaytime) : [];
+  const recs = available ? getSafetyRecs(weather, uvi, aqi.value, isDaytime) : [];
 
   const solar = getSolarEvent(now, sunrise, sunset);
   const { cx, cy } = sunPosition(now, sunrise, sunset);
@@ -189,20 +203,29 @@ export function WeatherBulletin({ weather, loading }: WeatherBulletinProps) {
             <div className="flex gap-1 mb-2">
               <Skeleton className="h-4 w-full rounded-lg" />
             </div>
-          ) : weather ? (
+          ) : available ? (
             <p className="text-[9px] sm:text-xs font-bold text-secondary-token mb-1 sm:mb-2">
               {Math.round(weather.temp ?? 0)}°C
-              {' • '}UV {uvi}
+              {' • '}UV {uvi}{uvIsReal ? '' : ' (est.)'}
               {' • '}{t('weather.humidity', 'Humedad')} {weather.humidity}%
               {' • '}{SANTIAGO_ALT_MSNM} msnm
             </p>
-          ) : null}
+          ) : (
+            <p className="text-[9px] sm:text-xs font-bold text-muted-token mb-1 sm:mb-2">
+              {t('weather.unavailable', 'Datos meteorológicos no disponibles')}
+            </p>
+          )}
 
-          {/* Air quality */}
-          {!loading && weather && (
+          {/* Air quality — real label from the orchestrator, or a clearly
+              labelled estimate; never a fabricated reading shown as live. */}
+          {!loading && available && (
             <p className="text-[8px] sm:text-[11px] font-bold text-muted-token mb-1.5 sm:mb-3">
               {t('weather.air_quality', 'Calidad del aire')}:{' '}
-              <span className={`${aqi.color} font-black`}>{aqi.label}</span>
+              {weather.airQuality ? (
+                <span className="font-black text-secondary-token">{weather.airQuality}</span>
+              ) : (
+                <span className={`${aqi.color} font-black`}>{aqi.label} (est.)</span>
+              )}
             </p>
           )}
 
