@@ -27,6 +27,7 @@ import {
   type WeeklyDigestStats,
 } from '../../services/email/templates.js';
 import { logger } from '../../utils/logger.js';
+import { computeDaysWithoutIncident, type MinimalDb } from '../../services/gamification/daysWithoutIncident.js';
 
 const SUPERVISOR_ROLES = new Set([
   'supervisor',
@@ -183,18 +184,22 @@ async function aggregateProjectStats(
     });
   }
 
-  // Days without incident — read project doc directly.
+  // Days without incident — derive from the project's incident reports (the
+  // canonical source). The previous code read `projects/{id}.daysWithoutIncident`,
+  // a field NO writer ever sets (writers target the `crews` collection), so the
+  // digest ALWAYS reported 0 in the supervisor email. computeDaysWithoutIncident
+  // queries `reports` (type==='Incidente') for this project — the real streak.
   try {
-    const projDoc = await db.collection('projects').doc(project.id).get();
-    const v = (projDoc.data() as any)?.daysWithoutIncident;
-    if (typeof v === 'number' && Number.isFinite(v)) {
-      daysWithoutIncident = Math.max(0, Math.min(999, Math.floor(v)));
-    }
+    // `db` is the admin Firestore — a structural superset of the DI subset
+    // computeDaysWithoutIncident accepts (same `reports` queries the digest
+    // already runs above). The cast only bridges the SDK type to that subset.
+    const days = await computeDaysWithoutIncident(project.id, db as unknown as MinimalDb);
+    daysWithoutIncident = Math.max(0, Math.min(999, Math.floor(days)));
   } catch (err) {
     queryErrors++;
     logger.warn('weekly_digest_query_failed', {
       projectId: project.id,
-      collection: 'project_doc',
+      collection: 'reports',
       error: String(err),
     });
   }

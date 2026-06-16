@@ -61,8 +61,22 @@ function seedProject(
     tenantId: opts.tenantId,
     name: opts.name,
     status: opts.status ?? 'active',
+    // Dead field (no writer sets it; kept only to prove the digest IGNORES it).
     daysWithoutIncident: opts.daysWithoutIncident ?? 0,
   });
+  // The digest now derives the streak from the REAL `reports` collection via
+  // computeDaysWithoutIncident, not the project-doc field. When a test specifies
+  // a streak, seed a matching incident N days ago so the real computation yields
+  // N. (A negative N seeds a future-dated incident → diff<=0 → 0, exercising the
+  // clamp.) Tests that omit the field seed no incident → streak resolves to 0.
+  if (opts.daysWithoutIncident !== undefined) {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    db._seed(`reports/inc-${projectId}`, {
+      type: 'Incidente',
+      projectId,
+      timestamp: Date.now() - opts.daysWithoutIncident * DAY_MS,
+    });
+  }
   for (const [i, sup] of (opts.supervisors ?? []).entries()) {
     db._seed(`projects/${projectId}/members/m${i}`, {
       role: sup.role,
@@ -662,6 +676,37 @@ describe('runWeeklyDigest — daysWithoutIncident capping', () => {
     });
 
     expect(result.perProject[0].stats?.daysWithoutIncident).toBe(999);
+  });
+
+  it('reads the REAL reports streak, IGNORING the dead project-doc field', async () => {
+    const db = createFakeFirestore();
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    // Stale field the OLD code (which read projects/{id}.daysWithoutIncident)
+    // would have reported.
+    db._seed('projects/proj-proof', {
+      tenantId: 'tenant-proof',
+      name: 'Proof Project',
+      status: 'active',
+      daysWithoutIncident: 99,
+    });
+    db._seed('projects/proj-proof/members/m0', { role: 'supervisor', email: 's@proof.com' });
+    // The real source: a single incident 3 days ago.
+    db._seed('reports/inc-proof', {
+      type: 'Incidente',
+      projectId: 'proj-proof',
+      timestamp: Date.now() - 3 * DAY_MS,
+    });
+
+    const fakeEmail = makeFakeEmailService({ sent: 1, failed: 0, results: [{ ok: true, id: 'x' }] });
+    const result = await runWeeklyDigest({
+      getDb: () => db as any,
+      emailService: fakeEmail as any,
+      now: () => makeDate('2026-05-12T09:00:00Z'),
+      projectIds: ['proj-proof'],
+    });
+
+    // Real streak = 3, NOT the stale 99 still sitting on the project doc.
+    expect(result.perProject[0].stats?.daysWithoutIncident).toBe(3);
   });
 
   it('floors negative values to 0', async () => {
