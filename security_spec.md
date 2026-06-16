@@ -1079,9 +1079,15 @@ works and an accidental client WRITE can never land. Rules tests:
 115. **Server-Store Write Forgery**: any client `setDoc`/`update`/`delete` on
      `tenants/t1/projects/p1/{positive_observations,photo_evidence,splat_captures}/x`
      — all three are server-only; no role grants a direct client write.
-116. **Server-Store Cross-Tenant Read**: a member of tenant B reading any of the
-     three collections under tenant A — per-tenant membership governs; a claim in
+116. **Server-Store Cross-Tenant Read**: a member of tenant B reading these
+     collections under tenant A — per-tenant membership governs; a claim in
      another tenant grants nothing.
+116b. **Photo-Evidence PII Worker Read** (2026-06-16): a plain WORKER of tenant A
+     reading `tenants/A/projects/{pid}/photo_evidence/{hash}` — denied. Photo
+     evidence can carry PII (people / incident scenes), so its read is restricted
+     to SUPERVISOR-tier (`isSupervisorOfTenant`), unlike positive_observations /
+     splat_captures which stay member-read. Exercised by the dedicated
+     photo_evidence block in tenantServerWriteStores.rules.test.ts.
 117. **XP/Recognition Self-Forge via positive_observations**: a worker creating a
      `positive_observations` doc to fabricate a safe-behavior recognition for
      themselves — denied (server-only; the audited route stamps observerUid and
