@@ -148,14 +148,28 @@ export async function safeNormativeQuery(
     // Nota: en la versión Admin actual, `findNearest` retorna distancia
     // implícita; algunos snapshots la exponen como `_distance` o
     // `distance` campo, según versión. Leemos defensivo abajo.
+    // PRIVACY / cross-tenant (2026-06-16): vector_store mixes the PUBLIC
+    // normative corpus (law-* chunks from indexLaw, carry `lawId`) with
+    // per-project knowledge nodes (node-* from networkBackend, carry `nodeId` +
+    // `projectId`). An unfiltered findNearest could surface ANOTHER tenant's
+    // private node text as "legal context". The LEGAL RAG must return ONLY
+    // public law, so we over-fetch and post-filter to law vectors (have `lawId`,
+    // lack `nodeId`), dropping every per-project node. No schema/index/migration
+    // change — purely a read-scope tightening.
     const results = await vectorCollection
       .findNearest('embedding', FieldValue.vector(embedding), {
-        limit: topK,
+        limit: Math.max(topK * 8, 24),
         distanceMeasure: 'COSINE',
       })
       .get();
 
-    const docs = results.empty ? [] : results.docs;
+    const allDocs = results.empty ? [] : results.docs;
+    const docs = allDocs
+      .filter((d) => {
+        const x = d.data();
+        return x.lawId !== undefined && x.nodeId === undefined;
+      })
+      .slice(0, topK);
     const matches = docs.map((d) => {
       const data = d.data();
       // COSINE distance 0..2; similarity = 1 - (distance/2) when normalized,
