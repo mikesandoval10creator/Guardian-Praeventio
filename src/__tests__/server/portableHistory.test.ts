@@ -108,6 +108,48 @@ describe('GET portable-history (bundle) — owner-only + consent redaction', () 
     const res = await get('w1/portable-history', 'admin1', true);
     expect(res.status).toBe(200);
   });
+
+  it('cross-tenant: a global incident from ANOTHER project is excluded; same-project is included', async () => {
+    seedWorker();
+    seedConsent(true, true);
+    // Same worker uid in the SHARED global `incidents` collection but from a
+    // different employer/project — must NOT leak into this bundle (Ley 19.628).
+    H.db!._seed('incidents/foreign', { workerUid: 'w1', projectId: 'OTHER-PROJ', description: 'incidente-ajeno' });
+    // A global incident for THIS project is legitimately part of the bundle.
+    H.db!._seed('incidents/mine', { workerUid: 'w1', projectId: 'p1', description: 'incidente-propio' });
+    const res = await get('w1/portable-history', 'w1');
+    expect(res.status).toBe(200);
+    const serialized = JSON.stringify(res.body.bundle.incidents);
+    expect(serialized).not.toContain('incidente-ajeno');
+    expect(serialized).toContain('incidente-propio');
+  });
+
+  it('an incident double-written to both stores appears ONCE (checksummed bundle dedup)', async () => {
+    seedWorker();
+    seedConsent(true, true);
+    H.db!._seed('tenants/t1/projects/p1/incidents/dup1', { workerUid: 'w1', projectId: 'p1', description: 'mismo' });
+    H.db!._seed('incidents/dup1', { workerUid: 'w1', projectId: 'p1', description: 'mismo' });
+    const res = await get('w1/portable-history', 'w1');
+    const ids = (res.body.bundle.incidents as Array<{ id: string }>).map((i) => i.id);
+    expect(ids.filter((x) => x === 'dup1')).toHaveLength(1);
+  });
+
+  it('cross-tenant: an admin CANNOT read a worker who exists only in the global users collection', async () => {
+    // w9 is NOT in this project/tenant roster — only in the global users doc.
+    // The users fallback must be denied for an admin reading someone else.
+    H.db!._seed('users/w9', { name: 'Otro Tenant', rut: '9.999.999-9', email: 'x@y.cl' });
+    const res = await get('w9/portable-history', 'admin1', true);
+    expect(res.status).toBe(404);
+  });
+
+  it('a worker CAN read their own bundle resolved from the global users doc (owner self-read)', async () => {
+    // No roster entry — only the global users doc. Owner-self may read it.
+    H.db!._seed('users/w1', { name: 'Self User', rut: '1.111.111-1', email: 's@y.cl' });
+    seedConsent(true, false);
+    const res = await get('w1/portable-history', 'w1');
+    expect(res.status).toBe(200);
+    expect(res.body.bundle.identity.fullName).toBe('Self User');
+  });
 });
 
 describe('POST consent — owner-only', () => {
