@@ -193,7 +193,7 @@ export const getSafetyAdvice = async (
   const response = await ai.models.generateContent({
     model: AI_MODEL_FAST,
     contents: `Genera un consejo de seguridad breve (máximo 100 caracteres) basado en las siguientes condiciones climáticas:
-    Temperatura: ${weather.temp}°C, UV: ${weather.uv}, Calidad Aire: ${weather.airQuality ?? 'no disponible'}`,
+    Temperatura: ${weather.temp ?? 'n/d'}°C, UV: ${weather.uv ?? 'n/d'}, Calidad Aire: ${weather.airQuality ?? 'no disponible'}`,
     config: {
       systemInstruction:
         'Eres un experto en prevención de riesgos laborales con un tono profesional y motivador.',

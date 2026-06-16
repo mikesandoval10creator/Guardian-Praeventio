@@ -383,9 +383,15 @@ export function ClimateRoutes() {
           </div>
         </Card>
 
-        {/* Map Visualization (Simulated) */}
+        {/* Schematic route view (NOT a live geographic map). The real climate
+            assessment (NASA POWER + EONET) is the left panel; this is an
+            origin→destination schematic whose line color reflects the REAL
+            routeStatus. No fabricated hazard pins (removed 2026-06-16). */}
         <Card className="p-0 border-white/5 lg:col-span-2 overflow-hidden relative min-h-[500px] bg-zinc-900 flex items-center justify-center">
-          {/* Simulated Map Background */}
+          <div className="absolute top-3 left-3 z-20 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 bg-black/50 border border-white/10 px-2 py-1 rounded-md backdrop-blur-sm">
+            {t('climateRoutes.schematicBadge', 'Esquema ilustrativo — clima real en la Evaluación')}
+          </div>
+          {/* Schematic backdrop (decorative grid, not geographic) */}
           <div className="absolute inset-0 opacity-20" style={{
             backgroundImage: 'radial-gradient(circle at center, #3f3f46 1px, transparent 1px)',
             backgroundSize: '20px 20px'
@@ -412,15 +418,12 @@ export function ClimateRoutes() {
               <span className="mt-1 text-xs font-bold text-white bg-black/50 px-2 py-0.5 rounded backdrop-blur-sm">{t('climateRoutes.origin', 'Origen')}</span>
             </div>
 
-            <div className="absolute top-[250px] left-[325px] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-              <CloudRain className="w-6 h-6 text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" />
-              <span className="mt-1 text-[10px] font-bold text-white bg-black/50 px-1 py-0.5 rounded backdrop-blur-sm">Niebla</span>
-            </div>
-
-            <div className="absolute top-[150px] left-[550px] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-              <AlertTriangle className="w-6 h-6 text-rose-500 drop-shadow-[0_0_10px_rgba(244,63,94,0.8)]" />
-              <span className="mt-1 text-[10px] font-bold text-white bg-black/50 px-1 py-0.5 rounded backdrop-blur-sm">Nevazón</span>
-            </div>
+            {/* Honesty fix (2026-06-16): removed two HARD-CODED hazard pins
+                ('Niebla' @325,250 and 'Nevazón' @550,150) that were shown on
+                EVERY route regardless of real conditions — fabricated weather a
+                driver could act on. Real hazards come from the NASA POWER+EONET
+                assessment in the left panel (assessment.reasons). This card is a
+                schematic origin→destination, not a live geographic map. */}
 
             <div className="absolute top-[100px] left-[700px] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
               <div className="w-4 h-4 bg-white rounded-full border-4 border-emerald-500" />

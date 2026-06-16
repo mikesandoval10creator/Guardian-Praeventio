@@ -284,7 +284,7 @@ export function Dashboard() {
             temp: weather.temp,
             windSpeed: weather.windSpeed,
             humidity: weather.humidity,
-            uvIndex: weather.uv,
+            uvIndex: weather.uv ?? undefined,
             altitude: weather.altitude ?? undefined,
             description: weather.condition,
           }}

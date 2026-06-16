@@ -1,5 +1,6 @@
 {
   "climateRoutes": {
+    "schematicBadge": "Illustrative schematic — real weather in the Assessment",
     "calculating": "Assessing route…",
     "assessmentUnavailable": "We couldn't complete the route's climate assessment. Drive with caution and retry when you have a better connection."
   },
@@ -800,7 +801,11 @@
     "requires_connection": "Requires Connection",
     "new_project": "New Project"
   },
+  "sloErrorBudget": {
+    "noMetrics": "No metrics — the SLO proxy (Sentry/Firestore) isn't wired yet. No synthetic data is shown."
+  },
   "weather": {
+    "unavailable": "Weather data unavailable",
     "title": "Weather bulletin",
     "default_city": "Santiago",
     "temp": "Temp",

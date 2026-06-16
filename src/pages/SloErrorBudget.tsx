@@ -8,15 +8,19 @@
 //   • Current value vs. target.
 //   • Burn-rate gauge (consumed / ideal).
 //   • 30-day sparkline.
-//   • Status badge (healthy / warn / alert).
+//   • Status badge (healthy / warn / alert / no-data).
 //
-// The fetch adapter is intentionally optimistic: it returns synthetic
-// samples derived from sentryAdapter when the real Sentry API is not
-// wired (e.g. local dev, e2e harness). Production replaces it with a
-// Cloud Function that proxies Sentry's events-stats endpoint.
+// The fetch adapter (`fetchSloSamples`) reads real aggregations from the
+// `slo_metrics` Firestore collection. When that collection is empty or
+// unreadable it returns `null` — the card then renders an explicit
+// "Sin métricas" empty state. It NEVER fabricates a synthetic series (the
+// old Math.sin() fallback was removed 2026-06-16 — it was indistinguishable
+// from a real SLO breach). Production writes `slo_metrics` via a Cloud
+// Function that proxies Sentry's events-stats endpoint.
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { logger } from '../utils/logger';
 import { motion } from 'framer-motion';
 import { AlertTriangle, CheckCircle2, Activity, Loader2 } from 'lucide-react';
 import {
@@ -59,8 +63,9 @@ interface SloDataset {
  *   • latency_p95   → Sentry performance metric
  *   • error_rate    → Firestore aggregation in `slo_metrics/{sloId}/daily`
  */
-async function fetchSloSamples(slo: Slo): Promise<SloDataset> {
-  // Try Firestore-backed aggregation first; fall back to synthetic.
+async function fetchSloSamples(slo: Slo): Promise<SloDataset | null> {
+  // Try Firestore-backed aggregation; if empty/unreadable, return null (honest
+  // "no data") — never a synthetic series.
   try {
     const { db, collection, getDocs, query, orderBy, limit } = await import(
       '../services/firebase'
@@ -88,33 +93,22 @@ async function fetchSloSamples(slo: Slo): Promise<SloDataset> {
         series,
       };
     }
-  } catch {
-    // Firebase optional in dev; fall through to synthetic.
+  } catch (err) {
+    // Firestore read failed (no key in dev, transient 503, permission, quota).
+    // Fall through to the honest "no data" state — but LOG first (SLO-2), so a
+    // real transient error is discoverable in Sentry/console instead of looking
+    // identical to "proxy not wired yet". UX is unchanged (still "Sin métricas").
+    logger.warn('SloErrorBudget: slo_metrics read failed; rendering no-data state', err);
   }
 
-  // Synthetic fallback — slight noise around target so the chart is readable.
-  const series: SloSample[] = [];
-  const today = new Date();
-  for (let i = slo.windowDays - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    const noise = (Math.sin(i * 0.7) + 1) * 0.5; // 0..1 deterministic
-    let value: number;
-    if (slo.metric === 'availability') value = slo.target + (1 - slo.target) * (1 - noise * 0.3);
-    else if (slo.metric === 'error_rate') value = slo.target * noise * 0.6;
-    else value = slo.target * (0.7 + noise * 0.5); // latency
-    series.push({ value, date: d.toISOString().slice(0, 10) });
-  }
-  const observed =
-    slo.metric === 'latency_p95'
-      ? series[series.length - 1].value
-      : series.reduce((s, p) => s + p.value, 0) / series.length;
-  return {
-    observed,
-    totalSamples: 10_000,
-    daysElapsed: Math.min(slo.windowDays, 15),
-    series,
-  };
+  // Honesty fix (2026-06-16): NO synthetic data. The previous fallback returned
+  // a Math.sin() noise curve + a fabricated totalSamples:10_000 rendered
+  // identically to real telemetry — an operator could not tell a real SLO
+  // breach from sine noise, and the fake "Alerting" badge looked statistically
+  // credible. Until the slo_metrics collection is written by a real
+  // Sentry/Firestore proxy, return null so the card shows an explicit
+  // "no metrics wired" empty state (never invented numbers). CLAUDE.md #13.
+  return null;
 }
 
 const STATUS_STYLES: Record<BurnStatus, { bg: string; text: string; Icon: any; label: string }> = {
@@ -152,8 +146,14 @@ function SloCard({ slo, data, loading }: CardProps) {
     });
   }, [slo, data]);
 
+  // SLO-1 (review #939): with no data the burn-rate is UNKNOWN, not healthy.
+  // Render a neutral slate "No data" badge so the card header doesn't show a
+  // green "On track" checkmark sitting right above the "Sin métricas" message.
+  const noData = !loading && !data;
   const status: BurnStatus = burn ? burnRateStatus(slo, burn.burnRate) : 'healthy';
-  const styles = STATUS_STYLES[status];
+  const styles = noData
+    ? { bg: 'bg-slate-50 border-slate-200', text: 'text-slate-500', Icon: Activity, label: 'No data' }
+    : STATUS_STYLES[status];
   const Icon = styles.Icon;
 
   return (
@@ -177,6 +177,13 @@ function SloCard({ slo, data, loading }: CardProps) {
         <div className="mt-6 flex items-center gap-2 text-slate-400">
           <Loader2 className="h-4 w-4 animate-spin" />
           <span className="text-sm">{t('sloErrorBudget.loading', 'Loading…')}</span>
+        </div>
+      ) : !data ? (
+        <div className="mt-6 text-sm text-slate-500">
+          {t(
+            'sloErrorBudget.noMetrics',
+            'Sin métricas — el proxy SLO (Sentry/Firestore) aún no está cableado. No se muestran datos sintéticos.',
+          )}
         </div>
       ) : (
         <>
@@ -232,7 +239,7 @@ function SloCard({ slo, data, loading }: CardProps) {
 
 export default function SloErrorBudget() {
   const { t } = useTranslation();
-  const [datasets, setDatasets] = useState<Record<string, SloDataset>>({});
+  const [datasets, setDatasets] = useState<Record<string, SloDataset | null>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
