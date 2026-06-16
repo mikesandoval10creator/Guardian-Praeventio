@@ -7,6 +7,7 @@ import {
   cycleFromInvoiceDoc,
   cycleFromProductId,
   DEFAULT_SUBSCRIPTION_CYCLE,
+  planFromIapProductId,
 } from './subscriptionPlan';
 import { iapSkuForTier } from './iapSkus';
 
@@ -90,6 +91,28 @@ describe('subscription billing-cycle resolution (server-side, total)', () => {
       expect(cycleFromProductId(null)).toBe('monthly');
       expect(cycleFromProductId(undefined)).toBe('monthly');
       expect(cycleFromProductId('')).toBe('monthly');
+    });
+  });
+
+  describe('planFromIapProductId (SKU → plan; was the IAP "comite" bug)', () => {
+    it('maps a real store SKU to the bought plan (round-trip)', () => {
+      expect(planFromIapProductId(iapSkuForTier('oro', 'annual'))).toBe('oro');
+      expect(planFromIapProductId(iapSkuForTier('plata', 'monthly'))).toBe('plata');
+      expect(planFromIapProductId(iapSkuForTier('diamante', 'annual'))).toBe('diamante');
+      // The exact bug case: a raw oro SKU must NOT collapse to a wrong plan.
+      expect(planFromIapProductId('praeventio_oro_annual')).toBe('oro');
+    });
+
+    it('also accepts a tier/plan id passed directly', () => {
+      expect(planFromIapProductId('oro')).toBe('oro');
+      expect(planFromIapProductId('plata')).toBe('plata');
+    });
+
+    it('returns null for an unknown SKU / null / empty (caller decides the fallback)', () => {
+      expect(planFromIapProductId('com.unknown.sku')).toBeNull();
+      expect(planFromIapProductId(null)).toBeNull();
+      expect(planFromIapProductId(undefined)).toBeNull();
+      expect(planFromIapProductId('')).toBeNull();
     });
   });
 });

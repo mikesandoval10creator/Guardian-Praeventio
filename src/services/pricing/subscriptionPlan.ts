@@ -153,3 +153,21 @@ export function cycleFromProductId(
   if (!productId) return DEFAULT_SUBSCRIPTION_CYCLE;
   return tierForIapSku(productId)?.cycle ?? DEFAULT_SUBSCRIPTION_CYCLE;
 }
+
+/**
+ * Resolve the subscription PLAN from an IAP productId/SKU. The store sends a SKU
+ * (e.g. 'praeventio_oro_annual'), NOT a plan/tier id, so it must be mapped
+ * SKU → tierId (tierForIapSku) → plan. Falls back to treating the input as a
+ * tier/plan id directly (for callers that already hold one). Returns null when
+ * unresolvable. Pure + total.
+ *
+ * Bug context: feeding a raw SKU straight to normalizeSubscriptionPlanId always
+ * returned null, so IAP purchases were mis-granted the legacy 'comite' fallback
+ * regardless of what was actually bought. This is the single correct resolver.
+ */
+export function planFromIapProductId(
+  productId: string | null | undefined,
+): SubscriptionPlan | null {
+  if (!productId) return null;
+  return normalizeSubscriptionPlanId(tierForIapSku(productId)?.tierId ?? productId);
+}
