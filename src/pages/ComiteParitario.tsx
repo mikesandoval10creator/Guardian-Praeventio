@@ -24,6 +24,7 @@ import { es } from 'date-fns/locale';
 import { scanLegalUpdates, suggestMeetingAgenda, summarizeAgreements } from '../services/geminiService';
 import { createActaApi, addAcuerdoApi, updateAcuerdoEstadoApi } from '../services/cphs/comiteActasApi';
 import { analytics, userIdHash } from '../services/analytics';
+import { logger } from '../utils/logger';
 // Fase 5 B12 — mounts the orphaned meeting-pack `extract-action-items` capability
 // (server-side, deterministic) so meeting discussion text → suggested acuerdos.
 import { MeetingActionItemExtractor } from '../components/cphs/MeetingActionItemExtractor';
@@ -91,8 +92,10 @@ export function ComiteParitario() {
       } catch { /* analytics must never break user flow */ }
       setShowAddActa(false);
       setActaForm({ fecha: new Date().toISOString().split('T')[0], tipo: 'Ordinaria', asistentesRaw: '' });
-    } catch {
-      // error handled silently — optimistic UI stays open
+    } catch (err) {
+      // The form stays open so the user can retry; surface the failure to logs
+      // (the audited server write is the source of truth, not the optimistic UI).
+      logger.error('[ComiteParitario] create acta failed', { message: (err as Error).message });
     } finally {
       setActaSaving(false);
     }
@@ -130,8 +133,9 @@ export function ComiteParitario() {
       } catch { /* analytics must never break user flow */ }
       setAddAcuerdoActaId(null);
       setAcuerdoForm({ descripcion: '', responsable: '', fechaPlazo: '' });
-    } catch {
-      // silent — form stays open so user can retry
+    } catch (err) {
+      // Form stays open for retry; log the failure (server write is authoritative).
+      logger.error('[ComiteParitario] add acuerdo failed', { message: (err as Error).message });
     } finally {
       setAcuerdoSaving(false);
     }
@@ -140,8 +144,14 @@ export function ComiteParitario() {
   const handleUpdateAcuerdoEstado = async (actaId: string, acuerdoId: string, newEstado: Acuerdo['estado']) => {
     if (!selectedProject) return;
     // Server does the read-modify-write of the acuerdos array in a transaction
-    // (CLAUDE.md #19) + audit; the live subscription reflects the change.
-    await updateAcuerdoEstadoApi(selectedProject.id, actaId, acuerdoId, newEstado);
+    // (CLAUDE.md #19) + audit; the live subscription reflects the change (and
+    // reverts the optimistic dropdown if the write is rejected). try/catch so a
+    // rejected PATCH never becomes an unhandled promise rejection.
+    try {
+      await updateAcuerdoEstadoApi(selectedProject.id, actaId, acuerdoId, newEstado);
+    } catch (err) {
+      logger.error('[ComiteParitario] update acuerdo estado failed', { message: (err as Error).message });
+    }
   };
 
   const [agendaResult, setAgendaResult] = useState<any>(null);

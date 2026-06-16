@@ -174,7 +174,7 @@ describe('CPHS acta writers — POST/PATCH /api/sprint-k/:projectId/cphs/actas*'
     expect(res.status).toBe(403);
   });
 
-  it('400 on an invalid acta body (empty asistentes / unknown tipo)', async () => {
+  it('400 on an invalid acta body (empty asistentes / unknown tipo / non-ISO fecha)', async () => {
     const r1 = await request(buildApp())
       .post(url).set('x-test-uid', 'u1')
       .send({ fecha: '2026-06-08', tipo: 'Ordinaria', asistentes: [] });
@@ -183,6 +183,11 @@ describe('CPHS acta writers — POST/PATCH /api/sprint-k/:projectId/cphs/actas*'
       .post(url).set('x-test-uid', 'u1')
       .send({ fecha: '2026-06-08', tipo: 'Mensual', asistentes: ['Ana'] });
     expect(r2.status).toBe(400);
+    // A non-ISO fecha must be rejected — the acta is a legal record.
+    const r3 = await request(buildApp())
+      .post(url).set('x-test-uid', 'u1')
+      .send({ fecha: 'not-a-date', tipo: 'Ordinaria', asistentes: ['Ana'] });
+    expect(r3.status).toBe(400);
   });
 
   it('201 creates a server-stamped acta + writes a cphs.acta.create audit row', async () => {

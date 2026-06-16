@@ -676,8 +676,13 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
 const ACTA_TIPOS = ['Ordinaria', 'Extraordinaria'] as const;
 const ACUERDO_ESTADOS = ['Pendiente', 'En Progreso', 'Completado'] as const;
 
+// Legal record → fecha must be a real ISO date (YYYY-MM-DD), not arbitrary
+// text, so the DS44/DS54 compliance trail + downstream date sorting/PDF stay
+// valid. The client sends a date-input value (YYYY-MM-DD).
+const ISO_DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD');
+
 const createActaSchema = z.object({
-  fecha: z.string().min(8).max(40),
+  fecha: ISO_DATE,
   tipo: z.enum(ACTA_TIPOS),
   asistentes: z.array(z.string().min(1).max(200)).min(1).max(100),
 });
@@ -702,13 +707,22 @@ router.post(
         createdAt: new Date().toISOString(),
         createdByUid: callerUid,
       });
-      await auditServerEvent(
+      const audited = await auditServerEvent(
         req,
         'cphs.acta.create',
         'cphs',
         { actaId: ref.id, tipo: body.tipo, asistentesCount: body.asistentes.length },
         { projectId },
       );
+      // The write committed; a failed audit must not 500 the user (CLAUDE.md
+      // #14) but MUST be visible at the route, not only inside the helper.
+      if (!audited) {
+        logger.error?.('cphs_audit_write_failed', undefined, {
+          action: 'cphs.acta.create',
+          projectId,
+          actaId: ref.id,
+        });
+      }
       return res.status(201).json({ id: ref.id });
     } catch (err) {
       logger.error?.('cphsMinute.acta.create.error', err);
@@ -721,7 +735,7 @@ router.post(
 const addAcuerdoSchema = z.object({
   descripcion: z.string().min(1).max(2000),
   responsable: z.string().min(1).max(200),
-  fechaPlazo: z.string().min(8).max(40),
+  fechaPlazo: ISO_DATE,
 });
 
 router.post(
@@ -737,8 +751,6 @@ router.post(
     try {
       const db = admin.firestore();
       const actaRef = db.collection(`projects/${projectId}/comite_actas`).doc(actaId);
-      const snap = await actaRef.get();
-      if (!snap.exists) return res.status(404).json({ error: 'acta_not_found' });
       const acuerdo = {
         id: randomId(),
         descripcion: body.descripcion,
@@ -746,16 +758,29 @@ router.post(
         fechaPlazo: body.fechaPlazo,
         estado: 'Pendiente' as const,
       };
-      await actaRef.update({
-        acuerdos: admin.firestore.FieldValue.arrayUnion(acuerdo),
+      // get + update on the same doc → transaction (CLAUDE.md #19); the
+      // exists-check and the arrayUnion append commit atomically.
+      const appended = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(actaRef);
+        if (!snap.exists) return false;
+        tx.update(actaRef, { acuerdos: admin.firestore.FieldValue.arrayUnion(acuerdo) });
+        return true;
       });
-      await auditServerEvent(
+      if (!appended) return res.status(404).json({ error: 'acta_not_found' });
+      const audited = await auditServerEvent(
         req,
         'cphs.acuerdo.add',
         'cphs',
         { actaId, acuerdoId: acuerdo.id },
         { projectId },
       );
+      if (!audited) {
+        logger.error?.('cphs_audit_write_failed', undefined, {
+          action: 'cphs.acuerdo.add',
+          projectId,
+          actaId,
+        });
+      }
       return res.status(201).json({ acuerdo });
     } catch (err) {
       logger.error?.('cphsMinute.acuerdo.add.error', err);
@@ -806,13 +831,20 @@ router.patch(
       if (result === 'acuerdo_not_found') {
         return res.status(404).json({ error: 'acuerdo_not_found' });
       }
-      await auditServerEvent(
+      const audited = await auditServerEvent(
         req,
         'cphs.acuerdo.updateStatus',
         'cphs',
         { actaId, acuerdoId, estado: body.estado },
         { projectId },
       );
+      if (!audited) {
+        logger.error?.('cphs_audit_write_failed', undefined, {
+          action: 'cphs.acuerdo.updateStatus',
+          projectId,
+          actaId,
+        });
+      }
       return res.json({ ok: true });
     } catch (err) {
       logger.error?.('cphsMinute.acuerdo.updateStatus.error', err);
