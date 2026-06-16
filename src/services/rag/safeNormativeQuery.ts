@@ -148,14 +148,43 @@ export async function safeNormativeQuery(
     // Nota: en la versión Admin actual, `findNearest` retorna distancia
     // implícita; algunos snapshots la exponen como `_distance` o
     // `distance` campo, según versión. Leemos defensivo abajo.
+    // PRIVACY / cross-tenant (2026-06-16): vector_store mixes the PUBLIC
+    // normative corpus (law-* chunks from indexLaw, carry `lawId`) with
+    // per-project knowledge nodes (node-* from networkBackend, carry `nodeId` +
+    // `projectId`). An unfiltered findNearest could surface ANOTHER tenant's
+    // private node text as "legal context". The LEGAL RAG must return ONLY
+    // public law, so we over-fetch and post-filter to law vectors (have `lawId`,
+    // lack `nodeId`), dropping every per-project node. No schema/index/migration
+    // change — purely a read-scope tightening.
+    // Clamp topK (a caller can't blow past Firestore's findNearest ceiling)
+    // and over-fetch generously: node vectors share this collection and may
+    // rank nearer than law for some queries, so we need enough neighbours that
+    // the law-only post-filter isn't starved. Capped at Firestore's 1000 limit.
+    const k = Math.min(Math.max(1, topK), 20);
+    const overFetch = Math.min(1000, Math.max(k * 40, 150));
     const results = await vectorCollection
-      .findNearest('embedding', FieldValue.vector(embedding), {
-        limit: topK,
+      // Object-form overload (the positional 3-arg form is deprecated and does
+      // NOT support distanceResultField). The Admin SDK does NOT expose the
+      // computed distance unless we name a result field — without it,
+      // `data.distance` is undefined → every score collapses to 0 → permanent
+      // `no_verified_match` in prod (the unit-test mock injects `distance`,
+      // which masked this). 'distance' matches the field the scorer below reads.
+      .findNearest({
+        vectorField: 'embedding',
+        queryVector: FieldValue.vector(embedding),
+        limit: overFetch,
         distanceMeasure: 'COSINE',
+        distanceResultField: 'distance',
       })
       .get();
 
-    const docs = results.empty ? [] : results.docs;
+    const allDocs = results.empty ? [] : results.docs;
+    const docs = allDocs
+      .filter((d) => {
+        const x = d.data();
+        return x.lawId !== undefined && x.nodeId === undefined;
+      })
+      .slice(0, k);
     const matches = docs.map((d) => {
       const data = d.data();
       // COSINE distance 0..2; similarity = 1 - (distance/2) when normalized,

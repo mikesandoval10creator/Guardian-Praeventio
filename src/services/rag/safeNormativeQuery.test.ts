@@ -18,9 +18,20 @@ import {
 
 // Mock Firestore vector findNearest. Distance COSINE en [0,2] →
 // similarity = 1 - distance/2.
-function makeMockDocs(items: Array<{ title: string; content: string; distance: number }>) {
+function makeMockDocs(
+  items: Array<{ title: string; content: string; distance: number; nodeId?: string; lawId?: string }>,
+) {
   return items.map((item) => ({
-    data: () => ({ title: item.title, content: item.content, distance: item.distance }),
+    data: () => ({
+      title: item.title,
+      content: item.content,
+      distance: item.distance,
+      // Normative law vectors carry `lawId` (default); per-project node vectors
+      // carry `nodeId` instead — the legal RAG must drop the latter.
+      ...(item.nodeId !== undefined
+        ? { nodeId: item.nodeId }
+        : { lawId: item.lawId ?? 'L1' }),
+    }),
   }));
 }
 
@@ -147,6 +158,28 @@ describe('safeNormativeQuery', () => {
     expect(r.ok).toBe(false);
     expect(r.reason).toBe('no_verified_match');
     expect(r.matches).toEqual([]);
+  });
+
+  it('cross-tenant: drops per-project node vectors, returns ONLY public law', async () => {
+    __setSafeNormativeDepsForTests({
+      isRagInitialized: () => true,
+      generateEmbedding: fakeEmbedding,
+      // A private node from ANOTHER project is the NEAREST hit (distance 0.0)
+      // but must be dropped; the law vector (distance 0.4 → score 0.8) is what
+      // the legal RAG returns. No cross-tenant PII may reach the prompt.
+      firestore: makeMockFirestore(
+        makeMockDocs([
+          { title: 'OTRO-TENANT incidente', content: 'PII privada de otro proyecto', distance: 0.0, nodeId: 'node-x' },
+          { title: 'DS 594', content: 'límite de ruido 85 dB', distance: 0.4 },
+        ]),
+      ),
+    });
+    const r = await safeNormativeQuery('límite ruido ocupacional DS 594');
+    expect(r.ok).toBe(true);
+    const serialized = JSON.stringify(r);
+    expect(serialized).not.toContain('OTRO-TENANT');
+    expect(serialized).not.toContain('PII privada');
+    expect(r.matches?.[0]?.title).toBe('DS 594');
   });
 });
 
