@@ -205,6 +205,35 @@ async function buildPortableHistoryBundle(
     }
   };
 
+  // Cross-tenant guard (Ley 19.628 — datos personales). The canonical incident
+  // store is the tenant-scoped `${base}/incidents` path, isolated by its
+  // document path. The GLOBAL `incidents` collection is a legacy/parallel store
+  // shared across ALL projects and tenants — querying it by workerUid alone
+  // would fold ANOTHER project's incidents into THIS worker's portable bundle
+  // (a worker can carry the same uid across employers). We pin projectId so the
+  // bundle only ever contains incidents from the project being exported. The
+  // projectId match is in-memory so workerUid stays the single-field
+  // (index-free) where, and a single worker's incident count is below the cap.
+  const safeReadIncidents = async (): Promise<Record<string, unknown>[]> => {
+    const out = await safeReadDocs([`${base}/incidents`]);
+    try {
+      const snap = await db
+        .collection('incidents')
+        .where('workerUid', '==', workerUid)
+        .limit(500)
+        .get();
+      for (const doc of snap.docs) {
+        const data = doc.data() as Record<string, unknown>;
+        if (data.projectId === projectId) {
+          out.push({ id: doc.id, ...data });
+        }
+      }
+    } catch (err) {
+      logger.warn?.('sprintK.portableHistory.read.incidents.failed', err);
+    }
+    return out;
+  };
+
   const [trainings, eppDeliveries, aptitudes, criticalRoles, signatures, incidents] =
     await Promise.all([
       Promise.all([
@@ -227,9 +256,7 @@ async function buildPortableHistoryBundle(
         safeReadDocs([`${base}/signatures`]),
         safeReadSubcollection('signatures'),
       ]).then(([a, b]) => [...a, ...b]),
-      consent.includesIncidents
-        ? safeReadDocs([`${base}/incidents`, 'incidents'])
-        : Promise.resolve([]),
+      consent.includesIncidents ? safeReadIncidents() : Promise.resolve([]),
     ]);
 
   const fullName = typeof worker.name === 'string' ? worker.name : '';

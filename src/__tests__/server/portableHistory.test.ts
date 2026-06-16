@@ -108,6 +108,21 @@ describe('GET portable-history (bundle) — owner-only + consent redaction', () 
     const res = await get('w1/portable-history', 'admin1', true);
     expect(res.status).toBe(200);
   });
+
+  it('cross-tenant: a global incident from ANOTHER project is excluded; same-project is included', async () => {
+    seedWorker();
+    seedConsent(true, true);
+    // Same worker uid in the SHARED global `incidents` collection but from a
+    // different employer/project — must NOT leak into this bundle (Ley 19.628).
+    H.db!._seed('incidents/foreign', { workerUid: 'w1', projectId: 'OTHER-PROJ', description: 'incidente-ajeno' });
+    // A global incident for THIS project is legitimately part of the bundle.
+    H.db!._seed('incidents/mine', { workerUid: 'w1', projectId: 'p1', description: 'incidente-propio' });
+    const res = await get('w1/portable-history', 'w1');
+    expect(res.status).toBe(200);
+    const serialized = JSON.stringify(res.body.bundle.incidents);
+    expect(serialized).not.toContain('incidente-ajeno');
+    expect(serialized).toContain('incidente-propio');
+  });
 });
 
 describe('POST consent — owner-only', () => {
