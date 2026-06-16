@@ -135,7 +135,7 @@ function signBody(certJson: unknown, certHash: string) {
     cert: certJson,
     certHash,
     signerRut: '11.111.111-1',
-    signedAt: '2026-05-05T10:05:00Z',
+    // signedAt is deliberately NOT sent — the server stamps it.
     webauthnAssertion: {
       credentialId: 'cred-doc-1',
       rawId: 'cred-doc-1',
@@ -187,6 +187,9 @@ describe('POST /api/medical/aptitude-cert/sign', () => {
     expect(res.body.json.signature.credentialId).toBe('cred-doc-1');
     expect(res.body.json.signature.signerUid).toBe('uid-doc-1');
     expect(res.body.json.signature.payloadHashHex).toBe(cert.certHash);
+    // signedAt is server-stamped (a valid recent ISO), never a client value.
+    expect(res.body.json.signature.signedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(res.body.signedAt).toBe(res.body.json.signature.signedAt);
   });
 
   it('401 when the WebAuthn assertion fails to verify (no forged signature passes)', async () => {

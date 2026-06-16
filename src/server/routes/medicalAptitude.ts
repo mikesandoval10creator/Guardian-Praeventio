@@ -34,7 +34,7 @@ import {
   verifyAndSignCert,
   AptitudeCertSignError,
 } from '../../services/medical/aptitudeCertSigner.js';
-import { getWebauthnRpId } from '../auth/rpId.js';
+import { getWebauthnRpId, getWebauthnExpectedOrigin } from '../auth/rpId.js';
 
 export const medicalAptitudeRouter = Router();
 
@@ -54,7 +54,14 @@ async function resolveCallerRole(uid: string): Promise<string | undefined> {
     const rec = await admin.auth().getUser(uid);
     const role = rec.customClaims?.role;
     return typeof role === 'string' ? role : undefined;
-  } catch {
+  } catch (err) {
+    // Fail-closed (undefined → 403) but NOT silent: a Firebase Admin outage
+    // would otherwise invisibly block every doctor from signing/generating a
+    // legal certificate. Surface it to logs + Sentry for on-call.
+    logger.error('aptitude_resolve_role_failed', { uid, err: String(err) });
+    getErrorTracker().captureException(err instanceof Error ? err : new Error(String(err)), {
+      endpoint: 'medicalAptitude.resolveCallerRole',
+    });
     return undefined;
   }
 }
@@ -180,7 +187,8 @@ const signRequestSchema = z.object({
     .passthrough(),
   certHash: z.string().regex(/^[0-9a-f]{64}$/),
   signerRut: z.string().min(1).max(20),
-  signedAt: z.string().min(1),
+  // signedAt is NOT accepted from the client — a legal cert's timestamp must be
+  // the server-verified moment of signing (stamped in the handler below).
   webauthnAssertion: webauthnAssertionSchema,
 });
 
@@ -200,7 +208,9 @@ medicalAptitudeRouter.post(
     if (!parsed.success) {
       return res.status(400).json({ error: 'invalid_input' });
     }
-    const { cert, certHash, signerRut, signedAt, webauthnAssertion: asrt } = parsed.data;
+    const { cert, certHash, signerRut, webauthnAssertion: asrt } = parsed.data;
+    // Server-stamped signing moment (never the client body).
+    const signedAt = new Date().toISOString();
 
     try {
       const signed = await verifyAndSignCert(
@@ -227,7 +237,7 @@ medicalAptitudeRouter.post(
               clientExtensionResults: asrt.clientExtensionResults,
               type: asrt.type,
               challengeId: asrt.challengeId,
-              expectedOrigin: process.env.APP_BASE_URL ?? 'http://localhost:5173',
+              expectedOrigin: getWebauthnExpectedOrigin(),
               expectedRpId: getWebauthnRpId(),
               challengesDb: buildWebAuthnDb(),
               credentialsDb: buildWebAuthnCredentialsDb(),
