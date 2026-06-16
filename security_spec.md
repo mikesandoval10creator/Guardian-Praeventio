@@ -1157,5 +1157,28 @@ tier's CLP amount. Server-only (`allow read, write: if false`); exercised by
 124. **UF Cache Read/Tamper**: any client reading, updating, or deleting the
      cached rate — denied (no client path exists; pricing reads server-side).
 
+### assets — top-level project-scoped machinery rule (disconnection hunt #7, added 2026-06-16)
+
+`assets/{assetId}` (machinery / vehicles / tools) is written by MaquinariaManager
+(`collection(db,'assets')`) and read by the server (`db.collection('assets')` in
+dataQuality.ts / preShiftRisk.ts). It had NO top-level rule — only the UNUSED
+sub-collection `projects/{pid}/assets` — so every record was silently
+default-denied in prod (panel always empty, maintenance scheduling dead). The
+new rule gates read/create/update on `isProjectMember(projectId)`, validates
+`type`/`status`, freezes `projectId`, and limits delete to admin/supervisor;
+exercised by `src/rules-tests/assets.rules.test.ts`.
+
+125. **Cross-tenant Asset Write**: a non-member `setDoc`-ing `assets/{id}` with
+     another project's `projectId` to inject/alter machinery records in a tenant
+     they don't belong to — denied (`isProjectMember(incoming().projectId)`).
+126. **Asset Project-Move**: a member `updateDoc`-ing an asset's `projectId` to
+     move it (and its maintenance history) into another project — denied
+     (`incoming().projectId == resource.data.projectId`).
+127. **Asset Schema Spoof**: a client writing `type: 'Nave Espacial'` /
+     `status: 'Volando'` (or any value outside the enums) to corrupt downstream
+     machine-count / pre-shift-risk aggregations — denied (type ∈ {Maquinaria,
+     Vehículo, Herramienta}, status ∈ {Operativo, En Mantenimiento, Fuera de
+     Servicio}).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
