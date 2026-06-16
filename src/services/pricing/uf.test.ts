@@ -35,6 +35,16 @@ describe('UF pricing helpers', () => {
       expect(parseMindicadorUf({ serie: [{ fecha: '2026-06-16', valor: Number.NaN }] })).toBeNull();
     });
 
+    it('rejects an implausibly low value (compromised-upstream poison floor)', () => {
+      expect(parseMindicadorUf({ serie: [{ fecha: '2026-06-16', valor: 1 }] })).toBeNull();
+      expect(parseMindicadorUf({ serie: [{ fecha: '2026-06-16', valor: 9999 }] })).toBeNull();
+      // Boundary: exactly the floor is accepted.
+      expect(parseMindicadorUf({ serie: [{ fecha: '2026-06-16', valor: 10000 }] })).toEqual({
+        valueClp: 10000,
+        date: '2026-06-16',
+      });
+    });
+
     it('rejects a missing / malformed fecha', () => {
       expect(parseMindicadorUf({ serie: [{ valor: 38000 }] })).toBeNull();
       expect(parseMindicadorUf({ serie: [{ fecha: 'short', valor: 38000 }] })).toBeNull();

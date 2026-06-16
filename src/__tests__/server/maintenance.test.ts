@@ -10,7 +10,7 @@
 // Mount point (from maintenance.ts line 6-7):
 //   app.use('/api/maintenance', maintenanceRouter);
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 
@@ -995,6 +995,21 @@ describe('POST /api/maintenance/run-man-down-escalation', () => {
 describe('POST /api/maintenance/run-daily-housekeeping', () => {
   const URL = '/api/maintenance/run-daily-housekeeping';
 
+  // Stub the UF rate fetch so the daily-housekeeping UF step is hermetic —
+  // no real network call to mindicador.cl in tests.
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ serie: [{ fecha: '2026-06-16', valor: 38500 }] }),
+      })),
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('401 — missing Authorization header', async () => {
     const res = await request(buildApp()).post(URL).send();
     expect(res.status).toBe(401);
@@ -1021,6 +1036,8 @@ describe('POST /api/maintenance/run-daily-housekeeping', () => {
     expect(res.body.projectsScanned).toBe(0);
     expect(res.body.exceptions).toMatchObject({ scanned: 0, expired: 0, errors: 0 });
     expect(res.body.workPermits).toMatchObject({ scanned: 0, expired: 0, errors: 0 });
+    // Global UF rate step ran (stubbed fetch) and refreshed the cached rate.
+    expect(res.body.ufRate).toMatchObject({ updated: true });
     expect(res.body.legalReminders).toMatchObject({
       scanned: 0, remindersEmitted: 0, skipped: 0, errors: 0,
     });

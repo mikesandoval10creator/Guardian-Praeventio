@@ -11,6 +11,16 @@
 /** Diamante tier anchor in UF (business decision 2026-06-14: ~100 UF). */
 export const DIAMANTE_UF = 100;
 
+/**
+ * Plausibility floor for a UF value in CLP. The UF has been ~30k–40k CLP for
+ * years and only ever rises (it is inflation-indexed), so any value below this
+ * is implausible — reject it so a compromised/spoofed upstream (or a shape
+ * change that coincidentally parses) can't poison the cache with a tiny value
+ * and mis-price the Diamante tier. No ceiling: that would risk rejecting a
+ * legitimately higher future value.
+ */
+export const UF_MIN_PLAUSIBLE_CLP = 10_000;
+
 export interface UfRate {
   /** UF value in CLP (e.g. 38000). */
   valueClp: number;
@@ -33,6 +43,8 @@ export function parseMindicadorUf(json: unknown): UfRate | null {
   const valor = first?.valor;
   const fecha = first?.fecha;
   if (typeof valor !== 'number' || !Number.isFinite(valor) || valor <= 0) return null;
+  // Reject an implausibly low value from a compromised/spoofed upstream.
+  if (valor < UF_MIN_PLAUSIBLE_CLP) return null;
   const date =
     typeof fecha === 'string' && fecha.length >= 10 ? fecha.slice(0, 10) : null;
   if (!date) return null;

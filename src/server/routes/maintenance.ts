@@ -1058,12 +1058,24 @@ router.post(
         const r = await runUfRateRefresh({
           db,
           fetchUf: async () => {
-            const resp = await fetch('https://mindicador.cl/api/uf');
+            // Bounded fetch: an upstream that stalls the body would otherwise
+            // hang the housekeeping response until the Cloud Run request timeout.
+            const resp = await fetch('https://mindicador.cl/api/uf', {
+              signal: AbortSignal.timeout(10_000),
+            });
             if (!resp.ok) throw new Error(`mindicador HTTP ${resp.status}`);
             return resp.json();
           },
         });
         ufRate = { updated: r.updated, ...(r.reason ? { reason: r.reason } : {}) };
+        // Fail-soft keeps the last cached value, but a PERSISTENT failure must
+        // reach Sentry (not just the daily log) so a stale rate gets noticed.
+        if (!r.updated && r.reason) {
+          captureRouteError(
+            new Error(`uf-rate-refresh: ${r.reason}`),
+            'maintenance.uf-rate-refresh',
+          );
+        }
       } catch (err) {
         logger.error('[maintenance] uf-rate-refresh failed', err as Error);
         captureRouteError(err, 'maintenance.uf-rate-refresh');
