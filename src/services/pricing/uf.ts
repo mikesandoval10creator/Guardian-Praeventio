@@ -58,3 +58,46 @@ export function parseMindicadorUf(json: unknown): UfRate | null {
 export function clpFromUf(units: number, ufValueClp: number): number {
   return Math.round(units * ufValueClp);
 }
+
+/** IVA-inclusive → NET (pre-IVA) divisor for CLP (matches BILLING_TIER_FALLBACK). */
+const IVA_DIVISOR = 1.19;
+/** Annual = pay 9 months (25% off) — business decision 2026-06-14. */
+const ANNUAL_MONTHS = 9;
+
+export interface DiamanteTierAmounts {
+  clpRegular: number;
+  clpAnual: number;
+  usdRegular: number;
+  usdAnual: number;
+}
+
+/**
+ * Compute the Diamante tier's NET (pre-IVA) CLP amounts from a cached UF value.
+ * Diamante is anchored at DIAMANTE_UF (~100 UF): displayClp = 100 × UF (the
+ * IVA-inclusive shown price), and the billing table stores NET = round(display
+ * / 1.19); annual = ×9 (pay 9 months). USD amounts are left as the fallback's
+ * (USD is not UF-indexed).
+ *
+ * FAIL-SOFT + total: a missing / invalid / implausibly-low UF value returns the
+ * `fallback` placeholder unchanged — the checkout never blocks and never
+ * computes NaN. (At UF≈39.000 this reproduces the historical placeholder
+ * exactly: 3.277.311 / 29.495.798.)
+ */
+export function diamanteTierFromUf(
+  ufValueClp: number | null | undefined,
+  fallback: DiamanteTierAmounts,
+): DiamanteTierAmounts {
+  if (
+    typeof ufValueClp !== 'number' ||
+    !Number.isFinite(ufValueClp) ||
+    ufValueClp < UF_MIN_PLAUSIBLE_CLP
+  ) {
+    return fallback;
+  }
+  const displayMonthly = clpFromUf(DIAMANTE_UF, ufValueClp);
+  return {
+    ...fallback,
+    clpRegular: Math.round(displayMonthly / IVA_DIVISOR),
+    clpAnual: Math.round((displayMonthly * ANNUAL_MONTHS) / IVA_DIVISOR),
+  };
+}

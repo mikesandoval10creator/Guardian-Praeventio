@@ -26,6 +26,7 @@ import { withIdempotency } from '../../../services/billing/idempotency.js';
 import { calculateInvoiceTotals } from '../../../services/billing/invoice.js';
 import type { Invoice, InvoiceLineItem } from '../../../services/billing/types.js';
 import { resolveBillingTier } from './pricing.js';
+import { resolveBillingTierUf } from './ufPricing.js';
 import { normalizeSubscriptionPlanId, cycleFromInvoiceDoc } from '../../../services/pricing/subscriptionPlan.js';
 // DTE auto-issue orchestrator (pure decision) — same wire as webpay/MP.
 import {
@@ -346,7 +347,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
       const cycle: 'monthly' | 'annual' = body.cycle;
       // Canonical plan check: the tier must exist in the pricing table AND
       // normalize to a subscription plan id (src/services/pricing/).
-      const tier = resolveBillingTier(body.planId);
+      const tier = await resolveBillingTierUf(body.planId, admin.firestore());
       const planId = normalizeSubscriptionPlanId(body.planId);
       if (!tier || !planId) {
         return res.status(400).json({ error: 'Unknown planId' });
