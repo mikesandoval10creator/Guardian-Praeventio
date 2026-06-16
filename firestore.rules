@@ -727,12 +727,15 @@ service cloud.firestore {
       // is restricted to admin/supervisor. Previously had NO write rule → the
       // Comité Paritario feature was default-denied in production.
       match /comite_actas/{actaId} {
-        allow create: if isValidId(projectId) && isProjectMember(projectId)
-          && isValidComiteActa(incoming());
-        allow update: if isValidId(projectId) && isProjectMember(projectId)
-          && isValidComiteActa(incoming())
-          && incoming().createdAt == existing().createdAt
-          && incoming().fecha == existing().fecha;
+        // SERVER-ONLY writes (2026-06-16): a CPHS acta is a legally-significant
+        // minute, so create/update go through the audited server route
+        // (cphsMinute.ts `/cphs/actas*`, Admin SDK + auditServerEvent) — never a
+        // direct client write (CLAUDE.md #3). Reads stay member-gated via the
+        // recursive projects/{pid}/{=**} master gate. `isValidComiteActa` still
+        // documents the shape the server writes. Delete remains admin/supervisor
+        // (no client delete path exists).
+        allow create: if false;
+        allow update: if false;
         allow delete: if isAdmin() || isSupervisor();
       }
       // Bio-analysis / inspection findings (BioAnalysis + Hallazgos, client SDK).

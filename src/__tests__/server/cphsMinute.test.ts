@@ -156,3 +156,94 @@ describe('GET /api/sprint-k/:projectId/cphs/draft-minute', () => {
     expect(res.body.error).toBe('internal_error');
   });
 });
+
+// CPHS acta WRITERS — the legal minute writes moved off the client onto these
+// audited server routes (CLAUDE.md #3). Exercises the REAL handlers.
+describe('CPHS acta writers — POST/PATCH /api/sprint-k/:projectId/cphs/actas*', () => {
+  const url = '/api/sprint-k/p1/cphs/actas';
+  const validActa = { fecha: '2026-06-08', tipo: 'Ordinaria', asistentes: ['Ana', 'Luis'] };
+
+  it('401 without an auth token', async () => {
+    const res = await request(buildApp()).post(url).send(validActa);
+    expect(res.status).toBe(401);
+  });
+
+  it('403 when the caller is not a project member', async () => {
+    vi.mocked(assertProjectMember).mockRejectedValue(new ProjectMembershipError('not a member'));
+    const res = await request(buildApp()).post(url).set('x-test-uid', 'u1').send(validActa);
+    expect(res.status).toBe(403);
+  });
+
+  it('400 on an invalid acta body (empty asistentes / unknown tipo / non-ISO fecha)', async () => {
+    const r1 = await request(buildApp())
+      .post(url).set('x-test-uid', 'u1')
+      .send({ fecha: '2026-06-08', tipo: 'Ordinaria', asistentes: [] });
+    expect(r1.status).toBe(400);
+    const r2 = await request(buildApp())
+      .post(url).set('x-test-uid', 'u1')
+      .send({ fecha: '2026-06-08', tipo: 'Mensual', asistentes: ['Ana'] });
+    expect(r2.status).toBe(400);
+    // A non-ISO fecha must be rejected — the acta is a legal record.
+    const r3 = await request(buildApp())
+      .post(url).set('x-test-uid', 'u1')
+      .send({ fecha: 'not-a-date', tipo: 'Ordinaria', asistentes: ['Ana'] });
+    expect(r3.status).toBe(400);
+  });
+
+  it('201 creates a server-stamped acta + writes a cphs.acta.create audit row', async () => {
+    const res = await request(buildApp()).post(url).set('x-test-uid', 'u1').send(validActa);
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBeTruthy();
+    const stored = H.db!._store.get(`projects/p1/comite_actas/${res.body.id}`) as Record<string, any>;
+    expect(stored).toMatchObject({
+      tipo: 'Ordinaria',
+      asistentes: ['Ana', 'Luis'],
+      acuerdos: [],
+      createdByUid: 'u1', // identity from the verified token, not the body
+    });
+    const auditRow = [...H.db!._store.keys()]
+      .filter((k) => k.startsWith('audit_logs/'))
+      .map((k) => H.db!._store.get(k) as Record<string, any>)
+      .find((r) => r.action === 'cphs.acta.create');
+    expect(auditRow).toBeTruthy();
+    expect(auditRow!.userId).toBe('u1');
+    expect(auditRow!.details.actaId).toBe(res.body.id);
+  });
+
+  it('201 appends an acuerdo with a server-assigned id (404 if the acta is missing)', async () => {
+    H.db!._seed('projects/p1/comite_actas/acta1', {
+      fecha: '2026-06-08', tipo: 'Ordinaria', asistentes: ['Ana'], acuerdos: [],
+    });
+    const res = await request(buildApp())
+      .post(`${url}/acta1/acuerdos`).set('x-test-uid', 'u1')
+      .send({ descripcion: 'Reparar barandas', responsable: 'Ana', fechaPlazo: '2026-07-01' });
+    expect(res.status).toBe(201);
+    expect(res.body.acuerdo.id).toBeTruthy();
+    expect(res.body.acuerdo.estado).toBe('Pendiente');
+    const stored = H.db!._store.get('projects/p1/comite_actas/acta1') as Record<string, any>;
+    expect(stored.acuerdos).toHaveLength(1);
+
+    const missing = await request(buildApp())
+      .post(`${url}/nope/acuerdos`).set('x-test-uid', 'u1')
+      .send({ descripcion: 'x', responsable: 'y', fechaPlazo: '2026-07-01' });
+    expect(missing.status).toBe(404);
+  });
+
+  it('200 updates an acuerdo estado via transaction (404 when the acuerdo is missing)', async () => {
+    H.db!._seed('projects/p1/comite_actas/acta2', {
+      fecha: '2026-06-08', tipo: 'Ordinaria', asistentes: ['Ana'],
+      acuerdos: [{ id: 'ac1', descripcion: 'd', responsable: 'Ana', fechaPlazo: '2026-07-01', estado: 'Pendiente' }],
+    });
+    const res = await request(buildApp())
+      .patch(`${url}/acta2/acuerdos/ac1`).set('x-test-uid', 'u1')
+      .send({ estado: 'Completado' });
+    expect(res.status).toBe(200);
+    const stored = H.db!._store.get('projects/p1/comite_actas/acta2') as Record<string, any>;
+    expect(stored.acuerdos[0].estado).toBe('Completado');
+
+    const missing = await request(buildApp())
+      .patch(`${url}/acta2/acuerdos/nope`).set('x-test-uid', 'u1')
+      .send({ estado: 'Completado' });
+    expect(missing.status).toBe(404);
+  });
+});

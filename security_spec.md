@@ -290,17 +290,26 @@ both `read` and `write` for every actor (member, admin, anonymous). Rules tests:
 40. **Cross-actor Mesh Read**: an admin OR an anonymous user reading the mesh key
     directly — server-only distribution is enforced regardless of role.
 
-## CPHS committee minutes (projects/{pid}/comite_actas) — member write (#B12, added 2026-06-08)
+## CPHS committee minutes (projects/{pid}/comite_actas) — SERVER-ONLY write (#B12; tightened 2026-06-16)
 
 `projects/{pid}/comite_actas/{actaId}` holds Comité Paritario actas (DS54 legal
-compliance records). Written by the ComiteParitario page (create the acta, then
-append `acuerdos`). Previously had NO write rule → default-denied (the feature
-was broken in production). Now: member-gated create/update
-(`isProjectMember(projectId)`), schema-validated (`isValidComiteActa`: only
-`fecha` / `tipo` / `asistentes` / `acuerdos` / `createdAt`), the creation stamp
-and meeting date are immutable on update, and delete is restricted to
-admin/supervisor (legal trail). Rules tests:
-`src/rules-tests/comiteActas.rules.test.ts`.
+compliance records). **Update 2026-06-16**: a CPHS acta is a legally-significant
+minute, so its writes (create acta, append `acuerdos`, change an acuerdo's
+estado) now go through the AUDITED server route
+`src/server/routes/cphsMinute.ts` (`POST/PATCH /api/sprint-k/:projectId/cphs/actas*`)
+— `verifyAuth` + `assertProjectMember` + `auditServerEvent` awaited, Admin SDK
+write, the acuerdo-status change done in a `runTransaction` (CLAUDE.md #19).
+Identity is stamped from the verified token (`createdByUid`), never the body.
+
+Firestore rule (`firestore.rules` comite_actas): `allow create, update: if false`
+(SERVER-ONLY — Admin SDK bypasses rules); **read stays member-gated** via the
+recursive `projects/{pid}/{=**}` master gate (the page still reads actas live);
+delete remains admin/supervisor (legal trail). `isValidComiteActa` is retained
+to document the shape the server writes. The client (`ComiteParitario.tsx`) calls
+`src/services/cphs/comiteActasApi.ts` instead of writing Firestore directly.
+Rules tests: `src/rules-tests/comiteActas.rules.test.ts` (the member-create /
+member-append cases now assert DENY — client direct writes are rejected).
+Route tests: `src/__tests__/server/cphsMinute.test.ts`.
 
 **Rejected payloads (Dirty-Dozen extension):**
 
