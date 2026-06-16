@@ -1,5 +1,6 @@
 {
   "climateRoutes": {
+    "schematicBadge": "Esquema ilustrativo — clima real na Avaliação",
     "calculating": "Avaliando rota…",
     "assessmentUnavailable": "Não foi possível concluir a avaliação climática da rota. Dirija com cautela e tente novamente quando tiver uma conexão melhor."
   },
@@ -800,7 +801,11 @@
     "requires_connection": "Requer Conexão",
     "new_project": "Novo Projeto"
   },
+  "sloErrorBudget": {
+    "noMetrics": "Sem métricas — o proxy SLO (Sentry/Firestore) ainda não está conectado. Nenhum dado sintético é exibido."
+  },
   "weather": {
+    "unavailable": "Dados meteorológicos indisponíveis",
     "title": "Boletim climático",
     "default_city": "Santiago",
     "temp": "Temp",
