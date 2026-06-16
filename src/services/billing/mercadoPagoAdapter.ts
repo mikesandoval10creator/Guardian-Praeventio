@@ -138,11 +138,16 @@ function resolveConfig(): MercadoPagoConfig {
 }
 
 function isSandboxMode(): boolean {
-  // Default: sandbox unless explicitly set to "production". Mirrors
-  // webpayAdapter's defensive default — it's safer to send a real card
-  // through the sandbox URL by accident than the other way around.
+  // Default: sandbox unless explicitly set to production. Mirrors webpayAdapter's
+  // defensive default — safer to send a real card through the sandbox URL by
+  // accident than the other way around.
+  //
+  // Accept BOTH 'production' and 'prod': validate-env.cjs permits MP_ENV='prod',
+  // so checking only 'production' here would route real customers to the
+  // SANDBOX init_point on a prod deploy (silently collecting zero money) even
+  // though boot validation passed. Treat either spelling as production.
   const env = (process.env.MP_ENV ?? 'sandbox').toLowerCase();
-  return env !== 'production';
+  return env !== 'production' && env !== 'prod';
 }
 
 /**

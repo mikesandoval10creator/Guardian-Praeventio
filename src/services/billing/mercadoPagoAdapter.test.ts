@@ -144,6 +144,45 @@ describe('mercadoPagoAdapter.createPreference', () => {
     expect(result.init_point).toContain('sandbox.mercadopago');
   });
 
+  it('returns the PRODUCTION init_point when MP_ENV=prod (validate-env spelling)', async () => {
+    // validate-env.cjs permits MP_ENV='prod'; the adapter MUST treat it as
+    // production, not silently fall back to the sandbox URL (the zero-money bug).
+    process.env.MP_ACCESS_TOKEN = 'APP_USR-prod';
+    process.env.MP_ENV = 'prod';
+    preferenceCreateMock.mockResolvedValueOnce({
+      id: 'PREF_prod',
+      init_point: 'https://www.mercadopago.cl/checkout/v1/redirect?pref_id=PREF_prod',
+      sandbox_init_point: 'https://sandbox.mercadopago.cl/checkout/v1/redirect?pref_id=PREF_prod',
+    });
+    const result = await mercadoPagoAdapter.createPreference({
+      items: [{ title: 't', quantity: 1, unit_price: 10, currency_id: 'PEN' }],
+      payer: { email: 'a@b.com' },
+      back_urls: { success: 's', pending: 'p', failure: 'f' },
+      notification_url: 'n',
+      external_reference: 'r',
+    });
+    expect(result.init_point).toContain('www.mercadopago');
+    expect(result.init_point).not.toContain('sandbox');
+  });
+
+  it('returns the PRODUCTION init_point when MP_ENV=production', async () => {
+    process.env.MP_ACCESS_TOKEN = 'APP_USR-prod';
+    process.env.MP_ENV = 'production';
+    preferenceCreateMock.mockResolvedValueOnce({
+      id: 'PREF_prod2',
+      init_point: 'https://www.mercadopago.cl/checkout/v1/redirect?pref_id=PREF_prod2',
+      sandbox_init_point: 'https://sandbox.mercadopago.cl/checkout/v1/redirect?pref_id=PREF_prod2',
+    });
+    const result = await mercadoPagoAdapter.createPreference({
+      items: [{ title: 't', quantity: 1, unit_price: 10, currency_id: 'PEN' }],
+      payer: { email: 'a@b.com' },
+      back_urls: { success: 's', pending: 'p', failure: 'f' },
+      notification_url: 'n',
+      external_reference: 'r',
+    });
+    expect(result.init_point).not.toContain('sandbox');
+  });
+
   it('wraps SDK errors in MercadoPagoAdapterError (not silent)', async () => {
     process.env.MP_ACCESS_TOKEN = 'TEST-token';
     preferenceCreateMock.mockRejectedValueOnce(new Error('MP network down'));

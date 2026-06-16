@@ -1064,6 +1064,20 @@ describe('POST /api/billing/khipu/webhook', () => {
     expect((res.body as Record<string, unknown>).error).toBe('invalid_signature');
   });
 
+  it('503 when Khipu is NOT configured — refuses to verify against the public sandbox secret', async () => {
+    // Security: without real creds, fromEnv() falls back to the documented
+    // PUBLIC sandbox secret → a forged signature could mark an invoice paid.
+    // The handler must fail closed BEFORE verifying.
+    M.khipuIsConfigured.mockReturnValueOnce(false);
+    const res = await request(buildApp())
+      .post('/api/billing/khipu/webhook')
+      .set('Content-Type', 'application/json')
+      .set('x-khipu-signature', 't=12345,s=anything')
+      .send(Buffer.from(JSON.stringify(khipuPayload)));
+    expect(res.status).toBe(503);
+    expect((res.body as Record<string, unknown>).error).toBe('khipu_not_configured');
+  });
+
   it('200 happy path — valid signature, payment completed, invoice paid', async () => {
     H.db!._seed('invoices/inv-khipu-1', { status: 'pending-payment' });
     const res = await request(buildApp())
@@ -1319,6 +1333,17 @@ describe('GET /billing/webpay/return', () => {
   it('400 on invalid token_ws format', async () => {
     const res = await request(buildApp()).get('/billing/webpay/return?token_ws=bad token!');
     expect(res.status).toBe(400);
+  });
+
+  it('302 → /pricing/failed when Webpay is NOT configured (no commit on sandbox creds)', async () => {
+    M.webpayIsConfigured.mockReturnValue(false);
+    const res = await request(buildApp())
+      .get('/billing/webpay/return?token_ws=tok-unconfigured')
+      .redirects(0);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/\/pricing\/failed/);
+    // Must NOT have attempted a commit against sandbox/default creds.
+    expect(M.webpayCommit).not.toHaveBeenCalled();
   });
 
   it('302 → /pricing/success on AUTHORIZED commit', async () => {
