@@ -31,10 +31,10 @@ import {
   type AptitudeCertJson,
 } from '../../services/medical/aptitudeCertGenerator.js';
 import {
-  buildSignChallengeHex,
   verifyAndSignCert,
   AptitudeCertSignError,
 } from '../../services/medical/aptitudeCertSigner.js';
+import { getWebauthnRpId, getWebauthnExpectedOrigin } from '../auth/rpId.js';
 
 export const medicalAptitudeRouter = Router();
 
@@ -54,7 +54,14 @@ async function resolveCallerRole(uid: string): Promise<string | undefined> {
     const rec = await admin.auth().getUser(uid);
     const role = rec.customClaims?.role;
     return typeof role === 'string' ? role : undefined;
-  } catch {
+  } catch (err) {
+    // Fail-closed (undefined → 403) but NOT silent: a Firebase Admin outage
+    // would otherwise invisibly block every doctor from signing/generating a
+    // legal certificate. Surface it to logs + Sentry for on-call.
+    logger.error('aptitude_resolve_role_failed', { uid, err: String(err) });
+    getErrorTracker().captureException(err instanceof Error ? err : new Error(String(err)), {
+      endpoint: 'medicalAptitude.resolveCallerRole',
+    });
     return undefined;
   }
 }
@@ -126,11 +133,11 @@ medicalAptitudeRouter.post(
 
 // â”€â”€â”€ POST /aptitude-cert/sign-challenge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-const challengeSchema = z.object({
-  certHash: z.string().regex(/^[0-9a-f]{64}$/),
-});
-
-medicalAptitudeRouter.post(
+// F4 (2026-06-16): issue a single-use, server-stored WebAuthn challenge
+// (mirrors dte/suseso /sign-challenge). Random + consumed atomically by the
+// canonical verifier at /sign — replay defense lives there. GET so the shared
+// client helper `requestComplianceSignature` can drive it.
+medicalAptitudeRouter.get(
   '/aptitude-cert/sign-challenge',
   verifyAuth,
   async (req: Request, res: Response) => {
@@ -142,69 +149,48 @@ medicalAptitudeRouter.post(
       return res.status(403).json({ error: 'doctor_or_admin_required' });
     }
 
-    const parsed = challengeSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: 'invalid_input' });
+    try {
+      const { generateWebAuthnChallenge, storeWebAuthnChallenge } = await import(
+        '../../services/auth/webauthnChallenge.js'
+      );
+      const { buildWebAuthnDb } = await import('./curriculum.js');
+      const { challengeId, challenge } = generateWebAuthnChallenge();
+      await storeWebAuthnChallenge(callerUid, challengeId, challenge, buildWebAuthnDb());
+      return res.json({ challengeId, challenge });
+    } catch (err) {
+      logger.error('aptitude_cert_sign_challenge_failed', { err: String(err) });
+      captureStage(err, 'sign_challenge', req);
+      return res.status(500).json({ error: 'sign_challenge_failed' });
     }
-    return res.json({ challengeHex: buildSignChallengeHex(parsed.data.certHash) });
   },
 );
 
 // â”€â”€â”€ POST /aptitude-cert/sign â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+const webauthnAssertionSchema = z.object({
+  credentialId: z.string().min(1).max(512),
+  rawId: z.string().min(1).max(512),
+  clientDataJSON: z.string().min(1),
+  authenticatorData: z.string().min(1),
+  signature: z.string().min(1).max(8192),
+  challengeId: z.string().min(1).max(256),
+  type: z.literal('public-key'),
+  clientExtensionResults: z.record(z.string(), z.unknown()).default({}),
+});
+
 const signRequestSchema = z.object({
   cert: z
     .object({
       certId: z.string(),
-      doctor: z.object({ uid: z.string() }),
+      doctor: z.object({ uid: z.string() }).passthrough(),
     })
     .passthrough(),
   certHash: z.string().regex(/^[0-9a-f]{64}$/),
-  challengeId: z.string(),
-  signature: z
-    .object({
-      signerUid: z.string(),
-      signerRut: z.string(),
-      signedAt: z.string(),
-      algorithm: z.literal('webauthn-ecdsa-p256'),
-      signatureB64: z.string(),
-      credentialPublicKeyB64: z.string(),
-      payloadHashHex: z.string(),
-    })
-    .passthrough(),
+  signerRut: z.string().min(1).max(20),
+  // signedAt is NOT accepted from the client — a legal cert's timestamp must be
+  // the server-verified moment of signing (stamped in the handler below).
+  webauthnAssertion: webauthnAssertionSchema,
 });
-
-/**
- * Wire the signer to firestore-backed challenge consume + a real WebAuthn
- * verifier. In dev/test these are injected via the exported factory below;
- * production wires admin.firestore() and @simplewebauthn/server.
- */
-export interface MedicalAptitudeSignerDeps {
-  consumeChallenge: (
-    uid: string,
-    challengeId: string,
-    expectedBytes: Uint8Array,
-  ) => Promise<boolean>;
-  verifyWebAuthnAssertion: (args: {
-    signatureB64: string;
-    credentialPublicKeyB64: string;
-    challengeBytes: Uint8Array;
-  }) => Promise<boolean>;
-}
-
-let injectedSignerDeps: MedicalAptitudeSignerDeps | null = null;
-export function setMedicalAptitudeSignerDeps(deps: MedicalAptitudeSignerDeps | null): void {
-  injectedSignerDeps = deps;
-}
-
-async function defaultConsumeChallenge(): Promise<boolean> {
-  // Production wiring lands when WebAuthn verifier ships. Until then the
-  // signer endpoint is gated behind a 503 unless the host injected deps.
-  return false;
-}
-async function defaultVerifyAssertion(): Promise<boolean> {
-  return false;
-}
 
 medicalAptitudeRouter.post(
   '/aptitude-cert/sign',
@@ -222,33 +208,51 @@ medicalAptitudeRouter.post(
     if (!parsed.success) {
       return res.status(400).json({ error: 'invalid_input' });
     }
-
-    const deps = injectedSignerDeps;
-    if (!deps) {
-      return res.status(503).json({ error: 'signer_not_configured' });
-    }
+    const { cert, certHash, signerRut, webauthnAssertion: asrt } = parsed.data;
+    // Server-stamped signing moment (never the client body).
+    const signedAt = new Date().toISOString();
 
     try {
       const signed = await verifyAndSignCert(
-        parsed.data.cert as unknown as AptitudeCertJson,
-        {
-          certHash: parsed.data.certHash,
-          challengeId: parsed.data.challengeId,
-          signature: parsed.data.signature,
-        },
+        cert as unknown as AptitudeCertJson,
+        { certHash, challengeId: asrt.challengeId, signerRut, signedAt, signatureB64: asrt.signature },
         {
           caller: { uid: callerUid, role },
-          consumeChallenge: (cid, bytes) => deps.consumeChallenge(callerUid, cid, bytes),
-          verifyWebAuthnAssertion: deps.verifyWebAuthnAssertion,
+          // Canonical verifier (same one DTE/SUSESO/DS76 use): consumes the
+          // single-use challenge, looks the credential up by id in the doctor's
+          // REGISTERED credentials, verifies the signature against THAT key, and
+          // checks origin/RPID/counter. Lazy-imported (dte.ts pattern). Invoked
+          // by the signer only AFTER its role/uid/hash gates pass, so a rejected
+          // request never burns the challenge.
+          verifyAssertion: async () => {
+            const { verifyWebAuthnAssertion } = await import('../auth/webauthnAssertion.js');
+            const { buildWebAuthnDb, buildWebAuthnCredentialsDb } = await import('./curriculum.js');
+            const v = await verifyWebAuthnAssertion({
+              uid: callerUid,
+              credentialId: asrt.credentialId,
+              rawId: asrt.rawId,
+              clientDataJSON: asrt.clientDataJSON,
+              authenticatorData: asrt.authenticatorData,
+              signature: asrt.signature,
+              clientExtensionResults: asrt.clientExtensionResults,
+              type: asrt.type,
+              challengeId: asrt.challengeId,
+              expectedOrigin: getWebauthnExpectedOrigin(),
+              expectedRpId: getWebauthnRpId(),
+              challengesDb: buildWebAuthnDb(),
+              credentialsDb: buildWebAuthnCredentialsDb(),
+            });
+            return { verified: v.verified, credentialId: v.verifiedCredentialId, reason: v.reason };
+          },
         },
       );
-      // P0 fix — see /generate above. Sign-event audit must surface
-      // failures to Sentry (compliance gap), not be silently dropped.
+      // Audit must surface failures to Sentry (compliance gap), never silent.
       try {
         await auditServerEvent(req, 'medical.aptitude_cert.signed', 'medical', {
           certId: signed.json.certId,
           certHash: signed.certHash,
           signerUid: signed.json.signature.signerUid,
+          credentialId: signed.json.signature.credentialId,
         });
       } catch (auditErr) {
         logger.error('audit_event_failed', {
@@ -268,7 +272,11 @@ medicalAptitudeRouter.post(
       if (err instanceof AptitudeCertSignError) {
         logger.warn('aptitude_cert_sign_rejected', { code: err.code });
         const status =
-          err.code === 'doctor_role_required' || err.code === 'doctor_uid_mismatch' ? 403 : 400;
+          err.code === 'doctor_role_required' || err.code === 'doctor_uid_mismatch'
+            ? 403
+            : err.code === 'signature_invalid'
+              ? 401
+              : 400;
         return res.status(status).json({ error: err.code });
       }
       logger.error('aptitude_cert_sign_failed', { err: String(err) });
