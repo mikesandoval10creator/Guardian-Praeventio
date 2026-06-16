@@ -8,15 +8,19 @@
 //   • Current value vs. target.
 //   • Burn-rate gauge (consumed / ideal).
 //   • 30-day sparkline.
-//   • Status badge (healthy / warn / alert).
+//   • Status badge (healthy / warn / alert / no-data).
 //
-// The fetch adapter is intentionally optimistic: it returns synthetic
-// samples derived from sentryAdapter when the real Sentry API is not
-// wired (e.g. local dev, e2e harness). Production replaces it with a
-// Cloud Function that proxies Sentry's events-stats endpoint.
+// The fetch adapter (`fetchSloSamples`) reads real aggregations from the
+// `slo_metrics` Firestore collection. When that collection is empty or
+// unreadable it returns `null` — the card then renders an explicit
+// "Sin métricas" empty state. It NEVER fabricates a synthetic series (the
+// old Math.sin() fallback was removed 2026-06-16 — it was indistinguishable
+// from a real SLO breach). Production writes `slo_metrics` via a Cloud
+// Function that proxies Sentry's events-stats endpoint.
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { logger } from '../utils/logger';
 import { motion } from 'framer-motion';
 import { AlertTriangle, CheckCircle2, Activity, Loader2 } from 'lucide-react';
 import {
@@ -60,7 +64,8 @@ interface SloDataset {
  *   • error_rate    → Firestore aggregation in `slo_metrics/{sloId}/daily`
  */
 async function fetchSloSamples(slo: Slo): Promise<SloDataset | null> {
-  // Try Firestore-backed aggregation first; fall back to synthetic.
+  // Try Firestore-backed aggregation; if empty/unreadable, return null (honest
+  // "no data") — never a synthetic series.
   try {
     const { db, collection, getDocs, query, orderBy, limit } = await import(
       '../services/firebase'
@@ -88,8 +93,12 @@ async function fetchSloSamples(slo: Slo): Promise<SloDataset | null> {
         series,
       };
     }
-  } catch {
-    // Firebase optional in dev; fall through to the honest "no data" state.
+  } catch (err) {
+    // Firestore read failed (no key in dev, transient 503, permission, quota).
+    // Fall through to the honest "no data" state — but LOG first (SLO-2), so a
+    // real transient error is discoverable in Sentry/console instead of looking
+    // identical to "proxy not wired yet". UX is unchanged (still "Sin métricas").
+    logger.warn('SloErrorBudget: slo_metrics read failed; rendering no-data state', err);
   }
 
   // Honesty fix (2026-06-16): NO synthetic data. The previous fallback returned
@@ -137,8 +146,14 @@ function SloCard({ slo, data, loading }: CardProps) {
     });
   }, [slo, data]);
 
+  // SLO-1 (review #939): with no data the burn-rate is UNKNOWN, not healthy.
+  // Render a neutral slate "No data" badge so the card header doesn't show a
+  // green "On track" checkmark sitting right above the "Sin métricas" message.
+  const noData = !loading && !data;
   const status: BurnStatus = burn ? burnRateStatus(slo, burn.burnRate) : 'healthy';
-  const styles = STATUS_STYLES[status];
+  const styles = noData
+    ? { bg: 'bg-slate-50 border-slate-200', text: 'text-slate-500', Icon: Activity, label: 'No data' }
+    : STATUS_STYLES[status];
   const Icon = styles.Icon;
 
   return (

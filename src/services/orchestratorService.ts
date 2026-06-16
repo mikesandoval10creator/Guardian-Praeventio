@@ -32,7 +32,11 @@ export const fetchWeatherData = async (lat: number = DEFAULT_LAT, lon: number = 
       temp: Math.round(data.main.temp),
       condition: data.weather[0]?.description || 'Despejado',
       humidity: data.main.humidity,
-      uv: 5, // OpenWeather free tier doesn't include UV in this endpoint, mocking it
+      // OpenWeather's free-tier `/weather` endpoint does NOT return UV. Emit
+      // null (the honest "not measured") instead of a fabricated constant —
+      // WeatherBulletin then estimates it and labels the value `(est.)`. The
+      // previous `uv: 5` rendered as a live reading and defeated that honesty.
+      uv: null,
       // ── Round 17 (R4): honest empty state ──────────────────────
       // Try OpenWeatherMap's Air Pollution endpoint when the key is
       // present; otherwise return null so the UI renders an honest
@@ -171,7 +175,7 @@ const getMockWeatherData = (): WeatherData => {
     temp: null as unknown as number,
     condition: null as unknown as string,
     humidity: null as unknown as number,
-    uv: null as unknown as number,
+    uv: null,
     airQuality: null,
     altitude: null,
     location: null as unknown as string,

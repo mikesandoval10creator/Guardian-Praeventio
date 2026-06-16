@@ -246,8 +246,11 @@ export function WeatherBulletin({ weather, loading }: WeatherBulletinProps) {
             </div>
           )}
 
-          {/* Alert badges */}
-          {!loading && weather && (
+          {/* Alert badges — gated on `available`, not just `weather`: with the
+              `{ unavailable: true }` sentinel the nullish fallbacks (?? 0 / ?? 20)
+              would otherwise satisfy the "Óptimo" branch and paint a green
+              all-clear badge next to "Datos no disponibles" (WB-1). */}
+          {!loading && available && (
             <div className="flex flex-wrap gap-1 mt-1.5 sm:mt-3">
               {(weather.windSpeed ?? 0) > 40 && (
                 <span className="flex items-center gap-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded text-[7px] sm:text-[9px] font-bold uppercase tracking-widest">

@@ -70,7 +70,13 @@ export interface WeatherData {
   temp: number;
   condition: string;
   humidity: number;
-  uv: number;
+  /**
+   * UV index. `null` means UV was not measured — the OpenWeather free-tier
+   * `/weather` endpoint does not return UV, so the live path leaves this null
+   * rather than substituting a fabricated constant. The UI estimates it and
+   * labels the estimate `(est.)`; never show a hard-coded UV as a live reading.
+   */
+  uv: number | null;
   /**
    * Air Quality Index label. `null` means no AQI source available
    * for these coordinates — UI must surface "Datos no disponibles"
