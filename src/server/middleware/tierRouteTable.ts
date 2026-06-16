@@ -39,59 +39,62 @@ export const TIER_ROUTE_TABLE: readonly TierRouteEntry[] = [
 // `/*` marks a path-param segment so we don't false-collide on the shared
 // `/api/sprint-k` prefix (portable-history is a worker's OWN record = free,
 // multi-project is a paid analytics surface — both live under sprint-k).
-export const LIFE_SAFETY_MOUNTS: readonly string[] = [
-  '/api/emergency',
-  '/api/incidents',
-  '/api/sos',
-  '/api/mandown',
-  '/api/lone-worker',
-  '/api/evacuation',
-  '/api/brigade',
-  '/api/dea',
-  '/api/pings',
-  '/api/survival',
-  '/api/commute',
-  '/api/mesh',
-  '/api/cad',
-  '/api/sprint-k/*/portable-history',
+// Life-safety KEYWORDS (ADR 0021) — a gated mount whose path contains any of
+// these names a FREE-for-all feature and must never be gated. We match on
+// keywords rather than exact mount prefixes because life-safety routers are
+// mounted at varied prefixes (several live under `/api/sprint-k/:projectId/...`
+// alongside paid analytics; others are top-level) — a hand-maintained prefix
+// list drifts out of sync with server.ts and silently lets a future violation
+// through (the failure mode flagged in review of this PR). This mirrors the
+// proven keyword scan in `tierGatingGovernance.test.ts`
+// (LIFE_SAFETY_PATH_PATTERNS), keeping both safety nets consistent.
+//
+// Erring toward "cannot gate" is the correct ADR-0021 default: incident/
+// emergency analytics that happen to share a keyword stay free unless
+// explicitly refactored — a risk-prevention app must never paywall a life
+// action.
+export const LIFE_SAFETY_KEYWORDS: readonly string[] = [
+  'emergency',
+  'evacuat',
+  'brigade',
+  'lone-worker',
+  'loneworker',
+  'incident',
+  'sos',
+  'man-down',
+  'mandown',
+  'fall',
+  '/dea',
+  'survival',
+  'ping',
+  'rescue',
+  'panic',
+  'first-responder',
+  'firstresponder',
+  'portable-history',
+  '/sif',
+  'commute',
 ];
 
-function segments(mount: string): string[] {
-  return mount.split('/').filter(Boolean);
-}
-
-function segmentMatches(a: string, b: string): boolean {
-  return a === b || a === '*' || b === '*';
-}
-
-/**
- * True iff one mount is a path-segment prefix of the other (treating `*` as a
- * wildcard segment) — i.e. requests to one could reach the other.
- */
-export function mountsOverlap(a: string, b: string): boolean {
-  const sa = segments(a);
-  const sb = segments(b);
-  const n = Math.min(sa.length, sb.length);
-  for (let i = 0; i < n; i++) {
-    if (!segmentMatches(sa[i], sb[i])) return false;
-  }
-  return true;
+/** True iff a mount path names a life-safety feature (case-insensitive). */
+export function isLifeSafetyMount(mount: string): boolean {
+  const lower = mount.toLowerCase();
+  return LIFE_SAFETY_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
 /**
- * ADR-0021 invariant: NO tier-gated route may overlap a life-safety mount.
+ * ADR-0021 invariant: NO tier-gated route may name a life-safety feature.
  * Throws (fail-loud) so a mis-edit that would gate an emergency feature crashes
  * boot / CI rather than silently denying a worker a life-saving action.
  */
 export function assertNoLifeSafetyInTable(): void {
   for (const entry of TIER_ROUTE_TABLE) {
-    for (const life of LIFE_SAFETY_MOUNTS) {
-      if (mountsOverlap(entry.mount, life)) {
-        throw new Error(
-          `ADR 0021 violation: tier-gated route "${entry.mount}" (${entry.feature}) ` +
-            `overlaps life-safety mount "${life}" — life features are FREE on every tier.`,
-        );
-      }
+    const hit = LIFE_SAFETY_KEYWORDS.find((kw) => entry.mount.toLowerCase().includes(kw));
+    if (hit) {
+      throw new Error(
+        `ADR 0021 violation: tier-gated route "${entry.mount}" (${entry.feature}) ` +
+          `names life-safety keyword "${hit}" — life features are FREE on every tier.`,
+      );
     }
   }
 }
@@ -101,6 +104,10 @@ export function assertNoLifeSafetyInTable(): void {
  * REPORT-ONLY: gated mounts log `tier_gate_would_block` but serve the request,
  * so a mis-indexed paid customer is never denied during validation. Flip
  * `TIER_GATE_ENFORCE=true` to hard-block (402) once logs confirm the table.
+ *
+ * Read at route-registration time (module load), so flipping the flag requires
+ * a REDEPLOY/restart — not a live env mutation. On Cloud Run (immutable
+ * revisions) this is automatic; document it for any other runtime.
  */
 export function tierGateEnforced(): boolean {
   return process.env.TIER_GATE_ENFORCE === 'true';

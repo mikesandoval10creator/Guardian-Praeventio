@@ -3,19 +3,18 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   TIER_ROUTE_TABLE,
-  LIFE_SAFETY_MOUNTS,
-  mountsOverlap,
+  isLifeSafetyMount,
   assertNoLifeSafetyInTable,
   tierGateEnforced,
 } from '../../server/middleware/tierRouteTable.js';
 import { PLAN_RANK } from '../../services/pricing/subscriptionPlan.js';
 
 describe('tierRouteTable — ADR 0021 invariant', () => {
-  it('the live table never gates a life-safety mount (does not throw)', () => {
+  it('the live table never gates a life-safety feature (does not throw)', () => {
     expect(() => assertNoLifeSafetyInTable()).not.toThrow();
   });
 
-  it('every gated entry resolves to a known, paid plan rank', () => {
+  it('every gated entry resolves to a known, paid plan rank under /api', () => {
     for (const entry of TIER_ROUTE_TABLE) {
       expect(PLAN_RANK[entry.minPlan]).toBeGreaterThan(0); // never `free`
       expect(entry.mount.startsWith('/api/')).toBe(true);
@@ -23,45 +22,31 @@ describe('tierRouteTable — ADR 0021 invariant', () => {
     }
   });
 
-  it('no table entry overlaps any life-safety mount', () => {
+  it('no table entry names a life-safety keyword', () => {
     for (const entry of TIER_ROUTE_TABLE) {
-      for (const life of LIFE_SAFETY_MOUNTS) {
-        expect(
-          mountsOverlap(entry.mount, life),
-          `${entry.mount} must not overlap ${life}`,
-        ).toBe(false);
-      }
+      expect(isLifeSafetyMount(entry.mount), `${entry.mount} must not be life-safety`).toBe(false);
     }
   });
 });
 
-describe('tierRouteTable — mountsOverlap semantics', () => {
-  it('does NOT collide sibling sub-paths sharing a wildcard prefix', () => {
-    // The crux: portable-history (a worker's OWN free record) and multi-project
-    // (paid analytics) both live under /api/sprint-k/:projectId — they MUST be
-    // treated as distinct so gating one never gates the other.
-    expect(
-      mountsOverlap('/api/sprint-k/*/multi-project', '/api/sprint-k/*/portable-history'),
-    ).toBe(false);
+describe('tierRouteTable — isLifeSafetyMount semantics', () => {
+  it('flags life-safety mounts regardless of prefix DEPTH (the review gap)', () => {
+    // Top-level AND nested-under-sprint-k life routes must both be caught — a
+    // keyword match doesn't depend on the (drift-prone) exact mount prefix.
+    expect(isLifeSafetyMount('/api/emergency')).toBe(true);
+    expect(isLifeSafetyMount('/api/incidents')).toBe(true);
+    expect(isLifeSafetyMount('/api/sprint-k/*/emergency-brigade')).toBe(true);
+    expect(isLifeSafetyMount('/api/sprint-k/*/evacuation-headcount')).toBe(true);
+    expect(isLifeSafetyMount('/api/sprint-k/*/workers/*/portable-history')).toBe(true);
+    expect(isLifeSafetyMount('/api/sprint-k/*/lone-worker')).toBe(true);
   });
 
-  it('treats `*` as a wildcard segment', () => {
-    expect(mountsOverlap('/api/sprint-k/*/multi-project', '/api/sprint-k/p1/multi-project')).toBe(true);
-  });
-
-  it('flags a child of a life mount as overlapping', () => {
-    expect(mountsOverlap('/api/emergency/declare', '/api/emergency')).toBe(true);
-  });
-
-  it('does not flag unrelated mounts', () => {
-    expect(mountsOverlap('/api/insights', '/api/emergency')).toBe(false);
-  });
-
-  it('a mis-edit that gates an emergency route is rejected by the invariant', () => {
-    // Simulate assertNoLifeSafetyInTable over a poisoned entry.
-    const poisoned = { mount: '/api/emergency/escalate', minPlan: 'platino' as const, feature: 'x' };
-    const overlaps = LIFE_SAFETY_MOUNTS.some((life) => mountsOverlap(poisoned.mount, life));
-    expect(overlaps).toBe(true);
+  it('does NOT flag the gated analytics/portfolio mounts', () => {
+    expect(isLifeSafetyMount('/api/insights')).toBe(false);
+    expect(isLifeSafetyMount('/api/sprint-k/*/multi-project')).toBe(false);
+    expect(isLifeSafetyMount('/api/sprint-k/*/maturity-index')).toBe(false);
+    expect(isLifeSafetyMount('/api/sprint-k/*/role-summary')).toBe(false);
+    expect(isLifeSafetyMount('/api/drive')).toBe(false);
   });
 });
 
