@@ -7,55 +7,162 @@ const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
 const DEFAULT_LAT = -33.4489;
 const DEFAULT_LON = -70.6693;
 
-/**
- * Fetches weather data from OpenWeatherMap API.
- * Implements resilience: returns mock data if API key is missing or request fails.
- */
-export const fetchWeatherData = async (lat: number = DEFAULT_LAT, lon: number = DEFAULT_LON): Promise<WeatherData> => {
-  if (!OPENWEATHER_API_KEY) {
-    logger.warn('VITE_OPENWEATHER_API_KEY not found. Using mock weather data.');
-    return getMockWeatherData();
-  }
+/** WMO weather-code → es-CL condition text (Open-Meteo `weather_code`). */
+const WMO_CONDITION_ES: Record<number, string> = {
+  0: 'Despejado',
+  1: 'Mayormente despejado',
+  2: 'Parcialmente nublado',
+  3: 'Nublado',
+  45: 'Niebla',
+  48: 'Niebla con escarcha',
+  51: 'Llovizna ligera',
+  53: 'Llovizna',
+  55: 'Llovizna intensa',
+  56: 'Llovizna helada',
+  57: 'Llovizna helada intensa',
+  61: 'Lluvia ligera',
+  63: 'Lluvia',
+  65: 'Lluvia intensa',
+  66: 'Lluvia helada',
+  67: 'Lluvia helada intensa',
+  71: 'Nieve ligera',
+  73: 'Nieve',
+  75: 'Nieve intensa',
+  77: 'Granos de nieve',
+  80: 'Chubascos ligeros',
+  81: 'Chubascos',
+  82: 'Chubascos violentos',
+  85: 'Chubascos de nieve',
+  86: 'Chubascos de nieve intensos',
+  95: 'Tormenta eléctrica',
+  96: 'Tormenta con granizo',
+  99: 'Tormenta con granizo intenso',
+};
 
+interface MeteoReading {
+  temp: number;
+  condition: string;
+  humidity: number;
+  /** REAL UV index from Open-Meteo (`uv_index`), or null if the field is absent. */
+  uv: number | null;
+  windKmh: number;
+  sunrise?: number;
+  sunset?: number;
+}
+
+/**
+ * REAL weather from Open-Meteo — keyless, CORS-enabled, and (crucially) it
+ * returns a measured `uv_index`. This is the primary measurement source: the
+ * app no longer needs an OpenWeather key to show real temperature/humidity/
+ * wind/UV. Returns null only when the API is unreachable at runtime.
+ */
+async function fetchOpenMeteoWeather(lat: number, lon: number): Promise<MeteoReading | null> {
+  try {
+    const url =
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+      `&current=temperature_2m,relative_humidity_2m,wind_speed_10m,uv_index,weather_code` +
+      `&daily=sunrise,sunset&wind_speed_unit=kmh&timezone=auto&forecast_days=1`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const c = json?.current;
+    if (!c || typeof c.temperature_2m !== 'number') return null;
+    const code = typeof c.weather_code === 'number' ? c.weather_code : -1;
+    const sr = json?.daily?.sunrise?.[0];
+    const ss = json?.daily?.sunset?.[0];
+    return {
+      temp: Math.round(c.temperature_2m),
+      condition: WMO_CONDITION_ES[code] ?? 'Despejado',
+      humidity: Math.round(c.relative_humidity_2m ?? 0),
+      uv: typeof c.uv_index === 'number' ? Math.round(c.uv_index * 10) / 10 : null,
+      windKmh: Math.round((c.wind_speed_10m ?? 0) * 10) / 10,
+      sunrise: typeof sr === 'string' ? Date.parse(sr) : undefined,
+      sunset: typeof ss === 'string' ? Date.parse(ss) : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+interface OpenWeatherEnhance {
+  temp: number;
+  condition: string;
+  humidity: number;
+  location: string | null;
+  windSpeed: number;
+  sunrise?: number;
+  sunset?: number;
+}
+
+/**
+ * Optional ENHANCER: OpenWeather adds a reverse-geocoded city name + a
+ * localized condition string + sunrise/sunset. Only used when a key is
+ * present; the real measurements (incl. UV) come from Open-Meteo. Doubles as
+ * a full fallback reading if Open-Meteo is unreachable. Returns null when the
+ * key is missing or the request fails (never fabricates).
+ */
+async function fetchOpenWeatherEnhance(lat: number, lon: number): Promise<OpenWeatherEnhance | null> {
+  if (!OPENWEATHER_API_KEY) return null;
   try {
     const response = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric&lang=es`
+      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric&lang=es`,
     );
-
-    if (!response.ok) {
-      throw new Error(`Weather API error: ${response.statusText}`);
-    }
-
+    if (!response.ok) return null;
     const data = await response.json();
-    
+    if (typeof data?.main?.temp !== 'number') return null;
     return {
       temp: Math.round(data.main.temp),
-      condition: data.weather[0]?.description || 'Despejado',
+      condition: data.weather?.[0]?.description || 'Despejado',
       humidity: data.main.humidity,
-      // OpenWeather's free-tier `/weather` endpoint does NOT return UV. Emit
-      // null (the honest "not measured") instead of a fabricated constant —
-      // WeatherBulletin then estimates it and labels the value `(est.)`. The
-      // previous `uv: 5` rendered as a live reading and defeated that honesty.
-      uv: null,
-      // ── Round 17 (R4): honest empty state ──────────────────────
-      // Try OpenWeatherMap's Air Pollution endpoint when the key is
-      // present; otherwise return null so the UI renders an honest
-      // "Datos no disponibles" placeholder instead of the previous
-      // hard-coded 'Buena'/500. Altitude requires a separate
-      // elevation API which is not wired yet — null is the truth.
-      airQuality: await fetchAirQualityLabel(lat, lon),
-      altitude: null, // requires elevation API (Open-Elevation/Google) — not wired
-      location: data.name,
-      windSpeed: data.wind.speed * 3.6, // Convert m/s to km/h
-      recommendations: generateWeatherRecommendations(data.main.temp, data.wind.speed * 3.6),
-      sunrise: data.sys.sunrise * 1000, // Convert to ms
-      sunset: data.sys.sunset * 1000 // Convert to ms
+      location: typeof data.name === 'string' && data.name.length > 0 ? data.name : null,
+      windSpeed: (data.wind?.speed ?? 0) * 3.6, // m/s → km/h
+      sunrise: typeof data.sys?.sunrise === 'number' ? data.sys.sunrise * 1000 : undefined,
+      sunset: typeof data.sys?.sunset === 'number' ? data.sys.sunset * 1000 : undefined,
     };
-  } catch (error) {
-    // Silently fail to avoid console clutter on network errors
-    // logger.error('Failed to fetch weather data, falling back to mock:', error);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetches REAL weather. Open-Meteo (keyless) is the measurement source and
+ * provides the real UV index; OpenWeather (when keyed) only enhances the city
+ * name + localized condition + AQI. Weather works without any API key. We fall
+ * back to the honest `unavailable: true` payload ONLY when BOTH real sources
+ * are unreachable at runtime — never to fabricated numbers.
+ */
+export const fetchWeatherData = async (
+  lat: number = DEFAULT_LAT,
+  lon: number = DEFAULT_LON,
+): Promise<WeatherData> => {
+  const [meteo, ow, airQuality] = await Promise.all([
+    fetchOpenMeteoWeather(lat, lon),
+    fetchOpenWeatherEnhance(lat, lon),
+    fetchAirQualityLabel(lat, lon),
+  ]);
+
+  if (!meteo && !ow) {
+    // Both real sources unreachable at this moment → honest empty state.
     return getMockWeatherData();
   }
+
+  // Prefer Open-Meteo's measurements (real UV); OpenWeather fills the city
+  // name / localized condition and serves as a full reading if OM is down.
+  const temp = meteo?.temp ?? ow!.temp;
+  const windSpeed = meteo?.windKmh ?? ow!.windSpeed;
+  return {
+    temp,
+    condition: ow?.condition ?? meteo!.condition,
+    humidity: meteo?.humidity ?? ow!.humidity,
+    uv: meteo?.uv ?? null, // REAL UV from Open-Meteo (null only if OM unreachable)
+    airQuality, // real AQI label or null (never fabricated)
+    altitude: null, // requires a separate elevation API — not wired; null = truth
+    location: ow?.location ?? null,
+    windSpeed,
+    recommendations: generateWeatherRecommendations(temp, windSpeed ?? 0),
+    sunrise: meteo?.sunrise ?? ow?.sunrise,
+    sunset: meteo?.sunset ?? ow?.sunset,
+  };
 };
 
 /**
@@ -178,7 +285,7 @@ const getMockWeatherData = (): WeatherData => {
     uv: null,
     airQuality: null,
     altitude: null,
-    location: null as unknown as string,
+    location: null,
     windSpeed: undefined,
     recommendations: [],
     sunrise: undefined,

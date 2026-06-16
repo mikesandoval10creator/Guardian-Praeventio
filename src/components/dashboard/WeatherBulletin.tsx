@@ -13,7 +13,7 @@ export interface WeatherSnapshot {
   humidity?: number;
   sunrise?: number;
   sunset?: number;
-  location?: string;
+  location?: string | null;
   uvi?: number;
   /** Real UV index from the orchestrator (the field it actually populates; null = unknown). */
   uv?: number | null;

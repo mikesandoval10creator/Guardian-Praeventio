@@ -88,7 +88,12 @@ export interface WeatherData {
    * wired — render an honest empty state, not a synthesized number.
    */
   altitude: number | null;
-  location: string;
+  /**
+   * Reverse-geocoded city/place name. `null` when no geocoder is available
+   * (e.g. no OpenWeather key) — the UI shows a neutral location label, never
+   * a fabricated place name.
+   */
+  location: string | null;
   recommendations: string[];
   windSpeed?: number;
   sunrise?: number;
