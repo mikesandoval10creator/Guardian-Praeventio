@@ -45,6 +45,7 @@ import { mercadoPagoAdapter } from './mercadoPagoAdapter.js';
 import { withIdempotency } from './idempotency.js';
 import { canonicalize } from '../../server/middleware/canonicalBody.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../observability/index.js';
 import {
   getJwks,
   type JsonWebKey as MpJsonWebKey,
@@ -702,6 +703,12 @@ export async function processMercadoPagoIpn(
           }
         } catch (subErr) {
           logger.error('mp_ipn_subscription_update_failed', subErr as Error, { invoiceId });
+          // Parity with the sibling rails (webpay/khipu/invoices): a subscription
+          // activation failure must reach Sentry, not just the log.
+          getErrorTracker().captureException(
+            subErr instanceof Error ? subErr : new Error(String(subErr)),
+            { endpoint: 'mp.ipn.subscriptionUpdate', tags: { invoiceId } },
+          );
         }
       } else if (outcome === 'rejected') {
         await invoiceRef.set(
