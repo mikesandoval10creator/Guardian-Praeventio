@@ -22,7 +22,7 @@ import { googlePlayWebhookLimiter } from '../../middleware/limiters.js';
 import { logger } from '../../../utils/logger.js';
 import { withIdempotency } from '../../../services/billing/idempotency.js';
 import { auditServerEvent } from '../../middleware/auditLog.js';
-import { normalizeSubscriptionPlanId, cycleFromProductId } from '../../../services/pricing/subscriptionPlan.js';
+import { cycleFromProductId, planFromIapProductId } from '../../../services/pricing/subscriptionPlan.js';
 import { sentryCapture } from './shared.js';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -106,9 +106,14 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Store entitlements using the legacy subscription ids expected by
-      // feature gates, even when providers send canonical pricing tier ids.
-      const resolvedPlan = normalizeSubscriptionPlanId(productId) ?? 'comite';
+      // Store entitlements using the subscription plan id expected by feature
+      // gates. The Play `productId` is a SKU (e.g. 'praeventio_oro_annual'),
+      // NOT a plan/tier id — so it must be mapped SKU → tierId (tierForIapSku)
+      // → plan first. (Bug fix: feeding the raw SKU to normalizeSubscriptionPlanId
+      // always returned null → every IAP purchase was mis-granted 'comite'
+      // regardless of what was bought.) Falls back to treating productId as a
+      // tier/plan id directly, then to 'comite' for a truly unknown SKU.
+      const resolvedPlan = planFromIapProductId(productId) ?? 'comite';
 
       // Update user subscription status
       if (type === 'subscription') {
@@ -251,10 +256,15 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
               const isActive = data.paymentState === 1 || data.paymentState === 2;
               const expiryDate = data.expiryTimeMillis ? new Date(parseInt(data.expiryTimeMillis)).toISOString() : null;
 
+              // subscriptionId IS the SKU/productId for v3 single-product subs.
+              // Resolve the plan too (was missing) so a renewal that changed the
+              // plan doesn't leave a stale planId; only set it when resolvable
+              // (never clobber with a bad value).
+              const rtdnPlan = planFromIapProductId(subscriptionId);
               await userDoc.ref.update({
                 'subscription.status': isActive ? 'active' : 'expired',
                 'subscription.expiryDate': expiryDate,
-                // subscriptionId IS the SKU/productId for v3 single-product subs.
+                ...(rtdnPlan ? { 'subscription.planId': rtdnPlan } : {}),
                 'subscription.cycle': cycleFromProductId(subscriptionId),
                 'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
               });
