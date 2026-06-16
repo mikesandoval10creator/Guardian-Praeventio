@@ -39,7 +39,11 @@
 import crypto from 'crypto';
 import admin from 'firebase-admin';
 import { jwtVerify, importJWK, errors as joseErrors, type JWTPayload } from 'jose';
-import { normalizeSubscriptionPlanId, cycleFromInvoiceDoc } from '../pricing/subscriptionPlan.js';
+import {
+  normalizeSubscriptionPlanId,
+  resolveInvoiceCycle,
+  type BillingCycle,
+} from '../pricing/subscriptionPlan.js';
 
 import { mercadoPagoAdapter } from './mercadoPagoAdapter.js';
 import { withIdempotency } from './idempotency.js';
@@ -658,6 +662,9 @@ export async function processMercadoPagoIpn(
       // Update the invoice doc. We only flip status on terminal outcomes;
       // pending leaves the existing 'pending-payment' status intact.
       const invoiceRef = db.collection('invoices').doc(invoiceId);
+      // Cycle is only meaningful for a paid activation; stays null for
+      // rejected/pending so the audit row is honest (no fabricated 'monthly').
+      let auditCycle: BillingCycle | null = null;
       if (outcome === 'paid') {
         await invoiceRef.set(
           {
@@ -677,6 +684,11 @@ export async function processMercadoPagoIpn(
         try {
           const invoiceSnap = await invoiceRef.get();
           const invoiceData = invoiceSnap.data();
+          const { cycle, source: cycleSource } = resolveInvoiceCycle(invoiceData);
+          auditCycle = cycle;
+          if (cycleSource === 'default' && invoiceData != null) {
+            logger.warn('billing_cycle_defaulted', { invoiceId, rail: 'mercadopago' });
+          }
           const lineItems = Array.isArray(invoiceData?.lineItems) ? invoiceData!.lineItems : [];
           const tierId = lineItems[0]?.tierId ?? invoiceData?.tierId ?? null;
           const ownerUid = invoiceData?.createdBy ?? null;
@@ -692,7 +704,7 @@ export async function processMercadoPagoIpn(
                   updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                   lastInvoiceId: invoiceId,
                   paymentMethod: 'mercadopago',
-                  cycle: cycleFromInvoiceDoc(invoiceData),
+                  cycle,
                 },
               },
               { merge: true },
@@ -731,6 +743,7 @@ export async function processMercadoPagoIpn(
           paymentId,
           outcome,
           invoiceId,
+          cycle: auditCycle,
           mpStatus: payment.status,
           mpStatusDetail: payment.status_detail ?? null,
         },

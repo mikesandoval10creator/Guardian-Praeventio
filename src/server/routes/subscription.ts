@@ -30,7 +30,7 @@ import {
   isSubscriptionPlan,
   normalizeSubscriptionPlanId,
   subscriptionPlanMatchesPaidTier,
-  cycleFromInvoiceDoc,
+  resolveInvoiceCycle,
 } from "../../services/pricing/subscriptionPlan.js";
 
 export const subscriptionRouter = Router();
@@ -102,6 +102,11 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
 
   const normalizedPlanId = normalizeSubscriptionPlanId(planId) ?? planId;
 
+  const { cycle, source: cycleSource } = resolveInvoiceCycle(paidInvoiceData);
+  if (cycleSource === "default" && paidInvoiceData != null) {
+    logger.warn("billing_cycle_defaulted", { uid, rail: "subscription-upgrade" });
+  }
+
   // Payment exists — update via Admin SDK (bypasses client rules).
   try {
     await db.collection("users").doc(uid).set(
@@ -112,7 +117,7 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
           tierId: paidTierId ?? normalizedPlanId,
           status: "active",
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          cycle: cycleFromInvoiceDoc(paidInvoiceData),
+          cycle,
         },
       },
       { merge: true },
@@ -129,6 +134,7 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
     planId: normalizedPlanId,
     tierId: paidTierId ?? normalizedPlanId,
     method: "verified-payment",
+    cycle,
   });
 
   logger.info("subscription_upgraded", { uid, planId: normalizedPlanId, tierId: paidTierId });

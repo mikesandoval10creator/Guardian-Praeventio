@@ -488,6 +488,12 @@ export function buildAppleSsnAuditRow(args: {
       payload.transactionInfo?.originalTransactionId ?? null,
     appAccountTokenPresent: Boolean(payload.transactionInfo?.appAccountToken),
     action: result.action,
+    // Only a grant carries a purchased cycle (mirrors the subscription write);
+    // revoke/expire have no meaningful cycle → null, so the audit is honest.
+    cycle:
+      result.action === 'grant'
+        ? cycleFromProductId(payload.transactionInfo?.productId)
+        : null,
     matchedUserId: result.userId,
     appliedStatus: result.applied?.status ?? null,
     expiryDate: result.applied?.expiryDate ?? null,

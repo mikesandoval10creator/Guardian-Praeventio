@@ -46,7 +46,12 @@ import {
   decideDteIssue,
   type DteIssueRequest,
 } from '../../../services/dte/dteAutoIssueOrchestrator.js';
-import { normalizeSubscriptionPlanId, cycleFromInvoiceDoc } from '../../../services/pricing/subscriptionPlan.js';
+import {
+  normalizeSubscriptionPlanId,
+  resolveInvoiceCycle,
+  DEFAULT_SUBSCRIPTION_CYCLE,
+  type BillingCycle,
+} from '../../../services/pricing/subscriptionPlan.js';
 import { sentryCapture } from './shared.js';
 
 export function registerWebpayRoutes(
@@ -337,9 +342,18 @@ export function registerWebpayRoutes(
         // 'paid' pero users/{uid}.subscription.planId nunca cambiaba.
         // Best-effort: no rompe el redirect si la actualización falla
         // (admin tiene /api/billing/invoice/:id/mark-paid como fallback).
+        // Cycle resolved once from server-side invoice state, used for BOTH the
+        // subscription write and the audit row. Hoisted so it survives the
+        // try-block scope (the audit add below runs even if activation fails).
+        let cycle: BillingCycle = DEFAULT_SUBSCRIPTION_CYCLE;
         try {
           const invoiceSnap = await invoiceRef.get();
           const invoiceData = invoiceSnap.data();
+          const resolved = resolveInvoiceCycle(invoiceData);
+          cycle = resolved.cycle;
+          if (resolved.source === 'default' && invoiceData != null) {
+            logger.warn('billing_cycle_defaulted', { invoiceId, rail: 'webpay' });
+          }
           const lineItems = Array.isArray(invoiceData?.lineItems) ? invoiceData!.lineItems : [];
           const tierId = lineItems[0]?.tierId ?? invoiceData?.tierId ?? null;
           const ownerUid = invoiceData?.createdBy ?? null;
@@ -355,7 +369,7 @@ export function registerWebpayRoutes(
                   updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                   lastInvoiceId: invoiceId,
                   paymentMethod: 'webpay',
-                  cycle: cycleFromInvoiceDoc(invoiceData),
+                  cycle,
                 },
               },
               { merge: true },
@@ -366,13 +380,17 @@ export function registerWebpayRoutes(
           }
         } catch (subErr) {
           logger.error('webpay_subscription_update_failed', subErr as Error, { invoiceId });
+          // The invoice read failed → `cycle` is still the DEFAULT, so the audit
+          // row below stamps the fallback, not a derived value. Emit a distinct
+          // signal so a read blip isn't mistaken for a genuine monthly invoice.
+          logger.warn('billing_cycle_unresolved', { invoiceId, rail: 'webpay' });
           sentryCapture(subErr, { endpoint: 'billing.webpay.subscriptionUpdate', tags: { invoiceId } });
         }
 
         await db.collection('audit_logs').add({
           action: 'billing.webpay-return.authorized',
           module: 'billing',
-          details: { invoiceId, amount: commit.amount, authCode: commit.authorizationCode },
+          details: { invoiceId, amount: commit.amount, authCode: commit.authorizationCode, cycle },
           userId: null, userEmail: null, projectId: null,
           timestamp: admin.firestore.FieldValue.serverTimestamp(),
           ip: req.ip ?? null, userAgent: req.header('user-agent') ?? null,

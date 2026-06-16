@@ -281,8 +281,57 @@ describe('processMercadoPagoIpn', () => {
     expect(auditCalls[0][1]).toMatchObject({
       action: 'billing.mercadopago.ipn.processed',
       module: 'billing',
-      details: { paymentId: 'pay_42', outcome: 'paid' },
+      // cycle is now stamped on the activation audit row (default monthly here:
+      // the seed carries no cycle field/description).
+      details: { paymentId: 'pay_42', outcome: 'paid', cycle: 'monthly' },
     });
+  });
+
+  it('stamps the real billing cycle on the activation audit row', async () => {
+    const invoiceId = 'inv_mp_annual';
+    mocks.store.set(`invoices/${invoiceId}`, {
+      data: {
+        id: invoiceId,
+        status: 'pending-payment',
+        paymentMethod: 'mercadopago',
+        cycle: 'annual',
+        lineItems: [{ tierId: 'oro' }],
+        createdBy: 'uid-mp',
+        totals: { total: 100, currency: 'CLP' },
+      },
+    });
+    mocks.getPaymentMock.mockResolvedValueOnce({
+      status: 'approved',
+      status_detail: 'accredited',
+      external_reference: invoiceId,
+      amount: 100,
+      currency: 'CLP',
+    });
+
+    await processMercadoPagoIpn({ type: 'payment', data: { id: 'pay_annual' } });
+
+    const auditCalls = mocks.addSpy.mock.calls.filter(([col]) => col === 'audit_logs');
+    expect(auditCalls.at(-1)?.[1]).toMatchObject({
+      action: 'billing.mercadopago.ipn.processed',
+      details: { outcome: 'paid', cycle: 'annual' },
+    });
+  });
+
+  it('leaves cycle null on the audit row for a non-paid outcome', async () => {
+    const invoiceId = 'inv_mp_rej';
+    mocks.store.set(`invoices/${invoiceId}`, {
+      data: { id: invoiceId, status: 'pending-payment', paymentMethod: 'mercadopago' },
+    });
+    mocks.getPaymentMock.mockResolvedValueOnce({
+      status: 'rejected',
+      status_detail: 'cc_rejected',
+      external_reference: invoiceId,
+    });
+
+    await processMercadoPagoIpn({ type: 'payment', data: { id: 'pay_rej' } });
+
+    const auditCalls = mocks.addSpy.mock.calls.filter(([col]) => col === 'audit_logs');
+    expect(auditCalls.at(-1)?.[1].details.cycle).toBeNull();
   });
 
   it('marks invoice as rejected for status=rejected', async () => {
