@@ -1161,6 +1161,16 @@ service cloud.firestore {
       allow read, write: if false; // server-only via Admin SDK
     }
 
+    match /ufRates/{docId} {
+      // Cached UF (Unidad de Fomento) rate, written ONLY by the daily
+      // runUfRateRefresh cron (Admin SDK) from public Banco Central data. The
+      // pricing layer reads it SERVER-SIDE to compute the Diamante tier's CLP
+      // amount, so no client access is needed. A client write could forge the
+      // rate and mis-price the tier. Client-denial exercised by
+      // src/rules-tests/ufRates.rules.test.ts.
+      allow read, write: if false; // server-only via Admin SDK
+    }
+
     match /vector_store/{docId} {
       allow read: if isEmailVerified() && (
         isAdmin() || isSupervisor() || 

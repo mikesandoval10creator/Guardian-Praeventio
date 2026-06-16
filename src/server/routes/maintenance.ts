@@ -86,6 +86,7 @@ import { runExceptionAutoExpire } from '../jobs/runExceptionAutoExpire.js';
 import { runWorkPermitAutoExpire } from '../jobs/runWorkPermitAutoExpire.js';
 import { runLegalCalendarReminders } from '../jobs/runLegalCalendarReminders.js';
 import { runLegalObligationReconcile } from '../jobs/runLegalObligationReconcile.js';
+import { runUfRateRefresh } from '../jobs/runUfRateRefresh.js';
 // PR #482 codex P1 — los datos de lone_worker / exceptions / work_permits /
 // legal_obligations viven project-scoped (`projects/{pid}/<col>`), no en root.
 // Estos helpers resuelven tokens por role + chunkean envíos FCM en lotes
@@ -1048,12 +1049,33 @@ router.post(
 
       await iterateAllProjects(db, PROJECT_PAGE_SIZE, perProject);
 
+      // Global daily UF (Unidad de Fomento) rate refresh — NOT per-project.
+      // Fail-soft: runUfRateRefresh keeps the last cached value on fetch/parse
+      // failure; the outer guard also catches a Firestore write error so it
+      // never aborts the housekeeping run. Public Banco Central data.
+      let ufRate: { updated: boolean; reason?: string } = { updated: false };
+      try {
+        const r = await runUfRateRefresh({
+          db,
+          fetchUf: async () => {
+            const resp = await fetch('https://mindicador.cl/api/uf');
+            if (!resp.ok) throw new Error(`mindicador HTTP ${resp.status}`);
+            return resp.json();
+          },
+        });
+        ufRate = { updated: r.updated, ...(r.reason ? { reason: r.reason } : {}) };
+      } catch (err) {
+        logger.error('[maintenance] uf-rate-refresh failed', err as Error);
+        captureRouteError(err, 'maintenance.uf-rate-refresh');
+      }
+
       logger.info('[maintenance] daily-housekeeping done', {
         projectsScanned,
         exceptions,
         workPermits,
         legalReconcile,
         legalReminders,
+        ufRate,
         tookMs: Date.now() - start,
       });
       return res.status(200).json({
@@ -1063,6 +1085,7 @@ router.post(
         workPermits,
         legalReconcile,
         legalReminders,
+        ufRate,
         tookMs: Date.now() - start,
       });
     } catch (err) {
