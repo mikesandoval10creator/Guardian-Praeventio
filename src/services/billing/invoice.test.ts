@@ -225,6 +225,28 @@ describe('buildInvoice', () => {
       { idGenerator: fixedId, now: fixedNow },
     );
     expect(invoice.lineItems[0].unitAmount).toBe(81504);
+    // The cycle is persisted on the invoice so payment confirmation can stamp
+    // it onto users/{uid}.subscription.cycle.
+    expect(invoice.cycle).toBe('annual');
+  });
+
+  it('persists cycle=monthly on the invoice', () => {
+    const request: CheckoutRequest = {
+      tierId: 'comite-paritario',
+      cycle: 'monthly',
+      currency: 'CLP',
+      totalWorkers: 10,
+      totalProjects: 1,
+      cliente,
+      paymentMethod: 'webpay',
+    };
+    const invoice = buildInvoice(
+      request,
+      tierData,
+      { workers: 0, projects: 0, clpPerWorker: 832, clpPerProject: 5034 },
+      { idGenerator: fixedId, now: fixedNow },
+    );
+    expect(invoice.cycle).toBe('monthly');
   });
 
   it('issuedAt is a recent ISO timestamp when no clock override', () => {

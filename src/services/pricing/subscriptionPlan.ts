@@ -1,4 +1,8 @@
 import type { TierId } from './tiers';
+import { tierForIapSku, type BillingCycle } from './iapSkus';
+
+// Re-export so callers have a single import site for plan + cycle helpers.
+export type { BillingCycle };
 
 export const SUBSCRIPTION_PLANS = [
   'free',
@@ -98,4 +102,54 @@ export function planRank(plan: unknown): number {
 /** True iff `plan` ranks at or above `minPlan`. */
 export function planMeetsMinimum(plan: unknown, minPlan: SubscriptionPlan): boolean {
   return planRank(plan) >= PLAN_RANK[minPlan];
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Billing cycle resolution (monthly | annual) for subscription activation.
+//
+// Today every payment rail activates users/{uid}.subscription without the
+// billing cycle — it only lives in the invoice line-item description string. To
+// persist it on the subscription doc consistently, each rail resolves the cycle
+// from SERVER-SIDE state (the persisted invoice doc, or a store-verified IAP
+// productId) — NEVER from the IPN/return request body — via these pure helpers.
+// They are TOTAL (never throw) so the rails' best-effort activation try/catch
+// (CLAUDE.md #14) is preserved.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Safe default when a paid subscription's billing cycle can't be derived. */
+export const DEFAULT_SUBSCRIPTION_CYCLE: BillingCycle = 'monthly';
+
+/**
+ * Resolve the billing cycle from a persisted invoice document. Reads the
+ * structured top-level `cycle` first; falls back to parsing the first line
+ * item's description (`Suscripción <tier> (<cycle>)`) for legacy invoices that
+ * predate the structured field; else the safe monthly default. Pure + total.
+ */
+export function cycleFromInvoiceDoc(
+  invoiceData: Record<string, unknown> | null | undefined,
+): BillingCycle {
+  if (!invoiceData) return DEFAULT_SUBSCRIPTION_CYCLE;
+  const top = invoiceData.cycle;
+  if (top === 'monthly' || top === 'annual') return top;
+  const lineItems = invoiceData.lineItems;
+  if (Array.isArray(lineItems) && lineItems.length > 0) {
+    const desc = (lineItems[0] as { description?: unknown } | null)?.description;
+    if (typeof desc === 'string') {
+      if (/\(annual\)/i.test(desc)) return 'annual';
+      if (/\(monthly\)/i.test(desc)) return 'monthly';
+    }
+  }
+  return DEFAULT_SUBSCRIPTION_CYCLE;
+}
+
+/**
+ * Resolve the billing cycle from a store-verified IAP productId/SKU. Uses
+ * `tierForIapSku` (returns null on unknown — never throws, unlike
+ * `iapSkuForTier`). Unknown/missing SKU → safe monthly default. Pure + total.
+ */
+export function cycleFromProductId(
+  productId: string | null | undefined,
+): BillingCycle {
+  if (!productId) return DEFAULT_SUBSCRIPTION_CYCLE;
+  return tierForIapSku(productId)?.cycle ?? DEFAULT_SUBSCRIPTION_CYCLE;
 }
