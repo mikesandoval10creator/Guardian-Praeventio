@@ -1275,6 +1275,34 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Assets — machinery / vehicles / tools (MaquinariaManager). TOP-LEVEL +
+    // project-scoped: both the client (`collection(db,'assets')` in
+    // MaquinariaManager.tsx) and the server (`db.collection('assets')` in
+    // dataQuality.ts / preShiftRisk.ts) use this path. The sub-collection rule
+    // at projects/{pid}/assets governs a DIFFERENT path nobody uses — without
+    // this block top-level `assets` fell to default-deny and every machinery
+    // record a supervisor added was silently rejected in prod (list always
+    // empty, maintenance scheduling dead). Operational data (not a legal record)
+    // → project members may create/update; projectId is immutable; delete is
+    // admin/supervisor only.
+    match /assets/{assetId} {
+      allow read: if isValidId(assetId) && isEmailVerified() && (
+        isAdmin() || isSupervisor() ||
+        isProjectMember(resource.data.projectId)
+      );
+      allow create: if isValidId(assetId) && isEmailVerified() &&
+        isProjectMember(incoming().projectId) &&
+        incoming().projectId is string &&
+        incoming().name is string &&
+        incoming().type in ['Maquinaria', 'Vehículo', 'Herramienta'] &&
+        incoming().status in ['Operativo', 'En Mantenimiento', 'Fuera de Servicio'];
+      allow update: if isValidId(assetId) && isEmailVerified() &&
+        isProjectMember(resource.data.projectId) &&
+        incoming().projectId == resource.data.projectId &&
+        incoming().status in ['Operativo', 'En Mantenimiento', 'Fuera de Servicio'];
+      allow delete: if isEmailVerified() && (isAdmin() || isSupervisor());
+    }
+
     // AI feedback — users can submit vote on their own session; admins can read all
     match /ai_feedback/{feedbackId} {
       allow read: if isAdmin();
