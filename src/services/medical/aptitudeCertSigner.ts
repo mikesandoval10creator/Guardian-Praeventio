@@ -7,38 +7,39 @@
 //     La empresa cliente puede usar este artefacto como evidencia interna
 //     verificable + acompañar con firma manual del médico si la mutualidad
 //     lo exige separadamente.
-//   * Replica el patrón Sprint 34 / Sprint 31 ds67Service.signForm: challenge
-//     server-issued ligado al hash, single-use, embebe { signerUid, signerRut,
-//     algorithm, signatureB64, payloadHashHex, attestedAt } dentro del JSON
-//     del certificado.
+//
+// SECURITY MODEL (F4, 2026-06-16 — hardened to the canonical pattern):
+//   The WebAuthn assertion is verified by the CANONICAL server verifier
+//   (`src/server/auth/webauthnAssertion.ts`), which looks the credential up by
+//   id in the doctor's REGISTERED credentials, verifies the signature against
+//   that REGISTERED public key, consumes the single-use server-issued challenge,
+//   and checks counter monotonicity + origin/RPID. This module NEVER trusts a
+//   client-supplied public key (the prior bespoke shape did — that accepted any
+//   keypair). Here we own only the BUSINESS rules: doctor role gate, doctor-uid
+//   binding, and the cert-hash (content) binding; the verified `credentialId`
+//   from the canonical verifier is embedded as the signature's provenance.
+//   Same hardened flow as the SUSESO / DS67 / DS76 / DTE sign routes (#765).
 //
 // Diseño: este module es PURO (no toca firebase-admin). El router le inyecta
-// las dependencias (verifyChallenge, persistSignedCert) para que tests
-// unitarios funcionen sin GCP.
+// `verifyAssertion` (canonical verifier en prod; fake en tests).
 
 import { z } from 'zod';
-import { sha256 } from '@noble/hashes/sha2.js';
-import { bytesToHex } from '@noble/hashes/utils.js';
 import type { AptitudeCertJson } from './aptitudeCertGenerator.js';
 import { hashAptitudeCertJson } from './aptitudeCertGenerator.js';
 
-// ─── Schema for the WebAuthn assertion bundle ───────────────────────────────
+// ─── Schema for the sign request (business inputs) ──────────────────────────
+//
+// The full WebAuthn assertion bundle (credentialId, clientDataJSON, ...) is
+// validated + cryptographically verified by the route via the canonical
+// verifier; this schema covers only the fields this pure module needs.
 
 export const signCertRequestSchema = z.object({
   certHash: z.string().regex(/^[0-9a-f]{64}$/, 'invalid_cert_hash'),
   challengeId: z.string().min(1).max(256),
-  signature: z.object({
-    signerUid: z.string().min(1).max(128),
-    signerRut: z.string().min(1).max(20),
-    signedAt: z.string().min(1),
-    algorithm: z.literal('webauthn-ecdsa-p256'),
-    /** base64-encoded WebAuthn assertion signature. */
-    signatureB64: z.string().min(1).max(8192),
-    /** base64-encoded credential public key (CBOR/COSE). */
-    credentialPublicKeyB64: z.string().min(1).max(2048),
-    /** SHA-256 of the JSON the user actually saw — must equal certHash. */
-    payloadHashHex: z.string().regex(/^[0-9a-f]{64}$/),
-  }),
+  signerRut: z.string().min(1).max(20),
+  signedAt: z.string().min(1),
+  /** base64 of the authenticator assertion signature — embedded as evidence. */
+  signatureB64: z.string().min(1).max(8192),
 });
 
 export type SignCertRequest = z.infer<typeof signCertRequestSchema>;
@@ -48,8 +49,11 @@ export interface AptitudeCertSignature {
   signerRut: string;
   signedAt: string;
   algorithm: 'webauthn-ecdsa-p256';
+  /** Authenticator assertion signature (evidence). */
   signatureB64: string;
-  credentialPublicKeyB64: string;
+  /** The REGISTERED WebAuthn credential id verified server-side (provenance). */
+  credentialId: string;
+  /** SHA-256 of the cert JSON the doctor signed — equals certHash. */
   payloadHashHex: string;
   challengeId: string;
 }
@@ -57,30 +61,6 @@ export interface AptitudeCertSignature {
 export interface SignedAptitudeCert {
   json: AptitudeCertJson & { signature: AptitudeCertSignature };
   certHash: string;
-}
-
-// ─── Challenge construction ─────────────────────────────────────────────────
-
-/**
- * Build a server challenge bound to the certificate hash. The bytes the
- * client must sign are the SHA-256 of `(domain || ":" || certHash)` so
- * a captured WebAuthn assertion for one cert cannot be replayed against
- * another.
- *
- * The challenge is independent from the WebAuthn challenge (which still
- * lives in `webauthnChallenge.ts` and provides single-use replay defense):
- * here we only ensure the *content* of what was signed is the cert hash.
- */
-export function buildSignChallenge(certHash: string): Uint8Array {
-  if (!/^[0-9a-f]{64}$/.test(certHash)) {
-    throw new Error('invalid_cert_hash');
-  }
-  const domain = 'praeventio.aptitude-cert.v1';
-  return sha256(new TextEncoder().encode(`${domain}:${certHash}`));
-}
-
-export function buildSignChallengeHex(certHash: string): string {
-  return bytesToHex(buildSignChallenge(certHash));
 }
 
 // ─── Verification ───────────────────────────────────────────────────────────
@@ -91,7 +71,6 @@ export class AptitudeCertSignError extends Error {
     | 'cert_hash_mismatch'
     | 'doctor_role_required'
     | 'doctor_uid_mismatch'
-    | 'challenge_failed'
     | 'signature_invalid';
   constructor(code: AptitudeCertSignError['code'], message?: string) {
     super(message ?? code);
@@ -100,36 +79,39 @@ export class AptitudeCertSignError extends Error {
   }
 }
 
+/** Verdict from the canonical WebAuthn verifier (or a test fake). */
+export interface AssertionVerdict {
+  verified: boolean;
+  /** The REGISTERED credential id that produced the assertion (only on success). */
+  credentialId?: string;
+  reason?: string;
+}
+
 export interface VerifyAndSignDeps {
   /** Caller's verified identity (from verifyAuth). */
   caller: { uid: string; role: string | undefined };
   /**
-   * Single-use challenge consume (e.g. webauthnChallenge.consumeWebAuthnChallenge).
-   * Must atomically mark the challenge consumed; returning true => valid + consumed.
+   * Verify the WebAuthn assertion against the doctor's REGISTERED credential.
+   * In prod the route wires this to `verifyWebAuthnAssertion` (canonical:
+   * consume challenge + registered-credential lookup + crypto verify + counter).
+   * A test injects a fake. This module NEVER sees raw keys/signatures-to-verify.
    */
-  consumeChallenge: (challengeId: string, expectedBytes: Uint8Array) => Promise<boolean>;
-  /**
-   * WebAuthn assertion verifier — adapter around @simplewebauthn/server or a
-   * test fake. Must verify that signatureB64 was produced by the
-   * credentialPublicKeyB64 over `challengeBytes`.
-   */
-  verifyWebAuthnAssertion: (args: {
-    signatureB64: string;
-    credentialPublicKeyB64: string;
-    challengeBytes: Uint8Array;
-  }) => Promise<boolean>;
+  verifyAssertion: () => Promise<AssertionVerdict>;
 }
 
 const ALLOWED_DOCTOR_ROLES = new Set(['admin', 'gerente', 'medico_ocupacional']);
 
 /**
- * Validate a sign-cert request, verify the WebAuthn assertion is over the
- * cert hash, and embed the signature into the JSON. The caller MUST be a
- * doctor (role 'medico_ocupacional') or admin.
+ * Apply the business rules and embed the signature. The caller MUST be a
+ * doctor ('medico_ocupacional') or admin. The WebAuthn assertion MUST already
+ * verify against the doctor's REGISTERED credential (via `deps.verifyAssertion`).
  *
- * Hash binding: rejects when payloadHashHex !== certHash !== sha256(json).
- * Doctor binding: rejects when caller.uid !== json.doctor.uid (a doctor
- * cannot sign someone else's cert).
+ * Bindings enforced here:
+ *   • Role gate: caller.role ∈ {admin, gerente, medico_ocupacional}.
+ *   • Doctor-uid: a 'medico_ocupacional' can only sign their own cert
+ *     (admins bypass for emergency re-signs; the audit row records it).
+ *   • Content: certHash === sha256(cert) (the signed payload is THIS cert).
+ *   • Assertion: deps.verifyAssertion() must return verified + a credentialId.
  */
 export async function verifyAndSignCert(
   cert: AptitudeCertJson,
@@ -148,46 +130,32 @@ export async function verifyAndSignCert(
     throw new AptitudeCertSignError('doctor_role_required');
   }
 
-  // Doctor uid binding: the caller must match the doctor on the cert.
-  // Admins bypass this for emergency re-signs (audit row records the override).
+  // Doctor uid binding: a doctor can only sign their own cert. Admins bypass.
   if (deps.caller.role === 'medico_ocupacional' && deps.caller.uid !== cert.doctor.uid) {
     throw new AptitudeCertSignError('doctor_uid_mismatch');
   }
 
-  // Hash binding: recompute and compare. Three-way match.
+  // Content binding: recompute and compare. The signed payload IS this cert.
   const expectedHash = hashAptitudeCertJson(cert);
   if (request.certHash !== expectedHash) {
     throw new AptitudeCertSignError('cert_hash_mismatch');
   }
-  if (request.signature.payloadHashHex !== expectedHash) {
-    throw new AptitudeCertSignError('cert_hash_mismatch');
-  }
 
-  // Challenge consume (single-use). The server-issued challenge bytes are
-  // sha256(domain : certHash) — see buildSignChallenge above.
-  const challengeBytes = buildSignChallenge(expectedHash);
-  const ok = await deps.consumeChallenge(request.challengeId, challengeBytes);
-  if (!ok) {
-    throw new AptitudeCertSignError('challenge_failed');
-  }
-
-  const sigOk = await deps.verifyWebAuthnAssertion({
-    signatureB64: request.signature.signatureB64,
-    credentialPublicKeyB64: request.signature.credentialPublicKeyB64,
-    challengeBytes,
-  });
-  if (!sigOk) {
+  // Cryptographic verification against the REGISTERED credential (canonical).
+  const verdict = await deps.verifyAssertion();
+  if (!verdict.verified || !verdict.credentialId) {
     throw new AptitudeCertSignError('signature_invalid');
   }
 
   const sig: AptitudeCertSignature = {
-    signerUid: request.signature.signerUid,
-    signerRut: request.signature.signerRut,
-    signedAt: request.signature.signedAt,
-    algorithm: request.signature.algorithm,
-    signatureB64: request.signature.signatureB64,
-    credentialPublicKeyB64: request.signature.credentialPublicKeyB64,
-    payloadHashHex: request.signature.payloadHashHex,
+    // Identity from the VERIFIED token, never the request body.
+    signerUid: deps.caller.uid,
+    signerRut: request.signerRut,
+    signedAt: request.signedAt,
+    algorithm: 'webauthn-ecdsa-p256',
+    signatureB64: request.signatureB64,
+    credentialId: verdict.credentialId,
+    payloadHashHex: expectedHash,
     challengeId: request.challengeId,
   };
 
