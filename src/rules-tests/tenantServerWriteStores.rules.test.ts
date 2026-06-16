@@ -34,7 +34,9 @@ const DOC_ID = 'doc-1';
 
 // The genuine OLA 2 gaps confirmed by the rules-gap investigation: all
 // server-only-write, all under tenants/{tid}/projects/{pid}/.
-const COLLECTIONS = ['positive_observations', 'photo_evidence', 'splat_captures'] as const;
+// photo_evidence is split out below: it carries PII so its read is supervisor-
+// tier, not member-wide (the others stay member-read).
+const COLLECTIONS = ['positive_observations', 'splat_captures'] as const;
 
 let testEnv: RulesTestEnvironment | null = null;
 
@@ -107,4 +109,28 @@ describe('server-only-write tenant stores — firestore.rules (OLA 2 blindaje)',
       });
     });
   }
+
+  // photo_evidence — PII → supervisor-tier read (NOT member-wide). A plain
+  // worker must NOT read another project's incident photos.
+  describe('photo_evidence (supervisor-read, PII)', () => {
+    const C = 'photo_evidence';
+    it('supervisor-read — a tenant supervisor CAN read', async () => {
+      await seed(C);
+      await assertSucceeds(getDoc(refFor(authed(TENANT, 'supervisor'), TENANT, C)));
+    });
+    it('worker-read DENY — a plain tenant worker CANNOT read PII evidence', async () => {
+      await seed(C);
+      await assertFails(getDoc(refFor(authed(TENANT, 'worker'), TENANT, C)));
+    });
+    it('cross-tenant deny — a supervisor of ANOTHER tenant CANNOT read', async () => {
+      await seed(C);
+      await assertFails(getDoc(refFor(authed(OTHER_TENANT, 'supervisor'), TENANT, C)));
+    });
+    it('server-only — even a supervisor/admin CANNOT create/update/delete', async () => {
+      await seed(C);
+      await assertFails(setDoc(refFor(authed(TENANT, 'supervisor'), TENANT, C), { server: true }));
+      await assertFails(updateDoc(refFor(authed(TENANT, 'supervisor'), TENANT, C), { tampered: true }));
+      await assertFails(deleteDoc(refFor(authed(TENANT, 'admin'), TENANT, C)));
+    });
+  });
 });

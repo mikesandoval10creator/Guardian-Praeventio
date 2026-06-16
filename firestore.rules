@@ -1887,8 +1887,15 @@ service cloud.firestore {
         }
 
         // Content-addressed photo evidence (server route photoEvidence.ts).
+        // PRIVACY (2026-06-16): photos can carry PII (people / incident scenes).
+        // Read is restricted to SUPERVISOR-tier (mirrors conflict_queue /
+        // supervisor_only) rather than tenant-member-wide, so a plain worker
+        // can't read another project's evidence. Latent today (server-only-write,
+        // no client reader yet) — tightened proactively. positive_observations /
+        // splat_captures stay member-read (recognition is team-visible by design;
+        // splats are digital-twin geometry, not personal photos).
         match /photo_evidence/{contentHash} {
-          allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+          allow read: if isSignedIn() && isSupervisorOfTenant(tenantId);
           allow create, update, delete: if false;
         }
 
