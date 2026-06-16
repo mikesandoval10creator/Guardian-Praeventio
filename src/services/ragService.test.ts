@@ -404,13 +404,17 @@ function makeSafeNormativeFirestore(
 ) {
   const findNearestArgs: Array<{ limit: number }> = [];
   const collection = vi.fn(() => ({
-    findNearest: vi.fn((_field: string, _vec: unknown, opts: { limit: number }) => {
+    // Object-form overload (matches safeNormativeQuery, which needs
+    // distanceResultField — unavailable on the deprecated positional form).
+    // Each doc is a LAW vector (`lawId`, no `nodeId`) so it survives the
+    // legal-RAG cross-tenant post-filter.
+    findNearest: vi.fn((opts: { limit: number }) => {
       findNearestArgs.push({ limit: opts.limit });
       return {
         get: vi.fn().mockResolvedValue({
           empty: docs.length === 0,
           docs: docs.map((d) => ({
-            data: () => ({ title: d.title, content: d.content, distance: d.distance }),
+            data: () => ({ title: d.title, content: d.content, distance: d.distance, lawId: 'L1' }),
           })),
         }),
       };
@@ -498,7 +502,10 @@ describe('searchRelevantContext (real safeNormativeQuery wiring)', () => {
 
     await ragService.searchRelevantContext('DS 594', 5);
 
-    expect(fs.findNearestArgs.at(-1)?.limit).toBe(5);
+    // topK now drives the OVER-FETCH window (max(k*40, 150), cap 1000) so the
+    // law-only post-filter isn't starved by nearer per-project node vectors;
+    // results are sliced back to topK downstream. topK=5 → max(200, 150)=200.
+    expect(fs.findNearestArgs.at(-1)?.limit).toBe(200);
   });
 
   it('never throws — returns a safe canonical string when the RAG layer errors', async () => {
