@@ -290,6 +290,22 @@ export function registerWebpayRoutes(
       o: WebpayReturnOutcome,
     ): 'success' | 'failure' => (o === 'paid' ? 'success' : 'failure');
 
+    // Defense-in-depth (2026-06-16): fail CLOSED on its own rather than
+    // depending solely on the validate-env boot gate. Without real WEBPAY creds
+    // the adapter would commit against the public Transbank integration commerce
+    // code — never mark an invoice paid on sandbox/default creds.
+    if (!webpayAdapter.isConfigured()) {
+      logger.error('webpay_return_unconfigured', {
+        detail: 'WEBPAY_COMMERCE_CODE/WEBPAY_API_KEY absent — refusing to commit',
+      });
+      sentryCapture(new Error('webpay_return_unconfigured'), {
+        endpoint: 'billing.webpay.return',
+        tags: { stage: 'config-guard' },
+      });
+      recordWebpayReturnLatency({ outcome: 'failure', latencyMs: elapsed() });
+      return res.redirect(302, redirectFor('rejected', null));
+    }
+
     try {
       // Step 1: try to acquire the idempotency lock.
       const lock = await acquireWebpayIdempotencyLock(lockRef);

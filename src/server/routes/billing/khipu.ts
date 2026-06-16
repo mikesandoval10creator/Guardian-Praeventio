@@ -76,6 +76,18 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
         : '';
 
       const adapter = KhipuAdapter.fromEnv();
+      // SECURITY (2026-06-16): fail-CLOSED when real Khipu creds are absent.
+      // Without this, fromEnv() falls back to the DOCUMENTED PUBLIC sandbox
+      // secret (khipuAdapter.ts), so anyone reading the repo could forge a
+      // valid HMAC and drive an invoice to 'paid' + activate a subscription +
+      // trigger DTE with no real key and no real money. Mirror the /checkout
+      // guard: refuse to process IPNs against sandbox/default credentials.
+      if (!adapter.isConfigured()) {
+        logger.error('khipu_webhook_unconfigured', {
+          detail: 'KHIPU_RECEIVER_ID/KHIPU_SECRET absent — refusing IPN against sandbox creds',
+        });
+        return res.status(503).json({ error: 'khipu_not_configured' });
+      }
       if (!adapter.verifyWebhookSignature(rawBody, signature)) {
         // Do NOT echo the signature or rawBody back; ops can correlate via
         // request id + remote IP in the access log.
