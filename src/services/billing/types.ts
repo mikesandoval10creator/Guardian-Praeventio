@@ -129,6 +129,13 @@ export interface Invoice {
     | 'cancelled'
     | 'rejected'
     | 'refunded';
+  /**
+   * Billing cycle this invoice was purchased at. Optional + additive: legacy
+   * invoices persisted before this field fall back to the line-item description
+   * parse (see cycleFromInvoiceDoc). Persisted at checkout so payment
+   * confirmation can stamp it onto users/{uid}.subscription.cycle.
+   */
+  cycle?: 'monthly' | 'annual';
 }
 
 export interface CheckoutRequest {

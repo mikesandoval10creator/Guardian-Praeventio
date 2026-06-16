@@ -181,6 +181,9 @@ export function buildInvoice(
     paymentMethod: request.paymentMethod,
     issuedAt: now().toISOString(),
     status: 'draft',
+    // Persist the cycle so payment confirmation can stamp it onto the
+    // subscription doc (the webpay rail spreads this Invoice into Firestore).
+    cycle: request.cycle,
   };
 }
 
