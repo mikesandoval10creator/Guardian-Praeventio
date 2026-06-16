@@ -39,6 +39,7 @@ import {
   isSubscriptionPlan,
   normalizeSubscriptionPlanId,
   subscriptionPlanMatchesPaidTier,
+  planFromIapProductId,
 } from '../../services/pricing/subscriptionPlan.js';
 import {
   assertProjectMember,
@@ -554,8 +555,14 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
         type: type ?? 'subscription',
         status: 'verified',
       });
-      const resolvedPlan = normalizeSubscriptionPlanId(productId) ?? 'comite';
+      // Mirrors the real googleplay.ts /verify hardening: an unknown
+      // subscription SKU fails loud (400) instead of over-granting 'comite';
+      // one-time productIds must be a safe Firestore field-path key.
       if (type === 'subscription') {
+        const resolvedPlan = planFromIapProductId(productId);
+        if (resolvedPlan === null) {
+          return res.status(400).json({ error: 'unknown_product' });
+        }
         const expiryDate = data.expiryTimeMillis
           ? new Date(parseInt(data.expiryTimeMillis)).toISOString()
           : null;
@@ -567,6 +574,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
           'subscription.purchaseToken': purchaseToken,
         });
       } else {
+        if (!/^[A-Za-z0-9_-]+$/.test(String(productId ?? ''))) {
+          return res.status(400).json({ error: 'invalid_product' });
+        }
         await deps.firestore.collection('users').doc(uid).update({
           [`purchased_products.${productId}`]: true,
         });

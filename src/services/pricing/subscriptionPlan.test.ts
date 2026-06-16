@@ -6,6 +6,7 @@ import {
   subscriptionPlanForPaidTier,
   cycleFromInvoiceDoc,
   cycleFromProductId,
+  resolveInvoiceCycle,
   DEFAULT_SUBSCRIPTION_CYCLE,
   planFromIapProductId,
 } from './subscriptionPlan';
@@ -77,6 +78,42 @@ describe('subscription billing-cycle resolution (server-side, total)', () => {
       expect(cycleFromInvoiceDoc({})).toBe('monthly');
       expect(cycleFromInvoiceDoc({ lineItems: [] })).toBe('monthly');
       expect(cycleFromInvoiceDoc({ lineItems: [{ description: 'no cycle token' }] })).toBe('monthly');
+    });
+  });
+
+  describe('resolveInvoiceCycle (cycle + source for warn-on-default)', () => {
+    it('source="field" when the structured top-level cycle is present', () => {
+      expect(resolveInvoiceCycle({ cycle: 'annual' })).toEqual({ cycle: 'annual', source: 'field' });
+      expect(resolveInvoiceCycle({ cycle: 'monthly' })).toEqual({ cycle: 'monthly', source: 'field' });
+    });
+
+    it('source="description" when only the legacy line-item description carries it', () => {
+      expect(
+        resolveInvoiceCycle({ lineItems: [{ description: 'Suscripción oro (annual)' }] }),
+      ).toEqual({ cycle: 'annual', source: 'description' });
+      expect(
+        resolveInvoiceCycle({ lineItems: [{ description: 'Suscripción oro (monthly)' }] }),
+      ).toEqual({ cycle: 'monthly', source: 'description' });
+    });
+
+    it('source="default" when the cycle is NOT derivable from a real doc (the warn case)', () => {
+      expect(resolveInvoiceCycle({})).toEqual({ cycle: 'monthly', source: 'default' });
+      expect(resolveInvoiceCycle({ cycle: 'weekly' })).toEqual({ cycle: 'monthly', source: 'default' });
+      expect(resolveInvoiceCycle({ lineItems: [{ description: 'no cycle token' }] })).toEqual({
+        cycle: 'monthly',
+        source: 'default',
+      });
+    });
+
+    it('source="default" for a null/undefined doc (a "no doc", not a data gap)', () => {
+      expect(resolveInvoiceCycle(null)).toEqual({ cycle: 'monthly', source: 'default' });
+      expect(resolveInvoiceCycle(undefined)).toEqual({ cycle: 'monthly', source: 'default' });
+    });
+
+    it('cycleFromInvoiceDoc stays in lock-step with resolveInvoiceCycle().cycle', () => {
+      for (const doc of [{ cycle: 'annual' }, { lineItems: [{ description: 'x (monthly)' }] }, {}, null]) {
+        expect(cycleFromInvoiceDoc(doc)).toBe(resolveInvoiceCycle(doc).cycle);
+      }
     });
   });
 

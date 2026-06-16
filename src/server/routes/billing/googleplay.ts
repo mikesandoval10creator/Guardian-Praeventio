@@ -22,7 +22,11 @@ import { googlePlayWebhookLimiter } from '../../middleware/limiters.js';
 import { logger } from '../../../utils/logger.js';
 import { withIdempotency } from '../../../services/billing/idempotency.js';
 import { auditServerEvent } from '../../middleware/auditLog.js';
-import { cycleFromProductId, planFromIapProductId } from '../../../services/pricing/subscriptionPlan.js';
+import {
+  cycleFromProductId,
+  planFromIapProductId,
+  type BillingCycle,
+} from '../../../services/pricing/subscriptionPlan.js';
 import { sentryCapture } from './shared.js';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -106,17 +110,29 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Store entitlements using the subscription plan id expected by feature
-      // gates. The Play `productId` is a SKU (e.g. 'praeventio_oro_annual'),
-      // NOT a plan/tier id — so it must be mapped SKU → tierId (tierForIapSku)
-      // → plan first. (Bug fix: feeding the raw SKU to normalizeSubscriptionPlanId
-      // always returned null → every IAP purchase was mis-granted 'comite'
-      // regardless of what was bought.) Falls back to treating productId as a
-      // tier/plan id directly, then to 'comite' for a truly unknown SKU.
-      const resolvedPlan = planFromIapProductId(productId) ?? 'comite';
+      // The Play `productId` is a SKU (e.g. 'praeventio_oro_annual'), NOT a
+      // plan/tier id — map SKU → tierId (tierForIapSku) → plan first.
+      let resolvedPlan: string | null = null;
+      let cycle: BillingCycle | null = null;
 
       // Update user subscription status
       if (type === 'subscription') {
+        // Hardening (#929 follow-up): a Google-VERIFIED purchase whose SKU is
+        // not registered in iapSkus is a SERVER CONFIG BUG, not a valid
+        // entitlement. Fail LOUD instead of silently over-granting the legacy
+        // 'comite' (=plata) fallback — alert hard so the SKU mapping is fixed,
+        // and reject rather than grant the wrong tier.
+        resolvedPlan = planFromIapProductId(productId);
+        if (resolvedPlan === null) {
+          logger.error('iap_unknown_product', undefined, { uid, productId, type });
+          sentryCapture(new Error(`iap_unknown_product:${productId}`), {
+            endpoint: '/api/billing/verify',
+            tags: { method: 'POST', uid },
+          });
+          return res.status(400).json({ error: 'unknown_product' });
+        }
+        cycle = cycleFromProductId(productId);
+
         // Narrow: `type === 'subscription'` guarantees subscription branch above
         // returned `Schema$SubscriptionPurchase` (which has `expiryTimeMillis` &
         // `paymentState`). TS can't narrow `data` through the disjoint `if`,
@@ -132,11 +148,21 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
           'subscription.expiryDate': expiryDate,
           'subscription.purchaseToken': purchaseToken,
           'subscription.orderId': subData.orderId,
-          'subscription.cycle': cycleFromProductId(productId),
+          'subscription.cycle': cycle,
           'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
         });
       } else {
-        // One-time purchase logic
+        // One-time purchase: `productId` is used as a Firestore field-path key
+        // below, so reject any value that isn't a plain key (a '.' would create
+        // nested fields = path injection; real Play SKUs are [a-z0-9_]).
+        if (!/^[A-Za-z0-9_-]+$/.test(String(productId ?? ''))) {
+          logger.error('iap_invalid_product_key', undefined, { uid, productId });
+          sentryCapture(new Error('iap_invalid_product_key'), {
+            endpoint: '/api/billing/verify',
+            tags: { method: 'POST', uid },
+          });
+          return res.status(400).json({ error: 'invalid_product' });
+        }
         await db.collection('users').doc(uid).update({
           [`purchased_products.${productId}`]: true,
           'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
@@ -148,6 +174,7 @@ export function registerGooglePlayRoutes(billingApiRouter: Router): void {
         productId,
         type: type ?? 'subscription',
         planId: resolvedPlan,
+        cycle,
         orderId: data.orderId ?? null,
       });
       return res.json({ success: true, data });

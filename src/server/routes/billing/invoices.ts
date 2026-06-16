@@ -31,7 +31,7 @@ import {
   type DteIssueRequest,
 } from '../../../services/dte/dteAutoIssueOrchestrator.js';
 import { withIdempotency } from '../../../services/billing/idempotency.js';
-import { normalizeSubscriptionPlanId, cycleFromInvoiceDoc } from '../../../services/pricing/subscriptionPlan.js';
+import { normalizeSubscriptionPlanId, resolveInvoiceCycle } from '../../../services/pricing/subscriptionPlan.js';
 import {
   buildDteQueueInvoicePayload,
   enqueueDteIssueJob,
@@ -97,6 +97,10 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
           const lineItems = Array.isArray(current?.lineItems) ? current.lineItems : [];
           const tierId: string | null = lineItems[0]?.tierId ?? current?.tierId ?? null;
           const ownerUid: string | null = current?.createdBy ?? null;
+          const { cycle, source: cycleSource } = resolveInvoiceCycle(current);
+          if (cycleSource === 'default' && current != null) {
+            logger.warn('billing_cycle_defaulted', { invoiceId, rail: 'mark-paid' });
+          }
           let subscriptionActivation: 'activated' | 'missing-data' | 'failed' = 'missing-data';
           try {
             const planId = normalizeSubscriptionPlanId(tierId);
@@ -111,7 +115,7 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     lastInvoiceId: invoiceId,
                     paymentMethod: 'manual',
-                    cycle: cycleFromInvoiceDoc(current),
+                    cycle,
                   },
                 },
                 { merge: true },
@@ -232,6 +236,7 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
                 total: current?.totals?.total,
                 currency: current?.totals?.currency,
                 subscriptionActivation,
+                cycle,
                 ownerUid,
                 tierId,
                 dte: dteOutcome,

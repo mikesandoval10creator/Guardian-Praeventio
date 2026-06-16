@@ -313,6 +313,7 @@ vi.mock('../../services/pricing/subscriptionPlan.js', async () => {
 // import REAL routers after all mocks are in place
 // ─────────────────────────────────────────────────────────────────────────────
 import { billingApiRouter, billingWebpayRouter } from '../../server/routes/billing.js';
+import { logger } from '../../utils/logger.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -686,6 +687,7 @@ describe('POST /api/billing/invoice/:id/mark-paid', () => {
     expect(details.subscriptionActivation).toBe('activated');
     expect(details.ownerUid).toBe('uid-owner');
     expect(details.tierId).toBe('comite-paritario');
+    expect(details.cycle).toBe('monthly');
   });
 
   it('round-trip: an annual invoice activates subscription.cycle === annual (cycle from server invoice, not the request)', async () => {
@@ -699,6 +701,40 @@ describe('POST /api/billing/invoice/:id/mark-paid', () => {
     expect((res.body as Record<string, unknown>).subscriptionActivation).toBe('activated');
     const user = H.db!._store.get('users/uid-owner') as Record<string, any>;
     expect(user.subscription.cycle).toBe('annual');
+    // The same server-derived cycle is stamped on the audit row (observability).
+    const auditRow = [...H.db!._store.keys()]
+      .filter((k) => k.startsWith('audit_logs/'))
+      .map((k) => H.db!._store.get(k) as Record<string, any>)
+      .find((r) => r.action === 'billing.mark-paid');
+    expect(auditRow?.details?.cycle).toBe('annual');
+  });
+
+  it('warns billing_cycle_defaulted when an invoice has no derivable cycle (and NOT when it does)', async () => {
+    asAdmin();
+    // No cycle field + a description without a (monthly)/(annual) token → the
+    // cycle is NOT derivable → defaulted → a warn so a wrong cycle is traceable.
+    seedB2bInvoice('inv-no-cycle');
+    vi.mocked(logger.warn).mockClear();
+    await request(buildApp())
+      .post('/api/billing/invoice/inv-no-cycle/mark-paid')
+      .set('x-test-uid', 'uid-admin')
+      .set('x-test-email', 'admin@praeventio.net');
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      'billing_cycle_defaulted',
+      expect.objectContaining({ rail: 'mark-paid', invoiceId: 'inv-no-cycle' }),
+    );
+
+    // A real cycle field → NO defaulted warn.
+    seedB2bInvoice('inv-has-cycle', 'annual');
+    vi.mocked(logger.warn).mockClear();
+    await request(buildApp())
+      .post('/api/billing/invoice/inv-has-cycle/mark-paid')
+      .set('x-test-uid', 'uid-admin')
+      .set('x-test-email', 'admin@praeventio.net');
+    expect(vi.mocked(logger.warn)).not.toHaveBeenCalledWith(
+      'billing_cycle_defaulted',
+      expect.anything(),
+    );
   });
 
   it('admin marks paid with shouldIssue decision → DTE emission ATTEMPTED via tryAutoIssueDte', async () => {
@@ -1296,6 +1332,7 @@ describe('GET /billing/webpay/return', () => {
     H.db!._seed('invoices/inv-webpay-auth', {
       status: 'pending-payment',
       createdBy: 'uid-A',
+      cycle: 'annual',
       lineItems: [{ tierId: 'comite-paritario' }],
     });
     const res = await request(buildApp())
@@ -1306,12 +1343,13 @@ describe('GET /billing/webpay/return', () => {
     const invoice = H.db!._store.get('invoices/inv-webpay-auth') as Record<string, unknown>;
     expect(invoice.status).toBe('paid');
     expect(invoice.paymentSource).toBe('webpay');
-    // audit_logs row written
-    const auditKeys = [...H.db!._store.keys()].filter((k) => k.startsWith('audit_logs/'));
-    expect(auditKeys.some((k) => {
-      const row = H.db!._store.get(k) as Record<string, unknown>;
-      return row.action === 'billing.webpay-return.authorized';
-    })).toBe(true);
+    // audit_logs row written, stamping the server-derived billing cycle.
+    const authRow = [...H.db!._store.keys()]
+      .filter((k) => k.startsWith('audit_logs/'))
+      .map((k) => H.db!._store.get(k) as Record<string, any>)
+      .find((r) => r.action === 'billing.webpay-return.authorized');
+    expect(authRow).toBeTruthy();
+    expect(authRow!.details.cycle).toBe('annual');
   });
 
   it('302 → /pricing/failed on REJECTED commit', async () => {

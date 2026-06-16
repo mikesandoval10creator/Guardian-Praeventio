@@ -119,27 +119,53 @@ export function planMeetsMinimum(plan: unknown, minPlan: SubscriptionPlan): bool
 /** Safe default when a paid subscription's billing cycle can't be derived. */
 export const DEFAULT_SUBSCRIPTION_CYCLE: BillingCycle = 'monthly';
 
+/** Where a resolved billing cycle came from — for observability. */
+export type BillingCycleSource = 'field' | 'description' | 'default';
+
+export interface ResolvedInvoiceCycle {
+  cycle: BillingCycle;
+  source: BillingCycleSource;
+}
+
 /**
- * Resolve the billing cycle from a persisted invoice document. Reads the
- * structured top-level `cycle` first; falls back to parsing the first line
- * item's description (`Suscripción <tier> (<cycle>)`) for legacy invoices that
- * predate the structured field; else the safe monthly default. Pure + total.
+ * Resolve the billing cycle from a persisted invoice document AND report where
+ * it came from. Reads the structured top-level `cycle` first (`source:'field'`);
+ * falls back to parsing the first line item's description
+ * (`Suscripción <tier> (<cycle>)`, `source:'description'`) for legacy invoices
+ * that predate the structured field; else the safe monthly default
+ * (`source:'default'`). Pure + total (never throws).
+ *
+ * The `source` lets the SERVER rails distinguish a GENUINE monthly cycle from a
+ * non-derivable one: a `default` with a non-null invoice means the cycle could
+ * not be read off the doc and was assumed — worth a `billing_cycle_defaulted`
+ * warn at the rail (NOT here: this is a client-importable pure module). A
+ * `default` with a null/undefined invoice is just "no doc", not a data gap.
  */
-export function cycleFromInvoiceDoc(
+export function resolveInvoiceCycle(
   invoiceData: Record<string, unknown> | null | undefined,
-): BillingCycle {
-  if (!invoiceData) return DEFAULT_SUBSCRIPTION_CYCLE;
+): ResolvedInvoiceCycle {
+  if (!invoiceData) return { cycle: DEFAULT_SUBSCRIPTION_CYCLE, source: 'default' };
   const top = invoiceData.cycle;
-  if (top === 'monthly' || top === 'annual') return top;
+  if (top === 'monthly' || top === 'annual') return { cycle: top, source: 'field' };
   const lineItems = invoiceData.lineItems;
   if (Array.isArray(lineItems) && lineItems.length > 0) {
     const desc = (lineItems[0] as { description?: unknown } | null)?.description;
     if (typeof desc === 'string') {
-      if (/\(annual\)/i.test(desc)) return 'annual';
-      if (/\(monthly\)/i.test(desc)) return 'monthly';
+      if (/\(annual\)/i.test(desc)) return { cycle: 'annual', source: 'description' };
+      if (/\(monthly\)/i.test(desc)) return { cycle: 'monthly', source: 'description' };
     }
   }
-  return DEFAULT_SUBSCRIPTION_CYCLE;
+  return { cycle: DEFAULT_SUBSCRIPTION_CYCLE, source: 'default' };
+}
+
+/**
+ * Resolve the billing cycle from a persisted invoice document. Thin wrapper over
+ * {@link resolveInvoiceCycle} for callers that only need the cycle. Pure + total.
+ */
+export function cycleFromInvoiceDoc(
+  invoiceData: Record<string, unknown> | null | undefined,
+): BillingCycle {
+  return resolveInvoiceCycle(invoiceData).cycle;
 }
 
 /**

@@ -27,7 +27,12 @@ import { calculateInvoiceTotals } from '../../../services/billing/invoice.js';
 import type { Invoice, InvoiceLineItem } from '../../../services/billing/types.js';
 import { resolveBillingTier } from './pricing.js';
 import { resolveBillingTierUf } from './ufPricing.js';
-import { normalizeSubscriptionPlanId, cycleFromInvoiceDoc } from '../../../services/pricing/subscriptionPlan.js';
+import {
+  normalizeSubscriptionPlanId,
+  resolveInvoiceCycle,
+  DEFAULT_SUBSCRIPTION_CYCLE,
+  type BillingCycle,
+} from '../../../services/pricing/subscriptionPlan.js';
 // DTE auto-issue orchestrator (pure decision) — same wire as webpay/MP.
 import {
   decideDteIssue,
@@ -133,10 +138,25 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                 },
                 { merge: true },
               );
+              // Resolve the billing cycle from server-side invoice state for
+              // the audit row (best-effort + own try so a read blip never
+              // breaks the IPN ack); reused for the subscription write below.
+              let cycle: BillingCycle = DEFAULT_SUBSCRIPTION_CYCLE;
+              try {
+                const cycleSnap = await invoiceRef.get();
+                const resolved = resolveInvoiceCycle(cycleSnap.data());
+                cycle = resolved.cycle;
+                if (resolved.source === 'default' && cycleSnap.exists) {
+                  logger.warn('billing_cycle_defaulted', { invoiceId, rail: 'khipu' });
+                }
+              } catch {
+                logger.warn('khipu_ipn_cycle_resolve_failed', { invoiceId });
+              }
+
               await db.collection('audit_logs').add({
                 action: 'billing.khipu-ipn.completed',
                 module: 'billing',
-                details: { invoiceId, amount: status.amount, paymentId },
+                details: { invoiceId, amount: status.amount, paymentId, cycle },
                 userId: null,
                 userEmail: null,
                 projectId: null,
@@ -170,7 +190,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                         lastInvoiceId: invoiceId,
                         paymentMethod: 'khipu',
-                        cycle: cycleFromInvoiceDoc(invoiceData),
+                        cycle,
                       },
                     },
                     { merge: true },

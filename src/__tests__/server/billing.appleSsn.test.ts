@@ -376,6 +376,8 @@ describe('POST /api/billing/webhook/apple', () => {
     expect(auditKey).toBeDefined();
     expect(fs.store.get(auditKey!).verified_chain).toBe(false);
     expect(fs.store.get(auditKey!).action).toBe('grant');
+    // A grant stamps the purchased cycle on the audit row (observability).
+    expect(fs.store.get(auditKey!).cycle).toBe('monthly');
   });
 
   it('DID_RENEW updates expiryDate on the matched user', async () => {

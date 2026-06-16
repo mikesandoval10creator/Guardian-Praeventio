@@ -66,15 +66,20 @@ describe('POST /api/billing/verify', () => {
     });
   });
 
-  it('falls back to "comite" plan when productId is unknown', async () => {
+  it('rejects an unknown subscription SKU with 400 (no silent comite over-grant)', async () => {
+    // #929 follow-up: a Google-verified-but-unregistered SKU is a config bug,
+    // not an entitlement. It must fail loud, not silently grant comite/plata.
     const playVerify = vi.fn(async () => ({ data: { paymentState: 1 } }));
     handle = buildTestServer({ firestore: fs, playVerify });
     fs.store.set('users/uid-A', {});
-    await request(handle.app)
+    const res = await request(handle.app)
       .post('/api/billing/verify')
       .set('Authorization', 'Bearer test:uid-A:a@test.com')
       .send({ purchaseToken: 't', productId: 'made-up-plan', type: 'subscription' });
-    expect((fs.store.get('users/uid-A') as any).subscription.planId).toBe('comite');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('unknown_product');
+    // No plan may be granted for an unregistered SKU.
+    expect((fs.store.get('users/uid-A') as any).subscription).toBeUndefined();
   });
 
   // Sprint E backend debt (2026-05-16) — `idempotencyKey()` smoke.
