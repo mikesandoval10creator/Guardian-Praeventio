@@ -349,13 +349,34 @@ router.post(
       throw err;
     }
 
+    // incident_vectors are indexed under the project's LOGICAL tenant: the
+    // writer (incidents.ts) resolves `projects/{id}.tenantId` and indexes
+    // `incident_vectors/{tenantId}/items`. searchIncidents' first arg is that
+    // tenantId — NOT the projectId. Resolve it the same way the /backlinks
+    // handler does. Without this the search read `incident_vectors/{projectId}`,
+    // a path never written, so EVERY NL incident query silently returned [].
+    const db = admin.firestore();
+    let tenantId: string | null = null;
+    try {
+      const snap = await db.collection('projects').doc(projectId).get();
+      const data = snap.exists
+        ? (snap.data() as { tenantId?: string } | undefined)
+        : undefined;
+      if (typeof data?.tenantId === 'string' && data.tenantId.length > 0) {
+        tenantId = data.tenantId;
+      }
+    } catch (err) {
+      logger.warn('zettelkasten_nl_query_tenant_resolve_failed', { err: String(err) });
+    }
+    if (!tenantId) return res.status(404).json({ error: 'tenant_not_found' });
+
     try {
       const deps: IncidentRagDeps = {
-        db: admin.firestore() as unknown as IncidentRagDeps['db'],
+        db: db as unknown as IncidentRagDeps['db'],
         embed: generateEmbedding,
         toVector: (vec) => admin.firestore.FieldValue.vector(vec),
       };
-      const result = await searchIncidents(projectId, query, topK ?? 5, deps);
+      const result = await searchIncidents(tenantId, query, topK ?? 5, deps);
       return res.json(result);
     } catch (error: any) {
       logger.error('zettelkasten_nl_query_failed', {
