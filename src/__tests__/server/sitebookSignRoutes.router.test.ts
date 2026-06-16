@@ -122,6 +122,15 @@ function seedCredential(uid = SIGNER_UID, credId = CRED_ID) {
   });
 }
 
+/**
+ * Seed the project doc so the REAL `assertProjectMember` gate (P0 IDOR fix)
+ * passes for the given members. Default = SIGNER_UID is a member. The
+ * cross-tenant attack tests use a caller uid that is NOT in this list.
+ */
+function seedProject(members: string[] = [SIGNER_UID], projectId = PROJECT_ID) {
+  H.db!._seed(`projects/${projectId}`, { id: projectId, members });
+}
+
 /** A well-formed browser assertion (shape only — crypto is mocked). */
 const validAssertion = {
   credentialId: CRED_ID,
@@ -133,6 +142,10 @@ const validAssertion = {
 
 beforeEach(() => {
   H.db = createFakeFirestore();
+  // Make SIGNER_UID a member of PROJECT_ID so the assertProjectMember gate
+  // (P0 IDOR fix) passes for the happy/error paths below; the dedicated
+  // cross-tenant tests override the caller uid to a non-member.
+  seedProject();
   // Default verifier: success. Per-test overrides reassign before the request.
   H.verifyAssertion = vi.fn(async () => ({
     verified: true,
@@ -160,6 +173,21 @@ describe('POST /api/sitebook/sign/options', () => {
     expect((res.body as { error: string }).error).toBe(
       'entryId, projectId, payloadHashHex required',
     );
+  });
+
+  it('403 forbidden when the caller is NOT a member of the project (cross-tenant IDOR)', async () => {
+    // Project members = [SIGNER_UID] (from beforeEach). An attacker from
+    // another tenant holds a valid credential but is not a project member.
+    seedEntry();
+    seedCredential('uid-intruder');
+    const res = await request(buildApp())
+      .post('/api/sitebook/sign/options')
+      .set('x-test-uid', 'uid-intruder')
+      .send({ entryId: ENTRY_ID, projectId: PROJECT_ID, payloadHashHex: 'a'.repeat(64) });
+    // The gate must run BEFORE the hash/entry checks: a non-member never
+    // learns whether the entry exists or what its hash is.
+    expect(res.status).toBe(403);
+    expect((res.body as { error: string }).error).toBe('forbidden');
   });
 
   it('400 invalid_hash_format when payloadHashHex is not 64 hex chars', async () => {
@@ -302,6 +330,29 @@ describe('POST /api/sitebook/sign/verify', () => {
       .post('/api/sitebook/sign/verify')
       .send(verifyBody());
     expect(res.status).toBe(401);
+  });
+
+  it('403 forbidden when the caller is NOT a member of the project (cross-tenant IDOR)', async () => {
+    seedEntry();
+    const res = await request(buildApp())
+      .post('/api/sitebook/sign/verify')
+      .set('x-test-uid', 'uid-intruder') // not in PROJECT_ID members
+      .send(verifyBody());
+    // Gate runs before verify; the attacker cannot apply their signature to
+    // another tenant's site-book entry.
+    expect(res.status).toBe(403);
+    expect((res.body as { error: string }).error).toBe('forbidden');
+    // The entry remains unsigned.
+    const dump = H.db!._dump();
+    const stored = dump[entryPath()] as Record<string, unknown>;
+    expect(stored.status).toBe('open');
+    // The blocked cross-tenant probe is audited for a forensic trace.
+    const idorAudit = Object.entries(dump).find(
+      ([k, v]) => k.startsWith('audit_logs/') && (v as Record<string, unknown>).action === 'sitebookSign.idor_blocked',
+    )?.[1] as Record<string, unknown> | undefined;
+    expect(idorAudit).toBeDefined();
+    expect(idorAudit!.userId).toBe('uid-intruder');
+    expect((idorAudit!.details as Record<string, unknown>).projectId).toBe(PROJECT_ID);
   });
 
   it('400 malformed_body when challengeId is missing', async () => {

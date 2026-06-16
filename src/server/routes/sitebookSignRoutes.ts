@@ -15,7 +15,7 @@
 // JSON parseado por la middleware global. La verificación criptográfica
 // real se delega a `verifyWebAuthnAssertion` de webauthnAssertion.ts.
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type Request, type Response, type NextFunction } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import {
@@ -31,6 +31,10 @@ import {
 } from './sitebookSign.js';
 import { SITE_BOOK_COLLECTION, type SiteBookEntry } from '../../services/siteBook/siteBookService.js';
 import { verifyWebAuthnAssertion } from '../auth/webauthnAssertion.js';
+import {
+  assertProjectMember,
+  ProjectMembershipError,
+} from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 
@@ -112,11 +116,34 @@ async function saveSignedSiteBookEntry(
 
 export const sitebookSignRouter = Router();
 
-sitebookSignRouter.post('/sign/options', verifyAuth, async (req: Request, res: Response) => {
+sitebookSignRouter.post('/sign/options', verifyAuth, async (req: Request, res: Response, next: NextFunction) => {
   const callerUid = req.user!.uid;
   const { entryId, projectId, payloadHashHex } = req.body ?? {};
   if (typeof entryId !== 'string' || typeof projectId !== 'string' || typeof payloadHashHex !== 'string') {
     return res.status(400).json({ error: 'entryId, projectId, payloadHashHex required' });
+  }
+  // P0 IDOR fix: projectId/entryId come from the client body. The Admin SDK in
+  // loadSiteBookEntry/saveSignedSiteBookEntry BYPASSES Firestore rules, so we
+  // MUST re-enforce the tenant boundary here (CLAUDE.md #6) — exactly as the
+  // sibling sitebook.ts read/create routes do. Without this, any worker from
+  // any tenant could issue a challenge for (and then sign) another tenant's
+  // legal site-book entry. Runs before any entry read so a non-member learns
+  // nothing about the entry. (decodedToken intentionally omitted: verifyAuth
+  // strips assignedSiteIds from req.user, so the Firestore project doc is the
+  // authoritative membership source for the signing surface.)
+  try {
+    await assertProjectMember(callerUid, projectId, admin.firestore());
+  } catch (err) {
+    if (err instanceof ProjectMembershipError) {
+      // Audit the blocked cross-tenant probe — highest-sensitivity legal
+      // endpoint; security needs a forensic trace of denied attempts.
+      await auditServerEvent(req, 'sitebookSign.idor_blocked', 'sitebookSign', { projectId, entryId }, { projectId });
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    // Infra failure (e.g. Firestore outage): forward to the terminal error
+    // handler. Express 4 does NOT catch a bare `throw` from an async route, so
+    // a re-throw would become an unhandled rejection (process crash) — use next().
+    return next(err);
   }
   try {
     const deps: SignOptionsDeps = {
@@ -140,7 +167,7 @@ sitebookSignRouter.post('/sign/options', verifyAuth, async (req: Request, res: R
   }
 });
 
-sitebookSignRouter.post('/sign/verify', verifyAuth, async (req: Request, res: Response) => {
+sitebookSignRouter.post('/sign/verify', verifyAuth, async (req: Request, res: Response, next: NextFunction) => {
   const callerUid = req.user!.uid;
   const { entryId, projectId, payloadHashHex, challengeId, assertion } = req.body ?? {};
   if (
@@ -152,6 +179,20 @@ sitebookSignRouter.post('/sign/verify', verifyAuth, async (req: Request, res: Re
     assertion === null
   ) {
     return res.status(400).json({ error: 'malformed_body' });
+  }
+  // P0 IDOR fix (see /sign/options): re-enforce the project-membership
+  // boundary before verifying/persisting — the Admin SDK in
+  // loadSiteBookEntry/saveSignedSiteBookEntry bypasses Firestore rules.
+  // Without this, a worker from another tenant could apply their own
+  // biometric signature to (and lock) this tenant's legal site-book entry.
+  try {
+    await assertProjectMember(callerUid, projectId, admin.firestore());
+  } catch (err) {
+    if (err instanceof ProjectMembershipError) {
+      await auditServerEvent(req, 'sitebookSign.idor_blocked', 'sitebookSign', { projectId, entryId }, { projectId });
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    return next(err); // infra error → terminal handler (Express 4 won't catch a bare throw)
   }
   try {
     const deps: SignVerifyDeps = {
