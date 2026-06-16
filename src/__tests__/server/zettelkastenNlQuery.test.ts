@@ -1,133 +1,132 @@
-// Sprint 29 Bucket AA F-B — integration tests para POST /api/zettelkasten/nl-query.
+// Real-router supertest for POST /api/zettelkasten/nl-query (NL incident search).
 //
-// Estrategia: en vez de bootear el server.ts completo (3000+ LOC, depende de
-// firebase-admin global), montamos un Express mini-app que mimetiza el
-// pipeline real (verifyAuth fake â†’ validate(zodSchema) â†’ assertProjectMember
-// fake â†’ searchIncidents). Los dos casos cubiertos:
-//   1. Zod fail (query vacío) â†’ 400 con error 'invalid_payload'.
-//   2. Happy path â†’ 200 con results + citations del incidente sembrado.
+// REWRITE (2026-06-16): the previous version re-implemented the handler inline
+// (a mini-app copy) AND baked in the bug it was meant to catch — it called
+// `searchIncidents(projectId, …)` and seeded `incident_vectors/{projectId}`,
+// so it was permanently green even though prod searched a never-written path.
+// This version mounts the ACTUAL `router` (default export) and spies on
+// `searchIncidents`, asserting the handler resolves the project's logical
+// tenantId from `projects/{projectId}.tenantId` and passes THAT (not the
+// projectId) to the RAG service — the real writer/reader contract.
 
-import { describe, it, expect, vi } from 'vitest';
-import express from 'express';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
-import { z } from 'zod';
-import { searchIncidents, type IncidentRagDeps, type MinimalDocSnap } from
-  '../../services/incidents/incidentRagService';
-import { validate } from '../../server/middleware/validate.js';
 
-const nlQuerySchema = z.object({
-  query: z.string().min(1).max(1024),
-  projectId: z.string().min(1).max(128),
-  topK: z.number().int().min(1).max(20).optional().default(5),
+const H = vi.hoisted(() => ({
+  db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
+  searchIncidents: null as
+    | ((tenantId: string, query: string, topK: number, deps: unknown) => Promise<unknown>)
+    | null,
+}));
+
+vi.mock('firebase-admin', async () => {
+  const { adminMock } = await import('../helpers/fakeFirestore');
+  return adminMock(() => H.db!);
 });
 
-function buildApp(opts: {
-  isMember: boolean;
-  tenantADocs: MinimalDocSnap[];
-}) {
+vi.mock('../../server/middleware/verifyAuth.js', () => ({
+  verifyAuth: (req: Request, res: Response, next: NextFunction) => {
+    const uid = req.header('x-test-uid');
+    if (!uid) return void res.status(401).json({ error: 'unauthorized' });
+    (req as Request & { user: { uid: string } }).user = { uid };
+    next();
+  },
+}));
+
+// Spy the RAG collaborator so we assert WHICH scope the handler passes it.
+vi.mock('../../services/incidents/incidentRagService.js', () => ({
+  searchIncidents: (...args: unknown[]) =>
+    H.searchIncidents!(...(args as [string, string, number, unknown])),
+}));
+
+import zettelkastenRouter from '../../server/routes/zettelkasten.js';
+import { createFakeFirestore } from '../helpers/fakeFirestore';
+
+function buildApp() {
   const app = express();
   app.use(express.json());
-
-  // Fake verifyAuth: token "valid:uid-X" passes; everything else 401.
-  app.use((req, res, next) => {
-    const auth = req.headers.authorization;
-    if (!auth || !auth.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'unauthorized' });
-    }
-    const tok = auth.slice(7);
-    const [_, uid] = tok.split(':');
-    if (!uid) return res.status(401).json({ error: 'unauthorized' });
-    req.user = { uid };
-    next();
-    return undefined;
-  });
-
-  app.post('/api/zettelkasten/nl-query', validate(nlQuerySchema), async (req, res) => {
-    const callerUid = req.user?.uid;
-    if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
-    const { query, projectId, topK } = req.body;
-    if (!opts.isMember) return res.status(403).json({ error: 'forbidden' });
-
-    // Fake firestore exposing tenantADocs at the expected path.
-    const fakeDb = {
-      collection(path: string) {
-        return {
-          doc(_id: string) {
-            return { async set() {} };
-          },
-          findNearest(_field: string, _vector: unknown, options: any) {
-            const docs = path === `incident_vectors/${projectId}/items`
-              ? opts.tenantADocs
-              : [];
-            const limited = docs.slice(0, options.limit);
-            return {
-              async get() {
-                return { docs: limited, empty: limited.length === 0 };
-              },
-            };
-          },
-        } as any;
-      },
-    };
-    const deps: IncidentRagDeps = {
-      db: fakeDb as any,
-      embed: async () => [0.1, 0.2, 0.3],
-    };
-    const result = await searchIncidents(projectId, query, topK ?? 5, deps);
-    return res.json(result);
-  });
-
+  app.use('/api/zettelkasten', zettelkastenRouter);
   return app;
 }
 
-describe('POST /api/zettelkasten/nl-query — Zod fail', () => {
-  it('returns 400 when query is empty (Zod min(1))', async () => {
-    const app = buildApp({ isMember: true, tenantADocs: [] });
-    const res = await request(app)
+const UID = 'uid-1';
+const PROJECT_ID = 'proj-A';
+const TENANT_ID = 'tenant-X'; // intentionally != projectId — the bug-revealing part
+
+/** Seed the project doc so assertProjectMember passes; optionally with a tenantId. */
+function seedProject(opts: { member?: boolean; tenantId?: string } = {}) {
+  H.db!._seed(`projects/${PROJECT_ID}`, {
+    members: [opts.member === false ? 'someone-else' : UID],
+    ...(opts.tenantId ? { tenantId: opts.tenantId } : {}),
+  });
+}
+
+beforeEach(() => {
+  H.db = createFakeFirestore();
+  H.searchIncidents = vi.fn(async () => ({
+    results: [{ incidentId: 'inc-1', projectId: PROJECT_ID, summary: 'Caída de altura.' }],
+    citations: ['inc-1'],
+  }));
+});
+
+describe('POST /api/zettelkasten/nl-query — validation', () => {
+  it('401 without a token', async () => {
+    seedProject({ tenantId: TENANT_ID });
+    const res = await request(buildApp())
       .post('/api/zettelkasten/nl-query')
-      .set('Authorization', 'Bearer tok:uid-1')
-      .send({ query: '', projectId: 'proj-A' });
+      .send({ query: 'altura', projectId: PROJECT_ID });
+    expect(res.status).toBe(401);
+  });
+
+  it('400 invalid_payload when query is empty', async () => {
+    const res = await request(buildApp())
+      .post('/api/zettelkasten/nl-query')
+      .set('x-test-uid', UID)
+      .send({ query: '', projectId: PROJECT_ID });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_payload');
   });
 
-  it('returns 400 when projectId is missing', async () => {
-    const app = buildApp({ isMember: true, tenantADocs: [] });
-    const res = await request(app)
+  it('403 when the caller is not a project member (search not attempted)', async () => {
+    seedProject({ member: false, tenantId: TENANT_ID });
+    const res = await request(buildApp())
       .post('/api/zettelkasten/nl-query')
-      .set('Authorization', 'Bearer tok:uid-1')
-      .send({ query: 'caída altura' });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('invalid_payload');
+      .set('x-test-uid', UID)
+      .send({ query: 'altura', projectId: PROJECT_ID });
+    expect(res.status).toBe(403);
+    expect(H.searchIncidents).not.toHaveBeenCalled();
   });
 });
 
-describe('POST /api/zettelkasten/nl-query — happy path', () => {
-  it('returns results+citations for a tenant-scoped incident match', async () => {
-    const docs: MinimalDocSnap[] = [
-      {
-        id: 'inc-1',
-        data: () => ({
-          tenantId: 'proj-A',
-          incidentId: 'inc-1',
-          projectId: 'proj-A',
-          summary: 'Caída de altura sin arnés en pasarela.',
-          occurredAt: '2026-04-10',
-        }),
-      },
-    ];
-    const app = buildApp({ isMember: true, tenantADocs: docs });
-    const res = await request(app)
+describe('POST /api/zettelkasten/nl-query — real tenant scoping', () => {
+  it('calls searchIncidents with the RESOLVED tenantId, NOT the projectId', async () => {
+    seedProject({ tenantId: TENANT_ID });
+    const res = await request(buildApp())
       .post('/api/zettelkasten/nl-query')
-      .set('Authorization', 'Bearer tok:uid-1')
-      .send({ query: 'altura arnés', projectId: 'proj-A', topK: 3 });
+      .set('x-test-uid', UID)
+      .send({ query: 'altura arnés', projectId: PROJECT_ID, topK: 3 });
 
     expect(res.status).toBe(200);
-    expect(res.body.results).toHaveLength(1);
-    expect(res.body.results[0]).toMatchObject({
-      incidentId: 'inc-1',
-      projectId: 'proj-A',
-    });
-    expect(res.body.citations[0]).toContain('inc-1');
+    expect(H.searchIncidents).toHaveBeenCalledTimes(1);
+    const firstArg = (H.searchIncidents as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls[0][0];
+    // The fix: the handler must pass the logical tenant, not the projectId
+    // (which is what made the old code read a never-written vector path).
+    expect(firstArg).toBe(TENANT_ID);
+    expect(firstArg).not.toBe(PROJECT_ID);
+    expect(res.body.results[0].incidentId).toBe('inc-1');
+  });
+
+  it('404 tenant_not_found when the project doc has no tenantId (search skipped)', async () => {
+    seedProject({ tenantId: undefined }); // member, but no tenantId field
+    const res = await request(buildApp())
+      .post('/api/zettelkasten/nl-query')
+      .set('x-test-uid', UID)
+      .send({ query: 'altura', projectId: PROJECT_ID });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('tenant_not_found');
+    expect(H.searchIncidents).not.toHaveBeenCalled();
   });
 });
