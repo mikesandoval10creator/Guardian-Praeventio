@@ -1,6 +1,6 @@
 {
   "_doc": "Ratchet baseline for scripts/check-any-ratchet.cjs. Per-file `as any` counts (production src, tests excluded). A file may only SHRINK: remove a cast -> regenerate with `node scripts/check-any-ratchet.cjs --write`. A file whose count GROWS (or a new file with `as any` absent here) fails the gate.",
-  "total": 157,
+  "total": 156,
   "counts": {
     "src/components/ai/GuardianVoiceAssistant.tsx": 2,
     "src/components/calendar/AddEventModal.tsx": 1,
@@ -46,7 +46,7 @@
     "src/pages/Workers.tsx": 2,
     "src/providers/MeshProvider.tsx": 1,
     "src/server/auth/webauthnAssertion.ts": 1,
-    "src/server/jobs/weeklyDigest.ts": 3,
+    "src/server/jobs/weeklyDigest.ts": 2,
     "src/server/middleware/idempotencyKey.ts": 2,
     "src/server/middleware/validate.ts": 1,
     "src/server/middleware/verifyAuth.ts": 1,
