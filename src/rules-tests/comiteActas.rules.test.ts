@@ -70,8 +70,11 @@ function authed(uid: string, role = 'worker'): CtxDb {
 }
 
 describe('comite_actas (CPHS minutes) — firestore.rules (#B12)', () => {
-  it('a project member can create a valid acta', async () => {
-    await assertSucceeds(setDoc(ref(authed(MEMBER), 'a1'), validActa));
+  it('SERVER-ONLY: a project member CANNOT create an acta via a direct client write', async () => {
+    // A CPHS acta is a legal minute → writes go through the audited server
+    // route (cphsMinute.ts), Admin SDK only. Even a valid member + valid shape
+    // is denied at the client SDK (CLAUDE.md #3).
+    await assertFails(setDoc(ref(authed(MEMBER), 'a1'), validActa));
   });
 
   it('an anonymous user CANNOT create an acta', async () => {
@@ -99,8 +102,8 @@ describe('comite_actas (CPHS minutes) — firestore.rules (#B12)', () => {
     );
   });
 
-  it('a member can append an acuerdo (update acuerdos)', async () => {
-    await assertSucceeds(
+  it('SERVER-ONLY: a member CANNOT append an acuerdo via a direct client update', async () => {
+    await assertFails(
       updateDoc(ref(authed(MEMBER), 'seeded'), {
         acuerdos: [
           { id: 'ac1', descripcion: 'Reparar barandas', responsable: 'Ana', fechaPlazo: '2026-07-01', estado: 'Pendiente' },

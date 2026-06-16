@@ -28,10 +28,14 @@
 //   - dedupe por id para ambient writers múltiples
 
 import { Router } from 'express';
+import { z } from 'zod';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { validate } from '../middleware/validate.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
+import { randomId } from '../../utils/randomId.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -95,6 +99,26 @@ async function guard(
     return null;
   }
   return { tenantId };
+}
+
+// Lighter guard for the project-scoped acta writes (the collection lives at
+// `projects/{projectId}/comite_actas`, not a tenant subcollection — no tenantId
+// needed). Membership is the authority; identity is stamped server-side.
+async function assertMember(
+  callerUid: string,
+  projectId: string,
+  res: import('express').Response,
+): Promise<boolean> {
+  try {
+    await assertProjectMember(callerUid, projectId, admin.firestore());
+    return true;
+  } catch (err) {
+    if (err instanceof ProjectMembershipError) {
+      res.status(err.httpStatus).json({ error: 'forbidden' });
+      return false;
+    }
+    throw err;
+  }
 }
 
 // ── GET /:projectId/cphs/draft-minute ─────────────────────────────────
@@ -640,5 +664,162 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
     return res.status(500).json({ error: 'internal_error' });
   }
 });
+
+// ── CPHS acta writers (legal minutes → server-only + audited) ──────────
+// CLAUDE.md #3: every state change writes audit_logs with SERVER-stamped
+// identity. A CPHS acta is a legally-significant document, so create-acta /
+// add-acuerdo / change-acuerdo-status move off the client (which wrote
+// `comite_actas` directly, UNAUDITED) onto these audited routes. The path
+// stays project-scoped `projects/{projectId}/comite_actas` (the page still
+// READS it live); the Firestore rule is tightened to server-only writes.
+
+const ACTA_TIPOS = ['Ordinaria', 'Extraordinaria'] as const;
+const ACUERDO_ESTADOS = ['Pendiente', 'En Progreso', 'Completado'] as const;
+
+const createActaSchema = z.object({
+  fecha: z.string().min(8).max(40),
+  tipo: z.enum(ACTA_TIPOS),
+  asistentes: z.array(z.string().min(1).max(200)).min(1).max(100),
+});
+
+router.post(
+  '/:projectId/cphs/actas',
+  verifyAuth,
+  validate(createActaSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    if (!projectId) return res.status(400).json({ error: 'invalid_params' });
+    const body = req.body as z.infer<typeof createActaSchema>;
+    if (!(await assertMember(callerUid, projectId, res))) return undefined;
+    try {
+      const db = admin.firestore();
+      const ref = await db.collection(`projects/${projectId}/comite_actas`).add({
+        fecha: body.fecha,
+        tipo: body.tipo,
+        asistentes: body.asistentes,
+        acuerdos: [],
+        createdAt: new Date().toISOString(),
+        createdByUid: callerUid,
+      });
+      await auditServerEvent(
+        req,
+        'cphs.acta.create',
+        'cphs',
+        { actaId: ref.id, tipo: body.tipo, asistentesCount: body.asistentes.length },
+        { projectId },
+      );
+      return res.status(201).json({ id: ref.id });
+    } catch (err) {
+      logger.error?.('cphsMinute.acta.create.error', err);
+      captureRouteError(err, 'cphsMinute.acta.create', { callerUid, projectId });
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const addAcuerdoSchema = z.object({
+  descripcion: z.string().min(1).max(2000),
+  responsable: z.string().min(1).max(200),
+  fechaPlazo: z.string().min(8).max(40),
+});
+
+router.post(
+  '/:projectId/cphs/actas/:actaId/acuerdos',
+  verifyAuth,
+  validate(addAcuerdoSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, actaId } = req.params;
+    if (!projectId || !actaId) return res.status(400).json({ error: 'invalid_params' });
+    const body = req.body as z.infer<typeof addAcuerdoSchema>;
+    if (!(await assertMember(callerUid, projectId, res))) return undefined;
+    try {
+      const db = admin.firestore();
+      const actaRef = db.collection(`projects/${projectId}/comite_actas`).doc(actaId);
+      const snap = await actaRef.get();
+      if (!snap.exists) return res.status(404).json({ error: 'acta_not_found' });
+      const acuerdo = {
+        id: randomId(),
+        descripcion: body.descripcion,
+        responsable: body.responsable,
+        fechaPlazo: body.fechaPlazo,
+        estado: 'Pendiente' as const,
+      };
+      await actaRef.update({
+        acuerdos: admin.firestore.FieldValue.arrayUnion(acuerdo),
+      });
+      await auditServerEvent(
+        req,
+        'cphs.acuerdo.add',
+        'cphs',
+        { actaId, acuerdoId: acuerdo.id },
+        { projectId },
+      );
+      return res.status(201).json({ acuerdo });
+    } catch (err) {
+      logger.error?.('cphsMinute.acuerdo.add.error', err);
+      captureRouteError(err, 'cphsMinute.acuerdo.add', { callerUid, projectId });
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const updateAcuerdoSchema = z.object({
+  estado: z.enum(ACUERDO_ESTADOS),
+});
+
+router.patch(
+  '/:projectId/cphs/actas/:actaId/acuerdos/:acuerdoId',
+  verifyAuth,
+  validate(updateAcuerdoSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, actaId, acuerdoId } = req.params;
+    if (!projectId || !actaId || !acuerdoId) {
+      return res.status(400).json({ error: 'invalid_params' });
+    }
+    const body = req.body as z.infer<typeof updateAcuerdoSchema>;
+    if (!(await assertMember(callerUid, projectId, res))) return undefined;
+    try {
+      const db = admin.firestore();
+      const actaRef = db.collection(`projects/${projectId}/comite_actas`).doc(actaId);
+      // Read-modify-write on the acuerdos array → transaction (CLAUDE.md #19).
+      const result = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(actaRef);
+        if (!snap.exists) return 'acta_not_found' as const;
+        const data = snap.data() ?? {};
+        const acuerdos = Array.isArray(data.acuerdos) ? data.acuerdos : [];
+        let found = false;
+        const updated = acuerdos.map((a: Record<string, unknown>) => {
+          if (a && a.id === acuerdoId) {
+            found = true;
+            return { ...a, estado: body.estado };
+          }
+          return a;
+        });
+        if (!found) return 'acuerdo_not_found' as const;
+        tx.update(actaRef, { acuerdos: updated });
+        return 'ok' as const;
+      });
+      if (result === 'acta_not_found') return res.status(404).json({ error: 'acta_not_found' });
+      if (result === 'acuerdo_not_found') {
+        return res.status(404).json({ error: 'acuerdo_not_found' });
+      }
+      await auditServerEvent(
+        req,
+        'cphs.acuerdo.updateStatus',
+        'cphs',
+        { actaId, acuerdoId, estado: body.estado },
+        { projectId },
+      );
+      return res.json({ ok: true });
+    } catch (err) {
+      logger.error?.('cphsMinute.acuerdo.updateStatus.error', err);
+      captureRouteError(err, 'cphsMinute.acuerdo.updateStatus', { callerUid, projectId });
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
 
 export default router;

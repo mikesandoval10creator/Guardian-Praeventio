@@ -22,8 +22,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { scanLegalUpdates, suggestMeetingAgenda, summarizeAgreements } from '../services/geminiService';
-import { db } from '../services/firebase';
-import { collection, addDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { createActaApi, addAcuerdoApi, updateAcuerdoEstadoApi } from '../services/cphs/comiteActasApi';
 import { analytics, userIdHash } from '../services/analytics';
 // Fase 5 B12 — mounts the orphaned meeting-pack `extract-action-items` capability
 // (server-side, deterministic) so meeting discussion text → suggested acuerdos.
@@ -73,12 +72,12 @@ export function ComiteParitario() {
     if (!actaForm.fecha || asistentes.length === 0) return;
     setActaSaving(true);
     try {
-      const docRef = await addDoc(collection(db, `projects/${selectedProject.id}/comite_actas`), {
+      // Server-side audited write (CLAUDE.md #3): the acta is a legal CPHS
+      // document — identity is stamped from the verified token + audit_logs.
+      const { id: meetingId } = await createActaApi(selectedProject.id, {
         fecha: actaForm.fecha,
         tipo: actaForm.tipo,
         asistentes,
-        acuerdos: [],
-        createdAt: new Date().toISOString(),
       });
       // 15th wave analytics: a CPHS acta is the canonical "meeting scheduled"
       // signal for DS54 compliance dashboards (catalog row 85). The fecha is
@@ -86,7 +85,7 @@ export function ComiteParitario() {
       // can resolve the correct ISO-8601 once timezone disambiguation lands.
       try {
         analytics.track('comite.meeting.scheduled', {
-          meeting_id: docRef.id,
+          meeting_id: meetingId,
           scheduled_for_iso: actaForm.fecha,
         });
       } catch { /* analytics must never break user flow */ }
@@ -103,15 +102,14 @@ export function ComiteParitario() {
     if (!selectedProject || !acuerdoForm.descripcion.trim() || !acuerdoForm.responsable.trim() || !acuerdoForm.fechaPlazo) return;
     setAcuerdoSaving(true);
     try {
-      const newAcuerdo: Acuerdo = {
-        id: crypto.randomUUID(),
-        descripcion: acuerdoForm.descripcion.trim(),
-        responsable: acuerdoForm.responsable.trim(),
-        fechaPlazo: acuerdoForm.fechaPlazo,
-        estado: 'Pendiente',
-      };
-      await updateDoc(doc(db, `projects/${selectedProject.id}/comite_actas`, actaId), {
-        acuerdos: arrayUnion(newAcuerdo),
+      const descripcion = acuerdoForm.descripcion.trim();
+      const responsable = acuerdoForm.responsable.trim();
+      const fechaPlazo = acuerdoForm.fechaPlazo;
+      // Server-side audited append (server assigns the acuerdo id + estado).
+      const { acuerdo } = await addAcuerdoApi(selectedProject.id, actaId, {
+        descripcion,
+        responsable,
+        fechaPlazo,
       });
       // 15th wave analytics: a new acuerdo is the catalog's "action item
       // assigned" event (row 87). The responsable is free-text in the UI;
@@ -119,11 +117,11 @@ export function ComiteParitario() {
       // bucket by assignee without leaking the human-readable name. Hash
       // is async — fire-and-forget so the optimistic UI doesn't wait.
       try {
-        const dueMs = new Date(newAcuerdo.fechaPlazo).getTime() - Date.now();
+        const dueMs = new Date(fechaPlazo).getTime() - Date.now();
         const dueInDays = Math.max(0, Math.round(dueMs / 86400000));
-        void userIdHash(newAcuerdo.responsable).then((assigneeRoleHash) => {
+        void userIdHash(responsable).then((assigneeRoleHash) => {
           analytics.track('comite.action_item.assigned', {
-            action_item_id: newAcuerdo.id,
+            action_item_id: acuerdo.id,
             meeting_id: actaId,
             assignee_role_hash: assigneeRoleHash,
             due_in_days: dueInDays,
@@ -141,14 +139,9 @@ export function ComiteParitario() {
 
   const handleUpdateAcuerdoEstado = async (actaId: string, acuerdoId: string, newEstado: Acuerdo['estado']) => {
     if (!selectedProject) return;
-    const acta = actas?.find(a => a.id === actaId);
-    if (!acta) return;
-    const updatedAcuerdos = acta.acuerdos.map(a =>
-      a.id === acuerdoId ? { ...a, estado: newEstado } : a
-    );
-    await updateDoc(doc(db, `projects/${selectedProject.id}/comite_actas`, actaId), {
-      acuerdos: updatedAcuerdos,
-    });
+    // Server does the read-modify-write of the acuerdos array in a transaction
+    // (CLAUDE.md #19) + audit; the live subscription reflects the change.
+    await updateAcuerdoEstadoApi(selectedProject.id, actaId, acuerdoId, newEstado);
   };
 
   const [agendaResult, setAgendaResult] = useState<any>(null);
