@@ -23,6 +23,7 @@ import type {
   CheckoutRequest,
   CheckoutResponse,
 } from '../../../services/billing/types.js';
+import { resolveBillingTierUf } from './ufPricing.js';
 import {
   resolveBillingTier,
   OVERAGE_CLP_PER_WORKER_NET,
@@ -99,7 +100,7 @@ export function registerWebpayRoutes(
         return res.status(400).json({ error: 'USD requires manual-transfer' });
       }
 
-      const tier = resolveBillingTier(body.tierId);
+      const tier = await resolveBillingTierUf(body.tierId, admin.firestore());
       if (!tier) {
         return res.status(400).json({ error: 'Unknown tierId' });
       }

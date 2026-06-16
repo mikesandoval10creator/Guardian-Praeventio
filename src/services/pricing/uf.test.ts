@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DIAMANTE_UF, parseMindicadorUf, clpFromUf } from './uf';
+import { DIAMANTE_UF, parseMindicadorUf, clpFromUf, diamanteTierFromUf } from './uf';
 
 describe('UF pricing helpers', () => {
   it('anchors Diamante at 100 UF (business decision)', () => {
@@ -56,6 +56,35 @@ describe('UF pricing helpers', () => {
       expect(clpFromUf(100, 38000)).toBe(3800000);
       expect(clpFromUf(100, 38123.45)).toBe(3812345);
       expect(clpFromUf(1, 38123.9)).toBe(38124);
+    });
+  });
+
+  describe('diamanteTierFromUf', () => {
+    const FALLBACK = { clpRegular: 3277311, clpAnual: 29495798, usdRegular: 4200, usdAnual: 42000 };
+
+    it('at UF≈39.000 reproduces the historical placeholder exactly (net, ×9 annual)', () => {
+      expect(diamanteTierFromUf(39000, FALLBACK)).toEqual({
+        clpRegular: 3277311,
+        clpAnual: 29495798,
+        usdRegular: 4200,
+        usdAnual: 42000,
+      });
+    });
+
+    it('re-derives CLP from a higher UF (USD left untouched — not UF-indexed)', () => {
+      const t = diamanteTierFromUf(40000, FALLBACK);
+      expect(t.clpRegular).toBe(Math.round((100 * 40000) / 1.19)); // 3361345
+      expect(t.clpAnual).toBe(Math.round((100 * 40000 * 9) / 1.19));
+      expect(t.usdRegular).toBe(4200);
+      expect(t.usdAnual).toBe(42000);
+    });
+
+    it('FAIL-SOFT: missing / invalid / implausibly-low UF returns the placeholder unchanged (never NaN)', () => {
+      expect(diamanteTierFromUf(null, FALLBACK)).toBe(FALLBACK);
+      expect(diamanteTierFromUf(undefined, FALLBACK)).toBe(FALLBACK);
+      expect(diamanteTierFromUf(Number.NaN, FALLBACK)).toBe(FALLBACK);
+      expect(diamanteTierFromUf(9999, FALLBACK)).toBe(FALLBACK); // below the plausibility floor
+      expect(diamanteTierFromUf(0, FALLBACK)).toBe(FALLBACK);
     });
   });
 });
