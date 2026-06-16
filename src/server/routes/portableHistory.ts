@@ -109,12 +109,16 @@ async function buildPortableHistoryBundle(
   tenantId: string,
   projectId: string,
   workerUid: string,
+  // True only when the caller IS the worker (callerUid === workerUid). Gates the
+  // global `users/{uid}` fallback so an admin can't enumerate another tenant's
+  // user PII by passing an arbitrary workerUid not in this project/tenant.
+  callerIsWorker: boolean,
 ): Promise<PortableHistoryBundle | null> {
   const base = `tenants/${tenantId}/projects/${projectId}`;
 
   // Codex P1 fix: el roster canónico vive en `projects/{pid}/workers`
-  // (lo que usa el WorkerPortableHistory page selector). El monolito
-  // también caía a `users/{uid}` como último fallback.
+  // (lo que usa el WorkerPortableHistory page selector). Ambos paths de roster
+  // están aislados por proyecto/tenant.
   let worker: Record<string, unknown> | null = null;
   const canonicalSnap = await db
     .collection('projects')
@@ -128,7 +132,12 @@ async function buildPortableHistoryBundle(
     const tenantSnap = await db.collection(`${base}/workers`).doc(workerUid).get();
     if (tenantSnap.exists) {
       worker = tenantSnap.data() as Record<string, unknown>;
-    } else {
+    } else if (callerIsWorker) {
+      // Cross-tenant PII guard (Ley 19.628): the global `users/{uid}` doc is
+      // NOT project-scoped. Only fall back to it when the worker is reading
+      // their OWN record — never for an admin reading another worker who isn't
+      // in this project/tenant roster (that would leak a stranger's name/RUT/
+      // email under this project's context).
       const userSnap = await db.collection('users').doc(workerUid).get();
       if (userSnap.exists) {
         worker = userSnap.data() as Record<string, unknown>;
@@ -215,7 +224,18 @@ async function buildPortableHistoryBundle(
   // projectId match is in-memory so workerUid stays the single-field
   // (index-free) where, and a single worker's incident count is below the cap.
   const safeReadIncidents = async (): Promise<Record<string, unknown>[]> => {
-    const out = await safeReadDocs([`${base}/incidents`]);
+    // Dedup by doc id across both stores: an incident double-written to the
+    // tenant path AND the global collection must appear once (the bundle is
+    // SHA-256 checksummed — a duplicate would inflate counts and invalidate it).
+    const seen = new Set<string>();
+    const out: Record<string, unknown>[] = [];
+    const push = (rec: Record<string, unknown>): void => {
+      const id = typeof rec.id === 'string' ? rec.id : '';
+      if (id && seen.has(id)) return;
+      if (id) seen.add(id);
+      out.push(rec);
+    };
+    for (const rec of await safeReadDocs([`${base}/incidents`])) push(rec);
     try {
       const snap = await db
         .collection('incidents')
@@ -225,7 +245,7 @@ async function buildPortableHistoryBundle(
       for (const doc of snap.docs) {
         const data = doc.data() as Record<string, unknown>;
         if (data.projectId === projectId) {
-          out.push({ id: doc.id, ...data });
+          push({ id: doc.id, ...data });
         }
       }
     } catch (err) {
@@ -304,7 +324,7 @@ router.get(
     }
     try {
       const db = admin.firestore();
-      const bundle = await buildPortableHistoryBundle(db, g.tenantId, projectId, workerUid);
+      const bundle = await buildPortableHistoryBundle(db, g.tenantId, projectId, workerUid, callerUid === workerUid);
       if (!bundle) return res.status(404).json({ error: 'worker_not_found' });
       return res.json({ bundle });
     } catch (err) {
@@ -390,7 +410,7 @@ router.get(
     }
     try {
       const db = admin.firestore();
-      const bundle = await buildPortableHistoryBundle(db, g.tenantId, projectId, workerUid);
+      const bundle = await buildPortableHistoryBundle(db, g.tenantId, projectId, workerUid, callerUid === workerUid);
       if (!bundle) return res.status(404).json({ error: 'worker_not_found' });
       // Hard gate: Ley 19.628 art. 4° — consent explícito para finalidad
       // de disposición externa.
