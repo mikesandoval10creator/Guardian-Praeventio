@@ -1163,9 +1163,21 @@ describe('POST /api/billing/khipu/checkout', () => {
     const res = await request(buildApp())
       .post('/api/billing/khipu/checkout')
       .set('x-test-uid', 'uid-A')
-      .send({ planId: 'super-premium-xyz' });
+      // cycle is now required (fail-closed); send a valid one so the planId
+      // validation is what rejects, not the cycle guard.
+      .send({ planId: 'super-premium-xyz', cycle: 'monthly' });
     expect(res.status).toBe(400);
     expect((res.body as Record<string, unknown>).error).toMatch(/planId/i);
+    expect(M.khipuCreate).not.toHaveBeenCalled();
+  });
+
+  it('400 when cycle is missing (fail-closed, no silent monthly default)', async () => {
+    const res = await request(buildApp())
+      .post('/api/billing/khipu/checkout')
+      .set('x-test-uid', 'uid-A')
+      .send({ planId: 'plata' });
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>).error).toMatch(/cycle/i);
     expect(M.khipuCreate).not.toHaveBeenCalled();
   });
 

@@ -337,11 +337,13 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
       if (typeof body.planId !== 'string' || body.planId.length === 0 || body.planId.length > 64) {
         return res.status(400).json({ error: 'Invalid planId' });
       }
-      const cycle: 'monthly' | 'annual' =
-        body.cycle === undefined ? 'monthly' : body.cycle;
-      if (cycle !== 'monthly' && cycle !== 'annual') {
+      // Fail-closed like the webpay/mercadopago siblings: a missing/invalid
+      // cycle is rejected (the web client always sends it) rather than silently
+      // defaulting to monthly — which would mis-bill an intended annual purchase.
+      if (body.cycle !== 'monthly' && body.cycle !== 'annual') {
         return res.status(400).json({ error: 'Invalid cycle' });
       }
+      const cycle: 'monthly' | 'annual' = body.cycle;
       // Canonical plan check: the tier must exist in the pricing table AND
       // normalize to a subscription plan id (src/services/pricing/).
       const tier = resolveBillingTier(body.planId);
