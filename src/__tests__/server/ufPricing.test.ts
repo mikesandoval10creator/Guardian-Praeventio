@@ -16,11 +16,13 @@ describe('readCachedUfValueClp', () => {
     expect(await readCachedUfValueClp(asFs(db))).toBe(39000);
   });
 
-  it('returns null when the doc is missing or the value is malformed (fail-soft)', async () => {
+  it('returns null when the doc is missing, malformed, or implausibly low (fail-soft)', async () => {
     const db = createFakeFirestore();
     expect(await readCachedUfValueClp(asFs(db))).toBeNull(); // missing
     db._seed('ufRates/current', { valueClp: 'nope' });
     expect(await readCachedUfValueClp(asFs(db))).toBeNull(); // malformed
+    db._seed('ufRates/current', { valueClp: 9999 }); // below the plausibility floor
+    expect(await readCachedUfValueClp(asFs(db))).toBeNull();
   });
 });
 

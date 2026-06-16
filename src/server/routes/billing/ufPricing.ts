@@ -13,24 +13,49 @@
 // (Admin SDK) and never trusted from the client.
 
 import type admin from 'firebase-admin';
-import { diamanteTierFromUf } from '../../../services/pricing/uf.js';
+import { logger } from '../../../utils/logger.js';
+import { diamanteTierFromUf, UF_MIN_PLAUSIBLE_CLP } from '../../../services/pricing/uf.js';
 import { resolveBillingTier, type BillingTier } from './pricing.js';
+import { sentryCapture } from './shared.js';
 
 const UF_RATES_DOC = 'ufRates/current';
+/** Warn (not block) when the cached rate is older than this at checkout time. */
+const UF_STALE_AFTER_MS = 72 * 60 * 60 * 1000;
 
 /**
  * Read the cached UF value (CLP) from ufRates/current. Returns null on a
- * missing doc, a malformed value, or any read error (fail-soft). Pure read.
+ * missing doc, a malformed/implausible value, or any read error (fail-soft, so
+ * the checkout falls back to the placeholder). A genuine Firestore error is
+ * surfaced to Sentry — a silent caching outage would otherwise bill Diamante at
+ * the placeholder forever with no signal. A stale cached rate is warned (not
+ * blocked) so a stopped cron is observable.
  */
 export async function readCachedUfValueClp(
   db: admin.firestore.Firestore,
 ): Promise<number | null> {
   try {
     const snap = await db.doc(UF_RATES_DOC).get();
-    if (!snap.exists) return null;
-    const v = snap.data()?.valueClp;
-    return typeof v === 'number' && Number.isFinite(v) ? v : null;
-  } catch {
+    if (!snap.exists) return null; // benign: not yet written (first deploy)
+    const data = snap.data();
+    const v = data?.valueClp;
+    // Self-contained plausibility floor (also enforced in diamanteTierFromUf).
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < UF_MIN_PLAUSIBLE_CLP) {
+      return null;
+    }
+    const fetchedAt = data?.fetchedAt;
+    if (typeof fetchedAt === 'string') {
+      const ageMs = Date.now() - new Date(fetchedAt).getTime();
+      if (Number.isFinite(ageMs) && ageMs > UF_STALE_AFTER_MS) {
+        logger.warn('[uf-rate] cached UF value is stale at checkout', {
+          fetchedAt,
+          ageHours: Math.round(ageMs / 3_600_000),
+        });
+      }
+    }
+    return v;
+  } catch (err) {
+    logger.error('[uf-rate] readCachedUfValueClp failed — using placeholder', err as Error);
+    sentryCapture(err, { endpoint: 'pricing.readCachedUfValueClp', tags: { doc: UF_RATES_DOC } });
     return null;
   }
 }

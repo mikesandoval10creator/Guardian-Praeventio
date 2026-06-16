@@ -25,7 +25,6 @@ import type {
 } from '../../../services/billing/types.js';
 import { resolveBillingTierUf } from './ufPricing.js';
 import {
-  resolveBillingTier,
   OVERAGE_CLP_PER_WORKER_NET,
   OVERAGE_CLP_PER_PROJECT_NET,
   VALID_PAYMENT_METHODS,
