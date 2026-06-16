@@ -343,8 +343,16 @@ describe('POST /api/sitebook/sign/verify', () => {
     expect(res.status).toBe(403);
     expect((res.body as { error: string }).error).toBe('forbidden');
     // The entry remains unsigned.
-    const stored = H.db!._dump()[entryPath()] as Record<string, unknown>;
+    const dump = H.db!._dump();
+    const stored = dump[entryPath()] as Record<string, unknown>;
     expect(stored.status).toBe('open');
+    // The blocked cross-tenant probe is audited for a forensic trace.
+    const idorAudit = Object.entries(dump).find(
+      ([k, v]) => k.startsWith('audit_logs/') && (v as Record<string, unknown>).action === 'sitebookSign.idor_blocked',
+    )?.[1] as Record<string, unknown> | undefined;
+    expect(idorAudit).toBeDefined();
+    expect(idorAudit!.userId).toBe('uid-intruder');
+    expect((idorAudit!.details as Record<string, unknown>).projectId).toBe(PROJECT_ID);
   });
 
   it('400 malformed_body when challengeId is missing', async () => {
