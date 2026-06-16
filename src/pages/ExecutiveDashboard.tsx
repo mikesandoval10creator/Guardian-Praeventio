@@ -44,6 +44,7 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { NodeType } from '../types';
 import { generateExecutiveSummary } from '../services/geminiService';
+import { computeExecutiveScorecards } from '../services/analytics/executiveScorecard';
 import { cacheAIResponse, getCachedAIResponse } from '../utils/pwa-offline';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -166,30 +167,24 @@ export function ExecutiveDashboard() {
     { name: 'Bajo',    value: allRisks.filter(r => r.metadata?.level === 'Bajo').length,    color: '#22C55E' },
   ].filter(d => d.value > 0);
 
-  // ESG Score calculation
-  const trainedWorkers = nodes.filter(n => n.type === NodeType.TRAINING && n.metadata?.status === 'completed').length;
-  const esgEnvironmental = Math.min(100, 50 + nodes.filter(n => n.type === NodeType.INSPECTION).length * 3);
-  const esgSocial = totalWorkers > 0 ? Math.min(100, Math.round((trainedWorkers / Math.max(totalWorkers, 1)) * 100 + 30)) : 40;
-  const esgGovernance = avgCompliance;
-  const esgTotal = Math.round((esgEnvironmental + esgSocial + esgGovernance) / 3);
-  const esgData = [
-    { subject: 'Ambiente', A: esgEnvironmental },
-    { subject: 'Social',   A: esgSocial },
-    { subject: 'Gobierno', A: esgGovernance },
-    { subject: 'Capacitación', A: Math.min(100, trainedWorkers * 5 + 40) },
-    { subject: 'Incidentes', A: Math.max(0, 100 - recentIncidents.length * 15) },
-  ];
-
-  // ISO 45001 radar — all values derived from real node counts
-  const normativeNodes = nodes.filter(n => n.type === NodeType.NORMATIVE);
-  const auditNodes = nodes.filter(n => n.type === NodeType.AUDIT);
-  const isoData = [
-    { subject: 'EPP',       A: Math.min(100, nodes.filter(n => n.type === NodeType.EPP).length * 10 || 70) },
-    { subject: 'Normativa', A: normativeNodes.length > 0 ? Math.min(100, 50 + normativeNodes.length * 5) : avgCompliance },
-    { subject: 'Conducta',  A: auditNodes.length > 0 ? Math.min(100, Math.round(auditNodes.reduce((s, a) => s + (a.metadata?.score ?? 70), 0) / auditNodes.length)) : avgCompliance },
-    { subject: 'Procesos',  A: Math.min(100, nodes.filter(n => n.type === NodeType.TASK).length * 5 || 70) },
-    { subject: 'Entorno',   A: Math.min(100, 60 + nodes.filter(n => n.type === NodeType.INSPECTION).length * 2) },
-  ];
+  // ESG + ISO 45001 scorecards — derived from REAL node data by the pure,
+  // unit-tested computeExecutiveScorecards (services/analytics). It replaces the
+  // old in-component formulas that padded empty categories with fabricated
+  // floors (50 / 40 / `|| 70` / `?? 70`) — those invented numbers shipped into
+  // the mandante PDF. Empty categories now read 0 and are flagged
+  // `insufficient_data` (rendered "—" / "sin datos"), never a plausible constant.
+  const { esgData, isoData, esgTotal, esgEnvironmental, esgSocial, esgGovernance } =
+    computeExecutiveScorecards({
+      nodes,
+      projectIds: projects.map((p) => p.id),
+      totalWorkers,
+      avgCompliance,
+    });
+  const esgInsufficient = esgData.filter((d) => d.insufficient_data).map((d) => d.subject);
+  const isoInsufficient = isoData.filter((d) => d.insufficient_data).map((d) => d.subject);
+  const esgFlags: Record<string, boolean> = Object.fromEntries(
+    esgData.map((d) => [d.subject, d.insufficient_data]),
+  );
 
   // Project table
   const projectRows = projects.map(p => {
@@ -383,6 +378,11 @@ export function ExecutiveDashboard() {
                 <Radar name="Índice" dataKey="A" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.2} />
               </RadarChart>
             </ResponsiveContainer>
+            {isoInsufficient.length > 0 && (
+              <p className="text-[9px] text-zinc-500 mt-2">
+                Sin datos suficientes: {isoInsufficient.join(', ')}
+              </p>
+            )}
           </div>
         </div>
 
@@ -452,12 +452,12 @@ export function ExecutiveDashboard() {
 
           <div className="grid grid-cols-3 gap-3 mb-6">
             {[
-              { label: 'E — Ambiental', value: esgEnvironmental, color: 'text-emerald-500' },
-              { label: 'S — Social',    value: esgSocial,        color: 'text-sky-500' },
-              { label: 'G — Gobierno',  value: esgGovernance,    color: 'text-violet-500' },
-            ].map(({ label, value, color }) => (
+              { label: 'E — Ambiental', value: esgEnvironmental, insufficient: esgFlags['Ambiente'], color: 'text-emerald-500' },
+              { label: 'S — Social',    value: esgSocial,        insufficient: esgFlags['Social'],   color: 'text-sky-500' },
+              { label: 'G — Gobierno',  value: esgGovernance,    insufficient: esgFlags['Gobierno'], color: 'text-violet-500' },
+            ].map(({ label, value, insufficient, color }) => (
               <div key={label} className="bg-zinc-50 dark:bg-black/30 rounded-xl p-3 text-center border border-zinc-100 dark:border-white/5">
-                <p className={`text-2xl font-black ${color}`}>{value}</p>
+                <p className={`text-2xl font-black ${insufficient ? 'text-zinc-400' : color}`}>{insufficient ? '—' : value}</p>
                 <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{label}</p>
               </div>
             ))}
@@ -471,6 +471,11 @@ export function ExecutiveDashboard() {
               <Radar name="ESG" dataKey="A" stroke="#10b981" fill="#10b981" fillOpacity={0.18} />
             </RadarChart>
           </ResponsiveContainer>
+          {esgInsufficient.length > 0 && (
+            <p className="text-[9px] text-zinc-500 mt-2">
+              Sin datos suficientes: {esgInsufficient.join(', ')}
+            </p>
+          )}
         </div>
 
       </div>
