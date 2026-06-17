@@ -74,15 +74,21 @@ export function mapIoTEventsToTwinState(events: IoTEventLite[] | null | undefine
         workerBySource.set(event.source, worker);
         workers.push(worker);
       }
+      // Status only escalates: critical > warning > normal.
       if (
         event.status === 'critical' ||
         (event.status === 'warning' && worker.status === 'normal')
       ) {
         worker.status = event.status;
-        const metric = String(event.metric || '').toLowerCase();
-        if (metric.includes('caída') || (metric.includes('ritmo') && event.value > 160)) {
-          worker.isFallen = true;
-        }
+      }
+      // Fall detection is INDEPENDENT of the severity field: a device may
+      // report a caída (or ritmo>160) carrying any `status` (firmware can tag
+      // the fall event itself as 'normal'/'warning'). Never gate the
+      // life-safety flag behind the status-escalation guard, or a real fall
+      // arriving after a higher-severity event for the same worker is lost.
+      const metric = String(event.metric || '').toLowerCase();
+      if (metric.includes('caída') || (metric.includes('ritmo') && event.value > 160)) {
+        worker.isFallen = true;
       }
     } else if (event.type === 'machinery') {
       let mach = machineryBySource.get(event.source);

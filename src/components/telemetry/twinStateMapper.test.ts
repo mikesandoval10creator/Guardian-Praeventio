@@ -51,6 +51,16 @@ describe('mapIoTEventsToTwinState — honest twin (no fabricated roster)', () =>
     expect(lo.workers[0].isFallen).toBeUndefined();
   });
 
+  it('flags isFallen even when the caída event carries a non-critical status after a higher-severity event (life-safety: fall must never be gated by the status guard)', () => {
+    const { workers } = mapIoTEventsToTwinState([
+      wearable({ source: 'W-05', metric: 'temperatura', status: 'critical' }), // escalates first
+      wearable({ source: 'W-05', metric: 'caída detectada', value: 1, status: 'normal' }), // fall reported as 'normal'
+    ]);
+    expect(workers).toHaveLength(1);
+    expect(workers[0].status).toBe('critical'); // not downgraded
+    expect(workers[0].isFallen).toBe(true); // fall still detected
+  });
+
   it('creates machinery only from real machinery sources (type neutral, never a fabricated crane)', () => {
     const { workers, machinery } = mapIoTEventsToTwinState([
       { type: 'machinery', source: 'M-42', metric: 'temp', value: 90, status: 'warning' },

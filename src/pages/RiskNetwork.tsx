@@ -107,8 +107,10 @@ export function RiskNetwork() {
     try {
       const context = nodes.map(n => `${n.type}: ${n.title} - ${n.description}`).join('\n');
       
-      // Gather telemetry context from IndexedDB
-      const twinState: any = (await get('twinState')) || {};
+      // Gather telemetry context from IndexedDB. Telemetry.tsx persists under
+      // the 'telemetry_state' key — reading 'twinState' (a key nobody writes)
+      // fed the accident predictor an always-empty telemetry context.
+      const twinState: any = (await get('telemetry_state')) || {};
       const bioMetrics: any[] = (await get('bioMetricsHistory')) || [];
       const latestBio = bioMetrics.length > 0 ? bioMetrics[bioMetrics.length - 1] : null;
       

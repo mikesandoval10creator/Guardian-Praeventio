@@ -154,7 +154,16 @@ export function Evacuation() {
         ...nodes.filter(n => n.type === NodeType.EMERGENCY).map(n => ({ title: n.title, description: n.description }))
       ];
       
-      const data = await calculateDynamicEvacuationRoute(activeEmergencies, workers, machinery);
+      // Pass the project's REAL coordinates as the route origin. Worker
+      // positions from telemetry_state are schematic twin slots, not GPS, so
+      // they must never be used as the start point (that produced ocean coords).
+      const data = await calculateDynamicEvacuationRoute(
+        activeEmergencies,
+        workers,
+        machinery,
+        [],
+        selectedProject?.coordinates,
+      );
       setAiRoute(data);
       setLastRecalculation(new Date());
 
@@ -162,6 +171,9 @@ export function Evacuation() {
       setDirectionsResponse(null);
     } catch (error) {
       logger.error('Error calculating dynamic route', { error });
+      // Life-safety: never leave a stale/blank route rendering as "Calculando…".
+      // Clear it so the UI falls back to an explicit no-route state.
+      setAiRoute(null);
     } finally {
       setCalculating(false);
     }
