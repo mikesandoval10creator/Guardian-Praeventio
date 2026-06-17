@@ -27,7 +27,9 @@ import { set } from 'idb-keyval';
 import { generateRealisticIoTEvent } from '../services/geminiService';
 import { getHealthAdapter } from '../services/health';
 
-import { GamifiedHUD, type StatusEffect } from '../components/telemetry/GamifiedHUD';
+import { ZoneAtmospherePanel } from '../components/telemetry/ZoneAtmospherePanel';
+import { selectGasReadings } from '../components/telemetry/gasReadings';
+import { evaluateGasTelemetry } from '../services/workPermits/gasGate';
 import { ActiveAlertsList } from '../components/telemetry/ActiveAlertsList';
 import { generateDikeNode } from '../services/zettelkasten/bernoulli/dikeHydrostaticMonitor';
 import { generateMicroWindNode } from '../services/zettelkasten/bernoulli/microWindEnergy';
@@ -66,10 +68,6 @@ export function Telemetry() {
   const { triggerEmergency } = useEmergency();
   const { toasts, show: showToast, dismiss } = useToast();
 
-  // Gamified HUD State
-  const [health, setHealth] = useState(100);
-  const [toxin, setToxin] = useState(0);
-  const [effects, setEffects] = useState<StatusEffect[]>([]);
 
   // Bucket B.3 — Dike hydrostatic monitor (DS 248/2007, Resolución 1500 SERNAGEOMIN).
   const [dikeHeight, setDikeHeight] = useState<number | ''>(15);
@@ -140,6 +138,14 @@ export function Telemetry() {
   const { data: iotEvents } = useFirestoreCollection<IoTEvent>(
     'telemetry_events',
     [orderBy('timestamp', 'desc'), limit(10)]
+  );
+
+  // Real zone-atmosphere verdict from the canonical gasGate engine (same O₂/LEL
+  // thresholds as the confined-space permit gate). Replaces the old game HUD.
+  // Only real telemetry_events feed this — simulated demo events do not.
+  const gasResult = useMemo(
+    () => evaluateGasTelemetry(selectGasReadings(iotEvents), Date.now()),
+    [iotEvents]
   );
 
   const handleConnectBluetooth = async () => {
@@ -537,20 +543,6 @@ export function Telemetry() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSimulateGasLeak = () => {
-    setToxin(prev => Math.min(prev + 20, 100));
-    if (toxin >= 60) setHealth(prev => Math.max(prev - 10, 0));
-    setEffects(prev => [
-      ...prev.filter(e => e.id !== 'gas'),
-      { id: 'gas', name: 'Intoxicación', type: 'debuff', duration: 30, icon: <Wind className="w-3 h-3" /> },
-    ]);
-  };
-
-  const handleHeal = () => {
-    setHealth(100);
-    setToxin(0);
-    setEffects([]);
-  };
 
   return (
     <PremiumFeatureGuard featureName="Telemetría y Digital Twins" description="Conecta sensores IoT, wearables y maquinaria para monitorear el estado de tu faena en tiempo real.">
@@ -574,13 +566,7 @@ export function Telemetry() {
         )}
       </div>
 
-      <GamifiedHUD
-        health={health}
-        toxin={toxin}
-        effects={effects}
-        onSimulateGasLeak={handleSimulateGasLeak}
-        onHeal={handleHeal}
-      />
+      <ZoneAtmospherePanel gas={gasResult} />
 
       <ActiveAlertsList alerts={alerts} onSaveToZettelkasten={handleSaveAlertToZettelkasten} />
 
