@@ -1,4 +1,11 @@
 {
+  "assets": {
+    "tabs": {
+      "maquinaria": "Machinery",
+      "equipos": "Equipment",
+      "inspeccion": "QR Inspection"
+    }
+  },
   "climateRoutes": {
     "schematicBadge": "Illustrative schematic — real weather in the Assessment",
     "calculating": "Assessing route…",

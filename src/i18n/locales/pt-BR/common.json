@@ -1,4 +1,11 @@
 {
+  "assets": {
+    "tabs": {
+      "maquinaria": "Maquinário",
+      "equipos": "Equipamentos",
+      "inspeccion": "Inspeção QR"
+    }
+  },
   "climateRoutes": {
     "schematicBadge": "Esquema ilustrativo — clima real na Avaliação",
     "calculating": "Avaliando rota…",
