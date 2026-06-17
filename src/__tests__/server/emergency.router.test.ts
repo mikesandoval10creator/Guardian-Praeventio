@@ -409,6 +409,36 @@ describe('POST /api/emergency/sos', () => {
     expect(sentTokens).toEqual(['leg-tok-A', 'new-tok-A', 'tok-B1', 'tok-B2'].sort());
   });
 
+  it('200: parallel fan-out collects EVERY supervisor\'s canonical tokens (no drops)', async () => {
+    // The per-member users/{uid}.fcmTokens reads now run via Promise.all. The
+    // failure mode of a bad parallelization is dropped tokens or a rejected
+    // batch — seed several supervisors and assert the multicast carries the
+    // full union, order-independent.
+    seedProject(H.db!, 'p1', { tenantId: 'tA', createdBy: 'u1', members: ['u1'] });
+    seedMember(H.db!, 'p1', 'sup1', 'supervisor');
+    seedMember(H.db!, 'p1', 'sup2', 'gerente');
+    seedMember(H.db!, 'p1', 'sup3', 'supervisor');
+    seedMember(H.db!, 'p1', 'op1', 'operario'); // non-supervisor → excluded
+    seedUserTokens(H.db!, 'sup1', ['t1a', 't1b']);
+    seedUserTokens(H.db!, 'sup2', ['t2a']);
+    seedUserTokens(H.db!, 'sup3', ['t3a', 't3b']);
+    seedUserTokens(H.db!, 'op1', ['should-not-send']);
+
+    H.fcmSendEach.mockResolvedValueOnce({ successCount: 5, failureCount: 0, responses: [] });
+
+    const res = await request(buildApp())
+      .post(SOS)
+      .set('x-test-uid', 'u1')
+      .send({ type: 'sos', projectId: 'p1' });
+
+    expect(res.status).toBe(200);
+    expect(H.fcmSendEach).toHaveBeenCalledTimes(1);
+    const fcmCall = H.fcmSendEach.mock.calls[0][0] as Record<string, unknown>;
+    const sentTokens = (fcmCall.tokens as string[]).sort();
+    expect(sentTokens).toEqual(['t1a', 't1b', 't2a', 't3a', 't3b'].sort());
+    expect(sentTokens).not.toContain('should-not-send');
+  });
+
   it('200: email fallback sent when push has failures and supervisorEmails are present', async () => {
     H.emailEnabled = true;
     seedProject(H.db!, 'p1', { tenantId: 'tA', createdBy: 'u1', members: ['u1'], name: 'Proyecto Test' });
