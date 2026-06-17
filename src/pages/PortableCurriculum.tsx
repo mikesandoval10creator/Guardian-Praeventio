@@ -84,6 +84,42 @@ function describeEvent(ev: CurriculumHistoryEvent): {
   return { project, role, duration: '', incidentFree, date };
 }
 
+export interface CompletedTrainingRow {
+  key: string;
+  label: string;
+  date: string;
+}
+
+/**
+ * Pure projection of the already-hydrated curriculum history into the
+ * completed-training rows. Only `training.*.completed` events are included —
+ * never fabricated rows. Label prefers a real `details.title`, else a
+ * humanized course id from the action.
+ */
+export function selectCompletedTrainings(
+  history: CurriculumHistoryEvent[],
+): CompletedTrainingRow[] {
+  return history
+    .filter(
+      (ev) =>
+        ev.action.startsWith('training.') && ev.action.endsWith('.completed'),
+    )
+    .map((ev, i) => {
+      const courseId = ev.action
+        .replace(/^training\./, '')
+        .replace(/\.completed$/, '');
+      const detailTitle = (ev.details as Record<string, unknown> | undefined)?.title;
+      const label =
+        typeof detailTitle === 'string' && detailTitle.length > 0
+          ? detailTitle
+          : courseId.replace(/[-_.]/g, ' ').trim() || 'Capacitación';
+      const date = ev.timestamp
+        ? new Date(ev.timestamp).toLocaleDateString('es-CL')
+        : '';
+      return { key: `${ev.action}-${ev.timestamp ?? i}-${i}`, label, date };
+    });
+}
+
 const SKILL_ICONS: Record<string, typeof ShieldCheck> = {
   safety: ShieldCheck,
   training: Target,
@@ -368,24 +404,43 @@ export function PortableCurriculum() {
               <FileText className="w-5 h-5 text-blue-500" />
               Capacitaciones ({stats.coursesCompleted})
             </h2>
-            {stats.coursesCompleted === 0 ? (
-              <p className="text-[11px] text-zinc-500 leading-relaxed">
-                Aún no completaste capacitaciones registradas en el sistema.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {/*
-                  Round 16 (R1) — once `audit_logs` filtered by
-                  action='training.*.completed' lands as a Firestore
-                  reader hook (deferred), this list will render real
-                  rows. Until then we only show the count, not
-                  fabricated rows.
-                */}
-                <p className="text-[11px] text-zinc-500 leading-relaxed">
-                  Tenés {stats.coursesCompleted} capacitaciones registradas. El detalle aparecerá acá próximamente.
-                </p>
-              </div>
-            )}
+            {(() => {
+              // Real list from the already-hydrated history (audit_logs via
+              // historyAggregator). Only real training.*.completed events —
+              // no fabricated rows, no "próximamente" placeholder.
+              const completed = selectCompletedTrainings(history);
+              if (completed.length === 0) {
+                return (
+                  <p className="text-[11px] text-zinc-500 leading-relaxed">
+                    Aún no completaste capacitaciones registradas en el sistema.
+                  </p>
+                );
+              }
+              return (
+                <ul className="space-y-2" data-testid="curriculum-completed-trainings">
+                  {completed.map((row) => (
+                    <li
+                      key={row.key}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 px-3 py-2"
+                      data-testid="curriculum-completed-training-row"
+                    >
+                      <span className="flex items-center gap-2 text-[12px] text-zinc-800 dark:text-zinc-200 min-w-0">
+                        <BadgeCheck
+                          className="w-3.5 h-3.5 text-emerald-500 shrink-0"
+                          aria-hidden="true"
+                        />
+                        <span className="truncate capitalize">{row.label}</span>
+                      </span>
+                      {row.date && (
+                        <span className="text-[10px] text-zinc-500 tabular-nums shrink-0">
+                          {row.date}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
           </Card>
         </div>
 
