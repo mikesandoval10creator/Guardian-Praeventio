@@ -3,9 +3,53 @@ import { useLocation } from 'react-router-dom';
 import { useProject } from '../contexts/ProjectContext';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { RiskNode, Worker, TrainingSession, NodeType } from '../types';
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { collection, serverTimestamp, query, where, getDocs, writeBatch, doc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { logger } from '../utils/logger';
+
+export interface OrphanNotification {
+  title: string;
+  message: string;
+  type: 'orphan_risk' | 'orphan_worker';
+  relatedId: string;
+  severity: 'high' | 'medium';
+}
+
+/**
+ * Pure dedup: given the detected orphans and the relatedIds that ALREADY have a
+ * notification (read ONCE per type, not per orphan), return only the
+ * notifications that still need to be created. No I/O — unit-testable, and the
+ * single source of truth for the "which orphans still need a notif" decision.
+ */
+export function buildOrphanNotifications(
+  orphanRisks: ReadonlyArray<{ id: string; title?: string }>,
+  orphanWorkers: ReadonlyArray<{ id: string; name?: string }>,
+  existingRiskIds: ReadonlySet<string | undefined>,
+  existingWorkerIds: ReadonlySet<string | undefined>,
+): OrphanNotification[] {
+  const out: OrphanNotification[] = [];
+  for (const risk of orphanRisks) {
+    if (existingRiskIds.has(risk.id)) continue;
+    out.push({
+      title: 'Riesgo Huérfano Detectado',
+      message: `El riesgo "${risk.title ?? ''}" no tiene medidas de control definidas.`,
+      type: 'orphan_risk',
+      relatedId: risk.id,
+      severity: 'high',
+    });
+  }
+  for (const worker of orphanWorkers) {
+    if (existingWorkerIds.has(worker.id)) continue;
+    out.push({
+      title: 'Trabajador sin Capacitación',
+      message: `El trabajador ${worker.name ?? ''} no tiene capacitaciones registradas.`,
+      type: 'orphan_worker',
+      relatedId: worker.id,
+      severity: 'medium',
+    });
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------------------
 // Legacy node-based action types (preserved for backward compatibility)
@@ -303,48 +347,41 @@ export function useZettelkastenIntelligence() {
         const detectedOrphanWorkers = workers.filter(w => !trainedWorkerIds.has(w.id));
         setOrphanWorkers(detectedOrphanWorkers);
 
-        // Create notifications for orphan risks
-        for (const risk of detectedOrphanRisks) {
-          const notifQuery = query(
-            collection(db, `projects/${selectedProject.id}/notifications`),
-            where('relatedId', '==', risk.id),
-            where('type', '==', 'orphan_risk')
-          );
-          const existing = await getDocs(notifQuery);
+        // Create orphan notifications — ONE query per type (not per orphan) +
+        // a single writeBatch. Previously this fired a getDocs PER orphan
+        // (N+1) and an addDoc per miss, on a hook mounted app-wide. Now we
+        // read all existing orphan_risk / orphan_worker notifs once each,
+        // diff via buildOrphanNotifications (pure), and commit the misses
+        // in one atomic batch.
+        const notifsCol = collection(db, `projects/${selectedProject.id}/notifications`);
+        const [orphanRiskNotifs, orphanWorkerNotifs] = await Promise.all([
+          getDocs(query(notifsCol, where('type', '==', 'orphan_risk'))),
+          getDocs(query(notifsCol, where('type', '==', 'orphan_worker'))),
+        ]);
+        const existingRiskIds = new Set(
+          orphanRiskNotifs.docs.map(d => (d.data() as { relatedId?: string }).relatedId),
+        );
+        const existingWorkerIds = new Set(
+          orphanWorkerNotifs.docs.map(d => (d.data() as { relatedId?: string }).relatedId),
+        );
 
-          if (existing.empty) {
-            await addDoc(collection(db, `projects/${selectedProject.id}/notifications`), {
-              title: 'Riesgo Huérfano Detectado',
-              message: `El riesgo "${risk.title}" no tiene medidas de control definidas.`,
-              type: 'orphan_risk',
-              relatedId: risk.id,
+        const toCreate = buildOrphanNotifications(
+          detectedOrphanRisks,
+          detectedOrphanWorkers,
+          existingRiskIds,
+          existingWorkerIds,
+        );
+
+        if (toCreate.length > 0) {
+          const batch = writeBatch(db);
+          for (const notif of toCreate) {
+            batch.set(doc(notifsCol), {
+              ...notif,
               read: false,
               createdAt: serverTimestamp(),
-              severity: 'high'
             });
           }
-        }
-
-        // Create notifications for orphan workers
-        for (const worker of detectedOrphanWorkers) {
-          const notifQuery = query(
-            collection(db, `projects/${selectedProject.id}/notifications`),
-            where('relatedId', '==', worker.id),
-            where('type', '==', 'orphan_worker')
-          );
-          const existing = await getDocs(notifQuery);
-
-          if (existing.empty) {
-            await addDoc(collection(db, `projects/${selectedProject.id}/notifications`), {
-              title: 'Trabajador sin Capacitación',
-              message: `El trabajador ${worker.name} no tiene capacitaciones registradas.`,
-              type: 'orphan_worker',
-              relatedId: worker.id,
-              read: false,
-              createdAt: serverTimestamp(),
-              severity: 'medium'
-            });
-          }
+          await batch.commit();
         }
 
       } catch (error) {
