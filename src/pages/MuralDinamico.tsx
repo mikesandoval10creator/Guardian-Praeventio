@@ -8,8 +8,16 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { db, collection, onSnapshot, query, orderBy, limit, addDoc, serverTimestamp, handleFirestoreError, OperationType } from '../services/firebase';
-import { updateDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { updateDoc, doc, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { moderatePostContent } from '../utils/contentModeration';
+
+interface PostComment {
+  id: string;
+  userId: string;
+  userName: string;
+  text: string;
+  createdAt: string; // ISO — serverTimestamp() is illegal inside arrayUnion
+}
 
 interface Post {
   id: string;
@@ -20,6 +28,7 @@ interface Post {
   type: 'SafetyMoment' | 'Tip' | 'SuccessStory' | 'Warning';
   likes: string[];
   acknowledged?: string[];
+  comments?: PostComment[];
   imageUrl?: string;
   createdAt: any;
   projectId: string;
@@ -50,6 +59,9 @@ export function MuralDinamico() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [moderationError, setModerationError] = useState<string | null>(null);
   const [openComments, setOpenComments] = useState<Set<string>>(new Set());
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [commentBusy, setCommentBusy] = useState<Set<string>>(new Set());
+  const [commentError, setCommentError] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!selectedProject) return undefined;
@@ -106,8 +118,60 @@ export function MuralDinamico() {
 
   const handleToggleLike = async (postId: string, field: 'likes' | 'acknowledged', hasReacted: boolean) => {
     if (!selectedProject || !user) return;
+    const path = `projects/${selectedProject.id}/safety_posts/${postId}`;
     const ref = doc(db, `projects/${selectedProject.id}/safety_posts`, postId);
-    await updateDoc(ref, { [field]: hasReacted ? arrayRemove(user.uid) : arrayUnion(user.uid) }).catch(() => {});
+    await updateDoc(ref, {
+      [field]: hasReacted ? arrayRemove(user.uid) : arrayUnion(user.uid),
+    }).catch((err) => handleFirestoreError(err, OperationType.UPDATE, path));
+  };
+
+  const handleAddComment = async (postId: string) => {
+    if (!selectedProject || !user) return;
+    const text = (commentDrafts[postId] ?? '').trim();
+    if (!text || commentBusy.has(postId)) return;
+    // Moderate the comment with the same filter the posts use — never persist
+    // unmoderated content.
+    const moderation = moderatePostContent(text);
+    if (!moderation.ok) {
+      setCommentError((p) => ({ ...p, [postId]: moderation.reason || 'Contenido no permitido.' }));
+      return;
+    }
+    setCommentError((p) => ({ ...p, [postId]: '' }));
+    setCommentBusy((p) => new Set(p).add(postId));
+    const path = `projects/${selectedProject.id}/safety_posts/${postId}`;
+    const comment: PostComment = {
+      id: `${user.uid}-${Date.now()}`,
+      userId: user.uid,
+      userName: user.displayName || 'Usuario',
+      text,
+      createdAt: new Date().toISOString(), // serverTimestamp() is illegal in arrayUnion
+    };
+    try {
+      await updateDoc(doc(db, `projects/${selectedProject.id}/safety_posts`, postId), {
+        comments: arrayUnion(comment),
+      });
+      setCommentDrafts((p) => ({ ...p, [postId]: '' }));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+      setCommentError((p) => ({ ...p, [postId]: 'No se pudo publicar el comentario. Reintenta.' }));
+    } finally {
+      setCommentBusy((p) => {
+        const next = new Set(p);
+        next.delete(postId);
+        return next;
+      });
+    }
+  };
+
+  const handleDeletePost = async (post: Post) => {
+    if (!selectedProject || !user || post.userId !== user.uid) return;
+    if (typeof window !== 'undefined' && !window.confirm('¿Eliminar tu publicación?')) return;
+    const path = `projects/${selectedProject.id}/safety_posts/${post.id}`;
+    try {
+      await deleteDoc(doc(db, `projects/${selectedProject.id}/safety_posts`, post.id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
   };
 
   const toggleComments = (postId: string) => {
@@ -245,9 +309,21 @@ export function MuralDinamico() {
                     </p>
                   </div>
                 </div>
-                <button className="text-zinc-500 hover:text-white transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
-                  <MoreVertical className="w-5 h-5" />
-                </button>
+                {post.userId === user?.uid ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePost(post)}
+                    aria-label="Eliminar mi publicación"
+                    title="Eliminar mi publicación"
+                    className="text-zinc-500 hover:text-rose-400 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                ) : (
+                  <span className="min-h-[44px] min-w-[44px] flex items-center justify-center text-zinc-700">
+                    <MoreVertical className="w-5 h-5" aria-hidden="true" />
+                  </span>
+                )}
               </div>
 
               <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap mb-4">
@@ -291,8 +367,60 @@ export function MuralDinamico() {
               </div>
 
               {openComments.has(post.id) && (
-                <div className="mt-4 pt-4 border-t border-white/5">
-                  <p className="text-xs text-zinc-500 italic">Los comentarios se mostrarán aquí. Próximamente.</p>
+                <div className="mt-4 pt-4 border-t border-white/5 space-y-3" data-testid={`comments-${post.id}`}>
+                  {(post.comments ?? []).length === 0 ? (
+                    <p className="text-xs text-zinc-500 italic">Sé el primero en comentar.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {[...(post.comments ?? [])]
+                        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+                        .map((c) => (
+                          <li key={c.id} className="text-xs bg-zinc-800/40 rounded-lg px-3 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-zinc-200">{c.userName}</span>
+                              <span className="text-[10px] text-zinc-500 tabular-nums">
+                                {new Date(c.createdAt).toLocaleString('es-CL')}
+                              </span>
+                            </div>
+                            <p className="text-zinc-300 whitespace-pre-wrap mt-0.5">{c.text}</p>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+
+                  <div className="flex items-end gap-2">
+                    <textarea
+                      value={commentDrafts[post.id] ?? ''}
+                      onChange={(e) =>
+                        setCommentDrafts((p) => ({ ...p, [post.id]: e.target.value }))
+                      }
+                      rows={2}
+                      maxLength={1000}
+                      placeholder="Escribe un comentario…"
+                      data-testid={`comment-input-${post.id}`}
+                      className="flex-1 resize-none rounded-lg bg-zinc-800/60 border border-white/10 px-3 py-2 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddComment(post.id)}
+                      disabled={commentBusy.has(post.id) || !(commentDrafts[post.id] ?? '').trim()}
+                      aria-label="Publicar comentario"
+                      data-testid={`comment-send-${post.id}`}
+                      className="shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                    >
+                      {commentBusy.has(post.id) ? (
+                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Send className="w-4 h-4" aria-hidden="true" />
+                      )}
+                    </button>
+                  </div>
+                  {commentError[post.id] && (
+                    <p className="text-[11px] text-rose-400 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" aria-hidden="true" />
+                      {commentError[post.id]}
+                    </p>
+                  )}
                 </div>
               )}
             </Card>
