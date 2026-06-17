@@ -43,18 +43,13 @@ export async function sendSos(event: SosEvent): Promise<{ ok: boolean; error?: s
         timestamp: event.occurredAt,
       }),
     });
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-    // A recorded-but-undelivered SOS (reached no responder: 0 push + 0 email)
-    // must NOT be marked delivered, or the outbox would stop retrying a worker's
-    // unheard alert. Treat delivered===false as a failure so it retries on the
-    // next drain and eventually dead-letters (never silently dropped).
-    const body =
-      typeof res.json === 'function'
-        ? ((await res.json().catch(() => ({}))) as { delivered?: boolean })
-        : {};
-    return body.delivered === false
-      ? { ok: false, error: 'sos_not_delivered' }
-      : { ok: true };
+    // The outbox is TRANSPORT-only: a 2xx means the SOS reached the server and
+    // is recorded. We deliberately do NOT gate on the response's `delivered`
+    // flag here — re-POSTing a recorded-but-zero-reach SOS would create
+    // duplicate emergency_alerts docs (the server `.add()`s a new doc per call,
+    // no clientEventId idempotency yet). Zero-reach is handled at the UI layer
+    // (SOSButton: tel: fallback, no re-enqueue), not by retrying the transport.
+    return res.ok ? { ok: true } : { ok: false, error: `HTTP ${res.status}` };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'network_error' };
   }
