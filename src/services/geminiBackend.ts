@@ -239,14 +239,16 @@ export const validateRiskImageClick = async (imageBase64: string, x: number, y: 
   return parseGeminiJson(response);
 };
 
-export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], workers: any[], machinery: any[], userBlockedAreas: string[] = []) => {
+export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], workers: any[], machinery: any[], userBlockedAreas: string[] = [], originCoords?: { lat: number; lng: number }) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  // 1. Deterministic Calculation using our routing utility
-  // Getting start point from the first worker or a default location
-  const startPoint = workers.length > 0 && workers[0].position 
-    ? { lat: workers[0].position[0], lng: workers[0].position[1] } 
-    : { lat: -33.4489, lng: -70.6693 }; // Default Santiago
+  // 1. Deterministic Calculation using our routing utility.
+  // The start point MUST be a REAL coordinate. The twin worker `position` is a
+  // SCHEMATIC scene slot (e.g. [-2,0,2]), NOT GPS — reading it as lat/lng fed
+  // ocean coordinates into the route. Use the caller-supplied real origin
+  // (project coordinates), else a documented site default. NEVER derive GPS
+  // from schematic twin slots.
+  const startPoint = originCoords ?? { lat: -33.4489, lng: -70.6693 }; // default Santiago centroid
   
   // A known safe zone (Optimal meeting point)
   const destination = { lat: -33.4500, lng: -70.6700 };

@@ -1,84 +1,82 @@
 import { describe, it, expect } from 'vitest';
 import {
   mapIoTEventsToTwinState,
-  DEFAULT_WORKERS,
-  DEFAULT_MACHINERY,
   type IoTEventLite,
 } from './twinStateMapper';
 
-describe('mapIoTEventsToTwinState', () => {
-  it('returns the default fleet when no events are provided', () => {
-    const { workers, machinery } = mapIoTEventsToTwinState(null);
-    expect(workers).toHaveLength(DEFAULT_WORKERS.length);
-    expect(machinery).toHaveLength(DEFAULT_MACHINERY.length);
-    workers.forEach((w) => expect(w.status).toBe('normal'));
-    machinery.forEach((m) => expect(m.status).toBe('normal'));
+function wearable(over: Partial<IoTEventLite> = {}): IoTEventLite {
+  return { type: 'wearable', source: 'W-01', metric: 'ritmo', value: 80, status: 'normal', ...over };
+}
+
+describe('mapIoTEventsToTwinState — honest twin (no fabricated roster)', () => {
+  it('returns EMPTY arrays when there are no events (no phantom fleet)', () => {
+    expect(mapIoTEventsToTwinState(null)).toEqual({ workers: [], machinery: [] });
+    expect(mapIoTEventsToTwinState([])).toEqual({ workers: [], machinery: [] });
   });
 
-  it('does not mutate the exported defaults', () => {
-    const before = JSON.stringify(DEFAULT_WORKERS);
-    mapIoTEventsToTwinState([
-      { type: 'wearable', source: 'W-01', metric: 'ritmo', value: 200, status: 'critical' },
+  it('creates exactly one worker per distinct real wearable source', () => {
+    const { workers } = mapIoTEventsToTwinState([
+      wearable({ source: 'W-07', status: 'warning' }),
+      wearable({ source: 'W-09', status: 'normal' }),
+      wearable({ source: 'W-07', status: 'normal' }), // same source → deduped
     ]);
-    expect(JSON.stringify(DEFAULT_WORKERS)).toBe(before);
-  });
-
-  it('escalates a worker to warning when a wearable warning arrives', () => {
-    const events: IoTEventLite[] = [
-      { type: 'wearable', source: 'W-02', metric: 'Ritmo Cardíaco', value: 110, status: 'warning' },
-    ];
-    const { workers } = mapIoTEventsToTwinState(events);
-    expect(workers[2].status).toBe('warning'); // index = 2 % 4 = 2
-    expect(workers[2].isFallen).toBeUndefined();
+    expect(workers.map((w) => w.id)).toEqual(['W-07', 'W-09']);
+    expect(workers[0].status).toBe('warning'); // escalated, not downgraded by the later normal
   });
 
   it('escalates to critical and never downgrades from critical to warning', () => {
-    const events: IoTEventLite[] = [
-      { type: 'wearable', source: 'W-01', metric: 'Ritmo Cardíaco', value: 180, status: 'critical' },
-      { type: 'wearable', source: 'W-01', metric: 'Ritmo Cardíaco', value: 110, status: 'warning' },
-    ];
-    const { workers } = mapIoTEventsToTwinState(events);
-    expect(workers[1].status).toBe('critical');
+    const { workers } = mapIoTEventsToTwinState([
+      wearable({ source: 'W-02', status: 'critical' }),
+      wearable({ source: 'W-02', status: 'warning' }),
+    ]);
+    expect(workers).toHaveLength(1);
+    expect(workers[0].status).toBe('critical');
   });
 
-  it('flags isFallen on caída metric', () => {
-    const events: IoTEventLite[] = [
-      { type: 'wearable', source: 'W-03', metric: 'Detección de Caída', value: 1, status: 'critical' },
-    ];
-    const { workers } = mapIoTEventsToTwinState(events);
-    expect(workers[3].isFallen).toBe(true);
+  it('flags isFallen on a caída metric', () => {
+    const { workers } = mapIoTEventsToTwinState([
+      wearable({ source: 'W-03', metric: 'caída detectada', status: 'critical' }),
+    ]);
+    expect(workers[0].isFallen).toBe(true);
   });
 
-  it('flags isFallen on extreme heart rate (> 160 with ritmo metric)', () => {
-    const events: IoTEventLite[] = [
-      { type: 'wearable', source: 'W-01', metric: 'Ritmo Cardíaco', value: 165, status: 'critical' },
-    ];
-    const { workers } = mapIoTEventsToTwinState(events);
-    expect(workers[1].isFallen).toBe(true);
+  it('flags isFallen on extreme heart rate (ritmo > 160) and not at ≤160', () => {
+    const hi = mapIoTEventsToTwinState([
+      wearable({ source: 'A', metric: 'ritmo', value: 175, status: 'critical' }),
+    ]);
+    expect(hi.workers[0].isFallen).toBe(true);
+    const lo = mapIoTEventsToTwinState([
+      wearable({ source: 'B', metric: 'ritmo', value: 150, status: 'warning' }),
+    ]);
+    expect(lo.workers[0].isFallen).toBeUndefined();
   });
 
-  it('does not flag isFallen when ritmo metric value is ≤160', () => {
-    const events: IoTEventLite[] = [
-      { type: 'wearable', source: 'W-01', metric: 'Ritmo Cardíaco', value: 160, status: 'critical' },
-    ];
-    const { workers } = mapIoTEventsToTwinState(events);
-    expect(workers[1].isFallen).toBeUndefined();
+  it('flags isFallen even when the caída event carries a non-critical status after a higher-severity event (life-safety: fall must never be gated by the status guard)', () => {
+    const { workers } = mapIoTEventsToTwinState([
+      wearable({ source: 'W-05', metric: 'temperatura', status: 'critical' }), // escalates first
+      wearable({ source: 'W-05', metric: 'caída detectada', value: 1, status: 'normal' }), // fall reported as 'normal'
+    ]);
+    expect(workers).toHaveLength(1);
+    expect(workers[0].status).toBe('critical'); // not downgraded
+    expect(workers[0].isFallen).toBe(true); // fall still detected
   });
 
-  it('updates machinery status independently from workers', () => {
-    const events: IoTEventLite[] = [
-      { type: 'machinery', source: 'M-02', metric: 'Velocidad', value: 80, status: 'critical' },
-    ];
-    const { workers, machinery } = mapIoTEventsToTwinState(events);
-    expect(machinery[0].status).toBe('critical');
-    workers.forEach((w) => expect(w.status).toBe('normal'));
+  it('creates machinery only from real machinery sources (type neutral, never a fabricated crane)', () => {
+    const { workers, machinery } = mapIoTEventsToTwinState([
+      { type: 'machinery', source: 'M-42', metric: 'temp', value: 90, status: 'warning' },
+    ]);
+    expect(workers).toEqual([]); // a machinery event must not invent a worker
+    expect(machinery).toHaveLength(1);
+    expect(machinery[0].id).toBe('M-42');
+    expect(machinery[0].type).toBe('truck');
+    expect(machinery[0].status).toBe('warning');
   });
 
-  it('falls back to index 0 when source has no digits', () => {
-    const events: IoTEventLite[] = [
-      { type: 'wearable', source: 'unknown', metric: 'Ritmo', value: 100, status: 'warning' },
-    ];
-    const { workers } = mapIoTEventsToTwinState(events);
-    expect(workers[0].status).toBe('warning');
+  it('does not place an entity that no real event references (no default roster leak)', () => {
+    const { workers, machinery } = mapIoTEventsToTwinState([
+      wearable({ source: 'ONLY-ONE', status: 'normal' }),
+    ]);
+    expect(workers).toHaveLength(1);
+    expect(machinery).toHaveLength(0);
   });
 });

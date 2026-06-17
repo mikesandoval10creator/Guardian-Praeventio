@@ -99,7 +99,7 @@ export const predictAccidents = async (nodesContext: string, telemetryContext: s
 export const analyzeSiteMapDensity = async (nodesContext: string, workersContext: string, assetsContext: string) => callGeminiAPI('analyzeSiteMapDensity', [nodesContext, workersContext, assetsContext]);
 export const generateTrainingQuiz = async (topic: string, description: string) => callGeminiAPI('generateTrainingQuiz', [topic, description]);
 export const validateRiskImageClick = async (imageBase64: string, x: number, y: number, width: number, height: number, gameContext: string = '') => callGeminiAPI('validateRiskImageClick', [imageBase64, x, y, width, height, gameContext]);
-export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], workers: any[], machinery: any[], userBlockedAreas: string[] = []) => callGeminiAPI('calculateDynamicEvacuationRoute', [activeEmergencies, workers, machinery, userBlockedAreas]);
+export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], workers: any[], machinery: any[], userBlockedAreas: string[] = [], originCoords?: { lat: number; lng: number }) => callGeminiAPI('calculateDynamicEvacuationRoute', [activeEmergencies, workers, machinery, userBlockedAreas, originCoords]);
 export const processAudioWithAI = async (base64Audio: string) => callGeminiAPI('processAudioWithAI', [base64Audio]);
 export const analyzeVisionImage = async (base64Image: string) => callGeminiAPI('analyzeVisionImage', [base64Image]);
 export const verifyEPPWithAI = async (base64Image: string, workerName: string, requiredEPP: string[]) => callGeminiAPI('verifyEPPWithAI', [base64Image, workerName, requiredEPP]);
