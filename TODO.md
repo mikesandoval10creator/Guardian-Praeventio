@@ -51,7 +51,7 @@ Cada dominio se mide:
 | **Compliance Chile (DS54/594/109/132 + Ley 16.744)** | 80% | ⬆️ +10pp | CPHS + DIAT/DIEP cerrados |
 | **Compliance global (ISO 45001 + jurisdicciones)** | 45% | ⬆️ +20pp | 6 jurisdicciones nuevas (E.4); **falta** UK/CA/AU/JP/KR/IN wire UI |
 | **i18n** | 91% | ⬆️ +46pp | 109/119 páginas con `useTranslation`; **quedan 10 páginas** |
-| **Health Vault (ADR 0012)** | 75% | ⬇️ -10pp | Disclaimer + QR sharing OK; **`health_vault` sin reglas Firestore** (§2.32 B4, incumple Regla #4) |
+| **Health Vault (ADR 0012)** | 85% | ⬆️ +10pp | Disclaimer + QR sharing OK; `health_vault`/`health_vault_shares` owner-gated (#762, `firestore.rules:329/346`) + re-validación por-archivo (#780) |
 | **CPHS Comité Paritario** | 80% | ⬆️ +30pp | Service + UI card (#265); falta endpoint admin |
 | **DIAT/DIEP SUSESO** | 75% | ⬆️ +15pp | PDF real + folio + firma; **falta** WebAuthn ceremony real |
 | **Mesh BLE/WiFi Direct** | 80% | ⬆️ +10pp | Plugin Android Kotlin **real (552 LOC)** + iOS Swift; **consumer cableado** (`MeshProvider.tsx:110`→`AppProviders.tsx:139`). Pendiente: firma de paquetes (`meshPacket.ts:237` `unsigned-dev`) |
@@ -908,11 +908,13 @@ varios contradicen un ✅ previo (Rule #1).
 **P0 — Vida (🛟):**
 - ✅ **ManDown push RESUELTO** (#671, 2026-06-07) — `useManDownDetection.ts:216` ahora llama
   `triggerEmergency('man_down', …)` (como FallDetection) + escribe `mandown_events`. El pipeline de push despierta al supervisor.
-- 🔴 **LOTO read-only** — `src/server/routes/loto.ts:55` solo expone `GET`; no hay
-  endpoint para aplicar candado / verificar cero-energía / liberar; `LotoAdapter`/
-  `applyFullRelease` son código muerto; `LotoStatusPanel` huérfano. El control que
-  "previene energización" **no está cableado**. (§2.29 lo eximió como "read-only" —
-  exención técnicamente válida que **ocultaba** esta brecha de vida.)
+- ✅ **LOTO write-path RESUELTO** — `src/server/routes/loto.ts` expone el ciclo
+  completo: `POST …/loto` crear (`:135`), `POST …/loto/:appId/apply-lock` (`:182`),
+  `POST …/loto/:appId/verify-zero-energy` (`:235`) y `POST …/loto/:appId/release`
+  (`:283`), todos `verifyAuth`+auditados. El control que "previene energización"
+  **está cableado** end-to-end (apply→verify→release). Corrige la exención §2.29
+  "read-only" que ocultaba esta brecha de vida. *(Residual: montar `LotoStatusPanel`
+  en una página — huérfano de UI, no de motor.)*
 - ✅ **AlertScheduler con probes REALES (#798)** — `src/components/layout/RootLayout.tsx` `PredictiveSchedulerSlot` (≈L451-510) hace `fetchStructuralLoadProbes(pid)` (inputs físicos de `projects/{pid}/structural_loads` × viento HORARIO real de Open-Meteo en las coordenadas del proyecto) y pasa `probes={probes}` + `schedulerWindow` a `<AlertSchedulerMount/>`, refrescando cada 10 min. Sin coordenadas/forecast/input físico ⇒ NO probe (silencio honesto, nunca un viento fabricado). El pipeline predictivo Bernoulli está VIVO en prod.
 - ✅ **Ruta de evacuación insegura RESUELTA (Fase 5, 2026-06-03)** (era DEEP-EX-03):
   `routingBackend.ts` esquivaba UN solo peligro por waypoint (`break`) sin re-chequear
@@ -922,9 +924,10 @@ varios contradicen un ✅ previo (Rule #1).
   waypoints no crucen un peligro (no solo los vértices) + validar endpoints.
 
 **P1 — Privacidad / cumplimiento (🔐):**
-- 🔴 **External Audit Portal sin gate de rol** — `externalAuditPortal.ts:234,306,355,428`
-  solo `verifyAuth`, sin `assertProjectMember`/`isAdmin` → cualquier member del tenant
-  emite token de auditor externo con acceso cross-proyecto a docs/IPER/incidentes.
+- ✅ **External Audit Portal con gate de rol RESUELTO** — `externalAuditPortal.ts:134`
+  `assertAdminCaller` (valida `isAdminRole`, `:144`) protege los 4 endpoints sensibles
+  (`:270/:342/:394/:467`) → solo admin del tenant emite token de auditor externo; un
+  member común recibe 403 sin emitir.
 - ✅ **`health_vault`/`health_vault_shares` reglas RESUELTAS** (#762, 2026-06-08) —
   owner-gated en `firestore.rules:312/329` + collectionGroup index; #780 además re-valida
   el acceso a archivo en cada `/view` (revocado/expirado→410, `healthVault.test.ts`).
@@ -936,8 +939,8 @@ varios contradicen un ✅ previo (Rule #1).
   en los 4 endpoints (check-in/out/acknowledge/list); no-miembro→403 sin escribir.
 - 🟡 **Biometría de login débil — PARCIAL** (#775, 2026-06-08): el path **web** ahora
   server-verifica (`useBiometricAuth().authenticate` → /challenge+/verify). **PENDIENTE:** el path
-  **nativo** (`useBiometricAuth.ts:249`) aún retorna true sin /verify; `src/utils/biometrics.ts` quedó
-  como código muerto (sin importadores) → borrar.
+  **nativo** (`useBiometricAuth.ts:249`) aún retorna true sin /verify (decisión de diseño:
+  verificación on-device, no bug). `src/utils/biometrics.ts` ya fue **borrado** (no existe en disco).
 - ✅ **Medicine.tsx UI reconvertida (ADR 0012)** (#674/#676/#677, 2026-06-07) —
   `SymptomDocumenter` (documenta síntomas), `DifferentialDiagnosis` (referencia educativa CIE-10),
   `DrugInteractions` (Vademécum ATC), todas con `MedicalDisclaimer`, sin inferencia.
@@ -953,8 +956,10 @@ varios contradicen un ✅ previo (Rule #1).
 - 🟡 **Tier-gating por-feature solo client-side — PRIMITIVO HECHO** (#719/#720/#722) — middleware
   `requireTier(minPlan)` server-side (402 upgrade_required, fail-closed); 1ª ruta cableada (Drive titanio);
   guardrail ADR 0021 (life-safety nunca tier-gated). PENDIENTE: resto de features premium cuando existan rutas.
-- 🟡 **PDCA flow no crea edges** — `incidentFlow.ts:77-84` inyecta solo `writeNodes` → los
-  7 nodos ZK quedan sin conectar (trail ISO 45001 §10.2 no end-to-end). *(Pendiente — `createEdge`.)*
+- ✅ **PDCA flow crea edges RESUELTO** — `incidentFlow.ts:93` inyecta
+  `createEdge: (input) => createZkEdge(edgeStore, input)` (import `:40`) → los 7 nodos ZK
+  quedan conectados (trail ISO 45001 §10.2 end-to-end). Antes `flowDepsFor` no inyectaba
+  `createEdge` y todo edge moría en `if (!deps.createEdge) return null` (`:81-82`).
 - ✅ **`comite_actas` regla de write RESUELTA** (#760, 2026-06-08) — `firestore.rules:556`
   member-gated + schema `isValidComiteActa` + inmutabilidad + 10 rules-tests. Consolidación con
   `cphs_meetings` queda como follow-up de migración.
