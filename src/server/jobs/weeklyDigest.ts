@@ -9,12 +9,12 @@
 // `routes/admin.ts` is the HTTP entry point; this module is the pure
 // job so unit tests can drive it without spinning up Express.
 //
-// Stats aggregated per active project:
-//   • Findings created / closed (Firestore: tenants/{t}/findings)
-//   • Processes completed (Firestore: tenants/{t}/processes)
-//   • Crew XP gained (Firestore: tenants/{t}/crews aggregation)
-//   • Days without incident (count from project doc, capped at 999)
-//   • Top 3 risks identified (frequency over the week)
+// Stats aggregated per active project (read paths match a verified writer):
+//   • Findings created / closed (Firestore: projects/{pid}/findings)
+//   • Processes completed (Firestore: top-level `processes`, status=completed)
+//   • Crew XP gained this week (Σ processes.xpAwardedAtClose, in-window)
+//   • Days without incident (computeDaysWithoutIncident over `reports`, cap 999)
+//   • Top 3 risks identified (priority/riskLabel frequency over the week)
 //
 // Failure model: per-project failure does NOT abort the run. We collect
 // counts and surface them in the result so ops can see partial outcomes
@@ -113,22 +113,35 @@ async function aggregateProjectStats(
   let queryErrors = 0;
   const riskCounts = new Map<string, number>();
 
-  // Findings
+  // Findings — the project SUB-collection is the canonical write path
+  // (BioAnalysis.tsx + the expiry jobs write `projects/{pid}/findings`). The
+  // previous `tenants/{tid}/findings` path had NO writer, so findingsCreated and
+  // topRisks were ALWAYS 0 (only daysWithoutIncident was repointed in #943).
   try {
     const findingsSnap = await db
-      .collection('tenants')
-      .doc(project.tenantId)
+      .collection('projects')
+      .doc(project.id)
       .collection('findings')
-      .where('projectId', '==', project.id)
       .get();
     for (const doc of findingsSnap.docs) {
       const data: any = doc.data();
       const createdAt: Date | null = data?.createdAt?.toDate?.() ?? null;
       const closedAt: Date | null = data?.closedAt?.toDate?.() ?? null;
-      if (createdAt && createdAt >= startTs && createdAt <= endTs) findingsCreated++;
+      const inWindow = !!createdAt && createdAt >= startTs && createdAt <= endTs;
+      if (inWindow) findingsCreated++;
+      // No writer sets `closedAt` today → findingsClosed stays 0 (HONEST; a
+      // future close-writer lights it up). Never fabricate a close signal.
       if (closedAt && closedAt >= startTs && closedAt <= endTs) findingsClosed++;
-      if (typeof data?.riskLabel === 'string' && data.riskLabel.length > 0) {
-        riskCounts.set(data.riskLabel, (riskCounts.get(data.riskLabel) ?? 0) + 1);
+      // Real findings carry `priority` (Crítica/Alta/Media/Baja); `riskLabel` is
+      // legacy. Count only the WEEK's findings (not all-time).
+      if (inWindow) {
+        const label =
+          typeof data?.riskLabel === 'string' && data.riskLabel.length > 0
+            ? data.riskLabel
+            : typeof data?.priority === 'string' && data.priority.length > 0
+              ? data.priority
+              : null;
+        if (label) riskCounts.set(label, (riskCounts.get(label) ?? 0) + 1);
       }
     }
   } catch (err) {
@@ -140,20 +153,35 @@ async function aggregateProjectStats(
     });
   }
 
-  // Processes
+  // Processes (TOP-LEVEL — the organic.ts write path) + crew XP gained this
+  // week. The previous `tenants/{tid}/processes` path had no writer; also the
+  // close writes `endedAt` (ISO string) + `xpAwardedAtClose`, never
+  // `completedAt`. One query now covers both processesCompleted and crewXp.
   try {
     const procSnap = await db
-      .collection('tenants')
-      .doc(project.tenantId)
       .collection('processes')
       .where('projectId', '==', project.id)
       .where('status', '==', 'completed')
       .get();
     for (const doc of procSnap.docs) {
       const data: any = doc.data();
-      const completedAt: Date | null = data?.completedAt?.toDate?.() ?? null;
-      if (completedAt && completedAt >= startTs && completedAt <= endTs) {
+      const endedAtMs =
+        typeof data?.endedAt === 'string'
+          ? Date.parse(data.endedAt)
+          : data?.endedAt?.toDate?.()?.getTime() ?? NaN;
+      if (
+        Number.isFinite(endedAtMs) &&
+        endedAtMs >= startTs.getTime() &&
+        endedAtMs <= endTs.getTime()
+      ) {
         processesCompleted++;
+        // Real weekly crew-XP delta = XP awarded at close of THIS week's
+        // processes (organic.ts:214), replacing the never-written `weeklyXp`
+        // field. (Alert-ack +30 XP lives in predictive_alert_acks — follow-up.)
+        const xp = data?.xpAwardedAtClose;
+        if (typeof xp === 'number' && Number.isFinite(xp) && xp > 0) {
+          crewXpGained += xp;
+        }
       }
     }
   } catch (err) {
@@ -161,29 +189,6 @@ async function aggregateProjectStats(
     logger.warn('weekly_digest_query_failed', {
       projectId: project.id,
       collection: 'processes',
-      error: String(err),
-    });
-  }
-
-  // Crew XP
-  try {
-    const crewsSnap = await db
-      .collection('tenants')
-      .doc(project.tenantId)
-      .collection('crews')
-      .where('projectId', '==', project.id)
-      .get();
-    for (const doc of crewsSnap.docs) {
-      const xp = (doc.data() as any)?.weeklyXp;
-      if (typeof xp === 'number' && Number.isFinite(xp) && xp > 0) {
-        crewXpGained += xp;
-      }
-    }
-  } catch (err) {
-    queryErrors++;
-    logger.warn('weekly_digest_query_failed', {
-      projectId: project.id,
-      collection: 'crews',
       error: String(err),
     });
   }
