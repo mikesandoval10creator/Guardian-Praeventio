@@ -36,7 +36,7 @@ export function ZoneAtmospherePanel({ gas }: ZoneAtmospherePanelProps) {
       ? o2Low
       : o2High && o2High.value > GAS_OXYGEN_MAX_PCT
         ? o2High
-        : o2Low;
+        : (o2Low ?? o2High); // engine sets both or neither today; ?? keeps it robust if that ever changes
 
   const lel = gas.worstReadings.lel;
   const lelBlocking = !!lel && lel.value >= GAS_LEL_BLOCKING_PCT;
