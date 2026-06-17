@@ -124,6 +124,40 @@ describe('EmergencyOverlay', () => {
     expect(screen.getByText(/ALERTA DE EMERGENCIA/i)).toBeTruthy();
   });
 
+  it('exposes the legacy overlay as a named alertdialog (a11y)', () => {
+    emergencyMock.isEmergencyActive = true;
+    render(<EmergencyOverlay />);
+    const dlg = screen.getByRole('alertdialog');
+    expect(dlg).toBeTruthy();
+    expect(dlg.getAttribute('aria-modal')).toBe('true');
+    expect(dlg.getAttribute('aria-label')).toMatch(/Alerta de emergencia/i);
+  });
+
+  it('moves focus to "ESTOY A SALVO" when the overlay appears (a11y)', () => {
+    emergencyMock.isEmergencyActive = true;
+    render(<EmergencyOverlay />);
+    const safeBtn = screen.getByText(/ESTOY A SALVO/i).closest('button');
+    expect(document.activeElement).toBe(safeBtn);
+  });
+
+  it('triage confirmation shows the severity LABEL (not the raw color) with role=status', () => {
+    emergencyMock.isEmergencyActive = true;
+    render(<EmergencyOverlay />);
+    fireEvent.click(screen.getByText('Crítico')); // rojo
+    const status = screen.getByRole('status');
+    expect(status.getAttribute('aria-live')).toBe('assertive');
+    expect(status.textContent).toMatch(/Reporte Crítico enviado/);
+    // The raw color must NOT leak to the user/screen reader.
+    expect(screen.queryByText(/Reporte rojo enviado/i)).toBeNull();
+  });
+
+  it('triage confirmation maps verde → "Leve"', () => {
+    emergencyMock.isEmergencyActive = true;
+    render(<EmergencyOverlay />);
+    fireEvent.click(screen.getByText('Leve')); // verde
+    expect(screen.getByText(/Reporte Leve enviado/i)).toBeTruthy();
+  });
+
   it('renders the seismic auto-overlay variant when reason=sismo', () => {
     appModeMock.emergencyAutoEvent = { reason: 'sismo', peakG: 0.18 };
     render(<EmergencyOverlay />);

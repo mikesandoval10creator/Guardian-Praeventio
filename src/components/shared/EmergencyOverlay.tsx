@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { AlertTriangle, MapPin, ShieldAlert, Phone, ArrowRight, CheckCircle2, Navigation } from 'lucide-react';
 import { useEmergency } from '../../contexts/EmergencyContext';
@@ -184,6 +184,8 @@ export function EmergencyOverlay() {
   const [isSafe, setIsSafe] = useState(false);
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [triageReported, setTriageReported] = useState<'verde' | 'amarillo' | 'rojo' | null>(null);
+  // a11y: focus target for the primary "ESTOY A SALVO" action when the overlay appears.
+  const safeButtonRef = useRef<HTMLButtonElement>(null);
 
   // Kill-Switch de Animaciones (Modo Táctico) y Síntesis de Voz
   useEffect(() => {
@@ -268,6 +270,16 @@ export function EmergencyOverlay() {
       }
     };
   }, [isEmergencyActive, emergencyType, isSafe, emergencyAutoEvent]);
+
+  // WCAG 2.4.3 / 2.1.1 — when the legacy life-safety overlay appears, move
+  // focus into the dialog onto the primary action so keyboard/AT users land on
+  // "ESTOY A SALVO" rather than being stranded on document.body behind the
+  // modal. Kept ABOVE the early-returns below to respect rules-of-hooks.
+  useEffect(() => {
+    if (isEmergencyActive && !emergencyAutoEvent && !isSafe) {
+      safeButtonRef.current?.focus();
+    }
+  }, [isEmergencyActive, emergencyAutoEvent, isSafe]);
 
   // Auto-monitor variants take precedence when their reason is present. Placed
   // AFTER every hook (rules-of-hooks): the legacy `useEmergency` overlay drives
@@ -356,12 +368,24 @@ export function EmergencyOverlay() {
     void persistCheckin(level === 'verde' ? 'safe' : 'danger', level);
   };
 
+  // Color → severity word, shared by the triage buttons and the confirmation
+  // so a screen reader (and the worker) hears "Reporte Crítico enviado", never
+  // the raw color "rojo". Single source of truth keeps the two from drifting.
+  const TRIAGE_LABELS: Record<'verde' | 'amarillo' | 'rojo', string> = {
+    verde: 'Leve',
+    amarillo: 'Grave',
+    rojo: 'Crítico',
+  };
+
   return (
     <MotionConfig reducedMotion={isEmergencyActive ? "always" : "user"}>
       <AnimatePresence>
         {isEmergencyActive && (
           <motion.div
             key="emergency-overlay"
+            role="alertdialog"
+            aria-modal={true}
+            aria-label="Alerta de emergencia"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -465,7 +489,8 @@ export function EmergencyOverlay() {
             {/* Botón "Estoy a Salvo" Unificado */}
             {!isSafe ? (
               <div className="w-full flex flex-col items-center gap-8">
-                <button 
+                <button
+                  ref={safeButtonRef}
                   onClick={handleSafeClick}
                   className="w-full md:w-auto bg-[#00ff00] text-black px-12 py-6 rounded-2xl text-3xl font-black uppercase tracking-widest hover:bg-[#00cc00] transition-all shadow-[0_0_30px_rgba(0,255,0,0.6)] flex items-center justify-center gap-4 border-4 border-white"
                 >
@@ -498,13 +523,17 @@ export function EmergencyOverlay() {
                       </button>
                     </div>
                   ) : (
-                    <div className={`py-4 rounded-xl font-bold uppercase tracking-wider border-2 flex items-center justify-center gap-2 ${
-                      triageReported === 'verde' ? 'bg-green-900/50 border-green-500 text-green-400' :
-                      triageReported === 'amarillo' ? 'bg-yellow-900/50 border-yellow-500 text-yellow-400' :
-                      'bg-red-900/50 border-red-500 text-red-400'
-                    }`}>
+                    <div
+                      role="status"
+                      aria-live="assertive"
+                      className={`py-4 rounded-xl font-bold uppercase tracking-wider border-2 flex items-center justify-center gap-2 ${
+                        triageReported === 'verde' ? 'bg-green-900/50 border-green-500 text-green-400' :
+                        triageReported === 'amarillo' ? 'bg-yellow-900/50 border-yellow-500 text-yellow-400' :
+                        'bg-red-900/50 border-red-500 text-red-400'
+                      }`}
+                    >
                       <CheckCircle2 className="w-6 h-6" />
-                      Reporte {triageReported} enviado
+                      Reporte {triageReported ? TRIAGE_LABELS[triageReported] : ''} enviado
                     </div>
                   )}
                 </div>
