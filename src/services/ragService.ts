@@ -5,6 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { logger } from '../utils/logger';
 import { AI_MODEL_EMBEDDINGS } from '../config/aiModels.js';
 import { MIN_SIMILARITY } from './rag/safeNormativeQuery.js';
+import * as Sentry from '@sentry/core';
 
 interface VectorDocument {
   id: string;
@@ -300,8 +301,13 @@ export const queryCommunityKnowledge = async (
 
     return aiResponse;
   } catch (error) {
+    // Fail-soft to Gemini, but make the failure DISCOVERABLE: the most likely
+    // cause is a missing Firestore composite vector index for
+    // community_knowledge_cache, which would silently bypass the cache on every
+    // call (Gemini hit every time) with no user-facing error. Surface it in
+    // Sentry so ops can create the index instead of paying for it invisibly.
     logger.error('[RAG Interceptor] Error:', error);
-    // If anything fails (e.g. vector index missing), fallback to Gemini.
+    Sentry.captureException(error, { tags: { area: 'rag.communityKnowledgeCache' } });
     return await geminiFallback();
   }
 };

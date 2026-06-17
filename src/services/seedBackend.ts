@@ -60,7 +60,11 @@ const generateInitialDataForIndustry = async (industry: string) => {
 
   const ptsResult = ptsResponse.text;
 
-  // Save to community_glossary
+  // Save CURATED public seed terms to community_glossary (publicly readable by
+  // design). These `prompt`s are generic industry templates (e.g. "riesgos en
+  // ${industry}"), NOT worker free-text — distinct from the runtime AI-answer
+  // cache, which lives in the SERVER-ONLY `community_knowledge_cache` and never
+  // stores the worker prompt (see ragService.queryCommunityKnowledge).
   const db = admin.firestore();
   const glossaryCollection = db.collection('community_glossary');
 
