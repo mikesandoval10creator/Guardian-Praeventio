@@ -37,6 +37,7 @@ import {
   type Earthquake,
 } from '../components/telemetry/WeatherAndSeismicPanels';
 import { IoTEventsFeed, type IoTEvent } from '../components/telemetry/IoTEventsFeed';
+import { buildSimulatedIoTEvent } from '../components/telemetry/simulatedEvent';
 import { WearablesPanel, type FitnessData } from '../components/telemetry/WearablesPanel';
 import { WebhookModal } from '../components/telemetry/WebhookModal';
 import { mapIoTEventsToTwinState } from '../components/telemetry/twinStateMapper';
@@ -403,25 +404,20 @@ export function Telemetry() {
       // evacuation Digital-Twin. So we keep the simulated event entirely in
       // local component state, clearly labeled, isolated from every alerting
       // path (those read `iotEvents` from Firestore, not this array).
-      const simEvent: IoTEvent = {
-        id: `sim-${randomId()}`,
-        type: eventData?.type === 'wearable' ? 'wearable' : 'machinery',
-        source: typeof eventData?.source === 'string' ? eventData.source : 'Sensor simulado',
-        metric: typeof eventData?.metric === 'string' ? eventData.metric : 'lectura',
-        value: typeof eventData?.value === 'number' ? eventData.value : 0,
-        unit: typeof eventData?.unit === 'string' ? eventData.unit : '',
-        timestamp: Date.now(),
-        status:
-          eventData?.status === 'critical' || eventData?.status === 'warning'
-            ? eventData.status
-            : 'normal',
-        simulated: true,
-      };
+      // Map the REAL Gemini schema fields (deviceId/type/value/unit/status/
+      // message) — see buildSimulatedIoTEvent. The prior inline mapping read
+      // non-existent `source`/`metric` fields and a `type==='wearable'` value
+      // the schema never emits, so every card showed "Sensor simulado /
+      // lectura" and biometric events were mislabeled as machinery.
+      const simEvent = buildSimulatedIoTEvent(eventData, `sim-${randomId()}`, Date.now());
       setSimulatedEvents((prev) => [simEvent, ...prev].slice(0, 10));
     } catch (error) {
       logger.error('Error simulating IoT event', { error });
+      const emptyResponse = error instanceof Error && error.message === 'gemini_empty_response';
       setAlerts((prev) => {
-        const msg = 'No se pudo generar el evento de demostración. Intenta nuevamente.';
+        const msg = emptyResponse
+          ? 'La IA no pudo generar el evento de demostración. Intenta con otro contexto.'
+          : 'No se pudo generar el evento de demostración. Intenta nuevamente.';
         return prev.includes(msg) ? prev : [...prev, msg];
       });
     } finally {
