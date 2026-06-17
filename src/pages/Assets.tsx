@@ -1,20 +1,23 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Truck, Boxes
+  Truck, Boxes, ScanLine
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useProject } from '../contexts/ProjectContext';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
 import { EquipmentAdminPanel } from '../components/equipment/EquipmentAdminPanel';
+import { EquipmentQRScannerEntry } from '../components/equipment/EquipmentQRScannerEntry';
 
 // Phase 5 "make real" — Assets previously mounted ONLY MaquinariaManager, so the
 // fully-built EquipmentAdminPanel (QR-registered equipment admin backed by
 // listEquipmentBySite / registerEquipmentQr) was orphaned (no import → users
-// could never reach it). Surface it via a tab. (Horómetro needs an
-// equipment-list container and HazmatStorageManager needs persistence before
-// they can be wired the same way — tracked as follow-ups.)
-type AssetTab = 'maquinaria' | 'equipos';
+// could never reach it). Surface it via a tab. The worker-facing pre-use
+// inspection flow (EquipmentQRScannerEntry → scan QR → checklist → audited
+// record, recommend-not-operate but never blocks) was also orphaned — the
+// backend (equipmentQrRouter at /api/sprint-k) was live but no page mounted the
+// scan loop. Surfaced here as the "Inspección QR" tab (life-safety, FREE).
+type AssetTab = 'maquinaria' | 'equipos' | 'inspeccion';
 
 export function Assets() {
   const { t } = useTranslation();
@@ -24,6 +27,7 @@ export function Assets() {
   const tabs = [
     { id: 'maquinaria' as const, label: t('assets.tabs.maquinaria', 'Maquinaria'), icon: Truck },
     { id: 'equipos' as const, label: t('assets.tabs.equipos', 'Equipos'), icon: Boxes },
+    { id: 'inspeccion' as const, label: t('assets.tabs.inspeccion', 'Inspección QR'), icon: ScanLine },
   ];
 
   return (
@@ -69,6 +73,12 @@ export function Assets() {
           >
             {tab === 'maquinaria' && <MaquinariaManager projectId={selectedProject.id} />}
             {tab === 'equipos' && <EquipmentAdminPanel projectId={selectedProject.id} />}
+            {tab === 'inspeccion' && (
+              <EquipmentQRScannerEntry
+                projectId={selectedProject.id}
+                onClose={() => setTab('equipos')}
+              />
+            )}
           </motion.div>
         </>
       ) : (
