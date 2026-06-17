@@ -14,6 +14,29 @@ export interface WorkSession {
   hadCriticalTasks: boolean;
 }
 
+/**
+ * Count the worker's TRAILING consecutive night shifts — how many of their most
+ * recent shifts (chronological order) were night shifts, stopping at the first
+ * day shift. Feeds the circadian alertness assessment (consecutive nights
+ * depress alertness). Pure; 0 when there is no trailing night run. Derived from
+ * real WorkSession logs — never fabricated.
+ */
+export function countTrailingConsecutiveNightShifts(
+  sessions: WorkSession[],
+  workerUid: string,
+): number {
+  const sorted = sessions
+    .filter((s) => s.workerUid === workerUid)
+    .slice()
+    .sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  let count = 0;
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    if (sorted[i].isNight) count += 1;
+    else break;
+  }
+  return count;
+}
+
 export type FatigueRisk = 'low' | 'moderate' | 'high' | 'critical';
 
 export interface FatigueAssessment {

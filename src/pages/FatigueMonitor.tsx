@@ -21,7 +21,7 @@
 // Solo cuando el supervisor invita al worker a un proyecto (futuro
 // Sprint), los turnos pueden subir a Firestore con scope project.members.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Moon, Sun, Trash2, AlertTriangle } from 'lucide-react';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
@@ -29,7 +29,11 @@ import { Link } from 'react-router-dom';
 
 import { useFirebase } from '../contexts/FirebaseContext';
 import { FatigueAssessmentCard } from '../components/fatigue/FatigueAssessmentCard';
-import type { WorkSession } from '../services/fatigue/fatigueMonitor';
+import { AlertnessGuard } from '../components/circadian/AlertnessGuard';
+import {
+  countTrailingConsecutiveNightShifts,
+  type WorkSession,
+} from '../services/fatigue/fatigueMonitor';
 
 const STORAGE_KEY = (uid: string) => `praeventio:fatigue:sessions:${uid}`;
 const ANONYMOUS_OWNER = 'anonymous';
@@ -84,6 +88,23 @@ export function FatigueMonitor() {
   const ownerUid = user?.uid ?? ANONYMOUS_OWNER;
   const [sessions, setSessions] = useState<WorkSession[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // Circadian alertness inputs. Sleep is NOT derivable from shift logs (a
+  // rest-gap ≠ sleep), so it is worker-supplied — never fabricated. Defaults
+  // are neutral (7 h / no mental-load penalty per the NIOSH model).
+  const [sleepHours, setSleepHours] = useState(7);
+  const [mentalLoad, setMentalLoad] = useState<number | undefined>(undefined);
+
+  // Real circadian input: local clock + worker-supplied sleep + the worker's
+  // trailing consecutive night shifts derived from their actual session logs.
+  const circadianInput = useMemo(
+    () => ({
+      localHour: new Date().getHours(),
+      sleepHoursLast24h: sleepHours,
+      consecutiveNightShifts: countTrailingConsecutiveNightShifts(sessions, ownerUid),
+      mentalLoadRating: mentalLoad,
+    }),
+    [sleepHours, mentalLoad, sessions, ownerUid],
+  );
 
   // Load sessions from idb-keyval (namespaced by uid or 'anonymous').
   // Migración soft: si el user se loguea y ya había sessions anónimas,
@@ -199,6 +220,54 @@ export function FatigueMonitor() {
 
       {/* Assessment card — siempre visible, se actualiza con sessions */}
       <FatigueAssessmentCard workerUid={ownerUid} sessions={sessions} />
+
+      {/* Circadian alertness — NIOSH-based, orientative. Recommendation-only:
+          never blocks machinery (blockingCriticalOperation omitted; ADR 0012/0021). */}
+      <section
+        className="rounded-2xl border border-default-token p-4 sm:p-6 space-y-4 bg-elevated"
+        aria-labelledby="circadian-heading"
+      >
+        <h2 id="circadian-heading" className="text-lg font-bold">
+          {t('circadian.heading', 'Estado de alerta circadiana')}
+        </h2>
+        <p className="text-xs text-muted-token">
+          {t(
+            'circadian.help',
+            'Estimación orientativa basada en NIOSH (hora local, sueño y turnos de noche consecutivos). Es una recomendación — nunca bloquea la operación de equipos.',
+          )}
+        </p>
+        <label className="block text-sm space-y-1">
+          <span className="font-medium">
+            {t('circadian.sleep_label', 'Horas dormidas (últimas 24 h)')}: {sleepHours} h
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={12}
+            step={0.5}
+            value={sleepHours}
+            onChange={(e) => setSleepHours(Number(e.target.value))}
+            className="w-full"
+            aria-label={t('circadian.sleep_label', 'Horas dormidas (últimas 24 h)')}
+          />
+        </label>
+        <label className="block text-sm space-y-1">
+          <span className="font-medium">
+            {t('circadian.mentalload_label', 'Carga mental (1-10, opcional)')}: {mentalLoad ?? '—'}
+          </span>
+          <input
+            type="range"
+            min={1}
+            max={10}
+            step={1}
+            value={mentalLoad ?? 1}
+            onChange={(e) => setMentalLoad(Number(e.target.value))}
+            className="w-full"
+            aria-label={t('circadian.mentalload_label', 'Carga mental (1-10, opcional)')}
+          />
+        </label>
+        <AlertnessGuard input={circadianInput} />
+      </section>
 
       {/* Shift logging */}
       <section
