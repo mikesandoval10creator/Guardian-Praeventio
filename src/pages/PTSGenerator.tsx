@@ -15,8 +15,6 @@ import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { generatePTS, generatePTSWithManufacturerData } from '../services/geminiService';
 import { SAFETY_GLOSSARY } from '../constants/glossary';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -210,6 +208,9 @@ export function PTSGenerator() {
     setIsSaving(true);
     try {
       // 1. Generate PDF Blob
+      // Dynamic import: jspdf + html2canvas are heavy and only needed on export.
+      const { jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(pdfRef.current, {
         scale: 2,
         useCORS: true,
@@ -367,6 +368,9 @@ export function PTSGenerator() {
     
     setIsDownloading(true);
     try {
+      // Dynamic import: jspdf + html2canvas are heavy and only needed on export.
+      const { jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(pdfRef.current, {
         scale: 2,
         useCORS: true,

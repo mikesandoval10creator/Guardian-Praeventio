@@ -19,8 +19,6 @@ import { useProject } from '../contexts/ProjectContext';
 import { NodeType } from '../types';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { handleFirestoreError, OperationType } from '../services/firebase';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 import { logger } from '../utils/logger';
 import { legalFormValue } from '../utils/legalFormValue';
 import { deriveDriveSaveStatus, type DriveSaveStatus } from '../utils/driveSaveStatus';
@@ -85,6 +83,9 @@ export function SusesoReports() {
       const reportElement = document.getElementById('suseso-form');
       if (!reportElement) return;
 
+      // Dynamic import: jspdf + html2canvas are heavy and only needed on export.
+      const { jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(reportElement, {
         scale: 2,
         useCORS: true,
@@ -122,6 +123,9 @@ export function SusesoReports() {
         throw new Error('suseso-form element not found');
       }
 
+      // Dynamic import: jspdf + html2canvas are heavy and only needed on export.
+      const { jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(reportElement, {
         scale: 2,
         useCORS: true,
