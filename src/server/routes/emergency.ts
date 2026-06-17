@@ -353,8 +353,24 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
       }
     }
 
+    // `delivered` = the SOS actually REACHED a responder (a push landed OR a
+    // backup email was sent). The Firestore row is always written (ok:true), but
+    // when nobody was reached the client MUST NOT show a "supervisores
+    // notificados" success — it falls through to the tel: deeplink + offline
+    // retry instead. Surface the zero-reach case in logs so ops can see it.
+    const delivered = notified > 0 || emailedSupervisors > 0;
+    if (!delivered) {
+      logger.warn('sos_zero_reach', {
+        alertId: alertRef.id,
+        projectId,
+        notified,
+        pushFailed,
+        emailedSupervisors,
+      });
+    }
     return res.json({
       ok: true,
+      delivered,
       alertId: alertRef.id,
       notified,
       emailedSupervisors,

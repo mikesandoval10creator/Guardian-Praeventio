@@ -51,6 +51,18 @@ describe('sendSos transport', () => {
     expect(await sendSos(ev())).toEqual({ ok: false, error: 'HTTP 503' });
   });
 
+  it('treats a recorded-but-undelivered SOS (delivered:false) as NOT delivered — engine keeps retrying', async () => {
+    // 2xx but the server reached no responder (0 push + 0 email). The outbox
+    // must NOT mark it delivered, or a worker's unheard SOS would stop retrying.
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ delivered: false }) });
+    expect(await sendSos(ev())).toEqual({ ok: false, error: 'sos_not_delivered' });
+  });
+
+  it('is delivered when the server reached a responder (delivered:true)', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ delivered: true }) });
+    expect(await sendSos(ev())).toEqual({ ok: true });
+  });
+
   it('fails fast (non-retryable) when projectId is missing — the server 400s without it', async () => {
     const r = await sendSos(ev({ projectId: undefined }));
     expect(r).toEqual({ ok: false, error: 'missing_projectId' });

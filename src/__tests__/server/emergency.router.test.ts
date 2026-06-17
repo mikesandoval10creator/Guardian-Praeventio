@@ -296,6 +296,7 @@ describe('POST /api/emergency/sos', () => {
     expect(body.ok).toBe(true);
     expect(typeof body.alertId).toBe('string');
     expect(body.notified).toBe(1);
+    expect(body.delivered).toBe(true); // a supervisor push landed
 
     // Alert doc written under tenants/{tenantId}/emergency_alerts/
     const alertKeys = [...H.db!._store.keys()].filter((k) =>
@@ -363,9 +364,9 @@ describe('POST /api/emergency/sos', () => {
     expect(details.hasGeo).toBe(false);
   });
 
-  it('200: notified:0 + no FCM when no supervisor tokens registered', async () => {
+  it('200 but delivered:false (zero-reach) when no supervisor tokens/emails — never falsely reassure', async () => {
     seedProject(H.db!, 'p1', { tenantId: 'tA', createdBy: 'u1', members: ['u1'] });
-    seedMember(H.db!, 'p1', 'op1', 'operario'); // non-supervisor
+    seedMember(H.db!, 'p1', 'op1', 'operario'); // non-supervisor, no token, no email
 
     const res = await request(buildApp())
       .post(SOS)
@@ -373,7 +374,14 @@ describe('POST /api/emergency/sos', () => {
       .send({ type: 'sos', projectId: 'p1' });
 
     expect(res.status).toBe(200);
-    expect((res.body as Record<string, unknown>).notified).toBe(0);
+    const body = res.body as Record<string, unknown>;
+    // The alert is still recorded (ok:true) so a dispatcher can pick it up...
+    expect(body.ok).toBe(true);
+    expect(body.notified).toBe(0);
+    expect(body.emailedSupervisors).toBe(0);
+    // ...but it reached NOBODY, so delivered MUST be false — the client uses this
+    // to fall through to the tel: deeplink instead of a green success toast.
+    expect(body.delivered).toBe(false);
     expect(H.fcmSendEach).not.toHaveBeenCalled();
   });
 

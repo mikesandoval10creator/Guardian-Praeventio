@@ -127,6 +127,16 @@ export function SOSButton(): React.ReactElement | null {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // The server records the SOS even when it reached NO responder (0 push +
+      // 0 backup email). Do NOT show the green "supervisores notificados" toast
+      // in that case — fall through to the tel: deeplink + offline retry below so
+      // a human is actually reached and the alert keeps retrying. (#1 life-safety:
+      // never falsely reassure a worker that help is coming when it isn't.)
+      const sosResult =
+        typeof res.json === 'function'
+          ? ((await res.json().catch(() => ({}))) as { delivered?: boolean })
+          : {};
+      if (sosResult.delivered === false) throw new Error('sos_not_delivered');
       // 16th wave analytics: emit only when the server accepted the SOS,
       // so the dashboard funnel doesn't double-count failures (failures
       // hit the `tel:` fallback path below — those are handled by the

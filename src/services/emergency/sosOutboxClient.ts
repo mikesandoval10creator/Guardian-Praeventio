@@ -43,7 +43,18 @@ export async function sendSos(event: SosEvent): Promise<{ ok: boolean; error?: s
         timestamp: event.occurredAt,
       }),
     });
-    return res.ok ? { ok: true } : { ok: false, error: `HTTP ${res.status}` };
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    // A recorded-but-undelivered SOS (reached no responder: 0 push + 0 email)
+    // must NOT be marked delivered, or the outbox would stop retrying a worker's
+    // unheard alert. Treat delivered===false as a failure so it retries on the
+    // next drain and eventually dead-letters (never silently dropped).
+    const body =
+      typeof res.json === 'function'
+        ? ((await res.json().catch(() => ({}))) as { delivered?: boolean })
+        : {};
+    return body.delivered === false
+      ? { ok: false, error: 'sos_not_delivered' }
+      : { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'network_error' };
   }
