@@ -165,24 +165,35 @@ export async function sendToProjectSupervisors(
   // a not-yet-migrated installation may still carry. The Set deduplicates
   // across both sources so a single device with a token in both locations
   // is notified exactly once.
+  // First pass (sync): filter supervisor members, collect the legacy
+  // members/{uid}.fcmToken + email, and capture the uids whose canonical
+  // users/{uid}.fcmTokens we must read. The legacy fallback keeps not-yet-
+  // migrated installations working; canonical tokens are unioned on top below.
+  const supervisorUids: string[] = [];
   for (const memberDoc of membersSnap.docs) {
     const data = memberDoc.data();
     if (!SUPERVISOR_ROLES.has(data?.role)) continue;
 
-    // Legacy fallback first — keeps installations that haven't migrated
-    // working until they do. The cache lookup below adds the canonical
-    // tokens on top.
     if (typeof data?.fcmToken === 'string' && data.fcmToken) {
       tokenSet.add(data.fcmToken);
     }
     if (typeof data?.email === 'string' && data.email) {
       supervisorEmails.push(data.email);
     }
-
-    // Canonical: read users/{memberUid}.fcmTokens (array) with TTL cache.
     // memberDoc.id is the member uid in `projects/{id}/members/{uid}`.
-    const memberUid = memberDoc.id;
-    const userTokens = await getUserTokensCached(memberUid, db);
+    supervisorUids.push(memberDoc.id);
+  }
+
+  // Second pass (parallel): the canonical users/{uid}.fcmTokens reads are
+  // independent — fan them out CONCURRENTLY so the emergency push isn't gated
+  // on N serial Firestore round-trips (this runs on the /sos and /notify-
+  // brigada critical path). getUserTokensCached swallows per-uid read failures
+  // to [], so one slow/failed read can't reject the batch; the Set union is
+  // order-independent, so dedup is unaffected by completion order.
+  const perMemberTokens = await Promise.all(
+    supervisorUids.map((uid) => getUserTokensCached(uid, db)),
+  );
+  for (const userTokens of perMemberTokens) {
     for (const tok of userTokens) {
       tokenSet.add(tok);
     }
