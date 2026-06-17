@@ -108,6 +108,30 @@ export function buildDteQueueInvoicePayload(
 }
 
 /**
+ * Decide whether an `tryAutoIssueDte` outcome should be persisted to the
+ * retry queue. Shared by every payment rail (mark-paid, webpay, khipu, MP) so
+ * the "what gets retried" rule lives in ONE place and cannot drift between
+ * call sites.
+ *
+ * Queue ONLY transient/recoverable failures:
+ *   • `errorMessage` present  → adapter threw / PSE outage → retry.
+ *   • `skipped: 'no-adapter'` → Bsale credential not yet wired → retry.
+ *
+ * Never queue deliberate skips (`disabled` env gate, `usd` CLP-only,
+ * `invalid-status`, `not-configured`) — those are decisions, not failures.
+ * The structural param accepts `AutoIssueDteResult` without importing it
+ * (avoids a route→service-layer type coupling).
+ */
+export function shouldQueueDteRetry(result: {
+  ok: boolean;
+  skipped?: string;
+  errorMessage?: string;
+}): boolean {
+  if (result.ok) return false;
+  return Boolean(result.errorMessage) || result.skipped === 'no-adapter';
+}
+
+/**
  * Persist a pending DTE issue job. Create-if-absent semantics:
  *
  *   • doc absent              → fresh `pending` entry (ready to drain now).

@@ -35,6 +35,7 @@ import { normalizeSubscriptionPlanId, resolveInvoiceCycle } from '../../../servi
 import {
   buildDteQueueInvoicePayload,
   enqueueDteIssueJob,
+  shouldQueueDteRetry,
 } from '../../../services/dte/dteIssueQueueStore.js';
 import type { Invoice } from '../../../services/billing/types.js';
 import { sentryCapture } from './shared.js';
@@ -193,7 +194,7 @@ export function registerInvoiceRoutes(billingApiRouter: Router): void {
                   // Deliberate-skip reasons ('disabled' gate, 'usd',
                   // 'invalid-status') are NOT queued. Transient failures
                   // (adapter error) and 'no-adapter' (credential outage) are.
-                  if (!issueResult.ok && (issueResult.errorMessage || issueResult.skipped === 'no-adapter')) {
+                  if (shouldQueueDteRetry(issueResult)) {
                     const queued = await enqueueDteIssueJob(db, decision, invoicePayload, 'mark-paid');
                     dteOutcome.queued = queued;
                     logger.warn('dte_autoissue_queued_for_retry', { invoiceId, queued });
