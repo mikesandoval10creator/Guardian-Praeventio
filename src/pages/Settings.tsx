@@ -134,7 +134,6 @@ export function Settings() {
   }, []);
 
   // Settings States
-  const [mfaEnabled, setMfaEnabled] = useState(false);
   const [sessionTimeout, setSessionTimeout] = useState('30');
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [pushNotifs, setPushNotifs] = useState(notificationPermissionStatus === 'granted');
@@ -256,15 +255,17 @@ export function Settings() {
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.security.mfa_title', 'Autenticación de Dos Factores (2FA)')}</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.security.mfa_desc', 'Añade una capa extra de seguridad a tu cuenta.')}</p>
               </div>
+              {/* The fake on/off switch (local state that reverted on reload,
+                  never enabling real 2FA) is replaced by a CTA into the REAL
+                  MFA hub (/security-shield) + the WebAuthn passkey enrollment
+                  below. No control that pretends 2FA is on when it isn't. */}
               <button
                 type="button"
-                role="switch"
-                aria-checked={mfaEnabled}
-                aria-label={t('settings.aria.toggle_mfa', 'Activar autenticación de dos factores')}
-                onClick={() => setMfaEnabled(!mfaEnabled)}
-                className={`w-12 h-6 rounded-full transition-colors relative ${mfaEnabled ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
+                onClick={() => navigate('/security-shield')}
+                aria-label={t('settings.aria.toggle_mfa', 'Configurar autenticación de dos factores')}
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#4db6ac]/15 text-[#4db6ac] hover:bg-[#4db6ac]/25 transition-colors"
               >
-                <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${mfaEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+                {t('settings.security.mfa_configure', 'Configurar')} →
               </button>
             </div>
             <div>

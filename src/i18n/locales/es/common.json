@@ -1981,6 +1981,7 @@
       "fall_detection_warn": "⚠ Consume batería en segundo plano. Manténlo apagado si tu rubro no lo requiere.",
       "mfa_title": "Autenticación de Dos Factores (2FA)",
       "mfa_desc": "Añade una capa extra de seguridad a tu cuenta.",
+      "mfa_configure": "Configurar",
       "password_email_title": "Correo Enviado",
       "password_email_msg": "Se ha enviado un enlace para restablecer tu contraseña.",
       "change_password": "Cambiar Contraseña",

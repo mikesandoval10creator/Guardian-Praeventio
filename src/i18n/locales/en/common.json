@@ -1981,6 +1981,7 @@
       "fall_detection_warn": "⚠ Consumes battery in the background. Keep it off if your work doesn't require it.",
       "mfa_title": "Two-Factor Authentication (2FA)",
       "mfa_desc": "Add an extra layer of security to your account.",
+      "mfa_configure": "Configure",
       "password_email_title": "Email Sent",
       "password_email_msg": "A password reset link has been sent.",
       "change_password": "Change Password",
