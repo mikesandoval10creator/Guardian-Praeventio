@@ -34,6 +34,10 @@ const DevPosterSeeder = lazy(() => import('../pages/DevPosterSeeder').then(modul
 // backgrounded; no-op on web/iOS.
 const LoneWorker = lazy(() => import('../pages/LoneWorker').then(module => ({ default: module.LoneWorker })));
 const RestrictedZonesEditor = lazy(() => import('../pages/RestrictedZonesEditor').then(module => ({ default: module.RestrictedZonesEditor })));
+// OLA 1 (VIDA visible) — worker-facing restricted-zones surface: map overlay
+// + informed-entry gate (both orphan components, now mounted). Counterpart to
+// the admin editor above.
+const ZoneEntryView = lazy(() => import('../pages/ZoneEntryView').then(module => ({ default: module.ZoneEntryView })));
 // §201-210 — Agenda con Bloques de Foco. Tiempo protegido (inspección,
 // capacitación, auditoría, admin) que el prevencionista reserva para no
 // ser interrumpido. Core wave: vista semanal + form de creación; las
@@ -74,6 +78,7 @@ export const OperationsRoutes = [
   // OLA 1 — admin/supervisor define restricted zones (map-draw) that drive the
   // geofence→SOS escalation. Server enforces the write role.
   <Route key="restricted-zones" path="restricted-zones" element={<RestrictedZonesEditor />} />,
+  <Route key="zone-entry" path="zone-entry" element={<ZoneEntryView />} />,
   <Route key="focus-agenda" path="focus-agenda" element={<FocusAgenda />} />,
   <Route key="site-book" path="site-book" element={<SiteBook />} />,
   <Route key="shift-handover" path="shift-handover" element={<ShiftHandover />} />,

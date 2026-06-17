@@ -83,7 +83,7 @@ export function checkZoneEntry(input: ZoneEntryCheckInput): ZoneEntryResult {
   return { allowed: missing.length === 0, missing, warnings };
 }
 
-function mapZoneToPermitKind(kind: ZoneKind): string | null {
+export function mapZoneToPermitKind(kind: ZoneKind): string | null {
   switch (kind) {
     case 'hot':
       return 'caliente';
