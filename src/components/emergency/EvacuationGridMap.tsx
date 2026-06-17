@@ -65,6 +65,12 @@ export interface EvacuationGridMapProps {
   blocked: LngLat[];
   /** Tap-to-report a blocked area (lng/lat of the tapped point). */
   onBlockPoint?: (p: LngLat) => void;
+  /**
+   * Other workers' REAL last-known positions (from their survival beacons),
+   * for the supervisor/rescue view. `worker` is the current device; these are
+   * everyone else. Empty when no fresh beacons — never a fabricated roster.
+   */
+  otherWorkers?: ReadonlyArray<{ uid: string; lat: number; lng: number; status?: string }>;
 }
 
 export function EvacuationGridMap({
@@ -74,6 +80,7 @@ export function EvacuationGridMap({
   route,
   blocked,
   onBlockPoint,
+  otherWorkers = [],
 }: EvacuationGridMapProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const proj = makeProjector(bounds);
@@ -199,6 +206,26 @@ export function EvacuationGridMap({
           <line x1={proj.toX(b.lng) + 6} y1={proj.toY(b.lat) - 6} x2={proj.toX(b.lng) - 6} y2={proj.toY(b.lat) + 6} />
         </g>
       ))}
+
+      {/* Other workers' REAL last-known positions (rescue view). Rendered
+          under the current worker so "you" stays on top. Rose = help/critical
+          beacon status, amber otherwise. */}
+      {otherWorkers.map((w) => {
+        const danger = w.status === 'help_requested' || w.status === 'danger' || w.status === 'critical';
+        return (
+          <g key={`other-${w.uid}`} data-testid={`evac-worker-${w.uid}`}>
+            <circle
+              cx={proj.toX(w.lng)}
+              cy={proj.toY(w.lat)}
+              r={6}
+              fill={danger ? '#f43f5e' : '#f59e0b'}
+              stroke="#fff"
+              strokeWidth={1.5}
+              opacity={0.9}
+            />
+          </g>
+        );
+      })}
 
       {/* Worker (start) */}
       {worker && (

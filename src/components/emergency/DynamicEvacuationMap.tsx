@@ -25,6 +25,7 @@ import {
   type LngLat,
 } from '../../services/routing/evacuationGrid';
 import { useGeolocationTracking } from '../../hooks/useGeolocationTracking';
+import { useWorkerPings } from '../../hooks/useWorkerPings';
 import { VectorialEvacuationMap } from './VectorialEvacuationMap';
 import { EvacuationGridMap } from './EvacuationGridMap';
 import { logger } from '../../utils/logger';
@@ -45,6 +46,8 @@ export function DynamicEvacuationMap() {
   const { lastLocation } = useGeolocationTracking();
 
   const projectId = selectedProject?.id ?? null;
+  // Other workers' REAL last-known GPS (survival beacons) for the rescue view.
+  const { workers: otherWorkers } = useWorkerPings(projectId);
   const tenantId = auth.currentUser?.tenantId ?? 'default';
 
   const [features, setFeatures] = useState<SiteGeometryFeature[]>([]);
@@ -198,6 +201,7 @@ export function DynamicEvacuationMap() {
                 route={route}
                 blocked={blocked}
                 onBlockPoint={handleBlockPoint}
+                otherWorkers={otherWorkers}
               />
 
               {/* Honest route status banner */}
