@@ -617,37 +617,52 @@ router.post(
         )
         .doc(surveyId);
 
-      const surveySnap = await surveyRef.get();
-      if (!surveySnap.exists) {
+      // Rule #19: the check-then-act (get response → exists? → set) is a
+      // read-modify-write on the SAME responses/{hash} doc. Two concurrent
+      // submissions by the same worker would both pass the exists-check and
+      // both write (last-write-wins), double-counting participation and
+      // skewing the n>=5 anonymity aggregate. Wrap survey-read + response
+      // read/write in a single transaction (reads before write); map the
+      // discriminated result to a status OUTSIDE the tx. Mirrors cphsMinute (#935).
+      const txResult = await db.runTransaction(async (tx) => {
+        const surveySnap = await tx.get(surveyRef);
+        if (!surveySnap.exists) return { kind: 'not_found' as const };
+        const survey = surveySnap.data() as Omit<StoredPulseSurvey, 'id'>;
+        const now = new Date().toISOString();
+        if (survey.status === 'closed' || now > survey.closeAt) {
+          return { kind: 'closed' as const };
+        }
+        if (now < survey.openAt) return { kind: 'not_open' as const };
+
+        const responderHash = pulseResponderHash(callerUid, surveyId);
+        const responseRef = surveyRef.collection('responses').doc(responderHash);
+        const existing = await tx.get(responseRef);
+        if (existing.exists) return { kind: 'already' as const };
+
+        const responsePayload: StoredPulseResponse = {
+          responderHash,
+          workerRole: body.workerRole,
+          area: body.area,
+          answers: body.answers,
+          submittedAt: now,
+        };
+        tx.set(responseRef, responsePayload);
+        return { kind: 'ok' as const, responderHash };
+      });
+
+      if (txResult.kind === 'not_found') {
         return res.status(404).json({ error: 'survey_not_found' });
       }
-      const survey = surveySnap.data() as Omit<StoredPulseSurvey, 'id'>;
-      const now = new Date().toISOString();
-      if (survey.status === 'closed' || now > survey.closeAt) {
+      if (txResult.kind === 'closed') {
         return res.status(409).json({ error: 'survey_closed' });
       }
-      if (now < survey.openAt) {
+      if (txResult.kind === 'not_open') {
         return res.status(409).json({ error: 'survey_not_open' });
       }
-
-      const responderHash = pulseResponderHash(callerUid, surveyId);
-      const responseRef = surveyRef
-        .collection('responses')
-        .doc(responderHash);
-
-      const existing = await responseRef.get();
-      if (existing.exists) {
+      if (txResult.kind === 'already') {
         return res.status(409).json({ error: 'already_responded' });
       }
-
-      const responsePayload: StoredPulseResponse = {
-        responderHash,
-        workerRole: body.workerRole,
-        area: body.area,
-        answers: body.answers,
-        submittedAt: now,
-      };
-      await responseRef.set(responsePayload);
+      const responderHash = txResult.responderHash;
       // CLAUDE.md #3: submitting a culture-pulse response is a state-changing
       // write. Details stay anonymity-safe (no answers, no raw responder uid) —
       // the response doc itself never persists `responderUid` (Ley Karín 21.643
