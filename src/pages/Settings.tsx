@@ -27,6 +27,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
 import { isE2EMode } from '../lib/e2eAuth';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { coerceAppPreferences, DEFAULT_APP_PREFERENCES, type AppPreferences } from '../utils/appPreferences';
 // Cascarón soft-delete (block 3b): reuse the canonical client WebAuthn ceremony
 // to gate the irreversible /api/account/anonymize call with the user's huella.
 import { requestComplianceSignature } from '../services/auth/webauthnComplianceSign';
@@ -165,6 +166,46 @@ export function Settings() {
     }
   };
 
+  // N18 part-2 — persist email/session/AI prefs to users/{uid}.appPreferences
+  // (a single nested map field, mirroring updateNotifPref). These toggles used
+  // to be pure local state that silently reverted on reload. The firestore
+  // users update rule allows the owner to add this field (only
+  // subscription{,Plan} are denied; isValidUser caps total keys at 20 and one
+  // map field adds just one key).
+  const persistAppPrefs = (next: AppPreferences) => {
+    if (!user) return;
+    import('firebase/firestore').then(({ doc, updateDoc }) => {
+      import('../services/firebase').then(({ db }) => {
+        updateDoc(doc(db, 'users', user.uid), { appPreferences: next }).catch(err => {
+          logger.error('Error updating app preferences', err);
+          addNotification({ title: 'Error', message: 'No se pudieron guardar las preferencias', type: 'error' });
+        });
+      });
+    });
+  };
+
+  const handleEmailNotifsToggle = () => {
+    const v = !emailNotifs;
+    setEmailNotifs(v);
+    persistAppPrefs({ emailNotifs: v, sessionTimeout, aiDetail, aiProactive });
+  };
+
+  const handleSessionTimeoutChange = (v: string) => {
+    setSessionTimeout(v);
+    persistAppPrefs({ emailNotifs, sessionTimeout: v, aiDetail, aiProactive });
+  };
+
+  const handleAiDetailChange = (v: string) => {
+    setAiDetail(v);
+    persistAppPrefs({ emailNotifs, sessionTimeout, aiDetail: v, aiProactive });
+  };
+
+  const handleAiProactiveToggle = () => {
+    const v = !aiProactive;
+    setAiProactive(v);
+    persistAppPrefs({ emailNotifs, sessionTimeout, aiDetail, aiProactive: v });
+  };
+
   const handleLanguageChange = (newLang: string) => {
     setLanguage(newLang);
     i18n.changeLanguage(newLang);
@@ -184,8 +225,19 @@ export function Settings() {
       import('firebase/firestore').then(({ doc, getDoc }) => {
         import('../services/firebase').then(({ db }) => {
           getDoc(doc(db, 'users', user.uid)).then(docSnap => {
-            if (docSnap.exists() && docSnap.data().notificationPreferences) {
-              setNotifPrefs(docSnap.data().notificationPreferences);
+            if (!docSnap.exists()) return;
+            const data = docSnap.data();
+            if (data.notificationPreferences) {
+              setNotifPrefs(data.notificationPreferences);
+            }
+            // N18 part-2 — restore persisted app prefs (validated against
+            // a malformed doc; absent field keeps the current defaults).
+            if (data.appPreferences) {
+              const ap = coerceAppPreferences(data.appPreferences, DEFAULT_APP_PREFERENCES);
+              setEmailNotifs(ap.emailNotifs);
+              setSessionTimeout(ap.sessionTimeout);
+              setAiDetail(ap.aiDetail);
+              setAiProactive(ap.aiProactive);
             }
           });
         });
@@ -270,7 +322,7 @@ export function Settings() {
             </div>
             <div>
               <label htmlFor={sessionTimeoutId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">{t('settings.security.session_timeout', 'Tiempo de Expiración de Sesión')}</label>
-              <select id={sessionTimeoutId} value={sessionTimeout} onChange={(e) => setSessionTimeout(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
+              <select id={sessionTimeoutId} value={sessionTimeout} onChange={(e) => handleSessionTimeoutChange(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="15">{t('settings.security.timeout_15', '15 minutos de inactividad')}</option>
                 <option value="30">{t('settings.security.timeout_30', '30 minutos de inactividad')}</option>
                 <option value="60">{t('settings.security.timeout_60', '1 hora de inactividad')}</option>
@@ -370,7 +422,7 @@ export function Settings() {
                 role="switch"
                 aria-checked={emailNotifs}
                 aria-label={t('settings.aria.toggle_email_alerts', 'Activar alertas por correo electrónico')}
-                onClick={() => setEmailNotifs(!emailNotifs)}
+                onClick={handleEmailNotifsToggle}
                 className={`w-12 h-6 rounded-full transition-colors relative ${emailNotifs ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
               >
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${emailNotifs ? 'translate-x-7' : 'translate-x-1'}`} />
@@ -479,7 +531,7 @@ export function Settings() {
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
               <label htmlFor={aiDetailId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">{t('settings.ai.detail_level', 'Nivel de Detalle del Asistente')}</label>
-              <select id={aiDetailId} value={aiDetail} onChange={(e) => setAiDetail(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
+              <select id={aiDetailId} value={aiDetail} onChange={(e) => handleAiDetailChange(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="conciso">{t('settings.ai.opt_concise', 'Conciso (Respuestas directas y cortas)')}</option>
                 <option value="equilibrado">{t('settings.ai.opt_balanced', 'Equilibrado (Recomendado)')}</option>
                 <option value="detallado">{t('settings.ai.opt_detailed', 'Detallado (Explicaciones exhaustivas y normativas)')}</option>
@@ -495,7 +547,7 @@ export function Settings() {
                 role="switch"
                 aria-checked={aiProactive}
                 aria-label={t('settings.aria.toggle_predictive_ai', 'Activar análisis predictivo autónomo')}
-                onClick={() => setAiProactive(!aiProactive)}
+                onClick={handleAiProactiveToggle}
                 className={`w-12 h-6 rounded-full transition-colors relative ${aiProactive ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
               >
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${aiProactive ? 'translate-x-7' : 'translate-x-1'}`} />
