@@ -3523,6 +3523,10 @@
     },
     "card": {
       "anonymous": "Anónimo",
+      "slaOnTrack": "Plazo en regla",
+      "slaAtRisk": "Plazo por vencer",
+      "slaBreached": "Plazo vencido",
+      "slaDue": "Vence",
       "evidence": "Evidencia",
       "resolution": "Resolución",
       "severity": "Severidad"

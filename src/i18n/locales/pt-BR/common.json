@@ -3523,6 +3523,10 @@
     },
     "card": {
       "anonymous": "Anônimo",
+      "slaOnTrack": "Prazo em dia",
+      "slaAtRisk": "Prazo a vencer",
+      "slaBreached": "Prazo vencido",
+      "slaDue": "Vence",
       "evidence": "Evidência",
       "resolution": "Resolução",
       "severity": "Gravidade"
