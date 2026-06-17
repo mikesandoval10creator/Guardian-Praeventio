@@ -85,6 +85,7 @@ export function Evacuation() {
   const [calculating, setCalculating] = useState(false);
   const [generatingPlan, setGeneratingPlan] = useState(false);
   const [savingPlan, setSavingPlan] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [emergencyPlan, setEmergencyPlan] = useState<string | null>(null);
   // Brecha B: cuando el plan se sirve via SLM on-device, marcamos para
   // que la UI muestre el badge "Modo offline" + el disclaimer científico.
@@ -214,36 +215,49 @@ export function Evacuation() {
 
   const handleSavePlan = async () => {
     if (!emergencyPlan) return;
+    // emergency_plans is a PROJECT sub-collection (the only ruled path). The
+    // previous code fell back to a top-level `emergency_plans` when no project
+    // was selected — a path with NO firestore rule → default-denied → the
+    // life-safety plan was silently lost (the catch only logged). Require a
+    // project so the write hits the ruled path and actually persists.
+    if (!selectedProject) {
+      setSaveError('Selecciona un proyecto para guardar el plan de emergencia.');
+      return;
+    }
     setSavingPlan(true);
+    setSaveError(null);
     try {
-      // Save to Firestore
-      const path = selectedProject ? `projects/${selectedProject.id}/emergency_plans` : 'emergency_plans';
-      const docRef = await addDoc(collection(db, path), {
-        title: `Plan de Emergencia - ${new Date().toLocaleDateString()}`,
-        content: emergencyPlan,
-        createdAt: serverTimestamp(),
-        projectId: selectedProject?.id || null,
-        status: 'active'
-      });
+      const docRef = await addDoc(
+        collection(db, `projects/${selectedProject.id}/emergency_plans`),
+        {
+          title: `Plan de Emergencia - ${new Date().toLocaleDateString()}`,
+          content: emergencyPlan,
+          createdAt: serverTimestamp(),
+          projectId: selectedProject.id,
+          status: 'active',
+        },
+      );
 
       // Create Risk Node
       await addNode({
         type: NodeType.DOCUMENT,
         title: `Plan de Emergencia - ${new Date().toLocaleDateString()}`,
-        description: `Plan de emergencia generado por IA para ${selectedProject?.name || 'el proyecto'}.`,
+        description: `Plan de emergencia generado por IA para ${selectedProject.name}.`,
         tags: ['emergencia', 'plan', 'ia'],
         metadata: {
           documentId: docRef.id,
           content: emergencyPlan,
-          projectId: selectedProject?.id || null
+          projectId: selectedProject.id,
         },
         connections: [],
-        projectId: selectedProject?.id
+        projectId: selectedProject.id,
       });
 
       setEmergencyPlan(null);
     } catch (error) {
+      // Surface the failure — a denied/failed write must NOT look like success.
       logger.error('Error saving emergency plan', { error });
+      setSaveError('No se pudo guardar el plan. Reinténtalo; si persiste, avisa a tu administrador.');
     } finally {
       setSavingPlan(false);
     }
@@ -434,6 +448,16 @@ export function Evacuation() {
                   {savingPlan ? 'Guardando...' : 'Guardar Plan'}
                 </button>
               </div>
+              {!selectedProject && (
+                <p className="mt-2 text-[11px] text-amber-300/90 text-right">
+                  Selecciona un proyecto para poder guardar el plan.
+                </p>
+              )}
+              {saveError && (
+                <p className="mt-2 text-[11px] text-rose-300 text-right" role="alert">
+                  {saveError}
+                </p>
+              )}
             </motion.div>
           </div>
         )}
