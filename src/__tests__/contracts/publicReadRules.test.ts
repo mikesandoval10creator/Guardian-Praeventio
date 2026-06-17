@@ -89,6 +89,14 @@ describe('§2.26 — private collections NO leakable (banking-grade)', () => {
     expect(body).toMatch(/allow\s+read\s*,\s*write\s*:\s*if\s+false/);
   });
 
+  it('community_knowledge_cache: read/write false (server-only AI cache, no cross-tenant leak)', () => {
+    const body = extractRuleBody('community_knowledge_cache');
+    expect(body, 'community_knowledge_cache rule must exist').not.toBeNull();
+    // Pins the privacy contract: the AI-answer cache must NEVER be client/anon
+    // readable (distinct from the public community_glossary). Guards doc-drift.
+    expect(body).toMatch(/allow\s+read\s*,\s*write\s*:\s*if\s+false/);
+  });
+
   it('projects: read gated a isProjectMember (no anonymous leak)', () => {
     const body = extractRuleBody('projects');
     expect(body, 'projects rule must exist').not.toBeNull();

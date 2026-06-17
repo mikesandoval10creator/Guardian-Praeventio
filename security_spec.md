@@ -1180,5 +1180,26 @@ exercised by `src/rules-tests/assets.rules.test.ts`.
      Vehículo, Herramienta}, status ∈ {Operativo, En Mantenimiento, Fuera de
      Servicio}).
 
+### community_knowledge_cache — server-only AI-answer cache (privacy, added 2026-06-16)
+
+`community_knowledge_cache/{cacheId}` caches generic normative answers keyed by
+embedding similarity per industry, written/read ONLY by Admin SDK
+(`ragService.queryCommunityKnowledge`). It replaces an earlier design that cached
+these answers — plus the worker's raw free-text risk `prompt` — in the PUBLIC
+`community_glossary` (`read: if true`, read client-side by
+UniversalKnowledgeContext), leaking another tenant's operational free-text to
+any tenant/anonymous client in the same industry. The cache is now server-only
+(`allow read, write: if false`) and no longer stores the raw prompt; exercised
+by `src/rules-tests/communityKnowledgeCache.rules.test.ts`.
+
+128. **Cross-tenant Cache Enumeration**: any client (authenticated or anonymous)
+     reading `community_knowledge_cache/{id}` to harvest another tenant's cached
+     IPERC analyses / operational answers in the same industry — denied (no
+     client read path; only the Admin SDK reads it server-side).
+129. **AI-Cache Poisoning**: a client `setDoc`/`updateDoc`-ing the cache with a
+     forged `response` + a crafted `embedding` to make the RAG interceptor serve
+     attacker-controlled "normativa" as authoritative to other users in the
+     industry — denied (server-only; only the audited ragService path writes it).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

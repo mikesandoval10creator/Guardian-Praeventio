@@ -4,6 +4,8 @@ import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { logger } from '../utils/logger';
 import { AI_MODEL_EMBEDDINGS } from '../config/aiModels.js';
+import { MIN_SIMILARITY } from './rag/safeNormativeQuery.js';
+import * as Sentry from '@sentry/core';
 
 interface VectorDocument {
   id: string;
@@ -217,56 +219,95 @@ export const searchRelevantContext = async (query: string, topK: number = 3): Pr
   }
 };
 
+/** Server-only AI-answer cache for queryCommunityKnowledge — see the rule
+ *  `match /community_knowledge_cache` (read,write: if false). This is NOT the
+ *  public `community_glossary` (curated terms, anonymously readable). */
+const COMMUNITY_CACHE_COLLECTION = 'community_knowledge_cache';
+
 /**
- * Interceptor for AI generation requests.
- * Checks community_glossary first. If not found, calls Gemini and saves the result.
+ * Interceptor for AI generation requests — an industry-scoped cache of generic
+ * normative answers, keyed by embedding similarity.
+ *
+ * PRIVACY (disconnection hunt #2/#3, 2026-06-16): this previously read AND wrote
+ * the PUBLIC, anonymously-readable `community_glossary` (firestore.rules
+ * `read: if true`, consumed client-side by UniversalKnowledgeContext) and
+ * persisted the raw `prompt` — which interpolates the worker's free-text IPERC
+ * risk description (gemini/risk.ts). So any tenant, or any anonymous client, in
+ * the same industry could read another tenant's operational free-text. Two fixes:
+ *   1. Cache lives in the SERVER-ONLY `community_knowledge_cache` (no client/
+ *      anonymous read path) and the raw `prompt` is NO LONGER stored — only the
+ *      embedding (for similarity) + the generic response + industry are kept.
+ *   2. Score-gate (#3, mirrors safeNormativeQuery #930): the nearest neighbour
+ *      is returned ONLY when its COSINE similarity ≥ MIN_SIMILARITY; otherwise a
+ *      semantically unrelated cached answer could be served as authoritative in
+ *      a life-safety IPERC context. The positional findNearest form does not
+ *      expose the distance, so we use the object form with distanceResultField.
  */
 export const queryCommunityKnowledge = async (
-  prompt: string, 
-  industry: string, 
-  geminiFallback: () => Promise<string>
+  prompt: string,
+  industry: string,
+  geminiFallback: () => Promise<string>,
 ): Promise<string> => {
   if (!admin.apps.length) {
     return await geminiFallback();
   }
 
   const db = admin.firestore();
-  const glossaryCollection = db.collection('community_glossary');
+  const cacheCollection = db.collection(COMMUNITY_CACHE_COLLECTION);
 
   try {
     const queryEmbedding = await generateEmbedding(prompt);
-    
-    // Search for highly matching response in the same industry
-    const results = await glossaryCollection
+
+    // Nearest cached answer in the same industry, WITH its real similarity score.
+    const results = await cacheCollection
       .where('industry', '==', industry)
-      .findNearest('embedding', FieldValue.vector(queryEmbedding), {
+      .findNearest({
+        vectorField: 'embedding',
+        queryVector: FieldValue.vector(queryEmbedding),
         limit: 1,
-        distanceMeasure: 'COSINE'
+        distanceMeasure: 'COSINE',
+        distanceResultField: 'distance',
       })
       .get();
 
     if (!results.empty) {
-      logger.debug(`[RAG Interceptor] Cache hit for industry: ${industry}`);
-      return results.docs[0].data().response;
+      const top = results.docs[0].data();
+      // COSINE distance in [0,2] (0 == identical); similarity = 1 - distance/2.
+      const distance = typeof top.distance === 'number' ? top.distance : 2;
+      const score = Math.max(0, Math.min(1, 1 - distance / 2));
+      if (score >= MIN_SIMILARITY) {
+        logger.debug(
+          `[RAG Interceptor] Cache hit (score ${score.toFixed(3)}) for industry: ${industry}`,
+        );
+        return top.response;
+      }
+      logger.debug(
+        `[RAG Interceptor] Nearest cached answer below threshold ` +
+          `(score ${score.toFixed(3)} < ${MIN_SIMILARITY}) for industry: ${industry}; regenerating.`,
+      );
+    } else {
+      logger.debug(`[RAG Interceptor] Cache miss for industry: ${industry}. Calling Gemini...`);
     }
 
-    logger.debug(`[RAG Interceptor] Cache miss for industry: ${industry}. Calling Gemini...`);
-    // Fallback to Gemini
+    // Generate fresh, then cache. We deliberately do NOT persist the raw
+    // `prompt` (worker free-text PII) — only the embedding + generic response.
     const aiResponse = await geminiFallback();
-
-    // Save to community_glossary
-    await glossaryCollection.add({
-      prompt,
+    await cacheCollection.add({
       response: aiResponse,
       industry,
       embedding: FieldValue.vector(queryEmbedding),
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     return aiResponse;
   } catch (error) {
-    logger.error("[RAG Interceptor] Error:", error);
-    // If anything fails (e.g. vector search not indexed), fallback to Gemini
+    // Fail-soft to Gemini, but make the failure DISCOVERABLE: the most likely
+    // cause is a missing Firestore composite vector index for
+    // community_knowledge_cache, which would silently bypass the cache on every
+    // call (Gemini hit every time) with no user-facing error. Surface it in
+    // Sentry so ops can create the index instead of paying for it invisibly.
+    logger.error('[RAG Interceptor] Error:', error);
+    Sentry.captureException(error, { tags: { area: 'rag.communityKnowledgeCache' } });
     return await geminiFallback();
   }
 };

@@ -544,14 +544,15 @@ describe('queryCommunityKnowledge', () => {
     vi.restoreAllMocks();
   });
 
-  it('cache-hit: returns stored response without calling geminiFallback', async () => {
+  it('cache-hit (score ≥ threshold): returns stored response without calling geminiFallback', async () => {
     const storedResponse = 'DS 594 art. 70 establece 85 dB(A) como límite.';
     firestoreCollectionSpy.mockReturnValue({
       where: vi.fn().mockReturnThis(),
       findNearest: vi.fn(() => ({
         get: vi.fn().mockResolvedValue({
           empty: false,
-          docs: [{ data: () => ({ response: storedResponse, industry: 'mineria' }) }],
+          // distance 0.1 → similarity 0.95 ≥ MIN_SIMILARITY (0.75) → real hit.
+          docs: [{ data: () => ({ response: storedResponse, industry: 'mineria', distance: 0.1 }) }],
         }),
       })),
       add: vi.fn().mockResolvedValue({ id: 'new' }),
@@ -562,37 +563,67 @@ describe('queryCommunityKnowledge', () => {
 
     expect(result).toBe(storedResponse);
     expect(geminiFallback).not.toHaveBeenCalled();
+    // Uses the SERVER-ONLY cache collection, not the public community_glossary.
+    expect(firestoreCollectionSpy).toHaveBeenCalledWith('community_knowledge_cache');
     // ZK-leak guard
     expect(result).not.toMatch(/zkNodeId|edges|backlinks|centralityScore/i);
   });
 
-  it('cache-miss: calls geminiFallback and persists response to glossary', async () => {
-    const glossaryAdd = vi.fn().mockResolvedValue({ id: 'saved-doc' });
+  it('below-threshold: a semantically distant nearest match is NOT served — regenerates instead', async () => {
+    const staleResponse = 'Respuesta cacheada irrelevante.';
+    const cacheAdd = vi.fn().mockResolvedValue({ id: 'fresh' });
+    firestoreCollectionSpy.mockReturnValue({
+      where: vi.fn().mockReturnThis(),
+      findNearest: vi.fn(() => ({
+        get: vi.fn().mockResolvedValue({
+          empty: false,
+          // distance 1.2 → similarity 0.4 < MIN_SIMILARITY → must NOT be served.
+          docs: [{ data: () => ({ response: staleResponse, industry: 'mineria', distance: 1.2 }) }],
+        }),
+      })),
+      add: cacheAdd,
+    });
+
+    const fresh = 'Respuesta fresca y pertinente de Gemini.';
+    const geminiFallback = vi.fn().mockResolvedValue(fresh);
+    const result = await ragService.queryCommunityKnowledge('tema no relacionado', 'mineria', geminiFallback);
+
+    expect(result).toBe(fresh);
+    expect(result).not.toBe(staleResponse);
+    expect(geminiFallback).toHaveBeenCalledOnce();
+    expect(cacheAdd).toHaveBeenCalledOnce();
+  });
+
+  it('cache-miss: calls geminiFallback and persists WITHOUT the raw prompt (privacy)', async () => {
+    const cacheAdd = vi.fn().mockResolvedValue({ id: 'saved-doc' });
     firestoreCollectionSpy.mockReturnValue({
       where: vi.fn().mockReturnThis(),
       findNearest: vi.fn(() => ({
         get: vi.fn().mockResolvedValue({ empty: true, docs: [] }),
       })),
-      add: glossaryAdd,
+      add: cacheAdd,
     });
 
     const geminiAnswer = 'El límite es 85 dB(A) según DS 594/1999.';
     const geminiFallback = vi.fn().mockResolvedValue(geminiAnswer);
 
     const result = await ragService.queryCommunityKnowledge(
-      'DS 594 ruido',
+      'DS 594 ruido — el trabajador Juan reportó zumbido',
       'construccion',
       geminiFallback,
     );
 
     expect(result).toBe(geminiAnswer);
     expect(geminiFallback).toHaveBeenCalledOnce();
-    expect(glossaryAdd).toHaveBeenCalledOnce();
+    expect(cacheAdd).toHaveBeenCalledOnce();
+    expect(firestoreCollectionSpy).toHaveBeenCalledWith('community_knowledge_cache');
 
-    const savedDoc = glossaryAdd.mock.calls[0][0] as Record<string, unknown>;
-    expect(savedDoc).toHaveProperty('prompt');
+    const savedDoc = cacheAdd.mock.calls[0][0] as Record<string, unknown>;
+    // PRIVACY: the worker's free-text prompt MUST NOT be persisted to the cache.
+    expect(savedDoc).not.toHaveProperty('prompt');
     expect(savedDoc).toHaveProperty('response', geminiAnswer);
     expect(savedDoc).toHaveProperty('industry', 'construccion');
+    expect(savedDoc).toHaveProperty('embedding');
     // ZK-leak guard on persisted doc
     expect(Object.keys(savedDoc)).not.toContain('zkNodeId');
     expect(Object.keys(savedDoc)).not.toContain('backlinks');

@@ -1212,6 +1212,17 @@ service cloud.firestore {
       allow write: if isAdmin() || isSupervisor();
     }
 
+    // Community knowledge cache — SERVER-ONLY AI-answer cache used by
+    // ragService.queryCommunityKnowledge (Admin SDK). Distinct from the public
+    // community_glossary above: this caches generic normative answers keyed by
+    // embedding similarity per industry and must NEVER be client/anonymous
+    // readable. The worker's free-text risk prompt is deliberately NOT stored
+    // here; even so, the cache is server-only so cached answers cannot be
+    // enumerated cross-tenant (disconnection hunt #2/#3, 2026-06-16).
+    match /community_knowledge_cache/{cacheId} {
+      allow read, write: if false;
+    }
+
     // Blueprints — project-scoped floor plans and technical drawings
     match /blueprints/{blueprintId} {
       allow read: if isEmailVerified() && (
