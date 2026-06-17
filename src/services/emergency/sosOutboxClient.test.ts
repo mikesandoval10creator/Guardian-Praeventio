@@ -51,6 +51,14 @@ describe('sendSos transport', () => {
     expect(await sendSos(ev())).toEqual({ ok: false, error: 'HTTP 503' });
   });
 
+  it('treats any 2xx as transport-OK (zero-reach is handled at the UI, not by re-POSTing — avoids duplicate alert docs)', async () => {
+    // Even a recorded-but-zero-reach response (delivered:false) is a successful
+    // TRANSPORT: the SOS is on the server. Re-POSTing would duplicate the
+    // emergency_alerts doc, so the outbox stops on the first 2xx.
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ delivered: false }) });
+    expect(await sendSos(ev())).toEqual({ ok: true });
+  });
+
   it('fails fast (non-retryable) when projectId is missing — the server 400s without it', async () => {
     const r = await sendSos(ev({ projectId: undefined }));
     expect(r).toEqual({ ok: false, error: 'missing_projectId' });

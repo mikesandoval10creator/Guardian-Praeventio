@@ -43,6 +43,12 @@ export async function sendSos(event: SosEvent): Promise<{ ok: boolean; error?: s
         timestamp: event.occurredAt,
       }),
     });
+    // The outbox is TRANSPORT-only: a 2xx means the SOS reached the server and
+    // is recorded. We deliberately do NOT gate on the response's `delivered`
+    // flag here — re-POSTing a recorded-but-zero-reach SOS would create
+    // duplicate emergency_alerts docs (the server `.add()`s a new doc per call,
+    // no clientEventId idempotency yet). Zero-reach is handled at the UI layer
+    // (SOSButton: tel: fallback, no re-enqueue), not by retrying the transport.
     return res.ok ? { ok: true } : { ok: false, error: `HTTP ${res.status}` };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'network_error' };

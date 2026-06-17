@@ -127,15 +127,20 @@ export function SOSButton(): React.ReactElement | null {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      // 16th wave analytics: emit only when the server accepted the SOS,
-      // so the dashboard funnel doesn't double-count failures (failures
-      // hit the `tel:` fallback path below — those are handled by the
-      // network/transport metrics already, not the safety analytics).
-      // `role_hash` is required but we don't have a salted role hash in
-      // the SOSButton context — use the user uid as a coarse stand-in
-      // (privacy-glossary §"role_hash" allows hashed-anywhere semantics
-      // for cross-event correlation; raw uid is acceptable until the
-      // dedicated salt-rotated hash lands).
+      // The server records the SOS even when it reached NO responder (0 push +
+      // 0 backup email): then `delivered` is false. Do NOT show the green
+      // "supervisores notificados" toast in that case — fall through to the tel:
+      // deeplink so a human is actually reached. (#1 life-safety: never falsely
+      // reassure a worker that help is coming when it isn't.) An ambiguous /
+      // non-JSON 2xx is treated as undelivered (safer → tel:).
+      const sosResult =
+        typeof res.json === 'function'
+          ? ((await res.json().catch(() => ({ delivered: false }))) as { delivered?: boolean })
+          : {};
+      // Analytics: the SOS WAS triggered and accepted by the server (a row was
+      // written) regardless of reach — emit BEFORE the delivered check so the
+      // ops funnel still counts zero-reach attempts (the gap this PR surfaces).
+      // `role_hash` uses the uid as a coarse stand-in until a salted hash lands.
       try {
         void analytics.track('emergency.sos.triggered', {
           sos_type: 'unknown',
@@ -143,16 +148,29 @@ export function SOSButton(): React.ReactElement | null {
           role_hash: user?.uid ?? 'anonymous',
         });
       } catch { /* analytics must never break user flow */ }
+      if (sosResult.delivered === false) throw new Error('sos_not_delivered');
       showToast('Alerta enviada — supervisores notificados');
     } catch (err) {
-      logger.warn('SOSButton: /api/emergency/sos failed; queueing offline + tel: fallback', { err });
-      // Offline-first: persist the SOS so it RETRIES on reconnect instead of
-      // being lost (the engine retains it, dead-letters after max retries — it
-      // is never silently dropped). Requires a projectId (the server gates on
-      // it). tel: stays the immediate human fallback, independent of the queue.
+      // Two distinct failures land here:
+      //  • transport failure (network / !res.ok) — the server may NOT have the
+      //    SOS, so enqueue it for offline retry.
+      //  • 'sos_not_delivered' — the SOS IS recorded server-side but reached no
+      //    responder; re-POSTing would DUPLICATE the alert doc, so do NOT
+      //    enqueue — just reach a human directly via tel:.
+      const zeroReach = err instanceof Error && err.message === 'sos_not_delivered';
+      logger.warn(
+        zeroReach
+          ? 'SOSButton: SOS recorded but reached no responder; tel: fallback (no re-enqueue)'
+          : 'SOSButton: /api/emergency/sos failed; queueing offline + tel: fallback',
+        { err },
+      );
+      // Offline-first: persist a TRANSPORT failure so it RETRIES on reconnect
+      // (the engine retains it, dead-letters after max retries — never silently
+      // dropped). tel: stays the immediate human fallback. A zero-reach SOS is
+      // already on the server, so we skip the enqueue to avoid duplicate alerts.
       const projectId = selectedProject?.id;
       let queued = false;
-      if (projectId) {
+      if (!zeroReach && projectId) {
         try {
           const { enqueueSos } = await import('../../services/emergency/sosOutboxClient');
           await enqueueSos({
@@ -174,6 +192,8 @@ export function SOSButton(): React.ReactElement | null {
       const phone = selectedProject?.phone;
       if (phone && typeof window !== 'undefined') {
         window.location.href = `tel:${phone.replace(/[^+\d]/g, '')}`;
+      } else if (zeroReach) {
+        showToast('Alerta registrada, pero sin confirmar a un responder — contacta directo a tu supervisor.');
       } else if (queued) {
         showToast('Sin red: tu alerta quedó en cola y se reenviará al recuperar señal.');
       } else {
