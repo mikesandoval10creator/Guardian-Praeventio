@@ -77,6 +77,13 @@ export function checkZoneEntry(input: ZoneEntryCheckInput): ZoneEntryResult {
     const permitKind = mapZoneToPermitKind(input.zone.kind);
     if (permitKind && !input.workerActivePermitKinds.includes(permitKind)) {
       missing.push(`Permit activo: ${permitKind}`);
+    } else if (!permitKind) {
+      // The zone demands a permit but its kind maps to none. Never treat that
+      // as satisfied in silence — surface it as a warning so the worker and
+      // the audit trail see the unresolved requirement.
+      warnings.push(
+        `Zona exige permiso pero su tipo (${input.zone.kind}) no tiene permiso configurado`,
+      );
     }
   }
 

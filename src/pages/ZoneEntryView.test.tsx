@@ -123,6 +123,19 @@ describe('<ZoneEntryView /> — worker restricted-zones surface', () => {
     expect(await screen.findByTestId('zone-entry-log-ok')).toBeInTheDocument();
   });
 
+  it('blocks "Continuar" while active permits are still loading (no false missing-permit)', async () => {
+    useWorkPermitsMock.mockReturnValue({
+      data: undefined,
+      loading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+    render(<ZoneEntryView />);
+    fireEvent.click(await screen.findByTestId('zone-prepare-z1'));
+    expect(screen.getByTestId('zone-permits-loading')).toBeInTheDocument();
+    expect(screen.getByTestId('zone-continue')).toBeDisabled();
+  });
+
   it('self-attested EPP flows into the evaluation (no fabrication either way)', async () => {
     render(<ZoneEntryView />);
     fireEvent.click(await screen.findByTestId('zone-prepare-z1'));

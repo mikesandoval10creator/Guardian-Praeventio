@@ -3,7 +3,7 @@
     "title": "Entrada em Zonas Restritas",
     "intro": "Consulte as zonas restritas da sua obra e registre sua entrada informada. Esta tela nunca bloqueia seu acesso: ela informa e deixa registro para que seu supervisor possa acompanhar.",
     "noProject": "Selecione um projeto para ver suas zonas.",
-    "offline": "Sem conexão — o registro de entrada será tentado ao reconectar.",
+    "offline": "Sem conexão — o registro de entrada não é enviado automaticamente; tente novamente ao reconectar.",
     "listTitle": "Zonas da obra",
     "loading": "Carregando zonas…",
     "empty": "Ainda não há zonas restritas definidas para este local.",
@@ -13,11 +13,14 @@
     "confirmTrainings": "Marque os treinamentos que você possui",
     "permitActive": "Permissão ativa detectada",
     "permitMissing": "Sem permissão ativa deste tipo",
+    "permitUnmapped": "Esta zona exige permissão, mas seu tipo não tem permissão configurada. Confirme com seu supervisor antes de entrar.",
+    "permitsLoading": "Verificando suas permissões ativas…",
+    "permitsError": "Não foi possível verificar suas permissões ativas. Reconecte antes de continuar.",
     "continue": "Continuar para o registro",
     "needSignIn": "Faça login para registrar sua entrada.",
     "logged": "Entrada registrada",
     "logError": "Não foi possível registrar a entrada. Tente novamente.",
-    "logOffline": "Sem conexão: sua entrada não foi registrada. Seu acesso não está bloqueado; tente novamente ao reconectar."
+    "logOffline": "Sem conexão: sua entrada NÃO foi registrada (sem repetição automática). Seu acesso não está bloqueado; registre novamente ao reconectar."
   },
   "assets": {
     "tabs": {

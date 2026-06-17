@@ -143,32 +143,39 @@ export function ZoneEntryView() {
   }
 
   async function onAcknowledge(evaluation: ZoneEntryResult) {
-    if (!selectedZone || !workerUid || !projectId) return;
+    // Freeze the exact input that produced `evaluation` so the audit record's
+    // worker snapshot can NEVER diverge from what the engine actually judged
+    // (a divergent snapshot would be a fabricated record). Everything logged
+    // is read from `frozen`, never from live React state.
+    const frozen = gateInput;
+    if (!frozen || !projectId) return;
     setGateInput(null);
     setLogState({ kind: 'saving' });
     try {
       await logZoneEntryEvent({
         projectId,
-        zoneId: selectedZone.id,
-        workerUid,
+        zoneId: frozen.zone.id,
+        workerUid: frozen.workerUid,
         evaluation,
-        zoneSnapshot: selectedZone,
+        zoneSnapshot: frozen.zone,
         workerSnapshot: {
-          workerEppLabels: [...confirmedEpp],
-          workerTrainings: [...confirmedTrainings],
-          workerActivePermitKinds: activePermitKinds,
+          workerEppLabels: frozen.workerEppLabels,
+          workerTrainings: frozen.workerTrainings,
+          workerActivePermitKinds: frozen.workerActivePermitKinds,
         },
         acknowledgedAt: new Date().toISOString(),
       });
-      setLogState({ kind: 'ok', zoneName: selectedZone.name });
+      setLogState({ kind: 'ok', zoneName: frozen.zone.name });
       setSelectedZone(null);
+      setConfirmedEpp(new Set());
+      setConfirmedTrainings(new Set());
     } catch (err) {
       logger.error('zone_entry_view log failed', { err: String(err) });
       setLogState({
         kind: 'error',
         message: isOnline
           ? t('zoneEntry.logError', 'No pudimos registrar el ingreso. Intenta nuevamente.')
-          : t('zoneEntry.logOffline', 'Sin conexión: tu ingreso no quedó registrado. Tu acceso no está bloqueado; reintenta al reconectar.'),
+          : t('zoneEntry.logOffline', 'Sin conexión: tu ingreso NO quedó registrado (no hay reintento automático). Tu acceso no está bloqueado; vuelve a registrarlo al reconectar.'),
       });
     }
   }
@@ -208,7 +215,7 @@ export function ZoneEntryView() {
         {!isOnline && (
           <p className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
             <WifiOff className="w-3 h-3" aria-hidden="true" />
-            {t('zoneEntry.offline', 'Sin conexión — el registro de ingreso se intentará al reconectar.')}
+            {t('zoneEntry.offline', 'Sin conexión — el registro de ingreso no se envía automáticamente; reintenta al reconectar.')}
           </p>
         )}
       </header>
@@ -354,7 +361,7 @@ export function ZoneEntryView() {
             </fieldset>
           )}
 
-          {selectedZone.rules.requiresPermit && permitKindForSelected && (
+          {selectedZone.rules.requiresPermit && (
             <p
               className={`text-xs font-semibold ${
                 hasActivePermit
@@ -363,16 +370,33 @@ export function ZoneEntryView() {
               }`}
               data-testid="zone-permit-status"
             >
-              {hasActivePermit
-                ? `✓ ${t('zoneEntry.permitActive', 'Permiso activo detectado')}: ${permitKindForSelected}`
-                : `✗ ${t('zoneEntry.permitMissing', 'Sin permiso activo de este tipo')}: ${permitKindForSelected}`}
+              {!permitKindForSelected
+                ? // Zone requires a permit but its kind has no mapped permit
+                  // type — never silently treat that as satisfied.
+                  `⚠ ${t('zoneEntry.permitUnmapped', 'Esta zona exige permiso, pero su tipo no tiene permiso configurado. Confírmalo con tu supervisor antes de entrar.')}`
+                : hasActivePermit
+                  ? `✓ ${t('zoneEntry.permitActive', 'Permiso activo detectado')}: ${permitKindForSelected}`
+                  : `✗ ${t('zoneEntry.permitMissing', 'Sin permiso activo de este tipo')}: ${permitKindForSelected}`}
+            </p>
+          )}
+
+          {/* Permit fetch state — a worker must not be judged on stale/empty
+              permits. Surface loading/error and block continue until resolved. */}
+          {permitsResp.loading && (
+            <p className="text-xs text-zinc-400" data-testid="zone-permits-loading">
+              {t('zoneEntry.permitsLoading', 'Verificando tus permisos activos…')}
+            </p>
+          )}
+          {permitsResp.error && (
+            <p className="text-xs text-rose-500" data-testid="zone-permits-error">
+              {t('zoneEntry.permitsError', 'No pudimos verificar tus permisos activos. Reconecta antes de continuar.')}
             </p>
           )}
 
           <button
             type="button"
             onClick={continueToGate}
-            disabled={!workerUid}
+            disabled={!workerUid || permitsResp.loading || !!permitsResp.error}
             data-testid="zone-continue"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50"
           >
@@ -398,9 +422,12 @@ export function ZoneEntryView() {
   );
 }
 
-// `open=false` short-circuits <ZoneEntryGate/> before it reads `input`, but
-// the prop is required by the type — this stable placeholder keeps the render
-// path total without an extra conditional mount.
+// <ZoneEntryGate/> returns null when `open=false` BEFORE it reads `input`
+// (that early return is load-bearing for this placeholder's correctness), but
+// the prop is required by the type — this stable, benign placeholder keeps the
+// render path total without an extra conditional mount. `heavy_traffic` maps
+// to no permit and carries no rules, so even if the guard ever regressed the
+// evaluation would be inert rather than a spurious exclusion-zone verdict.
 const PLACEHOLDER_INPUT: ZoneEntryCheckInput = {
   workerUid: '',
   workerEppLabels: [],
@@ -408,7 +435,7 @@ const PLACEHOLDER_INPUT: ZoneEntryCheckInput = {
   workerActivePermitKinds: [],
   zone: {
     id: '__placeholder__',
-    kind: 'exclusion',
+    kind: 'heavy_traffic',
     name: '',
     rules: { requiredEpp: [], requiredTrainings: [], responsibleUid: '' },
     activeFrom: '1970-01-01T00:00:00.000Z',

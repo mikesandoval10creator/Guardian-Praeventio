@@ -60,6 +60,30 @@ describe('checkZoneEntry', () => {
     expect(r.missing).toContain('Permit activo: caliente');
   });
 
+  it('requiresPermit con kind sin permiso mapeado → warning honesto, nunca silencioso', () => {
+    // `atex` has no mapped permit kind. The zone still demands a permit, so the
+    // requirement must surface as a warning — never be silently satisfied.
+    const r = checkZoneEntry(
+      input({
+        workerActivePermitKinds: [],
+        zone: makeZone({
+          kind: 'atex',
+          rules: {
+            requiredEpp: [],
+            requiredTrainings: [],
+            requiresPermit: true,
+            responsibleUid: 'sup-1',
+          },
+        }),
+      }),
+    );
+    expect(r.warnings.some((w) => w.includes('no tiene permiso configurado'))).toBe(
+      true,
+    );
+    // The unmapped permit must NOT masquerade as a satisfied `missing` entry.
+    expect(r.missing.some((m) => m.startsWith('Permit activo'))).toBe(false);
+  });
+
   it('zona aún no activa → allowed (sin restricción)', () => {
     const future = new Date('2030-01-01T00:00:00Z').toISOString();
     const r = checkZoneEntry(input({ zone: makeZone({ activeFrom: future }) }));
