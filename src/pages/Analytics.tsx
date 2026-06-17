@@ -2,10 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   BarChart3, 
-  Download, 
-  TrendingUp, 
-  TrendingDown, 
-  AlertTriangle, 
+  Download,
+  AlertTriangle,
   ShieldCheck, 
   Activity,
   BrainCircuit,
@@ -450,9 +448,6 @@ export function Analytics() {
             </div>
             <div className="flex items-end gap-2">
               <span className="text-3xl font-black text-zinc-900 leading-none">{criticalRisks}</span>
-              <span className="text-xs font-medium text-rose-500 flex items-center">
-                <TrendingUp className="w-3 h-3 mr-1" /> +2%
-              </span>
             </div>
           </div>
 
@@ -463,9 +458,6 @@ export function Analytics() {
             </div>
             <div className="flex items-end gap-2">
               <span className="text-3xl font-black text-zinc-900 leading-none">{incidents.length}</span>
-              <span className="text-xs font-medium text-emerald-500 flex items-center">
-                <TrendingDown className="w-3 h-3 mr-1" /> -15%
-              </span>
             </div>
           </div>
 
@@ -487,9 +479,6 @@ export function Analytics() {
             </div>
             <div className="flex items-end gap-2">
               <span className="text-3xl font-black text-zinc-900 leading-none">{stats.eppCoverage}%</span>
-              <span className="text-xs font-medium text-emerald-500 flex items-center">
-                <TrendingUp className="w-3 h-3 mr-1" /> +5%
-              </span>
             </div>
           </div>
 
