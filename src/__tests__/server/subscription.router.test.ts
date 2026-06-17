@@ -40,6 +40,9 @@ vi.mock('../../server/middleware/auditLog.js', () => ({
 vi.mock('../../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
+vi.mock('../../server/middleware/captureRouteError.js', () => ({
+  captureRouteError: vi.fn(),
+}));
 
 import subscriptionRouter from '../../server/routes/subscription.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
@@ -129,6 +132,25 @@ describe('POST /api/subscription/upgrade (real router — privilege-escalation g
     expect(user.subscription.planId).toBe('oro');
     expect(user.subscription.status).toBe('active');
     expect(H.audit).toHaveBeenCalledTimes(1);
+  });
+
+  it('200 (non-blocking): a post-upgrade audit failure must NOT 500 the already-applied upgrade (CLAUDE.md #14)', async () => {
+    seedInvoice('inv1', { createdBy: 'u1', status: 'paid', lineItems: [{ tierId: 'oro' }] });
+    // The plan write at the top of the handler already succeeded; the audit
+    // call comes AFTER it. If the audit backend is down, the user must still
+    // see success (they paid + the plan was applied) — else they think the
+    // payment failed and retry / contact support. Audit failure is captured,
+    // not surfaced as a 500.
+    H.audit.mockRejectedValueOnce(new Error('audit backend down'));
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'u1')
+      .send({ planId: 'oro' });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    const user = (await H.db!.collection('users').doc('u1').get()).data() as Record<string, any>;
+    expect(user.subscription.planId).toBe('oro');
+    expect(user.subscription.status).toBe('active');
   });
 
   it('200 also accepts the legacy top-level tierId schema', async () => {

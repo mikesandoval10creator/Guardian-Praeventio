@@ -215,6 +215,7 @@ router.post(
         );
       } catch (err) {
         logger.error?.('audit_event_failed', err);
+        captureRouteError(err, 'stoppage.declare.audit', { projectId });
       }
       return res.json({ stoppage });
     } catch (err) {
@@ -273,6 +274,7 @@ router.post(
         );
       } catch (err) {
         logger.error?.('audit_event_failed', err);
+        captureRouteError(err, 'stoppage.markPrecondition.audit', { projectId });
       }
       return res.json({ stoppage });
     } catch (err) {
@@ -397,6 +399,7 @@ router.post(
         );
       } catch (err) {
         logger.error?.('audit_event_failed', err);
+        captureRouteError(err, 'stoppage.resume.audit', { projectId });
       }
 
       return res.json({ stoppage: resumed });
@@ -636,6 +639,7 @@ router.post(
         );
       } catch (err) {
         logger.error?.('audit_event_failed', err);
+        captureRouteError(err, 'stoppage.resolve.audit', { projectId });
       }
 
       return res.json({ stoppage: resolved, recognition });
