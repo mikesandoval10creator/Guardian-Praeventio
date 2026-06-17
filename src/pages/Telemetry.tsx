@@ -42,6 +42,7 @@ import { WebhookModal } from '../components/telemetry/WebhookModal';
 import { mapIoTEventsToTwinState } from '../components/telemetry/twinStateMapper';
 import { buildWebhookCurlCommand } from '../components/telemetry/webhookCommand';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { randomId } from '../utils/randomId';
 
 export function Telemetry() {
   const { t } = useTranslation();
@@ -54,6 +55,9 @@ export function Telemetry() {
   const [showWebhookModal, setShowWebhookModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [simulatingIoT, setSimulatingIoT] = useState(false);
+  // Client-side demo events ONLY. Never persisted to telemetry_events, never
+  // fed to triggerEmergency / the Digital-Twin. See handleSimulateIoT below.
+  const [simulatedEvents, setSimulatedEvents] = useState<IoTEvent[]>([]);
   const [fitnessData, setFitnessData] = useState<FitnessData>({ heartRate: null, steps: null, lastSync: null });
   const [isConnectingFit, setIsConnectingFit] = useState(false);
   const [fitTokens, setFitTokens] = useState<any>(null);
@@ -389,31 +393,37 @@ export function Telemetry() {
       const context = `Proyecto: ${selectedProject?.name || 'Global'}. Clima: ${weather?.temp || 20}°C, Viento: ${weather?.windSpeed || 10}km/h.`;
       const eventData = await generateRealisticIoTEvent(context);
 
-      // Edge IoT Filter: Only upload anomalous events to save bandwidth/storage.
-      // Route through /api/telemetry/ingest so autoValidateTelemetry runs on the backend.
-      if (eventData.status === 'warning' || eventData.status === 'critical') {
-        try {
-          // §2.20 (2026-05-23) — apiAuthHeader unified.
-          const authHeader = await apiAuthHeader();
-          await fetch('/api/telemetry/ingest', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(authHeader ? { 'Authorization': authHeader } : {}),
-            },
-            body: JSON.stringify({
-              ...eventData,
-              projectId: selectedProject?.id || 'global',
-            }),
-          });
-        } catch (error) {
-          logger.error('Error ingesting telemetry event', { error });
-        }
-      } else {
-        logger.debug('Edge IoT filter: normal event filtered locally', { status: eventData.status });
-      }
+      // HONESTY (WP-I2): "Simular" is a DEMO. We must NOT inject a fabricated
+      // event into the real safety pipeline. The previous code POSTed this
+      // Gemini-generated event to /api/telemetry/ingest with the USER token —
+      // which ingest rejects (it requires an IoT HMAC/secret, not a user
+      // token), so the 401 was silently swallowed (false success). And had it
+      // ever succeeded, a *fabricated* "critical" reading would have flowed
+      // into telemetry_events → triggerEmergency('iot_critical') and the
+      // evacuation Digital-Twin. So we keep the simulated event entirely in
+      // local component state, clearly labeled, isolated from every alerting
+      // path (those read `iotEvents` from Firestore, not this array).
+      const simEvent: IoTEvent = {
+        id: `sim-${randomId()}`,
+        type: eventData?.type === 'wearable' ? 'wearable' : 'machinery',
+        source: typeof eventData?.source === 'string' ? eventData.source : 'Sensor simulado',
+        metric: typeof eventData?.metric === 'string' ? eventData.metric : 'lectura',
+        value: typeof eventData?.value === 'number' ? eventData.value : 0,
+        unit: typeof eventData?.unit === 'string' ? eventData.unit : '',
+        timestamp: Date.now(),
+        status:
+          eventData?.status === 'critical' || eventData?.status === 'warning'
+            ? eventData.status
+            : 'normal',
+        simulated: true,
+      };
+      setSimulatedEvents((prev) => [simEvent, ...prev].slice(0, 10));
     } catch (error) {
       logger.error('Error simulating IoT event', { error });
+      setAlerts((prev) => {
+        const msg = 'No se pudo generar el evento de demostración. Intenta nuevamente.';
+        return prev.includes(msg) ? prev : [...prev, msg];
+      });
     } finally {
       setSimulatingIoT(false);
     }
@@ -588,6 +598,7 @@ export function Telemetry() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <IoTEventsFeed
           events={iotEvents}
+          simulatedEvents={simulatedEvents}
           simulating={simulatingIoT}
           isOnline={isOnline}
           onSimulate={handleSimulateIoT}
