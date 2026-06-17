@@ -10,8 +10,14 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useEmergency } from '../../contexts/EmergencyContext';
 import { useEmergencyBrigade } from '../../hooks/useEmergencyBrigade';
 import { useFirestoreCollection } from '../../hooks/useFirestoreCollection';
+import { where } from 'firebase/firestore';
 import { getBreadcrumbs } from '../../utils/offlineStorage';
 import { SkillTree } from './SkillTree';
+import {
+  aggregateCrewMedallaStats,
+  type CrewStatDoc,
+  type ProcessStatDoc,
+} from '../../services/gamification/crewMedallaStats';
 import { useBluetoothMesh } from '../../hooks/useBluetoothMesh';
 import { logger } from '../../utils/logger';
 import type { Worker } from '../../types';
@@ -74,6 +80,27 @@ export function EmergencySquadManager() {
   const { data: brigade, loading: brigadeLoading, error: brigadeError, refetch } = useEmergencyBrigade(projectId);
   const { data: workers } = useFirestoreCollection<Worker>(
     projectId ? `projects/${projectId}/workers` : null,
+  );
+
+  // Real crew achievement stats for the SkillTree (was rendered with no props →
+  // ZERO_STATS → no medalla ever unlocked). Aggregate the project's crews +
+  // processes (member-readable) into a project-level MedallaStats; untracked
+  // stats stay honest 0 (their medallas remain locked, never fabricated).
+  const crewWhere = useMemo(
+    () => (projectId ? [where('projectId', '==', projectId)] : []),
+    [projectId],
+  );
+  const { data: crews } = useFirestoreCollection<CrewStatDoc>(
+    projectId ? 'crews' : null,
+    crewWhere,
+  );
+  const { data: processes } = useFirestoreCollection<ProcessStatDoc>(
+    projectId ? 'processes' : null,
+    crewWhere,
+  );
+  const crewStats = useMemo(
+    () => aggregateCrewMedallaStats(crews ?? [], processes ?? []),
+    [crews, processes],
   );
 
   // Join brigade members (workerUid + role + training) with the real worker
@@ -173,7 +200,7 @@ export function EmergencySquadManager() {
       <AnimatePresence mode="wait">
         {viewMode === 'skills' ? (
           <motion.div key="skills" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-            <SkillTree />
+            <SkillTree crewStats={crewStats} />
           </motion.div>
         ) : viewMode === 'search' ? (
           <motion.div
