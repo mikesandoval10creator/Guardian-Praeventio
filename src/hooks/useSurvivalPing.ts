@@ -12,7 +12,11 @@ export const useSurvivalPing = () => {
   const lastPingRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!user || !isOnline) return undefined;
+    // VIDA: the heartbeat runs whenever there is a user — even offline. A
+    // tunnel/pit outage is EXACTLY when the local GPS breadcrumb trail matters
+    // most for a rescue. We only gate the Firestore write on connectivity; the
+    // on-device breadcrumb (IndexedDB/SQLite, no network) is saved on every fix.
+    if (!user) return undefined;
 
     const pingInterval = setInterval(() => {
       const now = Date.now();
@@ -26,29 +30,34 @@ export const useSurvivalPing = () => {
               const lat = Math.round(latitude * 10000) / 10000;
               const lng = Math.round(longitude * 10000) / 10000;
 
-              // Use setDoc with merge to keep it as a single lightweight update
-              const pingRef = doc(db, `pings/${user.uid}`);
-              setDoc(pingRef, {
-                lat,
-                lng,
-                timestamp: serverTimestamp(),
-                status: 'alive'
-              }, { merge: true }).catch(err => {
-                logger.warn("Survival ping failed (silent):", err);
-              });
+              if (isOnline) {
+                // Use setDoc with merge to keep it as a single lightweight update
+                const pingRef = doc(db, `pings/${user.uid}`);
+                setDoc(pingRef, {
+                  lat,
+                  lng,
+                  timestamp: serverTimestamp(),
+                  status: 'alive'
+                }, { merge: true }).catch(err => {
+                  logger.warn("Survival ping failed (silent):", err);
+                });
+              }
 
-              // Save local breadcrumb for offline rescue trail
+              // Save local breadcrumb for offline rescue trail — ALWAYS, even
+              // offline. This is the device-local trail rescuers replay.
               saveBreadcrumb(user.uid, lat, lng).catch(() => {});
 
               lastPingRef.current = now;
             },
             () => {
-              // If location fails, still send a ping without coords
-              const pingRef = doc(db, `pings/${user.uid}`);
-              setDoc(pingRef, {
-                timestamp: serverTimestamp(),
-                status: 'alive'
-              }, { merge: true }).catch(() => {});
+              // If location fails, still send a ping without coords (online only).
+              if (isOnline) {
+                const pingRef = doc(db, `pings/${user.uid}`);
+                setDoc(pingRef, {
+                  timestamp: serverTimestamp(),
+                  status: 'alive'
+                }, { merge: true }).catch(() => {});
+              }
               lastPingRef.current = now;
             },
             { maximumAge: 60000, timeout: 5000, enableHighAccuracy: false }
