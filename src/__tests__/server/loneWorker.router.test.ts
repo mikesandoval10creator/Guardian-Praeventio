@@ -16,6 +16,7 @@ import request from 'supertest';
 // ── hoisted holder so db can be (re)assigned in beforeEach ──────────────────
 const H = vi.hoisted(() => ({
   db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
+  audit: vi.fn(async (..._a: unknown[]) => undefined),
 }));
 
 vi.mock('firebase-admin', async () => {
@@ -36,6 +37,10 @@ vi.mock('../../server/middleware/captureRouteError.js', () => ({
   captureRouteError: vi.fn(),
 }));
 
+vi.mock('../../server/middleware/auditLog.js', () => ({
+  auditServerEvent: (...a: unknown[]) => H.audit(...a),
+}));
+
 vi.mock('../../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
@@ -47,6 +52,7 @@ vi.mock('../../services/observability/index.js', () => ({
 
 import loneWorkerRouter from '../../server/routes/loneWorker.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
+import { captureRouteError } from '../../server/middleware/captureRouteError.js';
 
 // ── app factory ─────────────────────────────────────────────────────────────
 function buildApp() {
@@ -77,6 +83,14 @@ function makeSession(overrides: Partial<Record<string, unknown>> = {}) {
 function seedMember(uid: string, projectId: string) {
   H.db!._seed(`projects/${projectId}`, { members: [uid], createdBy: uid });
 }
+
+// Reset mock call history before every test so a future assertion on H.audit
+// call counts can't get a false positive from a sibling test (review finding,
+// mirroring subscription.router.test.ts).
+beforeEach(() => {
+  H.audit.mockClear();
+  vi.mocked(captureRouteError).mockClear();
+});
 
 // ── 401 helpers ─────────────────────────────────────────────────────────────
 describe('all lone-worker endpoints → 401 without auth token', () => {
@@ -137,6 +151,26 @@ describe('POST /:projectId/lone-worker/check-in', () => {
     expect(res.status).toBe(200);
     const returned = (res.body as Record<string, unknown>).session as Record<string, unknown>;
     expect(returned.status).toBe('help_requested');
+  });
+
+  it('LIFE-SAFETY (CLAUDE.md #14): a help check-in must still return 200 when the audit log is down', async () => {
+    // recordCheckIn already succeeded; an audit-log outage must NOT turn a
+    // worker distress signal into a 500 (they would think help was not received).
+    H.audit.mockRejectedValueOnce(new Error('audit backend down'));
+    const session = makeSession({ workerUid: 'worker-uid', startedAt: STARTED_ISO });
+    const res = await request(buildApp())
+      .post('/api/proj-1/lone-worker/check-in')
+      .set('x-test-uid', 'worker-uid')
+      .send({ session, checkIn: { at: NOW_ISO, status: 'help' } });
+    expect(res.status).toBe(200);
+    const returned = (res.body as Record<string, unknown>).session as Record<string, unknown>;
+    expect(returned.status).toBe('help_requested');
+    // The audit failure is still captured (not silently dropped).
+    expect(captureRouteError).toHaveBeenCalledWith(
+      expect.any(Error),
+      'loneWorker.checkIn.audit',
+      expect.objectContaining({ projectId: 'proj-1' }),
+    );
   });
 
   it('400 missing required session field (no id)', async () => {

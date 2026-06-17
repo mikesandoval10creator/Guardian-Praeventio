@@ -569,13 +569,20 @@ router.post(
       }
       await docRef.set(cleaned, { merge: false });
       // CLAUDE.md #3: scheduling a culture-pulse wave is a state-changing write.
-      await auditServerEvent(
-        req,
-        'culturePulse.scheduleSurvey',
-        'culturePulse',
-        { projectId, surveyId: body.surveyId, status },
-        { projectId },
-      );
+      // CLAUDE.md #14: the survey doc was already written above; an audit-log
+      // failure must not 500 a successful schedule. Capture and continue.
+      try {
+        await auditServerEvent(
+          req,
+          'culturePulse.scheduleSurvey',
+          'culturePulse',
+          { projectId, surveyId: body.surveyId, status },
+          { projectId },
+        );
+      } catch (auditErr) {
+        logger.error?.('audit_event_failed', auditErr);
+        captureRouteError(auditErr, 'culturePulse.scheduleSurvey.audit', { projectId });
+      }
       return res.status(201).json({ ok: true, survey: payload });
     } catch (err) {
       logger.error?.('culturePulse.schedule.error', err);
@@ -674,13 +681,23 @@ router.post(
       // and re-identify the respondent off-server (defeating the anonymity
       // contract above). The event stays fully auditable (a survey was
       // answered, by whom-as-stable-hash) without naming the worker.
-      await auditServerEvent(
-        req,
-        'culturePulse.respondSurvey',
-        'culturePulse',
-        { projectId, surveyId },
-        { projectId, actorOverride: { uid: responderHash, email: null } },
-      );
+      // CLAUDE.md #14: the response was already committed in the transaction
+      // above; an audit-log failure must not 500 a recorded response (the worker
+      // would retry and hit 409 already_responded). Capture and continue. The
+      // capture context is projectId-only — never the responderHash — to keep
+      // the Ley Karin anonymity contract intact even in error telemetry.
+      try {
+        await auditServerEvent(
+          req,
+          'culturePulse.respondSurvey',
+          'culturePulse',
+          { projectId, surveyId },
+          { projectId, actorOverride: { uid: responderHash, email: null } },
+        );
+      } catch (auditErr) {
+        logger.error?.('audit_event_failed', auditErr);
+        captureRouteError(auditErr, 'culturePulse.respondSurvey.audit', { projectId });
+      }
       return res.status(201).json({ ok: true });
     } catch (err) {
       logger.error?.('culturePulse.respond.error', err);

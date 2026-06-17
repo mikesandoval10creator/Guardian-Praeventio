@@ -24,6 +24,7 @@ import { Router } from "express";
 import admin from "firebase-admin";
 import { verifyAuth } from "../middleware/verifyAuth.js";
 import { auditServerEvent } from "../middleware/auditLog.js";
+import { captureRouteError } from "../middleware/captureRouteError.js";
 import { logger } from "../../utils/logger.js";
 import {
   SUBSCRIPTION_PLANS,
@@ -130,12 +131,22 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
     return res.status(500).json({ error: "write_failed" });
   }
 
-  await auditServerEvent(req, "subscription.upgraded", "subscription", {
-    planId: normalizedPlanId,
-    tierId: paidTierId ?? normalizedPlanId,
-    method: "verified-payment",
-    cycle,
-  });
+  // CLAUDE.md #14: the plan write above already succeeded (the user paid and
+  // their subscription was applied). An audit-log failure here is severe but
+  // MUST NOT 500 a successful upgrade — otherwise the user believes the payment
+  // failed and retries / double-pays / contacts support. Capture for
+  // observability and continue to the success response.
+  try {
+    await auditServerEvent(req, "subscription.upgraded", "subscription", {
+      planId: normalizedPlanId,
+      tierId: paidTierId ?? normalizedPlanId,
+      method: "verified-payment",
+      cycle,
+    });
+  } catch (auditErr) {
+    logger.error("audit_event_failed", auditErr as Error, { uid, planId: normalizedPlanId });
+    captureRouteError(auditErr, "subscription.upgraded.audit", { uid });
+  }
 
   logger.info("subscription_upgraded", { uid, planId: normalizedPlanId, tierId: paidTierId });
   return res.status(200).json({ success: true, planId: normalizedPlanId });
