@@ -114,7 +114,7 @@ export function selectCompletedTrainings(
           ? detailTitle
           : courseId.replace(/[-_.]/g, ' ').trim() || 'Capacitación';
       const date = ev.timestamp
-        ? new Date(ev.timestamp as any).toLocaleDateString('es-CL')
+        ? new Date(ev.timestamp).toLocaleDateString('es-CL')
         : '';
       return { key: `${ev.action}-${ev.timestamp ?? i}-${i}`, label, date };
     });
