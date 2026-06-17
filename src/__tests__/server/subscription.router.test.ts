@@ -46,6 +46,7 @@ vi.mock('../../server/middleware/captureRouteError.js', () => ({
 
 import subscriptionRouter from '../../server/routes/subscription.js';
 import { createFakeFirestore } from '../helpers/fakeFirestore';
+import { captureRouteError } from '../../server/middleware/captureRouteError.js';
 
 function buildApp() {
   const app = express();
@@ -63,6 +64,7 @@ function seedInvoice(id: string, fields: Record<string, unknown>) {
 beforeEach(() => {
   H.db = createFakeFirestore();
   H.audit.mockClear();
+  vi.mocked(captureRouteError).mockClear();
 });
 
 describe('POST /api/subscription/upgrade (real router — privilege-escalation gate)', () => {
@@ -151,6 +153,12 @@ describe('POST /api/subscription/upgrade (real router — privilege-escalation g
     const user = (await H.db!.collection('users').doc('u1').get()).data() as Record<string, any>;
     expect(user.subscription.planId).toBe('oro');
     expect(user.subscription.status).toBe('active');
+    // The audit failure must still be captured to Sentry (not silently dropped).
+    expect(captureRouteError).toHaveBeenCalledWith(
+      expect.any(Error),
+      'subscription.upgraded.audit',
+      expect.objectContaining({ uid: 'u1' }),
+    );
   });
 
   it('200 also accepts the legacy top-level tierId schema', async () => {

@@ -144,12 +144,19 @@ router.post(
       });
       // CLAUDE.md #3: the START of a lone-worker session is a safety-critical
       // state change — audit it with the server-stamped actor.
-      await auditServerEvent(req, 'loneWorker.startSession', 'loneWorker', {
-        sessionId: session.id,
-        workerUid: session.workerUid,
-        checkInIntervalMin: session.checkInIntervalMin,
-        projectId,
-      }, { projectId });
+      // CLAUDE.md #14: the session already started; an audit-log failure must
+      // NOT 500 the worker's request. Capture for observability and continue.
+      try {
+        await auditServerEvent(req, 'loneWorker.startSession', 'loneWorker', {
+          sessionId: session.id,
+          workerUid: session.workerUid,
+          checkInIntervalMin: session.checkInIntervalMin,
+          projectId,
+        }, { projectId });
+      } catch (auditErr) {
+        logger.error?.('audit_event_failed', auditErr);
+        captureRouteError(auditErr, 'loneWorker.startSession.audit', { callerUid, projectId });
+      }
       return res.json({ session });
     } catch (err) {
       logger.error?.('loneWorker.startSession.error', err);
@@ -196,12 +203,21 @@ router.post(
       const session = recordCheckIn(body.session, body.checkIn);
       // CLAUDE.md #3: a safety-critical lone-worker check-in (esp. status:'help')
       // must be audited even though the session itself isn't server-persisted.
-      await auditServerEvent(req, 'loneWorker.checkIn', 'loneWorker', {
-        sessionId: session.id,
-        workerUid: session.workerUid,
-        help: body.checkIn.status === 'help',
-        projectId,
-      }, { projectId });
+      // CLAUDE.md #14 (LIFE-SAFETY): a check-in — especially status:'help' — must
+      // reach the worker as success once recordCheckIn succeeds. An audit-log
+      // outage must NOT 500 a distress signal (the worker would think help was
+      // not received). Capture the audit failure out-of-band and still respond OK.
+      try {
+        await auditServerEvent(req, 'loneWorker.checkIn', 'loneWorker', {
+          sessionId: session.id,
+          workerUid: session.workerUid,
+          help: body.checkIn.status === 'help',
+          projectId,
+        }, { projectId });
+      } catch (auditErr) {
+        logger.error?.('audit_event_failed', auditErr);
+        captureRouteError(auditErr, 'loneWorker.checkIn.audit', { callerUid, projectId });
+      }
       return res.json({ session });
     } catch (err) {
       logger.error?.('loneWorker.checkIn.error', err);
@@ -232,11 +248,17 @@ router.post(
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
       const session = endSession(body.session, body.endedAt);
-      await auditServerEvent(req, 'loneWorker.endSession', 'loneWorker', {
-        sessionId: session.id,
-        workerUid: session.workerUid,
-        projectId,
-      }, { projectId });
+      // CLAUDE.md #14: session already ended; audit failure must not 500 it.
+      try {
+        await auditServerEvent(req, 'loneWorker.endSession', 'loneWorker', {
+          sessionId: session.id,
+          workerUid: session.workerUid,
+          projectId,
+        }, { projectId });
+      } catch (auditErr) {
+        logger.error?.('audit_event_failed', auditErr);
+        captureRouteError(auditErr, 'loneWorker.endSession.audit', { callerUid, projectId });
+      }
       return res.json({ session });
     } catch (err) {
       logger.error?.('loneWorker.endSession.error', err);
