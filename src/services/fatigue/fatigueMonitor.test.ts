@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { assessFatigue, type WorkSession } from './fatigueMonitor.js';
+import {
+  assessFatigue,
+  countTrailingConsecutiveNightShifts,
+  type WorkSession,
+} from './fatigueMonitor.js';
 
 const NOW = new Date('2026-05-11T12:00:00Z');
 
@@ -107,5 +111,40 @@ describe('assessFatigue', () => {
   it('shouldRestrictCritical=false para low', () => {
     const r = assessFatigue('w1', [session()], NOW);
     expect(r.shouldRestrictCritical).toBe(false);
+  });
+});
+
+describe('countTrailingConsecutiveNightShifts', () => {
+  it('returns 0 when the worker has no sessions', () => {
+    expect(countTrailingConsecutiveNightShifts([], 'w1')).toBe(0);
+  });
+
+  it('counts the trailing run of night shifts, stopping at the first day shift', () => {
+    const ws: WorkSession[] = [
+      session({ startedAt: '2026-05-05T20:00:00Z', isNight: true }),
+      session({ startedAt: '2026-05-06T08:00:00Z', isNight: false }), // day → breaks the run
+      session({ startedAt: '2026-05-07T20:00:00Z', isNight: true }),
+      session({ startedAt: '2026-05-08T20:00:00Z', isNight: true }),
+      session({ startedAt: '2026-05-09T20:00:00Z', isNight: true }),
+    ];
+    // last 3 are night, the 2nd is a day shift → trailing run = 3
+    expect(countTrailingConsecutiveNightShifts(ws, 'w1')).toBe(3);
+  });
+
+  it('returns 0 when the most recent shift is a day shift', () => {
+    const ws: WorkSession[] = [
+      session({ startedAt: '2026-05-05T20:00:00Z', isNight: true }),
+      session({ startedAt: '2026-05-06T08:00:00Z', isNight: false }),
+    ];
+    expect(countTrailingConsecutiveNightShifts(ws, 'w1')).toBe(0);
+  });
+
+  it('ignores other workers and is order-independent (sorts by startedAt)', () => {
+    const ws: WorkSession[] = [
+      session({ workerUid: 'w2', startedAt: '2026-05-09T20:00:00Z', isNight: true }), // other worker
+      session({ workerUid: 'w1', startedAt: '2026-05-08T20:00:00Z', isNight: true }),
+      session({ workerUid: 'w1', startedAt: '2026-05-07T20:00:00Z', isNight: true }), // out of order
+    ];
+    expect(countTrailingConsecutiveNightShifts(ws, 'w1')).toBe(2);
   });
 });

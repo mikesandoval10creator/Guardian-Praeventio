@@ -6,6 +6,12 @@
       "inspeccion": "QR Inspection"
     }
   },
+  "circadian": {
+    "heading": "Circadian alertness status",
+    "help": "Orientative NIOSH-based estimate (local hour, sleep, consecutive night shifts). It is a recommendation — it never blocks equipment operation.",
+    "sleep_label": "Hours slept (last 24 h)",
+    "mentalload_label": "Mental load (1-10, optional)"
+  },
   "climateRoutes": {
     "schematicBadge": "Illustrative schematic — real weather in the Assessment",
     "calculating": "Assessing route…",

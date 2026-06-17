@@ -6,6 +6,12 @@
       "inspeccion": "Inspeção QR"
     }
   },
+  "circadian": {
+    "heading": "Estado de alerta circadiano",
+    "help": "Estimativa orientativa baseada em NIOSH (hora local, sono e turnos noturnos consecutivos). É uma recomendação — nunca bloqueia a operação de equipamentos.",
+    "sleep_label": "Horas dormidas (últimas 24 h)",
+    "mentalload_label": "Carga mental (1-10, opcional)"
+  },
   "climateRoutes": {
     "schematicBadge": "Esquema ilustrativo — clima real na Avaliação",
     "calculating": "Avaliando rota…",
