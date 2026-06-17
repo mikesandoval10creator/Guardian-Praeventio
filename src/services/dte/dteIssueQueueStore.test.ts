@@ -151,12 +151,16 @@ describe('shouldQueueDteRetry — which auto-issue outcomes get retried', () => 
     expect(shouldQueueDteRetry({ ok: false, skipped: 'no-adapter' })).toBe(true);
   });
 
+  it("queues a prod fail-closed outage (skipped: 'not-configured') — never lose a paid invoice's DTE", () => {
+    expect(shouldQueueDteRetry({ ok: false, skipped: 'not-configured' })).toBe(true);
+  });
+
   it('never queues a successful emission', () => {
     expect(shouldQueueDteRetry({ ok: true })).toBe(false);
   });
 
-  it('never queues deliberate skips (decisions, not failures)', () => {
-    for (const skipped of ['disabled', 'usd', 'invalid-status', 'not-configured']) {
+  it('never queues deliberate decisions (not failures)', () => {
+    for (const skipped of ['disabled', 'usd', 'invalid-status']) {
       expect(shouldQueueDteRetry({ ok: false, skipped })).toBe(false);
     }
   });

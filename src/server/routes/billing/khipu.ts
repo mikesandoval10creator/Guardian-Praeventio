@@ -227,6 +227,10 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                   const payerInfo = (invoiceData?.payerInfo ?? {}) as DteIssueRequest['payerInfo'];
                   const planCode: string =
                     lineItems[0]?.tierId ?? invoiceData?.tierId ?? 'unknown';
+                  // One timestamp for the whole DTE flow (decision + queue
+                  // payload + re-hydrated invoice) so the audit trail stays
+                  // internally consistent across decision log and any retry.
+                  const paidAtIso = new Date().toISOString();
                   const decision = decideDteIssue({
                     paymentId,
                     tenantId: ownerUid,
@@ -234,7 +238,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                     amountClp: typeof status.amount === 'number' ? status.amount : 0,
                     planCode,
                     paymentGateway: 'khipu',
-                    paidAt: new Date().toISOString(),
+                    paidAt: paidAtIso,
                   });
                   logger.info('dte_autoissue_decision', {
                     source: 'khipu-ipn',
@@ -247,11 +251,10 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                   });
                   if (decision.shouldIssue && invoiceData) {
                     // Mirror billing/invoices.ts mark-paid: a transient
-                    // Bsale/PSE failure or credential outage ('no-adapter') is
-                    // NOT silently lost — it persists to dte_issue_queue for
-                    // the cron drain to retry. Deliberate skips ('disabled'
-                    // env gate, 'usd', 'invalid-status') are NOT queued.
-                    const paidAtIso = new Date().toISOString();
+                    // Bsale/PSE failure or credential outage ('no-adapter' /
+                    // 'not-configured') is NOT silently lost — it persists to
+                    // dte_issue_queue for the cron drain to retry. Deliberate
+                    // skips ('disabled', 'usd', 'invalid-status') are NOT.
                     const invoicePayload = buildDteQueueInvoicePayload(
                       invoiceId,
                       invoiceData,

@@ -435,6 +435,10 @@ export function registerWebpayRoutes(
           const planCode: string =
             invoiceData?.lineItems?.[0]?.tierId ?? invoiceData?.tierId ?? 'unknown';
           if (ownerUid) {
+            // One timestamp for the whole DTE flow (decision + queue payload +
+            // re-hydrated invoice) so the audit trail stays internally
+            // consistent across the decision log and any queued retry.
+            const paidAtIso = new Date().toISOString();
             const decision = decideDteIssue({
               paymentId: tokenWs,
               tenantId: ownerUid,
@@ -442,7 +446,7 @@ export function registerWebpayRoutes(
               amountClp: typeof commit.amount === 'number' ? commit.amount : 0,
               planCode,
               paymentGateway: 'webpay',
-              paidAt: new Date().toISOString(),
+              paidAt: paidAtIso,
             });
             logger.info('dte_autoissue_decision', {
               source: 'webpay-return',
@@ -460,11 +464,10 @@ export function registerWebpayRoutes(
             // (skipped: 'no-adapter'). En esos casos solo loggeamos.
             if (decision.shouldIssue && invoiceData) {
               // Mirror billing/invoices.ts mark-paid: a transient Bsale/PSE
-              // failure (adapter error) or credential outage ('no-adapter') is
-              // NOT silently lost — it persists to dte_issue_queue so the cron
-              // drain retries it. Deliberate skips ('disabled' env gate, 'usd',
-              // 'invalid-status') are NOT queued. NO push directo a SII.
-              const paidAtIso = new Date().toISOString();
+              // failure (adapter error) or credential outage ('no-adapter' /
+              // 'not-configured') is NOT silently lost — it persists to
+              // dte_issue_queue so the cron drain retries it. Deliberate skips
+              // ('disabled' gate, 'usd', 'invalid-status') are NOT. NO push a SII.
               const invoicePayload = buildDteQueueInvoicePayload(
                 invoiceId,
                 invoiceData,
