@@ -106,33 +106,35 @@ function seedFinding(
   if (opts.createdAt) data.createdAt = makeTimestamp(opts.createdAt);
   if (opts.closedAt) data.closedAt = makeTimestamp(opts.closedAt);
   if (opts.riskLabel) data.riskLabel = opts.riskLabel;
-  db._seed(`tenants/${tenantId}/findings/${findingId}`, data);
+  // Canonical write path: the project SUB-collection (tenantId kept for call-site
+  // compatibility but the path is project-scoped, matching the real writers).
+  void tenantId;
+  db._seed(`projects/${opts.projectId}/findings/${findingId}`, data);
 }
 
 function seedProcess(
   db: FakeFirestore,
   tenantId: string,
   procId: string,
-  opts: { projectId: string; status: string; completedAt?: string },
+  opts: {
+    projectId: string;
+    status: string;
+    endedAt?: string;
+    xpAwardedAtClose?: number;
+  },
 ) {
+  void tenantId; // processes are TOP-LEVEL (organic.ts), not tenant-scoped
   const data: Record<string, unknown> = {
     projectId: opts.projectId,
     status: opts.status,
   };
-  if (opts.completedAt) data.completedAt = makeTimestamp(opts.completedAt);
-  db._seed(`tenants/${tenantId}/processes/${procId}`, data);
-}
-
-function seedCrew(
-  db: FakeFirestore,
-  tenantId: string,
-  crewId: string,
-  opts: { projectId: string; weeklyXp?: number },
-) {
-  db._seed(`tenants/${tenantId}/crews/${crewId}`, {
-    projectId: opts.projectId,
-    weeklyXp: opts.weeklyXp ?? 0,
-  });
+  // The real close writer sets `endedAt` as an ISO STRING (not a Timestamp) +
+  // `xpAwardedAtClose` (the weekly crew-XP delta source).
+  if (opts.endedAt) data.endedAt = opts.endedAt;
+  if (typeof opts.xpAwardedAtClose === 'number') {
+    data.xpAwardedAtClose = opts.xpAwardedAtClose;
+  }
+  db._seed(`processes/${procId}`, data);
 }
 
 // ---------------------------------------------------------------------------
@@ -246,7 +248,10 @@ function dbWithFailingTenantCollection(real: FakeFirestore, failColl: string): F
     ...real,
     collection: (path: string) => {
       const coll = real.collection(path);
-      if (path !== 'tenants') return coll;
+      // findings now live under projects/{pid}/findings (not tenants/{tid}/...),
+      // so the fail-injection must intercept either parent — only the `failColl`
+      // subcollection fails; everything else (members, doc reads) stays real.
+      if (path !== 'tenants' && path !== 'projects') return coll;
       return {
         ...coll,
         doc: (id: string) => {
@@ -275,10 +280,10 @@ describe('runWeeklyDigest — a source collection query fails', () => {
       name: 'Proyecto Parcial',
       supervisors: [{ role: 'supervisor', email: 'sup@pf.cl' }],
     });
-    // processes + crews ARE in-window — they must still be counted even though
-    // the findings query fails (per-collection isolation preserved).
-    seedProcess(db, 'tenant-pf', 'pr1', { projectId: 'proj-pf', status: 'completed', completedAt: '2026-05-06T12:00:00Z' });
-    seedCrew(db, 'tenant-pf', 'cr1', { projectId: 'proj-pf', weeklyXp: 70 });
+    // processes ARE in-window — they must still be counted even though the
+    // findings query fails (per-collection isolation preserved). Crew XP now
+    // comes from the in-window process close (xpAwardedAtClose), not a crews doc.
+    seedProcess(db, 'tenant-pf', 'pr1', { projectId: 'proj-pf', status: 'completed', endedAt: '2026-05-06T12:00:00Z', xpAwardedAtClose: 70 });
 
     const failDb = dbWithFailingTenantCollection(db, 'findings');
     const result = await runWeeklyDigest({
@@ -348,13 +353,11 @@ describe('runWeeklyDigest — happy path', () => {
     seedFinding(db, 'tenant-1', 'f1', { projectId: 'proj-alpha', createdAt: '2026-05-05T10:00:00Z', riskLabel: 'caida' });
     seedFinding(db, 'tenant-1', 'f2', { projectId: 'proj-alpha', createdAt: '2026-05-07T10:00:00Z', closedAt: '2026-05-08T10:00:00Z', riskLabel: 'caida' });
     seedFinding(db, 'tenant-1', 'f3', { projectId: 'proj-alpha', createdAt: '2026-04-20T10:00:00Z', riskLabel: 'ergonomia' }); // before window
-    // 1 process completed inside window, 1 outside
-    seedProcess(db, 'tenant-1', 'proc1', { projectId: 'proj-alpha', status: 'completed', completedAt: '2026-05-06T12:00:00Z' });
-    seedProcess(db, 'tenant-1', 'proc2', { projectId: 'proj-alpha', status: 'completed', completedAt: '2026-04-01T12:00:00Z' }); // outside window
+    // 1 process completed inside window (xp 200), 1 outside (xp 999 must NOT
+    // count), 1 wrong status. Crew XP = Σ in-window processes.xpAwardedAtClose.
+    seedProcess(db, 'tenant-1', 'proc1', { projectId: 'proj-alpha', status: 'completed', endedAt: '2026-05-06T12:00:00Z', xpAwardedAtClose: 200 });
+    seedProcess(db, 'tenant-1', 'proc2', { projectId: 'proj-alpha', status: 'completed', endedAt: '2026-04-01T12:00:00Z', xpAwardedAtClose: 999 }); // outside window
     seedProcess(db, 'tenant-1', 'proc3', { projectId: 'proj-alpha', status: 'open' }); // wrong status
-    // XP
-    seedCrew(db, 'tenant-1', 'crew1', { projectId: 'proj-alpha', weeklyXp: 120 });
-    seedCrew(db, 'tenant-1', 'crew2', { projectId: 'proj-alpha', weeklyXp: 80 });
   });
 
   it('processes one project, sends to 2 supervisor emails, returns correct stats', async () => {
