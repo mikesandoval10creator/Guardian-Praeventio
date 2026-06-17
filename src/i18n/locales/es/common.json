@@ -1,4 +1,27 @@
 {
+  "zoneEntry": {
+    "title": "Ingreso a Zonas Restringidas",
+    "intro": "Consulta las zonas restringidas de tu faena y registra tu ingreso informado. Esta vista nunca bloquea tu acceso: te informa y deja constancia para que tu supervisor te acompañe.",
+    "noProject": "Selecciona un proyecto para ver sus zonas.",
+    "offline": "Sin conexión — el registro de ingreso no se envía automáticamente; reintenta al reconectar.",
+    "listTitle": "Zonas de la faena",
+    "loading": "Cargando zonas…",
+    "empty": "Aún no hay zonas restringidas definidas para este sitio.",
+    "prepare": "Preparar ingreso",
+    "confirmTitle": "Confirma tu preparación",
+    "confirmEpp": "Marca el EPP que portas ahora",
+    "confirmTrainings": "Marca las capacitaciones que tienes",
+    "permitActive": "Permiso activo detectado",
+    "permitMissing": "Sin permiso activo de este tipo",
+    "permitUnmapped": "Esta zona exige permiso, pero su tipo no tiene permiso configurado. Confírmalo con tu supervisor antes de entrar.",
+    "permitsLoading": "Verificando tus permisos activos…",
+    "permitsError": "No pudimos verificar tus permisos activos. Reconecta antes de continuar.",
+    "continue": "Continuar al registro",
+    "needSignIn": "Inicia sesión para registrar tu ingreso.",
+    "logged": "Ingreso registrado",
+    "logError": "No pudimos registrar el ingreso. Intenta nuevamente.",
+    "logOffline": "Sin conexión: tu ingreso NO quedó registrado (no hay reintento automático). Tu acceso no está bloqueado; vuelve a registrarlo al reconectar."
+  },
   "assets": {
     "tabs": {
       "maquinaria": "Maquinaria",
@@ -99,6 +122,7 @@
     "lone_worker": "Trabajo Solitario",
     "lone_worker_checkin": "Mi Check-in Solitario",
     "restricted_zones": "Zonas Restringidas",
+    "zone_entry": "Ingreso a Zonas",
     "loto": "LOTO",
     "maturity_index": "Índice de Madurez",
     "medicine": "Medicina",

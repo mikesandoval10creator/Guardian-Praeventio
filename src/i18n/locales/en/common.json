@@ -1,4 +1,27 @@
 {
+  "zoneEntry": {
+    "title": "Restricted Zone Entry",
+    "intro": "Review your site's restricted zones and log your informed entry. This view never blocks your access: it informs you and leaves a record so your supervisor can follow up.",
+    "noProject": "Select a project to see its zones.",
+    "offline": "Offline — the entry record is not sent automatically; retry when you reconnect.",
+    "listTitle": "Site zones",
+    "loading": "Loading zones…",
+    "empty": "No restricted zones have been defined for this site yet.",
+    "prepare": "Prepare entry",
+    "confirmTitle": "Confirm your readiness",
+    "confirmEpp": "Check the PPE you are wearing now",
+    "confirmTrainings": "Check the trainings you hold",
+    "permitActive": "Active permit detected",
+    "permitMissing": "No active permit of this type",
+    "permitUnmapped": "This zone requires a permit, but its type has no permit configured. Confirm with your supervisor before entering.",
+    "permitsLoading": "Checking your active permits…",
+    "permitsError": "We couldn't verify your active permits. Reconnect before continuing.",
+    "continue": "Continue to record",
+    "needSignIn": "Sign in to register your entry.",
+    "logged": "Entry recorded",
+    "logError": "We couldn't record the entry. Please try again.",
+    "logOffline": "Offline: your entry was NOT recorded (no automatic retry). Your access is not blocked; record it again when you reconnect."
+  },
   "assets": {
     "tabs": {
       "maquinaria": "Machinery",
@@ -99,6 +122,7 @@
     "lone_worker": "Lone Worker",
     "lone_worker_checkin": "My Lone-Worker Check-in",
     "restricted_zones": "Restricted Zones",
+    "zone_entry": "Zone Entry",
     "loto": "LOTO",
     "maturity_index": "Maturity Index",
     "medicine": "Medicine",
