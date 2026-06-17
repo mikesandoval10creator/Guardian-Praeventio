@@ -162,6 +162,23 @@ export function Emergency() {
     if (next) setMode(next);
   }, [isCrisisMode, mode, setMode]);
 
+  // a11y: the emergency-contacts dialog must be dismissable by keyboard (Esc)
+  // and lock background scroll while open (mirrors ReasonModal.tsx). Without
+  // this a keyboard/AT user could not close the modal.
+  React.useEffect(() => {
+    if (!isContactsOpen) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsContactsOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isContactsOpen]);
+
   const toggleCrisisMode = async () => {
     if (!selectedProject?.id) return;
     try {
@@ -388,8 +405,14 @@ export function Emergency() {
       {/* Modal contactos de emergencia */}
       {isContactsOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsContactsOpen(false)}>
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl max-w-md w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-black uppercase tracking-widest mb-4 flex items-center gap-2">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="emergency-contacts-title"
+            className="bg-white dark:bg-zinc-900 rounded-2xl max-w-md w-full p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="emergency-contacts-title" className="text-lg font-black uppercase tracking-widest mb-4 flex items-center gap-2">
               <Phone className="w-5 h-5 text-emerald-500" />
               {t('emergency_page.btn.emergency_contacts')}
             </h3>
