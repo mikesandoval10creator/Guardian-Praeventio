@@ -2,8 +2,8 @@ import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Download, Printer, QrCode, Loader2, Shield, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+// jsPDF + html2canvas are dynamically imported inside the PDF handler so they
+// are not in this lazy-routed page's initial chunk (~140KB saved on mount).
 import { useTranslation } from 'react-i18next';
 import { useProject } from '../contexts/ProjectContext';
 import { useToast } from '../hooks/useToast';
@@ -344,6 +344,8 @@ export function AfichesSeguridad() {
     if (!posterRef.current) return;
     setDownloading(true);
     try {
+      const { jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
       const [mmW, mmH] = FORMAT_SIZES[format];
       const canvas = await html2canvas(posterRef.current, {
         scale: 3,

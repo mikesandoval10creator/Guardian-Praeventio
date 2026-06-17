@@ -39,8 +39,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { generateExecutiveSummary } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { cacheAIResponse, getCachedAIResponse } from '../utils/pwa-offline';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
+// jsPDF + html2canvas are dynamically imported inside handleExportPDF so they
+// are not in this lazy-routed page's initial chunk (~140KB saved on mount).
 import { logger } from '../utils/logger';
 import { ProjectHealthCheck } from '../components/ProjectHealthCheck';
 import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
@@ -309,6 +309,8 @@ export function Analytics() {
   const handleExportPDF = async () => {
     setIsExporting(true);
     try {
+      const { jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
       const reportElement = document.getElementById('executive-report');
       if (!reportElement) return;
 
