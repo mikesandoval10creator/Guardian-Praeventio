@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useProject } from '../../contexts/ProjectContext';
+import { useFirebase } from '../../contexts/FirebaseContext';
 import { NodeType } from '../../types';
 import { auth } from '../../services/firebase';
 import { subscribeSiteGeometry } from '../../services/digitalTwin/siteGeometryStore';
@@ -46,8 +47,17 @@ export function DynamicEvacuationMap() {
   const { lastLocation } = useGeolocationTracking();
 
   const projectId = selectedProject?.id ?? null;
-  // Other workers' REAL last-known GPS (survival beacons) for the rescue view.
-  const { workers: otherWorkers } = useWorkerPings(projectId);
+  // Other workers' REAL last-known GPS (survival beacons) — RESCUE VIEW only.
+  // The pings rule (firestore.rules) only lets admin/supervisor read other
+  // workers' beacons, so we gate the read to those roles: a regular worker
+  // still sees their OWN route, just not everyone else's positions (and we
+  // avoid N permission-denied reads on mount).
+  const { isAdmin, userRole } = useFirebase();
+  const canSeeOthers =
+    isAdmin || userRole === 'supervisor' || userRole === 'prevencionista';
+  const { workers: otherWorkers, error: pingError } = useWorkerPings(
+    canSeeOthers ? projectId : null,
+  );
   const tenantId = auth.currentUser?.tenantId ?? 'default';
 
   const [features, setFeatures] = useState<SiteGeometryFeature[]>([]);
@@ -152,6 +162,19 @@ export function DynamicEvacuationMap() {
           )}
         </div>
       </header>
+
+      {canSeeOthers && pingError && (
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400"
+          role="status"
+          data-testid="evac-pings-error"
+        >
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          <span className="text-[10px] sm:text-xs font-bold">
+            Ubicaciones de trabajadores no disponibles ahora — el mapa puede no mostrar a todos.
+          </span>
+        </div>
+      )}
 
       <div className="relative aspect-square sm:aspect-video bg-white dark:bg-black/40 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-white/5 overflow-hidden flex items-center justify-center">
         <AnimatePresence mode="wait">

@@ -9,7 +9,7 @@
 // dropped so we never show a worker who left hours ago as "here now".
 
 import { useEffect, useState } from 'react';
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { logger } from '../utils/logger';
 
@@ -120,10 +120,21 @@ export function useWorkerPings(
 
     (async () => {
       try {
-        const membersSnap = await getDocs(
-          collection(db, 'projects', projectId, 'members'),
-        );
-        const uids = membersSnap.docs.slice(0, MAX_MEMBERS).map((m) => m.id);
+        // Member UIDs come from the `members` array on the project doc — the
+        // SAME source `isProjectMember` checks in firestore.rules (NOT the
+        // server-written `members` subcollection, which the client cannot rely
+        // on being populated). Reading the project doc is allowed for any member.
+        const projectSnap = await getDoc(doc(db, 'projects', projectId));
+        const memberArray = projectSnap.exists()
+          ? (projectSnap.data() as { members?: unknown }).members
+          : null;
+        const uids = (Array.isArray(memberArray)
+          ? memberArray.filter((u): u is string => typeof u === 'string')
+          : []
+        ).slice(0, MAX_MEMBERS);
+        if (uids.length === 0) {
+          logger.warn('useWorkerPings_no_members', { projectId });
+        }
         const rows: RawPingRow[] = await Promise.all(
           uids.map(async (uid) => {
             try {
@@ -144,6 +155,9 @@ export function useWorkerPings(
           projectId,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Clear stale positions: never keep plotting a previous fetch's workers
+        // as "live" once the data source is known to have failed.
+        setWorkers([]);
         setError('No se pudieron leer las ubicaciones de los trabajadores.');
         setLoading(false);
       }
