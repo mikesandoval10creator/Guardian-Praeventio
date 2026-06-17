@@ -1930,6 +1930,7 @@
       "fall_detection_warn": "⚠ Consome bateria em segundo plano. Mantenha desligado se a sua atividade não exigir.",
       "mfa_title": "Autenticação de Dois Fatores (2FA)",
       "mfa_desc": "Adiciona uma camada extra de segurança à sua conta.",
+      "mfa_configure": "Configurar",
       "password_email_title": "E-mail Enviado",
       "password_email_msg": "Foi enviado um link para redefinir sua senha.",
       "change_password": "Alterar Senha",
