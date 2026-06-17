@@ -667,6 +667,43 @@ describe('POST /api/dte/generate', () => {
     );
   });
 
+  it('AWAITS the dte.generated audit before responding (CLAUDE.md #14 — no fire-and-forget)', async () => {
+    H.generateDteFn = vi.fn(async () => FAKE_GENERATED_DTE);
+    H.renderDtePdfFn = vi.fn(async () => FAKE_PDF_BUFFER);
+
+    // Gate the compliance audit write so we can observe whether the HTTP
+    // response waits for it. On the OLD fire-and-forget code the response
+    // ships while this promise is still pending (audit row can be dropped on
+    // Cloud Run scale-down); on the awaited code it cannot.
+    let releaseAudit!: () => void;
+    const auditGate = new Promise<boolean>((resolve) => {
+      releaseAudit = () => resolve(true);
+    });
+    vi.mocked(auditServerEvent).mockReturnValueOnce(auditGate);
+
+    let responded = false;
+    const reqPromise = request(buildApp())
+      .post('/api/dte/generate')
+      .set('x-test-uid', 'admin-1')
+      .send(VALID_GENERATE_BODY)
+      .then((r) => {
+        responded = true;
+        return r;
+      });
+
+    // Let generateDte + renderDtePdf resolve; the handler then stalls on the
+    // awaited audit. Flush several macrotasks to be sure.
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    expect(responded).toBe(false); // FAILS on the old non-awaited code
+
+    releaseAudit();
+    const res = await reqPromise;
+    expect(responded).toBe(true);
+    expect(res.status).toBe(200);
+  });
+
   it('200 happy path WITH biometric — returns signed XML + signedAt', async () => {
     const SIGNED_AT = '2026-05-31T12:00:00.000Z';
     H.generateDteFn = vi.fn(async () => FAKE_GENERATED_DTE);

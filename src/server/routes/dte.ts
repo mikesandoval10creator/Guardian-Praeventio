@@ -458,11 +458,12 @@ dteRouter.post('/generate', verifyAuth, idempotencyKey(), async (req: Request, r
       );
       xmlOut = signed.signedXml;
       signedAt = signed.signedAt;
-      // P0 fix: previously `.catch(() => {})` silently swallowed audit
-      // failures. The DTE itself is already signed — the response ships.
-      // Codex P2 3308579646: auditServerEvent returns boolean (never
-      // throws), so .catch() never fires. Branch on .then(ok).
-      auditServerEvent(req, 'dte.signed', 'dte', {
+      // The DTE is already signed; we AWAIT the compliance audit write before
+      // responding (CLAUDE.md #14 — fire-and-forget audit is banned: on Cloud
+      // Run the instance can be CPU-throttled / scaled-to-zero before add()
+      // flushes, silently dropping the row for a signed tax document).
+      // auditServerEvent returns boolean (never throws); branch on .then(ok).
+      await auditServerEvent(req, 'dte.signed', 'dte', {
         dteId: generated.dteId,
         type: body.type,
         folio: body.folio,
@@ -478,8 +479,9 @@ dteRouter.post('/generate', verifyAuth, idempotencyKey(), async (req: Request, r
     } catch (err) {
       logger.warn('dte.sign failed', { message: (err as Error).message });
       dteSentryCapture(err, { endpoint: 'POST /api/dte/generate', tags: { stage: 'sign' } });
-      // Codex P2 3308579646: branch on boolean return; helper logs internally.
-      auditServerEvent(req, 'dte.sign_failed', 'dte', {
+      // Awaited so the 401 below ships only after the audit settles
+      // (CLAUDE.md #14); helper logs internally and never throws.
+      await auditServerEvent(req, 'dte.sign_failed', 'dte', {
         dteId: generated.dteId,
         reason: (err as Error).message,
       }).then((ok: boolean) => {
@@ -509,8 +511,9 @@ dteRouter.post('/generate', verifyAuth, idempotencyKey(), async (req: Request, r
     return res.status(500).json({ error: 'dte_pdf_failed' });
   }
 
-  // Codex P2 3308579646: branch on boolean return; helper logs internally.
-  auditServerEvent(req, 'dte.generated', 'dte', {
+  // Awaited so the success response ships only after the audit settles
+  // (CLAUDE.md #14); helper logs internally and never throws.
+  await auditServerEvent(req, 'dte.generated', 'dte', {
     dteId: generated.dteId,
     type: body.type,
     folio: body.folio,
