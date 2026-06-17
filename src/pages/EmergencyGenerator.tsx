@@ -10,8 +10,6 @@ import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/fireb
 import { generateEmergencyPlanJSON } from '../services/geminiService';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useFirebase } from '../contexts/FirebaseContext';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { WifiOff } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -102,6 +100,9 @@ export function EmergencyGenerator() {
     setIsSaving(true);
     try {
       // 1. Generate PDF Blob
+      // Dynamic import: jspdf + html2canvas are heavy and only needed on export.
+      const { jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(pdfRef.current, {
         scale: 2,
         useCORS: true,
@@ -192,6 +193,9 @@ export function EmergencyGenerator() {
     
     setIsDownloading(true);
     try {
+      // Dynamic import: jspdf + html2canvas are heavy and only needed on export.
+      const { jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(pdfRef.current, {
         scale: 2,
         useCORS: true,
