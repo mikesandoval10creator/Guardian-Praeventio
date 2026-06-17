@@ -18,7 +18,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ConfidentialReports } from './ConfidentialReports';
+import { ConfidentialReports, slaState, slaSortKey } from './ConfidentialReports';
 import type {
   ConfidentialReportApi,
   ConfidentialReportsListResponse,
@@ -366,5 +366,69 @@ describe('<ConfidentialReports /> page wrapper (Sprint K §211-213)', () => {
       'deadbeefcafe1234567890abcdef1234',
     );
     expect(item.textContent).not.toMatch(/u-worker|uid:/);
+  });
+});
+
+// Ley Karin (Ley 21.643) SLA helpers — pure, Date injected, no render/mocks.
+const SLA_NOW = Date.parse('2026-06-17T12:00:00.000Z');
+
+describe('slaState — Ley Karin SLA badge', () => {
+  it('breached when the first-response deadline has passed (not yet responded)', () => {
+    const r = report({ id: 's1', firstResponseDueAt: '2026-06-16T12:00:00.000Z' });
+    expect(slaState(r, SLA_NOW)).toEqual({
+      state: 'breached',
+      dueIso: '2026-06-16T12:00:00.000Z',
+    });
+  });
+
+  it('at_risk when the deadline is < 24h away', () => {
+    const r = report({ id: 's2', firstResponseDueAt: '2026-06-17T20:00:00.000Z' }); // +8h
+    expect(slaState(r, SLA_NOW)?.state).toBe('at_risk');
+  });
+
+  it('on_track when the deadline is comfortably ahead', () => {
+    const r = report({ id: 's3', firstResponseDueAt: '2026-06-25T12:00:00.000Z' });
+    expect(slaState(r, SLA_NOW)?.state).toBe('on_track');
+  });
+
+  it('switches to the RESOLUTION deadline once the report is responded', () => {
+    const r = report({
+      id: 's4',
+      respondedAt: '2026-06-12T00:00:00.000Z',
+      firstResponseDueAt: '2026-06-16T12:00:00.000Z', // past — would be breached if used
+      resolveDueAt: '2026-07-10T12:00:00.000Z', // far future
+    });
+    const s = slaState(r, SLA_NOW);
+    expect(s?.state).toBe('on_track'); // proves it used resolveDueAt, not firstResponseDueAt
+    expect(s?.dueIso).toBe('2026-07-10T12:00:00.000Z');
+  });
+
+  it('returns null for terminal reports (no live deadline to track)', () => {
+    for (const status of ['resolved', 'closed', 'dismissed'] as const) {
+      expect(slaState(report({ id: `t-${status}`, status }), SLA_NOW)).toBeNull();
+    }
+  });
+
+  it('flags a malformed due date as at_risk — never hides it', () => {
+    const r = report({ id: 's5', firstResponseDueAt: 'not-a-date' });
+    expect(slaState(r, SLA_NOW)?.state).toBe('at_risk');
+  });
+});
+
+describe('slaSortKey — most-urgent SLA first', () => {
+  it('orders breached < at_risk < on_track < terminal', () => {
+    const breached = report({ id: 'b', firstResponseDueAt: '2026-06-16T12:00:00.000Z' });
+    const atRisk = report({ id: 'a', firstResponseDueAt: '2026-06-17T20:00:00.000Z' });
+    const onTrack = report({ id: 'o', firstResponseDueAt: '2026-06-25T12:00:00.000Z' });
+    const terminal = report({ id: 't', status: 'closed' });
+    const sorted = [onTrack, terminal, atRisk, breached]
+      .slice()
+      .sort((x, y) => {
+        const kx = slaSortKey(x, SLA_NOW);
+        const ky = slaSortKey(y, SLA_NOW);
+        return kx.rank - ky.rank || kx.dueMs - ky.dueMs;
+      })
+      .map((r) => r.id);
+    expect(sorted).toEqual(['b', 'a', 'o', 't']);
   });
 });

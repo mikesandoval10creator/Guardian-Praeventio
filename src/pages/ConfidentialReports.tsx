@@ -165,6 +165,62 @@ function formatIso(iso: string): string {
   }
 }
 
+// ── Ley Karin SLA (Ley 21.643) ──────────────────────────────────────────────
+// The server already computes firstResponseDueAt (+3 business days) and
+// resolveDueAt (+30) on every report (confidentialReports.ts) and the API shape
+// carries them (useConfidentialReports). They were never surfaced — the inbox
+// could not see which investigations were about to breach a legal deadline.
+// Pure + deterministic (Date injected) so it is unit-testable in isolation.
+
+type SlaState = 'on_track' | 'at_risk' | 'breached';
+
+/**
+ * SLA badge state for an ACTIONABLE report. Returns null for terminal reports
+ * (resolved/closed/dismissed) — there is no live deadline to track. The
+ * relevant deadline is the first-response one until the investigator responds,
+ * then the resolution one.
+ */
+export function slaState(
+  report: ConfidentialReportApi,
+  nowMs: number = Date.now(),
+): { state: SlaState; dueIso: string } | null {
+  if (
+    report.status === 'resolved' ||
+    report.status === 'closed' ||
+    report.status === 'dismissed'
+  ) {
+    return null;
+  }
+  const dueIso = report.respondedAt ? report.resolveDueAt : report.firstResponseDueAt;
+  const dueMs = Date.parse(dueIso);
+  // Malformed due date → flag for human review (at_risk), never hide it.
+  if (Number.isNaN(dueMs)) return { state: 'at_risk', dueIso };
+  const msLeft = dueMs - nowMs;
+  if (msLeft < 0) return { state: 'breached', dueIso };
+  if (msLeft < 24 * 3_600_000) return { state: 'at_risk', dueIso }; // <24h to deadline
+  return { state: 'on_track', dueIso };
+}
+
+const SLA_META: Record<SlaState, { labelKey: string; cls: string }> = {
+  on_track: { labelKey: 'confidentialReports.card.slaOnTrack', cls: 'text-emerald-700 bg-emerald-500/10' },
+  at_risk: { labelKey: 'confidentialReports.card.slaAtRisk', cls: 'text-amber-700 bg-amber-500/15' },
+  breached: { labelKey: 'confidentialReports.card.slaBreached', cls: 'text-rose-700 bg-rose-500/20' },
+};
+
+const SLA_ORDER: Record<SlaState, number> = { breached: 0, at_risk: 1, on_track: 2 };
+
+/** Inbox sort key: most-urgent SLA first, soonest deadline within a tier;
+ *  terminal reports (no live SLA) sink to the bottom. */
+export function slaSortKey(
+  report: ConfidentialReportApi,
+  nowMs: number = Date.now(),
+): { rank: number; dueMs: number } {
+  const s = slaState(report, nowMs);
+  if (!s) return { rank: 3, dueMs: Number.MAX_SAFE_INTEGER };
+  const dueMs = Date.parse(s.dueIso);
+  return { rank: SLA_ORDER[s.state], dueMs: Number.isNaN(dueMs) ? 0 : dueMs };
+}
+
 export function ConfidentialReports() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
@@ -205,9 +261,16 @@ export function ConfidentialReports() {
   // Inbox del investigator: los que están abiertos o en investigación.
   const inboxReports = useMemo(
     () =>
-      allReports.filter(
-        (r) => r.status === 'open' || r.status === 'investigating',
-      ),
+      allReports
+        .filter((r) => r.status === 'open' || r.status === 'investigating')
+        .slice()
+        // Ley Karin: surface the most-urgent SLA first so an investigator
+        // never misses a breaching deadline buried mid-list.
+        .sort((a, b) => {
+          const ka = slaSortKey(a);
+          const kb = slaSortKey(b);
+          return ka.rank - kb.rank || ka.dueMs - kb.dueMs;
+        }),
     [allReports],
   );
 
@@ -638,6 +701,19 @@ function ReportCard({ report, variant, onRespond, onClose }: ReportCardProps) {
             >
               {statusMeta.label}
             </span>
+            {(() => {
+              const s = slaState(report);
+              return s ? (
+                <span
+                  className={`rounded px-1.5 py-0.5 font-bold inline-flex items-center gap-1 ${SLA_META[s.state].cls}`}
+                  data-testid={`confidential-report-sla-${report.id}`}
+                  title={`${t('confidentialReports.card.slaDue', 'Vence')}: ${formatIso(s.dueIso)}`}
+                >
+                  <Clock className="w-3 h-3" aria-hidden="true" />
+                  {t(SLA_META[s.state].labelKey)}
+                </span>
+              ) : null;
+            })()}
             <span className="text-secondary-token inline-flex items-center gap-1">
               <Clock className="w-3 h-3" aria-hidden="true" />
               {formatIso(report.submittedAt)}

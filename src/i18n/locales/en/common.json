@@ -3523,6 +3523,10 @@
     },
     "card": {
       "anonymous": "Anonymous",
+      "slaOnTrack": "On track",
+      "slaAtRisk": "Due soon",
+      "slaBreached": "Overdue",
+      "slaDue": "Due",
       "evidence": "Evidence",
       "resolution": "Resolution",
       "severity": "Severity"
