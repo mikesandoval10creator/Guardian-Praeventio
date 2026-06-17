@@ -27,7 +27,11 @@ import {
   type WeeklyDigestStats,
 } from '../../services/email/templates.js';
 import { logger } from '../../utils/logger.js';
-import { computeDaysWithoutIncident, type MinimalDb } from '../../services/gamification/daysWithoutIncident.js';
+import {
+  computeDaysWithoutIncident,
+  awardDaysMilestones,
+  type MinimalDb,
+} from '../../services/gamification/daysWithoutIncident.js';
 
 const SUPERVISOR_ROLES = new Set([
   'supervisor',
@@ -310,6 +314,17 @@ export async function runWeeklyDigest(
     const projectId = doc.id;
     const data: any = doc.data();
     result.projectsProcessed += 1;
+
+    // Award any days-without-incident milestones the project just crossed,
+    // crediting each member (#9). Runs for EVERY active project (before the
+    // supervisor-email skip below) and is best-effort — a failure here must
+    // never abort the digest.
+    try {
+      await awardDaysMilestones(projectId, db as unknown as MinimalDb);
+    } catch (err) {
+      logger.warn('weekly_digest_milestone_award_failed', { projectId, error: String(err) });
+    }
+
     const tenantId: string = data?.tenantId || projectId;
     const projectName: string = data?.name || projectId;
     const emails = await getSupervisorEmails(db, projectId);

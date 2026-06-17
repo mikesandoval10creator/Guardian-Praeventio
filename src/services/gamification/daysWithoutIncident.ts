@@ -93,6 +93,9 @@ export async function computeDaysWithoutIncident(
 
 export interface MilestoneAward {
   projectId: string;
+  /** The crew member credited with this milestone (read by historyAggregator,
+   *  which sums points per userId). Without it the row is unreadable XP. */
+  userId: string;
   days: number;
   medalId: 'days-100' | 'days-365';
   label: string;
@@ -106,45 +109,65 @@ const MILESTONES: Array<{ threshold: number; medalId: MilestoneAward['medalId'];
 ];
 
 /**
- * Award any milestone medals the project just crossed. Idempotent: the
- * write key is `days_milestone_${projectId}_${days}` so re-runs of the
- * daily cron are a no-op. Returns the list of awards actually persisted.
+ * Award any milestone medals the project just crossed, CREDITING EACH PROJECT
+ * MEMBER (they all contributed to the incident-free streak). Idempotent: the
+ * per-member write key is `days_milestone_${projectId}_${days}_${uid}`, so
+ * re-runs are a no-op. Returns the list of awards actually persisted.
  *
- * Note: we write to `gamification_scores` (the cross-project leaderboard
- * collection) AND check existence by document id so the exists() probe
- * is one round-trip per milestone. Production cron is invoked once a day
- * by Cloud Scheduler — the load is trivial.
+ * Disconnection hunt #9 (2026-06-16): the previous version wrote ONE
+ * project-scoped row with NO `userId`. Both readers (PortableCurriculum,
+ * UserProfileModal → historyAggregator) query `gamification_scores` by
+ * `userId` and sum `points` per row, so a row without `userId` was unreadable
+ * XP — the "100/365 días limpios" recognition never reached any worker's CV.
+ * It was also never invoked by any cron (orphan). It is now driven by the
+ * weekly digest (runWeeklyDigest) and fans out one readable row per member.
+ *
+ * We read the canonical `projects/{id}.members` uid array (same source as
+ * assertProjectMember). When there are no members there is no one to credit,
+ * so nothing is written (never a fabricated/unreadable row).
  */
 export async function awardDaysMilestones(
   projectId: string,
   db: MinimalDb,
   opts: { nowMs?: number; sinceMs?: number } = {},
 ): Promise<MilestoneAward[]> {
-  const days = await computeDaysWithoutIncident(projectId, db, opts);
   const awarded: MilestoneAward[] = [];
+  const days = await computeDaysWithoutIncident(projectId, db, opts);
+  if (days < MILESTONES[0].threshold) return awarded; // nothing crossed — skip the member read
+
+  const projSnap = await db.collection('projects').doc(projectId).get();
+  const rawMembers = projSnap.exists ? (projSnap.data() as { members?: unknown })?.members : undefined;
+  const memberUids = Array.isArray(rawMembers)
+    ? rawMembers.filter((u): u is string => typeof u === 'string' && u.length > 0)
+    : [];
+  if (memberUids.length === 0) return awarded; // no one to credit
+
   const now = new Date(opts.nowMs ?? Date.now()).toISOString();
 
   for (const m of MILESTONES) {
     if (days < m.threshold) continue;
-    const idempotencyKey = `days_milestone_${projectId}_${m.threshold}`;
-    const ref = db.collection('gamification_scores').doc(idempotencyKey);
-    const existing = await ref.get();
-    if (existing.exists) continue;
-    const award: MilestoneAward = {
-      projectId,
-      days: m.threshold,
-      medalId: m.medalId,
-      label: m.label,
-      idempotencyKey,
-      awardedAt: now,
-    };
-    await ref.set({
-      ...award,
-      reason: 'days_without_incident_milestone',
-      points: m.threshold === 365 ? 365 : 100,
-      timestamp: now,
-    });
-    awarded.push(award);
+    for (const uid of memberUids) {
+      const idempotencyKey = `days_milestone_${projectId}_${m.threshold}_${uid}`;
+      const ref = db.collection('gamification_scores').doc(idempotencyKey);
+      const existing = await ref.get();
+      if (existing.exists) continue;
+      const award: MilestoneAward = {
+        projectId,
+        userId: uid,
+        days: m.threshold,
+        medalId: m.medalId,
+        label: m.label,
+        idempotencyKey,
+        awardedAt: now,
+      };
+      await ref.set({
+        ...award,
+        reason: 'days_without_incident_milestone',
+        points: m.threshold === 365 ? 365 : 100,
+        timestamp: now,
+      });
+      awarded.push(award);
+    }
   }
   return awarded;
 }

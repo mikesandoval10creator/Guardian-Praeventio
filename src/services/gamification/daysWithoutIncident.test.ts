@@ -128,39 +128,69 @@ describe('computeDaysWithoutIncident', () => {
 });
 
 describe('awardDaysMilestones', () => {
-  it('awards 100 days milestone when counter >= 100', async () => {
+  // The milestone now credits EACH project member (readable rows carry userId),
+  // so the project doc with a `members` uid array must be seeded.
+  function seedMembers(
+    stores: Record<string, Map<string, FakeDoc>>,
+    members: string[],
+  ): void {
+    if (!stores.projects) stores.projects = new Map();
+    stores.projects.set('p1', { id: 'p1', members } as unknown as FakeDoc);
+  }
+
+  it('awards the 100-day milestone to EACH project member (rows carry userId)', async () => {
     const { db, stores } = makeDb();
+    seedMembers(stores, ['u1', 'u2']);
     const now = Date.parse('2026-05-05T00:00:00Z');
     const sinceMs = now - 105 * 24 * 3600 * 1000;
     const awards = await awardDaysMilestones('p1', db, { nowMs: now, sinceMs });
-    expect(awards).toHaveLength(1);
-    expect(awards[0].medalId).toBe('days-100');
-    expect(stores.gamification_scores.has('days_milestone_p1_100')).toBe(true);
+    expect(awards).toHaveLength(2); // one per member
+    expect(awards.every((a) => a.medalId === 'days-100')).toBe(true);
+    expect(awards.map((a) => a.userId).sort()).toEqual(['u1', 'u2']);
+    // Per-member, readable rows keyed per member, carrying userId + points.
+    expect(stores.gamification_scores.has('days_milestone_p1_100_u1')).toBe(true);
+    expect(stores.gamification_scores.has('days_milestone_p1_100_u2')).toBe(true);
+    expect(stores.gamification_scores.get('days_milestone_p1_100_u1')?.userId).toBe('u1');
+    expect(stores.gamification_scores.get('days_milestone_p1_100_u1')?.points).toBe(100);
   });
 
-  it('awards both milestones once when counter >= 365', async () => {
+  it('awards both milestones to each member once when counter >= 365', async () => {
     const { db, stores } = makeDb();
+    seedMembers(stores, ['u1', 'u2']);
     const now = Date.parse('2026-05-05T00:00:00Z');
     const sinceMs = now - 400 * 24 * 3600 * 1000;
     const awards = await awardDaysMilestones('p1', db, { nowMs: now, sinceMs });
-    expect(awards.map((a) => a.medalId).sort()).toEqual(['days-100', 'days-365']);
-    expect(stores.gamification_scores.size).toBe(2);
+    // 2 milestones × 2 members = 4 readable rows
+    expect(awards).toHaveLength(4);
+    expect(stores.gamification_scores.size).toBe(4);
   });
 
   it('is idempotent — re-running does not double-award', async () => {
     const { db, stores } = makeDb();
+    seedMembers(stores, ['u1', 'u2']);
     const now = Date.parse('2026-05-05T00:00:00Z');
     const sinceMs = now - 105 * 24 * 3600 * 1000;
     await awardDaysMilestones('p1', db, { nowMs: now, sinceMs });
     const second = await awardDaysMilestones('p1', db, { nowMs: now, sinceMs });
     expect(second).toEqual([]);
-    expect(stores.gamification_scores.size).toBe(1);
+    expect(stores.gamification_scores.size).toBe(2); // 1 milestone × 2 members
   });
 
   it('awards nothing below the 100-day threshold', async () => {
     const { db, stores } = makeDb();
+    seedMembers(stores, ['u1', 'u2']);
     const now = Date.parse('2026-05-05T00:00:00Z');
     const sinceMs = now - 50 * 24 * 3600 * 1000;
+    const awards = await awardDaysMilestones('p1', db, { nowMs: now, sinceMs });
+    expect(awards).toEqual([]);
+    expect(stores.gamification_scores.size).toBe(0);
+  });
+
+  it('awards nothing when the project has no members (no one to credit — never an unreadable row)', async () => {
+    const { db, stores } = makeDb();
+    seedMembers(stores, []); // empty members array
+    const now = Date.parse('2026-05-05T00:00:00Z');
+    const sinceMs = now - 400 * 24 * 3600 * 1000;
     const awards = await awardDaysMilestones('p1', db, { nowMs: now, sinceMs });
     expect(awards).toEqual([]);
     expect(stores.gamification_scores.size).toBe(0);
