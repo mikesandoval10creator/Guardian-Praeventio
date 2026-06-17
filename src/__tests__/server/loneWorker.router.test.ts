@@ -84,6 +84,14 @@ function seedMember(uid: string, projectId: string) {
   H.db!._seed(`projects/${projectId}`, { members: [uid], createdBy: uid });
 }
 
+// Reset mock call history before every test so a future assertion on H.audit
+// call counts can't get a false positive from a sibling test (review finding,
+// mirroring subscription.router.test.ts).
+beforeEach(() => {
+  H.audit.mockClear();
+  vi.mocked(captureRouteError).mockClear();
+});
+
 // ── 401 helpers ─────────────────────────────────────────────────────────────
 describe('all lone-worker endpoints → 401 without auth token', () => {
   beforeEach(() => { H.db = createFakeFirestore(); });
