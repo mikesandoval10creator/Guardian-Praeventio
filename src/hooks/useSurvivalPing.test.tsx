@@ -15,12 +15,12 @@ const h = vi.hoisted(() => ({
   user: { uid: 'u1' } as { uid: string } | null,
 }));
 
-const saveBreadcrumb = vi.fn(async () => {});
+const saveBreadcrumb = vi.fn((..._a: unknown[]) => Promise.resolve());
 vi.mock('../utils/offlineStorage', () => ({
   saveBreadcrumb: (...a: unknown[]) => saveBreadcrumb(...a),
 }));
 
-const setDoc = vi.fn(async () => {});
+const setDoc = vi.fn((..._a: unknown[]) => Promise.resolve());
 vi.mock('firebase/firestore', () => ({
   doc: (...a: unknown[]) => ({ __ref: a }),
   setDoc: (...a: unknown[]) => setDoc(...a),
