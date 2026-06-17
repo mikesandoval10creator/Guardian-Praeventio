@@ -397,18 +397,29 @@ export function VisionAnalyzer() {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-4">
-                  <h3 className="text-xs font-black text-emerald-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <div className="bg-amber-500/5 border border-amber-500/15 rounded-2xl p-4">
+                  <h3 className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1 flex items-center gap-2">
                     <Shield className="w-4 h-4" />
-                    EPP Detectado
+                    EPP estimado (ayuda visual)
                   </h3>
+                  {/*
+                    Honestidad: la detección es por COLOR (colorBasedEppDetector),
+                    una heurística débil que no distingue un casco de un sombrero
+                    del mismo color. NO es verificación ni certificación de EPP —
+                    se presenta como estimación tentativa, nunca como un ✅ verde
+                    que dé falsa confianza. La verificación real queda en el check
+                    humano / QR pre-uso.
+                  */}
+                  <p className="text-[10px] text-amber-700/80 dark:text-amber-300/70 mb-3 leading-snug">
+                    Estimación por color, no es verificación de EPP. Confírmalo manualmente o vía el escaneo QR pre-uso.
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {result.eppDetected.map((item, i) => (
-                      <span key={i} className="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-1 rounded-lg border border-emerald-500/20">
-                        {item}
+                      <span key={i} className="bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[10px] font-bold px-2 py-1 rounded-lg border border-amber-500/20">
+                        {item} <span className="opacity-60 font-normal">(est.)</span>
                       </span>
                     ))}
-                    {result.eppDetected.length === 0 && <span className="text-zinc-500 text-xs italic">No se detectó EPP</span>}
+                    {result.eppDetected.length === 0 && <span className="text-zinc-500 text-xs italic">Sin EPP estimado en la imagen</span>}
                   </div>
                 </div>
 
