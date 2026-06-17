@@ -47,6 +47,11 @@ import {
   type DteIssueRequest,
 } from '../../../services/dte/dteAutoIssueOrchestrator.js';
 import {
+  buildDteQueueInvoicePayload,
+  enqueueDteIssueJob,
+  shouldQueueDteRetry,
+} from '../../../services/dte/dteIssueQueueStore.js';
+import {
   normalizeSubscriptionPlanId,
   resolveInvoiceCycle,
   DEFAULT_SUBSCRIPTION_CYCLE,
@@ -430,6 +435,10 @@ export function registerWebpayRoutes(
           const planCode: string =
             invoiceData?.lineItems?.[0]?.tierId ?? invoiceData?.tierId ?? 'unknown';
           if (ownerUid) {
+            // One timestamp for the whole DTE flow (decision + queue payload +
+            // re-hydrated invoice) so the audit trail stays internally
+            // consistent across the decision log and any queued retry.
+            const paidAtIso = new Date().toISOString();
             const decision = decideDteIssue({
               paymentId: tokenWs,
               tenantId: ownerUid,
@@ -437,7 +446,7 @@ export function registerWebpayRoutes(
               amountClp: typeof commit.amount === 'number' ? commit.amount : 0,
               planCode,
               paymentGateway: 'webpay',
-              paidAt: new Date().toISOString(),
+              paidAt: paidAtIso,
             });
             logger.info('dte_autoissue_decision', {
               source: 'webpay-return',
@@ -454,6 +463,16 @@ export function registerWebpayRoutes(
             // habilitado (skipped: 'disabled') o si no hay adapter Bsale
             // (skipped: 'no-adapter'). En esos casos solo loggeamos.
             if (decision.shouldIssue && invoiceData) {
+              // Mirror billing/invoices.ts mark-paid: a transient Bsale/PSE
+              // failure (adapter error) or credential outage ('no-adapter' /
+              // 'not-configured') is NOT silently lost — it persists to
+              // dte_issue_queue so the cron drain retries it. Deliberate skips
+              // ('disabled' gate, 'usd', 'invalid-status') are NOT. NO push a SII.
+              const invoicePayload = buildDteQueueInvoicePayload(
+                invoiceId,
+                invoiceData,
+                paidAtIso,
+              );
               try {
                 const { tryAutoIssueDte } = await import(
                   '../../../services/billing/invoice.js'
@@ -465,7 +484,7 @@ export function registerWebpayRoutes(
                   ...invoiceData,
                   id: invoiceId,
                   status: 'paid' as const,
-                  paidAt: new Date().toISOString(),
+                  paidAt: paidAtIso,
                 };
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const result = await tryAutoIssueDte(invoiceForDte as any);
@@ -478,6 +497,19 @@ export function registerWebpayRoutes(
                   folio: result.result?.folio ?? null,
                   errorMessage: result.errorMessage ?? null,
                 });
+                if (shouldQueueDteRetry(result)) {
+                  const queued = await enqueueDteIssueJob(
+                    db,
+                    decision,
+                    invoicePayload,
+                    'webpay-return',
+                  );
+                  logger.warn('dte_autoissue_queued_for_retry', {
+                    source: 'webpay-return',
+                    invoiceId,
+                    queued,
+                  });
+                }
               } catch (issueErr) {
                 logger.error('dte_autoissue_invoke_failed', issueErr as Error, {
                   source: 'webpay-return',
@@ -487,6 +519,27 @@ export function registerWebpayRoutes(
                   endpoint: 'billing.webpay.dteAutoIssue.invoke',
                   tags: { invoiceId },
                 });
+                try {
+                  const queued = await enqueueDteIssueJob(
+                    db,
+                    decision,
+                    invoicePayload,
+                    'webpay-return',
+                  );
+                  logger.warn('dte_autoissue_queued_for_retry', {
+                    source: 'webpay-return',
+                    invoiceId,
+                    queued,
+                  });
+                } catch (queueErr) {
+                  logger.error('dte_queue_enqueue_failed', queueErr as Error, {
+                    invoiceId,
+                  });
+                  sentryCapture(queueErr, {
+                    endpoint: 'billing.webpay.dteQueue',
+                    tags: { invoiceId },
+                  });
+                }
               }
             }
           }

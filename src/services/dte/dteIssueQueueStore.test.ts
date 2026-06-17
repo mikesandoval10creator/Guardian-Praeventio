@@ -13,6 +13,7 @@ import {
   buildDteQueueInvoicePayload,
   enqueueDteIssueJob,
   queueEntryToDoc,
+  shouldQueueDteRetry,
   type DteQueueInvoicePayload,
 } from './dteIssueQueueStore';
 import { enqueue, markIssued } from './dteIssueQueue';
@@ -138,5 +139,29 @@ describe('buildDteQueueInvoicePayload', () => {
     expect(payload.lineItems).toHaveLength(1);
     expect((payload as unknown as Record<string, unknown>).webpayToken).toBeUndefined();
     expect((payload as unknown as Record<string, unknown>).createdByEmail).toBeUndefined();
+  });
+});
+
+describe('shouldQueueDteRetry — which auto-issue outcomes get retried', () => {
+  it('queues a transient adapter failure (errorMessage present)', () => {
+    expect(shouldQueueDteRetry({ ok: false, errorMessage: 'bsale 503' })).toBe(true);
+  });
+
+  it("queues a credential outage (skipped: 'no-adapter')", () => {
+    expect(shouldQueueDteRetry({ ok: false, skipped: 'no-adapter' })).toBe(true);
+  });
+
+  it("queues a prod fail-closed outage (skipped: 'not-configured') — never lose a paid invoice's DTE", () => {
+    expect(shouldQueueDteRetry({ ok: false, skipped: 'not-configured' })).toBe(true);
+  });
+
+  it('never queues a successful emission', () => {
+    expect(shouldQueueDteRetry({ ok: true })).toBe(false);
+  });
+
+  it('never queues deliberate decisions (not failures)', () => {
+    for (const skipped of ['disabled', 'usd', 'invalid-status']) {
+      expect(shouldQueueDteRetry({ ok: false, skipped })).toBe(false);
+    }
   });
 });

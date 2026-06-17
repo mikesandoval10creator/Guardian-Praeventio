@@ -38,6 +38,11 @@ import {
   decideDteIssue,
   type DteIssueRequest,
 } from '../../../services/dte/dteAutoIssueOrchestrator.js';
+import {
+  buildDteQueueInvoicePayload,
+  enqueueDteIssueJob,
+  shouldQueueDteRetry,
+} from '../../../services/dte/dteIssueQueueStore.js';
 import { auditServerEvent } from '../../middleware/auditLog.js';
 import { sentryCapture } from './shared.js';
 
@@ -222,6 +227,10 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                   const payerInfo = (invoiceData?.payerInfo ?? {}) as DteIssueRequest['payerInfo'];
                   const planCode: string =
                     lineItems[0]?.tierId ?? invoiceData?.tierId ?? 'unknown';
+                  // One timestamp for the whole DTE flow (decision + queue
+                  // payload + re-hydrated invoice) so the audit trail stays
+                  // internally consistent across decision log and any retry.
+                  const paidAtIso = new Date().toISOString();
                   const decision = decideDteIssue({
                     paymentId,
                     tenantId: ownerUid,
@@ -229,7 +238,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                     amountClp: typeof status.amount === 'number' ? status.amount : 0,
                     planCode,
                     paymentGateway: 'khipu',
-                    paidAt: new Date().toISOString(),
+                    paidAt: paidAtIso,
                   });
                   logger.info('dte_autoissue_decision', {
                     source: 'khipu-ipn',
@@ -241,6 +250,16 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                     idempotencyKey: decision.idempotencyKey,
                   });
                   if (decision.shouldIssue && invoiceData) {
+                    // Mirror billing/invoices.ts mark-paid: a transient
+                    // Bsale/PSE failure or credential outage ('no-adapter' /
+                    // 'not-configured') is NOT silently lost — it persists to
+                    // dte_issue_queue for the cron drain to retry. Deliberate
+                    // skips ('disabled', 'usd', 'invalid-status') are NOT.
+                    const invoicePayload = buildDteQueueInvoicePayload(
+                      invoiceId,
+                      invoiceData,
+                      paidAtIso,
+                    );
                     try {
                       const { tryAutoIssueDte } = await import(
                         '../../../services/billing/invoice.js'
@@ -252,7 +271,7 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                         ...invoiceData,
                         id: invoiceId,
                         status: 'paid' as const,
-                        paidAt: new Date().toISOString(),
+                        paidAt: paidAtIso,
                       } as unknown as Invoice;
                       const issueResult = await tryAutoIssueDte(invoiceForDte);
                       logger.info('dte_autoissue_result', {
@@ -264,6 +283,19 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                         folio: issueResult.result?.folio ?? null,
                         errorMessage: issueResult.errorMessage ?? null,
                       });
+                      if (shouldQueueDteRetry(issueResult)) {
+                        const queued = await enqueueDteIssueJob(
+                          db,
+                          decision,
+                          invoicePayload,
+                          'khipu-ipn',
+                        );
+                        logger.warn('dte_autoissue_queued_for_retry', {
+                          source: 'khipu-ipn',
+                          invoiceId,
+                          queued,
+                        });
+                      }
                     } catch (issueErr) {
                       logger.error('dte_autoissue_invoke_failed', issueErr as Error, {
                         source: 'khipu-ipn',
@@ -273,6 +305,27 @@ export function registerKhipuRoutes(billingApiRouter: Router): void {
                         endpoint: 'billing.khipu.dteAutoIssue.invoke',
                         tags: { invoiceId },
                       });
+                      try {
+                        const queued = await enqueueDteIssueJob(
+                          db,
+                          decision,
+                          invoicePayload,
+                          'khipu-ipn',
+                        );
+                        logger.warn('dte_autoissue_queued_for_retry', {
+                          source: 'khipu-ipn',
+                          invoiceId,
+                          queued,
+                        });
+                      } catch (queueErr) {
+                        logger.error('dte_queue_enqueue_failed', queueErr as Error, {
+                          invoiceId,
+                        });
+                        sentryCapture(queueErr, {
+                          endpoint: 'billing.khipu.dteQueue',
+                          tags: { invoiceId },
+                        });
+                      }
                     }
                   }
                 }

@@ -108,6 +108,41 @@ export function buildDteQueueInvoicePayload(
 }
 
 /**
+ * Decide whether an `tryAutoIssueDte` outcome should be persisted to the
+ * retry queue. Shared by every payment rail (mark-paid, webpay, khipu, MP) so
+ * the "what gets retried" rule lives in ONE place and cannot drift between
+ * call sites.
+ *
+ * Queue ONLY transient/recoverable failures — i.e. infra/credential states
+ * that a later drain can clear:
+ *   • `errorMessage` present     → adapter threw / PSE outage → retry.
+ *   • `skipped: 'no-adapter'`    → Bsale credential not yet wired → retry.
+ *   • `skipped: 'not-configured'`→ prod fail-closed: DTE_AUTO_ISSUE=true but
+ *     `SII_PSE` not yet a real PSE (#869 anti-fake-DTE guard). The invoice is
+ *     paid; losing it would mean the worker never gets their boleta/factura.
+ *     Queue it so the drain retries once prod is properly configured — and if
+ *     it never is, the drain dead-letters it to `permanent_failure` (audited +
+ *     Sentry), a VISIBLE outcome rather than a silent loss.
+ *
+ * Never queue deliberate decisions: `disabled` (env gate off), `usd`
+ * (CLP-only by definition), `invalid-status` — those are not failures.
+ * The structural param accepts `AutoIssueDteResult` without importing it
+ * (avoids a route→service-layer type coupling).
+ */
+export function shouldQueueDteRetry(result: {
+  ok: boolean;
+  skipped?: string;
+  errorMessage?: string;
+}): boolean {
+  if (result.ok) return false;
+  return (
+    Boolean(result.errorMessage) ||
+    result.skipped === 'no-adapter' ||
+    result.skipped === 'not-configured'
+  );
+}
+
+/**
  * Persist a pending DTE issue job. Create-if-absent semantics:
  *
  *   • doc absent              → fresh `pending` entry (ready to drain now).
