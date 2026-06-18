@@ -21,6 +21,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { logAuditAction } from '../services/auditService';
+import { logger } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 
 /** Pure helper — clear-sky UV index based on latitude, day-of-year, time-of-day,
@@ -116,7 +117,7 @@ function SunTrackerInner() {
       setRecording('saved');
       setTimeout(() => setRecording('idle'), 2500);
     } catch (err) {
-      console.error('SunTracker recordExposure failed', err);
+      logger.error('SunTracker recordExposure failed', err);
       setRecording('idle');
     }
   };

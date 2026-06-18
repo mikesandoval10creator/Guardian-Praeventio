@@ -2365,7 +2365,7 @@
     "total_connections": "Conexões Totais",
     "network_factor": "Fator de Rede",
     "avg_per_node": "Média / Nó",
-    "capacity_note": "A rede neural está operando a <span class=\"font-black\">{{capacity}}%</span> de sua capacidade projetada. Cada nova conexão reduz a incerteza operacional em <span class=\"font-black\">2.4%</span>.",
+    "capacity_note": "A rede neural está operando a <b>{{capacity}}%</b> de sua capacidade projetada. Cada nova conexão reduz a incerteza operacional em <b>2.4%</b>.",
     "requires_connection": "Requer Conexão",
     "analyzing": "Analisando...",
     "analyze_network": "Analisar Rede Neural",

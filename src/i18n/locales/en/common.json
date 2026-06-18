@@ -2365,7 +2365,7 @@
     "total_connections": "Total Connections",
     "network_factor": "Network Factor",
     "avg_per_node": "Average / Node",
-    "capacity_note": "The neural network is operating at <span class=\"font-black\">{{capacity}}%</span> of its projected capacity. Each new connection reduces operational uncertainty by <span class=\"font-black\">2.4%</span>.",
+    "capacity_note": "The neural network is operating at <b>{{capacity}}%</b> of its projected capacity. Each new connection reduces operational uncertainty by <b>2.4%</b>.",
     "requires_connection": "Connection Required",
     "analyzing": "Analyzing...",
     "analyze_network": "Analyze Neural Network",

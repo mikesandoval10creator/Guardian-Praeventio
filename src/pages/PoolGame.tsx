@@ -25,6 +25,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { Card, Button } from '../components/shared/Card';
 import { logAuditAction } from '../services/auditService';
+import { logger } from '../utils/logger';
 import { mergeScoreDoc, gameScoreDocId, type GameScoreDoc } from '../components/games/gameScore';
 
 // 2D map: width/height units, obstacles, start, exit.
@@ -180,7 +181,7 @@ function PoolGameInner() {
       );
       setPhase('saved');
     } catch (err) {
-      console.error('PoolGame persist failed', err);
+      logger.error('PoolGame persist failed', err);
       setPhase('saved');
     }
   };
