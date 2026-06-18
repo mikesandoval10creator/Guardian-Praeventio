@@ -26,6 +26,16 @@ vi.mock('../../hooks/useGeolocationTracking', () => ({
   useGeolocationTracking: () => ({ isTracking: true, lastLocation: mockLastLocation() }),
 }));
 vi.mock('../../services/firebase', () => ({ auth: { currentUser: { tenantId: null } } }));
+// This suite isolates the REAL A*-over-twin routing; the rescue view of OTHER
+// workers (FirebaseContext role gate + useWorkerPings) is a separate concern
+// with its own coverage, so we stub both to keep the test Firebase-free and
+// deterministic. Default role = plain worker (canSeeOthers=false → no pings).
+vi.mock('../../contexts/FirebaseContext', () => ({
+  useFirebase: () => ({ isAdmin: false, userRole: 'worker' }),
+}));
+vi.mock('../../hooks/useWorkerPings', () => ({
+  useWorkerPings: () => ({ workers: [], loading: false, error: null, refetch: () => {} }),
+}));
 vi.mock('../../services/digitalTwin/siteGeometryStore', () => ({
   subscribeSiteGeometry: (
     _t: string,
