@@ -44,6 +44,8 @@ import { WeatherBulletin } from '../components/dashboard/WeatherBulletin';
 import { WeatherSafetyRecommendations } from '../components/WeatherSafetyRecommendations';
 import { SunTrackerContainer } from '../components/SunTrackerContainer';
 import { ComplianceCard } from '../components/dashboard/ComplianceCard';
+import { ComplianceTrafficLight } from '../components/compliance/ComplianceTrafficLight';
+import { useComplianceTrafficLight } from '../hooks/useComplianceTrafficLight';
 import { RubroBenchmarksCard } from '../components/dashboard/RubroBenchmarksCard';
 import { DashboardQuickActions } from '../components/dashboard/DashboardQuickActions';
 import { EPPRequiredWidget } from '../components/dashboard/EPPRequiredWidget';
@@ -56,6 +58,10 @@ import { PlannerModal } from '../components/dashboard/PlannerModal';
 export function Dashboard() {
   const { t } = useTranslation();
   const { selectedProject, projects } = useProject();
+  // F.2 compliance traffic light — REAL legal engine snapshot (server-computed).
+  const { result: complianceLight } = useComplianceTrafficLight(
+    selectedProject?.id ?? null,
+  );
   const { stats, completeChallenge } = useGamification();
   const { environment } = useUniversalKnowledge();
   const weather = environment?.weather;
@@ -243,6 +249,14 @@ export function Dashboard() {
 
       {/* Hero greeting + morning check-in trigger */}
       <DashboardHero onMorningCheckIn={() => setShowMorningCheckIn(true)} />
+
+      {/* F.2 compliance traffic light (compact). Real legal engine; renders
+          only once the snapshot is computed — never a fabricated placeholder. */}
+      {complianceLight && (
+        <div data-testid="compliance-traffic-light" className="flex">
+          <ComplianceTrafficLight result={complianceLight} variant="compact" />
+        </div>
+      )}
 
       {showMorningCheckIn && (
         <MorningCheckIn onComplete={handleMorningCheckInComplete} />

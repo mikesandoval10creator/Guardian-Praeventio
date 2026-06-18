@@ -1,4 +1,23 @@
 {
+  "compliance": {
+    "score": "Cumplimiento",
+    "title": "Semáforo Cumplimiento",
+    "noData": "Sin datos",
+    "coverage": "{{n}}/{{total}} cat.",
+    "aria": {
+      "full": "Semáforo de cumplimiento"
+    },
+    "cat": {
+      "legal": "Legal",
+      "documentation": "Documentación",
+      "training": "Capacitación",
+      "epp": "EPP",
+      "emergencies": "Emergencias",
+      "occupational_health": "Salud ocupacional",
+      "maintenance": "Mantenimiento",
+      "audits": "Auditorías"
+    }
+  },
   "zoneEntry": {
     "title": "Ingreso a Zonas Restringidas",
     "intro": "Consulta las zonas restringidas de tu faena y registra tu ingreso informado. Esta vista nunca bloquea tu acceso: te informa y deja constancia para que tu supervisor te acompañe.",

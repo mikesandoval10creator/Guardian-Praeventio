@@ -17,7 +17,6 @@
     "src/components/clientReporting/MonthlyClientReportPanel.tsx",
     "src/components/climateAware/ClimatePlanAdjustment.tsx",
     "src/components/coach/DomainPromptCatalog.tsx",
-    "src/components/compliance/ComplianceTrafficLight.tsx",
     "src/components/confidentialReports/ConfidentialReportInbox.tsx",
     "src/components/continuity/SpofPanel.tsx",
     "src/components/contractors/ContractorRankingTable.tsx",

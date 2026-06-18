@@ -57,6 +57,16 @@ import {
   getMostStrictRegime,
   strictestDeadlineDays,
 } from '../../services/privacy/registry.js';
+// F.2 compliance traffic light — REAL engine + coverage-aware honesty wrapper.
+import {
+  computeTrafficLight,
+  type ComplianceCategory,
+} from '../../services/compliance/trafficLightEngine.js';
+import { applyCoverage } from '../../services/compliance/trafficLightCoverage.js';
+import {
+  assertProjectMember,
+  ProjectMembershipError,
+} from '../../services/auth/projectMembership.js';
 
 const VALID_PURPOSES: ConsentPurpose[] = [
   'core_service',
@@ -515,6 +525,96 @@ router.post('/admin/data-request/:id/erase', verifyAuth, async (req, res) => {
       { callerUid, requestId },
     );
     captureRouteError(err, 'compliance.admin_erase', { callerUid, requestId });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// ── F.2 compliance traffic light ─────────────────────────────────────────
+//
+//   GET /api/compliance/:projectId/traffic-light
+//
+// Project-member-gated. Builds a REAL ProjectProfile from the stored project
+// doc and computes the deterministic legal-obligation traffic light via the
+// shared engine. Categories whose backing data is NOT yet wired
+// (documentation/training/epp/occupational_health/maintenance/audits/
+// emergencies) are returned as 'unknown' ("sin datos") — NEVER fabricated as
+// green — by `applyCoverage`. No Math.random, no synthetic items.
+
+const PROJECT_ID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
+
+// IndustryCode (free-text-derived, stored as `industry_code`) → GP-* sector the
+// legal rule engine matches on. Only sectors with a critical legal rule are
+// mapped; everything else falls through (workers-count rules still fire).
+const INDUSTRY_TO_SECTOR: Record<string, string> = {
+  mining: 'GP-MIN',
+  construction: 'GP-CONS',
+  energy: 'GP-ELEC',
+};
+
+function resolveSector(data: Record<string, unknown>): string | undefined {
+  if (typeof data.sectorId === 'string' && /^GP-/.test(data.sectorId)) {
+    return data.sectorId;
+  }
+  if (typeof data.industry_code === 'string' && INDUSTRY_TO_SECTOR[data.industry_code]) {
+    return INDUSTRY_TO_SECTOR[data.industry_code];
+  }
+  return undefined;
+}
+
+router.get('/:projectId/traffic-light', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  if (!PROJECT_ID_REGEX.test(projectId)) {
+    return res.status(400).json({ error: 'project_id_required' });
+  }
+
+  const db = admin.firestore();
+  try {
+    await assertProjectMember(callerUid, projectId, db);
+  } catch (err) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    throw err;
+  }
+
+  try {
+    const snap = await db.collection('projects').doc(projectId).get();
+    if (!snap.exists) {
+      return res.status(404).json({ error: 'project_not_found' });
+    }
+    const data = (snap.data() ?? {}) as Record<string, unknown>;
+
+    // REAL profile from stored project fields. Missing fields simply don't
+    // trigger their rules — honest, not fabricated.
+    const profile = {
+      workersCount: typeof data.workersCount === 'number' ? data.workersCount : 0,
+      industry: resolveSector(data),
+      presentRisks: Array.isArray(data.presentRisks)
+        ? data.presentRisks.filter((r): r is string => typeof r === 'string')
+        : undefined,
+      hasHazmat: typeof data.hasHazmat === 'boolean' ? data.hasHazmat : undefined,
+      hasSubcontractors:
+        typeof data.hasSubcontractors === 'boolean' ? data.hasSubcontractors : undefined,
+    };
+
+    // Only the legal category has a real data source wired today; the
+    // expirable/findings-driven categories stay 'sin datos' until their
+    // ETL lands. attendedLegalRuleIds is empty: the system has no record of
+    // attendance, so applicable critical obligations show as pending.
+    const engineResult = computeTrafficLight({
+      profile,
+      expirableItems: [],
+      attendedLegalRuleIds: [],
+      openFindings: [],
+    });
+    const sourced = new Set<ComplianceCategory>(['legal']);
+    const view = applyCoverage(engineResult, sourced);
+
+    return res.json({ result: view });
+  } catch (err) {
+    logger.error('compliance.traffic_light.error', err, { projectId, callerUid });
+    captureRouteError(err, 'compliance.trafficLight', { projectId, callerUid });
     return res.status(500).json({ error: 'internal_error' });
   }
 });
