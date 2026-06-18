@@ -114,6 +114,7 @@
     "cphs_draft": "CPHS Minutes",
     "critical_controls": "Critical Controls",
     "linea_de_fuego": "Line of Fire",
+    "iper_matrix": "IPER Matrix",
     "calculadora_pandeo": "Buckling Calculator",
     "carga_mental": "Mental Workload",
     "checklist_vehiculo": "Vehicle Pre-Op",
@@ -4266,6 +4267,10 @@
     }
   },
   "iper": {
+    "page": {
+      "title": "IPER 5x5 Matrix",
+      "subtitle": "Estimate the risk level (probability × severity) and the residual after applying controls. Guidance only — the team decides."
+    },
     "aria": "IPER 5x5 matrix",
     "controlHigh": "High",
     "controlLow": "Low",

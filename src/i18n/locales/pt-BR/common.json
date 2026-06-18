@@ -114,6 +114,7 @@
     "cphs_draft": "Ata do CPHS",
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Linha de Fogo",
+    "iper_matrix": "Matriz IPER",
     "calculadora_pandeo": "Calculadora de Flambagem",
     "carga_mental": "Carga Mental",
     "checklist_vehiculo": "Pré-Uso Veículo",
@@ -4266,6 +4267,10 @@
     }
   },
   "iper": {
+    "page": {
+      "title": "Matriz IPER 5x5",
+      "subtitle": "Estime o nível de risco (probabilidade × severidade) e o residual ao aplicar controles. É um guia — a decisão é da equipe."
+    },
     "aria": "Matriz IPER 5x5",
     "controlHigh": "Alta",
     "controlLow": "Baixa",
