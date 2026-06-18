@@ -58,6 +58,7 @@ import { ExpirationsListPanel } from '../components/expirations/ExpirationsListP
 import { useExpirableItems } from '../hooks/useExpirableItems';
 import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
 import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
+import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -331,6 +332,9 @@ export function Dashboard() {
 
       {/* Daily safety tip — industry-aware */}
       <AdviceBanner />
+
+      {/* ISO 45001:2018 baseline controls catalog */}
+      <Iso45001Catalog />
 
       {/* 4. Real-Time Status Widget */}
       <RealTimeStatusWidget />

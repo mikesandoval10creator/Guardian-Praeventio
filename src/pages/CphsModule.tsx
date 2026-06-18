@@ -22,6 +22,7 @@ import {
   DS54_MIN_PER_SIDE,
 } from '../services/cphs/types';
 import { RegulatoryCitation } from '../components/shared/RegulatoryCitation';
+import { CphsCommitteeStatusCard } from '../components/cphs/CphsCommitteeStatusCard';
 
 // ───────────────────────────────────────────────────────────────────────
 // Public exports (consumidos por los tests + por consumers externos del
@@ -359,9 +360,21 @@ export function CphsModule({
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const statusCommittee = useMemo(() => {
+    if (committees.length === 0) return null;
+    return committees.find((c) => c.status === 'active') ?? committees[0];
+  }, [committees]);
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <CphsRegulatoryHeader />
+
+      {statusCommittee && (
+        <CphsCommitteeStatusCard
+          committee={statusCommittee}
+          meetings={meetingsByCommittee[statusCommittee.id] ?? []}
+        />
+      )}
 
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight">
