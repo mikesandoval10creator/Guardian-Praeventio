@@ -36,6 +36,7 @@ const LoneWorkerMonitor = lazy(() => import('../pages/LoneWorkerMonitor').then(m
 // panel + useSif hook existed but had no consuming page (Inbox deep-linked to
 // /executive-dashboard as a stopgap).
 const SifPrecursors = lazy(() => import('../pages/SifPrecursors').then(module => ({ default: module.SifPrecursors })));
+const HazmatInventoryPage = lazy(() => import('../pages/HazmatInventoryPage').then(module => ({ default: module.HazmatInventoryPage })));
 
 export const EmergencyRoutes = [
   <Route key="emergency" path="emergency" element={<Emergency />} />,
@@ -46,6 +47,7 @@ export const EmergencyRoutes = [
   <Route key="volcanic-eruption" path="volcanic-eruption" element={<VolcanicEruptionMap />} />,
   <Route key="hazmat-map" path="hazmat-map" element={<HazmatMap />} />,
   <Route key="hazmat-storage" path="hazmat-storage" element={<HazmatStorage />} />,
+  <Route key="hazmat-inventory" path="hazmat-inventory" element={<HazmatInventoryPage />} />,
   <Route key="mountain-refuges" path="mountain-refuges" element={<MountainRefuges />} />,
   <Route key="national-parks" path="national-parks" element={<NationalParksEmergency />} />,
   <Route key="coastal-emergency" path="coastal-emergency" element={<CoastalEmergencyMap />} />,
