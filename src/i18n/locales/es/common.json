@@ -95,6 +95,7 @@
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Línea de Fuego",
     "calculadora_pandeo": "Calculadora de Pandeo",
+    "checklist_vehiculo": "Pre-Uso Vehículo",
     "cuadrillas": "Cuadrillas",
     "culture_pulse": "Cultura Preventiva",
     "data_confidence": "Confianza de Datos",
@@ -2821,6 +2822,11 @@
       "audit_trail_hint_prefix": "Para historial completo de paralizaciones finalizadas o canceladas, consultá ",
       "audit_trail_link": "Audit Trail"
     }
+  },
+  "checklistVehiculo": {
+    "title": "Checklist Pre-Uso de Vehículo",
+    "subtitle": "Verificación previa al uso de vehículos y maquinaria móvil. Es una guía — recomienda, no detiene la operación.",
+    "kind": "Tipo de vehículo"
   },
   "calcPandeo": {
     "title": "Calculadora de Pandeo (Euler)",
