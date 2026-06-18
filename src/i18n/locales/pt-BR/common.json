@@ -1,4 +1,13 @@
 {
+  "expirations": {
+    "aria": "Painel de vencimentos",
+    "title": "Vencimentos",
+    "scanned": "analisados",
+    "expired": "Vencidos",
+    "critical": "Críticos",
+    "warning": "Aviso",
+    "allOk": "Sem vencimentos próximos"
+  },
   "actionBalance": {
     "aria": "Balanço de ações corretivas",
     "title": "Balanço de ações",

@@ -1,4 +1,13 @@
 {
+  "expirations": {
+    "aria": "Expirations panel",
+    "title": "Expirations",
+    "scanned": "scanned",
+    "expired": "Expired",
+    "critical": "Critical",
+    "warning": "Warning",
+    "allOk": "No upcoming expirations"
+  },
   "actionBalance": {
     "aria": "Corrective action balance",
     "title": "Action balance",

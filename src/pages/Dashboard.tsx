@@ -54,10 +54,15 @@ import { DashboardHero } from '../components/dashboard/DashboardHero';
 import { AdviceBanner } from '../components/dashboard/AdviceBanner';
 import { ModuleGroupsGrid } from '../components/dashboard/ModuleGroupsGrid';
 import { PlannerModal } from '../components/dashboard/PlannerModal';
+import { ExpirationsListPanel } from '../components/expirations/ExpirationsListPanel';
+import { useExpirableItems } from '../hooks/useExpirableItems';
 
 export function Dashboard() {
   const { t } = useTranslation();
   const { selectedProject, projects } = useProject();
+  // B.9 expirations panel — REAL expirable items (server-assembled from project
+  // subcollections). Renders only when there is something to surface.
+  const { items: expirables } = useExpirableItems(selectedProject?.id ?? null);
   // F.2 compliance traffic light — REAL legal engine snapshot (server-computed).
   const { result: complianceLight } = useComplianceTrafficLight(
     selectedProject?.id ?? null,
@@ -264,6 +269,10 @@ export function Dashboard() {
 
       {/* Predictive alerts (renders nothing when no alerts) */}
       <PredictiveAlertWidget />
+
+      {/* B.9 expirations — real expirable items; shown only when there are
+          items to surface (no false "all clear" on empty/error). */}
+      {expirables.length > 0 && <ExpirationsListPanel items={expirables} />}
 
       {/* Quick Actions */}
       <DashboardQuickActions
