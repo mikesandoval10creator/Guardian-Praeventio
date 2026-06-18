@@ -1,4 +1,25 @@
 {
+  "maintenance": {
+    "loading": "Carregando tarefas…",
+    "errorTitle": "Não foi possível carregar as tarefas",
+    "listTitle": "Tarefas de manutenção",
+    "currentHours": "Horas atuais",
+    "empty": "Sem tarefas pendentes.",
+    "taskTitle": "Ciclo {{cycle}}h · múltiplo {{multi}}",
+    "dueAt": "Vence",
+    "triggeredAt": "Disparada em {{h}}h",
+    "statusLabel": "Status",
+    "completeCta": "Fechar tarefa com assinatura",
+    "page": {
+      "title": "Manutenção Preventiva",
+      "subtitle": "Tarefas de manutenção por equipamento, disparadas por limites de horímetro. É um guia — a decisão é da equipe.",
+      "selectProject": "Selecione um projeto para ver a manutenção dos seus equipamentos.",
+      "equipmentLabel": "Equipamento",
+      "selectEquipment": "— Selecione um equipamento —",
+      "noEquipment": "Nenhum equipamento registrado neste projeto.",
+      "selectPrompt": "Selecione um equipamento para ver suas tarefas de manutenção."
+    }
+  },
   "zoneEntry": {
     "title": "Entrada em Zonas Restritas",
     "intro": "Consulte as zonas restritas da sua obra e registre sua entrada informada. Esta tela nunca bloqueia seu acesso: ela informa e deixa registro para que seu supervisor possa acompanhar.",
@@ -95,6 +116,7 @@
     "cphs_draft": "Ata do CPHS",
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Linha de Fogo",
+    "maintenance_preventive": "Manutenção",
     "calculadora_pandeo": "Calculadora de Flambagem",
     "checklist_vehiculo": "Pré-Uso Veículo",
     "cuadrillas": "Equipes de Campo",

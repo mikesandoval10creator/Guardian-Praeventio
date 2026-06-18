@@ -168,6 +168,8 @@ export function buildSidebarMenuGroups(
     { title: t('nav.residual_risk', 'Riesgo Residual'), icon: AlertOctagon, path: '/residual-risk', color: 'text-rose-500' },
     // Sprint K §90-91 — Calidad de Proveedores + Ranking de Riesgo.
     { title: t('nav.suppliers', 'Proveedores'), icon: Truck, path: '/suppliers', color: 'text-blue-500' },
+    // Mantenimiento preventivo (horómetro) — mounts the orphan MaintenanceTaskList.
+    { title: t('nav.maintenance_preventive', 'Mantenimiento'), icon: Wrench, path: '/mantenimiento-preventivo', color: 'text-teal-500' },
     // Sprint K §214-215 — Observaciones Positivas + Balance.
     { title: t('nav.positive_observations', 'Observaciones Positivas'), icon: Award, path: '/positive-observations', color: 'text-teal-500' },
     // Sprint 42 Fase F.6 — Modo Sin Señal para Inspecciones.

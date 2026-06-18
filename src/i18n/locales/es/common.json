@@ -1,4 +1,25 @@
 {
+  "maintenance": {
+    "loading": "Cargando tareas…",
+    "errorTitle": "No pudimos cargar las tareas",
+    "listTitle": "Tareas de mantención",
+    "currentHours": "Horas actuales",
+    "empty": "Sin tareas pendientes.",
+    "taskTitle": "Ciclo {{cycle}}h · múltiplo {{multi}}",
+    "dueAt": "Vence",
+    "triggeredAt": "Gatillada a {{h}}h",
+    "statusLabel": "Estado",
+    "completeCta": "Cerrar tarea con firma",
+    "page": {
+      "title": "Mantenimiento Preventivo",
+      "subtitle": "Tareas de mantención por equipo, gatilladas por umbrales de horómetro. Es una guía — la decisión es del equipo.",
+      "selectProject": "Selecciona un proyecto para ver el mantenimiento de sus equipos.",
+      "equipmentLabel": "Equipo",
+      "selectEquipment": "— Selecciona un equipo —",
+      "noEquipment": "No hay equipos registrados en este proyecto.",
+      "selectPrompt": "Selecciona un equipo para ver sus tareas de mantención."
+    }
+  },
   "zoneEntry": {
     "title": "Ingreso a Zonas Restringidas",
     "intro": "Consulta las zonas restringidas de tu faena y registra tu ingreso informado. Esta vista nunca bloquea tu acceso: te informa y deja constancia para que tu supervisor te acompañe.",
@@ -95,6 +116,7 @@
     "cphs_draft": "Minuta CPHS",
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Línea de Fuego",
+    "maintenance_preventive": "Mantenimiento",
     "calculadora_pandeo": "Calculadora de Pandeo",
     "checklist_vehiculo": "Pre-Uso Vehículo",
     "cuadrillas": "Cuadrillas",
