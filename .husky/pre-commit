@@ -3,5 +3,6 @@ node scripts/precommit-medical-guard.cjs
 node scripts/check-convention-guard.cjs
 node scripts/validate-i18n.cjs
 node scripts/check-any-ratchet.cjs
+node scripts/check-connectivity-ratchet.cjs
 node scripts/precommit-stub-guard.cjs
 node scripts/precommit-allowbackup-guard.cjs
