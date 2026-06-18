@@ -4134,6 +4134,13 @@
       "title": "Mapa de Calor de Hallazgos"
     }
   },
+  "hazmatInventory": {
+    "page": {
+      "title": "Inventario HAZMAT",
+      "subtitle": "DS 43/2016 — Control de sustancias peligrosas con validación de compatibilidad.",
+      "selectProject": "Selecciona un proyecto para gestionar el inventario de sustancias peligrosas."
+    }
+  },
   "hazmat": {
     "addBtn": "Agregar sustancia",
     "addTitle": "Agregar sustancia",
