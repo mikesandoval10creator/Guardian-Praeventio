@@ -2,6 +2,7 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useCallback,
@@ -236,15 +237,18 @@ export function AppModeProvider({ children }: { children: ReactNode }): React.Re
     persist({ mode: 'normal', appearance });
   }, [appearance]);
 
-  const value: AppModeContextValue = {
-    mode,
-    appearance,
-    setMode,
-    setAppearance,
-    emergencyAutoExpiresAt,
-    emergencyAutoEvent,
-    dismissEmergency,
-  };
+  const value = useMemo<AppModeContextValue>(
+    () => ({
+      mode,
+      appearance,
+      setMode,
+      setAppearance,
+      emergencyAutoExpiresAt,
+      emergencyAutoEvent,
+      dismissEmergency,
+    }),
+    [mode, appearance, setMode, setAppearance, emergencyAutoExpiresAt, emergencyAutoEvent, dismissEmergency],
+  );
 
   return <AppModeContext.Provider value={value}>{children}</AppModeContext.Provider>;
 }
