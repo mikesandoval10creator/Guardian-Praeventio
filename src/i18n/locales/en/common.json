@@ -1,4 +1,13 @@
 {
+  "expirations": {
+    "aria": "Expirations panel",
+    "title": "Expirations",
+    "scanned": "scanned",
+    "expired": "Expired",
+    "critical": "Critical",
+    "warning": "Warning",
+    "allOk": "No upcoming expirations"
+  },
   "zoneEntry": {
     "title": "Restricted Zone Entry",
     "intro": "Review your site's restricted zones and log your informed entry. This view never blocks your access: it informs you and leaves a record so your supervisor can follow up.",

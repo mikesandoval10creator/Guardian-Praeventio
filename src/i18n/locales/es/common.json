@@ -1,4 +1,13 @@
 {
+  "expirations": {
+    "aria": "Panel de vencimientos",
+    "title": "Vencimientos",
+    "scanned": "analizados",
+    "expired": "Vencidos",
+    "critical": "Críticos",
+    "warning": "Advertencia",
+    "allOk": "Sin vencimientos próximos"
+  },
   "zoneEntry": {
     "title": "Ingreso a Zonas Restringidas",
     "intro": "Consulta las zonas restringidas de tu faena y registra tu ingreso informado. Esta vista nunca bloquea tu acceso: te informa y deja constancia para que tu supervisor te acompañe.",
