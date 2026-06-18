@@ -95,6 +95,7 @@
     "cphs_draft": "Minuta CPHS",
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Línea de Fuego",
+    "iper_matrix": "Matriz IPER",
     "calculadora_pandeo": "Calculadora de Pandeo",
     "checklist_vehiculo": "Pre-Uso Vehículo",
     "cuadrillas": "Cuadrillas",
@@ -4196,6 +4197,10 @@
     }
   },
   "iper": {
+    "page": {
+      "title": "Matriz IPER 5x5",
+      "subtitle": "Estima el nivel de riesgo (probabilidad × severidad) y el residual al aplicar controles. Es una guía — la decisión es del equipo."
+    },
     "aria": "Matriz IPER 5x5",
     "controlHigh": "Alta",
     "controlLow": "Baja",

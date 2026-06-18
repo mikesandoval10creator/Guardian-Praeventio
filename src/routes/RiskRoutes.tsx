@@ -24,6 +24,8 @@ const LineaDeFuego = lazy(() => import('../pages/LineaDeFuego').then(module => (
 const CalculadoraPandeo = lazy(() => import('../pages/CalculadoraPandeo').then(module => ({ default: module.CalculadoraPandeo })));
 // Checklist pre-uso de vehículo — mounts the orphan VehiclePreOpChecklistCard over validatePreOpChecklist.
 const ChecklistVehiculo = lazy(() => import('../pages/ChecklistVehiculo').then(module => ({ default: module.ChecklistVehiculo })));
+// Matriz IPER 5x5 — mounts the orphan IperMatrixCard over the real calculateIper engine.
+const MatrizIper = lazy(() => import('../pages/MatrizIper').then(module => ({ default: module.MatrizIper })));
 
 export const RiskRoutes = [
   <Route key="risks" path="risks" element={<Risks />} />,
@@ -42,4 +44,5 @@ export const RiskRoutes = [
   <Route key="linea-de-fuego" path="linea-de-fuego" element={<LineaDeFuego />} />,
   <Route key="calculadora-pandeo" path="calculadora-pandeo" element={<CalculadoraPandeo />} />,
   <Route key="checklist-vehiculo" path="checklist-vehiculo" element={<ChecklistVehiculo />} />,
+  <Route key="matriz-iper" path="matriz-iper" element={<MatrizIper />} />,
 ];
