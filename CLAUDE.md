@@ -205,6 +205,19 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
     that file is referenced there. Avoids the doc drift that produced
     "geminiBackend.ts 2666 LOC" in ARCHITECTURE.md when the real number
     was 2923.
+21. **Connectivity ratchet.** A component/hook/page built but never
+    mounted/routed (its exported `PascalCase`/`use*` symbol is unreferenced by
+    any non-test `src/` file) is an ORPHAN — built work that isn't real because
+    it isn't connected. The count of orphans may only SHRINK: a NEW orphan
+    fails the gate (wire it into a page, or justify + regenerate). Enforced by
+    `scripts/check-connectivity-ratchet.cjs` (baseline
+    `scripts/connectivity-ratchet-baseline.json`) — `npm run lint:connectivity`,
+    the husky pre-commit hook, and the CI vitest gate
+    `src/__tests__/scripts/connectivityRatchet.test.ts`. When you connect a
+    baselined orphan, regenerate with
+    `node scripts/check-connectivity-ratchet.cjs --write` so the debt can't be
+    re-grown. Heuristic (no TS resolver): tolerates a stable set of false
+    positives (lazy routes / barrels / util modules) kept in the baseline.
 
 ## Testing notes specific to this repo
 
