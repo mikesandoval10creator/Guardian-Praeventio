@@ -34,6 +34,7 @@ const CealSmResponder = lazy(() => import('../pages/CealSmResponder').then(modul
 // treatment (engine src/services/protocols/planesi.ts, verified DS 594
 // Art. 66 + protocolo sílice MINSAL Res. Ex. 268/2015).
 const PlanesiEvaluation = lazy(() => import('../pages/PlanesiEvaluation').then(module => ({ default: module.PlanesiEvaluation })));
+const WasteInventoryPage = lazy(() => import('../pages/WasteInventoryPage').then(module => ({ default: module.WasteInventoryPage })));
 
 export const HealthRoutes = [
   <Route key="hygiene" path="hygiene" element={<Hygiene />} />,
@@ -50,4 +51,5 @@ export const HealthRoutes = [
   <Route key="ceal-sm" path="ceal-sm" element={<CealSmCampaigns />} />,
   <Route key="ceal-sm-responder" path="ceal-sm/responder" element={<CealSmResponder />} />,
   <Route key="planesi" path="planesi" element={<PlanesiEvaluation />} />,
+  <Route key="waste-inventory" path="waste-inventory" element={<WasteInventoryPage />} />,
 ];
