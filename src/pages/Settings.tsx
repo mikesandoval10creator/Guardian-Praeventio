@@ -861,7 +861,7 @@ export function Settings() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+    <div data-testid="settings-page" className="p-4 sm:p-6 max-w-4xl mx-auto">
       <div className="mb-6 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">{t('settings.title', 'Configuración')}</h1>
         <p className="text-zinc-600 dark:text-zinc-400 mt-1 text-xs sm:text-sm">{t('settings.subtitle', 'Personaliza tu experiencia en Praeventio Guard')}</p>

@@ -152,4 +152,62 @@ router.post(
   },
 );
 
+// ────────────────────────────────────────────────────────────────────────
+// 3. list — assemble REAL expirable items from project subcollections
+// ────────────────────────────────────────────────────────────────────────
+//
+//   GET /:projectId/expirations/list
+//   200: { items: ExpirableItem[] }
+//
+// Member-gated. Today only EPP assignments (`projects/{id}/epp_assignments`,
+// with a confirmed real `expiresAt` — see jobs/checkExpiredPpe.ts) are wired.
+// Documents / trainings / occupational exams join as their expiry schema is
+// confirmed. No fabricated dates, no Math.random — items without a real
+// `expiresAt` are skipped (the scanner ignores them anyway).
+
+const EPP_SCAN_LIMIT = 500;
+
+router.get('/:projectId/expirations/list', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  if (!projectId) return res.status(400).json({ error: 'project_id_required' });
+  if (!(await guard(callerUid, projectId, res))) return undefined;
+
+  try {
+    const db = admin.firestore();
+    const eppSnap = await db
+      .collection('projects')
+      .doc(projectId)
+      .collection('epp_assignments')
+      .limit(EPP_SCAN_LIMIT)
+      .get();
+
+    const items: ExpirableItem[] = [];
+    for (const doc of eppSnap.docs) {
+      const a = doc.data() as {
+        eppItemName?: unknown;
+        expiresAt?: unknown;
+        status?: unknown;
+        workerId?: unknown;
+      };
+      if (typeof a.expiresAt !== 'string' || a.expiresAt.length === 0) continue;
+      items.push({
+        id: doc.id,
+        kind: 'epp',
+        expiresAt: a.expiresAt,
+        label: typeof a.eppItemName === 'string' ? a.eppItemName : 'EPP',
+        status: typeof a.status === 'string' ? a.status : undefined,
+        ownerId: typeof a.workerId === 'string' ? a.workerId : undefined,
+        projectId,
+      });
+    }
+
+    return res.json({ items });
+  } catch (err) {
+    logger.error('expirations.list.error', err, { projectId, callerUid });
+    captureRouteError(err, 'expirations.list', { projectId, callerUid });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 export default router;

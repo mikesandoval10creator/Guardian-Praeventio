@@ -224,6 +224,8 @@ export function buildSidebarMenuGroups(
     { title: t('nav.calculadora_pandeo', 'Calculadora de Pandeo'), icon: Construction, path: '/calculadora-pandeo', color: 'text-amber-500' },
     // Checklist pre-uso de vehículo — mounts the orphan VehiclePreOpChecklistCard.
     { title: t('nav.checklist_vehiculo', 'Pre-Uso Vehículo'), icon: Truck, path: '/checklist-vehiculo', color: 'text-sky-500' },
+    // Matriz IPER 5x5 — mounts the orphan IperMatrixCard over the real calculateIper engine.
+    { title: t('nav.iper_matrix', 'Matriz IPER'), icon: LayoutGrid, path: '/matriz-iper', color: 'text-violet-500' },
     // Auditoría 5S — mounts the orphan FiveSAuditForm over the real buildFiveSAuditReport engine.
     { title: t('nav.five_s_audit', 'Auditoría 5S'), icon: ClipboardList, path: '/auditoria-5s', color: 'text-emerald-500' },
     // Sprint K vidas críticas wire (2026-05-22) — Causa raíz no-blame.
@@ -353,6 +355,8 @@ export function buildSidebarMenuGroups(
         { title: t('nav.planesi', 'PLANESI Sílice'), icon: Wind, path: '/planesi', color: 'text-orange-400' },
         // Sprint K vidas críticas wire — Monitor de Fatiga.
         { title: t('nav.fatigue', 'Monitor de Fatiga'), icon: Moon, path: '/fatigue', color: 'text-violet-500' },
+        // Carga mental (NASA-TLX) — autoevaluación on-device (mounts the orphan MentalLoadSurveyForm).
+        { title: t('nav.carga_mental', 'Carga Mental'), icon: Brain, path: '/carga-mental', color: 'text-emerald-500' },
       ],
     },
     {

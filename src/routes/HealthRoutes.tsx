@@ -14,6 +14,10 @@ const SunTracker = lazy(() => import('../pages/SunTracker').then(module => ({ de
 // pero el componente no estaba wireado a ninguna page. Esta route cierra
 // el gap. Anonymous-friendly (idb-keyval); login para sync entre devices.
 const FatigueMonitor = lazy(() => import('../pages/FatigueMonitor').then(module => ({ default: module.FatigueMonitor })));
+// Carga mental (NASA-TLX) — on-device workload self-assessment over the real
+// scoreMentalLoad engine (mounts the orphan MentalLoadSurveyForm). Wellbeing/
+// ergonomics domain, alongside FatigueMonitor. No login, nothing persisted.
+const CargaMental = lazy(() => import('../pages/CargaMental').then(module => ({ default: module.CargaMental })));
 // B-protocols (2026-06-11) — TMERT-EESS + PREXOR get their own UI. The pure
 // engines under src/services/protocols/ were "invisible": HTTP compute routes
 // existed but no persistence/UI. These pages close the gap (form → server
@@ -40,6 +44,7 @@ export const HealthRoutes = [
   <Route key="human-body" path="human-body" element={<HumanBodyViewer />} />,
   <Route key="sun-tracker" path="sun-tracker" element={<SunTracker />} />,
   <Route key="fatigue" path="fatigue" element={<FatigueMonitor />} />,
+  <Route key="carga-mental" path="carga-mental" element={<CargaMental />} />,
   <Route key="tmert" path="tmert" element={<TmertEvaluation />} />,
   <Route key="prexor" path="prexor" element={<PrexorEvaluation />} />,
   <Route key="ceal-sm" path="ceal-sm" element={<CealSmCampaigns />} />,

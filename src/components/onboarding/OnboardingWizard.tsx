@@ -540,7 +540,7 @@ function IndustryStep({
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-4">¿Cuál es tu industria?</h2>
+      <h2 className="text-lg font-semibold mb-4">{t('onboarding.industry.title', '¿Cuál es tu industria?')}</h2>
 
       {/* SII autocomplete — picks the rubro and auto-selects the vertical. */}
       <label className="block text-sm text-slate-300 mb-1" htmlFor="sii-search-input">
@@ -686,9 +686,10 @@ function CountriesStep({
   value: CountryCode[];
   onToggle: (code: CountryCode) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-4">¿En qué países operas?</h2>
+      <h2 className="text-lg font-semibold mb-4">{t('onboarding.countries.title', '¿En qué países operas?')}</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {COUNTRIES.map((c) => {
           const selected = value.includes(c.code);
@@ -724,19 +725,20 @@ function TierStep({
   value: TierId | null;
   onChange: (id: TierId) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-4">Elige tu plan</h2>
+      <h2 className="text-lg font-semibold mb-4">{t('onboarding.plan.title', 'Elige tu plan')}</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {TIERS.map((t) => {
-          const selected = value === t.id;
-          const popular = t.id === POPULAR_TIER;
+        {TIERS.map((tier) => {
+          const selected = value === tier.id;
+          const popular = tier.id === POPULAR_TIER;
           return (
             <button
-              key={t.id}
+              key={tier.id}
               type="button"
-              onClick={() => onChange(t.id)}
-              data-testid={`tier-${t.id}`}
+              onClick={() => onChange(tier.id)}
+              data-testid={`tier-${tier.id}`}
               className={`relative text-left px-4 py-4 rounded-lg border transition-colors ${
                 selected
                   ? 'bg-teal-600/20 border-teal-400'
@@ -750,25 +752,25 @@ function TierStep({
                   data-testid="popular-badge"
                   className="absolute -top-2 right-3 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500 text-slate-900 flex items-center gap-1"
                 >
-                  <Sparkles size={10} /> Most popular
+                  <Sparkles size={10} /> {t('onboarding.plan.mostPopular', 'Más popular')}
                 </span>
               )}
-              <div className="font-semibold">{t.nombre}</div>
+              <div className="font-semibold">{tier.nombre}</div>
               <div className="text-2xl font-bold mt-2">
-                {t.clpRegular === 0 ? 'Gratis' : formatCurrency(t.clpRegular, 'CLP')}
-                {t.clpRegular > 0 && (
-                  <span className="text-xs font-normal text-slate-400">/mes</span>
+                {tier.clpRegular === 0 ? t('onboarding.plan.free', 'Gratis') : formatCurrency(tier.clpRegular, 'CLP')}
+                {tier.clpRegular > 0 && (
+                  <span className="text-xs font-normal text-slate-400">{t('onboarding.plan.perMonth', '/mes')}</span>
                 )}
               </div>
               <div className="text-xs text-slate-400 mt-2">
-                {t.trabajadoresMax >= 999_999
-                  ? 'Trabajadores ilimitados'
-                  : `Hasta ${t.trabajadoresMax} trabajadores`}
+                {tier.trabajadoresMax >= 999_999
+                  ? t('onboarding.plan.unlimitedWorkers', 'Trabajadores ilimitados')
+                  : t('onboarding.plan.upToWorkers', 'Hasta {{count}} trabajadores', { count: tier.trabajadoresMax })}
               </div>
               <div className="text-xs text-slate-400">
-                {t.proyectosMax >= 999_999
-                  ? 'Proyectos ilimitados'
-                  : `Hasta ${t.proyectosMax} proyectos`}
+                {tier.proyectosMax >= 999_999
+                  ? t('onboarding.plan.unlimitedProjects', 'Proyectos ilimitados')
+                  : t('onboarding.plan.upToProjects', 'Hasta {{count}} proyectos', { count: tier.proyectosMax })}
               </div>
             </button>
           );
@@ -789,16 +791,17 @@ function TeamStep({
   onCsvUpload: (file: File) => Promise<void> | void;
   parsed: string[];
 }) {
+  const { t } = useTranslation();
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-2">Invita a tu equipo</h2>
+      <h2 className="text-lg font-semibold mb-2">{t('onboarding.team.title', 'Invita a tu equipo')}</h2>
       <p className="text-slate-400 text-sm mb-3">
-        Opcional. Pega emails separados por coma o sube un CSV.
+        {t('onboarding.team.help', 'Opcional. Pega emails separados por coma o sube un CSV.')}
       </p>
       <textarea
         value={raw}
         onChange={(e) => onRawChange(e.target.value)}
-        placeholder="ana@empresa.cl, jorge@empresa.cl, …"
+        placeholder={t('onboarding.team.emailsPlaceholder', 'ana@empresa.cl, jorge@empresa.cl, …')}
         rows={4}
         data-testid="emails-textarea"
         className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:border-teal-500 focus:outline-none"
@@ -808,7 +811,7 @@ function TeamStep({
           className="flex items-center gap-2 cursor-pointer text-teal-400 hover:text-teal-300"
           data-testid="csv-upload-label"
         >
-          <Upload size={14} /> Subir CSV
+          <Upload size={14} /> {t('onboarding.team.uploadCsv', 'Subir CSV')}
           <input
             type="file"
             accept=".csv,text/csv,text/plain"
@@ -821,8 +824,9 @@ function TeamStep({
           />
         </label>
         <span data-testid="emails-count" className="text-slate-400">
-          {parsed.length} email{parsed.length === 1 ? '' : 's'} válido
-          {parsed.length === 1 ? '' : 's'}
+          {parsed.length === 1
+            ? t('onboarding.team.emailValidOne', '{{count}} email válido', { count: parsed.length })
+            : t('onboarding.team.emailsValidOther', '{{count}} emails válidos', { count: parsed.length })}
         </span>
       </div>
     </div>
@@ -842,28 +846,29 @@ function ProjectStep({
   onCsvChange: (csv: string | null) => void;
   sectorId: string | null;
 }) {
+  const { t } = useTranslation();
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-4">Tu primer proyecto</h2>
-      <label className="block text-sm text-slate-300 mb-1">Nombre del proyecto</label>
+      <h2 className="text-lg font-semibold mb-4">{t('onboarding.project.title', 'Tu primer proyecto')}</h2>
+      <label className="block text-sm text-slate-300 mb-1">{t('onboarding.project.nameLabel', 'Nombre del proyecto')}</label>
       <input
         type="text"
         value={name}
         onChange={(e) => onNameChange(e.target.value)}
-        placeholder="Faena Norte 2026"
+        placeholder={t('onboarding.project.namePlaceholder', 'Faena Norte 2026')}
         data-testid="project-name-input"
         className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:border-teal-500 focus:outline-none"
       />
 
       <label className="block text-sm text-slate-300 mt-4 mb-1">
-        Importar trabajadores (CSV opcional)
+        {t('onboarding.project.importWorkers', 'Importar trabajadores (CSV opcional)')}
       </label>
       <div className="flex items-center gap-3">
         <label
           className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:border-teal-500 text-sm cursor-pointer flex items-center gap-2"
           data-testid="workers-csv-label"
         >
-          <Upload size={14} /> {workersCsv ? 'Reemplazar CSV' : 'Subir CSV'}
+          <Upload size={14} /> {workersCsv ? t('onboarding.project.replaceCsv', 'Reemplazar CSV') : t('onboarding.project.uploadCsv', 'Subir CSV')}
           <input
             type="file"
             accept=".csv,text/csv"
@@ -885,11 +890,11 @@ function ProjectStep({
             data-testid="workers-csv-clear"
             className="text-xs text-slate-400 hover:text-slate-200 underline"
           >
-            Quitar
+            {t('onboarding.project.remove', 'Quitar')}
           </button>
         )}
         <span className="text-xs text-slate-500">
-          Puedes saltarte este paso e importar después.
+          {t('onboarding.project.skipHint', 'Puedes saltarte este paso e importar después.')}
         </span>
       </div>
 
