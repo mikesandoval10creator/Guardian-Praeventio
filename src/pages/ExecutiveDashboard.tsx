@@ -137,6 +137,23 @@ export function ExecutiveDashboard() {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const recentIncidents = allIncidents.filter(n => new Date(n.createdAt) >= thirtyDaysAgo);
 
+  // Real 30d-vs-prior-30d incident trend. The KPI arrow used to be a
+  // presence-check (`recentIncidents.length > 0 ? 'up' : 'down'`) — it implied
+  // a temporal direction it never computed. Now the arrow reflects an actual
+  // period-over-period change: more incidents than the previous 30 days = 'up'
+  // (worse, rose), fewer = 'down' (better, emerald), equal = no arrow.
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+  const priorIncidents = allIncidents.filter(n => {
+    const d = new Date(n.createdAt);
+    return d >= sixtyDaysAgo && d < thirtyDaysAgo;
+  }).length;
+  const incidentTrendDirection: 'up' | 'down' | null =
+    recentIncidents.length > priorIncidents
+      ? 'up'
+      : recentIncidents.length < priorIncidents
+        ? 'down'
+        : null;
+
   const totalWorkers = projects.reduce((acc, p) => acc + (p.workersCount ?? 0), 0);
   const avgCompliance = projects.length > 0
     ? Math.round(projects.reduce((acc, p) => acc + calculateCompliance(p, nodes), 0) / projects.length)
@@ -286,8 +303,9 @@ export function ExecutiveDashboard() {
           {[
             { label: 'Proyectos Activos', value: projects.length, icon: Briefcase, color: 'text-blue-500', bg: 'bg-blue-500/10 border-blue-500/20', trend: null },
             { label: 'Trabajadores', value: totalWorkers || projects.length, icon: Users, color: 'text-emerald-500', bg: 'bg-emerald-500/10 border-emerald-500/20', trend: null },
-            { label: 'Incidentes (30 días)', value: recentIncidents.length, icon: AlertTriangle, color: 'text-rose-500', bg: 'bg-rose-500/10 border-rose-500/20', trend: recentIncidents.length > 0 ? 'up' : 'down' },
-            { label: 'Cumplimiento Prom.', value: `${avgCompliance}%`, icon: ShieldCheck, color: 'text-violet-500', bg: 'bg-violet-500/10 border-violet-500/20', trend: avgCompliance >= 70 ? 'down' : 'up' },
+            { label: 'Incidentes (30 días)', value: recentIncidents.length, icon: AlertTriangle, color: 'text-rose-500', bg: 'bg-rose-500/10 border-rose-500/20', trend: incidentTrendDirection },
+            // No stored historical compliance snapshot to compute a real trend from — show the value only.
+            { label: 'Cumplimiento Prom.', value: `${avgCompliance}%`, icon: ShieldCheck, color: 'text-violet-500', bg: 'bg-violet-500/10 border-violet-500/20', trend: null },
           ].map((kpi, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
               className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5"
