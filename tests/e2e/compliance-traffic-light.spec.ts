@@ -6,16 +6,26 @@ import { seedProject } from './fixtures/seed';
  * Sprint A1 — compliance traffic light backend (mounted in the Dashboard header
  * via `data-testid="compliance-traffic-light"`).
  *
- * This exercises the REAL wire end-to-end through the Express server +
- * Firestore emulator: HTTP auth (E2E header) → assertProjectMember → real
+ * Exercises the REAL wire end-to-end through the Express server + Firestore
+ * emulator: HTTP auth (E2E header) → assertProjectMember → real
  * `computeTrafficLight` engine → coverage-aware honesty wrapper. It targets the
- * endpoint directly (not the React render) so it does not depend on the
+ * API server DIRECTLY (not the React render) so it does not depend on the
  * ProjectContext selecting a project in the harness — a known limitation that
  * fixme'd the SOS/process specs. The `data-testid` mount stays in the component
  * for a future UI-level spec once that harness gap is closed.
  *
- * Gated by E2E_FULL_STACK=1 (needs Express + Firestore emulator + E2E_TEST_SECRET).
+ * NOTE on URLs: Playwright's `baseURL` is the static preview (:4173), which
+ * serves the SPA history-fallback (HTML) for `/api/*`. The Express API lives on
+ * :3000 (see playwright.config webServer), so we hit it with an ABSOLUTE URL.
+ * The E2E secret is the deterministic value the config's Express command pins.
+ *
+ * Gated by E2E_FULL_STACK=1 (needs Express + Firestore emulator).
  */
+const API_BASE = process.env.E2E_API_URL ?? 'http://localhost:3000';
+// Must match the secret the playwright.config Express command pins (cross-env),
+// which overrides any job env for that subprocess.
+const E2E_SECRET = 'e2e-test-secret-do-not-use-in-prod';
+
 interface CategoryView {
   category: string;
   light: 'green' | 'yellow' | 'red' | 'unknown';
@@ -31,14 +41,13 @@ interface TrafficLightResult {
 test.describe('Compliance traffic light endpoint', () => {
   test('returns a real coverage-aware snapshot (legal sourced, rest sin datos)', async ({ request }) => {
     test.skip(process.env.E2E_FULL_STACK !== '1', 'Requires full E2E stack. Run `npm run test:e2e:full`.');
-    const secret = process.env.E2E_TEST_SECRET;
-    test.skip(!secret, 'E2E_TEST_SECRET not set');
 
     const seed = await seedProject();
     try {
-      const res = await request.get(`/api/compliance/${seed.projectId}/traffic-light`, {
-        headers: { Authorization: buildE2EAuthHeader(secret as string, DEFAULT_TEST_USER.uid) },
-      });
+      const res = await request.get(
+        `${API_BASE}/api/compliance/${seed.projectId}/traffic-light`,
+        { headers: { Authorization: buildE2EAuthHeader(E2E_SECRET, DEFAULT_TEST_USER.uid) } },
+      );
       expect(res.ok()).toBeTruthy();
 
       const body = (await res.json()) as { result: TrafficLightResult };
@@ -64,14 +73,13 @@ test.describe('Compliance traffic light endpoint', () => {
 
   test('rejects a non-member with 403 (membership gate)', async ({ request }) => {
     test.skip(process.env.E2E_FULL_STACK !== '1', 'Requires full E2E stack. Run `npm run test:e2e:full`.');
-    const secret = process.env.E2E_TEST_SECRET;
-    test.skip(!secret, 'E2E_TEST_SECRET not set');
 
     const seed = await seedProject(); // member = e2e-user-001
     try {
-      const res = await request.get(`/api/compliance/${seed.projectId}/traffic-light`, {
-        headers: { Authorization: buildE2EAuthHeader(secret as string, 'e2e-intruder-999') },
-      });
+      const res = await request.get(
+        `${API_BASE}/api/compliance/${seed.projectId}/traffic-light`,
+        { headers: { Authorization: buildE2EAuthHeader(E2E_SECRET, 'e2e-intruder-999') } },
+      );
       expect(res.status()).toBe(403);
     } finally {
       await seed.cleanup();
