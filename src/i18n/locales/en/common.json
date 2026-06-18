@@ -8,6 +8,32 @@
     "warning": "Warning",
     "allOk": "No upcoming expirations"
   },
+  "actionBalance": {
+    "aria": "Corrective action balance",
+    "title": "Action balance",
+    "totalLabel": "actions",
+    "highTier": "High tier",
+    "training": "Training"
+  },
+  "compliance": {
+    "score": "Compliance",
+    "title": "Compliance Traffic Light",
+    "noData": "No data",
+    "coverage": "{{n}}/{{total}} cat.",
+    "aria": {
+      "full": "Compliance traffic light"
+    },
+    "cat": {
+      "legal": "Legal",
+      "documentation": "Documentation",
+      "training": "Training",
+      "epp": "PPE",
+      "emergencies": "Emergencies",
+      "occupational_health": "Occupational health",
+      "maintenance": "Maintenance",
+      "audits": "Audits"
+    }
+  },
   "zoneEntry": {
     "title": "Restricted Zone Entry",
     "intro": "Review your site's restricted zones and log your informed entry. This view never blocks your access: it informs you and leaves a record so your supervisor can follow up.",
@@ -104,7 +130,9 @@
     "cphs_draft": "CPHS Minutes",
     "critical_controls": "Critical Controls",
     "linea_de_fuego": "Line of Fire",
+    "iper_matrix": "IPER Matrix",
     "calculadora_pandeo": "Buckling Calculator",
+    "carga_mental": "Mental Workload",
     "checklist_vehiculo": "Vehicle Pre-Op",
     "cuadrillas": "Work Crews",
     "culture_pulse": "Safety Culture",
@@ -2373,7 +2401,7 @@
     "total_connections": "Total Connections",
     "network_factor": "Network Factor",
     "avg_per_node": "Average / Node",
-    "capacity_note": "The neural network is operating at <span class=\"font-black\">{{capacity}}%</span> of its projected capacity. Each new connection reduces operational uncertainty by <span class=\"font-black\">2.4%</span>.",
+    "capacity_note": "The neural network is operating at <b>{{capacity}}%</b> of its projected capacity. Each new connection reduces operational uncertainty by <b>2.4%</b>.",
     "requires_connection": "Connection Required",
     "analyzing": "Analyzing...",
     "analyze_network": "Analyze Neural Network",
@@ -2841,6 +2869,22 @@
   "calcPandeo": {
     "title": "Buckling Calculator (Euler)",
     "subtitle": "Euler critical buckling load for columns/struts. Engineering guidance — it does not replace the formal structural calc nor authorize a load."
+  },
+  "cargaMental": {
+    "title": "Daily Mental Workload",
+    "subtitle": "Workload self-assessment (NASA-TLX). Score the 6 dimensions; the system computes your level and suggests actions. It is guidance — it stops nothing.",
+    "resultLabel": "Estimated total load",
+    "dominantLabel": "Dominant factor",
+    "recommendationsLabel": "Suggestions",
+    "noRecs": "Load within a manageable range. Keep taking breaks and report any change to your prevention lead.",
+    "disclaimer": "This workload self-assessment (NASA Task Load Index) is computed on your device: it is not stored or sent. It is not a medical or mental-health diagnosis."
+  },
+  "mentalLoad": {
+    "aria": "Mental workload survey",
+    "title": "Today's load",
+    "subtitle": "Slide each dimension 0 (none) → 100 (extreme).",
+    "calculate": "Calculate load",
+    "calculating": "Calculating..."
   },
   "lineaDeFuego": {
     "title": "Line of Fire",
@@ -3782,6 +3826,40 @@
     }
   },
   "onboarding": {
+    "industry": {
+      "title": "What's your industry?"
+    },
+    "countries": {
+      "title": "Which countries do you operate in?"
+    },
+    "plan": {
+      "title": "Choose your plan",
+      "mostPopular": "Most popular",
+      "free": "Free",
+      "perMonth": "/mo",
+      "unlimitedWorkers": "Unlimited workers",
+      "upToWorkers": "Up to {{count}} workers",
+      "unlimitedProjects": "Unlimited projects",
+      "upToProjects": "Up to {{count}} projects"
+    },
+    "team": {
+      "title": "Invite your team",
+      "help": "Optional. Paste comma-separated emails or upload a CSV.",
+      "emailsPlaceholder": "ana@company.com, jorge@company.com, …",
+      "uploadCsv": "Upload CSV",
+      "emailValidOne": "{{count}} valid email",
+      "emailsValidOther": "{{count}} valid emails"
+    },
+    "project": {
+      "title": "Your first project",
+      "nameLabel": "Project name",
+      "namePlaceholder": "North Site 2026",
+      "importWorkers": "Import workers (optional CSV)",
+      "replaceCsv": "Replace CSV",
+      "uploadCsv": "Upload CSV",
+      "remove": "Remove",
+      "skipHint": "You can skip this step and import later."
+    },
     "sii": {
       "searchLabel": "Find your SII business activity (code or text)",
       "searchPlaceholder": "E.g. 410010 or copper mining",
@@ -4205,6 +4283,10 @@
     }
   },
   "iper": {
+    "page": {
+      "title": "IPER 5x5 Matrix",
+      "subtitle": "Estimate the risk level (probability × severity) and the residual after applying controls. Guidance only — the team decides."
+    },
     "aria": "IPER 5x5 matrix",
     "controlHigh": "High",
     "controlLow": "Low",
