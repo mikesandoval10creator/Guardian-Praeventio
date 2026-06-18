@@ -202,6 +202,12 @@ export function ClimateRoutes() {
     } catch (error) {
       logger.error("Error calculating route:", error);
       showToast(t('climateRoutes.errorRoute', 'No se pudo calcular la ruta. Verifica los lugares ingresados.'), 'error');
+      // Directions API itself failed (network/quota/ZERO_RESULTS). Clear the
+      // previous route's assessment + bbox so we never show a PRIOR route's
+      // real EONET hazards projected against a stale bbox while the user thinks
+      // they are looking at this (failed) recalculation. (review #981 P1)
+      setAssessment(null);
+      setRouteBBox(null);
     } finally {
       setIsCalculating(false);
     }
@@ -447,7 +453,7 @@ export function ClimateRoutes() {
                 fetched. When there are no active events, nothing renders (an
                 honest empty, not a fabricated hazard). */}
             {routeBBox &&
-              (assessment?.activeEvents ?? []).slice(0, 12).map((ev) => {
+              (assessment?.activeEvents ?? []).slice(0, 5).map((ev) => {
                 const pt = eonetEventLonLat(ev.geometry);
                 if (!pt) return null;
                 const xy = projectToSchematic(pt.lon, pt.lat, routeBBox);
