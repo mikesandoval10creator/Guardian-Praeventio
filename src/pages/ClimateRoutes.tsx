@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Navigation, CloudRain, AlertTriangle, Route, ShieldAlert, Thermometer, Wind, Loader2 } from 'lucide-react';
+import { Navigation, CloudRain, AlertTriangle, Route, ShieldAlert, Thermometer, Wind, Loader2, Flame, CloudLightning, Mountain, Snowflake, Waves, Droplets } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { useJsApiLoader } from '@react-google-maps/api';
 import { getMapLoaderConfig } from '../components/maps/mapConfig';
@@ -12,6 +13,21 @@ import {
   assessRouteClimate,
   type RouteAssessmentResult,
 } from '../services/routing/routeClimateAssessment';
+import type { BBox } from '../services/external/eonet/types';
+import { eonetEventLonLat, projectToSchematic } from './climateRouteSchematic';
+
+// Real NASA EONET category → icon. Drives the live hazard markers plotted on
+// the route schematic (replaces the fake fixed pins removed in #939).
+const EONET_CATEGORY_ICON: Record<string, LucideIcon> = {
+  wildfires: Flame,
+  severeStorms: CloudLightning,
+  volcanoes: Mountain,
+  seaLakeIce: Snowflake,
+  floods: Waves,
+  landslides: AlertTriangle,
+  drought: Droplets,
+  manmade: AlertTriangle,
+};
 
 export function ClimateRoutes() {
   const { t } = useTranslation();
@@ -23,6 +39,10 @@ export function ClimateRoutes() {
   // Reemplaza la heurística pura de keywords de Sprint D (que ya era
   // mejor que el Math.random original, pero seguía siendo limitada).
   const [assessment, setAssessment] = useState<RouteAssessmentResult | null>(null);
+  // Route bounding box used to project the assessment's REAL active EONET
+  // events onto the schematic (null until a route with usable geometry is
+  // assessed, so we never plot events against a stale/missing bbox).
+  const [routeBBox, setRouteBBox] = useState<BBox | null>(null);
   const [isAssessing, setIsAssessing] = useState(false);
   const { toasts, show: showToast, dismiss } = useToast();
 
@@ -108,6 +128,7 @@ export function ClimateRoutes() {
         // "danger" previo y en otro caso quedamos en "warning".
         setRouteStatus((prev) => (prev === 'danger' ? 'danger' : 'warning'));
         setAssessment(null);
+        setRouteBBox(null);
         setIsCalculating(false);
         return;
       }
@@ -119,6 +140,7 @@ export function ClimateRoutes() {
         latMin: latMin - 0.1,
         latMax: latMax + 0.1,
       };
+      setRouteBBox(bbox);
 
       setIsAssessing(true);
       try {
@@ -180,6 +202,12 @@ export function ClimateRoutes() {
     } catch (error) {
       logger.error("Error calculating route:", error);
       showToast(t('climateRoutes.errorRoute', 'No se pudo calcular la ruta. Verifica los lugares ingresados.'), 'error');
+      // Directions API itself failed (network/quota/ZERO_RESULTS). Clear the
+      // previous route's assessment + bbox so we never show a PRIOR route's
+      // real EONET hazards projected against a stale bbox while the user thinks
+      // they are looking at this (failed) recalculation. (review #981 P1)
+      setAssessment(null);
+      setRouteBBox(null);
     } finally {
       setIsCalculating(false);
     }
@@ -389,7 +417,7 @@ export function ClimateRoutes() {
             routeStatus. No fabricated hazard pins (removed 2026-06-16). */}
         <Card className="p-0 border-white/5 lg:col-span-2 overflow-hidden relative min-h-[500px] bg-zinc-900 flex items-center justify-center">
           <div className="absolute top-3 left-3 z-20 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 bg-black/50 border border-white/10 px-2 py-1 rounded-md backdrop-blur-sm">
-            {t('climateRoutes.schematicBadge', 'Esquema ilustrativo — clima real en la Evaluación')}
+            {t('climateRoutes.schematicBadge', 'Eventos EONET activos en posición real · trazado ilustrativo')}
           </div>
           {/* Schematic backdrop (decorative grid, not geographic) */}
           <div className="absolute inset-0 opacity-20" style={{
@@ -418,12 +446,38 @@ export function ClimateRoutes() {
               <span className="mt-1 text-xs font-bold text-white bg-black/50 px-2 py-0.5 rounded backdrop-blur-sm">{t('climateRoutes.origin', 'Origen')}</span>
             </div>
 
-            {/* Honesty fix (2026-06-16): removed two HARD-CODED hazard pins
-                ('Niebla' @325,250 and 'Nevazón' @550,150) that were shown on
-                EVERY route regardless of real conditions — fabricated weather a
-                driver could act on. Real hazards come from the NASA POWER+EONET
-                assessment in the left panel (assessment.reasons). This card is a
-                schematic origin→destination, not a live geographic map. */}
+            {/* REAL active NASA EONET events (wildfires, storms, floods,
+                landslides…) plotted at their REAL coordinates projected into the
+                route's bbox. This replaces the two hard-coded fake pins removed
+                in #939 — the markers are now the actual events the assessment
+                fetched. When there are no active events, nothing renders (an
+                honest empty, not a fabricated hazard). */}
+            {routeBBox &&
+              (assessment?.activeEvents ?? []).slice(0, 5).map((ev) => {
+                const pt = eonetEventLonLat(ev.geometry);
+                if (!pt) return null;
+                const xy = projectToSchematic(pt.lon, pt.lat, routeBBox);
+                if (!xy) return null;
+                const Icon = EONET_CATEGORY_ICON[ev.categories?.[0]?.id ?? ''] ?? AlertTriangle;
+                return (
+                  <div
+                    key={ev.id}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
+                    style={{ left: xy.x, top: xy.y }}
+                  >
+                    <Icon className="w-6 h-6 text-rose-500 drop-shadow-[0_0_10px_rgba(244,63,94,0.7)]" />
+                    <span
+                      className="mt-1 max-w-[130px] truncate text-[10px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded backdrop-blur-sm"
+                      title={ev.title}
+                    >
+                      {ev.title}
+                    </span>
+                    <span className="text-[8px] font-bold uppercase tracking-wider text-rose-300">
+                      {t('climateRoutes.eonetActive', 'EONET · activo')}
+                    </span>
+                  </div>
+                );
+              })}
 
             <div className="absolute top-[100px] left-[700px] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
               <div className="w-4 h-4 bg-white rounded-full border-4 border-emerald-500" />

@@ -36,7 +36,8 @@
     "mentalload_label": "Carga mental (1-10, opcional)"
   },
   "climateRoutes": {
-    "schematicBadge": "Esquema ilustrativo — clima real en la Evaluación",
+    "schematicBadge": "Eventos EONET activos en posición real · trazado ilustrativo",
+    "eonetActive": "EONET · activo",
     "calculating": "Evaluando ruta…",
     "assessmentUnavailable": "No pudimos completar la evaluación climática de la ruta. Conduce con precaución y reintenta cuando tengas mejor conexión."
   },

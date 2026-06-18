@@ -36,7 +36,8 @@
     "mentalload_label": "Mental load (1-10, optional)"
   },
   "climateRoutes": {
-    "schematicBadge": "Illustrative schematic — real weather in the Assessment",
+    "schematicBadge": "Active EONET events at real positions · illustrative route line",
+    "eonetActive": "EONET · active",
     "calculating": "Assessing route…",
     "assessmentUnavailable": "We couldn't complete the route's climate assessment. Drive with caution and retry when you have a better connection."
   },
