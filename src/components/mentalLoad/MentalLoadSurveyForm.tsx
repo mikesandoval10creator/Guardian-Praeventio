@@ -5,7 +5,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Brain, Save } from 'lucide-react';
+import { Brain, Calculator } from 'lucide-react';
 import {
   scoreMentalLoad,
   type MentalLoadSurvey,
@@ -73,7 +73,9 @@ export function MentalLoadSurveyForm({ workerUid, onSubmit }: MentalLoadSurveyFo
       };
       const score = scoreMentalLoad(survey);
       await onSubmit(survey, score);
-      setValues(initialValues);
+      // Intentionally do NOT reset the sliders: the values that produced the
+      // result stay visible so the worker can see what drove the verdict and
+      // adjust from there — no dissociation between inputs and the shown result.
     } catch (err) {
       setError(err instanceof Error ? err.message : 'submit_failed');
     } finally {
@@ -107,7 +109,7 @@ export function MentalLoadSurveyForm({ workerUid, onSubmit }: MentalLoadSurveyFo
               </label>
               <span className="text-sm font-black tabular-nums">{values[d.key]}</span>
             </div>
-            <p className="text-[10px] text-secondary-token mb-1">{d.helpText}</p>
+            <p id={`mlf-${d.key}-help`} className="text-[10px] text-secondary-token mb-1">{d.helpText}</p>
             <input
               id={`mlf-${d.key}`}
               type="range"
@@ -118,6 +120,7 @@ export function MentalLoadSurveyForm({ workerUid, onSubmit }: MentalLoadSurveyFo
               onChange={(e) =>
                 setValues((prev) => ({ ...prev, [d.key]: Number(e.target.value) }))
               }
+              aria-describedby={`mlf-${d.key}-help`}
               data-testid={`mental-load-slider-${d.key}`}
               className="w-full"
             />
@@ -141,10 +144,10 @@ export function MentalLoadSurveyForm({ workerUid, onSubmit }: MentalLoadSurveyFo
         data-testid="mental-load-submit"
         className="inline-flex items-center gap-1 px-4 py-1.5 rounded-md bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 disabled:opacity-50"
       >
-        <Save className="w-3 h-3" aria-hidden="true" />
+        <Calculator className="w-3 h-3" aria-hidden="true" />
         {submitting
-          ? t('mentalLoad.saving', 'Enviando...')
-          : t('mentalLoad.send', 'Enviar evaluación')}
+          ? t('mentalLoad.calculating', 'Calculando...')
+          : t('mentalLoad.calculate', 'Calcular carga')}
       </button>
     </form>
   );

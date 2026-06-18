@@ -66,6 +66,16 @@ export function CargaMental() {
 
       <MentalLoadSurveyForm workerUid="self" onSubmit={(_survey, score) => setResult(score)} />
 
+      {/* Disclaimer sits ABOVE the result so the "no es diagnóstico" framing is
+          co-visible with the level badge — this is a mental-health-adjacent
+          surface (ADR 0012), the reassurance must not be only at the bottom. */}
+      <p className="text-[10px] text-secondary-token leading-relaxed">
+        {t(
+          'cargaMental.disclaimer',
+          'Esta autoevaluación de carga de trabajo (NASA Task Load Index) se calcula en tu dispositivo: no se guarda ni se envía. No es un diagnóstico médico ni de salud mental.',
+        )}
+      </p>
+
       {result && (
         <section
           data-testid="carga-mental-result"
@@ -112,13 +122,6 @@ export function CargaMental() {
           )}
         </section>
       )}
-
-      <p className="text-[10px] text-secondary-token leading-relaxed">
-        {t(
-          'cargaMental.disclaimer',
-          'Esta autoevaluación de carga de trabajo (NASA Task Load Index) se calcula en tu dispositivo: no se guarda ni se envía. No es un diagnóstico médico ni de salud mental.',
-        )}
-      </p>
     </div>
   );
 }

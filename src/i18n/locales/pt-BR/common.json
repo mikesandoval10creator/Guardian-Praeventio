@@ -2553,6 +2553,13 @@
     "noRecs": "Carga dentro de uma faixa gerenciável. Mantenha pausas e comunique qualquer mudança à sua liderança de prevenção.",
     "disclaimer": "Esta autoavaliação de carga de trabalho (NASA Task Load Index) é calculada no seu dispositivo: não é armazenada nem enviada. Não é um diagnóstico médico nem de saúde mental."
   },
+  "mentalLoad": {
+    "aria": "Pesquisa de carga mental",
+    "title": "Carga do dia",
+    "subtitle": "Deslize cada dimensão 0 (nada) → 100 (extremo).",
+    "calculate": "Calcular carga",
+    "calculating": "Calculando..."
+  },
   "lineaDeFuego": {
     "title": "Linha de Fogo",
     "subtitle": "Avalie a exposição a golpeado-por / prensado-entre e verifique as mitigações. É um guia — não interrompe a tarefa.",

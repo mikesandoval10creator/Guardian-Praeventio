@@ -2836,6 +2836,13 @@
     "noRecs": "Load within a manageable range. Keep taking breaks and report any change to your prevention lead.",
     "disclaimer": "This workload self-assessment (NASA Task Load Index) is computed on your device: it is not stored or sent. It is not a medical or mental-health diagnosis."
   },
+  "mentalLoad": {
+    "aria": "Mental workload survey",
+    "title": "Today's load",
+    "subtitle": "Slide each dimension 0 (none) → 100 (extreme).",
+    "calculate": "Calculate load",
+    "calculating": "Calculating..."
+  },
   "lineaDeFuego": {
     "title": "Line of Fire",
     "subtitle": "Assess struck-by / caught-between exposure and verify mitigations. This is guidance — it does not stop the task.",

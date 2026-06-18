@@ -9,20 +9,25 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CargaMental } from './CargaMental';
+import type { MentalLoadSurvey } from '../services/mentalLoad/mentalLoadTracker';
 
 // Deterministic copy: t() returns the fallback so we assert engine output.
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (_k: string, fb?: string) => fb ?? _k }),
 }));
 
-const DIMS = [
-  'mentalDemand',
-  'physicalDemand',
-  'temporalDemand',
-  'effort',
-  'frustration',
-  'performance',
-] as const;
+// Derived from the engine type via `satisfies`: if a NASA-TLX dimension is
+// added/removed in MentalLoadSurvey, this object literal fails to type-check,
+// so the test can't silently leave a new slider at its default value.
+const DIM_SHAPE = {
+  mentalDemand: 0,
+  physicalDemand: 0,
+  temporalDemand: 0,
+  effort: 0,
+  frustration: 0,
+  performance: 0,
+} satisfies Omit<MentalLoadSurvey, 'workerUid' | 'surveyedAt'>;
+const DIMS = Object.keys(DIM_SHAPE) as Array<keyof typeof DIM_SHAPE>;
 
 function setAllDimensions(value: number) {
   for (const key of DIMS) {

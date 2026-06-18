@@ -222,8 +222,6 @@ export function buildSidebarMenuGroups(
     { title: t('nav.linea_de_fuego', 'Línea de Fuego'), icon: Crosshair, path: '/linea-de-fuego', color: 'text-rose-500' },
     // Calculadora de pandeo (Euler) — mounts the orphan BucklingCalculatorCard.
     { title: t('nav.calculadora_pandeo', 'Calculadora de Pandeo'), icon: Construction, path: '/calculadora-pandeo', color: 'text-amber-500' },
-    // Carga mental (NASA-TLX) — on-device workload self-assessment (mounts the orphan MentalLoadSurveyForm).
-    { title: t('nav.carga_mental', 'Carga Mental'), icon: Brain, path: '/carga-mental', color: 'text-emerald-500' },
     // Sprint K vidas críticas wire (2026-05-22) — Causa raíz no-blame.
     // Service rootCauseClassifier.ts (5 porqués + ILO taxonomía) +
     // card RootCauseClassifierCard existían sin page. ISO 45001 §10.2.
@@ -351,6 +349,8 @@ export function buildSidebarMenuGroups(
         { title: t('nav.planesi', 'PLANESI Sílice'), icon: Wind, path: '/planesi', color: 'text-orange-400' },
         // Sprint K vidas críticas wire — Monitor de Fatiga.
         { title: t('nav.fatigue', 'Monitor de Fatiga'), icon: Moon, path: '/fatigue', color: 'text-violet-500' },
+        // Carga mental (NASA-TLX) — autoevaluación on-device (mounts the orphan MentalLoadSurveyForm).
+        { title: t('nav.carga_mental', 'Carga Mental'), icon: Brain, path: '/carga-mental', color: 'text-emerald-500' },
       ],
     },
     {
