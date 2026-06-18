@@ -39,6 +39,7 @@ import { WebAuthnKeysSection } from '../components/settings/WebAuthnKeysSection'
 import { KekRotationPanel } from '../components/security/KekRotationPanel';
 // Sprint 31 Bucket MM — privacy compliance matrix UI.
 import { PrivacyComplianceMatrix } from '../components/compliance/PrivacyComplianceMatrix';
+import { PrivacyRegimeCard } from '../components/privacy/PrivacyRegimeCard';
 // 2026-05-17 — admin-only Sentry verification button.
 import { SentryTestButton } from '../components/admin/SentryTestButton';
 import { LocalePicker } from '../components/LocalePicker';
@@ -382,7 +383,10 @@ export function Settings() {
               <p className="text-xs text-zinc-600 dark:text-zinc-500 mb-3">
                 {t('settings.security.privacy_desc', 'Regímenes de protección de datos aplicables a tu cuenta + plazos legales para responder solicitudes de acceso, rectificación o supresión.')}
               </p>
-              <PrivacyComplianceMatrix country="CL" />
+              <PrivacyRegimeCard context={{ country: 'CL' }} />
+              <div className="mt-4">
+                <PrivacyComplianceMatrix country="CL" />
+              </div>
             </div>
             <div className="flex items-start justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div className="flex-1 pr-4">

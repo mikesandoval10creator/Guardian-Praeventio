@@ -4134,6 +4134,13 @@
       "title": "Mapa de Calor de Achados"
     }
   },
+  "hazmatInventory": {
+    "page": {
+      "title": "Inventário HAZMAT",
+      "subtitle": "DS 43/2016 — Controle de substâncias perigosas com validação de compatibilidade.",
+      "selectProject": "Selecione um projeto para gerenciar o inventário de substâncias perigosas."
+    }
+  },
   "hazmat": {
     "addBtn": "Adicionar substância",
     "addTitle": "Adicionar substância",
