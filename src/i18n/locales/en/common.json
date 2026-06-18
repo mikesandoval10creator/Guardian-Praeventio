@@ -95,6 +95,7 @@
     "critical_controls": "Critical Controls",
     "linea_de_fuego": "Line of Fire",
     "calculadora_pandeo": "Buckling Calculator",
+    "carga_mental": "Mental Workload",
     "cuadrillas": "Work Crews",
     "culture_pulse": "Safety Culture",
     "data_confidence": "Data Confidence",
@@ -2825,6 +2826,15 @@
   "calcPandeo": {
     "title": "Buckling Calculator (Euler)",
     "subtitle": "Euler critical buckling load for columns/struts. Engineering guidance — it does not replace the formal structural calc nor authorize a load."
+  },
+  "cargaMental": {
+    "title": "Daily Mental Workload",
+    "subtitle": "Workload self-assessment (NASA-TLX). Score the 6 dimensions; the system computes your level and suggests actions. It is guidance — it stops nothing.",
+    "resultLabel": "Estimated total load",
+    "dominantLabel": "Dominant factor",
+    "recommendationsLabel": "Suggestions",
+    "noRecs": "Load within a manageable range. Keep taking breaks and report any change to your prevention lead.",
+    "disclaimer": "This workload self-assessment (NASA Task Load Index) is computed on your device: it is not stored or sent. It is not a medical or mental-health diagnosis."
   },
   "lineaDeFuego": {
     "title": "Line of Fire",
