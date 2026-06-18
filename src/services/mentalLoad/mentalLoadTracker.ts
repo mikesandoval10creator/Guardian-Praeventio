@@ -60,14 +60,22 @@ export function scoreMentalLoad(survey: MentalLoadSurvey): MentalLoadScore {
   const sorted = entries.sort((a, b) => b[1] - a[1]);
   const dominantFactor = sorted[0][0];
 
+  // Recommendations fire on each dimension's OWN threshold — NOT gated on being
+  // the dominant factor. A worker can have a high non-dominant dimension (e.g.
+  // mentalDemand dominant but frustration=85) that still warrants its own
+  // guidance; gating on dominance silently dropped it and could even show an
+  // empty "manageable" result while a factor sat at a critical level.
   const recommendations: string[] = [];
-  if (dominantFactor === 'frustration' && dims.frustration > 60) {
+  if (dims.mentalDemand > 75) {
+    recommendations.push('Demanda mental alta — revisar complejidad/ritmo + apoyo y foco disponible.');
+  }
+  if (dims.frustration > 60) {
     recommendations.push('Frustración alta — investigar fuente (procesos, jefatura, recursos).');
   }
-  if (dominantFactor === 'temporalDemand' && dims.temporalDemand > 70) {
+  if (dims.temporalDemand > 70) {
     recommendations.push('Presión de tiempo alta — revisar planificación + recursos.');
   }
-  if (dominantFactor === 'physicalDemand' && dims.physicalDemand > 70) {
+  if (dims.physicalDemand > 70) {
     recommendations.push('Carga física alta — revisar ergonomía / rotación tareas.');
   }
   if (level === 'critical') {

@@ -24,6 +24,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { logAuditAction } from '../services/auditService';
+import { logger } from '../utils/logger';
 
 interface ChecklistItem {
   id: string;
@@ -136,7 +137,7 @@ function WebXRInner() {
       );
       setSavingState('saved');
     } catch (err) {
-      console.error('Interactive training save failed', err);
+      logger.error('Interactive training save failed', err);
       setSavingState('idle');
     }
   };

@@ -6,6 +6,25 @@
     "highTier": "Alta hierarquia",
     "training": "Treinamentos"
   },
+  "compliance": {
+    "score": "Conformidade",
+    "title": "Semáforo de Conformidade",
+    "noData": "Sem dados",
+    "coverage": "{{n}}/{{total}} cat.",
+    "aria": {
+      "full": "Semáforo de conformidade"
+    },
+    "cat": {
+      "legal": "Legal",
+      "documentation": "Documentação",
+      "training": "Treinamento",
+      "epp": "EPI",
+      "emergencies": "Emergências",
+      "occupational_health": "Saúde ocupacional",
+      "maintenance": "Manutenção",
+      "audits": "Auditorias"
+    }
+  },
   "zoneEntry": {
     "title": "Entrada em Zonas Restritas",
     "intro": "Consulte as zonas restritas da sua obra e registre sua entrada informada. Esta tela nunca bloqueia seu acesso: ela informa e deixa registro para que seu supervisor possa acompanhar.",
@@ -102,7 +121,9 @@
     "cphs_draft": "Ata do CPHS",
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Linha de Fogo",
+    "iper_matrix": "Matriz IPER",
     "calculadora_pandeo": "Calculadora de Flambagem",
+    "carga_mental": "Carga Mental",
     "checklist_vehiculo": "Pré-Uso Veículo",
     "cuadrillas": "Equipes de Campo",
     "culture_pulse": "Cultura Preventiva",
@@ -2371,7 +2392,7 @@
     "total_connections": "Conexões Totais",
     "network_factor": "Fator de Rede",
     "avg_per_node": "Média / Nó",
-    "capacity_note": "A rede neural está operando a <span class=\"font-black\">{{capacity}}%</span> de sua capacidade projetada. Cada nova conexão reduz a incerteza operacional em <span class=\"font-black\">2.4%</span>.",
+    "capacity_note": "A rede neural está operando a <b>{{capacity}}%</b> de sua capacidade projetada. Cada nova conexão reduz a incerteza operacional em <b>2.4%</b>.",
     "requires_connection": "Requer Conexão",
     "analyzing": "Analisando...",
     "analyze_network": "Analisar Rede Neural",
@@ -2556,6 +2577,22 @@
   "calcPandeo": {
     "title": "Calculadora de Flambagem (Euler)",
     "subtitle": "Carga crítica de flambagem de colunas/escoras segundo Euler. Guia de engenharia — não substitui o cálculo estrutural formal nem autoriza uma carga."
+  },
+  "cargaMental": {
+    "title": "Carga Mental do Dia",
+    "subtitle": "Autoavaliação de carga de trabalho (NASA-TLX). Pontue as 6 dimensões; o sistema calcula seu nível e sugere ações. É um guia — não detém nada.",
+    "resultLabel": "Carga total estimada",
+    "dominantLabel": "Fator dominante",
+    "recommendationsLabel": "Sugestões",
+    "noRecs": "Carga dentro de uma faixa gerenciável. Mantenha pausas e comunique qualquer mudança à sua liderança de prevenção.",
+    "disclaimer": "Esta autoavaliação de carga de trabalho (NASA Task Load Index) é calculada no seu dispositivo: não é armazenada nem enviada. Não é um diagnóstico médico nem de saúde mental."
+  },
+  "mentalLoad": {
+    "aria": "Pesquisa de carga mental",
+    "title": "Carga do dia",
+    "subtitle": "Deslize cada dimensão 0 (nada) → 100 (extremo).",
+    "calculate": "Calcular carga",
+    "calculating": "Calculando..."
   },
   "lineaDeFuego": {
     "title": "Linha de Fogo",
@@ -3780,6 +3817,40 @@
     }
   },
   "onboarding": {
+    "industry": {
+      "title": "Qual é o seu setor?"
+    },
+    "countries": {
+      "title": "Em quais países você opera?"
+    },
+    "plan": {
+      "title": "Escolha seu plano",
+      "mostPopular": "Mais popular",
+      "free": "Grátis",
+      "perMonth": "/mês",
+      "unlimitedWorkers": "Trabalhadores ilimitados",
+      "upToWorkers": "Até {{count}} trabalhadores",
+      "unlimitedProjects": "Projetos ilimitados",
+      "upToProjects": "Até {{count}} projetos"
+    },
+    "team": {
+      "title": "Convide sua equipe",
+      "help": "Opcional. Cole e-mails separados por vírgula ou envie um CSV.",
+      "emailsPlaceholder": "ana@empresa.com, jorge@empresa.com, …",
+      "uploadCsv": "Enviar CSV",
+      "emailValidOne": "{{count}} e-mail válido",
+      "emailsValidOther": "{{count}} e-mails válidos"
+    },
+    "project": {
+      "title": "Seu primeiro projeto",
+      "nameLabel": "Nome do projeto",
+      "namePlaceholder": "Obra Norte 2026",
+      "importWorkers": "Importar trabalhadores (CSV opcional)",
+      "replaceCsv": "Substituir CSV",
+      "uploadCsv": "Enviar CSV",
+      "remove": "Remover",
+      "skipHint": "Você pode pular esta etapa e importar depois."
+    },
     "sii": {
       "searchLabel": "Busque sua atividade econômica SII (código ou texto)",
       "searchPlaceholder": "Ex.: 410010 ou extração de cobre",
@@ -4203,6 +4274,10 @@
     }
   },
   "iper": {
+    "page": {
+      "title": "Matriz IPER 5x5",
+      "subtitle": "Estime o nível de risco (probabilidade × severidade) e o residual ao aplicar controles. É um guia — a decisão é da equipe."
+    },
     "aria": "Matriz IPER 5x5",
     "controlHigh": "Alta",
     "controlLow": "Baixa",
