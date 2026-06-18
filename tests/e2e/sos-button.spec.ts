@@ -20,6 +20,11 @@ import { seedProject } from './fixtures/seed';
 // LOCALLY-ITERABLE — `JAVA_HOME=<Temurin-21> E2E_FULL_STACK=1 … playwright test`
 // boots the emulator (Java 21 + firebase-tools 15). Un-fixme as each assertion
 // is reconciled with the feature.
+// Sprint E2E-99 — route-fixes CONSERVADOS (/emergency a nivel raíz; locator tel:
+// robusto a[href^="tel:"]) y data-testid (sos-button, sos-toast) ya en el
+// componente. PERO la aserción feature-level (el enlace tel: no renderiza en
+// /emergency bajo el harness full-stack de CI — requiere ProjectContext que el
+// fixture no monta) NO es verificable en CI todavía → re-fixme hasta reconciliar.
 test.describe.fixme('SOSButton long-press', () => {
   test('long-press de 3s dispara alerta; tap corto no', async ({ page }) => {
     test.skip(
@@ -31,7 +36,7 @@ test.describe.fixme('SOSButton long-press', () => {
     const seed = await seedProject();
 
     try {
-      await page.goto(`/projects/${seed.projectId}/emergency`);
+      await page.goto('/emergency');
       // §2.24 fix (2026-05-22) — wait barrier: signa al user en Firebase
       // Auth real (via Auth Emulator) ANTES de buscar elementos UI que
       // dependen de Firestore queries (firestore.rules:25 require auth).
@@ -84,13 +89,15 @@ test.describe.fixme('SOSButton long-press', () => {
     const seed = await seedProject();
 
     try {
-      await page.goto(`/projects/${seed.projectId}/emergency`);
+      await page.goto('/emergency');
       // §2.24 fix (2026-05-22) — wait barrier: signa al user en Firebase
       // Auth real (via Auth Emulator) ANTES de buscar elementos UI que
       // dependen de Firestore queries (firestore.rules:25 require auth).
       await signInBrowserViaCustomToken(page);
 
-      const telLink = page.getByRole('link', { name: /Llamar emergencia/i });
+      // El nombre accesible de los enlaces de contacto es el número (131, 132…),
+      // no el rótulo (SAMU/Bomberos), así que matcheamos por href tel: directo.
+      const telLink = page.locator('a[href^="tel:"]').first();
       await expect(telLink).toBeVisible();
       const href = await telLink.getAttribute('href');
       expect(href).toMatch(/^tel:/);
