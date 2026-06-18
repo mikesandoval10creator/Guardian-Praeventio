@@ -17,6 +17,9 @@ const AfichesSeguridad = lazy(() => import('../pages/AfichesSeguridad').then(mod
 // se cierra el gap del Sprint K wire UI restante del plan integrado.
 const CriticalControlsView = lazy(() => import('../pages/CriticalControlsView').then(module => ({ default: module.CriticalControlsView })));
 const RootCauseInvestigation = lazy(() => import('../pages/RootCauseInvestigation').then(module => ({ default: module.RootCauseInvestigation })));
+// Línea de fuego (struck-by/caught-between) self-assessment tool — mounts the
+// previously-orphan LineOfFireValidationCard over the real validateLineOfFire engine.
+const LineaDeFuego = lazy(() => import('../pages/LineaDeFuego').then(module => ({ default: module.LineaDeFuego })));
 
 export const RiskRoutes = [
   <Route key="risks" path="risks" element={<Risks />} />,
@@ -32,4 +35,5 @@ export const RiskRoutes = [
   <Route key="afiches-seguridad" path="afiches-seguridad" element={<AfichesSeguridad />} />,
   <Route key="critical-controls" path="critical-controls" element={<CriticalControlsView />} />,
   <Route key="root-cause" path="root-cause" element={<RootCauseInvestigation />} />,
+  <Route key="linea-de-fuego" path="linea-de-fuego" element={<LineaDeFuego />} />,
 ];

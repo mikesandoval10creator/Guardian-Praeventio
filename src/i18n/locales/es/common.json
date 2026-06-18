@@ -93,6 +93,7 @@
     "cphs": "Comité Paritario (CPHS)",
     "cphs_draft": "Minuta CPHS",
     "critical_controls": "Controles Críticos",
+    "linea_de_fuego": "Línea de Fuego",
     "cuadrillas": "Cuadrillas",
     "culture_pulse": "Cultura Preventiva",
     "data_confidence": "Confianza de Datos",
@@ -2819,6 +2820,16 @@
       "audit_trail_hint_prefix": "Para historial completo de paralizaciones finalizadas o canceladas, consultá ",
       "audit_trail_link": "Audit Trail"
     }
+  },
+  "lineaDeFuego": {
+    "title": "Línea de Fuego",
+    "subtitle": "Evalúa la exposición a golpeado-por / atrapado-entre y verifica las mitigaciones. Es una guía — no detiene la tarea.",
+    "kind": "Tipo de exposición",
+    "description": "Descripción del contexto",
+    "descriptionPlaceholder": "Ej: izaje de viga sobre zona de tránsito",
+    "proximity": "Distancia a la zona de impacto (m)",
+    "personnelInPath": "Hay personas en la trayectoria",
+    "mitigations": "Mitigaciones en sitio"
   },
   "critical_controls": {
     "title": "Controles críticos por riesgo",

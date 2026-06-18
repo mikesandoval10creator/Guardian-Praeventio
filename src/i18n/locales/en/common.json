@@ -93,6 +93,7 @@
     "cphs": "Joint Committee (CPHS)",
     "cphs_draft": "CPHS Minutes",
     "critical_controls": "Critical Controls",
+    "linea_de_fuego": "Line of Fire",
     "cuadrillas": "Work Crews",
     "culture_pulse": "Safety Culture",
     "data_confidence": "Data Confidence",
@@ -2819,6 +2820,16 @@
       "audit_trail_hint_prefix": "For complete history of finalized or cancelled stoppages, see ",
       "audit_trail_link": "Audit Trail"
     }
+  },
+  "lineaDeFuego": {
+    "title": "Line of Fire",
+    "subtitle": "Assess struck-by / caught-between exposure and verify mitigations. This is guidance — it does not stop the task.",
+    "kind": "Exposure type",
+    "description": "Context description",
+    "descriptionPlaceholder": "E.g. hoisting a beam over a walkway",
+    "proximity": "Distance to impact zone (m)",
+    "personnelInPath": "People are in the path",
+    "mitigations": "Mitigations in place"
   },
   "critical_controls": {
     "title": "Critical controls by risk",
