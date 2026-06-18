@@ -14,7 +14,7 @@
 | B | Datos fabricados en pantallas montadas | ~38 hallados, **casi todos cerrados** | 🟡 parcial | ❌ falta gate |
 | C | Stubs / placeholders | **86** | ✅ inventario | 🟡 `stub-guard` (forma, no conexión) |
 | D | Pipelines backend sin construir | 3 | ✅ explícito | ❌ |
-| E | Routers sin test conductual | **76 / 204** (128 verificados) | ✅ completo | ✅ `router-test-ratchet` |
+| E | Routers sin test conductual | **67 / 204** (137 verificados) | ✅ completo | ✅ `router-test-ratchet` |
 | F | Decisiones del fundador | 6 | ✅ explícito | n/a (decisión) |
 
 ---
@@ -90,10 +90,12 @@ Inventario en `docs/stubs-inventory.md`. `precommit-stub-guard` valida la FORMA 
 
 ## E. Routers sin test conductual  ·  MEDIDO + GATE: router-test-ratchet
 
-Medido: **204 routers reales · 128 verificados** (un test importa el router real + usa supertest `request()`) · **76 sin cobertura** · solo 4 `router.stack` hollow (el "~144" del plan ya estaba limpiado). **Los 128 verificados = el inventario "qué funciona verificado (server)"** — el espejo positivo de este registro. Gate: `check-router-test-ratchet.cjs` (baseline 76, solo baja; router nuevo sin test → FAIL).
+Medido: **204 routers reales · 137 verificados** (un test importa el router real — por path `../../server/routes/x` **o** relativo co-locado `./x` — + usa supertest `request()`) · **67 sin cobertura** · solo 4 `router.stack` hollow (el "~144" del plan ya estaba limpiado). **Los 137 verificados = el inventario "qué funciona verificado (server)"** — el espejo positivo de este registro. Gate: `check-router-test-ratchet.cjs` (baseline 67, solo baja; router nuevo sin test → FAIL).
 
-**Prioridad 1 — 10 routers VIDA/LEGAL sin test conductual** (escribir `*.router.test.ts` real: 401/200/400):
-`evacuation` · `fatigue` · `loto` · `medicalAptitude` · `refuges` · `health` · `expirations` · `criticalRoles` · `driving` · `b2d/hazmat`. Los 66 restantes (hygiene) en `scripts/router-test-ratchet-baseline.json`.
+> Corrección de exactitud (2026-06-18): el ratchet contaba 76/128 por un **falso negativo** — solo detectaba imports por path completo y no los co-locados `./x`. Tras resolver imports relativos contra el dir del test, 9 routers ya cubiertos dejaron de aparecer como "sin cobertura": `loto`, `medicalAptitude`, `health`, `cad`, `openapi`, `b2d/{climate,hazmat,normativa,suite}`. El inventario ahora es honesto.
+
+**Prioridad 1 — 6 routers VIDA/LEGAL sin test conductual** (escribir `*.router.test.ts` real: 401/200/400):
+`evacuation` · `fatigue` · `refuges` · `expirations` · `criticalRoles` · `driving`. (`loto`, `medicalAptitude`, `health` y `b2d/hazmat` ya estaban cubiertos — eran falsos negativos del ratchet, ver corrección arriba.) Los 61 restantes (hygiene) en `scripts/router-test-ratchet-baseline.json`.
 
 Nota: el gate detecta "tiene test real-router o no", NO un test que importa+request pero no asierta nada (hollow). Eso es un refinamiento posterior.
 

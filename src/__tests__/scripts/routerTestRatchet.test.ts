@@ -12,9 +12,9 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const ratchet = require('../../../scripts/check-router-test-ratchet.cjs') as {
-  scan: (routers?: string[], supertestFiles?: string[]) => string[];
+  scan: (routers?: string[], supertestFiles?: Array<{ file: string; content: string }>) => string[];
   listRouters: () => string[];
-  listSupertestFiles: () => string[];
+  listSupertestFiles: () => Array<{ file: string; content: string }>;
 };
 
 const repoRoot = path.resolve(fileURLToPath(import.meta.url), '../../../..');
