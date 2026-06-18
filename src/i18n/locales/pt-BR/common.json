@@ -1,4 +1,23 @@
 {
+  "compliance": {
+    "score": "Conformidade",
+    "title": "Semáforo de Conformidade",
+    "noData": "Sem dados",
+    "coverage": "{{n}}/{{total}} cat.",
+    "aria": {
+      "full": "Semáforo de conformidade"
+    },
+    "cat": {
+      "legal": "Legal",
+      "documentation": "Documentação",
+      "training": "Treinamento",
+      "epp": "EPI",
+      "emergencies": "Emergências",
+      "occupational_health": "Saúde ocupacional",
+      "maintenance": "Manutenção",
+      "audits": "Auditorias"
+    }
+  },
   "zoneEntry": {
     "title": "Entrada em Zonas Restritas",
     "intro": "Consulte as zonas restritas da sua obra e registre sua entrada informada. Esta tela nunca bloqueia seu acesso: ela informa e deixa registro para que seu supervisor possa acompanhar.",

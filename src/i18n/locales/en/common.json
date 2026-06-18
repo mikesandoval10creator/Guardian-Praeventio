@@ -1,4 +1,23 @@
 {
+  "compliance": {
+    "score": "Compliance",
+    "title": "Compliance Traffic Light",
+    "noData": "No data",
+    "coverage": "{{n}}/{{total}} cat.",
+    "aria": {
+      "full": "Compliance traffic light"
+    },
+    "cat": {
+      "legal": "Legal",
+      "documentation": "Documentation",
+      "training": "Training",
+      "epp": "PPE",
+      "emergencies": "Emergencies",
+      "occupational_health": "Occupational health",
+      "maintenance": "Maintenance",
+      "audits": "Audits"
+    }
+  },
   "zoneEntry": {
     "title": "Restricted Zone Entry",
     "intro": "Review your site's restricted zones and log your informed entry. This view never blocks your access: it informs you and leaves a record so your supervisor can follow up.",
