@@ -224,6 +224,8 @@ export function buildSidebarMenuGroups(
     { title: t('nav.calculadora_pandeo', 'Calculadora de Pandeo'), icon: Construction, path: '/calculadora-pandeo', color: 'text-amber-500' },
     // Checklist pre-uso de vehículo — mounts the orphan VehiclePreOpChecklistCard.
     { title: t('nav.checklist_vehiculo', 'Pre-Uso Vehículo'), icon: Truck, path: '/checklist-vehiculo', color: 'text-sky-500' },
+    // Auditoría 5S — mounts the orphan FiveSAuditForm over the real buildFiveSAuditReport engine.
+    { title: t('nav.five_s_audit', 'Auditoría 5S'), icon: ClipboardList, path: '/auditoria-5s', color: 'text-emerald-500' },
     // Sprint K vidas críticas wire (2026-05-22) — Causa raíz no-blame.
     // Service rootCauseClassifier.ts (5 porqués + ILO taxonomía) +
     // card RootCauseClassifierCard existían sin page. ISO 45001 §10.2.

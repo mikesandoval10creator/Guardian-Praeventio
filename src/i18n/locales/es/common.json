@@ -1,4 +1,27 @@
 {
+  "fiveS": {
+    "aria": "Auditoría 5S",
+    "title": "Auditoría 5S",
+    "saving": "Guardando...",
+    "submit": "Finalizar auditoría",
+    "page": {
+      "title": "Auditoría 5S",
+      "subtitle": "Evalúa el orden y limpieza de una zona (Seiri…Shitsuke). Es una guía — la decisión es del equipo.",
+      "zoneLabel": "Zona a auditar",
+      "zonePlaceholder": "Ej: Bodega A / Taller mecánico"
+    },
+    "result": {
+      "heading": "Resultado 5S",
+      "score": "Puntaje"
+    },
+    "level": {
+      "critical": "Crítico",
+      "low": "Bajo",
+      "fair": "Regular",
+      "good": "Bueno",
+      "excellent": "Excelente"
+    }
+  },
   "zoneEntry": {
     "title": "Ingreso a Zonas Restringidas",
     "intro": "Consulta las zonas restringidas de tu faena y registra tu ingreso informado. Esta vista nunca bloquea tu acceso: te informa y deja constancia para que tu supervisor te acompañe.",
@@ -95,6 +118,7 @@
     "cphs_draft": "Minuta CPHS",
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Línea de Fuego",
+    "five_s_audit": "Auditoría 5S",
     "calculadora_pandeo": "Calculadora de Pandeo",
     "checklist_vehiculo": "Pre-Uso Vehículo",
     "cuadrillas": "Cuadrillas",

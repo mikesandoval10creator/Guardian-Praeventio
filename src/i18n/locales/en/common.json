@@ -1,4 +1,27 @@
 {
+  "fiveS": {
+    "aria": "5S audit",
+    "title": "5S Audit",
+    "saving": "Saving...",
+    "submit": "Finish audit",
+    "page": {
+      "title": "5S Audit",
+      "subtitle": "Assess a zone's order and cleanliness (Seiri…Shitsuke). Guidance only — the team decides.",
+      "zoneLabel": "Zone to audit",
+      "zonePlaceholder": "e.g. Warehouse A / Mechanical workshop"
+    },
+    "result": {
+      "heading": "5S Result",
+      "score": "Score"
+    },
+    "level": {
+      "critical": "Critical",
+      "low": "Low",
+      "fair": "Fair",
+      "good": "Good",
+      "excellent": "Excellent"
+    }
+  },
   "zoneEntry": {
     "title": "Restricted Zone Entry",
     "intro": "Review your site's restricted zones and log your informed entry. This view never blocks your access: it informs you and leaves a record so your supervisor can follow up.",
@@ -95,6 +118,7 @@
     "cphs_draft": "CPHS Minutes",
     "critical_controls": "Critical Controls",
     "linea_de_fuego": "Line of Fire",
+    "five_s_audit": "5S Audit",
     "calculadora_pandeo": "Buckling Calculator",
     "checklist_vehiculo": "Vehicle Pre-Op",
     "cuadrillas": "Work Crews",

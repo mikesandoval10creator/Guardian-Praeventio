@@ -24,6 +24,8 @@ const LineaDeFuego = lazy(() => import('../pages/LineaDeFuego').then(module => (
 const CalculadoraPandeo = lazy(() => import('../pages/CalculadoraPandeo').then(module => ({ default: module.CalculadoraPandeo })));
 // Checklist pre-uso de vehículo — mounts the orphan VehiclePreOpChecklistCard over validatePreOpChecklist.
 const ChecklistVehiculo = lazy(() => import('../pages/ChecklistVehiculo').then(module => ({ default: module.ChecklistVehiculo })));
+// Auditoría 5S — mounts the orphan FiveSAuditForm over the real buildFiveSAuditReport engine.
+const Auditoria5S = lazy(() => import('../pages/Auditoria5S').then(module => ({ default: module.Auditoria5S })));
 
 export const RiskRoutes = [
   <Route key="risks" path="risks" element={<Risks />} />,
@@ -42,4 +44,5 @@ export const RiskRoutes = [
   <Route key="linea-de-fuego" path="linea-de-fuego" element={<LineaDeFuego />} />,
   <Route key="calculadora-pandeo" path="calculadora-pandeo" element={<CalculadoraPandeo />} />,
   <Route key="checklist-vehiculo" path="checklist-vehiculo" element={<ChecklistVehiculo />} />,
+  <Route key="auditoria-5s" path="auditoria-5s" element={<Auditoria5S />} />,
 ];
