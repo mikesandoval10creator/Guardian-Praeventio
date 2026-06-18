@@ -9,15 +9,15 @@
 // in the badge path: the badge exists precisely for when the worker is
 // offline, so its derivation can never depend on an HTTP round-trip.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { apiAuthHeaders } from '../lib/apiAuth';
 import {
   offlineSync,
   type OfflineSyncStateMachine,
   type SyncOperation,
+  type SyncStateSnapshot,
 } from '../services/sync/syncStateMachine';
-import { useSyncState } from './useSyncState';
 import {
   deriveBadge,
   summarizeQueue,
@@ -70,7 +70,13 @@ function opToItem(op: SyncOperation, machineSyncing: boolean): SyncItem {
 export function useSyncQueueStatus(
   machine: OfflineSyncStateMachine = offlineSync,
 ): SyncQueueStatus {
-  const snap = useSyncState();
+  const [snap, setSnap] = useState<SyncStateSnapshot>(() => machine.getState());
+
+  useEffect(() => {
+    // subscribe fires synchronously with the current snapshot, so the first
+    // post-mount render is already consistent with the hydrated queue.
+    return machine.subscribe(setSnap);
+  }, [machine]);
 
   return useMemo(() => {
     const syncing = snap.state === 'online_syncing';
