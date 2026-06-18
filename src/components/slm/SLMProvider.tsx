@@ -43,6 +43,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -205,13 +206,16 @@ export function SLMProvider({ children }: SLMProviderProps): React.ReactElement 
     };
   }, [refreshPending]);
 
-  const value: SLMContextValue = {
-    isOnline,
-    pendingCount,
-    activeModelId,
-    ensureReady,
-    refreshPending,
-  };
+  const value = useMemo<SLMContextValue>(
+    () => ({
+      isOnline,
+      pendingCount,
+      activeModelId,
+      ensureReady,
+      refreshPending,
+    }),
+    [isOnline, pendingCount, activeModelId, ensureReady, refreshPending],
+  );
 
   return <SLMContext.Provider value={value}>{children}</SLMContext.Provider>;
 }
