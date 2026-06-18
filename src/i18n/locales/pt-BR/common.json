@@ -96,6 +96,7 @@
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Linha de Fogo",
     "calculadora_pandeo": "Calculadora de Flambagem",
+    "carga_mental": "Carga Mental",
     "checklist_vehiculo": "Pré-Uso Veículo",
     "cuadrillas": "Equipes de Campo",
     "culture_pulse": "Cultura Preventiva",
@@ -2549,6 +2550,22 @@
   "calcPandeo": {
     "title": "Calculadora de Flambagem (Euler)",
     "subtitle": "Carga crítica de flambagem de colunas/escoras segundo Euler. Guia de engenharia — não substitui o cálculo estrutural formal nem autoriza uma carga."
+  },
+  "cargaMental": {
+    "title": "Carga Mental do Dia",
+    "subtitle": "Autoavaliação de carga de trabalho (NASA-TLX). Pontue as 6 dimensões; o sistema calcula seu nível e sugere ações. É um guia — não detém nada.",
+    "resultLabel": "Carga total estimada",
+    "dominantLabel": "Fator dominante",
+    "recommendationsLabel": "Sugestões",
+    "noRecs": "Carga dentro de uma faixa gerenciável. Mantenha pausas e comunique qualquer mudança à sua liderança de prevenção.",
+    "disclaimer": "Esta autoavaliação de carga de trabalho (NASA Task Load Index) é calculada no seu dispositivo: não é armazenada nem enviada. Não é um diagnóstico médico nem de saúde mental."
+  },
+  "mentalLoad": {
+    "aria": "Pesquisa de carga mental",
+    "title": "Carga do dia",
+    "subtitle": "Deslize cada dimensão 0 (nada) → 100 (extremo).",
+    "calculate": "Calcular carga",
+    "calculating": "Calculando..."
   },
   "lineaDeFuego": {
     "title": "Linha de Fogo",

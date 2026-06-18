@@ -62,6 +62,20 @@ describe('scoreMentalLoad', () => {
     );
     expect(r.recommendations.some((rec) => /tiempo|planificación/i.test(rec))).toBe(true);
   });
+
+  it('warns on a HIGH NON-DOMINANT factor (frustration 85 while mentalDemand 90 is dominant)', () => {
+    const r = scoreMentalLoad(
+      survey({
+        workerUid: 'w1',
+        mentalDemand: 90, // dominant
+        frustration: 85, // non-dominant but critically high
+      }),
+    );
+    expect(r.dominantFactor).toBe('mentalDemand');
+    // the frustration warning must still fire — not silently dropped for being non-dominant
+    expect(r.recommendations.some((rec) => /frustración/i.test(rec))).toBe(true);
+    expect(r.recommendations.length).toBeGreaterThan(0);
+  });
 });
 
 describe('buildAdminBurdenReport', () => {

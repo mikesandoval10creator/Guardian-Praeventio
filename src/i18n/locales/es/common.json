@@ -96,6 +96,7 @@
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Línea de Fuego",
     "calculadora_pandeo": "Calculadora de Pandeo",
+    "carga_mental": "Carga Mental",
     "checklist_vehiculo": "Pre-Uso Vehículo",
     "cuadrillas": "Cuadrillas",
     "culture_pulse": "Cultura Preventiva",
@@ -2832,6 +2833,22 @@
   "calcPandeo": {
     "title": "Calculadora de Pandeo (Euler)",
     "subtitle": "Carga crítica de pandeo de columnas/puntales según Euler. Guía de ingeniería — no reemplaza el cálculo estructural formal ni autoriza una carga."
+  },
+  "cargaMental": {
+    "title": "Carga Mental del Día",
+    "subtitle": "Autoevaluación de carga de trabajo (NASA-TLX). Puntúa las 6 dimensiones; el sistema calcula tu nivel y te sugiere acciones. Es una guía — no detiene nada.",
+    "resultLabel": "Carga total estimada",
+    "dominantLabel": "Factor dominante",
+    "recommendationsLabel": "Sugerencias",
+    "noRecs": "Carga dentro de un rango manejable. Mantén pausas y comunica cualquier cambio a tu jefatura preventiva.",
+    "disclaimer": "Esta autoevaluación de carga de trabajo (NASA Task Load Index) se calcula en tu dispositivo: no se guarda ni se envía. No es un diagnóstico médico ni de salud mental."
+  },
+  "mentalLoad": {
+    "aria": "Encuesta carga mental",
+    "title": "Carga del día",
+    "subtitle": "Desliza cada dimensión 0 (nada) → 100 (extremo).",
+    "calculate": "Calcular carga",
+    "calculating": "Calculando..."
   },
   "lineaDeFuego": {
     "title": "Línea de Fuego",

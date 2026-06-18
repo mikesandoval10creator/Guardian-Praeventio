@@ -351,6 +351,8 @@ export function buildSidebarMenuGroups(
         { title: t('nav.planesi', 'PLANESI Sílice'), icon: Wind, path: '/planesi', color: 'text-orange-400' },
         // Sprint K vidas críticas wire — Monitor de Fatiga.
         { title: t('nav.fatigue', 'Monitor de Fatiga'), icon: Moon, path: '/fatigue', color: 'text-violet-500' },
+        // Carga mental (NASA-TLX) — autoevaluación on-device (mounts the orphan MentalLoadSurveyForm).
+        { title: t('nav.carga_mental', 'Carga Mental'), icon: Brain, path: '/carga-mental', color: 'text-emerald-500' },
       ],
     },
     {
