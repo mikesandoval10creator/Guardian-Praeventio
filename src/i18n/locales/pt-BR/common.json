@@ -36,7 +36,8 @@
     "mentalload_label": "Carga mental (1-10, opcional)"
   },
   "climateRoutes": {
-    "schematicBadge": "Esquema ilustrativo — clima real na Avaliação",
+    "schematicBadge": "Eventos EONET ativos em posição real · traçado ilustrativo",
+    "eonetActive": "EONET · ativo",
     "calculating": "Avaliando rota…",
     "assessmentUnavailable": "Não foi possível concluir a avaliação climática da rota. Dirija com cautela e tente novamente quando tiver uma conexão melhor."
   },
@@ -96,6 +97,7 @@
     "linea_de_fuego": "Linha de Fogo",
     "calculadora_pandeo": "Calculadora de Flambagem",
     "carga_mental": "Carga Mental",
+    "checklist_vehiculo": "Pré-Uso Veículo",
     "cuadrillas": "Equipes de Campo",
     "culture_pulse": "Cultura Preventiva",
     "data_confidence": "Confiabilidade dos Dados",
@@ -2539,6 +2541,11 @@
       "audit_trail_hint_prefix": "Para histórico completo de paralisações finalizadas ou canceladas, consulte ",
       "audit_trail_link": "Audit Trail"
     }
+  },
+  "checklistVehiculo": {
+    "title": "Checklist Pré-Uso de Veículo",
+    "subtitle": "Verificação prévia ao uso de veículos e equipamentos móveis. É um guia — recomenda, não interrompe a operação.",
+    "kind": "Tipo de veículo"
   },
   "calcPandeo": {
     "title": "Calculadora de Flambagem (Euler)",

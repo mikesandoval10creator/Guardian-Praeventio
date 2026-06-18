@@ -222,6 +222,8 @@ export function buildSidebarMenuGroups(
     { title: t('nav.linea_de_fuego', 'Línea de Fuego'), icon: Crosshair, path: '/linea-de-fuego', color: 'text-rose-500' },
     // Calculadora de pandeo (Euler) — mounts the orphan BucklingCalculatorCard.
     { title: t('nav.calculadora_pandeo', 'Calculadora de Pandeo'), icon: Construction, path: '/calculadora-pandeo', color: 'text-amber-500' },
+    // Checklist pre-uso de vehículo — mounts the orphan VehiclePreOpChecklistCard.
+    { title: t('nav.checklist_vehiculo', 'Pre-Uso Vehículo'), icon: Truck, path: '/checklist-vehiculo', color: 'text-sky-500' },
     // Sprint K vidas críticas wire (2026-05-22) — Causa raíz no-blame.
     // Service rootCauseClassifier.ts (5 porqués + ILO taxonomía) +
     // card RootCauseClassifierCard existían sin page. ISO 45001 §10.2.

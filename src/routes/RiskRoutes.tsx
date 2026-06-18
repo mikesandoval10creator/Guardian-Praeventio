@@ -22,6 +22,8 @@ const RootCauseInvestigation = lazy(() => import('../pages/RootCauseInvestigatio
 const LineaDeFuego = lazy(() => import('../pages/LineaDeFuego').then(module => ({ default: module.LineaDeFuego })));
 // Calculadora de pandeo (Euler) — mounts the orphan BucklingCalculatorCard over the real calculateCriticalLoad engine.
 const CalculadoraPandeo = lazy(() => import('../pages/CalculadoraPandeo').then(module => ({ default: module.CalculadoraPandeo })));
+// Checklist pre-uso de vehículo — mounts the orphan VehiclePreOpChecklistCard over validatePreOpChecklist.
+const ChecklistVehiculo = lazy(() => import('../pages/ChecklistVehiculo').then(module => ({ default: module.ChecklistVehiculo })));
 
 export const RiskRoutes = [
   <Route key="risks" path="risks" element={<Risks />} />,
@@ -39,4 +41,5 @@ export const RiskRoutes = [
   <Route key="root-cause" path="root-cause" element={<RootCauseInvestigation />} />,
   <Route key="linea-de-fuego" path="linea-de-fuego" element={<LineaDeFuego />} />,
   <Route key="calculadora-pandeo" path="calculadora-pandeo" element={<CalculadoraPandeo />} />,
+  <Route key="checklist-vehiculo" path="checklist-vehiculo" element={<ChecklistVehiculo />} />,
 ];
