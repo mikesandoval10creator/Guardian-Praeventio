@@ -4,6 +4,7 @@ import { getToken, onMessage } from 'firebase/messaging';
 import { useProject } from './ProjectContext';
 import { doc, onSnapshot, collection, query, orderBy, limit, updateDoc } from 'firebase/firestore';
 import { useFirebase } from './FirebaseContext';
+import { useEmergency } from './EmergencyContext';
 import { db } from '../services/firebase';
 
 import { get, set } from 'idb-keyval';
@@ -35,18 +36,8 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
-  const [isCrisisMode, setIsCrisisMode] = useState(false);
-
-  useEffect(() => {
-    if (!selectedProject?.id) return undefined;
-    const projectRef = doc(db, 'projects', selectedProject.id);
-    const unsubscribe = onSnapshot(projectRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setIsCrisisMode(docSnap.data().isEmergencyActive || false);
-      }
-    });
-    return () => unsubscribe();
-  }, [selectedProject?.id]);
+  const { isEmergencyActive } = useEmergency();
+  const isCrisisMode = isEmergencyActive;
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
