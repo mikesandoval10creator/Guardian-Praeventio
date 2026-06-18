@@ -5,6 +5,8 @@ import { IPERCAnalysis } from '../components/risks/IPERCAnalysis';
 import { TopRisksDashboardCard } from '../components/riskRanking/TopRisksDashboardCard';
 import { WeakControlsDashboardCard } from '../components/riskRanking/WeakControlsDashboardCard';
 import { RiskTimeseriesChart } from '../components/riskRanking/RiskTimeseriesChart';
+import { VulnerabilityHeatmap } from '../components/vulnerability/VulnerabilityHeatmap';
+import { useVulnerabilityLatest } from '../hooks/useVulnerability';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
 import { RiskNode, NodeType } from '../types';
@@ -28,6 +30,7 @@ export function Risks() {
   const { selectedProject } = useProject();
   const { data: nodes, loading } = useFirestoreCollection<RiskNode>('nodes');
   const navigate = useNavigate();
+  const { data: vulnerabilityData } = useVulnerabilityLatest(selectedProject?.id ?? null);
 
   const riskNodes = nodes.filter(node => 
     node.type === NodeType.RISK && 
@@ -54,6 +57,11 @@ export function Risks() {
         <WeakControlsDashboardCard topN={5} />
       </div>
       <RiskTimeseriesChart days={30} />
+
+      {/* Vulnerability Heatmap — real operational vulnerabilities */}
+      {vulnerabilityData?.snapshot && (
+        <VulnerabilityHeatmap vulnerabilities={vulnerabilityData.snapshot.vulnerabilities ?? []} />
+      )}
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-10 sm:py-20 gap-3 sm:gap-4">
