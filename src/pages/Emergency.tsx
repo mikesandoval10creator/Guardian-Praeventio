@@ -416,7 +416,7 @@ export function Emergency() {
               <Phone className="w-5 h-5 text-emerald-500" />
               {t('emergency_page.btn.emergency_contacts')}
             </h3>
-            <ul className="space-y-3 text-sm">
+            <ul className="space-y-3 text-sm" data-testid="emergency-contacts-list">
               <li className="flex justify-between items-center"><span>SAMU</span><a href="tel:131" className="font-mono font-black text-emerald-500">131</a></li>
               <li className="flex justify-between items-center"><span>Bomberos</span><a href="tel:132" className="font-mono font-black text-emerald-500">132</a></li>
               <li className="flex justify-between items-center"><span>Carabineros</span><a href="tel:133" className="font-mono font-black text-emerald-500">133</a></li>

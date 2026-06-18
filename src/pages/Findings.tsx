@@ -179,6 +179,7 @@ export function Findings() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsModalOpen(true)}
+            data-testid="new-finding-button"
             className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-black/20 dark:shadow-white/10 group w-full sm:w-auto"
           >
             <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
