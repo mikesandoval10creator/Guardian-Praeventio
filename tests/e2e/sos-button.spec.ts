@@ -20,9 +20,12 @@ import { seedProject } from './fixtures/seed';
 // LOCALLY-ITERABLE — `JAVA_HOME=<Temurin-21> E2E_FULL_STACK=1 … playwright test`
 // boots the emulator (Java 21 + firebase-tools 15). Un-fixme as each assertion
 // is reconciled with the feature.
-// Sprint E2E-99 — un-fixme: rutas corregidas a nivel raíz (/emergency, la app
-// usa ProjectContext, no params de URL) y locator tel: robusto (a[href^="tel:"]).
-test.describe('SOSButton long-press', () => {
+// Sprint E2E-99 — route-fixes CONSERVADOS (/emergency a nivel raíz; locator tel:
+// robusto a[href^="tel:"]) y data-testid (sos-button, sos-toast) ya en el
+// componente. PERO la aserción feature-level (el enlace tel: no renderiza en
+// /emergency bajo el harness full-stack de CI — requiere ProjectContext que el
+// fixture no monta) NO es verificable en CI todavía → re-fixme hasta reconciliar.
+test.describe.fixme('SOSButton long-press', () => {
   test('long-press de 3s dispara alerta; tap corto no', async ({ page }) => {
     test.skip(
       process.env.E2E_FULL_STACK !== '1',
