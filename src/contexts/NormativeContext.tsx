@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, useMemo, ReactNode } from 'react';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -518,45 +518,46 @@ function getComprehensiveNormativeContextImpl(): string {
 // ─── Provider ─────────────────────────────────────────────────────────────
 
 export function NormativeProvider({ children }: { children: ReactNode }) {
-  const searchNormatives = (query: string) =>
-    searchNormativesImpl(query, NORMATIVES);
+  const value = useMemo<NormativeContextType>(() => {
+    const searchNormatives = (query: string) =>
+      searchNormativesImpl(query, NORMATIVES);
 
-  const searchProtocols = (query: string) =>
-    searchProtocolsImpl(query, PROTOCOLS);
+    const searchProtocols = (query: string) =>
+      searchProtocolsImpl(query, PROTOCOLS);
 
-  const getNormativeByCode = (code: string) =>
-    NORMATIVES.find((n) => n.code === code);
+    const getNormativeByCode = (code: string) =>
+      NORMATIVES.find((n) => n.code === code);
 
-  const getNormativesByCategory = (cat: string) =>
-    NORMATIVES.filter((n) => n.category === cat);
+    const getNormativesByCategory = (cat: string) =>
+      NORMATIVES.filter((n) => n.category === cat);
 
-  const getNormativesBySector = (sector: string) =>
-    NORMATIVES.filter((n) => n.sector === sector);
+    const getNormativesBySector = (sector: string) =>
+      NORMATIVES.filter((n) => n.sector === sector);
 
-  const getRelatedNormatives = (id: string): Normative[] => {
-    const target = NORMATIVES.find((n) => n.id === id);
-    if (!target) return [];
-    // Related = same category or same sector (excluding itself)
-    return NORMATIVES.filter(
-      (n) =>
-        n.id !== id &&
-        (n.category === target.category ||
-          (target.sector !== undefined && n.sector === target.sector)),
-    );
-  };
+    const getRelatedNormatives = (id: string): Normative[] => {
+      const target = NORMATIVES.find((n) => n.id === id);
+      if (!target) return [];
+      return NORMATIVES.filter(
+        (n) =>
+          n.id !== id &&
+          (n.category === target.category ||
+            (target.sector !== undefined && n.sector === target.sector)),
+      );
+    };
 
-  const value: NormativeContextType = {
-    normatives: NORMATIVES,
-    protocols: PROTOCOLS,
-    searchNormatives,
-    searchProtocols,
-    getNormativeByCode,
-    getNormativesByCategory,
-    getNormativesBySector,
-    getRelatedNormatives,
-    getComprehensiveNormativeContext: getComprehensiveNormativeContextImpl,
-    loading: false,
-  };
+    return {
+      normatives: NORMATIVES,
+      protocols: PROTOCOLS,
+      searchNormatives,
+      searchProtocols,
+      getNormativeByCode,
+      getNormativesByCategory,
+      getNormativesBySector,
+      getRelatedNormatives,
+      getComprehensiveNormativeContext: getComprehensiveNormativeContextImpl,
+      loading: false,
+    };
+  }, []); // All dependencies are module-level constants — stable forever
 
   return <NormativeCtx.Provider value={value}>{children}</NormativeCtx.Provider>;
 }
