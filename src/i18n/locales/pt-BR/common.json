@@ -1,4 +1,27 @@
 {
+  "fiveS": {
+    "aria": "Auditoria 5S",
+    "title": "Auditoria 5S",
+    "saving": "Salvando...",
+    "submit": "Finalizar auditoria",
+    "page": {
+      "title": "Auditoria 5S",
+      "subtitle": "Avalie a ordem e limpeza de uma zona (Seiri…Shitsuke). É um guia — a decisão é da equipe.",
+      "zoneLabel": "Zona a auditar",
+      "zonePlaceholder": "Ex: Depósito A / Oficina mecânica"
+    },
+    "result": {
+      "heading": "Resultado 5S",
+      "score": "Pontuação"
+    },
+    "level": {
+      "critical": "Crítico",
+      "low": "Baixo",
+      "fair": "Regular",
+      "good": "Bom",
+      "excellent": "Excelente"
+    }
+  },
   "expirations": {
     "aria": "Painel de vencimentos",
     "title": "Vencimentos",
@@ -131,6 +154,7 @@
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Linha de Fogo",
     "iper_matrix": "Matriz IPER",
+    "five_s_audit": "Auditoria 5S",
     "calculadora_pandeo": "Calculadora de Flambagem",
     "carga_mental": "Carga Mental",
     "checklist_vehiculo": "Pré-Uso Veículo",

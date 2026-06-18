@@ -26,6 +26,8 @@ const CalculadoraPandeo = lazy(() => import('../pages/CalculadoraPandeo').then(m
 const ChecklistVehiculo = lazy(() => import('../pages/ChecklistVehiculo').then(module => ({ default: module.ChecklistVehiculo })));
 // Matriz IPER 5x5 — mounts the orphan IperMatrixCard over the real calculateIper engine.
 const MatrizIper = lazy(() => import('../pages/MatrizIper').then(module => ({ default: module.MatrizIper })));
+// Auditoría 5S — mounts the orphan FiveSAuditForm over the real buildFiveSAuditReport engine.
+const Auditoria5S = lazy(() => import('../pages/Auditoria5S').then(module => ({ default: module.Auditoria5S })));
 
 export const RiskRoutes = [
   <Route key="risks" path="risks" element={<Risks />} />,
@@ -45,4 +47,5 @@ export const RiskRoutes = [
   <Route key="calculadora-pandeo" path="calculadora-pandeo" element={<CalculadoraPandeo />} />,
   <Route key="checklist-vehiculo" path="checklist-vehiculo" element={<ChecklistVehiculo />} />,
   <Route key="matriz-iper" path="matriz-iper" element={<MatrizIper />} />,
+  <Route key="auditoria-5s" path="auditoria-5s" element={<Auditoria5S />} />,
 ];
