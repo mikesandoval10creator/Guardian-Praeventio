@@ -84,7 +84,6 @@
     "src/components/pymeOnboarding/PymeMaturityWizard.tsx",
     "src/components/pymeWizard/PymeOnboardingPlanPanel.tsx",
     "src/components/raciMatrix/RaciHealthCard.tsx",
-    "src/components/regulatory/Iso45001Catalog.tsx",
     "src/components/reportsAutomation/ReportTemplatePreview.tsx",
     "src/components/researchMode/RootCauseTreeSummary.tsx",
     "src/components/residualRisk/ResidualRiskCard.tsx",

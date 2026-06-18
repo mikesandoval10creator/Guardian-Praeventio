@@ -56,6 +56,7 @@ import { ModuleGroupsGrid } from '../components/dashboard/ModuleGroupsGrid';
 import { PlannerModal } from '../components/dashboard/PlannerModal';
 import { ExpirationsListPanel } from '../components/expirations/ExpirationsListPanel';
 import { useExpirableItems } from '../hooks/useExpirableItems';
+import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -327,6 +328,9 @@ export function Dashboard() {
 
       {/* Daily safety tip — industry-aware */}
       <AdviceBanner />
+
+      {/* ISO 45001:2018 baseline controls catalog */}
+      <Iso45001Catalog />
 
       {/* 4. Real-Time Status Widget */}
       <RealTimeStatusWidget />
