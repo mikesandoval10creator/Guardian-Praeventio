@@ -94,6 +94,7 @@
     "cphs_draft": "CPHS Minutes",
     "critical_controls": "Critical Controls",
     "linea_de_fuego": "Line of Fire",
+    "calculadora_pandeo": "Buckling Calculator",
     "cuadrillas": "Work Crews",
     "culture_pulse": "Safety Culture",
     "data_confidence": "Data Confidence",
@@ -2820,6 +2821,10 @@
       "audit_trail_hint_prefix": "For complete history of finalized or cancelled stoppages, see ",
       "audit_trail_link": "Audit Trail"
     }
+  },
+  "calcPandeo": {
+    "title": "Buckling Calculator (Euler)",
+    "subtitle": "Euler critical buckling load for columns/struts. Engineering guidance — it does not replace the formal structural calc nor authorize a load."
   },
   "lineaDeFuego": {
     "title": "Line of Fire",

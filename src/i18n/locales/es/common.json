@@ -94,6 +94,7 @@
     "cphs_draft": "Minuta CPHS",
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Línea de Fuego",
+    "calculadora_pandeo": "Calculadora de Pandeo",
     "cuadrillas": "Cuadrillas",
     "culture_pulse": "Cultura Preventiva",
     "data_confidence": "Confianza de Datos",
@@ -2820,6 +2821,10 @@
       "audit_trail_hint_prefix": "Para historial completo de paralizaciones finalizadas o canceladas, consultá ",
       "audit_trail_link": "Audit Trail"
     }
+  },
+  "calcPandeo": {
+    "title": "Calculadora de Pandeo (Euler)",
+    "subtitle": "Carga crítica de pandeo de columnas/puntales según Euler. Guía de ingeniería — no reemplaza el cálculo estructural formal ni autoriza una carga."
   },
   "lineaDeFuego": {
     "title": "Línea de Fuego",

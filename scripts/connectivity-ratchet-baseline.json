@@ -1,6 +1,6 @@
 {
   "_doc": "Ratchet baseline for scripts/check-connectivity-ratchet.cjs. List of currently-orphan UI features (component/hook/page exports not referenced by any non-test src file = built but not mounted). The list may only SHRINK: a NEW orphan fails the gate (wire it into a page, or justify + regenerate with `node scripts/check-connectivity-ratchet.cjs --write`). When you connect a baselined orphan, regenerate so it can never be re-orphaned silently. Includes a stable set of heuristic false positives (lazy routes / barrels / util modules) — acceptable because the gate only blocks GROWTH.",
-  "count": 125,
+  "count": 124,
   "orphans": [
     "src/components/adoption/ChurnRiskPanel.tsx",
     "src/components/agenda/AgendaDigestCard.tsx",
@@ -42,7 +42,6 @@
     "src/components/eppFlow/PendingPurchaseOrdersPanel.tsx",
     "src/components/equipment/EquipmentStatusCard.tsx",
     "src/components/escalation/SlaWatchPanel.tsx",
-    "src/components/euler/BucklingCalculatorCard.tsx",
     "src/components/evidenceChain/CustodyChainTimelineCard.tsx",
     "src/components/excelImport/ExcelImportPreview.tsx",
     "src/components/expirations/ExpirationsListPanel.tsx",
