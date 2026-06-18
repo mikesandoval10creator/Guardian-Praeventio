@@ -56,6 +56,8 @@ import { ModuleGroupsGrid } from '../components/dashboard/ModuleGroupsGrid';
 import { PlannerModal } from '../components/dashboard/PlannerModal';
 import { ExpirationsListPanel } from '../components/expirations/ExpirationsListPanel';
 import { useExpirableItems } from '../hooks/useExpirableItems';
+import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
+import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
 import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
 
 export function Dashboard() {
@@ -64,6 +66,8 @@ export function Dashboard() {
   // B.9 expirations panel — REAL expirable items (server-assembled from project
   // subcollections). Renders only when there is something to surface.
   const { items: expirables } = useExpirableItems(selectedProject?.id ?? null);
+  // SLA Watch — real corrective actions + work permits assessed for SLA compliance.
+  const { items: slaItems } = useSlaWatchItems(selectedProject?.id ?? null);
   // F.2 compliance traffic light — REAL legal engine snapshot (server-computed).
   const { result: complianceLight } = useComplianceTrafficLight(
     selectedProject?.id ?? null,
@@ -334,6 +338,9 @@ export function Dashboard() {
 
       {/* 4. Real-Time Status Widget */}
       <RealTimeStatusWidget />
+
+      {/* SLA Watch — real corrective actions + work permits assessed for SLA compliance */}
+      {slaItems.length > 0 && <SlaWatchPanel items={slaItems} hideHealthy />}
 
       {/* Man Down supervisor alert — only renders when events exist */}
       <ManDownSupervisorWidget />
