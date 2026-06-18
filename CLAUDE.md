@@ -218,6 +218,19 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
     `node scripts/check-connectivity-ratchet.cjs --write` so the debt can't be
     re-grown. Heuristic (no TS resolver): tolerates a stable set of false
     positives (lazy routes / barrels / util modules) kept in the baseline.
+22. **Router behavioral-coverage ratchet.** An Express router under
+    `src/server/routes` is "verified" when a test IMPORTS that real router AND
+    uses supertest `request()` (a behavioral test on the real code). The count
+    of UNCOVERED routers (no such test) may only SHRINK: a NEW router with no
+    real-router test fails the gate (CLAUDE.md already requires 401/200/400 for
+    a new route). Enforced by `scripts/check-router-test-ratchet.cjs` (baseline
+    `scripts/router-test-ratchet-baseline.json`) — `npm run lint:router-tests`,
+    the husky pre-commit hook, and the CI vitest gate
+    `src/__tests__/scripts/routerTestRatchet.test.ts`. The baseline's `verified`
+    count is the measured "verified-working (server)" inventory — the positive
+    mirror of `docs/PENDIENTE.md`. Cover a baselined router → regenerate with
+    `--write`. Does NOT detect a hollow test that imports + requests but asserts
+    nothing (separate concern).
 
 ## Testing notes specific to this repo
 
