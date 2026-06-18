@@ -36,6 +36,7 @@
     "lint:i18n": "node scripts/validate-i18n.cjs",
     "lint:any": "node scripts/check-any-ratchet.cjs",
     "lint:connectivity": "node scripts/check-connectivity-ratchet.cjs",
+    "lint:router-tests": "node scripts/check-router-test-ratchet.cjs",
     "test:medical-guard": "node --test src/__tests__/scripts/medicalGuard.test.cjs",
     "prepare": "husky install || true",
     "validate:env": "node scripts/validate-env.cjs",

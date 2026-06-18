@@ -14,7 +14,7 @@
 | B | Datos fabricados en pantallas montadas | ~38 hallados, **casi todos cerrados** | 🟡 parcial | ❌ falta gate |
 | C | Stubs / placeholders | **86** | ✅ inventario | 🟡 `stub-guard` (forma, no conexión) |
 | D | Pipelines backend sin construir | 3 | ✅ explícito | ❌ |
-| E | Tests que no prueban código real | ~144+ (estimado) | ❌ sin medir | ❌ → **medir** |
+| E | Routers sin test conductual | **76 / 204** (128 verificados) | ✅ completo | ✅ `router-test-ratchet` |
 | F | Decisiones del fundador | 6 | ✅ explícito | n/a (decisión) |
 
 ---
@@ -88,9 +88,14 @@ Inventario en `docs/stubs-inventory.md`. `precommit-stub-guard` valida la FORMA 
 
 ---
 
-## E. Tests que no prueban código real  ·  SIN MEDIR → medir
+## E. Routers sin test conductual  ·  MEDIDO + GATE: router-test-ratchet
 
-Del Plan Maestro: ~144 tests `router.stack` + ~15 mock-the-SUT + 66 routers sin cobertura conductual. **No medido con precisión todavía.** Próximo: un scan que los cuente (grep `router.stack` + cobertura por router) → baseline + (idealmente) gate.
+Medido: **204 routers reales · 128 verificados** (un test importa el router real + usa supertest `request()`) · **76 sin cobertura** · solo 4 `router.stack` hollow (el "~144" del plan ya estaba limpiado). **Los 128 verificados = el inventario "qué funciona verificado (server)"** — el espejo positivo de este registro. Gate: `check-router-test-ratchet.cjs` (baseline 76, solo baja; router nuevo sin test → FAIL).
+
+**Prioridad 1 — 10 routers VIDA/LEGAL sin test conductual** (escribir `*.router.test.ts` real: 401/200/400):
+`evacuation` · `fatigue` · `loto` · `medicalAptitude` · `refuges` · `health` · `expirations` · `criticalRoles` · `driving` · `b2d/hazmat`. Los 66 restantes (hygiene) en `scripts/router-test-ratchet-baseline.json`.
+
+Nota: el gate detecta "tiene test real-router o no", NO un test que importa+request pero no asierta nada (hollow). Eso es un refinamiento posterior.
 
 ---
 
@@ -102,7 +107,7 @@ SII (bsale-only vs 2º PSE) · Ley Karin inbox (montar vs inline) · incidentFlo
 
 ## Gates activos (capa de medición que impide deuda nueva)
 
-`connectivity-ratchet` (huérfanos, #983) · `any-ratchet` (155) · `i18n-parity` · `convention-guard` · `stub-guard` · `allowbackup-guard` · `medical-guard`. **Pendientes de construir:** gate de honestidad (B) + gate/medición de tests-reales (E).
+`connectivity-ratchet` (huérfanos A, #983) · `router-test-ratchet` (cobertura conductual E) · `any-ratchet` (155) · `i18n-parity` · `convention-guard` · `stub-guard` · `allowbackup-guard` · `medical-guard`. **Pendiente de construir:** gate de honestidad (B — anti-dato-fabricado en componentes montados).
 
 ## Regla anti-círculos
 
