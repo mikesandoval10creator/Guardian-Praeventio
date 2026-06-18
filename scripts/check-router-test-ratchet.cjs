@@ -47,6 +47,15 @@ function walk(dir, out = []) {
 const fileKey = (f) => path.relative(REPO_ROOT, f).replace(/\\/g, '/');
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/** All static `from '...'` / `require('...')` specifiers in a source string. */
+function importSpecs(content) {
+  const re = /from\s*['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]/g;
+  const out = [];
+  let m;
+  while ((m = re.exec(content)) !== null) out.push(m[1] || m[2]);
+  return out;
+}
+
 /** Real routers = route files (non-test) that define HTTP routes. */
 function listRouters() {
   return walk(ROUTES_DIR)
@@ -57,7 +66,12 @@ function listRouters() {
     });
 }
 
-/** Contents of every supertest-using test under TEST_DIRS. */
+/**
+ * Every supertest-using test under TEST_DIRS as `{ file, content }`. The file
+ * path is required so `scan` can resolve a test's RELATIVE import specifiers
+ * (e.g. a co-located `./loto`) against the test's own directory — without it,
+ * co-located router tests were false-negatives (counted as "uncovered").
+ */
 function listSupertestFiles() {
   const seen = new Set();
   const out = [];
@@ -67,7 +81,7 @@ function listSupertestFiles() {
       if (seen.has(f)) continue;
       seen.add(f);
       const c = fs.readFileSync(f, 'utf8');
-      if (/\brequest\s*\(/.test(c)) out.push(c);
+      if (/\brequest\s*\(/.test(c)) out.push({ file: f, content: c });
     }
   }
   return out;
@@ -77,9 +91,20 @@ function listSupertestFiles() {
 function scan(routers = listRouters(), supertestFiles = listSupertestFiles()) {
   const uncovered = [];
   for (const r of routers) {
-    const suffix = fileKey(r).replace(/^src\//, '').replace(/\.ts$/, ''); // server/routes/x
+    const routerKeyNoExt = fileKey(r).replace(/\.ts$/, '');                 // src/server/routes/x
+    const suffix = routerKeyNoExt.replace(/^src\//, '');                     // server/routes/x
     const importRe = new RegExp("['\"][^'\"]*" + esc(suffix) + "(\\.js)?['\"]");
-    const verified = supertestFiles.some((c) => importRe.test(c));
+    const verified = supertestFiles.some(({ file, content }) => {
+      // (a) path-style import, e.g. `../../server/routes/x` (tests under __tests__).
+      if (importRe.test(content)) return true;
+      // (b) co-located / relative import, e.g. `./x` next to the router — resolve
+      //     each specifier against the test file's directory and compare keys.
+      return importSpecs(content).some((spec) => {
+        if (!spec.startsWith('.')) return false;
+        const resolved = fileKey(path.resolve(path.dirname(file), spec)).replace(/\.(ts|js)$/, '');
+        return resolved === routerKeyNoExt;
+      });
+    });
     if (!verified) uncovered.push(fileKey(r));
   }
   return uncovered.sort();
