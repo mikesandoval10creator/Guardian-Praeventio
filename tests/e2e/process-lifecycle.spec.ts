@@ -18,7 +18,9 @@ import { seedProject } from './fixtures/seed';
 // What remains is feature-level: the "Iniciar proceso" → close → XP-grant flow
 // assertions need reconciling with the live render. Now locally-iterable
 // (Java 21 + emulator). Un-fixme once verified end-to-end.
-test.describe.fixme('Process lifecycle (start → close → XP)', () => {
+// Sprint E2E-99 — un-fixme: ruta corregida a /cuadrillas (StartProcessModal
+// vive en CuadrillasDashboard; no existe /projects/:id/gantt).
+test.describe('Process lifecycle (start → close → XP)', () => {
   test('iniciar y cerrar un proceso otorga XP a la cuadrilla', async ({ page }) => {
     test.skip(
       process.env.E2E_FULL_STACK !== '1',
@@ -36,7 +38,7 @@ test.describe.fixme('Process lifecycle (start → close → XP)', () => {
       // ahora tiene timeout explícito (default 5s era muy corto en el
       // emulador frío) y waitFor en los botones evita race conditions
       // con los listeners de Firestore que pintan el modal.
-      await page.goto(`/projects/${seed.projectId}/gantt`);
+      await page.goto('/cuadrillas');
       // §2.24 fix (2026-05-22) — wait barrier auth real antes de UI checks.
       await signInBrowserViaCustomToken(page);
 

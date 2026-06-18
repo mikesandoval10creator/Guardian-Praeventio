@@ -247,6 +247,7 @@ export function SOSButton(): React.ReactElement | null {
       {toast && (
         <div
           role="status"
+          data-testid="sos-toast"
           className="mb-3 mx-auto bg-zinc-900 text-white text-sm font-bold px-4 py-2 rounded-lg shadow-xl border border-white/20 pointer-events-auto"
         >
           {toast}
@@ -254,6 +255,7 @@ export function SOSButton(): React.ReactElement | null {
       )}
       <button
         type="button"
+        data-testid="sos-button"
         aria-label="Botón SOS — mantener presionado 3 segundos"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
