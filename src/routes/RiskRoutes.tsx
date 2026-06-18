@@ -20,6 +20,8 @@ const RootCauseInvestigation = lazy(() => import('../pages/RootCauseInvestigatio
 // Línea de fuego (struck-by/caught-between) self-assessment tool — mounts the
 // previously-orphan LineOfFireValidationCard over the real validateLineOfFire engine.
 const LineaDeFuego = lazy(() => import('../pages/LineaDeFuego').then(module => ({ default: module.LineaDeFuego })));
+// Calculadora de pandeo (Euler) — mounts the orphan BucklingCalculatorCard over the real calculateCriticalLoad engine.
+const CalculadoraPandeo = lazy(() => import('../pages/CalculadoraPandeo').then(module => ({ default: module.CalculadoraPandeo })));
 
 export const RiskRoutes = [
   <Route key="risks" path="risks" element={<Risks />} />,
@@ -36,4 +38,5 @@ export const RiskRoutes = [
   <Route key="critical-controls" path="critical-controls" element={<CriticalControlsView />} />,
   <Route key="root-cause" path="root-cause" element={<RootCauseInvestigation />} />,
   <Route key="linea-de-fuego" path="linea-de-fuego" element={<LineaDeFuego />} />,
+  <Route key="calculadora-pandeo" path="calculadora-pandeo" element={<CalculadoraPandeo />} />,
 ];

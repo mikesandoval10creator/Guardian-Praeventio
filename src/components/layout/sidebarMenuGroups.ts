@@ -32,6 +32,7 @@ import {
   Calendar,
   Car,
   Crosshair,
+  Construction,
   ClipboardCheck,
   ClipboardList,
   Clock,
@@ -219,6 +220,8 @@ export function buildSidebarMenuGroups(
     // Línea de fuego (struck-by/caught-between) — self-assessment tool over the
     // real validateLineOfFire engine (mounts the orphan LineOfFireValidationCard).
     { title: t('nav.linea_de_fuego', 'Línea de Fuego'), icon: Crosshair, path: '/linea-de-fuego', color: 'text-rose-500' },
+    // Calculadora de pandeo (Euler) — mounts the orphan BucklingCalculatorCard.
+    { title: t('nav.calculadora_pandeo', 'Calculadora de Pandeo'), icon: Construction, path: '/calculadora-pandeo', color: 'text-amber-500' },
     // Sprint K vidas críticas wire (2026-05-22) — Causa raíz no-blame.
     // Service rootCauseClassifier.ts (5 porqués + ILO taxonomía) +
     // card RootCauseClassifierCard existían sin page. ISO 45001 §10.2.

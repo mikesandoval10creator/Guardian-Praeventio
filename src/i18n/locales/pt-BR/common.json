@@ -94,6 +94,7 @@
     "cphs_draft": "Ata do CPHS",
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Linha de Fogo",
+    "calculadora_pandeo": "Calculadora de Flambagem",
     "cuadrillas": "Equipes de Campo",
     "culture_pulse": "Cultura Preventiva",
     "data_confidence": "Confiabilidade dos Dados",
@@ -2537,6 +2538,10 @@
       "audit_trail_hint_prefix": "Para histórico completo de paralisações finalizadas ou canceladas, consulte ",
       "audit_trail_link": "Audit Trail"
     }
+  },
+  "calcPandeo": {
+    "title": "Calculadora de Flambagem (Euler)",
+    "subtitle": "Carga crítica de flambagem de colunas/escoras segundo Euler. Guia de engenharia — não substitui o cálculo estrutural formal nem autoriza uma carga."
   },
   "lineaDeFuego": {
     "title": "Linha de Fogo",
