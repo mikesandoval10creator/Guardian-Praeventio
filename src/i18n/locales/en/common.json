@@ -4134,6 +4134,13 @@
       "title": "Findings Heat Map"
     }
   },
+  "hazmatInventory": {
+    "page": {
+      "title": "HAZMAT Inventory",
+      "subtitle": "DS 43/2016 — Hazardous substances control with compatibility validation.",
+      "selectProject": "Select a project to manage the hazardous substances inventory."
+    }
+  },
   "hazmat": {
     "addBtn": "Add substance",
     "addTitle": "Add substance",
