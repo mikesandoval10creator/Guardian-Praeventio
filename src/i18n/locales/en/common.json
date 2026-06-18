@@ -3790,6 +3790,40 @@
     }
   },
   "onboarding": {
+    "industry": {
+      "title": "What's your industry?"
+    },
+    "countries": {
+      "title": "Which countries do you operate in?"
+    },
+    "plan": {
+      "title": "Choose your plan",
+      "mostPopular": "Most popular",
+      "free": "Free",
+      "perMonth": "/mo",
+      "unlimitedWorkers": "Unlimited workers",
+      "upToWorkers": "Up to {{count}} workers",
+      "unlimitedProjects": "Unlimited projects",
+      "upToProjects": "Up to {{count}} projects"
+    },
+    "team": {
+      "title": "Invite your team",
+      "help": "Optional. Paste comma-separated emails or upload a CSV.",
+      "emailsPlaceholder": "ana@company.com, jorge@company.com, …",
+      "uploadCsv": "Upload CSV",
+      "emailValidOne": "{{count}} valid email",
+      "emailsValidOther": "{{count}} valid emails"
+    },
+    "project": {
+      "title": "Your first project",
+      "nameLabel": "Project name",
+      "namePlaceholder": "North Site 2026",
+      "importWorkers": "Import workers (optional CSV)",
+      "replaceCsv": "Replace CSV",
+      "uploadCsv": "Upload CSV",
+      "remove": "Remove",
+      "skipHint": "You can skip this step and import later."
+    },
     "sii": {
       "searchLabel": "Find your SII business activity (code or text)",
       "searchPlaceholder": "E.g. 410010 or copper mining",

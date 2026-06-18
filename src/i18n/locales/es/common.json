@@ -3790,6 +3790,40 @@
     }
   },
   "onboarding": {
+    "industry": {
+      "title": "¿Cuál es tu industria?"
+    },
+    "countries": {
+      "title": "¿En qué países operas?"
+    },
+    "plan": {
+      "title": "Elige tu plan",
+      "mostPopular": "Más popular",
+      "free": "Gratis",
+      "perMonth": "/mes",
+      "unlimitedWorkers": "Trabajadores ilimitados",
+      "upToWorkers": "Hasta {{count}} trabajadores",
+      "unlimitedProjects": "Proyectos ilimitados",
+      "upToProjects": "Hasta {{count}} proyectos"
+    },
+    "team": {
+      "title": "Invita a tu equipo",
+      "help": "Opcional. Pega emails separados por coma o sube un CSV.",
+      "emailsPlaceholder": "ana@empresa.cl, jorge@empresa.cl, …",
+      "uploadCsv": "Subir CSV",
+      "emailValidOne": "{{count}} email válido",
+      "emailsValidOther": "{{count}} emails válidos"
+    },
+    "project": {
+      "title": "Tu primer proyecto",
+      "nameLabel": "Nombre del proyecto",
+      "namePlaceholder": "Faena Norte 2026",
+      "importWorkers": "Importar trabajadores (CSV opcional)",
+      "replaceCsv": "Reemplazar CSV",
+      "uploadCsv": "Subir CSV",
+      "remove": "Quitar",
+      "skipHint": "Puedes saltarte este paso e importar después."
+    },
     "sii": {
       "searchLabel": "Busca tu rubro SII (código o actividad)",
       "searchPlaceholder": "Ej: 410010 o extracción de cobre",
