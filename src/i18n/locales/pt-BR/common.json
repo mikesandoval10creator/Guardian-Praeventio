@@ -1,4 +1,11 @@
 {
+  "actionBalance": {
+    "aria": "Balanço de ações corretivas",
+    "title": "Balanço de ações",
+    "totalLabel": "ações",
+    "highTier": "Alta hierarquia",
+    "training": "Treinamentos"
+  },
   "compliance": {
     "score": "Conformidade",
     "title": "Semáforo de Conformidade",

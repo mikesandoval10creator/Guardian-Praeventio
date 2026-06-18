@@ -1,4 +1,11 @@
 {
+  "actionBalance": {
+    "aria": "Corrective action balance",
+    "title": "Action balance",
+    "totalLabel": "actions",
+    "highTier": "High tier",
+    "training": "Training"
+  },
   "compliance": {
     "score": "Compliance",
     "title": "Compliance Traffic Light",
