@@ -245,7 +245,7 @@ export function Emergency() {
       const safeName = selectedProject.name.replace(/[^a-zA-Z0-9_-]+/g, '_');
       doc.save(`Plan_Emergencia_${safeName}.pdf`);
     } catch (err) {
-      console.error('Error generando PDF plan emergencia:', err);
+      logger.error('Error generando PDF plan emergencia', err);
     } finally {
       setIsDownloadingPlan(false);
     }

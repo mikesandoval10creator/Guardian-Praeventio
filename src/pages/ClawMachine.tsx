@@ -17,6 +17,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { Card, Button } from '../components/shared/Card';
 import { logAuditAction } from '../services/auditService';
+import { logger } from '../utils/logger';
 import { mergeScoreDoc, gameScoreDocId, type GameScoreDoc } from '../components/games/gameScore';
 
 interface Scenario {
@@ -145,7 +146,7 @@ function ClawMachineInner() {
       );
       setPhase('saved');
     } catch (err) {
-      console.error('ClawMachine persist failed', err);
+      logger.error('ClawMachine persist failed', err);
       setPhase('saved');
     }
   };

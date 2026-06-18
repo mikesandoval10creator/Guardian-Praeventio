@@ -107,7 +107,7 @@ export function Calendar() {
           setForecastAvailable(days.length > 0);
         }
       } catch (error) {
-        console.error('Failed to load forecast:', error);
+        logger.error('Failed to load forecast', error);
         if (!cancelled) {
           setForecastApi(null);
           setForecastAvailable(false);
@@ -330,7 +330,7 @@ export function Calendar() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
+    <div data-testid="calendar-page" className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
