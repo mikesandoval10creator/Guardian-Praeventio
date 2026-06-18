@@ -1,4 +1,11 @@
 {
+  "actionBalance": {
+    "aria": "Corrective action balance",
+    "title": "Action balance",
+    "totalLabel": "actions",
+    "highTier": "High tier",
+    "training": "Training"
+  },
   "zoneEntry": {
     "title": "Restricted Zone Entry",
     "intro": "Review your site's restricted zones and log your informed entry. This view never blocks your access: it informs you and leaves a record so your supervisor can follow up.",

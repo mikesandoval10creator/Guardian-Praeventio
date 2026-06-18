@@ -1,4 +1,11 @@
 {
+  "actionBalance": {
+    "aria": "Balance de acciones correctivas",
+    "title": "Balance acciones",
+    "totalLabel": "acciones",
+    "highTier": "Alta jerarquía",
+    "training": "Capacitaciones"
+  },
   "zoneEntry": {
     "title": "Ingreso a Zonas Restringidas",
     "intro": "Consulta las zonas restringidas de tu faena y registra tu ingreso informado. Esta vista nunca bloquea tu acceso: te informa y deja constancia para que tu supervisor te acompañe.",

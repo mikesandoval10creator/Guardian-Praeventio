@@ -28,6 +28,7 @@ import {
   scheduleCorrectiveActionEffectivenessReview,
 } from '../hooks/useCorrectiveActions';
 import { CorrectiveActionsCenterPanel } from '../components/correctiveActions/CorrectiveActionsCenterPanel';
+import { ActionBalanceCard } from '../components/correctiveActions/ActionBalanceCard';
 import type { CorrectiveAction } from '../services/correctiveActions/weakActionDetector';
 import type {
   CorrectiveActionRecord,
@@ -123,16 +124,21 @@ export function CorrectiveActions() {
     verifiedResp.error ||
     reopenedResp.error;
 
-  const records: CorrectiveActionRecord[] = useMemo(() => {
+  // Raw corrective actions across every F.4 status — the real source for both
+  // the PDCA panel and the ISO 45001 hierarchy-balance card.
+  const balanceActions: CorrectiveAction[] = useMemo(() => {
     const open = (openResp.data?.actions ?? []) as CorrectiveAction[];
     const inProgress = (inProgressResp.data?.actions ?? []) as CorrectiveAction[];
     const closed = (closedResp.data?.actions ?? []) as CorrectiveAction[];
     const verified = (verifiedResp.data?.actions ?? []) as CorrectiveAction[];
     const reopened = (reopenedResp.data?.actions ?? []) as CorrectiveAction[];
-    return [...open, ...inProgress, ...closed, ...verified, ...reopened].map(
-      promote,
-    );
+    return [...open, ...inProgress, ...closed, ...verified, ...reopened];
   }, [openResp.data, inProgressResp.data, closedResp.data, verifiedResp.data, reopenedResp.data]);
+
+  const records: CorrectiveActionRecord[] = useMemo(
+    () => balanceActions.map(promote),
+    [balanceActions],
+  );
 
   const handleScheduleReview = async (entry: EffectivenessReviewEntry) => {
     // Codex P2 round 4 (PR #309): persist via server mutation so the
@@ -235,10 +241,15 @@ export function CorrectiveActions() {
       )}
 
       {!loading && !error && (
-        <CorrectiveActionsCenterPanel
-          actions={records}
-          onScheduleReview={handleScheduleReview}
-        />
+        <>
+          {/* ISO 45001 §10.2 hierarchy-of-controls balance — real portfolio,
+              flags an over-reliance on weak (training/EPP) actions. */}
+          <ActionBalanceCard actions={balanceActions} />
+          <CorrectiveActionsCenterPanel
+            actions={records}
+            onScheduleReview={handleScheduleReview}
+          />
+        </>
       )}
     </div>
   );
