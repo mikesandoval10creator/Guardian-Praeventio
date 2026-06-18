@@ -31,6 +31,7 @@ import {
   Briefcase,
   Calendar,
   Car,
+  Crosshair,
   ClipboardCheck,
   ClipboardList,
   Clock,
@@ -215,6 +216,9 @@ export function buildSidebarMenuGroups(
     // Service criticalControlsLibrary.ts + card BarrierAnalysisCard existían;
     // page /critical-controls cierra el gap. ISO 45001 §8.1.2.
     { title: t('nav.critical_controls', 'Controles Críticos'), icon: ShieldCheck, path: '/critical-controls', color: 'text-emerald-500' },
+    // Línea de fuego (struck-by/caught-between) — self-assessment tool over the
+    // real validateLineOfFire engine (mounts the orphan LineOfFireValidationCard).
+    { title: t('nav.linea_de_fuego', 'Línea de Fuego'), icon: Crosshair, path: '/linea-de-fuego', color: 'text-rose-500' },
     // Sprint K vidas críticas wire (2026-05-22) — Causa raíz no-blame.
     // Service rootCauseClassifier.ts (5 porqués + ILO taxonomía) +
     // card RootCauseClassifierCard existían sin page. ISO 45001 §10.2.
