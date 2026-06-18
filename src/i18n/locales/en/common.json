@@ -96,6 +96,7 @@
     "critical_controls": "Critical Controls",
     "linea_de_fuego": "Line of Fire",
     "calculadora_pandeo": "Buckling Calculator",
+    "checklist_vehiculo": "Vehicle Pre-Op",
     "cuadrillas": "Work Crews",
     "culture_pulse": "Safety Culture",
     "data_confidence": "Data Confidence",
@@ -2822,6 +2823,11 @@
       "audit_trail_hint_prefix": "For complete history of finalized or cancelled stoppages, see ",
       "audit_trail_link": "Audit Trail"
     }
+  },
+  "checklistVehiculo": {
+    "title": "Vehicle Pre-Op Checklist",
+    "subtitle": "Pre-use check for vehicles and mobile equipment. This is guidance — it recommends, it does not stop the operation.",
+    "kind": "Vehicle type"
   },
   "calcPandeo": {
     "title": "Buckling Calculator (Euler)",
