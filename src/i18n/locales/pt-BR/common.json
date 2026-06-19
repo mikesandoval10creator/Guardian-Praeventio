@@ -3555,11 +3555,15 @@
       "subtitle": "ISO 45001 §9.3 + DS 76 — ciclo PDCA anual: objetivos preventivos, evidências e conclusões assinadas.",
       "title": "Análise Crítica Anual do SGSST"
     },
+    "roleSummaries": {
+      "loading": "Gerando resumos multi-papel…"
+    },
     "section": {
       "analysis": "Análise e achados",
       "conclusion": "Conclusões e assinatura",
       "evidence": "Evidências",
-      "objectives": "Objetivos preventivos"
+      "objectives": "Objetivos preventivos",
+      "roleSummaries": "Resumos por audiência"
     },
     "title": "Análise Anual do SGSST",
     "topPerformers": "Destaques do ano",
