@@ -4134,6 +4134,13 @@
       "title": "Findings Heat Map"
     }
   },
+  "wasteInventory": {
+    "page": {
+      "title": "Waste Inventory",
+      "subtitle": "Environmental management — waste inventory, manifests and permits.",
+      "selectProject": "Select a project to manage the waste inventory."
+    }
+  },
   "hazmatInventory": {
     "page": {
       "title": "HAZMAT Inventory",
