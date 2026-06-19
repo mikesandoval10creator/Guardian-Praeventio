@@ -25,7 +25,6 @@
     "src/components/digital-twin/GaussianSplatViewer.tsx",
     "src/components/digital-twin/RePositionConfirmDialog.tsx",
     "src/components/documentHygiene/DocConfidenceCard.tsx",
-    "src/components/documentHygiene/DocumentHygienePanel.tsx",
     "src/components/documents/LegalDocGeneratorForm.tsx",
     "src/components/drillsManager/DrillResultReviewCard.tsx",
     "src/components/drivingSafety/DriverScoreCard.tsx",
