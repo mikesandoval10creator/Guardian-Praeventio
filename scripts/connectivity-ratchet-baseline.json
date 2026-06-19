@@ -76,7 +76,6 @@
     "src/components/roleOnboarding/OnboardingTrackProgressPanel.tsx",
     "src/components/roleViews/RoleViewCards.tsx",
     "src/components/safety/SafetyCapsules.tsx",
-    "src/components/safetyMetrics/SafetyMetricsDashboard.tsx",
     "src/components/safetyMetrics/SafetyTrendChartLazy.tsx",
     "src/components/safetyPerformance/SpiDashboard.tsx",
     "src/components/shared/ProjectScopedPage.tsx",
