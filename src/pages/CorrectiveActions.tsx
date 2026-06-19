@@ -27,14 +27,23 @@ import {
   useCorrectiveActions,
   scheduleCorrectiveActionEffectivenessReview,
 } from '../hooks/useCorrectiveActions';
+import { usePdcaNonConformities } from '../hooks/usePdca';
 import { CorrectiveActionsCenterPanel } from '../components/correctiveActions/CorrectiveActionsCenterPanel';
 import { ActionBalanceCard } from '../components/correctiveActions/ActionBalanceCard';
+import { NonConformityListPanel } from '../components/nonConformity/NonConformityListPanel';
 import type { CorrectiveAction } from '../services/correctiveActions/weakActionDetector';
 import type {
   CorrectiveActionRecord,
   CorrectiveActionSource,
   EffectivenessReviewEntry,
 } from '../services/correctiveActions/correctiveActionsCenter';
+import type {
+  NonConformity,
+  NonConformitySource,
+  NonConformityStatus,
+} from '../services/nonConformity/nonConformityEngine';
+import { bulkClassifyByPattern } from '../services/nonConformity/nonConformityEngine';
+import type { PdcaNonConformityRecord } from '../hooks/usePdca';
 import { logger } from '../utils/logger';
 
 /**
@@ -91,6 +100,28 @@ function promote(action: CorrectiveAction): CorrectiveActionRecord {
   };
 }
 
+const PDCA_TO_NC_STATUS: Record<string, NonConformityStatus> = {
+  open: 'open',
+  in_progress: 'investigating',
+  closed: 'closed',
+  verified_effective: 'efficacy_reviewed',
+  reoccurred: 'open',
+};
+
+function adaptPdcaNcToEngineNc(nc: PdcaNonConformityRecord): NonConformity {
+  return {
+    id: nc.id,
+    source: 'audit' as NonConformitySource,
+    detectedAt: nc.detectedAt,
+    description: nc.description,
+    severity: nc.severity,
+    status: PDCA_TO_NC_STATUS[nc.status] ?? 'open',
+    correctiveActionIds: nc.correctiveActionId ? [nc.correctiveActionId] : undefined,
+    closedAt: nc.closedAt,
+    efficacyReviewedAt: nc.verifiedEffectiveAt,
+  };
+}
+
 export function CorrectiveActions() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
@@ -110,6 +141,7 @@ export function CorrectiveActions() {
   const closedResp = useCorrectiveActions(projectId, { status: 'closed' });
   const verifiedResp = useCorrectiveActions(projectId, { status: 'verified' });
   const reopenedResp = useCorrectiveActions(projectId, { status: 'reopened' as const });
+  const ncResp = usePdcaNonConformities(projectId);
 
   const loading =
     openResp.loading ||
@@ -139,6 +171,13 @@ export function CorrectiveActions() {
     () => balanceActions.map(promote),
     [balanceActions],
   );
+
+  const ncs: NonConformity[] = useMemo(
+    () => (ncResp.data?.nonConformities ?? []).map(adaptPdcaNcToEngineNc),
+    [ncResp.data],
+  );
+
+  const patterns = useMemo(() => bulkClassifyByPattern(ncs, { top: 5 }), [ncs]);
 
   const handleScheduleReview = async (entry: EffectivenessReviewEntry) => {
     // Codex P2 round 4 (PR #309): persist via server mutation so the
@@ -242,8 +281,7 @@ export function CorrectiveActions() {
 
       {!loading && !error && (
         <>
-          {/* ISO 45001 §10.2 hierarchy-of-controls balance — real portfolio,
-              flags an over-reliance on weak (training/EPP) actions. */}
+          <NonConformityListPanel ncs={ncs} patterns={patterns} />
           <ActionBalanceCard actions={balanceActions} />
           <CorrectiveActionsCenterPanel
             actions={records}
