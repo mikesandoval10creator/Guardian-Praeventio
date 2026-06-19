@@ -28,6 +28,8 @@ import {
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { ShiftQualityCard } from '../components/shiftHandover/ShiftQualityCard';
+import { SupervisorBriefingCard } from '../components/meetingPack/SupervisorBriefingCard';
+import { buildSupervisorBriefingPack } from '../services/meetingPack/meetingPackBuilder';
 import {
   startShift,
   logEntry,
@@ -121,6 +123,21 @@ export function ShiftHandover() {
         (s) => s.endedAt && !s.acknowledgedAt && s.supervisorUid !== user?.uid,
       ) ?? null,
     [shifts, user],
+  );
+
+  const pendingBriefingPack = useMemo(
+    () =>
+      pendingAck
+        ? buildSupervisorBriefingPack({
+            supervisorUid: pendingAck.supervisorUid,
+            projectId: pendingAck.projectId,
+            shiftStart: pendingAck.startedAt,
+            workersAssigned: [],
+            criticalRisksForToday: [],
+            pendingActions: [],
+          })
+        : null,
+    [pendingAck],
   );
 
   const handleStart = useCallback(async () => {
@@ -271,6 +288,9 @@ export function ShiftHandover() {
                   })}
                 </p>
                 <ShiftQualityCard shift={pendingAck} />
+                {pendingBriefingPack && (
+                  <SupervisorBriefingCard pack={pendingBriefingPack} />
+                )}
                 <textarea
                   value={ackNotes}
                   onChange={(e) => setAckNotes(e.target.value)}

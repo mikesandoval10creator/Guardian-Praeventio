@@ -14,7 +14,7 @@
 // Behaviour and visuals are intentionally identical to the pre-refactor
 // version — no UX changes, no new deps, no relocated state.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { get, set } from 'idb-keyval';
 import { useProject } from '../contexts/ProjectContext';
@@ -29,6 +29,13 @@ import { RealTimeStatusWidget } from '../components/dashboard/RealTimeStatusWidg
 import { PredictiveAlertWidget } from '../components/dashboard/PredictiveAlertWidget';
 import { MorningCheckIn } from '../components/gamification/MorningCheckIn';
 import { useGamification } from '../hooks/useGamification';
+import { useWorkPermits } from '../hooks/useWorkPermits';
+import { subscribeActiveStoppages } from '../services/stoppage/stoppageStore';
+import { listRestrictedZonesBySite } from '../hooks/useRestrictedZones';
+import { FaenaStateBanner } from '../components/operationalState/FaenaStateBanner';
+import type { FaenaStateInput } from '../services/operationalState/faenaStateEngine';
+import type { Stoppage } from '../services/stoppage/stoppageEngine';
+import type { RestrictedZone } from '../services/zones/restrictedZonesEngine';
 import { NodeType } from '../types';
 import { logger } from '../utils/logger';
 import {
@@ -59,6 +66,8 @@ import { useExpirableItems } from '../hooks/useExpirableItems';
 import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
 import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
 import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
+import { SafetyMetricsDashboard } from '../components/safetyMetrics/SafetyMetricsDashboard';
+import type { IncidentCounts, ExposureInput } from '../services/safetyMetrics/osha';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -87,6 +96,90 @@ export function Dashboard() {
   const [, setLoadingInsights] = useState(false);
   const { nodes } = useRiskEngine();
   const isOnline = useOnlineStatus();
+  const { data: workPermitsData } = useWorkPermits(selectedProject?.id ?? null, { status: 'active' });
+  const [activeStoppages, setActiveStoppages] = useState<Stoppage[]>([]);
+  const [restrictedZones, setRestrictedZones] = useState<RestrictedZone[]>([]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    const unsub = subscribeActiveStoppages(selectedProject.id, (stoppages) => {
+      setActiveStoppages(stoppages);
+    });
+    return unsub;
+  }, [selectedProject?.id]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    let cancelled = false;
+    listRestrictedZonesBySite(selectedProject.id)
+      .then((res) => {
+        if (cancelled) return;
+        const now = Date.now();
+        setRestrictedZones(
+          res.zones.filter((z) => {
+            if (Date.parse(z.activeFrom) > now) return false;
+            if (z.activeUntil && Date.parse(z.activeUntil) < now) return false;
+            return true;
+          }),
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedProject?.id]);
+
+  const faenaInput = useMemo<FaenaStateInput>(() => {
+    const projectNodes = selectedProject
+      ? nodes.filter((n) => n.projectId === selectedProject.id)
+      : nodes;
+
+    const activeEmergencyIncidents = projectNodes.filter(
+      (n) =>
+        (n.type === NodeType.EMERGENCY || n.type === NodeType.INCIDENT) &&
+        (n.metadata?.status === 'active' || n.metadata?.estado === 'Abierto'),
+    ).length;
+
+    const openCriticalFindings = projectNodes.filter(
+      (n) =>
+        n.type === NodeType.FINDING &&
+        (
+          n.metadata?.severity === 'critical' ||
+          n.metadata?.severity === 'Crítica' ||
+          n.metadata?.criticidad === 'Crítica' ||
+          n.metadata?.criticidad === 'critical'
+        ) &&
+        n.metadata?.status !== 'closed' &&
+        n.metadata?.status !== 'resolved' &&
+        n.metadata?.estado !== 'Cerrado',
+    ).length;
+
+    const criticalEquipmentDown = projectNodes
+      .filter(
+        (n) =>
+          n.type === NodeType.MACHINE &&
+          (
+            n.metadata?.status === 'out_of_service' ||
+            n.metadata?.status === 'Fuera de servicio' ||
+            n.metadata?.operational === false
+          ),
+      )
+      .map((n) => ({ id: n.id, label: n.title }));
+
+    return {
+      activeEmergencyIncidents,
+      activeStoppages: activeStoppages.map((s) => ({
+        id: s.id,
+        reason: s.reason,
+        sinceIso: s.declaredAt,
+      })),
+      restrictedZones: restrictedZones.map((z) => ({
+        id: z.id,
+        reason: z.name,
+      })),
+      criticalEquipmentDown,
+      openCriticalFindings,
+      activeWorkPermits: workPermitsData?.permits?.length ?? 0,
+    };
+  }, [nodes, selectedProject, activeStoppages, restrictedZones, workPermitsData]);
 
   const handleMorningCheckInComplete = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -254,6 +347,19 @@ export function Dashboard() {
     downloadTextFile(ics, 'praeventio_tareas.ics');
   };
 
+  const incidentNodes = nodes.filter(n => n.type === NodeType.INCIDENT && (!selectedProject || n.projectId === selectedProject.id));
+  const safetyCounts: IncidentCounts = {
+    totalRecordable: incidentNodes.length,
+    lostTime: incidentNodes.filter(n => n.metadata?.lostDays > 0 || n.metadata?.lostTime).length,
+    restrictedOrTransferred: incidentNodes.filter(n => n.metadata?.restrictedOrTransferred).length,
+    seriousInjuriesAndFatalities: incidentNodes.filter(n => n.metadata?.severity === 'SIF' || n.metadata?.sifr).length,
+    fatalities: incidentNodes.filter(n => n.metadata?.fatal || n.metadata?.fatalities).length,
+    totalLostDays: incidentNodes.reduce((sum, n) => sum + (Number(n.metadata?.lostDays) || 0), 0),
+  };
+  const safetyExposure: ExposureInput = {
+    totalHoursWorked: (selectedProject?.workersCount ?? 0) * 2000,
+  };
+
   return (
     <div data-testid="dashboard-page" className="flex-1 flex flex-col justify-start gap-1 sm:gap-4 pb-20 sm:pb-4 pt-1 sm:pt-4 px-2 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full min-h-[calc(100vh-4rem)]">
 
@@ -267,6 +373,8 @@ export function Dashboard() {
           <ComplianceTrafficLight result={complianceLight} variant="compact" />
         </div>
       )}
+
+      <FaenaStateBanner input={faenaInput} />
 
       {showMorningCheckIn && (
         <MorningCheckIn onComplete={handleMorningCheckInComplete} />
@@ -299,6 +407,15 @@ export function Dashboard() {
           rubro (k-anonymity enforced server-side). Renders nothing when the
           project has no rubro or the endpoint is unavailable. */}
       <RubroBenchmarksCard />
+
+      {safetyExposure.totalHoursWorked > 0 && (
+        <SafetyMetricsDashboard
+          counts={safetyCounts}
+          exposure={safetyExposure}
+          periodLabel={new Date().toISOString().slice(0, 7)}
+          industry="all_industries_us"
+        />
+      )}
 
       {/* Recomendaciones SST contextuales — DS 594, Ley 16.744. Sprint A wire
           merged via PR #514. Gates on `!weather.unavailable` to avoid the
