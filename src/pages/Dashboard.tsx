@@ -438,7 +438,7 @@ export function Dashboard() {
           <span>
             {running
               ? t('dashboard.reconciliation.running', 'Sincronizando…')
-              : t('dashboard.reconciliation.last', { ns: 'translation', defaultValue: '{{succeeded}}/{{attempted}} sincronizados', succeeded: lastStats.succeeded, attempted: lastStats.attempted })}
+              : t('dashboard.reconciliation.last', { defaultValue: '{{succeeded}}/{{attempted}} sincronizados', succeeded: lastStats.succeeded, attempted: lastStats.attempted })}
           </span>
         </div>
       )}
