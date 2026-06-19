@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShieldAlert, 
@@ -25,6 +25,10 @@ import {
   Users
 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { PredictiveAlertsList } from '../components/predictiveAlerts/PredictiveAlertsList';
+import { evaluateProbes, type ScheduledAlert } from '../services/predictiveAlerts/alertScheduler';
+import { fetchStructuralLoadProbes } from '../lib/structuralLoadProbesClient';
+import { ackPredictiveAlert } from '../components/predictive/AlertSchedulerMount';
 import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
@@ -42,6 +46,46 @@ export function PredictiveGuard() {
   const [forecast, setForecast] = useState<any>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const isOnline = useOnlineStatus();
+  const [alerts, setAlerts] = useState<ScheduledAlert[]>([]);
+
+  useEffect(() => {
+    const pid = selectedProject?.id;
+    if (!pid) {
+      setAlerts([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const { probes, window } = await fetchStructuralLoadProbes(pid);
+        if (cancelled || probes.length === 0) {
+          if (!cancelled) setAlerts([]);
+          return;
+        }
+        const result = evaluateProbes({
+          probes,
+          windowMinutes: window?.windowMinutes,
+          minLeadTimeMin: window?.minLeadTimeMin,
+        });
+        if (!cancelled) setAlerts(result);
+      } catch {
+        if (!cancelled) setAlerts([]);
+      }
+    };
+    void load();
+    const id = setInterval(() => void load(), 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [selectedProject?.id]);
+
+  const handleAcknowledge = useCallback(async (alert: ScheduledAlert) => {
+    const pid = selectedProject?.id;
+    if (!pid) return;
+    await ackPredictiveAlert({ projectId: pid, crewId: '', generatorId: alert.generatorId });
+    setAlerts((prev) => prev.filter((a) => a.generatorId !== alert.generatorId));
+  }, [selectedProject?.id]);
 
   const generateForecast = async () => {
     if (!selectedProject) return;
@@ -522,6 +566,8 @@ export function PredictiveGuard() {
                 )}
               </div>
             </div>
+
+            <PredictiveAlertsList alerts={alerts} onAcknowledge={handleAcknowledge} />
 
           </div>
         </div>
