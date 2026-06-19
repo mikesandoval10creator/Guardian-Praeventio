@@ -14,7 +14,7 @@
 // Behaviour and visuals are intentionally identical to the pre-refactor
 // version — no UX changes, no new deps, no relocated state.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { get, set } from 'idb-keyval';
 import { useProject } from '../contexts/ProjectContext';
@@ -59,6 +59,8 @@ import { useExpirableItems } from '../hooks/useExpirableItems';
 import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
 import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
 import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
+import { SpiDashboard } from '../components/safetyPerformance/SpiDashboard';
+import type { LeadingIndicators, LaggingIndicators } from '../services/safetyPerformance/safetyPerformanceIndex';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -199,6 +201,55 @@ export function Dashboard() {
 
   const complianceData = getComplianceData();
 
+  const spiIndicators = useMemo(() => {
+    const projectNodes = selectedProject
+      ? nodes.filter(n => n.projectId === selectedProject.id)
+      : nodes;
+    const totalWorkers = (selectedProject?.workersCount ?? projects.reduce((a, p) => a + (p.workersCount ?? 0), 0)) || 50;
+    const totalHours = totalWorkers * 2080;
+
+    const inspections = projectNodes.filter(n => n.type === NodeType.INSPECTION);
+    const inspectionsDone = inspections.filter(n => {
+      const s = (n.metadata?.status ?? '').toLowerCase();
+      return s === 'completada' || s === 'completed' || s === 'cerrado';
+    });
+
+    const trainings = projectNodes.filter(n => n.type === NodeType.TRAINING);
+    const trainingsDone = trainings.filter(n => {
+      const s = (n.metadata?.status ?? '').toLowerCase();
+      return s === 'completed' || s === 'completada';
+    });
+
+    const incidents = projectNodes.filter(n => n.type === NodeType.INCIDENT);
+    const nearMisses = incidents.filter(n => (n.metadata?.incidentType ?? '') === 'near_miss');
+    const lostTimeIncidents = incidents.filter(n => (n.metadata?.lostDays ?? 0) > 0);
+    const totalLostDays = incidents.reduce((s, n) => s + (n.metadata?.lostDays ?? 0), 0);
+    const findings = projectNodes.filter(n => n.type === NodeType.FINDING);
+    const regulatoryFindings = findings.filter(n => {
+      const s = (n.metadata?.status ?? '').toLowerCase();
+      return s !== 'cerrado' && s !== 'cerrada' && s !== 'completed' && s !== 'completado';
+    });
+
+    const leading: LeadingIndicators = {
+      preTaskChecklistCompletion: inspections.length > 0 ? inspectionsDone.length / inspections.length : 0,
+      dailyTalksDeliveryRate: 0,
+      trainingCurrencyRate: trainings.length > 0 ? trainingsDone.length / trainings.length : 0,
+      plannedInspectionsRate: inspections.length > 0 ? inspectionsDone.length / inspections.length : 0,
+      nearMissReportingRate: nearMisses.length,
+      positiveObservationsRate: 0,
+    };
+
+    const lagging: LaggingIndicators = {
+      trir: totalHours > 0 ? (incidents.length * 200_000) / totalHours : 0,
+      ltifr: totalHours > 0 ? (lostTimeIncidents.length * 1_000_000) / totalHours : 0,
+      lostDays: totalLostDays,
+      severityRate: totalHours > 0 ? (totalLostDays * 200_000) / totalHours : 0,
+      regulatoryFindings: regulatoryFindings.length,
+    };
+
+    return { leading, lagging };
+  }, [nodes, selectedProject, projects]);
+
   // Automated Gamification Logic — auto-complete challenges when matching
   // node types are created today for the active project.
   useEffect(() => {
@@ -274,6 +325,8 @@ export function Dashboard() {
 
       {/* Predictive alerts (renders nothing when no alerts) */}
       <PredictiveAlertWidget />
+
+      <SpiDashboard leading={spiIndicators.leading} lagging={spiIndicators.lagging} />
 
       {/* B.9 expirations — real expirable items; shown only when there are
           items to surface (no false "all clear" on empty/error). */}
