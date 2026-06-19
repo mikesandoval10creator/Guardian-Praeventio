@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { AlertTriangle, ShieldAlert, WifiOff, CheckCircle2 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { RequirementGatePanel } from '../components/softBlocking/RequirementGatePanel';
 import {
   evaluateGate,
   validateOverride,
@@ -163,6 +164,11 @@ export function SoftBlocks({ blocks = [], onOverride }: SoftBlocksProps) {
               </p>
             </div>
           </header>
+
+          <RequirementGatePanel
+            decision={decision}
+            onRequestOverride={decision.canOverride ? () => setActiveOverrideId(block.id) : undefined}
+          />
 
           <ul
             className="space-y-2 text-sm"
