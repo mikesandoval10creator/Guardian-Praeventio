@@ -14,7 +14,7 @@
 // Behaviour and visuals are intentionally identical to the pre-refactor
 // version — no UX changes, no new deps, no relocated state.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { get, set } from 'idb-keyval';
 import { useProject } from '../contexts/ProjectContext';
@@ -59,6 +59,8 @@ import { useExpirableItems } from '../hooks/useExpirableItems';
 import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
 import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
 import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
+import { OperationalPressureGauge } from '../components/orgMetrics/OperationalPressureGauge';
+import type { PressureSignals } from '../services/orgMetrics/organizationalMetrics';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -199,6 +201,34 @@ export function Dashboard() {
 
   const complianceData = getComplianceData();
 
+  const pressureSignals = useMemo<PressureSignals>(() => {
+    const projectNodes = selectedProject
+      ? nodes.filter(n => n.projectId === selectedProject.id)
+      : nodes;
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const overdueTasks = projectNodes.filter(
+      n => n.type === NodeType.TASK && n.metadata?.status === 'vencida',
+    ).length;
+    const minorIncidentsLast7d = projectNodes.filter(
+      n => (n.type === NodeType.INCIDENT || n.type === NodeType.FINDING)
+        && new Date(n.createdAt).getTime() >= sevenDaysAgo,
+    ).length;
+    const totalActiveWorkers = selectedProject?.workersCount
+      ?? projects.reduce((sum, p) => sum + (p.workersCount ?? 0), 0);
+    const hasAdverseWeather = weather
+      ? !weather.unavailable && ((weather.windSpeed ?? 0) > 40 || weather.temp > 35 || weather.temp < 0)
+      : false;
+    return {
+      overdueTasks,
+      overtimeHoursWeekTotal: 0,
+      minorIncidentsLast7d,
+      absenteeismRate: 0,
+      hasNightShift: false,
+      hasAdverseWeather,
+      totalActiveWorkers,
+    };
+  }, [nodes, selectedProject, projects, weather]);
+
   // Automated Gamification Logic — auto-complete challenges when matching
   // node types are created today for the active project.
   useEffect(() => {
@@ -294,6 +324,8 @@ export function Dashboard() {
           onClick={() => setIsComplianceModalOpen(true)}
         />
       </div>
+
+      <OperationalPressureGauge signals={pressureSignals} />
 
       {/* Épica Rubros SII slice 4 — anonymous benchmarks vs the same SII
           rubro (k-anonymity enforced server-side). Renders nothing when the
