@@ -18,6 +18,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { get, set } from 'idb-keyval';
 import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -66,8 +67,10 @@ import { useExpirableItems } from '../hooks/useExpirableItems';
 import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
 import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
 import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
-import { OperationalPressureGauge } from '../components/orgMetrics/OperationalPressureGauge';
-import type { PressureSignals } from '../services/orgMetrics/organizationalMetrics';
+import { buildRoleViewRemote } from '../hooks/useRoleViews';
+import type { RoleCard } from '../hooks/useRoleViews';
+import { RoleViewCards } from '../components/roleViews/RoleViewCards';
+import type { UserRole } from '../services/roleViews/roleViewBuilder';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -99,6 +102,17 @@ export function Dashboard() {
   const { data: workPermitsData } = useWorkPermits(selectedProject?.id ?? null, { status: 'active' });
   const [activeStoppages, setActiveStoppages] = useState<Stoppage[]>([]);
   const [restrictedZones, setRestrictedZones] = useState<RestrictedZone[]>([]);
+  const [roleCards, setRoleCards] = useState<RoleCard[]>([]);
+  const { userRole: fbRole } = useFirebase();
+  const ROLE_MAP: Record<string, UserRole> = {
+    operario: 'worker',
+    worker: 'worker',
+    supervisor: 'site_chief',
+    prevencionista: 'prevention',
+    admin: 'management',
+    management: 'management',
+  };
+  const mappedRole = ROLE_MAP[fbRole] ?? 'worker';
 
   useEffect(() => {
     if (!selectedProject?.id) return;
@@ -180,6 +194,55 @@ export function Dashboard() {
       activeWorkPermits: workPermitsData?.permits?.length ?? 0,
     };
   }, [nodes, selectedProject, activeStoppages, restrictedZones, workPermitsData]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    let cancelled = false;
+    const userRole = mappedRole;
+    const projectNodes = nodes.filter((n) => n.projectId === selectedProject.id);
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const todayStr = new Date().toDateString();
+    const faenaState: 'operativa' | 'restringida' | 'parcialmente_detenida' | 'detenida' | 'emergencia' =
+      faenaInput.activeEmergencyIncidents > 0
+        ? 'emergencia'
+        : activeStoppages.length > 0
+          ? 'detenida'
+          : restrictedZones.length > 0
+            ? 'restringida'
+            : 'operativa';
+    buildRoleViewRemote(selectedProject.id, {
+      state: {
+        userRole,
+        overdueActions: projectNodes.filter(
+          (n) =>
+            n.type === NodeType.FINDING &&
+            n.metadata?.status !== 'closed' &&
+            n.metadata?.status !== 'resolved' &&
+            n.metadata?.status !== 'Cerrado',
+        ).length,
+        pendingApprovals: 0,
+        todaysTasks: projectNodes.filter(
+          (n) => n.type === NodeType.TASK && new Date(n.createdAt).toDateString() === todayStr,
+        ).length,
+        myEppExpiringSoon: expirables.filter((e) => e.kind === 'epp').length,
+        myTrainingExpiringSoon: expirables.filter((e) => e.kind === 'training').length,
+        myUnreadDocuments: 0,
+        criticalIncidentsLast7d: projectNodes.filter(
+          (n) =>
+            (n.type === NodeType.EMERGENCY || n.type === NodeType.INCIDENT) &&
+            Date.parse(n.createdAt) > sevenDaysAgo,
+        ).length,
+        faenaState,
+        complianceScore: complianceLight?.score ?? undefined,
+      },
+    })
+      .then((res) => {
+        if (!cancelled) setRoleCards(res.cards);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedProject?.id, mappedRole, nodes, faenaInput, activeStoppages, restrictedZones, expirables, complianceLight]);
 
   const handleMorningCheckInComplete = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -292,34 +355,6 @@ export function Dashboard() {
 
   const complianceData = getComplianceData();
 
-  const pressureSignals = useMemo<PressureSignals>(() => {
-    const projectNodes = selectedProject
-      ? nodes.filter(n => n.projectId === selectedProject.id)
-      : nodes;
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const overdueTasks = projectNodes.filter(
-      n => n.type === NodeType.TASK && n.metadata?.status === 'vencida',
-    ).length;
-    const minorIncidentsLast7d = projectNodes.filter(
-      n => (n.type === NodeType.INCIDENT || n.type === NodeType.FINDING)
-        && new Date(n.createdAt).getTime() >= sevenDaysAgo,
-    ).length;
-    const totalActiveWorkers = selectedProject?.workersCount
-      ?? projects.reduce((sum, p) => sum + (p.workersCount ?? 0), 0);
-    const hasAdverseWeather = weather
-      ? !weather.unavailable && ((weather.windSpeed ?? 0) > 40 || weather.temp > 35 || weather.temp < 0)
-      : false;
-    return {
-      overdueTasks,
-      overtimeHoursWeekTotal: 0,
-      minorIncidentsLast7d,
-      absenteeismRate: 0,
-      hasNightShift: false,
-      hasAdverseWeather,
-      totalActiveWorkers,
-    };
-  }, [nodes, selectedProject, projects, weather]);
-
   // Automated Gamification Logic — auto-complete challenges when matching
   // node types are created today for the active project.
   useEffect(() => {
@@ -408,6 +443,18 @@ export function Dashboard() {
         onPlanner={() => setIsPlannerOpen(true)}
       />
 
+      {roleCards.length > 0 && (
+        <RoleViewCards
+          role={mappedRole}
+          cards={roleCards}
+          onAction={(card) => {
+            if (card.primaryAction?.route) {
+              window.location.href = card.primaryAction.route;
+            }
+          }}
+        />
+      )}
+
       {/* Boletín Climático + Cumplimiento */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 sm:gap-4">
         <WeatherBulletin weather={weather ?? undefined} loading={loadingWeather} />
@@ -417,8 +464,6 @@ export function Dashboard() {
           onClick={() => setIsComplianceModalOpen(true)}
         />
       </div>
-
-      <OperationalPressureGauge signals={pressureSignals} />
 
       {/* Épica Rubros SII slice 4 — anonymous benchmarks vs the same SII
           rubro (k-anonymity enforced server-side). Renders nothing when the

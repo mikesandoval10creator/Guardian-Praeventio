@@ -474,7 +474,19 @@
     "last_morning_checkin": "Último Check-in Matutino",
     "morning_wakeup": "Despertar Matutino",
     "global_average": "Promedio Global",
-    "no_projects": "Sin proyectos"
+    "no_projects": "Sin proyectos",
+    "admin_burden_title": "Carga Administrativa",
+    "admin_burden_hours_month": "horas/mes",
+    "admin_burden_pct_week": "% jornada",
+    "admin_burden_verdict": "veredicto",
+    "admin_burden_automatable": "automatizable/sem",
+    "admin_burden_saved": "Ahorrable: {{minutes}} min/sem",
+    "burden_verdict": {
+      "healthy": "saludable",
+      "concerning": "preocupante",
+      "critical": "crítico",
+      "extreme": "extremo"
+    }
   },
   "errors": {
     "something_went_wrong": "Algo salió mal",
