@@ -1,0 +1,121 @@
+{
+  "_doc": "Ratchet baseline for scripts/check-honesty-gate.cjs. List of Math.random() uses in mounted UI components that are documented/justified. The list may only SHRINK: a NEW Math.random() in a mounted component fails the gate. When you remove a justified use, regenerate with `node scripts/check-honesty-gate.cjs --write`.",
+  "count": 23,
+  "violations": [
+    {
+      "file": "src/components/gamification/ReflexBuzzer.tsx",
+      "line": 28,
+      "content": "const waitTime = Math.floor(Math.random() * 3000) + 2000;"
+    },
+    {
+      "file": "src/components/shared/WisdomCapsule.tsx",
+      "line": 30,
+      "content": "setQuote(quotes[Math.floor(Math.random() * quotes.length)]);"
+    },
+    {
+      "file": "src/components/SunTrackerContainer.tsx",
+      "line": 123,
+      "content": "width: Math.random() > 0.7 ? 2 : 1,"
+    },
+    {
+      "file": "src/components/SunTrackerContainer.tsx",
+      "line": 124,
+      "content": "height: Math.random() > 0.7 ? 2 : 1,"
+    },
+    {
+      "file": "src/components/SunTrackerContainer.tsx",
+      "line": 125,
+      "content": "left: `${Math.random() * 100}%`,"
+    },
+    {
+      "file": "src/components/SunTrackerContainer.tsx",
+      "line": 126,
+      "content": "top: `${Math.random() * 70}%`,"
+    },
+    {
+      "file": "src/components/SunTrackerContainer.tsx",
+      "line": 130,
+      "content": "duration: 1.5 + Math.random() * 2.5,"
+    },
+    {
+      "file": "src/components/SunTrackerContainer.tsx",
+      "line": 132,
+      "content": "delay: Math.random() * 3,"
+    },
+    {
+      "file": "src/components/SunTrackerContainer.tsx",
+      "line": 154,
+      "content": "width: 60 + Math.random() * 80,"
+    },
+    {
+      "file": "src/components/SunTrackerContainer.tsx",
+      "line": 155,
+      "content": "height: 60 + Math.random() * 80,"
+    },
+    {
+      "file": "src/components/SunTrackerContainer.tsx",
+      "line": 156,
+      "content": "left: `${Math.random() * 80}%`,"
+    },
+    {
+      "file": "src/components/SunTrackerContainer.tsx",
+      "line": 157,
+      "content": "top: `${Math.random() * 80}%`,"
+    },
+    {
+      "file": "src/components/SunTrackerContainer.tsx",
+      "line": 161,
+      "content": "duration: 3 + Math.random() * 2,"
+    },
+    {
+      "file": "src/components/SunTrackerContainer.tsx",
+      "line": 163,
+      "content": "delay: Math.random() * 3,"
+    },
+    {
+      "file": "src/pages/ClawMachine.tsx",
+      "line": 66,
+      "content": "return pool[Math.floor(Math.random() * pool.length)];"
+    },
+    {
+      "file": "src/pages/CQRSArchitecture.tsx",
+      "line": 49,
+      "content": "return `demo-inc-${Math.random().toString(36).slice(2, 10)}`;"
+    },
+    {
+      "file": "src/pages/DigitalTwinFaena.tsx",
+      "line": 111,
+      "content": "arr[i * 3]     = bb.minX + Math.random() * (bb.maxX - bb.minX);"
+    },
+    {
+      "file": "src/pages/DigitalTwinFaena.tsx",
+      "line": 112,
+      "content": "arr[i * 3 + 1] = bb.minY + Math.random() * (bb.maxY - bb.minY);"
+    },
+    {
+      "file": "src/pages/DigitalTwinFaena.tsx",
+      "line": 113,
+      "content": "arr[i * 3 + 2] = bb.minZ + Math.random() * (bb.maxZ - bb.minZ);"
+    },
+    {
+      "file": "src/pages/Gamification.tsx",
+      "line": 91,
+      "content": "const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;"
+    },
+    {
+      "file": "src/pages/Gamification.tsx",
+      "line": 103,
+      "content": "origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }"
+    },
+    {
+      "file": "src/pages/Gamification.tsx",
+      "line": 107,
+      "content": "origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }"
+    },
+    {
+      "file": "src/pages/PdcaModule.tsx",
+      "line": 75,
+      "content": "const r = Math.random().toString(36).slice(2, 8);"
+    }
+  ]
+}

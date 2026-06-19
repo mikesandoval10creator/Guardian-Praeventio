@@ -230,7 +230,7 @@ export function Telemetry() {
         fetchFitnessData();
         return;
       } catch (error) {
-        console.error(`Error requesting ${label} permissions:`, error);
+        logger.error(`Error requesting ${label} permissions`, error);
         setIsConnectingFit(false);
         return;
       }
@@ -299,7 +299,7 @@ export function Telemetry() {
         return;
       }
     } catch (error) {
-      console.error('Native health adapter read failed; falling back to Google Fit:', error);
+      logger.error('Native health adapter read failed; falling back to Google Fit', error);
       // fall through to the deprecated server path
     }
 

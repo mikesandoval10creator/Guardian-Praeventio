@@ -14,7 +14,7 @@
 // Behaviour and visuals are intentionally identical to the pre-refactor
 // version — no UX changes, no new deps, no relocated state.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { get, set } from 'idb-keyval';
 import { useProject } from '../contexts/ProjectContext';
@@ -29,6 +29,13 @@ import { RealTimeStatusWidget } from '../components/dashboard/RealTimeStatusWidg
 import { PredictiveAlertWidget } from '../components/dashboard/PredictiveAlertWidget';
 import { MorningCheckIn } from '../components/gamification/MorningCheckIn';
 import { useGamification } from '../hooks/useGamification';
+import { useWorkPermits } from '../hooks/useWorkPermits';
+import { subscribeActiveStoppages } from '../services/stoppage/stoppageStore';
+import { listRestrictedZonesBySite } from '../hooks/useRestrictedZones';
+import { FaenaStateBanner } from '../components/operationalState/FaenaStateBanner';
+import type { FaenaStateInput } from '../services/operationalState/faenaStateEngine';
+import type { Stoppage } from '../services/stoppage/stoppageEngine';
+import type { RestrictedZone } from '../services/zones/restrictedZonesEngine';
 import { NodeType } from '../types';
 import { logger } from '../utils/logger';
 import {
@@ -44,6 +51,8 @@ import { WeatherBulletin } from '../components/dashboard/WeatherBulletin';
 import { WeatherSafetyRecommendations } from '../components/WeatherSafetyRecommendations';
 import { SunTrackerContainer } from '../components/SunTrackerContainer';
 import { ComplianceCard } from '../components/dashboard/ComplianceCard';
+import { ComplianceTrafficLight } from '../components/compliance/ComplianceTrafficLight';
+import { useComplianceTrafficLight } from '../hooks/useComplianceTrafficLight';
 import { RubroBenchmarksCard } from '../components/dashboard/RubroBenchmarksCard';
 import { DashboardQuickActions } from '../components/dashboard/DashboardQuickActions';
 import { EPPRequiredWidget } from '../components/dashboard/EPPRequiredWidget';
@@ -52,10 +61,24 @@ import { DashboardHero } from '../components/dashboard/DashboardHero';
 import { AdviceBanner } from '../components/dashboard/AdviceBanner';
 import { ModuleGroupsGrid } from '../components/dashboard/ModuleGroupsGrid';
 import { PlannerModal } from '../components/dashboard/PlannerModal';
+import { ExpirationsListPanel } from '../components/expirations/ExpirationsListPanel';
+import { useExpirableItems } from '../hooks/useExpirableItems';
+import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
+import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
+import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
 
 export function Dashboard() {
   const { t } = useTranslation();
   const { selectedProject, projects } = useProject();
+  // B.9 expirations panel — REAL expirable items (server-assembled from project
+  // subcollections). Renders only when there is something to surface.
+  const { items: expirables } = useExpirableItems(selectedProject?.id ?? null);
+  // SLA Watch — real corrective actions + work permits assessed for SLA compliance.
+  const { items: slaItems } = useSlaWatchItems(selectedProject?.id ?? null);
+  // F.2 compliance traffic light — REAL legal engine snapshot (server-computed).
+  const { result: complianceLight } = useComplianceTrafficLight(
+    selectedProject?.id ?? null,
+  );
   const { stats, completeChallenge } = useGamification();
   const { environment } = useUniversalKnowledge();
   const weather = environment?.weather;
@@ -71,6 +94,90 @@ export function Dashboard() {
   const [, setLoadingInsights] = useState(false);
   const { nodes } = useRiskEngine();
   const isOnline = useOnlineStatus();
+  const { data: workPermitsData } = useWorkPermits(selectedProject?.id ?? null, { status: 'active' });
+  const [activeStoppages, setActiveStoppages] = useState<Stoppage[]>([]);
+  const [restrictedZones, setRestrictedZones] = useState<RestrictedZone[]>([]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    const unsub = subscribeActiveStoppages(selectedProject.id, (stoppages) => {
+      setActiveStoppages(stoppages);
+    });
+    return unsub;
+  }, [selectedProject?.id]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    let cancelled = false;
+    listRestrictedZonesBySite(selectedProject.id)
+      .then((res) => {
+        if (cancelled) return;
+        const now = Date.now();
+        setRestrictedZones(
+          res.zones.filter((z) => {
+            if (Date.parse(z.activeFrom) > now) return false;
+            if (z.activeUntil && Date.parse(z.activeUntil) < now) return false;
+            return true;
+          }),
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedProject?.id]);
+
+  const faenaInput = useMemo<FaenaStateInput>(() => {
+    const projectNodes = selectedProject
+      ? nodes.filter((n) => n.projectId === selectedProject.id)
+      : nodes;
+
+    const activeEmergencyIncidents = projectNodes.filter(
+      (n) =>
+        (n.type === NodeType.EMERGENCY || n.type === NodeType.INCIDENT) &&
+        (n.metadata?.status === 'active' || n.metadata?.estado === 'Abierto'),
+    ).length;
+
+    const openCriticalFindings = projectNodes.filter(
+      (n) =>
+        n.type === NodeType.FINDING &&
+        (
+          n.metadata?.severity === 'critical' ||
+          n.metadata?.severity === 'Crítica' ||
+          n.metadata?.criticidad === 'Crítica' ||
+          n.metadata?.criticidad === 'critical'
+        ) &&
+        n.metadata?.status !== 'closed' &&
+        n.metadata?.status !== 'resolved' &&
+        n.metadata?.estado !== 'Cerrado',
+    ).length;
+
+    const criticalEquipmentDown = projectNodes
+      .filter(
+        (n) =>
+          n.type === NodeType.MACHINE &&
+          (
+            n.metadata?.status === 'out_of_service' ||
+            n.metadata?.status === 'Fuera de servicio' ||
+            n.metadata?.operational === false
+          ),
+      )
+      .map((n) => ({ id: n.id, label: n.title }));
+
+    return {
+      activeEmergencyIncidents,
+      activeStoppages: activeStoppages.map((s) => ({
+        id: s.id,
+        reason: s.reason,
+        sinceIso: s.declaredAt,
+      })),
+      restrictedZones: restrictedZones.map((z) => ({
+        id: z.id,
+        reason: z.name,
+      })),
+      criticalEquipmentDown,
+      openCriticalFindings,
+      activeWorkPermits: workPermitsData?.permits?.length ?? 0,
+    };
+  }, [nodes, selectedProject, activeStoppages, restrictedZones, workPermitsData]);
 
   const handleMorningCheckInComplete = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -244,12 +351,26 @@ export function Dashboard() {
       {/* Hero greeting + morning check-in trigger */}
       <DashboardHero onMorningCheckIn={() => setShowMorningCheckIn(true)} />
 
+      {/* F.2 compliance traffic light (compact). Real legal engine; renders
+          only once the snapshot is computed — never a fabricated placeholder. */}
+      {complianceLight && (
+        <div data-testid="compliance-traffic-light" className="flex">
+          <ComplianceTrafficLight result={complianceLight} variant="compact" />
+        </div>
+      )}
+
+      <FaenaStateBanner input={faenaInput} />
+
       {showMorningCheckIn && (
         <MorningCheckIn onComplete={handleMorningCheckInComplete} />
       )}
 
       {/* Predictive alerts (renders nothing when no alerts) */}
       <PredictiveAlertWidget />
+
+      {/* B.9 expirations — real expirable items; shown only when there are
+          items to surface (no false "all clear" on empty/error). */}
+      {expirables.length > 0 && <ExpirationsListPanel items={expirables} />}
 
       {/* Quick Actions */}
       <DashboardQuickActions
@@ -305,8 +426,14 @@ export function Dashboard() {
       {/* Daily safety tip — industry-aware */}
       <AdviceBanner />
 
+      {/* ISO 45001:2018 baseline controls catalog */}
+      <Iso45001Catalog />
+
       {/* 4. Real-Time Status Widget */}
       <RealTimeStatusWidget />
+
+      {/* SLA Watch — real corrective actions + work permits assessed for SLA compliance */}
+      {slaItems.length > 0 && <SlaWatchPanel items={slaItems} hideHealthy />}
 
       {/* Man Down supervisor alert — only renders when events exist */}
       <ManDownSupervisorWidget />

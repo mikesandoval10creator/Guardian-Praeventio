@@ -14,6 +14,10 @@ const SunTracker = lazy(() => import('../pages/SunTracker').then(module => ({ de
 // pero el componente no estaba wireado a ninguna page. Esta route cierra
 // el gap. Anonymous-friendly (idb-keyval); login para sync entre devices.
 const FatigueMonitor = lazy(() => import('../pages/FatigueMonitor').then(module => ({ default: module.FatigueMonitor })));
+// Carga mental (NASA-TLX) — on-device workload self-assessment over the real
+// scoreMentalLoad engine (mounts the orphan MentalLoadSurveyForm). Wellbeing/
+// ergonomics domain, alongside FatigueMonitor. No login, nothing persisted.
+const CargaMental = lazy(() => import('../pages/CargaMental').then(module => ({ default: module.CargaMental })));
 // B-protocols (2026-06-11) — TMERT-EESS + PREXOR get their own UI. The pure
 // engines under src/services/protocols/ were "invisible": HTTP compute routes
 // existed but no persistence/UI. These pages close the gap (form → server
@@ -30,6 +34,7 @@ const CealSmResponder = lazy(() => import('../pages/CealSmResponder').then(modul
 // treatment (engine src/services/protocols/planesi.ts, verified DS 594
 // Art. 66 + protocolo sílice MINSAL Res. Ex. 268/2015).
 const PlanesiEvaluation = lazy(() => import('../pages/PlanesiEvaluation').then(module => ({ default: module.PlanesiEvaluation })));
+const WasteInventoryPage = lazy(() => import('../pages/WasteInventoryPage').then(module => ({ default: module.WasteInventoryPage })));
 
 export const HealthRoutes = [
   <Route key="hygiene" path="hygiene" element={<Hygiene />} />,
@@ -40,9 +45,11 @@ export const HealthRoutes = [
   <Route key="human-body" path="human-body" element={<HumanBodyViewer />} />,
   <Route key="sun-tracker" path="sun-tracker" element={<SunTracker />} />,
   <Route key="fatigue" path="fatigue" element={<FatigueMonitor />} />,
+  <Route key="carga-mental" path="carga-mental" element={<CargaMental />} />,
   <Route key="tmert" path="tmert" element={<TmertEvaluation />} />,
   <Route key="prexor" path="prexor" element={<PrexorEvaluation />} />,
   <Route key="ceal-sm" path="ceal-sm" element={<CealSmCampaigns />} />,
   <Route key="ceal-sm-responder" path="ceal-sm/responder" element={<CealSmResponder />} />,
   <Route key="planesi" path="planesi" element={<PlanesiEvaluation />} />,
+  <Route key="waste-inventory" path="waste-inventory" element={<WasteInventoryPage />} />,
 ];

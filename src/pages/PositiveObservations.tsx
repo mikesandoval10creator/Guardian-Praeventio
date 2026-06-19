@@ -23,6 +23,7 @@ import { Award, WifiOff, Sparkles, PlusCircle, MoreHorizontal } from 'lucide-rea
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
+import { PositiveObservationsBoard } from '../components/positiveObservations/PositiveObservationsBoard';
 import {
   usePositiveObservations,
   usePositiveObservationBalance,
@@ -648,6 +649,14 @@ export function PositiveObservations() {
           {formOpen ? 'Cerrar' : 'Nueva observación'}
         </button>
       </header>
+
+      {/* Positive Observations Board — balance + recognition stats */}
+      {observations.length > 0 && (
+        <PositiveObservationsBoard
+          observations={observations}
+          correctiveCount={balanceResp.data?.corrective ?? 0}
+        />
+      )}
 
       {formOpen && (
         <NewObservationForm

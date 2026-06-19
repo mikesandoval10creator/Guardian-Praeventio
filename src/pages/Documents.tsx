@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -27,6 +27,8 @@ import { AddDocumentModal } from '../components/documents/AddDocumentModal';
 import { EditDocumentModal } from '../components/documents/EditDocumentModal';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Tooltip } from '../components/shared/Tooltip';
+import { DocumentHygienePanel } from '../components/documentHygiene/DocumentHygienePanel';
+import type { DocumentRecord } from '../services/documentHygiene/documentHygieneEngine';
 
 interface Document {
   id: string;
@@ -86,6 +88,23 @@ export function Documents() {
     selectedProject ? `projects/${selectedProject.id}/documents` : null
   );
 
+  const hygieneDocs: DocumentRecord[] = useMemo(
+    () =>
+      (documents || []).map((d) => ({
+        id: d.id,
+        title: d.name,
+        kind: d.type || d.category,
+        version: d.version || '1.0',
+        updatedAt: d.updatedAt || new Date().toISOString(),
+        hasValidSignature: false,
+        accessCount90d: 0,
+        readReceiptCount: 0,
+        referencesNorm: false,
+        isLinkedToOperations: false,
+      })),
+    [documents]
+  );
+
   const categories = ['Todos', 'Legal', 'Técnico', 'SST', 'Administrativo'];
 
   const filteredDocs = (documents || []).filter(doc => {
@@ -95,7 +114,7 @@ export function Documents() {
   });
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 sm:space-y-8">
+    <div data-testid="documents-page" className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
@@ -139,6 +158,8 @@ export function Documents() {
           </motion.div>
         ))}
       </div>
+
+      <DocumentHygienePanel documents={hygieneDocs} />
 
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:gap-4">

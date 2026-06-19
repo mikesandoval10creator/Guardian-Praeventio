@@ -25,6 +25,7 @@ import { SafetyInspection } from '../components/safety/SafetyInspection';
 import { ISOManagement } from '../components/audits/ISOManagement';
 import { ISOAudit } from '../components/audits/ISOAudit';
 import { DataLoadErrorBanner } from '../components/shared/DataLoadErrorBanner';
+import { AuditExpressButton } from '../components/audit/AuditExpressButton';
 const AuditDetailModal = lazy(() => import('../components/audits/AuditDetailModal').then(m => ({ default: m.AuditDetailModal })));
 
 export function Audits() {
@@ -92,6 +93,18 @@ export function Audits() {
           >
             {t('audits.tab_iso')}
           </button>
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedProject && (
+            <AuditExpressButton
+              projectId={selectedProject.id}
+              onRequest={async (pid) => {
+                const res = await fetch(`/api/audit/express-bundle?projectId=${pid}`, { method: 'POST' });
+                if (!res.ok) throw new Error('Failed to generate audit bundle');
+                return res.json();
+              }}
+            />
+          )}
         </div>
       </div>
 

@@ -26,6 +26,7 @@ const AutoCADViewer = lazy(() => import('../pages/AutoCADViewer').then(module =>
 const BlueprintViewer = lazy(() => import('../pages/BlueprintViewer').then(module => ({ default: module.BlueprintViewer })));
 const ERPIntegration = lazy(() => import('../pages/ERPIntegration').then(module => ({ default: module.ERPIntegration })));
 const Workers = lazy(() => import('../pages/Workers').then(module => ({ default: module.Workers })));
+const CriticalRolesPage = lazy(() => import('../pages/CriticalRolesPage').then(module => ({ default: module.CriticalRolesPage })));
 const DigitalTwinFaena = lazy(() => import('../pages/DigitalTwinFaena').then(module => ({ default: module.DigitalTwinFaena })));
 const DigitalTwinAR = lazy(() => import('../pages/DigitalTwinAR').then(module => ({ default: module.DigitalTwinAR })));
 // Sprint G follow-up — admin-only dev tool para regenerar embeddings
@@ -70,6 +71,7 @@ export const OperationsRoutes = [
   <Route key="blueprint-viewer" path="blueprint-viewer" element={<BlueprintViewer />} />,
   <Route key="erp-integration" path="erp-integration" element={<ERPIntegration />} />,
   <Route key="workers" path="workers" element={<Workers />} />,
+  <Route key="critical-roles" path="critical-roles" element={<CriticalRolesPage />} />,
   <Route key="digital-twin" path="digital-twin" element={<DigitalTwinFaena />} />,
   <Route key="digital-twin-ar" path="digital-twin/ar" element={<DigitalTwinAR />} />,
   <Route key="dev-poster-seeder" path="dev/poster-seeder" element={<DevPosterSeeder />} />,

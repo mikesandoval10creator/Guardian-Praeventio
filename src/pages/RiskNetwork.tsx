@@ -1,6 +1,6 @@
 import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 // Sprint 29 Bucket BB H24 — lazy split: KnowledgeGraph carries
 // react-force-graph + three.js (~1MB). Suspended on entry to
 // /risk-network so the surrounding page renders immediately.
@@ -322,7 +322,11 @@ export function RiskNetwork() {
           <div className="pt-2">
             <div className="bg-[#4db6ac]/10 dark:bg-[#4db6ac]/10 border border-[#4db6ac]/20 dark:border-[#d4af37]/20 rounded-2xl p-4">
               <p className="text-[10px] text-[#2a8a81] dark:text-[#d4af37] leading-relaxed font-medium">
-                <span dangerouslySetInnerHTML={{ __html: t('risk_network.capacity_note', { capacity: Math.min(100, stats.totalNodes * 5).toFixed(0) }) }} />
+                <Trans
+                  i18nKey="risk_network.capacity_note"
+                  values={{ capacity: Math.min(100, stats.totalNodes * 5).toFixed(0) }}
+                  components={{ b: <span className="font-black" /> }}
+                />
               </p>
             </div>
           </div>

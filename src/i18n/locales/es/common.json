@@ -1,23 +1,60 @@
 {
-  "maintenance": {
-    "loading": "Cargando tareas…",
-    "errorTitle": "No pudimos cargar las tareas",
-    "listTitle": "Tareas de mantención",
-    "currentHours": "Horas actuales",
-    "empty": "Sin tareas pendientes.",
-    "taskTitle": "Ciclo {{cycle}}h · múltiplo {{multi}}",
-    "dueAt": "Vence",
-    "triggeredAt": "Gatillada a {{h}}h",
-    "statusLabel": "Estado",
-    "completeCta": "Cerrar tarea con firma",
+  "fiveS": {
+    "aria": "Auditoría 5S",
+    "title": "Auditoría 5S",
+    "saving": "Guardando...",
+    "submit": "Finalizar auditoría",
     "page": {
-      "title": "Mantenimiento Preventivo",
-      "subtitle": "Tareas de mantención por equipo, gatilladas por umbrales de horómetro. Es una guía — la decisión es del equipo.",
-      "selectProject": "Selecciona un proyecto para ver el mantenimiento de sus equipos.",
-      "equipmentLabel": "Equipo",
-      "selectEquipment": "— Selecciona un equipo —",
-      "noEquipment": "No hay equipos registrados en este proyecto.",
-      "selectPrompt": "Selecciona un equipo para ver sus tareas de mantención."
+      "title": "Auditoría 5S",
+      "subtitle": "Evalúa el orden y limpieza de una zona (Seiri…Shitsuke). Es una guía — la decisión es del equipo.",
+      "zoneLabel": "Zona a auditar",
+      "zonePlaceholder": "Ej: Bodega A / Taller mecánico"
+    },
+    "result": {
+      "heading": "Resultado 5S",
+      "score": "Puntaje"
+    },
+    "level": {
+      "critical": "Crítico",
+      "low": "Bajo",
+      "fair": "Regular",
+      "good": "Bueno",
+      "excellent": "Excelente"
+    }
+  },
+  "expirations": {
+    "aria": "Panel de vencimientos",
+    "title": "Vencimientos",
+    "scanned": "analizados",
+    "expired": "Vencidos",
+    "critical": "Críticos",
+    "warning": "Advertencia",
+    "allOk": "Sin vencimientos próximos"
+  },
+  "actionBalance": {
+    "aria": "Balance de acciones correctivas",
+    "title": "Balance acciones",
+    "totalLabel": "acciones",
+    "highTier": "Alta jerarquía",
+    "training": "Capacitaciones"
+  },
+  "compliance": {
+    "score": "Cumplimiento",
+    "title": "Semáforo Cumplimiento",
+    "noData": "Sin datos",
+    "coverage": "{{n}}/{{total}} cat.",
+    "aria": {
+      "full": "Semáforo de cumplimiento"
+    },
+    "cat": {
+      "legal": "Legal",
+      "documentation": "Documentación",
+      "training": "Capacitación",
+      "epp": "EPP",
+      "emergencies": "Emergencias",
+      "occupational_health": "Salud ocupacional",
+      "maintenance": "Mantenimiento",
+      "audits": "Auditorías"
     }
   },
   "zoneEntry": {
@@ -116,8 +153,10 @@
     "cphs_draft": "Minuta CPHS",
     "critical_controls": "Controles Críticos",
     "linea_de_fuego": "Línea de Fuego",
-    "maintenance_preventive": "Mantenimiento",
+    "iper_matrix": "Matriz IPER",
+    "five_s_audit": "Auditoría 5S",
     "calculadora_pandeo": "Calculadora de Pandeo",
+    "carga_mental": "Carga Mental",
     "checklist_vehiculo": "Pre-Uso Vehículo",
     "cuadrillas": "Cuadrillas",
     "culture_pulse": "Cultura Preventiva",
@@ -2386,7 +2425,7 @@
     "total_connections": "Conexiones Totales",
     "network_factor": "Factor de Red",
     "avg_per_node": "Promedio / Nodo",
-    "capacity_note": "La red neuronal está operando al <span class=\"font-black\">{{capacity}}%</span> de su capacidad proyectada. Cada nueva conexión reduce la incertidumbre operativa en un <span class=\"font-black\">2.4%</span>.",
+    "capacity_note": "La red neuronal está operando al <b>{{capacity}}%</b> de su capacidad proyectada. Cada nueva conexión reduce la incertidumbre operativa en un <b>2.4%</b>.",
     "requires_connection": "Requiere Conexión",
     "analyzing": "Analizando...",
     "analyze_network": "Analizar Red Neuronal",
@@ -2854,6 +2893,22 @@
   "calcPandeo": {
     "title": "Calculadora de Pandeo (Euler)",
     "subtitle": "Carga crítica de pandeo de columnas/puntales según Euler. Guía de ingeniería — no reemplaza el cálculo estructural formal ni autoriza una carga."
+  },
+  "cargaMental": {
+    "title": "Carga Mental del Día",
+    "subtitle": "Autoevaluación de carga de trabajo (NASA-TLX). Puntúa las 6 dimensiones; el sistema calcula tu nivel y te sugiere acciones. Es una guía — no detiene nada.",
+    "resultLabel": "Carga total estimada",
+    "dominantLabel": "Factor dominante",
+    "recommendationsLabel": "Sugerencias",
+    "noRecs": "Carga dentro de un rango manejable. Mantén pausas y comunica cualquier cambio a tu jefatura preventiva.",
+    "disclaimer": "Esta autoevaluación de carga de trabajo (NASA Task Load Index) se calcula en tu dispositivo: no se guarda ni se envía. No es un diagnóstico médico ni de salud mental."
+  },
+  "mentalLoad": {
+    "aria": "Encuesta carga mental",
+    "title": "Carga del día",
+    "subtitle": "Desliza cada dimensión 0 (nada) → 100 (extremo).",
+    "calculate": "Calcular carga",
+    "calculating": "Calculando..."
   },
   "lineaDeFuego": {
     "title": "Línea de Fuego",
@@ -3795,6 +3850,40 @@
     }
   },
   "onboarding": {
+    "industry": {
+      "title": "¿Cuál es tu industria?"
+    },
+    "countries": {
+      "title": "¿En qué países operas?"
+    },
+    "plan": {
+      "title": "Elige tu plan",
+      "mostPopular": "Más popular",
+      "free": "Gratis",
+      "perMonth": "/mes",
+      "unlimitedWorkers": "Trabajadores ilimitados",
+      "upToWorkers": "Hasta {{count}} trabajadores",
+      "unlimitedProjects": "Proyectos ilimitados",
+      "upToProjects": "Hasta {{count}} proyectos"
+    },
+    "team": {
+      "title": "Invita a tu equipo",
+      "help": "Opcional. Pega emails separados por coma o sube un CSV.",
+      "emailsPlaceholder": "ana@empresa.cl, jorge@empresa.cl, …",
+      "uploadCsv": "Subir CSV",
+      "emailValidOne": "{{count}} email válido",
+      "emailsValidOther": "{{count}} emails válidos"
+    },
+    "project": {
+      "title": "Tu primer proyecto",
+      "nameLabel": "Nombre del proyecto",
+      "namePlaceholder": "Faena Norte 2026",
+      "importWorkers": "Importar trabajadores (CSV opcional)",
+      "replaceCsv": "Reemplazar CSV",
+      "uploadCsv": "Subir CSV",
+      "remove": "Quitar",
+      "skipHint": "Puedes saltarte este paso e importar después."
+    },
     "sii": {
       "searchLabel": "Busca tu rubro SII (código o actividad)",
       "searchPlaceholder": "Ej: 410010 o extracción de cobre",
@@ -4045,6 +4134,28 @@
       "title": "Mapa de Calor de Hallazgos"
     }
   },
+  "criticalRoles": {
+    "page": {
+      "title": "Roles Críticos",
+      "subtitle": "Cobertura de roles críticos por industria — bus factor y plan de capacitación.",
+      "selectProject": "Selecciona un proyecto para evaluar la cobertura de roles críticos.",
+      "noRoles": "No hay roles críticos definidos para esta industria."
+    }
+  },
+  "wasteInventory": {
+    "page": {
+      "title": "Inventario de Residuos",
+      "subtitle": "Gestión ambiental — inventario de residuos, manifiestos y permisos.",
+      "selectProject": "Selecciona un proyecto para gestionar el inventario de residuos."
+    }
+  },
+  "hazmatInventory": {
+    "page": {
+      "title": "Inventario HAZMAT",
+      "subtitle": "DS 43/2016 — Control de sustancias peligrosas con validación de compatibilidad.",
+      "selectProject": "Selecciona un proyecto para gestionar el inventario de sustancias peligrosas."
+    }
+  },
   "hazmat": {
     "addBtn": "Agregar sustancia",
     "addTitle": "Agregar sustancia",
@@ -4218,6 +4329,10 @@
     }
   },
   "iper": {
+    "page": {
+      "title": "Matriz IPER 5x5",
+      "subtitle": "Estima el nivel de riesgo (probabilidad × severidad) y el residual al aplicar controles. Es una guía — la decisión es del equipo."
+    },
     "aria": "Matriz IPER 5x5",
     "controlHigh": "Alta",
     "controlLow": "Baja",

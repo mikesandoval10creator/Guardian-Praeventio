@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { Activity, WifiOff, Plus, X, ArrowRight, AlertCircle } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { PdcaSummaryCard } from '../components/pdca/PdcaSummaryCard';
 import {
   usePdcaCycles,
   usePdcaSummary,
@@ -630,6 +631,9 @@ export function PdcaModule() {
           </span>
         )}
       </header>
+
+      {/* PDCA Summary Card — NC distribution by phase */}
+      {ncs.length > 0 && <PdcaSummaryCard items={ncs} />}
 
       {/* Summary cards — one per phase + closure rate */}
       <div
