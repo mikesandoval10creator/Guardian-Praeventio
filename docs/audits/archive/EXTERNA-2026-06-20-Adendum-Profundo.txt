@@ -1,0 +1,1625 @@
+ADENDUM · AUDITORÍA PROFUNDA · JUNIO 2026
+
+Adendum                    GUARDIAN · PRAEVENTIO · AUDIT · DEEP
+Auditoría
+
+Profunda
+
+Lectura línea por línea de 40.000 LOC: e2e specs,
+firestore.rules, 218 routers, capacitor-mesh
+native, terraform, dockerfiles y CI/CD.
+Refutaciones, nuevos P0 y quick wins
+actualizados.
+
+52 ÍTEMS  10 P0     15 P1                                        3 REFUTACIONES
+
+VOLUMEN             ALCANCE                                                      FECHA
+
+Adendum al Informe  40.000 LOC auditadas                                         2026-06-20
+
+EQUIPO DE DESARROLLO · PRAEVENTIO                                                V1.1 · ES-CL
+Adendum · Auditoría Profunda · Guardian-Praeventio            Junio 2026
+
+Índice del Adendum
+
+A1. Resumen del Adendum                                       4
+
+A1.1 Refutaciones y confirmaciones del informe principal . . . . . . . . . . . . . . . . . . . . . . . . 4
+
+A1.2 Nuevos hallazgos críticos no detectados en el informe principal . . . . . . . . . . . . . . . . . . 4
+
+A2. Auditoría E2E Specs + Fixtures + verifyAuth               6
+
+A2.1 Conteo exacto de tests por spec . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+
+A2.2 Root causes exactos de los 7 tests fixme . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7
+
+A2.3 Bugs funcionales en fixtures . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7
+
+A2.4 Anti-patrones en specs e2e . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+
+A2.5 verifyAuth.ts -- gaps de mutation coverage . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+
+A3. Auditoría Security -- Firestore Rules, KMS, Tier-Gating   10
+
+A3.1 firestore.rules -- estadísticas exactas . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+
+A3.2 P0/P1/P2 de seguridad encontrados . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+
+A3.3 Rules tests -- cobertura . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12
+
+A3.4 KMS adapter -- implementación correcta . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12
+
+A3.5 requireTier -- diseño robusto, gap en rollout . . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+
+A3.6 Signature verification - fortalezas por gateway . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+
+A4. Auditoría Backend -- server.ts + 218 Routers              14
+
+A4.1 server.ts -- middleware chain exacto . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+
+A4.2 Inventario exacto de 218 routers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+
+A4.3 Top 12 routers más grandes por LOC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+
+A4.4 billing.ts -- el mito del 0% coverage . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+
+A4.5 emergency.ts -- SOS endpoint . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+
+A4.6 Anti-patrones cross-router . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+
+A4.7 gemini.ts -- branches E2E_MODE exactos . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+
+A5. Auditoría Mobile Real -- capacitor-mesh, Native, Sensors  18
+
+A5.1 REFUTACIÓN -- capacitor-mesh NO es stub . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+
+A5.2 P0 bugs en capacitor-mesh native . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+
+A5.2.1 Detalle M-1: iOS trunca payloads > 512B . . . . . . . . . . . . . . . . . . . . . 19
+
+A5.2.2 Detalle M-2: iOS no reensambla paquetes chunked . . . . . . . . . . . . . . . . 19
+
+Praeventio · Equipo de Desarrollo                             Página 2
+Adendum · Auditoría Profunda · Guardian-Praeventio  Junio 2026
+
+A5.3 iOS -- confirmación: NO Xcode project . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+
+A5.4 AASA placeholder confirmado . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+
+A5.5 loadProximityPlugin() -- null confirmado . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+
+A5.6 Esfuerzo estimado para completar Sprint 31 (BLE) y 32 (Wi-Fi Direct) . . . . . . . . . . . . . 20
+
+A5.7 Sensor services -- inventario . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+
+A6. Auditoría Infra + Docker + Pages + CI/CD        22
+
+A6.1 Terraform -- strengths y gaps . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+
+A6.2 Dockerfiles -- solo 1 de 7 es production-quality . . . . . . . . . . . . . . . . . . . . . . . . . 22
+
+A6.3 Frontend pages -- REFUTACIÓN de datos fabricados . . . . . . . . . . . . . . . . . . . . . . 23
+
+A6.4 Frontend anti-patterns (bounded) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+
+A6.5 CI/CD -- gaps estructurales . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+
+A6.6 Bottlenecks de CI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+
+A7. Lista Consolidada P0-P3 y Acciones Quick-Win    26
+
+A7.1 P0 -- Vida-safety (10 ítems, ~3 sprints) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+
+A7.2 P1 -- Critical journeys / gaps altos (15 ítems, ~6 sprints) . . . . . . . . . . . . . . . . . . . . . 26
+
+A7.3 P2 -- Infraestructura / mejoras (15 ítems, ~4 sprints) . . . . . . . . . . . . . . . . . . . . . . . 27
+
+A7.4 P3 -- Limpieza / docs (12 ítems, ~1 sprint) . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+
+A7.5 Resumen consolidado . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+
+A7.6 Quick wins del primer sprint (actualizado) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 29
+
+A7.7 Conclusión final del adendum . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30
+
+Praeventio · Equipo de Desarrollo                   Página 3
+Adendum · Auditoría Profunda · Guardian-Praeventio                                               Junio 2026
+
+A1. Resumen del Adendum
+
+Este adendum documenta los hallazgos de una auditoría profunda línea por línea realizada tras la entrega del
+informe principal. Cuatro agentes especializados leyeron el código fuente completo en cinco áreas que el
+informe principal cubrió solo a alto nivel: (1) specs e2e + fixtures + verifyAuth, (2) firestore.rules +
+storage.rules + 9 documentos de seguridad + kmsAdapter + requireTier, (3) server.ts + 218 routers + servicios
+críticos, (4) capacitor-mesh + Android/iOS native + sensors, y (5) Terraform + Dockerfiles + 19 frontend
+pages + 14 workflows CI/CD.
+
+El alcance total auditado fue de aproximadamente 40.000 LOC distribuidos entre código fuente (TypeScript,
+Kotlin, Swift, HCL, Dockerfile, YAML) y documentación de seguridad. Los hallazgos se organizan por área
+técnica en los capítulos A2-A6, y se consolidan en una lista priorizada P0-P3 en el capítulo A7.
+
+A1.1 Refutaciones y confirmaciones del informe principal
+
+La auditoría profunda confirma la mayoría de los hallazgos del informe principal pero refuta tres
+afirmaciones importantes que se basaban en documentación interna (stubs-inventory.md) en lugar de código
+real:
+
+#  Afirmación original                              Estado real              Evidencia
+
+R capacitor-mesh Kotlin/Swift = stub  REFUTADO -- Kotlin 552 LOC y Swift Headers: "Sprint 46 REAL BLE GATT" /
+
+1 (902 LOC que solo loggean)          358 LOC son BLE GATT /              "Sprint 46 REAL CoreBluetooth". README
+
+                                      CoreBluetooth REALES                y package.json stale.
+
+R                                     REFUTADO -- 0% es STALE del         billing.ts ahora es 82 LOC aggregator. Lógica
+      billing.ts tiene 0% cobertura   pre-split (commit 41bb12b6)         vive en billing/ (2.979 LOC, 10 archivos).
+                                                                          billing.router.test.ts = 78 KB, 13 describe
+2                                                                         blocks.
+
+R Evacuation.tsx:143 tiene fuente     REFUTADO para código actual -- fix  Línea 143 lee telemetry_state de IndexedDB.
+3 falsa (WP-V2)                       aplicado en Sprint F                mapIoTEventsToTwinState returns [] cuando
+                                                                          no hay eventos reales. Phantom workers
+                                                                          removidos (twinStateMapper.ts:36-44).
+
+   Tabla A1.1 -- Refutaciones del informe principal tras auditoría profunda
+
+Confirmaciones principales: (a) los 3 specs fixme (sos-button, process-lifecycle, offline-resilience) siguen en
+describe.fixme; (b) el branch E2E_MODE=1 en gemini.ts sigue presente (líneas 353, 518, 836); (c) el seed
+mínimo sigue siendo 1 proyecto + 1 crew; (d) no hay specs mobile reales; (e) loadProximityPlugin()
+retorna null confirmado; (f) iOS no tiene proyecto Xcode commiteado; (g) mobile-build-check.yml es
+STUB; (h) AASA tiene TEAMID placeholder.
+
+A1.2 Nuevos hallazgos críticos no detectados en el informe principal
+
+La auditoría profunda identificó 22 nuevos hallazgos P0/P1 que no aparecían en el informe principal porque
+este se basó en documentación interna. Los más críticos:
+
+Praeventio · Equipo de Desarrollo                                                                Página 4
+Adendum · Auditoría Profunda · Guardian-Praeventio  Junio 2026
+
+P0-N1 · IOS PLUGIN.SWIFT TRUNCA PAYLOADS > 512B
+
+Plugin.swift:156 usa data.subdata(in: 0..<512) si el payload supera 512 bytes. Un SOS packet con
+GPS + worker UID + timestamp + signature base64 fácilmente supera 512B. iOS descarta silenciosamente
+la cola. Kotlin chunkifica correctamente; iOS no. Bug de vida-safety.
+
+P0-N2 · IOS NO REENSAMBLA PAQUETES CHUNKED EN RECEPCIÓN
+
+Plugin.swift:238-247 parsea cada CBATTRequest.value como JSON standalone. Paquetes Android
+chunked llegan como múltiples requests, cada uno falla parsing  dropeado silenciosamente. Comunicación
+cross-platform AndroidiOS rota para payloads > 512B.
+
+P0-N3 · TIER_GATE_ENFORCE NO ESTÁ FLIPADO A TRUE EN PRODUCCIÓN
+
+requireTier.ts está bien diseñado (fail-closed, report-only mode, ADR 0021 life-safety invariant) PERO
+el flag TIER_GATE_ENFORCE no se ha activado. Endpoints premium (/api/insights/*,
+/api/sprint-k/*/multi-project, /api/auth/google) están en modo REPORT-ONLY. Curl directo con Firebase
+ID token válido de usuario free-tier los consume. Riesgo de revenue directo.
+
+P0-N4 · DTESIGNER.TS NO VERIFICA CRIPTOGRÁFICAMENTE LA FIRMA WEBAUTHN
+
+dteSigner.ts:168-186 solo valida que signature/authenticatorData/clientDataJSON sean strings
+no vacíos. NO llama verifyAuthenticationResponse. El test dteSigner.test.ts:109-131 pasa con
+signature: "c2lnLWZha2U=" (base64 de "sig-fake"). Mitigación existe en dte.ts:405-421 pero el
+signer no es self-contained. Riesgo cumplimiento legal SII.
+
+P0-N5 · TERRAFORM STATE ES LOCAL -- SIN LOCKING
+
+main.tf:41-46 tiene el bloque GCS backend comentado. Un terraform apply paralelo desde CI +
+laptop puede corromper el state. No hay locking. README lo acknowledge; migración a GCS pendiente.
+~1 hora arreglarlo.
+
+Praeventio · Equipo de Desarrollo                   Página 5
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                              Junio 2026
+
+A2. Auditoría E2E Specs + Fixtures + verifyAuth
+
+Este capítulo documenta la lectura línea por línea de los 15 specs Playwright (1.418 LOC), los 4 fixtures (540
+LOC) y el middleware verifyAuth.ts (178 LOC) + su helper frontend e2eAuth.ts (118 LOC). Total: 25
+archivos, 2.754 LOC auditados.
+
+A2.1 Conteo exacto de tests por spec
+
+                 Spec                               LOC test() describe()              Estado            Tests
+                                                                                                         fixme
+landing-smoke.spec.ts                               35     3          0    ACTIVO
+                                                                                                            0
+landing.spec.ts                                     101    9          1    SKIP condicional                 0
+                                                                                                            0
+landing-i18n.spec.ts                                77     2          1    SKIP condicional                 0
+                                                                                                            0
+accessibility.spec.ts                               176    4          1    SKIP condicional                 1
+                                                                                                            1
+smoke-pages.spec.ts                                 72     12 (loop)  1    SKIP condicional                 1
+                                                                                                            0
+action-balance-card.spec.ts                         52     2          1    SKIP + FIXME                     0
+                                                                                                            0
+compliance-traffic-light.spec.ts                    97     2          1    SKIP + FIXME                     0
+                                                                                                            2
+expirations-panel.spec.ts                           72     2          1    SKIP + FIXME                     1
+                                                                                                            1
+auditoria-5s.spec.ts                                42     1          1    SKIP condicional                 7
+
+matriz-iper.spec.ts                                 37     3          1    SKIP condicional
+
+fall-detection-toggle.spec.ts                       63     1          1    SKIP condicional
+
+sw-models-cache.spec.ts                             200    3          1    SKIP condicional
+
+sos-button.spec.ts                                  104    2          1 (fixme) FIXME
+
+process-lifecycle.spec.ts                           76     1          1 (fixme) FIXME
+
+offline-resilience.spec.ts                          75     1          1 (fixme) FIXME
+
+TOTAL                                               1.418  ~40        14   --
+
+                    Tabla A2.1 -- Conteo exacto de tests por spec e2e (corregido del informe principal)
+
+Corrección respecto al informe principal: este reportaba "~74 tests" declarados. El conteo real es ~40 tests
+(algunos en loops como smoke-pages.spec.ts que genera 12 tests en un loop). De estos, 7 están en fixme (3
+individuales + 4 dentro de 3 describe.fixme), no 5 como se informó originalmente.
+
+Praeventio · Equipo de Desarrollo                                                                               Página 6
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                                       Junio 2026
+
+A2.2 Root causes exactos de los 7 tests fixme
+
+El informe principal mencionaba "harness gap" como root cause genérico. La auditoría línea por línea revela 3
+root causes distintos:
+
+#    Root cause                                       Specs afectados                                           Fix
+
+         Cross-process Firestore visibility gap: el   action-balance-card,                 Alinear
+RC- firebase-admin del test y el del Express          compliance-traffic-light,            GOOGLE_CLOUD_PROJECT y
+                                                      expirations-panel, sos-button,       FIRESTORE_EMULATOR_HOST
+ 1 server apuntan a diferentes emulator               process-lifecycle                    en todos los procesos
+         projects
+
+RC- ProjectContext no monta el proyecto               sos-button, process-lifecycle        Wire getE2EUser() en la
+         seeded: el React context no auto-selecciona                                       inicialización de ProjectContext
+
+ 2
+         el proyecto porque el auth state no propaga
+
+RC-  Label drift: el campo "Descripción" cambió       offline-resilience                   Actualizar locator a
+ 3   de label y el locator stale                                                           getByLabel(/description/i) o
+                                                                                           getByTestId
+
+                                   Tabla A2.2 -- Root causes exactos de los 7 tests fixme
+
+A2.3 Bugs funcionales en fixtures
+
+#                                  Bug                                                file:line                      Severidad
+                                                                                                                      MEDIA
+        stop() resuelve la promise inmediatamente tras SIGKILL sin esperar el  fixtures/server.ts:113-116             MEDIA
+B1                                                                                                                      BAJA
+                                                                                                                        BAJA
+        evento exit. Puede huerfanar procesos zombie.                                                                   BAJA
+
+B2   clearAllProjects() solo borra docs top-level de projects, huérfana todas  fixtures/seed.ts:107-112               MEDIA
+     las subcollections (crews, epp_assignments, etc.).                                                                 BAJA
+                                                                                                                      MEDIA
+        cleanup() borra crew luego project sin error handling. Si crew falla,  fixtures/seed.ts:95-98                   BAJA
+B3                                                                                                                      BAJA
+
+        project queda huérfano.
+
+        Polling legacy en waitForE2EAuthReady corre hasta 2s incluso después   fixtures/auth.ts:236-241
+B4
+
+        de que la flag se setea. Desperdicia 40 iteraciones.
+
+        admin.initializeApp() no es atómico bajo llamadas concurrentes. Segunda
+B5 llamada throw "app already exists", swallowed por try/catch L109-115, fixtures/auth.ts:188-191
+
+        deja customToken=null.
+
+        expect(networkHits).toBeLessThanOrEqual(1) es tautológico --           sw-models-cache.spec.ts:144
+B6 page.on("request") siempre fire exactamente una vez por fetch. Test NO
+
+        verifica SW interception.
+
+B7   Test 3 asevera slm-models cache count sin cambio tras fetch /api/health, sw-models-cache.spec.ts:162-1
+
+     pero /api/health no matchea el pattern CacheFirst. Trivialmente true.     99
+
+        E2E branch setea req.user con 4 campos (uid, email, displayName,       verifyAuth.ts:93-98 vs
+B8 tenantId); production branch setea 8. Downstream code leyendo               L148-158
+
+        req.user.role ve undefined en E2E. Diferencia silenciosa.
+
+        FIXME comment se contradice: L17 dice "/projects/{id}/gantt now        process-lifecycle.spec.ts:17 vs
+B9                                                                             L21
+
+        renders", L21 dice "no existe /projects/:id/gantt". Stale.
+
+B1 JSDoc describe un signInWithCustomToken call que ya no existe en el         fixtures/auth.ts:202-222
+0 function body. Stale doc.
+
+Praeventio · Equipo de Desarrollo                                                                                        Página 7
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                                         Junio 2026
+
+#                                       Bug                                                       file:line                Severidad
+                                                                                                                            MEDIA
+B1 "Production safety gate" test asserta lo opuesto de lo que documenta.                          e2eAuth.test.ts:199-218
+1 Mock de import.meta.env.MODE roto.
+
+                                   Tabla A2.3 -- Bugs funcionales encontrados en fixtures y verifyAuth
+
+A2.4 Anti-patrones en specs e2e
+
+#   Anti-patrón                                       Ocurrencias                                                   Recomendación
+
+AP Hardcoded E2E_SECRET =                             compliance-traffic-light.spec.ts:27,                   Exportar desde fixtures/auth.ts
+-1 "e2e-test-secret-do-not-use-in-prod" duplicado 4×  expirations-panel.spec.ts:22,                          e importar
+                                                      server.ts:41, playwright.config.ts:88
+                                                                                                             Ya exportado como
+AP Hardcoded "e2e-user-001" duplicado 3×              seed.ts:75,90, auth.ts:54                              DEFAULT_TEST_USER.uid
+-2
+                                                                                                             Extraer a fixtures/config.ts
+AP                                                    landing.spec.ts:15-21,
+-3 firebaseConfigExists IIFE duplicado                landing-i18n.spec.ts:18-24                             Extraer a helper
+
+AP page.waitForFunction(SW registration) duplicado    sw-models-cache.spec.ts:43-51,                         Usar describe.configure({
+-4 3×                                                 99-107, 164-171                                        mode: "skip" })
+
+AP test.skip(E2E_FULL_STACK) repetido 12× en          smoke-pages.spec.ts:48-51, 64-67                       Dejar propagar errores
+-5 loop
+                                                                                                             Usar getByRole con name
+AP .catch(() => "") / .catch(() => false) dentro de   process-lifecycle.spec.ts:66,                          específico o getByTestId
+-6 expect.poll traga errores                          offline-resilience.spec.ts:68
+                                                                                                             Usar allowlist explícito
+AP Buttons matched por overlapping regexes (/Iniciar  process-lifecycle.spec.ts:47,53
+-7 proceso/i vs /^Iniciar/i)                                                                                 shell: false es más seguro y
+                                                                                                             funciona para npx
+AP ...process.env hereda todos los env vars del padre al
+                                                                           fixtures/server.ts:85             Usar tipos CJS-ESM interop
+
+-8 child process                                                                                             E2E mode podría activar en
+                                                                                                             staging. Usar allowlist.
+AP  shell: true para npx tsx server.ts                fixtures/server.ts:96                                  test.fixme ya skipea; test.skip
+-9                                                                                                           inner es redundante
+
+AP                                                    fixtures/auth.ts:186
+        const admin: any = ... pierde type safety
+
+-10
+
+AP Guard checks === "production" (denylist) en vez de
+                                                                           verifyAuth.ts:49,57
+
+-11 === "test" (allowlist)
+
+AP test.fixme + test.skip(E2E_FULL_STACK) doble       Todos los specs fixme
+-12 gate redundante
+
+                                        Tabla A2.4 -- Anti-patrones en specs e2e y fixtures
+
+A2.5 verifyAuth.ts -- gaps de mutation coverage
+
+verifyAuth.ts tiene 64.29% mutation score (84 mutantes, 8 NoCoverage). Los gaps identificados:
+
+Praeventio · Equipo de Desarrollo                                                                                          Página 8
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                                     Junio 2026
+
+Gap                                                                  Línea                               Riesgo
+
+providedUid fallback: si header omite uid, cae a           verifyAuth.ts:94      Cualquier caller con el secret puede
+"e2e-user-001"                                                                   impersonar el usuario default
+
+req.user shape mismatch: E2E branch 4 campos,              verifyAuth.ts:93-98 vs Downstream code lee req.user.role o
+production 8
+                                                           L148-158              req.user.admin como undefined en E2E
+
+Timing-unsafe secret comparison: usa !== en vez de         verifyAuth.ts:90      Timing attack teórico sobre E2E secret
+crypto.timingSafeEqual
+
+No rate limiting en el middleware de auth                  verifyAuth.ts (whole  Brute-force sobre E2E secret o Bearer token
+                                                           file)                 sin throttle
+
+Production guard denylist (=== "production") no allowlist  verifyAuth.ts:49,57   NODE_ENV=staging && E2E_MODE=1
+(=== "test")                                                                     activa E2E en staging
+
+...process.env hereda todos los vars del padre             fixtures/server.ts:85 Secrets reales del padre pueden leak al child
+                                                                                            process de test
+
+Custom token written to localStorage.gp.e2e.custom_token fixtures/auth.ts:134    Accesible a cualquier JS en la página (gated
+                                                                                 por MODE=test)
+
+Consent dialogs bypaseados por hardcoded localStorage      fixtures/auth.ts:148-1 Si un build prod corriera con MODE=test,
+keys
+                                                           57                    consent sería silenciosamente bypaseado
+
+                                   Tabla A2.5 -- Gaps de mutation coverage y seguridad en verifyAuth.ts
+
+Praeventio · Equipo de Desarrollo                                                                                        Página 9
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                              Junio 2026
+
+A3. Auditoría Security -- Firestore Rules, KMS,
+Tier-Gating
+
+Este capítulo documenta la lectura línea por línea de firestore.rules (2.087 LOC, 14% más grande de lo
+reportado), storage.rules (160 LOC), 11 documentos de seguridad (2.283 LOC), 4 módulos de código de
+seguridad (kmsAdapter, kmsPreflight, requireTier, billing) y los 40 archivos de rules-tests (7.665 LOC). Total:
+~14.300 LOC auditadas.
+
+A3.1 firestore.rules -- estadísticas exactas
+
+                       Métrica                         Valor                                  Notas
+
+LOC total                                              2.087        14% más que el 1.829 reportado en informe
+                                                                    principal
+
+Match blocks                                           135          Cobertura amplia por colección
+
+Allow statements                                       321          Read + create + update + delete repartidos
+
+Hard denies (allow if false)                           74           Collections server-only
+
+Schema type checks                                     80           request.resource.data.X is Y
+
+Immutability enforcements (affectedKeys)               14           Campos que no pueden modificarse post-create
+
+Cross-collection get()/exists() reads                  9            Para validación de membership cross-collection
+
+Public read rules (allow if true)                      4            Todas verificadas seguras e intencionales
+
+Default-deny catch-all                                 SÍ (L17-19)  Posición inusual: al INICIO no al final (funcional
+                                                                    vía OR-semantics)
+
+Collections con tests                                  52 (de 104)  50% de colecciones tienen tests dedicados
+
+Collections SIN tests                                  52           Server-only o sin reglas client-writeable
+
+                                       Tabla A3.1 -- Estadísticas exactas de firestore.rules
+
+A3.2 P0/P1/P2 de seguridad encontrados
+
+       Severi                          Issue                        file:line                                 Impacto
+#
+                                                                                              Riesgo de revenue directo. Curl con
+        dad                                                                                   Firebase ID token válido de free-tier
+                                                                                              consume /api/insights/*,
+                  TIER_GATE_ENFORCE no flipado a true                                         /api/sprint-k/*/multi-project,
+                                                                                              /api/auth/google.
+S-1 P1 en producción. Endpoints premium en             requireTier.ts + ops env
+
+                  REPORT-ONLY mode.
+
+Praeventio · Equipo de Desarrollo                                                                               Página 10
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                              Junio 2026
+
+       Severi                      Issue                      file:line                                Impacto
+#
+
+        dad
+
+S-2  P1        exceptions, legal_obligations, shifts          firestore.rules L890-902  Member-gated create/update sin
+               collections sin anti-spoof field check         (TODO inline)             creatorUid immutability. TODO.md
+                                                                                        §2.32 P2 Codex #650 confirma deuda
+                                                                                        abierta.
+
+S-3  P1        documents/{workerId}/{allPaths=**} en          storage.rules L143-147    Cualquier signed-in user cross-tenant
+               storage.rules over-permissive                                            puede read/create/update/delete.
+                                                                                        Comentario reconoce "unguessable
+                                                                                        path" pero no justifica DELETE no
+                                                                                        admin-only.
+
+S-4  P1        reconstructions/{projectId}/{allPaths=**}      storage.rules L130-134    User con project membership puede
+               salta isAllowedUpload()                                                  upload 200MB
+                                                                                        application/x-msdownload. Resto de
+                                                                                        paths sí enforce isAllowedUpload().
+
+                                                                                        Si emulator Firestore cae en CI, este
+
+S-5  P1        tenantScoped.test.ts usa ctx.skip() en vez de  tenantScoped.test.ts:64 (10 archivo reporta 10 skipped tests
+               fail-closed throw
+                                                              call sites)               silenciosamente mientras los otros 36
+
+                                                                                        fallan. Inconsistencia de disciplina.
+
+S-6  P2        Cloud Run SA scope verification (TM-E02)       STRIDE_findings.md        Gemini SA puede tener
+               OPEN                                                                     roles/aiplatform.user cluster-wide en
+                                                                                        vez de scoped a un model. Owner:
+                                                                                        ops. Estimado 2h.
+
+S-7  P2        KMS_KEY_RESOURCE_NAME no                       KMS_ROTATION.md           Si KMS_ADAPTER != cloud-kms en
+               seteado en staging/prod confirmado             L281-283                  prod, kmsPreflight hace
+                                                                                        process.exit(1). Pero si ambos unset,
+                                                                                        cae a in-memory-dev (no real
+                                                                                        protection). Verificar ops status.
+
+S-8  P2        Sin rotación formal de on-call en              incident-response.md      Founder (dahosandoval@gmail.com)
+                                                                                        es punto único de contacto implícito.
+               incident-response.md
+
+S-9 P2         SECURITY.md stale: PGP key "en roadmap         SECURITY.md L17-18        Pero TODO.md §16.10.3 dice "
+                                                                                        HECHO
+               pero no hecho"                                                           public/.well-known/pgp-key.asc"
+                                                                                        (2026-06-11). Doc drift.
+
+                     memberOfSite(projectId) en storage.rules                           User sin assignedSiteIds claim (signup
+S-1                                                                                     fresco, pre-migration) puede upload a
+                                                                                        cualquier project path hasta que se
+           P2 tiene "claim absent  allow" legacy escape storage.rules L48-54            mintee el claim.
+ 0
+
+                     hatch
+
+               THREAT_MODEL.md open backlog stale:                                      Doc drift -- open backlog no se
+
+S-1  P3        TM-I03 (PII redaction) y TM-T03                THREAT_MODEL.md §8 actualizó cuando aterrizaron las
+
+1              (IndexedDB HMAC) marcados OPEN pero                                      mitigaciones.
+
+               STRIDE_findings.md los marca mitigados
+
+S-1                                                           kmsPreflight.test.ts      Sin test para non-production default
+           P3 kmsPreflight.test.ts solo tiene 3 tests                                   (KMS_ADAPTER=in-memory-dev
+                                                                                        debería ok: true), ni para
+ 2                                                                                      KMS_ADAPTER inválido.
+
+S-1  P3        ar_anchors delete es creator-or-admin only     firestore.rules L1854     Supervisores no pueden borrar AR
+                                                                                        anchors aunque sí actualizarlos.
+3              (asimétrico con update)                                                  Comentario justifica como "el ancla
+                                                                                        puede ser evidencia".
+
+Praeventio · Equipo de Desarrollo                                                                               Página 11
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                                        Junio 2026
+
+       Severi                      Issue                          file:line                                Impacto
+#
+
+        dad
+
+S-1  P3         isMemberOfTenant(tenantId) retorna false    firestore.rules                Misconfigured claim shape negaría sin
+ 4              silenciosamente si claim es LIST no string                                 error.
+
+                                   Tabla A3.2 -- Issues de seguridad encontrados (0 P0, 5 P1, 5 P2, 4 P3)
+
+Conclusión clave: no se encontraron P0 de seguridad. La postura es robusta -- default-deny en su lugar, audit
+logs inmutables, subscription self-promotion bloqueada, medical data owner+doctor-only, KMS envelope
+encryption con fail-closed gate en boot. Las 5 P1 son actionables y representan el siguiente nivel de hardening.
+
+A3.3 Rules tests -- cobertura
+
+                                   Métrica                                                                 Valor
+
+Total tests en src/rules-tests/                                              490
+
+Total archivos                                                               40
+
+Archivos usando _harness.ts fail-closed                                      36
+
+Archivos usando inline emulator setup legacy                                 4
+
+Archivos usando ctx.skip() (deberían ser fail-closed)                        1 (tenantScoped.test.ts)
+
+Collections con tests dedicados                                              52
+
+Collections SIN tests (server-only o no-writeable)                           52
+
+Bias de assertions: assertFails vs assertSucceeds                            409 fails vs 195 succeeds (defense-leaning)
+
+                                                   Tabla A3.3 -- Cobertura de rules tests
+
+A3.4 KMS adapter -- implementación correcta
+
+El informe principal mencionaba "KMS en memoria en prod" como deuda histrica
+(TECHNICAL_DEBT_AUDIT.md). La auditoría línea por línea confirma que esto fue corregido. El archivo
+src/services/security/kmsAdapter.ts (219 LOC) tiene 3 adapters:
+
+          Adapter                        Cuándo se usa                                     Implementación
+inMemoryKmsAdapter
+cloudKmsAdapter                    KMS_ADAPTER=in-memory-dev o    AES-256-GCM bajo key determinista
+noopKmsAdapter                     unset (dev/test)               SHA-256("praeventio-in-memory-kms-dev-kek-v1"). NO
+                                                                  production-safe.
+
+                                   KMS_ADAPTER=cloud-kms          @google-cloud/kms. KeyManagementServiceClient
+                                   (production)                   construido lazily. Key: projects//locations/southamerica-we
+                                                                  st1/keyRings/praeventio/cryptoKeys/oauth-tokens-kek.
+
+                                   KMS_ADAPTER=noop (break-glass  ciphertext === plaintext. Debug only.
+                                   debug)
+
+                                            Tabla A3.4 -- KMS adapters implementados
+
+Praeventio · Equipo de Desarrollo                                                                                         Página 12
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                                    Junio 2026
+
+Invariante crítica (líneas 197-199): "We intentionally do not auto-fall-back from cloud-kms to in-memory if
+cloudKmsAdapter is unavailable -- silently downgrading from real KMS to dev KEK in source tree would be a
+security bug." El kmsPreflight.ts (47 LOC) corre en boot y hace process.exit(1) si
+NODE_ENV=production Y KMS_ADAPTER != "cloud-kms". Es decir, production NO puede bootear sin KMS
+real. Postura correcta.
+
+A3.5 requireTier -- diseño robusto, gap en rollout
+
+El middleware requireTier.ts (134 LOC) está bien diseñado: (a) fail-closed on Firestore errors (403
+tier_check_failed); (b) report-only mode para safe rollout; (c) ADR 0021 life-safety invariant enforced at
+module load via assertNoLifeSafetyInTable(); (d) lee users/{uid}.subscription.planId (con legacy
+subscriptionPlan fallback).
+
+Gaps concretos: solo 6 routers usan requireTier (multiProject, maturity, multiRoleSummary, insights,
+oauthGoogle, projects read-only). Los 200+ routers restantes no gatean por tier. La mayoría son
+project-member-gated (correcto para life-safety per ADR 0021), pero features "convenience/scale" pagas
+(executive dashboard, advanced analytics, custom branding, Vertex fine-tuning, multi-tenant) no están
+consistentemente gateadas. Y el flag TIER_GATE_ENFORCE no está flipado a true en producción.
+
+A3.6 Signature verification - fortalezas por gateway
+
+Gateway                            Método           Constant-ti     Replay                              Notas
+                                                         me         window
+
+Webpay           HMAC-SHA256 over raw               SÍ (safeSecret              Verificación sólida
+                 body                                                    5 min
+
+                                                    Equal)
+
+MercadoPago IPN  HMAC-SHA256 x-signature            SÍ              5 min       verifyMpIpnAnyFormat() auto-detecta prod
+                                                                                vs legacy
+                 (2 formatos)
+
+Khipu IPN        HMAC-SHA256 over raw                               --          Correcto
+                                                         SÍ
+
+                 body (parsed as raw)
+
+Google Play      safeSecretEqual(providedTok        SÍ (timingSafe  --          Length-disclosure side channel fixed
+RTDN             en, expectedToken)                 Equal con
+                                                    padding)
+
+Apple SSN        verifyJwsLeafOnly (leaf            N/A (JWS)       --          verifiedChain siempre false. Full Apple Root
+                 only)                                                          G3 chain deferred (~80 LOC)
+
+WebAuthn         verifyAuthenticationRespons                        Challenge   Monotonic counter replay prevention. Sólido.
+assertion                                                N/A        single-use
+
+                 e (simplewebauthn)
+
+WebAuthn         verifyRegistrationResponse N/A                     Challenge   Sólido
+registration                                                        single-use
+
+                                                                                dteSigner.ts:168-186 NO llama
+
+DTE signer       NADA -- solo checks strings        N/A             N/A         verifyAuthenticationResponse. Test pasa con
+(WP-L14a)        no vacíos                                                      "c2lnLWZha2U=". Mitigación en
+
+                                                                                dte.ts:405-421.
+
+                                   Tabla A3.6 -- Verificación de signatures por gateway de pago y auth
+
+Praeventio · Equipo de Desarrollo                                                                                     Página 13
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                              Junio 2026
+
+A4. Auditoría Backend -- server.ts + 218 Routers
+
+Este capítulo documenta la lectura línea por línea de server.ts (1.552 LOC), 12 routers críticos en detalle
+(billing aggregator + 10 sub-files = 3.061 LOC, emergency 514, gemini 938, dte 540 + dteSigner 272,
+workPermits 1.011, incidents 193, subscription 155, audit 186, compliance 622, expirations 213, curriculum
+WebAuthn section 1.152), middleware (verifyAuth 178, requireTier 134, validate 81, kmsPreflight 47) y el
+inventario completo de los 218 routers.
+
+A4.1 server.ts -- middleware chain exacto
+
+El middleware chain está correctamente ordenado. El orden de mount (líneas 591-650) es:
+
+# Línea                                Middleware                                                    Notas
+
+1      591  securityHeaders                                    Corre ANTES de helmet para que
+                                                               CSP/X-Frame-Options/HSTS ganen
+
+2      593  helmet({ contentSecurityPolicy: false,             CSP plugin OFF (line 596), otros defaults de helmet
+                                                               aplican
+            crossOriginEmbedderPolicy: false })
+
+3      612  Request-ID + runWithRequestContext                 X-Request-Id echoed; OTel traceId bound. Arriba de
+                                                               rate-limit + verifyAuth para que 429/401 lleven ID
+
+4  638-650  .well-known/apple-app-site-association +           Hardcoded MIME override. Arriba del rate limiter para
+            .well-known/assetlinks.json                        que Apple/Google validators no se throttleen
+
+5      663  /api  healthRouter                                 Public health probe. Arriba del limiter /api/ para que Cloud
+                                                               Run probes no se 429een. Skipea Firestore check cuando
+                                                               E2E_MODE=1
+
+6      --   /api/ global rate limiter (100/15min per IP)       Firestore-backed store, multi-replica safe
+
+7      --   verifyAuth middleware en routers protegidos        No es global; cada router lo aplica
+
+8      --   Terminal error handler                             NO leak stack traces. Formato JSON consistente.
+
+                                    Tabla A4.1 -- Middleware chain en server.ts (orden de mount)
+
+A4.2 Inventario exacto de 218 routers
+
+            Categoría                                     Cantidad  Con test co-located                      Sin test
+
+Routers en src/server/routes/ root                        203       158                                      15 (descubiertos)
+                                                                                                                      0
+Routers en src/server/routes/billing/                                       10 (billing.router.test.ts = 78           0
+                                                          10
+                                                                                                                  15 (7%)
+                                                                                          KB)
+
+Routers en src/server/routes/b2d/                         5                                       5
+
+TOTAL                                                     218       173 (79%)
+
+                                       Tabla A4.2 -- Inventario exacto de routers por directorio
+
+Praeventio · Equipo de Desarrollo                                                                               Página 14
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                                        Junio 2026
+
+Corrección al informe principal: este reportaba "166 archivos .router.test.ts co-located (78% de routers con
+test conductual)". El conteo exacto es 173 tests co-located (79%). Los 15 routers SIN test son:
+administradores de billing helpers, adminJobs, bcn, ds67ds76, legalReconcile, mesh, zettelkastenNodeTypes,
+account, complianceEmit, entre otros. La mayoría son helpers internos o routers server-only.
+
+A4.3 Top 12 routers más grandes por LOC
+
+             Router                LOC                                                Función
+curriculum.ts
+workPermits.ts                     1.152            WebAuthn register/verify, portable curriculum, aptitude certs
+gemini.ts
+compliance.ts                      1.011            PER creation, validación criticalPermitValidators, firma, expiración
+dte.ts
+emergency.ts                       938              Gemini AI dispatch (3 E2E_MODE branches en L353/518/836)
+expirations.ts
+audit.ts                           622              Traffic-light endpoint (e2e-tested), legal framework, exceptions
+subscription.ts
+incidents.ts                       540              DTE issue queue SII/Bsale, cancel, generate
+
+billing.ts                         514              SOS endpoint, brigada notify, FCM dispatch
+
+dteSigner.ts                       213              Scan de expiraciones (e2e-tested), hasta 100.000 items
+
+                                   186              Audit log query, auditServerEvent helper
+
+                                   155              Plan upgrade, tier queries
+
+                                   193              Incident report, audit_log write
+
+                                        82
+                                   (aggregator) Split en 10 sub-files (3.061 LOC total)
+
+                                   272              Firma DTE con WebAuthn (bug WP-L14a aquí)
+
+                                   Tabla A4.3 -- Top 12 routers más grandes por LOC
+
+A4.4 billing.ts -- el mito del 0% coverage
+
+El informe principal citaba COVERAGE_BASELINE.md que reportaba billing.ts (517, 0%). La auditoría
+línea por línea revela que esto es STALE. El commit 41bb12b6 split el monolito de 2.077 LOC en un
+aggregator de 82 LOC + 10 sub-files (3.061 LOC total). El test billing.router.test.ts (78 KB, 13
+describe blocks) importa el real billingApiRouter y billingWebpayRouter vía supertest + fakeFirestore.
+La cobertura real es substantial.
+
+El "0%" era un artifact pre-split: el archivo test-server.ts re-implementaba handlers como copias paralelas.
+Después del split, los tests golpean los routers reales. Recomendación: actualizar
+COVERAGE_BASELINE.md y remover la mención de "billing.ts 0%" del informe principal.
+
+Praeventio · Equipo de Desarrollo                                                                                         Página 15
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                              Junio 2026
+
+A4.5 emergency.ts -- SOS endpoint
+
+El endpoint SOS en emergency.ts (514 LOC) tiene rate limiting dedicado (sosLimiter: 10/min/uid).
+FCM dispatch está implementado. La colección Firestore emergency_alerts escribe con schema válida.
+tenantId se resuelve server-side desde projects/{projectId}.tenantId (no del request body).
+
+Anti-patrón encontrado: 5 writes no atómicos en la secuencia de confirmación de pago en
+billing/webpay.ts (invoices, users, audit_logs, dte_issue_queue, processed_webpay -- sin
+transaction/batch). Si uno falla, el estado queda inconsistente. Mitigación: withIdempotency para reintentos,
+pero no atomicidad.
+
+A4.6 Anti-patrones cross-router
+
+Anti-patrón                                         Ocurrencias                       Ejemplos
+
+catch {} empty blocks                               ~15+         billing/googleplay.ts, dte.ts, workPermits.ts
+
+any types en signatures                             ~30+         gemini.ts, compliance.ts, misc.ts
+
+Non-atomic multi-collection writes                  15+ routers billing/webpay.ts (5 writes), emergency.ts (3 writes)
+
+Routers sin requireTier en endpoints pagos          200+         Solo 6 routers usan requireTier
+
+Routers sin rate limiter per-route                  5+ críticos  billing, dte, workPermits, compliance, expirations (solo
+                                                                 global 100/15min)
+
+TODO/FIXME comments                                 ~18          Principalmente en services/ y routes/
+
+console.error/warn/log en server (deuda viva P2)    13 archivos  Debería ser Sentry (CONTEXT_AUDIT_2026-06.md lo
+                                                                 confirma)
+
+                                            Tabla A4.4 -- Anti-patrones cross-router
+
+A4.7 gemini.ts -- branches E2E_MODE exactos
+
+Confirmación exacta de las líneas del branch E2E_MODE en gemini.ts:
+
+   // src/server/routes/gemini.ts
+
+   // Línea 353 -- /ask-guardian endpoint
+   if (process.env.E2E_MODE === '1' && process.env.NODE_ENV !== 'production' &&
+   req.headers.authorization?.startsWith('E2E ')) {
+   return res.json({
+   text: 'mock response',
+   tokens: 42,
+   model: 'e2e-mock',
+   _e2e: true,
+   });
+   }
+
+   // Línea 518 -- /gemini endpoint (mismo patrón)
+   // Línea 836 -- /gemini/stream endpoint (mismo patrón)
+
+   // Fuera del branch E2E_MODE: llamada real a Vertex AI
+   const result = await vertexAI.generateContent({ prompt, ...opts });
+
+Praeventio · Equipo de Desarrollo                                                                                      Página 16
+Adendum · Auditoría Profunda · Guardian-Praeventio  Junio 2026
+
+El branch requiere 3 condiciones: (a) E2E_MODE=1, (b) NODE_ENV != production, (c) header
+Authorization comience con "E2E ". El startup guard en verifyAuth.ts:49-54 lanza FATAL si
+NODE_ENV=production AND E2E_MODE=1. Por lo tanto, el branch E2E_MODE no puede activar en
+production. Postura correcta.
+
+Gaps encontrados en gemini.ts: (a) NO hay PII redaction en el route handler -- /api/ask-guardian
+concatena req.body.query directamente al prompt; la redacción vive en services/gemini/pii.ts y está
+wired solo para extractAcademicSummary; (b) el allowlist de acciones son 82 (no 84 como informó el agente
+explorador inicialmente) -- 2 explícitamente de-whitelisted (analyzePostureWithAI, analyzeBioImage)
+por directiva on-device #12; (c) el tier se lee del JWT custom claim, no de Firestore lookup -- un token stale
+podría llevar tier inflado por hasta 1 hora.
+
+Praeventio · Equipo de Desarrollo                   Página 17
+Adendum · Auditoría Profunda · Guardian-Praeventio                                               Junio 2026
+
+A5. Auditoría Mobile Real -- capacitor-mesh, Native,
+Sensors
+
+Este capítulo documenta la lectura línea por línea de todo el stack mobile: packages/capacitor-mesh/ completo
+
+(16 archivos, 1.407 LOC), Android native (10 archivos), iOS (solo fastlane confirmado), MeshProvider.tsx +
+
+test, src/services/mesh/ (16 archivos, 3.707 LOC), src/services/proximitySensor/ (4 archivos),
+
+src/services/health/               (key             file:  healthFacadeNative.ts            427  LOC),
+
+src/services/mobile/foregroundServiceClient.ts (426 LOC), src/services/emergency/meshFallback.ts (146
+
+LOC),                 src/services/sensorBus/manDownCorrelation.ts                    (184       LOC),
+
+src/hooks/{useAccelerometer,useProximityMode,useBluetoothMesh,useManDownDetection}.ts,
+
+src/components/emergency/FallDetectionMonitor.tsx (257 LOC), 6 mobile docs y 3 mobile CI workflows.
+
+A5.1 REFUTACIÓN -- capacitor-mesh NO es stub
+
+     HALLAZGO CRÍTICO -- REFUTACIÓN DEL INFORME PRINCIPAL
+
+     El informe principal afirmaba que packages/capacitor-mesh/ Kotlin+Swift eran "stubs (902 LOC que
+     solo loggean + fake events)". Esto es FALSO. Los archivos MeshPlugin.kt (552 LOC) y Plugin.swift
+     (358 LOC) son implementaciones REALES de BLE GATT / CoreBluetooth. Los headers de los archivos
+     dicen explícitamente "Sprint 46 REAL BLE GATT" / "Sprint 46 REAL CoreBluetooth". El README y
+     package.json del plugin están STALE (siguen diciendo "0.1.0-scaffold -- types + web simulator only").
+
+Evidencia directa -- Kotlin header (líneas 1-3):
+
+   // @praeventio/capacitor-mesh -- Android Plugin (Sprint 46 REAL BLE GATT).
+   //
+   // Reemplaza el STUB Sprint 30 con implementación BLE GATT real:
+
+Swift header (líneas 1-5):
+
+   // @praeventio/capacitor-mesh -- iOS Plugin (Sprint 46 REAL CoreBluetooth).
+   //
+   // Real CoreBluetooth implementation. Replaces the Sprint 30 STUB.
+
+Cada @PluginMethod en Kotlin y cada @objc func en Swift hace trabajo nativo real:
+
+BluetoothLeAdvertiser.startAdvertising, BluetoothLeScanner.startScan, BluetoothGattServer
+
+con    onCharacteristicWriteRequest,                       CBPeripheralManager.startAdvertising,
+
+CBCentralManager.scanForPeripherals,                       CBPeripheral.writeValue.   Cero       patrones
+
+Promise.resolve(fakeData).
+
+A5.2 P0 bugs en capacitor-mesh native
+
+#                                  Bug                                     file:line              Severidad
+                                                           Plugin.swift:156                      P0 vida-safety
+M-
+        iOS Plugin.swift send() trunca payloads > 512B
+
+ 1
+
+Praeventio · Equipo de Desarrollo                                                                Página 18
+Adendum · Auditoría Profunda · Guardian-Praeventio                                               Junio 2026
+
+#                                  Bug                                            file:line       Severidad
+                                                                                                 P0 vida-safety
+M-                                                                 Plugin.swift:238-247
+        iOS no reensambla paquetes chunked en recepción                                          P0 vida-safety
+
+ 2                                                                                               P0 vida-safety
+                                                                                                     P0 UX
+M- Cross-platform peer identity mismatch: Android usa MAC, iOS     MeshPlugin.kt + Plugin.swift
+ 3 usa UUID                                                                                        vida-safety
+                                                                                                 P1 vida-safety
+M-                                                                 proximityPluginAdapter.ts:63
+        loadProximityPlugin() siempre retorna null                                                      P1
+                                                                                                    P1 radio
+ 4                                                                                                 contention
+                                                                                                 P2 dashboards
+M-                                                                 MeshProvider.tsx
+        BLE permission denial es silencioso (no UI)                                               P2 (posible)
+
+ 5
+
+M- No background BLE scanning en Android (foreground only, no      MeshPlugin.kt
+ 6 FGS)
+
+M- MainActivity.java vacío -- Health Connect permission contract   MainActivity.java
+ 7 no registrado
+
+M- Dos BLE plugins instalados simultáneamente (bluetooth-le +      package.json
+ 8 capacitor-mesh)
+
+M- packetsRelayed semantics difieren: Kotlin per chunk, Swift per  MeshPlugin.kt + Plugin.swift
+ 9 send()
+
+M-                                                                 AndroidManifest.xml
+10 No RECORD_AUDIO permission en AndroidManifest
+
+                                   Tabla A5.1 -- Bugs en capacitor-mesh native (Kotlin + Swift)
+
+A5.2.1 Detalle M-1: iOS trunca payloads > 512B
+
+El código problemático en Plugin.swift:156:
+
+   // Plugin.swift line 156 -- BUG
+   let capped: Data = data.count > 512 ? data.subdata(in: 0..<512) : data
+   peripheral.writeValue(capped, for: characteristic, type: .withoutResponse)
+
+Un SOS packet con GPS coordinates + worker UID + timestamp + signature base64 fácilmente supera 512
+bytes. iOS descarta silenciosamente la cola. El lado Kotlin chunkifica correctamente (chunkify(payload) en
+L488-498, writeChunks(gatt, chunks) en L505-531). El fix es implementar chunked writes en Swift
+mirrorizando Kotlin, más chunk reassembly en peripheralManager(_:didReceiveWrite:).
+
+A5.2.2 Detalle M-2: iOS no reensambla paquetes chunked
+
+El código problemático en Plugin.swift:238-247:
+
+   // Plugin.swift lines 238-247 -- BUG
+   guard let json = try? JSONSerialization.jsonObject(
+   with: data, options: []
+   ) as? [String: Any] else {
+   NSLog("[PraeventioMesh] dropping malformed inbound packet")
+   return
+   }
+
+Un paquete Android chunked llega como múltiples CBATTRequests. Cada uno se parsea como JSON
+standalone  falla  dropeado silenciosamente. Comunicación cross-platform AndroidiOS rota para
+payloads > 512B. El fix es mantener rxBuffers: [String: Data] por peer, append cada write, intentar
+
+Praeventio · Equipo de Desarrollo                                                                Página 19
+Adendum · Auditoría Profunda · Guardian-Praeventio                                         Junio 2026
+
+parse cuando el buffer se vea completo (brace-count o length-prefix explícito).
+
+A5.3 iOS -- confirmación: NO Xcode project
+
+Confirmado: el directorio ios/App/ contiene únicamente fastlane/{Fastfile, Appfile}. No hay
+proyecto Xcode commiteado. No .xcodeproj, no .xcworkspace, no Podfile, no AppDelegate.swift, no
+Info.plist, no App.entitlements.
+
+El job ios-release en mobile-release.yml fallará en npx cap sync ios o pod install hasta que
+alguien corra npx cap add ios en una macOS box y commitee el resultado. El documento IOS_BUILD.md
+(338 LOC) describe el proceso pero está UNTESTED: ninguna macOS box ha corrido el bootstrap.
+
+A5.4 AASA placeholder confirmado
+
+El  archivo                        public/.well-known/apple-app-site-association  todavía  tiene
+
+TEAMID.com.praeventio.guard (2 ocurrencias). iOS Universal Links no resolverán hasta que se enroll en
+
+Apple Developer Program y se obtenga el Team ID real. El script scripts/fill-ios-aasa.mjs --team-id
+
+está listo para reemplazar el placeholder.
+
+En contraste, public/.well-known/assetlinks.json SÍ tiene un SHA-256 real cargado (no placeholder).
+Los App Links Android funcionarán correctamente.
+
+A5.5 loadProximityPlugin() -- null confirmado
+
+El adapter src/services/proximitySensor/proximityPluginAdapter.ts (68 LOC) tiene la función
+loadProximityPlugin() que retorna null en toda plataforma. El plugin @capgo/capacitor-proximity
+v8.1.2 no tiene JS event bridge. Esto significa que el carry-mode classifier (proximityModeDetector.ts, 226
+LOC, wired + tested + policy-defined) es inerte en producción. Fall detection mantiene el histórico threshold
+de 25 m/s2 sin el boost de 1.3x para in_pocket, sin la escalación 2.0x para face_down, sin
+promptManualCheckin para unconscious workers.
+
+El fix es fork @capgo/capacitor-proximity para emitir proximityChanged vía notifyListeners +
+exponer getCurrent(), O extender @praeventio/capacitor-mesh con una característica de proximity. Los
+tests en proximityPluginAdapter.test.ts fallarían ruidosamente cuando esto se implemente.
+
+A5.6 Esfuerzo estimado para completar Sprint 31 (BLE) y 32 (Wi-Fi Direct)
+
+        Sprint       Status                         Restante                                     Tareas
+31 (BLE)           ~85% done                        ~7-10 días
+                                                    ~8-13 días  Background scanning via FGS (2-3d), fix iOS chunking (1d), fix
+32 (Wi-Fi Direct)  0% done                                      peer identity (1-2d), BLE permission UX (0.5d), native tests
+                                                                (2-3d)
+
+                                                                Android WifiP2pManager (3-5d), iOS MultipeerConnectivity
+                                                                (2-3d), integración con fileChunker.ts + meshRequestRouter.ts
+                                                                (1-2d), tests (2-3d)
+
+Praeventio · Equipo de Desarrollo                                                          Página 20
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                                              Junio 2026
+
+        Sprint                     Status           Restante                                         Tareas
+iOS Xcode bootstrap
+TOTAL combined       No hecho                       0.5 día ops      npx cap add ios en macOS, paste Info.plist de IOS_BUILD.md
+                                                                     §6.1, enable HealthKit capability, commitear
+
+                                   --       ~15-23 días + 0.5d       --
+                                                     ops
+
+                                   Tabla A5.2 -- Esfuerzo estimado para completar Sprints 31 y 32
+
+A5.7 Sensor services -- inventario
+
+            Servicio                   LOC                       Implementación                              Status
+
+loadProximityPlugin                        68 Returns null en toda plataforma                        P0 -- fall detection carry-mode
+useProximityMode hook                                                                                inerte
+proximityModeDetector
+useAccelerometer                       209 Wired al adapter null                                     Inerte
+useBluetoothMesh
+useManDownDetection                    226 Pure engine, fully tested                                 OK pero sin input real
+manDownCorrelation
+FallDetectionMonitor                       -- Capacitor Motion plugin                                OK
+foregroundServiceClient
+meshFallback (SOS enqueue)                           @capacitor-community/bluetooth-le (NO mesh      P1 -- contiende radio con mesh
+healthFacadeNative                         --
+
+                                                     plugin)
+
+                                           -- Correlación de accelerometer + proximity               Inerte por proximity null
+
+                                       184 Pure engine, fully tested                                 OK pero sin input real
+                                       257 React component + canvas                                  OK, threshold 25 m/s2 fijo
+
+                                       426  Wrapper @capawesome                                      OK
+                                            capacitor-android-foreground-service
+
+                                       146 Pure logic, fully tested                                  OK
+
+                                       427 Health Connect + HealthKit                                OK
+
+                                           Tabla A5.3 -- Inventario de servicios de sensores mobile
+
+Praeventio · Equipo de Desarrollo                                                                                               Página 21
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                                         Junio 2026
+
+A6. Auditoría Infra + Docker + Pages + CI/CD
+
+Este capítulo documenta la lectura línea por línea de los 16 archivos Terraform (~2.014 LOC
+HCL+JSON+YAML), los 7 Dockerfiles (432 LOC), 14 frontend pages críticas + 5 random (~9.000 LOC
+sampled) y cloudbuild.yaml + 14 workflows GitHub Actions (~2.043 LOC YAML). Total: ~13.500 LOC
+auditadas.
+
+A6.1 Terraform -- strengths y gaps
+
+El layer Terraform está genuinely well-engineered pero incompleto. Los puntos fuertes y los gaps:
+
+Aspecto                            Estado                                           Detalle
+
+IAM least-privilege                OK               Bucket/key/secret level. prevent_destroy en irreplaceable resources
+KMS rotation
+Cloud Run jobs API                 OK               90-day auto-rotation
+Cloud Scheduler OIDC
+SLO-aligned alert policies         OK               v2 API para jobs (no service)
+Log-based metric backup freshness
+State backend                      OK               Auth vía OIDC tokens
+Cloud Run SERVICE
+Firestore database                 OK               6 políticas con thorough runbook docs
+Secrets codificados
+Cloud Scheduler jobs               OK               Alerta si backup no se ejecuta
+Notification channels
+CMEK en backups bucket             P0               LOCAL -- main.tf:41-46 GCS block comentado. Sin locking.
+Bucket retention policy lock
+backup_image default               P0               NO creado en terraform -- solo jobs. deploy.yml lo maneja vía gcloud.
+RUNBOOK.md drift
+                                   P0               NO creada en terraform (manual en Firebase console)
+
+                                   P1               Solo 8 de 20 production secrets en secrets.tf
+
+                                   P1               6 de 8 jobs en deploy.yml bash, no terraform
+
+                                   P2               Ambos canales apuntan al mismo email (contacto@praeventio.net)
+
+                                   P2               NO aplicado. DR_RUNBOOK.md:102 falsamente lo claims
+
+                                   P3               is_locked=false (intencional para first deploy)
+
+                                   P3               Usa gcr.io legacy, debería ser *-docker.pkg.dev
+
+                                   P1               8+ nombres drifted: región, project ID, image path, SA email, KMS keyring, etc.
+
+                                   Tabla A6.1 -- Auditoría Terraform: strengths y gaps
+
+A6.2 Dockerfiles -- solo 1 de 7 es production-quality
+
+                   Dockerfile                       LOC  Calidad                                             Issues
+Dockerfile.api
+                                                    91 Production-ready             3-stage, non-root USER, HEALTHCHECK,
+                                                                                    chown. Único bueno.
+
+Praeventio · Equipo de Desarrollo                                                                                          Página 22
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                                 Junio 2026
+
+    Dockerfile                                      LOC             Calidad                                Issues
+
+Dockerfile (legacy)                                 36 Dead code             deploy.yml NO lo usa. Stale comment sobre
+                                                                             firebase-applet-config.json.
+
+Dockerfile.frontend                                 43 Aceptable             nginx:alpine. Falta HEALTHCHECK (nginx lo
+                                                                             tiene nativo).
+
+infra/photogrammetry-worker/Dockerfile              88 Descoped              Descoped per Dockerfile.api:84-85
+
+infra/dwg-converter/Dockerfile                      63 Dead code             No built in CI
+
+infra/usdz-converter/Dockerfile                     92 Dead code             Comentario line 24: "NOT validated in CI"
+
+loadtest/Dockerfile                                 19 No usado              loadtest.yml no lo usa
+
+                     Tabla A6.2 -- Auditoría Dockerfiles (1 production-ready, 4 dead code, 2 aceptables
+
+Issues cross-Dockerfile: (a) 0 de 7 pin base images a digest (reproducibility gap); (b) 5 de 7 corren como
+root; (c) 2 de 7 tienen HEALTHCHECK; (d) el legacy Dockerfile tiene un comentario stale que dice que
+firebase-applet-config.json no se hornea en la imagen, pero Dockerfile.api:68-76 explícitamente lo
+contradice y lo bakea.
+
+A6.3 Frontend pages -- REFUTACIÓN de datos fabricados
+
+El informe principal citaba 3 ítems de "datos fabricados" del
+docs/PLAN-MAESTRO-HACER-REAL-2026-06-17.md. La auditoría línea por línea confirma que los 3 ya están
+fixados en el código actual (Sprint F):
+
+#   Claim original                                  Estado real en           Evidencia file:line
+
+                                                    código actual
+
+F- Evacuation.tsx:143 tiene fuente falsa            FIXED           L143 lee telemetry_state de IndexedDB.
+1 (WP-V2)                                                           mapIoTEventsToTwinState returns [] cuando no hay eventos
+                                                                    reales (twinStateMapper.ts:57-60). Phantom workers removidos
+                                                                    (twinStateMapper.ts:36-44).
+
+F-  Telemetry.tsx "Simular IoT" inyecta             FIXED           L63 mantiene simulatedEvents en estado SEPARADO. L418
+2   eventos al pipeline real sin tag                                taguea sim-${randomId()}. L403-412 comentario explícito. NO en
+    (WP-I2)                                                         Firestore, NO en IndexedDB, NO en triggerEmergency.
+
+       DigitalTwinFaena.tsx usa                     FIXED           grep confirms DigitalTwinFaena.tsx NO usa twinStateMapper.
+F-                                                                  RiskMarkers default [] y return null cuando empty (L162-174).
+                                                                    Hardcoded markers removidos (L142-155).
+       twinStateMapper con 4 trabajadores
+3 default (WP-V1)
+
+                                   Tabla A6.3 -- Refutación: 3 ítems de datos fabricados ya están fixados
+
+Implicancia para el roadmap: la Fase 0 del informe principal (Emergencias de honestidad, ~2 sprints) puede
+reducirse a ~0.5 sprint de verificación. Los 5 paquetes WP-V1/V2/I1/I2/I7 están en su mayoría resueltos. Solo
+queda: (a) sweep final de PortableCurriculum "próximamente" (WP-U3), (b) EPP color detector disclaimer
+"no es certificación" (WP-I7), (c) GamifiedHUD CO/HP -- verificar si todavía está en prod o ya se gateó
+(WP-I1).
+
+Praeventio · Equipo de Desarrollo                                                                                       Página 23
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                          Junio 2026
+
+A6.4 Frontend anti-patterns (bounded)
+
+Las 19 pages sampleadas (7.038 LOC críticas + 1.914 LOC random) revelan anti-patrones pervasive pero
+bounded:
+
+                            Anti-patrón             Ocurrencias                             Severidad
+
+any types en signatures                             ~15+                     P2 -- type safety
+
+eslint-disable react-hooks/exhaustive-deps          ~6                       P2 -- possible stale closures
+
+Empty catch blocks                                  ~6                       P2 -- error swallowing
+
+Direct DOM manipulation                             ~5                       P3 -- anti-pattern React
+
+console.log en producción                           0                        OK -- logger.* structured logging
+
+Hardcoded uids/projectIds                           0                        OK -- useContext + useProject
+
+Per-page ErrorBoundary                              0                        P2 -- solo global, mejor granular
+
+useEffect con missing deps                          ~6                       P2
+
+useState para derived data                          ~3                       P3
+
+Inline styles                                       ~2                       P3
+
+                                   Tabla A6.4 -- Anti-patrones en frontend pages (bounded)
+
+Patrones comunes correctos: (a) useEffect + useState + direct Firestore SDK (no React Query/SWR); (b)
+useFirebase() + useProject() contexts; (c) useTranslation() en todas las pages; (d) logger.*
+structured logging consistente; (e) no hardcoded uids/projectIds; (f) accessibility con aria-labels y semantic
+HTML razonable.
+
+A6.5 CI/CD -- gaps estructurales
+
+                           Gap                          Workflows afectados                     Severidad
+Sin concurrency groups                              7 de 14
+Sin explicit permissions: block                     8 de 14                         P1 -- PRs pueden acumular runs
+Sin per-job timeout-minutes                         6 de 14                      P1 -- inherit repo default (potentially
+docker push duplicado                               deploy.yml:90-93
+Sin Dependabot                                      --                                            write-all)
+Sin CodeQL                                          --                              P2 -- inherit GitHub 6h default
+Sin code coverage upload                            --                       P3 -- copy-paste bug, 30s wasted por deploy
+Sin SBOM generation                                 --                            P1 -- dependency updates manuales
+Sin container vulnerability scan                    --                          P2 -- OSSAR no es equivalente a taint
+
+                                                                                                   analysis
+                                                                             P2 -- cobertura calculada pero no publicada
+
+                                                                                  P2 -- syft/cyclonedx no integrados
+                                                                                     P2 -- trivy/grype no integrados
+
+Praeventio · Equipo de Desarrollo                                                                           Página 24
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                                       Junio 2026
+
+                          Gap                           Workflows afectados                   Severidad
+
+Sin SLSA provenance                                 --                              P3 -- supply chain attestation
+
+Sin terraform validate en CI                        --                              P1 -- drift invisible hasta manual plan
+
+Sin tflint/tfsec/checkov                            --                                        P2 -- HCL static analysis
+
+Sin hadolint                                        --                                        P3 -- Dockerfile linting
+
+Sin markdownlint                                    --                                        P3 -- docs linting
+
+Sin PR template / ISSUE_TEMPLATE /                  --                                        P3 -- community files
+
+CODEOWNERS
+
+Sin matrix strategies                               --                              P2 -- solo Node 20, solo chromium
+
+                                    Tabla A6.5 -- Gaps estructurales de CI/CD
+
+A6.6 Bottlenecks de CI
+
+Los jobs más lentos del CI:
+
+               Job                 Duración                             Causa                 Shard posible?
+mutation.yml
+e2e-full-stack                     60 min           Stryker 15 módulos en serie               SÍ -- shard por directorio (4
+firestore-backup.yml                                                                          shards paralelos)
+deploy.yml docker build
+                                   45 min           Emulator boot + specs en serie            SÍ -- Playwright --shard (4
+                                                                                              shards)
+
+                                   60 min           Firestore export speed                    NO -- limitado por API
+
+                                   ~10 min          Sin cache efectivo                        PARCIAL -- --cache-from
+                                                                                              requiere previous image
+
+                                   Tabla A6.6 -- Bottlenecks de CI y oportunidad de sharding
+
+Praeventio · Equipo de Desarrollo                                                                                        Página 25
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                      Junio 2026
+
+A7. Lista Consolidada P0-P3 y Acciones Quick-Win
+
+Este capítulo consolida todos los hallazgos de los capítulos A2-A6 en una única lista priorizada P0-P3, con
+estimación de esfuerzo y acción concreta. La lista reemplaza y amplía la Tabla 6.1-6.4 del informe principal.
+
+A7.1 P0 -- Vida-safety (10 ítems, ~3 sprints)
+
+#                                  Issue                Origen                  Esf             Acción
+
+P0-1  3 specs fixme (sos-button, process-lifecycle,     Informe principal       M               Diagnosticar harness gap (3 root
+                                                                                                causes exactos en A2.2)
+      offline-resilience)
+                                                                                                Reemplazar por VCR-style
+P0-2  Mock determinístico Gemini E2E_MODE en            Informe principal       M               recording (Fase 5.1)
+      gemini.ts:353/518/836
+                                                                                                Extender seed.ts con helpers
+P0-3 Seed mínimo (1 proyecto + 1 crew)                  Informe principal       L               (Fase 2.1)
+
+P0-4 WebAuthn register/verify sin spec E2E              Informe principal       M               Spec nuevo (Fase 3.6)
+
+P0-5 DTE firma falsa pasa tests (dteSigner.ts:168-186)  Auditoría A4 (refutado  M               Mover
+                                                                                                verifyAuthenticationResponse al
+                                                        parcialmente)                           signer
+
+P0-   iOS Plugin.swift:156 trunca payloads > 512B       Auditoría A5 (nuevo)    S               Implementar chunked writes
+N1                                                                                              mirrorizando Kotlin
+
+P0- iOS Plugin.swift:238-247 no reensambla paquetes     Auditoría A5 (nuevo)    S               Implementar rxBuffers +
+                                                                                                isBalancedJson
+N2 chunked
+                                                                                                Validar report-only logs 1-2
+P0- TIER_GATE_ENFORCE no flipado a true en              Auditoría A3 (nuevo)    S               semanas, luego flip
+N3 producción
+                                                                                                Uncomment GCS backend,
+P0-   Terraform state LOCAL -- sin locking              Auditoría A6 (nuevo)    S               migrate state
+N4
+                                                                                                Fork @capgo/capacitor-proximity
+P0- loadProximityPlugin() retorna null (fall detection  Auditoría A5            M               o extender capacitor-mesh
+
+N5 carry-mode inerte)                                   (confirmado)
+
+                                          Tabla A7.1 -- P0 consolidados (10 ítems, ~3 sprints)
+
+A7.2 P1 -- Critical journeys / gaps altos (15 ítems, ~6 sprints)
+
+#                                  Issue                         Origen         Esf             Acción
+                                                        Informe principal
+P1-1 0 specs E2E para 7 critical journeys               Informe principal       L Fase 3 (9 specs nuevos)
+P1-2 0 specs E2E mobile reales                          Informe principal       L Fase 4 (spike Appium + 4 specs)
+P1-3 0 specs E2E para push notifications                Informe principal       M Spec push-notification.spec.ts
+P1-4 0 specs E2E multi-tenant isolation navegando UI    Informe principal       M Spec multi-tenant-isolation.spec.ts
+P1-5 /login sin spec E2E con credenciales reales                                M Spec login-flow.spec.ts
+
+Praeventio · Equipo de Desarrollo                                                                       Página 26
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                                           Junio 2026
+
+#                                  Issue                        Origen                Esf              Acción
+
+P1-6 iOS Xcode project NO commiteado                            Auditoría A5                           Bootstrap en macOS, commitear
+                                                                                                    S
+                                                                                                       Advertise peerId (worker UID) en
+                                                                (confirmado)                           manufacturer data
+                                                                                                       Toast/modal en MeshProvider.tsx
+P1-7  Cross-platform peer identity mismatch (MAC vs             Auditoría A5 (nuevo)  M                Extender
+      UUID)                                                                                            foregroundServiceClient con
+                                                                                                       mesh relay FGS
+P1-8 BLE permission denial silencioso (no UI)                   Auditoría A5 (nuevo)  S                Tighten DELETE a
+                                                                                                       admin/supervisor-only
+          No background BLE scanning en Android                 Auditoría A5 (nuevo)  L
+P1-9                                                                                                   Añadir isAllowedUpload() check
+
+          (foreground only)                                                                            Añadir creatorUid immutability
+
+P1-1  storage.rules documents/{workerId} over-permissive        Auditoría A3 (nuevo)  S                gcloud run services describe,
+  0                                                                                                    restrict role
+
+P1-1 storage.rules reconstructions/ salta                       Auditoría A3 (nuevo)  S                Append a var.secret_ids
+  1 isAllowedUpload()
+                                                                                                       Declarative en scheduler.tf
+P1-1 3 collections sin anti-spoof (exceptions,                  Auditoría A3 (nuevo)  M
+  2 legal_obligations, shifts)
+
+P1-1 Cloud Run SA scope verification (TM-E02) OPEN Auditoría A3 (STRIDE)              S
+3
+
+P1-1                                                            Auditoría A6 (nuevo)  S
+  4 Codificar 12 secrets faltantes en secrets.tf
+
+P1-1 Mover 6 Cloud Scheduler jobs de deploy.yml a               Auditoría A6 (nuevo)  M
+
+5 terraform
+
+                                          Tabla A7.2 -- P1 consolidados (15 ítems, ~6 sprints)
+
+A7.3 P2 -- Infraestructura / mejoras (15 ítems, ~4 sprints)
+
+#                                                   Issue                                              Origen                Esf
+
+P2-1 Coverage ratchet report-only (no CI gate)                                                         Informe principal     S
+
+P2-2 mobile-build-check.yml es STUB                                                                    Informe principal
+                                                                                                                                               S
+
+                                                                                                       (confirmado)
+
+P2-3 SystemEngineProvider orphan (falta tenantId client-side)                                          Informe principal     M
+
+P2-4 limiters.ts mutation score 3.05% (Windows Stryker crash)                                          Informe principal     M
+
+P2-5 Apple SSN verifiedChain siempre false (leaf-only JWS)                                             Auditoría A3 (nuevo)  M
+
+P2-6 tenantScoped.test.ts usa ctx.skip() en vez de fail-closed                                         Auditoría A3 (nuevo)  S
+
+P2-7 SECURITY.md y PGP_GENERATION.md stale (PGP key sí existe)                                         Auditoría A3 (nuevo)  S
+
+P2-8 2 BLE plugins simultáneos (bluetooth-le + capacitor-mesh)                                         Auditoría A5 (nuevo)  M
+
+P2-9 MainActivity.java vacío (Health Connect contract no registrado)                                   Auditoría A5 (nuevo)  S
+
+P2-1  packetsRelayed semantics difieren Kotlin vs Swift                                                Auditoría A5 (nuevo)  S
+  0
+
+Praeventio · Equipo de Desarrollo                                                                                            Página 27
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                             Junio 2026
+
+#                                                   Issue                                Origen                Esf
+
+P2-1                                                                                     Auditoría A6 (nuevo)  M
+          Dockerfiles: 0/7 pin a digest, 5/7 corren como root, 2/7 con HEALTHCHECK
+
+  1
+
+P2-1  Sin Dependabot, CodeQL, code coverage upload, SBOM, container scan, SLSA           Auditoría A6 (nuevo)  M
+  2
+
+P2-1                                                                                     Auditoría A6 (nuevo)  M
+          Sin terraform validate, tflint, tfsec, hadolint en CI
+
+  3
+
+P2-1                                                                                     Auditoría A6 (nuevo)  S
+          8 workflows GitHub Actions sin explicit permissions: block
+
+  4
+
+P2-1  Non-atomic multi-collection writes en 15+ routers (5 writes en billing/webpay)     Auditoría A4 (nuevo)  L
+  5
+
+                                   Tabla A7.3 -- P2 consolidados (15 ítems, ~4 sprints)
+
+A7.4 P3 -- Limpieza / docs (12 ítems, ~1 sprint)
+
+#                                                   Issue                                Origen                Esf
+
+P3-1 Stale README + package.json capacitor-mesh (sigue diciendo "0.1.0-scaffold")        Auditoría A5 (nuevo)  S
+
+P3-2 Stale mobile-build-check.yml rationale (ADR-0006 superseded por ADR-0009)           Auditoría A5 (nuevo)  S
+
+P3-3 proguard-rules.pro stock (sin Capacitor keep rules)                                 Auditoría A5 (nuevo)  S
+
+P3-4 gradle.properties heap too low (-Xmx1536m)                                          Auditoría A5 (nuevo)  S
+
+          4 Dockerfiles dead code (legacy, photogrammetry-worker, dwg-converter,         Auditoría A6 (nuevo)  S
+P3-5
+
+          usdz-converter)
+
+P3-6 RUNBOOK.md drifted en 8+ nombres                                                    Auditoría A6 (nuevo)  S
+
+P3-7 infrastructure/cloud-scheduler.yaml SUPERSEDED pero sigue en repo                   Auditoría A6 (nuevo)  S
+
+P3-8 docker push duplicado en deploy.yml:90-93 (copy-paste bug)                          Auditoría A6 (nuevo)  S
+
+P3-9 THREAT_MODEL.md open backlog stale (TM-I03, TM-T03 ya mitigados)                    Auditoría A3 (nuevo)  S
+
+P3-1                                                                                     Auditoría A3 (nuevo)  S
+          kmsPreflight.test.ts solo 3 tests (sin non-prod default, sin invalid adapter)
+
+  0
+
+P3-1                                                                                     Auditoría A6 (nuevo)  S
+          backup_image default usa gcr.io legacy
+
+  1
+
+P3-1  Sin .github/CODEOWNERS, pull_request_template.md, ISSUE_TEMPLATE/                  Auditoría A6 (nuevo)  S
+  2
+
+                                   Tabla A7.4 -- P3 consolidados (12 ítems, ~1 sprint)
+
+A7.5 Resumen consolidado
+
+Praeventio · Equipo de Desarrollo                                                                              Página 28
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                                    Junio 2026
+
+         Severidad                 Ítems    Esfuerzo total        Sprints (1 equipo)                Sprints (2 equipos paralelos)
+                                     10   2M + 5S + 1L + 2M                 ~3                                        ~2
+P0 (vida-safety)                     15                                     ~6                                      ~3-4
+P1 (critical journeys / gaps                 4L + 7M + 4S
+altos)
+P2 (infraestructura /              15               3L + 7M + 5S            ~4                         ~2-3
+mejoras)
+P3 (limpieza / docs)               12               12S                     ~1                         ~0.5
+TOTAL
+                                   52               --                      ~14                        ~7-9
+
+                                   Tabla A7.5 -- Resumen consolidado P0-P3 tras auditoría profunda
+
+Comparación con el informe principal: el informe original estimaba 16-20 sprints (8-10 meses) para 22 ítems.
+La auditoría profunda amplía a 52 ítems en ~14 sprints (7-9 meses con 2 equipos). Aunque hay más ítems,
+el esfuerzo total es menor porque: (a) la Fase 0 (honestidad) se reduce de ~2 sprints a ~0.5 sprint (3 ítems ya
+fixados); (b) la Fase 2 (extender fixtures) es más acotada de lo esperado; (c) muchos P3 son quick wins de 0.5
+día.
+
+A7.6 Quick wins del primer sprint (actualizado)
+
+Tras la auditoría profunda, los quick wins del primer sprint se actualizan a:
+
+#                                      Quick win                            Esf                     Impacto
+
+Q                                                                                    Emergencia sube de 92% nominal a 92%
+        Diagnosticar y un-fixme 3 specs vida-safety (3 root causes exactos  M
+
+W-                                                                                   real
+        conocidos)
+                                                                            S CI/CD sube de 75% a 80%
+ 1
+                                                                            M    router-test-ratchet baja de 61 a 55
+Q                                                                                uncovered
+W- Flip check-coverage-ratchet.cjs a CI gate
+ 2                                                                          S Cierra revenue risk directo
+
+Q                                                                           S Cierra riesgo legal SII
+W- Cerrar 6 routers VIDA/LEGAL sin test conductual
+ 3                                                                          S Cierra vida-safety SOS cross-platform
+
+Q                                                                           S Ahorra 30s por deploy
+        Fix P0-N3: flip TIER_GATE_ENFORCE=true en prod (tras 1-2 sem
+
+W-
+ 4 report-only)
+
+Q
+W- Fix P0-N4: mover verifyAuthenticationResponse al dteSigner.ts
+ 5
+
+Q
+W- Fix P0-N1 + P0-N2: implementar chunking en iOS Plugin.swift
+ 6
+
+Q
+W- Fix P3-8: borrar docker push duplicado en deploy.yml:90-93
+ 7
+
+Praeventio · Equipo de Desarrollo                                                                                     Página 29
+Adendum · Auditoría Profunda · Guardian-Praeventio                                                      Junio 2026
+
+#                                  Quick win                                Esf             Impacto
+
+Q                                                                           S Doc honesty
+        Fix P3-1: actualizar README + package.json capacitor-mesh a
+
+W-
+        "0.2.0-real-ble"
+
+ 8
+
+Q   Fix P1-10 + P1-11: tighten storage.rules documents/{workerId} + añadir  S Cierra 2 P1 de seguridad
+W-  isAllowedUpload a reconstructions/
+
+9
+
+                                   Tabla A7.6 -- Quick wins actualizados del primer sprint
+
+Estos 9 quick wins combinados representan aproximadamente 1.5 sprints de esfuerzo con 2 devs y eliminan
+la mayor parte de la deuda P0+P1 visible sin requerir arquitectura nueva. Son el punto de partida recomendado
+antes de comprometer el roadmap completo.
+
+A7.7 Conclusión final del adendum
+
+La auditoría profunda confirma que el proyecto tiene una base técnica más sólida de lo que el informe
+principal sugería. Tres afirmaciones del informe principal fueron refutadas (capacitor-mesh NO es stub,
+billing.ts NO está al 0%, los 3 ítems de datos fabricados YA están fixados). Sin embargo, la auditoría profunda
+también identificó 10 nuevos P0 que no aparecían en el informe principal, principalmente en mobile native
+(iOS chunking bugs) y security (TIER_GATE_ENFORCE no flipado, dteSigner sin verificación
+criptográfica).
+
+La deuda técnica real es más amplia pero más tractable de lo esperado: 52 ítems en 14 sprints (vs 22 ítems
+en 16-20 sprints del informe principal). Con 2 equipos paralelos, el timeline se reduce a 7-9 meses. Los 9
+quick wins del primer sprint (1.5 sprints de esfuerzo) cierran la mayoría de la deuda P0+P1 visible y son el
+punto de partida recomendado.
+
+El proyecto debe priorizar: (1) cerrar los 3 P0 mobile native (iOS chunking + peer identity + proximity
+bridge) porque son vida-safety directos; (2) flipar TIER_GATE_ENFORCE porque es revenue directo; (3)
+diagnosticar el harness gap de los 3 specs fixme porque son la certificación e2e de los flujos críticos. Estas
+tres acciones combinadas representan ~2 sprints de trabajo enfocado y elevan el estándar de calidad del
+producto de forma medible.
+
+Praeventio · Equipo de Desarrollo                                                                       Página 30
+

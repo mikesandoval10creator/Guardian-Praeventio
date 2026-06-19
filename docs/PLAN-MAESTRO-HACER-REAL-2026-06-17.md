@@ -1,5 +1,16 @@
 # Plan Maestro — "Hacer Real Toda la App" · Guardian Praeventio
 
+> **▶ Actualización 2026-06-19 (APROBADO — ejecución en curso).** Tras auditar la ola
+> MiMo (#1000+) + 2 auditorías externas (40k LOC), el fundador aprobó el plan end-to-end
+> de 6 fases: **F0** consolidar conocimiento (este commit) · **F1** cerrar ola MiMo
+> (14 PRs limpios + 3 mounts fantasma + 4 cascarones + CPHS) · **F2** fortalecer CI
+> (reglas #23 render-ratchet / #24 scope-gate + coverage-gate) · **F3** tests E2E a
+> estándar (un-fixme 3 specs vida-safety, seed helpers, des-mockear Gemini) · **F4**
+> vida-safety nativo (iOS mesh >512B, proximity plugin, DTE firma, WebAuthn E2E) · **F5**
+> limpieza ponytail (~2.170 LOC). Pendiente vivo en `docs/PENDIENTE.md` §2026-06-19.
+> Flujo MiMo corregido: specs concretos + Claude merge-gate (ver CLAUDE.md "Active work").
+> Las fases de abajo (Track A/B/C) siguen vigentes y se mapean dentro de F1-F5.
+
 > **Estado: BORRADOR consolidado para revisar juntos.** No es compromiso de ejecución.
 > **Norte del fundador:** hacer real la aplicación **entera** — nada que finje funcionar.
 > No es "elegir 3 módulos de un vertical" (eso fue una lectura del 1er informe que NO es la intención).

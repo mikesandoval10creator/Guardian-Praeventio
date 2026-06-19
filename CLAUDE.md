@@ -231,6 +231,31 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
     mirror of `docs/PENDIENTE.md`. Cover a baselined router → regenerate with
     `--write`. Does NOT detect a hollow test that imports + requests but asserts
     nothing (separate concern).
+23. **Render, not just import (anti-phantom-mount).** A component that is
+    "mounted" MUST actually be rendered — its `<ComponentName ...>` must appear
+    in the JSX of a non-test `src/` file, not merely be `import`ed. The
+    connectivity ratchet (#21) only checks textual symbol presence (an import,
+    a comment, even a string counts), so it does NOT catch a "phantom mount": a
+    PR titled `feat: mount X` whose JSX wiring was later clobbered by a
+    conflicting merge (this happened to SafetyMetricsDashboard #1038,
+    SpiDashboard #1039, OperationalPressureGauge #1034 — all 3 merged as
+    "mount" but absent from `Dashboard.tsx` in main). Enforced by
+    `scripts/check-render-ratchet.cjs` (baseline
+    `scripts/render-ratchet-baseline.json`; wired into `.husky/pre-commit` + CI
+    — **in flight, plan 2026-06-19**). Connecting a baselined orphan means it
+    RENDERS; regenerate with `--write`.
+24. **PR scope gate (anti-#1039).** A PR must not touch security/config files
+    outside the scope of its title. A `feat: mount X` / `feat: wire Y` PR may
+    NOT modify `public/.well-known/*`, `firestore.rules`, `.claude/*`, `.env*`,
+    `scripts/*-baseline.json`, `android/**/AndroidManifest.xml`, or
+    `firebase.json` unless the title carries `[scope-override]` and the body
+    justifies it. Root cause: #1039 ("mount SpiDashboard") blanked the Android
+    `assetlinks.json` signing fingerprint AND swept 245 `.claude/skills/` files
+    into git via an indiscriminate `git add` — a security regression unrelated
+    to its title that turned main red. Enforced by
+    `scripts/validate-pr-scope.cjs` + `.github/workflows/pr-scope-check.yml`
+    (**in flight, plan 2026-06-19**). Applies to AI-agent PRs (MiMo) too — see
+    the MiMo workflow note below.
 
 ## Testing notes specific to this repo
 
@@ -334,3 +359,17 @@ Actualizar TODO.md (resuelto con file:line) al avanzar.
 Hecho (B1): sosOutbox dead-letter + routingBackend hazard-clearing.
 
 Estado 2026-06-13: el roadmap activo es el plan híbrido controlado `revisa-si-el-workflow-mighty-goose.md` (olas 0-7). **OLA 0 (15 fixes quirúrgicos #866-#880) está CERRADA 2026-06-13** (ver `docs/audits/file-ledger/PHASE5-REMEDIATION.md` §"OLA 0 … CERRADA"); sigue OLA 1 (VIDA visible).
+
+**Estado 2026-06-19 — Plan maestro end-to-end (post-auditoría ola MiMo).** Roadmap
+vivo en `docs/PLAN-MAESTRO-HACER-REAL-2026-06-17.md` (Fase 0 consolidación → 1 cerrar
+ola MiMo → 2 fortalecer CI [reglas #23/#24] → 3 tests E2E a estándar → 4 vida-safety
+nativo → 5 limpieza ponytail). Pendiente único en `docs/PENDIENTE.md` §"Actualización
+2026-06-19". Las 2 auditorías externas (E2E + Adendum profundo, 40k LOC) en
+`docs/audits/archive/`.
+
+**Flujo MiMo (IA Xiaomi, acelerador auditado).** MiMo 2.5 Pro genera código vía MiMo
+Code CLI (o un agente apuntado a su endpoint Anthropic-compatible) ejecutando **specs
+concretos** redactados por Claude (archivo:línea, dato real, criterio, qué NO tocar),
+NO "haz lo que necesites". Claude es el **merge-gate** (review adversarial en rutas
+vida-safety) y los gates #21-#24 atrapan lo que se escape. La suscripción MiMo es
+"interactive use only" → prohibido orquestarla desde scripts automatizados.
