@@ -475,7 +475,18 @@
     "morning_wakeup": "Despertar Matinal",
     "global_average": "Média Global",
     "no_projects": "Sem projetos",
-    "upsell_suggestions": "Otimize seu plano"
+    "admin_burden_title": "Carga Administrativa",
+    "admin_burden_hours_month": "horas/mês",
+    "admin_burden_pct_week": "% da jornada",
+    "admin_burden_verdict": "veredito",
+    "admin_burden_automatable": "automatizável/sem",
+    "admin_burden_saved": "Economizável: {{minutes}} min/sem",
+    "burden_verdict": {
+      "healthy": "saudável",
+      "concerning": "preocupante",
+      "critical": "crítico",
+      "extreme": "extremo"
+    }
   },
   "errors": {
     "something_went_wrong": "Algo deu errado",

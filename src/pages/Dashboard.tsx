@@ -18,6 +18,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { get, set } from 'idb-keyval';
 import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -66,9 +67,10 @@ import { useExpirableItems } from '../hooks/useExpirableItems';
 import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
 import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
 import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
-import { suggestPainBasedUpsell, type SuggestUpsellResponse } from '../hooks/useUpsell';
-import type { UsagePainSignals, Tier } from '../services/upsell/painBasedUpsellSuggester';
-import { useSubscription } from '../contexts/SubscriptionContext';
+import { buildRoleViewRemote } from '../hooks/useRoleViews';
+import type { RoleCard } from '../hooks/useRoleViews';
+import { RoleViewCards } from '../components/roleViews/RoleViewCards';
+import type { UserRole } from '../services/roleViews/roleViewBuilder';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -100,8 +102,17 @@ export function Dashboard() {
   const { data: workPermitsData } = useWorkPermits(selectedProject?.id ?? null, { status: 'active' });
   const [activeStoppages, setActiveStoppages] = useState<Stoppage[]>([]);
   const [restrictedZones, setRestrictedZones] = useState<RestrictedZone[]>([]);
-  const { plan } = useSubscription();
-  const [upsellSuggestions, setUpsellSuggestions] = useState<SuggestUpsellResponse | null>(null);
+  const [roleCards, setRoleCards] = useState<RoleCard[]>([]);
+  const { userRole: fbRole } = useFirebase();
+  const ROLE_MAP: Record<string, UserRole> = {
+    operario: 'worker',
+    worker: 'worker',
+    supervisor: 'site_chief',
+    prevencionista: 'prevention',
+    admin: 'management',
+    management: 'management',
+  };
+  const mappedRole = ROLE_MAP[fbRole] ?? 'worker';
 
   useEffect(() => {
     if (!selectedProject?.id) return;
@@ -183,6 +194,55 @@ export function Dashboard() {
       activeWorkPermits: workPermitsData?.permits?.length ?? 0,
     };
   }, [nodes, selectedProject, activeStoppages, restrictedZones, workPermitsData]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    let cancelled = false;
+    const userRole = mappedRole;
+    const projectNodes = nodes.filter((n) => n.projectId === selectedProject.id);
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const todayStr = new Date().toDateString();
+    const faenaState: 'operativa' | 'restringida' | 'parcialmente_detenida' | 'detenida' | 'emergencia' =
+      faenaInput.activeEmergencyIncidents > 0
+        ? 'emergencia'
+        : activeStoppages.length > 0
+          ? 'detenida'
+          : restrictedZones.length > 0
+            ? 'restringida'
+            : 'operativa';
+    buildRoleViewRemote(selectedProject.id, {
+      state: {
+        userRole,
+        overdueActions: projectNodes.filter(
+          (n) =>
+            n.type === NodeType.FINDING &&
+            n.metadata?.status !== 'closed' &&
+            n.metadata?.status !== 'resolved' &&
+            n.metadata?.status !== 'Cerrado',
+        ).length,
+        pendingApprovals: 0,
+        todaysTasks: projectNodes.filter(
+          (n) => n.type === NodeType.TASK && new Date(n.createdAt).toDateString() === todayStr,
+        ).length,
+        myEppExpiringSoon: expirables.filter((e) => e.kind === 'epp').length,
+        myTrainingExpiringSoon: expirables.filter((e) => e.kind === 'training').length,
+        myUnreadDocuments: 0,
+        criticalIncidentsLast7d: projectNodes.filter(
+          (n) =>
+            (n.type === NodeType.EMERGENCY || n.type === NodeType.INCIDENT) &&
+            Date.parse(n.createdAt) > sevenDaysAgo,
+        ).length,
+        faenaState,
+        complianceScore: complianceLight?.score ?? undefined,
+      },
+    })
+      .then((res) => {
+        if (!cancelled) setRoleCards(res.cards);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedProject?.id, mappedRole, nodes, faenaInput, activeStoppages, restrictedZones, expirables, complianceLight]);
 
   const handleMorningCheckInComplete = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -295,33 +355,6 @@ export function Dashboard() {
 
   const complianceData = getComplianceData();
 
-  const PLAN_TO_TIER: Record<string, Tier> = {
-    free: 'free', cobre: 'starter', plata: 'starter',
-    oro: 'pro', titanio: 'pro', platino: 'enterprise', diamante: 'enterprise',
-  };
-
-  useEffect(() => {
-    if (!selectedProject?.id) return;
-    let cancelled = false;
-    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-    const recentFindings = nodes.filter(
-      n => n.projectId === selectedProject.id &&
-        n.type === NodeType.FINDING &&
-        Date.now() - new Date(n.createdAt).getTime() < sevenDaysMs,
-    ).length;
-    const signals: UsagePainSignals = {
-      manualReportsPerWeek: recentFindings,
-      exceptionsRaisedLast30d: faenaInput.openCriticalFindings,
-      dataConfidenceScore: complianceData.percentage / 100,
-      currentTier: PLAN_TO_TIER[plan] ?? 'free',
-      activeProjectCount: projects.length,
-    };
-    suggestPainBasedUpsell(selectedProject.id, signals)
-      .then(res => { if (!cancelled) setUpsellSuggestions(res); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [selectedProject?.id, nodes, faenaInput.openCriticalFindings, complianceData.percentage, plan, projects.length]);
-
   // Automated Gamification Logic — auto-complete challenges when matching
   // node types are created today for the active project.
   useEffect(() => {
@@ -410,6 +443,18 @@ export function Dashboard() {
         onPlanner={() => setIsPlannerOpen(true)}
       />
 
+      {roleCards.length > 0 && (
+        <RoleViewCards
+          role={mappedRole}
+          cards={roleCards}
+          onAction={(card) => {
+            if (card.primaryAction?.route) {
+              window.location.href = card.primaryAction.route;
+            }
+          }}
+        />
+      )}
+
       {/* Boletín Climático + Cumplimiento */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 sm:gap-4">
         <WeatherBulletin weather={weather ?? undefined} loading={loadingWeather} />
@@ -457,24 +502,6 @@ export function Dashboard() {
 
       {/* Daily safety tip — industry-aware */}
       <AdviceBanner />
-
-      {upsellSuggestions && upsellSuggestions.suggestions.length > 0 && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-            {t('dashboard.upsell_suggestions', 'Optimiza tu plan')}
-          </h3>
-          <ul className="space-y-1">
-            {upsellSuggestions.suggestions.map((s) => (
-              <li key={s.addonOrTier} className="text-sm text-gray-600 dark:text-gray-300">
-                {s.addonOrTier}
-                {s.pricingHint && (
-                  <span className="ml-2 text-xs text-gray-400">({s.pricingHint})</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {/* ISO 45001:2018 baseline controls catalog */}
       <Iso45001Catalog />
