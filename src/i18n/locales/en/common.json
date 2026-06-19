@@ -2152,7 +2152,8 @@
     "chart": {
       "risk_distribution": "Risk Distribution",
       "incident_trend": "Incident & Findings Trend",
-      "safety_radar": "Safety Dimensions Radar"
+      "safety_radar": "Safety Dimensions Radar",
+      "module_adoption": "Module Adoption"
     }
   },
   "landing": {
