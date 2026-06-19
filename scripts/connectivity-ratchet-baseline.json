@@ -71,7 +71,6 @@
     "src/components/pymeOnboarding/PymeMaturityWizard.tsx",
     "src/components/pymeWizard/PymeOnboardingPlanPanel.tsx",
     "src/components/reportsAutomation/ReportTemplatePreview.tsx",
-    "src/components/researchMode/RootCauseTreeSummary.tsx",
     "src/components/residualRisk/ResidualRiskCard.tsx",
     "src/components/riskMatrix/RiskMatrix5x5Lazy.tsx",
     "src/components/roleOnboarding/OnboardingTrackProgressPanel.tsx",
