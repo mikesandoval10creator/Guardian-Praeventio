@@ -10,9 +10,10 @@
 // La lógica está delegada a services determinísticos; este page es solo
 // presentational. Cero side-effects fuera del download.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { useProject } from '../contexts/ProjectContext';
 import {
   Calculator,
   Users,
@@ -48,6 +49,11 @@ import {
   type RoiReport,
 } from '../services/financialAnalytics/roiCalculator';
 import { generatePricingOcPdf } from '../utils/pricingOcPdf';
+import {
+  compareRoiScenarios,
+  type CompareScenariosInput,
+  type CompareScenariosResponse,
+} from '../hooks/useRoiScenario';
 
 // ────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -105,6 +111,7 @@ function downloadJson(filename: string, payload: unknown): void {
 
 export const PricingCalculator: React.FC = () => {
   const { t } = useTranslation();
+  const { selectedProject } = useProject();
 
   // Inputs
   const [workers, setWorkers] = useState<number>(120);
@@ -116,6 +123,47 @@ export const PricingCalculator: React.FC = () => {
   const [baselineIncidents, setBaselineIncidents] = useState<number>(12);
   const [currentIncidents, setCurrentIncidents] = useState<number>(4);
   const [avgIncidentCost, setAvgIncidentCost] = useState<number>(2_500_000);
+  const [scenarioComparison, setScenarioComparison] = useState<CompareScenariosResponse | null>(null);
+
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    if (!projectId) return;
+
+    const reductionPct = baselineIncidents > 0
+      ? Math.round(((baselineIncidents - currentIncidents) / baselineIncidents) * 100)
+      : 0;
+
+    const input: CompareScenariosInput = {
+      baseline: {
+        averageDirectCostPerIncidentClp: avgIncidentCost,
+        baselineRatePerYear: baselineIncidents,
+        workersCount: workers,
+        indirectMultiplier: 4,
+      },
+      scenarios: [
+        {
+          id: 'current-program',
+          name: 'Programa actual',
+          description: 'Escenario basado en inputs actuales de la calculadora',
+          investments: [
+            { category: 'epp', amountClp: estimateMonthlyEppBudgetClp(industryPrefix, workers).totalClp * 12 },
+            { category: 'training', amountClp: 500_000 },
+            { category: 'audits', amountClp: 300_000 },
+          ],
+          assumptions: {
+            expectedIncidentReductionPct: reductionPct,
+            expectedComplianceImprovementPct: Math.min(reductionPct + 10, 100),
+            paybackMonthsEstimate: 12,
+            confidenceLevel: 'medium',
+          },
+        },
+      ],
+    };
+
+    compareRoiScenarios(projectId, input)
+      .then(setScenarioComparison)
+      .catch(() => {});
+  }, [selectedProject?.id, workers, industryPrefix, baselineIncidents, currentIncidents, avgIncidentCost]);
 
   // ─── Outputs (derived) ───────────────────────────────────────────────
   const recommendedTier = useMemo(
