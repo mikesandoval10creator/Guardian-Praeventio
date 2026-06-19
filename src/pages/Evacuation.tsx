@@ -48,6 +48,7 @@ import { get } from 'idb-keyval';
 // estructurado que el SLM no puede reemplazar sin riesgo de schema
 // drift — fallback queda fuera de scope.
 import { useSlmOffline } from '../hooks/useSlmOffline';
+import { findEvacuationPaths, type FindEvacPathsResponse } from '../hooks/useSignaletics';
 
 const containerStyle = {
   width: '100%',
@@ -90,6 +91,7 @@ export function Evacuation() {
   // Brecha B: cuando el plan se sirve via SLM on-device, marcamos para
   // que la UI muestre el badge "Modo offline" + el disclaimer científico.
   const [planServedOffline, setPlanServedOffline] = useState(false);
+  const [signaleticsPaths, setSignaleticsPaths] = useState<FindEvacPathsResponse | null>(null);
   const [aiRoute, setAiRoute] = useState<any>(null);
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [lastRecalculation, setLastRecalculation] = useState<Date | null>(null);
@@ -167,8 +169,25 @@ export function Evacuation() {
       setAiRoute(data);
       setLastRecalculation(new Date());
 
-      // Clear previous directions
       setDirectionsResponse(null);
+
+      if (selectedProject?.id) {
+        const evacNodes = emergencyNodes.map((n) => ({
+          id: n.id,
+          position: { lat: n.metadata.lat, lng: n.metadata.lng },
+          isExit: n.type === NodeType.EMERGENCY,
+          connectsTo: [],
+        }));
+        if (evacNodes.length > 0) {
+          findEvacuationPaths(selectedProject.id, {
+            nodes: evacNodes,
+            startId: evacNodes[0].id,
+            maxRoutes: 3,
+          })
+            .then(setSignaleticsPaths)
+            .catch(() => {});
+        }
+      }
     } catch (error) {
       logger.error('Error calculating dynamic route', { error });
       // Life-safety: never leave a stale/blank route rendering as "Calculando…".
@@ -306,7 +325,15 @@ export function Evacuation() {
     }
   }, [incidentNodes.length, emergencyNodes.length]);
 
-  const routes = [
+  const routes = signaleticsPaths?.paths.length
+    ? signaleticsPaths.paths.map((p, i) => ({
+        id: `S${i + 1}`,
+        name: `Ruta Señalética ${i + 1}`,
+        status: p.riskyZonesTouched.length > 0 ? 'blocked' : 'clear',
+        capacity: `${Math.max(10, 120 - i * 30)} personas`,
+        time: `${Math.max(1, Math.round(p.distanceMeters / 80))} min`,
+      }))
+    : [
     { id: 'R1', name: 'Ruta Principal Norte', status: aiRoute?.rutasBloqueadas?.includes('R1') ? 'blocked' : 'clear', capacity: '120 personas', time: '2.5 min' },
     { id: 'R2', name: 'Ruta Secundaria Sur', status: aiRoute?.rutasBloqueadas?.includes('R2') ? 'blocked' : 'clear', capacity: '80 personas', time: '3.1 min' },
     { id: 'R3', name: 'Ruta de Emergencia Este', status: aiRoute?.rutasBloqueadas?.includes('R3') ? 'blocked' : 'clear', capacity: '50 personas', time: 'N/A' },
