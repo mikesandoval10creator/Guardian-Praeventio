@@ -15,13 +15,18 @@ import {
   Loader2,
   X,
   Upload,
-  RefreshCw
+  RefreshCw,
+  History,
+  GitBranch,
+  ArrowRight
 } from 'lucide-react';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
 import { db, serverTimestamp } from '../services/firebase';
 import { collection, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useDocumentChain, useDocumentChangelog } from '../hooks/useDocumentVersioning';
+import type { VersionStatus } from '../services/documents/documentVersioning';
 
 import { AddDocumentModal } from '../components/documents/AddDocumentModal';
 import { EditDocumentModal } from '../components/documents/EditDocumentModal';
@@ -57,6 +62,9 @@ export function Documents() {
   const [docToEdit, setDocToEdit] = useState<Document | null>(null);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const isOnline = useOnlineStatus();
+  const [selectedVersionDocId, setSelectedVersionDocId] = useState<string | null>(null);
+  const versionChain = useDocumentChain(selectedProject?.id ?? null, selectedVersionDocId);
+  const versionChangelog = useDocumentChangelog(selectedProject?.id ?? null, selectedVersionDocId);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -323,6 +331,17 @@ export function Documents() {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    setSelectedVersionDocId(doc.id);
+                                    setActiveDropdown(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2"
+                                >
+                                  <History className="w-3 h-3" />
+                                  {t('documents.versionHistory', 'Historial')}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     handleDelete(doc.id);
                                     setActiveDropdown(null);
                                   }}
@@ -378,6 +397,144 @@ export function Documents() {
         onConfirm={doDeleteDoc}
         onCancel={() => setDeleteDocId(null)}
       />
+
+      <AnimatePresence>
+        {selectedVersionDocId && (
+          <motion.div
+            key="version-history-panel"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+          >
+            <div
+              onClick={() => setSelectedVersionDocId(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.2 }}
+              className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-emerald-500/30 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl shadow-emerald-500/10 flex flex-col max-h-[85vh]"
+            >
+              <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-emerald-50 dark:bg-gradient-to-r dark:from-emerald-500/10 dark:to-transparent shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-500 shrink-0">
+                    <History className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('documents.versionHistoryTitle', 'Historial de Versiones')}</h2>
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-300 font-bold uppercase tracking-widest truncate">{t('documents.versionHistorySubtitle', 'Cadena de control documental')}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedVersionDocId(null)}
+                  className="p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white shrink-0"
+                  aria-label={t('common.close', 'Cerrar')}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-white dark:bg-zinc-900 space-y-4">
+                {versionChain.loading ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('documents.loadingVersions', 'Cargando versiones...')}</p>
+                  </div>
+                ) : versionChain.error ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <Shield className="w-8 h-8 text-red-500" />
+                    <p className="text-xs font-bold text-red-500">{t('documents.versionError', 'Error al cargar versiones')}</p>
+                  </div>
+                ) : versionChain.data?.chain?.versions?.length ? (
+                  <div className="space-y-3">
+                    {[...versionChain.data.chain.versions]
+                      .sort((a, b) => b.versionId.localeCompare(a.versionId, undefined, { numeric: true }))
+                      .map((v, i) => {
+                        const statusColors: Record<VersionStatus, string> = {
+                          draft: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300',
+                          in_review: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+                          approved: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+                          superseded: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500',
+                          retired: 'bg-red-500/10 text-red-500',
+                        };
+                        const statusLabels: Record<VersionStatus, string> = {
+                          draft: t('documents.vs_draft', 'Borrador'),
+                          in_review: t('documents.vs_in_review', 'En revisión'),
+                          approved: t('documents.vs_approved', 'Aprobado'),
+                          superseded: t('documents.vs_superseded', 'Reemplazado'),
+                          retired: t('documents.vs_retired', 'Retirado'),
+                        };
+                        return (
+                          <motion.div
+                            key={v.versionId}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.05 }}
+                            className="flex items-start gap-3 p-3 rounded-xl bg-zinc-50 dark:bg-white/[0.02] border border-zinc-200 dark:border-white/5 hover:border-emerald-500/30 dark:hover:border-emerald-500/20 transition-colors"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                              <GitBranch className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-black text-zinc-900 dark:text-white">v{v.versionId}</span>
+                                <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${statusColors[v.status]}`}>
+                                  {statusLabels[v.status]}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 truncate">{v.changeNotes || t('documents.noChangeNotes', 'Sin notas de cambio')}</p>
+                              <p className="text-[9px] text-zinc-400 dark:text-zinc-600 mt-1 uppercase tracking-wider">
+                                {new Date(v.createdAt).toLocaleDateString('es-CL', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                            {v.replacesVersionId && (
+                              <div className="flex items-center gap-1 text-[9px] text-zinc-400 dark:text-zinc-600 shrink-0 mt-1">
+                                <ArrowRight className="w-3 h-3" />
+                                <span className="uppercase tracking-wider">{v.replacesVersionId}</span>
+                              </div>
+                            )}
+                          </motion.div>
+                        );
+                      })
+                    }
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <Folder className="w-8 h-8 text-zinc-300 dark:text-zinc-700" />
+                    <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{t('documents.noVersions', 'Sin versiones registradas')}</p>
+                  </div>
+                )}
+
+                {versionChangelog.data?.changelog?.length ? (
+                  <div className="pt-4 border-t border-zinc-200 dark:border-white/5">
+                    <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">{t('documents.changelog', 'Registro de cambios')}</h3>
+                    <div className="space-y-2">
+                      {versionChangelog.data.changelog.map((entry) => (
+                        <div key={entry.versionId} className="flex items-start gap-2 text-[10px]">
+                          <span className="font-black text-zinc-900 dark:text-white shrink-0">v{entry.versionId}</span>
+                          <span className="text-zinc-500 dark:text-zinc-400 truncate">{entry.changeNotes}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="p-6 border-t border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-900/50 shrink-0">
+                <button
+                  onClick={() => setSelectedVersionDocId(null)}
+                  className="w-full px-4 py-3 rounded-xl text-xs font-black text-zinc-600 dark:text-white uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-white/5 transition-colors"
+                >
+                  {t('documents.closeHistory', 'Cerrar')}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

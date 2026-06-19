@@ -832,7 +832,21 @@
     "btn_upload": "Subir Documento",
     "btn_save_changes": "Guardar Cambios",
     "toast_offline_added": "Documento guardado para sincronización cuando haya conexión.",
-    "toast_offline_edited": "Edición guardada para sincronización cuando haya conexión."
+    "toast_offline_edited": "Edición guardada para sincronización cuando haya conexión.",
+    "versionHistory": "Historial",
+    "versionHistoryTitle": "Historial de Versiones",
+    "versionHistorySubtitle": "Cadena de control documental",
+    "loadingVersions": "Cargando versiones...",
+    "versionError": "Error al cargar versiones",
+    "noVersions": "Sin versiones registradas",
+    "noChangeNotes": "Sin notas de cambio",
+    "vs_draft": "Borrador",
+    "vs_in_review": "En revisión",
+    "vs_approved": "Aprobado",
+    "vs_superseded": "Reemplazado",
+    "vs_retired": "Retirado",
+    "changelog": "Registro de cambios",
+    "closeHistory": "Cerrar"
   },
   "epp": {
     "title": "Gestión de EPP",
