@@ -46,6 +46,7 @@ import {
   type KbCategory,
   type KbSourceType,
 } from '../hooks/useKnowledgeBase';
+import { KnowledgeBaseSearch } from '../components/knowledgeBase/KnowledgeBaseSearch';
 import { logger } from '../utils/logger';
 
 type TLite = (key: string, fallback?: string) => string;
@@ -312,6 +313,14 @@ export function KnowledgeBase() {
           })}
         </div>
       </div>
+
+      <KnowledgeBaseSearch
+        library={entries}
+        onArticleClick={(id) => {
+          const entry = entries.find((e) => e.id === id);
+          if (entry) setSelectedEntry(entry);
+        }}
+      />
 
       {mutationError && (
         <div
