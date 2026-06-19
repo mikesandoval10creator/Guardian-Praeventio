@@ -1,6 +1,6 @@
 {
   "_doc": "Ratchet baseline for scripts/check-connectivity-ratchet.cjs. List of currently-orphan UI features (component/hook/page exports not referenced by any non-test src file = built but not mounted). The list may only SHRINK: a NEW orphan fails the gate (wire it into a page, or justify + regenerate with `node scripts/check-connectivity-ratchet.cjs --write`). When you connect a baselined orphan, regenerate so it can never be re-orphaned silently. Includes a stable set of heuristic false positives (lazy routes / barrels / util modules) — acceptable because the gate only blocks GROWTH.",
-  "count": 89,
+  "count": 90,
   "orphans": [
     "src/components/adoption/ChurnRiskPanel.tsx",
     "src/components/agenda/AgendaDigestCard.tsx",
@@ -56,6 +56,7 @@
     "src/components/measurements/MeasurementQualityCard.tsx",
     "src/components/medicine/Ds67Modal.tsx",
     "src/components/monthlyClientReport/MonthlyClientReportCard.tsx",
+    "src/components/operationalState/FaenaStateBanner.tsx",
     "src/components/orgMetrics/OperationalPressureGauge.tsx",
     "src/components/organic/ProcessClosePreviewCard.tsx",
     "src/components/pinSign/PinSignModal.tsx",
@@ -70,8 +71,8 @@
     "src/components/roleOnboarding/OnboardingTrackProgressPanel.tsx",
     "src/components/roleViews/RoleViewCards.tsx",
     "src/components/safety/SafetyCapsules.tsx",
+    "src/components/safetyMetrics/SafetyMetricsDashboard.tsx",
     "src/components/safetyMetrics/SafetyTrendChartLazy.tsx",
-    "src/components/safetyPerformance/SpiDashboard.tsx",
     "src/components/shared/ProjectScopedPage.tsx",
     "src/components/shiftRiskPanel/PreShiftRiskCard.tsx",
     "src/components/softBlocking/RequirementGatePanel.tsx",
