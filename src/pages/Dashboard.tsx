@@ -66,6 +66,9 @@ import { useExpirableItems } from '../hooks/useExpirableItems';
 import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
 import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
 import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
+import { suggestPainBasedUpsell, type SuggestUpsellResponse } from '../hooks/useUpsell';
+import type { UsagePainSignals, Tier } from '../services/upsell/painBasedUpsellSuggester';
+import { useSubscription } from '../contexts/SubscriptionContext';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -97,6 +100,8 @@ export function Dashboard() {
   const { data: workPermitsData } = useWorkPermits(selectedProject?.id ?? null, { status: 'active' });
   const [activeStoppages, setActiveStoppages] = useState<Stoppage[]>([]);
   const [restrictedZones, setRestrictedZones] = useState<RestrictedZone[]>([]);
+  const { plan } = useSubscription();
+  const [upsellSuggestions, setUpsellSuggestions] = useState<SuggestUpsellResponse | null>(null);
 
   useEffect(() => {
     if (!selectedProject?.id) return;
@@ -290,6 +295,33 @@ export function Dashboard() {
 
   const complianceData = getComplianceData();
 
+  const PLAN_TO_TIER: Record<string, Tier> = {
+    free: 'free', cobre: 'starter', plata: 'starter',
+    oro: 'pro', titanio: 'pro', platino: 'enterprise', diamante: 'enterprise',
+  };
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    let cancelled = false;
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    const recentFindings = nodes.filter(
+      n => n.projectId === selectedProject.id &&
+        n.type === NodeType.FINDING &&
+        Date.now() - new Date(n.createdAt).getTime() < sevenDaysMs,
+    ).length;
+    const signals: UsagePainSignals = {
+      manualReportsPerWeek: recentFindings,
+      exceptionsRaisedLast30d: faenaInput.openCriticalFindings,
+      dataConfidenceScore: complianceData.percentage / 100,
+      currentTier: PLAN_TO_TIER[plan] ?? 'free',
+      activeProjectCount: projects.length,
+    };
+    suggestPainBasedUpsell(selectedProject.id, signals)
+      .then(res => { if (!cancelled) setUpsellSuggestions(res); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedProject?.id, nodes, faenaInput.openCriticalFindings, complianceData.percentage, plan, projects.length]);
+
   // Automated Gamification Logic — auto-complete challenges when matching
   // node types are created today for the active project.
   useEffect(() => {
@@ -425,6 +457,24 @@ export function Dashboard() {
 
       {/* Daily safety tip — industry-aware */}
       <AdviceBanner />
+
+      {upsellSuggestions && upsellSuggestions.suggestions.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+            {t('dashboard.upsell_suggestions', 'Optimiza tu plan')}
+          </h3>
+          <ul className="space-y-1">
+            {upsellSuggestions.suggestions.map((s) => (
+              <li key={s.addonOrTier} className="text-sm text-gray-600 dark:text-gray-300">
+                {s.addonOrTier}
+                {s.pricingHint && (
+                  <span className="ml-2 text-xs text-gray-400">({s.pricingHint})</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* ISO 45001:2018 baseline controls catalog */}
       <Iso45001Catalog />

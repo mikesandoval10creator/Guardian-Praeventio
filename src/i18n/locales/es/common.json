@@ -474,7 +474,8 @@
     "last_morning_checkin": "Último Check-in Matutino",
     "morning_wakeup": "Despertar Matutino",
     "global_average": "Promedio Global",
-    "no_projects": "Sin proyectos"
+    "no_projects": "Sin proyectos",
+    "upsell_suggestions": "Optimiza tu plan"
   },
   "errors": {
     "something_went_wrong": "Algo salió mal",

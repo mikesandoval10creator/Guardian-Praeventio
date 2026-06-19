@@ -474,7 +474,8 @@
     "last_morning_checkin": "Last Morning Check-in",
     "morning_wakeup": "Morning Wake-up",
     "global_average": "Global Average",
-    "no_projects": "No projects"
+    "no_projects": "No projects",
+    "upsell_suggestions": "Optimize your plan"
   },
   "errors": {
     "something_went_wrong": "Something went wrong",
