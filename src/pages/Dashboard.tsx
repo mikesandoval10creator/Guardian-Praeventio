@@ -66,6 +66,8 @@ import { useExpirableItems } from '../hooks/useExpirableItems';
 import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
 import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
 import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
+import { SafetyMetricsDashboard } from '../components/safetyMetrics/SafetyMetricsDashboard';
+import type { IncidentCounts, ExposureInput } from '../services/safetyMetrics/osha';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -345,6 +347,19 @@ export function Dashboard() {
     downloadTextFile(ics, 'praeventio_tareas.ics');
   };
 
+  const incidentNodes = nodes.filter(n => n.type === NodeType.INCIDENT && (!selectedProject || n.projectId === selectedProject.id));
+  const safetyCounts: IncidentCounts = {
+    totalRecordable: incidentNodes.length,
+    lostTime: incidentNodes.filter(n => n.metadata?.lostDays > 0 || n.metadata?.lostTime).length,
+    restrictedOrTransferred: incidentNodes.filter(n => n.metadata?.restrictedOrTransferred).length,
+    seriousInjuriesAndFatalities: incidentNodes.filter(n => n.metadata?.severity === 'SIF' || n.metadata?.sifr).length,
+    fatalities: incidentNodes.filter(n => n.metadata?.fatal || n.metadata?.fatalities).length,
+    totalLostDays: incidentNodes.reduce((sum, n) => sum + (Number(n.metadata?.lostDays) || 0), 0),
+  };
+  const safetyExposure: ExposureInput = {
+    totalHoursWorked: (selectedProject?.workersCount ?? 0) * 2000,
+  };
+
   return (
     <div data-testid="dashboard-page" className="flex-1 flex flex-col justify-start gap-1 sm:gap-4 pb-20 sm:pb-4 pt-1 sm:pt-4 px-2 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full min-h-[calc(100vh-4rem)]">
 
@@ -392,6 +407,15 @@ export function Dashboard() {
           rubro (k-anonymity enforced server-side). Renders nothing when the
           project has no rubro or the endpoint is unavailable. */}
       <RubroBenchmarksCard />
+
+      {safetyExposure.totalHoursWorked > 0 && (
+        <SafetyMetricsDashboard
+          counts={safetyCounts}
+          exposure={safetyExposure}
+          periodLabel={new Date().toISOString().slice(0, 7)}
+          industry="all_industries_us"
+        />
+      )}
 
       {/* Recomendaciones SST contextuales — DS 594, Ley 16.744. Sprint A wire
           merged via PR #514. Gates on `!weather.unavailable` to avoid the
