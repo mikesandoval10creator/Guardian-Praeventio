@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -21,7 +21,8 @@ import {
   Gamepad2,
   WifiOff,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Network
 } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { generateTrainingCertificate } from '../utils/trainingCertificate';
@@ -33,7 +34,7 @@ import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { generateSafetyCapsule, generateTrainingQuiz } from '../services/geminiService';
-import { TrainingSession } from '../types';
+import { TrainingSession, Worker } from '../types';
 import { FindTheGuardian } from '../components/gamification/FindTheGuardian';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { saveForSync } from '../utils/pwa-offline';
@@ -44,6 +45,7 @@ import { useEmergency } from '../contexts/EmergencyContext';
 import { logger } from '../utils/logger';
 import { EmptyState } from '../components/shared/EmptyState';
 import { CsvImportExportModal } from '../components/etl/CsvImportExportModal';
+import { buildCrewPolyvalenceMatrix, type PolyvalenceMatrixResponse } from '../hooks/useSkillGap';
 
 interface QuizQuestion {
   question: string;
@@ -90,8 +92,47 @@ export function Training() {
   });
 
   const { data: allSessions, loading } = useFirestoreCollection<TrainingSession>('training');
+  const { data: workers } = useFirestoreCollection<Worker>(
+    selectedProject ? `projects/${selectedProject.id}/workers` : null,
+  );
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
+
+  const [polyvalence, setPolyvalence] = useState<PolyvalenceMatrixResponse | null>(null);
+  const [polyvalenceLoading, setPolyvalenceLoading] = useState(false);
+
+  const crew = useMemo(
+    () =>
+      workers.map((w) => ({
+        uid: w.id,
+        name: w.name,
+        skills: [],
+      })),
+    [workers],
+  );
+
+  useEffect(() => {
+    if (!selectedProject || crew.length === 0) {
+      setPolyvalence(null);
+      return;
+    }
+    let cancelled = false;
+    setPolyvalenceLoading(true);
+    buildCrewPolyvalenceMatrix(selectedProject.id, {
+      crew,
+      requiredSkills: [],
+    })
+      .then((res) => {
+        if (!cancelled) setPolyvalence(res);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setPolyvalenceLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProject?.id, crew]);
 
   // Award quiz_passed points exactly once per quiz attempt with score >= 70
   useEffect(() => {
@@ -730,12 +771,19 @@ export function Training() {
       </AnimatePresence>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-6">
         {[
           { label: 'Total Sesiones', value: allSessions.length, icon: BookOpen, color: 'text-blue-500', bg: 'bg-blue-500/10' },
           { label: 'Completadas', value: allSessions.filter(s => s.status === 'completed').length, icon: CheckCircle2, color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10' },
           { label: 'Programadas', value: allSessions.filter(s => s.status === 'scheduled').length, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10' },
           { label: 'Participantes', value: allSessions.reduce((acc, s) => acc + (s.attendees?.length || 0), 0), icon: Users, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+          {
+            label: 'Polivalencia',
+            value: polyvalenceLoading ? '…' : polyvalence ? `${polyvalence.matrix.polyvalenceScore}%` : '—',
+            icon: Network,
+            color: polyvalence && polyvalence.matrix.polyvalenceScore >= 70 ? 'text-emerald-500' : polyvalence && polyvalence.matrix.polyvalenceScore >= 40 ? 'text-amber-500' : 'text-rose-500',
+            bg: polyvalence && polyvalence.matrix.polyvalenceScore >= 70 ? 'bg-emerald-500/10' : polyvalence && polyvalence.matrix.polyvalenceScore >= 40 ? 'bg-amber-500/10' : 'bg-rose-500/10',
+          },
         ].map((stat, i) => (
           <div key={i} className="bg-zinc-900/50 border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl hover:border-white/20 transition-all">
             <div className="flex items-center gap-2 sm:gap-4 mb-2 sm:mb-4">
