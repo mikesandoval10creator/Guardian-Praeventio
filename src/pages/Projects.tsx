@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,6 +37,9 @@ import { PredictedActivityModal } from '../components/projects/PredictedActivity
 import { useCalendarPredictions } from '../hooks/useCalendarPredictions';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useNotifications } from '../contexts/NotificationContext';
+import { RaciHealthCard } from '../components/raciMatrix/RaciHealthCard';
+import { summarizeRaciHealth } from '../services/raciMatrix/raciMatrixEngine';
+import type { RaciMatrix } from '../services/raciMatrix/raciMatrixEngine';
 import { logger } from '../utils/logger';
 import { get } from 'idb-keyval';
 import type { PredictedActivity } from '../services/calendar/predictions';
@@ -55,6 +58,8 @@ export function Projects() {
   const navigate = useNavigate();
   const { addNotification } = useNotifications();
   const [selectedActivity, setSelectedActivity] = useState<PredictedActivity | null>(null);
+  const [raciMatrices] = useState<RaciMatrix[]>([]);
+  const raciSummary = useMemo(() => summarizeRaciHealth(raciMatrices), [raciMatrices]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -260,6 +265,10 @@ export function Projects() {
                   </div>
                 </div>
               </div>
+              <RaciHealthCard
+                summary={raciSummary}
+                matrices={raciMatrices}
+              />
             </div>
           ) : activeTab === 'documents' ? (
             <ProjectDocuments projectId={selectedProject.id} />
