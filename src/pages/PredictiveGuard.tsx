@@ -30,6 +30,7 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { generatePredictiveForecast } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { analyzeReputationalRiskRemote, type AnalyzeReputationalRiskResponse } from '../hooks/useReputationalAlerts';
 import { logger } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 
@@ -40,6 +41,7 @@ export function PredictiveGuard() {
   const { environment } = useUniversalKnowledge();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [forecast, setForecast] = useState<any>(null);
+  const [reputationalAlerts, setReputationalAlerts] = useState<AnalyzeReputationalRiskResponse | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const isOnline = useOnlineStatus();
 
@@ -55,8 +57,12 @@ export function PredictiveGuard() {
         `Temperatura: ${environment.weather.temp}°C, Viento: ${environment.weather.windSpeed || 0}km/h, Humedad: ${environment.weather.humidity}%, Condición: ${environment.weather.condition}` :
         'Sin datos climáticos (telemetría meteorológica no disponible — verifique OPENWEATHER_API_KEY).';
 
-      const data = await generatePredictiveForecast(selectedProject.name, context, weatherContext);
+      const [data, repAlerts] = await Promise.all([
+        generatePredictiveForecast(selectedProject.name, context, weatherContext),
+        analyzeReputationalRiskRemote(selectedProject.id, { signals: [] }),
+      ]);
       setForecast(data);
+      setReputationalAlerts(repAlerts);
       setLastUpdated(new Date());
     } catch (error) {
       logger.error('Error generating forecast:', error);
@@ -69,7 +75,7 @@ export function PredictiveGuard() {
     if (selectedProject && !forecast) {
       generateForecast();
     }
-  }, [selectedProject]);
+  }, [selectedProject, reputationalAlerts]);
 
   const getRiskColor = (level: string) => {
     switch (level) {
@@ -522,6 +528,44 @@ export function PredictiveGuard() {
                 )}
               </div>
             </div>
+
+            {reputationalAlerts && reputationalAlerts.alerts.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-2">
+                  <h2 className="text-lg font-black text-white uppercase tracking-tighter flex items-center gap-2">
+                    <Eye className="w-5 h-5 text-purple-500" />
+                    Alertas Reputacionales
+                  </h2>
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{reputationalAlerts.alerts.length} activas</span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  {reputationalAlerts.alerts.map((alert) => (
+                    <Card key={alert.id} className="p-5 bg-gradient-to-br from-purple-500/5 to-fuchsia-500/5 border border-purple-500/20 rounded-2xl">
+                      <div className="flex items-start gap-4">
+                        <div className="p-2.5 rounded-xl bg-purple-500/20 text-purple-400 shrink-0 mt-0.5">
+                          <Eye className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${
+                              alert.severity === 'emergency_pr' ? 'text-rose-400 bg-rose-500/10 border-rose-500/30' :
+                              alert.severity === 'critical' ? 'text-orange-400 bg-orange-500/10 border-orange-500/30' :
+                              alert.severity === 'warning' ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' :
+                              'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+                            }`}>
+                              {alert.severity}
+                            </span>
+                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Reach: {alert.reachScore}</span>
+                          </div>
+                          <p className="text-sm text-zinc-300 font-medium leading-relaxed">{alert.rationale}</p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
 
           </div>
         </div>
