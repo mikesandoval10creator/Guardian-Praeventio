@@ -15,11 +15,13 @@ import { Layers, Plus, Save, Loader2, AlertTriangle } from 'lucide-react';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { RootCauseClassifierCard } from '../components/rootCause/RootCauseClassifierCard';
+import { RootCauseTreeSummary } from '../components/researchMode/RootCauseTreeSummary';
 import {
   buildAnalysis,
   type CauseFactor,
   type RootCauseAnalysis,
 } from '../services/rootCause/rootCauseClassifier';
+import type { RootCauseTree, CauseNode, CauseCategory } from '../services/researchMode/researchMode';
 import {
   saveRootCauseAnalysis,
   subscribeRootCauseAnalyses,
@@ -40,6 +42,34 @@ const FACTOR_LIST: CauseFactor[] = [
   'falla_epp',
   'falla_diseno',
 ];
+
+const FACTOR_TO_CATEGORY: Record<CauseFactor, CauseCategory> = {
+  condicion_subestandar: 'environment',
+  acto_subestandar: 'people',
+  falla_supervision: 'management',
+  falla_procedimiento: 'process',
+  falla_mantenimiento: 'equipment',
+  factor_ambiental: 'environment',
+  factor_organizacional: 'management',
+  falla_capacitacion: 'people',
+  falla_epp: 'equipment',
+  falla_diseno: 'equipment',
+};
+
+function analysisToTree(a: RootCauseAnalysis): RootCauseTree {
+  const cats = a.factors.map((f) => FACTOR_TO_CATEGORY[f]);
+  const nodes: CauseNode[] = a.fiveWhys.map((why, i) => ({
+    id: `${a.incidentId}-why-${i}`,
+    text: why,
+    category: i === a.fiveWhys.length - 1
+      ? FACTOR_TO_CATEGORY[a.primaryFactor]
+      : cats[i % cats.length],
+    isRoot: i === a.fiveWhys.length - 1,
+    parentId: i > 0 ? `${a.incidentId}-why-${i - 1}` : undefined,
+    proposedByUid: a.analyzedByUid,
+  }));
+  return { incidentId: a.incidentId, nodes };
+}
 
 // Plan 2026-05-24 §Fase B.6 batch2 — i18n sweep RootCauseInvestigation.
 export function RootCauseInvestigation() {
@@ -348,10 +378,13 @@ export function RootCauseInvestigation() {
                 {/* Card del análisis seleccionado + stats agregados. */}
                 <div>
                   {selectedAnalysis ? (
-                    <RootCauseClassifierCard
-                      analysis={selectedAnalysis}
-                      history={history}
-                    />
+                    <div className="space-y-4">
+                      <RootCauseClassifierCard
+                        analysis={selectedAnalysis}
+                        history={history}
+                      />
+                      <RootCauseTreeSummary tree={analysisToTree(selectedAnalysis)} />
+                    </div>
                   ) : (
                     <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
                       {t('root_cause.history.select_hint', 'Seleccioná un análisis a la izquierda para ver el detalle.')}
