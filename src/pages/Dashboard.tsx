@@ -29,6 +29,13 @@ import { RealTimeStatusWidget } from '../components/dashboard/RealTimeStatusWidg
 import { PredictiveAlertWidget } from '../components/dashboard/PredictiveAlertWidget';
 import { MorningCheckIn } from '../components/gamification/MorningCheckIn';
 import { useGamification } from '../hooks/useGamification';
+import { useWorkPermits } from '../hooks/useWorkPermits';
+import { subscribeActiveStoppages } from '../services/stoppage/stoppageStore';
+import { listRestrictedZonesBySite } from '../hooks/useRestrictedZones';
+import { FaenaStateBanner } from '../components/operationalState/FaenaStateBanner';
+import type { FaenaStateInput } from '../services/operationalState/faenaStateEngine';
+import type { Stoppage } from '../services/stoppage/stoppageEngine';
+import type { RestrictedZone } from '../services/zones/restrictedZonesEngine';
 import { NodeType } from '../types';
 import { logger } from '../utils/logger';
 import {
@@ -89,6 +96,90 @@ export function Dashboard() {
   const [, setLoadingInsights] = useState(false);
   const { nodes } = useRiskEngine();
   const isOnline = useOnlineStatus();
+  const { data: workPermitsData } = useWorkPermits(selectedProject?.id ?? null, { status: 'active' });
+  const [activeStoppages, setActiveStoppages] = useState<Stoppage[]>([]);
+  const [restrictedZones, setRestrictedZones] = useState<RestrictedZone[]>([]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    const unsub = subscribeActiveStoppages(selectedProject.id, (stoppages) => {
+      setActiveStoppages(stoppages);
+    });
+    return unsub;
+  }, [selectedProject?.id]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    let cancelled = false;
+    listRestrictedZonesBySite(selectedProject.id)
+      .then((res) => {
+        if (cancelled) return;
+        const now = Date.now();
+        setRestrictedZones(
+          res.zones.filter((z) => {
+            if (Date.parse(z.activeFrom) > now) return false;
+            if (z.activeUntil && Date.parse(z.activeUntil) < now) return false;
+            return true;
+          }),
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedProject?.id]);
+
+  const faenaInput = useMemo<FaenaStateInput>(() => {
+    const projectNodes = selectedProject
+      ? nodes.filter((n) => n.projectId === selectedProject.id)
+      : nodes;
+
+    const activeEmergencyIncidents = projectNodes.filter(
+      (n) =>
+        (n.type === NodeType.EMERGENCY || n.type === NodeType.INCIDENT) &&
+        (n.metadata?.status === 'active' || n.metadata?.estado === 'Abierto'),
+    ).length;
+
+    const openCriticalFindings = projectNodes.filter(
+      (n) =>
+        n.type === NodeType.FINDING &&
+        (
+          n.metadata?.severity === 'critical' ||
+          n.metadata?.severity === 'Crítica' ||
+          n.metadata?.criticidad === 'Crítica' ||
+          n.metadata?.criticidad === 'critical'
+        ) &&
+        n.metadata?.status !== 'closed' &&
+        n.metadata?.status !== 'resolved' &&
+        n.metadata?.estado !== 'Cerrado',
+    ).length;
+
+    const criticalEquipmentDown = projectNodes
+      .filter(
+        (n) =>
+          n.type === NodeType.MACHINE &&
+          (
+            n.metadata?.status === 'out_of_service' ||
+            n.metadata?.status === 'Fuera de servicio' ||
+            n.metadata?.operational === false
+          ),
+      )
+      .map((n) => ({ id: n.id, label: n.title }));
+
+    return {
+      activeEmergencyIncidents,
+      activeStoppages: activeStoppages.map((s) => ({
+        id: s.id,
+        reason: s.reason,
+        sinceIso: s.declaredAt,
+      })),
+      restrictedZones: restrictedZones.map((z) => ({
+        id: z.id,
+        reason: z.name,
+      })),
+      criticalEquipmentDown,
+      openCriticalFindings,
+      activeWorkPermits: workPermitsData?.permits?.length ?? 0,
+    };
+  }, [nodes, selectedProject, activeStoppages, restrictedZones, workPermitsData]);
 
   const handleMorningCheckInComplete = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -297,6 +388,8 @@ export function Dashboard() {
           <ComplianceTrafficLight result={complianceLight} variant="compact" />
         </div>
       )}
+
+      <FaenaStateBanner input={faenaInput} />
 
       {showMorningCheckIn && (
         <MorningCheckIn onComplete={handleMorningCheckInComplete} />
