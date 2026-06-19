@@ -22,6 +22,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useReconciliationStatus } from '../hooks/useReconciliationStatus';
 import { cacheAIResponse, getCachedAIResponse } from '../utils/pwa-offline';
 import { FastCheckModal } from '../components/FastCheckModal';
 import { AIInsightsModal } from '../components/dashboard/AIInsightsModal';
@@ -99,6 +100,7 @@ export function Dashboard() {
   const [, setLoadingInsights] = useState(false);
   const { nodes } = useRiskEngine();
   const isOnline = useOnlineStatus();
+  const { lastStats, running } = useReconciliationStatus();
   const { data: workPermitsData } = useWorkPermits(selectedProject?.id ?? null, { status: 'active' });
   const [activeStoppages, setActiveStoppages] = useState<Stoppage[]>([]);
   const [restrictedZones, setRestrictedZones] = useState<RestrictedZone[]>([]);
@@ -425,6 +427,21 @@ export function Dashboard() {
       )}
 
       <FaenaStateBanner input={faenaInput} />
+
+      {lastStats && (
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-1.5">
+          {running ? (
+            <span className="inline-block h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+          ) : (
+            <span className={`inline-block h-2 w-2 rounded-full ${lastStats.failed > 0 ? 'bg-red-400' : 'bg-green-400'}`} />
+          )}
+          <span>
+            {running
+              ? t('dashboard.reconciliation.running', 'Sincronizando…')
+              : t('dashboard.reconciliation.last', { ns: 'translation', defaultValue: '{{succeeded}}/{{attempted}} sincronizados', succeeded: lastStats.succeeded, attempted: lastStats.attempted })}
+          </span>
+        </div>
+      )}
 
       {showMorningCheckIn && (
         <MorningCheckIn onComplete={handleMorningCheckInComplete} />
