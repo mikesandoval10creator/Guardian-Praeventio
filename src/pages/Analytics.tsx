@@ -37,6 +37,9 @@ import { useProject } from '../contexts/ProjectContext';
 import { generateExecutiveSummary } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { cacheAIResponse, getCachedAIResponse } from '../utils/pwa-offline';
+import { buildAdoptionModuleReport } from '../hooks/useAdoption';
+import type { ModuleAdoptionResponse } from '../hooks/useAdoption';
+import type { ModuleUsageKind } from '../services/adoption/adoptionAnalytics';
 // jsPDF + html2canvas are dynamically imported inside handleExportPDF so they
 // are not in this lazy-routed page's initial chunk (~140KB saved on mount).
 import { logger } from '../utils/logger';
@@ -52,6 +55,7 @@ export function Analytics() {
   const [executiveSummary, setExecutiveSummary] = useState<any>(null);
   const [isExporting, setIsExporting] = useState(false);
   const isOnline = useOnlineStatus();
+  const [adoptionReport, setAdoptionReport] = useState<ModuleAdoptionResponse | null>(null);
 
   // Filter nodes by project
   const projectNodes = nodes.filter(n => !selectedProject || n.projectId === selectedProject.id);
@@ -68,6 +72,34 @@ export function Analytics() {
   const findings = projectNodes.filter(n => n.type === NodeType.FINDING);
   const audits = projectNodes.filter(n => n.type === NodeType.AUDIT);
   const epps = projectNodes.filter(n => n.type === NodeType.EPP);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    const activeModules: ModuleUsageKind[] = [];
+    if (incidents.length > 0) activeModules.push('incidents');
+    if (findings.length > 0) activeModules.push('findings');
+    if (epps.length > 0) activeModules.push('epp');
+    if (audits.length > 0) activeModules.push('audit_portal');
+    activeModules.push('projects');
+
+    const daysSinceSignup = Math.max(
+      0,
+      Math.floor((Date.now() - new Date(selectedProject.startDate).getTime()) / 86_400_000),
+    );
+
+    buildAdoptionModuleReport(selectedProject.id, {
+      snapshots: [{
+        tenantId: selectedProject.id,
+        snapshotAt: new Date().toISOString(),
+        daysSinceSignup,
+        activeModules,
+        events30d: projectNodes.length,
+        activeWorkers: selectedProject.workersCount ?? 0,
+        activeProjects: 1,
+        hasPaidPlan: true,
+      }],
+    }).then(setAdoptionReport).catch(() => {});
+  }, [selectedProject?.id, projectNodes.length]);
 
   // Dimensions for Radar Chart
   //
@@ -614,8 +646,27 @@ export function Analytics() {
                 Registra nodos en estas categorías para obtener un puntaje real.
               </p>
             )}
-          </div>
+           </div>
         </div>
+
+        {adoptionReport && (
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-white/5 shadow-sm">
+            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-6">
+              {t('analytics.chart.module_adoption', 'Adopción de Módulos')}
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+              {(Object.entries(adoptionReport.report.byModule) as [ModuleUsageKind, { adopters: number; adoptionPercent: number }][]).map(
+                ([module, data]) => (
+                  <div key={module} className="rounded-xl p-3 border border-zinc-100 dark:border-white/5 bg-zinc-50 dark:bg-zinc-800/50">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest truncate">{module.replace(/_/g, ' ')}</p>
+                    <p className="text-2xl font-black text-zinc-900 dark:text-white mt-1">{data.adoptionPercent}%</p>
+                    <p className="text-[10px] text-zinc-400">{data.adopters} adopters</p>
+                  </div>
+                ),
+              )}
+            </div>
+          </div>
+        )}
 
       </div>
       )}
