@@ -1,0 +1,36 @@
+feat(e2e): un-fixme 3 specs + smoke tests + data-testid (Sprint E2E-99)
+
+Sprint E2E-99 — empujón hacia 99% de cobertura E2E.
+
+## Cambios
+
+### Un-fixme de 3 specs (rutas corregidas)
+- sos-button.spec.ts: ruta /projects/:id/emergency -> /emergency (la app usa
+  ProjectContext, no params de URL). Locator del tel corregido a
+  a[href^="tel:"] (el nombre accesible del enlace es el numero 131/132, no el
+  rotulo SAMU/Bomberos).
+- process-lifecycle.spec.ts: ruta /projects/:id/gantt -> /cuadrillas
+  (StartProcessModal vive en CuadrillasDashboard).
+- offline-resilience.spec.ts: ruta /projects/:id/findings/new -> /findings +
+  apertura del modal con el boton (no existe ruta /findings/new).
+
+### data-testid en componentes criticos
+- SOSButton: sos-button + sos-toast
+- Findings: new-finding-button
+- CuadrillasDashboard: start-process-button
+- Emergency: emergency-contacts-list
+- Dashboard: dashboard-page
+
+### Nuevos fixtures y smoke tests
+- tests/e2e/fixtures/navigation.ts: helper navigateAuthenticated (login + goto +
+  signInBrowserViaCustomToken en una llamada).
+- tests/e2e/landing-smoke.spec.ts: 3 tests (landing renderiza, tiene heading,
+  tiene nav links). Sin auth, sin gate E2E_FULL_STACK.
+- tests/e2e/smoke-pages.spec.ts: 12 smoke tests de paginas autenticadas criticas.
+  Gated por E2E_FULL_STACK=1.
+
+## Impacto
+- Specs E2E activos: 5 -> 8 (+3 un-fixme)
+- Smoke tests: 3 -> 15 (+12 nuevos)
+- Paginas con data-testid: 0 -> 5
+- Total E2E tests: ~8 -> ~23

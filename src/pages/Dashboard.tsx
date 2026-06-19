@@ -18,6 +18,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { get, set } from 'idb-keyval';
 import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -66,9 +67,10 @@ import { useExpirableItems } from '../hooks/useExpirableItems';
 import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
 import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
 import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
-import { buildAdminBurdenReportRemote, suggestAdminAutomations } from '../hooks/useAdminBurden';
-import type { AdminBurdenReport } from '../services/adminBurden/adminBurdenTracker';
-import type { AutomationSuggestion } from '../services/adminBurden/automationSuggester';
+import { buildRoleViewRemote } from '../hooks/useRoleViews';
+import type { RoleCard } from '../hooks/useRoleViews';
+import { RoleViewCards } from '../components/roleViews/RoleViewCards';
+import type { UserRole } from '../services/roleViews/roleViewBuilder';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -100,9 +102,17 @@ export function Dashboard() {
   const { data: workPermitsData } = useWorkPermits(selectedProject?.id ?? null, { status: 'active' });
   const [activeStoppages, setActiveStoppages] = useState<Stoppage[]>([]);
   const [restrictedZones, setRestrictedZones] = useState<RestrictedZone[]>([]);
-  const [adminBurdenReport, setAdminBurdenReport] = useState<AdminBurdenReport | null>(null);
-  const [adminAutomations, setAdminAutomations] = useState<AutomationSuggestion[]>([]);
-  const [adminSavedMinutes, setAdminSavedMinutes] = useState(0);
+  const [roleCards, setRoleCards] = useState<RoleCard[]>([]);
+  const { userRole: fbRole } = useFirebase();
+  const ROLE_MAP: Record<string, UserRole> = {
+    operario: 'worker',
+    worker: 'worker',
+    supervisor: 'site_chief',
+    prevencionista: 'prevention',
+    admin: 'management',
+    management: 'management',
+  };
+  const mappedRole = ROLE_MAP[fbRole] ?? 'worker';
 
   useEffect(() => {
     if (!selectedProject?.id) return;
@@ -126,27 +136,6 @@ export function Dashboard() {
             return true;
           }),
         );
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [selectedProject?.id]);
-
-  useEffect(() => {
-    if (!selectedProject?.id) return;
-    let cancelled = false;
-    buildAdminBurdenReportRemote(selectedProject.id, { entries: [] })
-      .then(async ({ report }) => {
-        if (cancelled) return;
-        setAdminBurdenReport(report);
-        if (report.verdict !== 'healthy') {
-          try {
-            const res = await suggestAdminAutomations(selectedProject.id, { report });
-            if (!cancelled) {
-              setAdminAutomations(res.suggestions);
-              setAdminSavedMinutes(res.totalSavedMinutesPerWeek);
-            }
-          } catch {}
-        }
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -205,6 +194,55 @@ export function Dashboard() {
       activeWorkPermits: workPermitsData?.permits?.length ?? 0,
     };
   }, [nodes, selectedProject, activeStoppages, restrictedZones, workPermitsData]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    let cancelled = false;
+    const userRole = mappedRole;
+    const projectNodes = nodes.filter((n) => n.projectId === selectedProject.id);
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const todayStr = new Date().toDateString();
+    const faenaState: 'operativa' | 'restringida' | 'parcialmente_detenida' | 'detenida' | 'emergencia' =
+      faenaInput.activeEmergencyIncidents > 0
+        ? 'emergencia'
+        : activeStoppages.length > 0
+          ? 'detenida'
+          : restrictedZones.length > 0
+            ? 'restringida'
+            : 'operativa';
+    buildRoleViewRemote(selectedProject.id, {
+      state: {
+        userRole,
+        overdueActions: projectNodes.filter(
+          (n) =>
+            n.type === NodeType.FINDING &&
+            n.metadata?.status !== 'closed' &&
+            n.metadata?.status !== 'resolved' &&
+            n.metadata?.status !== 'Cerrado',
+        ).length,
+        pendingApprovals: 0,
+        todaysTasks: projectNodes.filter(
+          (n) => n.type === NodeType.TASK && new Date(n.createdAt).toDateString() === todayStr,
+        ).length,
+        myEppExpiringSoon: expirables.filter((e) => e.kind === 'epp').length,
+        myTrainingExpiringSoon: expirables.filter((e) => e.kind === 'training').length,
+        myUnreadDocuments: 0,
+        criticalIncidentsLast7d: projectNodes.filter(
+          (n) =>
+            (n.type === NodeType.EMERGENCY || n.type === NodeType.INCIDENT) &&
+            Date.parse(n.createdAt) > sevenDaysAgo,
+        ).length,
+        faenaState,
+        complianceScore: complianceLight?.score ?? undefined,
+      },
+    })
+      .then((res) => {
+        if (!cancelled) setRoleCards(res.cards);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedProject?.id, mappedRole, nodes, faenaInput, activeStoppages, restrictedZones, expirables, complianceLight]);
 
   const handleMorningCheckInComplete = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -405,6 +443,18 @@ export function Dashboard() {
         onPlanner={() => setIsPlannerOpen(true)}
       />
 
+      {roleCards.length > 0 && (
+        <RoleViewCards
+          role={mappedRole}
+          cards={roleCards}
+          onAction={(card) => {
+            if (card.primaryAction?.route) {
+              window.location.href = card.primaryAction.route;
+            }
+          }}
+        />
+      )}
+
       {/* Boletín Climático + Cumplimiento */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 sm:gap-4">
         <WeatherBulletin weather={weather ?? undefined} loading={loadingWeather} />
@@ -461,48 +511,6 @@ export function Dashboard() {
 
       {/* SLA Watch — real corrective actions + work permits assessed for SLA compliance */}
       {slaItems.length > 0 && <SlaWatchPanel items={slaItems} hideHealthy />}
-
-      {adminBurdenReport && adminBurdenReport.totalMinutesPerWeek > 0 && (
-        <div data-testid="admin-burden-kpis" className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-4 bg-white dark:bg-neutral-900">
-          <h3 className="text-sm font-semibold text-neutral-600 dark:text-neutral-300 mb-2">
-            {t('dashboard.admin_burden_title', 'Carga Administrativa')}
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-            <div>
-              <p className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">{adminBurdenReport.totalHoursPerMonth}h</p>
-              <p className="text-xs text-neutral-500">{t('dashboard.admin_burden_hours_month', 'horas/mes')}</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">{adminBurdenReport.pctOfWorkWeek}%</p>
-              <p className="text-xs text-neutral-500">{t('dashboard.admin_burden_pct_week', '% jornada')}</p>
-            </div>
-            <div>
-              <p className={`text-2xl font-bold ${adminBurdenReport.verdict === 'healthy' ? 'text-green-600' : adminBurdenReport.verdict === 'concerning' ? 'text-yellow-500' : 'text-red-600'}`}>
-                {t(`dashboard.burden_verdict.${adminBurdenReport.verdict}`, adminBurdenReport.verdict)}
-              </p>
-              <p className="text-xs text-neutral-500">{t('dashboard.admin_burden_verdict', 'veredicto')}</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">{adminBurdenReport.automatableMinutesPerWeek}m</p>
-              <p className="text-xs text-neutral-500">{t('dashboard.admin_burden_automatable', 'automatizable/sem')}</p>
-            </div>
-          </div>
-          {adminAutomations.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800">
-              <p className="text-xs text-neutral-500 mb-1">
-                {t('dashboard.admin_burden_saved', { minutes: Math.round(adminSavedMinutes), defaultValue: `Ahorrable: ${Math.round(adminSavedMinutes)} min/sem` })}
-              </p>
-              <ul className="text-xs text-neutral-600 dark:text-neutral-400 space-y-0.5">
-                {adminAutomations.slice(0, 3).map((a) => (
-                  <li key={a.forKind}>
-                    {a.replacementFeature} — {a.savedMinutesPerWeek}m/sem
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Man Down supervisor alert — only renders when events exist */}
       <ManDownSupervisorWidget />
