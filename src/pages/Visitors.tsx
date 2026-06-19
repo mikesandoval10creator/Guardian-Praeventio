@@ -41,6 +41,8 @@ import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
 import type { Visitor } from '../services/visitorControl/visitorRegistry';
 import { apiAuthHeader } from '../lib/apiAuth';
+import { evaluateVendorOnboardingStage } from '../hooks/useVendorOnboarding';
+import type { OnboardingStage } from '../services/vendorOnboarding/vendorOnboardingFlow';
 
 // ────────────────────────────────────────────────────────────────────────
 // Types
@@ -394,6 +396,7 @@ interface InductionAckProps {
   projectId: string;
   visitor: Visitor;
   inductions: InductionDoc[];
+  vendorStage: OnboardingStage | null;
   onClose: () => void;
   onAcknowledged: (
     visitorId: string,
@@ -406,6 +409,7 @@ function InductionAck({
   projectId,
   visitor,
   inductions,
+  vendorStage,
   onClose,
   onAcknowledged,
 }: InductionAckProps) {
@@ -499,6 +503,14 @@ function InductionAck({
         <p className="text-xs text-secondary-token">
           {t('visitors.ack.subtitle', 'Acepta los términos antes de ingresar a faena.')}
         </p>
+        {vendorStage && (
+          <span
+            className="inline-block px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 text-secondary-token border border-default-token"
+            data-testid="visitor-ack-vendor-stage"
+          >
+            {t('visitors.ack.vendorStage', 'Vendor stage: {{stage}}', { stage: vendorStage })}
+          </span>
+        )}
         <div>
           <label className="block text-[11px] font-bold uppercase tracking-widest text-secondary-token mb-1">
             {t('visitors.ack.version', 'Versión de inducción')}
@@ -612,6 +624,7 @@ export function Visitors() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [localVisitors, setLocalVisitors] = useState<Visitor[]>([]);
+  const [vendorStage, setVendorStage] = useState<OnboardingStage | null>(null);
 
   // Pull inductions to power the express-induction modal. We fall back
   // to an empty list if the collection has not been seeded. Tenant scoping
@@ -654,9 +667,32 @@ export function Visitors() {
   const handleRegistered = (visitor: Visitor) => {
     setLocalVisitors((prev) => [visitor, ...prev]);
     setFormOpen(false);
-    // Open the induction modal immediately for fast flow.
     setAckVisitor(visitor);
   };
+
+  useEffect(() => {
+    if (!ackVisitor || !projectId) {
+      setVendorStage(null);
+      return;
+    }
+    let cancelled = false;
+    evaluateVendorOnboardingStage(projectId, {
+      state: {
+        vendorId: ackVisitor.company,
+        legalName: ackVisitor.company,
+        invitedAt: ackVisitor.checkInAt,
+      },
+      compliance: [],
+      requirements: [],
+    })
+      .then((res) => {
+        if (!cancelled) setVendorStage(res.stage);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, ackVisitor]);
 
   const handleCheckOut = async (visitorId: string) => {
     if (!projectId) return;
@@ -827,6 +863,7 @@ export function Visitors() {
           projectId={projectId}
           visitor={ackVisitor}
           inductions={inductions}
+          vendorStage={vendorStage}
           onClose={() => setAckVisitor(null)}
           onAcknowledged={handleAcknowledged}
         />
