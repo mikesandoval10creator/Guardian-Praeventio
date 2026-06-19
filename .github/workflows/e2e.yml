@@ -5,6 +5,11 @@ on:
     branches: [main]
   workflow_dispatch: # allow manual run
 
+# Cancel in-progress E2E runs when a new commit is pushed to the same PR.
+concurrency:
+  group: e2e-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   e2e:
     name: Playwright (chromium + mobile-android)

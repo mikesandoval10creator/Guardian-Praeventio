@@ -18,6 +18,11 @@ on:
     # capacity during work hours.
     - cron: '17 3 * * *'
 
+# Cancel in-progress mutation runs when a new commit is pushed to the same PR.
+concurrency:
+  group: mutation-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   mutation:
     name: Stryker mutation testing (Linux)
