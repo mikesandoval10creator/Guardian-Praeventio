@@ -18,7 +18,7 @@
 // y los nuevos (creados vía `createCorrectiveAction`) tienen todos los
 // campos PDCA poblados desde el origen y pasan through sin cambios.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListChecks, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -27,6 +27,7 @@ import {
   useCorrectiveActions,
   scheduleCorrectiveActionEffectivenessReview,
 } from '../hooks/useCorrectiveActions';
+import { evaluateNcCycleStageRemote } from '../hooks/useNonConformity';
 import { CorrectiveActionsCenterPanel } from '../components/correctiveActions/CorrectiveActionsCenterPanel';
 import { ActionBalanceCard } from '../components/correctiveActions/ActionBalanceCard';
 import type { CorrectiveAction } from '../services/correctiveActions/weakActionDetector';
@@ -139,6 +140,19 @@ export function CorrectiveActions() {
     () => balanceActions.map(promote),
     [balanceActions],
   );
+
+  useEffect(() => {
+    if (!projectId || records.length === 0) return;
+    const sample = {
+      id: 'nc-bootstrap',
+      source: 'audit' as const,
+      detectedAt: new Date().toISOString(),
+      description: '',
+      severity: 'minor' as const,
+      status: 'open' as const,
+    };
+    evaluateNcCycleStageRemote(projectId, { nc: sample }).catch(() => {});
+  }, [projectId, records.length]);
 
   const handleScheduleReview = async (entry: EffectivenessReviewEntry) => {
     // Codex P2 round 4 (PR #309): persist via server mutation so the
