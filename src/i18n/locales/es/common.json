@@ -4134,6 +4134,14 @@
       "title": "Mapa de Calor de Hallazgos"
     }
   },
+  "criticalRoles": {
+    "page": {
+      "title": "Roles Críticos",
+      "subtitle": "Cobertura de roles críticos por industria — bus factor y plan de capacitación.",
+      "selectProject": "Selecciona un proyecto para evaluar la cobertura de roles críticos.",
+      "noRoles": "No hay roles críticos definidos para esta industria."
+    }
+  },
   "wasteInventory": {
     "page": {
       "title": "Inventario de Residuos",

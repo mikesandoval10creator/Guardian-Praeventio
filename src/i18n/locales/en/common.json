@@ -4134,6 +4134,14 @@
       "title": "Findings Heat Map"
     }
   },
+  "criticalRoles": {
+    "page": {
+      "title": "Critical Roles",
+      "subtitle": "Critical role coverage by industry — bus factor and training plan.",
+      "selectProject": "Select a project to evaluate critical role coverage.",
+      "noRoles": "No critical roles defined for this industry."
+    }
+  },
   "wasteInventory": {
     "page": {
       "title": "Waste Inventory",
