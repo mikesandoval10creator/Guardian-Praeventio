@@ -62,6 +62,8 @@ import {
   type RetaliationAlertApi,
 } from '../hooks/useConfidentialReports';
 import { logger } from '../utils/logger';
+import { ConfidentialReportInbox } from '../components/confidentialReports/ConfidentialReportInbox';
+import type { ConfidentialReport, ConfidentialReportKind, ReportStatus } from '../services/confidentialReports/confidentialReportsService';
 
 // ────────────────────────────────────────────────────────────────────────
 // Visual helpers
@@ -209,6 +211,37 @@ const SLA_META: Record<SlaState, { labelKey: string; cls: string }> = {
 
 const SLA_ORDER: Record<SlaState, number> = { breached: 0, at_risk: 1, on_track: 2 };
 
+const API_KIND_TO_SERVICE: Record<ConfidentialReportKindApi, ConfidentialReportKind> = {
+  harassment: 'harassment_workplace',
+  safety: 'unsafe_behavior',
+  discrimination: 'discrimination',
+  violence: 'violence',
+  conflict_of_interest: 'conflict_of_interest',
+  other: 'other_sensitive',
+};
+
+const API_STATUS_TO_SERVICE: Record<ConfidentialReportStatusApi, ReportStatus> = {
+  open: 'submitted',
+  investigating: 'under_investigation',
+  resolved: 'resolved_substantiated',
+  closed: 'resolved_substantiated',
+  dismissed: 'resolved_unsubstantiated',
+};
+
+function mapApiReport(r: ConfidentialReportApi): ConfidentialReport {
+  return {
+    id: r.id,
+    authorHash: r.reporterAnonHash,
+    authorIdentified: r.allowsIdentity,
+    authorUid: r.reporterUid,
+    kind: API_KIND_TO_SERVICE[r.kind],
+    description: r.narrative,
+    involvedUids: [],
+    submittedAt: r.submittedAt,
+    status: API_STATUS_TO_SERVICE[r.status],
+  };
+}
+
 /** Inbox sort key: most-urgent SLA first, soonest deadline within a tier;
  *  terminal reports (no live SLA) sink to the bottom. */
 export function slaSortKey(
@@ -277,6 +310,11 @@ export function ConfidentialReports() {
   const retaliationAlerts: RetaliationAlertApi[] = useMemo(
     () => retaliationResp.data?.alerts ?? [],
     [retaliationResp.data],
+  );
+
+  const retaliationReportIds = useMemo(
+    () => new Set(retaliationAlerts.map((a) => a.reportId)),
+    [retaliationAlerts],
   );
 
   if (!selectedProject) {
@@ -501,20 +539,28 @@ export function ConfidentialReports() {
                 </p>
               </div>
             ) : (
-              <ul
-                className="space-y-2"
-                data-testid="confidential-reports-inbox-list"
-              >
-                {inboxReports.map((r) => (
-                  <ReportCard
-                    key={r.id}
-                    report={r}
-                    variant="inbox"
-                    onRespond={() => setRespondingTo(r)}
-                    onClose={() => setClosingTo(r)}
+              <>
+                <div className="mb-4 transition-all duration-300 ease-in-out">
+                  <ConfidentialReportInbox
+                    reports={inboxReports.map(mapApiReport)}
+                    retaliationReportIds={retaliationReportIds}
                   />
-                ))}
-              </ul>
+                </div>
+                <ul
+                  className="space-y-2"
+                  data-testid="confidential-reports-inbox-list"
+                >
+                  {inboxReports.map((r) => (
+                    <ReportCard
+                      key={r.id}
+                      report={r}
+                      variant="inbox"
+                      onRespond={() => setRespondingTo(r)}
+                      onClose={() => setClosingTo(r)}
+                    />
+                  ))}
+                </ul>
+              </>
             )}
 
             {/* Retaliation alerts panel — only investigators see it. */}
