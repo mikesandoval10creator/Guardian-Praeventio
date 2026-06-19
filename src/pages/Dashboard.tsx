@@ -18,6 +18,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { get, set } from 'idb-keyval';
 import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -29,6 +30,13 @@ import { RealTimeStatusWidget } from '../components/dashboard/RealTimeStatusWidg
 import { PredictiveAlertWidget } from '../components/dashboard/PredictiveAlertWidget';
 import { MorningCheckIn } from '../components/gamification/MorningCheckIn';
 import { useGamification } from '../hooks/useGamification';
+import { useWorkPermits } from '../hooks/useWorkPermits';
+import { subscribeActiveStoppages } from '../services/stoppage/stoppageStore';
+import { listRestrictedZonesBySite } from '../hooks/useRestrictedZones';
+import { FaenaStateBanner } from '../components/operationalState/FaenaStateBanner';
+import type { FaenaStateInput } from '../services/operationalState/faenaStateEngine';
+import type { Stoppage } from '../services/stoppage/stoppageEngine';
+import type { RestrictedZone } from '../services/zones/restrictedZonesEngine';
 import { NodeType } from '../types';
 import { logger } from '../utils/logger';
 import {
@@ -59,8 +67,10 @@ import { useExpirableItems } from '../hooks/useExpirableItems';
 import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
 import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
 import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
-import { SpiDashboard } from '../components/safetyPerformance/SpiDashboard';
-import type { LeadingIndicators, LaggingIndicators } from '../services/safetyPerformance/safetyPerformanceIndex';
+import { buildRoleViewRemote } from '../hooks/useRoleViews';
+import type { RoleCard } from '../hooks/useRoleViews';
+import { RoleViewCards } from '../components/roleViews/RoleViewCards';
+import type { UserRole } from '../services/roleViews/roleViewBuilder';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -89,6 +99,150 @@ export function Dashboard() {
   const [, setLoadingInsights] = useState(false);
   const { nodes } = useRiskEngine();
   const isOnline = useOnlineStatus();
+  const { data: workPermitsData } = useWorkPermits(selectedProject?.id ?? null, { status: 'active' });
+  const [activeStoppages, setActiveStoppages] = useState<Stoppage[]>([]);
+  const [restrictedZones, setRestrictedZones] = useState<RestrictedZone[]>([]);
+  const [roleCards, setRoleCards] = useState<RoleCard[]>([]);
+  const { userRole: fbRole } = useFirebase();
+  const ROLE_MAP: Record<string, UserRole> = {
+    operario: 'worker',
+    worker: 'worker',
+    supervisor: 'site_chief',
+    prevencionista: 'prevention',
+    admin: 'management',
+    management: 'management',
+  };
+  const mappedRole = ROLE_MAP[fbRole] ?? 'worker';
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    const unsub = subscribeActiveStoppages(selectedProject.id, (stoppages) => {
+      setActiveStoppages(stoppages);
+    });
+    return unsub;
+  }, [selectedProject?.id]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    let cancelled = false;
+    listRestrictedZonesBySite(selectedProject.id)
+      .then((res) => {
+        if (cancelled) return;
+        const now = Date.now();
+        setRestrictedZones(
+          res.zones.filter((z) => {
+            if (Date.parse(z.activeFrom) > now) return false;
+            if (z.activeUntil && Date.parse(z.activeUntil) < now) return false;
+            return true;
+          }),
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedProject?.id]);
+
+  const faenaInput = useMemo<FaenaStateInput>(() => {
+    const projectNodes = selectedProject
+      ? nodes.filter((n) => n.projectId === selectedProject.id)
+      : nodes;
+
+    const activeEmergencyIncidents = projectNodes.filter(
+      (n) =>
+        (n.type === NodeType.EMERGENCY || n.type === NodeType.INCIDENT) &&
+        (n.metadata?.status === 'active' || n.metadata?.estado === 'Abierto'),
+    ).length;
+
+    const openCriticalFindings = projectNodes.filter(
+      (n) =>
+        n.type === NodeType.FINDING &&
+        (
+          n.metadata?.severity === 'critical' ||
+          n.metadata?.severity === 'Crítica' ||
+          n.metadata?.criticidad === 'Crítica' ||
+          n.metadata?.criticidad === 'critical'
+        ) &&
+        n.metadata?.status !== 'closed' &&
+        n.metadata?.status !== 'resolved' &&
+        n.metadata?.estado !== 'Cerrado',
+    ).length;
+
+    const criticalEquipmentDown = projectNodes
+      .filter(
+        (n) =>
+          n.type === NodeType.MACHINE &&
+          (
+            n.metadata?.status === 'out_of_service' ||
+            n.metadata?.status === 'Fuera de servicio' ||
+            n.metadata?.operational === false
+          ),
+      )
+      .map((n) => ({ id: n.id, label: n.title }));
+
+    return {
+      activeEmergencyIncidents,
+      activeStoppages: activeStoppages.map((s) => ({
+        id: s.id,
+        reason: s.reason,
+        sinceIso: s.declaredAt,
+      })),
+      restrictedZones: restrictedZones.map((z) => ({
+        id: z.id,
+        reason: z.name,
+      })),
+      criticalEquipmentDown,
+      openCriticalFindings,
+      activeWorkPermits: workPermitsData?.permits?.length ?? 0,
+    };
+  }, [nodes, selectedProject, activeStoppages, restrictedZones, workPermitsData]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    let cancelled = false;
+    const userRole = mappedRole;
+    const projectNodes = nodes.filter((n) => n.projectId === selectedProject.id);
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const todayStr = new Date().toDateString();
+    const faenaState: 'operativa' | 'restringida' | 'parcialmente_detenida' | 'detenida' | 'emergencia' =
+      faenaInput.activeEmergencyIncidents > 0
+        ? 'emergencia'
+        : activeStoppages.length > 0
+          ? 'detenida'
+          : restrictedZones.length > 0
+            ? 'restringida'
+            : 'operativa';
+    buildRoleViewRemote(selectedProject.id, {
+      state: {
+        userRole,
+        overdueActions: projectNodes.filter(
+          (n) =>
+            n.type === NodeType.FINDING &&
+            n.metadata?.status !== 'closed' &&
+            n.metadata?.status !== 'resolved' &&
+            n.metadata?.status !== 'Cerrado',
+        ).length,
+        pendingApprovals: 0,
+        todaysTasks: projectNodes.filter(
+          (n) => n.type === NodeType.TASK && new Date(n.createdAt).toDateString() === todayStr,
+        ).length,
+        myEppExpiringSoon: expirables.filter((e) => e.kind === 'epp').length,
+        myTrainingExpiringSoon: expirables.filter((e) => e.kind === 'training').length,
+        myUnreadDocuments: 0,
+        criticalIncidentsLast7d: projectNodes.filter(
+          (n) =>
+            (n.type === NodeType.EMERGENCY || n.type === NodeType.INCIDENT) &&
+            Date.parse(n.createdAt) > sevenDaysAgo,
+        ).length,
+        faenaState,
+        complianceScore: complianceLight?.score ?? undefined,
+      },
+    })
+      .then((res) => {
+        if (!cancelled) setRoleCards(res.cards);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedProject?.id, mappedRole, nodes, faenaInput, activeStoppages, restrictedZones, expirables, complianceLight]);
 
   const handleMorningCheckInComplete = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -201,55 +355,6 @@ export function Dashboard() {
 
   const complianceData = getComplianceData();
 
-  const spiIndicators = useMemo(() => {
-    const projectNodes = selectedProject
-      ? nodes.filter(n => n.projectId === selectedProject.id)
-      : nodes;
-    const totalWorkers = (selectedProject?.workersCount ?? projects.reduce((a, p) => a + (p.workersCount ?? 0), 0)) || 50;
-    const totalHours = totalWorkers * 2080;
-
-    const inspections = projectNodes.filter(n => n.type === NodeType.INSPECTION);
-    const inspectionsDone = inspections.filter(n => {
-      const s = (n.metadata?.status ?? '').toLowerCase();
-      return s === 'completada' || s === 'completed' || s === 'cerrado';
-    });
-
-    const trainings = projectNodes.filter(n => n.type === NodeType.TRAINING);
-    const trainingsDone = trainings.filter(n => {
-      const s = (n.metadata?.status ?? '').toLowerCase();
-      return s === 'completed' || s === 'completada';
-    });
-
-    const incidents = projectNodes.filter(n => n.type === NodeType.INCIDENT);
-    const nearMisses = incidents.filter(n => (n.metadata?.incidentType ?? '') === 'near_miss');
-    const lostTimeIncidents = incidents.filter(n => (n.metadata?.lostDays ?? 0) > 0);
-    const totalLostDays = incidents.reduce((s, n) => s + (n.metadata?.lostDays ?? 0), 0);
-    const findings = projectNodes.filter(n => n.type === NodeType.FINDING);
-    const regulatoryFindings = findings.filter(n => {
-      const s = (n.metadata?.status ?? '').toLowerCase();
-      return s !== 'cerrado' && s !== 'cerrada' && s !== 'completed' && s !== 'completado';
-    });
-
-    const leading: LeadingIndicators = {
-      preTaskChecklistCompletion: inspections.length > 0 ? inspectionsDone.length / inspections.length : 0,
-      dailyTalksDeliveryRate: 0,
-      trainingCurrencyRate: trainings.length > 0 ? trainingsDone.length / trainings.length : 0,
-      plannedInspectionsRate: inspections.length > 0 ? inspectionsDone.length / inspections.length : 0,
-      nearMissReportingRate: nearMisses.length,
-      positiveObservationsRate: 0,
-    };
-
-    const lagging: LaggingIndicators = {
-      trir: totalHours > 0 ? (incidents.length * 200_000) / totalHours : 0,
-      ltifr: totalHours > 0 ? (lostTimeIncidents.length * 1_000_000) / totalHours : 0,
-      lostDays: totalLostDays,
-      severityRate: totalHours > 0 ? (totalLostDays * 200_000) / totalHours : 0,
-      regulatoryFindings: regulatoryFindings.length,
-    };
-
-    return { leading, lagging };
-  }, [nodes, selectedProject, projects]);
-
   // Automated Gamification Logic — auto-complete challenges when matching
   // node types are created today for the active project.
   useEffect(() => {
@@ -319,14 +424,14 @@ export function Dashboard() {
         </div>
       )}
 
+      <FaenaStateBanner input={faenaInput} />
+
       {showMorningCheckIn && (
         <MorningCheckIn onComplete={handleMorningCheckInComplete} />
       )}
 
       {/* Predictive alerts (renders nothing when no alerts) */}
       <PredictiveAlertWidget />
-
-      <SpiDashboard leading={spiIndicators.leading} lagging={spiIndicators.lagging} />
 
       {/* B.9 expirations — real expirable items; shown only when there are
           items to surface (no false "all clear" on empty/error). */}
@@ -337,6 +442,18 @@ export function Dashboard() {
         onFastCheck={() => setIsFastCheckOpen(true)}
         onPlanner={() => setIsPlannerOpen(true)}
       />
+
+      {roleCards.length > 0 && (
+        <RoleViewCards
+          role={mappedRole}
+          cards={roleCards}
+          onAction={(card) => {
+            if (card.primaryAction?.route) {
+              window.location.href = card.primaryAction.route;
+            }
+          }}
+        />
+      )}
 
       {/* Boletín Climático + Cumplimiento */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 sm:gap-4">
