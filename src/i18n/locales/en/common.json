@@ -474,7 +474,19 @@
     "last_morning_checkin": "Last Morning Check-in",
     "morning_wakeup": "Morning Wake-up",
     "global_average": "Global Average",
-    "no_projects": "No projects"
+    "no_projects": "No projects",
+    "admin_burden_title": "Admin Burden",
+    "admin_burden_hours_month": "hrs/month",
+    "admin_burden_pct_week": "% of work week",
+    "admin_burden_verdict": "verdict",
+    "admin_burden_automatable": "automatable/wk",
+    "admin_burden_saved": "Savable: {{minutes}} min/wk",
+    "burden_verdict": {
+      "healthy": "healthy",
+      "concerning": "concerning",
+      "critical": "critical",
+      "extreme": "extreme"
+    }
   },
   "errors": {
     "something_went_wrong": "Something went wrong",
