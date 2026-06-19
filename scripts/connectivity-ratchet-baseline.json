@@ -22,7 +22,6 @@
     "src/components/contractors/ContractorRankingTable.tsx",
     "src/components/cost/CostScenarioCard.tsx",
     "src/components/costCalculator/PreventionROIWidget.tsx",
-    "src/components/criticalRoles/CriticalRoleCoverageCard.tsx",
     "src/components/culturePulse/CulturePulseDashboard.tsx",
     "src/components/dashboard/RoleAwareDashboard.tsx",
     "src/components/digital-twin/GaussianSplatViewer.tsx",

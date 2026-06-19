@@ -4134,6 +4134,14 @@
       "title": "Mapa de Calor de Achados"
     }
   },
+  "criticalRoles": {
+    "page": {
+      "title": "Papéis Críticos",
+      "subtitle": "Cobertura de papéis críticos por indústria — fator de ônibus e plano de treinamento.",
+      "selectProject": "Selecione um projeto para avaliar a cobertura de papéis críticos.",
+      "noRoles": "Nenhum papel crítico definido para esta indústria."
+    }
+  },
   "wasteInventory": {
     "page": {
       "title": "Inventário de Resíduos",
