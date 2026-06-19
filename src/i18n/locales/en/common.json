@@ -4570,6 +4570,7 @@
       "submit": "Confirm induction",
       "subtitle": "Accept the terms before entering the site.",
       "title": "Express induction",
+      "vendorStage": "Vendor stage: {{stage}}",
       "version": "Induction version"
     },
     "card": {

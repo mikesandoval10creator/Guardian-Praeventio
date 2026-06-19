@@ -4570,6 +4570,7 @@
       "submit": "Confirmar integração",
       "subtitle": "Aceite os termos antes de entrar no local.",
       "title": "Integração expressa",
+      "vendorStage": "Etapa do fornecedor: {{stage}}",
       "version": "Versão da integração"
     },
     "card": {

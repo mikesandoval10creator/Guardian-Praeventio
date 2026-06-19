@@ -4570,6 +4570,7 @@
       "submit": "Confirmar inducción",
       "subtitle": "Acepta los términos antes de ingresar a faena.",
       "title": "Inducción express",
+      "vendorStage": "Etapa del proveedor: {{stage}}",
       "version": "Versión de inducción"
     },
     "card": {
