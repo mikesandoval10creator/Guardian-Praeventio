@@ -32,6 +32,7 @@ import type {
   MaturityLevelNumber,
   MaturityCategory,
 } from '../services/maturity/preventionMaturityIndex';
+import { MaturityIndexCard } from '../components/maturity/MaturityIndexCard';
 
 // ─────────────────────────────────────────────────────────────────────
 // Display tokens — level → name + color + tagline
@@ -388,6 +389,8 @@ function ReportView({ report, recommendations }: ReportViewProps): ReactElement 
           )}
         </div>
       </section>
+
+      <MaturityIndexCard report={report} recommendations={recs} />
 
       {/* Dimensions grid */}
       <section data-testid="maturity-dimensions">
