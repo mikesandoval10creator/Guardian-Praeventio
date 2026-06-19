@@ -18,6 +18,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { get, set } from 'idb-keyval';
 import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -66,6 +67,10 @@ import { useExpirableItems } from '../hooks/useExpirableItems';
 import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
 import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
 import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
+import { buildRoleViewRemote } from '../hooks/useRoleViews';
+import type { RoleCard } from '../hooks/useRoleViews';
+import { RoleViewCards } from '../components/roleViews/RoleViewCards';
+import type { UserRole } from '../services/roleViews/roleViewBuilder';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -97,6 +102,17 @@ export function Dashboard() {
   const { data: workPermitsData } = useWorkPermits(selectedProject?.id ?? null, { status: 'active' });
   const [activeStoppages, setActiveStoppages] = useState<Stoppage[]>([]);
   const [restrictedZones, setRestrictedZones] = useState<RestrictedZone[]>([]);
+  const [roleCards, setRoleCards] = useState<RoleCard[]>([]);
+  const { userRole: fbRole } = useFirebase();
+  const ROLE_MAP: Record<string, UserRole> = {
+    operario: 'worker',
+    worker: 'worker',
+    supervisor: 'site_chief',
+    prevencionista: 'prevention',
+    admin: 'management',
+    management: 'management',
+  };
+  const mappedRole = ROLE_MAP[fbRole] ?? 'worker';
 
   useEffect(() => {
     if (!selectedProject?.id) return;
@@ -178,6 +194,55 @@ export function Dashboard() {
       activeWorkPermits: workPermitsData?.permits?.length ?? 0,
     };
   }, [nodes, selectedProject, activeStoppages, restrictedZones, workPermitsData]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    let cancelled = false;
+    const userRole = mappedRole;
+    const projectNodes = nodes.filter((n) => n.projectId === selectedProject.id);
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const todayStr = new Date().toDateString();
+    const faenaState =
+      faenaInput.activeEmergencyIncidents > 0
+        ? 'emergencia'
+        : activeStoppages.length > 0
+          ? 'detenida'
+          : restrictedZones.length > 0
+            ? 'restringida'
+            : 'operativa';
+    buildRoleViewRemote(selectedProject.id, {
+      state: {
+        userRole,
+        overdueActions: projectNodes.filter(
+          (n) =>
+            n.type === NodeType.FINDING &&
+            n.metadata?.status !== 'closed' &&
+            n.metadata?.status !== 'resolved' &&
+            n.metadata?.status !== 'Cerrado',
+        ).length,
+        pendingApprovals: 0,
+        todaysTasks: projectNodes.filter(
+          (n) => n.type === NodeType.TASK && new Date(n.createdAt).toDateString() === todayStr,
+        ).length,
+        myEppExpiringSoon: expirables.filter((e) => e.kind === 'epp').length,
+        myTrainingExpiringSoon: expirables.filter((e) => e.kind === 'training').length,
+        myUnreadDocuments: 0,
+        criticalIncidentsLast7d: projectNodes.filter(
+          (n) =>
+            (n.type === NodeType.EMERGENCY || n.type === NodeType.INCIDENT) &&
+            Date.parse(n.createdAt) > sevenDaysAgo,
+        ).length,
+        faenaState: faenaState as any,
+        complianceScore: complianceLight?.score ?? undefined,
+      },
+    })
+      .then((res) => {
+        if (!cancelled) setRoleCards(res.cards);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedProject?.id, mappedRole, nodes, faenaInput, activeStoppages, restrictedZones, expirables, complianceLight]);
 
   const handleMorningCheckInComplete = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -377,6 +442,18 @@ export function Dashboard() {
         onFastCheck={() => setIsFastCheckOpen(true)}
         onPlanner={() => setIsPlannerOpen(true)}
       />
+
+      {roleCards.length > 0 && (
+        <RoleViewCards
+          role={mappedRole}
+          cards={roleCards}
+          onAction={(card) => {
+            if (card.primaryAction?.route) {
+              window.location.href = card.primaryAction.route;
+            }
+          }}
+        />
+      )}
 
       {/* Boletín Climático + Cumplimiento */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 sm:gap-4">
