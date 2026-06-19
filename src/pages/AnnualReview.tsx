@@ -49,6 +49,7 @@ import {
   type ObjectiveMetric,
 } from '../services/annualReview/annualSgiReview';
 import { AnnualReviewSummary } from '../components/annualReview/AnnualReviewSummary';
+import { PreventiveObjectivesPanel } from '../components/annualReview/PreventiveObjectivesPanel';
 import { logger } from '../utils/logger';
 
 const CURRENT_YEAR_UTC = new Date().getUTCFullYear();
@@ -491,6 +492,8 @@ export function AnnualReview() {
             objectives={snapshot.objectives}
             fiscalYear={year}
           />
+
+          <PreventiveObjectivesPanel objectives={snapshot.objectives} />
 
           {/* ───────────── Section 1: Objetivos ───────────── */}
           <section
