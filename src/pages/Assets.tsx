@@ -8,6 +8,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
 import { EquipmentAdminPanel } from '../components/equipment/EquipmentAdminPanel';
 import { EquipmentQRScannerEntry } from '../components/equipment/EquipmentQRScannerEntry';
+import { EquipmentStatusCard } from '../components/equipment/EquipmentStatusCard';
+import { useEquipment } from '../hooks/useEquipment';
 
 // Phase 5 "make real" — Assets previously mounted ONLY MaquinariaManager, so the
 // fully-built EquipmentAdminPanel (QR-registered equipment admin backed by
@@ -23,6 +25,8 @@ export function Assets() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
   const [tab, setTab] = useState<AssetTab>('maquinaria');
+  const { data: equipmentData } = useEquipment(selectedProject?.id ?? null);
+  const firstEquipment = equipmentData?.equipment?.[0];
 
   const tabs = [
     { id: 'maquinaria' as const, label: t('assets.tabs.maquinaria', 'Maquinaria'), icon: Truck },
@@ -72,7 +76,12 @@ export function Assets() {
             transition={{ duration: 0.18 }}
           >
             {tab === 'maquinaria' && <MaquinariaManager projectId={selectedProject.id} />}
-            {tab === 'equipos' && <EquipmentAdminPanel projectId={selectedProject.id} />}
+            {tab === 'equipos' && (
+              <div className="space-y-4">
+                {firstEquipment && <EquipmentStatusCard equipment={firstEquipment} />}
+                <EquipmentAdminPanel projectId={selectedProject.id} />
+              </div>
+            )}
             {tab === 'inspeccion' && (
               <EquipmentQRScannerEntry
                 projectId={selectedProject.id}
