@@ -203,7 +203,7 @@ export function Dashboard() {
     const now = Date.now();
     const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
     const todayStr = new Date().toDateString();
-    const faenaState =
+    const faenaState: 'operativa' | 'restringida' | 'parcialmente_detenida' | 'detenida' | 'emergencia' =
       faenaInput.activeEmergencyIncidents > 0
         ? 'emergencia'
         : activeStoppages.length > 0
@@ -233,7 +233,7 @@ export function Dashboard() {
             (n.type === NodeType.EMERGENCY || n.type === NodeType.INCIDENT) &&
             Date.parse(n.createdAt) > sevenDaysAgo,
         ).length,
-        faenaState: faenaState as any,
+        faenaState,
         complianceScore: complianceLight?.score ?? undefined,
       },
     })
