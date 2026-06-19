@@ -54,7 +54,6 @@
     "src/components/industry/IndustrySelectorWizard.tsx",
     "src/components/industryRules/IndustryPresetCard.tsx",
     "src/components/knowledgeBase/KnowledgeBaseSearch.tsx",
-    "src/components/legalCalendar/LegalObligationCard.tsx",
     "src/components/lessonsLearned/LessonSuggestionsCard.tsx",
     "src/components/loneWorker/LoneWorkerAdminPanel.tsx",
     "src/components/maintenance/HorometerStatusCard.tsx",
