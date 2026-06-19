@@ -59,7 +59,6 @@
     "src/components/maturity/MaturityIndexCard.tsx",
     "src/components/measurements/MeasurementQualityCard.tsx",
     "src/components/medicine/Ds67Modal.tsx",
-    "src/components/meetingPack/SupervisorBriefingCard.tsx",
     "src/components/monthlyClientReport/MonthlyClientReportCard.tsx",
     "src/components/nonConformity/NonConformityListPanel.tsx",
     "src/components/orgMetrics/OperationalPressureGauge.tsx",
