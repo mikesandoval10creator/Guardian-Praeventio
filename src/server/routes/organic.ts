@@ -433,4 +433,41 @@ router.post('/tasks/:id/done', verifyAuth, organicLimiter, async (req, res) => {
   }
 });
 
+// GET /api/projects/:projectId/roster — project worker roster (uid + display name)
+// for member-selection UIs (e.g. CPHS committee election). Read-only, tenant-gated
+// (no audit_log: it changes no state). Source of truth = union of memberUids across
+// the project's crews, resolved to users/{uid}.displayName (fallback uid).
+router.get('/projects/:projectId/roster', verifyAuth, organicLimiter, async (req, res) => {
+  const uid = req.user!.uid;
+  const projectId = req.params.projectId;
+  if (!projectId) return res.status(400).json({ error: 'projectId required' });
+  try {
+    const db = admin.firestore();
+    await assertProjectMember(uid, projectId, db);
+    const crewsSnap = await db.collection('crews').where('projectId', '==', projectId).get();
+    const memberUids = [
+      ...new Set(crewsSnap.docs.flatMap((d) => (d.data().memberUids as string[] | undefined) ?? [])),
+    ];
+    // ponytail: N reads for N members — fine for roster sizes (<~200); switch to
+    // db.getAll(...) if a project ever has thousands of workers.
+    const roster = await Promise.all(
+      memberUids.map(async (memberUid) => {
+        const userSnap = await db.collection('users').doc(memberUid).get();
+        const fullName =
+          (userSnap.exists && (userSnap.data()?.displayName as string | undefined)) || memberUid;
+        return { uid: memberUid, fullName };
+      }),
+    );
+    roster.sort((a, b) => a.fullName.localeCompare(b.fullName));
+    return res.json({ roster });
+  } catch (err: any) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    return res.status(500).json({
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal'),
+    });
+  }
+});
+
 export default router;

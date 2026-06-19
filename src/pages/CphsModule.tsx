@@ -603,6 +603,7 @@ import {
 } from '../services/cphs/cphsService';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
+import { useProjectRoster } from '../hooks/useProjectRoster';
 
 /**
  * Adapter: the Firebase Web SDK exposes free functions
@@ -729,6 +730,7 @@ export function CphsModulePageContainer({ buildDb, ceremony }: CphsModulePageDep
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id ?? '';
   const currentUid = user?.uid ?? '';
+  const { roster } = useProjectRoster(projectId || null);
 
   const dbRef = useMemo(() => (buildDb ?? makeWebSdkCphsDb)(), [buildDb]);
   const [committees, setCommittees] = useState<CphsCommittee[]>([]);
@@ -822,7 +824,7 @@ export function CphsModulePageContainer({ buildDb, ceremony }: CphsModulePageDep
       <CphsModule
         committees={committees}
         meetingsByCommittee={meetingsByCommittee}
-        candidateMembers={[]}
+        candidateMembers={roster}
         currentUid={currentUid}
         onCreateCommittee={handleCreateCommittee}
         onScheduleMeeting={handleScheduleMeeting}
