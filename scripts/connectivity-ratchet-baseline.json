@@ -62,7 +62,6 @@
     "src/components/meetingPack/SupervisorBriefingCard.tsx",
     "src/components/monthlyClientReport/MonthlyClientReportCard.tsx",
     "src/components/nonConformity/NonConformityListPanel.tsx",
-    "src/components/operationalState/FaenaStateBanner.tsx",
     "src/components/orgMetrics/OperationalPressureGauge.tsx",
     "src/components/organic/ProcessClosePreviewCard.tsx",
     "src/components/pinSign/PinSignModal.tsx",
