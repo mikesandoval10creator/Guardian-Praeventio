@@ -46,6 +46,7 @@ import type {
   RiskSeverity,
   ControlEffectivenessLevel,
 } from '../services/residualRisk/residualRiskEngine';
+import { ResidualRiskCard } from '../components/residualRisk/ResidualRiskCard';
 import { logger } from '../utils/logger';
 
 const LEVEL_TONE: Record<
@@ -627,7 +628,20 @@ export function ResidualRisk() {
             </div>
           ) : (
             risks.map((r) => (
-              <ResidualRiskCardItem key={r.id} risk={r} onAccept={handleAccept} />
+              <div key={r.id} className="space-y-3">
+                <ResidualRiskCardItem risk={r} onAccept={handleAccept} />
+                <ResidualRiskCard
+                  assessment={{
+                    riskId: r.id,
+                    category: r.category,
+                    likelihood: r.likelihood,
+                    severity: r.inherentSeverity,
+                    riskKind: r.riskKind,
+                  }}
+                  controls={r.currentControls}
+                  onRequestAcceptance={() => handleAccept(r)}
+                />
+              </div>
             ))
           )}
         </section>
