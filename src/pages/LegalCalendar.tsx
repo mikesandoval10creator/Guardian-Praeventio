@@ -19,12 +19,12 @@ import {
   CalendarDays,
   Loader2,
   AlertTriangle,
-  CheckCircle2,
   RefreshCw,
 } from 'lucide-react';
 
 import { useProject } from '../contexts/ProjectContext';
 import { LegalCalendarView } from '../components/legalCalendar/LegalCalendarView';
+import { LegalObligationCard } from '../components/legalCalendar/LegalObligationCard';
 import {
   computeCalendar,
   summarizeCalendar,
@@ -224,40 +224,12 @@ export function LegalCalendar() {
                   </h2>
                   <ul className="space-y-1.5">
                     {entries.slice(0, 5).map((e) => (
-                      <li
-                        key={e.id}
-                        className="rounded-lg border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-2 text-xs flex items-center gap-2"
-                      >
-                        <span className="text-zinc-700 dark:text-zinc-300 flex-1 truncate">
-                          {e.label}
-                        </span>
-                        <span
-                          className={`text-[10px] font-mono ${
-                            e.isOverdue
-                              ? 'text-rose-600 dark:text-rose-400'
-                              : e.isInAlertWindow
-                                ? 'text-amber-600 dark:text-amber-400'
-                                : 'text-zinc-500'
-                          }`}
-                        >
-                          {e.daysUntilDue < 0
-                            ? t('legal_calendar.due.overdue', {
-                                defaultValue: '{{n}}d vencida',
-                                n: -e.daysUntilDue,
-                              })
-                            : t('legal_calendar.due.in_days', {
-                                defaultValue: 'en {{n}}d',
-                                n: e.daysUntilDue,
-                              })}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleMarkComplete(e)}
-                          className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1"
-                        >
-                          <CheckCircle2 className="w-3 h-3" />
-                          {t('legal_calendar.quick_actions.complete', 'Cumplida')}
-                        </button>
+                      <li key={e.id}>
+                        <LegalObligationCard
+                          entry={e}
+                          variant={e.isOverdue ? 'overdue' : 'upcoming'}
+                          onAcknowledge={handleMarkComplete}
+                        />
                       </li>
                     ))}
                   </ul>

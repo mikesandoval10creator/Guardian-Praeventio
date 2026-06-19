@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Book, Search, Filter, BookOpen } from 'lucide-react';
 import Fuse from 'fuse.js';
 import { SAFETY_GLOSSARY } from '../constants/glossary';
+import { GlossarySearchPanel } from '../components/glossary/GlossarySearchPanel';
+import type { GlossaryTerm, TermCategory } from '../services/glossary/glossaryEngine.js';
 
 interface GlossaryItem {
   term: string;
@@ -60,6 +62,16 @@ export function Glossary() {
   }, []);
 
   // Extract unique categories from the glossary
+  const glossaryTerms = useMemo<GlossaryTerm[]>(() => {
+    return Object.values(parsedGlossary).map((item) => ({
+      id: item.term.toLowerCase().replace(/\s+/g, '-'),
+      term: item.term,
+      category: 'general' as TermCategory,
+      shortDefinition: item.definition,
+      updatedAt: new Date().toISOString(),
+    }));
+  }, [parsedGlossary]);
+
   const categories = Array.from(new Set(Object.values(parsedGlossary).map(item => item.category))).sort();
 
   const fuse = useMemo(() => {
@@ -136,6 +148,8 @@ export function Glossary() {
           ))}
         </div>
       </div>
+
+      <GlossarySearchPanel terms={glossaryTerms} faqs={[]} />
 
       {/* Glossary Grid */}
       {filteredGlossary.length > 0 ? (
