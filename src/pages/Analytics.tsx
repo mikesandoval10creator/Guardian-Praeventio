@@ -34,6 +34,7 @@ import {
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { useProject } from '../contexts/ProjectContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import { generateExecutiveSummary } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { cacheAIResponse, getCachedAIResponse } from '../utils/pwa-offline';
@@ -50,7 +51,8 @@ import { EmptyState } from '../components/shared/EmptyState';
 export function Analytics() {
   const { t } = useTranslation();
   const { nodes } = useRiskEngine();
-  const { selectedProject } = useProject();
+  const { selectedProject, projects } = useProject();
+  const { isPremium, isEnterprise } = useSubscription();
   const [isGenerating, setIsGenerating] = useState(false);
   const [executiveSummary, setExecutiveSummary] = useState<any>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -95,11 +97,11 @@ export function Analytics() {
         activeModules,
         events30d: projectNodes.length,
         activeWorkers: selectedProject.workersCount ?? 0,
-        activeProjects: 1,
-        hasPaidPlan: true,
+        activeProjects: projects.length,
+        hasPaidPlan: isPremium || isEnterprise,
       }],
     }).then(setAdoptionReport).catch(() => {});
-  }, [selectedProject?.id, projectNodes.length]);
+  }, [selectedProject?.id, projectNodes.length, projects.length, isPremium, isEnterprise]);
 
   // Dimensions for Radar Chart
   //
