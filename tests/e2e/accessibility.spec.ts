@@ -150,6 +150,9 @@ test.describe('Accessibility (axe-core)', () => {
     // timeout estándar de Playwright (no se bumpea — el problema era
     // de sincronización con el lazy mount, no de duración real).
     const heading = page.locator('#login-heading');
+    // ponytail: waitForSelector before toBeVisible — the element may not exist yet
+    // when React is still hydrating. This is more robust than toBeVisible alone.
+    await heading.waitFor({ state: 'attached', timeout: 15_000 });
     await expect(heading).toBeVisible({ timeout: 15_000 });
     await expect(heading).toHaveText(/\S+/, { timeout: 15_000 });
   });
