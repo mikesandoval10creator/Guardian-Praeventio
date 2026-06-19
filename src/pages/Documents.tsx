@@ -27,6 +27,8 @@ import { AddDocumentModal } from '../components/documents/AddDocumentModal';
 import { EditDocumentModal } from '../components/documents/EditDocumentModal';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Tooltip } from '../components/shared/Tooltip';
+import { DocConfidenceCard } from '../components/documentHygiene/DocConfidenceCard';
+import type { DocumentRecord } from '../services/documentHygiene/documentHygieneEngine.js';
 
 interface Document {
   id: string;
@@ -67,6 +69,7 @@ export function Documents() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeDropdown]);
 
+  const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
   const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
 
   const handleDelete = (docId: string) => setDeleteDocId(docId);
@@ -92,6 +95,19 @@ export function Documents() {
     const matchesSearch = (doc.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase());
     const matchesCategory = activeCategory === 'Todos' || doc.category === activeCategory;
     return matchesSearch && matchesCategory;
+  });
+
+  const toRecord = (d: Document): DocumentRecord => ({
+    id: d.id,
+    title: d.name,
+    kind: d.category,
+    version: d.version,
+    updatedAt: d.updatedAt,
+    hasValidSignature: false,
+    accessCount90d: 0,
+    readReceiptCount: 0,
+    referencesNorm: false,
+    isLinkedToOperations: false,
   });
 
   return (
@@ -193,9 +209,10 @@ export function Documents() {
                 </tr>
               ) : filteredDocs.length > 0 ? (
                 filteredDocs.map((doc) => (
-                  <tr key={doc.id} className="group hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors">
+                  <React.Fragment key={doc.id}>
+                  <tr className="group hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors">
                     <td className="px-4 sm:px-6 py-3 sm:py-4">
-                      <div 
+                      <div
                         className="flex items-center gap-2 sm:gap-3 cursor-pointer"
                         onClick={() => navigate(`/documents/${doc.id}`)}
                       >
@@ -237,6 +254,19 @@ export function Documents() {
                     </td>
                     <td className="px-4 sm:px-6 py-3 sm:py-4">
                       <div className="flex items-center gap-1 sm:gap-2">
+                        <Tooltip content="Confianza documental">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedDoc(expandedDoc === doc.id ? null : doc.id);
+                            }}
+                            className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"
+                            aria-label={`Confianza de ${doc.name}`}
+                            aria-expanded={expandedDoc === doc.id}
+                          >
+                            <Shield className="w-3 h-3 sm:w-4 sm:h-4" aria-hidden="true" />
+                          </button>
+                        </Tooltip>
                         {/* Sprint 20 19th-wave (Bucket C): native title= → Tooltip primitive (WCAG 2.1 AA 1.4.13). aria-label preserved as primary SR semantic. */}
                         <Tooltip content="Ver Documento">
                           <button
@@ -316,6 +346,14 @@ export function Documents() {
                       </div>
                     </td>
                   </tr>
+                  {expandedDoc === doc.id && (
+                    <tr>
+                      <td colSpan={6} className="px-4 sm:px-6 py-3 sm:py-4 bg-zinc-50/50 dark:bg-white/[0.02]">
+                        <DocConfidenceCard document={toRecord(doc)} />
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))
               ) : (
                 <tr>
