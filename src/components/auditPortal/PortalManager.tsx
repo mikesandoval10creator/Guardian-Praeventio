@@ -27,6 +27,7 @@ import {
 import type {
   AuditModule,
   AuditorAffiliation,
+  AuditPortalConfig,
 } from '../../services/auditPortal/externalAuditPortal';
 import {
   createExternalAuditPortal,
@@ -38,6 +39,7 @@ import {
   type PortalAccessLogEntry,
 } from '../../hooks/useExternalAuditPortal';
 import { randomId } from '../../utils/randomId';
+import { ExternalAuditPortalCard } from './ExternalAuditPortalCard';
 
 interface PortalManagerProps {
   /** Project ids that can be assigned in scope. Provided by parent dashboard. */
@@ -127,6 +129,7 @@ export function PortalManager({
   const [accessLogFor, setAccessLogFor] = useState<string | null>(null);
   const [accessLog, setAccessLog] = useState<PortalAccessLogEntry[]>([]);
   const [accessLogLoading, setAccessLogLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -199,6 +202,24 @@ export function PortalManager({
           tiempo acotado.
         </span>
         <div className="ml-auto flex items-center gap-2">
+          <div className="flex rounded-lg border border-zinc-300 dark:border-zinc-600 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              data-testid="portalManager.viewTable"
+              className={`px-2 py-1.5 text-[11px] font-medium ${viewMode === 'table' ? 'bg-teal-600 text-white' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
+            >
+              Tabla
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              data-testid="portalManager.viewCards"
+              className={`px-2 py-1.5 text-[11px] font-medium ${viewMode === 'cards' ? 'bg-teal-600 text-white' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
+            >
+              Tarjetas
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => void refresh()}
@@ -269,6 +290,7 @@ export function PortalManager({
         />
       )}
 
+      {viewMode === 'table' && (
       <div className="overflow-x-auto">
         <table
           className="w-full text-sm"
@@ -374,6 +396,24 @@ export function PortalManager({
           </tbody>
         </table>
       </div>
+      )}
+
+      {viewMode === 'cards' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" data-testid="portalManager.cardGrid">
+          {portals.length === 0 && !loading && (
+            <p className="col-span-full text-center text-zinc-500 dark:text-zinc-400 text-xs py-6" data-testid="portalManager.cardGrid.empty">
+              Aún no hay portales de auditor.
+            </p>
+          )}
+          {portals.map((p) => (
+            <ExternalAuditPortalCard
+              key={p.id}
+              portal={{ ...p, accessToken: `portal-${p.id}` } as AuditPortalConfig}
+              status={p.status}
+            />
+          ))}
+        </div>
+      )}
 
       {createDialogOpen && (
         <CreatePortalDialog
