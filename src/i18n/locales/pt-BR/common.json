@@ -2748,6 +2748,12 @@
       "depth": "Profundidade máx: {{d}}",
       "roots": "Raízes: {{count}}",
       "failed_controls": "Controles falhos: {{list}}"
+    },
+    "custody": {
+      "heading": "Cadeia de custódia da evidência",
+      "loading": "Carregando evidência…",
+      "error": "Não foi possível carregar a cadeia de custódia.",
+      "empty": "Ainda não há evidência com cadeia de custódia vinculada a este incidente."
     }
   },
   "consistency_audit": {
@@ -2951,6 +2957,14 @@
     "quick_actions": {
       "heading": "Ações rápidas",
       "complete": "Cumprida"
+    },
+    "server_section": {
+      "aria": "Próximas obrigações segundo o servidor",
+      "heading": "Próximas obrigações (servidor)",
+      "window": "janela {{n}}d",
+      "loading": "Carregando…",
+      "error": "Não foi possível carregar: {{msg}}",
+      "empty": "Não há obrigações a vencer em breve neste projeto."
     }
   },
   "safety_talks": {

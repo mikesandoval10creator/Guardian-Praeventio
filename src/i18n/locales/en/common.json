@@ -3045,6 +3045,12 @@
       "depth": "Max depth: {{d}}",
       "roots": "Roots: {{count}}",
       "failed_controls": "Failed controls: {{list}}"
+    },
+    "custody": {
+      "heading": "Evidence chain of custody",
+      "loading": "Loading evidence…",
+      "error": "Could not load the chain of custody.",
+      "empty": "No evidence with a chain of custody is linked to this incident yet."
     }
   },
   "consistency_audit": {
@@ -3248,6 +3254,14 @@
     "quick_actions": {
       "heading": "Quick actions",
       "complete": "Done"
+    },
+    "server_section": {
+      "aria": "Upcoming obligations per the server",
+      "heading": "Upcoming obligations (server)",
+      "window": "{{n}}d window",
+      "loading": "Loading…",
+      "error": "Could not load: {{msg}}",
+      "empty": "No obligations due soon for this project."
     }
   },
   "safety_talks": {

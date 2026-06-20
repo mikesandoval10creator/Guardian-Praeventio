@@ -37,6 +37,10 @@ import {
   subscribeObligations,
   ensureCalendarBootstrap,
 } from '../services/legalCalendar/legalCalendarStore';
+import {
+  fetchUpcomingObligations,
+  type UpcomingObligationsResponse,
+} from '../hooks/useLegalObligations';
 import { logger } from '../utils/logger';
 
 // Plan 2026-05-24 §Fase B.6 batch4 — i18n sweep LegalCalendar.
@@ -47,6 +51,16 @@ export function LegalCalendar() {
   const [loading, setLoading] = useState(true);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  // Server-backed "upcoming" obligations. The HTTP endpoint
+  // (`/api/sprint-k/:projectId/legal-calendar/upcoming`) runs the same
+  // `computeCalendar` engine server-side behind `assertProjectMember`, so this
+  // section reflects exactly what a fiscalizador would see — real data, never
+  // fabricated. On error/empty we render an honest empty state.
+  const [serverUpcoming, setServerUpcoming] =
+    useState<UpcomingObligationsResponse | null>(null);
+  const [serverLoading, setServerLoading] = useState(true);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   useEffect(() => {
     const projectId = selectedProject?.id;
@@ -68,6 +82,34 @@ export function LegalCalendar() {
       },
     );
     return () => unsub();
+  }, [selectedProject?.id]);
+
+  // Fetch the server-computed upcoming window (30d) for the selected project.
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    if (!projectId) {
+      setServerUpcoming(null);
+      setServerLoading(false);
+      setServerError(null);
+      return undefined;
+    }
+    const ctrl = new AbortController();
+    setServerLoading(true);
+    setServerError(null);
+    fetchUpcomingObligations(projectId, { signal: ctrl.signal })
+      .then((res) => {
+        setServerUpcoming(res);
+        setServerLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (ctrl.signal.aborted) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn('legal_obligations_upcoming_error', { err: msg });
+        setServerError(msg);
+        setServerUpcoming(null);
+        setServerLoading(false);
+      });
+    return () => ctrl.abort();
   }, [selectedProject?.id]);
 
   const handleBootstrap = useCallback(async () => {
@@ -117,6 +159,7 @@ export function LegalCalendar() {
 
   const entries = useMemo(() => computeCalendar(obligations), [obligations]);
   const summary = useMemo(() => summarizeCalendar(entries), [entries]);
+  const serverEntries = serverUpcoming?.entries ?? [];
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -149,6 +192,105 @@ export function LegalCalendar() {
                 <span>{feedback}</span>
               </div>
             )}
+
+            {/* Server-backed upcoming window. Reads the membership-gated HTTP
+                endpoint so the section shows the same computed calendar the
+                backend (and any auditor portal) sees. Honest empty/error
+                states — never fabricated rows. */}
+            <section
+              className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 space-y-3"
+              data-testid="legal-calendar-server-section"
+              aria-label={
+                t(
+                  'legal_calendar.server_section.aria',
+                  'Próximas obligaciones según el servidor',
+                ) as string
+              }
+            >
+              <header className="flex items-center justify-between gap-2">
+                <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
+                  {t(
+                    'legal_calendar.server_section.heading',
+                    'Próximas obligaciones (servidor)',
+                  )}
+                </h2>
+                {serverUpcoming && (
+                  <span
+                    className="text-[10px] font-bold text-zinc-400 tabular-nums"
+                    data-testid="legal-calendar-server-window"
+                  >
+                    {t('legal_calendar.server_section.window', {
+                      defaultValue: 'ventana {{n}}d',
+                      n: serverUpcoming.windowDays,
+                    })}
+                  </span>
+                )}
+              </header>
+
+              {serverLoading ? (
+                <div
+                  className="flex items-center gap-2 text-xs text-zinc-500"
+                  data-testid="legal-calendar-server-loading"
+                >
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {t('legal_calendar.server_section.loading', 'Cargando…')}
+                </div>
+              ) : serverError ? (
+                <div
+                  className="rounded-xl border border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/20 p-3 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2"
+                  data-testid="legal-calendar-server-error"
+                >
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>
+                    {t('legal_calendar.server_section.error', {
+                      defaultValue: 'No se pudieron cargar: {{msg}}',
+                      msg: serverError,
+                    })}
+                  </span>
+                </div>
+              ) : serverEntries.length === 0 ? (
+                <p
+                  className="text-xs text-zinc-500"
+                  data-testid="legal-calendar-server-empty"
+                >
+                  {t(
+                    'legal_calendar.server_section.empty',
+                    'No hay obligaciones próximas a vencer en este proyecto.',
+                  )}
+                </p>
+              ) : (
+                <ul
+                  className="space-y-1.5"
+                  data-testid="legal-calendar-server-list"
+                >
+                  {serverEntries.map((e) => (
+                    <li
+                      key={e.id}
+                      data-testid={`legal-calendar-server-entry-${e.id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 dark:border-white/10 px-3 py-2"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-xs font-bold text-zinc-900 dark:text-white truncate">
+                          {e.label}
+                        </span>
+                        <span className="block text-[10px] text-zinc-500 truncate">
+                          {e.legalCitation}
+                        </span>
+                      </span>
+                      <span
+                        className="shrink-0 text-[10px] font-black tabular-nums text-amber-700 dark:text-amber-300"
+                        data-testid={`legal-calendar-server-entry-${e.id}-due`}
+                      >
+                        {t('legal_calendar.due.in_days', {
+                          defaultValue: 'en {{n}}d',
+                          n: e.daysUntilDue,
+                        })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
 
             {/* Summary stats. */}
             {entries.length > 0 && (

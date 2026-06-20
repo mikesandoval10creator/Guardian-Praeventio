@@ -18,6 +18,8 @@
 
 import { apiAuthHeaders } from '../lib/apiAuth';
 import type {
+  CalendarEntry,
+  CalendarSummary,
   LegalObligation,
   ObligationKind,
 } from '../services/legalCalendar/legalObligationsCalendar';
@@ -50,9 +52,16 @@ async function json<T>(res: Response): Promise<T> {
 
 // ── 1. upcoming ─────────────────────────────────────────────────────────
 
+/**
+ * Wire shape returned by the server (`legalObligations.ts` router):
+ * `{ entries, summary, windowDays }`. `entries` are `CalendarEntry` (the
+ * obligation + derived `daysUntilDue` / `isInAlertWindow` / `isOverdue`),
+ * already filtered to the non-overdue items within the window and sorted by
+ * `daysUntilDue`. `summary` carries the per-kind + overdue/alert counters.
+ */
 export interface UpcomingObligationsResponse {
-  obligations: LegalObligation[];
-  count: number;
+  entries: CalendarEntry[];
+  summary: CalendarSummary;
   windowDays: number;
 }
 
@@ -77,8 +86,12 @@ export async function fetchUpcomingObligations(
 
 // ── 2. overdue ──────────────────────────────────────────────────────────
 
+/**
+ * Wire shape returned by the server: `{ entries, count }`. `entries` are the
+ * `CalendarEntry` rows whose `nextDueAt` is already in the past (`isOverdue`).
+ */
 export interface OverdueObligationsResponse {
-  obligations: LegalObligation[];
+  entries: CalendarEntry[];
   count: number;
 }
 

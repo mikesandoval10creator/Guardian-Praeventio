@@ -205,6 +205,66 @@ describe('GET /api/sprint-k/:projectId/evidence/:hash', () => {
 });
 
 // =============================================================================
+// GET /:projectId/evidence-by-node/:nodeId
+// =============================================================================
+describe('GET /api/sprint-k/:projectId/evidence-by-node/:nodeId', () => {
+  it('401 when no auth token', async () => {
+    const res = await request(buildApp()).get(
+      `/api/sprint-k/${PROJECT_ID}/evidence-by-node/inc-1`,
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('403 when caller is not a project member', async () => {
+    seedProject(H.db!);
+    const res = await request(buildApp())
+      .get(`/api/sprint-k/${PROJECT_ID}/evidence-by-node/inc-1`)
+      .set(asUser(OUTSIDER_UID));
+    expect(res.status).toBe(403);
+  });
+
+  it('200 returns an empty chains array when no evidence is linked', async () => {
+    seedProject(H.db!);
+    const res = await request(buildApp())
+      .get(`/api/sprint-k/${PROJECT_ID}/evidence-by-node/inc-empty`)
+      .set(asUser(MEMBER_UID));
+    expect(res.status).toBe(200);
+    expect((res.body as { chains: unknown[] }).chains).toEqual([]);
+  });
+
+  it('200 returns the real artifact + event trail for a linked incident node', async () => {
+    seedProject(H.db!);
+    const NODE_ID = 'inc-42';
+    // Register an artifact linked to the incident node (linkedNodeId).
+    const reg = await request(buildApp())
+      .post(`/api/sprint-k/${PROJECT_ID}/evidence`)
+      .set(asUser(MEMBER_UID))
+      .set({ 'x-test-role': 'supervisor' })
+      .send({ ...validRegister, linkedNodeId: NODE_ID });
+    expect(reg.status).toBe(201);
+    const hash = (reg.body as { artifact: { id: string } }).artifact.id;
+
+    const res = await request(buildApp())
+      .get(`/api/sprint-k/${PROJECT_ID}/evidence-by-node/${NODE_ID}`)
+      .set(asUser(MEMBER_UID));
+    expect(res.status).toBe(200);
+    const chains = (res.body as {
+      chains: {
+        artifact: { id: string; linkedNodeId: string };
+        events: { eventKind: string }[];
+        summary: { totalEvents: number };
+      }[];
+    }).chains;
+    expect(chains).toHaveLength(1);
+    expect(chains[0].artifact.id).toBe(hash);
+    expect(chains[0].artifact.linkedNodeId).toBe(NODE_ID);
+    // The append-only upload event flows through with the chain.
+    expect(chains[0].events.some((e) => e.eventKind === 'upload')).toBe(true);
+    expect(chains[0].summary.totalEvents).toBe(1);
+  });
+});
+
+// =============================================================================
 // POST /:projectId/evidence/:hash/replace
 // =============================================================================
 describe('POST /api/sprint-k/:projectId/evidence/:hash/replace', () => {

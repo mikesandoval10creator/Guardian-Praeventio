@@ -16,6 +16,8 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { RootCauseClassifierCard } from '../components/rootCause/RootCauseClassifierCard';
 import { RootCauseTreeSummary } from '../components/researchMode/RootCauseTreeSummary';
+import { CustodyChainTimelineCard } from '../components/evidenceChain/CustodyChainTimelineCard';
+import { useCustodyChainByNode } from '../hooks/useCustodyChainByNode';
 import {
   buildAnalysis,
   type CauseFactor,
@@ -148,6 +150,17 @@ export function RootCauseInvestigation() {
       .then((res) => setTreeSummary(res.summary))
       .catch(() => setTreeSummary(null));
   }, [selectedProject?.id, selectedAnalysis]);
+
+  // Real chain-of-custody for the selected incident. Evidence artifacts are
+  // content-addressed and `linkedNodeId`-tagged with the incident id, so the
+  // by-node endpoint returns the artifacts + their append-only event trail for
+  // the legal expediente. No evidence yet → honest empty-state below.
+  const {
+    data: custody,
+    loading: custodyLoading,
+    error: custodyError,
+  } = useCustodyChainByNode(selectedProject?.id ?? null, selectedAnalysis?.incidentId ?? null);
+  const custodyChains = custody?.chains ?? [];
 
   const toggleFactor = (f: CauseFactor) => {
     setFactors((prev) => {
@@ -412,6 +425,50 @@ export function RootCauseInvestigation() {
                           )}
                         </div>
                       )}
+
+                      {/* Cadena de custodia de la evidencia del incidente. */}
+                      <section className="space-y-3" data-testid="root-cause-custody">
+                        <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5 text-violet-500" aria-hidden="true" />
+                          {t('root_cause.custody.heading', 'Cadena de custodia de evidencia')}
+                        </h2>
+                        {custodyLoading ? (
+                          <div
+                            className="flex items-center gap-2 text-xs text-zinc-500 py-3"
+                            data-testid="root-cause-custody-loading"
+                          >
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            {t('root_cause.custody.loading', 'Cargando evidencia…')}
+                          </div>
+                        ) : custodyError ? (
+                          <div
+                            className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 text-xs text-amber-800 dark:text-amber-200"
+                            data-testid="root-cause-custody-error"
+                          >
+                            {t('root_cause.custody.error', 'No se pudo cargar la cadena de custodia.')}
+                          </div>
+                        ) : custodyChains.length === 0 ? (
+                          <div
+                            className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 text-center text-xs text-zinc-500"
+                            data-testid="root-cause-custody-empty"
+                          >
+                            {t(
+                              'root_cause.custody.empty',
+                              'Aún no hay evidencia con cadena de custodia vinculada a este incidente.',
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-3" data-testid="root-cause-custody-chains">
+                            {custodyChains.map((chain) => (
+                              <CustodyChainTimelineCard
+                                key={chain.artifact.id}
+                                artifact={chain.artifact}
+                                events={chain.events}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </section>
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
