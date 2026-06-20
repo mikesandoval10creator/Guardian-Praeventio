@@ -63,8 +63,10 @@ vi.mock('../services/loneWorker/loneWorkerStore', () => ({
 }));
 
 const startLoneWorkerSessionApi = vi.fn();
+const fetchLoneWorkerAdminOverview = vi.fn(async (..._a: unknown[]) => ({ overview: [] }));
 vi.mock('../hooks/useLoneWorker', () => ({
   startLoneWorkerSessionApi: (...a: unknown[]) => startLoneWorkerSessionApi(...a),
+  fetchLoneWorkerAdminOverview: (...a: unknown[]) => fetchLoneWorkerAdminOverview(...a),
 }));
 
 vi.mock('../utils/logger', () => ({
@@ -88,6 +90,7 @@ beforeEach(() => {
   mockUser = { uid: 'worker-1' };
   mockProject = { id: 'proj-1', name: 'Faena Norte' };
   startLoneWorkerSessionApi.mockResolvedValue({ session: session() });
+  fetchLoneWorkerAdminOverview.mockResolvedValue({ overview: [] });
   saveLoneWorkerSession.mockResolvedValue(undefined);
 });
 

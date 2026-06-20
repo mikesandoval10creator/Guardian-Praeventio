@@ -195,6 +195,7 @@
     "my_data": "Mis datos",
     "occupational_health_group": "Salud Ocupacional",
     "operational_changes": "Gestión de Cambios",
+    "change_management": "Control de Cambios",
     "pdca": "PDCA + No Conformidades",
     "portable_history": "Historial Portátil",
     "positive_observations": "Observaciones Positivas",
@@ -215,7 +216,8 @@
     "tmert": "TMERT-EESS",
     "prexor": "PREXOR Ruido",
     "planesi": "PLANESI Sílice",
-    "maintenance_preventive": "Mantenimiento"
+    "maintenance_preventive": "Mantenimiento",
+    "incident_flow": "Flujo de Incidentes"
   },
   "auth": {
     "login": "Iniciar Sesión",
@@ -892,7 +894,10 @@
     "field_expires": "Fecha de Vencimiento (Opcional)",
     "btn_cancel": "Cancelar",
     "btn_generating": "Generando Acta...",
-    "btn_confirm": "Confirmar Asignación"
+    "btn_confirm": "Confirmar Asignación",
+    "inspect": "Inspeccionar EPP",
+    "inspect_submitted": "Inspección registrada correctamente.",
+    "inspect_submitted_with_order": "Inspección registrada. Se sugirió una orden de compra para revisión."
   },
   "currency": {
     "selector_aria": "Selector de moneda"
@@ -2812,6 +2817,10 @@
       "heading": "Historial reciente",
       "closed_badge": "Cerrada",
       "row_summary": "Worker {{uid}} · {{count}} check-ins"
+    },
+    "admin_panel": {
+      "heading": "Vista de supervisión",
+      "note": "Estado y escalamiento calculados en el servidor (hora autoritativa, sin desfase de reloj del dispositivo). Ordenado por criticidad."
     }
   },
   "exceptions_page": {
@@ -3162,6 +3171,26 @@
       "received": "Recibido",
       "not_received": "Sin recibir",
       "row_summary": "{{kind}} · {{entries}} entradas · {{notes}} notas"
+    }
+  },
+  "change_management": {
+    "title": "Control de cambios (MOC)",
+    "subtitle": "Declará cambios operacionales, seguí la cobertura de confirmación de lectura y confirmá los que te afectan. Muchos accidentes ocurren por cambios mal comunicados — ISO 45001 §8.1.3.",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para gestionar sus cambios operacionales."
+    },
+    "tabs": {
+      "label": "Vistas de control de cambios",
+      "overview": "Cobertura",
+      "declare": "Declarar cambio"
+    },
+    "pending": {
+      "label": "Cambios pendientes de tu confirmación",
+      "heading": "Pendientes de tu confirmación ({{n}})"
+    },
+    "feedback": {
+      "declared": "Cambio declarado ({{id}}). Esperando confirmación de los trabajadores afectados.",
+      "closed": "MOC cerrado ({{id}}) — marcado como implementado."
     }
   },
   "operational_changes": {
@@ -4874,5 +4903,37 @@
   },
   "softBlocks": {
     "feedUnavailable": "El listado de bloqueos activos del proyecto aún no está conectado. Cuando la fuente de requisitos por cuadrilla/actividad esté disponible, los gates aparecerán aquí."
+  },
+  "incidentFlowHub": {
+    "title": "Flujo de Incidentes",
+    "subtitle": "Incidentes ocurridos del proyecto, su gestión PDCA y microcapacitaciones derivadas.",
+    "selectProject": "Selecciona un proyecto para ver los incidentes y su gestión.",
+    "report": "Reportar incidente",
+    "error": "No se pudo cargar los incidentes: {{msg}}",
+    "listTitle": "Incidentes ocurridos",
+    "unknownSeverity": "s/sev",
+    "nearMiss": "Casi-accidente",
+    "noSummary": "Sin descripción registrada.",
+    "pdcaPhase": "Fase PDCA",
+    "pdcaClosure": "Cierre de capacitación: {{done}}/{{assigned}} trabajadores ({{pct}}%).",
+    "myTrainings": "Tu microcapacitación derivada",
+    "lessonFallback": "Lección del incidente",
+    "empty": "Sin incidentes registrados en este proyecto.",
+    "emptyHint": "Buena noticia. Aquí verás la vista anual cuando haya datos, o reporta un casi-accidente para fortalecer la cultura preventiva.",
+    "annualView": "Vista anual (12 meses)",
+    "trendsTotal": "{{count}} incidentes en 12 meses",
+    "phase": {
+      "idle": "Sin abrir",
+      "plan": "Planificar",
+      "do": "Hacer",
+      "check": "Verificar",
+      "act": "Actuar",
+      "closed": "Cerrado"
+    },
+    "trend": {
+      "improving": "Mejorando",
+      "stable": "Estable",
+      "worsening": "Empeorando"
+    }
   }
 }

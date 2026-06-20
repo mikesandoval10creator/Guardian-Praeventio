@@ -28,6 +28,12 @@ const ChecklistVehiculo = lazy(() => import('../pages/ChecklistVehiculo').then(m
 const MatrizIper = lazy(() => import('../pages/MatrizIper').then(module => ({ default: module.MatrizIper })));
 // Auditoría 5S — mounts the orphan FiveSAuditForm over the real buildFiveSAuditReport engine.
 const Auditoria5S = lazy(() => import('../pages/Auditoria5S').then(module => ({ default: module.Auditoria5S })));
+// F3 (decisión fundador) — Hub de Flujo de Incidentes. Página dedicada que
+// lista los incidentes ocurridos del proyecto (dato real vía
+// /api/sprint-k/:projectId/incidents/list), su estado PDCA y monta los
+// huérfanos IncidentReportForm + AssignedMicrotrainingCard. Empty-state
+// honesto (vista anual de tendencias) cuando no hay incidentes.
+const IncidentFlowHub = lazy(() => import('../pages/IncidentFlowHub').then(module => ({ default: module.IncidentFlowHub })));
 
 export const RiskRoutes = [
   <Route key="risks" path="risks" element={<Risks />} />,
@@ -48,4 +54,5 @@ export const RiskRoutes = [
   <Route key="checklist-vehiculo" path="checklist-vehiculo" element={<ChecklistVehiculo />} />,
   <Route key="matriz-iper" path="matriz-iper" element={<MatrizIper />} />,
   <Route key="auditoria-5s" path="auditoria-5s" element={<Auditoria5S />} />,
+  <Route key="incident-flow" path="incident-flow" element={<IncidentFlowHub />} />,
 ];

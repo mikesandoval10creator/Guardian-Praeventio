@@ -69,6 +69,7 @@ import {
   ShieldCheck,
   Stethoscope,
   Sun,
+  GitCompare,
   Truck,
   User,
   UserCheck,
@@ -203,6 +204,10 @@ export function buildSidebarMenuGroups(
     // Cada cambio operacional registra rationale + impacto + workers
     // afectados + ack flow. Revertible con motivo documentado.
     { title: t('nav.operational_changes', 'Gestión de Cambios'), icon: Network, path: '/operational-changes', color: 'text-violet-500' },
+    // F5(changeMgmt) — Control de Cambios (MOC) adapter-backed: declarar →
+    // cobertura de acknowledgment → banner de confirmación. Persistido en
+    // /api/sprint-k (operationalChange.ts), distinto del store legacy de arriba.
+    { title: t('nav.change_management', 'Control de Cambios'), icon: GitCompare, path: '/change-management', color: 'text-teal-500' },
     // Sprint K wire UI (2026-05-23) — Charlas diarias determinísticas.
     // suggestTalks scoring por triggers (riesgos, tareas, incidentes,
     // clima, newWorkers). Sin LLM, top 3 con rationale citando triggers.
@@ -287,6 +292,9 @@ export function buildSidebarMenuGroups(
     { title: t('nav.custody_chain', 'Cadena de Custodia'), icon: Shield, path: '/custody-chain', color: 'text-violet-500' },
     // Sprint 55 Fase F.27 — Comparador de Proyectos.
     { title: t('nav.projects_compare', 'Comparar Proyectos'), icon: BarChart3, path: '/projects-compare', color: 'text-blue-500' },
+    // F3 (decisión fundador) — Hub de Flujo de Incidentes (lista real de
+    // incidentes ocurridos + gestión PDCA + microcapacitaciones derivadas).
+    { title: t('nav.incident_flow', 'Flujo de Incidentes'), icon: ListChecks, path: '/incident-flow', color: 'text-teal-500' },
     // F.29 — Tendencia de Incidentes + Leading Indicators.
     { title: t('nav.incident_trends', 'Tendencia Incidentes'), icon: BarChart3, path: '/incident-trends', color: 'text-amber-500' },
     // Épica B1 capa 2 — Simulador cotización adicional DS 67 (siniestralidad → $).

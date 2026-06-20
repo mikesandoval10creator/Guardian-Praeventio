@@ -28,6 +28,7 @@ import {
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { LoneWorkerCard } from '../components/loneWorker/LoneWorkerCard';
+import { LoneWorkerAdminPanel } from '../components/loneWorker/LoneWorkerAdminPanel';
 import {
   deriveLoneWorkerStatus,
   decideEscalation,
@@ -311,6 +312,29 @@ export function LoneWorkerMonitor() {
                     {t('lone_worker_page.form.submit', 'Iniciar')}
                   </button>
                 </div>
+              </section>
+            )}
+
+            {/* Supervisor overview: dense, criticality-sorted table whose
+                status + escalation are computed SERVER-SIDE (authoritative
+                "now", immune to device-clock skew that could silently bury an
+                overdue). Fed the SAME real Firestore session list this page
+                already subscribes to — no fabricated data. */}
+            {selectedProject && (
+              <section className="space-y-2" data-testid="lone_worker_page.admin_section">
+                <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest">
+                  {t('lone_worker_page.admin_panel.heading', 'Vista de supervisión')}
+                </h2>
+                <p className="text-[11px] text-zinc-500">
+                  {t(
+                    'lone_worker_page.admin_panel.note',
+                    'Estado y escalamiento calculados en el servidor (hora autoritativa, sin desfase de reloj del dispositivo). Ordenado por criticidad.',
+                  )}
+                </p>
+                <LoneWorkerAdminPanel
+                  projectId={selectedProject.id}
+                  sessions={sessions}
+                />
               </section>
             )}
 

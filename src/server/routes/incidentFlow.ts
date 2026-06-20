@@ -70,6 +70,21 @@ import {
 const router = Router();
 
 /**
+ * Real assigned-microtraining details, read from the `microtraining-assigned`
+ * chain node metadata. Surfaced by the status endpoint so the Incident Flow
+ * Hub can mount <AssignedMicrotrainingCard> over real data (no fabrication).
+ */
+export interface AssignedMicrotraining {
+  assignmentId: string;
+  moduleId: string;
+  workerUid: string;
+  assignedByUid: string | null;
+  assignedAtIso: string | null;
+  derivedFromLessonId: string | null;
+  completed: boolean;
+}
+
+/**
  * Codex P1 (#650): the incident chain flow defaults to the BROWSER `writeNodes`
  * (relative fetch + IndexedDB), which can't persist in the Express runtime.
  * Inject the Admin-SDK server writer, stamped with the verified actor, into
@@ -742,6 +757,15 @@ router.get(
         });
 
       const refs: ChainNodeRef[] = [];
+      // F3 (founder decision): surface the REAL assigned-microtraining details
+      // from the chain nodes (`microtraining-assigned` metadata persists
+      // moduleId/assignmentId/workerUid/derivedFromLessonId — see
+      // createMicrotrainingAssignedNode). The Incident Flow Hub mounts
+      // <AssignedMicrotrainingCard> over this so the worker can run the
+      // microcapacitación derived from the lesson. Completions are read too so
+      // the card can render the "ya completado" state honestly.
+      const assignedMap = new Map<string, AssignedMicrotraining>();
+      const completedKeys = new Set<string>();
       if (snap) {
         for (const doc of snap.docs) {
           const data = doc.data() ?? {};
@@ -760,11 +784,50 @@ router.get(
               ? data.createdAt
               : data.createdAt?.toDate?.()?.toISOString?.() ?? undefined;
           refs.push({ nodeId: doc.id, type, workerUid, createdAt });
+
+          if (type === 'microtraining-assigned') {
+            const assignmentId =
+              typeof metadata.assignmentId === 'string' ? metadata.assignmentId : null;
+            const moduleId =
+              typeof metadata.moduleId === 'string' ? metadata.moduleId : null;
+            if (assignmentId && moduleId && workerUid) {
+              assignedMap.set(assignmentId, {
+                assignmentId,
+                moduleId,
+                workerUid,
+                assignedByUid:
+                  typeof metadata.assignedByUid === 'string'
+                    ? metadata.assignedByUid
+                    : null,
+                assignedAtIso:
+                  typeof metadata.assignedAtIso === 'string'
+                    ? metadata.assignedAtIso
+                    : null,
+                derivedFromLessonId:
+                  typeof metadata.derivedFromLessonId === 'string'
+                    ? metadata.derivedFromLessonId
+                    : null,
+                completed: false,
+              });
+            }
+          } else if (type === 'microtraining-completed') {
+            const assignmentId =
+              typeof metadata.assignmentId === 'string' ? metadata.assignmentId : null;
+            if (assignmentId) completedKeys.add(assignmentId);
+          }
         }
+      }
+      for (const key of completedKeys) {
+        const a = assignedMap.get(key);
+        if (a) a.completed = true;
       }
 
       const status = computePdcaStatus(incidentId, refs);
-      return res.json({ status, nodeCount: refs.length });
+      return res.json({
+        status,
+        nodeCount: refs.length,
+        assignedMicrotrainings: Array.from(assignedMap.values()),
+      });
     } catch (err) {
       logger.error?.('incidentFlow.status.error', err);
       captureRouteError(err, 'incidentFlow.status');

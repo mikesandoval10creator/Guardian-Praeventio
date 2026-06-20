@@ -108,3 +108,78 @@ describe('GET /api/sprint-k/:projectId/incidents/trends', () => {
     expect(res.body.totalIncidents).toBe(2); // dup counted once + solo
   });
 });
+
+// ── F3 — GET /:projectId/incidents/list (Incident Flow Hub) ──────────────
+const list = (q = '') =>
+  request(buildApp()).get(`/api/sprint-k/p1/incidents/list${q}`).set('x-test-uid', 'u1');
+
+describe('GET /api/sprint-k/:projectId/incidents/list', () => {
+  it('401 without a token', async () => {
+    const res = await request(buildApp()).get('/api/sprint-k/p1/incidents/list');
+    expect(res.status).toBe(401);
+  });
+
+  it('403 for a non-member', async () => {
+    vi.mocked(assertProjectMember).mockRejectedValue(new ProjectMembershipError('nope'));
+    const res = await list();
+    expect(res.status).toBe(403);
+  });
+
+  it('404 when the tenant cannot be resolved', async () => {
+    H.db!._seed('projects/p1', { name: 'no tenant' });
+    const res = await list();
+    expect(res.status).toBe(404);
+  });
+
+  it('returns the real incidents with mapped fields, newest first', async () => {
+    H.db!._seed('incidents/i1', {
+      projectId: 'p1',
+      occurredAt: daysAgo(2),
+      severity: 'high',
+      type: 'caida',
+      status: 'open',
+      description: 'Caída en plataforma',
+      location: 'Sector C',
+    });
+    H.db!._seed('incidents/i2', {
+      projectId: 'p1',
+      occurredAt: daysAgo(10),
+      severity: 'baja',
+      incidentType: 'near_miss',
+    });
+    const res = await list();
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(2);
+    // Newest first → i1 before i2.
+    expect(res.body.incidents.map((x: { id: string }) => x.id)).toEqual(['i1', 'i2']);
+    const i1 = res.body.incidents[0];
+    expect(i1.severity).toBe('high');
+    expect(i1.incidentType).toBe('caida'); // type → incidentType fallback
+    expect(i1.status).toBe('open');
+    expect(i1.summary).toBe('Caída en plataforma'); // description → summary fallback
+    expect(i1.location).toBe('Sector C');
+    expect(i1.nearMiss).toBe(false);
+    expect(res.body.incidents[1].nearMiss).toBe(true); // i2 is a near-miss
+  });
+
+  it('de-duplicates across top-level and nested paths', async () => {
+    H.db!._seed('incidents/dup', { projectId: 'p1', occurredAt: daysAgo(3), severity: 'media' });
+    H.db!._seed('tenants/t1/projects/p1/incidents/dup', { projectId: 'p1', occurredAt: daysAgo(3), severity: 'media' });
+    H.db!._seed('incidents/solo', { projectId: 'p1', occurredAt: daysAgo(4), severity: 'media' });
+    const res = await list();
+    expect(res.body.total).toBe(2);
+  });
+
+  it('honors ?limit (clamped) and returns an honest empty list', async () => {
+    const empty = await list();
+    expect(empty.status).toBe(200);
+    expect(empty.body.total).toBe(0);
+    expect(empty.body.incidents).toEqual([]);
+
+    H.db!._seed('incidents/a', { projectId: 'p1', occurredAt: daysAgo(1), severity: 'low' });
+    H.db!._seed('incidents/b', { projectId: 'p1', occurredAt: daysAgo(2), severity: 'low' });
+    const res = await list('?limit=1');
+    expect(res.body.total).toBe(2); // total reflects all
+    expect(res.body.incidents).toHaveLength(1); // page limited to 1
+  });
+});

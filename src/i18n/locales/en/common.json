@@ -195,6 +195,7 @@
     "my_data": "My Data",
     "occupational_health_group": "Occupational Health",
     "operational_changes": "Management of Change",
+    "change_management": "Change Control",
     "pdca": "PDCA + Nonconformities",
     "portable_history": "Portable History",
     "positive_observations": "Positive Observations",
@@ -215,7 +216,8 @@
     "tmert": "TMERT-EESS",
     "prexor": "PREXOR Noise",
     "planesi": "PLANESI Silica",
-    "maintenance_preventive": "Maintenance"
+    "maintenance_preventive": "Maintenance",
+    "incident_flow": "Incident Flow"
   },
   "auth": {
     "login": "Sign In",
@@ -892,7 +894,10 @@
     "field_expires": "Expiration Date (Optional)",
     "btn_cancel": "Cancel",
     "btn_generating": "Generating receipt...",
-    "btn_confirm": "Confirm Assignment"
+    "btn_confirm": "Confirm Assignment",
+    "inspect": "Inspect PPE",
+    "inspect_submitted": "Inspection recorded successfully.",
+    "inspect_submitted_with_order": "Inspection recorded. A purchase order was suggested for review."
   },
   "currency": {
     "selector_aria": "Currency selector"
@@ -2812,6 +2817,10 @@
       "heading": "Recent history",
       "closed_badge": "Closed",
       "row_summary": "Worker {{uid}} · {{count}} check-ins"
+    },
+    "admin_panel": {
+      "heading": "Supervisor view",
+      "note": "Status and escalation computed server-side (authoritative clock, no device clock skew). Sorted by criticality."
     }
   },
   "exceptions_page": {
@@ -3162,6 +3171,26 @@
       "received": "Received",
       "not_received": "Not received",
       "row_summary": "{{kind}} · {{entries}} entries · {{notes}} notes"
+    }
+  },
+  "change_management": {
+    "title": "Change control (MOC)",
+    "subtitle": "Declare operational changes, track read-confirmation coverage, and acknowledge the ones that affect you. Many accidents stem from poorly communicated changes — ISO 45001 §8.1.3.",
+    "empty": {
+      "select_project": "Select a project to manage its operational changes."
+    },
+    "tabs": {
+      "label": "Change control views",
+      "overview": "Coverage",
+      "declare": "Declare change"
+    },
+    "pending": {
+      "label": "Changes pending your acknowledgment",
+      "heading": "Pending your acknowledgment ({{n}})"
+    },
+    "feedback": {
+      "declared": "Change declared ({{id}}). Awaiting acknowledgment from affected workers.",
+      "closed": "MOC closed ({{id}}) — marked as implemented."
     }
   },
   "operational_changes": {
@@ -4874,5 +4903,37 @@
   },
   "softBlocks": {
     "feedUnavailable": "The list of active project blocks is not connected yet. Once the per-crew/activity requirements source is available, the gates will appear here."
+  },
+  "incidentFlowHub": {
+    "title": "Incident Flow",
+    "subtitle": "Incidents that occurred on the project, their PDCA management and derived microtrainings.",
+    "selectProject": "Select a project to see incidents and their management.",
+    "report": "Report incident",
+    "error": "Could not load incidents: {{msg}}",
+    "listTitle": "Incidents that occurred",
+    "unknownSeverity": "n/sev",
+    "nearMiss": "Near-miss",
+    "noSummary": "No description recorded.",
+    "pdcaPhase": "PDCA phase",
+    "pdcaClosure": "Training closure: {{done}}/{{assigned}} workers ({{pct}}%).",
+    "myTrainings": "Your derived microtraining",
+    "lessonFallback": "Incident lesson",
+    "empty": "No incidents recorded on this project.",
+    "emptyHint": "Good news. You'll see the annual view here once there is data, or report a near-miss to strengthen the prevention culture.",
+    "annualView": "Annual view (12 months)",
+    "trendsTotal": "{{count}} incidents in 12 months",
+    "phase": {
+      "idle": "Not opened",
+      "plan": "Plan",
+      "do": "Do",
+      "check": "Check",
+      "act": "Act",
+      "closed": "Closed"
+    },
+    "trend": {
+      "improving": "Improving",
+      "stable": "Stable",
+      "worsening": "Worsening"
+    }
   }
 }
