@@ -3,12 +3,20 @@
 // Mapa de Calor de Hallazgos: visualiza la distribución espacial de
 // findings por zona geográfica. El servicio `findingsHeatmapBuilder`
 // ya entrega celdas con weight + dominantSeverity; esta página la
-// renderiza como un grid color-coded.
+// renderiza como un grid color-coded vía <FindingsHeatmapPreview/>.
+//
+// Fuente de datos REAL (2026-06-20): los findings provienen de las
+// OBSERVACIONES georreferenciadas de las inspecciones del proyecto
+// (`GET /api/sprint-k/:projectId/inspections` → useInspections). Cada
+// observación con `locationLatLng` es un hallazgo de terreno con
+// coordenadas GPS + `recordedAt` reales. Las observaciones NO almacenan
+// un grado de severidad, así que cada hallazgo entra con severidad `low`
+// (peso 1): el mapa transmite la DENSIDAD real de hallazgos por zona, no
+// una severidad inventada. Si no hay observaciones georreferenciadas, el
+// empty-state es honesto (no se fabrican puntos).
 //
 // Render strategy: SVG top-down sobre el bbox normalizado. NO usa
-// Maps API (cero deps externas, offline-safe). Cada celda se pinta
-// con el color de su `dominantSeverity` y opacidad proporcional al
-// weight. El usuario puede ajustar:
+// Maps API (cero deps externas, offline-safe). El usuario puede ajustar:
 //   - gridSizeM (50 / 100 / 200 / 500 m)
 //   - rango de fechas (últimos 7 / 30 / 90 días)
 //   - filtro por severidad mínima
@@ -18,9 +26,11 @@
 
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Map, WifiOff } from 'lucide-react';
+import { Map, WifiOff, Loader2, AlertTriangle } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useInspections, type InspectionRecord } from '../hooks/useOfflineInspections';
+import { FindingsHeatmapPreview } from '../components/heatmap/FindingsHeatmapPreview';
 import {
   bboxOf,
   buildHeatmapCells,
@@ -44,10 +54,43 @@ const PERIOD_OPTIONS = [7, 30, 90] as const;
 const SEVERITY_OPTIONS: Severity[] = ['low', 'medium', 'high', 'critical'];
 
 interface FindingsHeatMapProps {
-  /** Inyección de findings (testing). En prod, el caller server-side hace
-   *  fetch desde el grafo Zettelkasten. Por ahora la página acepta una
-   *  prop opcional + fallback a empty state. */
+  /** Inyección de findings (sólo testing). En prod la página deriva los
+   *  findings desde las inspecciones reales del proyecto vía useInspections;
+   *  pasar esta prop cortocircuita el fetch (hermetic component tests). */
   findings?: FindingPoint[];
+}
+
+/**
+ * Deriva `FindingPoint[]` desde las inspecciones reales del proyecto.
+ *
+ * Cada observación con `locationLatLng` es un hallazgo de terreno con
+ * coordenadas GPS + timestamp reales. Las observaciones no llevan grado de
+ * severidad, así que cada finding entra con severidad `low` (peso 1): el
+ * mapa muestra DENSIDAD real, sin inventar severidad. Observaciones sin
+ * coordenadas se descartan (no se puede ubicar el hallazgo en el mapa).
+ */
+function inspectionsToFindings(inspections: InspectionRecord[]): FindingPoint[] {
+  const out: FindingPoint[] = [];
+  for (const insp of inspections) {
+    const obs = Array.isArray(insp.observations) ? insp.observations : [];
+    for (const o of obs) {
+      const loc = o.locationLatLng;
+      if (!loc || typeof loc.lat !== 'number' || typeof loc.lng !== 'number') {
+        continue;
+      }
+      out.push({
+        id: o.observationId,
+        lat: loc.lat,
+        lng: loc.lng,
+        // Las observaciones de inspección no almacenan severidad — cada
+        // hallazgo georreferenciado pesa 1 (densidad real, no inventada).
+        severity: 'low',
+        occurredAt: o.recordedAt,
+        category: o.itemId ?? insp.templateId,
+      });
+    }
+  }
+  return out;
 }
 
 /** Filtra findings dentro de la ventana temporal solicitada. */
@@ -65,7 +108,7 @@ function filterBySeverity(findings: FindingPoint[], min: Severity): FindingPoint
   return findings.filter((f) => SEVERITY_WEIGHT[f.severity] >= minWeight);
 }
 
-export function FindingsHeatMap({ findings = [] }: FindingsHeatMapProps) {
+export function FindingsHeatMap({ findings: findingsOverride }: FindingsHeatMapProps = {}) {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
   const isOnline = useOnlineStatus();
@@ -73,6 +116,20 @@ export function FindingsHeatMap({ findings = [] }: FindingsHeatMapProps) {
   const [gridSizeM, setGridSizeM] = useState<number>(100);
   const [windowDays, setWindowDays] = useState<number>(30);
   const [minSeverity, setMinSeverity] = useState<Severity>('low');
+
+  // Real data path: fetch the project's inspections; only enabled when a
+  // project is selected AND no test override was injected.
+  const inspectionsResp = useInspections(
+    findingsOverride === undefined ? (selectedProject?.id ?? null) : null,
+  );
+  const loading = findingsOverride === undefined && inspectionsResp.loading;
+  const fetchError =
+    findingsOverride === undefined ? inspectionsResp.error : null;
+
+  const findings = useMemo<FindingPoint[]>(() => {
+    if (findingsOverride !== undefined) return findingsOverride;
+    return inspectionsToFindings(inspectionsResp.data?.inspections ?? []);
+  }, [findingsOverride, inspectionsResp.data]);
 
   const filtered = useMemo(() => {
     const w = filterByWindow(findings, windowDays, new Date());
@@ -86,10 +143,6 @@ export function FindingsHeatMap({ findings = [] }: FindingsHeatMapProps) {
 
   const bbox = useMemo(() => bboxOf(filtered), [filtered]);
   const hotspots = useMemo(() => pickHotspots(cells, 5), [cells]);
-  const maxWeight = useMemo(
-    () => cells.reduce((mx, c) => (c.weight > mx ? c.weight : mx), 0),
-    [cells],
-  );
 
   if (!selectedProject) {
     return (
@@ -220,8 +273,35 @@ export function FindingsHeatMap({ findings = [] }: FindingsHeatMapProps) {
         </div>
       </section>
 
-      {/* Heatmap canvas */}
-      {filtered.length === 0 && (
+      {/* Loading — fetching the project's inspections. */}
+      {loading && (
+        <div
+          className="rounded-2xl border border-default-token bg-surface p-6 flex items-center justify-center gap-2 text-secondary-token"
+          data-testid="findings-heatmap-loading"
+        >
+          <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+          <span className="text-sm">
+            {t('findingsHeatMap.loading', 'Cargando hallazgos…')}
+          </span>
+        </div>
+      )}
+
+      {/* Error — the read path failed; honest surface, never silent. */}
+      {!loading && fetchError && (
+        <div
+          className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-6 flex items-center gap-2"
+          data-testid="findings-heatmap-error"
+        >
+          <AlertTriangle className="w-4 h-4 text-rose-500" aria-hidden="true" />
+          <p className="text-sm font-bold text-rose-700 dark:text-rose-400">
+            {t('findingsHeatMap.error', 'No se pudieron cargar los hallazgos.')}{' '}
+            {fetchError.message}
+          </p>
+        </div>
+      )}
+
+      {/* Empty — honest: no georeferenced findings, no fabricated points. */}
+      {!loading && !fetchError && filtered.length === 0 && (
         <div
           className="rounded-2xl border border-teal-500/20 bg-teal-500/5 p-6 text-center"
           data-testid="findings-heatmap-empty-state"
@@ -229,13 +309,17 @@ export function FindingsHeatMap({ findings = [] }: FindingsHeatMapProps) {
           <p className="text-sm font-bold text-teal-700 dark:text-teal-400">
             {t(
               'findingsHeatMap.empty',
-              'Sin hallazgos en los filtros aplicados — ¡buena señal!',
+              'Sin hallazgos georreferenciados en los filtros aplicados.',
             )}
           </p>
         </div>
       )}
 
-      {filtered.length > 0 && bbox && (
+      {/* Heatmap canvas — mounted <FindingsHeatmapPreview/> rendered over the
+          REAL findings derived from inspection observations. topN={0} so the
+          preview suppresses its own hotspot list and the page's richer list
+          (below, with weight) stays the single hotspots surface. */}
+      {!loading && !fetchError && filtered.length > 0 && bbox && (
         <section
           className="rounded-2xl border border-default-token bg-surface p-4"
           data-testid="findings-heatmap-canvas"
@@ -245,7 +329,13 @@ export function FindingsHeatMap({ findings = [] }: FindingsHeatMapProps) {
             { cells: cells.length },
           )}
         >
-          <HeatmapSvg cells={cells} bbox={bbox} maxWeight={maxWeight} />
+          <FindingsHeatmapPreview
+            findings={filtered}
+            gridSizeM={gridSizeM}
+            topN={0}
+            width={600}
+            height={400}
+          />
         </section>
       )}
 
@@ -283,72 +373,6 @@ export function FindingsHeatMap({ findings = [] }: FindingsHeatMapProps) {
         </section>
       )}
     </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────
-// SVG renderer — top-down, normalizado al bbox del proyecto.
-// ────────────────────────────────────────────────────────────────────────
-
-interface HeatmapSvgProps {
-  cells: ReadonlyArray<HeatCell>;
-  bbox: { minLat: number; maxLat: number; minLng: number; maxLng: number };
-  maxWeight: number;
-}
-
-function HeatmapSvg({ cells, bbox, maxWeight }: HeatmapSvgProps) {
-  const W = 600;
-  const H = 400;
-  const PAD = 20;
-
-  // Si bbox degenera (1 sola celda), agregamos margen sintético para no
-  // dividir por cero.
-  const latSpan = Math.max(bbox.maxLat - bbox.minLat, 1e-5);
-  const lngSpan = Math.max(bbox.maxLng - bbox.minLng, 1e-5);
-
-  function project(lat: number, lng: number): { x: number; y: number } {
-    const xNorm = (lng - bbox.minLng) / lngSpan;
-    const yNorm = 1 - (lat - bbox.minLat) / latSpan; // y-flip
-    return {
-      x: PAD + xNorm * (W - 2 * PAD),
-      y: PAD + yNorm * (H - 2 * PAD),
-    };
-  }
-
-  const cellW = (W - 2 * PAD) / Math.max(1, Math.ceil(Math.sqrt(cells.length))) || 12;
-  const safeCellSize = Math.max(8, Math.min(28, cellW));
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="w-full h-auto"
-      role="img"
-      aria-label="Heatmap"
-      data-testid="findings-heatmap-svg"
-    >
-      <rect x={0} y={0} width={W} height={H} fill="transparent" />
-      {cells.map((c) => {
-        const { x, y } = project(c.lat, c.lng);
-        const opacity = maxWeight > 0 ? 0.25 + 0.75 * (c.weight / maxWeight) : 0.5;
-        return (
-          <rect
-            key={`${c.lat.toFixed(5)}:${c.lng.toFixed(5)}`}
-            x={x - safeCellSize / 2}
-            y={y - safeCellSize / 2}
-            width={safeCellSize}
-            height={safeCellSize}
-            rx={2}
-            ry={2}
-            fill={SEVERITY_COLORS[c.dominantSeverity]}
-            opacity={opacity}
-          >
-            <title>
-              {c.count} hallazgos · weight {c.weight} · {c.dominantSeverity}
-            </title>
-          </rect>
-        );
-      })}
-    </svg>
   );
 }
 

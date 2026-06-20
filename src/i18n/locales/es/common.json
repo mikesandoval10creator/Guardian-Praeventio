@@ -4222,7 +4222,7 @@
       "minSeverity": "Severidad mínima",
       "period": "Período (días)"
     },
-    "empty": "Sin hallazgos en los filtros aplicados — ¡buena señal!",
+    "empty": "Sin hallazgos georreferenciados en los filtros aplicados.",
     "hotspots": {
       "cell": "Zona {{idx}}",
       "findings": "hallazgos",
@@ -4232,7 +4232,9 @@
       "selectProject": "Selecciona un proyecto para ver la distribución espacial de los hallazgos.",
       "subtitle": "Distribución espacial por zona. {{cells}} celda(s) sobre {{points}} hallazgo(s).",
       "title": "Mapa de Calor de Hallazgos"
-    }
+    },
+    "loading": "Cargando hallazgos…",
+    "error": "No se pudieron cargar los hallazgos."
   },
   "criticalRoles": {
     "page": {
