@@ -4222,7 +4222,7 @@
       "minSeverity": "Severidade mínima",
       "period": "Período (dias)"
     },
-    "empty": "Sem achados nos filtros aplicados — bom sinal!",
+    "empty": "Sem achados georreferenciados nos filtros aplicados.",
     "hotspots": {
       "cell": "Zona {{idx}}",
       "findings": "achados",
@@ -4232,7 +4232,9 @@
       "selectProject": "Selecione um projeto para ver a distribuição espacial dos achados.",
       "subtitle": "Distribuição espacial por zona. {{cells}} célula(s) sobre {{points}} achado(s).",
       "title": "Mapa de Calor de Achados"
-    }
+    },
+    "loading": "Carregando achados…",
+    "error": "Não foi possível carregar os achados."
   },
   "criticalRoles": {
     "page": {
