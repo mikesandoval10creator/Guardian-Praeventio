@@ -233,11 +233,13 @@ router.get('/:projectId/document-hygiene', verifyAuth, async (req, res) => {
     };
 
     const [docs, receipts, docNodes] = await Promise.all([
-      safeRead('documents', async () =>
-        (await projectRef.collection('documents').get()).docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Record<string, unknown>),
-        })),
+      safeRead(
+        'documents',
+        async (): Promise<Array<Record<string, unknown> & { id: string }>> =>
+          (await projectRef.collection('documents').get()).docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Record<string, unknown>),
+          })),
       ),
       safeRead('read_receipts', async () =>
         (await projectRef.collection('read_receipts').get()).docs.map(
