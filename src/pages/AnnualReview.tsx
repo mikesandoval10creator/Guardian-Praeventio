@@ -18,7 +18,7 @@
 // `computeObjectiveProgress` del service para mantener la lógica de
 // progreso 100% determinística y testeada.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ClipboardCheck,
@@ -30,6 +30,7 @@ import {
   Plus,
   Paperclip,
   Lock,
+  Users,
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -50,6 +51,8 @@ import {
 } from '../services/annualReview/annualSgiReview';
 import { AnnualReviewSummary } from '../components/annualReview/AnnualReviewSummary';
 import { PreventiveObjectivesPanel } from '../components/annualReview/PreventiveObjectivesPanel';
+import { composeAllAudiences, type ComposeAllAudiencesResponse } from '../hooks/useMultiRoleSummary';
+import type { ProjectSnapshot } from '../services/multiRoleSummary/roleSummaryComposer';
 import { logger } from '../utils/logger';
 
 const CURRENT_YEAR_UTC = new Date().getUTCFullYear();
@@ -144,6 +147,8 @@ export function AnnualReview() {
   const [analysis, setAnalysis] = useState<string>('');
   const [busy, setBusy] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [roleSummaries, setRoleSummaries] = useState<ComposeAllAudiencesResponse | null>(null);
+  const [roleSummariesLoading, setRoleSummariesLoading] = useState(false);
 
   const snapshot: AnnualReviewSnapshot | null = reviewResp.data?.snapshot ?? null;
   const exists = reviewResp.data?.exists ?? false;
@@ -178,6 +183,28 @@ export function AnnualReview() {
     }
     return map;
   }, [snapshot]);
+
+  useEffect(() => {
+    if (!projectId || !snapshot || !selectedProject) return;
+    const projSnap: ProjectSnapshot = {
+      projectId,
+      projectName: selectedProject.name,
+      periodFrom: `${year}-01-01`,
+      periodTo: `${year}-12-31`,
+      highlights: snapshot.objectives.map((obj) => ({
+        kind: obj.status === 'achieved' ? 'achievement' as const : 'concern' as const,
+        text: obj.title,
+        relevantTo: ['prevencionista', 'executive'] as const,
+      })),
+    };
+    let cancelled = false;
+    setRoleSummariesLoading(true);
+    composeAllAudiences(projectId, projSnap)
+      .then((res) => { if (!cancelled) setRoleSummaries(res); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setRoleSummariesLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectId, snapshot, selectedProject, year]);
 
   if (!selectedProject) {
     return (
@@ -871,6 +898,60 @@ export function AnnualReview() {
               </>
             )}
           </section>
+
+          {roleSummariesLoading && (
+            <div
+              className="rounded-2xl border border-default-token bg-surface p-6 text-center text-sm text-secondary-token"
+              data-testid="annual-review-role-summaries-loading"
+            >
+              {t('annualReview.roleSummaries.loading', 'Generando resúmenes multi-rol…')}
+            </div>
+          )}
+
+          {roleSummaries && (
+            <section
+              className="rounded-2xl border border-default-token bg-surface p-4 sm:p-5 space-y-3"
+              data-testid="annual-review-section-role-summaries"
+            >
+              <header className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-violet-500" aria-hidden="true" />
+                <h2 className="text-sm font-black text-primary-token uppercase tracking-wide">
+                  {t('annualReview.section.roleSummaries', 'Resúmenes por audiencia')}
+                </h2>
+              </header>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {Object.entries(roleSummaries.summaries).map(([audience, summary]) => (
+                  <div
+                    key={audience}
+                    className="rounded-xl border border-default-token p-3 space-y-2"
+                    data-testid={`annual-review-role-summary-${audience}`}
+                  >
+                    <p className="text-xs font-bold uppercase tracking-widest text-violet-600 dark:text-violet-400">
+                      {audience}
+                    </p>
+                    <p className="text-sm font-bold text-primary-token">{summary.title}</p>
+                    {summary.headlineMetric && (
+                      <p className="text-xs text-secondary-token">
+                        {summary.headlineMetric.label}: {summary.headlineMetric.value}
+                      </p>
+                    )}
+                    <ul className="space-y-1">
+                      {summary.bullets.map((bullet, idx) => (
+                        <li key={idx} className="text-xs text-primary-token">
+                          {bullet}
+                        </li>
+                      ))}
+                    </ul>
+                    {summary.callToAction && (
+                      <p className="text-[11px] font-bold text-violet-600 dark:text-violet-400">
+                        {summary.callToAction}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
     </div>

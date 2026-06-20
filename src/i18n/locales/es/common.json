@@ -3574,11 +3574,15 @@
       "subtitle": "ISO 45001 §9.3 + DS 76 — ciclo PDCA anual: objetivos preventivos, evidencias y conclusiones firmadas.",
       "title": "Revisión Anual del SGI"
     },
+    "roleSummaries": {
+      "loading": "Generando resúmenes multi-rol…"
+    },
     "section": {
       "analysis": "Análisis y hallazgos",
       "conclusion": "Conclusiones y firma",
       "evidence": "Evidencias",
-      "objectives": "Objetivos preventivos"
+      "objectives": "Objetivos preventivos",
+      "roleSummaries": "Resúmenes por audiencia"
     },
     "title": "Revisión Anual SGI",
     "topPerformers": "Logros destacados",
