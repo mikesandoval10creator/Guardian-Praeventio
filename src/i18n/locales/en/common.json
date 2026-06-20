@@ -3045,6 +3045,12 @@
       "depth": "Max depth: {{d}}",
       "roots": "Roots: {{count}}",
       "failed_controls": "Failed controls: {{list}}"
+    },
+    "custody": {
+      "heading": "Evidence chain of custody",
+      "loading": "Loading evidence…",
+      "error": "Could not load the chain of custody.",
+      "empty": "No evidence with a chain of custody is linked to this incident yet."
     }
   },
   "consistency_audit": {

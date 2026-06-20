@@ -25,7 +25,6 @@
     "src/components/documents/LegalDocGeneratorForm.tsx",
     "src/components/eppFlow/EppInspectionForm.tsx",
     "src/components/eppFlow/PendingPurchaseOrdersPanel.tsx",
-    "src/components/evidenceChain/CustodyChainTimelineCard.tsx",
     "src/components/excelImport/ExcelImportPreview.tsx",
     "src/components/explainability/ExplainedRecommendationCard.tsx",
     "src/components/exposure/HeatStressCard.tsx",

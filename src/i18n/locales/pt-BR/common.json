@@ -2748,6 +2748,12 @@
       "depth": "Profundidade máx: {{d}}",
       "roots": "Raízes: {{count}}",
       "failed_controls": "Controles falhos: {{list}}"
+    },
+    "custody": {
+      "heading": "Cadeia de custódia da evidência",
+      "loading": "Carregando evidência…",
+      "error": "Não foi possível carregar a cadeia de custódia.",
+      "empty": "Ainda não há evidência com cadeia de custódia vinculada a este incidente."
     }
   },
   "consistency_audit": {

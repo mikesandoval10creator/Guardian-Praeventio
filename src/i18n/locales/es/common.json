@@ -3045,6 +3045,12 @@
       "depth": "Profundidad máx: {{d}}",
       "roots": "Raíces: {{count}}",
       "failed_controls": "Controles fallidos: {{list}}"
+    },
+    "custody": {
+      "heading": "Cadena de custodia de evidencia",
+      "loading": "Cargando evidencia…",
+      "error": "No se pudo cargar la cadena de custodia.",
+      "empty": "Aún no hay evidencia con cadena de custodia vinculada a este incidente."
     }
   },
   "consistency_audit": {

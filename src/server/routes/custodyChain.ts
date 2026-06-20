@@ -170,6 +170,36 @@ function pruneUndefined<T extends object>(obj: T): T {
   return out as T;
 }
 
+// ── GET (all chains linked to a graph node, e.g. an incident) ─────────
+// Materializes the custody chains promised by an incident expediente:
+// every artifact whose `linkedNodeId` is the incident node, each with its
+// full append-only custody event trail. Read-only; uses the already-tested
+// adapter.listArtifactsForNode + listEvents (no fabrication — returns the
+// real persisted artifacts, an empty array when none are linked yet).
+// Path uses a distinct segment (`evidence-by-node`) so the node id can NEVER
+// be mistaken for an artifact hash by the `/evidence/:hash` route above.
+router.get('/:projectId/evidence-by-node/:nodeId', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId, nodeId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const adapter = adapterFor(g.tenantId);
+    const artifacts = await adapter.listArtifactsForNode(nodeId);
+    const chains = await Promise.all(
+      artifacts.map(async (artifact) => {
+        const events = await adapter.listEvents(artifact.id);
+        return { artifact, events, summary: summarizeChain(artifact, events) };
+      }),
+    );
+    return res.json({ chains });
+  } catch (err) {
+    logger.error?.('custody.byNode.error', err);
+    captureRouteError(err, 'custody.byNode', { callerUid, tenantId: g.tenantId, projectId });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 // ── GET (artifact + chain) ───────────────────────────────────────────
 router.get('/:projectId/evidence/:hash', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
