@@ -4942,5 +4942,20 @@
       "stable": "Estable",
       "worsening": "Empeorando"
     }
+  },
+  "telemetry": {
+    "aggregate": {
+      "title": "Telemetría operacional agregada",
+      "subtitle": "Conteos sin datos personales — incidentes, EPP, permisos y más",
+      "windowLabel": "Ventana de tiempo",
+      "noProject": "Selecciona un proyecto para ver su telemetría agregada.",
+      "loading": "Cargando telemetría…",
+      "error": "No se pudo cargar la telemetría agregada. Reintenta más tarde.",
+      "empty": "Sin eventos operacionales en esta ventana. Los datos aparecerán a medida que se registren incidentes, capacitaciones, permisos y más.",
+      "totalEvents": "eventos en la ventana",
+      "bySeverity": "Por severidad",
+      "byKind": "Por tipo de evento",
+      "perDay": "{{rate}}/día"
+    }
   }
 }
