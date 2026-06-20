@@ -8,14 +8,23 @@
 
 ## Contador maestro
 
-| # | Dimensión | Cantidad | Medido | Gate |
+> **Re-verificado 2026-06-19** (recomputado contra el código, no contra el doc). Varias cifras estaban viejas — corregidas abajo. Método: ratchets recomputados + 3 auditorías de verificación (honestidad de pantallas montadas, triage de stubs, catálogo de rutas).
+
+| # | Dimensión | Cantidad (verificada 06-19) | Medido | Gate |
 |---|---|---|---|---|
-| A | Huérfanos (construido, sin montar) | **126** (≈92 reales) | ✅ completo | ✅ `connectivity-ratchet` (#983) |
-| B | Datos fabricados en pantallas montadas | ~38 hallados, **casi todos cerrados** | 🟡 parcial | ❌ falta gate |
-| C | Stubs / placeholders | **86** | ✅ inventario | 🟡 `stub-guard` (forma, no conexión) |
+| A | Huérfanos (construido, sin montar) | **89** (era 126; −37 cerrados) | ✅ ratchet recomputado | ✅ `connectivity-ratchet` (baseline 89) |
+| B | Datos fabricados en pantallas montadas | **1 confirmado** (`WisdomCapsule` citas hardcodeadas en /hygiene); resto honesto | ✅ sweep completo | ❌ falta gate honestidad |
+| C | Stubs / placeholders | 86 inventario → **~9 accionables** (3 REAL-NEEDED · 3 fail-soft legítimo · 1 bloqueado-externo · 3 entradas STALE) | ✅ triado | 🟡 `stub-guard` (forma, no conexión) |
 | D | Pipelines backend sin construir | 3 | ✅ explícito | ❌ |
-| E | Routers sin test conductual | **67 / 204** (137 verificados) | ✅ completo | ✅ `router-test-ratchet` |
-| F | Decisiones del fundador | 6 | ✅ explícito | n/a (decisión) |
+| E | Routers sin test conductual | **61 / 204** (143 verificados; era 67/137) | ✅ ratchet recomputado | ✅ `router-test-ratchet` (baseline 61) |
+| F | Decisiones del fundador | **6 RESUELTAS 2026-06-20** (RUT F1 confirmado 78.231.119-0) | ✅ resuelto | n/a (decisión) |
+| B0 | Índice de rutas (`api-routes.md`) | **viejo: 43 de 204 rutas** (del 2026-04-28). Generador+gate pendiente | ✅ medido (~1501 decl. de ruta) | ❌ falta generador |
+
+### Hallazgos de la re-verificación 06-19 (detalle)
+- **B (honestidad):** sweep de superficies montadas → solo 1 dato fabricado vivo: `src/components/shared/WisdomCapsule.tsx:10-18` (7 citas hardcodeadas vía `Math.random` cuando no hay cápsula real; se renderiza como si fuera contenido real en `/hygiene`). Fix: empty-state honesto o cablear a colección `capsules`. Lo demás ya está real (cierres #966-#982).
+- **C (stubs) REAL-NEEDED (3):** (1) `src/server/jobs/runB2dMrrSnapshot.ts:15` job sin cron (backend listo) · (2) `src/hooks/useGeofenceWithEvents.ts` hook real sin consumer (panel admin geocercas) · (3) Wi-Fi Direct nativo `packages/capacitor-mesh/.../MeshPlugin.kt:552` + `Plugin.swift:350` (BLE ya real; falta WifiP2pManager/MultipeerConnectivity).
+- **C STALE (3) — quitar del inventario:** SLM mock (ya runtime real), criticalPermitValidators (ya ruteado), SystemEngineProvider (ya montado).
+- **B0 (índice):** OpenAPI registry solo cubre 34 paths (superficie pública B2D, intencional). El catálogo interno real son ~1501 decl. de ruta en 204 routers → mano imposible, requiere generador determinista + gate de frescura.
 
 ---
 
@@ -101,11 +110,36 @@ Nota: el gate detecta "tiene test real-router o no", NO un test que importa+requ
 
 ---
 
-## F. Decisiones del fundador pendientes (6)
+## F. Decisiones del fundador — RESUELTAS 2026-06-20
 
-SII (bsale-only vs 2º PSE) · Ley Karin inbox (montar vs inline) · incidentFlow (cluster vs inline) · Driving (superficie de lanzamiento) · Risk hub (unificar 7 dirs) · 3D twin / wisdomCapsules (vivo vs descartar). Detalle en PLAN-MAESTRO.
+- **F1 · SII:** Praeventio emite **boleta O factura** (según pida el cliente) **al contratarse el servicio**, asociada al RUT de la empresa. **NO** somos PSE de los trámites del cliente — solo emitimos el documento de NUESTRO servicio; todo lo que escape de eso no es nuestro. **RUT empresa: `78.231.119-0`** (confirmado 2026-06-20, DV válido). 1 solo PSE, sin 2º.
+- **F2 · Ley Karin:** inbox de denuncia = **sección propia montada**. **Anonimato del denunciante es requisito duro.** Flujo: denuncia → **notificación a la persona a cargo del proyecto** → al tocar la notificación lo lleva al menú Ley Karin. Diseñar con cuidado para no filtrar identidad del denunciante.
+- **F3 · incidentFlow:** **hub/página dedicada.** Menú interactivo con los incidentes ocurridos; si no hay, mostrar incidentes mensuales/anuales — info accionable para gestionar y decidir (incidente → potencial accidente/costo/gasto de respuesta).
+- **F4 · Driving:** **módulo propio.** + (a) si el teléfono detecta velocidad sobre umbral plausible-humano (según funciones/tareas del usuario) → **notificación** para activar modo conducción segura; (b) entrada también desde el **botón de modo** (junto a dark/light) para elegirlo manualmente; (c) **control por voz** (cross-cutting): "Oye Guardián, voy a manejar / activa conducción segura" → Guardián ejecuta botón/menú/info. Manos-libres ya pensado para Man-Down — extender. **Solo si es factible dentro de lo ya implementado**, no inventar capacidad nueva.
+- **F5 · Risk hub:** **UNIFICAR** los 7 dirs en **un menú** de todo-sobre-riesgos. NO son duplicados → son **complementarios**; preservar la variedad. Incluir riesgos fuera del rubro propio + **guía inductora** (cómo cuidarse, p.ej. tarea con componente químico). Menú interactivo bien distribuido/entendible.
+- **F6 · 3D twin / wisdomCapsules:** **CABLEAR DE VERDAD, no descartar.** AR sobre maquinaria estática (no se mueve por costo/gestión/mantenimiento): muestra cómo funciona + condensa los nodos ZK clave para novatos. Registros geolocalizados → futuro con gafas de seguridad (cápsulas localizadas). → **Esto cambia B: `WisdomCapsule` NO se borra; se cablea a contenido real (colección `capsules`/nodos ZK).**
+
+Detalle ampliado en PLAN-MAESTRO.
 
 ---
+
+## Orden de ejecución por factibilidad técnica (T0→T6)
+
+Estructura de trabajo: cada bloque se cierra dejando su **gate** (no se revisita). Honesto = real + testeado + gateado. Cada bloque lleva 4 etiquetas: 🔌 fuente de dato real (de `api-routes.md`; si no está → ficticio, no cablear) · 🛠️ skill que lo implementa · 🛡️ anti-regresión al cerrar · 📦 frontera de archivos (paralelo sin merge: bloques disjuntos en paralelo; compartidos — `server.ts`, routes config, i18n — serializados por el merge-gate humano).
+
+| Fase | Qué | De dónde | 🛠️ Skill | 🛡️ Anti-regresión |
+|---|---|---|---|---|
+| **T0** | Cimiento: generador `api-routes.md` (204) + gate de frescura · refrescar este doc (✅ hecho) · gate honestidad (B) | código | `backend-patterns` / script | gate freshness CI + gate anti-`Math.random` en componentes montados |
+| **T1** | Montar vida/legal (24 A1) — backend real, falta wiring 1 paso | engine ya real | `frontend-design` | baja `connectivity-ratchet` + test de montaje |
+| **T2** | Diseñar+cablear needs_design (35 A3) — servicio real, falta página fetch+props | servicio ya real | `frontend-design` · `ui-ux-pro-max` · `web-design-guidelines` | baja ratchet + test |
+| **T3** | Des-fabricar (B: WisdomCapsule) + construir gate honestidad | colección `capsules` o empty-state | `silent-failure-hunter` | gate honestidad (cierra dimensión B) |
+| **T4** | Tests conductuales vida/legal (6 routers): `evacuation, fatigue, refuges, expirations, criticalRoles, driving` | router real | `tdd` · `pr-test-analyzer` | baja `router-test-ratchet` |
+| **T5** | Pipelines backend (D, 3): SLO job · snapshot cumplimiento cron · (EPP bloqueado-externo) + 3 stubs REAL-NEEDED (C) | construir | `backend-patterns` · `database-migrations` | rules-tests + gate stub |
+| **T6** | Hygiene: montables A2 (33) + consolidar duplicados A4 (10) + cortes ponytail | — | `code-simplifier` | ratchet |
+
+**Bloqueadores → F: RESUELTOS 2026-06-20** (ver sección F). Targets de montaje definidos: Ley Karin = sección propia (notif→project lead→menú, anonimato duro) · incidentFlow = hub dedicado · Driving = módulo propio (+voz cross-cutting) · Risk hub = unificar 7 dirs en un menú (complementarios, +guía inductora) · 3D twin/wisdomCapsules = cablear real (AR sobre maquinaria estática). **Cero provisional. Cero bloqueadores** (RUT F1 confirmado 78.231.119-0).
+
+**Regla de paralelo sin colisión:** 1 bloque = 1 dominio = 1 set de archivos disjunto. Antes de lanzar agentes en paralelo, asignar fronteras disjuntas; los archivos compartidos pasan por el merge-gate humano uno a uno. Estándar de calidad por cada incorporación: review adversarial (`code-reviewer` / `security-reviewer`) antes de merge — CI-verde no basta para vida/seguridad.
 
 ## Gates activos (capa de medición que impide deuda nueva)
 

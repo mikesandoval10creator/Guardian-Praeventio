@@ -1,10 +1,11 @@
 # Praeventio Guard — API Routes Catalog
 
-Catálogo completo de los endpoints HTTP expuestos por `server.ts`.
-Auto-extraído al cierre de Round 16 / 2026-04-28 desde el HEAD `7b907d8`.
+> ⚠ **Este doc es el DETALLE CURADO de ~43 rutas clave** (auth, audit, idempotency, tenant isolation) — NO el catálogo completo. Al 2026-06-19 el backend expone **196 routers · 680 rutas**. El índice COMPLETO y auto-generado de "dónde vive cada dato real" vive en **[`docs/API-INDEX.md`](API-INDEX.md)** (`npm run gen:api-index`; gate de frescura `npm run lint:api-index`). Para cablear una feature, busca el endpoint ahí primero.
 
-**Total: 43 rutas.** Si agregaste una ruta y este número no cuadra,
-actualiza el catálogo en el mismo PR.
+Catálogo curado de endpoints HTTP de `server.ts` (detalle de seguridad).
+Detalle original auto-extraído en Round 16 / 2026-04-28 (HEAD `7b907d8`).
+
+**Detalle curado: 43 rutas.** El total real lo da `API-INDEX.md`.
 
 Convenciones:
 - Todas las rutas montan bajo el rate limiter global `/api/*` (100 req /
