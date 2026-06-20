@@ -29,6 +29,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { usePreShiftRisk } from '../hooks/usePreShiftRisk';
 import type { ShiftRiskReport } from '../services/shiftRiskPanel/preShiftRiskComposer';
+import { PreShiftRiskCard } from '../components/shiftRiskPanel/PreShiftRiskCard';
 
 /**
  * Map composer level to Tailwind palette tokens. Green/amber/red are the
@@ -191,6 +192,8 @@ export function PreShiftRisk() {
           </span>
         )}
       </header>
+
+      <PreShiftRiskCard report={panel ?? undefined} />
 
       {loading && (
         <div

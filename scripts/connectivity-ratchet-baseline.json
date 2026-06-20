@@ -67,7 +67,6 @@
     "src/components/safetyMetrics/SafetyTrendChartLazy.tsx",
     "src/components/safetyPerformance/SpiDashboard.tsx",
     "src/components/shared/ProjectScopedPage.tsx",
-    "src/components/shiftRiskPanel/PreShiftRiskCard.tsx",
     "src/components/softBlocking/RequirementGatePanel.tsx",
     "src/components/spacedRepetition/SpacedRepetitionReviewQueue.tsx",
     "src/components/suppliers/SupplierComparator.tsx",
