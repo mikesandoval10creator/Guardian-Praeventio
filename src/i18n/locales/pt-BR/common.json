@@ -3215,6 +3215,20 @@
     "actions": {
       "generateOc": "Gerar Ordem de Compra (.pdf)",
       "todoNote": "Por enquanto baixa JSON · PDF formal pendente Sprint K §177."
+    },
+    "scenario": {
+      "title": "Comparador de cenários ROI",
+      "subtitle": "Cenário derivado dos seus inputs (projeto ativo {{project}}), calculado no servidor.",
+      "empty": "Selecione um projeto ativo para comparar cenários ROI no servidor.",
+      "colScenario": "Cenário",
+      "colInvestment": "Investimento anual",
+      "colSavings": "Economia projetada",
+      "colRoi": "ROI projetado",
+      "colPayback": "Payback",
+      "colScore": "Score",
+      "sensitivity": "Banda de sensibilidade ±20%: {{low}}% a {{high}}%",
+      "recommended": "Recomendado",
+      "rationaleTitle": "Análise comparativa"
     }
   },
   "brigade": {

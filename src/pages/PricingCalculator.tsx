@@ -10,9 +10,10 @@
 // La lógica está delegada a services determinísticos; este page es solo
 // presentational. Cero side-effects fuera del download.
 
-import { useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { useProject } from '../contexts/ProjectContext';
 import {
   Calculator,
   Users,
@@ -25,6 +26,7 @@ import {
   Download,
   Info,
   ShoppingCart,
+  BarChart3,
 } from 'lucide-react';
 import {
   TIERS,
@@ -48,6 +50,12 @@ import {
   type RoiReport,
 } from '../services/financialAnalytics/roiCalculator';
 import { generatePricingOcPdf } from '../utils/pricingOcPdf';
+import { logger } from '../utils/logger';
+import {
+  compareRoiScenarios,
+  type CompareScenariosInput,
+  type CompareScenariosResponse,
+} from '../hooks/useRoiScenario';
 
 // ────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -84,6 +92,16 @@ function safeMonthlyCost(
   }
 }
 
+/** Formatea un % que puede ser Infinity (inversión cero) o finito. */
+function formatRoiPercent(v: number): string {
+  return Number.isFinite(v) ? `${v}%` : '∞';
+}
+
+/** Formatea payback en meses, manejando Infinity (no recuperable). */
+function formatPayback(v: number, monthsLabel: string, notRecoverable: string): string {
+  return Number.isFinite(v) ? `${v} ${monthsLabel}` : notRecoverable;
+}
+
 function downloadJson(filename: string, payload: unknown): void {
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: 'application/json',
@@ -105,6 +123,7 @@ function downloadJson(filename: string, payload: unknown): void {
 
 export const PricingCalculator: React.FC = () => {
   const { t } = useTranslation();
+  const { selectedProject } = useProject();
 
   // Inputs
   const [workers, setWorkers] = useState<number>(120);
@@ -116,6 +135,66 @@ export const PricingCalculator: React.FC = () => {
   const [baselineIncidents, setBaselineIncidents] = useState<number>(12);
   const [currentIncidents, setCurrentIncidents] = useState<number>(4);
   const [avgIncidentCost, setAvgIncidentCost] = useState<number>(2_500_000);
+  const [scenarioComparison, setScenarioComparison] = useState<CompareScenariosResponse | null>(null);
+
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    if (!projectId) {
+      // Sin proyecto activo no hay con qué comparar — empty-state honesto.
+      setScenarioComparison(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const reductionPct = baselineIncidents > 0
+      ? Math.round(((baselineIncidents - currentIncidents) / baselineIncidents) * 100)
+      : 0;
+
+    const input: CompareScenariosInput = {
+      baseline: {
+        averageDirectCostPerIncidentClp: avgIncidentCost,
+        baselineRatePerYear: baselineIncidents,
+        workersCount: workers,
+        indirectMultiplier: 4,
+      },
+      scenarios: [
+        {
+          id: 'current-program',
+          name: 'Programa actual',
+          description: 'Escenario basado en inputs actuales de la calculadora',
+          investments: [
+            { category: 'epp', amountClp: estimateMonthlyEppBudgetClp(industryPrefix, workers).totalClp * 12 },
+            { category: 'training', amountClp: 500_000 },
+            { category: 'audits', amountClp: 300_000 },
+          ],
+          assumptions: {
+            expectedIncidentReductionPct: reductionPct,
+            expectedComplianceImprovementPct: Math.min(reductionPct + 10, 100),
+            paybackMonthsEstimate: 12,
+            confidenceLevel: 'medium',
+          },
+        },
+      ],
+    };
+
+    compareRoiScenarios(projectId, input)
+      .then((res) => {
+        if (!cancelled) setScenarioComparison(res);
+      })
+      .catch((err: unknown) => {
+        // No fabricamos datos si el servidor falla: limpiamos el resultado
+        // (cae al empty-state) y dejamos rastro en consola para diagnóstico.
+        if (!cancelled) setScenarioComparison(null);
+        logger.warn('roiScenario.compare.client_failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProject?.id, workers, industryPrefix, baselineIncidents, currentIncidents, avgIncidentCost]);
 
   // ─── Outputs (derived) ───────────────────────────────────────────────
   const recommendedTier = useMemo(
@@ -216,6 +295,16 @@ export const PricingCalculator: React.FC = () => {
     };
     downloadJson(`praeventio-oc-${Date.now()}.json`, payload);
   };
+
+  // ─── ROI scenario comparator (server-computed) ─────────────────────────
+  // Solo renderizamos la tabla cuando el servidor devolvió un comparison
+  // con outcomes reales. Una respuesta vacía/parcial cae al empty-state
+  // (no fabricamos filas).
+  const scenarioOutcomes = scenarioComparison?.comparison?.outcomes ?? [];
+  const hasScenarioComparison = scenarioOutcomes.length > 0;
+  const recommendedScenarioId =
+    scenarioComparison?.comparison?.recommendedScenario?.scenarioId;
+  const scenarioRationale = scenarioComparison?.comparison?.rationale ?? [];
 
   return (
     <div
@@ -521,6 +610,154 @@ export const PricingCalculator: React.FC = () => {
               <li key={n}>{n}</li>
             ))}
           </ul>
+        )}
+      </section>
+
+      {/* ROI SCENARIO COMPARATOR (server-computed) ──────────────────────
+          Renderiza el resultado de compareRoiScenarios() — POST
+          /api/sprint-k/:projectId/roi-scenario/compare. Los escenarios
+          se derivan de los inputs reales de la calculadora (workers,
+          incidentes baseline/actual, costo/incidente, EPP por industria),
+          no de datos inventados. Sin proyecto activo → empty-state honesto. */}
+      <section
+        data-testid="pricing-calculator-scenario"
+        className="bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-5 space-y-4"
+      >
+        <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+          <BarChart3 className="w-4 h-4 text-[#4db6ac]" />
+          {t('pricingCalc.scenario.title', 'Comparador de escenarios ROI')}
+        </h2>
+
+        {hasScenarioComparison ? (
+          <>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {t(
+                'pricingCalc.scenario.subtitle',
+                'Escenario derivado de tus inputs (proyecto activo {{project}}), calculado en el servidor.',
+                { project: selectedProject?.name ?? selectedProject?.id ?? '' },
+              )}
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-slate-500 dark:text-slate-400">
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="text-left py-2 pr-2">
+                      {t('pricingCalc.scenario.colScenario', 'Escenario')}
+                    </th>
+                    <th className="text-right py-2 pr-2">
+                      {t('pricingCalc.scenario.colInvestment', 'Inversión anual')}
+                    </th>
+                    <th className="text-right py-2 pr-2">
+                      {t('pricingCalc.scenario.colSavings', 'Ahorro proyectado')}
+                    </th>
+                    <th className="text-right py-2 pr-2">
+                      {t('pricingCalc.scenario.colRoi', 'ROI proyectado')}
+                    </th>
+                    <th className="text-right py-2 pr-2">
+                      {t('pricingCalc.scenario.colPayback', 'Payback')}
+                    </th>
+                    <th className="text-right py-2 pr-2">
+                      {t('pricingCalc.scenario.colScore', 'Score')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scenarioOutcomes.map((o) => {
+                    const isRecommended = o.scenarioId === recommendedScenarioId;
+                    return (
+                      <Fragment key={o.scenarioId}>
+                      <tr
+                        data-testid={`pc-scenario-row-${o.scenarioId}`}
+                        className={
+                          isRecommended ? 'bg-[#4db6ac]/5 font-semibold' : ''
+                        }
+                      >
+                        <td className="py-1.5 pr-2 text-slate-900 dark:text-white">
+                          {o.scenarioName}
+                          {isRecommended && (
+                            <span className="ml-1.5 inline-flex items-center rounded-full bg-[#4db6ac]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#4db6ac]">
+                              {t('pricingCalc.scenario.recommended', 'Recomendado')}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-1.5 pr-2 text-right text-slate-700 dark:text-slate-300">
+                          {formatCurrency(o.totalInvestmentClp, 'CLP')}
+                        </td>
+                        <td
+                          data-testid={`pc-scenario-savings-${o.scenarioId}`}
+                          className="py-1.5 pr-2 text-right text-emerald-600 dark:text-emerald-400"
+                        >
+                          {formatCurrency(o.projectedSavingsClp, 'CLP')}
+                        </td>
+                        <td
+                          data-testid={`pc-scenario-roi-${o.scenarioId}`}
+                          className="py-1.5 pr-2 text-right text-slate-900 dark:text-white"
+                        >
+                          {formatRoiPercent(o.projectedRoiPercent)}
+                        </td>
+                        <td className="py-1.5 pr-2 text-right text-slate-700 dark:text-slate-300">
+                          {formatPayback(
+                            o.paybackMonths,
+                            t('pricingCalc.roi.months', 'meses'),
+                            t('pricingCalc.roi.notRecoverable', 'No recuperable'),
+                          )}
+                        </td>
+                        <td
+                          data-testid={`pc-scenario-score-${o.scenarioId}`}
+                          className="py-1.5 pr-2 text-right font-bold text-slate-900 dark:text-white"
+                        >
+                          {o.recommendationScore}/100
+                        </td>
+                      </tr>
+                      <tr className="border-b border-slate-100 dark:border-slate-800">
+                        <td
+                          colSpan={6}
+                          data-testid={`pc-scenario-sensitivity-${o.scenarioId}`}
+                          className="pb-2 pr-2 text-[10px] text-slate-400 dark:text-slate-500"
+                        >
+                          {t(
+                            'pricingCalc.scenario.sensitivity',
+                            'Banda de sensibilidad ±20%: {{low}}% a {{high}}%',
+                            {
+                              low: formatRoiPercent(o.sensitivityBand.roiLowerBound).replace('%', ''),
+                              high: formatRoiPercent(o.sensitivityBand.roiUpperBound).replace('%', ''),
+                            },
+                          )}
+                        </td>
+                      </tr>
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {scenarioRationale.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                  {t('pricingCalc.scenario.rationaleTitle', 'Análisis comparativo')}
+                </p>
+                <ul
+                  data-testid="pc-scenario-rationale"
+                  className="text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5 list-disc list-inside"
+                >
+                  {scenarioRationale.map((r) => (
+                    <li key={r}>{r}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        ) : (
+          <p
+            data-testid="pc-scenario-empty"
+            className="text-xs text-slate-500 dark:text-slate-400"
+          >
+            {t(
+              'pricingCalc.scenario.empty',
+              'Selecciona un proyecto activo para comparar escenarios ROI en el servidor.',
+            )}
+          </p>
         )}
       </section>
 
