@@ -35,7 +35,6 @@
     "src/components/lessonsLearned/LessonSuggestionsCard.tsx",
     "src/components/maintenance/HorometerStatusCard.tsx",
     "src/components/measurements/MeasurementQualityCard.tsx",
-    "src/components/medicine/Ds67Modal.tsx",
     "src/components/monthlyClientReport/MonthlyClientReportCard.tsx",
     "src/components/orgMetrics/OperationalPressureGauge.tsx",
     "src/components/organic/ProcessClosePreviewCard.tsx",

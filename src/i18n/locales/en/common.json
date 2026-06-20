@@ -589,6 +589,8 @@
     "subtitle": "Health management, medical exams and epidemiological surveillance",
     "ds109_tooltip": "Generate DS 109 form (occupational disease qualification)",
     "ds109_label": "DS 109 Qualification",
+    "ds67_tooltip": "Generate DS 67 work-accident notification to the mutual insurer (Law 16.744 art. 76)",
+    "ds67_label": "DS 67 Notification",
     "new_consultation": "New Consultation",
     "workstation": "Medical Workstation",
     "tab_visor": "Body Viewer",
