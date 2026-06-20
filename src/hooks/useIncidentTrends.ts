@@ -60,3 +60,42 @@ export function useIncidentTrends(
   }
   return useEndpoint<IncidentTrendsResponse>(path);
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// F3 (founder decision) — lista REAL de incidentes del proyecto.
+// Pareja del backend en `incidentTrends.ts` GET /:projectId/incidents/list.
+// Alimenta el Hub de Flujo de Incidentes (`/incident-flow`): el menú
+// interactivo de incidentes ocurridos. Cuando la lista está vacía, el hub
+// cae a la vista mensual/anual (useIncidentTrends).
+// ────────────────────────────────────────────────────────────────────────
+
+export interface IncidentListItem {
+  id: string;
+  occurredAt: string | null;
+  severity: string | null;
+  incidentType: string | null;
+  status: string | null;
+  summary: string | null;
+  location: string | null;
+  nearMiss: boolean;
+}
+
+export interface IncidentListResponse {
+  projectId: string;
+  total: number;
+  incidents: IncidentListItem[];
+  generatedAt: string;
+}
+
+export function useIncidentList(projectId: string | null, limit?: number) {
+  let path: string | null = null;
+  if (projectId) {
+    const qs = new URLSearchParams();
+    if (typeof limit === 'number' && Number.isFinite(limit)) {
+      qs.set('limit', String(limit));
+    }
+    const query = qs.toString();
+    path = `/api/sprint-k/${projectId}/incidents/list${query ? `?${query}` : ''}`;
+  }
+  return useEndpoint<IncidentListResponse>(path);
+}

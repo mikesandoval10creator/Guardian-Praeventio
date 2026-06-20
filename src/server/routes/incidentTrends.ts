@@ -163,6 +163,45 @@ function isNearMissRecord(rec: Record<string, unknown>): boolean {
 }
 
 /**
+ * Convierte el campo de timestamp de un incident (string ISO, Firestore
+ * Timestamp, o `{_seconds}`/`{seconds}`) a ISO-8601. Null si no es parseable.
+ * Mismo contrato que el helper inline del endpoint de trends — extraído a
+ * nivel módulo para que el endpoint de `list` lo reuse sin duplicar la lógica
+ * (Codex P1 fix: el flujo canónico persiste `ts` + `createdAt` serverTimestamp).
+ */
+export function incidentTsToIso(raw: unknown): string | null {
+  if (typeof raw === 'string' && raw) return raw;
+  if (raw && typeof raw === 'object') {
+    const t = raw as { toDate?: () => Date; _seconds?: number; seconds?: number };
+    if (typeof t.toDate === 'function') {
+      const d = t.toDate();
+      if (d instanceof Date && !Number.isNaN(d.getTime())) return d.toISOString();
+    }
+    const seconds =
+      typeof t._seconds === 'number'
+        ? t._seconds
+        : typeof t.seconds === 'number'
+          ? t.seconds
+          : null;
+    if (seconds !== null) {
+      const d = new Date(seconds * 1000);
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+  }
+  return null;
+}
+
+/** Best occurred-at ISO for an incident: ts → occurredAt → createdAt. */
+export function incidentOccurredIso(rec: Record<string, unknown>): string | null {
+  return (
+    incidentTsToIso(rec.ts) ??
+    incidentTsToIso(rec.occurredAt) ??
+    incidentTsToIso(rec.createdAt) ??
+    null
+  );
+}
+
+/**
  * Regresión lineal simple (least squares) sobre los valores de la
  * serie. Devuelve la pendiente normalizada al promedio para hacerla
  * comparable entre proyectos con distinta escala de incidentes, más
@@ -316,30 +355,8 @@ router.get('/:projectId/incidents/trends', verifyAuth, async (req, res) => {
     // FieldValue.serverTimestamp() (no string). Si no leemos `ts`
     // ni convertimos el Timestamp de Firestore, esos incidents quedan
     // fuera de la ventana → totales/leading indicators a cero.
-    const tsToIso = (raw: unknown): string | null => {
-      if (typeof raw === 'string' && raw) return raw;
-      if (raw && typeof raw === 'object') {
-        const t = raw as { toDate?: () => Date; _seconds?: number; seconds?: number };
-        if (typeof t.toDate === 'function') {
-          const d = t.toDate();
-          if (d instanceof Date && !Number.isNaN(d.getTime())) return d.toISOString();
-        }
-        const seconds = typeof t._seconds === 'number' ? t._seconds : typeof t.seconds === 'number' ? t.seconds : null;
-        if (seconds !== null) {
-          const d = new Date(seconds * 1000);
-          if (!Number.isNaN(d.getTime())) return d.toISOString();
-        }
-      }
-      return null;
-    };
-    const occurredOf = (rec: Record<string, unknown>): string | null => {
-      return (
-        tsToIso(rec.ts) ??
-        tsToIso(rec.occurredAt) ??
-        tsToIso(rec.createdAt) ??
-        null
-      );
-    };
+    // (Helpers extraídos a nivel módulo — reusados por el endpoint `list`.)
+    const occurredOf = incidentOccurredIso;
     const windowed = allIncidents.filter((rec) => {
       const ts = occurredOf(rec);
       if (!ts) return false;
@@ -485,6 +502,137 @@ router.get('/:projectId/incidents/trends', verifyAuth, async (req, res) => {
   } catch (err) {
     logger.error?.('sprintK.trends.error', err);
     captureRouteError(err, 'sprintK.trends');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// ── F3 (founder decision) — GET /:projectId/incidents/list ─────────────
+//
+// Lista REAL de los incidentes ocurridos del proyecto, para el Hub de Flujo
+// de Incidentes (`/incident-flow`). Lee la MISMA colección `incidents` que el
+// endpoint de trends (top-level filtrado por projectId + nested
+// `tenants/{tid}/projects/{pid}/incidents`, de-duplicado por docId). No
+// agrega ni fabrica nada: cada item refleja campos presentes en el doc real.
+// Si el doc no tiene timestamp parseable, NO se descarta (a diferencia de
+// trends que necesita ventana) pero `occurredAt` queda `null` honestamente.
+//
+// Orden: más reciente primero (por occurredAt, los sin fecha al final).
+// `limit` opcional (default 100, máx 200) para no traer expedientes enormes.
+
+export interface IncidentListItem {
+  id: string;
+  /** ISO-8601 o null si el doc no tiene timestamp parseable. */
+  occurredAt: string | null;
+  /** Severidad cruda tal como está en el doc (puede faltar). */
+  severity: string | null;
+  /** Tipo: incidentType → type → kind (lo que exista). */
+  incidentType: string | null;
+  /** Estado del incidente (open/closed/resolved/…) si está presente. */
+  status: string | null;
+  /** Resumen/descripción si está presente. */
+  summary: string | null;
+  /** Ubicación si está presente. */
+  location: string | null;
+  /** true si el doc matchea la heurística near-miss. */
+  nearMiss: boolean;
+}
+
+export interface IncidentListResponse {
+  projectId: string;
+  total: number;
+  incidents: IncidentListItem[];
+  generatedAt: string;
+}
+
+router.get('/:projectId/incidents/list', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  if (!projectId) {
+    return res.status(400).json({ error: 'project_id_required' });
+  }
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+
+  try {
+    const db = admin.firestore();
+
+    const rawLimit =
+      typeof req.query.limit === 'string' ? Number.parseInt(req.query.limit, 10) : NaN;
+    const limit = Number.isFinite(rawLimit)
+      ? Math.min(200, Math.max(1, rawLimit))
+      : 100;
+
+    const safeRead = async <T,>(label: string, fn: () => Promise<T[]>): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.list.${label}.read_failed`, err);
+        return [];
+      }
+    };
+
+    const [topLevel, nested] = await Promise.all([
+      safeRead<Record<string, unknown>>('incidents_top', async () => {
+        const snap = await db
+          .collection('incidents')
+          .where('projectId', '==', projectId)
+          .get();
+        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }));
+      }),
+      safeRead<Record<string, unknown>>('incidents_nested', async () => {
+        const snap = await db
+          .collection(`tenants/${g.tenantId}/projects/${projectId}/incidents`)
+          .get();
+        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }));
+      }),
+    ]);
+
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const rec of topLevel) {
+      const id = String(rec.id ?? '');
+      if (id) byId.set(id, rec);
+    }
+    for (const rec of nested) {
+      const id = String(rec.id ?? '');
+      if (id && !byId.has(id)) byId.set(id, rec);
+    }
+
+    const str = (v: unknown): string | null =>
+      typeof v === 'string' && v.trim().length > 0 ? v : null;
+
+    const incidents: IncidentListItem[] = Array.from(byId.values()).map((rec) => ({
+      id: String(rec.id ?? ''),
+      occurredAt: incidentOccurredIso(rec),
+      severity: str(rec.severity),
+      incidentType: str(rec.incidentType) ?? str(rec.type) ?? str(rec.kind),
+      status: str(rec.status),
+      summary: str(rec.summary) ?? str(rec.description),
+      location: str(rec.location),
+      nearMiss: isNearMissRecord(rec),
+    }));
+
+    // Más reciente primero; sin fecha al final (orden estable por id).
+    incidents.sort((a, b) => {
+      if (a.occurredAt && b.occurredAt) {
+        return a.occurredAt < b.occurredAt ? 1 : a.occurredAt > b.occurredAt ? -1 : 0;
+      }
+      if (a.occurredAt) return -1;
+      if (b.occurredAt) return 1;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+
+    const limited = incidents.slice(0, limit);
+
+    const response: IncidentListResponse = {
+      projectId,
+      total: incidents.length,
+      incidents: limited,
+      generatedAt: new Date().toISOString(),
+    };
+    return res.json(response);
+  } catch (err) {
+    logger.error?.('sprintK.list.error', err);
+    captureRouteError(err, 'sprintK.list');
     return res.status(500).json({ error: 'internal_error' });
   }
 });

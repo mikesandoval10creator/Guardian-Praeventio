@@ -287,6 +287,9 @@ export function buildSidebarMenuGroups(
     { title: t('nav.custody_chain', 'Cadena de Custodia'), icon: Shield, path: '/custody-chain', color: 'text-violet-500' },
     // Sprint 55 Fase F.27 — Comparador de Proyectos.
     { title: t('nav.projects_compare', 'Comparar Proyectos'), icon: BarChart3, path: '/projects-compare', color: 'text-blue-500' },
+    // F3 (decisión fundador) — Hub de Flujo de Incidentes (lista real de
+    // incidentes ocurridos + gestión PDCA + microcapacitaciones derivadas).
+    { title: t('nav.incident_flow', 'Flujo de Incidentes'), icon: ListChecks, path: '/incident-flow', color: 'text-teal-500' },
     // F.29 — Tendencia de Incidentes + Leading Indicators.
     { title: t('nav.incident_trends', 'Tendencia Incidentes'), icon: BarChart3, path: '/incident-trends', color: 'text-amber-500' },
     // Épica B1 capa 2 — Simulador cotización adicional DS 67 (siniestralidad → $).

@@ -84,9 +84,21 @@ export interface CompleteMicrotrainingPayload {
   };
 }
 
+export interface AssignedMicrotrainingRef {
+  assignmentId: string;
+  moduleId: string;
+  workerUid: string;
+  assignedByUid: string | null;
+  assignedAtIso: string | null;
+  derivedFromLessonId: string | null;
+  completed: boolean;
+}
+
 export interface StatusResponse {
   status: PdcaStatus;
   nodeCount: number;
+  /** Real microtrainings assigned in this incident's PDCA chain (F3 hub). */
+  assignedMicrotrainings?: AssignedMicrotrainingRef[];
 }
 
 async function authedPost(path: string, body: unknown): Promise<Response> {

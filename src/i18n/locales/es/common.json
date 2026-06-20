@@ -215,7 +215,8 @@
     "tmert": "TMERT-EESS",
     "prexor": "PREXOR Ruido",
     "planesi": "PLANESI Sílice",
-    "maintenance_preventive": "Mantenimiento"
+    "maintenance_preventive": "Mantenimiento",
+    "incident_flow": "Flujo de Incidentes"
   },
   "auth": {
     "login": "Iniciar Sesión",
@@ -4874,5 +4875,37 @@
   },
   "softBlocks": {
     "feedUnavailable": "El listado de bloqueos activos del proyecto aún no está conectado. Cuando la fuente de requisitos por cuadrilla/actividad esté disponible, los gates aparecerán aquí."
+  },
+  "incidentFlowHub": {
+    "title": "Flujo de Incidentes",
+    "subtitle": "Incidentes ocurridos del proyecto, su gestión PDCA y microcapacitaciones derivadas.",
+    "selectProject": "Selecciona un proyecto para ver los incidentes y su gestión.",
+    "report": "Reportar incidente",
+    "error": "No se pudo cargar los incidentes: {{msg}}",
+    "listTitle": "Incidentes ocurridos",
+    "unknownSeverity": "s/sev",
+    "nearMiss": "Casi-accidente",
+    "noSummary": "Sin descripción registrada.",
+    "pdcaPhase": "Fase PDCA",
+    "pdcaClosure": "Cierre de capacitación: {{done}}/{{assigned}} trabajadores ({{pct}}%).",
+    "myTrainings": "Tu microcapacitación derivada",
+    "lessonFallback": "Lección del incidente",
+    "empty": "Sin incidentes registrados en este proyecto.",
+    "emptyHint": "Buena noticia. Aquí verás la vista anual cuando haya datos, o reporta un casi-accidente para fortalecer la cultura preventiva.",
+    "annualView": "Vista anual (12 meses)",
+    "trendsTotal": "{{count}} incidentes en 12 meses",
+    "phase": {
+      "idle": "Sin abrir",
+      "plan": "Planificar",
+      "do": "Hacer",
+      "check": "Verificar",
+      "act": "Actuar",
+      "closed": "Cerrado"
+    },
+    "trend": {
+      "improving": "Mejorando",
+      "stable": "Estable",
+      "worsening": "Empeorando"
+    }
   }
 }

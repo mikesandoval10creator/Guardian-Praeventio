@@ -182,4 +182,39 @@ describe('GET status', () => {
       expect.objectContaining({ nodeId: 'n1', type: 'incident-reported' }),
     ]));
   });
+
+  it('surfaces real assigned microtrainings (F3 hub) from the chain node metadata', async () => {
+    H.db!._seed('zettelkasten_nodes/mt1', {
+      type: 'microtraining-assigned',
+      projectId: 'p1',
+      metadata: {
+        incidentId: 'inc1',
+        assignmentId: 'mt-assign-inc1-w1',
+        moduleId: 'mod-fall',
+        workerUid: 'w1',
+        assignedByUid: 'sup9',
+        assignedAtIso: '2026-05-04T00:00:00.000Z',
+        derivedFromLessonId: 'lesson-7',
+      },
+      createdAt: '2026-05-04',
+    });
+    // A completion node for the SAME assignment flips `completed` true.
+    H.db!._seed('zettelkasten_nodes/mt1c', {
+      type: 'microtraining-completed',
+      projectId: 'p1',
+      metadata: { incidentId: 'inc1', assignmentId: 'mt-assign-inc1-w1', workerUid: 'w1' },
+      createdAt: '2026-05-05',
+    });
+    const res = await request(buildApp()).get('/api/sprint-k/p1/incident-flow/inc1/status').set(uid);
+    expect(res.status).toBe(200);
+    expect(res.body.assignedMicrotrainings).toHaveLength(1);
+    expect(res.body.assignedMicrotrainings[0]).toMatchObject({
+      assignmentId: 'mt-assign-inc1-w1',
+      moduleId: 'mod-fall',
+      workerUid: 'w1',
+      assignedByUid: 'sup9',
+      derivedFromLessonId: 'lesson-7',
+      completed: true,
+    });
+  });
 });

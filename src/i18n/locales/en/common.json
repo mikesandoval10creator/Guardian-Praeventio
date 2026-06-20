@@ -215,7 +215,8 @@
     "tmert": "TMERT-EESS",
     "prexor": "PREXOR Noise",
     "planesi": "PLANESI Silica",
-    "maintenance_preventive": "Maintenance"
+    "maintenance_preventive": "Maintenance",
+    "incident_flow": "Incident Flow"
   },
   "auth": {
     "login": "Sign In",
@@ -4874,5 +4875,37 @@
   },
   "softBlocks": {
     "feedUnavailable": "The list of active project blocks is not connected yet. Once the per-crew/activity requirements source is available, the gates will appear here."
+  },
+  "incidentFlowHub": {
+    "title": "Incident Flow",
+    "subtitle": "Incidents that occurred on the project, their PDCA management and derived microtrainings.",
+    "selectProject": "Select a project to see incidents and their management.",
+    "report": "Report incident",
+    "error": "Could not load incidents: {{msg}}",
+    "listTitle": "Incidents that occurred",
+    "unknownSeverity": "n/sev",
+    "nearMiss": "Near-miss",
+    "noSummary": "No description recorded.",
+    "pdcaPhase": "PDCA phase",
+    "pdcaClosure": "Training closure: {{done}}/{{assigned}} workers ({{pct}}%).",
+    "myTrainings": "Your derived microtraining",
+    "lessonFallback": "Incident lesson",
+    "empty": "No incidents recorded on this project.",
+    "emptyHint": "Good news. You'll see the annual view here once there is data, or report a near-miss to strengthen the prevention culture.",
+    "annualView": "Annual view (12 months)",
+    "trendsTotal": "{{count}} incidents in 12 months",
+    "phase": {
+      "idle": "Not opened",
+      "plan": "Plan",
+      "do": "Do",
+      "check": "Check",
+      "act": "Act",
+      "closed": "Closed"
+    },
+    "trend": {
+      "improving": "Improving",
+      "stable": "Stable",
+      "worsening": "Worsening"
+    }
   }
 }
