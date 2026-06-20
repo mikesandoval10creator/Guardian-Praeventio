@@ -9,6 +9,7 @@ import { FlaskConical, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { HazmatStorageManager } from '../components/hazmat/HazmatStorageManager';
+import { HazmatCompatibilityPanel } from '../components/hazmat/HazmatCompatibilityPanel';
 import {
   addHazmatSubstance,
   updateHazmatSubstance,
@@ -135,11 +136,14 @@ export function HazmatInventoryPage() {
       )}
 
       {!loading && !error && (
-        <HazmatStorageManager
-          items={inventory}
-          onChange={handleChange}
-          readOnly={!isOnline}
-        />
+        <>
+          <HazmatStorageManager
+            items={inventory}
+            onChange={handleChange}
+            readOnly={!isOnline}
+          />
+          <HazmatCompatibilityPanel items={inventory} />
+        </>
       )}
     </div>
   );

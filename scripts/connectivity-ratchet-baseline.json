@@ -32,7 +32,6 @@
     "src/components/exposure/HeatStressCard.tsx",
     "src/components/external-events/CalmRecommendationCard.tsx",
     "src/components/governance/DeviationRadarPanel.tsx",
-    "src/components/hazmat/HazmatCompatibilityPanel.tsx",
     "src/components/health/OccupationalContextBundleCard.tsx",
     "src/components/heatmap/FindingsHeatmapPreview.tsx",
     "src/components/horometro/HorometroEntryForm.tsx",
