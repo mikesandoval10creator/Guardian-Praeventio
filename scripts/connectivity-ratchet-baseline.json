@@ -35,7 +35,6 @@
     "src/components/health/OccupationalContextBundleCard.tsx",
     "src/components/heatmap/FindingsHeatmapPreview.tsx",
     "src/components/horometro/HorometroEntryForm.tsx",
-    "src/components/horometro/MaintenanceTaskList.tsx",
     "src/components/hvac/AirQualityPanel.tsx",
     "src/components/identity/TaxIdInput.tsx",
     "src/components/incidentFlow/AssignedMicrotrainingCard.tsx",
