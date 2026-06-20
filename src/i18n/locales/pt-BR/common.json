@@ -588,6 +588,8 @@
     "subtitle": "Gestão de saúde, exames médicos e vigilância epidemiológica",
     "ds109_tooltip": "Gerar formulário DS 109 (qualificação de doença ocupacional)",
     "ds109_label": "Qualificação DS 109",
+    "ds67_tooltip": "Gerar notificação DS 67 de acidente de trabalho à seguradora mútua (Lei 16.744 art. 76)",
+    "ds67_label": "Notificação DS 67",
     "new_consultation": "Nova Consulta",
     "workstation": "Estação de Trabalho Médica",
     "tab_visor": "Visor Corporal",

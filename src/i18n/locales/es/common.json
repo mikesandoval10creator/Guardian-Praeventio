@@ -588,6 +588,8 @@
     "subtitle": "Gestión de salud, exámenes médicos y vigilancia epidemiológica",
     "ds109_tooltip": "Generar formulario DS 109 (calificación de enfermedad profesional)",
     "ds109_label": "Calificación DS 109",
+    "ds67_tooltip": "Generar notificación DS 67 de accidente del trabajo a la mutualidad (Ley 16.744 art. 76)",
+    "ds67_label": "Notificación DS 67",
     "new_consultation": "Nueva Consulta",
     "workstation": "Estación de Trabajo Médica",
     "tab_visor": "Visor Corporal",
