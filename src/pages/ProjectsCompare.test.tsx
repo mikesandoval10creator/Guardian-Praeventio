@@ -10,9 +10,22 @@
 //   5. Tope MAX_PROJECTS_TO_COMPARE.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ProjectsCompare } from './ProjectsCompare';
 import type { ProjectSnapshot } from '../services/projectComparator/projectComparator';
+
+// Mock the READ-side snapshots fetch so we can prove REAL data (server-shaped
+// ProjectSnapshot[]) flows from the hook into the comparator when NO prop is
+// passed — i.e. the production mount path (App.tsx renders <ProjectsCompare/>
+// without props).
+const mockFetchProjectSnapshots = vi.fn();
+vi.mock('../hooks/useMultiProject', () => ({
+  fetchProjectSnapshots: (projectId: string) => mockFetchProjectSnapshots(projectId),
+}));
+vi.mock('../hooks/useProjectComparator', () => ({
+  // Force the local pure-engine report to render (no server round-trip in test).
+  compareProjectsApi: () => new Promise(() => {}),
+}));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -64,6 +77,10 @@ function snap(id: string, name: string, over: Partial<ProjectSnapshot['metrics']
 beforeEach(() => {
   mockProjects = [];
   mockIsOnline = true;
+  mockFetchProjectSnapshots.mockReset();
+  // Default: no data returned (so prop-driven tests are unaffected — they pass
+  // an explicit `snapshots` prop, which short-circuits the fetch entirely).
+  mockFetchProjectSnapshots.mockResolvedValue({ snapshots: [] });
 });
 
 describe('<ProjectsCompare /> (Fase F.27)', () => {
@@ -147,5 +164,51 @@ describe('<ProjectsCompare /> (Fase F.27)', () => {
     mockIsOnline = false;
     render(<ProjectsCompare snapshots={snapshots} />);
     expect(screen.getByTestId('projects-compare-offline-chip')).toBeInTheDocument();
+  });
+
+  // ── REAL data path (no prop): snapshots fetched server-side flow into the
+  //    comparator. This is the production mount (App.tsx renders without props)
+  //    that DEEP-EX-34 H3 / #1049 fixed — before, the comparator was always
+  //    empty because nothing populated `snapshots`.
+  it('carga snapshots REALES vía fetchProjectSnapshots cuando no recibe prop', async () => {
+    mockProjects = [
+      { id: 'p1', name: 'Norte' },
+      { id: 'p2', name: 'Sur' },
+    ];
+    mockFetchProjectSnapshots.mockResolvedValue({
+      snapshots: [
+        snap('p1', 'Norte', { incidentCount: 1, auditCompliancePct: 95 }),
+        snap('p2', 'Sur', { incidentCount: 10, auditCompliancePct: 40 }),
+      ],
+    });
+
+    render(<ProjectsCompare />); // NO snapshots prop → must fetch
+
+    // The fetch is scoped to the auth "lens" project (first project here).
+    await waitFor(() =>
+      expect(mockFetchProjectSnapshots).toHaveBeenCalledWith('p1'),
+    );
+
+    // Eligible chips appear only once the REAL fetched snapshots arrive.
+    await waitFor(() =>
+      expect(screen.getByTestId('projects-compare-toggle-p1')).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('projects-compare-toggle-p2')).toBeInTheDocument();
+
+    // Select both → the comparator renders over the fetched (real-shaped) data.
+    fireEvent.click(screen.getByTestId('projects-compare-toggle-p1'));
+    fireEvent.click(screen.getByTestId('projects-compare-toggle-p2'));
+    expect(screen.getByTestId('projects-compare-table')).toBeInTheDocument();
+    expect(screen.getByTestId('projects-compare-ranking')).toBeInTheDocument();
+    // Norte (fewer incidents, higher audit %) must rank first.
+    expect(screen.getByTestId('projects-compare-rank-0')).toHaveTextContent('Norte');
+  });
+
+  it('no llama fetchProjectSnapshots cuando recibe prop explícito (override)', () => {
+    mockProjects = [{ id: 'p1', name: 'Norte' }, { id: 'p2', name: 'Sur' }];
+    render(
+      <ProjectsCompare snapshots={{ p1: snap('p1', 'Norte'), p2: snap('p2', 'Sur') }} />,
+    );
+    expect(mockFetchProjectSnapshots).not.toHaveBeenCalled();
   });
 });

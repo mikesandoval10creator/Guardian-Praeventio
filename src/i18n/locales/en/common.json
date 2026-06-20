@@ -487,6 +487,10 @@
       "concerning": "concerning",
       "critical": "critical",
       "extreme": "extreme"
+    },
+    "reconciliation": {
+      "running": "Syncing…",
+      "last": "{{succeeded}}/{{attempted}} synced"
     }
   },
   "errors": {
@@ -2631,6 +2635,20 @@
     "actions": {
       "generateOc": "Generate Purchase Order (.pdf)",
       "todoNote": "For now downloads JSON · formal PDF pending Sprint K §177."
+    },
+    "scenario": {
+      "title": "ROI scenario comparator",
+      "subtitle": "Scenario derived from your inputs (active project {{project}}), computed server-side.",
+      "empty": "Select an active project to compare ROI scenarios on the server.",
+      "colScenario": "Scenario",
+      "colInvestment": "Annual investment",
+      "colSavings": "Projected savings",
+      "colRoi": "Projected ROI",
+      "colPayback": "Payback",
+      "colScore": "Score",
+      "sensitivity": "Sensitivity band ±20%: {{low}}% to {{high}}%",
+      "recommended": "Recommended",
+      "rationaleTitle": "Comparative analysis"
     }
   },
   "oc": {
@@ -3020,6 +3038,13 @@
       "heading": "History ({{count}})",
       "empty": "No root-cause analyses in this project yet.",
       "select_hint": "Select an analysis on the left to view the detail."
+    },
+    "research_summary": {
+      "heading": "Research summary",
+      "nodes": "Nodes: {{count}}",
+      "depth": "Max depth: {{d}}",
+      "roots": "Roots: {{count}}",
+      "failed_controls": "Failed controls: {{list}}"
     }
   },
   "consistency_audit": {
@@ -3556,11 +3581,15 @@
       "subtitle": "ISO 45001 §9.3 + DS 76 — annual PDCA cycle: preventive objectives, evidence and signed conclusions.",
       "title": "Annual OHSMS Review"
     },
+    "roleSummaries": {
+      "loading": "Generating multi-role summaries…"
+    },
     "section": {
       "analysis": "Analysis and findings",
       "conclusion": "Conclusions and signature",
       "evidence": "Evidence",
-      "objectives": "Preventive objectives"
+      "objectives": "Preventive objectives",
+      "roleSummaries": "Multi-role summaries"
     },
     "title": "Annual OHSMS Review",
     "topPerformers": "Top achievements",
@@ -4828,5 +4857,8 @@
       "selectEquipment": "— Select equipment —",
       "noEquipment": "No equipment registered in this project."
     }
+  },
+  "softBlocks": {
+    "feedUnavailable": "The list of active project blocks is not connected yet. Once the per-crew/activity requirements source is available, the gates will appear here."
   }
 }

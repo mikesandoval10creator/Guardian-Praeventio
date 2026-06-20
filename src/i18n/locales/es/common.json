@@ -487,6 +487,10 @@
       "concerning": "preocupante",
       "critical": "crítico",
       "extreme": "extremo"
+    },
+    "reconciliation": {
+      "running": "Sincronizando…",
+      "last": "{{succeeded}}/{{attempted}} sincronizados"
     }
   },
   "errors": {
@@ -2631,6 +2635,20 @@
     "actions": {
       "generateOc": "Generar Orden de Compra (.pdf)",
       "todoNote": "Por ahora descarga JSON · PDF formal pendiente Sprint K §177."
+    },
+    "scenario": {
+      "title": "Comparador de escenarios ROI",
+      "subtitle": "Escenario derivado de tus inputs (proyecto activo {{project}}), calculado en el servidor.",
+      "empty": "Selecciona un proyecto activo para comparar escenarios ROI en el servidor.",
+      "colScenario": "Escenario",
+      "colInvestment": "Inversión anual",
+      "colSavings": "Ahorro proyectado",
+      "colRoi": "ROI proyectado",
+      "colPayback": "Payback",
+      "colScore": "Score",
+      "sensitivity": "Banda de sensibilidad ±20%: {{low}}% a {{high}}%",
+      "recommended": "Recomendado",
+      "rationaleTitle": "Análisis comparativo"
     }
   },
   "oc": {
@@ -3020,6 +3038,13 @@
       "heading": "Historial ({{count}})",
       "empty": "Aún no hay análisis de causa raíz en este proyecto.",
       "select_hint": "Selecciona un análisis a la izquierda para ver el detalle."
+    },
+    "research_summary": {
+      "heading": "Resumen investigación",
+      "nodes": "Nodos: {{count}}",
+      "depth": "Profundidad máx: {{d}}",
+      "roots": "Raíces: {{count}}",
+      "failed_controls": "Controles fallidos: {{list}}"
     }
   },
   "consistency_audit": {
@@ -3556,11 +3581,15 @@
       "subtitle": "ISO 45001 §9.3 + DS 76 — ciclo PDCA anual: objetivos preventivos, evidencias y conclusiones firmadas.",
       "title": "Revisión Anual del SGI"
     },
+    "roleSummaries": {
+      "loading": "Generando resúmenes multi-rol…"
+    },
     "section": {
       "analysis": "Análisis y hallazgos",
       "conclusion": "Conclusiones y firma",
       "evidence": "Evidencias",
-      "objectives": "Objetivos preventivos"
+      "objectives": "Objetivos preventivos",
+      "roleSummaries": "Resúmenes por audiencia"
     },
     "title": "Revisión Anual SGI",
     "topPerformers": "Logros destacados",
@@ -4828,5 +4857,8 @@
       "selectEquipment": "— Selecciona un equipo —",
       "noEquipment": "No hay equipos registrados en este proyecto."
     }
+  },
+  "softBlocks": {
+    "feedUnavailable": "El listado de bloqueos activos del proyecto aún no está conectado. Cuando la fuente de requisitos por cuadrilla/actividad esté disponible, los gates aparecerán aquí."
   }
 }

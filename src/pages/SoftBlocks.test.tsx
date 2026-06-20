@@ -67,11 +67,27 @@ describe('<SoftBlocks /> (Fase F.17)', () => {
     expect(screen.getByTestId('soft-blocks-page-empty')).toBeInTheDocument();
   });
 
-  it('renderiza empty success cuando no hay bloqueos activos', () => {
+  it('renderiza empty success cuando se consultó y NO hay bloqueos activos (blocks=[])', () => {
     mockSelectedProject = { id: 'p1', name: 'Norte' };
     render(<SoftBlocks blocks={[]} />);
     expect(screen.getByTestId('soft-blocks-empty-state')).toBeInTheDocument();
     expect(screen.getByText(/Sin bloqueos activos/i)).toBeInTheDocument();
+  });
+
+  it('feed NO cableado (blocks=undefined): muestra empty-state honesto, NUNCA falso "todo OK"', () => {
+    mockSelectedProject = { id: 'p1', name: 'Norte' };
+    // App.tsx monta <SoftBlocks /> sin props → blocks === undefined.
+    render(<SoftBlocks />);
+    // Estado honesto "feed no conectado" presente.
+    expect(
+      screen.getByTestId('soft-blocks-page-feed-unavailable'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/aún no está conectado/i)).toBeInTheDocument();
+    // Y NO el falso all-clear verde "Sin bloqueos activos".
+    expect(
+      screen.queryByTestId('soft-blocks-empty-state'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Sin bloqueos activos/i)).not.toBeInTheDocument();
   });
 
   it('muestra card de soft_block con lista de requirements y botón override', () => {
@@ -84,7 +100,9 @@ describe('<SoftBlocks /> (Fase F.17)', () => {
     };
     render(<SoftBlocks blocks={[block]} />);
     expect(screen.getByTestId('soft-block-card-b1')).toBeInTheDocument();
-    expect(screen.getByText(/Capacitación altura/i)).toBeInTheDocument();
+    // El label aparece tanto en <RequirementGatePanel> como en la lista
+    // detallada del card → ≥1 ocurrencia.
+    expect(screen.getAllByText(/Capacitación altura/i).length).toBeGreaterThan(0);
     expect(screen.getByTestId('soft-block-override-btn-b1')).toBeInTheDocument();
   });
 

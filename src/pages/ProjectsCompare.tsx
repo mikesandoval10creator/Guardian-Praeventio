@@ -8,7 +8,7 @@
 // Directiva 2: NO recomienda decisión, sólo asiste. Las observaciones
 // describen diferencias sin sugerir cierre de proyecto.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Briefcase,
@@ -20,6 +20,9 @@ import {
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { compareProjectsApi } from '../hooks/useProjectComparator';
+import { fetchProjectSnapshots } from '../hooks/useMultiProject';
+import { logger } from '../utils/logger';
 import {
   compareProjects,
   MAX_PROJECTS_TO_COMPARE,
@@ -28,21 +31,63 @@ import {
   METRIC_LABELS_ES,
   ProjectComparatorError,
   type ComparisonMetricKey,
+  type ComparisonReport,
   type ProjectSnapshot,
 } from '../services/projectComparator/projectComparator';
 
 interface ProjectsCompareProps {
-  /** Mapa projectId → snapshot. Caller server-side los pre-agrega desde
-   *  el grafo Zettelkasten (incidents/findings/audits/risks). Vacío =
-   *  empty state. */
+  /** Mapa projectId → snapshot. Override opcional (tests / SSR). Cuando se
+   *  omite, la página agrega los snapshots REALES vía
+   *  `fetchProjectSnapshots` (GET /multi-project/snapshots), que suma
+   *  incidents/findings/audits/risks/corrective_actions server-side. */
   snapshots?: Record<string, ProjectSnapshot>;
 }
 
-export function ProjectsCompare({ snapshots = {} }: ProjectsCompareProps) {
+export function ProjectsCompare({ snapshots: snapshotsProp }: ProjectsCompareProps) {
   const { t } = useTranslation();
-  const { projects } = useProject();
+  const { projects, selectedProject } = useProject();
   const isOnline = useOnlineStatus();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Real snapshots fetched from the server. Skipped when an explicit prop is
+  // provided (tests pass curated snapshots); otherwise loaded on mount once a
+  // project (the auth "lens") is available.
+  const [fetchedSnapshots, setFetchedSnapshots] = useState<
+    Record<string, ProjectSnapshot>
+  >({});
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+
+  // The auth "lens" project the GET is scoped to (caller must be a member).
+  const lensProjectId = selectedProject?.id ?? projects[0]?.id ?? null;
+
+  useEffect(() => {
+    if (snapshotsProp !== undefined) return; // explicit override → no fetch
+    if (!lensProjectId) return;
+    let cancelled = false;
+    setSnapshotsLoading(true);
+    fetchProjectSnapshots(lensProjectId)
+      .then((res) => {
+        if (cancelled) return;
+        const byId: Record<string, ProjectSnapshot> = {};
+        for (const s of res.snapshots) byId[s.projectId] = s;
+        setFetchedSnapshots(byId);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        logger.warn?.('[ProjectsCompare] fetchProjectSnapshots failed', {
+          err: err instanceof Error ? err.message : String(err),
+        });
+        setFetchedSnapshots({});
+      })
+      .finally(() => {
+        if (!cancelled) setSnapshotsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [snapshotsProp, lensProjectId]);
+
+  const snapshots = snapshotsProp ?? fetchedSnapshots;
 
   const eligibleProjects = useMemo(
     () => projects.filter((p) => snapshots[p.id]),
@@ -64,6 +109,26 @@ export function ProjectsCompare({ snapshots = {} }: ProjectsCompareProps) {
       throw err;
     }
   }, [selectedSnapshots]);
+
+  const [serverReport, setServerReport] = useState<ComparisonReport | null>(null);
+
+  useEffect(() => {
+    if (!report || selectedIds.length === 0) {
+      setServerReport(null);
+      return;
+    }
+    let cancelled = false;
+    compareProjectsApi(selectedIds[0], { snapshots: selectedSnapshots })
+      .then((res) => {
+        if (!cancelled) setServerReport(res.report);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [report, selectedIds, selectedSnapshots]);
+
+  const finalReport = serverReport ?? report;
 
   function toggleProject(projectId: string) {
     setSelectedIds((curr) => {
@@ -92,10 +157,12 @@ export function ProjectsCompare({ snapshots = {} }: ProjectsCompareProps) {
             {t('projectsCompare.page.title', 'Comparador de Proyectos')}
           </h1>
           <p className="mt-2 text-sm text-secondary-token">
-            {t(
-              'projectsCompare.page.noEligible',
-              'Sin proyectos con KPIs disponibles para comparar.',
-            )}
+            {snapshotsLoading
+              ? t('common.loading', 'Cargando...')
+              : t(
+                  'projectsCompare.page.noEligible',
+                  'Sin proyectos con KPIs disponibles para comparar.',
+                )}
           </p>
         </div>
       </div>
@@ -185,7 +252,7 @@ export function ProjectsCompare({ snapshots = {} }: ProjectsCompareProps) {
         </div>
       )}
 
-      {report && (
+      {finalReport && (
         <>
           {/* Overall ranking */}
           <section
@@ -196,7 +263,7 @@ export function ProjectsCompare({ snapshots = {} }: ProjectsCompareProps) {
               {t('projectsCompare.ranking.title', 'Ranking global')}
             </h2>
             <ol className="space-y-2">
-              {report.overallRanking.map((r, idx) => (
+              {finalReport.overallRanking.map((r, idx) => (
                 <li
                   key={r.projectId}
                   className="flex items-center gap-3 p-2 rounded-lg border border-default-token bg-surface"
@@ -232,7 +299,7 @@ export function ProjectsCompare({ snapshots = {} }: ProjectsCompareProps) {
                   <th className="text-left p-3 text-xs font-black text-primary-token uppercase tracking-wider">
                     {t('projectsCompare.table.kpi', 'KPI')}
                   </th>
-                  {report.projects.map((p) => (
+                  {finalReport.projects.map((p) => (
                     <th
                       key={p.projectId}
                       className="text-center p-3 text-xs font-black text-primary-token uppercase tracking-wider"
@@ -243,7 +310,7 @@ export function ProjectsCompare({ snapshots = {} }: ProjectsCompareProps) {
                 </tr>
               </thead>
               <tbody>
-                {report.metricComparisons.map((mc) => (
+                {finalReport.metricComparisons.map((mc) => (
                   <tr
                     key={mc.metric}
                     className="border-t border-default-token"
@@ -270,7 +337,7 @@ export function ProjectsCompare({ snapshots = {} }: ProjectsCompareProps) {
                         )}
                       </p>
                     </td>
-                    {report.projects.map((p, projectIdx) => {
+                    {finalReport.projects.map((p, projectIdx) => {
                       const value = mc.values[projectIdx];
                       const normalized = mc.normalizedScores[projectIdx];
                       const isWinner = mc.winnerProjectId === p.projectId;
@@ -298,7 +365,7 @@ export function ProjectsCompare({ snapshots = {} }: ProjectsCompareProps) {
           </section>
 
           {/* Observations */}
-          {report.observations.length > 0 && (
+          {finalReport.observations.length > 0 && (
             <section
               className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4"
               data-testid="projects-compare-observations"
@@ -308,7 +375,7 @@ export function ProjectsCompare({ snapshots = {} }: ProjectsCompareProps) {
                 {t('projectsCompare.observations.title', 'Observaciones')}
               </h2>
               <ul className="space-y-1.5 text-sm text-primary-token">
-                {report.observations.map((o, idx) => (
+                {finalReport.observations.map((o, idx) => (
                   <li key={idx}>· {o}</li>
                 ))}
               </ul>
