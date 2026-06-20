@@ -70,8 +70,10 @@ export function MaturityIndexCard({
         </span>
       </header>
 
-      {/* Gauge */}
-      <div className="mb-4" data-testid="maturity-gauge">
+      {/* Overall-score bar (distinct from the page's circular level gauge;
+          renamed from `maturity-gauge` to avoid a testid collision when this
+          card is mounted inside <MaturityIndicator />). */}
+      <div className="mb-4" data-testid="maturity-score-bar">
         <div className="flex items-end justify-between mb-1">
           <span className="text-xs text-secondary-token">
             {t('maturity.overall', 'Score global')}
