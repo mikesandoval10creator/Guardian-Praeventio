@@ -23,7 +23,7 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScanLine, WifiOff, ShieldCheck } from 'lucide-react';
+import { ScanLine, WifiOff, ShieldCheck, KeyRound, CheckCircle2 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
@@ -31,11 +31,13 @@ import {
   persistQrAcknowledgement,
 } from '../hooks/useQrSignature';
 import { QrSignatureModal } from '../components/qrSignature/QrSignatureModal';
+import { PinSignModal } from '../components/pinSign/PinSignModal';
 import type {
   QrSignatureChallenge,
   SignatureItemKind,
   SignedAcknowledgement,
 } from '../services/qrSignature/qrSignatureService';
+import type { PinSignedAcknowledgement } from '../services/pinSign/pinSignService';
 import { logger } from '../utils/logger';
 
 const KIND_OPTIONS: ReadonlyArray<{ value: SignatureItemKind; label: string }> = [
@@ -61,6 +63,19 @@ export function QrSignature() {
     useState<SignedAcknowledgement | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+
+  // PIN fallback (firma=huella universal; PIN es alternativa legítima cuando el
+  // trabajador no tiene biometría disponible — tablet/kiosk compartido). El
+  // modal firma de verdad vía POST /api/sprint-k/:projectId/pin-sign/sign-item;
+  // la credencial PIN vive server-side, el cliente sólo envía el PIN.
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pinAck, setPinAck] = useState<PinSignedAcknowledgement | null>(null);
+
+  const handlePinSigned = (result: {
+    acknowledgement: PinSignedAcknowledgement;
+  }) => {
+    setPinAck(result.acknowledgement);
+  };
 
   const handleGenerate = async () => {
     if (!projectId || !itemId.trim()) return;
@@ -148,6 +163,8 @@ export function QrSignature() {
     setItemId('');
     setWorkerUid('');
     setError(null);
+    setPinAck(null);
+    setPinModalOpen(false);
   };
 
   if (!selectedProject) {
@@ -276,8 +293,56 @@ export function QrSignature() {
               ? t('qrSig.page.generating', 'Generando…')
               : t('qrSig.page.generate', 'Generar QR')}
           </button>
+
+          {/* PIN fallback: firma=huella universal, PIN es alternativa legítima
+              cuando no hay biometría disponible. Reusa el mismo kind + itemId
+              del formulario; firma de verdad vía sign-item. */}
+          <div className="pt-2 border-t border-default-token space-y-2">
+            <p className="text-[11px] text-secondary-token">
+              {t(
+                'qrSig.page.pinFallbackHelp',
+                'Sin biometría disponible. Firma con tu PIN como alternativa.',
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => setPinModalOpen(true)}
+              disabled={!itemId.trim() || !isOnline}
+              data-testid="qr-sig-pin-fallback-btn"
+              className="w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <KeyRound className="w-4 h-4" aria-hidden="true" />
+              {t('qrSig.page.signWithPin', 'Firmar con PIN')}
+            </button>
+          </div>
+
+          {pinAck && (
+            <div
+              className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2"
+              data-testid="qr-sig-pin-ack-confirm"
+              role="status"
+            >
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
+              <span>
+                {t(
+                  'qrSig.page.pinSigned',
+                  'Firmado con PIN: {{itemId}} ({{kind}}).',
+                  { itemId: pinAck.itemId, kind: pinAck.kind },
+                )}
+              </span>
+            </div>
+          )}
         </section>
       )}
+
+      <PinSignModal
+        isOpen={pinModalOpen}
+        onClose={() => setPinModalOpen(false)}
+        projectId={selectedProject.id}
+        itemId={itemId.trim()}
+        kind={kind}
+        onSigned={handlePinSigned}
+      />
 
       {loading && !challenge && (
         <div

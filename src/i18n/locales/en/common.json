@@ -1,4 +1,11 @@
 {
+  "qrSig": {
+    "page": {
+      "signWithPin": "Sign with PIN",
+      "pinFallbackHelp": "No biometrics available. Sign with your PIN as an alternative.",
+      "pinSigned": "Signed with PIN: {{itemId}} ({{kind}})."
+    }
+  },
   "fiveS": {
     "aria": "5S audit",
     "title": "5S Audit",
