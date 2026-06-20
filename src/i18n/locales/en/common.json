@@ -894,7 +894,10 @@
     "field_expires": "Expiration Date (Optional)",
     "btn_cancel": "Cancel",
     "btn_generating": "Generating receipt...",
-    "btn_confirm": "Confirm Assignment"
+    "btn_confirm": "Confirm Assignment",
+    "inspect": "Inspect PPE",
+    "inspect_submitted": "Inspection recorded successfully.",
+    "inspect_submitted_with_order": "Inspection recorded. A purchase order was suggested for review."
   },
   "currency": {
     "selector_aria": "Currency selector"

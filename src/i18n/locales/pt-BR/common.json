@@ -894,7 +894,10 @@
     "field_expires": "Data de Validade (Opcional)",
     "btn_cancel": "Cancelar",
     "btn_generating": "Gerando recibo...",
-    "btn_confirm": "Confirmar Atribuição"
+    "btn_confirm": "Confirmar Atribuição",
+    "inspect": "Inspecionar EPI",
+    "inspect_submitted": "Inspeção registrada com sucesso.",
+    "inspect_submitted_with_order": "Inspeção registrada. Uma ordem de compra foi sugerida para revisão."
   },
   "currency": {
     "selector_aria": "Seletor de moeda"

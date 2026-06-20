@@ -894,7 +894,10 @@
     "field_expires": "Fecha de Vencimiento (Opcional)",
     "btn_cancel": "Cancelar",
     "btn_generating": "Generando Acta...",
-    "btn_confirm": "Confirmar Asignación"
+    "btn_confirm": "Confirmar Asignación",
+    "inspect": "Inspeccionar EPP",
+    "inspect_submitted": "Inspección registrada correctamente.",
+    "inspect_submitted_with_order": "Inspección registrada. Se sugirió una orden de compra para revisión."
   },
   "currency": {
     "selector_aria": "Selector de moneda"

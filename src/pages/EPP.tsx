@@ -1,40 +1,50 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { 
-  Shield, 
-  Search, 
-  Plus, 
-  Filter, 
-  Loader2, 
-  Package, 
-  CheckCircle2, 
+import {
+  Shield,
+  Search,
+  Plus,
+  Filter,
+  Loader2,
+  Package,
+  CheckCircle2,
   AlertCircle,
   Clock,
   ArrowRight,
   X,
-  UserPlus
+  UserPlus,
+  ClipboardCheck
 } from 'lucide-react';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { useTenantId } from '../hooks/useTenantId';
 import { EPPItem, EPPAssignment, Worker } from '../types';
 import { db, serverTimestamp } from '../services/firebase';
 import { collection, addDoc, where } from 'firebase/firestore';
 import { AssignEPPModal } from '../components/epp/AssignEPPModal';
 import { EPPVerificationModal } from '../components/epp/EPPVerificationModal';
+import { EppInspectionForm } from '../components/eppFlow/EppInspectionForm';
+import type { InventoryItem } from '../services/financialAnalytics/purchaseOrderSuggester';
 import { Sparkles } from 'lucide-react';
 import { logger } from '../utils/logger';
+
+/** Page-existing replenish heuristic (mirrors the "to_replenish" stat: stock < 10). */
+const REORDER_THRESHOLD = 10;
 
 export function EPP() {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { user, userRole, isAdmin } = useFirebase();
+  const { tenantId } = useTenantId();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('__all__');
   const [isAdding, setIsAdding] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isInspecting, setIsInspecting] = useState(false);
+  const [inspectionMsg, setInspectionMsg] = useState<string | null>(null);
   
   const [newItem, setNewItem] = useState({
     name: '',
@@ -68,6 +78,52 @@ export function EPP() {
     const matchesCategory = activeCategory === '__all__' || item.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
+
+  // ── EPP inspection wiring (Bloque 4.2) ──────────────────────────────────
+  // Derive the inspection inputs from the REAL Firestore EPP catalog. Each
+  // catalog row maps id→itemId, category→kind, name→label. Inventory is
+  // grouped by category using the real `stock` field; the replenish threshold
+  // reuses the page's existing `< 10` heuristic (no fabricated value).
+  const inspectionCatalog = useMemo(
+    () =>
+      (eppItems || []).map((item) => ({
+        itemId: item.id,
+        kind: item.category || 'general',
+        label: item.name,
+      })),
+    [eppItems],
+  );
+
+  const inventoryByKind = useMemo<Record<string, InventoryItem>>(() => {
+    const acc: Record<string, InventoryItem> = {};
+    for (const item of eppItems || []) {
+      const kind = item.category || 'general';
+      const prev = acc[kind];
+      const stock = item.stock || 0;
+      if (prev) {
+        prev.currentStock += stock;
+      } else {
+        acc[kind] = {
+          kind,
+          currentStock: stock,
+          reorderThreshold: REORDER_THRESHOLD,
+          // No real consumption-history source → 0 (honest). Only affects the
+          // optional purchase-order coverage sizing, not the inspection record.
+          expectedConsumptionPerMonth: 0,
+        };
+      }
+    }
+    return acc;
+  }, [eppItems]);
+
+  // The worker being inspected is the logged-in user (worker self-report) or,
+  // for an admin without a worker identity, still recorded against their uid.
+  const workerUid = user?.uid ?? '';
+  const canInspect =
+    Boolean(selectedProject) &&
+    Boolean(tenantId) &&
+    Boolean(workerUid) &&
+    inspectionCatalog.length > 0;
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,7 +164,17 @@ export function EPP() {
               </div>
             </div>
           </div>
-          <button 
+          <button
+            onClick={() => setIsInspecting((v) => !v)}
+            disabled={!canInspect}
+            data-testid="epp-inspect-toggle"
+            aria-expanded={isInspecting}
+            className="bg-teal-600 text-white px-4 py-3 sm:py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-teal-700 transition-all shadow-xl shadow-teal-500/20 flex items-center justify-center gap-2 border border-teal-400/20 w-full sm:w-auto disabled:opacity-50"
+          >
+            <ClipboardCheck className="w-4 h-4" />
+            <span>{t('epp.inspect')}</span>
+          </button>
+          <button
             onClick={() => setIsVerifying(true)}
             className="bg-gradient-to-r from-emerald-500 to-teal-500 dark:from-emerald-600 dark:to-teal-600 text-white px-4 py-3 sm:py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest hover:from-emerald-600 hover:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 border border-emerald-400/20 w-full sm:w-auto"
           >
@@ -160,6 +226,51 @@ export function EPP() {
           </motion.div>
         ))}
       </div>
+
+      {/* EPP Inspection (Bloque 4.2) — worker reports OK/warning/failed per item;
+          persists a real ZK inspection record + inventory adjustment via the
+          eppFlow router. No supplier-cost catalog exists as real data, so the
+          optional purchase-order suggestion is intentionally absent (not faked). */}
+      {inspectionMsg && (
+        <div
+          role="status"
+          data-testid="epp-inspection-result"
+          className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-100"
+        >
+          {inspectionMsg}
+        </div>
+      )}
+      <AnimatePresence>
+        {isInspecting && canInspect && selectedProject && tenantId && (
+          <motion.section
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            data-testid="epp-inspection-section"
+            className="overflow-hidden"
+          >
+            <EppInspectionForm
+              projectId={selectedProject.id}
+              tenantId={tenantId}
+              workerUid={workerUid}
+              reportedByUid={workerUid}
+              catalog={inspectionCatalog}
+              inventoryByKind={inventoryByKind}
+              supplierCatalog={[]}
+              leadTimeDaysBySupplier={{}}
+              onSubmitted={(result) => {
+                setInspectionMsg(
+                  result.suggestedOrder
+                    ? t('epp.inspect_submitted_with_order', 'Inspección registrada. Se sugirió una orden de compra para revisión.')
+                    : t('epp.inspect_submitted', 'Inspección registrada correctamente.'),
+                );
+                setIsInspecting(false);
+              }}
+              onError={(msg) => setInspectionMsg(msg)}
+            />
+          </motion.section>
+        )}
+      </AnimatePresence>
 
       {/* Filters */}
       <div className="flex flex-col md:flex-row gap-3 sm:gap-4">
