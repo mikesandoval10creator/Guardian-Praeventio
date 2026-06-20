@@ -243,6 +243,7 @@
     "edit": "Editar",
     "close": "Fechar",
     "confirm": "Confirmar",
+    "done": "Concluído",
     "retry": "Tentar novamente",
     "error": "Erro",
     "success": "Sucesso",
@@ -859,7 +860,19 @@
     "vs_superseded": "Substituído",
     "vs_retired": "Retirado",
     "changelog": "Registro de alterações",
-    "closeHistory": "Fechar"
+    "closeHistory": "Fechar",
+    "legalGen": "Gerar documento legal"
+  },
+  "legalDoc": {
+    "aria": "Gerador de documentos legais",
+    "title": "Documentos legais",
+    "kind": "Tipo de documento",
+    "required": "Campos obrigatórios",
+    "optional": "Campos opcionais",
+    "missingTokens": "Campos faltantes",
+    "preview": "Visualização markdown",
+    "references": "Referências normativas",
+    "generate": "Gerar PDF"
   },
   "epp": {
     "title": "Gestão de EPI",
@@ -4924,7 +4937,23 @@
       "selectPrompt": "Selecione um equipamento para ver suas tarefas de manutenção.",
       "equipmentLabel": "Equipamento",
       "selectEquipment": "— Selecione um equipamento —",
-      "noEquipment": "Não há equipamentos registrados neste projeto."
+      "noEquipment": "Não há equipamentos registrados neste projeto.",
+      "registerReading": "Registrar leitura do horímetro"
+    }
+  },
+  "horometro": {
+    "title": "Horímetro",
+    "aria": "Reportar horímetro",
+    "hoursLabel": "Horas acumuladas (leitura atual)",
+    "hoursHint": "Anote o número exato que o painel do equipamento mostra neste momento.",
+    "notesLabel": "Notas (opcional)",
+    "notesPlaceholder": "Qualquer observação relevante…",
+    "submit": "Registrar horas",
+    "result": {
+      "ok": "Leitura registrada",
+      "thresholdsCrossed": "Limites cruzados",
+      "equipment": "Equipamento {{code}} ({{type}})",
+      "tasksCreated": "{{count}} tarefa(s) de manutenção preventiva criada(s)."
     }
   },
   "softBlocks": {
@@ -4989,6 +5018,13 @@
     },
     "applied": {
       "title": "Preset aplicado"
+    }
+  },
+  "qrSig": {
+    "page": {
+      "signWithPin": "Assinar com PIN",
+      "pinFallbackHelp": "Sem biometria disponível. Assine com seu PIN como alternativa.",
+      "pinSigned": "Assinado com PIN: {{itemId}} ({{kind}})."
     }
   }
 }

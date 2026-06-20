@@ -18,7 +18,8 @@ import {
   RefreshCw,
   History,
   GitBranch,
-  ArrowRight
+  ArrowRight,
+  Scale
 } from 'lucide-react';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
@@ -30,6 +31,7 @@ import type { VersionStatus } from '../services/documents/documentVersioning';
 
 import { AddDocumentModal } from '../components/documents/AddDocumentModal';
 import { EditDocumentModal } from '../components/documents/EditDocumentModal';
+import { LegalDocGeneratorForm } from '../components/documents/LegalDocGeneratorForm';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Tooltip } from '../components/shared/Tooltip';
 import { DocumentHygienePanel } from '../components/documentHygiene/DocumentHygienePanel';
@@ -60,6 +62,7 @@ export function Documents() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('Todos');
   const [isAdding, setIsAdding] = useState(false);
+  const [showLegalGen, setShowLegalGen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [docToEdit, setDocToEdit] = useState<Document | null>(null);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -135,7 +138,16 @@ export function Documents() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <button 
+          <button
+            onClick={() => setShowLegalGen((v) => !v)}
+            data-testid="documents-legalgen-toggle"
+            aria-expanded={showLegalGen}
+            className="bg-sky-500 text-white px-6 py-3 sm:py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-sky-600 transition-all shadow-xl shadow-sky-500/10 flex items-center justify-center gap-2 w-full sm:w-auto"
+          >
+            <Scale className="w-4 h-4" />
+            <span>{t('documents.legalGen', 'Generar documento legal')}</span>
+          </button>
+          <button
             onClick={() => setIsAdding(true)}
             className="bg-white text-black px-6 py-3 sm:py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -169,6 +181,12 @@ export function Documents() {
           </motion.div>
         ))}
       </div>
+
+      {showLegalGen && (
+        <div data-testid="documents-legalgen-section">
+          <LegalDocGeneratorForm />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <DocumentHygienePanel documents={hygieneDocs} />

@@ -8,10 +8,13 @@
 //   3. Click "Generar QR" calls the request mutation with the form input.
 //   4. Render the QR modal once the challenge resolves.
 //   5. Error surfaces in the UI when the request fails.
+//   6. PIN fallback: opening the modal, typing the PIN and submitting POSTs
+//      the real sign-item endpoint with the form's itemId + kind, and the
+//      resulting acknowledgement is surfaced.
 //
 // All side-effecting modules (project context, online status, sprintK
-// mutations, QRCodeSVG) are mocked so the test is hermetic — no
-// Firestore, no fetch, no DOM-only QR canvas.
+// mutations, QRCodeSVG, the PIN sign HTTP boundary) are mocked so the test
+// is hermetic — no Firestore, no fetch, no DOM-only QR canvas.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -66,11 +69,21 @@ vi.mock('../hooks/useQrSignature', () => ({
   persistQrAcknowledgement: (...args: unknown[]) => mockPersistAck(...args),
 }));
 
+// PIN sign HTTP boundary. The page renders the REAL <PinSignModal>, which
+// calls signItemWithPinApi → POST /api/sprint-k/:projectId/pin-sign/sign-item.
+// We mock only this boundary so the test exercises the real modal submit flow
+// and asserts the exact payload sent to the endpoint.
+const mockSignItemWithPin = vi.fn();
+vi.mock('../hooks/usePinSign', () => ({
+  signItemWithPinApi: (...args: unknown[]) => mockSignItemWithPin(...args),
+}));
+
 beforeEach(() => {
   mockSelectedProject = null;
   mockIsOnline = true;
   mockRequestChallenge.mockReset();
   mockPersistAck.mockReset();
+  mockSignItemWithPin.mockReset();
 });
 
 describe('<QrSignature /> page wrapper (Fase F.5)', () => {
@@ -169,5 +182,95 @@ describe('<QrSignature /> page wrapper (Fase F.5)', () => {
       expect(screen.getByTestId('qr-signature-error')).toBeInTheDocument();
     });
     expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+  });
+
+  describe('PIN fallback (firma por PIN sin biometría)', () => {
+    it('el botón de PIN se deshabilita hasta que haya un itemId', () => {
+      mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+      render(<QrSignature />);
+      const pinBtn = screen.getByTestId(
+        'qr-sig-pin-fallback-btn',
+      ) as HTMLButtonElement;
+      expect(pinBtn.disabled).toBe(true);
+
+      fireEvent.change(screen.getByTestId('qr-sig-item-id-input'), {
+        target: { value: 'arnes-001' },
+      });
+      expect(pinBtn.disabled).toBe(false);
+    });
+
+    it('firma de verdad vía sign-item con el itemId + kind del formulario', async () => {
+      mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+      mockSignItemWithPin.mockResolvedValueOnce({
+        ok: true,
+        acknowledgement: {
+          itemId: 'arnes-001',
+          kind: 'safety_talk',
+          projectId: 'p-1',
+          signedByUid: 'worker-1',
+          signedAt: new Date().toISOString(),
+          attestationHex: 'ab'.repeat(16),
+          biometricUsed: false,
+        },
+      });
+
+      render(<QrSignature />);
+
+      // Pick a non-default kind so we prove the form's kind reaches the POST.
+      fireEvent.click(screen.getByTestId('qr-sig-kind-safety_talk'));
+      fireEvent.change(screen.getByTestId('qr-sig-item-id-input'), {
+        target: { value: 'arnes-001' },
+      });
+
+      // Open the PIN modal.
+      fireEvent.click(screen.getByTestId('qr-sig-pin-fallback-btn'));
+      const pinInput = await screen.findByTestId('pin-sign-input');
+      fireEvent.change(pinInput, { target: { value: '8520' } });
+
+      fireEvent.click(screen.getByTestId('pin-sign-submit'));
+
+      await waitFor(() => {
+        expect(mockSignItemWithPin).toHaveBeenCalledTimes(1);
+      });
+      // Asserts the exact payload the modal POSTs to the real endpoint.
+      expect(mockSignItemWithPin).toHaveBeenCalledWith('p-1', {
+        pin: '8520',
+        itemId: 'arnes-001',
+        kind: 'safety_talk',
+        location: undefined,
+      });
+
+      // The signed acknowledgement is surfaced back on the page.
+      await waitFor(() => {
+        expect(
+          screen.getByTestId('qr-sig-pin-ack-confirm'),
+        ).toBeInTheDocument();
+      });
+      expect(screen.getByText(/arnes-001/)).toBeInTheDocument();
+    });
+
+    it('mantiene el modal abierto y muestra error de PIN incorrecto', async () => {
+      mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+      mockSignItemWithPin.mockResolvedValueOnce({ ok: false });
+
+      render(<QrSignature />);
+
+      fireEvent.change(screen.getByTestId('qr-sig-item-id-input'), {
+        target: { value: 'charla-2026' },
+      });
+      fireEvent.click(screen.getByTestId('qr-sig-pin-fallback-btn'));
+      const pinInput = await screen.findByTestId('pin-sign-input');
+      fireEvent.change(pinInput, { target: { value: '4093' } });
+      fireEvent.click(screen.getByTestId('pin-sign-submit'));
+
+      await waitFor(() => {
+        expect(mockSignItemWithPin).toHaveBeenCalledTimes(1);
+      });
+      // Wrong PIN → modal stays open, no ack confirmation surfaced.
+      expect(screen.getByTestId('pin-sign-input')).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('qr-sig-pin-ack-confirm'),
+      ).not.toBeInTheDocument();
+    });
   });
 });
