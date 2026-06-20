@@ -245,6 +245,124 @@ function pendingKey(projectId: string, orderId: string): string {
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// Firestore-backed read of pending OC. The in-memory `pendingOrders` Map is a
+// per-process MVP cache that is empty on a fresh worker and invisible across
+// the multi-instance Cloud Run deployment — an admin on instance B never sees
+// an OC suggested by a worker's inspection that landed on instance A. The real
+// source of truth is the persisted ZK node `purchase-order-suggested` (legacy
+// `zettelkasten_nodes/{id}`, written by `serverWriteNodes`). We read THAT,
+// reconstruct the `PendingOrderRecord`, and exclude any order that already has
+// a `purchase-order-signed` node (signed → no longer pending). The full draft
+// is recoverable because the inspection handler merge-stamps `metadata.draft`
+// onto the suggested node at write time (see `persistSuggestedOrderDraft`).
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * Merge-stamp the full draft + the resolved tenant onto the persisted
+ * `purchase-order-suggested` node so a later cross-process GET can rebuild a
+ * faithful `PendingOrderRecord` (the pure flow node only carries lineCount /
+ * totalClp / deliveryWeekHint, not the line array nor the tenant). Best-effort:
+ * the in-memory cache already holds the authoritative copy for this process, so
+ * a write failure must NOT break the inspection response.
+ */
+async function persistSuggestedOrderDraft(
+  suggestedNodeId: string,
+  rec: Pick<PendingOrderRecord, 'orderId' | 'tenantId' | 'inspectionId' | 'draft' | 'suggestedAt'>,
+): Promise<void> {
+  try {
+    await admin
+      .firestore()
+      .collection('zettelkasten_nodes')
+      .doc(suggestedNodeId)
+      .set(
+        {
+          metadata: {
+            sourceType: 'purchase-order-suggested',
+            orderId: rec.orderId,
+            tenantId: rec.tenantId,
+            inspectionId: rec.inspectionId,
+            suggestedAt: rec.suggestedAt,
+            draft: rec.draft,
+            status: 'pending_signature',
+          },
+        },
+        { merge: true },
+      );
+  } catch (err) {
+    logger.warn?.('eppFlow.persistSuggestedOrderDraft.failed', {
+      suggestedNodeId,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+interface SuggestedNodeDoc {
+  projectId?: string;
+  metadata?: {
+    sourceType?: string;
+    orderId?: string;
+    tenantId?: string;
+    inspectionId?: string;
+    suggestedAt?: string;
+    draft?: PurchaseOrderDraft;
+  };
+}
+
+/**
+ * Read pending purchase orders for a project from the persisted ZK nodes
+ * (cross-process source of truth). Returns ONLY orders that are suggested and
+ * NOT yet signed, each rebuilt as a `PendingOrderRecord`. Orders missing the
+ * stamped `metadata.draft` (e.g. legacy nodes written before this field) are
+ * skipped rather than fabricated — honest empty over invented lines.
+ */
+async function readPersistedPendingOrders(
+  projectId: string,
+): Promise<PendingOrderRecord[]> {
+  const db = admin.firestore();
+  const col = db.collection('zettelkasten_nodes');
+
+  const [suggestedSnap, signedSnap] = await Promise.all([
+    col
+      .where('projectId', '==', projectId)
+      .where('metadata.sourceType', '==', 'purchase-order-suggested')
+      .get(),
+    col
+      .where('projectId', '==', projectId)
+      .where('metadata.sourceType', '==', 'purchase-order-signed')
+      .get(),
+  ]);
+
+  const signedOrderIds = new Set<string>();
+  for (const d of signedSnap.docs) {
+    const oid = (d.data() as SuggestedNodeDoc).metadata?.orderId;
+    if (typeof oid === 'string' && oid.length > 0) signedOrderIds.add(oid);
+  }
+
+  const out: PendingOrderRecord[] = [];
+  for (const d of suggestedSnap.docs) {
+    const data = d.data() as SuggestedNodeDoc;
+    const meta = data.metadata;
+    const orderId = meta?.orderId;
+    const draft = meta?.draft;
+    // Skip nodes we can't faithfully rebuild (no orderId / no full draft) and
+    // any order already signed — never fabricate a line array.
+    if (!orderId || signedOrderIds.has(orderId)) continue;
+    if (!draft || !Array.isArray(draft.lines)) continue;
+    out.push({
+      orderId,
+      projectId,
+      tenantId: meta?.tenantId ?? '',
+      inspectionId: meta?.inspectionId ?? '',
+      suggestedNodeId: d.id,
+      draft,
+      suggestedAt: meta?.suggestedAt ?? '',
+      status: 'pending_signature',
+    });
+  }
+  return out;
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // 1. POST /:projectId/epp-flow/inspection — worker reporta inspeccion.
 // ────────────────────────────────────────────────────────────────────────
 
@@ -333,15 +451,27 @@ router.post(
             (result.nodes[ocNodeIdx].metadata.orderId as string) ||
             body.orderId ||
             `oc-${body.inspection.inspectionId}`;
+          const suggestedNodeId = result.nodeIds[ocNodeIdx];
+          const suggestedAt = result.nodes[ocNodeIdx].metadata.suggestedAt as string;
           pendingOrders.set(pendingKey(projectId, orderId), {
             orderId,
             projectId,
             tenantId,
             inspectionId: body.inspection.inspectionId,
-            suggestedNodeId: result.nodeIds[ocNodeIdx],
+            suggestedNodeId,
             draft: result.suggestedOrder,
-            suggestedAt: result.nodes[ocNodeIdx].metadata.suggestedAt as string,
+            suggestedAt,
             status: 'pending_signature',
+          });
+          // Persist the full draft + tenant onto the suggested ZK node so a
+          // cross-process GET (admin on another instance) can rebuild the order
+          // from Firestore, not just from this worker's in-memory cache.
+          await persistSuggestedOrderDraft(suggestedNodeId, {
+            orderId,
+            tenantId,
+            inspectionId: body.inspection.inspectionId,
+            draft: result.suggestedOrder,
+            suggestedAt,
           });
         }
       }
@@ -378,9 +508,23 @@ router.get(
     }
 
     try {
-      const orders = Array.from(pendingOrders.values()).filter(
-        (o) => o.projectId === projectId && o.status === 'pending_signature',
-      );
+      // Cross-process source of truth: the persisted ZK nodes. The in-memory
+      // cache is overlaid on top so an order suggested earlier in THIS process
+      // (whose Firestore write may still be settling, or whose status flipped
+      // to `signed` locally) reflects the freshest state. Keyed by orderId.
+      const byOrderId = new Map<string, PendingOrderRecord>();
+      const persisted = await readPersistedPendingOrders(projectId);
+      for (const o of persisted) byOrderId.set(o.orderId, o);
+      for (const o of pendingOrders.values()) {
+        if (o.projectId !== projectId) continue;
+        if (o.status !== 'pending_signature') {
+          // Locally-signed order supersedes a stale persisted "pending" copy.
+          byOrderId.delete(o.orderId);
+          continue;
+        }
+        byOrderId.set(o.orderId, o);
+      }
+      const orders = Array.from(byOrderId.values());
       return res.json({ orders });
     } catch (err) {
       logger.error?.('eppFlow.pendingOrders.error', err);
