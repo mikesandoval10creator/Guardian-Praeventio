@@ -1,8 +1,4 @@
 {
-  "cuadrillas": {
-    "closePreview": "XP ao fechar",
-    "noClosablePreview": "Nenhum processo para fechar. Inicie um para ver o XP estimado."
-  },
   "fiveS": {
     "aria": "Auditoria 5S",
     "title": "Auditoria 5S",
@@ -224,6 +220,7 @@
     "maintenance_preventive": "Manutenção",
     "incident_flow": "Fluxo de Incidentes",
     "waste_inventory": "Resíduos Ambientais",
+    "safety_metrics": "Métricas SST (TRIR/LTIFR)",
     "project_setup": "Configurar Indústria"
   },
   "auth": {
@@ -5008,6 +5005,10 @@
       "byKind": "Por tipo de evento",
       "perDay": "{{rate}}/dia"
     }
+  },
+  "cuadrillas": {
+    "closePreview": "XP ao fechar",
+    "noClosablePreview": "Nenhum processo para fechar. Inicie um para ver o XP estimado."
   },
   "projectSetup": {
     "page": {

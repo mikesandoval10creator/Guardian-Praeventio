@@ -1201,5 +1201,29 @@ by `src/rules-tests/communityKnowledgeCache.rules.test.ts`.
      attacker-controlled "normativa" as authoritative to other users in the
      industry — denied (server-only; only the audited ragService path writes it).
 
+### exposure_hours — server-write man-hours for TRIR/LTIFR (Bucket D, added 2026-06-20)
+
+`exposure_hours/{projectId_YYYY-MM}` stores the man-hours worked in a period, the
+industry-standard exposure input for the TRIR/LTIFR safety rates. WRITTEN ONLY by
+the Admin SDK from `POST /api/sprint-k/:projectId/safety-metrics/exposure`, which
+role-gates (admin/gerente/prevencionista-tier) and stamps `recordedBy`/`recordedAt`
+from the verified token. READ is open to any member of the doc's project (the
+safety dashboard renders it). Rule: `allow read: if member of existing().projectId;
+create/update/delete: if false`. Exercised by
+`src/rules-tests/exposureHours.rules.test.ts`.
+
+130. **Man-Hours Inflation (rate dilution)**: a client `setDoc`/`updateDoc`-ing
+     `exposure_hours/{id}` with `totalHoursWorked: 999999999` to dilute the
+     incident rate (artificially low TRIR/LTIFR — "fewer incidents per hour"
+     hides a poor safety record from the mandante/regulator) — denied
+     (server-only; only the role-gated endpoint writes it via Admin SDK).
+131. **recordedBy Spoof**: a client forging `recordedBy: <someone-else>` on an
+     exposure capture to misattribute the man-hours record — denied (server
+     stamps `recordedBy` from the verified token; no client write path exists).
+132. **Cross-project Exposure Read**: a non-member of the project reading
+     `exposure_hours/{otherProject_period}` to harvest another project's
+     operational man-hours — denied (read requires membership of the doc's
+     `projectId`).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
