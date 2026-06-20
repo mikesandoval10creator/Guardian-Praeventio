@@ -2737,6 +2737,12 @@
       "heading": "Histórico ({{count}})",
       "empty": "Ainda não há análises de causa raiz neste projeto.",
       "select_hint": "Selecione uma análise à esquerda para ver o detalhe."
+    },
+    "custody": {
+      "heading": "Cadeia de custódia da evidência",
+      "loading": "Carregando evidência…",
+      "error": "Não foi possível carregar a cadeia de custódia.",
+      "empty": "Ainda não há evidência com cadeia de custódia vinculada a este incidente."
     }
   },
   "consistency_audit": {

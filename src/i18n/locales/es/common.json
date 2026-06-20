@@ -3020,6 +3020,12 @@
       "heading": "Historial ({{count}})",
       "empty": "Aún no hay análisis de causa raíz en este proyecto.",
       "select_hint": "Selecciona un análisis a la izquierda para ver el detalle."
+    },
+    "custody": {
+      "heading": "Cadena de custodia de evidencia",
+      "loading": "Cargando evidencia…",
+      "error": "No se pudo cargar la cadena de custodia.",
+      "empty": "Aún no hay evidencia con cadena de custodia vinculada a este incidente."
     }
   },
   "consistency_audit": {
