@@ -14,6 +14,18 @@
 
 **Cobertura E2E real ponderada (recalibrada 2026-05-15):** ~70% (subió de 62% en 2026-05-05 tras Sprints 39-56 + Wave F + Codex sweep). **Meta Day-1 mundial:** 95%+.
 
+> **⚠ Reconciliación 2026-06-19 — auditoría ola MiMo + 2 auditorías externas (40k LOC).** La
+> cobertura E2E REAL medida por la auditoría externa es **~11% de páginas / ~0.3% de endpoints**
+> (15 specs Playwright, 3 vida-safety en `describe.fixme`) — el "~70% ponderado" de arriba mezcla
+> unit+integración. El estado funcional honesto y el plan de cierre viven ahora en
+> `docs/PENDIENTE.md` §"Actualización 2026-06-19" + `docs/PLAN-MAESTRO-HACER-REAL-2026-06-17.md`
+> (▶ 2026-06-19). **YA-RESUELTO** (verificado file:line): #1069 (assetlinks fingerprint + skills),
+> 6 routers VIDA/LEGAL con test conductual, datos-fabricados (twinStateMapper / GamifiedHUD→
+> ZoneAtmospherePanel / Simular-IoT / PortableCurriculum). **VIGENTE**: 3 mounts fantasma
+> (SafetyMetricsDashboard/SpiDashboard/OperationalPressureGauge no renderizan en Dashboard.tsx),
+> cascarón CPHS (`CphsModule.tsx:825`), 4 PRs MiMo problemáticos, iOS mesh >512B, proximity null,
+> DTE firma, WebAuthn E2E. No abrir listas nuevas — trabajar desde PENDIENTE.md.
+
 ---
 
 ## 📑 Índice
