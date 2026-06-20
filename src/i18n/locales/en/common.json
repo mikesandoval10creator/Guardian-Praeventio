@@ -214,7 +214,8 @@
     "worker_readiness": "Worker Readiness",
     "tmert": "TMERT-EESS",
     "prexor": "PREXOR Noise",
-    "planesi": "PLANESI Silica"
+    "planesi": "PLANESI Silica",
+    "maintenance_preventive": "Maintenance"
   },
   "auth": {
     "login": "Sign In",
@@ -4816,5 +4817,16 @@
     "commuteEnd": "End Commute",
     "commuteBusy": "Working…",
     "commuteError": "We couldn't update the commute. Please retry."
+  },
+  "maintenance": {
+    "page": {
+      "title": "Preventive Maintenance",
+      "subtitle": "Maintenance tasks per equipment, triggered by hour-meter thresholds. It is a guide — the team decides.",
+      "selectProject": "Select a project to see its equipment maintenance.",
+      "selectPrompt": "Select equipment to see its maintenance tasks.",
+      "equipmentLabel": "Equipment",
+      "selectEquipment": "— Select equipment —",
+      "noEquipment": "No equipment registered in this project."
+    }
   }
 }
