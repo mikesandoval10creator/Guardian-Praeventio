@@ -16,6 +16,7 @@ import {
 import { Card, Button } from '../components/shared/Card';
 import { useProject } from '../contexts/ProjectContext';
 import {
+  findNearestRefuges,
   refugeAvailability,
   type RefugeWithDistance,
 } from '../services/refuges/mountainRefuges';
@@ -83,8 +84,32 @@ export function MountainRefuges() {
     );
   }, [geoStatus]);
 
-  const [nearestRefuges, setNearestRefuges] = useState<RefugeWithDistance[]>([]);
+  // VIDA-SEGURA: la fuente PRIMARIA de refugios es el catálogo CLIENTE
+  // (`MOUNTAIN_REFUGES_CHILE`) computado con Haversine on-device. Un
+  // trabajador en montaña SIN señal DEBE ver los refugios — la página
+  // nunca puede depender de la red para mostrar este dato crítico.
+  // Calculamos los 5 más cercanos a `userLocation` de forma síncrona y
+  // re-derivada en cada cambio de ubicación (sin red, sin proyecto).
+  const clientRefuges = React.useMemo(
+    () =>
+      findNearestRefuges(userLocation.lat, userLocation.lng, { count: 5 }),
+    [userLocation.lat, userLocation.lng],
+  );
 
+  const [nearestRefuges, setNearestRefuges] =
+    useState<RefugeWithDistance[]>(clientRefuges);
+
+  // El catálogo cliente es siempre el render base. Cuando cambia la
+  // ubicación, re-sincronizamos al cálculo offline inmediato.
+  useEffect(() => {
+    setNearestRefuges(clientRefuges);
+  }, [clientRefuges]);
+
+  // El servidor es solo ENRIQUECIMIENTO OPCIONAL: si hay proyecto
+  // seleccionado y la red responde, reemplazamos la lista cliente por la
+  // del backend (puede incluir refugios curados por faena). Si la red
+  // falla (offline en montaña), el `.catch` preserva el catálogo cliente
+  // que ya está renderizado — el dato vida-segura nunca desaparece.
   useEffect(() => {
     if (!selectedProject?.id) return;
     let cancelled = false;
@@ -92,10 +117,16 @@ export function MountainRefuges() {
       lat: userLocation.lat,
       lng: userLocation.lng,
       count: 5,
-    }).then(({ refuges }) => {
-      if (!cancelled) setNearestRefuges(refuges);
-    });
-    return () => { cancelled = true; };
+    })
+      .then(({ refuges }) => {
+        if (!cancelled && refuges.length > 0) setNearestRefuges(refuges);
+      })
+      .catch(() => {
+        // Sin red / 4xx-5xx: mantener el catálogo cliente (no-op).
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedProject?.id, userLocation]);
 
   return (
