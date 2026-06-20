@@ -308,6 +308,8 @@ export function buildSidebarMenuGroups(
     // Bloque 3.15 — Escenarios de costo preventivo (CostSimulator + CostScenarioCard
     // sobre /api/sprint-k/:projectId/cost/*: simular → guardar → leer → tarjeta).
     { title: t('nav.cost_scenarios', 'Escenarios de Costo'), icon: Calculator, path: '/cost-scenarios', color: 'text-teal-500' },
+    // Bucket D (manhours) — Métricas SST TRIR/LTIFR desde incidentes + horas-hombre.
+    { title: t('nav.safety_metrics', 'Métricas SST (TRIR/LTIFR)'), icon: BarChart3, path: '/safety-metrics', color: 'text-teal-500' },
     // Sprint K §244-250 — Aprendices + Mentoría + Autorización Progresiva.
     { title: t('nav.apprenticeship', 'Aprendices y Mentores'), icon: UserCheck, path: '/apprenticeship', color: 'text-teal-500' },
     // Sprint 42 Fase F.18 — Historial Profesional Portátil del Trabajador.

@@ -34,6 +34,10 @@ const Auditoria5S = lazy(() => import('../pages/Auditoria5S').then(module => ({ 
 // huérfanos IncidentReportForm + AssignedMicrotrainingCard. Empty-state
 // honesto (vista anual de tendencias) cuando no hay incidentes.
 const IncidentFlowHub = lazy(() => import('../pages/IncidentFlowHub').then(module => ({ default: module.IncidentFlowHub })));
+// Bucket D (manhours) — Métricas SST page. Mounts the orphan
+// SafetyMetricsDashboard over REAL incident-derived counts + captured
+// man-hours (/api/sprint-k/:projectId/safety-metrics/report + /exposure).
+const SafetyMetrics = lazy(() => import('../pages/SafetyMetrics').then(module => ({ default: module.SafetyMetrics })));
 
 export const RiskRoutes = [
   <Route key="risks" path="risks" element={<Risks />} />,
@@ -55,4 +59,5 @@ export const RiskRoutes = [
   <Route key="matriz-iper" path="matriz-iper" element={<MatrizIper />} />,
   <Route key="auditoria-5s" path="auditoria-5s" element={<Auditoria5S />} />,
   <Route key="incident-flow" path="incident-flow" element={<IncidentFlowHub />} />,
+  <Route key="safety-metrics" path="safety-metrics" element={<SafetyMetrics />} />,
 ];
