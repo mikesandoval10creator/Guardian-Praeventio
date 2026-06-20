@@ -80,7 +80,6 @@
     "src/components/twinScene/TwinSceneInstancedLazy.tsx",
     "src/components/visitors/VisitorCheckInForm.tsx",
     "src/components/workerHistory/PortableHistoryPreview.tsx",
-    "src/components/workerReadiness/WorkerReadinessCard.tsx",
     "src/hooks/useActiveVisitors.ts",
     "src/hooks/useAggregateTelemetry.ts",
     "src/hooks/useControlComparator.ts",

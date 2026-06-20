@@ -43,7 +43,7 @@ export function WorkerReadinessCard({ report }: WorkerReadinessCardProps) {
 
   return (
     <section
-      className={`rounded-2xl border p-4 space-y-2 ${meta.tone}`}
+      className={`rounded-2xl border p-4 space-y-2 transition-all duration-200 ${meta.tone}`}
       data-testid="workerReadiness.card"
       aria-label="Score preparación trabajador"
     >
@@ -64,7 +64,7 @@ export function WorkerReadinessCard({ report }: WorkerReadinessCardProps) {
         <span className="text-2xl font-bold" data-testid="workerReadiness.card.score">
           {report.score}
         </span>
-        <span className="text-[11px] text-slate-500">/ 100</span>
+        <span className="text-[11px] text-slate-600">/ 100</span>
         <span
           className="ml-auto text-[11px] text-slate-600"
           data-testid="workerReadiness.card.category"
@@ -75,19 +75,19 @@ export function WorkerReadinessCard({ report }: WorkerReadinessCardProps) {
 
       <dl className="grid grid-cols-3 gap-1 text-[10px]">
         <div>
-          <dt className="uppercase text-slate-500">Capac.</dt>
+          <dt className="uppercase text-slate-600">Capac.</dt>
           <dd className="font-bold" data-testid="workerReadiness.card.sub.trainings">
             {report.subScores.trainings}
           </dd>
         </div>
         <div>
-          <dt className="uppercase text-slate-500">EPP</dt>
+          <dt className="uppercase text-slate-600">EPP</dt>
           <dd className="font-bold" data-testid="workerReadiness.card.sub.epp">
             {report.subScores.epp}
           </dd>
         </div>
         <div>
-          <dt className="uppercase text-slate-500">Médica</dt>
+          <dt className="uppercase text-slate-600">Médica</dt>
           <dd className="font-bold" data-testid="workerReadiness.card.sub.medical">
             {report.subScores.medical}
           </dd>
@@ -109,7 +109,7 @@ export function WorkerReadinessCard({ report }: WorkerReadinessCardProps) {
       )}
 
       <p
-        className="text-[10px] italic text-slate-500"
+        className="text-[10px] italic text-slate-600"
         data-testid="workerReadiness.card.disclaimer"
       >
         Asiste al supervisor — no bloquea operación.
