@@ -2515,6 +2515,10 @@
       "heading": "Histórico recente",
       "closed_badge": "Fechada",
       "row_summary": "Worker {{uid}} · {{count}} check-ins"
+    },
+    "admin_panel": {
+      "heading": "Visão de supervisão",
+      "note": "Status e escalonamento calculados no servidor (relógio autoritativo, sem desvio do relógio do dispositivo). Ordenado por criticidade."
     }
   },
   "exceptions_page": {

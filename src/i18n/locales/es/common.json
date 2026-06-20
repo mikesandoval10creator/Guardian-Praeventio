@@ -2812,6 +2812,10 @@
       "heading": "Historial reciente",
       "closed_badge": "Cerrada",
       "row_summary": "Worker {{uid}} · {{count}} check-ins"
+    },
+    "admin_panel": {
+      "heading": "Vista de supervisión",
+      "note": "Estado y escalamiento calculados en el servidor (hora autoritativa, sin desfase de reloj del dispositivo). Ordenado por criticidad."
     }
   },
   "exceptions_page": {
