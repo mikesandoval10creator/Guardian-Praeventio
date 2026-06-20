@@ -4371,6 +4371,9 @@
       "subtitle": "Serie temporal + indicadores proactivos (near-miss, tasa de cierre, días promedio).",
       "title": "Tendencia de Incidentes"
     },
+    "series": {
+      "title": "Serie de conteo y outliers"
+    },
     "total": "{{count}} incidentes en la ventana"
   },
   "inspections": {

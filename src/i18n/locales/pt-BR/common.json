@@ -4371,6 +4371,9 @@
       "subtitle": "Série temporal + indicadores proativos (quase acidentes, taxa de fechamento, média de dias).",
       "title": "Tendência de Incidentes"
     },
+    "series": {
+      "title": "Série de contagem e outliers"
+    },
     "total": "{{count}} incidentes na janela"
   },
   "inspections": {
