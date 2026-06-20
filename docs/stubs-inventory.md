@@ -2,6 +2,13 @@
 
 > Inventario de stubs/mocks/NotImplementedError en código productivo. CLAUDE.md regla 13 requiere que cada uno aparezca aquí con owner + sprint target + gate de visibilidad.
 
+> **TRIAGE 2026-06-19** (verificado contra el código, no contra este doc): de las 86 entradas, **~9 accionables**.
+> - **REAL-NEEDED (3, construir):** `src/server/jobs/runB2dMrrSnapshot.ts:15` (cron B2D MRR; backend listo) · `src/hooks/useGeofenceWithEvents.ts` (hook real sin consumer) · Wi-Fi Direct nativo `packages/capacitor-mesh/android/.../MeshPlugin.kt:552` + `ios/.../Plugin.swift:350` (BLE ya real).
+> - **FAIL-SOFT LEGÍTIMO (3, no son deuda):** `vertexTrainer.ts` (descartado por producto) · `cloudErrorReportingAdapter.ts` (Sentry cubre) · `metricsAdapter.ts` (OTel futuro).
+> - **BLOQUEADO-EXTERNO (1):** `proximityPluginAdapter.ts:49-67` (@capgo no expone eventos near/far a JS).
+> - **STALE — estas 3 entradas describen stubs YA RESUELTOS, ignorar/quitar:** "SLM ONNX returns mock" (runtime real desde 2026-06-11) · "criticalPermitValidators orphan" (ya ruteado en `workPermits.ts`) · "SystemEngineProvider orphan" (ya montado en `AppProviders.tsx`).
+> Detalle y plan en `docs/PENDIENTE.md` (dimensión C + fase T5).
+
 ## SLM ONNX inference returns mock — ✅ RESUELTO 2026-06-11 (B14, stub ELIMINADO)
 - **File (histórico)**: `src/services/slm/worker/slmWorker.ts:58` — **archivo borrado**, junto con `workerProxy.ts` (Comlink).
 - **Resolución**: runtime unificado. `slmAdapter.ts` ahora delega al runtime REAL (`src/services/slm/workerRuntime.ts` → `worker/slmRuntimeWorker.ts` → `slmRuntime.ts`): registry-aware (Qwen 0.5B pre-empaquetado por defecto), SHA-256 integrity, tokenizer BPE real por handle (`worker/slmRuntimeWorkerCore.ts` — `tokenizers` map), ORT WebGPU/WASM.
