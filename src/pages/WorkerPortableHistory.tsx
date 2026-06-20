@@ -52,6 +52,12 @@ import {
 } from '../hooks/usePortableHistory';
 import type { Worker } from '../types';
 import { logger } from '../utils/logger';
+import { PortableHistoryPreview } from '../components/workerHistory/PortableHistoryPreview';
+import {
+  buildPortableHistory,
+  serializeAsJson,
+  type WorkerData,
+} from '../services/workerHistory/portableHistoryExporter';
 
 interface ConsentDraft {
   allowsPortableExport: boolean;
@@ -110,6 +116,42 @@ export function WorkerPortableHistory() {
   } = useWorkerPortableHistory(projectId, effectiveWorkerUid);
 
   const bundle = portableResp?.bundle ?? null;
+
+  const previewData = useMemo(() => {
+    if (!bundle) return null;
+    const workerData: WorkerData = {
+      identity: {
+        fullName: bundle.identity.fullName,
+        rut: bundle.identity.rut,
+        email: bundle.identity.email ?? undefined,
+      },
+      employmentSpans: [],
+      completedTrainings: bundle.trainings.map((t) => ({
+        trainingCode: t.trainingCode ?? '',
+        trainingName: t.trainingName ?? t.trainingCode ?? '',
+        obtainedAt: t.obtainedAt ?? '',
+        expiresAt: null,
+        issuer: '',
+        hours: 0,
+      })),
+      certifications: [],
+      eppHistory: bundle.eppDeliveries.map((e) => ({
+        eppCategory: e.eppCategory ?? '',
+        eppModel: e.eppModel ?? e.eppCategory ?? '',
+        deliveredAt: e.deliveredAt ?? '',
+        nextReplacementAt: null,
+      })),
+      exposureLog: [],
+    };
+    const history = buildPortableHistory(workerData, {
+      redactionLevel: bundle.consent.allowsPortableExport ? 'employer' : 'public',
+      exportedAt: bundle.generatedAt,
+      requestedBy: { uid: bundle.workerUid, role: 'self' },
+      includeMedical: false,
+    });
+    const serialized = serializeAsJson(history);
+    return { history, serialized };
+  }, [bundle]);
 
   // Hydrate the local consent draft from the bundle the first time it
   // loads (or when the bundle's `updatedAt` flips, indicating an
@@ -701,6 +743,14 @@ export function WorkerPortableHistory() {
               </p>
             )}
           </section>
+
+          {previewData && (
+            <PortableHistoryPreview
+              history={previewData.history}
+              serialized={previewData.serialized}
+              onDownload={() => handleExport('json')}
+            />
+          )}
 
           <p className="text-[11px] text-secondary-token italic mt-2">
             {bundle.disclaimer}
