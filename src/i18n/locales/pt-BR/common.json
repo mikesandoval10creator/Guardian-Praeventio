@@ -5018,5 +5018,12 @@
     "applied": {
       "title": "Preset aplicado"
     }
+  },
+  "qrSig": {
+    "page": {
+      "signWithPin": "Assinar com PIN",
+      "pinFallbackHelp": "Sem biometria disponível. Assine com seu PIN como alternativa.",
+      "pinSigned": "Assinado com PIN: {{itemId}} ({{kind}})."
+    }
   }
 }

@@ -34,7 +34,6 @@
     "src/components/monthlyClientReport/MonthlyClientReportCard.tsx",
     "src/components/orgMetrics/OperationalPressureGauge.tsx",
     "src/components/organic/ProcessClosePreviewCard.tsx",
-    "src/components/pinSign/PinSignModal.tsx",
     "src/components/pricingCalculator/ROICalculatorWidget.tsx",
     "src/components/pricingCalculator/TierComparatorWidget.tsx",
     "src/components/pymeOnboarding/PymeMaturityWizard.tsx",
