@@ -216,3 +216,39 @@ describe('predictive-alerts ack + tasks done', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('roster (GET /projects/:projectId/roster)', () => {
+  it('401 without auth', async () => {
+    const res = await request(buildApp()).get('/api/projects/p1/roster');
+    expect(res.status).toBe(401);
+  });
+
+  it('200 returns deduped, name-resolved, sorted roster from the project crews', async () => {
+    H.db!._seed('crews/c1', { projectId: 'p1', memberUids: ['m2', 'm1'] });
+    H.db!._seed('crews/c2', { projectId: 'p1', memberUids: ['m1', 'm3'] }); // m1 deduped across crews
+    H.db!._seed('crews/cX', { projectId: 'other', memberUids: ['z9'] }); // other project excluded
+    H.db!._seed('users/m1', { displayName: 'Ana' });
+    H.db!._seed('users/m2', { displayName: 'Bruno' });
+    // m3 has no users doc → fullName falls back to the uid (honest, not fabricated)
+    const res = await request(buildApp()).get('/api/projects/p1/roster').set(uid);
+    expect(res.status).toBe(200);
+    expect(res.body.roster).toEqual([
+      { uid: 'm1', fullName: 'Ana' },
+      { uid: 'm2', fullName: 'Bruno' },
+      { uid: 'm3', fullName: 'm3' },
+    ]);
+  });
+
+  it('200 empty roster when the project has no crews (honest empty, not fabricated)', async () => {
+    const res = await request(buildApp()).get('/api/projects/p1/roster').set(uid);
+    expect(res.status).toBe(200);
+    expect(res.body.roster).toEqual([]);
+  });
+
+  it('propagates 403 from project-membership checks', async () => {
+    H.db!._seed('crews/c1', { projectId: 'p1', memberUids: ['m1'] });
+    vi.mocked(assertProjectMember).mockRejectedValue(new ProjectMembershipError('nope'));
+    const res = await request(buildApp()).get('/api/projects/p1/roster').set(uid);
+    expect(res.status).toBe(403);
+  });
+});
