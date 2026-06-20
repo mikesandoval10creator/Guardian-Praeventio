@@ -72,7 +72,6 @@
     "src/hooks/useActiveVisitors.ts",
     "src/hooks/useAggregateTelemetry.ts",
     "src/hooks/useControlComparator.ts",
-    "src/hooks/useLegalObligations.ts",
     "src/hooks/useStreamedGuardian.ts",
     "src/hooks/useSubmit.ts"
   ]

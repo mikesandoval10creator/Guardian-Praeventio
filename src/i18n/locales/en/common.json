@@ -3248,6 +3248,14 @@
     "quick_actions": {
       "heading": "Quick actions",
       "complete": "Done"
+    },
+    "server_section": {
+      "aria": "Upcoming obligations per the server",
+      "heading": "Upcoming obligations (server)",
+      "window": "{{n}}d window",
+      "loading": "Loading…",
+      "error": "Could not load: {{msg}}",
+      "empty": "No obligations due soon for this project."
     }
   },
   "safety_talks": {

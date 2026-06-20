@@ -3248,6 +3248,14 @@
     "quick_actions": {
       "heading": "Acciones rápidas",
       "complete": "Cumplida"
+    },
+    "server_section": {
+      "aria": "Próximas obligaciones según el servidor",
+      "heading": "Próximas obligaciones (servidor)",
+      "window": "ventana {{n}}d",
+      "loading": "Cargando…",
+      "error": "No se pudieron cargar: {{msg}}",
+      "empty": "No hay obligaciones próximas a vencer en este proyecto."
     }
   },
   "safety_talks": {
