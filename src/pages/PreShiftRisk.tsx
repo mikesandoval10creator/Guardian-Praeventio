@@ -193,7 +193,18 @@ export function PreShiftRisk() {
         )}
       </header>
 
-      <PreShiftRiskCard report={panel ?? undefined} />
+      {/*
+        Compact summary card. The rich inline sections below already render
+        the full report (score / recommendations / grouped factors) when a
+        panel is available, so the card would otherwise DUPLICATE that data
+        (same score, level and recommendations rendered twice). Render it only
+        when there is no panel to expand inline — it then shows its own
+        "sin datos de turno" summary — so the page never double-renders the
+        report. The component stays mounted (connectivity/render ratchets).
+      */}
+      {!loading && !error && !panel && (
+        <PreShiftRiskCard report={undefined} />
+      )}
 
       {loading && (
         <div
