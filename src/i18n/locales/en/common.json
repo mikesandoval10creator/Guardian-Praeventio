@@ -4371,6 +4371,9 @@
       "subtitle": "Time series + leading indicators (near-miss ratio, closure rate, average days).",
       "title": "Incident Trends"
     },
+    "series": {
+      "title": "Count series and outliers"
+    },
     "total": "{{count}} incidents in the window"
   },
   "inspections": {
@@ -4700,6 +4703,7 @@
     "page": {
       "emptyHint": "Register a new visit to start access control.",
       "emptyTitle": "No active visits yet.",
+      "loading": "Loading active visits…",
       "newVisit": "New visit",
       "selectProject": "Select a project to register visits.",
       "subtitle": "Active visits: {{count}}",
@@ -4937,6 +4941,21 @@
       "improving": "Improving",
       "stable": "Stable",
       "worsening": "Worsening"
+    }
+  },
+  "telemetry": {
+    "aggregate": {
+      "title": "Aggregated operational telemetry",
+      "subtitle": "Counts without personal data — incidents, PPE, permits and more",
+      "windowLabel": "Time window",
+      "noProject": "Select a project to see its aggregated telemetry.",
+      "loading": "Loading telemetry…",
+      "error": "Could not load aggregated telemetry. Try again later.",
+      "empty": "No operational events in this window. Data will appear as incidents, training, permits and more are recorded.",
+      "totalEvents": "events in the window",
+      "bySeverity": "By severity",
+      "byKind": "By event type",
+      "perDay": "{{rate}}/day"
     }
   }
 }

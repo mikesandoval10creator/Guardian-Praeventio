@@ -4371,6 +4371,9 @@
       "subtitle": "Série temporal + indicadores proativos (quase acidentes, taxa de fechamento, média de dias).",
       "title": "Tendência de Incidentes"
     },
+    "series": {
+      "title": "Série de contagem e outliers"
+    },
     "total": "{{count}} incidentes na janela"
   },
   "inspections": {
@@ -4700,6 +4703,7 @@
     "page": {
       "emptyHint": "Registre uma nova visita para iniciar o controle de acesso.",
       "emptyTitle": "Ainda não há visitas ativas.",
+      "loading": "Carregando visitas ativas…",
       "newVisit": "Nova visita",
       "selectProject": "Selecione um projeto para registrar visitas.",
       "subtitle": "Visitas ativas: {{count}}",
@@ -4937,6 +4941,21 @@
       "improving": "Melhorando",
       "stable": "Estável",
       "worsening": "Piorando"
+    }
+  },
+  "telemetry": {
+    "aggregate": {
+      "title": "Telemetria operacional agregada",
+      "subtitle": "Contagens sem dados pessoais — incidentes, EPI, permissões e mais",
+      "windowLabel": "Janela de tempo",
+      "noProject": "Selecione um projeto para ver sua telemetria agregada.",
+      "loading": "Carregando telemetria…",
+      "error": "Não foi possível carregar a telemetria agregada. Tente novamente mais tarde.",
+      "empty": "Sem eventos operacionais nesta janela. Os dados aparecerão à medida que incidentes, treinamentos, permissões e mais forem registrados.",
+      "totalEvents": "eventos na janela",
+      "bySeverity": "Por severidade",
+      "byKind": "Por tipo de evento",
+      "perDay": "{{rate}}/dia"
     }
   }
 }

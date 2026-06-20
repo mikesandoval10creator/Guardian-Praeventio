@@ -43,11 +43,22 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 // per Sprint K reformulation directive. See docs/SPRINT_K_REFORMULATED.md.
 import {
   useIncidentTrends,
+  useIncidentList,
   type IncidentTrendWindow,
   type IncidentTrendGroup,
   type IncidentTrendDirection,
   type IncidentTrendBucket,
+  type IncidentListItem,
 } from '../hooks/useIncidentTrends';
+import { TrendSeriesChart } from '../components/incidentTrends/TrendSeriesChart';
+import {
+  buildTrendSeries,
+  comparePeriods,
+  detectOutliers,
+  type IncidentRecord,
+  type IncidentSeverity,
+  type Granularity,
+} from '../services/incidentTrends/trendAnalyzer';
 
 // ────────────────────────────────────────────────────────────────────────
 // Static visual helpers
@@ -117,6 +128,64 @@ const KIND_COLORS = [
 function kindColorFor(index: number): string {
   return KIND_COLORS[index % KIND_COLORS.length];
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Real-data adapter: incident list → trendAnalyzer input
+//
+// El endpoint `/incidents/list` devuelve los incidents REALES del proyecto
+// (misma colección `incidents` que trends, leída en
+// incidentTrends.ts:547). `buildTrendSeries`/`comparePeriods`/`detectOutliers`
+// consumen `IncidentRecord[]` con severidad normalizada al union canónico
+// {low,medium,high,critical}. Mapeamos los aliases que el backend persiste
+// (med/critica/baja/…) sin inventar nada: si el doc no trae severidad,
+// cae a 'low' (baseline), igual que el peso ordinal del server.
+// ────────────────────────────────────────────────────────────────────────
+
+const SEVERITY_NORMALIZE: Record<string, IncidentSeverity> = {
+  low: 'low',
+  baja: 'low',
+  medium: 'medium',
+  med: 'medium',
+  media: 'medium',
+  high: 'high',
+  alta: 'high',
+  critical: 'critical',
+  critica: 'critical',
+  'crítica': 'critical',
+  sif: 'critical',
+};
+
+function normalizeSeverity(raw: string | null): IncidentSeverity {
+  if (!raw) return 'low';
+  return SEVERITY_NORMALIZE[raw.trim().toLowerCase()] ?? 'low';
+}
+
+/**
+ * Convierte la lista REAL de incidents en `IncidentRecord[]`. Descarta los
+ * docs sin `occurredAt` parseable (no se pueden ubicar en la serie temporal)
+ * — honesto: no fabrica una fecha. La categoría usa `incidentType` real o
+ * 'sin_categoria' cuando el doc no la trae.
+ */
+function toIncidentRecords(items: IncidentListItem[]): IncidentRecord[] {
+  const out: IncidentRecord[] = [];
+  for (const it of items) {
+    if (!it.occurredAt) continue;
+    out.push({
+      id: it.id,
+      occurredAt: it.occurredAt,
+      severity: normalizeSeverity(it.severity),
+      category: it.incidentType ?? 'sin_categoria',
+    });
+  }
+  return out;
+}
+
+/** Días por ventana — alineado con TREND_WINDOW_MS del server. */
+const WINDOW_DAYS: Record<IncidentTrendWindow, number> = {
+  '3m': 90,
+  '6m': 180,
+  '12m': 365,
+};
 
 // ────────────────────────────────────────────────────────────────────────
 // SVG sparkline — sin dependencias. Tremor no está en el bundle
@@ -241,8 +310,44 @@ export function IncidentTrends() {
 
   const trendsResp = useIncidentTrends(projectId, { window, group });
 
+  // Lista REAL de incidents (misma colección `incidents`) para alimentar el
+  // <TrendSeriesChart> determinístico (buildTrendSeries/comparePeriods/
+  // detectOutliers). Se trae el máximo (200) para que la serie + outliers
+  // tengan suficiente muestra; el server ya cap-ea.
+  const listResp = useIncidentList(projectId, 200);
+
   const data = trendsResp.data;
   const buckets = useMemo(() => data?.buckets ?? [], [data]);
+
+  // Serie temporal determinística sobre los incidents REALES, filtrada a la
+  // ventana activa y agrupada según el selector mes/semana. `comparePeriods`
+  // contrasta la ventana actual vs la anterior del mismo tamaño;
+  // `detectOutliers` marca buckets con z-score ≥ 3σ (leave-one-out).
+  const { series, comparison, outliers } = useMemo(() => {
+    const items = listResp.data?.incidents ?? [];
+    const records = toIncidentRecords(items);
+    const granularity: Granularity = group; // 'month' | 'week' ⊂ Granularity
+    const builtSeries = buildTrendSeries(records, granularity);
+    const days = WINDOW_DAYS[window];
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const currentStart = new Date(now - days * dayMs);
+    const currentEnd = new Date(now);
+    const previousStart = new Date(now - 2 * days * dayMs);
+    const previousEnd = currentStart;
+    const builtComparison = comparePeriods(records, {
+      currentStart,
+      currentEnd,
+      previousStart,
+      previousEnd,
+    });
+    const builtOutliers = detectOutliers(builtSeries);
+    return {
+      series: builtSeries,
+      comparison: builtComparison,
+      outliers: builtOutliers,
+    };
+  }, [listResp.data, window, group]);
 
   // Agregar breakdown por kind a través de todos los buckets para la
   // visualización de "stack". Sorted desc por total para que las
@@ -428,6 +533,38 @@ export function IncidentTrends() {
               )}
             </div>
             <TrendSparkline buckets={buckets} trend={data.trend} />
+          </section>
+
+          {/* Serie temporal determinística (conteo por bucket) sobre los
+              incidents REALES del proyecto — barras + comparación
+              período-a-período + outliers 3σ. Complementa el sparkline
+              ponderado por severidad con el conteo crudo y los picos
+              estadísticos. */}
+          <section
+            aria-label="Serie de conteo y outliers"
+            data-testid="incident-trends-series-section"
+            className="space-y-2"
+          >
+            <h2 className="text-sm font-black uppercase tracking-tight text-primary-token">
+              {t(
+                'incidentTrends.series.title',
+                'Serie de conteo y outliers',
+              )}
+            </h2>
+            {listResp.loading ? (
+              <div
+                className="rounded-2xl border border-default-token bg-surface p-4 text-center text-xs text-secondary-token"
+                data-testid="incident-trends-series-loading"
+              >
+                {t('common.loading', 'Cargando…')}
+              </div>
+            ) : (
+              <TrendSeriesChart
+                series={series}
+                comparison={comparison}
+                outliers={outliers}
+              />
+            )}
           </section>
 
           {/* Leading indicators row */}

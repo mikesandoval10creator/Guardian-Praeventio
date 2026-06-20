@@ -15,7 +15,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { IncidentTrends } from './IncidentTrends';
-import type { IncidentTrendsResponse } from '../hooks/useIncidentTrends';
+import type {
+  IncidentTrendsResponse,
+  IncidentListResponse,
+  IncidentListItem,
+} from '../hooks/useIncidentTrends';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -45,9 +49,16 @@ type TrendsMock = {
   error: Error | null;
 };
 
+type ListMock = {
+  data: IncidentListResponse | null;
+  loading: boolean;
+  error: Error | null;
+};
+
 let mockSelectedProject: { id: string; name: string } | null = null;
 let mockIsOnline = true;
 let mockTrends: TrendsMock;
+let mockList: ListMock;
 
 // Capture the most recent call args so we can assert filter behavior.
 let lastTrendsCallArgs: {
@@ -69,6 +80,7 @@ vi.mock('../hooks/useIncidentTrends', () => ({
     lastTrendsCallArgs = opts ?? {};
     return mockTrends;
   },
+  useIncidentList: () => mockList,
 }));
 
 function emptyTrends(): TrendsMock {
@@ -131,11 +143,38 @@ function populatedTrends(over: Partial<IncidentTrendsResponse> = {}): TrendsMock
   };
 }
 
+function emptyList(): ListMock {
+  return {
+    data: {
+      projectId: 'p-1',
+      total: 0,
+      incidents: [],
+      generatedAt: '2026-05-17T00:00:00Z',
+    },
+    loading: false,
+    error: null,
+  };
+}
+
+function populatedList(incidents: IncidentListItem[]): ListMock {
+  return {
+    data: {
+      projectId: 'p-1',
+      total: incidents.length,
+      incidents,
+      generatedAt: '2026-05-17T00:00:00Z',
+    },
+    loading: false,
+    error: null,
+  };
+}
+
 beforeEach(() => {
   mockSelectedProject = null;
   mockIsOnline = true;
   lastTrendsCallArgs = null;
   mockTrends = emptyTrends();
+  mockList = emptyList();
 });
 
 describe('<IncidentTrends /> page wrapper (F.29)', () => {
@@ -208,6 +247,67 @@ describe('<IncidentTrends /> page wrapper (F.29)', () => {
 
     fireEvent.click(screen.getByTestId('incident-trends-window-3m'));
     expect(lastTrendsCallArgs?.window).toBe('3m');
+  });
+
+  it('renderiza <TrendSeriesChart> con la serie de la lista REAL de incidents', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockTrends = populatedTrends();
+    // Incidents REALES (shape de /incidents/list): dos meses con ocurrencias.
+    mockList = populatedList([
+      {
+        id: 'i-1',
+        occurredAt: '2026-01-10T08:00:00.000Z',
+        severity: 'med',
+        incidentType: 'fall',
+        status: 'closed',
+        summary: null,
+        location: null,
+        nearMiss: false,
+      },
+      {
+        id: 'i-2',
+        occurredAt: '2026-02-15T09:30:00.000Z',
+        severity: 'critica',
+        incidentType: 'electrical',
+        status: 'open',
+        summary: null,
+        location: null,
+        nearMiss: false,
+      },
+      {
+        id: 'i-3',
+        occurredAt: '2026-02-20T11:00:00.000Z',
+        severity: 'baja',
+        incidentType: 'fall',
+        status: 'open',
+        summary: null,
+        location: null,
+        nearMiss: true,
+      },
+    ]);
+    render(<IncidentTrends />);
+
+    // El componente montado renderiza con sus testids propios.
+    expect(screen.getByTestId('incidentTrends.chart')).toBeInTheDocument();
+    expect(screen.getByTestId('incidentTrends.bars')).toBeInTheDocument();
+    // Buckets mensuales derivados de las fechas reales.
+    expect(screen.getByTestId('incidentTrends.bar.2026-01')).toBeInTheDocument();
+    expect(screen.getByTestId('incidentTrends.bar.2026-02')).toBeInTheDocument();
+    // Comparación período-a-período presente.
+    expect(screen.getByTestId('incidentTrends.comparison')).toBeInTheDocument();
+  });
+
+  it('muestra empty-state honesto del chart de serie cuando no hay incidents reales', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockTrends = populatedTrends();
+    mockList = emptyList(); // lista vacía → serie sin puntos.
+    render(<IncidentTrends />);
+
+    expect(
+      screen.getByTestId('incident-trends-series-section'),
+    ).toBeInTheDocument();
+    // Empty-state del propio TrendSeriesChart, no dato fabricado.
+    expect(screen.getByTestId('incidentTrends.empty')).toBeInTheDocument();
   });
 
   it('renderiza breakdown por kind cuando hay categorías', () => {
