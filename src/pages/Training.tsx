@@ -32,6 +32,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
+import { createLearningCard } from '../hooks/useSpacedRepetition';
 import { generateSafetyCapsule, generateTrainingQuiz } from '../services/geminiService';
 import { TrainingSession } from '../types';
 import { FindTheGuardian } from '../components/gamification/FindTheGuardian';
@@ -248,6 +249,13 @@ export function Training() {
         attendees: newAttendees,
         completedAt: new Date().toISOString()
       });
+
+      createLearningCard(selectedProject.id, {
+        cardId: session.id,
+        workerUid: user.uid,
+        topic: session.title,
+        initiallyLearnedAt: new Date().toISOString(),
+      }).catch(() => {});
 
       setActiveVideoSession(null);
       setIsQuizActive(false);

@@ -8,6 +8,9 @@ const Calendar = lazy(() => import('../pages/Calendar').then(module => ({ defaul
 const Assets = lazy(() => import('../pages/Assets').then(module => ({ default: module.Assets })));
 const SiteMap = lazy(() => import('../pages/SiteMap').then(module => ({ default: module.SiteMap })));
 const Attendance = lazy(() => import('../pages/Attendance').then(module => ({ default: module.Attendance })));
+// Mantenimiento Preventivo — mounts the orphan MaintenanceTaskList over the real
+// listMaintenanceTasks endpoint (horómetro-threshold preventive tasks per equipo).
+const MantenimientoPreventivo = lazy(() => import('../pages/MantenimientoPreventivo').then(module => ({ default: module.MantenimientoPreventivo })));
 // Fase 5 D2 slice 1 (2026-06-11) — re-pathed from `safe-driving` to
 // `driving-incidents` to resolve the route COLLISION with App.tsx, which
 // mounts `SafeDrivingMode` (SOS driver mode — life-safety) at
@@ -85,4 +88,5 @@ export const OperationsRoutes = [
   <Route key="site-book" path="site-book" element={<SiteBook />} />,
   <Route key="shift-handover" path="shift-handover" element={<ShiftHandover />} />,
   <Route key="loto" path="loto" element={<Loto />} />,
+  <Route key="mantenimiento-preventivo" path="mantenimiento-preventivo" element={<MantenimientoPreventivo />} />,
 ];

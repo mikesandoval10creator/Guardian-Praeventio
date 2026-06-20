@@ -214,7 +214,8 @@
     "worker_readiness": "Prontidão do Trabalhador",
     "tmert": "TMERT-EESS",
     "prexor": "PREXOR Ruído",
-    "planesi": "PLANESI Sílica"
+    "planesi": "PLANESI Sílica",
+    "maintenance_preventive": "Manutenção"
   },
   "auth": {
     "login": "Entrar",
@@ -4816,5 +4817,16 @@
     "commuteEnd": "Encerrar Trajeto",
     "commuteBusy": "Processando…",
     "commuteError": "Não foi possível atualizar o trajeto. Tente novamente."
+  },
+  "maintenance": {
+    "page": {
+      "title": "Manutenção Preventiva",
+      "subtitle": "Tarefas de manutenção por equipamento, acionadas por limites de horímetro. É um guia — a decisão é da equipe.",
+      "selectProject": "Selecione um projeto para ver a manutenção de seus equipamentos.",
+      "selectPrompt": "Selecione um equipamento para ver suas tarefas de manutenção.",
+      "equipmentLabel": "Equipamento",
+      "selectEquipment": "— Selecione um equipamento —",
+      "noEquipment": "Não há equipamentos registrados neste projeto."
+    }
   }
 }
