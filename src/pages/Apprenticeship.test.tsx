@@ -189,6 +189,57 @@ describe('<Apprenticeship /> page wrapper (Sprint K §244-250)', () => {
     ).toHaveTextContent(/asistente|supervisado/i);
   });
 
+  it('monta <ApprenticeshipBoard /> con el desglose por tarea (taskAuthorizations reales)', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockApprentices = {
+      data: {
+        apprentices: [
+          apprentice({
+            workerUid: 'app_pedro',
+            currentLevel: 'supervised',
+            progress: 66,
+            taskAuthorizations: {
+              loto_basico: 'supervised',
+              trabajo_altura: 'observer',
+            },
+          }),
+        ],
+      },
+      loading: false,
+      error: null,
+    };
+    render(<Apprenticeship />);
+    // The board is mounted per-apprentice and exposes its own testid.
+    expect(
+      screen.getByTestId('apprentice-board-app_pedro'),
+    ).toBeInTheDocument();
+    // Each real authorized task renders as its own row inside the board.
+    expect(screen.getByTestId('apprentice-task-loto_basico')).toBeInTheDocument();
+    expect(
+      screen.getByTestId('apprentice-task-trabajo_altura'),
+    ).toBeInTheDocument();
+  });
+
+  it('no monta el board cuando el aprendiz no tiene tareas autorizadas', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockApprentices = {
+      data: {
+        apprentices: [
+          apprentice({
+            workerUid: 'app_sin_tareas',
+            taskAuthorizations: {},
+          }),
+        ],
+      },
+      loading: false,
+      error: null,
+    };
+    render(<Apprenticeship />);
+    expect(
+      screen.queryByTestId('apprentice-board-app_sin_tareas'),
+    ).not.toBeInTheDocument();
+  });
+
   it('renderiza los mentores con carga actual y slots disponibles', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
     mockMentors = {

@@ -56,6 +56,11 @@ import {
   type ApprenticeRole,
   type ApprenticeExposureOutcome,
 } from '../hooks/useApprenticeship';
+import { ApprenticeshipBoard } from '../components/apprenticeship/ApprenticeshipBoard';
+import type {
+  ApprenticeProfile,
+  AuthorizationLevel,
+} from '../services/apprenticeship/apprenticeshipProgressService';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────
@@ -137,6 +142,29 @@ function formatDate(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+/**
+ * Adapta el `ApprenticeRecord` real (servidor → `useApprentices`) al
+ * `ApprenticeProfile` que consume `<ApprenticeshipBoard />`. El board
+ * desglosa la autorización por tarea (`taskAuthorizations`) — vista que
+ * el resto de la card NO muestra (la card solo trae el nivel GLOBAL).
+ *
+ * El nivel `'none'` no es un nivel de autorización por tarea válido en el
+ * board; el authorize endpoint (§245) sólo asigna observer/supervised/
+ * autonomous, así que filtramos cualquier `'none'` residual defensivamente.
+ */
+function toApprenticeProfile(a: ApprenticeRecord): ApprenticeProfile {
+  const taskAuthorizations: Record<string, AuthorizationLevel> = {};
+  for (const [taskId, level] of Object.entries(a.taskAuthorizations)) {
+    if (level !== 'none') taskAuthorizations[taskId] = level;
+  }
+  return {
+    workerUid: a.workerUid,
+    mentorUid: a.mentorUid,
+    startedAt: a.startDate,
+    taskAuthorizations,
+  };
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -395,6 +423,21 @@ export function Apprenticeship() {
                             })}
                           </ul>
                         </div>
+                      )}
+
+                      {/* Per-task authorization breakdown (§244-250).
+                          Distinct from the global level badge above: shows
+                          EACH authorized task with its own level. Read-only
+                          here — promotion happens via the "Autorizar" modal
+                          (which captures evidence + mentor signature §245).
+                          `executions={[]}` honestly: there is no task-
+                          execution-log feed server-side, so the board shows
+                          levels without fabricated promotion proposals. */}
+                      {Object.keys(a.taskAuthorizations).length > 0 && (
+                        <ApprenticeshipBoard
+                          apprentice={toApprenticeProfile(a)}
+                          executions={[]}
+                        />
                       )}
 
                       {/* Actions */}
