@@ -7,6 +7,12 @@ import type {
   ProjectSnapshot,
   RiskProjectAlert,
 } from '../services/multiProject/projectComparator';
+// The READ-side snapshots pipeline returns the *comparator* engine shape
+// (`projectComparator/projectComparator`), which is the one ProjectsCompare +
+// the /project-comparator/compare endpoint consume — distinct from the
+// multiProject engine `ProjectSnapshot` (incidents nested counts) used by the
+// 3 POST mutators above.
+import type { ProjectSnapshot as ComparatorProjectSnapshot } from '../services/projectComparator/projectComparator';
 import { apiAuthHeaders } from '../lib/apiAuth';
 
 async function authedFetch(
@@ -92,4 +98,27 @@ export async function flagRiskyProjects(
     { method: 'POST', body: JSON.stringify(input) },
   );
   return json<RiskProjectsResponse>(res);
+}
+
+// ── 4. snapshots (READ-side pipeline, P1) ───────────────────────────────
+
+export interface FetchProjectSnapshotsResponse {
+  snapshots: ComparatorProjectSnapshot[];
+}
+
+/**
+ * Fetch REAL per-project KPI snapshots for every project the caller belongs
+ * to, aggregated server-side from incidents/findings/audits/risks/
+ * corrective_actions. `projectId` is the auth "lens" (the caller must be a
+ * member of it). Feeds ProjectsCompare so the comparator is reachable with
+ * real data instead of an empty prop (DEEP-EX-34 H3 / #1049).
+ */
+export async function fetchProjectSnapshots(
+  projectId: string,
+): Promise<FetchProjectSnapshotsResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/multi-project/snapshots`,
+    { method: 'GET' },
+  );
+  return json<FetchProjectSnapshotsResponse>(res);
 }

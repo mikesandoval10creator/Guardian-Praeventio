@@ -471,3 +471,138 @@ describe('POST /:projectId/multi-project/risk-projects', () => {
     expect(alertC!.reasons.some((r) => r.includes('SIF'))).toBe(true);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════
+// 4. GET /:projectId/multi-project/snapshots  (READ-side pipeline, P1)
+// ═════════════════════════════════════════════════════════════════════════
+//
+// This is the endpoint that closes #1049 / DEEP-EX-34 H3: it AGGREGATES real
+// per-project KPIs from incidents/findings/audits/risks/corrective_actions so
+// ProjectsCompare receives real snapshots instead of an empty prop. The
+// snapshot shape here is the *comparator* engine's `ProjectSnapshot`
+// (projectComparator/projectComparator), NOT the multiProject engine's.
+
+import type { ProjectSnapshot as ComparatorSnapshot } from '../../services/projectComparator/projectComparator.js';
+
+describe('GET /:projectId/multi-project/snapshots', () => {
+  const url = `/api/sprint-k/${PROJECT_ID}/multi-project/snapshots`;
+
+  it('401 without a token', async () => {
+    const res = await request(buildApp()).get(url);
+    expect(res.status).toBe(401);
+  });
+
+  it('403 when caller is not a project member', async () => {
+    const res = await request(buildApp())
+      .get(url)
+      .set('x-test-uid', 'stranger-uid');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+  });
+
+  it('403 when the lens project does not exist', async () => {
+    const res = await request(buildApp())
+      .get(`/api/sprint-k/nonexistent-proj/multi-project/snapshots`)
+      .set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+  });
+
+  it('200 aggregates REAL KPIs from seeded collections', async () => {
+    // Seed a SECOND project the same caller belongs to, plus real data docs
+    // across the 5 KPI collections for BOTH projects. The aggregator must
+    // count them correctly (this is the data flowing end-to-end).
+    const db = H.db!;
+    db._seed(`projects/proj-norte`, {
+      name: 'Faena Norte',
+      members: [CALLER_UID],
+      createdBy: CALLER_UID,
+      workersCount: 42,
+    });
+    db._seed(`projects/proj-sur`, {
+      name: 'Faena Sur',
+      members: [CALLER_UID],
+      createdBy: CALLER_UID,
+      workersCount: 17,
+    });
+
+    // proj-norte: 1 incident, 2 open findings (1 closed → not counted),
+    // 1 critical risk (1 low → not counted), audits 1/2 completed (50%),
+    // corrective_actions 1 on-time + 1 late → 50% on-time.
+    db._seed('incidents/inc-n1', { projectId: 'proj-norte', severity: 'high' });
+    db._seed('findings/f-n1', { projectId: 'proj-norte', status: 'open' });
+    db._seed('findings/f-n2', { projectId: 'proj-norte' }); // no status → open
+    db._seed('findings/f-n3', { projectId: 'proj-norte', status: 'closed' });
+    db._seed('risks/r-n1', { projectId: 'proj-norte', severity: 'critical' });
+    db._seed('risks/r-n2', { projectId: 'proj-norte', severity: 'low' });
+    db._seed('audits/a-n1', { projectId: 'proj-norte', status: 'completada' });
+    db._seed('audits/a-n2', { projectId: 'proj-norte', status: 'pendiente' });
+    db._seed('corrective_actions/ca-n1', {
+      projectId: 'proj-norte',
+      status: 'closed',
+      closedAt: '2026-05-10T00:00:00Z',
+      dueDate: '2026-05-15',
+    }); // on time
+    db._seed('corrective_actions/ca-n2', {
+      projectId: 'proj-norte',
+      status: 'closed',
+      closedAt: '2026-05-20T00:00:00Z',
+      dueDate: '2026-05-15',
+    }); // late
+    db._seed('corrective_actions/ca-n3', {
+      projectId: 'proj-norte',
+      status: 'open',
+    }); // open → ignored in on-time ratio
+
+    // proj-sur: empty → honest zeros (no fabricated metrics).
+
+    const res = await request(buildApp()).get(url).set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(200);
+    const { snapshots } = res.body as { snapshots: ComparatorSnapshot[] };
+    // 3 projects: original PROJECT_ID (no data) + norte + sur.
+    expect(snapshots.length).toBe(3);
+
+    const norte = snapshots.find((s) => s.projectId === 'proj-norte');
+    expect(norte).toBeDefined();
+    expect(norte!.projectName).toBe('Faena Norte');
+    expect(norte!.metrics.incidentCount).toBe(1);
+    expect(norte!.metrics.openFindingsCount).toBe(2);
+    expect(norte!.metrics.criticalRisksCount).toBe(1);
+    expect(norte!.metrics.auditCompliancePct).toBe(50);
+    expect(norte!.metrics.correctiveActionsOnTimePct).toBe(50);
+    expect(norte!.metrics.workersCount).toBe(42);
+
+    // honest-empty: a project with no KPI docs reports real zeros (counts) +
+    // 100 for the ratio metrics (no overdue work is the truthful baseline).
+    const sur = snapshots.find((s) => s.projectId === 'proj-sur');
+    expect(sur).toBeDefined();
+    expect(sur!.metrics.incidentCount).toBe(0);
+    expect(sur!.metrics.openFindingsCount).toBe(0);
+    expect(sur!.metrics.criticalRisksCount).toBe(0);
+    expect(sur!.metrics.auditCompliancePct).toBe(100);
+    expect(sur!.metrics.correctiveActionsOnTimePct).toBe(100);
+    expect(sur!.metrics.workersCount).toBe(17);
+  });
+
+  it('200 a real snapshot pair feeds the comparator engine without throwing', async () => {
+    // End-to-end proof: the aggregated snapshots are accepted by the SAME
+    // comparator engine the /project-comparator/compare endpoint runs.
+    const db = H.db!;
+    db._seed('projects/proj-x', {
+      name: 'X', members: [CALLER_UID], createdBy: CALLER_UID, workersCount: 10,
+    });
+    db._seed('incidents/inc-x', { projectId: 'proj-x', severity: 'low' });
+
+    const res = await request(buildApp()).get(url).set('x-test-uid', CALLER_UID);
+    expect(res.status).toBe(200);
+    const { snapshots } = res.body as { snapshots: ComparatorSnapshot[] };
+    const twoReal = snapshots.slice(0, 2);
+    expect(twoReal.length).toBe(2);
+    const { compareProjects: comparatorCompare } = await import(
+      '../../services/projectComparator/projectComparator.js'
+    );
+    const report = comparatorCompare(twoReal);
+    expect(report.overallRanking.length).toBe(2);
+    expect(report.metricComparisons.length).toBeGreaterThan(0);
+  });
+});

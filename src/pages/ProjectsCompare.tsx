@@ -21,6 +21,8 @@ import {
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { compareProjectsApi } from '../hooks/useProjectComparator';
+import { fetchProjectSnapshots } from '../hooks/useMultiProject';
+import { logger } from '../utils/logger';
 import {
   compareProjects,
   MAX_PROJECTS_TO_COMPARE,
@@ -34,17 +36,58 @@ import {
 } from '../services/projectComparator/projectComparator';
 
 interface ProjectsCompareProps {
-  /** Mapa projectId → snapshot. Caller server-side los pre-agrega desde
-   *  el grafo Zettelkasten (incidents/findings/audits/risks). Vacío =
-   *  empty state. */
+  /** Mapa projectId → snapshot. Override opcional (tests / SSR). Cuando se
+   *  omite, la página agrega los snapshots REALES vía
+   *  `fetchProjectSnapshots` (GET /multi-project/snapshots), que suma
+   *  incidents/findings/audits/risks/corrective_actions server-side. */
   snapshots?: Record<string, ProjectSnapshot>;
 }
 
-export function ProjectsCompare({ snapshots = {} }: ProjectsCompareProps) {
+export function ProjectsCompare({ snapshots: snapshotsProp }: ProjectsCompareProps) {
   const { t } = useTranslation();
-  const { projects } = useProject();
+  const { projects, selectedProject } = useProject();
   const isOnline = useOnlineStatus();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Real snapshots fetched from the server. Skipped when an explicit prop is
+  // provided (tests pass curated snapshots); otherwise loaded on mount once a
+  // project (the auth "lens") is available.
+  const [fetchedSnapshots, setFetchedSnapshots] = useState<
+    Record<string, ProjectSnapshot>
+  >({});
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+
+  // The auth "lens" project the GET is scoped to (caller must be a member).
+  const lensProjectId = selectedProject?.id ?? projects[0]?.id ?? null;
+
+  useEffect(() => {
+    if (snapshotsProp !== undefined) return; // explicit override → no fetch
+    if (!lensProjectId) return;
+    let cancelled = false;
+    setSnapshotsLoading(true);
+    fetchProjectSnapshots(lensProjectId)
+      .then((res) => {
+        if (cancelled) return;
+        const byId: Record<string, ProjectSnapshot> = {};
+        for (const s of res.snapshots) byId[s.projectId] = s;
+        setFetchedSnapshots(byId);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        logger.warn?.('[ProjectsCompare] fetchProjectSnapshots failed', {
+          err: err instanceof Error ? err.message : String(err),
+        });
+        setFetchedSnapshots({});
+      })
+      .finally(() => {
+        if (!cancelled) setSnapshotsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [snapshotsProp, lensProjectId]);
+
+  const snapshots = snapshotsProp ?? fetchedSnapshots;
 
   const eligibleProjects = useMemo(
     () => projects.filter((p) => snapshots[p.id]),
@@ -114,10 +157,12 @@ export function ProjectsCompare({ snapshots = {} }: ProjectsCompareProps) {
             {t('projectsCompare.page.title', 'Comparador de Proyectos')}
           </h1>
           <p className="mt-2 text-sm text-secondary-token">
-            {t(
-              'projectsCompare.page.noEligible',
-              'Sin proyectos con KPIs disponibles para comparar.',
-            )}
+            {snapshotsLoading
+              ? t('common.loading', 'Cargando...')
+              : t(
+                  'projectsCompare.page.noEligible',
+                  'Sin proyectos con KPIs disponibles para comparar.',
+                )}
           </p>
         </div>
       </div>
