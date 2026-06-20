@@ -832,7 +832,21 @@
     "btn_upload": "Upload Document",
     "btn_save_changes": "Save Changes",
     "toast_offline_added": "Document saved for sync when connection returns.",
-    "toast_offline_edited": "Edit saved for sync when connection returns."
+    "toast_offline_edited": "Edit saved for sync when connection returns.",
+    "versionHistory": "History",
+    "versionHistoryTitle": "Version History",
+    "versionHistorySubtitle": "Document control chain",
+    "loadingVersions": "Loading versions...",
+    "versionError": "Error loading versions",
+    "noVersions": "No versions recorded",
+    "noChangeNotes": "No change notes",
+    "vs_draft": "Draft",
+    "vs_in_review": "In review",
+    "vs_approved": "Approved",
+    "vs_superseded": "Superseded",
+    "vs_retired": "Retired",
+    "changelog": "Changelog",
+    "closeHistory": "Close"
   },
   "epp": {
     "title": "PPE Management",

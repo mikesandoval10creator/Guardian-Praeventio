@@ -832,7 +832,21 @@
     "btn_upload": "Enviar Documento",
     "btn_save_changes": "Salvar Alterações",
     "toast_offline_added": "Documento salvo para sincronização quando houver conexão.",
-    "toast_offline_edited": "Edição salva para sincronização quando houver conexão."
+    "toast_offline_edited": "Edição salva para sincronização quando houver conexão.",
+    "versionHistory": "Histórico",
+    "versionHistoryTitle": "Histórico de Versões",
+    "versionHistorySubtitle": "Cadeia de controle documental",
+    "loadingVersions": "Carregando versões...",
+    "versionError": "Erro ao carregar versões",
+    "noVersions": "Nenhuma versão registrada",
+    "noChangeNotes": "Sem notas de alteração",
+    "vs_draft": "Rascunho",
+    "vs_in_review": "Em revisão",
+    "vs_approved": "Aprovado",
+    "vs_superseded": "Substituído",
+    "vs_retired": "Retirado",
+    "changelog": "Registro de alterações",
+    "closeHistory": "Fechar"
   },
   "epp": {
     "title": "Gestão de EPI",

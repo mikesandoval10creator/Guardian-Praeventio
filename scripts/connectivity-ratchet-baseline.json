@@ -83,7 +83,6 @@
     "src/hooks/useActiveVisitors.ts",
     "src/hooks/useAggregateTelemetry.ts",
     "src/hooks/useControlComparator.ts",
-    "src/hooks/useDocumentVersioning.ts",
     "src/hooks/useLegalObligations.ts",
     "src/hooks/useMicrotraining.ts",
     "src/hooks/useStreamedGuardian.ts",
