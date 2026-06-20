@@ -2940,6 +2940,14 @@
     "quick_actions": {
       "heading": "Ações rápidas",
       "complete": "Cumprida"
+    },
+    "server_section": {
+      "aria": "Próximas obrigações segundo o servidor",
+      "heading": "Próximas obrigações (servidor)",
+      "window": "janela {{n}}d",
+      "loading": "Carregando…",
+      "error": "Não foi possível carregar: {{msg}}",
+      "empty": "Não há obrigações a vencer em breve neste projeto."
     }
   },
   "safety_talks": {

@@ -46,15 +46,37 @@ const obligation = {
   nextDueAt: '2026-06-30T00:00:00.000Z',
 } as never;
 
+// CalendarEntry-shaped row as returned by the server (`computeCalendar`):
+// the obligation plus the derived urgency fields.
+const entry = {
+  id: 'ob1',
+  kind: 'audit',
+  label: 'Auditoría ISO 45001 anual',
+  legalCitation: 'ISO 45001 cláusula 9.2',
+  recurrence: 'annual',
+  alertLeadDays: 60,
+  nextDueAt: '2026-06-30T00:00:00.000Z',
+  daysUntilDue: 10,
+  isInAlertWindow: true,
+  isOverdue: false,
+} as never;
+
+const summary = {
+  totalObligations: 1,
+  overdue: 0,
+  inAlertWindow: 1,
+  byKind: { audit: 1 } as Record<string, number>,
+};
+
 describe('useLegalObligations API client', () => {
   // ── fetchUpcomingObligations ──────────────────────────────────────────
 
   it('fetchUpcomingObligations → GET upcoming with default days=30, parsed + auth/json headers', async () => {
     fetchMock.mockResolvedValue(
-      okJson({ obligations: [obligation], count: 1, windowDays: 30 }),
+      okJson({ entries: [entry], summary, windowDays: 30 }),
     );
     const out = await fetchUpcomingObligations('p1');
-    expect(out).toEqual({ obligations: [obligation], count: 1, windowDays: 30 });
+    expect(out).toEqual({ entries: [entry], summary, windowDays: 30 });
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('/api/sprint-k/p1/legal-calendar/upcoming?days=30');
     expect((init as RequestInit).method).toBe('GET');
@@ -65,7 +87,7 @@ describe('useLegalObligations API client', () => {
 
   it('fetchUpcomingObligations → honors a custom windowDays in the query string', async () => {
     fetchMock.mockResolvedValue(
-      okJson({ obligations: [], count: 0, windowDays: 7 }),
+      okJson({ entries: [], summary: { ...summary, totalObligations: 0, inAlertWindow: 0, byKind: {} }, windowDays: 7 }),
     );
     await fetchUpcomingObligations('p1', { windowDays: 7 });
     expect(fetchMock.mock.calls[0]![0]).toBe(
@@ -75,7 +97,7 @@ describe('useLegalObligations API client', () => {
 
   it('fetchUpcomingObligations → encodeURIComponent escapes the projectId', async () => {
     fetchMock.mockResolvedValue(
-      okJson({ obligations: [], count: 0, windowDays: 30 }),
+      okJson({ entries: [], summary: { ...summary, totalObligations: 0, inAlertWindow: 0, byKind: {} }, windowDays: 30 }),
     );
     await fetchUpcomingObligations('p/1 a');
     expect(fetchMock.mock.calls[0]![0]).toBe(
@@ -86,9 +108,9 @@ describe('useLegalObligations API client', () => {
   // ── fetchOverdueObligations ───────────────────────────────────────────
 
   it('fetchOverdueObligations → GET overdue, parsed payload', async () => {
-    fetchMock.mockResolvedValue(okJson({ obligations: [obligation], count: 1 }));
+    fetchMock.mockResolvedValue(okJson({ entries: [entry], count: 1 }));
     const out = await fetchOverdueObligations('p1');
-    expect(out).toEqual({ obligations: [obligation], count: 1 });
+    expect(out).toEqual({ entries: [entry], count: 1 });
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('/api/sprint-k/p1/legal-calendar/overdue');
     expect((init as RequestInit).method).toBe('GET');
@@ -236,7 +258,7 @@ describe('useLegalObligations API client', () => {
     expect(useLegalObligations.fetchHistory).toBe(fetchObligationHistory);
 
     fetchMock.mockResolvedValue(
-      okJson({ obligations: [], count: 0, windowDays: 30 }),
+      okJson({ entries: [], summary: { ...summary, totalObligations: 0, inAlertWindow: 0, byKind: {} }, windowDays: 30 }),
     );
     await useLegalObligations.fetchUpcoming('p9');
     expect(fetchMock.mock.calls[0]![0]).toBe(
