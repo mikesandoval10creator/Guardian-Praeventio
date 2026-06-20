@@ -179,6 +179,7 @@
     "inbox": "Bandeja",
     "incident_trends": "Tendencia Incidentes",
     "ds67_simulator": "Simulador DS 67",
+    "cost_scenarios": "Escenarios de Costo",
     "inspections": "Inspecciones",
     "knowledge_base": "Base de Conocimiento",
     "leadership_decisions": "Decisiones Supervisión",
@@ -3172,6 +3173,20 @@
       "received": "Recibido",
       "not_received": "Sin recibir",
       "row_summary": "{{kind}} · {{entries}} entradas · {{notes}} notas"
+    }
+  },
+  "cost_scenarios": {
+    "title": "Escenarios de costo preventivo",
+    "subtitle": "Compará el costo de un incidente sin prevención vs el ahorro estimado con prevención activa, y guardá escenarios para revisarlos con la gerencia. Cifras referenciales (Ley 16.744, SUSESO/DT) — no reemplazan asesoría legal.",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para simular y guardar escenarios de costo."
+    },
+    "saved": {
+      "label": "Escenarios guardados del proyecto",
+      "heading": "Escenarios guardados ({{n}})",
+      "loading": "Cargando escenarios guardados…",
+      "error": "No se pudieron cargar los escenarios guardados. Intentá nuevamente.",
+      "empty": "Todavía no hay escenarios guardados para este proyecto. Simulá uno arriba y guardalo."
     }
   },
   "change_management": {

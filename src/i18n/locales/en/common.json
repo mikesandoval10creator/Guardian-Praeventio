@@ -179,6 +179,7 @@
     "inbox": "Inbox",
     "incident_trends": "Incident Trends",
     "ds67_simulator": "DS 67 Simulator",
+    "cost_scenarios": "Cost Scenarios",
     "inspections": "Inspections",
     "knowledge_base": "Knowledge Base",
     "leadership_decisions": "Supervision Decisions",
@@ -3172,6 +3173,20 @@
       "received": "Received",
       "not_received": "Not received",
       "row_summary": "{{kind}} · {{entries}} entries · {{notes}} notes"
+    }
+  },
+  "cost_scenarios": {
+    "title": "Prevention cost scenarios",
+    "subtitle": "Compare the cost of an incident without prevention vs the estimated savings with active prevention, and save scenarios to review with management. Reference figures (Law 16.744, SUSESO/DT) — they do not replace legal advice.",
+    "empty": {
+      "select_project": "Select a project to simulate and save cost scenarios."
+    },
+    "saved": {
+      "label": "Saved scenarios for the project",
+      "heading": "Saved scenarios ({{n}})",
+      "loading": "Loading saved scenarios…",
+      "error": "Could not load the saved scenarios. Please try again.",
+      "empty": "No scenarios saved for this project yet. Simulate one above and save it."
     }
   },
   "change_management": {
