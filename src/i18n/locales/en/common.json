@@ -217,7 +217,8 @@
     "prexor": "PREXOR Noise",
     "planesi": "PLANESI Silica",
     "maintenance_preventive": "Maintenance",
-    "incident_flow": "Incident Flow"
+    "incident_flow": "Incident Flow",
+    "waste_inventory": "Environmental Waste"
   },
   "auth": {
     "login": "Sign In",
@@ -4222,7 +4223,7 @@
       "minSeverity": "Minimum severity",
       "period": "Period (days)"
     },
-    "empty": "No findings for the applied filters — good sign!",
+    "empty": "No georeferenced findings for the applied filters.",
     "hotspots": {
       "cell": "Zone {{idx}}",
       "findings": "findings",
@@ -4232,7 +4233,9 @@
       "selectProject": "Select a project to view the spatial distribution of findings.",
       "subtitle": "Spatial distribution by zone. {{cells}} cell(s) over {{points}} finding(s).",
       "title": "Findings Heat Map"
-    }
+    },
+    "loading": "Loading findings…",
+    "error": "Could not load findings."
   },
   "criticalRoles": {
     "page": {
