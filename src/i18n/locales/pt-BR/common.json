@@ -5026,5 +5026,27 @@
       "pinFallbackHelp": "Sem biometria disponível. Assine com seu PIN como alternativa.",
       "pinSigned": "Assinado com PIN: {{itemId}} ({{kind}})."
     }
+  },
+  "contractorPerf": {
+    "title": "Desempenho de empreiteiras — TRIR / LTIFR",
+    "subtitle": "Taxas OSHA/ICMM por empreiteira, a partir dos incidentes registrados e das horas-homem do período",
+    "period": "Período (mês)",
+    "captureTitle": "Horas-homem por empreiteira",
+    "contractorId": "ID da empreiteira (CNPJ ou código)",
+    "contractorName": "Nome da empreiteira",
+    "hours": "Total de horas trabalhadas pela empreiteira (soma de seus trabalhadores)",
+    "save": "Salvar horas-homem",
+    "saving": "Salvando…",
+    "errMissingContractor": "Informe o ID e o nome da empreiteira.",
+    "errMissingHours": "Informe as horas-homem da empreiteira (maior que 0).",
+    "errSavePrefix": "Não foi possível salvar",
+    "errSave": "Não foi possível salvar as horas-homem. Tente novamente.",
+    "loading": "Carregando o desempenho do período…",
+    "loadError": "Não foi possível carregar o desempenho",
+    "empty": "Sem horas-homem de empreiteiras capturadas para este período: TRIR/LTIFR por empreiteira ainda não podem ser calculados.",
+    "noProject": "Selecione um projeto para ver o desempenho das empreiteiras (TRIR/LTIFR).",
+    "colContractor": "Empreiteira",
+    "colHours": "Horas",
+    "colRecordable": "Registráveis"
   }
 }

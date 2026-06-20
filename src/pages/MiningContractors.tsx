@@ -29,6 +29,8 @@ import {
   type Ds76CriticalProcedure,
   type Ds76SgsstStandard,
 } from '../utils/ds76MiningContractor';
+import { useProject } from '../contexts/ProjectContext';
+import { ContractorPerformanceDashboard } from '../components/contractors/ContractorPerformanceDashboard';
 
 function emptyContractor(): Ds76Input {
   const today = new Date().toISOString().slice(0, 10);
@@ -81,6 +83,7 @@ const ALL_STANDARDS: Ds76SgsstStandard[] = [
 
 export function MiningContractors() {
   const { t } = useTranslation();
+  const { selectedProject } = useProject();
   const [contractors, setContractors] = useState<Ds76Input[]>([emptyContractor()]);
   const [activeIdx, setActiveIdx] = useState(0);
 
@@ -325,6 +328,10 @@ export function MiningContractors() {
           </button>
         </motion.div>
       </div>
+
+      {/* Per-contractor safety performance (TRIR/LTIFR) from REAL incidents +
+          captured contractor man-hours. Scoped to the selected project. */}
+      <ContractorPerformanceDashboard projectId={selectedProject?.id ?? null} />
     </div>
   );
 }

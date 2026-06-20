@@ -5026,5 +5026,27 @@
       "pinFallbackHelp": "Sin biometría disponible. Firma con tu PIN como alternativa.",
       "pinSigned": "Firmado con PIN: {{itemId}} ({{kind}})."
     }
+  },
+  "contractorPerf": {
+    "title": "Desempeño de contratistas — TRIR / LTIFR",
+    "subtitle": "Tasas OSHA/ICMM por contratista, desde incidentes registrados y horas-hombre del período",
+    "period": "Período (mes)",
+    "captureTitle": "Horas-hombre por contratista",
+    "contractorId": "ID contratista (RUT o código)",
+    "contractorName": "Nombre contratista",
+    "hours": "Total horas trabajadas del contratista (suma de sus trabajadores)",
+    "save": "Guardar horas-hombre",
+    "saving": "Guardando…",
+    "errMissingContractor": "Ingresa el ID y el nombre del contratista.",
+    "errMissingHours": "Ingresa las horas-hombre del contratista (mayor a 0).",
+    "errSavePrefix": "No se pudo guardar",
+    "errSave": "No se pudieron guardar las horas-hombre. Intenta nuevamente.",
+    "loading": "Cargando desempeño del período…",
+    "loadError": "No se pudo cargar el desempeño",
+    "empty": "Sin horas-hombre de contratistas capturadas para este período: TRIR/LTIFR por contratista no se pueden calcular todavía.",
+    "noProject": "Selecciona un proyecto para ver el desempeño de contratistas (TRIR/LTIFR).",
+    "colContractor": "Contratista",
+    "colHours": "Horas",
+    "colRecordable": "Recordables"
   }
 }

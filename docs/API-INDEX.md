@@ -394,6 +394,8 @@ clave ver `docs/api-routes.md`.
 - `POST /api/sprint-k/:projectId/contractors/compute-kpi`
 - `POST /api/sprint-k/:projectId/contractors/rank-by-risk`
 - `POST /api/sprint-k/:projectId/contractors/acreditation-gap-report`
+- `POST /api/sprint-k/:projectId/contractors/exposure`
+- `GET /api/sprint-k/:projectId/contractors/performance`
 
 ### `src/server/routes/controlComparator.ts` → `/api/sprint-k`
 - `POST /api/sprint-k/:projectId/controls/compare`
