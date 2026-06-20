@@ -15,7 +15,7 @@
 // the test is hermetic — no Firestore, no fetch.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { ProjectClosure } from './ProjectClosure';
 
 vi.mock('react-i18next', () => ({
@@ -267,7 +267,12 @@ describe('<ProjectClosure /> page wrapper (Sprint K §131-138)', () => {
     expect(screen.getByTestId('project-closure-readiness-percent')).toHaveTextContent('0%');
     const btn = screen.getByTestId('project-closure-finalize-btn') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
-    expect(screen.getByText(/3 incidente\(s\) abierto/i)).toBeInTheDocument();
+    // Scope to the page's pending section: the compact ProjectClosureCard
+    // also surfaces the (re-derived) blocker, so query precisely.
+    const pendingSection = screen.getByTestId('project-closure-pending');
+    expect(
+      within(pendingSection).getByText(/3 incidente\(s\) abierto/i),
+    ).toBeInTheDocument();
   });
 
   it('readiness 100% + admin habilita el botón finalize', () => {
@@ -316,6 +321,64 @@ describe('<ProjectClosure /> page wrapper (Sprint K §131-138)', () => {
         preventiveAction: 'Cambio de turno preventivo cada 4 horas',
       }),
     );
+  });
+
+  it('monta <ProjectClosureCard /> con los datos reales del servidor (pending + counts)', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    // Real server-computed status: 2 blockers present (incidents + permits).
+    mockStatus = fullStatus({
+      readinessPercent: 50,
+      canClose: false,
+      blockers: [
+        '2 incidente(s) abierto(s). Cerrar antes de finalizar proyecto.',
+        '1 permiso(s) de trabajo aún activo(s).',
+      ],
+      warnings: ['No se han capturado lecciones transferibles.'],
+      pending: {
+        openIncidents: 2,
+        openActions: 0,
+        openPermits: 1,
+        lessonsCaptured: 0,
+        decisionsLogged: 0,
+      },
+    });
+    mockSummary = fullSummary();
+    render(<ProjectClosure />);
+
+    // Card is rendered (orphan now connected) with a single instance.
+    expect(screen.getByTestId('closure-card')).toBeInTheDocument();
+    // Verdict derived from REAL pending counts → blocked (incidents+permits).
+    expect(screen.getByTestId('closure-blocked')).toBeInTheDocument();
+    expect(screen.queryByTestId('closure-ready')).toBeNull();
+    // Blockers list reflects the real open incidents + permits.
+    const blockers = screen.getByTestId('closure-blockers');
+    expect(blockers).toHaveTextContent(/2 incidente/i);
+    expect(blockers).toHaveTextContent(/1 permiso/i);
+    // Default audience summary uses the real incident counts from /summary.
+    const mgmtSummary = screen.getByTestId('closure-summary-management');
+    expect(mgmtSummary).toHaveTextContent('5 / 1');
+  });
+
+  it('el card refleja "listo para cerrar" cuando no hay bloqueadores reales', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockStatus = fullStatus({
+      readinessPercent: 100,
+      canClose: true,
+      blockers: [],
+      warnings: [],
+      pending: {
+        openIncidents: 0,
+        openActions: 0,
+        openPermits: 0,
+        lessonsCaptured: 4,
+        decisionsLogged: 2,
+      },
+    });
+    mockSummary = fullSummary();
+    render(<ProjectClosure />);
+    expect(screen.getByTestId('closure-card')).toBeInTheDocument();
+    expect(screen.getByTestId('closure-ready')).toBeInTheDocument();
+    expect(screen.queryByTestId('closure-blocked')).toBeNull();
   });
 
   it('registra una decisión crítica llamando al mutation', async () => {

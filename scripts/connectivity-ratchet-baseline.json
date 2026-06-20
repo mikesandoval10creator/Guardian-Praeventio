@@ -53,7 +53,6 @@
     "src/components/pinSign/PinSignModal.tsx",
     "src/components/pricingCalculator/ROICalculatorWidget.tsx",
     "src/components/pricingCalculator/TierComparatorWidget.tsx",
-    "src/components/projectClosure/ProjectClosureCard.tsx",
     "src/components/pymeOnboarding/PymeMaturityWizard.tsx",
     "src/components/pymeWizard/PymeOnboardingPlanPanel.tsx",
     "src/components/reportsAutomation/ReportTemplatePreview.tsx",
