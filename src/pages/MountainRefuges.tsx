@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
@@ -16,10 +16,10 @@ import {
 import { Card, Button } from '../components/shared/Card';
 import { useProject } from '../contexts/ProjectContext';
 import {
-  findNearestRefuges,
   refugeAvailability,
   type RefugeWithDistance,
 } from '../services/refuges/mountainRefuges';
+import { findNearestRefugesApi } from '../hooks/useRefuges';
 
 // 2026-05-15 (Sprint C): antes esta página tenía 3 refugios ficticios
 // (Alfa/Beta/Gamma) con \`Math.cos(angle) * 15\` posicionando puntos
@@ -83,9 +83,20 @@ export function MountainRefuges() {
     );
   }, [geoStatus]);
 
-  const nearestRefuges = useMemo<RefugeWithDistance[]>(() => {
-    return findNearestRefuges(userLocation.lat, userLocation.lng, { count: 5 });
-  }, [userLocation]);
+  const [nearestRefuges, setNearestRefuges] = useState<RefugeWithDistance[]>([]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    let cancelled = false;
+    findNearestRefugesApi(selectedProject.id, {
+      lat: userLocation.lat,
+      lng: userLocation.lng,
+      count: 5,
+    }).then(({ refuges }) => {
+      if (!cancelled) setNearestRefuges(refuges);
+    });
+    return () => { cancelled = true; };
+  }, [selectedProject?.id, userLocation]);
 
   return (
     <div

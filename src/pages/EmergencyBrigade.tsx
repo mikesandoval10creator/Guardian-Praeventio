@@ -52,6 +52,7 @@ import type {
   EmergencyResource,
   BrigadeMember,
 } from '../services/emergencyBrigade/emergencyBrigadeService';
+import { EmergencyBrigadePanel } from '../components/emergencyBrigade/EmergencyBrigadePanel';
 import { logger } from '../utils/logger';
 
 const ROLE_LABEL: Record<BrigadeRole, string> = {
@@ -792,6 +793,12 @@ export function EmergencyBrigade() {
               </p>
             </div>
           </div>
+
+          <EmergencyBrigadePanel
+            members={data?.members ?? []}
+            resources={data?.resources ?? []}
+            requirements={[]}
+          />
 
           {isEmpty && (
             <div

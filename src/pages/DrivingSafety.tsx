@@ -62,6 +62,7 @@ import {
   type DrivingDriver,
   type DrivingRankingEntry,
 } from '../hooks/useDrivingSafety';
+import { DriverScoreCard } from '../components/drivingSafety/DriverScoreCard';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────
@@ -637,6 +638,17 @@ export function DrivingSafety() {
                 );
               })}
             </ul>
+          )}
+
+          {!driversResp.loading && !driversResp.error && drivers.length > 0 && (
+            <div
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+              data-testid="driving-safety-score-cards"
+            >
+              {drivers.map((d) => (
+                <DriverScoreCard key={d.workerUid} profile={d} />
+              ))}
+            </div>
           )}
         </section>
       )}

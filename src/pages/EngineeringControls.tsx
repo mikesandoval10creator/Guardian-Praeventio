@@ -38,6 +38,8 @@ import {
   type EngineeringControlLevelAPI,
 } from '../hooks/useEngineeringControls';
 import { logger } from '../utils/logger';
+import { EngineeringInventoryCard } from '../components/engineeringControls/EngineeringInventoryCard';
+import type { EngineeringControl } from '../services/engineeringControls/engineeringControlsInventory';
 
 // ────────────────────────────────────────────────────────────────────────
 // Hierarchy metadata (ISO 31000 / 45001 §8.1.2)
@@ -235,6 +237,27 @@ export function EngineeringControls() {
   // still renders, but we must tell the user the list may be incomplete.
   const partialReadFailure = resp.data?.warning === 'partial_read_failure';
 
+  const inventoryControls = useMemo<EngineeringControl[]>(
+    () =>
+      controls.map((c) => ({
+        id: c.id,
+        kind: 'physical_barrier' as const,
+        label: c.name,
+        mitigatesRiskCategory: c.riskCategory,
+        location: c.description,
+        status: (() => {
+          if (!c.lastVerifiedAt) return 'fuera_servicio' as const;
+          const view = computeVerificationView(c);
+          if (view.status === 'red') return 'fuera_servicio' as const;
+          if (view.status === 'amber') return 'mantenimiento_pendiente' as const;
+          return 'operativo' as const;
+        })(),
+        lastCheckedAt: c.lastVerifiedAt ?? undefined,
+        maintainedByUid: c.responsibleUid,
+      })),
+    [controls],
+  );
+
   // Risk categories surfaced from the loaded controls. We keep the
   // filter chip-list dynamic so a project doesn't see categories it
   // doesn't actually use. Sorted alphabetically for stability.
@@ -419,6 +442,11 @@ export function EngineeringControls() {
           </span>
         )}
       </header>
+
+      <EngineeringInventoryCard
+        controls={inventoryControls}
+        projectRiskCategories={riskCategories}
+      />
 
       {/* Hierarchy diagram — 5 stacked levels, semantic colors */}
       <section

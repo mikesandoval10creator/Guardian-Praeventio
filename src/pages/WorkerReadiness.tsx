@@ -38,6 +38,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useWorkerReadiness } from '../hooks/useWorkerReadiness';
 import type { Worker } from '../types';
+import { WorkerReadinessCard } from '../components/workerReadiness/WorkerReadinessCard';
 import type { ReadinessReport } from '../services/workerReadiness/readinessScore';
 
 interface TaskLite {
@@ -427,6 +428,8 @@ function ReportView({ report }: ReportViewProps) {
           </p>
         </div>
       </section>
+
+      <WorkerReadinessCard report={report} />
 
       {/* Non-blocking attention banner — only visible when score < 60.
           Uses text-amber-500 per the F.16 brief; NOT a blocker — the
