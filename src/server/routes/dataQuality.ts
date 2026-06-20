@@ -193,4 +193,151 @@ router.get('/:projectId/data-quality', verifyAuth, async (req, res) => {
   }
 });
 
+// ────────────────────────────────────────────────────────────────────────
+// GET /:projectId/document-hygiene
+//
+// Salud documental REAL para `<DocumentHygienePanel>` y `<DocConfidenceCard>`.
+//
+// Deriva `DocumentRecord[]` (firmas SI/NO, accesos 90d, firmas de lectura,
+// referencia normativa, vínculo operacional) a partir de TRES colecciones
+// canónicas — sin fabricar campos:
+//   1. projects/{pid}/documents        — metadata del documento
+//   2. projects/{pid}/read_receipts    — acuses DS44/RIOHS (documentId__workerUid)
+//   3. nodes (where projectId)         — nodos DOCUMENT vinculados a operación
+//
+// El motor determinístico `documentHygieneEngine` corre client-side sobre
+// estos records (igual que `incompletenessScanner` arriba); aquí solo
+// cableamos la LECTURA real. Empty-state honesto: si no hay documentos,
+// devuelve `{ documents: [] }` y el panel muestra "0 problemas".
+// ────────────────────────────────────────────────────────────────────────
+
+router.get('/:projectId/document-hygiene', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const db = admin.firestore();
+    const projectRef = db.collection('projects').doc(projectId);
+
+    const safeRead = async <T,>(
+      label: string,
+      fn: () => Promise<T[]>,
+    ): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`documentHygiene.read.${label}.failed`, err);
+        return [];
+      }
+    };
+
+    const [docs, receipts, docNodes] = await Promise.all([
+      safeRead('documents', async () =>
+        (await projectRef.collection('documents').get()).docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Record<string, unknown>),
+        })),
+      ),
+      safeRead('read_receipts', async () =>
+        (await projectRef.collection('read_receipts').get()).docs.map(
+          (d) => d.data() as Record<string, unknown>,
+        ),
+      ),
+      safeRead('nodes', async () => {
+        const snap = await db
+          .collection('nodes')
+          .where('projectId', '==', projectId)
+          .limit(2000)
+          .get();
+        return snap.docs
+          .map((d) => d.data() as Record<string, unknown>)
+          .filter((n) => n.type === 'document' || n.type === 'Documento');
+      }),
+    ]);
+
+    // Index read receipts by documentId for real counts.
+    const NINETY_DAYS_MS = 90 * 86_400_000;
+    const nowMs = Date.now();
+    const receiptCountByDoc = new Map<string, number>();
+    const recentAccessByDoc = new Map<string, number>();
+    for (const r of receipts) {
+      const documentId = typeof r.documentId === 'string' ? r.documentId : null;
+      if (!documentId) continue;
+      receiptCountByDoc.set(
+        documentId,
+        (receiptCountByDoc.get(documentId) ?? 0) + 1,
+      );
+      const acked =
+        typeof r.acknowledgedAt === 'string' ? Date.parse(r.acknowledgedAt) : NaN;
+      if (!Number.isNaN(acked) && nowMs - acked <= NINETY_DAYS_MS) {
+        recentAccessByDoc.set(
+          documentId,
+          (recentAccessByDoc.get(documentId) ?? 0) + 1,
+        );
+      }
+    }
+
+    // Index operational links: a DOCUMENT node whose metadata.documentId points
+    // at a real document means that document is wired into the risk graph.
+    const linkedDocIds = new Set<string>();
+    for (const n of docNodes) {
+      const meta = (n.metadata ?? {}) as Record<string, unknown>;
+      if (typeof meta.documentId === 'string') linkedDocIds.add(meta.documentId);
+    }
+
+    const NORM_CATEGORIES = new Set(['legal', 'sst', 'normativa', 'norma']);
+
+    const documents = docs.map((d) => {
+      const category = (
+        typeof d.category === 'string' ? d.category : ''
+      ).toLowerCase();
+      const tags = Array.isArray(d.tags) ? (d.tags as unknown[]) : [];
+      const referencesNorm =
+        NORM_CATEGORIES.has(category) ||
+        tags.some(
+          (tg) =>
+            typeof tg === 'string' &&
+            /legal|norma|sst|nch|ds\s?\d|iso/i.test(tg),
+        );
+      const readReceiptCount = receiptCountByDoc.get(d.id) ?? 0;
+      const accessCount90d = recentAccessByDoc.get(d.id) ?? 0;
+      const updatedAt =
+        typeof d.updatedAt === 'string'
+          ? d.updatedAt
+          : typeof d.createdAt === 'string'
+            ? d.createdAt
+            : new Date(0).toISOString();
+      return {
+        id: d.id,
+        title: typeof d.name === 'string' ? d.name : d.id,
+        kind:
+          typeof d.type === 'string'
+            ? d.type
+            : typeof d.category === 'string'
+              ? d.category
+              : 'document',
+        version: typeof d.version === 'string' ? d.version : '1.0',
+        approvedByUid:
+          typeof d.approvedByUid === 'string' ? d.approvedByUid : undefined,
+        approvedAt: typeof d.approvedAt === 'string' ? d.approvedAt : undefined,
+        updatedAt,
+        // A document is considered to have a valid signature only when at
+        // least one worker has formally acknowledged reading it (DS44 acuse).
+        hasValidSignature: readReceiptCount > 0,
+        accessCount90d,
+        readReceiptCount,
+        referencesNorm,
+        isLinkedToOperations: linkedDocIds.has(d.id),
+      };
+    });
+
+    return res.json({ documents });
+  } catch (err) {
+    logger.error?.('documentHygiene.error', err);
+    captureRouteError(err, 'documentHygiene');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 export default router;
