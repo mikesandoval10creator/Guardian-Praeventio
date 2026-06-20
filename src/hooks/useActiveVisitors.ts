@@ -1,17 +1,22 @@
 // Praeventio Guard — §23-24 Visitor Control hook (active list).
 //
-// Hook fetch-based para `/api/sprint-k/:projectId/visitors/active`.
-// Migrado del monolito `useSprintK.ts` (2026-05-18).
+// Hook fetch-based para `GET /api/visitors?projectId=…` (router canónico
+// `src/server/routes/visitors.ts`, mounted en `/api/visitors` desde
+// `server.ts`). Devuelve `{ ok, visitors }` con `visitors` ya filtrado a
+// las visitas activas (`checkOutAt == null`) server-side.
 //
-// NOTA: existe también `src/server/routes/visitors.ts` (mounted en
-// `/api/visitors`) que es el router primario del módulo Visitas. Este
-// hook apunta al endpoint legacy bajo `/api/sprint-k` que sobrevivió
-// del monolito y queda disponible para los consumers que aún no se
-// migraron al endpoint canónico.
+// FIX 2026-06-20 (feat/mount-visitor-checkin): este hook apuntaba al
+// endpoint legacy `/api/sprint-k/:projectId/visitors/active` que NO existe
+// en el backend (el monolito `useSprintK.ts` se desmontó), por lo que el
+// hook era un huérfano que jamás habría servido datos reales. Se reapunta
+// al endpoint canónico real y se alinea el tipo de retorno con el contrato
+// REAL del router (`Visitor[]` de `visitorControl/visitorRegistry.ts`), NO
+// el `VisitorAccess` del servicio de control de acceso, que no tiene
+// endpoint HTTP y cuyos campos (`identityDocument`, `organization`, `kind`,
+// `checkedInAt`) el backend nunca emite — devolverlos sería dato fabricado.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { auth } from '../services/firebase';
-import type { VisitorAccess } from '../services/visitors/visitorAccessService';
+import type { Visitor } from '../services/visitorControl/visitorRegistry';
 import { apiAuthHeader } from '../lib/apiAuth';
 
 interface FetchState<T> {
@@ -79,11 +84,21 @@ function useEndpoint<T>(
 }
 
 export interface ActiveVisitorsResponse {
-  visitors: VisitorAccess[];
+  ok: true;
+  /** Already filtered to active visits (no `checkOutAt`) by the router. */
+  visitors: Visitor[];
 }
 
+/**
+ * Subscribe to the active-visit list for a project. Returns `{ data, loading,
+ * error, refetch }` where `data.visitors` is the REAL `Visitor[]` served by
+ * `GET /api/visitors?projectId=…`. Passing `null` (no project / not signed in)
+ * disables the fetch and yields `{ data: null, loading: false }`.
+ */
 export function useActiveVisitors(projectId: string | null) {
   return useEndpoint<ActiveVisitorsResponse>(
-    projectId ? `/api/sprint-k/${projectId}/visitors/active` : null,
+    projectId
+      ? `/api/visitors?projectId=${encodeURIComponent(projectId)}`
+      : null,
   );
 }

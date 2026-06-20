@@ -4703,6 +4703,7 @@
     "page": {
       "emptyHint": "Registra una nueva visita para iniciar el control de acceso.",
       "emptyTitle": "Aún no hay visitas activas.",
+      "loading": "Cargando visitas activas…",
       "newVisit": "Nueva visita",
       "selectProject": "Selecciona un proyecto para registrar visitas.",
       "subtitle": "Visitas activas: {{count}}",

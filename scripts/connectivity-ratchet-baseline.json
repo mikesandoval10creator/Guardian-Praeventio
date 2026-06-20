@@ -56,7 +56,6 @@
     "src/components/twinScene/TwinIntegrationPanel.tsx",
     "src/components/twinScene/TwinSceneInstancedLazy.tsx",
     "src/components/visitors/VisitorCheckInForm.tsx",
-    "src/hooks/useActiveVisitors.ts",
     "src/hooks/useAggregateTelemetry.ts",
     "src/hooks/useControlComparator.ts",
     "src/hooks/useStreamedGuardian.ts",
