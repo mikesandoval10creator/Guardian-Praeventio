@@ -29,6 +29,7 @@ import { AnatomyLibrary } from '../components/medicine/AnatomyLibrary';
 import { VigilanciaScheduler } from '../components/medicine/VigilanciaScheduler';
 import { DrugInteractions } from '../components/medicine/DrugInteractions';
 import { Ds109Modal } from '../components/medicine/Ds109Modal';
+import { Ds67Modal } from '../components/medicine/Ds67Modal';
 import { computeSurveillanceBreakdown } from './medicineMetrics';
 import { FileCheck } from 'lucide-react';
 
@@ -39,6 +40,7 @@ export function Medicine() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [ds109Open, setDs109Open] = useState(false);
+  const [ds67Open, setDs67Open] = useState(false);
   const [bodyRegions, setBodyRegions] = useState<BodyRegion[]>([]);
   const [activeTab, setActiveTab] = useState<'visor' | 'diagnostico' | 'aptitud' | 'anatomia' | 'vigilancia' | 'farmacos'>('visor');
 
@@ -89,6 +91,14 @@ export function Medicine() {
           >
             <FileCheck className="w-5 h-5 text-teal-500 dark:text-gold-400" />
             <span>{t('medicine.ds109_label')}</span>
+          </button>
+          <button
+            onClick={() => setDs67Open(true)}
+            className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white px-4 py-2 rounded-xl font-medium transition-all border border-zinc-200 dark:border-white/10 active:scale-95"
+            title={t('medicine.ds67_tooltip')}
+          >
+            <FileCheck className="w-5 h-5 text-teal-500 dark:text-gold-400" />
+            <span>{t('medicine.ds67_label')}</span>
           </button>
           <button
             onClick={() => setIsModalOpen(true)}
@@ -287,6 +297,8 @@ export function Medicine() {
       />
 
       <Ds109Modal isOpen={ds109Open} onClose={() => setDs109Open(false)} />
+
+      <Ds67Modal isOpen={ds67Open} onClose={() => setDs67Open(false)} />
     </div>
   );
 }

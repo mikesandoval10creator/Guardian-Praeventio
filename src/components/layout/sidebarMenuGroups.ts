@@ -29,6 +29,7 @@ import {
   BookOpen,
   Brain,
   Briefcase,
+  Calculator,
   Calendar,
   Car,
   Crosshair,
@@ -300,6 +301,9 @@ export function buildSidebarMenuGroups(
     { title: t('nav.incident_trends', 'Tendencia Incidentes'), icon: BarChart3, path: '/incident-trends', color: 'text-amber-500' },
     // Épica B1 capa 2 — Simulador cotización adicional DS 67 (siniestralidad → $).
     { title: t('nav.ds67_simulator', 'Simulador DS 67'), icon: BarChart3, path: '/ds67-simulator', color: 'text-teal-500' },
+    // Bloque 3.15 — Escenarios de costo preventivo (CostSimulator + CostScenarioCard
+    // sobre /api/sprint-k/:projectId/cost/*: simular → guardar → leer → tarjeta).
+    { title: t('nav.cost_scenarios', 'Escenarios de Costo'), icon: Calculator, path: '/cost-scenarios', color: 'text-teal-500' },
     // Sprint K §244-250 — Aprendices + Mentoría + Autorización Progresiva.
     { title: t('nav.apprenticeship', 'Aprendices y Mentores'), icon: UserCheck, path: '/apprenticeship', color: 'text-teal-500' },
     // Sprint 42 Fase F.18 — Historial Profesional Portátil del Trabajador.

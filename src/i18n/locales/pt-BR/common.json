@@ -179,6 +179,7 @@
     "inbox": "Caixa de Entrada",
     "incident_trends": "Tendência de Incidentes",
     "ds67_simulator": "Simulador DS 67",
+    "cost_scenarios": "Cenários de Custo",
     "inspections": "Inspeções",
     "knowledge_base": "Base de Conhecimento",
     "leadership_decisions": "Decisões da Supervisão",
@@ -588,6 +589,8 @@
     "subtitle": "Gestão de saúde, exames médicos e vigilância epidemiológica",
     "ds109_tooltip": "Gerar formulário DS 109 (qualificação de doença ocupacional)",
     "ds109_label": "Qualificação DS 109",
+    "ds67_tooltip": "Gerar notificação DS 67 de acidente de trabalho à seguradora mútua (Lei 16.744 art. 76)",
+    "ds67_label": "Notificação DS 67",
     "new_consultation": "Nova Consulta",
     "workstation": "Estação de Trabalho Médica",
     "tab_visor": "Visor Corporal",
@@ -2875,6 +2878,20 @@
       "received": "Recebido",
       "not_received": "Não recebido",
       "row_summary": "{{kind}} · {{entries}} entradas · {{notes}} notas"
+    }
+  },
+  "cost_scenarios": {
+    "title": "Cenários de custo preventivo",
+    "subtitle": "Compare o custo de um incidente sem prevenção vs a economia estimada com prevenção ativa, e salve cenários para revisar com a gerência. Valores de referência (Lei 16.744, SUSESO/DT) — não substituem assessoria jurídica.",
+    "empty": {
+      "select_project": "Selecione um projeto para simular e salvar cenários de custo."
+    },
+    "saved": {
+      "label": "Cenários salvos do projeto",
+      "heading": "Cenários salvos ({{n}})",
+      "loading": "Carregando cenários salvos…",
+      "error": "Não foi possível carregar os cenários salvos. Tente novamente.",
+      "empty": "Ainda não há cenários salvos para este projeto. Simule um acima e salve-o."
     }
   },
   "change_management": {

@@ -179,6 +179,7 @@
     "inbox": "Bandeja",
     "incident_trends": "Tendencia Incidentes",
     "ds67_simulator": "Simulador DS 67",
+    "cost_scenarios": "Escenarios de Costo",
     "inspections": "Inspecciones",
     "knowledge_base": "Base de Conocimiento",
     "leadership_decisions": "Decisiones Supervisión",
@@ -588,6 +589,8 @@
     "subtitle": "Gestión de salud, exámenes médicos y vigilancia epidemiológica",
     "ds109_tooltip": "Generar formulario DS 109 (calificación de enfermedad profesional)",
     "ds109_label": "Calificación DS 109",
+    "ds67_tooltip": "Generar notificación DS 67 de accidente del trabajo a la mutualidad (Ley 16.744 art. 76)",
+    "ds67_label": "Notificación DS 67",
     "new_consultation": "Nueva Consulta",
     "workstation": "Estación de Trabajo Médica",
     "tab_visor": "Visor Corporal",
@@ -3172,6 +3175,20 @@
       "received": "Recibido",
       "not_received": "Sin recibir",
       "row_summary": "{{kind}} · {{entries}} entradas · {{notes}} notas"
+    }
+  },
+  "cost_scenarios": {
+    "title": "Escenarios de costo preventivo",
+    "subtitle": "Compará el costo de un incidente sin prevención vs el ahorro estimado con prevención activa, y guardá escenarios para revisarlos con la gerencia. Cifras referenciales (Ley 16.744, SUSESO/DT) — no reemplazan asesoría legal.",
+    "empty": {
+      "select_project": "Seleccioná un proyecto para simular y guardar escenarios de costo."
+    },
+    "saved": {
+      "label": "Escenarios guardados del proyecto",
+      "heading": "Escenarios guardados ({{n}})",
+      "loading": "Cargando escenarios guardados…",
+      "error": "No se pudieron cargar los escenarios guardados. Intentá nuevamente.",
+      "empty": "Todavía no hay escenarios guardados para este proyecto. Simulá uno arriba y guardalo."
     }
   },
   "change_management": {
