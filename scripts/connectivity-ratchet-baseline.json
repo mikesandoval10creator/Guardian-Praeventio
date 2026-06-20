@@ -84,7 +84,6 @@
     "src/hooks/useAggregateTelemetry.ts",
     "src/hooks/useControlComparator.ts",
     "src/hooks/useLegalObligations.ts",
-    "src/hooks/useMicrotraining.ts",
     "src/hooks/useStreamedGuardian.ts",
     "src/hooks/useSubmit.ts"
   ]

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -44,6 +44,13 @@ import { useEmergency } from '../contexts/EmergencyContext';
 import { logger } from '../utils/logger';
 import { EmptyState } from '../components/shared/EmptyState';
 import { CsvImportExportModal } from '../components/etl/CsvImportExportModal';
+import {
+  useMicrotrainingCatalog,
+  useMicrotrainingRecommendation,
+  useMicrotrainingCerts,
+  submitMicrotrainingSession,
+} from '../hooks/useMicrotraining';
+import type { RiskCategory } from '../services/microtraining/lightningTrainingService';
 
 interface QuizQuestion {
   question: string;
@@ -92,6 +99,48 @@ export function Training() {
   const { data: allSessions, loading } = useFirestoreCollection<TrainingSession>('training');
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
+
+  const detectedRisks = useMemo(() => {
+    const riskKeywords: Record<string, string> = {
+      altura: 'altura',
+      electrico: 'electrico',
+      eléctrico: 'electrico',
+      hazmat: 'hazmat',
+      químico: 'hazmat',
+      quimico: 'hazmat',
+      ergo: 'ergo',
+      ergonómico: 'ergo',
+      ergonomico: 'ergo',
+      'línea de fuego': 'lineas_de_fuego',
+      'linea de fuego': 'lineas_de_fuego',
+      confinado: 'espacio_confinado',
+      espacio_confinado: 'espacio_confinado',
+      ruido: 'ruido',
+    };
+    const found = new Set<string>();
+    for (const n of nodes) {
+      if (n.type !== 'Riesgo') continue;
+      const hay = `${n.title} ${n.description} ${(n.tags || []).join(' ')}`.toLowerCase();
+      for (const [kw, cat] of Object.entries(riskKeywords)) {
+        if (hay.includes(kw)) found.add(cat);
+      }
+    }
+    return [...found] as RiskCategory[];
+  }, [nodes]);
+
+  const microCatalog = useMicrotrainingCatalog(selectedProject?.id ?? null);
+  const microRecommendation = useMicrotrainingRecommendation(
+    selectedProject?.id ?? null,
+    user?.uid ?? null,
+    detectedRisks,
+  );
+  const microCerts = useMicrotrainingCerts(selectedProject?.id ?? null, user?.uid ?? null);
+
+  const [activeMicroModule, setActiveMicroModule] = useState<string | null>(null);
+  const [microAnswers, setMicroAnswers] = useState<number[]>([]);
+  const [microQuizDone, setMicroQuizDone] = useState(false);
+  const [microResult, setMicroResult] = useState<{ score: number; certified: boolean } | null>(null);
+  const [microSubmitting, setMicroSubmitting] = useState(false);
 
   // Award quiz_passed points exactly once per quiz attempt with score >= 70
   useEffect(() => {
@@ -305,6 +354,52 @@ export function Training() {
       setGeneratingCapsule(false);
     }
   };
+
+  const handleMicroModuleClick = (moduleId: string) => {
+    setActiveMicroModule(moduleId);
+    setMicroAnswers([]);
+    setMicroQuizDone(false);
+    setMicroResult(null);
+  };
+
+  const handleMicroAnswer = (blockIndex: number, optionIndex: number) => {
+    const next = [...microAnswers];
+    next[blockIndex] = optionIndex;
+    setMicroAnswers(next);
+  };
+
+  const handleMicroSubmit = async () => {
+    if (!selectedProject || !user || !activeMicroModule || !microCatalog.data) return;
+    const mod = microCatalog.data.modules.find((m) => m.id === activeMicroModule);
+    if (!mod) return;
+    setMicroSubmitting(true);
+    try {
+      const quizBlocks = mod.content
+        .map((b, i) => ({ ...b, idx: i }))
+        .filter((b) => b.kind === 'quiz');
+      const answers = quizBlocks.map((b) => ({
+        blockIndex: b.idx,
+        selectedIndex: microAnswers[b.idx] ?? 0,
+      }));
+      const res = await submitMicrotrainingSession(selectedProject.id, {
+        workerUid: user.uid,
+        moduleId: mod.id,
+        startedAt: Date.now(),
+        completedAt: Date.now(),
+        answers,
+      });
+      setMicroResult({ score: res.score, certified: res.certified });
+      setMicroQuizDone(true);
+      microCerts.refetch();
+    } catch {
+    } finally {
+      setMicroSubmitting(false);
+    }
+  };
+
+  const activeMicroModuleData = microCatalog.data?.modules.find(
+    (m) => m.id === activeMicroModule,
+  );
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 sm:space-y-8">
@@ -729,6 +824,122 @@ export function Training() {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {activeMicroModuleData && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className="bg-zinc-900 border border-white/10 rounded-[40px] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl"
+            >
+              <div className="p-8 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-amber-500/10 to-transparent shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500">
+                    <Zap className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-white uppercase tracking-tighter">{activeMicroModuleData.title}</h2>
+                    <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">{activeMicroModuleData.durationMinutes} min · Lightning Training</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveMicroModule(null)}
+                  aria-label="Cerrar"
+                  className="p-2.5 min-w-[44px] min-h-[44px] hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white flex items-center justify-center"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
+                {!microQuizDone ? (
+                  activeMicroModuleData.content.map((block, i) => (
+                    block.kind === 'text' ? (
+                      <div key={i} className="bg-white/5 border border-white/5 rounded-2xl p-6">
+                        <p className="text-zinc-300 text-sm leading-relaxed font-medium whitespace-pre-wrap">{block.payload.body}</p>
+                      </div>
+                    ) : block.kind === 'quiz' ? (
+                      <div key={i} className="space-y-4">
+                        <p className="text-white font-bold text-base leading-tight">{block.payload.question}</p>
+                        <div className="grid grid-cols-1 gap-3">
+                          {block.payload.options.map((opt, oi) => (
+                            <button
+                              key={oi}
+                              onClick={() => handleMicroAnswer(i, oi)}
+                              className={`w-full p-5 border rounded-2xl text-left text-sm font-medium transition-all flex items-center gap-4 ${
+                                microAnswers[i] === oi
+                                  ? 'bg-amber-500/20 border-amber-500/50 text-white'
+                                  : 'bg-white/5 border-white/5 text-zinc-300 hover:bg-white/10 hover:border-white/10'
+                              }`}
+                            >
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black transition-colors ${
+                                microAnswers[i] === oi ? 'bg-amber-500 text-white' : 'bg-zinc-800 text-zinc-500'
+                              }`}>
+                                {String.fromCharCode(65 + oi)}
+                              </div>
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null
+                  ))
+                ) : (
+                  <div className="text-center space-y-8 py-10">
+                    <div className="relative inline-block">
+                      <div className={`w-32 h-32 rounded-full flex items-center justify-center border-4 ${microResult?.certified ? 'border-[#4db6ac] bg-[#4db6ac]/10' : 'border-rose-500 bg-rose-500/10'}`}>
+                        <span className={`text-4xl font-black ${microResult?.certified ? 'text-[#4db6ac]' : 'text-rose-500'}`}>
+                          {microResult?.score ?? 0}%
+                        </span>
+                      </div>
+                      {microResult?.certified && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="absolute -top-2 -right-2 w-10 h-10 bg-[#4db6ac] rounded-full flex items-center justify-center text-white shadow-lg"
+                        >
+                          <CheckCircle2 className="w-6 h-6" />
+                        </motion.div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-2xl font-black text-white uppercase tracking-tighter">
+                        {microResult?.certified ? '¡Certificado!' : 'Sigue practicando'}
+                      </h3>
+                      <p className="text-zinc-500 text-sm font-medium">
+                        {microResult?.certified
+                          ? 'Has aprobado el módulo lightning. Tu certificado ha sido registrado.'
+                          : 'No alcanzaste el puntaje mínimo. Intenta de nuevo.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-8 border-t border-white/5 bg-zinc-900/50 flex justify-end gap-3 shrink-0">
+                <button
+                  onClick={() => setActiveMicroModule(null)}
+                  className="px-8 py-4 rounded-2xl bg-zinc-800 text-white font-black text-[10px] uppercase tracking-widest hover:bg-zinc-700 transition-all"
+                >
+                  Cerrar
+                </button>
+                {!microQuizDone && (
+                  <button
+                    onClick={handleMicroSubmit}
+                    disabled={microSubmitting}
+                    className="px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black text-[10px] uppercase tracking-widest hover:from-amber-400 hover:to-orange-500 transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {microSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                    Enviar
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Stats Overview */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
         {[
@@ -748,6 +959,91 @@ export function Training() {
           </div>
         ))}
       </div>
+
+      {/* Lightning Training */}
+      {(microCatalog.data || microRecommendation.data?.module) && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-br from-amber-500/10 via-zinc-900/50 to-orange-600/5 border border-amber-500/20 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500">
+                <Zap className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-tighter">Lightning Training</h2>
+                <p className="text-[8px] sm:text-[10px] font-bold text-amber-500 uppercase tracking-widest">Micro-capacitaciones 3-5 min</p>
+              </div>
+            </div>
+            {microCerts.data && microCerts.data.certs.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-[#4db6ac]" />
+                <span className="text-[10px] font-black text-[#4db6ac] uppercase tracking-widest">
+                  {microCerts.data.certs.length} certificado{microCerts.data.certs.length > 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {microRecommendation.data?.module && (
+            <div className="bg-white/5 border border-amber-500/30 rounded-2xl p-4 sm:p-5 mb-4 sm:mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+                  <Brain className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[8px] sm:text-[10px] font-black text-amber-500 uppercase tracking-widest">Recomendado para ti</p>
+                  <p className="text-sm sm:text-base font-black text-white truncate">{microRecommendation.data.module.title}</p>
+                  <p className="text-[10px] text-zinc-500 font-medium">{microRecommendation.data.module.durationMinutes} min · {microRecommendation.data.module.riskCategory}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => handleMicroModuleClick(microRecommendation.data!.module!.id)}
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black text-[10px] uppercase tracking-widest hover:from-amber-400 hover:to-orange-500 transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 shrink-0"
+              >
+                <Play className="w-4 h-4" />
+                Iniciar
+              </button>
+            </div>
+          )}
+
+          {microCatalog.data && microCatalog.data.modules.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {microCatalog.data.modules.map((mod) => {
+                const isCertified = microCerts.data?.certs.some((c) => c.moduleId === mod.id);
+                return (
+                  <button
+                    key={mod.id}
+                    onClick={() => handleMicroModuleClick(mod.id)}
+                    className={`p-4 rounded-2xl border text-left transition-all flex items-center gap-3 ${
+                      isCertified
+                        ? 'bg-[#4db6ac]/10 border-[#4db6ac]/30 hover:border-[#4db6ac]/50'
+                        : 'bg-white/5 border-white/5 hover:border-amber-500/30 hover:bg-white/10'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      isCertified ? 'bg-[#4db6ac]/20 text-[#4db6ac]' : 'bg-amber-500/20 text-amber-500'
+                    }`}>
+                      {isCertified ? <CheckCircle2 className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black text-white truncate">{mod.title}</p>
+                      <p className="text-[10px] text-zinc-500 font-medium">{mod.durationMinutes} min · {mod.riskCategory}</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-zinc-600 shrink-0" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {microRecommendation.data?.reason && !microRecommendation.data.module && (
+            <p className="text-xs text-zinc-500 font-medium text-center py-2">{microRecommendation.data.reason}</p>
+          )}
+        </motion.div>
+      )}
 
       {/* Tabs & Search */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
