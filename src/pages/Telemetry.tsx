@@ -28,6 +28,7 @@ import { generateRealisticIoTEvent } from '../services/geminiService';
 import { getHealthAdapter } from '../services/health';
 
 import { ZoneAtmospherePanel } from '../components/telemetry/ZoneAtmospherePanel';
+import { AggregateTelemetryPanel } from '../components/telemetry/AggregateTelemetryPanel';
 import { selectGasReadings } from '../components/telemetry/gasReadings';
 import { evaluateGasTelemetry } from '../services/workPermits/gasGate';
 import { ActiveAlertsList } from '../components/telemetry/ActiveAlertsList';
@@ -567,6 +568,8 @@ export function Telemetry() {
       </div>
 
       <ZoneAtmospherePanel gas={gasResult} />
+
+      <AggregateTelemetryPanel projectId={selectedProject?.id ?? null} />
 
       <ActiveAlertsList alerts={alerts} onSaveToZettelkasten={handleSaveAlertToZettelkasten} />
 

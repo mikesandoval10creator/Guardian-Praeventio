@@ -4938,5 +4938,20 @@
       "stable": "Estável",
       "worsening": "Piorando"
     }
+  },
+  "telemetry": {
+    "aggregate": {
+      "title": "Telemetria operacional agregada",
+      "subtitle": "Contagens sem dados pessoais — incidentes, EPI, permissões e mais",
+      "windowLabel": "Janela de tempo",
+      "noProject": "Selecione um projeto para ver sua telemetria agregada.",
+      "loading": "Carregando telemetria…",
+      "error": "Não foi possível carregar a telemetria agregada. Tente novamente mais tarde.",
+      "empty": "Sem eventos operacionais nesta janela. Os dados aparecerão à medida que incidentes, treinamentos, permissões e mais forem registrados.",
+      "totalEvents": "eventos na janela",
+      "bySeverity": "Por severidade",
+      "byKind": "Por tipo de evento",
+      "perDay": "{{rate}}/dia"
+    }
   }
 }
