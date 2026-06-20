@@ -26,9 +26,16 @@ import { collection, addDoc, where } from 'firebase/firestore';
 import { AssignEPPModal } from '../components/epp/AssignEPPModal';
 import { EPPVerificationModal } from '../components/epp/EPPVerificationModal';
 import { EppInspectionForm } from '../components/eppFlow/EppInspectionForm';
+import { PendingPurchaseOrdersPanel } from '../components/eppFlow/PendingPurchaseOrdersPanel';
+import { PurchaseOrderSignModal } from '../components/eppFlow/PurchaseOrderSignModal';
+import type { PendingOrder } from '../hooks/useEppFlow';
 import type { InventoryItem } from '../services/financialAnalytics/purchaseOrderSuggester';
 import { Sparkles } from 'lucide-react';
 import { logger } from '../utils/logger';
+
+/** Elevated roles allowed to review + sign suggested purchase orders.
+ *  Mirrors the server gate `EPP_SIGN_ROLES` in src/server/routes/eppFlow.ts. */
+const EPP_SIGN_ROLES = new Set(['admin', 'prevencionista', 'supervisor']);
 
 /** Page-existing replenish heuristic (mirrors the "to_replenish" stat: stock < 10). */
 const REORDER_THRESHOLD = 10;
@@ -45,6 +52,8 @@ export function EPP() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isInspecting, setIsInspecting] = useState(false);
   const [inspectionMsg, setInspectionMsg] = useState<string | null>(null);
+  const [orderToSign, setOrderToSign] = useState<PendingOrder | null>(null);
+  const [ordersRefreshKey, setOrdersRefreshKey] = useState(0);
   
   const [newItem, setNewItem] = useState({
     name: '',
@@ -124,6 +133,14 @@ export function EPP() {
     Boolean(tenantId) &&
     Boolean(workerUid) &&
     inspectionCatalog.length > 0;
+
+  // Only elevated roles see the suggested purchase-order signing surface. The
+  // server enforces this too (403 forbidden_role), so this is UX-only gating
+  // that mirrors EPP_SIGN_ROLES.
+  const canSignOrders =
+    Boolean(selectedProject) &&
+    Boolean(tenantId) &&
+    (isAdmin || EPP_SIGN_ROLES.has(userRole));
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -271,6 +288,19 @@ export function EPP() {
           </motion.section>
         )}
       </AnimatePresence>
+
+      {/* Pending purchase orders (Bloque 4.2) — admins/prevencionistas review +
+          sign suggested OC. Real data: the server reads the persisted ZK
+          `purchase-order-suggested` nodes (cross-process), honest empty-state
+          when there are none. NOT tier-gated (procurement is management, but
+          the panel is read+sign for elevated roles only). */}
+      {canSignOrders && selectedProject && tenantId && (
+        <PendingPurchaseOrdersPanel
+          key={`${selectedProject.id}:${ordersRefreshKey}`}
+          projectId={selectedProject.id}
+          onReviewOrder={(order) => setOrderToSign(order)}
+        />
+      )}
 
       {/* Filters */}
       <div className="flex flex-col md:flex-row gap-3 sm:gap-4">
@@ -481,6 +511,26 @@ export function EPP() {
         workers={workers || []}
         eppItems={eppItems || []}
       />
+
+      {/* Purchase-order sign modal (Bloque 4.2) — biometric WebAuthn signature,
+          never auto-pushes to the supplier (Ley 19.799). */}
+      {orderToSign && selectedProject && tenantId && workerUid && (
+        <PurchaseOrderSignModal
+          open={Boolean(orderToSign)}
+          projectId={selectedProject.id}
+          tenantId={tenantId}
+          order={orderToSign}
+          adminUid={workerUid}
+          adminName={user?.displayName ?? undefined}
+          onClose={() => setOrderToSign(null)}
+          onSigned={() => {
+            setOrderToSign(null);
+            // Force the panel to re-fetch so the signed order drops off the list.
+            setOrdersRefreshKey((k) => k + 1);
+          }}
+          onError={(msg) => setInspectionMsg(msg)}
+        />
+      )}
     </div>
   );
 }

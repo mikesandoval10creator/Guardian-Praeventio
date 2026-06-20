@@ -1,4 +1,8 @@
 {
+  "cuadrillas": {
+    "closePreview": "XP al cerrar",
+    "noClosablePreview": "Sin procesos por cerrar. Inicia uno para ver el XP estimado."
+  },
   "fiveS": {
     "aria": "Auditoría 5S",
     "title": "Auditoría 5S",
@@ -219,7 +223,8 @@
     "planesi": "PLANESI Sílice",
     "maintenance_preventive": "Mantenimiento",
     "incident_flow": "Flujo de Incidentes",
-    "waste_inventory": "Residuos Ambientales"
+    "waste_inventory": "Residuos Ambientales",
+    "project_setup": "Configurar Industria"
   },
   "auth": {
     "login": "Iniciar Sesión",
@@ -4973,6 +4978,16 @@
       "bySeverity": "Por severidad",
       "byKind": "Por tipo de evento",
       "perDay": "{{rate}}/día"
+    }
+  },
+  "projectSetup": {
+    "page": {
+      "title": "Configuración de industria",
+      "subtitle": "Aplica el preset del sector: normativa DS 44/2024 + Ley 16.744, EPP base, capacitaciones y protocolos MINSAL. Recomendación inicial — siempre ajustable.",
+      "selectProject": "Selecciona un proyecto para configurar su preset de industria (riesgos, documentos, capacitaciones, EPP y normativa aplicable)."
+    },
+    "applied": {
+      "title": "Preset aplicado"
     }
   }
 }

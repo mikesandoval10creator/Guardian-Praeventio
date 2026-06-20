@@ -433,6 +433,56 @@ router.post('/tasks/:id/done', verifyAuth, organicLimiter, async (req, res) => {
   }
 });
 
+// GET /api/processes?projectId=… — list the project's processes (the organic
+// Crew→Process pipeline). Read-only, tenant-gated (no audit_log: it changes no
+// state). Reads the REAL top-level `processes` collection (the server is the
+// single writer for it; see POST /api/processes above) filtered by projectId.
+// Powers <ProcessClosePreviewCard /> on the Cuadrillas dashboard: shows the XP a
+// crew will earn when a process is closed. Honest empty list when the project
+// has no processes yet — never fabricated rows.
+router.get('/processes', verifyAuth, organicLimiter, async (req, res) => {
+  const uid = req.user!.uid;
+  const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : '';
+  if (!projectId) return res.status(400).json({ error: 'projectId required' });
+  try {
+    const db = admin.firestore();
+    await assertProjectMember(uid, projectId, db);
+    const snap = await db
+      .collection('processes')
+      .where('projectId', '==', projectId)
+      .get();
+    const processes = snap.docs.map((d) => {
+      const data = d.data() as Record<string, unknown>;
+      return {
+        id: d.id,
+        crewId: typeof data.crewId === 'string' ? data.crewId : '',
+        projectId: typeof data.projectId === 'string' ? data.projectId : projectId,
+        type: typeof data.type === 'string' ? data.type : 'otro',
+        name: typeof data.name === 'string' ? data.name : '',
+        description: typeof data.description === 'string' ? data.description : '',
+        startedAt: typeof data.startedAt === 'string' ? data.startedAt : null,
+        endedAt: typeof data.endedAt === 'string' ? data.endedAt : null,
+        plannedEndDate: typeof data.plannedEndDate === 'string' ? data.plannedEndDate : null,
+        status: typeof data.status === 'string' ? data.status : 'active',
+        complianceScore: typeof data.complianceScore === 'number' ? data.complianceScore : 0,
+        incidentsDuringProcess:
+          typeof data.incidentsDuringProcess === 'number' ? data.incidentsDuringProcess : 0,
+        alertsResponded: typeof data.alertsResponded === 'number' ? data.alertsResponded : 0,
+        xpAwardedAtClose:
+          typeof data.xpAwardedAtClose === 'number' ? data.xpAwardedAtClose : null,
+      };
+    });
+    return res.json({ processes });
+  } catch (err: any) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    return res.status(500).json({
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err?.message ?? 'internal'),
+    });
+  }
+});
+
 // GET /api/projects/:projectId/roster — project worker roster (uid + display name)
 // for member-selection UIs (e.g. CPHS committee election). Read-only, tenant-gated
 // (no audit_log: it changes no state). Source of truth = union of memberUids across

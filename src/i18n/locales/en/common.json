@@ -1,4 +1,8 @@
 {
+  "cuadrillas": {
+    "closePreview": "XP on close",
+    "noClosablePreview": "No processes to close. Start one to see the estimated XP."
+  },
   "fiveS": {
     "aria": "5S audit",
     "title": "5S Audit",
@@ -219,7 +223,8 @@
     "planesi": "PLANESI Silica",
     "maintenance_preventive": "Maintenance",
     "incident_flow": "Incident Flow",
-    "waste_inventory": "Environmental Waste"
+    "waste_inventory": "Environmental Waste",
+    "project_setup": "Configure Industry"
   },
   "auth": {
     "login": "Sign In",
@@ -4973,6 +4978,16 @@
       "bySeverity": "By severity",
       "byKind": "By event type",
       "perDay": "{{rate}}/day"
+    }
+  },
+  "projectSetup": {
+    "page": {
+      "title": "Industry configuration",
+      "subtitle": "Apply the sector preset: DS 44/2024 + Law 16.744 regulations, base PPE, trainings and MINSAL protocols. Initial recommendation — always adjustable.",
+      "selectProject": "Select a project to configure its industry preset (risks, documents, trainings, PPE and applicable regulations)."
+    },
+    "applied": {
+      "title": "Applied preset"
     }
   }
 }

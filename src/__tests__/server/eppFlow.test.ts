@@ -541,6 +541,143 @@ describe('GET /:projectId/epp-flow/pending-orders', () => {
     expect(res.body.orders).toHaveLength(1);
     expect(res.body.orders[0].status).toBe('pending_signature');
   });
+
+  // ── Cross-process source of truth: persisted ZK nodes (not just the Map). ──
+  // The in-memory cache is empty on a fresh worker, so an admin on instance B
+  // must still see an OC suggested by a worker's inspection on instance A. We
+  // simulate that by seeding the persisted `purchase-order-suggested` node
+  // directly (NO inspection POST in this process → Map is empty).
+
+  /** Seed a persisted suggested-OC node the way the inspection handler does. */
+  function seedSuggestedNode(
+    nodeId: string,
+    orderId: string,
+    extra: Record<string, unknown> = {},
+  ) {
+    H.db!._seed(`zettelkasten_nodes/${nodeId}`, {
+      projectId: PROJECT_ID,
+      metadata: {
+        sourceType: 'purchase-order-suggested',
+        orderId,
+        tenantId: TENANT_ID,
+        inspectionId: 'insp-cross',
+        suggestedAt: '2026-06-20T08:00:00.000Z',
+        status: 'pending_signature',
+        draft: {
+          lines: [
+            { kind: 'casco', quantity: 4, estimatedUnitCostClp: 12000, supplierId: 'sup-1', urgency: 'routine' },
+          ],
+          totalClp: 48000,
+          deliveryWeekHint: 2,
+          notes: [],
+        },
+        ...extra,
+      },
+    });
+  }
+
+  it('200 returns a persisted OC suggested in another process (Map empty)', async () => {
+    seedSuggestedNode('zk-cross-1', 'oc-cross-1');
+
+    const res = await request(buildApp())
+      .get(URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
+
+    expect(res.status).toBe(200);
+    expect(res.body.orders).toHaveLength(1);
+    const order = res.body.orders[0];
+    expect(order.orderId).toBe('oc-cross-1');
+    expect(order.suggestedNodeId).toBe('zk-cross-1');
+    expect(order.status).toBe('pending_signature');
+    // The FULL draft round-trips from Firestore (real lines, not fabricated).
+    expect(order.draft.lines).toHaveLength(1);
+    expect(order.draft.lines[0].kind).toBe('casco');
+    expect(order.draft.totalClp).toBe(48000);
+  });
+
+  it('200 excludes a persisted OC that already has a purchase-order-signed node', async () => {
+    seedSuggestedNode('zk-signed-suggested', 'oc-already-signed');
+    // A signed node for the SAME orderId → no longer pending.
+    H.db!._seed('zettelkasten_nodes/zk-signed', {
+      projectId: PROJECT_ID,
+      metadata: {
+        sourceType: 'purchase-order-signed',
+        orderId: 'oc-already-signed',
+      },
+    });
+
+    const res = await request(buildApp())
+      .get(URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
+
+    expect(res.status).toBe(200);
+    expect(res.body.orders).toEqual([]);
+  });
+
+  it('200 skips a persisted suggested node missing its draft (no fabrication)', async () => {
+    // Legacy node without metadata.draft → cannot rebuild faithfully → skipped.
+    H.db!._seed('zettelkasten_nodes/zk-legacy', {
+      projectId: PROJECT_ID,
+      metadata: {
+        sourceType: 'purchase-order-suggested',
+        orderId: 'oc-legacy',
+        suggestedAt: '2026-06-20T08:00:00.000Z',
+      },
+    });
+
+    const res = await request(buildApp())
+      .get(URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
+
+    expect(res.status).toBe(200);
+    expect(res.body.orders).toEqual([]);
+  });
+
+  it('de-duplicates by orderId when an order is both persisted and in the Map', async () => {
+    // Persist a suggested node, AND register the same orderId via an inspection
+    // in THIS process. The GET must return exactly ONE entry for that orderId.
+    seedSuggestedNode('zk-dup', 'oc-dup');
+    flowMock.inspectionResult = {
+      ok: true,
+      nodes: [
+        { metadata: { sourceType: 'epp-inspection-event' } },
+        {
+          metadata: {
+            sourceType: 'purchase-order-suggested',
+            orderId: 'oc-dup',
+            suggestedAt: '2026-06-20T09:00:00.000Z',
+          },
+        },
+      ],
+      nodeIds: ['n0', 'zk-dup'],
+      edges: [],
+      suggestedOrder: {
+        lines: [{ kind: 'bota', quantity: 2, estimatedUnitCostClp: 20000, supplierId: 'sup-9', urgency: 'routine' }],
+        totalClp: 40000,
+        deliveryWeekHint: 2,
+        notes: [],
+      },
+      notes: [],
+    };
+    await request(buildApp())
+      .post(`/api/sprint-k/${PROJECT_ID}/epp-flow/inspection`)
+      .set('x-test-uid', MEMBER_UID)
+      .send({ ...baseInspectionBody, orderId: 'oc-dup' });
+
+    const res = await request(buildApp())
+      .get(URL)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'supervisor');
+
+    expect(res.status).toBe(200);
+    const dup = res.body.orders.filter(
+      (o: { orderId: string }) => o.orderId === 'oc-dup',
+    );
+    expect(dup).toHaveLength(1);
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────
