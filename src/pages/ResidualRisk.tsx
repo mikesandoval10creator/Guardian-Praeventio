@@ -21,15 +21,7 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  AlertOctagon,
-  WifiOff,
-  Stamp,
-  ArrowDownRight,
-  ShieldCheck,
-  Plus,
-  X,
-} from 'lucide-react';
+import { AlertOctagon, WifiOff, Plus, X } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
@@ -41,174 +33,12 @@ import {
   type ResidualRiskPayload,
 } from '../hooks/useResidualRisk';
 import type {
-  RiskLevel,
   RiskLikelihood,
   RiskSeverity,
   ControlEffectivenessLevel,
 } from '../services/residualRisk/residualRiskEngine';
 import { ResidualRiskCard } from '../components/residualRisk/ResidualRiskCard';
 import { logger } from '../utils/logger';
-
-const LEVEL_TONE: Record<
-  RiskLevel,
-  { color: string; bg: string; badge: string; ring: string }
-> = {
-  low: {
-    color: 'text-emerald-500',
-    bg: 'bg-emerald-500/10',
-    badge: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-    ring: 'border-emerald-500/20',
-  },
-  medium: {
-    color: 'text-amber-500',
-    bg: 'bg-amber-500/10',
-    badge: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-    ring: 'border-amber-500/20',
-  },
-  high: {
-    color: 'text-orange-500',
-    bg: 'bg-orange-500/10',
-    badge: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
-    ring: 'border-orange-500/20',
-  },
-  extreme: {
-    color: 'text-rose-500',
-    bg: 'bg-rose-500/10',
-    badge: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
-    ring: 'border-rose-500/20',
-  },
-};
-
-interface ResidualRiskCardItemProps {
-  risk: StoredResidualRisk;
-  onAccept?: (risk: StoredResidualRisk) => void;
-}
-
-function ResidualRiskCardItem({ risk, onAccept }: ResidualRiskCardItemProps) {
-  const { t } = useTranslation();
-  const initialTone = LEVEL_TONE[risk.initialLevel];
-  const residualTone = LEVEL_TONE[risk.residualLevel];
-  const accepted = risk.acceptance.status === 'accepted';
-
-  return (
-    <article
-      className={`rounded-2xl border ${residualTone.ring} bg-surface p-4 space-y-3`}
-      data-testid={`residual-risk-card-${risk.id}`}
-    >
-      <header className="flex items-start gap-2">
-        <div
-          className={`w-9 h-9 rounded-xl flex items-center justify-center ${residualTone.bg} ${residualTone.color}`}
-        >
-          <AlertOctagon className="w-4 h-4" aria-hidden="true" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-black text-primary-token truncate">
-            {risk.hazard}
-          </h3>
-          <p className="text-[11px] text-secondary-token">
-            {risk.category}
-            {' · '}
-            <span className="uppercase tracking-wide">{risk.riskKind}</span>
-          </p>
-        </div>
-        <span
-          className={`text-[10px] font-bold px-2 py-0.5 rounded ${residualTone.badge}`}
-          data-testid={`residual-level-${risk.id}`}
-        >
-          {risk.residualLevel.toUpperCase()}
-        </span>
-      </header>
-
-      {risk.currentControls.length > 0 && (
-        <div className="text-[11px] text-secondary-token">
-          <span className="font-bold">
-            {t('residualRisk.controlsCount', 'Controles aplicados')}:
-          </span>{' '}
-          {risk.currentControls.length}
-          {' · '}
-          {t('residualRisk.reduction', 'Reducción')}: −{risk.controlReduction}
-        </div>
-      )}
-
-      <div className="flex items-center gap-3 text-center">
-        <div className="flex-1 bg-canvas rounded-lg p-2">
-          <p className="text-[9px] uppercase text-secondary-token">
-            {t('residualRisk.inherent', 'Inherente')}
-          </p>
-          <p className={`text-lg font-black ${initialTone.color}`}>
-            {risk.initialScore}
-          </p>
-          <p className="text-[9px] uppercase">{risk.initialLevel}</p>
-        </div>
-        <ArrowDownRight
-          className="w-5 h-5 text-secondary-token shrink-0"
-          aria-hidden="true"
-          data-testid={`residual-delta-${risk.id}`}
-        />
-        <div className="flex-1 bg-canvas rounded-lg p-2">
-          <p className="text-[9px] uppercase text-secondary-token">
-            {t('residualRisk.residual', 'Residual')}
-          </p>
-          <p className={`text-lg font-black ${residualTone.color}`}>
-            {risk.residualScore}
-          </p>
-          <p className="text-[9px] uppercase">{risk.residualLevel}</p>
-        </div>
-      </div>
-
-      <div className="text-[11px] text-secondary-token">
-        <p className="font-bold">
-          {t('residualRisk.justification', 'Justificación')}:
-        </p>
-        <p className="italic">{risk.justification}</p>
-      </div>
-
-      {accepted ? (
-        <div
-          className="flex items-center gap-2 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 p-2 rounded text-[11px]"
-          data-testid={`residual-accepted-${risk.id}`}
-        >
-          <ShieldCheck className="w-3 h-3 shrink-0" aria-hidden="true" />
-          <span>
-            {t(
-              'residualRisk.acceptedBy',
-              'Aceptado formalmente por {{uid}} el {{date}}',
-              {
-                uid: risk.acceptance.signedByUid ?? '—',
-                date: risk.acceptance.signedAt?.slice(0, 10) ?? '—',
-              },
-            )}
-          </span>
-        </div>
-      ) : (
-        risk.requiresFormalAcceptance && (
-          <div
-            className="flex items-center gap-2 bg-amber-500/10 text-amber-700 dark:text-amber-300 p-2 rounded text-[11px]"
-            data-testid={`residual-pending-${risk.id}`}
-          >
-            <Stamp className="w-3 h-3 shrink-0" aria-hidden="true" />
-            <span className="flex-1">
-              {t(
-                'residualRisk.acceptancePending',
-                'Pendiente de aceptación formal por gerencia',
-              )}
-            </span>
-            {onAccept && (
-              <button
-                type="button"
-                onClick={() => onAccept(risk)}
-                data-testid={`residual-accept-btn-${risk.id}`}
-                className="px-2 py-0.5 rounded bg-amber-500 text-white text-[10px] font-bold hover:bg-amber-600"
-              >
-                {t('residualRisk.acceptFormally', 'Aceptar formalmente')}
-              </button>
-            )}
-          </div>
-        )
-      )}
-    </article>
-  );
-}
 
 interface RegisterFormProps {
   onSubmit: (payload: ResidualRiskPayload) => Promise<void>;
@@ -591,7 +421,18 @@ export function ResidualRisk() {
           <div className="space-y-3">
             {suspicious.map((r) => (
               <div key={r.id} className="space-y-1">
-                <ResidualRiskCardItem risk={r} onAccept={handleAccept} />
+                <ResidualRiskCard
+                  assessment={{
+                    riskId: r.id,
+                    category: r.category,
+                    likelihood: r.likelihood,
+                    severity: r.inherentSeverity,
+                    riskKind: r.riskKind,
+                  }}
+                  controls={r.currentControls}
+                  stored={r}
+                  onRequestAcceptance={() => handleAccept(r)}
+                />
                 {r.suspiciousReason && (
                   <p
                     className="text-[10px] text-rose-600 dark:text-rose-400 italic px-2"
@@ -628,20 +469,19 @@ export function ResidualRisk() {
             </div>
           ) : (
             risks.map((r) => (
-              <div key={r.id} className="space-y-3">
-                <ResidualRiskCardItem risk={r} onAccept={handleAccept} />
-                <ResidualRiskCard
-                  assessment={{
-                    riskId: r.id,
-                    category: r.category,
-                    likelihood: r.likelihood,
-                    severity: r.inherentSeverity,
-                    riskKind: r.riskKind,
-                  }}
-                  controls={r.currentControls}
-                  onRequestAcceptance={() => handleAccept(r)}
-                />
-              </div>
+              <ResidualRiskCard
+                key={r.id}
+                assessment={{
+                  riskId: r.id,
+                  category: r.category,
+                  likelihood: r.likelihood,
+                  severity: r.inherentSeverity,
+                  riskKind: r.riskKind,
+                }}
+                controls={r.currentControls}
+                stored={r}
+                onRequestAcceptance={() => handleAccept(r)}
+              />
             ))
           )}
         </section>
