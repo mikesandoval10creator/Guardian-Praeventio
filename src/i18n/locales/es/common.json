@@ -2178,7 +2178,8 @@
     "chart": {
       "risk_distribution": "Distribución de Riesgos",
       "incident_trend": "Tendencia de Incidentes y Hallazgos",
-      "safety_radar": "Radar de Dimensiones de Seguridad"
+      "safety_radar": "Radar de Dimensiones de Seguridad",
+      "module_adoption": "Adopción de Módulos"
     }
   },
   "landing": {
