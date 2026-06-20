@@ -166,6 +166,11 @@ const IncidentTrends = lazy(() => import('./pages/IncidentTrends').then(module =
 // no estaba accesible desde la navegación. NO bloquea operación; solo
 // trazea el avance del aprendiz hacia autonomía y alerta sobreexposición.
 const Apprenticeship = lazy(() => import('./pages/Apprenticeship').then(module => ({ default: module.Apprenticeship })));
+// Configuración de industria por proyecto. Monta <IndustrySelectorWizard />
+// (GET .../industry/list + POST .../industry/select) + <IndustryPresetCard />
+// sobre el preset REAL aplicado. Cierra los huérfanos del flujo "preset por
+// industria" (industryRuleEngine + industryRules.ts ya existían).
+const ProjectSetup = lazy(() => import('./pages/ProjectSetup').then(module => ({ default: module.ProjectSetup })));
 // Sprint 42 Fase F.18 — Historial Profesional Portátil del Trabajador
 // (Ley 19.628). El trabajador es dueño absoluto de su cartera y decide
 // qué exportar y cuándo. Praeventio NO push-a a organismos externos.
@@ -318,6 +323,7 @@ function AppRoutes() {
               <Route path="knowledge-base" element={<KnowledgeBase />} />
               <Route path="visitors" element={<Visitors />} />
               <Route path="import-data" element={<ImportData />} />
+              <Route path="project-setup" element={<ProjectSetup />} />
               {/* Sprint 55 — F.14/F.17/F.24/F.27 wire UI. */}
               <Route path="findings-heatmap" element={<FindingsHeatMap />} />
               <Route path="soft-blocks" element={<SoftBlocks />} />
@@ -505,6 +511,7 @@ function AppRoutes() {
                     <Route path="knowledge-base" element={<KnowledgeBase />} />
                     <Route path="visitors" element={<Visitors />} />
                     <Route path="import-data" element={<ImportData />} />
+                    <Route path="project-setup" element={<ProjectSetup />} />
                     {/* Sprint 55 — F.14/F.17/F.24/F.27 wire UI. */}
                     <Route path="findings-heatmap" element={<FindingsHeatMap />} />
                     <Route path="soft-blocks" element={<SoftBlocks />} />
