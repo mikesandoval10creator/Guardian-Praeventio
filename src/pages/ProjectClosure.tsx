@@ -13,7 +13,7 @@
 // "Cerrar formalmente" requiere readiness=100% y rol admin. El motor
 // (validateClosureReadiness) determina el porcentaje de readiness.
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Briefcase, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -28,6 +28,11 @@ import {
   finalizeClosure,
   type ClosureRole,
 } from '../hooks/useProjectClosure';
+import { ProjectClosureCard } from '../components/projectClosure/ProjectClosureCard';
+import type {
+  ClosureContext,
+  ProjectClosureSnapshot,
+} from '../services/projectClosure/projectClosureService';
 import { logger } from '../utils/logger';
 
 function readinessTone(percent: number): string {
@@ -180,6 +185,53 @@ export function ProjectClosure() {
       setBusy(false);
     }
   }, [projectId, refreshAll, t]);
+
+  // ── ProjectClosureCard (compact at-a-glance) props ──────────────────────
+  // Re-derives the readiness verdict deterministically (validateClosure
+  // Readiness) from the SAME real server-computed pending counts the page
+  // already renders, and adds the audience-switchable summary preview
+  // (management/client/operations/regulatory) the per-role view above lacks.
+  // No fabricated data: snapshot metrics with no closure data source
+  // (compliance score, training hours, sitebook, prevented incidents,
+  // actions completed) stay 0 — exactly what the server itself passes to
+  // buildSummary (projectClosure.ts) for these unsourced fields.
+  // NOTE: declared before any early return so hook order stays stable.
+  const closureStatusData = statusResp.data;
+  const closureCounts = summaryResp.data?.counts;
+  const closureCardContext = useMemo<ClosureContext | null>(() => {
+    if (!closureStatusData) return null;
+    return {
+      pendingOpenIncidents: closureStatusData.pending.openIncidents,
+      pendingOpenActions: closureStatusData.pending.openActions,
+      pendingOpenPermits: closureStatusData.pending.openPermits,
+      hasFinalReport: closureStatusData.state.status === 'finalized',
+      unconfirmedSpofs: 0,
+    };
+  }, [closureStatusData]);
+
+  const closureCardSnapshot = useMemo<ProjectClosureSnapshot | null>(() => {
+    if (!closureStatusData) return null;
+    const st = closureStatusData.state;
+    return {
+      projectId: projectId ?? '',
+      closedAt: st.finalizedAt ?? st.initiatedAt ?? '',
+      closedByUid: st.finalizedByUid ?? st.initiatedByUid ?? '',
+      totalIncidents: closureCounts?.incidents ?? 0,
+      criticalIncidents: closureCounts?.criticalIncidents ?? 0,
+      preventedIncidentsEstimated: 0,
+      totalActionsCompleted: 0,
+      totalSitebookEntries: 0,
+      totalTrainingHours: 0,
+      averageComplianceScore: 0,
+      criticalDecisions: [],
+      transferableLessons: Array.from(
+        { length: closureCounts?.lessons ?? 0 },
+        () => ({}) as ProjectClosureSnapshot['transferableLessons'][number],
+      ),
+      retentionRecommendations: [],
+      improvementOpportunities: [],
+    };
+  }, [closureStatusData, closureCounts, projectId]);
 
   if (!selectedProject) {
     return (
@@ -345,6 +397,14 @@ export function ProjectClosure() {
               </p>
             )}
           </section>
+
+          {/* Compact at-a-glance closure card (audience-switchable preview) */}
+          {closureCardContext && closureCardSnapshot && (
+            <ProjectClosureCard
+              context={closureCardContext}
+              snapshot={closureCardSnapshot}
+            />
+          )}
 
           {/* Pendientes */}
           <section
