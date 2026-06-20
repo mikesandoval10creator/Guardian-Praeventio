@@ -15,7 +15,24 @@
 //     body: { current, previous, metricKey }
 //     200:  { trend: TrendAnalysis }
 //
-// Pure compute — no Firestore writes. Determinístico, sin LLM.
+// Bucket D (manhours) — two STATEFUL endpoints that make the dashboard real:
+//
+//   POST /:projectId/safety-metrics/exposure
+//     body: { period: 'YYYY-MM', totalHoursWorked: number>=0 }
+//     200:  { saved: true, period, totalHoursWorked }
+//     Captures the man-hours worked in a period (industry standard input for
+//     TRIR/LTIFR). Role-gated (admin/gerente/prevencionista-tier); the server
+//     stamps recordedBy/recordedAt from the verified token (NEVER the client).
+//     Persisted to `exposure_hours/{projectId}_{period}`; audit-log awaited.
+//
+//   GET  /:projectId/safety-metrics/report?period=YYYY-MM
+//     200:  { counts, exposure, report }
+//     Reads the project's REAL incidents for the period, classifies them into
+//     IncidentCounts (honest — no fabricated fields), reads the captured
+//     exposure_hours (0 if not captured yet), and returns the full report.
+//
+// The first three endpoints are pure compute — no Firestore writes.
+// Determinístico, sin LLM.
 
 import { Router } from 'express';
 import { z } from 'zod';
@@ -39,8 +56,27 @@ import {
   type IndustryBenchmark,
   type TrendAnalysis,
 } from '../../services/safetyMetrics/osha.js';
+import {
+  classifyIncidents,
+  type RawIncidentDoc,
+} from '../../services/safetyMetrics/classifyIncidents.js';
 
 const router = Router();
+
+/** Roles allowed to capture the man-hours worked for a period. */
+const EXPOSURE_WRITER_ROLES = new Set([
+  'admin',
+  'gerente',
+  'supervisor',
+  'prevencionista',
+  'director_obra',
+  'medico_ocupacional',
+]);
+
+function callerRole(req: import('express').Request): string {
+  const role = (req.user as { role?: string } | undefined)?.role;
+  return typeof role === 'string' ? role : '';
+}
 
 async function guard(
   callerUid: string,
@@ -197,6 +233,227 @@ router.post(
     } catch (err) {
       logger.error?.('safetyMetrics.analyzeTrend.error', err);
       captureRouteError(err, 'safetyMetrics.analyzeTrend');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────
+// 4. capture exposure (man-hours worked) — STATEFUL
+// ────────────────────────────────────────────────────────────────────────
+
+const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+const exposureCaptureSchema = z.object({
+  period: z.string().regex(PERIOD_RE, 'period must be YYYY-MM'),
+  totalHoursWorked: z.number().nonnegative().max(1e12),
+});
+
+/** Resolve tenantId from the project doc (incidents may be nested under it). */
+async function resolveTenantId(projectId: string): Promise<string | null> {
+  try {
+    const snap = await admin.firestore().collection('projects').doc(projectId).get();
+    const data = snap.exists ? snap.data() : null;
+    if (data && typeof data.tenantId === 'string' && data.tenantId.length > 0) {
+      return data.tenantId;
+    }
+  } catch (err) {
+    logger.warn?.('safetyMetrics.tenant_lookup_failed', err);
+  }
+  return null;
+}
+
+router.post(
+  '/:projectId/safety-metrics/exposure',
+  verifyAuth,
+  validate(exposureCaptureSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const callerEmail: string | null = req.user!.email ?? null;
+    const { projectId } = req.params;
+    const body = req.validated as z.infer<typeof exposureCaptureSchema>;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+
+    // Role gate — only prevention/management roles capture man-hours. This is
+    // a management-data write (not a life-safety action), so gating is allowed.
+    if (!EXPOSURE_WRITER_ROLES.has(callerRole(req))) {
+      return res.status(403).json({ error: 'insufficient_role' });
+    }
+
+    const db = admin.firestore();
+    const docId = `${projectId}_${body.period}`;
+    try {
+      // Server stamps recordedBy/recordedAt — client-supplied values are
+      // ignored entirely (the schema does not even accept them).
+      await db.collection('exposure_hours').doc(docId).set(
+        {
+          projectId,
+          period: body.period,
+          totalHoursWorked: body.totalHoursWorked,
+          recordedBy: callerUid,
+          recordedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      try {
+        await db.collection('audit_logs').add({
+          action: 'safety_metrics.exposure.captured',
+          module: 'safetyMetrics',
+          details: {
+            projectId,
+            period: body.period,
+            totalHoursWorked: body.totalHoursWorked,
+          },
+          userId: callerUid,
+          userEmail: callerEmail,
+          projectId,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          ip: req.ip ?? null,
+          userAgent: req.header('user-agent') ?? null,
+        });
+      } catch (auditErr) {
+        logger.error?.('safetyMetrics.exposure.audit_failed', auditErr);
+        captureRouteError(auditErr, 'safetyMetrics.exposure.audit');
+      }
+
+      return res.json({
+        saved: true,
+        period: body.period,
+        totalHoursWorked: body.totalHoursWorked,
+      });
+    } catch (err) {
+      logger.error?.('safetyMetrics.exposure.error', err);
+      captureRouteError(err, 'safetyMetrics.exposure');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────
+// 5. report — read REAL incidents + captured exposure → SafetyMetricsReport
+// ────────────────────────────────────────────────────────────────────────
+
+const reportQuerySchema = z.object({
+  period: z.string().regex(PERIOD_RE, 'period must be YYYY-MM'),
+});
+
+/** Parse the YYYY-MM `ts`/`occurredAt`/`createdAt` of an incident to a period. */
+function tsToIso(raw: unknown): string | null {
+  if (typeof raw === 'string' && raw) return raw;
+  if (raw && typeof raw === 'object') {
+    const t = raw as { toDate?: () => Date; _seconds?: number; seconds?: number };
+    if (typeof t.toDate === 'function') {
+      const d = t.toDate();
+      if (d instanceof Date && !Number.isNaN(d.getTime())) return d.toISOString();
+    }
+    const seconds =
+      typeof t._seconds === 'number'
+        ? t._seconds
+        : typeof t.seconds === 'number'
+          ? t.seconds
+          : null;
+    if (seconds !== null) {
+      const d = new Date(seconds * 1000);
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+  }
+  return null;
+}
+
+function periodOf(rec: Record<string, unknown>): string | null {
+  const iso = tsToIso(rec.ts) ?? tsToIso(rec.occurredAt) ?? tsToIso(rec.createdAt);
+  if (!iso || iso.length < 7) return null;
+  return iso.slice(0, 7); // 'YYYY-MM'
+}
+
+/** Read incidents for the project from BOTH the top-level + nested paths. */
+async function readProjectIncidents(
+  projectId: string,
+  tenantId: string | null,
+): Promise<Array<Record<string, unknown>>> {
+  const db = admin.firestore();
+  const safeRead = async (
+    label: string,
+    fn: () => Promise<Array<Record<string, unknown>>>,
+  ): Promise<Array<Record<string, unknown>>> => {
+    try {
+      return await fn();
+    } catch (err) {
+      logger.warn?.(`safetyMetrics.report.${label}.read_failed`, err);
+      return [];
+    }
+  };
+
+  const [topLevel, nested] = await Promise.all([
+    safeRead('incidents_top', async () => {
+      const snap = await db.collection('incidents').where('projectId', '==', projectId).get();
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }));
+    }),
+    tenantId
+      ? safeRead('incidents_nested', async () => {
+          const snap = await db
+            .collection(`tenants/${tenantId}/projects/${projectId}/incidents`)
+            .get();
+          return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }));
+        })
+      : Promise.resolve([] as Array<Record<string, unknown>>),
+  ]);
+
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const rec of topLevel) {
+    const id = String(rec.id ?? '');
+    if (id) byId.set(id, rec);
+  }
+  for (const rec of nested) {
+    const id = String(rec.id ?? '');
+    if (id && !byId.has(id)) byId.set(id, rec);
+  }
+  return [...byId.values()];
+}
+
+router.get(
+  '/:projectId/safety-metrics/report',
+  verifyAuth,
+  validate(reportQuerySchema, 'query'),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const { period } = req.validated as z.infer<typeof reportQuerySchema>;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+
+    const db = admin.firestore();
+    try {
+      const tenantId = await resolveTenantId(projectId);
+
+      // 1. Real incidents of the period → IncidentCounts (honest classify).
+      const allIncidents = await readProjectIncidents(projectId, tenantId);
+      const inPeriod = allIncidents.filter((rec) => periodOf(rec) === period);
+      const counts: IncidentCounts = classifyIncidents(inPeriod as RawIncidentDoc[]);
+
+      // 2. Captured exposure_hours (0 if never captured — honest empty-state).
+      let totalHoursWorked = 0;
+      try {
+        const exSnap = await db
+          .collection('exposure_hours')
+          .doc(`${projectId}_${period}`)
+          .get();
+        if (exSnap.exists) {
+          const raw = (exSnap.data() ?? {}).totalHoursWorked;
+          if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
+            totalHoursWorked = raw;
+          }
+        }
+      } catch (err) {
+        logger.warn?.('safetyMetrics.report.exposure_read_failed', err);
+      }
+      const exposure: ExposureInput = { totalHoursWorked };
+
+      const report = buildSafetyMetricsReport(counts, exposure, period);
+      return res.json({ counts, exposure, report });
+    } catch (err) {
+      logger.error?.('safetyMetrics.report.error', err);
+      captureRouteError(err, 'safetyMetrics.report');
       return res.status(500).json({ error: 'internal_error' });
     }
   },

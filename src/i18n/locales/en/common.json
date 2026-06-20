@@ -219,7 +219,8 @@
     "planesi": "PLANESI Silica",
     "maintenance_preventive": "Maintenance",
     "incident_flow": "Incident Flow",
-    "waste_inventory": "Environmental Waste"
+    "waste_inventory": "Environmental Waste",
+    "safety_metrics": "Safety Metrics (TRIR/LTIFR)"
   },
   "auth": {
     "login": "Sign In",
