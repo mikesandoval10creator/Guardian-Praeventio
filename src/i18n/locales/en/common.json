@@ -2814,6 +2814,10 @@
       "heading": "Recent history",
       "closed_badge": "Closed",
       "row_summary": "Worker {{uid}} · {{count}} check-ins"
+    },
+    "admin_panel": {
+      "heading": "Supervisor view",
+      "note": "Status and escalation computed server-side (authoritative clock, no device clock skew). Sorted by criticality."
     }
   },
   "exceptions_page": {
