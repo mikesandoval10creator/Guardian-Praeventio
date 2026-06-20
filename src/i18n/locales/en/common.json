@@ -2630,6 +2630,20 @@
     "actions": {
       "generateOc": "Generate Purchase Order (.pdf)",
       "todoNote": "For now downloads JSON · formal PDF pending Sprint K §177."
+    },
+    "scenario": {
+      "title": "ROI scenario comparator",
+      "subtitle": "Scenario derived from your inputs (active project {{project}}), computed server-side.",
+      "empty": "Select an active project to compare ROI scenarios on the server.",
+      "colScenario": "Scenario",
+      "colInvestment": "Annual investment",
+      "colSavings": "Projected savings",
+      "colRoi": "Projected ROI",
+      "colPayback": "Payback",
+      "colScore": "Score",
+      "sensitivity": "Sensitivity band ±20%: {{low}}% to {{high}}%",
+      "recommended": "Recommended",
+      "rationaleTitle": "Comparative analysis"
     }
   },
   "oc": {

@@ -13,13 +13,20 @@
 //      integration shape).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import type { ScenarioComparison } from '../services/roiScenario/roiScenarioSimulator';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_k: string, fallback?: string | Record<string, unknown>) => {
-      if (typeof fallback === 'string') return fallback;
+    t: (_k: string, fallback?: string | Record<string, unknown>, opts?: Record<string, unknown>) => {
+      // Interpolate {{var}} tokens so subtitle/sensitivity copy is testable.
+      if (typeof fallback === 'string') {
+        const vars = (opts ?? (typeof fallback === 'object' ? fallback : {})) as Record<string, unknown>;
+        return fallback.replace(/\{\{(\w+)\}\}/g, (_m, key) =>
+          vars[key] != null ? String(vars[key]) : '',
+        );
+      }
       return _k;
     },
   }),
@@ -34,6 +41,30 @@ vi.mock('../utils/pricingOcPdf', () => ({
   generatePricingOcPdf: vi.fn(() => ({ save: mockSave })),
 }));
 
+// Project context: la página llama useProject() para el ROI scenario
+// comparator. Por defecto NO hay proyecto activo (empty-state). Tests que
+// ejercitan el comparador setean selectedProject vía setSelectedProject.
+let mockSelectedProject: { id: string; name: string } | null = null;
+vi.mock('../contexts/ProjectContext', () => ({
+  useProject: () => ({
+    projects: [],
+    selectedProject: mockSelectedProject,
+    setSelectedProject: vi.fn(),
+    createProject: vi.fn(),
+    loading: false,
+    error: null,
+  }),
+}));
+
+// ROI scenario hook: mockea el fetch real al endpoint
+// POST /api/sprint-k/:projectId/roi-scenario/compare. El test pasa los
+// inputs reales derivados de la calculadora y verifica que la respuesta
+// del servidor se RENDERIZE (tabla + rationale), no que se descarte.
+const mockCompareRoiScenarios = vi.fn();
+vi.mock('../hooks/useRoiScenario', () => ({
+  compareRoiScenarios: (...args: unknown[]) => mockCompareRoiScenarios(...args),
+}));
+
 import { PricingCalculator } from './PricingCalculator';
 import { generatePricingOcPdf } from '../utils/pricingOcPdf';
 
@@ -46,6 +77,12 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  // Reset scenario mocks per test — default: no active project, no fetch.
+  mockSelectedProject = null;
+  mockCompareRoiScenarios.mockReset();
+  mockCompareRoiScenarios.mockResolvedValue({
+    comparison: {} as ScenarioComparison,
+  });
   // Polyfill URL.createObjectURL / revokeObjectURL in jsdom.
   if (!('createObjectURL' in URL)) {
     Object.defineProperty(URL, 'createObjectURL', {
@@ -143,5 +180,106 @@ describe('<PricingCalculator /> Sprint K §171-179', () => {
     const recoSection = screen.getByTestId('pricing-calculator-recommendation');
     const text = recoSection.textContent ?? '';
     expect(text.toLowerCase()).toMatch(/diamante/i);
+  });
+});
+
+describe('<PricingCalculator /> ROI scenario comparator (server-computed)', () => {
+  it('shows the honest empty-state when no project is active (no fetch)', () => {
+    mockSelectedProject = null;
+    renderPage();
+    expect(screen.getByTestId('pc-scenario-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('pc-scenario-rationale')).not.toBeInTheDocument();
+    // Sin proyecto activo NO se llama al endpoint.
+    expect(mockCompareRoiScenarios).not.toHaveBeenCalled();
+  });
+
+  it('renders the server comparison (table + rationale) when a project is active', async () => {
+    mockSelectedProject = { id: 'proj-abc-123', name: 'Faena Norte' };
+    const comparison: ScenarioComparison = {
+      baseline: {
+        averageDirectCostPerIncidentClp: 2_500_000,
+        baselineRatePerYear: 12,
+        workersCount: 120,
+        indirectMultiplier: 4,
+      },
+      outcomes: [
+        {
+          scenarioId: 'current-program',
+          scenarioName: 'Programa actual',
+          totalInvestmentClp: 5_000_000,
+          projectedSavingsClp: 87_500_000,
+          projectedRoiPercent: 1650,
+          paybackMonths: 0.7,
+          recommendationScore: 78.5,
+          sensitivityBand: { roiLowerBound: 1300, roiUpperBound: 2000 },
+        },
+      ],
+      recommendedScenario: {
+        scenarioId: 'current-program',
+        scenarioName: 'Programa actual',
+        totalInvestmentClp: 5_000_000,
+        projectedSavingsClp: 87_500_000,
+        projectedRoiPercent: 1650,
+        paybackMonths: 0.7,
+        recommendationScore: 78.5,
+        sensitivityBand: { roiLowerBound: 1300, roiUpperBound: 2000 },
+      },
+      rationale: [
+        'Escenario recomendado: "Programa actual" con score 78.5/100.',
+        'ROI proyectado: 1650%, payback 0.7 meses.',
+      ],
+    };
+    mockCompareRoiScenarios.mockResolvedValue({ comparison });
+
+    renderPage();
+
+    // El dato comparado del SERVIDOR se renderiza (no se descarta).
+    const savings = await screen.findByTestId('pc-scenario-savings-current-program');
+    // Valor real del servidor formateado a CLP.
+    expect(savings.textContent).toContain('87.500.000');
+    expect(screen.getByTestId('pc-scenario-score-current-program').textContent).toContain('78.5/100');
+    expect(screen.getByTestId('pc-scenario-roi-current-program').textContent).toContain('1650%');
+
+    // El rationale del servidor también se muestra.
+    const rationale = screen.getByTestId('pc-scenario-rationale');
+    expect(rationale.textContent).toContain('Programa actual');
+    expect(rationale.textContent).toContain('78.5/100');
+
+    // Ya no se muestra el empty-state.
+    expect(screen.queryByTestId('pc-scenario-empty')).not.toBeInTheDocument();
+  });
+
+  it('calls the endpoint with inputs derived from real calculator state (not invented)', async () => {
+    mockSelectedProject = { id: 'proj-xyz-789', name: 'Mina Sur' };
+    renderPage();
+
+    await waitFor(() => expect(mockCompareRoiScenarios).toHaveBeenCalled());
+
+    const [projectId, input] = mockCompareRoiScenarios.mock.calls.at(-1) as [
+      string,
+      {
+        baseline: { workersCount: number; baselineRatePerYear: number; averageDirectCostPerIncidentClp: number };
+        scenarios: Array<{ assumptions: { expectedIncidentReductionPct: number } }>;
+      },
+    ];
+
+    // projectId = el proyecto activo real.
+    expect(projectId).toBe('proj-xyz-789');
+    // baseline derivado de los inputs por defecto de la calculadora.
+    expect(input.baseline.workersCount).toBe(120);
+    expect(input.baseline.baselineRatePerYear).toBe(12);
+    expect(input.baseline.averageDirectCostPerIncidentClp).toBe(2_500_000);
+    // reductionPct = round((12-4)/12*100) = 67 — derivado, no hardcodeado.
+    expect(input.scenarios[0].assumptions.expectedIncidentReductionPct).toBe(67);
+  });
+
+  it('falls back to the empty-state (no fabricated rows) when the server fetch fails', async () => {
+    mockSelectedProject = { id: 'proj-fail-000', name: 'Faena Falla' };
+    mockCompareRoiScenarios.mockRejectedValue(new Error('http_503'));
+    renderPage();
+
+    // Tras el rechazo no se inventan filas: se muestra el empty-state.
+    await screen.findByTestId('pc-scenario-empty');
+    expect(screen.queryByTestId('pc-scenario-rationale')).not.toBeInTheDocument();
   });
 });
