@@ -52,7 +52,6 @@
     "src/components/safetyPerformance/SpiDashboard.tsx",
     "src/components/shared/ProjectScopedPage.tsx",
     "src/components/spacedRepetition/SpacedRepetitionReviewQueue.tsx",
-    "src/components/suppliers/SupplierComparator.tsx",
     "src/components/twinPhysics/TwinPhysicsScene.tsx",
     "src/components/twinScene/TwinIntegrationPanel.tsx",
     "src/components/twinScene/TwinSceneInstancedLazy.tsx",

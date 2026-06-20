@@ -20,12 +20,14 @@ import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
   useSuppliers,
+  useSupplierRanking,
   registerSupplier,
   type SupplierRiskFilter,
   type SupplierRiskLevel,
   type SupplierView,
   type SupplierTrend,
 } from '../hooks/useSuppliers';
+import { SupplierComparator } from '../components/suppliers/SupplierComparator';
 import { logger } from '../utils/logger';
 
 const RISK_FILTERS: ReadonlyArray<SupplierRiskFilter> = ['all', 'low', 'medium', 'high'];
@@ -93,6 +95,13 @@ export function SupplierQuality() {
 
   const [filter, setFilter] = useState<SupplierRiskFilter>('all');
   const { data, loading, error, refetch } = useSuppliers(projectId, { riskLevel: filter });
+  // Ranking comparativo (datos REALES desde GET /suppliers/ranking — el
+  // server scorea con `supplierScoring` 4-dim leyendo Firestore).
+  const {
+    data: rankingData,
+    loading: rankingLoading,
+    error: rankingError,
+  } = useSupplierRanking(projectId);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<RegisterFormState>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
@@ -397,6 +406,34 @@ export function SupplierQuality() {
           })}
         </ul>
       )}
+
+      {/* Ranking comparativo (datos reales del motor de scoring server-side) */}
+      <section data-testid="suppliers-comparator-section" className="space-y-2">
+        {rankingLoading && (
+          <div
+            className="rounded-2xl border border-default-token bg-surface p-6 text-center text-sm text-secondary-token"
+            data-testid="suppliers-ranking-loading"
+          >
+            {tr('common.loading', 'Cargando…')}
+          </div>
+        )}
+        {!rankingLoading && rankingError && (
+          <div
+            className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-600 dark:text-rose-400"
+            data-testid="suppliers-ranking-error"
+            role="alert"
+          >
+            {tr('suppliers.ranking.error', 'No se pudo cargar el ranking:')}{' '}
+            {rankingError.message}
+          </div>
+        )}
+        {!rankingLoading && !rankingError && (
+          <SupplierComparator
+            ranking={rankingData?.ranking ?? []}
+            service={tr('suppliers.ranking.allServices', 'Todos los servicios')}
+          />
+        )}
+      </section>
 
       {selected && (
         <div
