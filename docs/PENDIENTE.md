@@ -13,7 +13,7 @@
 | # | Dimensión | Cantidad (verificada 06-19) | Medido | Gate |
 |---|---|---|---|---|
 | A | Huérfanos (construido, sin montar) | **89** (era 126; −37 cerrados) | ✅ ratchet recomputado | ✅ `connectivity-ratchet` (baseline 89) |
-| B | Datos fabricados en pantallas montadas | **1 confirmado** (`WisdomCapsule` citas hardcodeadas en /hygiene); resto honesto | ✅ sweep completo | ❌ falta gate honestidad |
+| B | Datos fabricados en pantallas montadas | **0 confirmados** (el `WisdomCapsule` era falso positivo — ver detalle); pantallas montadas honestas | ✅ sweep completo + verificado en fuente | ❌ gate honestidad opcional (debe distinguir decorativo de dato-fabricado) |
 | C | Stubs / placeholders | 86 inventario → **~9 accionables** (3 REAL-NEEDED · 3 fail-soft legítimo · 1 bloqueado-externo · 3 entradas STALE) | ✅ triado | 🟡 `stub-guard` (forma, no conexión) |
 | D | Pipelines backend sin construir | 3 | ✅ explícito | ❌ |
 | E | Routers sin test conductual | **61 / 204** (143 verificados; era 67/137) | ✅ ratchet recomputado | ✅ `router-test-ratchet` (baseline 61) |
@@ -21,7 +21,7 @@
 | B0 | Índice de rutas (`api-routes.md`) | **viejo: 43 de 204 rutas** (del 2026-04-28). Generador+gate pendiente | ✅ medido (~1501 decl. de ruta) | ❌ falta generador |
 
 ### Hallazgos de la re-verificación 06-19 (detalle)
-- **B (honestidad):** sweep de superficies montadas → solo 1 dato fabricado vivo: `src/components/shared/WisdomCapsule.tsx:10-18` (7 citas hardcodeadas vía `Math.random` cuando no hay cápsula real; se renderiza como si fuera contenido real en `/hygiene`). Fix: empty-state honesto o cablear a colección `capsules`. Lo demás ya está real (cierres #966-#982).
+- **B (honestidad) — RE-VERIFICADO EN FUENTE 2026-06-20: limpio (0 fabricaciones).** El supuesto `WisdomCapsule` era **falso positivo**: `MorningRoutine.tsx:160-184` YA hace fetch a `GET /api/wisdom-capsule/today` y muestra la cápsula **real** (agregada de findings/crews del proyecto) cuando hay proyecto. El quote Sun Tzu de `WisdomCapsule.tsx` solo aparece como fallback **sin proyecto** (`{!selectedProject?.id && ...}`) y en el splash `ConsciousnessLoader` — un quote genérico **atribuido** es decorativo, no dato fabricado presentado como métrica real. F6 (cablear capsules reales) ya satisfecho. Lección aplicada: revisar la FUENTE, no el render. Lo demás ya estaba real (cierres #966-#982).
 - **C (stubs) REAL-NEEDED (3):** (1) `src/server/jobs/runB2dMrrSnapshot.ts:15` job sin cron (backend listo) · (2) `src/hooks/useGeofenceWithEvents.ts` hook real sin consumer (panel admin geocercas) · (3) Wi-Fi Direct nativo `packages/capacitor-mesh/.../MeshPlugin.kt:552` + `Plugin.swift:350` (BLE ya real; falta WifiP2pManager/MultipeerConnectivity).
 - **C STALE (3) — quitar del inventario:** SLM mock (ya runtime real), criticalPermitValidators (ya ruteado), SystemEngineProvider (ya montado).
 - **B0 (índice):** OpenAPI registry solo cubre 34 paths (superficie pública B2D, intencional). El catálogo interno real son ~1501 decl. de ruta en 204 routers → mano imposible, requiere generador determinista + gate de frescura.
