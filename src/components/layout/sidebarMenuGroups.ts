@@ -300,6 +300,8 @@ export function buildSidebarMenuGroups(
     { title: t('nav.incident_trends', 'Tendencia Incidentes'), icon: BarChart3, path: '/incident-trends', color: 'text-amber-500' },
     // Épica B1 capa 2 — Simulador cotización adicional DS 67 (siniestralidad → $).
     { title: t('nav.ds67_simulator', 'Simulador DS 67'), icon: BarChart3, path: '/ds67-simulator', color: 'text-teal-500' },
+    // Bucket D (manhours) — Métricas SST TRIR/LTIFR desde incidentes + horas-hombre.
+    { title: t('nav.safety_metrics', 'Métricas SST (TRIR/LTIFR)'), icon: BarChart3, path: '/safety-metrics', color: 'text-teal-500' },
     // Sprint K §244-250 — Aprendices + Mentoría + Autorización Progresiva.
     { title: t('nav.apprenticeship', 'Aprendices y Mentores'), icon: UserCheck, path: '/apprenticeship', color: 'text-teal-500' },
     // Sprint 42 Fase F.18 — Historial Profesional Portátil del Trabajador.
