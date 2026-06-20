@@ -3038,6 +3038,13 @@
       "heading": "History ({{count}})",
       "empty": "No root-cause analyses in this project yet.",
       "select_hint": "Select an analysis on the left to view the detail."
+    },
+    "research_summary": {
+      "heading": "Research summary",
+      "nodes": "Nodes: {{count}}",
+      "depth": "Max depth: {{d}}",
+      "roots": "Roots: {{count}}",
+      "failed_controls": "Failed controls: {{list}}"
     }
   },
   "consistency_audit": {

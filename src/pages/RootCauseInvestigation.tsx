@@ -21,7 +21,8 @@ import {
   type CauseFactor,
   type RootCauseAnalysis,
 } from '../services/rootCause/rootCauseClassifier';
-import type { RootCauseTree, CauseNode, CauseCategory } from '../services/researchMode/researchMode';
+import type { RootCauseTree, CauseNode, CauseCategory, TreeSummary } from '../services/researchMode/researchMode';
+import { summarizeResearchTree } from '../hooks/useResearchMode';
 import {
   saveRootCauseAnalysis,
   subscribeRootCauseAnalyses,
@@ -103,6 +104,7 @@ export function RootCauseInvestigation() {
   const [suggestedActions, setSuggestedActions] = useState<string>('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [treeSummary, setTreeSummary] = useState<TreeSummary | null>(null);
 
   useEffect(() => {
     const projectId = selectedProject?.id;
@@ -135,6 +137,17 @@ export function RootCauseInvestigation() {
     () => history.find((a) => a.incidentId === selectedAnalysisId) ?? null,
     [history, selectedAnalysisId],
   );
+
+  useEffect(() => {
+    if (!selectedProject?.id || !selectedAnalysis) {
+      setTreeSummary(null);
+      return;
+    }
+    const tree = analysisToTree(selectedAnalysis);
+    summarizeResearchTree(selectedProject.id, { tree })
+      .then((res) => setTreeSummary(res.summary))
+      .catch(() => setTreeSummary(null));
+  }, [selectedProject?.id, selectedAnalysis]);
 
   const toggleFactor = (f: CauseFactor) => {
     setFactors((prev) => {
@@ -384,6 +397,21 @@ export function RootCauseInvestigation() {
                         history={history}
                       />
                       <RootCauseTreeSummary tree={analysisToTree(selectedAnalysis)} />
+                      {treeSummary && (
+                        <div className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-3 text-xs text-zinc-700 dark:text-zinc-300 space-y-1">
+                          <p className="font-black uppercase tracking-widest text-[10px] text-zinc-500">
+                            {t('root_cause.research_summary.heading', 'Resumen investigación')}
+                          </p>
+                          <p>{t('root_cause.research_summary.nodes', { defaultValue: 'Nodos: {{count}}', count: treeSummary.totalNodes })}</p>
+                          <p>{t('root_cause.research_summary.depth', { defaultValue: 'Profundidad máx: {{d}}', d: treeSummary.maxDepth })}</p>
+                          <p>{t('root_cause.research_summary.roots', { defaultValue: 'Raíces: {{count}}', count: treeSummary.rootCount })}</p>
+                          {treeSummary.failedControlsIdentified.length > 0 && (
+                            <p className="text-amber-700 dark:text-amber-300">
+                              {t('root_cause.research_summary.failed_controls', { defaultValue: 'Controles fallidos: {{list}}', list: treeSummary.failedControlsIdentified.join(', ') })}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">

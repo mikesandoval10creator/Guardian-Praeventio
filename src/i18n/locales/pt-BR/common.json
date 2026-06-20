@@ -2741,6 +2741,13 @@
       "heading": "Histórico ({{count}})",
       "empty": "Ainda não há análises de causa raiz neste projeto.",
       "select_hint": "Selecione uma análise à esquerda para ver o detalhe."
+    },
+    "research_summary": {
+      "heading": "Resumo da pesquisa",
+      "nodes": "Nós: {{count}}",
+      "depth": "Profundidade máx: {{d}}",
+      "roots": "Raízes: {{count}}",
+      "failed_controls": "Controles falhos: {{list}}"
     }
   },
   "consistency_audit": {

@@ -3038,6 +3038,13 @@
       "heading": "Historial ({{count}})",
       "empty": "Aún no hay análisis de causa raíz en este proyecto.",
       "select_hint": "Selecciona un análisis a la izquierda para ver el detalle."
+    },
+    "research_summary": {
+      "heading": "Resumen investigación",
+      "nodes": "Nodos: {{count}}",
+      "depth": "Profundidad máx: {{d}}",
+      "roots": "Raíces: {{count}}",
+      "failed_controls": "Controles fallidos: {{list}}"
     }
   },
   "consistency_audit": {
