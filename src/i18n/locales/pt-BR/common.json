@@ -1,4 +1,8 @@
 {
+  "cuadrillas": {
+    "closePreview": "XP ao fechar",
+    "noClosablePreview": "Nenhum processo para fechar. Inicie um para ver o XP estimado."
+  },
   "fiveS": {
     "aria": "Auditoria 5S",
     "title": "Auditoria 5S",

@@ -26,6 +26,8 @@ import { CloseProcessModal } from '../components/processes/CloseProcessModal';
 import { CreateCrewModal } from '../components/processes/CreateCrewModal';
 import { GanttProjectView } from '../components/projects/GanttProjectView';
 import { CsvImportExportModal } from '../components/etl/CsvImportExportModal';
+import { ProcessClosePreviewCard } from '../components/organic/ProcessClosePreviewCard';
+import { useProjectProcesses } from '../hooks/useProjectProcesses';
 
 export function CuadrillasDashboard() {
   const { t } = useTranslation();
@@ -81,9 +83,26 @@ export function CuadrillasDashboard() {
     return () => un();
   }, [projectId]);
 
+  // Server-backed read of the project's processes (GET /api/processes) — powers
+  // the "Procesos por cerrar" close-preview panel below. This reads the same
+  // real `processes` collection the client subscription watches, but via the
+  // tenant-gated server endpoint so the XP preview is grounded in server state.
+  const { processes: serverProcesses, refresh: refreshProcesses } =
+    useProjectProcesses(projectId || null);
+
   const selectedCrew = useMemo(
     () => crews.find((c) => c.id === selectedCrewId) ?? null,
     [crews, selectedCrewId]
+  );
+
+  // Active processes of the selected crew, sourced from the server endpoint, for
+  // the close-XP preview cards. Honest empty state when there are none.
+  const closablePreviewProcesses = useMemo(
+    () =>
+      serverProcesses.filter(
+        (p) => p.crewId === selectedCrewId && (p.status === 'active' || p.status === 'paused'),
+      ),
+    [serverProcesses, selectedCrewId]
   );
 
   const crewProcesses = useMemo(
@@ -327,6 +346,32 @@ export function CuadrillasDashboard() {
                   </ul>
                 )}
               </section>
+
+              {/* Close-XP preview — server-backed (GET /api/processes). Shows the
+                  XP the crew earns when each open process is closed. */}
+              <section data-testid="process-close-preview-panel">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">
+                  {t('cuadrillas.closePreview', 'XP al cerrar')} ({closablePreviewProcesses.length})
+                </h4>
+                {closablePreviewProcesses.length === 0 ? (
+                  <p
+                    className="text-xs text-zinc-500 dark:text-zinc-400"
+                    data-testid="process-close-preview-empty"
+                  >
+                    {t('cuadrillas.noClosablePreview', 'Sin procesos por cerrar. Inicia uno para ver el XP estimado.')}
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {closablePreviewProcesses.map((p) => (
+                      <ProcessClosePreviewCard
+                        key={p.id}
+                        process={p}
+                        onConfirmClose={() => setCloseProcess(p)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
             </motion.div>
           )}
         </section>
@@ -384,7 +429,12 @@ export function CuadrillasDashboard() {
       <CloseProcessModal
         isOpen={!!closeProcess}
         process={closeProcess}
-        onClose={() => setCloseProcess(null)}
+        onClose={() => {
+          setCloseProcess(null);
+          // Re-pull the server-backed list so the close-XP preview reflects the
+          // process that just moved to a terminal status.
+          refreshProcesses();
+        }}
       />
     </div>
   );

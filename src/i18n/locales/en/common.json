@@ -1,4 +1,8 @@
 {
+  "cuadrillas": {
+    "closePreview": "XP on close",
+    "noClosablePreview": "No processes to close. Start one to see the estimated XP."
+  },
   "fiveS": {
     "aria": "5S audit",
     "title": "5S Audit",
