@@ -21,9 +21,15 @@ Claude o por MiMo vía spec interactivo + Claude merge-gate). Patrón probado: *
 
 ---
 
-## P1 — Snapshot de proyecto (desbloquea ProjectsCompare #1049 + ExecDash)
-**Endpoint nuevo:** `GET /api/sprint-k/:projectId/multi-project/snapshots` en
-`src/server/routes/multiProject.ts` (hoy es pure-compute; agregar el lado de lectura).
+## ✅ P1 — HECHO — Snapshot de proyecto (desbloquea ProjectsCompare #1049 + ExecDash)
+**Endpoint:** `GET /api/sprint-k/:projectId/multi-project/snapshots` en
+`src/server/routes/multiProject.ts:222`. Agregador puro en
+`src/server/services/projectSnapshotAggregator.ts` (verificado vs insights.ts /
+cphsMinute.ts). Hook `fetchProjectSnapshots` en `src/hooks/useMultiProject.ts`;
+`ProjectsCompare.tsx:63` carga snapshots reales en vez del prop vacío (cierra
+DEEP-EX-34 H3). Tests: `multiProject.test.ts` (401/403/200 con datos sembrados +
+honest-empty) + `projectSnapshotAggregator.test.ts` (clasificación de campos) +
+`ProjectsCompare.test.tsx` (dato real fluye sin prop). Spec original abajo.
 - **Auth:** `verifyAuth` + `requireTier('platino', …)` (es management/scale, no vida — tier OK) + `assertProjectMember` sobre cada proyecto devuelto.
 - **Fuente real (verificar campos antes):** `projects` where `members array-contains uid`
   (proyectos visibles) → por cada uno agregar de `incidents`/`findings`/`audits`/`risks`/

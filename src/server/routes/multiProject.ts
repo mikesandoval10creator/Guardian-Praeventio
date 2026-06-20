@@ -19,10 +19,19 @@
 //     body: { report: ComparisonReport }
 //     200:  { alerts: RiskProjectAlert[] }
 //
-// Pure compute — no Firestore reads/writes. Caller assembles the
-// snapshots from their own project metrics. NOTE: `:projectId` here is
-// the "lens" project used for auth; the engine compares many projects
-// passed in the body.
+//   GET /:projectId/multi-project/snapshots   (READ-side pipeline, P1)
+//     200:  { snapshots: ProjectComparatorSnapshot[] }
+//     Aggregates the real per-project KPIs that ProjectsCompare needs
+//     (incidents/findings/audits/risks/corrective_actions) for every
+//     project the caller is a member of. This is the read-side that was
+//     missing — the comparator UI used to receive an empty `snapshots`
+//     prop and was therefore unreachable (DEEP-EX-34 H3). See
+//     docs/READ-PIPELINES-SPEC.md P1.
+//
+// The three POST endpoints are pure compute. The GET endpoint reads
+// Firestore (no writes → no audit_log). NOTE: `:projectId` here is the
+// "lens" project used for auth; the engine compares many projects passed
+// in the body / aggregated by the GET.
 
 import { Router } from 'express';
 import { z } from 'zod';
@@ -44,6 +53,14 @@ import {
   type ComparisonReport,
   type ProjectSnapshot,
 } from '../../services/multiProject/projectComparator.js';
+import {
+  buildProjectSnapshot,
+  type DocLike,
+} from '../services/projectSnapshotAggregator.js';
+import {
+  MAX_PROJECTS_TO_COMPARE,
+  type ProjectSnapshot as ComparatorSnapshot,
+} from '../../services/projectComparator/projectComparator.js';
 
 const router = Router();
 
@@ -159,6 +176,91 @@ router.post(
     } catch (err) {
       logger.error?.('multiProject.riskProjects.error', err);
       captureRouteError(err, 'multiProject.riskProjects');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────
+// 4. snapshots  (READ-side pipeline — P1, closes DEEP-EX-34 H3 / #1049)
+// ────────────────────────────────────────────────────────────────────────
+//
+// Aggregates the REAL per-project KPIs the Project Comparator needs from the
+// existing Firestore collections, for every project the caller belongs to.
+// Read-only → no audit_log. `:projectId` is the auth "lens" (the caller must
+// be a member of it); the response includes ALL projects the caller can see so
+// the UI can offer them as comparison candidates.
+
+/** Fetch a project's 5 KPI collections (all keyed by `projectId`). */
+async function fetchProjectCollections(
+  db: FirebaseFirestore.Firestore,
+  projectId: string,
+): Promise<{
+  incidents: DocLike[];
+  findings: DocLike[];
+  audits: DocLike[];
+  risks: DocLike[];
+  correctiveActions: DocLike[];
+}> {
+  const [incidentsSnap, findingsSnap, auditsSnap, risksSnap, caSnap] =
+    await Promise.all([
+      db.collection('incidents').where('projectId', '==', projectId).limit(5000).get(),
+      db.collection('findings').where('projectId', '==', projectId).limit(5000).get(),
+      db.collection('audits').where('projectId', '==', projectId).limit(2000).get(),
+      db.collection('risks').where('projectId', '==', projectId).limit(2000).get(),
+      db.collection('corrective_actions').where('projectId', '==', projectId).limit(5000).get(),
+    ]);
+  return {
+    incidents: incidentsSnap.docs.map((d) => d.data() as DocLike),
+    findings: findingsSnap.docs.map((d) => d.data() as DocLike),
+    audits: auditsSnap.docs.map((d) => d.data() as DocLike),
+    risks: risksSnap.docs.map((d) => d.data() as DocLike),
+    correctiveActions: caSnap.docs.map((d) => d.data() as DocLike),
+  };
+}
+
+router.get(
+  '/:projectId/multi-project/snapshots',
+  verifyAuth,
+  requireTier('platino', { enforce: tierGateEnforced(), route: 'multiProject' }),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+    try {
+      const db = admin.firestore();
+      // Projects the caller is a member of — the comparison candidate set.
+      const projectsSnap = await db
+        .collection('projects')
+        .where('members', 'array-contains', callerUid)
+        .limit(MAX_PROJECTS_TO_COMPARE * 8)
+        .get();
+
+      const snapshotAt = new Date().toISOString();
+      const snapshots: ComparatorSnapshot[] = await Promise.all(
+        projectsSnap.docs.map(async (doc) => {
+          const data = (doc.data() ?? {}) as DocLike;
+          const collections = await fetchProjectCollections(db, doc.id);
+          const workersRaw = data.workersCount;
+          return buildProjectSnapshot(
+            {
+              projectId: doc.id,
+              projectName:
+                typeof data.name === 'string' && data.name.length > 0
+                  ? data.name
+                  : doc.id,
+              workersCount: typeof workersRaw === 'number' ? workersRaw : 0,
+            },
+            collections,
+            snapshotAt,
+          );
+        }),
+      );
+
+      return res.json({ snapshots });
+    } catch (err) {
+      logger.error?.('multiProject.snapshots.error', err);
+      captureRouteError(err, 'multiProject.snapshots');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
