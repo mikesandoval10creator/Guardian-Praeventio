@@ -28,6 +28,32 @@
 
 ---
 
+## Actualización 2026-06-19 — Auditoría de la ola MiMo (#1000+) + 2 auditorías externas
+
+Auditoría cruzada (5 sub-agentes ponytail/impacto + 2 PDFs línea-por-línea de 40k LOC en `docs/audits/archive/` + review de 24 PRs abiertos). MiMo (IA Xiaomi) cableó huérfanos; **mayoría real, pero con fallos sistémicos** (no tenía specs ni merge-gate). Detalle en memoria `project_mimo_pr_wave_1000_2026-06-19` y plan `PLAN-MAESTRO-HACER-REAL`.
+
+### Cerrado
+- ✅ **#1069** — regresión #1039 revertida: fingerprint Android `assetlinks.json` restaurado + 245 `.claude/skills/` destrackeados (rompían ESLint gate) + main desbloqueado.
+- ✅ **6 routers VIDA/LEGAL** (evacuation/fatigue/refuges/expirations/criticalRoles/driving) — ya tienen test conductual real (bucket E baja a verificar con `--write`).
+- ✅ **Datos fabricados** (bucket B alto impacto) — confirmados cerrados y vigentes por el verificador.
+
+### Nuevo pendiente (de la ola MiMo)
+- **3 MOUNTS FANTASMA vida-safety** (mergeados como "mount" pero NO renderizan en `src/pages/Dashboard.tsx` — 5 PRs se pisaron): `safetyMetrics/SafetyMetricsDashboard` (#1038), `spi/SpiDashboard` (#1039), `orgMetrics/OperationalPressureGauge` (#1034). Siguen huérfanos en baseline. → re-montar con render real.
+- **CASCARÓN CphsModule** (alto impacto legal): `src/pages/CphsModule.tsx:825` pasa `candidateMembers={[]}` → no se puede constituir el comité paritario. Bucket B. → cablear lista real de trabajadores.
+- **CASCARONES menores**: `src/pages/Glossary.tsx:152` (`faqs={[]}`), `B2dAdminPanel.tsx:312` (`cohorts={[]}`, honest-empty documentado, necesita job de snapshot — bucket D).
+- **PRs problemáticos — estado 2026-06-20 (drain):** #1051 useAdoption **✅ YA REAL** (de-fabricado: usa `projects.length` + `isPremium||isEnterprise` reales; entró en bundle #1075). #1059 useRoiScenario **⛔ cascarón, bloqueado** (fetch descartado, no renderiza). #1055 useVendorOnboarding **⛔ cascarón, bloqueado** (`compliance:[]`/`requirements:[]`). #1049 useProjectComparator (verificar estado — usar `useMultiProject` si sigue abierto). #1036 SupervisorBriefingCard (arrays vacíos — verificar).
+- **Drain de la ola 2026-06-20:** 9 montajes verificados-reales mergeados en bundle #1074 (connectivity 89→81); #1075 (adoption real + read-pipeline docs) en CI. Los 9 PRs individuales (#1064/1062/1061/1063/1065/1066/1067/1068/1053) cerrados/superados.
+
+### Gates a construir (cierran las dimensiones sin gate)
+- **render-ratchet** (cierra B y los mounts fantasma): exigir que el símbolo aparezca en JSX, no solo importado. El connectivity-ratchet actual cuenta cualquier aparición textual → no detecta fantasmas.
+- **coverage-gate** bloqueante (hoy `check-coverage-ratchet.cjs` es report-only sin `coverage-floors.json`).
+- **scope-gate anti-#1039**: rechazar PR cuyo título "mount X" toca off-limits (assetlinks/firestore.rules/.claude/.env/baselines).
+
+### Bloat ponytail (limpieza, ~2.170 LOC + 3-5 deps)
+5 `*Backend.ts` muertos (chemical/training/prediction/medicine/safetyEngine, supersedidos por `gemini/*`), 3 AI files muertos, 2 cards muertas (ResidualRiskCard/MaturityIndexCard), deps (`@mediapipe/camera_utils`, `@playcanvas/react`, `@pinecone` SDK, `d3`→`d3-force`), 6 scripts one-shot, 4 Dockerfiles muertos. NO tocar `packages/capacitor-mesh` (BLE real, refutado).
+
+---
+
 ## A. Huérfanos — construido pero sin montar  ·  GATE: connectivity-ratchet (baseline 126)
 
 El gran bloque de "trabajo hecho que no es real porque no está conectado". El detalle por archivo en `docs/BASELINE-CONECTIVIDAD-2026-06-17.md`. Corregido: de 126, ~18 son falsos positivos (utils/ya-montados) y ~10 duplicados → **~92 huérfanos reales**.
