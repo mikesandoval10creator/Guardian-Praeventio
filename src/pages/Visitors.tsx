@@ -36,6 +36,7 @@ import {
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
+import { useActiveVisitors } from '../hooks/useActiveVisitors';
 import { QRScannerModal } from '../components/QRScannerModal';
 import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
@@ -622,34 +623,26 @@ export function Visitors() {
     projectId ? `projects/${projectId}/inductions` : null,
   );
 
-  // Load the active list from the server once on mount + on project change.
-  // The Firestore listener above is only useful on tenant-rewritten paths;
-  // we treat /api/visitors as the source of truth for the active list.
+  // Load the active list from the server via the canonical hook. The Firestore
+  // listener above is only useful on tenant-rewritten paths; we treat
+  // `GET /api/visitors` (sourced through `useActiveVisitors`) as the source of
+  // truth for the active list. `localVisitors` mirrors the hook's data so the
+  // action handlers can apply optimistic add/remove/induct without a refetch.
+  const {
+    data: activeVisitorsData,
+    loading: visitorsLoading,
+    error: visitorsError,
+  } = useActiveVisitors(projectId);
+
   useEffect(() => {
-    if (!projectId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) return;
-        // §2.20 (2026-05-23) — apiAuthHeader unified.
-        const authHeader = await apiAuthHeader();
-        const result = await fetchJson<{ ok: true; visitors: Visitor[] }>(
-          `/api/visitors?projectId=${encodeURIComponent(projectId)}`,
-          { headers: { ...(authHeader ? { 'Authorization': authHeader } : {}) } },
-        );
-        if (!cancelled) setLocalVisitors(result.visitors);
-      } catch (err) {
-        if (!cancelled) {
-          const msg = err instanceof Error ? err.message : String(err);
-          logger.warn('visitors_list_failed', { message: msg });
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
+    if (activeVisitorsData) setLocalVisitors(activeVisitorsData.visitors);
+  }, [activeVisitorsData]);
+
+  useEffect(() => {
+    if (visitorsError) {
+      logger.warn('visitors_list_failed', { message: visitorsError.message });
+    }
+  }, [visitorsError]);
 
   const handleRegistered = (visitor: Visitor) => {
     setLocalVisitors((prev) => [visitor, ...prev]);
@@ -787,7 +780,19 @@ export function Visitors() {
         />
       )}
 
-      {localVisitors.length === 0 && (
+      {visitorsLoading && localVisitors.length === 0 && (
+        <div
+          className="rounded-2xl border border-default-token bg-surface p-8 text-center"
+          data-testid="visitors-loading"
+        >
+          <Users className="w-10 h-10 mx-auto mb-3 text-teal-500/40 animate-pulse" aria-hidden="true" />
+          <p className="text-sm text-secondary-token">
+            {t('visitors.page.loading', 'Cargando visitas activas…')}
+          </p>
+        </div>
+      )}
+
+      {!visitorsLoading && localVisitors.length === 0 && (
         <div
           className="rounded-2xl border border-default-token bg-surface p-8 text-center"
           data-testid="visitors-empty"
