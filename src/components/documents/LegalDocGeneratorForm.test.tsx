@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { LegalDocGeneratorForm } from './LegalDocGeneratorForm.js';
 
@@ -9,6 +9,18 @@ vi.mock('react-i18next', () => ({
       typeof fallback === 'string' ? fallback : _k,
   }),
 }));
+
+// Frontier mock: the real PDF rendering pipeline (jspdf) is exercised in
+// legalDocPdf.test.ts. Here we assert the form drives the download with the
+// REAL rendered markdown produced by the (un-mocked) legalDocTemplates service.
+const downloadLegalDocPdf = vi.fn();
+vi.mock('../../utils/legalDocPdf.js', () => ({
+  downloadLegalDocPdf: (...args: unknown[]) => downloadLegalDocPdf(...args),
+}));
+
+beforeEach(() => {
+  downloadLegalDocPdf.mockClear();
+});
 
 describe('<LegalDocGeneratorForm />', () => {
   it('renderiza selector de tipo + campos requeridos del default RIOHS', () => {
@@ -53,20 +65,20 @@ describe('<LegalDocGeneratorForm />', () => {
     expect(screen.getByTestId('legaldoc-field-workerRut')).toBeInTheDocument();
   });
 
-  it('dispara onGenerate con el result cuando OK', () => {
+  it('genera el PDF REAL (download) con el markdown renderizado + dispara onGenerate', () => {
     const onGen = vi.fn();
     render(<LegalDocGeneratorForm onGenerate={onGen} initialKind="ODI" />);
     fireEvent.change(screen.getByTestId('legaldoc-field-workerName'), {
-      target: { value: 'Ana' },
+      target: { value: 'Ana Pérez' },
     });
     fireEvent.change(screen.getByTestId('legaldoc-field-workerRut'), {
-      target: { value: 'r' },
+      target: { value: '15.123.456-7' },
     });
     fireEvent.change(screen.getByTestId('legaldoc-field-position'), {
-      target: { value: 'Operadora' },
+      target: { value: 'Operadora de grúa' },
     });
     fireEvent.change(screen.getByTestId('legaldoc-field-companyName'), {
-      target: { value: 'X' },
+      target: { value: 'Constructora Andes' },
     });
     fireEvent.change(screen.getByTestId('legaldoc-field-date'), {
       target: { value: '2026-05-12' },
@@ -75,8 +87,29 @@ describe('<LegalDocGeneratorForm />', () => {
       target: { value: 'Trabajo en altura' },
     });
     fireEvent.click(screen.getByTestId('legaldoc-generate-btn'));
+
+    // The REAL download was triggered with the kind + the rendered markdown
+    // that embeds the user-typed data (proves the template ran for real).
+    expect(downloadLegalDocPdf).toHaveBeenCalledTimes(1);
+    const [pdfInput, kindArg] = downloadLegalDocPdf.mock.calls[0];
+    expect(kindArg).toBe('ODI');
+    expect(pdfInput.title).toMatch(/Obligación de Informar/);
+    expect(pdfInput.markdown).toContain('Ana Pérez');
+    expect(pdfInput.markdown).toContain('Operadora de grúa');
+    expect(pdfInput.markdown).toContain('Trabajo en altura');
+    expect(pdfInput.references).toEqual(expect.arrayContaining([expect.stringMatching(/Ley 16\.744 art\. 21/)]));
+
+    // The optional persistence callback still fires after the download.
     expect(onGen).toHaveBeenCalled();
     expect(onGen.mock.calls[0][0]).toBe('ODI');
+  });
+
+  it('no genera ni descarga si faltan campos requeridos (botón deshabilitado)', () => {
+    const onGen = vi.fn();
+    render(<LegalDocGeneratorForm onGenerate={onGen} initialKind="ODI" />);
+    fireEvent.click(screen.getByTestId('legaldoc-generate-btn'));
+    expect(downloadLegalDocPdf).not.toHaveBeenCalled();
+    expect(onGen).not.toHaveBeenCalled();
   });
 
   it('referencias normativas visibles', () => {

@@ -857,7 +857,19 @@
     "vs_superseded": "Superseded",
     "vs_retired": "Retired",
     "changelog": "Changelog",
-    "closeHistory": "Close"
+    "closeHistory": "Close",
+    "legalGen": "Generate legal document"
+  },
+  "legalDoc": {
+    "aria": "Legal document generator",
+    "title": "Legal documents",
+    "kind": "Document type",
+    "required": "Required fields",
+    "optional": "Optional fields",
+    "missingTokens": "Missing fields",
+    "preview": "Markdown preview",
+    "references": "Regulatory references",
+    "generate": "Generate PDF"
   },
   "epp": {
     "title": "PPE Management",

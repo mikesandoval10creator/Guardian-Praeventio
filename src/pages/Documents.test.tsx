@@ -17,7 +17,7 @@
 // framer-motion). The hygiene engine + components run for real.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { Documents } from './Documents';
 import type { DocumentRecord } from '../services/documentHygiene/documentHygieneEngine';
 
@@ -97,6 +97,15 @@ vi.mock('../components/documents/EditDocumentModal', () => ({
   EditDocumentModal: () => null,
 }));
 
+// Frontier mock only: the real PDF rendering pipeline (jspdf). The
+// LegalDocGeneratorForm + legalDocTemplates service run for real so this test
+// proves the page mounts a WORKING generator (real markdown, real download
+// call), not just an imported-but-dead component.
+const downloadLegalDocPdf = vi.fn();
+vi.mock('../utils/legalDocPdf.js', () => ({
+  downloadLegalDocPdf: (...args: unknown[]) => downloadLegalDocPdf(...args),
+}));
+
 function ghostDoc(over: Partial<DocumentRecord> & { id: string }): DocumentRecord {
   return {
     id: over.id,
@@ -115,6 +124,7 @@ function ghostDoc(over: Partial<DocumentRecord> & { id: string }): DocumentRecor
 beforeEach(() => {
   mockProject = null;
   mockHygiene = { data: null, loading: false, error: null };
+  downloadLegalDocPdf.mockClear();
 });
 
 describe('<Documents /> documentHygiene mount', () => {
@@ -187,5 +197,55 @@ describe('<Documents /> documentHygiene mount', () => {
     expect(
       screen.queryByTestId('doc-confidence-level-weak'),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('<Documents /> legal-document generator mount', () => {
+  it('el generador legal está oculto por defecto y se revela con el toggle', () => {
+    mockProject = { id: 'p-1', name: 'Faena Norte' };
+    render(<Documents />);
+    // Hidden initially.
+    expect(screen.queryByTestId('documents-legalgen-section')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('legaldoc-form')).not.toBeInTheDocument();
+    // Reveal it.
+    fireEvent.click(screen.getByTestId('documents-legalgen-toggle'));
+    expect(screen.getByTestId('documents-legalgen-section')).toBeInTheDocument();
+    expect(screen.getByTestId('legaldoc-form')).toBeInTheDocument();
+    // The default RIOHS required fields render → the real form is mounted.
+    expect(screen.getByTestId('legaldoc-field-companyName')).toBeInTheDocument();
+  });
+
+  it('genera un documento legal REAL desde la página (download con markdown del usuario)', () => {
+    mockProject = { id: 'p-1', name: 'Faena Norte' };
+    render(<Documents />);
+    fireEvent.click(screen.getByTestId('documents-legalgen-toggle'));
+
+    // Fill all required RIOHS tokens so the generate button enables.
+    fireEvent.change(screen.getByTestId('legaldoc-field-companyName'), {
+      target: { value: 'Constructora Andes' },
+    });
+    fireEvent.change(screen.getByTestId('legaldoc-field-companyRut'), {
+      target: { value: '76.111.222-3' },
+    });
+    fireEvent.change(screen.getByTestId('legaldoc-field-projectName'), {
+      target: { value: 'Obra Andina' },
+    });
+    fireEvent.change(screen.getByTestId('legaldoc-field-date'), {
+      target: { value: '2026-05-12' },
+    });
+    fireEvent.change(screen.getByTestId('legaldoc-field-workerCount'), {
+      target: { value: '120' },
+    });
+
+    fireEvent.click(screen.getByTestId('legaldoc-generate-btn'));
+
+    // REAL generation: the page-mounted form drove the PDF download with the
+    // markdown rendered by the actual legalDocTemplates service (user data in).
+    expect(downloadLegalDocPdf).toHaveBeenCalledTimes(1);
+    const [pdfInput, kindArg] = downloadLegalDocPdf.mock.calls[0];
+    expect(kindArg).toBe('RIOHS');
+    expect(pdfInput.markdown).toContain('Constructora Andes');
+    expect(pdfInput.markdown).toContain('Obra Andina');
+    expect(pdfInput.references.join(' ')).toMatch(/Ley 16\.744/);
   });
 });

@@ -7,7 +7,7 @@
 
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileText, Eye, AlertCircle } from 'lucide-react';
+import { FileText, Eye, AlertCircle, Download } from 'lucide-react';
 import {
   TEMPLATES,
   renderLegalDoc,
@@ -15,9 +15,15 @@ import {
   type LegalDocTemplateKind,
   type RenderResult,
 } from '../../services/documents/legalDocTemplates.js';
+import { downloadLegalDocPdf } from '../../utils/legalDocPdf.js';
 
 interface LegalDocGeneratorFormProps {
   initialKind?: LegalDocTemplateKind;
+  /**
+   * Optional hook for the caller to persist / upload the rendered document
+   * (e.g. attach the PDF to a Firestore DOCUMENT node). The form ALWAYS
+   * downloads the real PDF first; `onGenerate` runs afterwards.
+   */
   onGenerate?: (kind: LegalDocTemplateKind, result: RenderResult) => void;
 }
 
@@ -35,6 +41,22 @@ export function LegalDocGeneratorForm({
 
   function setToken(token: string, value: string) {
     setData((prev) => ({ ...prev, [token]: value }));
+  }
+
+  function handleGenerate() {
+    if (!result.ok || !result.markdown) return;
+    // Generate the REAL legal document as a downloadable PDF (client-side,
+    // deterministic, no LLM). Mirrors the Ds67Modal → downloadDs67Pdf pattern.
+    downloadLegalDocPdf(
+      {
+        title: template.title,
+        markdown: result.markdown,
+        references: result.references ?? template.legalReferences,
+      },
+      kind,
+    );
+    // Let the caller persist / upload afterwards if it wants to.
+    onGenerate?.(kind, result);
   }
 
   return (
@@ -149,10 +171,11 @@ export function LegalDocGeneratorForm({
       <button
         type="button"
         disabled={!result.ok}
-        onClick={() => result.ok && onGenerate?.(kind, result)}
+        onClick={handleGenerate}
         data-testid="legaldoc-generate-btn"
-        className="w-full px-3 py-1.5 rounded bg-sky-500 text-white text-xs font-bold hover:bg-sky-600 disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded bg-sky-500 text-white text-xs font-bold hover:bg-sky-600 disabled:opacity-50"
       >
+        <Download className="w-3.5 h-3.5" aria-hidden="true" />
         {t('legalDoc.generate', 'Generar PDF')}
       </button>
     </section>
