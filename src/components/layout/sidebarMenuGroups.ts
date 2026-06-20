@@ -60,6 +60,7 @@ import {
   Network,
   OctagonAlert,
   Printer,
+  Recycle,
   ScanLine,
   Scan,
   Server,
@@ -367,6 +368,10 @@ export function buildSidebarMenuGroups(
         { title: t('nav.fatigue', 'Monitor de Fatiga'), icon: Moon, path: '/fatigue', color: 'text-violet-500' },
         // Carga mental (NASA-TLX) — autoevaluación on-device (mounts the orphan MentalLoadSurveyForm).
         { title: t('nav.carga_mental', 'Carga Mental'), icon: Brain, path: '/carga-mental', color: 'text-emerald-500' },
+        // Gestión ambiental — Inventario de Residuos (DS 148 RESPEL): inventario
+        // por tipo, manifiestos pendientes de recepción y permisos por vencer.
+        // Lee /api/sprint-k/:projectId/waste/inventory (WasteAdapter → Firestore).
+        { title: t('nav.waste_inventory', 'Residuos Ambientales'), icon: Recycle, path: '/waste-inventory', color: 'text-emerald-500' },
       ],
     },
     {

@@ -217,7 +217,8 @@
     "prexor": "PREXOR Ruído",
     "planesi": "PLANESI Sílica",
     "maintenance_preventive": "Manutenção",
-    "incident_flow": "Fluxo de Incidentes"
+    "incident_flow": "Fluxo de Incidentes",
+    "waste_inventory": "Resíduos Ambientais"
   },
   "auth": {
     "login": "Entrar",
