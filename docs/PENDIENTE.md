@@ -115,11 +115,12 @@ Inventario en `docs/stubs-inventory.md`. `precommit-stub-guard` valida la FORMA 
 
 ---
 
-## D. Pipelines de backend sin construir (3)
+## D. Pipelines de backend sin construir (4)
 
 1. **SLO error-budget**: la lectura real `slo_metrics` existe; falta el job Sentry→`slo_metrics` (Cloud Function/cron). (SloErrorBudget hoy muestra "sin métricas" honesto.)
 2. **Snapshot diario de cumplimiento**: para que ExecDash tenga tendencia de cumplimiento real (colección + cron + reglas + ≥5 rules-tests).
 3. **Detección EPP real**: bloqueado-externo (no hay modelo EPP; COCO/MediaPipe no tiene clases EPP). El detector por color + disclaimer es el estado honesto interino (WP-I7).
+4. **Feed `ContractorPerformance`** (2026-06-20): `ContractorRankingTable` + `contractorKpiService`/router son calculadora-pura (computan TRIR/LTIFR desde `perfs` del body); NO existe colección/agregación que produzca `ContractorPerformance`. La colección `miningContractors` es acreditación (Ds76Input), sin métricas. Para montar real: construir agregación de incidentes por `contractorId` + man-hours → GET de performances. Hasta entonces el componente queda huérfano (NO montar honest-empty como "feature": directiva honesto=real). Rama `feat/mount-contractor-ranking` descartada.
 
 ---
 
