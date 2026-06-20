@@ -26,6 +26,10 @@ const ConsistencyAudit = lazy(() => import('../pages/ConsistencyAudit').then(m =
 // Sprint K wire UI (2026-05-23) — Calendario legal + Gestión de cambios MOC.
 const LegalCalendar = lazy(() => import('../pages/LegalCalendar').then(m => ({ default: m.LegalCalendar })));
 const OperationalChanges = lazy(() => import('../pages/OperationalChanges').then(m => ({ default: m.OperationalChanges })));
+// F5(changeMgmt) — Management of Change (MOC) adapter-backed page. Monta el
+// trío ChangeDeclarationForm + MOCStatusPanel + AcknowledgmentBanner sobre la
+// superficie persistida /api/sprint-k/:projectId/moc/* (operationalChange.ts).
+const ChangeManagement = lazy(() => import('../pages/ChangeManagement').then(m => ({ default: m.ChangeManagement })));
 // Sprint K wire UI (2026-05-23) — Charlas + Portales auditor externo.
 const SafetyTalks = lazy(() => import('../pages/SafetyTalks').then(m => ({ default: m.SafetyTalks })));
 const AuditPortals = lazy(() => import('../pages/AuditPortals').then(m => ({ default: m.AuditPortals })));
@@ -50,6 +54,7 @@ export const ComplianceRoutes = [
   <Route key="consistency-audit" path="consistency-audit" element={<ConsistencyAudit />} />,
   <Route key="legal-calendar" path="legal-calendar" element={<LegalCalendar />} />,
   <Route key="operational-changes" path="operational-changes" element={<OperationalChanges />} />,
+  <Route key="change-management" path="change-management" element={<ChangeManagement />} />,
   <Route key="safety-talks" path="safety-talks" element={<SafetyTalks />} />,
   <Route key="audit-portals" path="audit-portals" element={<AuditPortals />} />,
   <Route key="document-read" path="document-read" element={<DocumentReadConfirm />} />,
