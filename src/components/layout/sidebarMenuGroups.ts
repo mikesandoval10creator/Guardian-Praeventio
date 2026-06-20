@@ -69,6 +69,7 @@ import {
   ShieldCheck,
   Stethoscope,
   Sun,
+  GitCompare,
   Truck,
   User,
   UserCheck,
@@ -203,6 +204,10 @@ export function buildSidebarMenuGroups(
     // Cada cambio operacional registra rationale + impacto + workers
     // afectados + ack flow. Revertible con motivo documentado.
     { title: t('nav.operational_changes', 'Gestión de Cambios'), icon: Network, path: '/operational-changes', color: 'text-violet-500' },
+    // F5(changeMgmt) — Control de Cambios (MOC) adapter-backed: declarar →
+    // cobertura de acknowledgment → banner de confirmación. Persistido en
+    // /api/sprint-k (operationalChange.ts), distinto del store legacy de arriba.
+    { title: t('nav.change_management', 'Control de Cambios'), icon: GitCompare, path: '/change-management', color: 'text-teal-500' },
     // Sprint K wire UI (2026-05-23) — Charlas diarias determinísticas.
     // suggestTalks scoring por triggers (riesgos, tareas, incidentes,
     // clima, newWorkers). Sin LLM, top 3 con rationale citando triggers.

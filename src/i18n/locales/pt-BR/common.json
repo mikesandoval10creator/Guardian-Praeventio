@@ -195,6 +195,7 @@
     "my_data": "Meus Dados",
     "occupational_health_group": "Saúde Ocupacional",
     "operational_changes": "Gestão de Mudanças",
+    "change_management": "Controle de Mudanças",
     "pdca": "PDCA + Não Conformidades",
     "portable_history": "Histórico Portátil",
     "positive_observations": "Observações Positivas",
@@ -2865,6 +2866,26 @@
       "received": "Recebido",
       "not_received": "Não recebido",
       "row_summary": "{{kind}} · {{entries}} entradas · {{notes}} notas"
+    }
+  },
+  "change_management": {
+    "title": "Controle de mudanças (MOC)",
+    "subtitle": "Declare mudanças operacionais, acompanhe a cobertura de confirmação de leitura e confirme as que afetam você. Muitos acidentes ocorrem por mudanças mal comunicadas — ISO 45001 §8.1.3.",
+    "empty": {
+      "select_project": "Selecione um projeto para gerenciar suas mudanças operacionais."
+    },
+    "tabs": {
+      "label": "Visões do controle de mudanças",
+      "overview": "Cobertura",
+      "declare": "Declarar mudança"
+    },
+    "pending": {
+      "label": "Mudanças pendentes da sua confirmação",
+      "heading": "Pendentes da sua confirmação ({{n}})"
+    },
+    "feedback": {
+      "declared": "Mudança declarada ({{id}}). Aguardando confirmação dos trabalhadores afetados.",
+      "closed": "MOC encerrado ({{id}}) — marcado como implementado."
     }
   },
   "operational_changes": {
