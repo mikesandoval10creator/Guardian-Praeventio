@@ -64,6 +64,22 @@ type HookState = {
 };
 
 let mockHook: HookState = { data: null, loading: false, error: null };
+
+type RankingEntryLike = SupplierViewLike & {
+  rank: number;
+  breakdown: {
+    safetyPerformance: number;
+    documentCompliance: number;
+    responsiveness: number;
+    reputation: number;
+  };
+};
+type RankingHookState = {
+  data: { ranking: RankingEntryLike[]; total: number } | null;
+  loading: boolean;
+  error: Error | null;
+};
+let mockRankingHook: RankingHookState = { data: null, loading: false, error: null };
 let lastFilterArg: string | undefined = undefined;
 const refetchSpy = vi.fn();
 const registerSpy = vi.fn(async (_pid: string, _payload: unknown) => ({
@@ -94,6 +110,10 @@ vi.mock('../hooks/useSuppliers', () => ({
     lastFilterArg = opts?.riskLevel;
     return { ...mockHook, refetch: refetchSpy };
   },
+  useSupplierRanking: (_pid: string | null) => ({
+    ...mockRankingHook,
+    refetch: vi.fn(),
+  }),
   registerSupplier: (pid: string, payload: unknown) => registerSpy(pid, payload),
 }));
 
@@ -131,10 +151,34 @@ const VIEW_HIGH: SupplierViewLike = {
   auditCount: 0,
 };
 
+const RANK_ENTRY: RankingEntryLike = {
+  ...VIEW,
+  id: 'sup_a',
+  rank: 1,
+  breakdown: {
+    safetyPerformance: 90,
+    documentCompliance: 85,
+    responsiveness: 70,
+    reputation: 80,
+  },
+};
+const RANK_ENTRY_HIGH: RankingEntryLike = {
+  ...VIEW_HIGH,
+  id: 'sup_b',
+  rank: 2,
+  breakdown: {
+    safetyPerformance: 40,
+    documentCompliance: 30,
+    responsiveness: 25,
+    reputation: 35,
+  },
+};
+
 beforeEach(() => {
   mockSelectedProject = null;
   mockIsOnline = true;
   mockHook = { data: null, loading: false, error: null };
+  mockRankingHook = { data: null, loading: false, error: null };
   lastFilterArg = undefined;
   refetchSpy.mockClear();
   registerSpy.mockClear();
@@ -231,6 +275,58 @@ describe('<SupplierQuality /> page wrapper (Sprint K §90-91)', () => {
       taxId: '12.345.678-9',
       services: ['EPP', 'capacitación'],
     });
+  });
+
+  it('8. monta <SupplierComparator> con el ranking REAL del endpoint', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockHook = {
+      data: { suppliers: [VIEW, VIEW_HIGH], total: 2 },
+      loading: false,
+      error: null,
+    };
+    mockRankingHook = {
+      data: { ranking: [RANK_ENTRY, RANK_ENTRY_HIGH], total: 2 },
+      loading: false,
+      error: null,
+    };
+    render(<SupplierQuality />);
+    // El comparador está montado y rinde las filas del ranking real.
+    expect(screen.getByTestId('supplier-comparator')).toBeInTheDocument();
+    expect(screen.getByTestId('supplier-rank-sup_a')).toBeInTheDocument();
+    expect(screen.getByTestId('supplier-rank-sup_b')).toBeInTheDocument();
+    // sup_a (riskLevel low) marcado como recomendado.
+    expect(screen.getByTestId('supplier-recommended-sup_a')).toBeInTheDocument();
+    // Score real (redondeado) visible.
+    expect(screen.getByText('83')).toBeInTheDocument();
+  });
+
+  it('9. comparador muestra empty-state honesto sin ranking', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockHook = { data: { suppliers: [], total: 0 }, loading: false, error: null };
+    mockRankingHook = { data: { ranking: [], total: 0 }, loading: false, error: null };
+    render(<SupplierQuality />);
+    expect(screen.getByTestId('supplier-comparator')).toBeInTheDocument();
+    expect(screen.getByTestId('supplier-ranking').textContent).toMatch(
+      /Sin proveedores/,
+    );
+    expect(
+      screen.queryByTestId('supplier-critical-risks'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('10. comparador surface error del ranking endpoint', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockHook = { data: { suppliers: [], total: 0 }, loading: false, error: null };
+    mockRankingHook = {
+      data: null,
+      loading: false,
+      error: new Error('ranking_down'),
+    };
+    render(<SupplierQuality />);
+    expect(screen.getByTestId('suppliers-ranking-error')).toBeInTheDocument();
+    expect(screen.getByText(/ranking_down/i)).toBeInTheDocument();
+    // En error NO se monta el comparador (evita render vacío engañoso).
+    expect(screen.queryByTestId('supplier-comparator')).not.toBeInTheDocument();
   });
 
   it('7. click en supplier card abre el detail modal', () => {

@@ -1,7 +1,19 @@
 // Praeventio Guard — Wire UI #47: <SupplierComparator />
 //
-// Ranking comparativo de proveedores para un servicio + auditoría de
-// servicios críticos (alerta de proveedor único / riesgo sistémico).
+// Ranking comparativo de proveedores + auditoría de servicios críticos
+// (alerta de proveedor único / riesgo sistémico).
+//
+// Dos modos:
+//   1. `ranking`  — datos REALES desde GET /api/sprint-k/:projectId/suppliers/ranking
+//      (server scorea con `supplierScoring` 4-dim leyendo Firestore). Es el
+//      modo usado por la página `SupplierQuality`. Render-only: NO recalcula.
+//   2. props sueltas (`suppliers` + `events`) — modo determinístico legacy
+//      que usa el motor SLA puro `supplierQualityService` (sin feed propio).
+//      Conservado para reuso/test del motor; la página productiva usa el
+//      modo `ranking`.
+//
+// 4 directiva-3: NO empujamos data a SUSESO/SII/MINSAL/OSHA. El ranking es
+// interno; la empresa decide qué hacer con él.
 
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,8 +26,42 @@ import {
   type SupplierServiceKind,
   type SLATarget,
 } from '../../services/suppliers/supplierQualityService.js';
+import type { SupplierRankingEntry } from '../../hooks/useSuppliers.js';
 
-interface SupplierComparatorProps {
+// ── Row + risk view models shared by both modes ──────────────────────────
+
+interface RankingRow {
+  supplierId: string;
+  legalName: string;
+  /** Etiqueta secundaria (eventos SLA evaluados | servicios prestados). */
+  metaCount: number;
+  metaLabelKey: string;
+  metaLabelFallback: string;
+  /** Score 0-100 mostrado a la derecha. */
+  qualityScore: number;
+  isRecommended: boolean;
+}
+
+interface RiskRow {
+  service: string;
+  isSoleSupplier: boolean;
+  hasHighSystemicRisk: boolean;
+}
+
+// ── Props (discriminated union) ──────────────────────────────────────────
+
+interface RankingModeProps {
+  /** Modo datos reales: ranking ya scoreado por el server. */
+  ranking: SupplierRankingEntry[];
+  /** Etiqueta de servicio/área para el header (libre). */
+  service?: string;
+  suppliers?: never;
+  events?: never;
+  defaultTarget?: never;
+  criticalServices?: never;
+}
+
+interface ServiceModeProps {
   suppliers: Supplier[];
   events: ServiceDeliveryEvent[];
   /** Servicio a rankear. */
@@ -24,28 +70,91 @@ interface SupplierComparatorProps {
   defaultTarget: SLATarget;
   /** Lista de servicios considerados críticos por la organización. */
   criticalServices: SupplierServiceKind[];
+  ranking?: never;
 }
 
-export function SupplierComparator({
-  suppliers,
-  events,
-  service,
-  defaultTarget,
-  criticalServices,
-}: SupplierComparatorProps) {
+type SupplierComparatorProps = RankingModeProps | ServiceModeProps;
+
+function isRankingMode(p: SupplierComparatorProps): p is RankingModeProps {
+  return Array.isArray((p as RankingModeProps).ranking);
+}
+
+export function SupplierComparator(props: SupplierComparatorProps) {
   const { t } = useTranslation();
 
-  const ranking = useMemo(
-    () => rankSuppliers(suppliers, events, service, defaultTarget),
-    [suppliers, events, service, defaultTarget],
-  );
+  const { rows, risks, serviceLabel } = useMemo(() => {
+    if (isRankingMode(props)) {
+      // ── Modo datos reales (GET /suppliers/ranking) ──────────────────
+      const sorted = [...props.ranking].sort((a, b) => a.rank - b.rank);
+      const rankingRows: RankingRow[] = sorted.map((r) => ({
+        supplierId: r.id,
+        legalName: r.legalName,
+        metaCount: r.incidentCount,
+        metaLabelKey: 'suppliers.incidents',
+        metaLabelFallback: 'incidentes',
+        qualityScore: Math.round(r.score),
+        // Recomendado = riesgo bajo (score alto, el server ya lo derivó).
+        isRecommended: r.riskLevel === 'low',
+      }));
+      // Riesgo sistémico real: TODOS los proveedores en riesgo alto.
+      const allHigh =
+        sorted.length > 0 && sorted.every((r) => r.riskLevel === 'high');
+      const riskRows: RiskRow[] =
+        sorted.length === 1
+          ? [
+              {
+                service: props.service ?? '—',
+                isSoleSupplier: true,
+                hasHighSystemicRisk: allHigh,
+              },
+            ]
+          : allHigh
+            ? [
+                {
+                  service: props.service ?? '—',
+                  isSoleSupplier: false,
+                  hasHighSystemicRisk: true,
+                },
+              ]
+            : [];
+      return {
+        rows: rankingRows,
+        risks: riskRows,
+        serviceLabel: props.service ?? '',
+      };
+    }
 
-  const criticalAudit = useMemo(
-    () => auditCriticalServices(suppliers, events, criticalServices, defaultTarget),
-    [suppliers, events, criticalServices, defaultTarget],
-  );
-
-  const risks = criticalAudit.filter((c) => c.isSoleSupplier || c.hasHighSystemicRisk);
+    // ── Modo determinístico legacy (motor SLA puro) ───────────────────
+    const ranked = rankSuppliers(
+      props.suppliers,
+      props.events,
+      props.service,
+      props.defaultTarget,
+    );
+    const audit = auditCriticalServices(
+      props.suppliers,
+      props.events,
+      props.criticalServices,
+      props.defaultTarget,
+    );
+    const rankingRows: RankingRow[] = ranked.map((r) => ({
+      supplierId: r.supplierId,
+      legalName: r.legalName,
+      metaCount: r.servicesEvaluated,
+      metaLabelKey: 'suppliers.events',
+      metaLabelFallback: 'eventos',
+      qualityScore: r.qualityScore,
+      isRecommended: r.isRecommended,
+    }));
+    const riskRows: RiskRow[] = audit
+      .filter((c) => c.isSoleSupplier || c.hasHighSystemicRisk)
+      .map((c) => ({
+        service: c.service,
+        isSoleSupplier: c.isSoleSupplier,
+        hasHighSystemicRisk: c.hasHighSystemicRisk,
+      }));
+    return { rows: rankingRows, risks: riskRows, serviceLabel: props.service };
+  }, [props]);
 
   return (
     <section
@@ -58,20 +167,22 @@ export function SupplierComparator({
         <h2 className="text-sm font-black text-primary-token uppercase tracking-wide">
           {t('suppliers.title', 'Proveedores')}
         </h2>
-        <span className="ml-auto text-[10px] uppercase text-secondary-token">
-          {t(`suppliers.service.${service}`, service)}
-        </span>
+        {serviceLabel && (
+          <span className="ml-auto text-[10px] uppercase text-secondary-token">
+            {t(`suppliers.service.${serviceLabel}`, serviceLabel)}
+          </span>
+        )}
       </header>
 
       {/* Ranking */}
       <div data-testid="supplier-ranking">
-        {ranking.length === 0 && (
+        {rows.length === 0 && (
           <p className="text-xs text-secondary-token italic">
             {t('suppliers.empty', 'Sin proveedores calificados activos para este servicio.')}
           </p>
         )}
         <ul className="space-y-1">
-          {ranking.map((r, idx) => (
+          {rows.map((r, idx) => (
             <li
               key={r.supplierId}
               data-testid={`supplier-rank-${r.supplierId}`}
@@ -91,7 +202,7 @@ export function SupplierComparator({
               )}
               <span className="flex-1 truncate font-bold">{r.legalName}</span>
               <span className="text-[10px] text-secondary-token">
-                {r.servicesEvaluated} {t('suppliers.events', 'eventos')}
+                {r.metaCount} {t(r.metaLabelKey, r.metaLabelFallback)}
               </span>
               <span className="font-black tabular-nums w-12 text-right">{r.qualityScore}</span>
             </li>

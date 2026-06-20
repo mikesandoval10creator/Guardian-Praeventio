@@ -7,6 +7,7 @@ import type {
   ServiceDeliveryEvent,
   SLATarget,
 } from '../../services/suppliers/supplierQualityService.js';
+import type { SupplierRankingEntry } from '../../hooks/useSuppliers.js';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -93,5 +94,80 @@ describe('<SupplierComparator />', () => {
     );
     expect(screen.getByTestId('supplier-critical-risks')).toBeInTheDocument();
     expect(screen.getByTestId('supplier-risk-transport')).toBeInTheDocument();
+  });
+});
+
+// ── Modo datos reales (ranking del endpoint /suppliers/ranking) ──────────
+
+function entry(
+  id: string,
+  rank: number,
+  score: number,
+  riskLevel: 'low' | 'medium' | 'high',
+  incidentCount: number,
+): SupplierRankingEntry {
+  return {
+    id,
+    legalName: `Proveedor ${id}`,
+    taxId: '76.000.000-0',
+    services: ['transporte'],
+    criticalRoles: [],
+    active: true,
+    registeredAt: '2026-01-01T00:00:00Z',
+    score,
+    riskLevel,
+    trend: 'stable',
+    lastIncidentAt: null,
+    lastAuditAt: null,
+    incidentCount,
+    auditCount: 0,
+    rank,
+    breakdown: {
+      safetyPerformance: score,
+      documentCompliance: score,
+      responsiveness: score,
+      reputation: score,
+    },
+  };
+}
+
+describe('<SupplierComparator /> modo ranking real', () => {
+  it('renderiza filas del ranking real ordenadas por rank', () => {
+    render(
+      <SupplierComparator
+        ranking={[
+          entry('s2', 2, 40, 'high', 5),
+          entry('s1', 1, 88, 'low', 0),
+        ]}
+        service="Todos los servicios"
+      />,
+    );
+    expect(screen.getByTestId('supplier-comparator')).toBeInTheDocument();
+    expect(screen.getByTestId('supplier-rank-s1')).toBeInTheDocument();
+    expect(screen.getByTestId('supplier-rank-s2')).toBeInTheDocument();
+    // s1 (low) marcado recomendado, s2 (high) no.
+    expect(screen.getByTestId('supplier-recommended-s1')).toBeInTheDocument();
+    expect(screen.queryByTestId('supplier-recommended-s2')).not.toBeInTheDocument();
+    // Score real redondeado visible.
+    expect(screen.getByText('88')).toBeInTheDocument();
+  });
+
+  it('empty-state honesto sin ranking', () => {
+    render(<SupplierComparator ranking={[]} />);
+    expect(screen.getByTestId('supplier-ranking').textContent).toMatch(
+      /Sin proveedores/,
+    );
+    expect(screen.queryByTestId('supplier-critical-risks')).not.toBeInTheDocument();
+  });
+
+  it('marca sole-supplier cuando el ranking real trae un único proveedor', () => {
+    render(
+      <SupplierComparator
+        ranking={[entry('s1', 1, 70, 'medium', 1)]}
+        service="transporte"
+      />,
+    );
+    expect(screen.getByTestId('supplier-critical-risks')).toBeInTheDocument();
+    expect(screen.getByTestId('supplier-risk-transporte')).toBeInTheDocument();
   });
 });
