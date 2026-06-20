@@ -4842,5 +4842,8 @@
       "selectEquipment": "— Select equipment —",
       "noEquipment": "No equipment registered in this project."
     }
+  },
+  "softBlocks": {
+    "feedUnavailable": "The list of active project blocks is not connected yet. Once the per-crew/activity requirements source is available, the gates will appear here."
   }
 }

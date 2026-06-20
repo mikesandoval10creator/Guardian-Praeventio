@@ -4842,5 +4842,8 @@
       "selectEquipment": "— Selecciona un equipo —",
       "noEquipment": "No hay equipos registrados en este proyecto."
     }
+  },
+  "softBlocks": {
+    "feedUnavailable": "El listado de bloqueos activos del proyecto aún no está conectado. Cuando la fuente de requisitos por cuadrilla/actividad esté disponible, los gates aparecerán aquí."
   }
 }

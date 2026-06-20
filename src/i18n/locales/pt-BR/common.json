@@ -4842,5 +4842,8 @@
       "selectEquipment": "— Selecione um equipamento —",
       "noEquipment": "Não há equipamentos registrados neste projeto."
     }
+  },
+  "softBlocks": {
+    "feedUnavailable": "A lista de bloqueios ativos do projeto ainda não está conectada. Quando a fonte de requisitos por equipe/atividade estiver disponível, os gates aparecerão aqui."
   }
 }
