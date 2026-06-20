@@ -5026,5 +5026,27 @@
       "pinFallbackHelp": "No biometrics available. Sign with your PIN as an alternative.",
       "pinSigned": "Signed with PIN: {{itemId}} ({{kind}})."
     }
+  },
+  "contractorPerf": {
+    "title": "Contractor performance — TRIR / LTIFR",
+    "subtitle": "OSHA/ICMM rates per contractor, from registered incidents and the period man-hours",
+    "period": "Period (month)",
+    "captureTitle": "Man-hours per contractor",
+    "contractorId": "Contractor ID (tax ID or code)",
+    "contractorName": "Contractor name",
+    "hours": "Total hours worked by the contractor (sum of its workers)",
+    "save": "Save man-hours",
+    "saving": "Saving…",
+    "errMissingContractor": "Enter the contractor ID and name.",
+    "errMissingHours": "Enter the contractor man-hours (greater than 0).",
+    "errSavePrefix": "Could not save",
+    "errSave": "Could not save the man-hours. Please try again.",
+    "loading": "Loading the period performance…",
+    "loadError": "Could not load the performance",
+    "empty": "No contractor man-hours captured for this period: per-contractor TRIR/LTIFR cannot be computed yet.",
+    "noProject": "Select a project to see contractor performance (TRIR/LTIFR).",
+    "colContractor": "Contractor",
+    "colHours": "Hours",
+    "colRecordable": "Recordable"
   }
 }

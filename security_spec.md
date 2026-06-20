@@ -1225,5 +1225,31 @@ create/update/delete: if false`. Exercised by
      operational man-hours — denied (read requires membership of the doc's
      `projectId`).
 
+### contractor_exposure_hours — server-write contractor man-hours for per-contractor TRIR/LTIFR (added 2026-06-20)
+
+`contractor_exposure_hours/{projectId_contractorId_YYYY-MM}` stores the man-hours
+worked by ONE contractor in a period, the exposure input for that contractor's
+TRIR/LTIFR on the contractor-performance dashboard. WRITTEN ONLY by the Admin SDK
+from `POST /api/sprint-k/:projectId/contractors/exposure`, which role-gates
+(admin/gerente/prevencionista-tier) and stamps `recordedBy`/`recordedAt` from the
+verified token. READ is open to any member of the doc's project. Rule:
+`allow read: if member of existing().projectId; create/update/delete: if false`.
+Exercised by `src/rules-tests/contractorExposureHours.rules.test.ts`.
+
+133. **Contractor Man-Hours Inflation (rate dilution)**: a client
+     `setDoc`/`updateDoc`-ing `contractor_exposure_hours/{id}` with
+     `totalHoursWorked: 999999999` to dilute a contractor's incident rate
+     (artificially low TRIR/LTIFR hides a poor contractor safety record from the
+     mandante before contract renewal) — denied (server-only; only the role-gated
+     endpoint writes it via Admin SDK).
+134. **Contractor recordedBy Spoof**: a client forging `recordedBy: <someone-else>`
+     on a contractor exposure capture to misattribute the man-hours record —
+     denied (server stamps `recordedBy` from the verified token; no client write
+     path exists).
+135. **Cross-project Contractor Exposure Read**: a non-member reading
+     `contractor_exposure_hours/{otherProject_contractor_period}` to harvest
+     another project's contractor man-hours — denied (read requires membership of
+     the doc's `projectId`).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*
