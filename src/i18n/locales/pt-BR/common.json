@@ -218,7 +218,8 @@
     "planesi": "PLANESI Sílica",
     "maintenance_preventive": "Manutenção",
     "incident_flow": "Fluxo de Incidentes",
-    "waste_inventory": "Resíduos Ambientais"
+    "waste_inventory": "Resíduos Ambientais",
+    "project_setup": "Configurar Indústria"
   },
   "auth": {
     "login": "Entrar",
@@ -4956,6 +4957,16 @@
       "bySeverity": "Por severidade",
       "byKind": "Por tipo de evento",
       "perDay": "{{rate}}/dia"
+    }
+  },
+  "projectSetup": {
+    "page": {
+      "title": "Configuração de indústria",
+      "subtitle": "Aplique o preset do setor: normas DS 44/2024 + Lei 16.744, EPI base, treinamentos e protocolos MINSAL. Recomendação inicial — sempre ajustável.",
+      "selectProject": "Selecione um projeto para configurar seu preset de indústria (riscos, documentos, treinamentos, EPI e normas aplicáveis)."
+    },
+    "applied": {
+      "title": "Preset aplicado"
     }
   }
 }
