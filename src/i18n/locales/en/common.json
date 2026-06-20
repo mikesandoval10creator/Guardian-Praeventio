@@ -487,6 +487,10 @@
       "concerning": "concerning",
       "critical": "critical",
       "extreme": "extreme"
+    },
+    "reconciliation": {
+      "running": "Syncing…",
+      "last": "{{succeeded}}/{{attempted}} synced"
     }
   },
   "errors": {
