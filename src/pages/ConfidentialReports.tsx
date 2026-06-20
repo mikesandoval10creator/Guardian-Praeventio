@@ -544,6 +544,10 @@ export function ConfidentialReports() {
                   <ConfidentialReportInbox
                     reports={inboxReports.map(mapApiReport)}
                     retaliationReportIds={retaliationReportIds}
+                    // Distinct prefix so this SLA summary does not collide with
+                    // the actionable ReportCard list below (both render one node
+                    // per report under `confidential-report-${id}` by default).
+                    testIdPrefix="confidential-inbox-report"
                   />
                 </div>
                 <ul

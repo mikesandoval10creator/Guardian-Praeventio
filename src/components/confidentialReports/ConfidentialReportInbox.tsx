@@ -17,6 +17,14 @@ interface ConfidentialReportInboxProps {
   /** Flags de represalia ya detectados. */
   retaliationReportIds?: Set<string>;
   onReportClick?: (id: string) => void;
+  /**
+   * Prefix for the per-report `data-testid`. Defaults to `confidential-report`.
+   * The ConfidentialReports page mounts this SLA-prioritised summary alongside
+   * its own actionable `ReportCard` list (respond/close) — both render one node
+   * per report, so the page passes a distinct prefix (`confidential-inbox-report`)
+   * to avoid a `data-testid` collision when both views show the same reports.
+   */
+  testIdPrefix?: string;
 }
 
 const KIND_LABEL: Record<ConfidentialReportKind, string> = {
@@ -39,6 +47,7 @@ export function ConfidentialReportInbox({
   reports,
   retaliationReportIds,
   onReportClick,
+  testIdPrefix = 'confidential-report',
 }: ConfidentialReportInboxProps) {
   const { t } = useTranslation();
 
@@ -98,7 +107,7 @@ export function ConfidentialReportInbox({
           return (
             <li
               key={report.id}
-              data-testid={`confidential-report-${report.id}`}
+              data-testid={`${testIdPrefix}-${report.id}`}
               className={`rounded-lg border p-3 ${
                 hasRetaliation
                   ? 'border-rose-500/50 bg-rose-500/5'
