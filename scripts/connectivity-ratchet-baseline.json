@@ -25,7 +25,6 @@
     "src/components/documents/LegalDocGeneratorForm.tsx",
     "src/components/drillsManager/DrillResultReviewCard.tsx",
     "src/components/drivingSafety/DriverScoreCard.tsx",
-    "src/components/emergencyBrigade/EmergencyBrigadePanel.tsx",
     "src/components/engineeringControls/EngineeringInventoryCard.tsx",
     "src/components/eppFlow/EppInspectionForm.tsx",
     "src/components/eppFlow/PendingPurchaseOrdersPanel.tsx",
