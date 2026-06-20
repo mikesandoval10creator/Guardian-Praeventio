@@ -246,6 +246,7 @@
     "edit": "Editar",
     "close": "Cerrar",
     "confirm": "Confirmar",
+    "done": "Listo",
     "retry": "Reintentar",
     "error": "Error",
     "success": "Éxito",
@@ -4927,7 +4928,23 @@
       "selectPrompt": "Selecciona un equipo para ver sus tareas de mantención.",
       "equipmentLabel": "Equipo",
       "selectEquipment": "— Selecciona un equipo —",
-      "noEquipment": "No hay equipos registrados en este proyecto."
+      "noEquipment": "No hay equipos registrados en este proyecto.",
+      "registerReading": "Registrar lectura de horómetro"
+    }
+  },
+  "horometro": {
+    "title": "Horómetro",
+    "aria": "Reportar horómetro",
+    "hoursLabel": "Horas acumuladas (lectura actual)",
+    "hoursHint": "Anota la cifra exacta que muestra el panel del equipo en este momento.",
+    "notesLabel": "Notas (opcional)",
+    "notesPlaceholder": "Cualquier observación relevante…",
+    "submit": "Registrar horas",
+    "result": {
+      "ok": "Lectura registrada",
+      "thresholdsCrossed": "Umbrales cruzados",
+      "equipment": "Equipo {{code}} ({{type}})",
+      "tasksCreated": "Se crearon {{count}} tarea(s) de mantención preventiva."
     }
   },
   "softBlocks": {

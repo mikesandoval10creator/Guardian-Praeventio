@@ -246,6 +246,7 @@
     "edit": "Editar",
     "close": "Fechar",
     "confirm": "Confirmar",
+    "done": "Concluído",
     "retry": "Tentar novamente",
     "error": "Erro",
     "success": "Sucesso",
@@ -4927,7 +4928,23 @@
       "selectPrompt": "Selecione um equipamento para ver suas tarefas de manutenção.",
       "equipmentLabel": "Equipamento",
       "selectEquipment": "— Selecione um equipamento —",
-      "noEquipment": "Não há equipamentos registrados neste projeto."
+      "noEquipment": "Não há equipamentos registrados neste projeto.",
+      "registerReading": "Registrar leitura do horímetro"
+    }
+  },
+  "horometro": {
+    "title": "Horímetro",
+    "aria": "Reportar horímetro",
+    "hoursLabel": "Horas acumuladas (leitura atual)",
+    "hoursHint": "Anote o número exato que o painel do equipamento mostra neste momento.",
+    "notesLabel": "Notas (opcional)",
+    "notesPlaceholder": "Qualquer observação relevante…",
+    "submit": "Registrar horas",
+    "result": {
+      "ok": "Leitura registrada",
+      "thresholdsCrossed": "Limites cruzados",
+      "equipment": "Equipamento {{code}} ({{type}})",
+      "tasksCreated": "{{count}} tarefa(s) de manutenção preventiva criada(s)."
     }
   },
   "softBlocks": {

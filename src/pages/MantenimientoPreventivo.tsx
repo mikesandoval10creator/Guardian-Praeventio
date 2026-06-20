@@ -9,16 +9,21 @@
 // horas — datos reales, sin Math.random ni fabricación.
 //
 // DIRECTIVA: vista informativa, NO bloqueante — muestra qué mantención toca;
-// la decisión es del equipo. (El registro de lectura del horómetro vive en un
-// flujo QR full-screen móvil aparte; se montará en su propio entry point.)
+// la decisión es del equipo. El registro de lectura del horómetro
+// (<HorometroEntryForm />) también vive acá: al seleccionar un equipo el
+// usuario puede abrir el formulario y reportar las horas actuales, lo que
+// dispara el flujo ZK server-side (lectura → umbral → tarea preventiva) que
+// alimenta esta misma lista. (El mismo formulario se usa tras escanear el QR
+// del equipo en el flujo móvil full-screen.)
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Wrench, WifiOff } from 'lucide-react';
+import { Wrench, WifiOff, Gauge } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useEquipment } from '../hooks/useEquipment';
 import { MaintenanceTaskList } from '../components/horometro/MaintenanceTaskList';
+import { HorometroEntryForm } from '../components/horometro/HorometroEntryForm';
 
 export function MantenimientoPreventivo() {
   const { t } = useTranslation();
@@ -26,9 +31,12 @@ export function MantenimientoPreventivo() {
   const isOnline = useOnlineStatus();
   const projectId = selectedProject?.id ?? null;
 
-  const { data: equipmentData } = useEquipment(projectId);
+  const { data: equipmentData, refetch } = useEquipment(projectId);
   const equipment = equipmentData?.equipment ?? [];
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>('');
+  const [reading, setReading] = useState(false);
+
+  const selectedEquipment = equipment.find((eq) => eq.id === selectedEquipmentId) ?? null;
 
   if (!selectedProject || !projectId) {
     return (
@@ -93,7 +101,10 @@ export function MantenimientoPreventivo() {
         <select
           id="maintenance-equipment"
           value={selectedEquipmentId}
-          onChange={(e) => setSelectedEquipmentId(e.target.value)}
+          onChange={(e) => {
+            setSelectedEquipmentId(e.target.value);
+            setReading(false);
+          }}
           data-testid="maintenance-equipment-select"
           className="mt-1 w-full bg-surface border border-default-token rounded-xl px-3 py-2 text-sm text-primary-token outline-none focus:border-teal-500"
         >
@@ -113,14 +124,48 @@ export function MantenimientoPreventivo() {
         )}
       </section>
 
-      {selectedEquipmentId ? (
-        <MaintenanceTaskList projectId={projectId} equipmentId={selectedEquipmentId} />
+      {selectedEquipment ? (
+        <>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setReading(true)}
+              data-testid="maintenance-open-reading"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500 text-zinc-950 text-xs font-bold uppercase tracking-widest hover:bg-teal-400 transition-colors"
+            >
+              <Gauge className="w-4 h-4" aria-hidden="true" />
+              {t('maintenance.page.registerReading', 'Registrar lectura de horómetro')}
+            </button>
+          </div>
+          <MaintenanceTaskList projectId={projectId} equipmentId={selectedEquipment.id} />
+        </>
       ) : (
         <div
           className="rounded-2xl border border-default-token bg-surface p-8 text-center text-sm text-secondary-token"
           data-testid="maintenance-select-prompt"
         >
           {t('maintenance.page.selectPrompt', 'Selecciona un equipo para ver sus tareas de mantención.')}
+        </div>
+      )}
+
+      {reading && selectedEquipment && (
+        <div
+          className="fixed inset-0 z-50 bg-zinc-950 overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          data-testid="maintenance-reading-overlay"
+        >
+          <HorometroEntryForm
+            projectId={projectId}
+            equipment={selectedEquipment}
+            onSubmitted={() => {
+              // The reading may have crossed a maintenance threshold and created
+              // tasks; refetch equipment so any status change (e.g. nextMaintenanceAt)
+              // is reflected when the operator closes the overlay.
+              refetch();
+            }}
+            onCancel={() => setReading(false)}
+          />
         </div>
       )}
     </div>

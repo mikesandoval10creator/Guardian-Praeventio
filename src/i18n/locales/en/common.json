@@ -246,6 +246,7 @@
     "edit": "Edit",
     "close": "Close",
     "confirm": "Confirm",
+    "done": "Done",
     "retry": "Retry",
     "error": "Error",
     "success": "Success",
@@ -4927,7 +4928,23 @@
       "selectPrompt": "Select equipment to see its maintenance tasks.",
       "equipmentLabel": "Equipment",
       "selectEquipment": "— Select equipment —",
-      "noEquipment": "No equipment registered in this project."
+      "noEquipment": "No equipment registered in this project.",
+      "registerReading": "Record hour-meter reading"
+    }
+  },
+  "horometro": {
+    "title": "Hour meter",
+    "aria": "Report hour meter",
+    "hoursLabel": "Accumulated hours (current reading)",
+    "hoursHint": "Enter the exact figure shown on the equipment panel right now.",
+    "notesLabel": "Notes (optional)",
+    "notesPlaceholder": "Any relevant observation…",
+    "submit": "Record hours",
+    "result": {
+      "ok": "Reading recorded",
+      "thresholdsCrossed": "Thresholds crossed",
+      "equipment": "Equipment {{code}} ({{type}})",
+      "tasksCreated": "{{count}} preventive maintenance task(s) created."
     }
   },
   "softBlocks": {
