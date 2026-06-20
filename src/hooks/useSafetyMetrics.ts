@@ -10,6 +10,10 @@ import type {
   IndustryBenchmark,
   TrendAnalysis,
 } from '../services/safetyMetrics/osha';
+import type {
+  PressureSignals,
+  PressureReport,
+} from '../services/orgMetrics/organizationalMetrics';
 
 async function authedFetch(
   path: string,
@@ -147,6 +151,107 @@ export interface UseSafetyMetricsReport {
   loading: boolean;
   error: Error | null;
   refetch: () => void;
+}
+
+// ── 6. operational pressure (workforce capture + engine aggregation) ────────
+
+export interface CaptureWorkforcePeriodInput {
+  /** Reporting period as 'YYYY-MM'. */
+  period: string;
+  /** Total person-days of absence across the workforce in the period. */
+  absenteeismDays: number;
+  /** Total overtime hours across the whole workforce in the period. */
+  overtimeHours: number;
+  /** Active workers (headcount) in the period. */
+  headcount: number;
+}
+export interface CaptureWorkforcePeriodResponse {
+  saved: true;
+  period: string;
+  absenteeismDays: number;
+  overtimeHours: number;
+  headcount: number;
+}
+
+export async function captureWorkforcePeriod(
+  projectId: string,
+  input: CaptureWorkforcePeriodInput,
+): Promise<CaptureWorkforcePeriodResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/workforce-period`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+  return json<CaptureWorkforcePeriodResponse>(res);
+}
+
+export interface OperationalPressureResponse {
+  captured: boolean;
+  period: string;
+  workforce?: { absenteeismDays: number; overtimeHours: number; headcount: number };
+  signals: PressureSignals | null;
+  report: PressureReport | null;
+}
+
+export async function fetchOperationalPressure(
+  projectId: string,
+  period: string,
+): Promise<OperationalPressureResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/operational-pressure?period=${encodeURIComponent(period)}`,
+    { method: 'GET' },
+  );
+  return json<OperationalPressureResponse>(res);
+}
+
+export interface UseOperationalPressure {
+  data: OperationalPressureResponse | null;
+  loading: boolean;
+  error: Error | null;
+  refetch: () => void;
+}
+
+/**
+ * Fetch the operational-pressure report (computed by the REAL
+ * computeOperationalPressure engine from the captured workforce period) for a
+ * project + period. Re-fetches on change or `refetch()` (e.g. after capturing).
+ */
+export function useOperationalPressure(
+  projectId: string | null,
+  period: string,
+): UseOperationalPressure {
+  const [data, setData] = useState<OperationalPressureResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [nonce, setNonce] = useState(0);
+
+  const refetch = useCallback(() => setNonce((n) => n + 1), []);
+
+  useEffect(() => {
+    if (!projectId || !period) {
+      setData(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetchOperationalPressure(projectId, period)
+      .then((r) => {
+        if (!cancelled) setData(r);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e : new Error(String(e)));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, period, nonce]);
+
+  return { data, loading, error, refetch };
 }
 
 /**

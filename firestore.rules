@@ -1184,6 +1184,26 @@ service cloud.firestore {
       allow create, update, delete: if false; // server-only via Admin SDK
     }
 
+    match /workforce_periods/{docId} {
+      // Operational-pressure capture — absenteeism days + overtime hours +
+      // headcount per project+period (docId = `{projectId}_{YYYY-MM}`). These
+      // feed the OperationalPressureGauge (computeOperationalPressure engine:
+      // absenteeismRate, overtimeHoursWeekTotal, totalActiveWorkers). READ is
+      // open to any member of the project the doc belongs to (the gauge renders
+      // it). WRITES are server-only via the Admin SDK from
+      // POST /api/sprint-k/:projectId/workforce-period, which (a) role-gates to
+      // admin/gerente/prevencionista-tier and (b) stamps `recordedBy`/
+      // `recordedAt` from the verified token. A client write is a spoof vector:
+      // it could forge `recordedBy` (misattribute the capture) or downplay
+      // `absenteeismDays`/`overtimeHours` to mask operational strain (hide a
+      // workforce-pressure signal from the mandante/CPHS). Client-denial +
+      // member-read exercised by src/rules-tests/workforcePeriods.rules.test.ts.
+      allow read: if isEmailVerified()
+        && existing().projectId is string
+        && isProjectMember(existing().projectId);
+      allow create, update, delete: if false; // server-only via Admin SDK
+    }
+
     match /ufRates/{docId} {
       // Cached UF (Unidad de Fomento) rate, written ONLY by the daily
       // runUfRateRefresh cron (Admin SDK) from public Banco Central data. The

@@ -19,7 +19,13 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
     const uid = req.header('x-test-uid');
     if (!uid) return void res.status(401).json({ error: 'unauthorized' });
-    (req as Request & { user: Record<string, unknown> }).user = { uid };
+    // Role is read from `req.user.role` by the workforce-capture role gate;
+    // a test header lets us exercise the 403-insufficient-role path.
+    (req as Request & { user: Record<string, unknown> }).user = {
+      uid,
+      email: `${uid}@x.cl`,
+      role: req.header('x-test-role') ?? undefined,
+    };
     next();
   },
 }));
@@ -409,5 +415,162 @@ describe('POST /:projectId/org-metrics/compute-operational-pressure', () => {
     const report = (res.body as { report: Record<string, unknown> }).report;
     expect(['high', 'critical']).toContain(report.level);
     expect((report.topDrivers as unknown[]).length).toBeGreaterThan(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /:projectId/workforce-period  (STATEFUL capture — absenteeism/overtime)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('POST /:projectId/workforce-period', () => {
+  const path = `/api/${PROJECT_ID}/workforce-period`;
+  const validBody = {
+    period: '2026-05',
+    absenteeismDays: 24,
+    overtimeHours: 320,
+    headcount: 50,
+  };
+
+  it('401 — no auth token', async () => {
+    const res = await request(buildApp()).post(path).send(validBody);
+    expect(res.status).toBe(401);
+  });
+
+  it('400 — schema invalid (bad period format)', async () => {
+    const res = await request(buildApp())
+      .post(path)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'prevencionista')
+      .send({ ...validBody, period: '2026-5' });
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>).error).toBe('invalid_payload');
+  });
+
+  it('400 — schema invalid (negative absenteeismDays)', async () => {
+    const res = await request(buildApp())
+      .post(path)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'prevencionista')
+      .send({ ...validBody, absenteeismDays: -1 });
+    expect(res.status).toBe(400);
+  });
+
+  it('403 — caller is not a project member', async () => {
+    const res = await request(buildApp())
+      .post(path)
+      .set('x-test-uid', OUTSIDER_UID)
+      .set('x-test-role', 'prevencionista')
+      .send(validBody);
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('forbidden');
+  });
+
+  it('403 — member but insufficient role (worker cannot capture)', async () => {
+    const res = await request(buildApp())
+      .post(path)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'worker')
+      .send(validBody);
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>).error).toBe('insufficient_role');
+  });
+
+  it('200 — persists the doc + stamps recordedBy (server) + writes audit_log', async () => {
+    const res = await request(buildApp())
+      .post(path)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'prevencionista')
+      .send(validBody);
+    expect(res.status).toBe(200);
+    expect((res.body as Record<string, unknown>).saved).toBe(true);
+
+    const stored = H.db!._dump()[`workforce_periods/${PROJECT_ID}_2026-05`];
+    expect(stored).toBeDefined();
+    expect(stored.absenteeismDays).toBe(24);
+    expect(stored.headcount).toBe(50);
+    // Server stamps recordedBy from the verified token, never the client.
+    expect(stored.recordedBy).toBe(MEMBER_UID);
+    expect(stored.recordedAt).toBeTruthy();
+
+    const auditWritten = Object.entries(H.db!._dump()).some(
+      ([k, v]) =>
+        k.startsWith('audit_logs/') &&
+        (v as Record<string, unknown>).action === 'org_metrics.workforce_period.captured',
+    );
+    expect(auditWritten).toBe(true);
+  });
+
+  it('200 — ignores client-supplied recordedBy (server stamps the real uid)', async () => {
+    await request(buildApp())
+      .post(path)
+      .set('x-test-uid', MEMBER_UID)
+      .set('x-test-role', 'prevencionista')
+      .send({ ...validBody, recordedBy: 'attacker-uid' });
+    const stored = H.db!._dump()[`workforce_periods/${PROJECT_ID}_2026-05`];
+    expect(stored.recordedBy).toBe(MEMBER_UID);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /:projectId/operational-pressure  (engine aggregation over capture)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('GET /:projectId/operational-pressure', () => {
+  const path = `/api/${PROJECT_ID}/operational-pressure`;
+
+  it('401 — no auth token', async () => {
+    const res = await request(buildApp()).get(`${path}?period=2026-05`);
+    expect(res.status).toBe(401);
+  });
+
+  it('400 — schema invalid (bad period)', async () => {
+    const res = await request(buildApp())
+      .get(`${path}?period=nope`)
+      .set('x-test-uid', MEMBER_UID);
+    expect(res.status).toBe(400);
+  });
+
+  it('403 — caller is not a project member', async () => {
+    const res = await request(buildApp())
+      .get(`${path}?period=2026-05`)
+      .set('x-test-uid', OUTSIDER_UID);
+    expect(res.status).toBe(403);
+  });
+
+  it('200 — honest empty-state when nothing captured (captured:false)', async () => {
+    const res = await request(buildApp())
+      .get(`${path}?period=2026-05`)
+      .set('x-test-uid', MEMBER_UID);
+    expect(res.status).toBe(200);
+    const body = res.body as { captured: boolean; signals: unknown; report: unknown };
+    expect(body.captured).toBe(false);
+    expect(body.signals).toBeNull();
+    expect(body.report).toBeNull();
+  });
+
+  it('200 — computes pressure via the REAL engine from the captured period', async () => {
+    H.db!._seed(`workforce_periods/${PROJECT_ID}_2026-05`, {
+      projectId: PROJECT_ID,
+      period: '2026-05',
+      absenteeismDays: 200, // high → absenteeismRate > 0.1
+      overtimeHours: 1500, // ~345h/week over 50 workers → >5h/worker
+      headcount: 50,
+      recordedBy: MEMBER_UID,
+      recordedAt: '2026-05-31T00:00:00.000Z',
+    });
+    const res = await request(buildApp())
+      .get(`${path}?period=2026-05`)
+      .set('x-test-uid', MEMBER_UID);
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      captured: boolean;
+      signals: { absenteeismRate: number; totalActiveWorkers: number };
+      report: { pressureScore: number; level: string; topDrivers: string[] };
+    };
+    expect(body.captured).toBe(true);
+    // Honest derivation: only the workforce signals are populated.
+    expect(body.signals.totalActiveWorkers).toBe(50);
+    expect(body.signals.absenteeismRate).toBeGreaterThan(0.1);
+    expect(typeof body.report.pressureScore).toBe('number');
+    expect(['low', 'medium', 'high', 'critical']).toContain(body.report.level);
+    expect(body.report.topDrivers.length).toBeGreaterThan(0);
   });
 });

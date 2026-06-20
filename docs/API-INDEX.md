@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**196 routers montados · 688 rutas detectadas.**
+**196 routers montados · 690 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -741,6 +741,8 @@ clave ver `docs/api-routes.md`.
 - `POST /api/sprint-k/:projectId/org-metrics/build-closure-time-report`
 - `POST /api/sprint-k/:projectId/org-metrics/detect-chronic-gaps`
 - `POST /api/sprint-k/:projectId/org-metrics/compute-operational-pressure`
+- `POST /api/sprint-k/:projectId/workforce-period`
+- `GET /api/sprint-k/:projectId/operational-pressure`
 
 ### `src/server/routes/pdca.ts` → `/api/sprint-k`
 - `GET /api/sprint-k/:projectId/pdca/cycles`
