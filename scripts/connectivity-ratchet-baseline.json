@@ -16,7 +16,6 @@
     "src/components/dashboard/RoleAwareDashboard.tsx",
     "src/components/digital-twin/GaussianSplatViewer.tsx",
     "src/components/digital-twin/RePositionConfirmDialog.tsx",
-    "src/components/documents/LegalDocGeneratorForm.tsx",
     "src/components/eppFlow/PendingPurchaseOrdersPanel.tsx",
     "src/components/excelImport/ExcelImportPreview.tsx",
     "src/components/explainability/ExplainedRecommendationCard.tsx",

@@ -863,7 +863,19 @@
     "vs_superseded": "Substituído",
     "vs_retired": "Retirado",
     "changelog": "Registro de alterações",
-    "closeHistory": "Fechar"
+    "closeHistory": "Fechar",
+    "legalGen": "Gerar documento legal"
+  },
+  "legalDoc": {
+    "aria": "Gerador de documentos legais",
+    "title": "Documentos legais",
+    "kind": "Tipo de documento",
+    "required": "Campos obrigatórios",
+    "optional": "Campos opcionais",
+    "missingTokens": "Campos faltantes",
+    "preview": "Visualização markdown",
+    "references": "Referências normativas",
+    "generate": "Gerar PDF"
   },
   "epp": {
     "title": "Gestão de EPI",

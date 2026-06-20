@@ -863,7 +863,19 @@
     "vs_superseded": "Reemplazado",
     "vs_retired": "Retirado",
     "changelog": "Registro de cambios",
-    "closeHistory": "Cerrar"
+    "closeHistory": "Cerrar",
+    "legalGen": "Generar documento legal"
+  },
+  "legalDoc": {
+    "aria": "Generador de documentos legales",
+    "title": "Documentos legales",
+    "kind": "Tipo de documento",
+    "required": "Campos requeridos",
+    "optional": "Campos opcionales",
+    "missingTokens": "Faltan campos",
+    "preview": "Previsualización markdown",
+    "references": "Referencias normativas",
+    "generate": "Generar PDF"
   },
   "epp": {
     "title": "Gestión de EPP",
