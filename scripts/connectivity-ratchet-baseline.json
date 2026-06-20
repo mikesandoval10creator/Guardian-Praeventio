@@ -28,7 +28,6 @@
     "src/components/horometro/HorometroEntryForm.tsx",
     "src/components/hvac/AirQualityPanel.tsx",
     "src/components/identity/TaxIdInput.tsx",
-    "src/components/incidentTrends/TrendSeriesChart.tsx",
     "src/components/industry/IndustrySelectorWizard.tsx",
     "src/components/industryRules/IndustryPresetCard.tsx",
     "src/components/knowledgeBase/KnowledgeBaseSearch.tsx",

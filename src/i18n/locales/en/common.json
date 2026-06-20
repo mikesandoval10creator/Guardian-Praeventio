@@ -4371,6 +4371,9 @@
       "subtitle": "Time series + leading indicators (near-miss ratio, closure rate, average days).",
       "title": "Incident Trends"
     },
+    "series": {
+      "title": "Count series and outliers"
+    },
     "total": "{{count}} incidents in the window"
   },
   "inspections": {
