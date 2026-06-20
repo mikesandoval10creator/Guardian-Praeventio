@@ -58,12 +58,17 @@ vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: mockProject }),
 }));
 
+let mockFirebase: {
+  user: { uid: string; displayName?: string } | null;
+  userRole: string;
+  isAdmin: boolean;
+} = {
+  user: { uid: 'worker-7', displayName: 'Pedro' },
+  userRole: 'worker',
+  isAdmin: false,
+};
 vi.mock('../contexts/FirebaseContext', () => ({
-  useFirebase: () => ({
-    user: { uid: 'worker-7', displayName: 'Pedro' },
-    userRole: 'worker',
-    isAdmin: false,
-  }),
+  useFirebase: () => mockFirebase,
 }));
 
 let mockTenant: { tenantId: string | null; loading: boolean } = {
@@ -82,9 +87,24 @@ const submitEppInspection = vi.fn(
     notes: [] as string[],
   }),
 );
+// Pending-orders list — the panel calls this; default empty (honest empty-state).
+let mockPendingOrders: Array<Record<string, unknown>> = [];
+const listPendingEppOrders = vi.fn(async (_projectId: string) => ({
+  orders: mockPendingOrders,
+}));
+const signEppOrder = vi.fn();
+const downloadEppOrderPdf = vi.fn();
 vi.mock('../hooks/useEppFlow', () => ({
   submitEppInspection: (projectId: string, input: unknown) =>
     submitEppInspection(projectId, input),
+  listPendingEppOrders: (projectId: string) => listPendingEppOrders(projectId),
+  signEppOrder: (...a: unknown[]) => signEppOrder(...a),
+  downloadEppOrderPdf: (...a: unknown[]) => downloadEppOrderPdf(...a),
+}));
+
+// Biometric ceremony used by <PurchaseOrderSignModal /> — supported, no-op.
+vi.mock('../hooks/useBiometricAuth', () => ({
+  useBiometricAuth: () => ({ isSupported: true, authenticate: vi.fn(async () => true) }),
 }));
 
 vi.mock('../components/epp/AssignEPPModal', () => ({
@@ -111,11 +131,38 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockProject = { id: 'proj-1', name: 'Faena Norte' };
   mockTenant = { tenantId: 'tenant-1', loading: false };
+  mockFirebase = {
+    user: { uid: 'worker-7', displayName: 'Pedro' },
+    userRole: 'worker',
+    isAdmin: false,
+  };
+  mockPendingOrders = [];
   mockEppItems = [
     { id: 'epp-casco', name: 'Casco clase B', category: 'cabeza', stock: 12, required: true, description: '' },
     { id: 'epp-guante', name: 'Guante anticorte', category: 'manos', stock: 4, required: true, description: '' },
   ];
 });
+
+/** A realistic pending OC as returned by the server (full draft, real fields). */
+function pendingOrderFixture(orderId = 'oc-insp-001') {
+  return {
+    orderId,
+    projectId: 'proj-1',
+    tenantId: 'tenant-1',
+    inspectionId: 'insp-001',
+    suggestedNodeId: 'node-oc-1',
+    suggestedAt: '2026-06-20T10:00:00.000Z',
+    status: 'pending_signature' as const,
+    draft: {
+      lines: [
+        { kind: 'manos', quantity: 6, estimatedUnitCostClp: 5000, supplierId: 'sup-1', urgency: 'urgent' },
+      ],
+      totalClp: 30000,
+      deliveryWeekHint: 2,
+      notes: [] as string[],
+    },
+  };
+}
 
 describe('<EPP /> — EppInspectionForm mount', () => {
   it('habilita el toggle de inspección cuando hay catálogo real', () => {
@@ -179,6 +226,58 @@ describe('<EPP /> — EppInspectionForm mount', () => {
     // Success message rendered.
     await waitFor(() =>
       expect(screen.getByTestId('epp-inspection-result')).toBeInTheDocument(),
+    );
+  });
+});
+
+describe('<EPP /> — PendingPurchaseOrdersPanel mount (Bloque 4.2)', () => {
+  it('NO muestra el panel de OC para un worker (rol sin firma)', async () => {
+    render(<EPP />);
+    // Worker role → panel hidden; the server would 403 anyway. No list fetch.
+    await waitFor(() => expect(submitEppInspection).toHaveBeenCalledTimes(0));
+    expect(screen.queryByTestId('pending-orders-panel')).not.toBeInTheDocument();
+    expect(listPendingEppOrders).not.toHaveBeenCalled();
+  });
+
+  it('muestra el panel y consulta OC reales para un rol elevado (prevencionista)', async () => {
+    mockFirebase = {
+      user: { uid: 'prev-1', displayName: 'Ana' },
+      userRole: 'prevencionista',
+      isAdmin: false,
+    };
+    render(<EPP />);
+    // Panel mounted → it fetches real pending orders for the active project.
+    expect(screen.getByTestId('pending-orders-panel')).toBeInTheDocument();
+    await waitFor(() => expect(listPendingEppOrders).toHaveBeenCalledWith('proj-1'));
+  });
+
+  it('renderiza empty-state honesto cuando no hay OC pendientes', async () => {
+    mockFirebase = { user: { uid: 'admin-1' }, userRole: 'admin', isAdmin: true };
+    mockPendingOrders = [];
+    render(<EPP />);
+    await waitFor(() =>
+      expect(screen.getByTestId('pending-orders-empty')).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('pending-orders-empty')).toHaveTextContent(
+      'No hay OC pendientes de firma.',
+    );
+  });
+
+  it('lista las OC reales devueltas por el server y abre el modal de firma', async () => {
+    mockFirebase = { user: { uid: 'admin-1', displayName: 'Jefe' }, userRole: 'admin', isAdmin: true };
+    mockPendingOrders = [pendingOrderFixture('oc-real-9')];
+    render(<EPP />);
+
+    // The real order from the server renders (id + total from the draft).
+    await waitFor(() =>
+      expect(screen.getByTestId('pending-order:oc-real-9')).toBeInTheDocument(),
+    );
+    expect(screen.getByText('oc-real-9')).toBeInTheDocument();
+
+    // "Revisar y firmar" opens the biometric sign modal for that order.
+    fireEvent.click(screen.getByTestId('pending-order-review:oc-real-9'));
+    await waitFor(() =>
+      expect(screen.getByTestId('oc-sign-modal')).toBeInTheDocument(),
     );
   });
 });
