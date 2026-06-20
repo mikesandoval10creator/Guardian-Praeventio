@@ -217,6 +217,54 @@ describe('predictive-alerts ack + tasks done', () => {
   });
 });
 
+describe('processes list (GET /processes?projectId=…)', () => {
+  it('401 without auth', async () => {
+    const res = await request(buildApp()).get('/api/processes?projectId=p1');
+    expect(res.status).toBe(401);
+  });
+
+  it('400 when projectId is missing', async () => {
+    const res = await request(buildApp()).get('/api/processes').set(uid);
+    expect(res.status).toBe(400);
+  });
+
+  it('200 returns the real project-scoped processes (other projects excluded)', async () => {
+    H.db!._seed('processes/pr1', {
+      crewId: 'c1', projectId: 'p1', type: 'soldadura', name: 'Soldar viga',
+      description: '', startedAt: '2026-05-10T08:00:00Z', endedAt: null,
+      plannedEndDate: '2026-05-15', status: 'active', complianceScore: 90,
+      incidentsDuringProcess: 0, alertsResponded: 4, xpAwardedAtClose: null,
+    });
+    H.db!._seed('processes/pr2', {
+      crewId: 'c2', projectId: 'p1', type: 'concreto', name: 'Vaciado losa',
+      status: 'active', complianceScore: 80, alertsResponded: 1,
+    });
+    H.db!._seed('processes/prX', { crewId: 'cZ', projectId: 'other', type: 'pintura', name: 'X' });
+    const res = await request(buildApp()).get('/api/processes?projectId=p1').set(uid);
+    expect(res.status).toBe(200);
+    expect(res.body.processes).toHaveLength(2);
+    const ids = (res.body.processes as Array<{ id: string }>).map((p) => p.id).sort();
+    expect(ids).toEqual(['pr1', 'pr2']);
+    const pr1 = (res.body.processes as Array<{ id: string; alertsResponded: number; type: string }>)
+      .find((p) => p.id === 'pr1');
+    expect(pr1?.type).toBe('soldadura');
+    expect(pr1?.alertsResponded).toBe(4); // real field, not fabricated
+  });
+
+  it('200 empty list when the project has no processes (honest empty, not fabricated)', async () => {
+    const res = await request(buildApp()).get('/api/processes?projectId=p1').set(uid);
+    expect(res.status).toBe(200);
+    expect(res.body.processes).toEqual([]);
+  });
+
+  it('propagates 403 from project-membership checks', async () => {
+    H.db!._seed('processes/pr1', { projectId: 'p1', type: 'soldadura', name: 'x' });
+    vi.mocked(assertProjectMember).mockRejectedValue(new ProjectMembershipError('nope'));
+    const res = await request(buildApp()).get('/api/processes?projectId=p1').set(uid);
+    expect(res.status).toBe(403);
+  });
+});
+
 describe('roster (GET /projects/:projectId/roster)', () => {
   it('401 without auth', async () => {
     const res = await request(buildApp()).get('/api/projects/p1/roster');

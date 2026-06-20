@@ -41,6 +41,7 @@ import {
   Droplet,
   Droplets,
   Ear,
+  Factory,
   Hand,
   FileText,
   Folder,
@@ -142,6 +143,9 @@ export function buildSidebarMenuGroups(
     { title: t('nav.safe_driving_mode', 'Modo Conducción Segura'), icon: Car, path: '/safe-driving', color: 'text-blue-500' },
     { title: t('nav.safety_feed', 'Muro Social'), icon: Users, path: '/safety-feed', color: 'text-[#4db6ac]' },
     { title: t('nav.projects', 'Proyectos'), icon: Briefcase, path: '/projects', color: 'text-blue-500' },
+    // Configuración de industria por proyecto — preset (riesgos, EPP, normativa,
+    // protocolos MINSAL) vía GET .../industry/list + POST .../industry/select.
+    { title: t('nav.project_setup', 'Configurar Industria'), icon: Factory, path: '/project-setup', color: 'text-teal-500' },
     { title: t('nav.cuadrillas', 'Cuadrillas'), icon: Users, path: '/cuadrillas', color: 'text-[#4db6ac]' },
     // Sprint 41 Fase F.16 — Score de Preparación del Trabajador.
     { title: t('nav.worker_readiness', 'Preparación Trabajador'), icon: UserCheck, path: '/worker-readiness', color: 'text-teal-500' },
