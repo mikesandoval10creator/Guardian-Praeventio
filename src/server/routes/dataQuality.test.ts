@@ -20,4 +20,16 @@ describe('dataQualityRouter (F.9 migration contract)', () => {
     );
     expect(layer).toBeDefined();
   });
+
+  it('registers GET /:projectId/document-hygiene', () => {
+    const layers = (dataQualityRouter as unknown as {
+      stack: Array<{ route?: { path: string; methods: Record<string, boolean> } }>;
+    }).stack;
+    const layer = layers.find(
+      (l) =>
+        l.route?.path === '/:projectId/document-hygiene' &&
+        l.route?.methods.get === true,
+    );
+    expect(layer).toBeDefined();
+  });
 });

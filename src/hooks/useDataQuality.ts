@@ -9,6 +9,7 @@ import type {
   DataQualityReport,
   Gap as DataQualityGap,
 } from '../services/dataQuality/incompletenessScanner';
+import type { DocumentRecord } from '../services/documentHygiene/documentHygieneEngine';
 import { apiAuthHeader } from '../lib/apiAuth';
 
 interface FetchState<T> {
@@ -83,5 +84,21 @@ export interface DataQualityResponse {
 export function useDataQuality(projectId: string | null) {
   return useEndpoint<DataQualityResponse>(
     projectId ? `/api/sprint-k/${projectId}/data-quality` : null,
+  );
+}
+
+export interface DocumentHygieneResponse {
+  documents: DocumentRecord[];
+}
+
+/**
+ * Salud documental real para `<DocumentHygienePanel>` / `<DocConfidenceCard>`.
+ * Lee `GET /api/sprint-k/:projectId/document-hygiene`, que deriva los
+ * `DocumentRecord[]` (firmas, accesos 90d, acuses, referencia normativa,
+ * vínculo operacional) desde Firestore (documents + read_receipts + nodes).
+ */
+export function useDocumentHygiene(projectId: string | null) {
+  return useEndpoint<DocumentHygieneResponse>(
+    projectId ? `/api/sprint-k/${projectId}/document-hygiene` : null,
   );
 }

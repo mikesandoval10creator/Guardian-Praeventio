@@ -33,7 +33,9 @@ import { EditDocumentModal } from '../components/documents/EditDocumentModal';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Tooltip } from '../components/shared/Tooltip';
 import { DocumentHygienePanel } from '../components/documentHygiene/DocumentHygienePanel';
-import type { DocumentRecord } from '../services/documentHygiene/documentHygieneEngine';
+import { DocConfidenceCard } from '../components/documentHygiene/DocConfidenceCard';
+import { computeDocumentConfidence } from '../services/documentHygiene/documentHygieneEngine';
+import { useDocumentHygiene } from '../hooks/useDataQuality';
 
 interface Document {
   id: string;
@@ -96,22 +98,23 @@ export function Documents() {
     selectedProject ? `projects/${selectedProject.id}/documents` : null
   );
 
-  const hygieneDocs: DocumentRecord[] = useMemo(
-    () =>
-      (documents || []).map((d) => ({
-        id: d.id,
-        title: d.name,
-        kind: d.type || d.category,
-        version: d.version || '1.0',
-        updatedAt: d.updatedAt || new Date().toISOString(),
-        hasValidSignature: false,
-        accessCount90d: 0,
-        readReceiptCount: 0,
-        referencesNorm: false,
-        isLinkedToOperations: false,
-      })),
-    [documents]
+  // Salud documental REAL: el backend deriva firmas/accesos/acuses/vínculos
+  // desde Firestore (documents + read_receipts + nodes). Ya no fabricamos
+  // los campos de higiene client-side.
+  const hygiene = useDocumentHygiene(selectedProject?.id ?? null);
+  const hygieneDocs = useMemo(
+    () => hygiene.data?.documents ?? [],
+    [hygiene.data]
   );
+
+  // Documento de menor confianza — foco del prevencionista (DocConfidenceCard).
+  const lowestConfidenceDoc = useMemo(() => {
+    if (hygieneDocs.length === 0) return null;
+    return [...hygieneDocs].sort(
+      (a, b) =>
+        computeDocumentConfidence(a).score - computeDocumentConfidence(b).score
+    )[0];
+  }, [hygieneDocs]);
 
   const categories = ['Todos', 'Legal', 'Técnico', 'SST', 'Administrativo'];
 
@@ -167,7 +170,12 @@ export function Documents() {
         ))}
       </div>
 
-      <DocumentHygienePanel documents={hygieneDocs} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <DocumentHygienePanel documents={hygieneDocs} />
+        {lowestConfidenceDoc && (
+          <DocConfidenceCard document={lowestConfidenceDoc} />
+        )}
+      </div>
 
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:gap-4">
