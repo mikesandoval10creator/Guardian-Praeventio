@@ -63,4 +63,56 @@ describe('<SpiDashboard />', () => {
     render(<SpiDashboard leading={perfectLeading} lagging={perfectLagging} />);
     expect(screen.getByTestId('spi-focus-areas')).toBeInTheDocument();
   });
+
+  it('NO plan-vs-executed block when planVsExecuted prop is absent (backward compatible)', () => {
+    render(<SpiDashboard leading={perfectLeading} lagging={perfectLagging} />);
+    expect(screen.queryByTestId('spi-plan-vs-executed')).not.toBeInTheDocument();
+  });
+
+  it('renders real executed/planned ratios honestly when a plan is captured', () => {
+    render(
+      <SpiDashboard
+        leading={perfectLeading}
+        lagging={perfectLagging}
+        planVsExecuted={{
+          inspections: { executed: 6, planned: 8 },
+          dailyTalks: { executed: 18, planned: 22 },
+          trainings: { executed: 3, planned: 4 },
+          honesty: {
+            plannedInspectionsRate: false,
+            dailyTalksDeliveryRate: false,
+            trainingCurrencyRate: false,
+          },
+        }}
+      />,
+    );
+    expect(screen.getByTestId('spi-plan-vs-executed')).toBeInTheDocument();
+    expect(screen.getByTestId('spi-row-inspections').textContent).toContain('6/8');
+    expect(screen.getByTestId('spi-row-talks').textContent).toContain('18/22');
+  });
+
+  it('honest empty-state per indicator when its planned denominator is missing', () => {
+    render(
+      <SpiDashboard
+        leading={perfectLeading}
+        lagging={perfectLagging}
+        planVsExecuted={{
+          inspections: { executed: 0, planned: 0 },
+          dailyTalks: { executed: 18, planned: 22 },
+          trainings: { executed: 0, planned: 0 },
+          honesty: {
+            plannedInspectionsRate: true,
+            dailyTalksDeliveryRate: false,
+            trainingCurrencyRate: true,
+          },
+        }}
+      />,
+    );
+    // honest-empty rows render the CTA, NOT a fabricated 0/0 ratio.
+    expect(screen.getByTestId('spi-row-inspections-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('spi-row-trainings-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('spi-row-inspections')).not.toBeInTheDocument();
+    // the captured one still renders its real ratio.
+    expect(screen.getByTestId('spi-row-talks').textContent).toContain('18/22');
+  });
 });

@@ -5026,5 +5026,21 @@
       "pinFallbackHelp": "Sin biometría disponible. Firma con tu PIN como alternativa.",
       "pinSigned": "Firmado con PIN: {{itemId}} ({{kind}})."
     }
+  },
+  "spi": {
+    "aria": "Índice de Desempeño en Seguridad",
+    "title": "Índice de Desempeño en Seguridad",
+    "level": "Nivel",
+    "leading": "Leading (prev.)",
+    "lagging": "Lagging (react.)",
+    "weight40": "40% del SPI",
+    "weight60": "60% del SPI",
+    "focusOn": "Foco de mejora",
+    "criticalAction": "SPI crítico — revisar plan preventivo de gerencia.",
+    "planVsExecuted": "Planificado vs. ejecutado",
+    "rowInspections": "Inspecciones",
+    "rowTalks": "Charlas diarias",
+    "rowTrainings": "Capacitaciones",
+    "planEmpty": "Captura el plan del período para calcular el cumplimiento."
   }
 }

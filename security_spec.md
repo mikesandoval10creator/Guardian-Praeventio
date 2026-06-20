@@ -1225,5 +1225,30 @@ create/update/delete: if false`. Exercised by
      operational man-hours — denied (read requires membership of the doc's
      `projectId`).
 
+### safety_plan_periods — server-write planned counts for the SPI (added 2026-06-20)
+
+`safety_plan_periods/{projectId_YYYY-MM}` stores the PLANNED counts (inspections /
+daily talks / trainings) for a period — the DENOMINATORS of the SPI leading
+indicators (executed ÷ planned). WRITTEN ONLY by the Admin SDK from
+`POST /api/sprint-k/:projectId/safety-performance/safety-plan`, which role-gates
+(admin/gerente/prevencionista-tier) and stamps `recordedBy`/`recordedAt` from the
+verified token. READ is open to any member of the doc's project (the SpiDashboard
+renders the plan-vs-executed ratios). Rule: `allow read: if member of
+existing().projectId; create/update/delete: if false`. Exercised by
+`src/rules-tests/safetyPlanPeriods.rules.test.ts`.
+
+133. **Denominator Deflation (fake >100% completion)**: a client
+     `setDoc`/`updateDoc`-ing `safety_plan_periods/{id}` with `plannedInspections:
+     1` (or 0) to shrink the denominator so executed÷planned fabricates a
+     compliant-looking >100% ratio — making a negligent crew appear to over-deliver
+     to the mandante/regulator — denied (server-only; only the role-gated endpoint
+     writes it via Admin SDK).
+134. **Plan recordedBy Spoof**: a client forging `recordedBy: <someone-else>` on a
+     safety-plan capture to misattribute the planning record — denied (server
+     stamps `recordedBy` from the verified token; no client write path exists).
+135. **Cross-project Plan Read**: a non-member reading
+     `safety_plan_periods/{otherProject_period}` to harvest another project's
+     planning targets — denied (read requires membership of the doc's `projectId`).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

@@ -5026,5 +5026,21 @@
       "pinFallbackHelp": "No biometrics available. Sign with your PIN as an alternative.",
       "pinSigned": "Signed with PIN: {{itemId}} ({{kind}})."
     }
+  },
+  "spi": {
+    "aria": "Safety Performance Index",
+    "title": "Safety Performance Index",
+    "level": "Level",
+    "leading": "Leading (prev.)",
+    "lagging": "Lagging (react.)",
+    "weight40": "40% of SPI",
+    "weight60": "60% of SPI",
+    "focusOn": "Improvement focus",
+    "criticalAction": "Critical SPI — review the management prevention plan.",
+    "planVsExecuted": "Planned vs. executed",
+    "rowInspections": "Inspections",
+    "rowTalks": "Daily talks",
+    "rowTrainings": "Trainings",
+    "planEmpty": "Capture the period plan to compute completion."
   }
 }

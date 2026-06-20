@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**196 routers montados · 688 rutas detectadas.**
+**196 routers montados · 690 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -957,6 +957,8 @@ clave ver `docs/api-routes.md`.
 ### `src/server/routes/safetyPerformance.ts` → `/api/sprint-k`
 - `POST /api/sprint-k/:projectId/safety-performance/compute`
 - `POST /api/sprint-k/:projectId/safety-performance/build-trend`
+- `POST /api/sprint-k/:projectId/safety-performance/safety-plan`
+- `GET /api/sprint-k/:projectId/safety-performance/spi-report`
 
 ### `src/server/routes/safetyTalks.ts` → `/api/sprint-k`
 - `POST /api/sprint-k/:projectId/safety-talks/suggest`
