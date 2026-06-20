@@ -43,6 +43,8 @@ import {
   type DrillStatusAPI,
   type DrillLevelAPI,
 } from '../hooks/useDrillsManager';
+import { DrillResultReviewCard } from '../components/drillsManager/DrillResultReviewCard';
+import type { DrillResult, DrillReadinessReport } from '../services/drillsManager/drillsManager';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────
@@ -851,6 +853,36 @@ function DrillDetailModal(props: {
               )}
             </div>
           )}
+
+          {drill.status === 'completed' &&
+            drill.executedAt &&
+            drill.participantCount != null &&
+            drill.responseTimeSeconds != null && (
+              <DrillResultReviewCard
+                result={{
+                  id: drill.id,
+                  drillKind: drill.kind,
+                  executedAt: drill.executedAt,
+                  participantCount: drill.participantCount,
+                  expectedCount: drill.expectedCount,
+                  responseTimeSeconds: drill.responseTimeSeconds,
+                  benchmarkSeconds: drill.benchmarkSeconds,
+                  observedGaps: drill.observedGaps ?? [],
+                  requiredExternal: drill.requiredExternal ?? false,
+                } satisfies DrillResult}
+                precomputedReport={
+                  drill.report
+                    ? {
+                        drillId: drill.id,
+                        level: drill.report.level,
+                        participationRate: drill.report.participationRate,
+                        speedDeficitPercent: drill.report.speedDeficitPercent,
+                        recommendations: drill.report.recommendations,
+                      }
+                    : undefined
+                }
+              />
+            )}
 
           {canExecute && executeError && (
             // Codex PR #316 R2 P2 (line 525): banner dentro del modal,
