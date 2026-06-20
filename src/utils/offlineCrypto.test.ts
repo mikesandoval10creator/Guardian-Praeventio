@@ -22,11 +22,22 @@ beforeEach(() => {
 
 describe('offlineCrypto — real AES-256-GCM (not base64 theatre)', () => {
   it('round-trips an object through genuine encryption', async () => {
-    const data = { id: 'w1', name: 'Ana', projectId: 'p1', rut: '11.111.111-1' };
+    // Distinctive multi-char PII markers: a 3-char name like "Ana" can appear
+    // by chance inside random base64 ciphertext (~1/200k per offset × many
+    // offsets → an intermittently-flaky `not.toContain`). Longer markers make
+    // the leak-check statistically sound (a coincidental hit is ~impossible)
+    // while preserving the intent: the plaintext PII must not survive in the
+    // ciphertext.
+    const data = {
+      id: 'w1',
+      name: 'AnastasiaConfidencialMarker',
+      projectId: 'p1',
+      rut: '11.111.111-1',
+    };
     const enc = await encryptData(data);
     expect(enc.startsWith('v1:')).toBe(true);
     // The ciphertext must NOT leak the plaintext (the old base64 did).
-    expect(enc).not.toContain('Ana');
+    expect(enc).not.toContain('AnastasiaConfidencialMarker');
     expect(enc).not.toContain('11.111.111-1');
     expect(await decryptData(enc)).toEqual(data);
   });
