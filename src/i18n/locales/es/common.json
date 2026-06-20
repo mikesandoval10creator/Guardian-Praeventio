@@ -4816,5 +4816,8 @@
     "commuteEnd": "Terminar Trayecto",
     "commuteBusy": "Procesando…",
     "commuteError": "No pudimos actualizar el trayecto. Reintenta."
+  },
+  "softBlocks": {
+    "feedUnavailable": "El listado de bloqueos activos del proyecto aún no está conectado. Cuando la fuente de requisitos por cuadrilla/actividad esté disponible, los gates aparecerán aquí."
   }
 }

@@ -15,7 +15,7 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, ShieldAlert, WifiOff, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, ShieldAlert, WifiOff, CheckCircle2, PlugZap } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { RequirementGatePanel } from '../components/softBlocking/RequirementGatePanel';
@@ -40,8 +40,29 @@ export interface ActiveSoftBlock {
 }
 
 interface SoftBlocksProps {
-  /** Lista de bloqueos activos. Caller pasa desde Firestore/grafo.
-   *  Vacío en arranque → empty state. */
+  /**
+   * Lista de bloqueos activos del proyecto.
+   *
+   * Tres estados distintos (honesto ≠ cascarón):
+   *   - `undefined` → el feed NO está conectado todavía (la ruta monta la
+   *     página sin proveer datos). Se muestra un empty-state honesto que
+   *     declara que la fuente no está cableada — NUNCA un falso "todo OK".
+   *   - `[]`        → el feed SÍ se consultó y no hay bloqueos activos
+   *     (todos los requisitos cumplidos) → empty-state verde de éxito.
+   *   - `[...]`     → bloqueos reales evaluados por `evaluateGate`.
+   *
+   * TODO(soft-blocking-feed): no existe aún una fuente real de "active
+   * soft-blocks" del proyecto. El router `src/server/routes/softBlocking.ts`
+   * es PURO cómputo (evalúa `checks[]` provistos por el caller); no hay
+   * colección Firestore de gates activos ni endpoint que liste, por
+   * cuadrilla/actividad, los requisitos (capacitación/EPP/aptitud
+   * médica/permisos) con su estado actual. Para cablear esto de verdad hace
+   * falta una capa de agregación servidor-side que ensamble
+   * `RequirementCheck[]` desde los registros reales (training/EPP/medical/
+   * permits) por contexto y exponga p.ej.
+   * `GET /api/sprint-k/:projectId/soft-blocking/active-gates`. Hasta que
+   * exista, NO fabricamos bloqueos: la página declara el gap.
+   */
   blocks?: ActiveSoftBlock[];
   /** Handler que registra el override. */
   onOverride?: (blockId: string, override: OverrideInput) => void;
@@ -59,14 +80,19 @@ const LEVEL_BG: Record<GateLevel, string> = {
   cannot_override: 'bg-rose-500/10 border-rose-500/20',
 };
 
-export function SoftBlocks({ blocks = [], onOverride }: SoftBlocksProps) {
+export function SoftBlocks({ blocks, onOverride }: SoftBlocksProps) {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
   const isOnline = useOnlineStatus();
   const [activeOverrideId, setActiveOverrideId] = useState<string | null>(null);
 
+  // `undefined` = feed NO cableado (ver TODO en SoftBlocksProps.blocks).
+  // No lo tratamos como "[] sin bloqueos" porque eso sería un falso "todo OK".
+  const feedConnected = blocks !== undefined;
+  const safeBlocks = blocks ?? [];
+
   // Evaluamos cada bloqueo upfront para tener decisión + nivel.
-  const evaluated = blocks.map((b) => ({
+  const evaluated = safeBlocks.map((b) => ({
     block: b,
     decision: evaluateGate(b.checks),
   }));
@@ -93,6 +119,34 @@ export function SoftBlocks({ blocks = [], onOverride }: SoftBlocksProps) {
             {t(
               'softBlocks.page.selectProject',
               'Selecciona un proyecto para ver los bloqueos activos.',
+            )}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Feed NO cableado → empty-state honesto. NO mostramos el verde "todo OK"
+  // (sería un falso all-clear: nunca se consultó una fuente real). Ver el
+  // TODO(soft-blocking-feed) en SoftBlocksProps.blocks.
+  if (!feedConnected) {
+    return (
+      <div
+        className="flex-1 w-full p-4 sm:p-6 max-w-5xl mx-auto"
+        data-testid="soft-blocks-page-feed-unavailable"
+      >
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-8 text-center">
+          <PlugZap
+            className="w-12 h-12 mx-auto mb-4 text-amber-500"
+            aria-hidden="true"
+          />
+          <h1 className="text-lg font-black text-primary-token uppercase tracking-tight">
+            {t('softBlocks.page.title', 'Centro de Bloqueos Soft')}
+          </h1>
+          <p className="mt-2 text-sm text-secondary-token">
+            {t(
+              'softBlocks.feedUnavailable',
+              'El listado de bloqueos activos del proyecto aún no está conectado. Cuando la fuente de requisitos por cuadrilla/actividad esté disponible, los gates aparecerán aquí.',
             )}
           </p>
         </div>
