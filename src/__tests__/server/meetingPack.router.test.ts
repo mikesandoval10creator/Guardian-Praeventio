@@ -210,6 +210,17 @@ describe('POST /:projectId/meeting-pack/build-supervisor-briefing', () => {
     expect(res.body.pack.weatherAdvisory).toContain('WBGT');
   });
 
+  it('200 IGNORA un supervisorUid/projectId forjado en el body (anti-spoof, CLAUDE.md #3)', async () => {
+    // Un atacante autenticado manda identidad + scope falsos en el body. El
+    // server DEBE sobrescribir ambos desde el token verificado + el path param,
+    // nunca confiar en lo enviado por el cliente. (Regresión: spread body-last
+    // dejaba que el body ganara → spoof de identidad.)
+    const spoofed = { ...body, supervisorUid: 'attacker-spoof', projectId: 'evil-project' };
+    const res = await request(buildApp()).post(url).set(uid).send(spoofed);
+    expect(res.status).toBe(200);
+    expect(res.body.pack.supervisorUid).toBe('u1');
+  });
+
   it('200 with no risks/flags produces a calm headline and no in-person requirement', async () => {
     const calm = {
       shiftStart: '2026-05-11T06:00:00.000Z',
