@@ -51,7 +51,6 @@
     "src/server/routes/roleViews.ts",
     "src/server/routes/routing.ts",
     "src/server/routes/safetyPerformance.ts",
-    "src/server/routes/safetyTalks.ts",
     "src/server/routes/shiftRiskPanel.ts",
     "src/server/routes/signaletics.ts",
     "src/server/routes/spacedRepetition.ts",
