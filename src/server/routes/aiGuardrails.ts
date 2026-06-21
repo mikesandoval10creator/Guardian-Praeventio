@@ -90,8 +90,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof getPromptSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const prompt = getPrompt(body.promptId, body.version);
       return res.json({ prompt });
     } catch (err) {
@@ -117,8 +118,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof promptIdSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const prompt = getLatestVersion(body.promptId);
       return res.json({ prompt });
     } catch (err) {
@@ -140,8 +142,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof promptIdSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const versions = listVersions(body.promptId);
       return res.json({ versions });
     } catch (err) {
@@ -161,8 +164,9 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const ids = listPromptIds();
       return res.json({ ids });
     } catch (err) {
@@ -180,8 +184,9 @@ router.post(
   async (req, res) => {
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const catalog = getCatalog();
       return res.json({ catalog });
     } catch (err) {
@@ -212,8 +217,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof renderSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const rendered = renderPromptBody(body.body, body.inputs);
       return res.json({ rendered });
     } catch (err) {
@@ -236,8 +242,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof unresolvedSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const unresolved = findUnresolvedPlaceholders(body.rendered);
       return res.json({ unresolved });
     } catch (err) {
@@ -264,8 +271,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof extractSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const citations = extractCitations(body.text);
       return res.json({ citations });
     } catch (err) {
@@ -295,8 +303,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof validateResponseSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const result = validateResponse(body.text, body.sources, body.policy);
       return res.json({ result });
     } catch (err) {
@@ -323,8 +332,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof guardSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const result = guardAgainstHallucination(body.text);
       return res.json({ result });
     } catch (err) {

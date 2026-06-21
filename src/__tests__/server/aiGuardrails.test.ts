@@ -118,6 +118,24 @@ describe('Auth + membership guard', () => {
       .send({});
     expect(res.status).toBe(403);
   });
+
+  it('5xx (no internals leaked) when the membership read fails — request must not hang', async () => {
+    // Force the projects/<id> read (membership check) to throw an infra error.
+    // The guard re-throws non-ProjectMembershipError; because the guard now
+    // runs INSIDE the try, the catch maps it to a clean 500 instead of an
+    // unhandled rejection that hangs the request (Express 4 async reject).
+    H.db!._failReads(`projects/${PROJECT_ID}`);
+    const res = await request(buildApp())
+      .post(url('get-prompt'))
+      .set('x-test-uid', MEMBER_UID)
+      .send({ promptId: 'rag.zk.query', version: '1.0.0' });
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(res.status).toBeLessThan(600);
+    expect(res.body).toEqual({ error: 'internal_error' });
+    // No raw error message / path leaked in the body.
+    expect(JSON.stringify(res.body)).not.toMatch(/forced read failure/);
+    expect(JSON.stringify(res.body)).not.toContain(PROJECT_ID);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
