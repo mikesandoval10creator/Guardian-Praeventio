@@ -1,0 +1,101 @@
+<!doctype html>
+<!--
+  Borrador — pendiente revisión legal.
+  Lista pública de sub-procesadores, servida fuera de la SPA en una URL estable
+  (referenciada por el DPA y la Política de Privacidad). Mantener consistente con
+  docs/legal/subprocessors.md y con src/pages/PrivacyPolicy.tsx (sección 5). Las
+  ubicaciones de datos marcadas como "por confirmar" requieren verificación legal
+  antes de certificar.
+-->
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sub-procesadores · Guardian Praeventio</title>
+  <meta name="description" content="Lista pública de sub-procesadores (sub-encargados) de Guardian Praeventio: servicio, datos tratados y ubicación." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://praeventio.net/subprocessors.html" />
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #09090b;
+      color: #e4e4e7;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.65;
+    }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 48px 20px 64px; }
+    a { color: #34d399; }
+    a:hover { color: #6ee7b7; }
+    .eyebrow { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #71717a; font-weight: 700; margin: 0; }
+    h1 { font-size: 28px; font-weight: 800; letter-spacing: -.01em; margin: 4px 0 0; color: #fafafa; }
+    h2 { font-size: 18px; font-weight: 800; color: #fafafa; margin: 36px 0 10px; }
+    .updated { color: #a1a1aa; font-size: 14px; margin: 24px 0 24px; }
+    strong { color: #fafafa; }
+    .nav { font-size: 14px; margin: 0 0 28px; }
+    .footer { margin-top: 56px; padding-top: 28px; border-top: 1px solid rgba(255,255,255,.06); text-align: center; font-size: 11px; letter-spacing: .15em; text-transform: uppercase; color: #52525b; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 16px 0; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.08); vertical-align: top; }
+    th { color: #fafafa; font-weight: 700; background: rgba(255,255,255,.03); }
+    ul { padding-left: 22px; }
+    li { margin: 6px 0; }
+    .scroll { overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <p class="nav"><a href="/">Inicio</a> · <a href="/privacy.html">Privacidad</a> · <a href="/terms.html">Términos</a> · <a href="/data-deletion.html">Eliminar mis datos</a></p>
+
+    <p class="eyebrow">Guardian Praeventio · praeventio.net</p>
+    <h1>Sub-procesadores</h1>
+    <p class="updated">Última actualización: 21 de junio de 2026</p>
+
+    <p>Guardian Praeventio (encargado del tratamiento) utiliza los siguientes sub-procesadores (sub-encargados) para prestar el servicio. Cada uno trata datos personales únicamente para la finalidad indicada y bajo obligaciones contractuales de protección de datos equivalentes a las del Acuerdo de Tratamiento de Datos.</p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Sub-procesador</th><th>Servicio</th><th>Datos tratados</th><th>Ubicación de datos</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Google / Firebase</strong> (Google LLC)</td>
+            <td>Hosting, autenticación (Google Sign-In), base de datos (Firestore), notificaciones push (FCM)</td>
+            <td>Datos de cuenta, datos de proyecto y de trabajadores, tokens de dispositivo</td>
+            <td>Estados Unidos (región Google Cloud us-central1)</td>
+          </tr>
+          <tr>
+            <td><strong>Google Gemini</strong> (Google LLC)</td>
+            <td>Procesamiento de inteligencia artificial (recomendaciones, no decisiones)</td>
+            <td>Texto de las consultas (sin datos personales identificables sin consentimiento)</td>
+            <td>Estados Unidos</td>
+          </tr>
+          <tr>
+            <td><strong>Resend</strong> (Resend, Inc.)</td>
+            <td>Envío de correos electrónicos transaccionales (invitaciones, avisos)</td>
+            <td>Correo electrónico y contenido del mensaje</td>
+            <td>Estados Unidos</td>
+          </tr>
+          <tr>
+            <td><strong>Google Play Billing</strong> (Google LLC)</td>
+            <td>Verificación y gestión de suscripciones en Android</td>
+            <td>Token de compra y plan activo (NO datos de tarjeta)</td>
+            <td>Estados Unidos</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Notas</h2>
+    <ul>
+      <li><strong>No vendemos ni comercializamos</strong> datos personales.</li>
+      <li>Praeventio <strong>no almacena datos de tarjetas de crédito</strong>; el cobro lo realiza la plataforma de pago correspondiente.</li>
+      <li>La biometría y los frames de cámara se procesan <strong>100% en el dispositivo</strong> y no se envían a ningún sub-procesador.</li>
+      <li>Ante el alta o sustitución de un sub-procesador, lo notificaremos a la empresa responsable con antelación razonable.</li>
+    </ul>
+
+    <p class="footer">© 2026 Guardian Praeventio · Chile · Todos los derechos reservados</p>
+  </main>
+</body>
+</html>

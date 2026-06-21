@@ -1,0 +1,91 @@
+<!doctype html>
+<!--
+  Borrador — pendiente revisión legal.
+  URL pública de "solicitar eliminación de datos" exigida por Google Play Data
+  Safety. Servida fuera de la SPA en una URL estable, sin JavaScript. Describe
+  cómo el usuario solicita la eliminación; el borrado efectivo lo ejecuta el
+  backend ya existente (flujo ARCO):
+    - In-app: página "Mis Datos" (src/pages/MyData.tsx) → solicitud de
+      eliminación, que el server procesa vía src/server/routes/compliance.ts
+      (POST /api/compliance/data-request type=erasure;
+       POST /api/compliance/admin/data-request/:id/erase).
+    - Por correo: contacto@praeventio.net.
+  NOTA legal: ciertos registros de prevención/auditoría deben conservarse por
+  mandato legal (Ley 16.744 / DS 594); en esos casos la "eliminación" se hace por
+  anonimización que preserva el registro sin identificar al titular (ADR 0024).
+-->
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Eliminar mis datos · Guardian Praeventio</title>
+  <meta name="description" content="Cómo solicitar la eliminación de tu cuenta y de tus datos personales en Guardian Praeventio." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://praeventio.net/data-deletion.html" />
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #09090b;
+      color: #e4e4e7;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.65;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 48px 20px 64px; }
+    a { color: #34d399; }
+    a:hover { color: #6ee7b7; }
+    .eyebrow { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #71717a; font-weight: 700; margin: 0; }
+    h1 { font-size: 28px; font-weight: 800; letter-spacing: -.01em; margin: 4px 0 0; color: #fafafa; }
+    h2 { font-size: 18px; font-weight: 800; color: #fafafa; margin: 36px 0 10px; }
+    .updated { color: #a1a1aa; font-size: 14px; margin: 24px 0 24px; }
+    strong { color: #fafafa; }
+    .nav { font-size: 14px; margin: 0 0 28px; }
+    .footer { margin-top: 56px; padding-top: 28px; border-top: 1px solid rgba(255,255,255,.06); text-align: center; font-size: 11px; letter-spacing: .15em; text-transform: uppercase; color: #52525b; font-weight: 700; }
+    ol { padding-left: 22px; }
+    li { margin: 8px 0; }
+    section { font-size: 15px; }
+    .card { background: rgba(52,211,153,.06); border: 1px solid rgba(52,211,153,.18); border-radius: 12px; padding: 16px 20px; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <p class="nav"><a href="/">Inicio</a> · <a href="/privacy.html">Privacidad</a> · <a href="/terms.html">Términos</a> · <a href="/subprocessors.html">Sub-procesadores</a></p>
+
+    <p class="eyebrow">Guardian Praeventio · praeventio.net</p>
+    <h1>Eliminar mis datos</h1>
+    <p class="updated">Última actualización: 21 de junio de 2026</p>
+
+    <section>
+      <p>Puedes solicitar la eliminación de tu cuenta y de tus datos personales en cualquier momento. Esta página explica cómo hacerlo y qué datos se eliminan.</p>
+
+      <h2>Opción 1 — Desde la aplicación (recomendado)</h2>
+      <ol>
+        <li>Inicia sesión en Guardian Praeventio.</li>
+        <li>Abre la sección <strong>"Mis Datos"</strong> desde el menú.</li>
+        <li>Selecciona <strong>"Solicitar eliminación de mis datos"</strong> y confirma.</li>
+      </ol>
+      <p>Tu solicitud queda registrada y es procesada por nuestro equipo conforme a la normativa.</p>
+
+      <h2>Opción 2 — Por correo electrónico</h2>
+      <div class="card">
+        <p>Escríbenos a <a href="mailto:contacto@praeventio.net?subject=Solicitud%20de%20eliminaci%C3%B3n%20de%20datos">contacto@praeventio.net</a> indicando el correo de tu cuenta y que deseas eliminar tus datos personales. Verificaremos tu identidad antes de proceder.</p>
+      </div>
+
+      <h2>Qué datos se eliminan</h2>
+      <p>Se eliminan los datos personales asociados a tu cuenta (nombre, correo, foto de perfil) y los datos personales que hayas registrado, dentro de un plazo máximo de <strong>30 días</strong>.</p>
+
+      <h2>Qué datos se conservan (y por qué)</h2>
+      <p>Algunos registros de prevención de riesgos y de auditoría deben conservarse por mandato de la normativa laboral chilena (por ejemplo, Ley 16.744 / DS 594). En esos casos, la eliminación se realiza mediante <strong>anonimización</strong>: el registro legal se conserva sin que pueda identificarte. Los registros de auditoría son inmutables y se conservan durante 5 años.</p>
+
+      <h2>Tus derechos</h2>
+      <p>Conforme a la Ley 19.628 (modificada por la Ley 21.719), también puedes acceder, rectificar, portar tus datos u oponerte a su tratamiento. Más información en la <a href="/privacy.html">Política de Privacidad</a>.</p>
+
+      <h2>Contacto</h2>
+      <p>Guardian Praeventio · <a href="mailto:contacto@praeventio.net">contacto@praeventio.net</a> · praeventio.net</p>
+    </section>
+
+    <p class="footer">© 2026 Guardian Praeventio · Chile · Todos los derechos reservados</p>
+  </main>
+</body>
+</html>
