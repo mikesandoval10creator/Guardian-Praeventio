@@ -5049,6 +5049,18 @@
     "colHours": "Horas",
     "colRecordable": "Recordables"
   },
+  "contractors": {
+    "title": "Ranking de Contratistas",
+    "aria": "Ranking de contratistas",
+    "empty": "Sin contratistas con datos de desempeño.",
+    "trirLabel": "TRIR",
+    "riskScore": "Riesgo"
+  },
+  "contractorRanking": {
+    "noProject": "Selecciona un proyecto para ver el ranking de contratistas por riesgo.",
+    "loading": "Cargando ranking de contratistas…",
+    "error": "No se pudo cargar el ranking"
+  },
   "spi": {
     "aria": "Índice de Desempeño en Seguridad",
     "title": "Índice de Desempeño en Seguridad",

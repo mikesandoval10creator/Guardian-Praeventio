@@ -31,6 +31,7 @@ import {
 } from '../utils/ds76MiningContractor';
 import { useProject } from '../contexts/ProjectContext';
 import { ContractorPerformanceDashboard } from '../components/contractors/ContractorPerformanceDashboard';
+import { ContractorRiskRanking } from '../components/contractors/ContractorRiskRanking';
 
 function emptyContractor(): Ds76Input {
   const today = new Date().toISOString().slice(0, 10);
@@ -332,6 +333,10 @@ export function MiningContractors() {
       {/* Per-contractor safety performance (TRIR/LTIFR) from REAL incidents +
           captured contractor man-hours. Scoped to the selected project. */}
       <ContractorPerformanceDashboard projectId={selectedProject?.id ?? null} />
+
+      {/* Executive risk ranking: ranks the SAME real per-contractor injury
+          rates worst-first for the contract manager's renewal decision. */}
+      <ContractorRiskRanking projectId={selectedProject?.id ?? null} />
     </div>
   );
 }

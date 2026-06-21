@@ -5049,6 +5049,18 @@
     "colHours": "Horas",
     "colRecordable": "Registráveis"
   },
+  "contractors": {
+    "title": "Ranking de Empreiteiras",
+    "aria": "Ranking de empreiteiras",
+    "empty": "Nenhuma empreiteira com dados de desempenho ainda.",
+    "trirLabel": "TRIR",
+    "riskScore": "Risco"
+  },
+  "contractorRanking": {
+    "noProject": "Selecione um projeto para ver o ranking de risco das empreiteiras.",
+    "loading": "Carregando ranking de empreiteiras…",
+    "error": "Não foi possível carregar o ranking"
+  },
   "spi": {
     "aria": "Índice de Desempenho em Segurança",
     "title": "Índice de Desempenho em Segurança",

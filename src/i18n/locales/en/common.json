@@ -5049,6 +5049,18 @@
     "colHours": "Hours",
     "colRecordable": "Recordable"
   },
+  "contractors": {
+    "title": "Contractor Ranking",
+    "aria": "Contractor ranking",
+    "empty": "No contractors with performance data yet.",
+    "trirLabel": "TRIR",
+    "riskScore": "Risk"
+  },
+  "contractorRanking": {
+    "noProject": "Select a project to see the contractor risk ranking.",
+    "loading": "Loading contractor ranking…",
+    "error": "Could not load the ranking"
+  },
   "spi": {
     "aria": "Safety Performance Index",
     "title": "Safety Performance Index",
