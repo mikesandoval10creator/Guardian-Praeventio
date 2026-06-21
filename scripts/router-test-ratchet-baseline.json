@@ -26,7 +26,6 @@
     "src/server/routes/geofencePermissions.ts",
     "src/server/routes/inbox.ts",
     "src/server/routes/meetingPack.ts",
-    "src/server/routes/mentalLoad.ts",
     "src/server/routes/multiRoleSummary.ts",
     "src/server/routes/portfolioLessons.ts",
     "src/server/routes/pricingCalculator.ts",
