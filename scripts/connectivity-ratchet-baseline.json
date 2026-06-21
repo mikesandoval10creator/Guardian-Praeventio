@@ -35,7 +35,6 @@
     "src/components/riskMatrix/RiskMatrix5x5Lazy.tsx",
     "src/components/roleOnboarding/OnboardingTrackProgressPanel.tsx",
     "src/components/safety/SafetyCapsules.tsx",
-    "src/components/safetyMetrics/SafetyTrendChartLazy.tsx",
     "src/components/shared/ProjectScopedPage.tsx",
     "src/components/spacedRepetition/SpacedRepetitionReviewQueue.tsx",
     "src/components/twinPhysics/TwinPhysicsScene.tsx",

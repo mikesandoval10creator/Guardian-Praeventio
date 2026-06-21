@@ -153,6 +153,90 @@ export interface UseSafetyMetricsReport {
   refetch: () => void;
 }
 
+// ── 5b. trend (multi-period TRIR/LTIFR/DART/SIFR series) ───────────────────
+
+/** One period of the trend series (mirrors SafetyTrendChart's SafetyTrendPoint). */
+export interface SafetyTrendApiPoint {
+  period: string;
+  trir: number;
+  ltifr: number;
+  dart: number;
+  sifr: number;
+  /** True only when man-hours were captured for this month (rates are real). */
+  hasExposure: boolean;
+}
+
+export interface SafetyMetricsTrendResponse {
+  points: SafetyTrendApiPoint[];
+  periods: string[];
+}
+
+export async function fetchSafetyMetricsTrend(
+  projectId: string,
+  period: string,
+  months?: number,
+): Promise<SafetyMetricsTrendResponse> {
+  const q = new URLSearchParams({ period });
+  if (typeof months === 'number') q.set('months', String(months));
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/safety-metrics/trend?${q.toString()}`,
+    { method: 'GET' },
+  );
+  return json<SafetyMetricsTrendResponse>(res);
+}
+
+export interface UseSafetyMetricsTrend {
+  data: SafetyMetricsTrendResponse | null;
+  loading: boolean;
+  error: Error | null;
+  refetch: () => void;
+}
+
+/**
+ * Fetch the rolling multi-period trend of TRIR/LTIFR/DART/SIFR (each point built
+ * from REAL incidents + the captured man-hours of that month). Re-fetches when
+ * project/period/months change or `refetch()` is called.
+ */
+export function useSafetyMetricsTrend(
+  projectId: string | null,
+  period: string,
+  months?: number,
+): UseSafetyMetricsTrend {
+  const [data, setData] = useState<SafetyMetricsTrendResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [nonce, setNonce] = useState(0);
+
+  const refetch = useCallback(() => setNonce((n) => n + 1), []);
+
+  useEffect(() => {
+    if (!projectId || !period) {
+      setData(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetchSafetyMetricsTrend(projectId, period, months)
+      .then((r) => {
+        if (!cancelled) setData(r);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e : new Error(String(e)));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, period, months, nonce]);
+
+  return { data, loading, error, refetch };
+}
+
 // ── 6. operational pressure (workforce capture + engine aggregation) ────────
 
 export interface CaptureWorkforcePeriodInput {

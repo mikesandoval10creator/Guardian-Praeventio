@@ -412,6 +412,26 @@ async function readProjectIncidents(
   return [...byId.values()];
 }
 
+/** Read the captured man-hours for a single period (0 if never captured). */
+async function readExposureHours(projectId: string, period: string): Promise<number> {
+  try {
+    const exSnap = await admin
+      .firestore()
+      .collection('exposure_hours')
+      .doc(`${projectId}_${period}`)
+      .get();
+    if (exSnap.exists) {
+      const raw = (exSnap.data() ?? {}).totalHoursWorked;
+      if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
+        return raw;
+      }
+    }
+  } catch (err) {
+    logger.warn?.('safetyMetrics.exposure_read_failed', err);
+  }
+  return 0;
+}
+
 router.get(
   '/:projectId/safety-metrics/report',
   verifyAuth,
@@ -422,7 +442,6 @@ router.get(
     const { period } = req.validated as z.infer<typeof reportQuerySchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
 
-    const db = admin.firestore();
     try {
       const tenantId = await resolveTenantId(projectId);
 
@@ -432,28 +451,115 @@ router.get(
       const counts: IncidentCounts = classifyIncidents(inPeriod as RawIncidentDoc[]);
 
       // 2. Captured exposure_hours (0 if never captured — honest empty-state).
-      let totalHoursWorked = 0;
-      try {
-        const exSnap = await db
-          .collection('exposure_hours')
-          .doc(`${projectId}_${period}`)
-          .get();
-        if (exSnap.exists) {
-          const raw = (exSnap.data() ?? {}).totalHoursWorked;
-          if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
-            totalHoursWorked = raw;
-          }
-        }
-      } catch (err) {
-        logger.warn?.('safetyMetrics.report.exposure_read_failed', err);
-      }
-      const exposure: ExposureInput = { totalHoursWorked };
+      const exposure: ExposureInput = {
+        totalHoursWorked: await readExposureHours(projectId, period),
+      };
 
       const report = buildSafetyMetricsReport(counts, exposure, period);
       return res.json({ counts, exposure, report });
     } catch (err) {
       logger.error?.('safetyMetrics.report.error', err);
       captureRouteError(err, 'safetyMetrics.report');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────
+// 6. trend — multi-period TRIR/LTIFR/DART/SIFR series (for SafetyTrendChart)
+// ────────────────────────────────────────────────────────────────────────
+//
+//   GET /:projectId/safety-metrics/trend?period=YYYY-MM&months=N
+//     200: { points: SafetyTrendPoint[], periods: string[] }
+//
+// Builds the rolling window of the last N months ending at `period`. Each point
+// reuses the SAME honest pipeline as the single-period report: real incidents
+// classified into IncidentCounts + the captured man-hours of that month. A
+// month with no captured exposure yields rates of 0 (calculateRate returns 0
+// when hours <= 0) — never a fabricated value. The chart simply omits points it
+// cannot draw; the server never invents exposure or incidents.
+
+const MAX_TREND_MONTHS = 24;
+const DEFAULT_TREND_MONTHS = 12;
+
+const trendQuerySchema = z.object({
+  period: z.string().regex(PERIOD_RE, 'period must be YYYY-MM'),
+  months: z.coerce.number().int().min(1).max(MAX_TREND_MONTHS).optional(),
+});
+
+/** A single period of the trend series (mirrors the client SafetyTrendPoint). */
+interface SafetyTrendPoint {
+  period: string;
+  trir: number;
+  ltifr: number;
+  dart: number;
+  sifr: number;
+  /** True only when man-hours were captured for this month (rates are real). */
+  hasExposure: boolean;
+}
+
+/** Enumerate the last `months` 'YYYY-MM' labels ending at (and including) `end`. */
+function rollingPeriods(end: string, months: number): string[] {
+  const [y, m] = end.split('-').map((s) => Number.parseInt(s, 10));
+  // Anchor at UTC noon on the 1st to avoid TZ/DST drift across month math.
+  const anchor = new Date(Date.UTC(y, m - 1, 1, 12, 0, 0));
+  const out: string[] = [];
+  for (let i = months - 1; i >= 0; i -= 1) {
+    const d = new Date(anchor);
+    d.setUTCMonth(anchor.getUTCMonth() - i);
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    out.push(`${d.getUTCFullYear()}-${mm}`);
+  }
+  return out;
+}
+
+router.get(
+  '/:projectId/safety-metrics/trend',
+  verifyAuth,
+  validate(trendQuerySchema, 'query'),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const { period, months } = req.validated as z.infer<typeof trendQuerySchema>;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+
+    try {
+      const periods = rollingPeriods(period, months ?? DEFAULT_TREND_MONTHS);
+      const tenantId = await resolveTenantId(projectId);
+
+      // Read ALL project incidents once, then bucket by period (avoids N reads).
+      const allIncidents = await readProjectIncidents(projectId, tenantId);
+      const byPeriod = new Map<string, Array<Record<string, unknown>>>();
+      for (const rec of allIncidents) {
+        const p = periodOf(rec);
+        if (p === null) continue;
+        const bucket = byPeriod.get(p);
+        if (bucket) bucket.push(rec);
+        else byPeriod.set(p, [rec]);
+      }
+
+      const points: SafetyTrendPoint[] = await Promise.all(
+        periods.map(async (p): Promise<SafetyTrendPoint> => {
+          const docs = (byPeriod.get(p) ?? []) as RawIncidentDoc[];
+          const counts = classifyIncidents(docs);
+          const totalHoursWorked = await readExposureHours(projectId, p);
+          const exposure: ExposureInput = { totalHoursWorked };
+          const report = buildSafetyMetricsReport(counts, exposure, p);
+          return {
+            period: p,
+            trir: report.trir,
+            ltifr: report.ltifr,
+            dart: report.dart,
+            sifr: report.sifr,
+            hasExposure: totalHoursWorked > 0,
+          };
+        }),
+      );
+
+      return res.json({ points, periods });
+    } catch (err) {
+      logger.error?.('safetyMetrics.trend.error', err);
+      captureRouteError(err, 'safetyMetrics.trend');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
