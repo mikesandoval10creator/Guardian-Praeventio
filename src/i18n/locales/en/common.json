@@ -4946,6 +4946,14 @@
       "registerReading": "Record hour-meter reading"
     }
   },
+  "horometer": {
+    "aria": "Hour-meter status",
+    "cycle": "Cycle",
+    "mandatoryOverdue": "Mandatory maintenance overdue — stopping and completing it before continuing to operate is recommended.",
+    "schedule": "Schedule",
+    "statusLoading": "Loading hour-meter status…",
+    "statusError": "We couldn't load the hour-meter status. Log a reading to see it."
+  },
   "horometro": {
     "title": "Hour meter",
     "aria": "Report hour meter",

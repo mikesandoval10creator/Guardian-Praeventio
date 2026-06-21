@@ -25,7 +25,6 @@
     "src/components/identity/TaxIdInput.tsx",
     "src/components/knowledgeBase/KnowledgeBaseSearch.tsx",
     "src/components/lessonsLearned/LessonSuggestionsCard.tsx",
-    "src/components/maintenance/HorometerStatusCard.tsx",
     "src/components/measurements/MeasurementQualityCard.tsx",
     "src/components/monthlyClientReport/MonthlyClientReportCard.tsx",
     "src/components/pricingCalculator/ROICalculatorWidget.tsx",
