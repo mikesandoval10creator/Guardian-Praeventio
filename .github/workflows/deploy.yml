@@ -105,16 +105,27 @@ jobs:
           # exist while a request keeps an instance alive, and with default
           # CPU throttling the listener gets ~no CPU between requests — the
           # "real-time" alerting was illusory in prod. One always-on,
-          # unthrottled instance (~USD 10-15/mo at 512Mi) is the price of
-          # the life-safety listeners actually listening.
+          # unthrottled instance is the price of the life-safety listeners
+          # actually listening.
+          # FIX 2026-06-21: revision failed "container failed to start and
+          # listen on PORT within timeout". Root cause: the runtime is
+          # `tsx server.ts` (transpiles the WHOLE backend on cold start —
+          # memory+CPU heavy; local typecheck needs ~6GB heap) and 512Mi
+          # OOM-killed boot before app.listen(). Raised to 2Gi + cpu=2 +
+          # --cpu-boost (startup CPU boost) so the tsx cold boot completes
+          # before the Cloud Run startup health-check times out. Proper
+          # long-term fix: ship a compiled `node dist/server.js` entrypoint
+          # instead of tsx-at-runtime (TODO).
           flags: >-
             --port=3000
             --allow-unauthenticated
             --min-instances=1
             --max-instances=10
-            --memory=512Mi
-            --cpu=1
+            --memory=2Gi
+            --cpu=2
+            --cpu-boost
             --no-cpu-throttling
+            --timeout=300
           env_vars: |
             NODE_ENV=production
             KMS_ADAPTER=cloud-kms
