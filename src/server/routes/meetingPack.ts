@@ -160,10 +160,15 @@ router.post(
     const body = req.body as z.infer<typeof briefingSchema>;
     if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // Server-stamped identity/scope MUST win over any client-sent values:
+      // spread `body` first, then override supervisorUid (from the verified
+      // token) and projectId (from the path). A body-last spread would let a
+      // client forge `supervisorUid`/`projectId` (CLAUDE.md #3 — never trust
+      // client-supplied identity).
       const input: BriefingInputs = {
+        ...body,
         supervisorUid: callerUid,
         projectId,
-        ...body,
       };
       const pack = buildSupervisorBriefingPack(input);
       return res.json({ pack });
