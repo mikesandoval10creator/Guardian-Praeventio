@@ -4,7 +4,7 @@
   "verified": 171,
   "uncovered_count": 33,
   "uncovered": [
-    "src/server/routes/agenda.ts",
+    "src/server/routes/adoption.ts",
     "src/server/routes/aggregateTelemetry.ts",
     "src/server/routes/aiToggle.ts",
     "src/server/routes/b2d/index.ts",
