@@ -55,3 +55,9 @@ declare global {
 
   var __SLM_OFFLINE_ENABLED__: boolean | undefined;
 }
+
+// express-async-errors ships no .d.ts. It's a side-effect-only import that
+// monkey-patches Express 4 so async handler rejections reach the terminal
+// error middleware (Express 4 does NOT auto-forward them). We never reference
+// any export — `import 'express-async-errors'` is purely for the patch.
+declare module 'express-async-errors';

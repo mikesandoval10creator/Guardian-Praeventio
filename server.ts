@@ -1,4 +1,13 @@
 import express from "express";
+// ponytail: one side-effect import patches Express 4 to forward async handler
+// rejections to the terminal error middleware (server.ts ~L1426). Without it,
+// a guard()/assertProjectMember Firestore read that rejects on an OUTAGE (not a
+// membership denial) escapes the handler unhandled and the request HANGS — it
+// hit ~164 routes incl. /api/emergency/sos. Hand-rolling this means
+// monkey-patching Express internals (i.e. reimplementing this lib), so the dep
+// is the minimal correct fix. Drop it only when migrating to Express 5 (which
+// forwards async rejections natively). MUST load before routers handle traffic.
+import "express-async-errors";
 import helmet from "helmet";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 // Sprint 39 audit (2026-05-15) — MemoryStore default de express-rate-limit

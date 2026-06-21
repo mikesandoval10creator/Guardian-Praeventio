@@ -11,6 +11,10 @@
 //
 // Mount point: app.use('/api/emergency', emergencyRouter) in server.ts:895
 
+// Side-effect import mirrors server.ts: patches Express 4 to forward async
+// handler rejections to the terminal error middleware. Required for the
+// "Firestore outage does not hang" contract below. Must precede `express`.
+import 'express-async-errors';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
@@ -174,6 +178,44 @@ beforeEach(() => {
   H.emailSendBatch.mockClear();
   H.emailEnabled = false;
   __clearUserTokenCache();
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Firestore OUTAGE must NOT hang the request (guard-hang fix, 2026-06-21)
+// ═════════════════════════════════════════════════════════════════════════════
+// assertProjectMember re-throws non-membership errors (e.g. a Firestore outage)
+// OUT of the SOS handler (emergency.ts:248). In Express 4 an async handler's
+// rejected promise is NOT auto-forwarded to the error middleware, so the
+// request HANGS — fatal for a life-safety route exactly when infra is failing.
+// The `import 'express-async-errors'` at the top of this file (mirroring
+// server.ts) patches Express so the rejection reaches the terminal handler and
+// the caller gets a clean 500 instead of an indefinite hang.
+describe('SOS does not hang on a Firestore outage (guard-hang fix)', () => {
+  // App with the SAME terminal error middleware shape as server.ts:1449-1451.
+  function buildAppWithErrorHandler() {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/emergency', emergencyRouter);
+    app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+      if (!res.headersSent) res.status(500).json({ error: 'internal_server_error' });
+    });
+    return app;
+  }
+
+  it('returns 500 (not a hang) when the membership read rejects', async () => {
+    // u1 IS a member, so this is NOT a 403 path — the read itself fails
+    // (outage), which assertProjectMember re-throws verbatim.
+    seedProject(H.db!, 'p1', { createdBy: 'u1', members: ['u1'] });
+    H.db!._failReads('projects/p1'); // force the membership .get() to reject
+
+    const res = await request(buildAppWithErrorHandler())
+      .post('/api/emergency/sos')
+      .set('x-test-uid', 'u1')
+      .send({ type: 'sos', projectId: 'p1' });
+
+    expect(res.status).toBe(500);
+    expect((res.body as Record<string, unknown>).error).toBe('internal_server_error');
+  }, 8000); // generous ceiling: pre-fix this request never responds → timeout=fail
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
