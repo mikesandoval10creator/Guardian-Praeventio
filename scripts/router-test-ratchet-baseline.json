@@ -21,7 +21,6 @@
     "src/server/routes/pricingSimulator.ts",
     "src/server/routes/pymeOnboarding.ts",
     "src/server/routes/pymeWizard.ts",
-    "src/server/routes/raciMatrix.ts",
     "src/server/routes/reputationalAlerts.ts",
     "src/server/routes/roleViews.ts",
     "src/server/routes/shiftRiskPanel.ts",
