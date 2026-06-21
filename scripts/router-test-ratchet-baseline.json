@@ -26,7 +26,6 @@
     "src/server/routes/fiveS.ts",
     "src/server/routes/formBuilderAdvanced.ts",
     "src/server/routes/hygiene.ts",
-    "src/server/routes/inbox.ts",
     "src/server/routes/meetingPack.ts",
     "src/server/routes/mentalLoad.ts",
     "src/server/routes/multiRoleSummary.ts",
