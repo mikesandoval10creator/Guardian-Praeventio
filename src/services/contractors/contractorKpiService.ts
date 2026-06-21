@@ -125,6 +125,63 @@ export function rankContractorsByRisk(
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// Injury-rate ranking from REAL server performance rows
+// ────────────────────────────────────────────────────────────────────────
+//
+// The server endpoint `GET /api/sprint-k/:projectId/contractors/performance`
+// (src/server/routes/contractors.ts) returns per-contractor TRIR/LTIFR/severity
+// computed SERVER-SIDE from REAL incidents carrying a `contractorId` + the
+// captured man-hours. That payload does NOT carry compliance/overdue-action
+// signals, so we rank ONLY on what is real: the injury rates. We deliberately
+// do NOT fabricate `trainingCompletionRate`/`documentationCurrentRate`/
+// `overdueActions` to feed `computeContractorKpi` — that would invent a
+// "perfect compliance" score and lie about the contractor's true standing.
+
+/** Minimal real shape consumed from the server performance row. */
+export interface ContractorInjuryRates {
+  contractorId: string;
+  contractorName: string;
+  /** Total Recordable Incident Rate (OSHA 200k base), server-computed. */
+  trir: number;
+  /** Severity rate (lost days × 1,000,000 / hours), server-computed. */
+  severityRate: number;
+}
+
+/**
+ * Maps real per-contractor injury rates into a risk band + rank entry.
+ * `riskScore` (0-100) is derived ONLY from real TRIR + severity — higher is
+ * worse. Bands mirror `computeContractorKpi`'s thresholds so the same legend
+ * applies across both views.
+ */
+export function rankContractorRowsByInjuryRate(
+  rows: ContractorInjuryRates[],
+): ContractorRankEntry[] {
+  return rows
+    .map((r) => {
+      // TRIR contributes up to 60, severity up to 40 — both from real data.
+      let riskScore = 0;
+      riskScore += Math.min(60, r.trir * 6);
+      riskScore += Math.min(40, r.severityRate / 100);
+      riskScore = Math.min(100, Math.round(riskScore));
+
+      let level: ContractorKpi['level'];
+      if (riskScore >= 75) level = 'red';
+      else if (riskScore >= 50) level = 'orange';
+      else if (riskScore >= 25) level = 'yellow';
+      else level = 'green';
+
+      return {
+        contractorId: r.contractorId,
+        legalName: r.contractorName,
+        riskScore,
+        level,
+        trir: Math.round(r.trir * 100) / 100,
+      };
+    })
+    .sort((a, b) => b.riskScore - a.riskScore);
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // Acreditación (§47-48)
 // ────────────────────────────────────────────────────────────────────────
 
