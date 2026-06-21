@@ -15,8 +15,11 @@ import { SafetyMetrics } from './SafetyMetrics';
 import type {
   SafetyMetricsReportResponse,
   UseSafetyMetricsReport,
+  UseOperationalPressure,
+  OperationalPressureResponse,
 } from '../hooks/useSafetyMetrics';
 import { buildSafetyMetricsReport } from '../services/safetyMetrics/osha';
+import { computeOperationalPressure } from '../services/orgMetrics/organizationalMetrics';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -27,8 +30,11 @@ vi.mock('react-i18next', () => ({
 
 let mockSelectedProject: { id: string; name: string } | null = null;
 let mockReport: UseSafetyMetricsReport;
+let mockPressure: UseOperationalPressure;
 const mockCapture = vi.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockCaptureWorkforce = vi.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockRefetch = vi.fn();
+const mockRefetchPressure = vi.fn();
 
 vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: mockSelectedProject }),
@@ -40,8 +46,32 @@ vi.mock('../hooks/useSafetyMetrics', async (orig) => {
     ...actual,
     useSafetyMetricsReport: () => mockReport,
     captureSafetyExposure: (...args: unknown[]) => mockCapture(...args),
+    useOperationalPressure: () => mockPressure,
+    captureWorkforcePeriod: (...args: unknown[]) => mockCaptureWorkforce(...args),
   };
 });
+
+function pressureResponse(captured: boolean): OperationalPressureResponse {
+  if (!captured) {
+    return { captured: false, period: '2026-05', signals: null, report: null };
+  }
+  const signals = {
+    overdueTasks: 0,
+    overtimeHoursWeekTotal: 345,
+    minorIncidentsLast7d: 0,
+    absenteeismRate: 0.15,
+    hasNightShift: false,
+    hasAdverseWeather: false,
+    totalActiveWorkers: 50,
+  };
+  return {
+    captured: true,
+    period: '2026-05',
+    workforce: { absenteeismDays: 200, overtimeHours: 1500, headcount: 50 },
+    signals,
+    report: computeOperationalPressure(signals),
+  };
+}
 
 function reportResponse(totalHoursWorked: number): SafetyMetricsReportResponse {
   const counts = {
@@ -59,12 +89,20 @@ function reportResponse(totalHoursWorked: number): SafetyMetricsReportResponse {
 beforeEach(() => {
   mockSelectedProject = { id: 'p-1', name: 'Obra Norte' };
   mockCapture.mockReset();
+  mockCaptureWorkforce.mockReset();
   mockRefetch.mockReset();
+  mockRefetchPressure.mockReset();
   mockReport = {
     data: reportResponse(0),
     loading: false,
     error: null,
     refetch: mockRefetch,
+  };
+  mockPressure = {
+    data: pressureResponse(false),
+    loading: false,
+    error: null,
+    refetch: mockRefetchPressure,
   };
 });
 
@@ -118,5 +156,68 @@ describe('<SafetyMetrics />', () => {
     expect(screen.getByTestId('safety-metrics-dashboard')).toBeInTheDocument();
     expect(screen.getByTestId('safety-metric-trir')).toBeInTheDocument();
     expect(screen.getByTestId('safety-metric-ltifr')).toBeInTheDocument();
+  });
+
+  // ── Operational pressure section ───────────────────────────────────────
+
+  it('presión operacional: empty-state HONESTO sin dotación (CTA + sin gauge)', () => {
+    render(<SafetyMetrics />);
+    expect(screen.getByTestId('operational-pressure-section')).toBeInTheDocument();
+    expect(screen.getByTestId('workforce-capture-cta')).toBeInTheDocument();
+    expect(screen.getByTestId('operational-pressure-empty')).toBeInTheDocument();
+    // No fabricated gauge when nothing captured.
+    expect(screen.queryByTestId('operational-pressure-gauge')).not.toBeInTheDocument();
+  });
+
+  it('rechaza captura de dotación inválida (headcount 0) sin llamar al endpoint', async () => {
+    render(<SafetyMetrics />);
+    fireEvent.change(screen.getByTestId('workforce-absenteeism-input'), {
+      target: { value: '24' },
+    });
+    fireEvent.change(screen.getByTestId('workforce-overtime-input'), {
+      target: { value: '320' },
+    });
+    // headcount left empty → invalid
+    fireEvent.click(screen.getByTestId('workforce-submit'));
+    await waitFor(() =>
+      expect(screen.getByTestId('workforce-save-error')).toBeInTheDocument(),
+    );
+    expect(mockCaptureWorkforce).not.toHaveBeenCalled();
+  });
+
+  it('capturar dotación llama al endpoint con período + refetch', async () => {
+    mockCaptureWorkforce.mockResolvedValue({ saved: true });
+    render(<SafetyMetrics />);
+    fireEvent.change(screen.getByTestId('workforce-absenteeism-input'), {
+      target: { value: '24' },
+    });
+    fireEvent.change(screen.getByTestId('workforce-overtime-input'), {
+      target: { value: '320' },
+    });
+    fireEvent.change(screen.getByTestId('workforce-headcount-input'), {
+      target: { value: '50' },
+    });
+    fireEvent.click(screen.getByTestId('workforce-submit'));
+    await waitFor(() => expect(mockCaptureWorkforce).toHaveBeenCalledTimes(1));
+    expect(mockCaptureWorkforce).toHaveBeenCalledWith('p-1', {
+      period: expect.any(String),
+      absenteeismDays: 24,
+      overtimeHours: 320,
+      headcount: 50,
+    });
+    expect(mockRefetchPressure).toHaveBeenCalled();
+  });
+
+  it('con dotación capturada renderiza el OperationalPressureGauge real', () => {
+    mockPressure = {
+      data: pressureResponse(true),
+      loading: false,
+      error: null,
+      refetch: mockRefetchPressure,
+    };
+    render(<SafetyMetrics />);
+    expect(screen.getByTestId('operational-pressure-gauge')).toBeInTheDocument();
+    expect(screen.getByTestId('operational-pressure-score')).toBeInTheDocument();
+    expect(screen.queryByTestId('operational-pressure-empty')).not.toBeInTheDocument();
   });
 });

@@ -11,12 +11,15 @@
 // action ("Captura las horas-hombre del período para calcular TRIR/LTIFR").
 
 import { useMemo, useState } from 'react';
-import { Activity, Clock, AlertCircle } from 'lucide-react';
+import { Activity, Clock, AlertCircle, Users } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { SafetyMetricsDashboard } from '../components/safetyMetrics/SafetyMetricsDashboard';
+import { OperationalPressureGauge } from '../components/orgMetrics/OperationalPressureGauge';
 import {
   useSafetyMetricsReport,
   captureSafetyExposure,
+  useOperationalPressure,
+  captureWorkforcePeriod,
 } from '../hooks/useSafetyMetrics';
 
 /** Current month as 'YYYY-MM' for the default period. */
@@ -37,10 +40,65 @@ export function SafetyMetrics() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Operational pressure (workforce strain) — separate capture + engine read.
+  const {
+    data: pressureData,
+    loading: pressureLoading,
+    error: pressureError,
+    refetch: refetchPressure,
+  } = useOperationalPressure(projectId, period);
+  const [absDaysInput, setAbsDaysInput] = useState('');
+  const [overtimeInput, setOvertimeInput] = useState('');
+  const [headcountInput, setHeadcountInput] = useState('');
+  const [wfSaving, setWfSaving] = useState(false);
+  const [wfError, setWfError] = useState<string | null>(null);
+
   const hasExposure = useMemo(
     () => (data?.exposure.totalHoursWorked ?? 0) > 0,
     [data],
   );
+
+  const hasWorkforce = pressureData?.captured === true && pressureData.signals !== null;
+
+  const handleCaptureWorkforce = async () => {
+    if (!projectId) return;
+    const absenteeismDays = Number(absDaysInput);
+    const overtimeHours = Number(overtimeInput);
+    const headcount = Number(headcountInput);
+    if (
+      !Number.isFinite(absenteeismDays) ||
+      absenteeismDays < 0 ||
+      !Number.isFinite(overtimeHours) ||
+      overtimeHours < 0 ||
+      !Number.isFinite(headcount) ||
+      headcount <= 0
+    ) {
+      setWfError('Ingresa días de ausencia, horas extra (≥0) y dotación (mayor a 0).');
+      return;
+    }
+    setWfError(null);
+    setWfSaving(true);
+    try {
+      await captureWorkforcePeriod(projectId, {
+        period,
+        absenteeismDays: Math.round(absenteeismDays),
+        overtimeHours: Math.round(overtimeHours),
+        headcount: Math.round(headcount),
+      });
+      setAbsDaysInput('');
+      setOvertimeInput('');
+      setHeadcountInput('');
+      refetchPressure();
+    } catch (err) {
+      setWfError(
+        err instanceof Error && err.message
+          ? `No se pudo guardar: ${err.message}`
+          : 'No se pudo guardar los datos de dotación. Intenta nuevamente.',
+      );
+    } finally {
+      setWfSaving(false);
+    }
+  };
 
   const handleCapture = async () => {
     if (!projectId) return;
@@ -200,6 +258,133 @@ export function SafetyMetrics() {
           Registramos {data.counts.totalRecordable} incidente(s) recordable(s) en el período.
         </div>
       )}
+
+      {/* ── Operational pressure (workforce strain) ──────────────────── */}
+      <section
+        data-testid="operational-pressure-section"
+        className="space-y-3 border-t border-zinc-200 pt-6 dark:border-zinc-700"
+      >
+        <header>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <Users className="h-5 w-5 text-teal-500" />
+            Presión operacional del período
+          </h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Índice de presión sobre la dotación (ausentismo + horas extra) calculado
+            desde los datos capturados del período. No reemplaza la decisión humana:
+            es una señal de gestión para anticipar fatiga y sobrecarga.
+          </p>
+        </header>
+
+        {/* Workforce capture form */}
+        <div
+          data-testid="workforce-capture-form"
+          className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700"
+        >
+          {!hasWorkforce && (
+            <p
+              data-testid="workforce-capture-cta"
+              className="mb-2 text-sm text-amber-700 dark:text-amber-400"
+            >
+              Captura los datos de dotación del período para calcular la presión operacional.
+            </p>
+          )}
+          {hasWorkforce && pressureData?.workforce && (
+            <p className="mb-2 text-sm text-zinc-500">
+              Registrado: {pressureData.workforce.absenteeismDays} día(s) de ausencia,{' '}
+              {pressureData.workforce.overtimeHours.toLocaleString('es-CL')} h extra,{' '}
+              {pressureData.workforce.headcount} trabajador(es) — puedes actualizarlos.
+            </p>
+          )}
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="block text-sm">
+              <span className="text-zinc-600 dark:text-zinc-400">Días de ausencia (período)</span>
+              <input
+                data-testid="workforce-absenteeism-input"
+                type="number"
+                min="0"
+                inputMode="numeric"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-600 sm:w-40"
+                value={absDaysInput}
+                onChange={(e) => setAbsDaysInput(e.target.value)}
+                placeholder="Ej: 24"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-zinc-600 dark:text-zinc-400">Horas extra (período)</span>
+              <input
+                data-testid="workforce-overtime-input"
+                type="number"
+                min="0"
+                inputMode="numeric"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-600 sm:w-40"
+                value={overtimeInput}
+                onChange={(e) => setOvertimeInput(e.target.value)}
+                placeholder="Ej: 320"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-zinc-600 dark:text-zinc-400">Dotación (trabajadores)</span>
+              <input
+                data-testid="workforce-headcount-input"
+                type="number"
+                min="1"
+                inputMode="numeric"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-600 sm:w-40"
+                value={headcountInput}
+                onChange={(e) => setHeadcountInput(e.target.value)}
+                placeholder="Ej: 50"
+              />
+            </label>
+            <button
+              data-testid="workforce-submit"
+              type="button"
+              disabled={wfSaving}
+              onClick={() => void handleCaptureWorkforce()}
+              className="rounded-lg bg-teal-600 px-4 py-2 font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+            >
+              {wfSaving ? 'Guardando…' : 'Guardar dotación'}
+            </button>
+          </div>
+          {wfError && (
+            <div
+              data-testid="workforce-save-error"
+              className="mt-3 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-400"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0" /> {wfError}
+            </div>
+          )}
+        </div>
+
+        {pressureLoading && (
+          <div data-testid="operational-pressure-loading" className="p-4 text-center text-sm text-zinc-500">
+            Cargando presión operacional…
+          </div>
+        )}
+
+        {pressureError && !pressureLoading && (
+          <div
+            data-testid="operational-pressure-load-error"
+            className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400"
+          >
+            No se pudo cargar la presión operacional ({pressureError.message}).
+          </div>
+        )}
+
+        {hasWorkforce && !pressureLoading && pressureData?.signals && (
+          <OperationalPressureGauge signals={pressureData.signals} />
+        )}
+
+        {!hasWorkforce && !pressureLoading && !pressureError && (
+          <div
+            data-testid="operational-pressure-empty"
+            className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-600"
+          >
+            Sin datos de dotación capturados para {period}: la presión operacional no se
+            puede calcular todavía.
+          </div>
+        )}
+      </section>
     </div>
   );
 }
