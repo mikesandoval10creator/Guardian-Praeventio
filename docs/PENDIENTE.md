@@ -8,15 +8,15 @@
 
 ## Contador maestro
 
-> **Re-verificado 2026-06-19** (recomputado contra el código, no contra el doc). Varias cifras estaban viejas — corregidas abajo. Método: ratchets recomputados + 3 auditorías de verificación (honestidad de pantallas montadas, triage de stubs, catálogo de rutas).
+> **Re-verificado 2026-06-21** (auditoría de 8 bloques recomputada contra el código + app viva). Las cifras del 06-19 ya estaban viejas (decían 89/61); reales abajo. App **viva y sana** en https://guardian-praeventio-dhmmqy7oaq-tl.a.run.app (`/api/health` 200, firestore ok). Detalle nuevo en la sección "Reconciliación 2026-06-21".
 
 | # | Dimensión | Cantidad (verificada 06-19) | Medido | Gate |
 |---|---|---|---|---|
-| A | Huérfanos (construido, sin montar) | **89** (era 126; −37 cerrados) | ✅ ratchet recomputado | ✅ `connectivity-ratchet` (baseline 89) |
+| A | Huérfanos (construido, sin montar) | **39** (era 126→89→39; capture waves) | ✅ ratchet recomputado 06-21 | ✅ `connectivity-ratchet` (baseline 39) |
 | B | Datos fabricados en pantallas montadas | **0 confirmados** (el `WisdomCapsule` era falso positivo — ver detalle); pantallas montadas honestas | ✅ sweep completo + verificado en fuente | ❌ gate honestidad opcional (debe distinguir decorativo de dato-fabricado) |
 | C | Stubs / placeholders | 86 inventario → **~9 accionables** (3 REAL-NEEDED · 3 fail-soft legítimo · 1 bloqueado-externo · 3 entradas STALE) | ✅ triado | 🟡 `stub-guard` (forma, no conexión) |
 | D | Pipelines backend sin construir | 3 | ✅ explícito | ❌ |
-| E | Routers sin test conductual | **61 / 204** (143 verificados; era 67/137) | ✅ ratchet recomputado | ✅ `router-test-ratchet` (baseline 61) |
+| E | Routers sin test conductual | **10 / 205** (195 verificados; era 61/204) | ✅ ratchet recomputado 06-21 | ✅ `router-test-ratchet` (baseline 10) |
 | F | Decisiones del fundador | **6 RESUELTAS 2026-06-20** (RUT F1 confirmado 78.231.119-0) | ✅ resuelto | n/a (decisión) |
 | B0 | Índice de rutas (`api-routes.md`) | **viejo: 43 de 204 rutas** (del 2026-04-28). Generador+gate pendiente | ✅ medido (~1501 decl. de ruta) | ❌ falta generador |
 
@@ -25,6 +25,44 @@
 - **C (stubs) REAL-NEEDED (3):** (1) `src/server/jobs/runB2dMrrSnapshot.ts:15` job sin cron (backend listo) · (2) `src/hooks/useGeofenceWithEvents.ts` hook real sin consumer (panel admin geocercas) · (3) Wi-Fi Direct nativo `packages/capacitor-mesh/.../MeshPlugin.kt:552` + `Plugin.swift:350` (BLE ya real; falta WifiP2pManager/MultipeerConnectivity).
 - **C STALE (3) — quitar del inventario:** SLM mock (ya runtime real), criticalPermitValidators (ya ruteado), SystemEngineProvider (ya montado).
 - **B0 (índice):** OpenAPI registry solo cubre 34 paths (superficie pública B2D, intencional). El catálogo interno real son ~1501 decl. de ruta en 204 routers → mano imposible, requiere generador determinista + gate de frescura.
+
+---
+
+## Reconciliación 2026-06-21 — Auditoría de 8 bloques (código + app viva)
+
+Auditoría profunda (8 sub-agentes, reconciliando código real vs PENDIENTE A–F + TODO.md §2.32–34 + PHASE5 B1–B18 + stubs-inventory). **La app está viva y su núcleo es real; la deuda restante es mayormente comercial/hygiene + claves de consola.** Detalle conversacional con `file:line` en el output del workflow del 06-21.
+
+### Decisiones del fundador (F): MAYORMENTE CONSTRUIDAS, no solo decididas
+- **incidentFlow** → ✅ DONE: hub dedicado `/incident-flow` montado, lista real (`IncidentFlowHub.tsx`).
+- **Ley Karin** → 🟡 PARCIAL: página `ConfidentialReports` montada (`/confidential-reports`), anonimato real, SLA Ley 21.643. **GAP: falta la notificación al project lead** (hoy solo audita + inbox de polling) — `confidentialReports.ts:248`.
+- **Driving** → 🟡 PARCIAL: módulo `/driving` + speed-trigger real (`DrivingSuggestion`) + voz real (`SafeDrivingMode`/`GuardianVoiceAssistant`). **GAP: botones del dock son toast-stub** (persistencia delegada al `SafeDrivingMode` embebido) + `/driving` no está en ningún menú — `Driving.tsx`.
+- **Risk hub** → 🟡 PARCIAL: `/hub/risks` unifica los dirs con guía inductiva IA real. **GAP: stats/equipos/responsabilidades son data DEMO hardcodeada** — `ModuleHub.tsx:47-69,116-119` (esto es dato fabricado en pantalla montada = dimensión B).
+- **3D twin / wisdomCapsules** → 🟡 PARCIAL: `/digital-twin` + `/digital-twin/ar` reales, anchors Firestore reales, cápsulas ZK reales (Sun Tzu solo fallback). **GAP: el link de menú "Gemelo Digital 3D" apunta a `/hub/operations/digital-twin` que NO existe → cae al catch-all (Dashboard); las rutas reales no están en ningún menú** — `sidebarMenuGroups.ts:362`.
+
+### Deuda real ABIERTA por severidad
+**🔴 VIDA-LEGAL**
+- **Crons de re-escalación man-down/lone-worker → ✅ RESUELTO 06-21.** Faltaban (deploy los creaba con SA inexistente + `continue-on-error` → fallo silencioso). Creados manualmente en cowork: SA `climate-scan-sa` + grant tokenCreator al agente de Scheduler + 2 jobs HTTP OIDC en us-central1 (man-down `* * * * *`, lone-worker `*/5`). **Verificado 200 en logs Cloud Run** (21:24/21:25). PENDIENTE follow-up: codificarlos en `infrastructure/terraform/scheduler.tf` para que un re-deploy/DR no dependa de creación manual.
+- F1 Ley Karin notificación al lead (arriba). F4 Driving dock persistencia (arriba).
+- e2e `offline-resilience` + `process-lifecycle` siguen `describe.fixme` (offline en faena = safety) — `tests/e2e/*`.
+- DTE/SII sin claves Bsale → pagos cobrados quedarían sin boleta/factura (solo aplica al cobrar).
+
+**🟠 SEGURIDAD**
+- **App Check ausente** (0 refs; CLAUDE.md lo cita como defensa pero no existe) — `[código]`.
+- **Runtime SA = compute por defecto** (rol Editor, no least-privilege) — `deploy.yml` sin `--service-account` — `[IAM cowork]`.
+- P8 RAG nodos global/community sin gate (self-poisoning) — `networkBackend.ts:62-65`.
+- guard-hang → ✅ resuelto en PR #1107 (falta merge).
+
+**🟡 COMERCIAL** (cuando se venda): MercadoPago (`MP_ACCESS_TOKEN` falta + montar en deploy + `MP_ENV=prod`); Webpay/Khipu en sandbox (faltan claves prod + flags `WEBPAY_ENV`/`KHIPU_ENV`); Apple IAP (iOS in scope, 4 claves); Google Play SA JSON vacío (bloqueado hasta publicar app); pipelines D-SLO y D-compliance-snapshot sin construir; ~17 huérfanos comerciales + 10 routers sin test.
+
+**⚪ HYGIENE**: 39 huérfanos (6 falsos positivos a limpiar del baseline: TaxIdInput, ProjectScopedPage, useSubmit, TwinSceneInstancedLazy, +); any-ratchet 155; tests huecos co-located redundantes (cada router vida-safety YA tiene companion conductual real); 3 `JSON.parse` crudos en `services/gemini/*`.
+
+### Correcciones de doc-drift (esto causaba la incertidumbre)
+- TODO.md header llama "phantom mount" a 3 dashboards → **FALSO**: re-homed a `SafetyMetrics.tsx:314/498/611`, renderizados + ruteados.
+- "cascarón CphsModule.tsx:825" → **FALSO**: container real con handlers cableados.
+- D4 ContractorPerformance "no construido / rama descartada" → **FALSO**: feed real existe (`contractors.ts:235-304,417-485`, montado + test).
+- B11 driving_incidents "sin regla", ClimateRoutes "Calcular Ruta" sin cablear, B10 horometer "bloquea", B13 CriticalRoleCoverageCard "huérfano" → **todos ya resueltos** en código.
+- Secretos: `VITE_FIREBASE_VAPID_KEY` y 18+ secretos = **reales** (verificado en Secret Manager); `RESEND_API_KEY` inválido (len 6) y `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` vacío `{}`.
+- **OJO validate-env NO corre en boot** (sin `prestart`, entrypoint Dockerfile = `tsx server.ts`): el drift deploy.yml↔validate-env NO tumba el arranque (la app vive); solo deja features en fail-closed.
 
 ---
 

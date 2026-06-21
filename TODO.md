@@ -21,10 +21,13 @@
 > `docs/PENDIENTE.md` §"Actualización 2026-06-19" + `docs/PLAN-MAESTRO-HACER-REAL-2026-06-17.md`
 > (▶ 2026-06-19). **YA-RESUELTO** (verificado file:line): #1069 (assetlinks fingerprint + skills),
 > 6 routers VIDA/LEGAL con test conductual, datos-fabricados (twinStateMapper / GamifiedHUD→
-> ZoneAtmospherePanel / Simular-IoT / PortableCurriculum). **VIGENTE**: 3 mounts fantasma
-> (SafetyMetricsDashboard/SpiDashboard/OperationalPressureGauge no renderizan en Dashboard.tsx),
-> cascarón CPHS (`CphsModule.tsx:825`), 4 PRs MiMo problemáticos, iOS mesh >512B, proximity null,
-> DTE firma, WebAuthn E2E. No abrir listas nuevas — trabajar desde PENDIENTE.md.
+> ZoneAtmospherePanel / Simular-IoT / PortableCurriculum). **CORREGIDO 2026-06-21** (auditoría 8-bloques): los "3 mounts fantasma" eran FALSO —
+> SafetyMetricsDashboard/SpiDashboard/OperationalPressureGauge SÍ renderizan en
+> `SafetyMetrics.tsx:314/498/611` (re-homed + ruteado); el "cascarón CPHS `CphsModule.tsx:825`" era
+> FALSO (container real con handlers). **VIGENTE real**: crons re-escalación ✅ creados+verificados (06-21);
+> Ley Karin sin notif-al-lead, Driving dock toast-stub, RiskHub stats demo, link 3D-twin roto, App Check
+> ausente, runtime SA amplio, proximity null, iOS IAP/Apple keys, DTE claves. Detalle en
+> `docs/PENDIENTE.md` §"Reconciliación 2026-06-21". No abrir listas nuevas — trabajar desde PENDIENTE.md.
 
 ---
 
