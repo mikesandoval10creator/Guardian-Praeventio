@@ -36,7 +36,6 @@
     "src/server/routes/pricingSimulator.ts",
     "src/server/routes/privacyShield.ts",
     "src/server/routes/projectComparator.ts",
-    "src/server/routes/push.ts",
     "src/server/routes/pymeOnboarding.ts",
     "src/server/routes/pymeWizard.ts",
     "src/server/routes/raciMatrix.ts",
