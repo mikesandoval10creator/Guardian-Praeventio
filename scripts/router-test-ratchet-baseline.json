@@ -34,7 +34,6 @@
     "src/server/routes/portfolioLessons.ts",
     "src/server/routes/pricingCalculator.ts",
     "src/server/routes/pricingSimulator.ts",
-    "src/server/routes/privacyShield.ts",
     "src/server/routes/projectComparator.ts",
     "src/server/routes/pymeOnboarding.ts",
     "src/server/routes/pymeWizard.ts",
