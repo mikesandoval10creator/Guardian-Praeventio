@@ -1239,6 +1239,11 @@ service cloud.firestore {
       // performance-index-integrity attack — make the crew look compliant by
       // shrinking the denominator). Client-denial + member-read exercised by
       // src/rules-tests/safetyPlanPeriods.rules.test.ts.
+      allow read: if isEmailVerified()
+        && existing().projectId is string
+        && isProjectMember(existing().projectId);
+      allow create, update, delete: if false; // server-only via Admin SDK
+    }
 
     match /ufRates/{docId} {
       // Cached UF (Unidad de Fomento) rate, written ONLY by the daily
