@@ -33,6 +33,7 @@ import type {
   MaturityCategory,
 } from '../services/maturity/preventionMaturityIndex';
 import { MaturityIndexCard } from '../components/maturity/MaturityIndexCard';
+import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
 
 // ─────────────────────────────────────────────────────────────────────
 // Display tokens — level → name + color + tagline
@@ -320,6 +321,9 @@ export function MaturityIndicator(): ReactElement {
           recommendations={data.recommendations ?? []}
         />
       )}
+
+      {/* ── Reference catalog: ISO 45001:2018 clauses (deterministic KB) ── */}
+      <Iso45001Catalog />
     </div>
   );
 }

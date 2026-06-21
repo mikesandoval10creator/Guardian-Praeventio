@@ -1,4 +1,9 @@
 {
+  "iso45001": {
+    "aria": "ISO 45001 catalog",
+    "coverage": "coverage",
+    "openStandard": "Open standard"
+  },
   "fiveS": {
     "aria": "5S audit",
     "title": "5S Audit",
