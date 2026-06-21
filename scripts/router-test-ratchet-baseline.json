@@ -8,7 +8,6 @@
     "src/server/routes/agenda.ts",
     "src/server/routes/aggregateTelemetry.ts",
     "src/server/routes/aiToggle.ts",
-    "src/server/routes/auditChain.ts",
     "src/server/routes/b2d/index.ts",
     "src/server/routes/bbs.ts",
     "src/server/routes/circadian.ts",
