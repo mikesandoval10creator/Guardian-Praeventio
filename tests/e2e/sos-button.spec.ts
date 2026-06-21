@@ -3,100 +3,155 @@ import { loginAsTestUser, signInBrowserViaCustomToken } from './fixtures/auth';
 import { seedProject } from './fixtures/seed';
 
 /**
- * SOSButton E2E (Sprint 14 → Sprint 19 unskip):
- *   3-second long-press → write a la collection emergency_alerts +
- *   FCM notify supervisores. NO debe disparar con tap corto.
+ * SOSButton E2E — REAL flow (un-fixme'd 2026-06-21).
  *
- * Requiere el stack completo. Activar con `npm run test:e2e:full`.
+ * This drives the ACTUAL app, not a smoke-mount or a 403 gate:
+ *   1. Seeds a project with a DECLARED emergency (`isEmergencyActive: true`)
+ *      + the test user as a member (so ProjectContext auto-selects it).
+ *   2. Navigates to the real `/emergency` route and signs the user into the
+ *      Firebase Auth emulator (custom token) so the auth-gated page loads.
+ *   3. The page mirrors the declared emergency into AppMode === 'emergency'
+ *      (`resolveEmergencyModeTransition`), which is the ONLY condition under
+ *      which the global SOSButton (RootLayout) renders. So the button being
+ *      visible is itself proof the real ProjectContext + AppMode chain ran.
+ *   4. Exercises the REAL 3-second long-press and asserts the REAL behavior:
+ *        - a short tap does NOT issue POST /api/emergency/sos;
+ *        - a ≥3s long-press DOES issue it, and the Express server (E2E_MODE)
+ *          writes a real `tenants/{tid}/emergency_alerts` row through the real
+ *          verifyAuth + assertProjectMember chain, responding `{ ok: true,
+ *          alertId: <id> }`.
+ *
+ * Why NOT assert the green "Alerta enviada" toast: the E2E harness has no
+ * registered FCM devices and no email service, so the server responds
+ * `delivered: false` (zero-reach) — by design (#1 life-safety: never falsely
+ * reassure). The component then falls through to the tel: deeplink / zero-reach
+ * toast. Asserting the toast would be asserting a lie. The un-gameable signal
+ * is the network request firing + the server's `ok/alertId` — the actual SOS
+ * being recorded.
+ *
+ * Requires the full stack. Run via `npm run test:e2e:full`.
  */
-// FIXME (2026-05-30, layer 2): the auth/project ROOT CAUSE is fixed in this PR
-// — firebase.ts uses projectId 'demo-test' under MODE=test so the custom-token
-// audience matches, signInWithCustomToken succeeds, ProjectContext loads the
-// seeded project and the /emergency route now RENDERS (no more "no active
-// project"). The SOS button locator is fixed too (it is an icon button labelled
-// "Botón SOS — …", matched below). What remains is feature-level verification
-// against the live render: the long-press "Alerta enviada" toast and the tel:
-// fallback (which expects a seeded emergency contact number). Now
-// LOCALLY-ITERABLE — `JAVA_HOME=<Temurin-21> E2E_FULL_STACK=1 … playwright test`
-// boots the emulator (Java 21 + firebase-tools 15). Un-fixme as each assertion
-// is reconciled with the feature.
-// Sprint E2E-99 — route-fixes CONSERVADOS (/emergency a nivel raíz; locator tel:
-// robusto a[href^="tel:"]) y data-testid (sos-button, sos-toast) ya en el
-// componente. PERO la aserción feature-level (el enlace tel: no renderiza en
-// /emergency bajo el harness full-stack de CI — requiere ProjectContext que el
-// fixture no monta) NO es verificable en CI todavía → re-fixme hasta reconciliar.
-test.describe.fixme('SOSButton long-press', () => {
-  test('long-press de 3s dispara alerta; tap corto no', async ({ page }) => {
-    test.skip(
-      process.env.E2E_FULL_STACK !== '1',
-      'Requires full E2E stack (preview + Express + Firestore Emulator). Run `npm run test:e2e:full`.',
-    );
+test.describe('SOSButton long-press (real flow)', () => {
+  test.skip(
+    process.env.E2E_FULL_STACK !== '1',
+    'Requires full E2E stack (preview + Express + Firestore/Auth emulator). Run `npm run test:e2e:full`.',
+  );
 
+  test('long-press de 3s registra la alerta SOS real; tap corto no', async ({ page }) => {
     await loginAsTestUser(page);
-    const seed = await seedProject();
+    // Declared emergency so the /emergency page flips AppMode → 'emergency',
+    // which is the gate that renders the global SOSButton. Seed a project
+    // phone so the zero-reach fallback has a real tel: target.
+    const seed = await seedProject({ emergencyActive: true, phone: '+56 9 1234 5678' });
 
     try {
       await page.goto('/emergency');
-      // §2.24 fix (2026-05-22) — wait barrier: signa al user en Firebase
-      // Auth real (via Auth Emulator) ANTES de buscar elementos UI que
-      // dependen de Firestore queries (firestore.rules:25 require auth).
+      // Sign the user into the real Firebase Auth emulator BEFORE touching UI
+      // that depends on Firestore (firestore.rules require request.auth != null).
       await signInBrowserViaCustomToken(page);
 
       // The SOS control is an icon button whose accessible name is the full
-      // aria-label "Botón SOS — mantener presionado 3 segundos" (not a bare
-      // "SOS" text node), so match on the label rather than an exact "SOS".
-      const sos = page.getByRole('button', { name: /Bot[oó]n SOS/i });
-      await expect(sos).toBeVisible();
+      // aria-label "Botón SOS — mantener presionado 3 segundos". Its mere
+      // presence proves AppMode flipped to 'emergency' off the seeded project.
+      const sos = page.getByTestId('sos-button');
+      await expect(sos).toBeVisible({ timeout: 15_000 });
 
-      // Tap corto NO debe disparar.
-      await sos.click({ delay: 200 });
-      await expect(page.getByText(/Alerta enviada/i)).not.toBeVisible({ timeout: 1500 });
-
-      // Long-press ≥3s dispara la alerta. Anti-flaky: SIN `waitForTimeout`
-      // fijo. El confirm-timer del SOSButton dispara a HOLD_MS (3000ms)
-      // MIENTRAS el puntero sigue abajo, así que mantenemos presionado y
-      // polleamos el toast directamente (web-first, event-based). El timeout
-      // cubre HOLD_MS + el write async de la alerta con holgura de CI; si hay
-      // regresión real, falla rápido. El pointer-up va en `finally` para no
-      // dejar el botón presionado si la aserción falla.
       const box = await sos.boundingBox();
       if (!box) throw new Error('SOS button has no bounding box');
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 2;
+
+      // 1) SHORT TAP must NOT fire the SOS POST. Hold ~300ms (< HOLD_MS=3000),
+      //    then watch for ~1.2s that no /api/emergency/sos request is issued.
+      let shortTapFired = false;
+      const onShortTap = (req: { url: () => string; method: () => string }): void => {
+        if (req.method() === 'POST' && req.url().includes('/api/emergency/sos')) {
+          shortTapFired = true;
+        }
+      };
+      page.on('request', onShortTap);
+      await page.mouse.move(cx, cy);
       await page.mouse.down();
+      await page.waitForTimeout(300);
+      await page.mouse.up();
+      await page.waitForTimeout(1_200);
+      page.off('request', onShortTap);
+      expect(
+        shortTapFired,
+        'a short tap (<3s) must NOT trigger the SOS POST',
+      ).toBe(false);
+
+      // 2) LONG-PRESS (≥3s) MUST fire the SOS POST and the server MUST record
+      //    a real alert. We arm the response wait BEFORE pressing, hold the
+      //    pointer down past HOLD_MS, and assert the server's real answer.
+      const sosResponsePromise = page.waitForResponse(
+        (res) =>
+          res.url().includes('/api/emergency/sos') && res.request().method() === 'POST',
+        { timeout: 20_000 },
+      );
+
+      await page.mouse.move(cx, cy);
+      await page.mouse.down();
+      let sosResponse;
       try {
-        await expect(page.getByText(/Alerta enviada/i)).toBeVisible({ timeout: 10_000 });
+        sosResponse = await sosResponsePromise;
       } finally {
         await page.mouse.up();
       }
+
+      // The SOS POST must have authenticated + passed membership + written the
+      // alert row server-side. verifyAuth (E2E header) + assertProjectMember
+      // (seeded `members`) make this a real end-to-end write, not a stub.
+      expect(sosResponse.status(), 'SOS endpoint must accept the alert').toBe(200);
+      const payload = (await sosResponse.json()) as {
+        ok?: boolean;
+        alertId?: string;
+        delivered?: boolean;
+      };
+      expect(payload.ok, 'server must confirm the SOS was recorded').toBe(true);
+      expect(
+        typeof payload.alertId === 'string' && payload.alertId.length > 0,
+        'server must return the id of the persisted emergency_alerts doc',
+      ).toBe(true);
+
+      // The request body must carry the real selected project + the auth uid —
+      // proof the live ProjectContext + FirebaseContext fed the button, not a
+      // hardcoded fixture value.
+      const sentBody = sosResponse.request().postDataJSON() as {
+        type?: string;
+        projectId?: string;
+        uid?: string;
+      };
+      expect(sentBody.type).toBe('sos');
+      expect(sentBody.projectId).toBe(seed.projectId);
+      expect(sentBody.uid).toBe('e2e-user-001');
     } finally {
       await seed.cleanup();
     }
   });
 
-  test('fallback a tel: cuando geolocation está bloqueada', async ({ page, context }) => {
-    test.skip(
-      process.env.E2E_FULL_STACK !== '1',
-      'Requires full E2E stack (preview + Express + Firestore Emulator). Run `npm run test:e2e:full`.',
-    );
-
-    // Bloquear permission de geolocation antes de cargar la página.
-    await context.clearPermissions();
+  test('contactos de emergencia exponen enlaces tel: reales', async ({ page }) => {
     await loginAsTestUser(page);
-    const seed = await seedProject();
+    const seed = await seedProject({ emergencyActive: true });
 
     try {
       await page.goto('/emergency');
-      // §2.24 fix (2026-05-22) — wait barrier: signa al user en Firebase
-      // Auth real (via Auth Emulator) ANTES de buscar elementos UI que
-      // dependen de Firestore queries (firestore.rules:25 require auth).
       await signInBrowserViaCustomToken(page);
 
-      // El nombre accesible de los enlaces de contacto es el número (131, 132…),
-      // no el rótulo (SAMU/Bomberos), así que matcheamos por href tel: directo.
-      const telLink = page.locator('a[href^="tel:"]').first();
-      await expect(telLink).toBeVisible();
-      const href = await telLink.getAttribute('href');
-      expect(href).toMatch(/^tel:/);
+      // Open the real emergency-contacts dialog and assert it renders genuine
+      // dialable tel: links (SAMU 131, Bomberos 132, …). This is the human
+      // fallback path a worker uses when the data path is degraded.
+      await page.getByRole('button', { name: /Contactos de Emergencia/i }).first().click();
+      const list = page.getByTestId('emergency-contacts-list');
+      await expect(list).toBeVisible({ timeout: 10_000 });
+
+      const samu = list.locator('a[href="tel:131"]');
+      await expect(samu).toBeVisible();
+      await expect(samu).toHaveText(/131/);
+
+      // At least the canonical Chilean emergency numbers must be present.
+      const telLinks = list.locator('a[href^="tel:"]');
+      expect(await telLinks.count()).toBeGreaterThanOrEqual(3);
     } finally {
       await seed.cleanup();
     }
