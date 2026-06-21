@@ -57,7 +57,10 @@ const auth = { Authorization: 'Bearer u1' };
 
 // supertest's default parser is text; for the binary PDF responses we collect
 // raw chunks ourselves so we can assert on the real bytes.
-function pdfParser(res: import('http').IncomingMessage, cb: (err: Error | null, body: Buffer) => void) {
+// ponytail: `res` is the raw http.IncomingMessage at runtime, but supertest's
+// `.parse()` Parser type declares superagent's Response — typed `any` so the
+// stream API (.on) works at runtime while satisfying the .parse() signature.
+function pdfParser(res: any, cb: (err: Error | null, body: Buffer) => void) {
   const chunks: Buffer[] = [];
   res.on('data', (c: Buffer) => chunks.push(c));
   res.on('end', () => cb(null, Buffer.concat(chunks)));
