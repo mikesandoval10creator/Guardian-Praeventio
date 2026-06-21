@@ -5,10 +5,11 @@
   "uncovered_count": 33,
   "uncovered": [
     "src/server/routes/adoption.ts",
+    "src/server/routes/agenda.ts",
     "src/server/routes/aggregateTelemetry.ts",
     "src/server/routes/aiToggle.ts",
     "src/server/routes/b2d/index.ts",
-    "src/server/routes/circadian.ts",
+    "src/server/routes/bbs.ts",
     "src/server/routes/climateAwareScheduling.ts",
     "src/server/routes/coachRag.ts",
     "src/server/routes/commsDrill.ts",
