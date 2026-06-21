@@ -4471,6 +4471,13 @@
       "title": "IPER 5x5 Matrix",
       "subtitle": "Estimate the risk level (probability × severity) and the residual after applying controls. Guidance only — the team decides."
     },
+    "landscape": {
+      "title": "Project risk landscape",
+      "noProject": "Select a project to see the landscape of assessed risks.",
+      "loading": "Loading IPER assessments…",
+      "error": "Could not load the risk landscape. Please try again.",
+      "empty": "No IPER assessments saved in this project yet. Once you record one, it will appear here on the 5×5 matrix."
+    },
     "aria": "IPER 5x5 matrix",
     "controlHigh": "High",
     "controlLow": "Low",
