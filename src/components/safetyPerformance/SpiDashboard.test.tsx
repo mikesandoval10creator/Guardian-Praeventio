@@ -82,6 +82,7 @@ describe('<SpiDashboard />', () => {
             plannedInspectionsRate: false,
             dailyTalksDeliveryRate: false,
             trainingCurrencyRate: false,
+            laggingEmpty: false,
           },
         }}
       />,
@@ -104,6 +105,7 @@ describe('<SpiDashboard />', () => {
             plannedInspectionsRate: true,
             dailyTalksDeliveryRate: false,
             trainingCurrencyRate: true,
+            laggingEmpty: false,
           },
         }}
       />,
