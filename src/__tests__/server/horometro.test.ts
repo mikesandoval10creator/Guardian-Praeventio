@@ -569,6 +569,103 @@ describe('GET /:projectId/horometro/equipment/:eqId/maintenance-tasks', () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
+// 2b. GET /:projectId/horometro/equipment/:eqId/status
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('GET /:projectId/horometro/equipment/:eqId/status', () => {
+  const url = (pid = 'proj-1', eqId = 'eq-1') =>
+    `${PREFIX}/${pid}/horometro/equipment/${eqId}/status`;
+
+  it('401 — missing x-test-uid', async () => {
+    const res = await request(buildApp()).get(url());
+    expect(res.status).toBe(401);
+  });
+
+  it('400 — eqId > 200 chars → invalid_equipment_id', async () => {
+    seedProject();
+    const longId = 'x'.repeat(201);
+    const res = await request(buildApp())
+      .get(url('proj-1', longId))
+      .set('x-test-uid', 'uid-1');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_equipment_id');
+  });
+
+  it('403 — caller not a project member', async () => {
+    H.db!._seed('projects/proj-1', {
+      tenantId: 'tenant-1',
+      members: ['uid-other'],
+      createdBy: 'uid-other',
+    });
+    const res = await request(buildApp()).get(url()).set('x-test-uid', 'uid-1');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+  });
+
+  it('404 — equipment not found → equipment_not_found', async () => {
+    seedProject();
+    // No equipment seeded.
+    const res = await request(buildApp()).get(url()).set('x-test-uid', 'uid-1');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('equipment_not_found');
+  });
+
+  it('200 — derives currentHours from latest reading and lastMaintenanceAtHours from completed task (real data)', async () => {
+    seedProject();
+    seedEquipment('tenant-1', 'proj-1', 'eq-1', 'compresor');
+    // Real latest reading at 1700h.
+    H.db!._seed('tenants/tenant-1/projects/proj-1/equipment/eq-1/horometro_readings/r1', {
+      equipmentId: 'eq-1',
+      hours: 1700,
+      source: 'iot',
+      recordedAt: new Date().toISOString(),
+    });
+    // Real completed task → last maintenance at 1000h.
+    H.db!._seed('tenants/tenant-1/projects/proj-1/maintenance_tasks/mt1', {
+      equipmentId: 'eq-1',
+      status: 'completed',
+      triggeredAtHours: 1000,
+      completion: { horometroAtCompletion: 1000 },
+    });
+
+    const res = await request(buildApp()).get(url()).set('x-test-uid', 'uid-1');
+
+    expect(res.status).toBe(200);
+    // compresor's largest manufacturer cycle is 2000h → policy cycle.
+    expect(res.body.policy.cycleHours).toBe(2000);
+    expect(res.body.horometer.currentHours).toBe(1700);
+    expect(res.body.horometer.lastMaintenanceAtHours).toBe(1000);
+    expect(res.body.horometer.machineId).toBe('eq-1');
+    // status is derived by the engine: 700h since last maintenance of a 2000h
+    // cycle → OK (no threshold triggered yet).
+    expect(res.body.status.hoursSinceLastMaintenance).toBe(700);
+    expect(res.body.status.triggeredThreshold).toBeNull();
+  });
+
+  it('200 — no readings yet → currentHours 0, last maintenance 0, honest OK status', async () => {
+    seedProject();
+    seedEquipment('tenant-1', 'proj-1', 'eq-1', 'compresor');
+
+    const res = await request(buildApp()).get(url()).set('x-test-uid', 'uid-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.horometer.currentHours).toBe(0);
+    expect(res.body.horometer.lastMaintenanceAtHours).toBe(0);
+    expect(res.body.status.hoursSinceLastMaintenance).toBe(0);
+  });
+
+  it('200 — unmapped equipment type falls back to conservative 250h cycle', async () => {
+    seedProject();
+    seedEquipment('tenant-1', 'proj-1', 'eq-1', 'tipo_no_mapeado');
+
+    const res = await request(buildApp()).get(url()).set('x-test-uid', 'uid-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.policy.cycleHours).toBe(250);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
 // 3. POST /:projectId/horometro/maintenance-task/:taskId/complete
 // ═════════════════════════════════════════════════════════════════════════════
 

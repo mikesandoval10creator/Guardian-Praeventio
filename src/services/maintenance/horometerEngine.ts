@@ -58,6 +58,31 @@ export interface MaintenancePolicy {
 // Default policy presets (ajustables por máquina)
 // ────────────────────────────────────────────────────────────────────────
 
+/**
+ * Deriva la política de mantención (ciclo + thresholds escalonados) a partir
+ * de los ciclos REALES del fabricante para un tipo de equipo
+ * (`MAINTENANCE_CYCLES_BY_TYPE` en horometroService). Usamos el ciclo MAYOR
+ * (la mantención mayor/overhaul) como el ciclo de referencia del horómetro,
+ * porque es el que marca la ventana obligatoria más larga. Los thresholds
+ * 85/95/100% de `buildDefaultPolicy` escalan dentro de ese ciclo.
+ *
+ * No fabrica datos: si el tipo no está mapeado, `getMaintenanceThresholds`
+ * cae al ciclo conservador por defecto (250h) — el mismo que usa el flow ZK.
+ */
+export function buildPolicyForEquipmentType(
+  equipmentType: string,
+  getCycles: (type: string) => Array<{ cycleHours: number }>,
+): MaintenancePolicy {
+  const cycles = getCycles(equipmentType);
+  const maxCycle = cycles.reduce(
+    (max, c) => (c.cycleHours > max ? c.cycleHours : max),
+    0,
+  );
+  // getCycles siempre devuelve al menos el ciclo por defecto (>0); este
+  // fallback es defensivo por si un caller inyecta una tabla vacía.
+  return buildDefaultPolicy(maxCycle > 0 ? maxCycle : 250);
+}
+
 export function buildDefaultPolicy(cycleHours: number): MaintenancePolicy {
   return {
     cycleHours,

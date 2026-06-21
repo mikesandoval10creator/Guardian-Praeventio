@@ -4941,6 +4941,14 @@
       "registerReading": "Registrar leitura do horímetro"
     }
   },
+  "horometer": {
+    "aria": "Estado do horímetro",
+    "cycle": "Ciclo",
+    "mandatoryOverdue": "Manutenção obrigatória vencida — recomenda-se parar e concluí-la antes de continuar operando.",
+    "schedule": "Agendar",
+    "statusLoading": "Carregando estado do horímetro…",
+    "statusError": "Não conseguimos carregar o estado do horímetro. Registre uma leitura para vê-lo."
+  },
   "horometro": {
     "title": "Horímetro",
     "aria": "Reportar horímetro",
