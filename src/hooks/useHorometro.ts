@@ -21,6 +21,11 @@ import type {
 import type {
   OnHorometroReadingResult,
 } from '../services/zettelkasten/flows/horometroMaintenanceFlow';
+import type {
+  HorometerStatus,
+  MachineHorometer,
+  MaintenancePolicy,
+} from '../services/maintenance/horometerEngine';
 
 async function authedFetch(
   path: string,
@@ -98,6 +103,26 @@ export async function listMaintenanceTasks(
     { method: 'GET' },
   );
   return json<ListMaintenanceTasksResponse>(res);
+}
+
+// ── 2b. horometer status (state of one machine) ─────────────────────
+
+export interface HorometerStatusResponse {
+  horometer: MachineHorometer;
+  policy: MaintenancePolicy;
+  status: HorometerStatus;
+}
+
+export async function getHorometerStatus(
+  projectId: string,
+  equipmentId: string,
+): Promise<HorometerStatusResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${encodeURIComponent(projectId)}/horometro/equipment/` +
+      `${encodeURIComponent(equipmentId)}/status`,
+    { method: 'GET' },
+  );
+  return json<HorometerStatusResponse>(res);
 }
 
 // ── 3. complete maintenance task ────────────────────────────────────

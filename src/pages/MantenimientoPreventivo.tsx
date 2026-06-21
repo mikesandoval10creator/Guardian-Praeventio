@@ -16,7 +16,7 @@
 // alimenta esta misma lista. (El mismo formulario se usa tras escanear el QR
 // del equipo en el flujo móvil full-screen.)
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Wrench, WifiOff, Gauge } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -24,6 +24,74 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useEquipment } from '../hooks/useEquipment';
 import { MaintenanceTaskList } from '../components/horometro/MaintenanceTaskList';
 import { HorometroEntryForm } from '../components/horometro/HorometroEntryForm';
+import { HorometerStatusCard } from '../components/maintenance/HorometerStatusCard';
+import {
+  getHorometerStatus,
+  type HorometerStatusResponse,
+} from '../hooks/useHorometro';
+
+// Carga el estado REAL del horómetro del equipo (horas acumuladas vs. ciclo
+// de mantención) desde GET /horometro/equipment/:eqId/status y lo renderiza
+// con <HorometerStatusCard />. `reloadKey` cambia tras una nueva lectura para
+// reflejar el progreso actualizado. `load` es inyectable para tests.
+function HorometerStatusSection({
+  projectId,
+  equipmentId,
+  reloadKey,
+  load = getHorometerStatus,
+}: {
+  projectId: string;
+  equipmentId: string;
+  reloadKey: number;
+  load?: typeof getHorometerStatus;
+}) {
+  const { t } = useTranslation();
+  const [state, setState] = useState<
+    | { kind: 'loading' }
+    | { kind: 'loaded'; data: HorometerStatusResponse }
+    | { kind: 'error'; message: string }
+  >({ kind: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ kind: 'loading' });
+    load(projectId, equipmentId)
+      .then((data) => {
+        if (!cancelled) setState({ kind: 'loaded', data });
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setState({ kind: 'error', message: err.message ?? 'load_failed' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, equipmentId, reloadKey, load]);
+
+  if (state.kind === 'loading') {
+    return (
+      <p
+        className="text-xs text-secondary-token px-1"
+        data-testid="horometer-status-loading"
+      >
+        {t('horometer.statusLoading', 'Cargando estado del horómetro…')}
+      </p>
+    );
+  }
+  if (state.kind === 'error') {
+    return (
+      <p
+        className="text-xs text-secondary-token px-1"
+        data-testid="horometer-status-error"
+      >
+        {t(
+          'horometer.statusError',
+          'No pudimos cargar el estado del horómetro. Registra una lectura para verlo.',
+        )}
+      </p>
+    );
+  }
+  return <HorometerStatusCard horometer={state.data.horometer} policy={state.data.policy} />;
+}
 
 export function MantenimientoPreventivo() {
   const { t } = useTranslation();
@@ -35,6 +103,7 @@ export function MantenimientoPreventivo() {
   const equipment = equipmentData?.equipment ?? [];
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>('');
   const [reading, setReading] = useState(false);
+  const [statusReloadKey, setStatusReloadKey] = useState(0);
 
   const selectedEquipment = equipment.find((eq) => eq.id === selectedEquipmentId) ?? null;
 
@@ -137,6 +206,11 @@ export function MantenimientoPreventivo() {
               {t('maintenance.page.registerReading', 'Registrar lectura de horómetro')}
             </button>
           </div>
+          <HorometerStatusSection
+            projectId={projectId}
+            equipmentId={selectedEquipment.id}
+            reloadKey={statusReloadKey}
+          />
           <MaintenanceTaskList projectId={projectId} equipmentId={selectedEquipment.id} />
         </>
       ) : (
@@ -161,8 +235,10 @@ export function MantenimientoPreventivo() {
             onSubmitted={() => {
               // The reading may have crossed a maintenance threshold and created
               // tasks; refetch equipment so any status change (e.g. nextMaintenanceAt)
-              // is reflected when the operator closes the overlay.
+              // is reflected when the operator closes the overlay, and bump the
+              // status reload key so the horometer card re-fetches its progress.
               refetch();
+              setStatusReloadKey((k) => k + 1);
             }}
             onCancel={() => setReading(false)}
           />

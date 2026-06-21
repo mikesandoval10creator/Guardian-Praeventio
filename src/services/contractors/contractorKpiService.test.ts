@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeContractorKpi,
   rankContractorsByRisk,
+  rankContractorRowsByInjuryRate,
   buildAcreditationGapReport,
   type ContractorPerformance,
 } from './contractorKpiService.js';
@@ -19,6 +20,24 @@ function perf(over: Partial<ContractorPerformance> & { contractorId: string }): 
     documentationCurrentRate: over.documentationCurrentRate ?? 1,
   };
 }
+
+describe('rankContractorRowsByInjuryRate', () => {
+  it('ordena por riesgo (peor TRIR/severidad primero) y banda según umbral', () => {
+    const ranked = rankContractorRowsByInjuryRate([
+      { contractorId: 'safe', contractorName: 'Safe', trir: 0, severityRate: 0 },
+      { contractorId: 'risky', contractorName: 'Risky', trir: 14, severityRate: 4000 },
+    ]);
+    expect(ranked[0].contractorId).toBe('risky');
+    expect(ranked[0].level).toBe('red');
+    expect(ranked[1].level).toBe('green');
+    // TRIR se preserva desde el dato real (redondeado), no se recalcula.
+    expect(ranked[0].trir).toBe(14);
+  });
+
+  it('lista vacía → ranking vacío (sin filas fabricadas)', () => {
+    expect(rankContractorRowsByInjuryRate([])).toEqual([]);
+  });
+});
 
 describe('computeContractorKpi', () => {
   it('contratista limpio → green', () => {

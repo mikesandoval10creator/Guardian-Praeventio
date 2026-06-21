@@ -1,4 +1,4 @@
-// Praeventio Guard — Behavior-Based Safety client hook (2 mutators).
+// Praeventio Guard — Behavior-Based Safety client hooks (2 mutators + 1 reader).
 
 import type {
   BbsObservation,
@@ -7,6 +7,7 @@ import type {
   BehaviorOutcome,
 } from '../services/behaviorObservation/bbsObservationEngine';
 import { apiAuthHeaders } from '../lib/apiAuth';
+import { useEndpoint } from './_fetchUtils';
 
 async function authedFetch(
   path: string,
@@ -85,4 +86,21 @@ export async function buildBbsProfile(
     { method: 'POST', body: JSON.stringify(input) },
   );
   return json<BuildBbsProfileResponse>(res);
+}
+
+// ── 3. profile (GET — reads REAL persisted observations) ────────────────
+
+export interface BbsProfileResponse {
+  profile: BbsProfile;
+}
+
+/**
+ * Reads the project's BBS profile computed server-side from the REAL persisted
+ * observations within the trailing `days`-day window. Returns `{ data, loading,
+ * error, refetch }`. `null` projectId disables the fetch (no project selected).
+ */
+export function useBbsProfile(projectId: string | null, days = 30) {
+  return useEndpoint<BbsProfileResponse>(
+    projectId ? `/api/sprint-k/${projectId}/bbs/profile?days=${days}` : null,
+  );
 }

@@ -30,7 +30,10 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
-import { EquipmentAdapter } from '../../services/equipment/equipmentFirestoreAdapter.js';
+import {
+  EquipmentAdapter,
+  type EquipmentFirestoreDb,
+} from '../../services/equipment/equipmentFirestoreAdapter.js';
 import {
   recordReading,
   getCurrentHours,
@@ -46,6 +49,13 @@ import {
   type MaintenanceTask,
   type MaintenanceTaskStore,
 } from '../../services/maintenance/maintenanceScheduler.js';
+import { getMaintenanceThresholds } from '../../services/horometro/horometroService.js';
+import {
+  assessHorometerStatus,
+  buildPolicyForEquipmentType,
+  type MachineHorometer,
+  type MaintenancePolicy,
+} from '../../services/maintenance/horometerEngine.js';
 import {
   onHorometroReading,
   onMaintenanceCompleted,
@@ -429,6 +439,66 @@ router.post(
     } catch (err) {
       logger.error?.('horometro.completeTask.error', err);
       captureRouteError(err, 'horometro.completeTask', { callerUid, projectId });
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ── 4. GET /:projectId/horometro/equipment/:eqId/status ──────────────
+//
+// Estado del horómetro de UN equipo: horas acumuladas reales (max de
+// lecturas), horas de la última mantención completada (real, no fabricado)
+// y la política derivada de los ciclos del fabricante para su tipo. Todo
+// se calcula con datos persistidos — sin Math.random, sin ceros inventados.
+// Read-only: solo verifyAuth + assertProjectMember (vía guard). Vida-safety
+// adyacente (mantención preventiva), NO tier-gated.
+
+router.get(
+  '/:projectId/horometro/equipment/:eqId/status',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, eqId } = req.params;
+    if (!eqId || eqId.length < 1 || eqId.length > 200) {
+      return res.status(400).json({ error: 'invalid_equipment_id' });
+    }
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    const db = admin.firestore() as admin.firestore.Firestore;
+    try {
+      const eqAdapter = new EquipmentAdapter(
+        db as unknown as EquipmentFirestoreDb,
+        g.tenantId,
+        projectId,
+      );
+      const equipment = await eqAdapter.getById(eqId);
+      if (!equipment) {
+        return res.status(404).json({ error: 'equipment_not_found' });
+      }
+      const horoStore = buildHorometroStore(db);
+      const currentHours = await getCurrentHours(
+        { tenantId: g.tenantId, projectId, equipmentId: eqId },
+        horoStore,
+      );
+      const lastMaintenanceAtHours = await horoStore.getLastMaintenanceHours({
+        tenantId: g.tenantId,
+        projectId,
+        equipmentId: eqId,
+      });
+      const policy: MaintenancePolicy = buildPolicyForEquipmentType(
+        equipment.type,
+        getMaintenanceThresholds,
+      );
+      const horometer: MachineHorometer = {
+        machineId: equipment.code || equipment.id,
+        currentHours,
+        lastMaintenanceAtHours,
+      };
+      const status = assessHorometerStatus(horometer, policy);
+      return res.json({ horometer, policy, status });
+    } catch (err) {
+      logger.error?.('horometro.status.error', err);
+      captureRouteError(err, 'horometro.status', { callerUid, projectId });
       return res.status(500).json({ error: 'internal_error' });
     }
   },

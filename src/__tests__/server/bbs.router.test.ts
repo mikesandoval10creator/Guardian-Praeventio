@@ -64,8 +64,12 @@ const uid = { 'x-test-uid': 'u1' };
 beforeEach(() => {
   H.db = createFakeFirestore();
   // Caller u1 is a member of project p1; project p2 exists but excludes u1.
-  H.db._seed('projects/p1', { members: ['u1'], createdBy: 'owner' });
-  H.db._seed('projects/p2', { members: ['someone-else'], createdBy: 'owner' });
+  // record-observation/build-profile are now STATEFUL (persist to
+  // tenants/{tenantId}/projects/{projectId}/bbs_observations); the handler
+  // resolves tenantId from the project doc, so seed it (else 404 tenant_not_found).
+  // Seed tenantId === projectId so the existing assertions (tenantId:'p1') hold.
+  H.db._seed('projects/p1', { members: ['u1'], createdBy: 'owner', tenantId: 'p1' });
+  H.db._seed('projects/p2', { members: ['someone-else'], createdBy: 'owner', tenantId: 'p2' });
 });
 
 // ────────────────────────────────────────────────────────────────────────
@@ -89,7 +93,8 @@ describe('POST /:projectId/bbs/record-observation', () => {
 
   it('200 returns the observation with server-stamped observer + tenant', async () => {
     const res = await request(buildApp()).post(url).set(uid).send(validBody);
-    expect(res.status).toBe(200);
+    // record-observation now PERSISTS (stateful) → 201 Created.
+    expect(res.status).toBe(201);
     expect(res.body.observation).toMatchObject({
       observationId: 'obs-1',
       // tenantId is server-controlled: forced from the path projectId.
@@ -111,7 +116,7 @@ describe('POST /:projectId/bbs/record-observation', () => {
       .post(url)
       .set(uid)
       .send({ ...validBody, observationId: 'obs-trim', note: '   casco mal puesto   ' });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     expect(res.body.observation.note).toBe('casco mal puesto');
   });
 

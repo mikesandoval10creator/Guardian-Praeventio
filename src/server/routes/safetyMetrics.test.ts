@@ -205,3 +205,108 @@ describe('safetyMetricsRouter — report (real incidents + exposure)', () => {
     expect(res.body.report.trir).toBe(2);
   });
 });
+
+describe('safetyMetricsRouter — trend (multi-period series)', () => {
+  const trendPath = `/api/sprint-k/${PROJECT_ID}/safety-metrics/trend`;
+
+  it('401 without a token', async () => {
+    const res = await request(buildApp()).get(`${trendPath}?period=2026-05`);
+    expect(res.status).toBe(401);
+  });
+
+  it('400 on invalid period', async () => {
+    const res = await request(buildApp())
+      .get(`${trendPath}?period=2026-5`)
+      .set('x-test-uid', MEMBER_UID);
+    expect(res.status).toBe(400);
+  });
+
+  it('400 on out-of-range months', async () => {
+    const res = await request(buildApp())
+      .get(`${trendPath}?period=2026-05&months=99`)
+      .set('x-test-uid', MEMBER_UID);
+    expect(res.status).toBe(400);
+  });
+
+  it('403 for a non-member', async () => {
+    const res = await request(buildApp())
+      .get(`${trendPath}?period=2026-05`)
+      .set('x-test-uid', NON_MEMBER_UID);
+    expect(res.status).toBe(403);
+  });
+
+  it('200 returns the requested rolling window ending at period', async () => {
+    const res = await request(buildApp())
+      .get(`${trendPath}?period=2026-05&months=3`)
+      .set('x-test-uid', MEMBER_UID);
+    expect(res.status).toBe(200);
+    expect(res.body.periods).toEqual(['2026-03', '2026-04', '2026-05']);
+    expect(res.body.points.map((p: { period: string }) => p.period)).toEqual([
+      '2026-03',
+      '2026-04',
+      '2026-05',
+    ]);
+    // Nothing captured → every point honest-zero with hasExposure=false.
+    for (const p of res.body.points) {
+      expect(p.trir).toBe(0);
+      expect(p.hasExposure).toBe(false);
+    }
+  });
+
+  it('200 computes REAL per-month rates and flags captured months', async () => {
+    const base = `tenants/${TENANT_ID}/projects/${PROJECT_ID}/incidents`;
+    // May: 2 recordable incidents.
+    H.db!._seed(`${base}/m1`, {
+      incidentType: 'incident',
+      severity: 'high',
+      lostDays: 4,
+      ts: '2026-05-10T09:00:00.000Z',
+      projectId: PROJECT_ID,
+    });
+    H.db!._seed(`${base}/m2`, {
+      incidentType: 'incident',
+      severity: 'med',
+      ts: '2026-05-15T09:00:00.000Z',
+      projectId: PROJECT_ID,
+    });
+    // April: 1 recordable incident.
+    H.db!._seed(`${base}/a1`, {
+      incidentType: 'incident',
+      severity: 'high',
+      ts: '2026-04-02T09:00:00.000Z',
+      projectId: PROJECT_ID,
+    });
+    // Exposure captured for May only.
+    H.db!._seed(`exposure_hours/${PROJECT_ID}_2026-05`, {
+      projectId: PROJECT_ID,
+      period: '2026-05',
+      totalHoursWorked: 200000,
+    });
+
+    const res = await request(buildApp())
+      .get(`${trendPath}?period=2026-05&months=2`)
+      .set('x-test-uid', MEMBER_UID);
+    expect(res.status).toBe(200);
+
+    const april = res.body.points.find((p: { period: string }) => p.period === '2026-04');
+    const may = res.body.points.find((p: { period: string }) => p.period === '2026-05');
+
+    // April: incidents exist but NO exposure → rate 0, hasExposure=false (honest).
+    expect(april.hasExposure).toBe(false);
+    expect(april.trir).toBe(0);
+
+    // May: TRIR = 2 recordable * 200000 / 200000 = 2; hasExposure=true.
+    expect(may.hasExposure).toBe(true);
+    expect(may.trir).toBe(2);
+  });
+
+  it('200 defaults to a 12-month window when months omitted', async () => {
+    const res = await request(buildApp())
+      .get(`${trendPath}?period=2026-05`)
+      .set('x-test-uid', MEMBER_UID);
+    expect(res.status).toBe(200);
+    expect(res.body.periods).toHaveLength(12);
+    expect(res.body.periods[11]).toBe('2026-05');
+    expect(res.body.periods[0]).toBe('2025-06');
+  });
+});
