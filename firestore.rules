@@ -2009,6 +2009,20 @@ service cloud.firestore {
           allow create, update, delete: if false;
         }
 
+        // Behavior-Based Safety (BBS) observations — DuPont/BST methodology:
+        // trained observers log safe/at_risk behaviors per AREA (never per
+        // worker — §52 anti-blaming). Written ONLY by the audited server route
+        // bbs.ts (POST .../bbs/record-observation via the Admin SDK, which
+        // bypasses these rules + server-stamps observerUid/tenantId/observedAt).
+        // Clients NEVER write; tenant members READ so the BbsProfileCard renders
+        // the project's safe-behavior profile. Cultural/life-safety data: free
+        // on every tier. A client write is a spoof vector (forge observerUid /
+        // inject at_risk to skew the profile) — denied outright.
+        match /bbs_observations/{observationId} {
+          allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+          allow create, update, delete: if false;
+        }
+
         // Content-addressed photo evidence (server route photoEvidence.ts).
         // PRIVACY (2026-06-16): photos can carry PII (people / incident scenes).
         // Read is restricted to SUPERVISOR-tier (mirrors conflict_queue /

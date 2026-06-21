@@ -1079,7 +1079,8 @@ works and an accidental client WRITE can never land. Rules tests:
 `src/rules-tests/tenantServerWriteStores.rules.test.ts`.
 - `positive_observations` (`src/server/routes/positiveObservations.ts`),
   `photo_evidence` (`src/server/routes/photoEvidence.ts`),
-  `splat_captures` (`src/services/digitalTwin/gaussianSplatFirestoreAdapter.ts`).
+  `splat_captures` (`src/services/digitalTwin/gaussianSplatFirestoreAdapter.ts`),
+  `bbs_observations` (`src/server/routes/bbs.ts`).
 - read: any member of the tenant (`isMemberOfTenant(tenantId)`).
 - create/update/delete: **false** for ALL clients (server-only via Admin SDK).
 
@@ -1101,6 +1102,14 @@ works and an accidental client WRITE can never land. Rules tests:
      `positive_observations` doc to fabricate a safe-behavior recognition for
      themselves — denied (server-only; the audited route stamps observerUid and
      blocks self-award).
+117c. **BBS Profile Skew via bbs_observations** (feat/wire-bbs-profile): a client
+     writing `tenants/A/projects/{pid}/bbs_observations/{id}` to forge `observerUid`
+     (break anti-blame), or inject fabricated `at_risk` / `safe` rows to skew the
+     project's BbsProfile (safePercentage, focusCategories, topRiskAreas) — denied
+     (server-only via Admin SDK; the audited route stamps observerUid/tenantId/
+     observedAt). Cross-tenant read of another tenant's behavioral profile is also
+     denied (member-read scoped per tenant). Exercised by the `bbs_observations`
+     block in tenantServerWriteStores.rules.test.ts.
 
 ### anonymization_events — cascarón soft-delete proof (Ley 21.719, added 2026-06-15)
 
