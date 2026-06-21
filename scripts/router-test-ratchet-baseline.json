@@ -12,7 +12,6 @@
     "src/server/routes/commsDrill.ts",
     "src/server/routes/controlComparator.ts",
     "src/server/routes/expressBundle.ts",
-    "src/server/routes/meetingPack.ts",
     "src/server/routes/multiRoleSummary.ts",
     "src/server/routes/portfolioLessons.ts",
     "src/server/routes/pricingCalculator.ts",
