@@ -30,7 +30,10 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
-import { EquipmentAdapter } from '../../services/equipment/equipmentFirestoreAdapter.js';
+import {
+  EquipmentAdapter,
+  type EquipmentFirestoreDb,
+} from '../../services/equipment/equipmentFirestoreAdapter.js';
 import {
   recordReading,
   getCurrentHours,
@@ -463,7 +466,11 @@ router.get(
     if (!g) return undefined;
     const db = admin.firestore() as admin.firestore.Firestore;
     try {
-      const eqAdapter = new EquipmentAdapter(db as any, g.tenantId, projectId);
+      const eqAdapter = new EquipmentAdapter(
+        db as unknown as EquipmentFirestoreDb,
+        g.tenantId,
+        projectId,
+      );
       const equipment = await eqAdapter.getById(eqId);
       if (!equipment) {
         return res.status(404).json({ error: 'equipment_not_found' });
