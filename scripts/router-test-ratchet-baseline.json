@@ -42,7 +42,6 @@
     "src/server/routes/push.ts",
     "src/server/routes/pymeOnboarding.ts",
     "src/server/routes/pymeWizard.ts",
-    "src/server/routes/qrAck.ts",
     "src/server/routes/raciMatrix.ts",
     "src/server/routes/reports.ts",
     "src/server/routes/reportsAutomation.ts",
