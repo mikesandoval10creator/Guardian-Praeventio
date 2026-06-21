@@ -1224,6 +1224,22 @@ service cloud.firestore {
       allow create, update, delete: if false; // server-only via Admin SDK
     }
 
+    match /safety_plan_periods/{docId} {
+      // SPI (Safety Performance Index) — captured PLANNED counts for a
+      // project+period (docId = `{projectId}_{YYYY-MM}`): how many inspections,
+      // daily talks and trainings were PLANNED for the month. These are the
+      // DENOMINATORS for the leading indicators (executed ÷ planned). READ is
+      // open to any member of the project the doc belongs to (the SPI dashboard
+      // renders the plan-vs-executed ratios). WRITES are server-only via the
+      // Admin SDK from POST /api/sprint-k/:projectId/safety-performance/
+      // safety-plan, which (a) role-gates to admin/gerente/prevencionista-tier
+      // and (b) stamps `recordedBy`/`recordedAt` from the verified token. A
+      // client write is a spoof/integrity vector: forge `recordedBy`, or
+      // deflate a planned count to fabricate a >100% completion ratio (a
+      // performance-index-integrity attack — make the crew look compliant by
+      // shrinking the denominator). Client-denial + member-read exercised by
+      // src/rules-tests/safetyPlanPeriods.rules.test.ts.
+
     match /ufRates/{docId} {
       // Cached UF (Unidad de Fomento) rate, written ONLY by the daily
       // runUfRateRefresh cron (Admin SDK) from public Banco Central data. The

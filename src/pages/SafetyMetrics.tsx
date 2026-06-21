@@ -11,16 +11,18 @@
 // action ("Captura las horas-hombre del período para calcular TRIR/LTIFR").
 
 import { useMemo, useState } from 'react';
-import { Activity, Clock, AlertCircle, Users } from 'lucide-react';
+import { Activity, Clock, AlertCircle, Users, Target } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { SafetyMetricsDashboard } from '../components/safetyMetrics/SafetyMetricsDashboard';
 import { OperationalPressureGauge } from '../components/orgMetrics/OperationalPressureGauge';
+import { SpiDashboard } from '../components/safetyPerformance/SpiDashboard';
 import {
   useSafetyMetricsReport,
   captureSafetyExposure,
   useOperationalPressure,
   captureWorkforcePeriod,
 } from '../hooks/useSafetyMetrics';
+import { useSpiReport, captureSafetyPlan } from '../hooks/useSpiReport';
 
 /** Current month as 'YYYY-MM' for the default period. */
 function currentPeriod(): string {
@@ -97,6 +99,53 @@ export function SafetyMetrics() {
       );
     } finally {
       setWfSaving(false);
+    }
+  };
+
+  // ── SPI (plan-vs-executed) ────────────────────────────────────────────
+  const { data: spi, loading: spiLoading, error: spiError, refetch: spiRefetch } =
+    useSpiReport(projectId, period);
+
+  const [planInspections, setPlanInspections] = useState('');
+  const [planTalks, setPlanTalks] = useState('');
+  const [planTrainings, setPlanTrainings] = useState('');
+  const [planSaving, setPlanSaving] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+
+  const handleCapturePlan = async () => {
+    if (!projectId) return;
+    const inspections = Number(planInspections);
+    const talks = Number(planTalks);
+    const trainings = Number(planTrainings);
+    if (
+      ![inspections, talks, trainings].every(
+        (n) => Number.isFinite(n) && n >= 0,
+      )
+    ) {
+      setPlanError('Ingresa conteos planificados válidos (0 o más).');
+      return;
+    }
+    setPlanError(null);
+    setPlanSaving(true);
+    try {
+      await captureSafetyPlan(projectId, {
+        period,
+        plannedInspections: Math.round(inspections),
+        plannedDailyTalks: Math.round(talks),
+        plannedTrainings: Math.round(trainings),
+      });
+      setPlanInspections('');
+      setPlanTalks('');
+      setPlanTrainings('');
+      spiRefetch();
+    } catch (err) {
+      setPlanError(
+        err instanceof Error && err.message
+          ? `No se pudo guardar: ${err.message}`
+          : 'No se pudo guardar el plan del período. Intenta nuevamente.',
+      );
+    } finally {
+      setPlanSaving(false);
     }
   };
 
@@ -383,6 +432,123 @@ export function SafetyMetrics() {
             Sin datos de dotación capturados para {period}: la presión operacional no se
             puede calcular todavía.
           </div>
+        )}
+      </section>
+
+      {/* ── SPI: plan-vs-executed (Safety Performance Index) ─────────────── */}
+      <section className="space-y-4" data-testid="spi-section">
+        <header>
+          <h2 className="flex items-center gap-2 text-xl font-semibold">
+            <Target className="h-5 w-5 text-teal-500" />
+            Índice de Desempeño en Seguridad (SPI)
+          </h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Combina indicadores leading (planificado vs. ejecutado, real) y lagging
+            (TRIR/LTIFR) en un solo score de gerencia para {period}.
+          </p>
+        </header>
+
+        {/* Planned-counts capture form (the leading-indicator denominators). */}
+        <div
+          data-testid="spi-plan-form"
+          className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700"
+        >
+          <h3 className="text-sm font-medium">Plan del período (conteos planificados)</h3>
+          <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
+            Captura cuántas inspecciones, charlas diarias y capacitaciones se planificaron
+            para el mes — son el denominador del cumplimiento (ejecutado ÷ planificado).
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label className="block text-sm">
+              <span className="text-zinc-600 dark:text-zinc-400">Inspecciones planificadas</span>
+              <input
+                data-testid="spi-plan-inspections"
+                type="number"
+                min="0"
+                inputMode="numeric"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-600"
+                value={planInspections}
+                onChange={(e) => setPlanInspections(e.target.value)}
+                placeholder="Ej: 8"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-zinc-600 dark:text-zinc-400">Charlas diarias planificadas</span>
+              <input
+                data-testid="spi-plan-talks"
+                type="number"
+                min="0"
+                inputMode="numeric"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-600"
+                value={planTalks}
+                onChange={(e) => setPlanTalks(e.target.value)}
+                placeholder="Ej: 22"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-zinc-600 dark:text-zinc-400">Capacitaciones planificadas</span>
+              <input
+                data-testid="spi-plan-trainings"
+                type="number"
+                min="0"
+                inputMode="numeric"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-600"
+                value={planTrainings}
+                onChange={(e) => setPlanTrainings(e.target.value)}
+                placeholder="Ej: 4"
+              />
+            </label>
+          </div>
+          <button
+            data-testid="spi-plan-submit"
+            type="button"
+            disabled={planSaving}
+            onClick={() => void handleCapturePlan()}
+            className="mt-3 rounded-lg bg-teal-600 px-4 py-2 font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+          >
+            {planSaving ? 'Guardando…' : 'Guardar plan del período'}
+          </button>
+          {planError && (
+            <div
+              data-testid="spi-plan-error"
+              className="mt-3 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-400"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0" /> {planError}
+            </div>
+          )}
+        </div>
+
+        {spiLoading && (
+          <div data-testid="spi-loading" className="p-4 text-center text-sm text-zinc-500">
+            Cargando SPI del período…
+          </div>
+        )}
+
+        {spiError && !spiLoading && (
+          <div
+            data-testid="spi-load-error"
+            className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400"
+          >
+            No se pudo cargar el SPI ({spiError.message}).
+          </div>
+        )}
+
+        {spi && !spiLoading && (
+          <SpiDashboard
+            leading={spi.leading}
+            lagging={spi.lagging}
+            planVsExecuted={{
+              inspections: spi.ratios.inspections,
+              dailyTalks: spi.ratios.dailyTalks,
+              trainings: spi.ratios.trainings,
+              honesty: {
+                plannedInspectionsRate: spi.honesty.plannedInspectionsRate,
+                dailyTalksDeliveryRate: spi.honesty.dailyTalksDeliveryRate,
+                trainingCurrencyRate: spi.honesty.trainingCurrencyRate,
+                laggingEmpty: spi.honesty.laggingEmpty,
+              },
+            }}
+          />
         )}
       </section>
     </div>
