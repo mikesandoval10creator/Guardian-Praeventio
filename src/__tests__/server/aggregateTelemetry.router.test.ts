@@ -64,10 +64,10 @@ function isoDaysAgo(days: number): string {
 beforeEach(() => {
   H.db = createFakeFirestore();
   // Caller u1 is a member of project p1 (tenant t1). p2 exists, excludes u1.
-  H.db._seed('projects/p1', { members: ['u1'], createdBy: 'owner', tenantId: 't1' });
-  H.db._seed('projects/p2', { members: ['someone-else'], createdBy: 'owner', tenantId: 't1' });
+  H.db!._seed('projects/p1', { members: ['u1'], createdBy: 'owner', tenantId: 't1' });
+  H.db!._seed('projects/p2', { members: ['someone-else'], createdBy: 'owner', tenantId: 't1' });
   // A project that is a member but has NO tenantId → 404 from the guard.
-  H.db._seed('projects/p3', { members: ['u1'], createdBy: 'owner' });
+  H.db!._seed('projects/p3', { members: ['u1'], createdBy: 'owner' });
 });
 
 describe('GET /:projectId/telemetry/aggregate', () => {
@@ -114,28 +114,28 @@ describe('GET /:projectId/telemetry/aggregate', () => {
 
   it('200 aggregates real seeded events and re-derives velocities', async () => {
     // 2 incidents (top-level, scoped by projectId) — one high, one critical.
-    H.db._seed('incidents/i1', {
+    H.db!._seed('incidents/i1', {
       projectId: 'p1',
       occurredAt: isoDaysAgo(2),
       severity: 'high',
     });
-    H.db._seed('incidents/i2', {
+    H.db!._seed('incidents/i2', {
       projectId: 'p1',
       occurredAt: isoDaysAgo(1),
       severity: 'critica', // Spanish form → normalizes to 'critical'
     });
     // Incident for a DIFFERENT project → must be excluded by the projectId where().
-    H.db._seed('incidents/i3', {
+    H.db!._seed('incidents/i3', {
       projectId: 'other',
       occurredAt: isoDaysAgo(1),
       severity: 'high',
     });
     // 1 inspection (tenant-scoped subcollection) within window.
-    H.db._seed('tenants/t1/projects/p1/inspections/insp1', {
+    H.db!._seed('tenants/t1/projects/p1/inspections/insp1', {
       completedAt: isoDaysAgo(3),
     });
     // An incident OUTSIDE the 7d window → excluded.
-    H.db._seed('incidents/old1', {
+    H.db!._seed('incidents/old1', {
       projectId: 'p1',
       occurredAt: isoDaysAgo(40),
       severity: 'low',
@@ -185,7 +185,7 @@ describe('GET /:projectId/telemetry/aggregate', () => {
 
   it('200 respects an explicit 90d window', async () => {
     // An event 40 days back is inside 90d but was outside 7d.
-    H.db._seed('incidents/i90', {
+    H.db!._seed('incidents/i90', {
       projectId: 'p1',
       occurredAt: isoDaysAgo(40),
       severity: 'medium',
@@ -231,14 +231,14 @@ describe('GET /tenants/:tenantId/telemetry/rollup', () => {
 
   it('200 rolls up multiple member projects and re-derives the totals', async () => {
     // u1 is also a member of p1b under tenant t1.
-    H.db._seed('projects/p1b', { members: ['u1'], createdBy: 'owner', tenantId: 't1' });
+    H.db!._seed('projects/p1b', { members: ['u1'], createdBy: 'owner', tenantId: 't1' });
 
     // p1: 2 incidents (1 high) + 1 inspection within window.
-    H.db._seed('incidents/a1', { projectId: 'p1', occurredAt: isoDaysAgo(1), severity: 'high' });
-    H.db._seed('incidents/a2', { projectId: 'p1', occurredAt: isoDaysAgo(2) });
-    H.db._seed('tenants/t1/projects/p1/inspections/insp1', { completedAt: isoDaysAgo(3) });
+    H.db!._seed('incidents/a1', { projectId: 'p1', occurredAt: isoDaysAgo(1), severity: 'high' });
+    H.db!._seed('incidents/a2', { projectId: 'p1', occurredAt: isoDaysAgo(2) });
+    H.db!._seed('tenants/t1/projects/p1/inspections/insp1', { completedAt: isoDaysAgo(3) });
     // p1b: 1 incident (critical).
-    H.db._seed('incidents/b1', { projectId: 'p1b', occurredAt: isoDaysAgo(1), severity: 'critical' });
+    H.db!._seed('incidents/b1', { projectId: 'p1b', occurredAt: isoDaysAgo(1), severity: 'critical' });
 
     const res = await request(buildApp())
       .get(`${url}?projects=p1,p1b&window=7d`)
