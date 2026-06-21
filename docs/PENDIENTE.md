@@ -153,12 +153,16 @@ Inventario en `docs/stubs-inventory.md`. `precommit-stub-guard` valida la FORMA 
 
 ---
 
-## D. Pipelines de backend sin construir (4)
+## D. Pipelines de backend sin construir (3: D1 SLO + D2 snapshot ABIERTOS · D3 EPP blocked-external · D4 ✅ construido)
 
 1. **SLO error-budget**: la lectura real `slo_metrics` existe; falta el job Sentry→`slo_metrics` (Cloud Function/cron). (SloErrorBudget hoy muestra "sin métricas" honesto.)
 2. **Snapshot diario de cumplimiento**: para que ExecDash tenga tendencia de cumplimiento real (colección + cron + reglas + ≥5 rules-tests).
 3. **Detección EPP real**: bloqueado-externo (no hay modelo EPP; COCO/MediaPipe no tiene clases EPP). El detector por color + disclaimer es el estado honesto interino (WP-I7).
-4. **Feed `ContractorPerformance`** (2026-06-20): `ContractorRankingTable` + `contractorKpiService`/router son calculadora-pura (computan TRIR/LTIFR desde `perfs` del body); NO existe colección/agregación que produzca `ContractorPerformance`. La colección `miningContractors` es acreditación (Ds76Input), sin métricas. Para montar real: construir agregación de incidentes por `contractorId` + man-hours → GET de performances. Hasta entonces el componente queda huérfano (NO montar honest-empty como "feature": directiva honesto=real). Rama `feat/mount-contractor-ranking` descartada.
+4. **Feed `ContractorPerformance` → ✅ CONSTRUIDO** (verificado 2026-06-21; la nota 2026-06-20 abajo era STALE doc-drift — el feed real se construyó *después*). El feed real existe end-to-end:
+   - `POST /:projectId/contractors/exposure` (`contractors.ts:235-236`) captura man-hours reales por contratista en la colección **`contractor_exposure_hours`** (`contractors.ts:257`, server-stamped `recordedBy`/`recordedAt`, `audit_logs` awaited, role-gated).
+   - `GET /:projectId/contractors/performance` (`contractors.ts:417-418`) lee incidentes **reales** por `contractorId` y corre el motor OSHA (`classifyIncidents` `:472` + `buildSafetyMetricsReport` `:473`) → TRIR/LTIFR por contratista con empty-state honesto.
+   - Montado: `server.ts:374` (import) + `server.ts:1183` (`app.use('/api/sprint-k', contractorsRouter)`). Cliente: `useContractorPerformance`. Renderizado: `ContractorPerformanceDashboard.tsx:41` + `MiningContractors.tsx:335`. Test conductual: `contractors.test.ts` (supertest, 15 `request()`).
+   - ~~`ContractorRankingTable`/`contractorKpiService` calculadora-pura, sin agregación, rama `feat/mount-contractor-ranking` descartada~~ → STALE (esa era la situación pre-feed; ya superada).
 
 ---
 
