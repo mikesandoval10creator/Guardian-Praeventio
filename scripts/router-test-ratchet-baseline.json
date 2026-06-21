@@ -29,7 +29,6 @@
     "src/server/routes/reputationalAlerts.ts",
     "src/server/routes/researchMode.ts",
     "src/server/routes/roleViews.ts",
-    "src/server/routes/shiftRiskPanel.ts",
     "src/server/routes/signaletics.ts",
     "src/server/routes/spacedRepetition.ts",
     "src/server/routes/syncStatus.ts",
