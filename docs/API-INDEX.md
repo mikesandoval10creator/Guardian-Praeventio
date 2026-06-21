@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**197 routers montados · 695 rutas detectadas.**
+**197 routers montados · 699 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -307,6 +307,7 @@ clave ver `docs/api-routes.md`.
 ### `src/server/routes/bbs.ts` → `/api/sprint-k`
 - `POST /api/sprint-k/:projectId/bbs/record-observation`
 - `POST /api/sprint-k/:projectId/bbs/build-profile`
+- `GET /api/sprint-k/:projectId/bbs/profile`
 
 ### `src/server/routes/bowtie.ts` → `/api/sprint-k`
 - `POST /api/sprint-k/:projectId/bowtie/build`
@@ -604,6 +605,7 @@ clave ver `docs/api-routes.md`.
 - `POST /api/sprint-k/:projectId/horometro/reading`
 - `GET /api/sprint-k/:projectId/horometro/equipment/:eqId/maintenance-tasks`
 - `POST /api/sprint-k/:projectId/horometro/maintenance-task/:taskId/complete`
+- `GET /api/sprint-k/:projectId/horometro/equipment/:eqId/status`
 
 ### `src/server/routes/hygiene.ts` → `/api/sprint-k`
 - `POST /api/sprint-k/:projectId/hygiene/bmr`
@@ -957,6 +959,8 @@ clave ver `docs/api-routes.md`.
 - `POST /api/sprint-k/:projectId/safety-metrics/analyze-trend`
 - `POST /api/sprint-k/:projectId/safety-metrics/exposure`
 - `GET /api/sprint-k/:projectId/safety-metrics/report`
+- `GET /api/sprint-k/:projectId/safety-metrics/trend`
+- `GET /api/sprint-k/:projectId/iper-assessments/matrix`
 
 ### `src/server/routes/safetyPerformance.ts` → `/api/sprint-k`
 - `POST /api/sprint-k/:projectId/safety-performance/compute`
