@@ -20,7 +20,6 @@
     "src/server/routes/costCalculator.ts",
     "src/server/routes/explainability.ts",
     "src/server/routes/expressBundle.ts",
-    "src/server/routes/formBuilderAdvanced.ts",
     "src/server/routes/geofencePermissions.ts",
     "src/server/routes/inbox.ts",
     "src/server/routes/meetingPack.ts",
