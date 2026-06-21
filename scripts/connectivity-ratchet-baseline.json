@@ -38,7 +38,6 @@
     "src/components/twinPhysics/TwinPhysicsScene.tsx",
     "src/components/twinScene/TwinIntegrationPanel.tsx",
     "src/components/twinScene/TwinSceneInstancedLazy.tsx",
-    "src/components/visitors/VisitorCheckInForm.tsx",
     "src/hooks/useControlComparator.ts",
     "src/hooks/useStreamedGuardian.ts",
     "src/hooks/useSubmit.ts"
