@@ -31,7 +31,6 @@
     "src/server/routes/meetingPack.ts",
     "src/server/routes/mentalLoad.ts",
     "src/server/routes/multiRoleSummary.ts",
-    "src/server/routes/nonConformity.ts",
     "src/server/routes/photoEvidence.ts",
     "src/server/routes/portfolioLessons.ts",
     "src/server/routes/predictiveAlerts.ts",
