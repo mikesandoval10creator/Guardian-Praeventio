@@ -46,7 +46,6 @@
     "src/server/routes/spacedRepetition.ts",
     "src/server/routes/syncStatus.ts",
     "src/server/routes/upsell.ts",
-    "src/server/routes/vulnerability.ts",
     "src/server/routes/waste.ts"
   ]
 }
