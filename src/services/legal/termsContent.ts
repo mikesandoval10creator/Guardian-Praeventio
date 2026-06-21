@@ -11,9 +11,21 @@
  *
  * Cumplimiento referenciado:
  *   - Ley 19.496 (Protección al Consumidor, Chile)
- *   - Ley 19.628 (Protección de Datos Personales, Chile)
+ *   - Ley 19.628 (Protección de Datos Personales, Chile) — vigente
+ *   - Ley 21.719 (Protección de Datos Personales; crea la Agencia de
+ *     Protección de Datos Personales, APDP) — entrada en vigencia 2026-12-01,
+ *     deroga/reemplaza la Ley 19.628
+ *   - Reglamento (UE) 2016/679 (RGPD/GDPR) — para tratamiento de datos de
+ *     titulares en la Unión Europea
  *   - Ley 16.744, DS 54, DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01) — prevención de riesgos laborales
  *   - SUSESO (rol del prevencionista certificado)
+ *
+ * ⚠️ Borrador — pendiente revisión legal. Todo el texto de cláusulas de este
+ * archivo es un BORRADOR redactado para ser CERTIFICADO por un abogado chileno
+ * especialista en protección de datos antes de su publicación definitiva.
+ * NO afirma que la Plataforma "cumple" o "está certificada" bajo la Ley 21.719
+ * ni el RGPD/GDPR: describe compromisos y mecanismos, no certificaciones.
+ * NO inventar artículos/plazos legales nuevos sin cita verificada (marcar TODO).
  */
 
 export interface TermsSection {
@@ -32,7 +44,7 @@ export interface TermsContent {
   sections: TermsSection[];
   /** Email de contacto comercial / soporte general. */
   contactEmail: string;
-  /** Email para temas de privacidad de datos (Ley 19.628). */
+  /** Email para temas de privacidad de datos (Ley 19.628; Ley 21.719 desde 2026-12-01). */
   privacyEmail: string;
   /** RUT de la entidad responsable del servicio en Chile. */
   rut: string;
@@ -44,7 +56,7 @@ export interface TermsContent {
  * Última fecha de actualización del contenido. Cambiar al editar cualquier
  * sección material. El renderer la muestra formateada en es-CL.
  */
-export const LAST_UPDATED_ISO = '2026-04-28';
+export const LAST_UPDATED_ISO = '2026-06-21';
 
 export const TERMS_CONTENT_ES_CL: TermsContent = {
   title: 'Términos y Condiciones de Servicio — Praeventio Guard',
@@ -90,16 +102,27 @@ export const TERMS_CONTENT_ES_CL: TermsContent = {
     {
       heading: 'Privacidad de datos',
       paragraphs: [
-        'El tratamiento de datos personales realizado por Praeventio Guard se rige por la Política de Privacidad disponible en /privacy, la cual forma parte integrante de estos Términos. La Política detalla qué datos se recopilan, con qué finalidad, los terceros con quienes se comparten (Google Firebase, Google Gemini, Resend, procesadores de pago), los plazos de retención y los mecanismos para ejercer derechos ARCO bajo la Ley 19.628.',
-        'Para consultas, solicitudes de acceso, rectificación o eliminación de datos, el Usuario puede escribir a contacto@praeventio.net. Praeventio Guard responderá dentro de los 15 días hábiles establecidos por la normativa chilena vigente.',
+        'El tratamiento de datos personales realizado por Praeventio Guard se rige por la Política de Privacidad disponible en /privacy, la cual forma parte integrante de estos Términos. La Política detalla qué datos se recopilan, con qué finalidad, los terceros con quienes se comparten (Google Firebase, Google Gemini, Resend, procesadores de pago), los plazos de retención y los mecanismos para ejercer los derechos del titular bajo la legislación chilena de protección de datos personales (Ley 19.628 y, a partir de su entrada en vigencia el 01-12-2026, la Ley 21.719).',
+        'En su relación con la empresa-cliente, Praeventio Guard actúa como ENCARGADO de tratamiento por cuenta de dicha empresa, que es el RESPONSABLE del tratamiento de los datos de sus trabajadores. Praeventio Guard trata esos datos únicamente conforme a las instrucciones del responsable y a las finalidades pactadas, aplicando medidas de seguridad técnicas y organizativas y no destinándolos a fines propios incompatibles.',
+        'Para titulares de datos en la Unión Europea, el tratamiento se ajusta además a los principios del Reglamento (UE) 2016/679 (RGPD/GDPR), incluyendo licitud, minimización, limitación de la finalidad y los derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad reconocidos en dicho Reglamento.',
+        'Para consultas, solicitudes de acceso, rectificación, supresión, oposición, portabilidad u otros derechos del titular, el Usuario puede escribir a contacto@praeventio.net. Praeventio Guard responderá dentro de los plazos establecidos por la normativa de protección de datos aplicable.',
+      ],
+    },
+    {
+      heading: 'Naturaleza del servicio y rol del Usuario en la decisión preventiva',
+      paragraphs: [
+        'Praeventio Guard GESTIONA, ORGANIZA Y PRESENTA INFORMACIÓN de prevención de riesgos para FACILITAR LA DECISIÓN del responsable de la prevención (la empresa empleadora, su experto en prevención de riesgos, el prevencionista certificado o el profesional habilitado que corresponda). LA PLATAFORMA NO ES EL TOMADOR DE LA DECISIÓN PREVENTIVA, NO DIAGNOSTICA, NO CALIFICA ENFERMEDADES NI ACCIDENTES COMO LABORALES, Y NO REEMPLAZA EL JUICIO PROFESIONAL HABILITADO. La decisión sobre qué medidas adoptar, cuándo detener o continuar una operación, y cómo gestionar un riesgo es y seguirá siendo responsabilidad exclusiva del Usuario y de la empresa-cliente.',
+        'La Plataforma NUNCA bloquea ni detiene maquinaria, faenas ni operaciones por sí misma: entrega recomendaciones de base científica y normativa para que la persona responsable decida. La obligación legal de proveer condiciones de trabajo seguras y de gestionar los riesgos laborales recae en el empleador conforme a la Ley 16.744 y su normativa complementaria (DS 44/2024 [reemplaza DS 40/1969 derogado 2025-02-01], DS 54, DS 594, entre otras); el uso de Praeventio Guard NO traslada, sustituye ni disminuye dicha obligación.',
+        'Praeventio Guard actúa como ENCARGADO de tratamiento de los datos de los trabajadores por cuenta de la empresa-cliente, que es el RESPONSABLE del tratamiento. Las decisiones sobre finalidades y medios del tratamiento, así como la decisión preventiva final, corresponden al responsable.',
       ],
     },
     {
       heading: 'Limitación de responsabilidad',
       paragraphs: [
-        'Praeventio Guard es una herramienta complementaria de gestión de prevención de riesgos. EL SERVICIO NO REEMPLAZA AL EXPERTO EN PREVENCIÓN DE RIESGOS CERTIFICADO POR SUSESO ni a los profesionales habilitados legalmente para emitir matrices IPER, programas de seguridad, peritajes, certificaciones de equipos críticos, exámenes ocupacionales, ni cualquier otro acto que la legislación chilena (Ley 16.744, DS 44/2024 [reemplaza DS 40/1969 derogado 2025-02-01], DS 54, DS 594, entre otras) reserva exclusivamente a profesionales colegiados o a organismos administradores de la Ley 16.744.',
+        'Praeventio Guard es una herramienta complementaria de gestión de información de prevención de riesgos. EL SERVICIO NO REEMPLAZA AL EXPERTO EN PREVENCIÓN DE RIESGOS CERTIFICADO POR SUSESO ni a los profesionales habilitados legalmente para emitir matrices IPER, programas de seguridad, peritajes, certificaciones de equipos críticos, exámenes ocupacionales, ni cualquier otro acto que la legislación chilena (Ley 16.744, DS 44/2024 [reemplaza DS 40/1969 derogado 2025-02-01], DS 54, DS 594, entre otras) reserva exclusivamente a profesionales colegiados o a organismos administradores de la Ley 16.744.',
         'Las recomendaciones, análisis predictivos y respuestas generadas por los componentes de inteligencia artificial de la Plataforma (incluyendo "El Guardián", basado en Google Gemini) son de carácter orientativo y deben ser validadas por el prevencionista responsable antes de su aplicación operativa. El Usuario asume la responsabilidad final por las decisiones que adopte a partir de la información provista por el Servicio.',
-        'En la máxima medida permitida por la ley, Praeventio Guard no será responsable por daños indirectos, lucro cesante, pérdida de oportunidad, interrupción del negocio, o por incidentes laborales que pudieran ocurrir, sin perjuicio de las garantías irrenunciables que correspondan al consumidor conforme a la Ley 19.496.',
+        'En la máxima medida permitida por la ley, Praeventio Guard no será responsable por daños indirectos, incidentales, especiales o consecuenciales, lucro cesante, pérdida de oportunidad, pérdida de datos, interrupción del negocio, ni por incidentes laborales que pudieran ocurrir, sin perjuicio de las garantías irrenunciables que correspondan al consumidor conforme a la Ley 19.496.',
+        'Sin perjuicio de lo anterior y en la máxima medida permitida por la ley, la responsabilidad total y agregada de Praeventio Guard frente al Usuario por cualquier reclamo derivado de o relacionado con el Servicio o con estos Términos —ya sea por contrato, hecho ilícito (incluida la negligencia) u otra causa— no excederá el monto total efectivamente pagado por el Usuario a Praeventio Guard por el Servicio durante los doce (12) meses inmediatamente anteriores al hecho que origina el reclamo. Este límite agregado no aplica a la responsabilidad que la ley declare irrenunciable o no susceptible de limitación (por ejemplo, dolo, culpa grave, o los derechos irrenunciables del consumidor conforme a la Ley 19.496).',
       ],
     },
     {
@@ -120,7 +143,8 @@ export const TERMS_CONTENT_ES_CL: TermsContent = {
     {
       heading: 'Ley aplicable',
       paragraphs: [
-        'Estos Términos se rigen por las leyes de la República de Chile. Cualquier controversia derivada o relacionada con la interpretación, ejecución o terminación del presente acuerdo será sometida a la jurisdicción de los tribunales ordinarios de justicia con asiento en la ciudad de Santiago, sin perjuicio de los derechos del consumidor establecidos en la Ley 19.496 y de los mecanismos de protección al consumidor del SERNAC.',
+        'Estos Términos se rigen por las leyes de la República de Chile, incluyendo la normativa de protección de datos personales (Ley 19.628 y, desde su entrada en vigencia el 01-12-2026, la Ley 21.719, que crea la Agencia de Protección de Datos Personales). Cualquier controversia derivada o relacionada con la interpretación, ejecución o terminación del presente acuerdo será sometida a la jurisdicción de los tribunales ordinarios de justicia con asiento en la ciudad de Santiago, sin perjuicio de los derechos del consumidor establecidos en la Ley 19.496 y de los mecanismos de protección al consumidor del SERNAC.',
+        'Cuando Praeventio Guard trate datos personales de titulares ubicados en la Unión Europea, ello se entenderá sin perjuicio de los derechos y de la protección que el Reglamento (UE) 2016/679 (RGPD/GDPR) reconozca a dichos titulares conforme a la legislación que les resulte aplicable.',
       ],
     },
     {

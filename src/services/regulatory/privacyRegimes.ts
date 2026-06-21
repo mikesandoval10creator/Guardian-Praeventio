@@ -16,10 +16,20 @@
 //   - PIPL-CN (China 2021)          — "immediate" (estandar 24h)
 //   - PIPA-TW (Taiwan PDPA 2015)    — 72h breach notification
 //   - 152-FZ (Russia 2006/2022)     — 24h notification + data localization
+//   - LEY-21719-CL (Chile 2024)     — 72h breach; vigencia plena 01-12-2026
 //
 // 🔴 Fix 2026-05-15: antes CN/TW/RU apuntaban erróneamente a 'PIPA-JP'
 // como placeholder (`profiles.ts:588,601,615`). Esto es riesgo regulatorio
 // real — un cliente chino procesando bajo "régimen japonés" violaría PIPL.
+//
+// 🇨🇱 2026-06: Chile pasa a ser régimen de primera clase. La Ley 21.719
+// ("Ley de Datos Personales", publicada 13-12-2024, plena vigencia
+// 01-12-2026) reforma profundamente la previa Ley 19.628 (1999) y crea la
+// Agencia de Protección de Datos Personales (APDP). Mantenemos el marco
+// previo solo como nota de contexto — el régimen vigente que aplica la app
+// es 'LEY-21719-CL'. Borrador — pendiente revisión legal de un abogado de
+// datos chileno; los plazos/artículos exactos del reglamento de la Agencia
+// se confirman al publicarse (TODO legal en la entrada del régimen).
 
 export type PrivacyRegimeCode =
   | 'GDPR'
@@ -32,7 +42,8 @@ export type PrivacyRegimeCode =
   | 'DPDP'
   | 'PIPL-CN'
   | 'PIPA-TW'
-  | '152-FZ-RU';
+  | '152-FZ-RU'
+  | 'LEY-21719-CL';
 
 export type DataSubjectRight =
   | 'access'
@@ -358,6 +369,54 @@ const REGIMES: Record<PrivacyRegimeCode, PrivacyRegime> = {
     dataResidencyRequired: true,
     minorConsentAge: 14,
     regulator: 'Roskomnadzor (Roscomnadzor)',
+  },
+  // 🇨🇱 NUEVO 2026-06: Ley 21.719 como régimen vigente de Chile.
+  // Reforma la Ley 19.628/1999 (marco previo, conservado solo como
+  // contexto histórico en el header de este archivo) y crea la Agencia de
+  // Protección de Datos Personales (APDP). Plena vigencia: 01-12-2026.
+  // Acerca el régimen chileno al estándar GDPR: derechos ARCO (acceso,
+  // rectificación, cancelación/erasure, oposición) + portabilidad +
+  // revisión de decisiones automatizadas + revocación del consentimiento;
+  // notificación de brechas a la APDP en 72h.
+  // Borrador — pendiente revisión legal.
+  // TODO(legal): confirmar artículos/plazos exactos del reglamento de la
+  // APDP al publicarse (multa máxima, edad de consentimiento del menor,
+  // ventana precisa de brecha).
+  'LEY-21719-CL': {
+    code: 'LEY-21719-CL',
+    name: 'Ley 21.719 — Ley de Datos Personales (Chile)',
+    jurisdiction: 'Chile',
+    effectiveYear: 2026, // Publicada 2024-12-13; plena vigencia 2026-12-01.
+    dataSubjectRights: [
+      'access',
+      'rectification',
+      'erasure',
+      'portability',
+      'object',
+      'withdraw_consent',
+      'automated_decision_review',
+    ],
+    validConsentBases: [
+      'explicit_consent',
+      'contract_performance',
+      'legal_obligation',
+      'vital_interests',
+      'public_task',
+      'legitimate_interests',
+    ],
+    alwaysRequireExplicitConsent: [
+      'biometric',
+      'health_medical',
+      'minor_data',
+      'genetic',
+    ],
+    // Ley 21.719: notificación de brecha a la APDP "sin dilaciones
+    // indebidas"; adoptamos 72h como cap operacional (estándar GDPR-like).
+    breachNotificationHours: 72,
+    breachNotificationToIndividuals: true, // a los titulares si hay alto riesgo.
+    dataResidencyRequired: false,
+    minorConsentAge: 14, // Ley 21.719 (menores requieren representante legal).
+    regulator: 'Agencia de Protección de Datos Personales (APDP)',
   },
 };
 

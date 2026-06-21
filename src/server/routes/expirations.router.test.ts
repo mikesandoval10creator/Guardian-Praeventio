@@ -68,6 +68,7 @@ function seedProject(members: string[] = [MEMBER]) {
 const asUser = (uid: string) => ({ 'x-test-uid': uid });
 const scanBase = `${PREFIX}/${PROJECT}/expirations/scan`;
 const payloadBase = `${PREFIX}/${PROJECT}/expirations/build-finding-payload`;
+const listBase = `${PREFIX}/${PROJECT}/expirations/list`;
 
 // Anchor "now" so day-bucketing is deterministic regardless of wall clock.
 const NOW = '2026-06-18T00:00:00.000Z';
@@ -243,5 +244,82 @@ describe('POST /:projectId/expirations/build-finding-payload', () => {
       });
     expect(res.status).toBe(200);
     expect(res.body.payload.label).toBe('contract:c-9');
+  });
+});
+
+describe('GET /:projectId/expirations/list (real EPP-assignment read-path)', () => {
+  // This is the read-path that feeds the mounted <ExpirationsListPanel /> on the
+  // Dashboard (src/pages/Dashboard.tsx) via useExpirableItems. It assembles REAL
+  // ExpirableItem[] from `projects/{id}/epp_assignments` — no fabricated dates.
+
+  function seedEpp(docId: string, data: Record<string, unknown>) {
+    H.db!._seed(`projects/${PROJECT}/epp_assignments/${docId}`, data);
+  }
+
+  it('401 without a token', async () => {
+    const res = await request(buildApp()).get(listBase);
+    expect(res.status).toBe(401);
+  });
+
+  it('403 for a non-member', async () => {
+    const res = await request(buildApp()).get(listBase).set(asUser(OUTSIDER));
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+  });
+
+  it('200 maps real EPP assignments (with expiresAt) to ExpirableItem shape', async () => {
+    seedEpp('epp-helmet', {
+      eppItemName: 'Casco clase B',
+      expiresAt: daysFromNow(10),
+      status: 'active',
+      workerId: 'worker-77',
+    });
+
+    const res = await request(buildApp()).get(listBase).set(asUser(MEMBER));
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([
+      {
+        id: 'epp-helmet',
+        kind: 'epp',
+        expiresAt: daysFromNow(10),
+        label: 'Casco clase B',
+        status: 'active',
+        ownerId: 'worker-77',
+        projectId: PROJECT,
+      },
+    ]);
+  });
+
+  it('200 skips EPP assignments without a real expiresAt (no fabricated dates)', async () => {
+    seedEpp('epp-no-exp', { eppItemName: 'Guantes', workerId: 'worker-1' });
+    seedEpp('epp-empty-exp', { eppItemName: 'Botas', expiresAt: '', workerId: 'worker-2' });
+    seedEpp('epp-real', {
+      eppItemName: 'Arnés',
+      expiresAt: daysFromNow(5),
+      workerId: 'worker-3',
+    });
+
+    const res = await request(buildApp()).get(listBase).set(asUser(MEMBER));
+
+    expect(res.status).toBe(200);
+    expect(res.body.items.map((i: { id: string }) => i.id)).toEqual(['epp-real']);
+    expect(res.body.items[0].label).toBe('Arnés');
+  });
+
+  it('200 returns an empty list when the project has no EPP assignments (honest empty-state)', async () => {
+    const res = await request(buildApp()).get(listBase).set(asUser(MEMBER));
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([]);
+  });
+
+  it('500 when the EPP read fails (handler maps Firestore errors to internal_error)', async () => {
+    seedEpp('epp-helmet', { eppItemName: 'Casco', expiresAt: daysFromNow(10) });
+    // Fail only the EPP subcollection read — the prior assertProjectMember
+    // project-doc read still succeeds, so the 500 is from the list assembly.
+    H.db!._failReads('epp_assignments');
+    const res = await request(buildApp()).get(listBase).set(asUser(MEMBER));
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('internal_error');
   });
 });

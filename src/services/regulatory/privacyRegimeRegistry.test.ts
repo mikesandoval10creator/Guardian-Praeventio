@@ -1,6 +1,8 @@
 // Sprint 48 E.4 — Tests del privacyRegimeRegistry.
 // 2026-05-15 fix: catálogo expandido de 8 → 11 (agregado PIPL-CN, PIPA-TW,
 // 152-FZ-RU; antes profiles.ts mapeaba CN/TW/RU a PIPA-JP por error).
+// 2026-06 fix: catálogo expandido de 11 → 12 (agregado LEY-21719-CL como
+// régimen de primera clase de Chile; antes profiles.ts mapeaba CL a LGPD).
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -9,8 +11,8 @@ import {
   requiredConsentFor,
 } from './privacyRegimeRegistry.js';
 
-describe('privacyRegimeRegistry — catálogo de 11', () => {
-  it('listRegimes incluye exactamente los 11 regímenes esperados', () => {
+describe('privacyRegimeRegistry — catálogo de 12', () => {
+  it('listRegimes incluye exactamente los 12 regímenes esperados', () => {
     const codes = listRegimes().map((r) => r.code);
     for (const c of [
       'GDPR',
@@ -25,10 +27,12 @@ describe('privacyRegimeRegistry — catálogo de 11', () => {
       'PIPL-CN',
       'PIPA-TW',
       '152-FZ-RU',
+      // Nuevo 2026-06
+      'LEY-21719-CL',
     ] as const) {
       expect(codes).toContain(c);
     }
-    expect(codes.length).toBe(11);
+    expect(codes.length).toBe(12);
   });
 
   it('getRegime(XX) → null', () => {
@@ -56,6 +60,52 @@ describe('privacyRegimeRegistry — catálogo de 11', () => {
     expect(tw).not.toBeNull();
     expect(tw?.dataResidencyRequired).toBe(false);
     expect(tw?.breachNotificationHours).toBe(72);
+  });
+});
+
+describe('privacyRegimeRegistry — Ley 21.719 (Chile)', () => {
+  it('LEY-21719-CL existe con APDP como autoridad y vigencia 2026', () => {
+    const cl = getRegime('LEY-21719-CL');
+    expect(cl).not.toBeNull();
+    expect(cl?.name).toContain('21.719');
+    expect(cl?.jurisdiction).toBe('Chile');
+    expect(cl?.effectiveYear).toBe(2026); // plena vigencia 01-12-2026
+    expect(cl?.regulator).toContain('Agencia de Protección de Datos');
+  });
+
+  it('LEY-21719-CL impone 72h de notificación de brecha (no null)', () => {
+    const cl = getRegime('LEY-21719-CL');
+    expect(cl?.breachNotificationHours).toBe(72);
+    expect(cl?.breachNotificationToIndividuals).toBe(true);
+  });
+
+  it('LEY-21719-CL reconoce derechos ARCO + portabilidad + decisión automatizada', () => {
+    const cl = getRegime('LEY-21719-CL');
+    expect(cl?.dataSubjectRights).toEqual(
+      expect.arrayContaining([
+        'access',
+        'rectification',
+        'erasure',
+        'object',
+        'portability',
+        'withdraw_consent',
+        'automated_decision_review',
+      ]),
+    );
+  });
+
+  it('LEY-21719-CL exige consentimiento explícito para datos sensibles', () => {
+    expect(requiredConsentFor('LEY-21719-CL', 'health_medical')).toBe(true);
+    expect(requiredConsentFor('LEY-21719-CL', 'biometric')).toBe(true);
+    expect(requiredConsentFor('LEY-21719-CL', 'minor_data')).toBe(true);
+    // pii_basic no requiere consentimiento explícito adicional.
+    expect(requiredConsentFor('LEY-21719-CL', 'pii_basic')).toBe(false);
+  });
+
+  it('LEY-21719-CL no exige data residency local (consentimiento + base de licitud)', () => {
+    const cl = getRegime('LEY-21719-CL');
+    expect(cl?.dataResidencyRequired).toBe(false);
+    expect(cl?.minorConsentAge).toBe(14);
   });
 });
 

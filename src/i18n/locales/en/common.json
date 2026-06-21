@@ -1,4 +1,9 @@
 {
+  "iso45001": {
+    "aria": "ISO 45001 catalog",
+    "coverage": "coverage",
+    "openStandard": "Open standard"
+  },
   "fiveS": {
     "aria": "5S audit",
     "title": "5S Audit",
@@ -251,7 +256,8 @@
     "next": "Next",
     "search": "Search",
     "filter": "Filter",
-    "loading_failed": "Failed to load"
+    "loading_failed": "Failed to load",
+    "allRightsReserved": "All rights reserved"
   },
   "pricing": {
     "tier_free": "Free",
@@ -5066,5 +5072,9 @@
     "planEmpty": "Capture the period plan to compute completion.",
     "laggingEmpty": "No man-hours — capture to compute lagging",
     "partial": "Partial SPI: without man-hours the lagging (60%) is not real yet."
+  },
+  "privacy": {
+    "lastUpdated": "Last updated",
+    "providerData": "Provider data"
   }
 }

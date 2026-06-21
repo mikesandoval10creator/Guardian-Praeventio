@@ -107,6 +107,69 @@ describe('CphsModulePageContainer', () => {
     });
   });
 
+  it('renders the CphsCommitteeStatusCard fed by the real service read-path', async () => {
+    // Seed a committee with REAL member composition + a held-but-unsigned
+    // meeting + a scheduled one. The container loads them via
+    // `cphsService.listCommittees` / `listMeetings` (the Firestore-shaped
+    // read-path) and threads the active committee into the status card.
+    // Asserting the card's COMPUTED values proves the card is genuinely
+    // rendered from live data (anti-phantom-mount, CLAUDE.md #23) — not a
+    // hardcoded/empty shell.
+    const { db, stores } = makeDb();
+    stores.cphs_committees.set('c1', {
+      id: 'c1',
+      projectId: 'p1',
+      period: { start: '2026-01-01', end: '2028-01-01' },
+      members: [
+        { uid: 'e1', fullName: 'Emp Uno', role: 'chair', side: 'employer', elected: false },
+        { uid: 'e2', fullName: 'Emp Dos', role: 'secretary', side: 'employer', elected: false },
+        { uid: 'e3', fullName: 'Emp Tres', role: 'representative', side: 'employer', elected: false },
+        { uid: 'w1', fullName: 'Trab Uno', role: 'representative', side: 'worker', elected: true },
+        { uid: 'w2', fullName: 'Trab Dos', role: 'representative', side: 'worker', elected: true },
+        { uid: 'w3', fullName: 'Trab Tres', role: 'representative', side: 'worker', elected: true },
+      ],
+      status: 'active',
+      iso45001Compliance: true,
+      createdAt: '2026-01-01',
+      createdBy: 'admin1',
+    });
+    stores.cphs_meetings.set('m1', {
+      id: 'm1',
+      committeeId: 'c1',
+      scheduledAt: '2026-05-15T10:00:00.000Z',
+      attendees: ['admin1'],
+      agenda: ['x'],
+      minutes: 'acta sin firmar',
+      resolutions: [],
+      signatures: [],
+      status: 'held',
+    });
+    stores.cphs_meetings.set('m2', {
+      id: 'm2',
+      committeeId: 'c1',
+      scheduledAt: '2026-06-15T10:00:00.000Z',
+      attendees: [],
+      agenda: ['y'],
+      resolutions: [],
+      signatures: [],
+      status: 'scheduled',
+    });
+
+    render(<CphsModulePageContainer buildDb={() => db} />);
+
+    const card = await screen.findByTestId('cphs-status-card');
+    expect(card).toBeTruthy();
+    // 3 employer + 3 worker, computed by the card from the real members.
+    expect(screen.getByTestId('cphs-employer-count').textContent).toMatch(/3/);
+    expect(screen.getByTestId('cphs-worker-count').textContent).toMatch(/3/);
+    // Status badge derived from the seeded committee.
+    expect(screen.getByTestId('cphs-status-badge').textContent).toMatch(/active/);
+    // 1 scheduled + 1 held-unsigned, both derived from the real
+    // `listMeetings` read-path.
+    expect(screen.getByTestId('cphs-meetings-scheduled').textContent).toMatch(/1/);
+    expect(screen.getByTestId('cphs-meetings-unsigned').textContent).toMatch(/1/);
+  });
+
   it('signMinutes wires the WebAuthn ceremony override end-to-end', async () => {
     // Seed a committee + a held meeting with admin1 in attendees.
     const { db, stores } = makeDb();
