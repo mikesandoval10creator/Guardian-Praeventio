@@ -4476,6 +4476,13 @@
       "title": "Matriz IPER 5x5",
       "subtitle": "Estime o nível de risco (probabilidade × severidade) e o residual ao aplicar controles. É um guia — a decisão é da equipe."
     },
+    "landscape": {
+      "title": "Panorama de riscos do projeto",
+      "noProject": "Selecione um projeto para ver o panorama dos riscos avaliados.",
+      "loading": "Carregando avaliações IPER…",
+      "error": "Não foi possível carregar o panorama de riscos. Tente novamente.",
+      "empty": "Ainda não há avaliações IPER salvas neste projeto. Quando você registrar uma, ela aparecerá aqui na matriz 5×5."
+    },
     "aria": "Matriz IPER 5x5",
     "controlHigh": "Alta",
     "controlLow": "Baixa",

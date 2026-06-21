@@ -14,6 +14,7 @@ import type {
   PressureSignals,
   PressureReport,
 } from '../services/orgMetrics/organizationalMetrics';
+import type { RiskMatrixNode } from '../components/riskMatrix/RiskMatrix5x5';
 
 async function authedFetch(
   path: string,
@@ -343,6 +344,69 @@ export function useOperationalPressure(
  * captured man-hours) for a project + period. Re-fetches when either changes
  * or when `refetch()` is called (e.g. after capturing new exposure hours).
  */
+// ── 7. IPER matrix (real saved iper_assessments → 5×5 nodes) ───────────────
+
+export interface IperMatrixResponse {
+  nodes: RiskMatrixNode[];
+}
+
+export async function fetchIperMatrix(projectId: string): Promise<IperMatrixResponse> {
+  const res = await authedFetch(
+    `/api/sprint-k/${projectId}/iper-assessments/matrix`,
+    { method: 'GET' },
+  );
+  return json<IperMatrixResponse>(res);
+}
+
+export interface UseIperMatrix {
+  nodes: RiskMatrixNode[];
+  loading: boolean;
+  error: Error | null;
+  refetch: () => void;
+}
+
+/**
+ * Fetch the project's REAL saved IPER assessments (collection
+ * `iper_assessments`) projected into RiskMatrix5x5 nodes (probability ×
+ * severity). Honest empty-state: a project with no assessments yields `[]`.
+ * Re-fetches when `projectId` changes or on `refetch()`.
+ */
+export function useIperMatrix(projectId: string | null): UseIperMatrix {
+  const [nodes, setNodes] = useState<RiskMatrixNode[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [nonce, setNonce] = useState(0);
+
+  const refetch = useCallback(() => setNonce((n) => n + 1), []);
+
+  useEffect(() => {
+    if (!projectId) {
+      setNodes([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetchIperMatrix(projectId)
+      .then((r) => {
+        if (!cancelled) setNodes(r.nodes);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e : new Error(String(e)));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, nonce]);
+
+  return { nodes, loading, error, refetch };
+}
+
 export function useSafetyMetricsReport(
   projectId: string | null,
   period: string,

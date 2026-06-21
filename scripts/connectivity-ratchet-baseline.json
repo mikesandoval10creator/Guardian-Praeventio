@@ -32,7 +32,6 @@
     "src/components/pymeOnboarding/PymeMaturityWizard.tsx",
     "src/components/pymeWizard/PymeOnboardingPlanPanel.tsx",
     "src/components/reportsAutomation/ReportTemplatePreview.tsx",
-    "src/components/riskMatrix/RiskMatrix5x5Lazy.tsx",
     "src/components/roleOnboarding/OnboardingTrackProgressPanel.tsx",
     "src/components/safety/SafetyCapsules.tsx",
     "src/components/shared/ProjectScopedPage.tsx",

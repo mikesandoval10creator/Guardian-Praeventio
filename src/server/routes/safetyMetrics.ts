@@ -565,4 +565,79 @@ router.get(
   },
 );
 
+// ────────────────────────────────────────────────────────────────────────
+// 7. IPER matrix — read REAL saved iper_assessments → 5×5 matrix nodes
+// ────────────────────────────────────────────────────────────────────────
+//
+//   GET /:projectId/iper-assessments/matrix
+//     200: { nodes: RiskMatrixNode[] }
+//
+// Feeds the executive RiskMatrix5x5 scatter view. Reads the project's REAL
+// IPER assessments (collection `iper_assessments`, writer
+// src/services/safety/iperAssessments.ts) and projects each into a
+// probability × severity node. Read-only (no writes → no audit log). Honest
+// empty-state: a project with no assessments returns `{ nodes: [] }`. NEVER
+// fabricates a node — only persisted assessments appear.
+
+/** One in [1..5] or null when out of range / not a valid IPER cell. */
+function cell1to5(v: unknown): 1 | 2 | 3 | 4 | 5 | null {
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > 5) return null;
+  return v as 1 | 2 | 3 | 4 | 5;
+}
+
+interface IperMatrixNode {
+  id: string;
+  label: string;
+  probability: 1 | 2 | 3 | 4 | 5;
+  impact: 1 | 2 | 3 | 4 | 5;
+  kind: 'risk';
+}
+
+router.get(
+  '/:projectId/iper-assessments/matrix',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    if (!(await guard(callerUid, projectId, res))) return undefined;
+
+    const db = admin.firestore();
+    try {
+      const snap = await db
+        .collection('iper_assessments')
+        .where('projectId', '==', projectId)
+        .get();
+
+      const nodes: IperMatrixNode[] = [];
+      for (const d of snap.docs) {
+        const data = d.data() as Record<string, unknown>;
+        const inputs = (data.inputs ?? {}) as Record<string, unknown>;
+        const probability = cell1to5(inputs.probability);
+        const impact = cell1to5(inputs.severity);
+        // Skip malformed/legacy docs rather than fabricating a position.
+        if (probability === null || impact === null) continue;
+        const description =
+          typeof data.description === 'string' && data.description.trim().length > 0
+            ? data.description.trim()
+            : typeof data.level === 'string' && data.level.length > 0
+              ? data.level
+              : 'IPER';
+        nodes.push({
+          id: d.id,
+          label: description.length > 80 ? `${description.slice(0, 77)}…` : description,
+          probability,
+          impact,
+          kind: 'risk',
+        });
+      }
+
+      return res.json({ nodes });
+    } catch (err) {
+      logger.error?.('safetyMetrics.iperMatrix.error', err);
+      captureRouteError(err, 'safetyMetrics.iperMatrix');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 export default router;
