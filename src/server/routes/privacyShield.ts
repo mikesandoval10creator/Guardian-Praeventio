@@ -104,8 +104,14 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof classifyFieldSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard() inside the try: assertProjectMember re-throws infra errors
+      // (e.g. a Firestore outage). In Express 4 an async handler that rejects
+      // is NOT auto-forwarded to the error middleware — the request would hang
+      // with no response. Catching here maps it to a clean 500. On the 403
+      // path guard() already wrote the response and returns false, so
+      // `return undefined` exits before the engine — no double-send.
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const report = classifyField(body.field);
       return res.json({ report });
     } catch (err) {
@@ -132,8 +138,10 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof detectGapsSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard() inside the try — infra-error reject maps to 500, not a hang
+      // (see classify-field above).
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const gaps = detectGaps(body.fields);
       return res.json({ gaps });
     } catch (err) {
@@ -161,8 +169,10 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof reapExpiredSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard() inside the try — infra-error reject maps to 500, not a hang
+      // (see classify-field above).
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const result = reapExpiredRecords(body.records, body.nowIso);
       return res.json({ result });
     } catch (err) {

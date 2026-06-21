@@ -93,6 +93,27 @@ describe('POST /:projectId/privacy-shield/classify-field', () => {
     expect(res.body.report).toBeUndefined();
   });
 
+  it('5xx (NOT a hang) when the membership check hits a Firestore outage', async () => {
+    // assertProjectMember reads projects/{projectId}; force that read to throw
+    // (infra outage). guard() re-throws non-ProjectMembershipError, so in
+    // Express 4 the reject would be an unhandled promise rejection and the
+    // request would HANG with no response. The fix moves guard() inside the
+    // route try/catch → the reject maps to a clean 500. If this test ever
+    // times out instead of returning, the pre-try guard regression is back.
+    H.db!._failReads('projects/p1');
+    const res = await post(URL, MEMBER, {
+      field: { fieldPath: 'worker.dni', category: 'identity', encrypted: true },
+    });
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(res.status).toBeLessThan(600);
+    // Clean body — no internals leaked (CLAUDE.md #8): the Firestore path /
+    // stack / 'forced read failure' message must NOT reach the client.
+    expect(res.body).toEqual({ error: 'internal_error' });
+    expect(JSON.stringify(res.body)).not.toContain('forced read failure');
+    expect(JSON.stringify(res.body)).not.toContain('projects/p1');
+    expect(res.body.report).toBeUndefined();
+  });
+
   it('403 when the project does not exist (membership read finds nothing)', async () => {
     const res = await post('/api/privacy/ghost/privacy-shield/classify-field', MEMBER, {
       field: { fieldPath: 'x', category: 'identity', encrypted: true },
