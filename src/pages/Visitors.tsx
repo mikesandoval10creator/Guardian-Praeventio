@@ -28,7 +28,6 @@ import {
   CheckCircle2,
   X,
   LogOut,
-  ScanLine,
   AlertCircle,
   Sparkles,
   WifiOff,
@@ -37,7 +36,12 @@ import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useActiveVisitors } from '../hooks/useActiveVisitors';
-import { QRScannerModal } from '../components/QRScannerModal';
+import { useProjectRoster } from '../hooks/useProjectRoster';
+import {
+  VisitorCheckInForm,
+  type VisitorCheckInPayload,
+} from '../components/visitors/VisitorCheckInForm';
+import type { VisitorKind } from '../services/visitors/visitorAccessService';
 import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
 import type { Visitor } from '../services/visitorControl/visitorRegistry';
@@ -194,197 +198,40 @@ function VisitorCard({ visitor, onCheckOut, onInduct, busyId }: VisitorCardProps
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// New visitor form (check-in)
+// Check-in payload → real backend body mapping
 // ────────────────────────────────────────────────────────────────────────
 
-interface NewVisitorFormProps {
-  projectId: string;
-  onClose: () => void;
-  onRegistered: (visitor: Visitor) => void;
-}
+// Human-readable Spanish-CL labels for the visit kinds the check-in form
+// exposes. Used to compose the REAL `reason` string the backend persists —
+// the `/api/visitors/check-in` contract has no dedicated `kind` field, so the
+// selected kind (plus the optional companion + notes) is the honest reason.
+const KIND_LABELS: Record<VisitorKind, string> = {
+  mandante: 'Mandante / cliente',
+  proveedor: 'Proveedor',
+  fiscalizador: 'Fiscalizador',
+  mutualidad: 'Mutualidad',
+  auditor_externo: 'Auditor externo',
+  cliente_comercial: 'Cliente comercial',
+  prensa: 'Prensa',
+  familiar_trabajador: 'Familiar trabajador',
+};
 
-function NewVisitorForm({ projectId, onClose, onRegistered }: NewVisitorFormProps) {
-  const { t } = useTranslation();
-  const [fullName, setFullName] = useState('');
-  const [rut, setRut] = useState('');
-  const [company, setCompany] = useState('');
-  const [reason, setReason] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [scannerOpen, setScannerOpen] = useState(false);
-
-  const valid =
-    fullName.trim().length >= 3 &&
-    rut.trim().length >= 3 &&
-    company.trim().length > 0 &&
-    reason.trim().length > 0;
-
-  const handleScan = (decoded: string) => {
-    // We accept any QR — the decoded text is treated as the RUT.
-    setRut(decoded.trim());
-    setScannerOpen(false);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!valid || submitting) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        setError(t('visitors.errors.noSession', 'Debes iniciar sesión.'));
-        setSubmitting(false);
-        return;
-      }
-      // §2.20 (2026-05-23) — apiAuthHeader unified.
-      const authHeader = await apiAuthHeader();
-      const result = await fetchJson<{ ok: true; visitor: Visitor }>(
-        '/api/visitors/check-in',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(authHeader ? { 'Authorization': authHeader } : {}),
-            'Idempotency-Key': newIdempotencyKey('vis-checkin'),
-          },
-          body: JSON.stringify({
-            projectId,
-            fullName: fullName.trim(),
-            rut: rut.trim(),
-            company: company.trim(),
-            reason: reason.trim(),
-          }),
-        },
-      );
-      onRegistered(result.visitor);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-      logger.error('visitor_check_in_failed', err);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-2xl border border-default-token bg-surface p-4 sm:p-5 space-y-3"
-      data-testid="visitor-form"
-    >
-      <div className="flex items-center gap-2 justify-between">
-        <h3 className="text-sm font-black uppercase tracking-tight text-primary-token">
-          {t('visitors.form.title', 'Nueva visita')}
-        </h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1 text-secondary-token hover:text-primary-token"
-          aria-label={t('common.close', 'Cerrar')}
-        >
-          <X className="w-4 h-4" aria-hidden="true" />
-        </button>
-      </div>
-      <div>
-        <label className="block text-[11px] font-bold uppercase tracking-widest text-secondary-token mb-1">
-          {t('visitors.form.fullName', 'Nombre completo')}
-        </label>
-        <input
-          type="text"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          placeholder="Ana Visitante"
-          className="w-full px-3 py-2 rounded-xl border border-default-token bg-surface text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-          data-testid="visitor-input-fullName"
-        />
-      </div>
-      <div>
-        <label className="block text-[11px] font-bold uppercase tracking-widest text-secondary-token mb-1">
-          {t('visitors.form.rut', 'RUT')}
-        </label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={rut}
-            onChange={(e) => setRut(e.target.value)}
-            placeholder="12.345.678-9"
-            className="flex-1 px-3 py-2 rounded-xl border border-default-token bg-surface text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-            data-testid="visitor-input-rut"
-          />
-          <button
-            type="button"
-            onClick={() => setScannerOpen(true)}
-            className="px-3 py-2 rounded-xl border border-teal-500/40 text-teal-600 dark:text-teal-300 hover:bg-teal-500/10"
-            aria-label={t('visitors.form.scan', 'Escanear QR')}
-            data-testid="visitor-scan-btn"
-          >
-            <ScanLine className="w-4 h-4" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-      <div>
-        <label className="block text-[11px] font-bold uppercase tracking-widest text-secondary-token mb-1">
-          {t('visitors.form.company', 'Empresa / Organización')}
-        </label>
-        <input
-          type="text"
-          value={company}
-          onChange={(e) => setCompany(e.target.value)}
-          placeholder="Auditora SpA"
-          className="w-full px-3 py-2 rounded-xl border border-default-token bg-surface text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-          data-testid="visitor-input-company"
-        />
-      </div>
-      <div>
-        <label className="block text-[11px] font-bold uppercase tracking-widest text-secondary-token mb-1">
-          {t('visitors.form.reason', 'Motivo de la visita')}
-        </label>
-        <textarea
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          rows={2}
-          placeholder={t('visitors.form.reasonPlaceholder', 'Auditoría ISO 45001…') as string}
-          className="w-full px-3 py-2 rounded-xl border border-default-token bg-surface text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-          data-testid="visitor-input-reason"
-        />
-      </div>
-      {error && (
-        <div
-          className="text-xs text-rose-600 dark:text-rose-400"
-          data-testid="visitor-form-error"
-          role="alert"
-        >
-          {error}
-        </div>
-      )}
-      <div className="flex justify-end gap-2 pt-1">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-widest text-secondary-token hover:text-primary-token"
-          data-testid="visitor-form-cancel"
-        >
-          {t('common.cancel', 'Cancelar')}
-        </button>
-        <button
-          type="submit"
-          disabled={!valid || submitting}
-          className="px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-widest bg-teal-500 text-white disabled:bg-zinc-400"
-          data-testid="visitor-form-submit"
-        >
-          {submitting
-            ? t('common.saving', 'Guardando…')
-            : t('visitors.form.submit', 'Registrar ingreso')}
-        </button>
-      </div>
-      <QRScannerModal
-        isOpen={scannerOpen}
-        onClose={() => setScannerOpen(false)}
-        onScan={handleScan}
-      />
-    </form>
-  );
+/**
+ * Compose the backend `reason` from the rich check-in payload. The
+ * `/api/visitors/check-in` contract only accepts `fullName/rut/company/reason`,
+ * so the visit kind, the chosen internal companion (host) and any operational
+ * notes are folded into a single human-readable reason. Every part is REAL
+ * user input — nothing is fabricated.
+ */
+function buildReason(
+  payload: VisitorCheckInPayload,
+  hosts: Array<{ uid: string; name: string }>,
+): string {
+  const parts: string[] = [KIND_LABELS[payload.kind] ?? payload.kind];
+  const host = hosts.find((h) => h.uid === payload.hostUid);
+  if (host) parts.push(`Acompañante: ${host.name}`);
+  if (payload.notes) parts.push(payload.notes);
+  return parts.join(' · ');
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -634,6 +481,16 @@ export function Visitors() {
     error: visitorsError,
   } = useActiveVisitors(projectId);
 
+  // Real internal-worker roster for the "acompañante" (host) selector. Sourced
+  // from GET /api/projects/:id/roster (organic.ts) which unions crew memberUids
+  // and resolves users.displayName. Empty until the fetch resolves or if the
+  // project has no crews yet — never fabricated.
+  const { roster } = useProjectRoster(projectId);
+  const availableHosts = useMemo(
+    () => roster.map((m) => ({ uid: m.uid, name: m.fullName })),
+    [roster],
+  );
+
   useEffect(() => {
     if (activeVisitorsData) setLocalVisitors(activeVisitorsData.visitors);
   }, [activeVisitorsData]);
@@ -649,6 +506,40 @@ export function Visitors() {
     setFormOpen(false);
     // Open the induction modal immediately for fast flow.
     setAckVisitor(visitor);
+  };
+
+  // Bridge the rich <VisitorCheckInForm/> payload to the REAL check-in endpoint
+  // `POST /api/visitors/check-in`. The form's identityDocument→rut and
+  // organization→company map 1:1; kind/companion/notes compose the real reason.
+  // The server stamps the host uid from the verified token and resolves the
+  // tenant from the project — neither is trusted from the body (route #6/#19).
+  const handleCheckInSubmit = async (payload: VisitorCheckInPayload) => {
+    if (!projectId) throw new Error('no_project');
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error(t('visitors.errors.noSession', 'Debes iniciar sesión.') as string);
+    }
+    // §2.20 (2026-05-23) — apiAuthHeader unified.
+    const authHeader = await apiAuthHeader();
+    const result = await fetchJson<{ ok: true; visitor: Visitor }>(
+      '/api/visitors/check-in',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { Authorization: authHeader } : {}),
+          'Idempotency-Key': newIdempotencyKey('vis-checkin'),
+        },
+        body: JSON.stringify({
+          projectId,
+          fullName: payload.fullName,
+          rut: payload.identityDocument,
+          company: payload.organization,
+          reason: buildReason(payload, availableHosts),
+        }),
+      },
+    );
+    handleRegistered(result.visitor);
   };
 
   const handleCheckOut = async (visitorId: string) => {
@@ -773,10 +664,10 @@ export function Visitors() {
       )}
 
       {formOpen && projectId && (
-        <NewVisitorForm
-          projectId={projectId}
-          onClose={() => setFormOpen(false)}
-          onRegistered={handleRegistered}
+        <VisitorCheckInForm
+          availableHosts={availableHosts}
+          onSubmit={handleCheckInSubmit}
+          onCancel={() => setFormOpen(false)}
         />
       )}
 
