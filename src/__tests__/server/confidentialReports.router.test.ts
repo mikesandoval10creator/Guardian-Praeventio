@@ -13,11 +13,18 @@ import request from 'supertest';
 
 const H = vi.hoisted(() => ({
   db: null as ReturnType<typeof import('../helpers/fakeFirestore').createFakeFirestore> | null,
+  fcmSendEach: vi.fn().mockResolvedValue({ successCount: 1, failureCount: 0, responses: [] }),
 }));
 
 vi.mock('firebase-admin', async () => {
   const { adminMock } = await import('../helpers/fakeFirestore');
-  return adminMock(() => H.db!);
+  const base = adminMock(() => H.db!);
+  const fakeMessaging = { sendEachForMulticast: (...args: unknown[]) => H.fcmSendEach(...args) };
+  return {
+    ...base,
+    default: { ...base.default, messaging: () => fakeMessaging },
+    messaging: () => fakeMessaging,
+  };
 });
 vi.mock('../../server/middleware/verifyAuth.js', () => ({
   verifyAuth: (req: Request, res: Response, next: NextFunction) => {
@@ -56,6 +63,7 @@ const create = (uid: string, body: Record<string, unknown>) =>
 
 beforeEach(() => {
   vi.mocked(assertProjectMember).mockReset().mockResolvedValue(undefined as never);
+  H.fcmSendEach.mockClear();
   H.db = createFakeFirestore();
   H.db._seed('projects/p1', { tenantId: 't1' });
 });
@@ -90,6 +98,61 @@ describe('POST create', () => {
       .post('/api/sprint-k/p1/confidential-reports')
       .send({ kind: 'safety', severity: 'low', narrative: 'x'.repeat(20), allowsIdentity: false });
     expect(res.status).toBe(401);
+  });
+});
+
+// F2 (Ley Karín): la denuncia notifica al LÍDER del proyecto, jamás filtrando
+// la identidad del denunciante ni usando el canal project-wide.
+describe('POST create — notifica SOLO al líder, anonimato-seguro', () => {
+  beforeEach(() => {
+    H.db!._seed('projects/p1', { tenantId: 't1', createdBy: 'lead1' });
+    H.db!._seed('users/lead1', { fcmTokens: ['tok-lead'] });
+  });
+
+  it('hace push neutral al líder con route de deep-link, sin identidad', async () => {
+    const res = await create('worker1', {
+      kind: 'harassment',
+      severity: 'high',
+      narrative: 'Acoso reiterado por un supervisor con detalles sensibles.',
+      allowsIdentity: false,
+    });
+    expect(res.status).toBe(201);
+    expect(H.fcmSendEach).toHaveBeenCalledTimes(1);
+    const msg = H.fcmSendEach.mock.calls[0][0] as {
+      tokens: string[];
+      data: Record<string, string>;
+      notification: { title: string; body: string };
+    };
+    expect(msg.tokens).toContain('tok-lead');
+    expect(msg.data.route).toBe('/confidential-reports');
+    expect(msg.data.type).toBe('confidential_report');
+    // anonimato duro: el payload NO debe contener uid del denunciante ni la narrativa
+    const serialized = JSON.stringify(msg);
+    expect(serialized).not.toContain('worker1');
+    expect(serialized).not.toContain('Acoso reiterado');
+  });
+
+  it('no hace push si el líder no tiene dispositivos registrados', async () => {
+    H.db!._seed('users/lead1', { fcmTokens: [] });
+    const res = await create('worker1', {
+      kind: 'safety',
+      severity: 'low',
+      narrative: 'x'.repeat(20),
+      allowsIdentity: false,
+    });
+    expect(res.status).toBe(201);
+    expect(H.fcmSendEach).not.toHaveBeenCalled();
+  });
+
+  it('igual responde 201 si el push falla (best-effort)', async () => {
+    H.fcmSendEach.mockRejectedValueOnce(new Error('FCM down'));
+    const res = await create('worker1', {
+      kind: 'safety',
+      severity: 'low',
+      narrative: 'x'.repeat(20),
+      allowsIdentity: false,
+    });
+    expect(res.status).toBe(201);
   });
 });
 
