@@ -256,7 +256,8 @@
     "next": "Siguiente",
     "search": "Buscar",
     "filter": "Filtrar",
-    "loading_failed": "No se pudo cargar"
+    "loading_failed": "No se pudo cargar",
+    "allRightsReserved": "Todos los derechos reservados"
   },
   "pricing": {
     "tier_free": "Gratis",
@@ -5071,5 +5072,9 @@
     "planEmpty": "Captura el plan del período para calcular el cumplimiento.",
     "laggingEmpty": "Sin horas-hombre — captura para calcular el lagging",
     "partial": "SPI parcial: sin horas-hombre el lagging (60%) no es real todavía."
+  },
+  "privacy": {
+    "lastUpdated": "Última actualización",
+    "providerData": "Datos del proveedor"
   }
 }

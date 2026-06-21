@@ -514,7 +514,11 @@ const PROFILE_CL: JurisdictionProfile = {
     { id: 'DS-594', title: 'DS 594 — Condiciones sanitarias y ambientales', category: 'regulation', reference: 'https://www.bcn.cl/leychile/navegar?idNorma=167766' },
   ],
   incidentReporting: { authority: 'SUSESO + Mutualidad', deadlineDays: 1, fatalityImmediate: true, formName: 'DIAT/DIEP', electronicSubmission: true },
-  privacyRegime: 'LGPD', // Chile Ley 21.719 (similar a LGPD/GDPR-lite)
+  // 🇨🇱 Fix 2026-06: antes apuntaba a 'LGPD' como placeholder ("similar a
+  // LGPD/GDPR-lite"). Chile tiene ahora régimen de primera clase:
+  // Ley 21.719 (APDP, plena vigencia 01-12-2026). Un cliente chileno
+  // procesando bajo "régimen brasileño" era riesgo regulatorio real.
+  privacyRegime: 'LEY-21719-CL',
   mandatoryCommittees: [
     { name: 'Comité Paritario de Higiene y Seguridad (CPHS)', minEmployees: 25, scope: 'DS 54 art.21 — paritario, ≥25 trabajadores' },
     { name: 'Departamento de Prevención de Riesgos', minEmployees: 100, scope: 'Ley 16.744 art.66 — obligatorio ≥100 trabajadores' },
