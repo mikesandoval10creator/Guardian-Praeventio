@@ -147,6 +147,48 @@ describe('<CorrectiveActions /> page wrapper (Fase F.4)', () => {
     expect(screen.getByText(/3 acciones cargadas/i)).toBeInTheDocument();
   });
 
+  it('renderiza ActionBalanceCard alimentado con el portfolio real merged (PR #996)', () => {
+    // The ISO 45001 hierarchy-balance card is fed by `balanceActions` — the
+    // merged list across every F.4 status. This pins the real wiring: the
+    // card must render AND its derived per-level bars must reflect the actual
+    // fetched actions (classified by the deterministic weakActionDetector),
+    // not an empty/hardcoded shell.
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    // Two training-flavoured + one engineering across open/in_progress.
+    mockOpen = {
+      data: {
+        actions: [
+          { id: 'ca1', description: 'Capacitar al equipo en bloqueo LOTO.', status: 'open', isSystemic: false },
+          { id: 'ca2', description: 'Realizar curso de manejo defensivo.', status: 'open', isSystemic: false },
+        ],
+      },
+      loading: false,
+      error: null,
+    };
+    mockInProgress = {
+      data: {
+        actions: [
+          { id: 'ca3', description: 'Instalar barrera física en zona de pinch-point.', status: 'open', isSystemic: false },
+        ],
+      },
+      loading: false,
+      error: null,
+    };
+    mockClosed = { data: { actions: [] }, loading: false, error: null };
+    mockVerified = { data: { actions: [] }, loading: false, error: null };
+    mockReopened = { data: { actions: [] }, loading: false, error: null };
+    render(<CorrectiveActions />);
+
+    const card = screen.getByTestId('action-balance-card');
+    expect(card).toBeInTheDocument();
+    // Header total reflects the 3 merged actions (real count, not 0).
+    expect(card).toHaveTextContent(/3\s+acciones/i);
+    // The two "capacitar/curso" actions classify as `training` → row shows 2.
+    expect(screen.getByTestId('action-balance-row-training')).toHaveTextContent('2');
+    // The "instalar barrera física" action classifies as `engineering` → 1.
+    expect(screen.getByTestId('action-balance-row-engineering')).toHaveTextContent('1');
+  });
+
   it('muestra el chip de offline cuando isOnline=false', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
     mockIsOnline = false;

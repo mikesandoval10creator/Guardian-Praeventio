@@ -1,4 +1,9 @@
 {
+  "iso45001": {
+    "aria": "Catálogo ISO 45001",
+    "coverage": "cobertura",
+    "openStandard": "Abrir estándar"
+  },
   "fiveS": {
     "aria": "Auditoría 5S",
     "title": "Auditoría 5S",

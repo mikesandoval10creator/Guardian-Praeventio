@@ -207,6 +207,35 @@ describe('<MaturityIndicator /> page wrapper (Fase F.26)', () => {
     expect(screen.getByTestId('maturity-dimension-integration')).toBeInTheDocument();
   });
 
+  it('monta el catálogo ISO 45001 con cláusulas reales del knowledge-base', () => {
+    // El catálogo importa ISO_45001_CONTROLS (dato determinista real, no
+    // mockeado), así que este test ejercita el render real con dato real.
+    mockUseMaturity = {
+      data: {
+        report: fixtureReport(3, 0.5),
+        recommendations: [],
+      },
+      loading: false,
+      error: null,
+    };
+    render(<MaturityIndicator />);
+    expect(screen.getByTestId('iso45001-catalog')).toBeInTheDocument();
+    // Cláusulas reales del estándar — §5.1 liderazgo y §8.2 emergencias.
+    const leadership = screen.getByTestId(
+      'iso45001-control-LEADERSHIP_COMMITMENT',
+    );
+    expect(leadership).toHaveTextContent('5.1');
+    expect(leadership).toHaveTextContent(/liderazgo/i);
+    expect(
+      screen.getByTestId('iso45001-control-EMERGENCY_PREPAREDNESS'),
+    ).toHaveTextContent('8.2');
+    // Link al estándar oficial ISO (dato real, no fabricado).
+    const link = screen.getByTestId('iso45001-link-LEADERSHIP_COMMITMENT');
+    expect(link).toHaveAttribute('href', 'https://www.iso.org/standard/63787.html');
+    // Sin coveredControlIds → sin chip de cobertura fabricado.
+    expect(screen.queryByTestId('iso45001-coverage')).not.toBeInTheDocument();
+  });
+
   it('renderiza nivel 5 (Autónomo) con gold #FFD700 y sin CTA de próximo nivel', () => {
     mockUseMaturity = {
       data: {
