@@ -13,9 +13,41 @@ import {
   type SafetyPerformanceReport,
 } from '../../services/safetyPerformance/safetyPerformanceIndex.js';
 
+/** A single executed÷planned ratio (numerator/denominator) for honest display. */
+export interface PlanRatio {
+  executed: number;
+  planned: number;
+}
+
+/** Optional plan-vs-executed block: real ratios + per-indicator honest-empty flags. */
+export interface PlanVsExecuted {
+  inspections: PlanRatio;
+  dailyTalks: PlanRatio;
+  trainings: PlanRatio;
+  honesty: {
+    plannedInspectionsRate: boolean;
+    dailyTalksDeliveryRate: boolean;
+    trainingCurrencyRate: boolean;
+    /**
+     * True when no man-hours are captured for the period, so TRIR/LTIFR
+     * collapse to 0 and the lagging score would read as a fabricated-perfect
+     * ~100. When set, the lagging panel renders honest-empty (no fake score)
+     * and the composite SPI is flagged partial — the lagging half is missing,
+     * not perfect.
+     */
+    laggingEmpty: boolean;
+  };
+}
+
 interface SpiDashboardProps {
   leading: LeadingIndicators;
   lagging: LaggingIndicators;
+  /**
+   * Optional REAL plan-vs-executed detail. When present, the dashboard renders
+   * the executed÷planned ratios honestly (e.g. "18/22") and an honest-empty CTA
+   * for any indicator whose planned denominator was never captured.
+   */
+  planVsExecuted?: PlanVsExecuted;
 }
 
 const LEVEL_CLASS: Record<SafetyPerformanceReport['level'], string> = {
@@ -26,9 +58,14 @@ const LEVEL_CLASS: Record<SafetyPerformanceReport['level'], string> = {
   excellent: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40',
 };
 
-export function SpiDashboard({ leading, lagging }: SpiDashboardProps) {
+export function SpiDashboard({ leading, lagging, planVsExecuted }: SpiDashboardProps) {
   const { t } = useTranslation();
   const report = useMemo(() => computeSafetyPerformance(leading, lagging), [leading, lagging]);
+
+  // No man-hours captured → TRIR/LTIFR are 0, which the engine scores as a
+  // perfect lagging (~100). That is absence, not excellence — present it as
+  // honest-empty so the composite SPI isn't read as a real safety score.
+  const laggingEmpty = planVsExecuted?.honesty.laggingEmpty ?? false;
 
   return (
     <section
@@ -50,6 +87,18 @@ export function SpiDashboard({ leading, lagging }: SpiDashboardProps) {
         {t('spi.level', 'Nivel')}: <strong>{report.level}</strong>
       </p>
 
+      {laggingEmpty && (
+        <p
+          className="text-[10px] text-amber-700 dark:text-amber-400"
+          data-testid="spi-partial-warning"
+        >
+          {t(
+            'spi.partial',
+            'SPI parcial: sin horas-hombre el lagging (60%) no es real todavía.',
+          )}
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg p-2 bg-current/10">
           <p className="text-[10px] uppercase opacity-70">{t('spi.leading', 'Leading (prev.)')}</p>
@@ -60,9 +109,18 @@ export function SpiDashboard({ leading, lagging }: SpiDashboardProps) {
         </div>
         <div className="rounded-lg p-2 bg-current/10">
           <p className="text-[10px] uppercase opacity-70">{t('spi.lagging', 'Lagging (react.)')}</p>
-          <p className="text-2xl font-black tabular-nums" data-testid="spi-lagging">
-            {report.laggingScore}
-          </p>
+          {laggingEmpty ? (
+            <p
+              className="text-sm font-semibold italic opacity-70"
+              data-testid="spi-lagging-empty"
+            >
+              {t('spi.laggingEmpty', 'Sin horas-hombre — captura para calcular el lagging')}
+            </p>
+          ) : (
+            <p className="text-2xl font-black tabular-nums" data-testid="spi-lagging">
+              {report.laggingScore}
+            </p>
+          )}
           <p className="text-[10px] opacity-60">{t('spi.weight60', '60% del SPI')}</p>
         </div>
       </div>
@@ -83,6 +141,46 @@ export function SpiDashboard({ leading, lagging }: SpiDashboardProps) {
         </div>
       )}
 
+      {planVsExecuted && (
+        <div data-testid="spi-plan-vs-executed" className="space-y-1">
+          <h3 className="text-xs font-bold uppercase mb-1">
+            {t('spi.planVsExecuted', 'Planificado vs. ejecutado')}
+          </h3>
+          <ul className="text-[11px] space-y-0.5">
+            <PlanRow
+              testid="spi-row-inspections"
+              label={t('spi.rowInspections', 'Inspecciones')}
+              ratio={planVsExecuted.inspections}
+              empty={planVsExecuted.honesty.plannedInspectionsRate}
+              emptyLabel={t(
+                'spi.planEmpty',
+                'Captura el plan del período para calcular el cumplimiento.',
+              )}
+            />
+            <PlanRow
+              testid="spi-row-talks"
+              label={t('spi.rowTalks', 'Charlas diarias')}
+              ratio={planVsExecuted.dailyTalks}
+              empty={planVsExecuted.honesty.dailyTalksDeliveryRate}
+              emptyLabel={t(
+                'spi.planEmpty',
+                'Captura el plan del período para calcular el cumplimiento.',
+              )}
+            />
+            <PlanRow
+              testid="spi-row-trainings"
+              label={t('spi.rowTrainings', 'Capacitaciones')}
+              ratio={planVsExecuted.trainings}
+              empty={planVsExecuted.honesty.trainingCurrencyRate}
+              emptyLabel={t(
+                'spi.planEmpty',
+                'Captura el plan del período para calcular el cumplimiento.',
+              )}
+            />
+          </ul>
+        </div>
+      )}
+
       {report.level === 'critical' && (
         <div
           className="flex items-center gap-2 text-xs font-bold p-2 rounded bg-rose-500/20"
@@ -93,5 +191,34 @@ export function SpiDashboard({ leading, lagging }: SpiDashboardProps) {
         </div>
       )}
     </section>
+  );
+}
+
+interface PlanRowProps {
+  testid: string;
+  label: string;
+  ratio: PlanRatio;
+  empty: boolean;
+  emptyLabel: string;
+}
+
+/** One plan-vs-executed row. Honest-empty when no plan denominator captured. */
+function PlanRow({ testid, label, ratio, empty, emptyLabel }: PlanRowProps) {
+  if (empty) {
+    return (
+      <li data-testid={`${testid}-empty`} className="opacity-70 italic">
+        {label}: {emptyLabel}
+      </li>
+    );
+  }
+  const pct = ratio.planned > 0 ? Math.round((ratio.executed / ratio.planned) * 100) : 0;
+  return (
+    <li data-testid={testid} className="opacity-90">
+      {label}:{' '}
+      <span className="tabular-nums font-semibold">
+        {ratio.executed}/{ratio.planned}
+      </span>{' '}
+      ({pct}%)
+    </li>
   );
 }

@@ -5048,5 +5048,23 @@
     "colContractor": "Empreiteira",
     "colHours": "Horas",
     "colRecordable": "Registráveis"
+  },
+  "spi": {
+    "aria": "Índice de Desempenho em Segurança",
+    "title": "Índice de Desempenho em Segurança",
+    "level": "Nível",
+    "leading": "Leading (prev.)",
+    "lagging": "Lagging (react.)",
+    "weight40": "40% do SPI",
+    "weight60": "60% do SPI",
+    "focusOn": "Foco de melhoria",
+    "criticalAction": "SPI crítico — revisar o plano preventivo da gerência.",
+    "planVsExecuted": "Planejado vs. executado",
+    "rowInspections": "Inspeções",
+    "rowTalks": "Diálogos diários",
+    "rowTrainings": "Treinamentos",
+    "planEmpty": "Capture o plano do período para calcular o cumprimento.",
+    "laggingEmpty": "Sem horas-homem — capture para calcular o lagging",
+    "partial": "SPI parcial: sem horas-homem o lagging (60%) ainda não é real."
   }
 }
