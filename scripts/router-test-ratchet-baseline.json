@@ -40,7 +40,6 @@
     "src/server/routes/pymeWizard.ts",
     "src/server/routes/raciMatrix.ts",
     "src/server/routes/reports.ts",
-    "src/server/routes/reportsAutomation.ts",
     "src/server/routes/reputationalAlerts.ts",
     "src/server/routes/researchMode.ts",
     "src/server/routes/roiScenario.ts",
