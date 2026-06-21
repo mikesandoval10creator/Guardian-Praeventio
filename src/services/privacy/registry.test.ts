@@ -132,6 +132,12 @@ describe('regime sanity', () => {
     expect(ALL_REGIMES['GDPR-EU'].breachNotificationDeadlineHours).toBe(72);
   });
 
+  it('Chile (LEY-19628-CL mod. Ley 21.719) breach window is 72h, not null', () => {
+    // Regresión del bug factual: la Ley 21.719 (vigencia 01-12-2026) exige
+    // notificación de brecha a la APDP; antes el spec codificaba `null`.
+    expect(ALL_REGIMES['LEY-19628-CL'].breachNotificationDeadlineHours).toBe(72);
+  });
+
   it('every regime declares a non-empty rights list', () => {
     for (const regime of Object.values(ALL_REGIMES)) {
       expect(regime.rights.length).toBeGreaterThan(0);

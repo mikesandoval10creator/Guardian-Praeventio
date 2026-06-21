@@ -14,9 +14,18 @@
 //   - DPIA: la nueva ley introduce la "Evaluación de Impacto en
 //     Protección de Datos" (EIPD) cuando hay alto riesgo. Para datos
 //     ocupacionales (sensibles) → marcamos `true`.
-//   - Notificación de brecha: art.31 Ley 21.719 — "tan pronto como sea
-//     posible" sin cap horario explícito (a diferencia del 72h GDPR).
-//     Encodeamos `null` honestamente.
+//   - Notificación de brecha: 72 horas. Ley 21.719 (plena vigencia
+//     01-12-2026) introduce el deber de notificar a la Agencia de
+//     Protección de Datos Personales "sin dilaciones indebidas" desde que
+//     el responsable/encargado toma conocimiento, y a los titulares cuando
+//     hay alto riesgo para sus derechos. Adoptamos 72h como cap operacional
+//     — alineado con el estándar GDPR-equivalente al que converge la
+//     reforma chilena y con el runbook interno de respuesta a incidentes.
+//     (Antes se codificaba `null`; era un bug factual que dejaba la app sin
+//     reloj de brecha para Chile.)
+//     TODO(legal): confirmar con counsel el artículo/plazo exacto del
+//     reglamento de la Agencia una vez publicado. Borrador — pendiente
+//     revisión legal.
 //   - Registro de actividades de tratamiento: lo introduce Ley 21.719
 //     art.50 para responsables que tratan datos a gran escala.
 
@@ -41,6 +50,7 @@ export const LEY_19628_CL: PrivacyRegimeSpec = {
   consentBaseRequired: true,
   ageOfConsent: 14,
   dpiaRequired: true,
-  breachNotificationDeadlineHours: null,
+  // 72h breach notification — Ley 21.719 (vigencia 01-12-2026). See header.
+  breachNotificationDeadlineHours: 72,
   recordOfProcessingRequired: true,
 };
