@@ -300,6 +300,7 @@ import orgMetricsRouter from "./src/server/routes/orgMetrics.js";
 // usePredictiveAlerts) hit 404 until mounted.
 import reportsAutomationRouter from "./src/server/routes/reportsAutomation.js";
 import safetyMetricsRouter from "./src/server/routes/safetyMetrics.js";
+import slaWatchRouter from "./src/server/routes/slaWatch.js";
 import projectComparatorRouter from "./src/server/routes/projectComparator.js";
 // Épica Rubros SII slice 4 — anonymous per-rubro benchmarks (k-anonymity).
 import rubroBenchmarksRouter from "./src/server/routes/rubroBenchmarks.js";
@@ -1137,6 +1138,7 @@ app.use('/api/sprint-k', orgMetricsRouter);
 // predictive alerts (all /:projectId/<seg>/*).
 app.use('/api/sprint-k', reportsAutomationRouter);
 app.use('/api/sprint-k', safetyMetricsRouter);
+app.use('/api/sprint-k', slaWatchRouter);
 app.use('/api/sprint-k', projectComparatorRouter);
 // Épica Rubros SII slice 4 — GET /api/sii/:projectId/rubro-benchmarks
 // (anonymous cross-tenant rubro benchmarks; k-anonymity enforced server-side).
