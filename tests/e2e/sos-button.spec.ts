@@ -50,11 +50,22 @@ test.describe('SOSButton long-press (real flow)', () => {
       // that depends on Firestore (firestore.rules require request.auth != null).
       await signInBrowserViaCustomToken(page);
 
+      // The page first mounted UNauthed (goto preceded sign-in), so
+      // ProjectContext never ran its `members array-contains uid` query and
+      // Emergency.tsx never read `isEmergencyActive` → AppMode stayed off
+      // 'emergency' and the global SOSButton (gated on mode==='emergency')
+      // never rendered (CI: getByTestId('sos-button') not found). Reload so the
+      // app re-mounts with the Firebase session restored from persistence:
+      // authed ProjectContext query → seeded project selected → Emergency
+      // mirrors isEmergencyActive → AppMode='emergency' → SOSButton renders.
+      await page.reload();
+      await signInBrowserViaCustomToken(page);
+
       // The SOS control is an icon button whose accessible name is the full
       // aria-label "Botón SOS — mantener presionado 3 segundos". Its mere
       // presence proves AppMode flipped to 'emergency' off the seeded project.
       const sos = page.getByTestId('sos-button');
-      await expect(sos).toBeVisible({ timeout: 15_000 });
+      await expect(sos).toBeVisible({ timeout: 20_000 });
 
       const box = await sos.boundingBox();
       if (!box) throw new Error('SOS button has no bounding box');
