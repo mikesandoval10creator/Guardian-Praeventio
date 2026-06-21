@@ -12,7 +12,6 @@
     "src/server/routes/bbs.ts",
     "src/server/routes/climateAwareScheduling.ts",
     "src/server/routes/coachRag.ts",
-    "src/server/routes/commsDrill.ts",
     "src/server/routes/consultativeSale.ts",
     "src/server/routes/continuity.ts",
     "src/server/routes/controlComparator.ts",
