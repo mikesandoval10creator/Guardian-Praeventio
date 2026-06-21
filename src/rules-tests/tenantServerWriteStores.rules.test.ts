@@ -3,7 +3,7 @@
 // OLA 2 (blindaje, 2026-06-14) — server-only-write tenant stores rules.
 //
 // Path: tenants/{tid}/projects/{pid}/{positive_observations|photo_evidence|
-// splat_captures}/{docId} — per-project subcollections that previously had NO
+// splat_captures|bbs_observations}/{docId} — per-project subcollections that previously had NO
 // rule (this `tenants/{tid}/projects/{pid}` block has no recursive catch-all,
 // unlike projects/{pid}/** which the master-gate covers) and fell to global
 // default-deny. All three are written ONLY by audited server routes via the
@@ -36,7 +36,15 @@ const DOC_ID = 'doc-1';
 // server-only-write, all under tenants/{tid}/projects/{pid}/.
 // photo_evidence is split out below: it carries PII so its read is supervisor-
 // tier, not member-wide (the others stay member-read).
-const COLLECTIONS = ['positive_observations', 'splat_captures'] as const;
+// bbs_observations (feat/wire-bbs-profile): Behavior-Based Safety observations,
+// same posture — member-read, server-only-write (bbs.ts Admin SDK stamps
+// observerUid/tenantId/observedAt; a client write could forge observerUid or
+// inject at_risk rows to skew the profile).
+const COLLECTIONS = [
+  'positive_observations',
+  'splat_captures',
+  'bbs_observations',
+] as const;
 
 let testEnv: RulesTestEnvironment | null = null;
 

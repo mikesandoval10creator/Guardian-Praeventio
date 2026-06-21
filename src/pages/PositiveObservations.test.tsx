@@ -121,6 +121,21 @@ vi.mock('../hooks/usePositiveObservations', () => ({
   ) => createSpy(pid, payload),
 }));
 
+type BbsState = {
+  data: { profile: import('../services/behaviorObservation/bbsObservationEngine').BbsProfile } | null;
+  loading: boolean;
+  error: Error | null;
+  refetch: () => void;
+};
+let mockBbs: BbsState;
+const bbsCallSpy = vi.fn();
+vi.mock('../hooks/useBbs', () => ({
+  useBbsProfile: (pid: string | null, days: number) => {
+    bbsCallSpy(pid, days);
+    return mockBbs;
+  },
+}));
+
 beforeEach(() => {
   mockSelectedProject = { id: 'p-1', name: 'Faena Sur' };
   mockIsOnline = true;
@@ -145,6 +160,8 @@ beforeEach(() => {
     error: null,
     refetch: balanceRefetchSpy,
   };
+  mockBbs = { data: null, loading: false, error: null, refetch: vi.fn() };
+  bbsCallSpy.mockReset();
 });
 
 function obs(over: Partial<PositiveObservation> & { id: string }): PositiveObservation {
@@ -440,5 +457,99 @@ describe('<PositiveObservations /> page wrapper (Sprint K §214-215)', () => {
     };
     render(<PositiveObservations />);
     expect(screen.queryByTestId('positive-obs-load-more')).not.toBeInTheDocument();
+  });
+
+  // ── BbsProfileCard wiring (feat/wire-bbs-profile) ─────────────────────
+  // The page renders <BbsProfileCard> fed by useBbsProfile (GET
+  // /api/sprint-k/:projectId/bbs/profile → server reads REAL persisted
+  // observations and computes the profile via the engine).
+
+  it('renderiza BbsProfileCard con el perfil REAL del hook useBbsProfile', () => {
+    mockBbs = {
+      data: {
+        profile: {
+          tenantId: 't-1',
+          windowStart: '2026-05-21T00:00:00.000Z',
+          windowEnd: '2026-06-20T00:00:00.000Z',
+          totalObservations: 10,
+          safePercentage: 80,
+          byCategory: {
+            epp: { total: 5, safe: 3, atRisk: 2, safePercentage: 60 },
+            positioning: { total: 0, safe: 0, atRisk: 0, safePercentage: 0 },
+            tools_equipment: { total: 0, safe: 0, atRisk: 0, safePercentage: 0 },
+            procedures: { total: 5, safe: 5, atRisk: 0, safePercentage: 100 },
+            housekeeping: { total: 0, safe: 0, atRisk: 0, safePercentage: 0 },
+            ergonomics: { total: 0, safe: 0, atRisk: 0, safePercentage: 0 },
+            communication: { total: 0, safe: 0, atRisk: 0, safePercentage: 0 },
+          },
+          focusCategories: ['epp'],
+          topRiskAreas: [{ areaId: 'frente-norte', atRiskPct: 40, total: 5 }],
+        },
+      },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    render(<PositiveObservations />);
+    const card = screen.getByTestId('bbs-profile-card');
+    expect(card).toBeInTheDocument();
+    // Overall safe % from REAL profile.
+    expect(screen.getByTestId('bbs-overall')).toHaveTextContent('80%');
+    // Only categories with observations render (epp + procedures).
+    expect(screen.getByTestId('bbs-category-epp')).toBeInTheDocument();
+    expect(screen.getByTestId('bbs-category-procedures')).toBeInTheDocument();
+    expect(screen.queryByTestId('bbs-category-housekeeping')).not.toBeInTheDocument();
+    // epp is the focus category (<70% safe).
+    expect(screen.getByTestId('bbs-category-epp')).toHaveAttribute('data-focus', 'true');
+    expect(screen.getByTestId('bbs-category-epp-focus-tag')).toBeInTheDocument();
+    // Top risk area surfaces.
+    expect(screen.getByTestId('bbs-area-frente-norte')).toHaveTextContent('frente-norte');
+  });
+
+  it('BbsProfileCard muestra empty-state honesto cuando no hay observaciones', () => {
+    mockBbs = {
+      data: {
+        profile: {
+          tenantId: 't-1',
+          windowStart: '2026-05-21T00:00:00.000Z',
+          windowEnd: '2026-06-20T00:00:00.000Z',
+          totalObservations: 0,
+          safePercentage: 0,
+          byCategory: {
+            epp: { total: 0, safe: 0, atRisk: 0, safePercentage: 0 },
+            positioning: { total: 0, safe: 0, atRisk: 0, safePercentage: 0 },
+            tools_equipment: { total: 0, safe: 0, atRisk: 0, safePercentage: 0 },
+            procedures: { total: 0, safe: 0, atRisk: 0, safePercentage: 0 },
+            housekeeping: { total: 0, safe: 0, atRisk: 0, safePercentage: 0 },
+            ergonomics: { total: 0, safe: 0, atRisk: 0, safePercentage: 0 },
+            communication: { total: 0, safe: 0, atRisk: 0, safePercentage: 0 },
+          },
+          focusCategories: [],
+          topRiskAreas: [],
+        },
+      },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    render(<PositiveObservations />);
+    expect(screen.getByTestId('bbs-profile-card')).toBeInTheDocument();
+    expect(screen.getByTestId('bbs-no-categories')).toBeInTheDocument();
+    expect(screen.queryByTestId('bbs-top-risk-areas')).not.toBeInTheDocument();
+  });
+
+  it('useBbsProfile recibe el projectId y los días mapeados desde el período (90d → 90)', () => {
+    render(<PositiveObservations />);
+    // Initial render uses the default '30d' period → 30 days.
+    expect(bbsCallSpy).toHaveBeenCalledWith('p-1', 30);
+    // Switch to 90 días → the hook is re-invoked with 90.
+    fireEvent.click(screen.getByTestId('period-chip-90d'));
+    expect(bbsCallSpy).toHaveBeenCalledWith('p-1', 90);
+  });
+
+  it('no renderiza BbsProfileCard mientras el perfil aún no carga (data=null)', () => {
+    mockBbs = { data: null, loading: true, error: null, refetch: vi.fn() };
+    render(<PositiveObservations />);
+    expect(screen.queryByTestId('bbs-profile-card')).not.toBeInTheDocument();
   });
 });

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildDefaultPolicy,
+  buildPolicyForEquipmentType,
   assessHorometerStatus,
   proposeCalendarTask,
   buildFleetReport,
@@ -17,6 +18,24 @@ describe('buildDefaultPolicy', () => {
     expect(p.thresholds[1].triggerAtHours).toBe(950);
     expect(p.thresholds[2].triggerAtHours).toBe(1000);
     expect(p.escalateOnMandatory).toBe(true);
+  });
+});
+
+describe('buildPolicyForEquipmentType', () => {
+  it('usa el ciclo MAYOR del fabricante como ciclo de referencia', () => {
+    const getCycles = (_type: string) => [
+      { cycleHours: 250 },
+      { cycleHours: 2000 },
+      { cycleHours: 1000 },
+    ];
+    const p = buildPolicyForEquipmentType('compresor', getCycles);
+    expect(p.cycleHours).toBe(2000);
+    expect(p.thresholds[2].triggerAtHours).toBe(2000);
+  });
+
+  it('cae a 250h cuando la tabla inyectada está vacía (defensivo, sin fabricar)', () => {
+    const p = buildPolicyForEquipmentType('desconocido', () => []);
+    expect(p.cycleHours).toBe(250);
   });
 });
 

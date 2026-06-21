@@ -13,7 +13,7 @@
 //   4. Empty (loaded, zero visitors) → honest empty state.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { Visitors } from './Visitors';
 import type { Visitor } from '../services/visitorControl/visitorRegistry';
 import type { ActiveVisitorsResponse } from '../hooks/useActiveVisitors';
@@ -48,6 +48,10 @@ vi.mock('../hooks/useFirestoreCollection', () => ({
 vi.mock('../hooks/useActiveVisitors', () => ({
   useActiveVisitors: () => mockHook,
 }));
+let mockRoster: Array<{ uid: string; fullName: string }> = [];
+vi.mock('../hooks/useProjectRoster', () => ({
+  useProjectRoster: () => ({ roster: mockRoster, loading: false }),
+}));
 vi.mock('../components/QRScannerModal', () => ({
   QRScannerModal: () => null,
 }));
@@ -78,6 +82,7 @@ beforeEach(() => {
   mockSelectedProject = { id: 'proj-alpha', name: 'Faena Alpha' };
   mockIsOnline = true;
   mockHook = { data: null, loading: false, error: null, refetch: vi.fn() };
+  mockRoster = [];
 });
 
 describe('<Visitors />', () => {
@@ -122,5 +127,29 @@ describe('<Visitors />', () => {
     render(<Visitors />);
     expect(screen.getByTestId('visitors-empty')).toBeInTheDocument();
     expect(screen.queryByTestId('visitors-list')).not.toBeInTheDocument();
+  });
+
+  it('monta <VisitorCheckInForm/> con hosts reales del roster al abrir "Nueva visita"', () => {
+    mockHook = {
+      data: { ok: true, visitors: [] },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    mockRoster = [
+      { uid: 'w-1', fullName: 'Pedro Capataz' },
+      { uid: 'w-2', fullName: 'Ana Prevencionista' },
+    ];
+    render(<Visitors />);
+    // El form orphan no está montado hasta abrir el CTA.
+    expect(screen.queryByTestId('visitor-checkin-form')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('visitors-new-button'));
+    // El form REAL (componente antes huérfano) ahora se renderiza.
+    expect(screen.getByTestId('visitor-checkin-form')).toBeInTheDocument();
+    // El selector de acompañante usa los nombres REALES del roster, no inventados.
+    const hostSelect = screen.getByTestId('visitor-host') as HTMLSelectElement;
+    const optionLabels = Array.from(hostSelect.options).map((o) => o.textContent);
+    expect(optionLabels).toContain('Pedro Capataz');
+    expect(optionLabels).toContain('Ana Prevencionista');
   });
 });

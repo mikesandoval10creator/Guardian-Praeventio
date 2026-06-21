@@ -13,7 +13,15 @@ import {
 } from '../../services/contractors/contractorKpiService.js';
 
 interface ContractorRankingTableProps {
-  performances: ContractorPerformance[];
+  /**
+   * Raw per-contractor performance to rank locally. Used when the caller holds
+   * the full compliance-bearing shape (training/docs/overdue). When the caller
+   * already has real, server-ranked entries (e.g. from injury rates only),
+   * pass `ranked` instead — never both.
+   */
+  performances?: ContractorPerformance[];
+  /** Pre-ranked entries (real data already turned into rank bands). */
+  ranked?: ContractorRankEntry[];
   onContractorClick?: (id: string) => void;
 }
 
@@ -26,10 +34,14 @@ const LEVEL_CLASS: Record<ContractorRankEntry['level'], string> = {
 
 export function ContractorRankingTable({
   performances,
+  ranked: rankedProp,
   onContractorClick,
 }: ContractorRankingTableProps) {
   const { t } = useTranslation();
-  const ranked = useMemo(() => rankContractorsByRisk(performances), [performances]);
+  const ranked = useMemo(
+    () => rankedProp ?? rankContractorsByRisk(performances ?? []),
+    [rankedProp, performances],
+  );
 
   if (ranked.length === 0) {
     return (

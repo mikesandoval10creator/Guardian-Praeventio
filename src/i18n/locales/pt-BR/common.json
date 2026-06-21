@@ -4477,6 +4477,13 @@
       "title": "Matriz IPER 5x5",
       "subtitle": "Estime o nível de risco (probabilidade × severidade) e o residual ao aplicar controles. É um guia — a decisão é da equipe."
     },
+    "landscape": {
+      "title": "Panorama de riscos do projeto",
+      "noProject": "Selecione um projeto para ver o panorama dos riscos avaliados.",
+      "loading": "Carregando avaliações IPER…",
+      "error": "Não foi possível carregar o panorama de riscos. Tente novamente.",
+      "empty": "Ainda não há avaliações IPER salvas neste projeto. Quando você registrar uma, ela aparecerá aqui na matriz 5×5."
+    },
     "aria": "Matriz IPER 5x5",
     "controlHigh": "Alta",
     "controlLow": "Baixa",
@@ -4947,6 +4954,14 @@
       "registerReading": "Registrar leitura do horímetro"
     }
   },
+  "horometer": {
+    "aria": "Estado do horímetro",
+    "cycle": "Ciclo",
+    "mandatoryOverdue": "Manutenção obrigatória vencida — recomenda-se parar e concluí-la antes de continuar operando.",
+    "schedule": "Agendar",
+    "statusLoading": "Carregando estado do horímetro…",
+    "statusError": "Não conseguimos carregar o estado do horímetro. Registre uma leitura para vê-lo."
+  },
   "horometro": {
     "title": "Horímetro",
     "aria": "Reportar horímetro",
@@ -5054,6 +5069,18 @@
     "colContractor": "Empreiteira",
     "colHours": "Horas",
     "colRecordable": "Registráveis"
+  },
+  "contractors": {
+    "title": "Ranking de Empreiteiras",
+    "aria": "Ranking de empreiteiras",
+    "empty": "Nenhuma empreiteira com dados de desempenho ainda.",
+    "trirLabel": "TRIR",
+    "riskScore": "Risco"
+  },
+  "contractorRanking": {
+    "noProject": "Selecione um projeto para ver o ranking de risco das empreiteiras.",
+    "loading": "Carregando ranking de empreiteiras…",
+    "error": "Não foi possível carregar o ranking"
   },
   "spi": {
     "aria": "Índice de Desempenho em Segurança",

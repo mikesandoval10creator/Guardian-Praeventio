@@ -61,6 +61,22 @@ vi.mock('../hooks/useEquipment', () => ({
   }),
 }));
 
+// A real horometer status response shape (GET .../status). Used to feed the
+// real <HorometerStatusCard /> the page now renders.
+const STATUS_RESPONSE = {
+  horometer: { machineId: 'GH-04', currentHours: 900, lastMaintenanceAtHours: 0 },
+  policy: {
+    cycleHours: 1000,
+    thresholds: [
+      { kind: 'warning', triggerAtHours: 850, recommendedAction: 'x' },
+      { kind: 'critical', triggerAtHours: 950, recommendedAction: 'y' },
+      { kind: 'mandatory', triggerAtHours: 1000, recommendedAction: 'z' },
+    ],
+    escalateOnMandatory: true,
+  },
+  status: {},
+};
+
 // MaintenanceTaskList owns the separate maintenance-tasks endpoint; sentinel it
 // so this test stays scoped to the horometro reading submit.
 vi.mock('../components/horometro/MaintenanceTaskList', () => ({
@@ -87,11 +103,35 @@ import { MantenimientoPreventivo } from './MantenimientoPreventivo';
 
 const fetchMock = vi.fn();
 
+// Default fetch router: the status GET returns a real status payload; anything
+// else (the POST reading) gets a 201 success. Individual tests may override
+// fetchMock.mockImplementationOnce for a specific call.
+function statusOk() {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => STATUS_RESPONSE,
+  };
+}
+
 beforeEach(() => {
   cleanup();
   selected = { id: 'proj-1', name: 'Faena Norte' };
   refetch.mockReset();
   fetchMock.mockReset();
+  fetchMock.mockImplementation((url: string) => {
+    if (typeof url === 'string' && url.includes('/horometro/equipment/') && url.endsWith('/status')) {
+      return Promise.resolve(statusOk());
+    }
+    return Promise.resolve({
+      ok: true,
+      status: 201,
+      json: async () => ({
+        reading: { id: 'r1', hours: 1234.5 },
+        flow: { ok: true, crossesDetected: 0 },
+      }),
+    });
+  });
   vi.stubGlobal('fetch', fetchMock);
 });
 
@@ -122,15 +162,6 @@ describe('<MantenimientoPreventivo /> — orphan HorometroEntryForm mount', () =
   });
 
   it('opens the real HorometroEntryForm and submits a reading with the correct POST payload', async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 201,
-      json: async () => ({
-        reading: { id: 'r1', hours: 1234.5 },
-        flow: { ok: true, crossesDetected: 0 },
-      }),
-    });
-
     render(<MantenimientoPreventivo />);
     fireEvent.change(screen.getByTestId('maintenance-equipment-select'), {
       target: { value: 'eq-77' },
@@ -150,9 +181,19 @@ describe('<MantenimientoPreventivo /> — orphan HorometroEntryForm mount', () =
     });
     fireEvent.click(screen.getByTestId('horometro-submit'));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    // The reading POST hits the real endpoint (filter out the status GET).
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([u]) => u === '/api/sprint-k/proj-1/horometro/reading',
+        ),
+      ).toBe(true),
+    );
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const postCall = fetchMock.mock.calls.find(
+      ([u]) => u === '/api/sprint-k/proj-1/horometro/reading',
+    )!;
+    const [url, init] = postCall;
     expect(url).toBe('/api/sprint-k/proj-1/horometro/reading');
     expect(init.method).toBe('POST');
     // Idempotency key present (anti double-record).
@@ -183,6 +224,62 @@ describe('<MantenimientoPreventivo /> — orphan HorometroEntryForm mount', () =
 
     // Submit button is disabled with empty hours; clicking is a no-op.
     fireEvent.click(screen.getByTestId('horometro-submit'));
-    expect(fetchMock).not.toHaveBeenCalled();
+    // The status GET may have fired on selection, but NO reading POST happens.
+    expect(
+      fetchMock.mock.calls.some(
+        ([u]) => u === '/api/sprint-k/proj-1/horometro/reading',
+      ),
+    ).toBe(false);
+  });
+
+  it('renders the real HorometerStatusCard fed by GET .../status (real data, no fabrication)', async () => {
+    render(<MantenimientoPreventivo />);
+    fireEvent.change(screen.getByTestId('maintenance-equipment-select'), {
+      target: { value: 'eq-77' },
+    });
+
+    // The status GET fires for the selected equipment.
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([u]) =>
+            u === '/api/sprint-k/proj-1/horometro/equipment/eq-77/status',
+        ),
+      ).toBe(true),
+    );
+
+    // The real card renders with the machineId + progress from the response
+    // (warning at 900/1000h → 90%).
+    const card = await screen.findByTestId('horometer-card-GH-04');
+    expect(card).toBeTruthy();
+    expect(screen.getByTestId('horometer-state-GH-04').textContent).toBe(
+      'warning',
+    );
+    expect(
+      screen.getByTestId('horometer-progress-GH-04').textContent,
+    ).toContain('900/1000h');
+  });
+
+  it('shows an honest empty/error message (not fabricated data) when the status endpoint fails', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.endsWith('/status')) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: async () => ({ error: 'internal_error' }),
+        });
+      }
+      return Promise.resolve({ ok: true, status: 201, json: async () => ({}) });
+    });
+
+    render(<MantenimientoPreventivo />);
+    fireEvent.change(screen.getByTestId('maintenance-equipment-select'), {
+      target: { value: 'eq-77' },
+    });
+
+    const err = await screen.findByTestId('horometer-status-error');
+    expect(err).toBeTruthy();
+    // No card with fabricated zeros is shown.
+    expect(screen.queryByTestId('horometer-card-GH-04')).toBeNull();
   });
 });

@@ -39,12 +39,19 @@ describe('horometroRouter (Bloque 4.1 Flagship contract)', () => {
     ).toBe(true);
   });
 
-  it('exports exactly 3 distinct paths (no extra surface area)', () => {
+  it('registers GET /:projectId/horometro/equipment/:eqId/status', () => {
+    const methodsByPath = collectMethodsByPath(horometroRouter);
+    expect(
+      methodsByPath['/:projectId/horometro/equipment/:eqId/status']?.has('get'),
+    ).toBe(true);
+  });
+
+  it('exports exactly 4 distinct paths (no extra surface area)', () => {
     const methodsByPath = collectMethodsByPath(horometroRouter);
     const paths = Object.keys(methodsByPath).filter((p) =>
       p.startsWith('/:projectId/horometro'),
     );
-    expect(new Set(paths).size).toBe(3);
+    expect(new Set(paths).size).toBe(4);
   });
 
   it('mutating endpoints (reading + complete) are guarded by verifyAuth + idempotencyKey + validate', () => {

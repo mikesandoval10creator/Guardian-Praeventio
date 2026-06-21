@@ -24,6 +24,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { PositiveObservationsBoard } from '../components/positiveObservations/PositiveObservationsBoard';
+import { BbsProfileCard } from '../components/behaviorObservation/BbsProfileCard';
+import { useBbsProfile } from '../hooks/useBbs';
 import {
   usePositiveObservations,
   usePositiveObservationBalance,
@@ -530,6 +532,13 @@ export function PositiveObservations() {
   );
   const balanceResp = usePositiveObservationBalance(projectId, period);
 
+  // BBS (Behavior-Based Safety) profile over the REAL persisted observations
+  // of the selected window. Complements the recognition-only view above with
+  // the safe vs at-risk behavioral profile (DuPont/BST). 'all' has no fixed
+  // window — cap it at 365 days, the engine's max look-back.
+  const bbsDays = period === '30d' ? 30 : period === '90d' ? 90 : 365;
+  const bbsResp = useBbsProfile(projectId, bbsDays);
+
   const loading = listResp.loading || balanceResp.loading;
   const error = listResp.error || balanceResp.error;
 
@@ -679,6 +688,11 @@ export function PositiveObservations() {
           correctivePeriodBasis={balanceResp.data.correctivePeriodBasis}
         />
       )}
+
+      {/* BBS profile — safe vs at-risk behavioral profile over REAL persisted
+          observations. The card carries its own honest empty-state when the
+          project has no recorded observations in the window. */}
+      {bbsResp.data && <BbsProfileCard profile={bbsResp.data.profile} />}
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <PeriodChips value={period} onChange={setPeriod} />

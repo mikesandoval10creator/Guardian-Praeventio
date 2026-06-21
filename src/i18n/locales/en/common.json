@@ -4477,6 +4477,13 @@
       "title": "IPER 5x5 Matrix",
       "subtitle": "Estimate the risk level (probability × severity) and the residual after applying controls. Guidance only — the team decides."
     },
+    "landscape": {
+      "title": "Project risk landscape",
+      "noProject": "Select a project to see the landscape of assessed risks.",
+      "loading": "Loading IPER assessments…",
+      "error": "Could not load the risk landscape. Please try again.",
+      "empty": "No IPER assessments saved in this project yet. Once you record one, it will appear here on the 5×5 matrix."
+    },
     "aria": "IPER 5x5 matrix",
     "controlHigh": "High",
     "controlLow": "Low",
@@ -4947,6 +4954,14 @@
       "registerReading": "Record hour-meter reading"
     }
   },
+  "horometer": {
+    "aria": "Hour-meter status",
+    "cycle": "Cycle",
+    "mandatoryOverdue": "Mandatory maintenance overdue — stopping and completing it before continuing to operate is recommended.",
+    "schedule": "Schedule",
+    "statusLoading": "Loading hour-meter status…",
+    "statusError": "We couldn't load the hour-meter status. Log a reading to see it."
+  },
   "horometro": {
     "title": "Hour meter",
     "aria": "Report hour meter",
@@ -5054,6 +5069,18 @@
     "colContractor": "Contractor",
     "colHours": "Hours",
     "colRecordable": "Recordable"
+  },
+  "contractors": {
+    "title": "Contractor Ranking",
+    "aria": "Contractor ranking",
+    "empty": "No contractors with performance data yet.",
+    "trirLabel": "TRIR",
+    "riskScore": "Risk"
+  },
+  "contractorRanking": {
+    "noProject": "Select a project to see the contractor risk ranking.",
+    "loading": "Loading contractor ranking…",
+    "error": "Could not load the ranking"
   },
   "spi": {
     "aria": "Safety Performance Index",
