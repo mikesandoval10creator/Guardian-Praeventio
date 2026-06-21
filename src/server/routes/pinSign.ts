@@ -210,8 +210,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof validatePolicySchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       validatePinPolicy(body.pin);
       return res.json({ ok: true });
     } catch (err) {
@@ -240,8 +241,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof registerSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       // Generate cryptographic salt server-side (do NOT trust caller).
       const saltHex = randomBytes(16).toString('hex');
       const credential = registerPin({
@@ -285,8 +287,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof verifySchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       // Read the caller's OWN stored credential (never client-supplied) and
       // persist the updated lockout counter in one transaction.
       const outcome = await verifyAndPersist(projectId, callerUid, body.pin);
@@ -329,8 +332,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof signItemSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       // Resolve the server-side secret BEFORE mutating the failure counter so a
       // misconfigured server doesn't burn an attempt (still 500, no state change).
       const serverSecret = getServerSecret();
@@ -402,8 +406,9 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof verifyAckSchema>;
-    if (!(await guard(callerUid, projectId, res))) return undefined;
     try {
+      // guard dentro del try: infra-error → 5xx, no cuelga (Express 4 async reject)
+      if (!(await guard(callerUid, projectId, res))) return undefined;
       const serverSecret = getServerSecret();
       const ok = verifyAcknowledgement(body.acknowledgement, serverSecret);
       return res.json({ ok });

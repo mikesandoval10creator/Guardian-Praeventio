@@ -244,6 +244,20 @@ describe('POST /api/sprint-k/:projectId/pin-sign/register', () => {
     expect(storedCredential(H.db!, CALLER_UID)).toBeDefined();
     expect(storedCredential(H.db!, 'uid-attacker')).toBeUndefined();
   });
+
+  it('returns a clean 5xx (no hang, no internals) when the membership read fails mid-check', async () => {
+    // Infra outage during assertProjectMember: the guard re-throws (NOT a 403),
+    // and the handler must surface a clean 5xx rather than hanging on an
+    // unhandled async rejection (Express 4). The error body must not leak the
+    // forced-failure message or the Firestore path.
+    H.db!._failReads(`projects/${PROJECT_ID}`);
+    const res = await request(app).post(url).set('x-test-uid', CALLER_UID).send({ pin: '9371' });
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(res.status).toBeLessThan(600);
+    const serialized = JSON.stringify(res.body);
+    expect(serialized).not.toContain('forced read failure');
+    expect(serialized).not.toContain(PROJECT_ID);
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════
