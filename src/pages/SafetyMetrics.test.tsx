@@ -17,6 +17,8 @@ import type {
   UseSafetyMetricsReport,
   UseOperationalPressure,
   OperationalPressureResponse,
+  UseSafetyMetricsTrend,
+  SafetyMetricsTrendResponse,
 } from '../hooks/useSafetyMetrics';
 import type { SpiReportResponse, UseSpiReport } from '../hooks/useSpiReport';
 import { buildSafetyMetricsReport } from '../services/safetyMetrics/osha';
@@ -33,6 +35,7 @@ let mockSelectedProject: { id: string; name: string } | null = null;
 let mockReport: UseSafetyMetricsReport;
 let mockPressure: UseOperationalPressure;
 let mockSpi: UseSpiReport;
+let mockTrend: UseSafetyMetricsTrend;
 const mockCapture = vi.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockCaptureWorkforce = vi.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockCapturePlan = vi.fn<(...args: unknown[]) => Promise<unknown>>();
@@ -52,8 +55,21 @@ vi.mock('../hooks/useSafetyMetrics', async (orig) => {
     captureSafetyExposure: (...args: unknown[]) => mockCapture(...args),
     useOperationalPressure: () => mockPressure,
     captureWorkforcePeriod: (...args: unknown[]) => mockCaptureWorkforce(...args),
+    useSafetyMetricsTrend: () => mockTrend,
   };
 });
+
+function trendResponse(): SafetyMetricsTrendResponse {
+  // Two months with captured exposure (drawable) + one without (not drawable).
+  return {
+    periods: ['2026-03', '2026-04', '2026-05'],
+    points: [
+      { period: '2026-03', trir: 0, ltifr: 0, dart: 0, sifr: 0, hasExposure: false },
+      { period: '2026-04', trir: 2.1, ltifr: 5, dart: 2.1, sifr: 0, hasExposure: true },
+      { period: '2026-05', trir: 1.4, ltifr: 3, dart: 1.4, sifr: 0, hasExposure: true },
+    ],
+  };
+}
 
 function pressureResponse(captured: boolean): OperationalPressureResponse {
   if (!captured) {
@@ -161,6 +177,13 @@ beforeEach(() => {
     error: null,
     refetch: mockSpiRefetch,
   };
+  // Default: empty trend (no captured months) → honest-empty section.
+  mockTrend = {
+    data: { periods: [], points: [] },
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  };
 });
 
 describe('<SafetyMetrics />', () => {
@@ -213,6 +236,44 @@ describe('<SafetyMetrics />', () => {
     expect(screen.getByTestId('safety-metrics-dashboard')).toBeInTheDocument();
     expect(screen.getByTestId('safety-metric-trir')).toBeInTheDocument();
     expect(screen.getByTestId('safety-metric-ltifr')).toBeInTheDocument();
+  });
+
+  // ── Trend section (multi-period chart) ─────────────────────────────────
+
+  it('tendencia: empty-state HONESTO sin meses capturados (sin gráfico)', () => {
+    render(<SafetyMetrics />);
+    expect(screen.getByTestId('safety-trend-section')).toBeInTheDocument();
+    expect(screen.getByTestId('safety-trend-empty')).toBeInTheDocument();
+    // No chart rendered when there are fewer than 2 drawable months.
+    expect(screen.queryByTestId('safety-trend.chart')).not.toBeInTheDocument();
+  });
+
+  it('tendencia: con ≥2 meses capturados monta el SafetyTrendChart real (lazy)', async () => {
+    mockTrend = {
+      data: trendResponse(),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    render(<SafetyMetrics />);
+    // Lazy chunk resolves via Suspense → findBy.
+    expect(await screen.findByTestId('safety-trend.chart')).toBeInTheDocument();
+    expect(screen.getByTestId('safety-trend.title')).toBeInTheDocument();
+    // 2 drawable months (the uncaptured 2026-03 is filtered out as "no data").
+    expect(screen.getByTestId('safety-trend.count').textContent).toContain('2');
+    expect(screen.queryByTestId('safety-trend-empty')).not.toBeInTheDocument();
+  });
+
+  it('tendencia: error de carga muestra aviso (no gráfico fabricado)', () => {
+    mockTrend = {
+      data: null,
+      loading: false,
+      error: new Error('http_500'),
+      refetch: vi.fn(),
+    };
+    render(<SafetyMetrics />);
+    expect(screen.getByTestId('safety-trend-load-error')).toBeInTheDocument();
+    expect(screen.queryByTestId('safety-trend.chart')).not.toBeInTheDocument();
   });
 
   // ── Operational pressure section ───────────────────────────────────────

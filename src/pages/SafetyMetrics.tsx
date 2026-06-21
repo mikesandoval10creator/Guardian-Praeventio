@@ -11,9 +11,10 @@
 // action ("Captura las horas-hombre del período para calcular TRIR/LTIFR").
 
 import { useMemo, useState } from 'react';
-import { Activity, Clock, AlertCircle, Users, Target } from 'lucide-react';
+import { Activity, Clock, AlertCircle, Users, Target, TrendingDown } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { SafetyMetricsDashboard } from '../components/safetyMetrics/SafetyMetricsDashboard';
+import { SafetyTrendChartLazy } from '../components/safetyMetrics/SafetyTrendChartLazy';
 import { OperationalPressureGauge } from '../components/orgMetrics/OperationalPressureGauge';
 import { SpiDashboard } from '../components/safetyPerformance/SpiDashboard';
 import {
@@ -21,7 +22,12 @@ import {
   captureSafetyExposure,
   useOperationalPressure,
   captureWorkforcePeriod,
+  useSafetyMetricsTrend,
 } from '../hooks/useSafetyMetrics';
+import {
+  BENCHMARK_TRIR,
+  BENCHMARK_LTIFR,
+} from '../services/safetyMetrics/osha';
 import { useSpiReport, captureSafetyPlan } from '../hooks/useSpiReport';
 
 /** Current month as 'YYYY-MM' for the default period. */
@@ -58,6 +64,20 @@ export function SafetyMetrics() {
   const hasExposure = useMemo(
     () => (data?.exposure.totalHoursWorked ?? 0) > 0,
     [data],
+  );
+
+  // ── Multi-period trend (12-month rolling TRIR/LTIFR/DART/SIFR) ──────────
+  const {
+    data: trend,
+    loading: trendLoading,
+    error: trendError,
+  } = useSafetyMetricsTrend(projectId, period, 12);
+
+  // Only plot months with REAL captured man-hours — a 0-rate from an
+  // uncaptured month is "no data", not a genuine zero-incident rate.
+  const trendPoints = useMemo(
+    () => (trend?.points ?? []).filter((p) => p.hasExposure),
+    [trend],
   );
 
   const hasWorkforce = pressureData?.captured === true && pressureData.signals !== null;
@@ -307,6 +327,60 @@ export function SafetyMetrics() {
           Registramos {data.counts.totalRecordable} incidente(s) recordable(s) en el período.
         </div>
       )}
+
+      {/* ── Trend over time (rolling 12-month TRIR/LTIFR/DART/SIFR) ───── */}
+      <section
+        data-testid="safety-trend-section"
+        className="space-y-3 border-t border-zinc-200 pt-6 dark:border-zinc-700"
+      >
+        <header>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <TrendingDown className="h-5 w-5 text-teal-500" />
+            Tendencia de los últimos 12 meses
+          </h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Evolución de TRIR / LTIFR construida desde los incidentes registrados y las
+            horas-hombre capturadas de cada mes. Solo se grafican los meses con horas-hombre
+            capturadas (un mes sin captura no es una tasa cero, es ausencia de dato).
+          </p>
+        </header>
+
+        {trendLoading && (
+          <div data-testid="safety-trend-loading" className="p-4 text-center text-sm text-zinc-500">
+            Cargando tendencia del período…
+          </div>
+        )}
+
+        {trendError && !trendLoading && (
+          <div
+            data-testid="safety-trend-load-error"
+            className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400"
+          >
+            No se pudo cargar la tendencia ({trendError.message}).
+          </div>
+        )}
+
+        {!trendLoading && !trendError && trendPoints.length >= 2 && (
+          <SafetyTrendChartLazy
+            data={trendPoints}
+            metricsShown={{ trir: true, ltifr: true }}
+            industryBenchmark={{
+              trir: BENCHMARK_TRIR.construction_cl,
+              ltifr: BENCHMARK_LTIFR.construction_cl,
+            }}
+          />
+        )}
+
+        {!trendLoading && !trendError && trendPoints.length < 2 && (
+          <div
+            data-testid="safety-trend-empty"
+            className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-600"
+          >
+            Aún no hay suficientes meses con horas-hombre capturadas para dibujar una tendencia.
+            Captura las horas-hombre de al menos dos meses para ver la evolución de TRIR/LTIFR.
+          </div>
+        )}
+      </section>
 
       {/* ── Operational pressure (workforce strain) ──────────────────── */}
       <section
