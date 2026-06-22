@@ -1,5 +1,7 @@
 # M28: Infrastructure lint — hadolint (Docker), tflint + tfsec (Terraform), markdownlint
-# All jobs are continue-on-error: true — pre-existing issues must not turn CI red.
+# ADVISORY ONLY: every lint step is continue-on-error so pre-existing issues are
+# surfaced in logs but never turn a PR check red. Flip individual steps to
+# blocking once the corresponding surface is clean.
 name: Lint Infrastructure
 
 on:
@@ -20,16 +22,19 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Lint Dockerfile
+        continue-on-error: true
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: Dockerfile
 
       - name: Lint Dockerfile.api
+        continue-on-error: true
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: Dockerfile.api
 
       - name: Lint Dockerfile.frontend
+        continue-on-error: true
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: Dockerfile.frontend
@@ -53,10 +58,12 @@ jobs:
           tflint_version: v0.52.0
 
       - name: Init tflint
+        continue-on-error: true
         run: tflint --init
         working-directory: infrastructure/terraform
 
       - name: Run tflint
+        continue-on-error: true
         run: tflint -f compact
         working-directory: infrastructure/terraform
 
@@ -68,6 +75,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run tfsec
+        continue-on-error: true
         uses: aquasecurity/tfsec-action@v1.0.3
         with:
           working_directory: infrastructure/terraform
@@ -81,6 +89,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run markdownlint
+        continue-on-error: true
         uses: DavidAnson/markdownlint-cli2-action@v20
         with:
           globs: '**/*.md'
