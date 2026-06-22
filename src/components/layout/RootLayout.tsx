@@ -46,7 +46,9 @@ import { getPendingActions } from '../../utils/pwa-offline';
 import { get, set } from 'idb-keyval';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CookieConsent } from '../legal/CookieConsent';
-import { ModeSwitcher } from '../shared/ModeSwitcher';
+import { HeaderModeSwitcher } from './HeaderModeSwitcher';
+import { NavSearch } from './NavSearch';
+import { CriticalActionsSheet } from './CriticalActionsSheet';
 // Sprint 20 sixteenth-wave (Bucket D — A11Y-015): WCAG-compliant
 // tooltip primitive replaces the native `title=` attribute on the 3
 // header icon controls (Sync, Theme, Safe-driving). Native `title`
@@ -75,13 +77,14 @@ export function RootLayout() {
   const isHome = location.pathname === '/';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [searchQuery, setSearchQuery] = useState('');
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isMfaSetupOpen, setIsMfaSetupOpen] = useState(false);
   const [isMfaForced, setIsMfaForced] = useState(false);
   const [mfaSuccessCallback, setMfaSuccessCallback] = useState<(() => void) | null>(null);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [mfaSetupCompleted, setMfaSetupCompleted] = useState<boolean>(false);
+  // F1 Nav: critical actions sheet (Emergencia / Fast Check) — no route change.
+  const [isCriticalSheetOpen, setIsCriticalSheetOpen] = useState(false);
 
   useEffect(() => {
     const loadMfaStatus = async () => {
@@ -223,42 +226,16 @@ export function RootLayout() {
           )}
         </div>
         
-        {/* Middle: Global Search & AI Help */}
+        {/* Middle: Module Jump Search (F1) + AI chat on sparkle click */}
         <div className="flex flex-1 max-w-xl mx-4 relative justify-end sm:justify-center">
-          <div className="relative w-full max-w-[300px] sm:max-w-full flex items-center group hidden sm:flex">
-            <Search className="absolute left-4 w-4 h-4 text-zinc-700 dark:text-zinc-500 group-focus-within:text-[#4db6ac] transition-colors" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && searchQuery.trim()) {
-                  window.dispatchEvent(new CustomEvent('open-ai-chat', { detail: { query: searchQuery } }));
-                  setSearchQuery('');
-                }
-              }}
-              placeholder="Buscar o preguntar a la IA..."
-              aria-label="Buscar o preguntar a la IA"
-              className="w-full bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-2xl py-2.5 pl-11 pr-12 text-sm focus:ring-2 focus:ring-[#4db6ac]/50 text-zinc-900 dark:text-white transition-all placeholder:text-zinc-700 dark:placeholder:text-zinc-500 shadow-inner"
-            />
-            <button 
-              onClick={() => {
-                if (!isOnline) return;
-                window.dispatchEvent(new CustomEvent('open-ai-chat', { detail: { query: searchQuery } }));
-                setSearchQuery('');
-              }}
-              disabled={!isOnline}
-              className={`absolute right-2 p-1.5 rounded-xl transition-all duration-300 ${
-                !isOnline ? 'bg-white/40 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-400 cursor-not-allowed' : 'bg-[#4db6ac]/10 hover:bg-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac] hover:scale-105'
-              }`}
-              title={!isOnline ? 'Requiere conexión a internet' : 'Preguntar a Gemini AI'}
-            >
-              <Sparkles className="w-4 h-4" />
-            </button>
+          {/* Desktop: NavSearch replaces the old AI-only search box. The AI chat
+              is still accessible via the Sparkle button on the right cluster. */}
+          <div className="hidden sm:block w-full max-w-[300px] sm:max-w-full">
+            <NavSearch />
           </div>
-          
-          {/* Mobile Search Button (Opens Chat) */}
-          <button 
+
+          {/* Mobile: opens NavSearch not the AI chat (less accidental AI usage) */}
+          <button
             onClick={() => {
               if (!isOnline) return;
               window.dispatchEvent(new CustomEvent('open-ai-chat', { detail: { query: '' } }));
@@ -267,8 +244,9 @@ export function RootLayout() {
             className={`sm:hidden w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
               !isOnline ? 'bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 text-zinc-700 dark:text-zinc-400 cursor-not-allowed' : 'bg-[#4db6ac]/10 border border-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac]'
             }`}
+            aria-label="Abrir búsqueda"
           >
-            <Sparkles className="w-5 h-5" />
+            <Search className="w-5 h-5" />
           </button>
         </div>
 
@@ -314,6 +292,21 @@ export function RootLayout() {
               <span className="text-[9px] font-black uppercase tracking-widest hidden sm:block">Offline</span>
             </div>
           )}
+
+          {/* F1 Nav: 4-mode switcher in header (was floating bottom-right) */}
+          <HeaderModeSwitcher />
+
+          {/* F1 Nav: critical actions trigger (Emergencia / Fast Check) */}
+          <Tooltip content="Acciones rápidas">
+            <button
+              type="button"
+              onClick={() => setIsCriticalSheetOpen(true)}
+              aria-label="Acciones rápidas"
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 shadow-sm"
+            >
+              <Sparkles className="w-5 h-5" />
+            </button>
+          </Tooltip>
 
           <Tooltip content={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
             <button
@@ -424,10 +417,12 @@ export function RootLayout() {
         <SmartConnectionsPanel />
       </Suspense>
 
-      {/* 4-mode UX dock — floating, post-login only (RootLayout never renders on landing). */}
-      <div className="fixed bottom-4 right-4 z-50 pointer-events-auto">
-        <ModeSwitcher />
-      </div>
+      {/* F1 Nav: critical actions sheet (Emergencia / Fast Check) — no route change.
+          Replaces the old floating 4-mode dock (moved to HeaderModeSwitcher). */}
+      <CriticalActionsSheet
+        isOpen={isCriticalSheetOpen}
+        onClose={() => setIsCriticalSheetOpen(false)}
+      />
 
       {/* Sprint 14 — emergency bridge subscribes weather/company/motion to autoTrigger;
           SOSButton renders only in emergency mode. */}
