@@ -5,7 +5,7 @@
  * rule engine in predictions.ts can reason deterministically.
  *
  * Sources cited per rule:
- *  - DS 54: Reglamento de Comités Paritarios (sesión mensual obligatoria).
+ *  - DS 44/2024 (ex DS 54, derogado 01-02-2025): Reglamento de Comités Paritarios (sesión mensual obligatoria).
  *  - Ley 16.744 + DS 44/2024: Obligación de Informar (ODI) periódica.
  *  - ISO 45001 cláusula 9.3: revisión por la dirección al menos anualmente.
  *  - NT MINSAL TMERT/PREXOR: vigilancia médica audiométrica anual; se
@@ -42,7 +42,7 @@ interface RuleSpec {
 const BASE_RULES: Record<ObligationKind, RuleSpec> = {
   'cphs-meeting': {
     cadenceDays: 30,
-    legalReference: 'DS 54 art. 16 (sesión mensual del Comité Paritario)',
+    legalReference: 'DS 44/2024 art. 16 (ex DS 54, derogado 01-02-2025) — sesión mensual del Comité Paritario',
   },
   'odi-training': {
     cadenceDays: 180,

@@ -62,7 +62,7 @@ desde 2025-02-01, reemplaza al DS 40/1969 derogado) y la Ley 16.744
 en la faena {{projectName}}.
 
 ## II. Comité Paritario
-**¿Requerido?**: {{cphsRequired}} (DS 54/1969 art. 1 — ≥25 trabajadores).
+**¿Requerido?**: {{cphsRequired}} (DS 44/2024 art. 1 [ex DS 54, derogado 01-02-2025] — ≥25 trabajadores).
 
 ## III. Obligaciones del trabajador
 1. Cumplir las normas de higiene y seguridad.
@@ -84,7 +84,7 @@ Código del Trabajo art. 157).
 - Protocolos de emergencia.
 - Rutas de evacuación.
 `,
-  legalReferences: ['DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)', 'Ley 16.744 art. 67', 'DS 54/1969 art. 1', 'Código del Trabajo art. 157'],
+  legalReferences: ['DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)', 'Ley 16.744 art. 67', 'DS 44/2024 art. 1 (ex DS 54, derogado 01-02-2025)', 'Código del Trabajo art. 157'],
 };
 
 const DDR_TEMPLATE: LegalDocTemplate = {
@@ -206,10 +206,10 @@ const CPHS_ACTA_TEMPLATE: LegalDocTemplate = {
 {{nextMeetingDate}}
 
 ---
-Esta acta es exigida por el DS 54/1969 art. 24 y debe conservarse
-mínimo 5 años.
+Esta acta es exigida por el DS 44/2024 (ex DS 54, derogado 01-02-2025)
+art. 24 y debe conservarse mínimo 5 años.
 `,
-  legalReferences: ['DS 54/1969 art. 24', 'Ley 16.744 art. 66'],
+  legalReferences: ['DS 44/2024 art. 24 (ex DS 54, derogado 01-02-2025)', 'Ley 16.744 art. 66'],
 };
 
 export const TEMPLATES: Record<LegalDocTemplateKind, LegalDocTemplate> = {
