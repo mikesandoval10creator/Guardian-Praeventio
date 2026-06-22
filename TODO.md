@@ -26,6 +26,12 @@
 > cascarón CPHS (`CphsModule.tsx:825`), 4 PRs MiMo problemáticos, iOS mesh >512B, proximity null,
 > DTE firma, WebAuthn E2E. No abrir listas nuevas — trabajar desde PENDIENTE.md.
 
+> **✅ Ola mergeada 2026-06-22 — hardening + DX + frontend (#1111–#1114).**
+> - **#1111 Seguridad**: V11 redacción PII en `/api/ask-guardian` (`src/server/routes/gemini.ts:422-423`, llama `redactPromptForVertex(query, 'ask-guardian')`) · V12 comparación timing-safe del secreto E2E (`src/server/middleware/verifyAuth.ts:91`, usa `safeSecretEqual` de `src/server/middleware/safeSecretEqual.ts:32`) · B24 docker-layer-cache deduplicado en `deploy.yml` · corrección honesta de cobertura E2E `~70%→real` (ya en esta nota).
+> - **#1112 Reglas Firestore/Storage**: V2 anti-spoof `exceptions.approvedByUid` (`firestore.rules:898-902`) y `shifts.supervisorUid` (`firestore.rules:921-925`) · V3 `documents/` delete gate `isAdminOrSupervisorTier()` (`storage.rules:149-155`, función definida) · V4 `reconstructions` requiere `isAllowedUpload()` (`storage.rules:131-141`) + rules-tests.
+> - **#1114 DX/CI**: CODEOWNERS (``.github/CODEOWNERS:1``) · PR/issue templates (``.github/pull_request_template.md:1``) · stale bot M25 (``.github/workflows/stale.yml:1``) · CodeQL M13 (``.github/workflows/codeql.yml:1``) · Dependabot M14 (``.github/dependabot.yml:1``, cierra K12) · lint-infra advisory M28 (``.github/workflows/lint-infra.yml:1``) · `test:e2e:ci` M26 (`package.json:68`, `CI=true npx playwright test --project=chromium --project=mobile-android`).
+> - **#1113 Frontend redesign F0+F1**: tokens semánticos 4-modos en `src/index.css:21-62` · `src/utils/cn.ts` · `src/utils/textMeasure.ts` + `useTextFits` (`src/hooks/useTextFits.ts:9`) · primitivos `Button/Badge/Input/Sheet` en `src/components/shared/` · catálogo unificado 10-bloques `src/navigation/navCatalog.ts` · buscador `src/components/layout/NavSearch.tsx` · `HeaderModeSwitcher` en header `src/components/layout/HeaderModeSwitcher.tsx` · `CriticalActionsSheet` `src/components/layout/CriticalActionsSheet.tsx` · specs en `src/__tests__/design/` y `src/navigation/*.test.ts`.
+
 ---
 
 ## 📑 Índice
@@ -1925,7 +1931,7 @@ Items identificados durante auditoría 2026-05-27 que NO entran al sprint actual
 - **K9** Firestore PITR
 - **K10** scheduled DR drill mensual `DR_DRILL_LOG.md`
 - **K11** workflow CI `terraform-plan.yml`
-- **K12** Dependabot + `npm audit --audit-level=high`
+- ✅ **K12** Dependabot — **HECHO #1114** `.github/dependabot.yml:1` (npm semanal lunes 06:00 ART, grupo minor+patch; github-actions semanal)
 - **K13** OpenAPI spec + contract testing
 - **K14** Apple webhook cert pinning + anti-replay nonce
 - **K16** revisar CORS Capacitor

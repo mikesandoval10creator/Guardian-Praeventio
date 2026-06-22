@@ -8,15 +8,15 @@
 
 ## Contador maestro
 
-> **Re-verificado 2026-06-19** (recomputado contra el código, no contra el doc). Varias cifras estaban viejas — corregidas abajo. Método: ratchets recomputados + 3 auditorías de verificación (honestidad de pantallas montadas, triage de stubs, catálogo de rutas).
+> **Re-verificado 2026-06-22** (ratchet baselines leídos de disco: `scripts/connectivity-ratchet-baseline.json` count=39 y `scripts/router-test-ratchet-baseline.json` uncovered_count=10/total=205). Actualización anterior: 2026-06-19 (recomputado contra código + 3 auditorías).
 
-| # | Dimensión | Cantidad (verificada 06-19) | Medido | Gate |
+| # | Dimensión | Cantidad (verificada 06-22) | Medido | Gate |
 |---|---|---|---|---|
-| A | Huérfanos (construido, sin montar) | **89** (era 126; −37 cerrados) | ✅ ratchet recomputado | ✅ `connectivity-ratchet` (baseline 89) |
+| A | Huérfanos (construido, sin montar) | **39** (era 89; −50 cerrados — ratchet baseline leído de `scripts/connectivity-ratchet-baseline.json:3`) | ✅ ratchet leído | ✅ `connectivity-ratchet` (baseline 39) |
 | B | Datos fabricados en pantallas montadas | **0 confirmados** (el `WisdomCapsule` era falso positivo — ver detalle); pantallas montadas honestas | ✅ sweep completo + verificado en fuente | ❌ gate honestidad opcional (debe distinguir decorativo de dato-fabricado) |
 | C | Stubs / placeholders | 86 inventario → **~9 accionables** (3 REAL-NEEDED · 3 fail-soft legítimo · 1 bloqueado-externo · 3 entradas STALE) | ✅ triado | 🟡 `stub-guard` (forma, no conexión) |
 | D | Pipelines backend sin construir | 3 | ✅ explícito | ❌ |
-| E | Routers sin test conductual | **61 / 204** (143 verificados; era 67/137) | ✅ ratchet recomputado | ✅ `router-test-ratchet` (baseline 61) |
+| E | Routers sin test conductual | **10 / 205** (195 verificados — ratchet baseline leído de `scripts/router-test-ratchet-baseline.json:3-5`) | ✅ ratchet leído | ✅ `router-test-ratchet` (baseline 10 uncovered) |
 | F | Decisiones del fundador | **6 RESUELTAS 2026-06-20** (RUT F1 confirmado 78.231.119-0) | ✅ resuelto | n/a (decisión) |
 | B0 | Índice de rutas (`api-routes.md`) | **viejo: 43 de 204 rutas** (del 2026-04-28). Generador+gate pendiente | ✅ medido (~1501 decl. de ruta) | ❌ falta generador |
 
@@ -25,6 +25,42 @@
 - **C (stubs) REAL-NEEDED (3):** (1) `src/server/jobs/runB2dMrrSnapshot.ts:15` job sin cron (backend listo) · (2) `src/hooks/useGeofenceWithEvents.ts` hook real sin consumer (panel admin geocercas) · (3) Wi-Fi Direct nativo `packages/capacitor-mesh/.../MeshPlugin.kt:552` + `Plugin.swift:350` (BLE ya real; falta WifiP2pManager/MultipeerConnectivity).
 - **C STALE (3) — quitar del inventario:** SLM mock (ya runtime real), criticalPermitValidators (ya ruteado), SystemEngineProvider (ya montado).
 - **B0 (índice):** OpenAPI registry solo cubre 34 paths (superficie pública B2D, intencional). El catálogo interno real son ~1501 decl. de ruta en 204 routers → mano imposible, requiere generador determinista + gate de frescura.
+
+---
+
+## Actualización 2026-06-22 — Ola hardening + DX + frontend (#1111–#1114 mergeados)
+
+### Cerrado (#1111 — Seguridad)
+- ✅ **V11 PII redaction en `/api/ask-guardian`** — `src/server/routes/gemini.ts:422-423`: `redactPromptForVertex(query, 'ask-guardian')` redacta RUT/email/teléfono antes de enviar el prompt a Gemini (el search RAG sí usa la query raw, ya que es búsqueda interna Firestore). Test: `src/__tests__/server/askGuardianPiiRedaction.test.ts`.
+- ✅ **V12 comparación timing-safe del secreto E2E** — `src/server/middleware/verifyAuth.ts:91` usa `safeSecretEqual(providedSecret, secret)` de `src/server/middleware/safeSecretEqual.ts:32` (`crypto.timingSafeEqual` con padding a longitud esperada). Cierra timing-oracle de la comparación naive anterior.
+- ✅ **B24 docker-layer-cache deduplicado** — `.github/workflows/deploy.yml`: cache de capas Docker deduplicado para evitar doble push.
+- ✅ **Corrección cobertura E2E ~70% → real** — `TODO.md` (línea ~15): el "~70%" histórico era unit+integración ponderado, no journeys Playwright. Real: ~11% páginas / ~0.3% endpoints por-PR. Ya corregido en `TODO.md`.
+
+### Cerrado (#1112 — Reglas Firestore/Storage)
+- ✅ **V2 anti-spoof `exceptions.approvedByUid`** — `firestore.rules:898-902`: `allow create` exige `incoming().approvedByUid == request.auth.uid`; `allow update` exige `incoming().approvedByUid == existing().approvedByUid` (inmutable). Cierra IDOR de campo creator.
+- ✅ **V2 anti-spoof `shifts.supervisorUid`** — `firestore.rules:921-925`: mismo patrón para `shifts`. On create: `supervisorUid` must equal caller uid. On update: immutable.
+- ✅ **V3 `documents/` delete requiere `isAdminOrSupervisorTier()`** — `storage.rules:149-155`: función `isAdminOrSupervisorTier()` definida (roles admin/gerente/supervisor/prevencionista/director_obra/medico_ocupacional); `documents/{workerId}/...` `allow delete` gateado.
+- ✅ **V4 `reconstructions` requiere `isAllowedUpload()`** — `storage.rules:131-141`: antes el GLB/USDZ podía entrar con cualquier content-type; ahora `isAllowedUpload()` (que ya incluye `model/.*` y `application/octet-stream`) es requerido en create+update. Cierra puerta de arbitrary content-type.
+
+### Cerrado (#1114 — DX/CI)
+- ✅ **M13 CodeQL** — `.github/workflows/codeql.yml:1` (JavaScript/TypeScript, push+PR main + semanal sábado 03:00 UTC).
+- ✅ **M14 Dependabot** — `.github/dependabot.yml:1` (npm semanal lunes 06:00 ART; github-actions semanal). Cierra TODO K12.
+- ✅ **M22 CODEOWNERS** — `.github/CODEOWNERS:1` (owner por defecto `@mikesandoval10creator`; paths críticos: `firestore.rules`, `storage.rules`, `src/server/`, `public/.well-known/`, `scripts/*-baseline.json`, `android/**/AndroidManifest.xml`).
+- ✅ **M23 PR template** — `.github/pull_request_template.md:1` (checklist gate básico + seguridad + ratchets #21/#22/#23/#24 + scope guard).
+- ✅ **M25 Stale bot** — `.github/workflows/stale.yml:1` (daily 02:00 UTC; stale ≥60d, close ≥14d; exempt: security/life-safety/pinned).
+- ✅ **M26 `test:e2e:ci`** — `package.json:68`: script `"test:e2e:ci": "CI=true npx playwright test --project=chromium --project=mobile-android"`.
+- ✅ **M28 lint-infra advisory** — `.github/workflows/lint-infra.yml:1` (hadolint + tflint + tfsec + markdownlint, todos `continue-on-error: true` — advisory, no bloqueante).
+
+### Cerrado (#1113 — Frontend redesign F0+F1)
+- ✅ **F0 Tokens semánticos 4-modos** — `src/index.css:21-62`: paleta scaled teal/petroleum/gold; tokens semánticos `--bg-canvas/-surface/-elevated`, `--text-primary/-secondary/-muted`, `--accent-*`, `--border-*`, bloques `:root` (light) + `.dark` + `.driving` (oscuro-cálido batería) + `.emergency`.
+- ✅ **F0 Utilidad `cn` canónica** — `src/utils/cn.ts` (clsx + tailwind-merge; re-exportado desde `src/components/shared/Card.tsx`).
+- ✅ **F0 Wrapper pretext `textMeasure`** — `src/utils/textMeasure.ts` + `src/hooks/useTextFits.ts:9` (`useTextFits(text, font, maxWidth, lineHeight)` → `{ fits, lineCount }`; fallback sin Canvas → `fits:true`). Tests: `src/hooks/useTextFits.test.ts`.
+- ✅ **F0 Primitivos compartidos** — `src/components/shared/Button.tsx` + `Badge.tsx` + `Input.tsx` + `Sheet.tsx` (todos con test `.test.tsx` co-locado).
+- ✅ **F0 Tests de contrato de tokens** — `src/__tests__/design/colorTokens.test.ts` + `typography.test.ts`.
+- ✅ **F1 Catálogo único de navegación 10-bloques** — `src/navigation/navCatalog.ts` (Principal · Gestión Operativa · Prevención y Riesgos · Salud Ocupacional · Cumplimiento · Emergencias · Conocimiento · IA y Coach · Innovación · Administración). Test: `src/navigation/navCatalog.test.ts`.
+- ✅ **F1 Buscador de navegación** — `src/components/layout/NavSearch.tsx` + `src/navigation/searchNav.ts`. Test: `NavSearch.test.tsx` + `searchNav.test.ts`.
+- ✅ **F1 `HeaderModeSwitcher` en header** — `src/components/layout/HeaderModeSwitcher.tsx` (selector 4-modos en header; cierra el choque z-index con AsesorChat/SOSButton).
+- ✅ **F1 `CriticalActionsSheet`** — `src/components/layout/CriticalActionsSheet.tsx` (Emergencia + Fast Check en Sheet lateral sin cambio de ruta).
 
 ---
 
@@ -54,9 +90,9 @@ Auditoría cruzada (5 sub-agentes ponytail/impacto + 2 PDFs línea-por-línea de
 
 ---
 
-## A. Huérfanos — construido pero sin montar  ·  GATE: connectivity-ratchet (baseline 126)
+## A. Huérfanos — construido pero sin montar  ·  GATE: connectivity-ratchet (baseline 39)
 
-El gran bloque de "trabajo hecho que no es real porque no está conectado". El detalle por archivo en `docs/BASELINE-CONECTIVIDAD-2026-06-17.md`. Corregido: de 126, ~18 son falsos positivos (utils/ya-montados) y ~10 duplicados → **~92 huérfanos reales**.
+El gran bloque de "trabajo hecho que no es real porque no está conectado". El detalle por archivo en `docs/BASELINE-CONECTIVIDAD-2026-06-17.md`. Baseline actual: **39** (leído de `scripts/connectivity-ratchet-baseline.json:3`, 2026-06-22). Origen: era 126 → −37 (ola MiMo 06-19) → −50 acumulado → 39 actuales.
 
 ### A1. Montables YA — VIDA/LEGAL (24) — prioridad 1 (montar = hacerlo real)
 Cada uno: la feature existe, su backend/motor es real, falta montarla. Una por PR, con review, bajando el contador del ratchet.
@@ -126,7 +162,7 @@ Inventario en `docs/stubs-inventory.md`. `precommit-stub-guard` valida la FORMA 
 
 ## E. Routers sin test conductual  ·  MEDIDO + GATE: router-test-ratchet
 
-Medido: **204 routers reales · 137 verificados** (un test importa el router real — por path `../../server/routes/x` **o** relativo co-locado `./x` — + usa supertest `request()`) · **67 sin cobertura** · solo 4 `router.stack` hollow (el "~144" del plan ya estaba limpiado). **Los 137 verificados = el inventario "qué funciona verificado (server)"** — el espejo positivo de este registro. Gate: `check-router-test-ratchet.cjs` (baseline 67, solo baja; router nuevo sin test → FAIL).
+Medido: **205 routers reales · 195 verificados · 10 sin cobertura** (leído de `scripts/router-test-ratchet-baseline.json:3-5`, 2026-06-22). Un test importa el router real — por path `../../server/routes/x` **o** relativo co-locado `./x` — + usa supertest `request()`. **Los 195 verificados = el inventario "qué funciona verificado (server)"** — el espejo positivo de este registro. Gate: `check-router-test-ratchet.cjs` (baseline 10 uncovered, solo baja; router nuevo sin test → FAIL).
 
 > Corrección de exactitud (2026-06-18): el ratchet contaba 76/128 por un **falso negativo** — solo detectaba imports por path completo y no los co-locados `./x`. Tras resolver imports relativos contra el dir del test, 9 routers ya cubiertos dejaron de aparecer como "sin cobertura": `loto`, `medicalAptitude`, `health`, `cad`, `openapi`, `b2d/{climate,hazmat,normativa,suite}`. El inventario ahora es honesto.
 
