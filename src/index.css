@@ -135,45 +135,50 @@
   }
 
   .driving {
-    /* driving (day defaults) — glanceable, signal-grade ANSI amber CTA,
-       teal demoted to secondary route line; automotive convention. */
-    --bg-canvas: #ffffff;
-    --bg-surface: #f4f4f5;
-    --bg-elevated: #ffffff;
-    --text-primary: #000000;
-    --text-secondary: #18181b;
-    --text-muted: #52525b;
-    --accent-primary: #f59e0b;       /* amber-500 — ANSI signal */
-    --accent-on-primary: #000000;
-    --accent-warning: #dc2626;       /* red-600 — secondary alert */
-    --accent-hazard: #b91c1c;        /* red-700 — terminal hazard */
-    --accent-success: #15803d;
-    --accent-info: #2e8079;          /* WCAG 1.4.11 (A11Y-006): teal-600 ratio 4.86:1 on white, replaces #4db6ac (2.53:1) for non-text route line */
-    --border-default: rgba(0, 0, 0, 0.20);
-    --border-strong: rgba(0, 0, 0, 0.45);
-    --border-subtle: rgba(0, 0, 0, 0.08);
-    --shadow-color: rgba(0, 0, 0, 0.18);
+    /* driving — warm-dark OLED battery-save palette (redesign F0).
+       Near-black warm canvas + teal glanceable CTA + gold attention.
+       "Requires attention" → --accent-warning (gold/amber). */
+    --bg-canvas: #0d0a05;            /* near-black cálido — OLED battery */
+    --bg-surface: #1a160d;
+    --bg-elevated: #241f12;
+    --text-primary: #fff7e9;
+    --text-secondary: #cabfa1;
+    --text-muted: #9a8e6f;
+    --accent-primary: #5fd9c8;       /* teal glanceable */
+    --accent-on-primary: #0d0a05;
+    --accent-warning: #ffce5a;       /* dorado = atención */
+    --accent-hazard: #ff5a4d;        /* coral = alerta */
+    --accent-success: #5fdcb4;
+    --accent-info: #5fd9c8;
+    --border-default: rgba(255, 247, 233, 0.12);
+    --border-strong: rgba(255, 247, 233, 0.22);
+    --border-subtle: rgba(255, 247, 233, 0.06);
+    --shadow-color: rgba(0, 0, 0, 0.6);
+    --bg-main: #0d0a05;              /* legacy alias */
+    --text-main: #fff7e9;            /* legacy alias */
   }
 
   @media (prefers-color-scheme: dark) {
     .driving:not(.driving-force-day) {
-      /* driving night override — petroleum bg, amber CTA stays for legibility */
-      --bg-canvas: #061f2d;
-      --bg-surface: #0a2e42;
-      --bg-elevated: #0f3245;
-      --text-primary: #ffffff;
-      --text-secondary: #e8eef2;
-      --text-muted: #8fa9ba;
-      --accent-primary: #f59e0b;
-      --accent-on-primary: #061f2d;
-      --accent-warning: #ef4444;
-      --accent-hazard: #dc2626;
-      --accent-success: #34d399;
-      --accent-info: #74d0c5;
-      --border-default: rgba(245, 158, 11, 0.30);
-      --border-strong: rgba(245, 158, 11, 0.60);
-      --border-subtle: rgba(245, 158, 11, 0.10);
-      --shadow-color: rgba(0, 0, 0, 0.70);
+      /* driving night override — same warm-dark palette (both variants dark now) */
+      --bg-canvas: #0d0a05;
+      --bg-surface: #1a160d;
+      --bg-elevated: #241f12;
+      --text-primary: #fff7e9;
+      --text-secondary: #cabfa1;
+      --text-muted: #9a8e6f;
+      --accent-primary: #5fd9c8;
+      --accent-on-primary: #0d0a05;
+      --accent-warning: #ffce5a;
+      --accent-hazard: #ff5a4d;
+      --accent-success: #5fdcb4;
+      --accent-info: #5fd9c8;
+      --border-default: rgba(255, 247, 233, 0.12);
+      --border-strong: rgba(255, 247, 233, 0.22);
+      --border-subtle: rgba(255, 247, 233, 0.06);
+      --shadow-color: rgba(0, 0, 0, 0.6);
+      --bg-main: #0d0a05;
+      --text-main: #fff7e9;
     }
   }
 
