@@ -552,7 +552,7 @@ export function BioAnalysis() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary uppercase tracking-tighter leading-tight flex items-center gap-3">
             {t('bioAnalysis.title', 'Bio-Análisis')}
             {/* Sprint 17c — Bioicons respiratory + oximetry decoration. */}
             <span className="hidden sm:inline-flex items-center gap-1.5 text-cyan-300/80" aria-hidden="true">
@@ -561,7 +561,7 @@ export function BioAnalysis() {
               <MedicalIcon name="spirometer" size={28} alt="Espirómetro" />
             </span>
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('bioAnalysis.subtitle', 'Computer Vision & IA para Detección de Riesgos')}
           </p>
         </div>
@@ -605,7 +605,7 @@ export function BioAnalysis() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Camera Feed */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-zinc-900 border border-white/10 rounded-3xl overflow-hidden relative aspect-video shadow-2xl">
+          <div className="bg-surface border border-default-token rounded-3xl overflow-hidden relative aspect-video shadow-2xl">
             {cameraPermissionDenied ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 p-6 text-center">
                 <AlertTriangle className="w-16 h-16 mb-4 text-amber-500 opacity-80" />
@@ -662,9 +662,9 @@ export function BioAnalysis() {
           </div>
 
           {/* Alerts Section */}
-          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
+          <div className="bg-surface/50 border border-default-token rounded-3xl p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+              <h3 className="text-sm font-black text-primary uppercase tracking-widest flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
                 Resultados del Análisis
               </h3>
@@ -764,8 +764,8 @@ export function BioAnalysis() {
 
         {/* Metrics Dashboard */}
         <div className="space-y-6">
-          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
-            <h3 className="text-sm font-black text-white uppercase tracking-widest mb-6">Métricas Biométricas</h3>
+          <div className="bg-surface/50 border border-default-token rounded-3xl p-6">
+            <h3 className="text-sm font-black text-primary uppercase tracking-widest mb-6">Métricas Biométricas</h3>
 
             <div className="space-y-6">
               {/* Fatigue */}
@@ -773,13 +773,13 @@ export function BioAnalysis() {
                 <div className="flex justify-between items-end mb-2">
                   <div className="flex items-center gap-2">
                     <Eye className="w-4 h-4 text-zinc-400" />
-                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Nivel de Fatiga</span>
+                    <span className="text-xs font-bold text-secondary uppercase tracking-widest">Nivel de Fatiga</span>
                   </div>
                   <span className={`text-lg font-black ${metrics.fatigue > 70 ? 'text-rose-500' : 'text-white'}`}>
                     {Math.round(metrics.fatigue)}%
                   </span>
                 </div>
-                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-2 bg-elevated rounded-full overflow-hidden">
                   <motion.div 
                     className={`h-full ${metrics.fatigue > 70 ? 'bg-rose-500' : 'bg-emerald-500'}`}
                     animate={{ width: `${metrics.fatigue}%` }}
@@ -793,13 +793,13 @@ export function BioAnalysis() {
                 <div className="flex justify-between items-end mb-2">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-zinc-400" />
-                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Calidad Postural</span>
+                    <span className="text-xs font-bold text-secondary uppercase tracking-widest">Calidad Postural</span>
                   </div>
                   <span className={`text-lg font-black ${metrics.posture < 60 ? 'text-amber-500' : 'text-white'}`}>
                     {Math.round(metrics.posture)}%
                   </span>
                 </div>
-                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-2 bg-elevated rounded-full overflow-hidden">
                   <motion.div 
                     className={`h-full ${metrics.posture < 60 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                     animate={{ width: `${metrics.posture}%` }}
@@ -813,13 +813,13 @@ export function BioAnalysis() {
                 <div className="flex justify-between items-end mb-2">
                   <div className="flex items-center gap-2">
                     <Activity className="w-4 h-4 text-zinc-400" />
-                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Nivel de Atención</span>
+                    <span className="text-xs font-bold text-secondary uppercase tracking-widest">Nivel de Atención</span>
                   </div>
                   <span className={`text-lg font-black ${metrics.attention < 50 ? 'text-amber-500' : 'text-white'}`}>
                     {Math.round(metrics.attention)}%
                   </span>
                 </div>
-                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-2 bg-elevated rounded-full overflow-hidden">
                   <motion.div 
                     className={`h-full ${metrics.attention < 50 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                     animate={{ width: `${metrics.attention}%` }}
@@ -833,13 +833,13 @@ export function BioAnalysis() {
                 <div className="flex justify-between items-end mb-2">
                   <div className="flex items-center gap-2">
                     <Shield className="w-4 h-4 text-zinc-400" />
-                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Cumplimiento EPP</span>
+                    <span className="text-xs font-bold text-secondary uppercase tracking-widest">Cumplimiento EPP</span>
                   </div>
                   <span className={`text-lg font-black ${metrics.epp < 80 ? 'text-rose-500' : 'text-white'}`}>
                     {Math.round(metrics.epp)}%
                   </span>
                 </div>
-                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-2 bg-elevated rounded-full overflow-hidden">
                   <motion.div 
                     className={`h-full ${metrics.epp < 80 ? 'bg-rose-500' : 'bg-emerald-500'}`}
                     animate={{ width: `${metrics.epp}%` }}
@@ -850,8 +850,8 @@ export function BioAnalysis() {
             </div>
           </div>
 
-          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
-            <h3 className="text-sm font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2">
+          <div className="bg-surface/50 border border-default-token rounded-3xl p-6">
+            <h3 className="text-sm font-black text-primary uppercase tracking-widest mb-6 flex items-center gap-2">
               <LineChartIcon className="w-4 h-4 text-indigo-500" />
               Tendencia de Métricas
             </h3>
@@ -881,32 +881,32 @@ export function BioAnalysis() {
             </div>
           </div>
 
-          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
-            <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
+          <div className="bg-surface/50 border border-default-token rounded-3xl p-6">
+            <h3 className="text-sm font-black text-primary uppercase tracking-widest mb-4 flex items-center gap-2">
               <HeartPulse className="w-4 h-4 text-cyan-500" />
               Ergonomía pulmonar (Bernoulli)
             </h3>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
-                <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-400 mb-1">PEF (L/min)</label>
+                <label className="block text-[10px] uppercase tracking-widest font-bold text-secondary mb-1">PEF (L/min)</label>
                 <input
                   type="number"
                   min="0"
                   step="any"
                   value={pefLMin}
                   onChange={(e) => setPefLMin(Number(e.target.value) || 0)}
-                  className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                  className="w-full bg-elevated border border-default-token rounded-lg px-3 py-2 text-sm text-primary"
                 />
               </div>
               <div>
-                <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-400 mb-1">Altitud (m s.n.m.)</label>
+                <label className="block text-[10px] uppercase tracking-widest font-bold text-secondary mb-1">Altitud (m s.n.m.)</label>
                 <input
                   type="number"
                   min="0"
                   step="any"
                   value={altitudeMasl}
                   onChange={(e) => setAltitudeMasl(Number(e.target.value) || 0)}
-                  className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                  className="w-full bg-elevated border border-default-token rounded-lg px-3 py-2 text-sm text-primary"
                 />
               </div>
             </div>

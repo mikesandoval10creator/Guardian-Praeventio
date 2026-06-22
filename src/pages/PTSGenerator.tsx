@@ -425,8 +425,8 @@ export function PTSGenerator() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('pts.title', 'Generador de Documentos')}</h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary uppercase tracking-tighter leading-tight">{t('pts.title', 'Generador de Documentos')}</h1>
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('pts.subtitle', 'PTS y Planes de Emergencia Asistidos por IA')}
           </p>
         </div>
@@ -514,15 +514,15 @@ export function PTSGenerator() {
             </motion.div>
           )}
 
-          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
-            <h2 className="text-lg font-black text-white uppercase tracking-tight mb-6 flex items-center gap-2">
+          <div className="bg-surface border border-default-token rounded-3xl p-6">
+            <h2 className="text-lg font-black text-primary uppercase tracking-tight mb-6 flex items-center gap-2">
               <FileText className="w-5 h-5 text-emerald-500" />
               Datos de la Tarea
             </h2>
             
             <form onSubmit={handleGenerate} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
+                <label className="block text-[10px] font-black text-muted-token uppercase tracking-widest mb-2">
                   Tipo de Documento
                 </label>
                 <div className="flex gap-2">
@@ -531,8 +531,8 @@ export function PTSGenerator() {
                     onClick={() => setDocumentType('PTS')}
                     className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
                       documentType === 'PTS' 
-                        ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
-                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                        ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                        : 'bg-elevated text-secondary hover:bg-elevated/70'
                     }`}
                   >
                     PTS
@@ -542,8 +542,8 @@ export function PTSGenerator() {
                     onClick={() => setDocumentType('Plan de Emergencia')}
                     className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
                       documentType === 'Plan de Emergencia' 
-                        ? 'bg-rose-500 text-white shadow-[0_0_15px_rgba(244,63,94,0.3)]' 
-                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                        ? 'bg-rose-500 text-white shadow-[0_0_15px_rgba(244,63,94,0.3)]'
+                        : 'bg-elevated text-secondary hover:bg-elevated/70'
                     }`}
                   >
                     Plan Emergencia
@@ -573,7 +573,7 @@ export function PTSGenerator() {
               )}
 
               <div>
-                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
+                <label className="block text-[10px] font-black text-muted-token uppercase tracking-widest mb-2">
                   {documentType === 'PTS' ? 'Nombre de la Tarea' : 'Nombre del Plan / Escenario'}
                 </label>
                 <input
@@ -581,13 +581,13 @@ export function PTSGenerator() {
                   required
                   value={taskName}
                   onChange={(e) => setTaskName(e.target.value)}
-                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  className="w-full bg-canvas border border-default-token rounded-xl px-4 py-3 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                   placeholder={documentType === 'PTS' ? "Ej: Trabajo en Altura - Mantención de Techo" : "Ej: Plan de Evacuación por Sismo"}
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
+                <label className="block text-[10px] font-black text-muted-token uppercase tracking-widest mb-2">
                   Descripción Detallada
                 </label>
                 <div className="relative">
@@ -595,14 +595,14 @@ export function PTSGenerator() {
                     required
                     value={taskDescription}
                     onChange={(e) => setTaskDescription(e.target.value)}
-                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none h-32"
+                    className="w-full bg-canvas border border-default-token rounded-xl px-4 py-3 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none h-32"
                     placeholder="Describe los pasos generales, herramientas a usar y el entorno de trabajo..."
                   />
                   <button
                     type="button"
                     onClick={handleGPSAutocomplete}
                     disabled={isLocating}
-                    className="absolute bottom-3 right-3 bg-zinc-800 hover:bg-zinc-700 text-emerald-400 p-2 rounded-lg transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest disabled:opacity-50"
+                    className="absolute bottom-3 right-3 bg-elevated hover:bg-elevated/70 text-emerald-400 p-2 rounded-lg transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest disabled:opacity-50"
                     title="Autocompletar con ubicación GPS actual"
                   >
                     {isLocating ? <Loader2 className="w-3 h-3 animate-spin" /> : <MapPin className="w-3 h-3" />}
@@ -612,26 +612,26 @@ export function PTSGenerator() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
+                <label className="block text-[10px] font-black text-muted-token uppercase tracking-widest mb-2">
                   Maquinaria y Herramientas (Opcional)
                 </label>
                 <textarea
                   value={machineryDetails}
                   onChange={(e) => setMachineryDetails(e.target.value)}
-                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none h-24"
+                  className="w-full bg-canvas border border-default-token rounded-xl px-4 py-3 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none h-24"
                   placeholder="Ej: Esmeril angular Makita 9557NB, Andamio Layher Allround... (La IA buscará manuales del fabricante)"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
+                  <label className="block text-[10px] font-black text-muted-token uppercase tracking-widest mb-2">
                     Nivel de Riesgo
                   </label>
                   <select
                     value={riskLevel}
                     onChange={(e) => setRiskLevel(e.target.value)}
-                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                    className="w-full bg-canvas border border-default-token rounded-xl px-4 py-3 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                   >
                     <option value="Bajo">Bajo</option>
                     <option value="Medio">Medio</option>
@@ -641,13 +641,13 @@ export function PTSGenerator() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
+                  <label className="block text-[10px] font-black text-muted-token uppercase tracking-widest mb-2">
                     Normativa Principal
                   </label>
                   <select
                     value={normative}
                     onChange={(e) => setNormative(e.target.value)}
-                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                    className="w-full bg-canvas border border-default-token rounded-xl px-4 py-3 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                   >
                     <option value="DS 594 (Condiciones Sanitarias y Ambientales)">DS 594</option>
                     <option value="Ley 16.744 (Accidentes del Trabajo)">Ley 16.744</option>
@@ -662,7 +662,7 @@ export function PTSGenerator() {
                 disabled={isGenerating || !taskName || !taskDescription}
                 className={`w-full font-black uppercase tracking-widest py-4 rounded-xl transition-colors flex items-center justify-center gap-2 ${
                   !isOnline 
-                    ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                    ? 'bg-elevated text-muted-token cursor-not-allowed'
                     : 'bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed'
                 }`}
               >
@@ -693,7 +693,7 @@ export function PTSGenerator() {
               </div>
               <div>
                 <h3 className="text-sm font-black text-emerald-500 uppercase tracking-tight mb-2">Nota Importante</h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">
+                <p className="text-xs text-secondary leading-relaxed">
                   El {documentType} generado por IA es un borrador inicial. Debe ser revisado, validado y firmado por un Prevencionista de Riesgos o profesional competente antes de su implementación en terreno.
                 </p>
               </div>
@@ -979,12 +979,12 @@ export function PTSGenerator() {
 
             </motion.div>
           ) : (
-            <div className="h-full min-h-[600px] bg-zinc-900/30 border border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center text-center p-8">
-              <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center mb-6">
-                <FileText className="w-10 h-10 text-zinc-600" />
+            <div className="h-full min-h-[600px] bg-surface/30 border border-dashed border-default-token rounded-3xl flex flex-col items-center justify-center text-center p-8">
+              <div className="w-20 h-20 rounded-full bg-elevated flex items-center justify-center mb-6">
+                <FileText className="w-10 h-10 text-muted-token" />
               </div>
-              <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">Vista Previa del Documento</h3>
-              <p className="text-zinc-500 max-w-md">
+              <h3 className="text-2xl font-black text-primary uppercase tracking-tight mb-2">Vista Previa del Documento</h3>
+              <p className="text-muted-token max-w-md">
                 Completa los datos de la tarea y haz clic en "Generar con IA" para crear un Procedimiento de Trabajo Seguro estructurado.
               </p>
             </div>

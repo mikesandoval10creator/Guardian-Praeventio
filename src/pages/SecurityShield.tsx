@@ -199,11 +199,11 @@ export function SecurityShield() {
     >
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Shield className="w-8 h-8 text-indigo-500" aria-hidden="true" />
             {t('securityShield.title', 'Autenticación de dos factores')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('securityShield.subtitle', 'MFA TOTP — RFC 6238')}
           </p>
         </div>
@@ -251,7 +251,7 @@ export function SecurityShield() {
       {view === 'loading' && (
         <Card className="p-8 border-white/5 text-center">
           <p
-            className="text-sm text-zinc-400 animate-pulse"
+            className="text-sm text-secondary animate-pulse"
             data-testid="mfa-loading"
           >
             {t('mfa.loading', 'Cargando estado MFA…')}
@@ -269,10 +269,10 @@ export function SecurityShield() {
               />
             </div>
             <div className="flex-1">
-              <h2 className="text-lg font-bold text-white mb-1">
+              <h2 className="text-lg font-bold text-primary mb-1">
                 {t('mfa.notEnrolledTitle', 'MFA no está activa')}
               </h2>
-              <p className="text-sm text-zinc-400 leading-relaxed">
+              <p className="text-sm text-secondary leading-relaxed">
                 {t(
                   'mfa.notEnrolledDesc',
                   'Tu cuenta es vulnerable a phishing y robo de credenciales. Activa la autenticación de dos factores con Google Authenticator, Authy o 1Password.',
@@ -294,7 +294,7 @@ export function SecurityShield() {
       {view === 'enrolling-show-qr' && draft && (
         <Card className="p-6 border-white/5 space-y-6">
           <div>
-            <h2 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+            <h2 className="text-lg font-bold text-primary mb-2 flex items-center gap-2">
               <Smartphone
                 className="w-5 h-5 text-indigo-500"
                 aria-hidden="true"
@@ -304,7 +304,7 @@ export function SecurityShield() {
                 'Paso 1: escanea el QR con tu Authenticator app',
               )}
             </h2>
-            <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
+            <p className="text-xs text-secondary mb-4 leading-relaxed">
               {t(
                 'mfa.step1Desc',
                 'Abre Google Authenticator, Authy, 1Password o Microsoft Authenticator y escanea este código. Si no puedes escanear, ingresa el secret manualmente.',
@@ -324,13 +324,13 @@ export function SecurityShield() {
               />
             </div>
             <div className="w-full">
-              <p className="text-[10px] uppercase tracking-wider font-bold text-zinc-500 mb-1">
+              <p className="text-[10px] uppercase tracking-wider font-bold text-muted-token mb-1">
                 {t('mfa.secretLabel', 'Secret (para entrada manual)')}
               </p>
-              <div className="flex items-center gap-2 p-2.5 rounded-md bg-zinc-900 border border-white/5">
+              <div className="flex items-center gap-2 p-2.5 rounded-md bg-elevated border border-default-token">
                 <code
                   data-testid="mfa-secret-display"
-                  className="text-xs font-mono text-zinc-300 flex-1 break-all"
+                  className="text-xs font-mono text-secondary flex-1 break-all"
                 >
                   {draft.secretBase32.match(/.{1,4}/g)!.join(' ')}
                 </code>
@@ -346,8 +346,8 @@ export function SecurityShield() {
             </div>
           </div>
 
-          <div className="space-y-3 pt-4 border-t border-white/5">
-            <h3 className="text-sm font-bold text-white">
+          <div className="space-y-3 pt-4 border-t border-default-token">
+            <h3 className="text-sm font-bold text-primary">
               {t('mfa.step2Title', 'Paso 2: ingresa el código de 6 dígitos')}
             </h3>
             <input
@@ -366,7 +366,7 @@ export function SecurityShield() {
               }}
               data-testid="mfa-code-input"
               placeholder="123456"
-              className="w-full px-4 py-3 rounded-md border border-white/10 bg-zinc-900 text-white text-2xl font-mono text-center tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+              className="w-full px-4 py-3 rounded-md border border-default-token bg-elevated text-primary text-2xl font-mono text-center tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
               autoFocus
             />
             <div className="flex gap-2">
@@ -401,24 +401,24 @@ export function SecurityShield() {
                 />
               </div>
               <div className="flex-1">
-                <h2 className="text-lg font-bold text-white mb-1">
+                <h2 className="text-lg font-bold text-primary mb-1">
                   {t('mfa.enrolledTitle', 'MFA está activa')}
                 </h2>
-                <p className="text-sm text-zinc-400 leading-relaxed mb-2">
+                <p className="text-sm text-secondary leading-relaxed mb-2">
                   {t(
                     'mfa.enrolledDesc',
                     'Tu cuenta está protegida por autenticación de dos factores. Al iniciar sesión necesitarás el código de tu Authenticator app.',
                   )}
                 </p>
                 <p
-                  className="text-xs text-zinc-500"
+                  className="text-xs text-muted-token"
                   data-testid="mfa-enrolled-at"
                 >
                   {t('mfa.enrolledAt', 'Activada')}:{' '}
                   {new Date(record.enrolledAtIso).toLocaleString()}
                 </p>
                 <p
-                  className="text-xs text-zinc-500 mt-1"
+                  className="text-xs text-muted-token mt-1"
                   data-testid="mfa-recovery-count"
                 >
                   {t(
@@ -478,7 +478,7 @@ export function SecurityShield() {
                   <li
                     key={i}
                     data-testid={`mfa-recovery-code-${i}`}
-                    className="p-2 rounded bg-zinc-900 border border-white/5 text-zinc-300 text-center tracking-widest"
+                    className="p-2 rounded bg-elevated border border-default-token text-secondary text-center tracking-widest"
                   >
                     {code}
                   </li>
@@ -524,14 +524,14 @@ export function SecurityShield() {
       {view === 'disabling' && record && (
         <Card className="p-6 border-rose-500/30 bg-rose-500/5 space-y-4">
           <div>
-            <h2 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+            <h2 className="text-lg font-bold text-primary mb-2 flex items-center gap-2">
               <ShieldAlert
                 className="w-5 h-5 text-rose-400"
                 aria-hidden="true"
               />
               {t('mfa.disableTitle', 'Desactivar MFA')}
             </h2>
-            <p className="text-sm text-zinc-400 leading-relaxed">
+            <p className="text-sm text-secondary leading-relaxed">
               {t(
                 'mfa.disableDesc',
                 'Para desactivar MFA necesitas ingresar un código actual de tu Authenticator app. Esto previene que un atacante con tu sesión activa pueda desactivar la protección.',
@@ -547,7 +547,7 @@ export function SecurityShield() {
             onChange={(e) => setVerifyInput(e.target.value.replace(/\D/g, ''))}
             data-testid="mfa-disable-input"
             placeholder="123456"
-            className="w-full px-4 py-3 rounded-md border border-rose-500/30 bg-zinc-900 text-white text-2xl font-mono text-center tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-rose-500/40"
+            className="w-full px-4 py-3 rounded-md border border-rose-500/30 bg-elevated text-primary text-2xl font-mono text-center tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-rose-500/40"
             autoFocus
           />
           <div className="flex gap-2">
@@ -575,7 +575,7 @@ export function SecurityShield() {
         </Card>
       )}
 
-      <p className="text-[10px] text-zinc-500 italic text-center">
+      <p className="text-[10px] text-muted-token italic text-center">
         {t(
           'mfa.standardNote',
           'Implementación RFC 6238 — compatible con Google Authenticator, Authy, 1Password, Microsoft Authenticator.',

@@ -61,7 +61,7 @@ export function HumanBodyViewer() {
       {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-black text-primary uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Activity className="w-7 h-7 text-rose-500" />
             {t('humanBodyViewer.title', 'Visor Corporal')}
             {/* Sprint 17c — Bioicons body silhouettes (M/F) decorate the page header. */}
@@ -71,7 +71,7 @@ export function HumanBodyViewer() {
               <MedicalIcon name="spine" size={22} alt="Columna" />
             </span>
           </h1>
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.25em] mt-1.5">
+          <p className="text-[10px] font-bold text-muted-token uppercase tracking-[0.25em] mt-1.5">
             {t('humanBodyViewer.subtitle', 'Registro de Lesiones — DIAT · Ley 16.744 · DS 594')}
           </p>
         </div>

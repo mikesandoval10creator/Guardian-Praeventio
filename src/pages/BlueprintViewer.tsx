@@ -31,11 +31,11 @@ export function BlueprintViewer() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Map className="w-8 h-8 text-blue-500" />
             {t('blueprintViewer.header.title', 'Visor de Planos Avanzado')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('blueprintViewer.header.subtitle', 'Análisis de Layout y Nodos de Riesgo')}
           </p>
         </div>
@@ -59,7 +59,7 @@ export function BlueprintViewer() {
         {/* Controls Sidebar */}
         <Card className="p-6 border-white/5 space-y-6 lg:col-span-1">
           <div>
-            <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-wider">
+            <h3 className="text-sm font-bold text-primary mb-4 uppercase tracking-wider">
               {t('blueprintViewer.layers.title', 'Capas del Plano')}
             </h3>
             <div className="space-y-2">
@@ -76,7 +76,7 @@ export function BlueprintViewer() {
                   className={`w-full text-left px-4 py-3 rounded-xl border transition-all duration-200 ${
                     activeLayer === layer.id
                       ? "bg-blue-500/20 border-blue-500/50 text-blue-400"
-                      : "bg-zinc-900 border-white/5 text-zinc-400 hover:bg-zinc-800"
+                      : "bg-surface border-default-token text-secondary hover:bg-elevated"
                   }`}
                 >
                   {layer.label}
@@ -86,7 +86,7 @@ export function BlueprintViewer() {
           </div>
 
           <div>
-            <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-wider">
+            <h3 className="text-sm font-bold text-primary mb-4 uppercase tracking-wider">
               {t('blueprintViewer.tools.title', 'Herramientas')}
             </h3>
             <div className="grid grid-cols-2 gap-2">
@@ -126,7 +126,7 @@ export function BlueprintViewer() {
         </Card>
 
         {/* Blueprint Area */}
-        <Card className="border-white/5 lg:col-span-3 overflow-hidden relative bg-zinc-950 min-h-[600px] flex items-center justify-center">
+        <Card className="border-white/5 lg:col-span-3 overflow-hidden relative bg-canvas min-h-[600px] flex items-center justify-center">
           {/* Grid Background */}
           <div
             className="absolute inset-0"
@@ -153,7 +153,7 @@ export function BlueprintViewer() {
               <div className="absolute top-1/2 left-1/3 right-4 h-2 bg-zinc-700" />
 
               {/* Rooms Labels */}
-              <div className="absolute top-10 left-10 text-zinc-500 font-mono text-sm uppercase">
+              <div className="absolute top-10 left-10 text-muted-token font-mono text-sm uppercase">
                 {t('blueprintViewer.rooms.storage', 'Zona de Acopio')}
               </div>
               <div className="absolute top-10 right-10 text-zinc-500 font-mono text-sm uppercase">
@@ -179,11 +179,11 @@ export function BlueprintViewer() {
                           <AlertTriangle className="w-4 h-4 text-white" />
                         </div>
                         {/* Tooltip */}
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-3 bg-zinc-900 border border-red-500/30 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-3 bg-surface border border-red-500/30 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
                           <p className="text-xs font-bold text-red-400 uppercase mb-1">
                             {t('blueprintViewer.risks.chemical.title', 'Riesgo Químico')}
                           </p>
-                          <p className="text-[10px] text-zinc-400">
+                          <p className="text-[10px] text-secondary">
                             {t('blueprintViewer.risks.chemical.desc', 'Almacenamiento de solventes cerca de zona de tránsito.')}
                           </p>
                         </div>
@@ -202,11 +202,11 @@ export function BlueprintViewer() {
                           <ShieldAlert className="w-4 h-4 text-black" />
                         </div>
                         {/* Tooltip */}
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-3 bg-zinc-900 border border-yellow-500/30 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-3 bg-surface border border-yellow-500/30 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
                           <p className="text-xs font-bold text-yellow-400 uppercase mb-1">
                             {t('blueprintViewer.risks.electrical.title', 'Riesgo Eléctrico')}
                           </p>
-                          <p className="text-[10px] text-zinc-400">
+                          <p className="text-[10px] text-secondary">
                             {t('blueprintViewer.risks.electrical.desc', 'Tablero principal expuesto sin señalización adecuada.')}
                           </p>
                         </div>
