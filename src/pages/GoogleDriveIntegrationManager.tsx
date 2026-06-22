@@ -100,11 +100,11 @@ export function GoogleDriveIntegrationManager() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Cloud className="w-8 h-8 text-blue-500" />
             {t('googleDrive.title', 'Workspace Sync')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('googleDrive.subtitle', 'Sincronización Bidireccional Segura')}
           </p>
         </div>
@@ -118,20 +118,20 @@ export function GoogleDriveIntegrationManager() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Connection Panel */}
-        <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-6">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <HardDrive className="w-5 h-5 text-blue-500" />
             {t('googleDrive.connectionStatus', 'Estado de Conexión')}
           </h2>
 
-          <div className={`p-6 rounded-2xl border-2 transition-colors ${isLinked ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-zinc-800 bg-zinc-900/50'}`}>
+          <div className={`p-6 rounded-2xl border-2 transition-colors ${isLinked ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-default-token bg-surface'}`}>
             <div className="flex items-center gap-4">
-              <div className={`p-4 rounded-xl ${isLinked ? 'bg-emerald-500/20 text-emerald-500' : 'bg-zinc-800 text-zinc-500'}`}>
+              <div className={`p-4 rounded-xl ${isLinked ? 'bg-emerald-500/20 text-emerald-500' : 'bg-elevated text-muted-token'}`}>
                 <Cloud className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">{t('googleDrive.corporateDrive', 'Google Drive Corporativo')}</h3>
-                <p className="text-sm text-zinc-400">
+                <h3 className="text-lg font-bold text-primary-token">{t('googleDrive.corporateDrive', 'Google Drive Corporativo')}</h3>
+                <p className="text-sm text-secondary-token">
                   {isLinked ? t('googleDrive.connected', 'Conectado y Autorizado') : t('googleDrive.notConnected', 'No conectado')}
                 </p>
               </div>
@@ -158,10 +158,10 @@ export function GoogleDriveIntegrationManager() {
             </Button>
           ) : (
             <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-zinc-900 border border-white/5 flex justify-between items-center">
+              <div className="p-4 rounded-xl bg-surface border border-default-token flex justify-between items-center">
                 <div>
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Última Sincronización</p>
-                  <p className="text-sm font-bold text-white">
+                  <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Última Sincronización</p>
+                  <p className="text-sm font-bold text-primary-token">
                     {lastSync ? lastSync.toLocaleTimeString() : 'Nunca'}
                   </p>
                 </div>
@@ -178,35 +178,35 @@ export function GoogleDriveIntegrationManager() {
         </Card>
 
         {/* Sync Status Panel */}
-        <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-6">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <RefreshCw className="w-5 h-5 text-blue-500" />
             Cola de Sincronización
           </h2>
 
           {!isLinked ? (
-            <div className="flex flex-col items-center justify-center h-48 text-center border border-dashed border-zinc-800 rounded-xl bg-zinc-900/30">
-              <ShieldAlert className="w-10 h-10 text-zinc-700 mb-3" />
-              <p className="text-sm text-zinc-500">Vincula tu cuenta para ver los documentos sincronizados.</p>
+            <div className="flex flex-col items-center justify-center h-48 text-center border border-dashed border-default-token rounded-xl bg-surface">
+              <ShieldAlert className="w-10 h-10 text-muted-token mb-3" />
+              <p className="text-sm text-muted-token">Vincula tu cuenta para ver los documentos sincronizados.</p>
             </div>
           ) : (
             <div className="space-y-3">
               {pendingDocs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-48 text-center border border-dashed border-zinc-800 rounded-xl bg-zinc-900/30">
+                <div className="flex flex-col items-center justify-center h-48 text-center border border-dashed border-default-token rounded-xl bg-surface">
                   <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-3 opacity-50" />
-                  <p className="text-sm text-zinc-500">Todos los documentos están sincronizados.</p>
+                  <p className="text-sm text-muted-token">Todos los documentos están sincronizados.</p>
                 </div>
               ) : (
                 pendingDocs.map((doc, idx) => (
-                  <div key={idx} className="p-3 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-between opacity-70">
+                  <div key={idx} className="p-3 rounded-lg bg-surface border border-default-token flex items-center justify-between opacity-70">
                     <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-zinc-500" />
+                      <FileText className="w-5 h-5 text-muted-token" />
                       <div>
-                        <p className="text-sm font-bold text-zinc-400">{doc.file?.name || doc.data?.documentData?.title || 'Documento'}</p>
-                        <p className="text-xs text-zinc-600">Pendiente de subida a la nube</p>
+                        <p className="text-sm font-bold text-secondary-token">{doc.file?.name || doc.data?.documentData?.title || 'Documento'}</p>
+                        <p className="text-xs text-muted-token">Pendiente de subida a la nube</p>
                       </div>
                     </div>
-                    <RefreshCw className="w-4 h-4 text-zinc-500" />
+                    <RefreshCw className="w-4 h-4 text-muted-token" />
                   </div>
                 ))
               )}
