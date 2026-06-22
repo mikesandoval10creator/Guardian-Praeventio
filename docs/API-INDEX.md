@@ -8,7 +8,7 @@ ficticia → no cablear contra ella. Generado de `server.ts` (mounts `app.use`) 
 `src/server/routes/*`. Para el detalle curado de auth/audit/idempotency de las rutas
 clave ver `docs/api-routes.md`.
 
-**197 routers montados · 699 rutas detectadas.**
+**197 routers montados · 702 rutas detectadas.**
 
 ### `src/server/routes/audit.ts` → `/api`
 - `POST /api/audit-log`
@@ -200,6 +200,9 @@ clave ver `docs/api-routes.md`.
 - `POST /api/maintenance/run-lone-worker-escalation`
 - `POST /api/maintenance/run-man-down-escalation`
 - `POST /api/maintenance/run-daily-housekeeping`
+- `POST /api/maintenance/run-contractor-ranking-snapshot`
+- `POST /api/maintenance/run-compliance-snapshot`
+- `POST /api/maintenance/run-slo-metrics-refresh`
 
 ### `src/server/routes/medicalAptitude.ts` → `/api/medical`
 - `POST /api/medical/aptitude-cert/generate`
