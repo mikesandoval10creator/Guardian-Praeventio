@@ -104,7 +104,9 @@
     "schematicBadge": "Eventos EONET ativos em posição real · traçado ilustrativo",
     "eonetActive": "EONET · ativo",
     "calculating": "Avaliando rota…",
-    "assessmentUnavailable": "Não foi possível concluir a avaliação climática da rota. Dirija com cautela e tente novamente quando tiver uma conexão melhor."
+    "assessmentUnavailable": "Não foi possível concluir a avaliação climática da rota. Dirija com cautela e tente novamente quando tiver uma conexão melhor.",
+    "calmRecs": "Recomendações de condições ativas",
+    "calmRecsTitle": "Recomendações por condição ativa"
   },
   "app": {
     "name": "Praeventio Guard",

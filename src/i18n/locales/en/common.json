@@ -104,7 +104,9 @@
     "schematicBadge": "Active EONET events at real positions · illustrative route line",
     "eonetActive": "EONET · active",
     "calculating": "Assessing route…",
-    "assessmentUnavailable": "We couldn't complete the route's climate assessment. Drive with caution and retry when you have a better connection."
+    "assessmentUnavailable": "We couldn't complete the route's climate assessment. Drive with caution and retry when you have a better connection.",
+    "calmRecs": "Active conditions recommendations",
+    "calmRecsTitle": "Recommendations for active condition"
   },
   "app": {
     "name": "Praeventio Guard",
