@@ -338,6 +338,13 @@
   .sun-element  { animation: sunPulse 3s ease-in-out infinite; }
   .moon-element { animation: moonGlow 4s ease-in-out infinite; }
   .twinkle-star { animation: twinkle 2s ease-in-out infinite alternate; }
+
+  /* Density: `compact` trims spacing between dashboard sections only.
+     Never reduces font-size below the 12px legibility floor. */
+  [data-density="compact"][data-testid="dashboard-page"] { gap: 0.5rem; }
+  @media (min-width: 640px) {
+    [data-density="compact"][data-testid="dashboard-page"] { gap: 0.75rem; }
+  }
 }
 
 @layer base {

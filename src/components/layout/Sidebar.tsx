@@ -140,7 +140,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
             type="button"
             onClick={onClose}
             aria-label="Cerrar menú de navegación"
-            className="w-10 h-10 rounded-xl bg-white/20 dark:bg-white/5 flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/30 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-white transition-all lg:hidden"
+            className="w-10 h-10 rounded-xl bg-elevated flex items-center justify-center text-secondary-token hover:bg-surface hover:text-primary-token transition-all lg:hidden"
           >
             <X className="w-5 h-5" />
           </button>
@@ -172,12 +172,12 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 ${
                       isGroupOpen || hasActiveItem
                         ? "bg-canvas text-primary-token shadow-mode border border-default-token"
-                        : "text-zinc-800 dark:text-zinc-400 hover:bg-white/20 dark:hover:bg-zinc-800/30 hover:text-zinc-900 dark:hover:text-zinc-200"
+                        : "text-secondary-token hover:bg-elevated hover:text-primary-token"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`p-1.5 rounded-lg transition-colors ${hasActiveItem ? "bg-[#4db6ac]/10 dark:bg-[#d4af37]/20 text-[#4db6ac] dark:text-[#d4af37]" : "bg-white/20 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-400 group-hover:bg-white/40 dark:group-hover:bg-zinc-700"}`}
+                        className={`p-1.5 rounded-lg transition-colors ${hasActiveItem ? "bg-[#4db6ac]/10 dark:bg-[#d4af37]/20 text-[#4db6ac] dark:text-[#d4af37]" : "bg-elevated text-secondary-token"}`}
                       >
                         <group.icon className="w-4 h-4" />
                       </div>
@@ -222,14 +222,14 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                                 className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
                                   isActive
                                     ? "bg-white/40 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-white/30 dark:border-[#d4af37]/20 shadow-[0_0_15px_rgba(77,182,172,0.08)]"
-                                    : "text-zinc-800 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-white/20 dark:hover:bg-zinc-800/30"
+                                    : "text-secondary-token hover:text-primary-token hover:bg-elevated"
                                 }`}
                               >
                                 {/* Horizontal connecting line */}
                                 <div className="absolute -left-5 top-1/2 w-3 h-px bg-white/30 dark:bg-zinc-800/50" />
 
                                 <item.icon
-                                  className={`w-4 h-4 ${isActive ? item.color : "text-zinc-700 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-300 transition-colors"}`}
+                                  className={`w-4 h-4 ${isActive ? item.color : "text-muted-token group-hover:text-primary-token transition-colors"}`}
                                 />
                                 <span
                                   className={`text-xs font-medium ${isActive ? "font-bold" : ""}`}
@@ -238,7 +238,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                                 </span>
 
                                 {item.isBeta && (
-                                  <span className="ml-2 px-1.5 py-0.5 rounded-md bg-white/30 dark:bg-zinc-800 text-[8px] font-black tracking-widest text-zinc-800 dark:text-zinc-500 uppercase">
+                                  <span className="ml-2 px-1.5 py-0.5 rounded-md bg-elevated text-[8px] font-black tracking-widest text-muted-token uppercase">
                                     Beta
                                   </span>
                                 )}
@@ -282,7 +282,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
           {toggleTheme && (
             <button
               onClick={toggleTheme}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-zinc-800 dark:text-zinc-400 hover:bg-white/20 dark:hover:bg-zinc-800/30 hover:text-zinc-900 dark:hover:text-zinc-200 transition-all duration-200 border border-transparent"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-secondary-token hover:bg-elevated hover:text-primary-token transition-all duration-200 border border-transparent"
             >
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               <span className="text-xs font-bold tracking-wide">

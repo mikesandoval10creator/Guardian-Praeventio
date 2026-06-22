@@ -64,7 +64,7 @@ export function ModuleGroupsGrid() {
       className="w-full min-w-0 mt-1 sm:mt-4 mb-2 overflow-hidden"
     >
       <div className="flex items-center justify-between mb-1.5 sm:mb-4 px-1">
-        <h2 className="text-xs sm:text-base font-black text-zinc-900 dark:text-white tracking-tight leading-none uppercase">
+        <h2 className="text-sm sm:text-base font-semibold text-primary-token tracking-tight">
           {t('module_groups.heading', 'Módulos')}
         </h2>
       </div>
@@ -88,6 +88,7 @@ export function ModuleGroupsGrid() {
           }`}
         >
           {[...moduleGroups, ...moduleGroups].map((group, i) => {
+            const isClone = i >= moduleGroups.length;
             const isActive = group.id === activeId;
             return (
               <button
@@ -95,9 +96,15 @@ export function ModuleGroupsGrid() {
                 onClick={() =>
                   setActiveId((prev) => (prev === group.id ? null : group.id))
                 }
-                aria-haspopup="menu"
-                aria-expanded={isActive}
-                aria-controls={isActive ? `module-submenu-${group.id}` : undefined}
+                {...(!isClone && {
+                  'aria-haspopup': 'menu' as const,
+                  'aria-expanded': isActive,
+                  'aria-controls': isActive ? `module-submenu-${group.id}` : undefined,
+                })}
+                {...(isClone && {
+                  'aria-hidden': true,
+                  tabIndex: -1,
+                })}
                 className={`${group.color} shrink-0 w-[80px] sm:w-[120px] aspect-square rounded-xl sm:rounded-2xl p-2 sm:p-4 flex flex-col items-center justify-center gap-1 sm:gap-3 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 border ${
                   isActive ? 'border-white/40 ring-2 ring-white/30' : 'border-white/10'
                 } active:scale-95 group relative overflow-hidden`}

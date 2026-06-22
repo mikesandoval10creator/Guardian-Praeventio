@@ -73,6 +73,12 @@ import { buildRoleViewRemote } from '../hooks/useRoleViews';
 import type { RoleCard } from '../hooks/useRoleViews';
 import { RoleViewCards } from '../components/roleViews/RoleViewCards';
 import type { UserRole } from '../services/roleViews/roleViewBuilder';
+import { KpiRow, type KpiItem } from '../components/dashboard/KpiRow';
+import { DensityToggle } from '../components/shared/DensityToggle';
+import { useDensityStore } from '../store/densityStore';
+import { GuardianMascot } from '../components/shared/GuardianMascot';
+import { guardianMood } from '../components/guardian/guardianMood';
+import { ShieldCheck, FileCheck, Clock3, AlertOctagon } from 'lucide-react';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -86,6 +92,7 @@ export function Dashboard() {
   const { result: complianceLight } = useComplianceTrafficLight(
     selectedProject?.id ?? null,
   );
+  const density = useDensityStore((s) => s.density);
   const { stats, completeChallenge } = useGamification();
   const { environment } = useUniversalKnowledge();
   const weather = environment?.weather;
@@ -358,6 +365,50 @@ export function Dashboard() {
 
   const complianceData = getComplianceData();
 
+  const kpiItems: KpiItem[] = [
+    {
+      id: 'compliance',
+      label: t('dashboard.kpi.compliance', 'Cumplimiento'),
+      value: `${complianceData.percentage}%`,
+      sub: complianceLight
+        ? t('dashboard.kpi.sourced', '{{n}} de {{m}} fuentes', {
+            n: complianceLight.sourcedCount, m: complianceLight.totalCount,
+          })
+        : complianceData.label,
+      tone: complianceData.percentage >= 90 ? 'success' : complianceData.percentage >= 70 ? 'brand' : 'attention',
+      icon: ShieldCheck,
+    },
+    {
+      id: 'permits',
+      label: t('dashboard.kpi.permits', 'Permisos activos'),
+      value: workPermitsData?.permits?.length ?? 0,
+      sub: t('dashboard.kpi.permits_sub', 'PT vigentes'),
+      icon: FileCheck,
+    },
+    {
+      id: 'expirations',
+      label: t('dashboard.kpi.expirations', 'Próx. vencimientos'),
+      value: expirables.length,
+      sub: t('dashboard.kpi.expirations_sub', 'EPP, exámenes, capacit.'),
+      tone: expirables.length > 0 ? 'attention' : 'neutral',
+      icon: Clock3,
+    },
+    {
+      id: 'critical',
+      label: t('dashboard.kpi.critical', 'Hallazgos críticos'),
+      value: faenaInput.openCriticalFindings,
+      sub: t('dashboard.kpi.critical_sub', 'abiertos'),
+      tone: faenaInput.openCriticalFindings > 0 ? 'alert' : 'success',
+      icon: AlertOctagon,
+    },
+  ];
+
+  const mascotMood = guardianMood({
+    emergencyActive: faenaInput.activeEmergencyIncidents > 0,
+    openIncidents: faenaInput.activeEmergencyIncidents,
+    pendingActions: expirables.length,
+  });
+
   // Automated Gamification Logic — auto-complete challenges when matching
   // node types are created today for the active project.
   useEffect(() => {
@@ -414,10 +465,23 @@ export function Dashboard() {
   };
 
   return (
-    <div data-testid="dashboard-page" className="flex-1 flex flex-col justify-start gap-1 sm:gap-4 pb-20 sm:pb-4 pt-1 sm:pt-4 px-2 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full min-h-[calc(100vh-4rem)]">
+    <div data-testid="dashboard-page" data-density={density} className="flex-1 flex flex-col justify-start gap-1 sm:gap-4 pb-20 sm:pb-4 pt-1 sm:pt-4 px-2 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full min-h-[calc(100vh-4rem)]">
 
       {/* Hero greeting + morning check-in trigger */}
       <DashboardHero onMorningCheckIn={() => setShowMorningCheckIn(true)} />
+
+      {/* Guardian mascot — mood reflects real operational state */}
+      <div className="flex justify-center sm:justify-end">
+        <GuardianMascot mood={mascotMood} size="sm" />
+      </div>
+
+      {/* Density control */}
+      <div className="flex justify-end">
+        <DensityToggle />
+      </div>
+
+      {/* KPI row — real derived metrics */}
+      <KpiRow items={kpiItems} density={density} />
 
       {/* F.2 compliance traffic light (compact). Real legal engine; renders
           only once the snapshot is computed — never a fabricated placeholder. */}
