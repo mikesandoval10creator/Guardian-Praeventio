@@ -1427,6 +1427,16 @@
     "goggles": "Lentes",
     "boots": "Zapatos"
   },
+  "epp_selector": {
+    "section_label": "Personalización Inteligente EPP",
+    "badge": "Personalización Inteligente",
+    "title": "Adapta tu equipo según tu profesión y entorno",
+    "subtitle": "Cada decisión cuenta para tu seguridad.",
+    "rubro_label": "Selecciona tu rubro",
+    "rubro_aria": "Rubro o industria",
+    "grid_label": "Equipos de protección para {{rubro}}",
+    "norm_note": "Según DS 594 — Reglamento sobre condiciones sanitarias y ambientales básicas en los lugares de trabajo"
+  },
   "dashboard_actions": {
     "fast_check": "Fast Check",
     "planner": "Planificador",

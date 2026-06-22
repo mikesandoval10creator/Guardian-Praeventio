@@ -1427,6 +1427,16 @@
     "goggles": "Goggles",
     "boots": "Boots"
   },
+  "epp_selector": {
+    "section_label": "Smart Personalization PPE",
+    "badge": "Smart Personalization",
+    "title": "Adapt your gear to your profession and environment",
+    "subtitle": "Every decision counts for your safety.",
+    "rubro_label": "Select your industry",
+    "rubro_aria": "Industry or sector",
+    "grid_label": "Protective equipment for {{rubro}}",
+    "norm_note": "Per DS 594 — Regulation on basic sanitary and environmental conditions in the workplace"
+  },
   "dashboard_actions": {
     "fast_check": "Fast Check",
     "planner": "Planner",

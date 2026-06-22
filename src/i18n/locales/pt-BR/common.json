@@ -1427,6 +1427,16 @@
     "goggles": "Óculos",
     "boots": "Botas"
   },
+  "epp_selector": {
+    "section_label": "Personalização Inteligente EPI",
+    "badge": "Personalização Inteligente",
+    "title": "Adapte seu equipamento à sua profissão e ambiente",
+    "subtitle": "Cada decisão conta para a sua segurança.",
+    "rubro_label": "Selecione seu setor",
+    "rubro_aria": "Setor ou indústria",
+    "grid_label": "Equipamentos de proteção para {{rubro}}",
+    "norm_note": "Conforme DS 594 — Regulamento sobre condições sanitárias e ambientais básicas nos locais de trabalho"
+  },
   "dashboard_actions": {
     "fast_check": "Fast Check",
     "planner": "Planejador",
