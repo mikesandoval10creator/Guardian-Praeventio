@@ -82,10 +82,10 @@ export function Hygiene() {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('hygiene.title')}</h1>
-          <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">{t('hygiene.subtitle')}</p>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">{t('hygiene.title')}</h1>
+          <p className="text-[10px] sm:text-xs font-bold text-muted-token uppercase tracking-widest mt-1">{t('hygiene.subtitle')}</p>
         </div>
-        <button 
+        <button
           onClick={() => setIsModalOpen(true)}
           className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-emerald-500/20 active:scale-95 w-full sm:w-auto"
         >
@@ -114,10 +114,10 @@ export function Hygiene() {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: index * 0.1 }}
-                    className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 hover:border-emerald-500/30 transition-all group"
+                    className="bg-surface border border-default-token rounded-3xl p-6 hover:border-emerald-500/30 transition-all group"
                   >
                     <div className="flex items-center justify-between mb-6">
-                      <div className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center text-emerald-500 border border-white/5">
+                      <div className="w-12 h-12 rounded-2xl bg-elevated flex items-center justify-center text-emerald-500 border border-default-token">
                         <Icon className="w-6 h-6" />
                       </div>
                       <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
@@ -127,18 +127,18 @@ export function Hygiene() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-zinc-500 text-xs font-bold uppercase tracking-widest">{node.metadata.parameter}</h3>
-                      <div className="flex items-center gap-1 text-[9px] text-zinc-600 font-bold uppercase tracking-tighter">
+                      <h3 className="text-muted-token text-xs font-bold uppercase tracking-widest">{node.metadata.parameter}</h3>
+                      <div className="flex items-center gap-1 text-[9px] text-muted-token font-bold uppercase tracking-tighter">
                         <MapPin className="w-2.5 h-2.5" />
                         {node.metadata.location}
                       </div>
                     </div>
                     <div className="flex items-baseline gap-2">
-                      <span className="text-3xl font-bold text-white">{node.metadata.value} {node.metadata.unit}</span>
-                      <span className="text-xs text-zinc-500 font-medium">{t('hygiene.limit')}: {node.metadata.limit} {node.metadata.unit}</span>
+                      <span className="text-3xl font-bold text-primary-token">{node.metadata.value} {node.metadata.unit}</span>
+                      <span className="text-xs text-muted-token font-medium">{t('hygiene.limit')}: {node.metadata.limit} {node.metadata.unit}</span>
                     </div>
-                    <div className="mt-6 h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
-                      <div 
+                    <div className="mt-6 h-1.5 w-full bg-elevated rounded-full overflow-hidden">
+                      <div
                         className={`h-full rounded-full ${status === 'safe' ? 'bg-emerald-500' : 'bg-amber-500'}`}
                         style={{ width: `${progress}%` }}
                       />
@@ -148,21 +148,21 @@ export function Hygiene() {
               })}
             </div>
           ) : (
-            <div className="bg-zinc-900/50 border border-dashed border-white/10 rounded-3xl p-20 text-center">
-              <div className="w-16 h-16 bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Shield className="w-8 h-8 text-zinc-600" />
+            <div className="bg-surface border border-dashed border-default-token rounded-3xl p-20 text-center">
+              <div className="w-16 h-16 bg-elevated rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Shield className="w-8 h-8 text-muted-token" />
               </div>
-              <p className="text-zinc-500 text-sm">{t('hygiene.empty')}</p>
+              <p className="text-muted-token text-sm">{t('hygiene.empty')}</p>
             </div>
           )}
 
-          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-8">
+          <div className="bg-surface border border-default-token rounded-3xl p-8">
             <div className="flex items-center justify-between mb-8">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <h3 className="text-xl font-bold text-primary-token flex items-center gap-2">
                 <BarChart3 className="w-6 h-6 text-indigo-500" />
                 {t('hygiene.monthly_trends')}
               </h3>
-              <select className="bg-zinc-800 border border-white/10 text-zinc-400 text-xs rounded-lg px-3 py-1.5 focus:outline-none">
+              <select className="bg-elevated border border-default-token text-secondary-token text-xs rounded-lg px-3 py-1.5 focus:outline-none">
                 <option>{t('hygiene.last_30_days')}</option>
                 <option>{t('hygiene.last_6_months')}</option>
               </select>
@@ -176,23 +176,23 @@ export function Hygiene() {
                       className="flex-1 bg-emerald-500/20 hover:bg-emerald-500/40 transition-all rounded-t-lg relative group"
                       style={{ height: `${Math.max(h, 2)}%` }}
                     >
-                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-elevated text-primary-token text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                         {h}% {t('hygiene.level')}
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="flex justify-between mt-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                <div className="flex justify-between mt-4 text-[10px] font-bold text-muted-token uppercase tracking-widest">
                   {trend.labels.map((label, i) => (
                     <span key={label + i} className="capitalize">{label}</span>
                   ))}
                 </div>
-                <p className="mt-3 text-[10px] text-zinc-600 font-medium">{t('hygiene.trend_caption')}</p>
+                <p className="mt-3 text-[10px] text-muted-token font-medium">{t('hygiene.trend_caption')}</p>
               </>
             ) : (
               <div className="h-48 flex flex-col items-center justify-center text-center">
-                <BarChart3 className="w-8 h-8 text-zinc-700 mb-3" />
-                <p className="text-zinc-500 text-sm">{t('hygiene.trend_empty')}</p>
+                <BarChart3 className="w-8 h-8 text-muted-token mb-3" />
+                <p className="text-muted-token text-sm">{t('hygiene.trend_empty')}</p>
               </div>
             )}
           </div>
@@ -207,43 +207,43 @@ export function Hygiene() {
           <SensoryFatigueMonitor />
           <BreathingExercise />
 
-          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <div className="bg-surface border border-default-token rounded-3xl p-6">
+            <h3 className="text-lg font-bold text-primary-token mb-4 flex items-center gap-2">
               <Activity className="w-5 h-5 text-rose-500" />
               {t('hygiene.occupational_health')}
             </h3>
             <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-zinc-800/50 border border-white/5">
+              <div className="p-4 rounded-2xl bg-elevated border border-default-token">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-zinc-400">{t('hygiene.medical_exams')}</span>
+                  <span className="text-sm text-secondary-token">{t('hygiene.medical_exams')}</span>
                   <span className="text-xs font-bold text-emerald-500">
                     {medicalExamCompliance !== null ? `${medicalExamCompliance}%` : t('hygiene.no_data')}
                   </span>
                 </div>
-                <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden">
+                <div className="h-1.5 w-full bg-surface rounded-full overflow-hidden">
                   <div
                     className="h-full bg-emerald-500 rounded-full"
                     style={{ width: `${medicalExamCompliance ?? 0}%` }}
                   />
                 </div>
               </div>
-              <div className="p-4 rounded-2xl bg-zinc-800/50 border border-white/5">
+              <div className="p-4 rounded-2xl bg-elevated border border-default-token">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-zinc-400">{t('hygiene.vaccination')}</span>
+                  <span className="text-sm text-secondary-token">{t('hygiene.vaccination')}</span>
                   {/* No vaccination collection exists in the repo. Per founder
                       directive we never fabricate a number — show "Sin datos"
                       until a real immunization source is wired. */}
-                  <span className="text-xs font-bold text-zinc-500">{t('hygiene.no_data')}</span>
+                  <span className="text-xs font-bold text-muted-token">{t('hygiene.no_data')}</span>
                 </div>
-                <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-zinc-700 rounded-full" style={{ width: '0%' }} />
+                <div className="h-1.5 w-full bg-surface rounded-full overflow-hidden">
+                  <div className="h-full bg-elevated rounded-full" style={{ width: '0%' }} />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <div className="bg-surface border border-default-token rounded-3xl p-6">
+            <h3 className="text-lg font-bold text-primary-token mb-4 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-500" />
               {t('hygiene.critical_alerts')} ({alerts.length})
             </h3>
@@ -271,9 +271,9 @@ export function Hygiene() {
         </div>
       </div>
 
-      <AddHygieneModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <AddHygieneModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         projectId={selectedProject?.id}
       />
     </div>
