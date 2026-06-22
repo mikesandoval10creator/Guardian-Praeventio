@@ -40,6 +40,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useLessons } from '../hooks/useLessonsLearned';
 import type { Lesson, LessonScope } from '../services/lessonsLearned/lessonsLibrary';
+import { LessonSuggestionsCard } from '../components/lessonsLearned/LessonSuggestionsCard';
 
 // Codex P2 (PR #310): claves canónicas alineadas con las que el resto
 // del dominio ya persiste en Firestore. Las fixtures del adapter
@@ -331,6 +332,25 @@ export function LessonsLearned() {
             )}
           </p>
         </div>
+      )}
+
+      {/* LessonSuggestionsCard: pure-function ranking de las lecciones del tenant
+          contra el contexto de riesgo activo. Aparece cuando hay filtro activo
+          + biblioteca cargada — complementa la lista Firestore con un top-N local. */}
+      {!loading && !error && lessons.length > 0 && riskCategoryFilter && (
+        <LessonSuggestionsCard
+          library={lessons}
+          context={{
+            taskId: `lessons-filter-${riskCategoryFilter}`,
+            riskCategories: [riskCategoryFilter],
+            projectId: selectedProject.id,
+          }}
+          topN={3}
+          onLessonClick={(lessonId) => {
+            const el = document.querySelector(`[data-testid="lesson-card-${lessonId}"]`);
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }}
+        />
       )}
 
       {!loading && !error && lessons.length > 0 && (

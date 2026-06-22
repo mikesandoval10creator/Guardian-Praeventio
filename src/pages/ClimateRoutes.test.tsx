@@ -21,6 +21,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { RouteAssessmentResult } from '../services/routing/routeClimateAssessment';
+import type { EonetEvent } from '../services/external/eonet/types';
 import { ClimateRoutes } from './ClimateRoutes';
 
 // Stable `t` / `show` references across renders — real react-i18next and
@@ -120,7 +121,26 @@ function stubGoogleMaps() {
   };
 }
 
-function makeAssessment(status: RouteAssessmentResult['status']): RouteAssessmentResult {
+// A minimal real EONET event that has enough shape to exercise
+// buildCalmRecommendation without triggering the assertCalm guard.
+const stubEonetEvent: EonetEvent = {
+  id: 'EONET_5877',
+  title: 'Wildfires Zona Centro',
+  categories: [{ id: 'wildfires', title: 'Wildfires' }],
+  sources: [],
+  geometry: [
+    {
+      date: '2026-06-22T00:00:00Z',
+      type: 'Point',
+      coordinates: [-70.5, -33.2],
+    },
+  ],
+};
+
+function makeAssessment(
+  status: RouteAssessmentResult['status'],
+  { withEvents = false }: { withEvents?: boolean } = {},
+): RouteAssessmentResult {
   return {
     status,
     reasons: [
@@ -136,12 +156,12 @@ function makeAssessment(status: RouteAssessmentResult['status']): RouteAssessmen
       maxWindMs: 9,
       totalPrecipMm: 10,
       frostHourCount: 0,
-      activeEventCount: 0,
+      activeEventCount: withEvents ? 1 : 0,
       distanceKm: 120,
       durationHours: 2,
       isMountainPass: false,
     },
-    activeEvents: [],
+    activeEvents: withEvents ? [stubEonetEvent] : [],
     failedSources: [],
   };
 }
@@ -222,6 +242,26 @@ describe('ClimateRoutes — "Calcular Ruta Óptima" runs the real assessment', (
     expect(screen.getByText('Precaución Requerida')).toBeTruthy();
     expect(screen.queryByText('Ruta Intransitable')).toBeNull();
     expect(screen.queryByText('Ruta Segura')).toBeNull();
+  });
+
+  // Mount regression: CalmRecommendationCard renders when active EONET events exist.
+  it('renders a CalmRecommendationCard per active EONET event (directiva 4 — calm, not panic)', async () => {
+    assessRouteClimateMock.mockResolvedValue(makeAssessment('warning', { withEvents: true }));
+    render(<ClimateRoutes />);
+
+    // Wait for the assessment to produce an active event.
+    await waitFor(() =>
+      expect(assessRouteClimateMock).toHaveBeenCalled(),
+    );
+
+    // The card must appear using the event id (data-testid="calm-rec-{id}").
+    await waitFor(() =>
+      expect(screen.getByTestId(`calm-rec-${stubEonetEvent.id}`)).toBeInTheDocument(),
+    );
+    // Directiva 4: the card body must NOT mention "NASA" / "EONET" in the main copy.
+    const card = screen.getByTestId(`calm-rec-${stubEonetEvent.id}`);
+    expect(card.textContent).not.toMatch(/\bNASA\b/i);
+    expect(card.textContent).not.toMatch(/\bEONET\b/i);
   });
 
   // Review #872 hallazgo B — the dangerous degradation regression.
