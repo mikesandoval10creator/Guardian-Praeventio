@@ -1,0 +1,96 @@
+# M28: Infrastructure lint — hadolint (Docker), tflint + tfsec (Terraform), markdownlint
+# ADVISORY ONLY: every lint step is continue-on-error so pre-existing issues are
+# surfaced in logs but never turn a PR check red. Flip individual steps to
+# blocking once the corresponding surface is clean.
+name: Lint Infrastructure
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  hadolint:
+    name: Hadolint (Dockerfile)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        continue-on-error: true
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+      - name: Lint Dockerfile.api
+        continue-on-error: true
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile.api
+
+      - name: Lint Dockerfile.frontend
+        continue-on-error: true
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile.frontend
+
+  tflint:
+    name: tflint (Terraform)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        name: Cache tflint plugins
+        with:
+          path: ~/.tflint.d/plugins
+          key: tflint-${{ hashFiles('infrastructure/terraform/.tflint.hcl') }}-v1
+
+      - uses: terraform-linters/setup-tflint@v4
+        name: Setup tflint
+        with:
+          tflint_version: v0.52.0
+
+      - name: Init tflint
+        continue-on-error: true
+        run: tflint --init
+        working-directory: infrastructure/terraform
+
+      - name: Run tflint
+        continue-on-error: true
+        run: tflint -f compact
+        working-directory: infrastructure/terraform
+
+  tfsec:
+    name: tfsec (Terraform security)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tfsec
+        continue-on-error: true
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: infrastructure/terraform
+          soft_fail: true
+
+  markdownlint:
+    name: markdownlint
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run markdownlint
+        continue-on-error: true
+        uses: DavidAnson/markdownlint-cli2-action@v20
+        with:
+          globs: '**/*.md'
+          config: '{"default": true, "MD013": false, "MD033": false, "MD041": false}'

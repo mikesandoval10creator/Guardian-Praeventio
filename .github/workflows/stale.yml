@@ -1,0 +1,38 @@
+# M25: Stale bot — mark inactive issues/PRs and close after grace period
+name: Stale
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # daily at 02:00 UTC
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 60
+          days-before-close: 14
+          stale-issue-message: >
+            Este issue lleva 60 dias sin actividad y ha sido marcado como inactivo.
+            Si sigue siendo relevante, por favor agrega un comentario o elimina la etiqueta `stale`.
+            Se cerrara automaticamente en 14 dias si no hay actividad.
+          stale-pr-message: >
+            Este PR lleva 60 dias sin actividad y ha sido marcado como inactivo.
+            Si sigue siendo relevante, por favor agrega un comentario o elimina la etiqueta `stale`.
+            Se cerrara automaticamente en 14 dias si no hay actividad.
+          close-issue-message: >
+            Este issue fue cerrado automaticamente por inactividad.
+            Puede ser reabierto si el problema persiste.
+          close-pr-message: >
+            Este PR fue cerrado automaticamente por inactividad.
+            Puede ser reabierto si el trabajo retoma.
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: 'security,life-safety,pinned'
+          exempt-pr-labels: 'security,life-safety,pinned'
+          operations-per-run: 30

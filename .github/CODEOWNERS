@@ -1,0 +1,12 @@
+# CODEOWNERS — audit quick-win M22
+# All files: default owner
+* @mikesandoval10creator
+
+# Security and config surfaces — stricter ownership
+/firestore.rules @mikesandoval10creator
+/storage.rules @mikesandoval10creator
+/src/server/ @mikesandoval10creator
+/public/.well-known/ @mikesandoval10creator
+/infrastructure/terraform/ @mikesandoval10creator
+android/**/AndroidManifest.xml @mikesandoval10creator
+/scripts/*-baseline.json @mikesandoval10creator

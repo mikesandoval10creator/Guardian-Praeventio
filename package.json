@@ -65,6 +65,7 @@
     "lhci": "lhci autorun",
     "perf": "npm run build && size-limit && lhci autorun",
     "test:e2e": "playwright test",
+    "test:e2e:ci": "CI=true npx playwright test --project=chromium --project=mobile-android",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
     "test:e2e:install": "playwright install chromium",
