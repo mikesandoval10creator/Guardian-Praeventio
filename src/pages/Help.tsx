@@ -26,18 +26,18 @@ export function Help() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-white tracking-tight mb-4">{t('help.title', 'Centro de Ayuda')}</h1>
-        <p className="text-zinc-400 max-w-xl mx-auto">
+        <h1 className="text-4xl font-bold text-primary-token tracking-tight mb-4">{t('help.title', 'Centro de Ayuda')}</h1>
+        <p className="text-secondary-token max-w-xl mx-auto">
           {t('help.subtitle', '¿Tienes alguna duda sobre Praeventio Guard? Estamos aquí para ayudarte a construir un entorno de trabajo más seguro.')}
         </p>
       </div>
 
       <div className="relative mb-12">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-zinc-500" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-token" />
         <input
           type="text"
           placeholder={t('help.searchPlaceholder', 'Busca tutoriales, guías o preguntas frecuentes...')}
-          className="w-full bg-zinc-900/50 border border-white/10 rounded-3xl py-4 pl-14 pr-6 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-2xl"
+          className="w-full bg-surface border border-default-token rounded-3xl py-4 pl-14 pr-6 text-primary-token placeholder:text-muted-token focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-2xl"
         />
       </div>
 
@@ -52,19 +52,19 @@ export function Help() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 text-center hover:border-emerald-500/30 transition-all group cursor-pointer"
+            className="bg-surface border border-default-token rounded-3xl p-6 text-center hover:border-emerald-500/30 transition-all group cursor-pointer"
           >
             <div className={`w-14 h-14 ${item.bg} rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform`}>
               <item.icon className={`w-7 h-7 ${item.color}`} />
             </div>
-            <h3 className="font-bold text-white mb-1">{item.title}</h3>
-            <p className="text-zinc-500 text-sm">{item.description}</p>
+            <h3 className="font-bold text-primary-token mb-1">{item.title}</h3>
+            <p className="text-muted-token text-sm">{item.description}</p>
           </motion.div>
         ))}
       </div>
 
-      <div ref={faqRef} className="bg-zinc-900/50 border border-white/10 rounded-3xl p-8 mb-12">
-        <h2 className="text-2xl font-bold text-white mb-8 flex items-center gap-3">
+      <div ref={faqRef} className="bg-surface border border-default-token rounded-3xl p-8 mb-12">
+        <h2 className="text-2xl font-bold text-primary-token mb-8 flex items-center gap-3">
           <HelpCircle className="w-6 h-6 text-amber-500" />
           {t('help.faqHeading', 'Preguntas Frecuentes')}
         </h2>
@@ -72,10 +72,10 @@ export function Help() {
           {faqs.map((faq, i) => (
             <div key={i} className="group cursor-pointer">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="font-bold text-white group-hover:text-emerald-400 transition-colors">{faq.q}</h4>
-                <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-emerald-500 transition-colors" />
+                <h4 className="font-bold text-primary-token group-hover:text-emerald-400 transition-colors">{faq.q}</h4>
+                <ChevronRight className="w-4 h-4 text-muted-token group-hover:text-emerald-500 transition-colors" />
               </div>
-              <p className="text-zinc-500 text-sm leading-relaxed">
+              <p className="text-muted-token text-sm leading-relaxed">
                 {faq.a}
               </p>
             </div>
@@ -84,8 +84,8 @@ export function Help() {
       </div>
 
       <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-3xl p-8 text-center">
-        <h3 className="text-xl font-bold text-white mb-2">{t('help.needMoreHelp', '¿Aún necesitas ayuda?')}</h3>
-        <p className="text-zinc-400 mb-6">{t('help.support247', 'Nuestro equipo de soporte técnico está disponible 24/7 para asistirte.')}</p>
+        <h3 className="text-xl font-bold text-primary-token mb-2">{t('help.needMoreHelp', '¿Aún necesitas ayuda?')}</h3>
+        <p className="text-secondary-token mb-6">{t('help.support247', 'Nuestro equipo de soporte técnico está disponible 24/7 para asistirte.')}</p>
         <div className="flex flex-wrap justify-center gap-4">
           <a
             href="mailto:contacto@praeventio.net?subject=Ticket%20de%20Soporte%20Guardian%20Praeventio"
@@ -96,7 +96,7 @@ export function Help() {
           </a>
           <button
             onClick={() => faqRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-6 py-2.5 rounded-xl font-bold transition-all border border-white/5"
+            className="flex items-center gap-2 bg-elevated hover:bg-elevated text-primary-token px-6 py-2.5 rounded-xl font-bold transition-all border border-default-token"
           >
             <ExternalLink className="w-5 h-5" />
             <span>{t('help.knowledgeBase', 'Base de Conocimientos')}</span>

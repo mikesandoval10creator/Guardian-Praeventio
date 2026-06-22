@@ -118,11 +118,11 @@ export function AuditTrail() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Database className="w-8 h-8 text-rose-500" />
             {t('audit.header.title', 'Caja Negra (Audit Trail)')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('audit.header.subtitle', 'Registro Inmutable de Operaciones')}
           </p>
         </div>
@@ -134,16 +134,16 @@ export function AuditTrail() {
         </div>
       </div>
 
-      <Card className="p-6 border-white/5 space-y-6">
+      <Card className="p-6 border-default-token space-y-6">
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="relative w-full sm:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-token" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={t('audit.search.placeholder', 'Buscar por usuario, acción o módulo...')}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-rose-500 transition-colors"
+              className="w-full bg-surface border border-default-token rounded-xl py-3 pl-10 pr-4 text-primary-token focus:outline-none focus:border-rose-500 transition-colors"
               data-testid="audit-search-input"
             />
           </div>
@@ -162,7 +162,7 @@ export function AuditTrail() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-zinc-800 text-xs font-bold text-zinc-500 uppercase tracking-widest">
+              <tr className="border-b border-default-token text-xs font-bold text-muted-token uppercase tracking-widest">
                 <th className="p-4">{t('audit.table.timestamp', 'Timestamp')}</th>
                 <th className="p-4">{t('audit.table.action', 'Acción')}</th>
                 <th className="p-4">{t('audit.table.user', 'Usuario')}</th>
@@ -173,7 +173,7 @@ export function AuditTrail() {
             <tbody className="text-sm">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-zinc-500" data-testid="audit-loading">
+                  <td colSpan={5} className="p-8 text-center text-muted-token" data-testid="audit-loading">
                     <div className="flex flex-col items-center justify-center">
                       <Activity className="w-8 h-8 animate-spin mb-2 text-rose-500" />
                       {t('audit.table.loading', 'Cargando registros inmutables...')}
@@ -191,7 +191,7 @@ export function AuditTrail() {
                 </tr>
               ) : visibleLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-zinc-500" data-testid="audit-empty">
+                  <td colSpan={5} className="p-8 text-center text-muted-token" data-testid="audit-empty">
                     {searchTerm
                       ? t('audit.table.noMatch', 'Sin resultados para la búsqueda.')
                       : t(
@@ -206,12 +206,12 @@ export function AuditTrail() {
                     key={log.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="border-b border-zinc-800/50 hover:bg-zinc-900/50 transition-colors"
+                    className="border-b border-default-token/50 hover:bg-surface transition-colors"
                     data-testid={`audit-row-${log.id}`}
                   >
-                    <td className="p-4 text-zinc-400 whitespace-nowrap">
+                    <td className="p-4 text-secondary-token whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-zinc-600" />
+                        <Clock className="w-4 h-4 text-muted-token" />
                         {log.timestamp ? new Date(log.timestamp).toLocaleString() : '—'}
                       </div>
                     </td>
@@ -220,19 +220,19 @@ export function AuditTrail() {
                         {log.action}
                       </span>
                     </td>
-                    <td className="p-4 text-white font-medium">
+                    <td className="p-4 text-primary-token font-medium">
                       <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-zinc-500" />
+                        <User className="w-4 h-4 text-muted-token" />
                         {log.userEmail ?? log.userId}
                       </div>
                     </td>
-                    <td className="p-4 text-zinc-300">
+                    <td className="p-4 text-secondary-token">
                       <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-zinc-500" />
+                        <FileText className="w-4 h-4 text-muted-token" />
                         {log.module}
                       </div>
                     </td>
-                    <td className="p-4 text-zinc-500 max-w-xs truncate" title={typeof log.details === 'string' ? log.details : JSON.stringify(log.details)}>
+                    <td className="p-4 text-muted-token max-w-xs truncate" title={typeof log.details === 'string' ? log.details : JSON.stringify(log.details)}>
                       {typeof log.details === 'string'
                         ? log.details
                         : JSON.stringify(log.details ?? {})}
