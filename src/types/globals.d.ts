@@ -55,3 +55,8 @@ declare global {
 
   var __SLM_OFFLINE_ENABLED__: boolean | undefined;
 }
+
+// express-async-errors has no official @types package. It monkeypatches
+// Express layer internals to forward async rejections to next(err). The
+// module exports nothing — importing it is sufficient.
+declare module 'express-async-errors' {}

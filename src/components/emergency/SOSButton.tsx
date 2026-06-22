@@ -37,6 +37,12 @@ import { analytics } from '../../services/analytics';
 
 const HOLD_MS = 3_000;
 const GEO_TIMEOUT_MS = 5_000;
+// Hard deadline for the SOS POST: if the server stalls (e.g. Firestore
+// outage with no express-async-errors forwarding in older deploys), the
+// worker should fall through to the tel: deeplink within this window
+// rather than waiting indefinitely.  7 s is short enough to feel fast
+// but long enough for a slow mobile data connection to succeed.
+const SOS_FETCH_TIMEOUT_MS = 7_000;
 
 interface GeoPoint {
   lat: number;
@@ -118,14 +124,26 @@ export function SOSButton(): React.ReactElement | null {
         geo,
         timestamp: new Date().toISOString(),
       };
-      const res = await fetch('/api/emergency/sos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authHeader ? { Authorization: authHeader } : {}),
-        },
-        body: JSON.stringify(body),
-      });
+      // 7-second hard timeout: if the server stalls (Firestore outage, no
+      // async-error forwarding), abort so the worker reaches the tel: fallback
+      // quickly rather than waiting indefinitely.  The controller is cleaned up
+      // in the finally block regardless of the outcome.
+      const abortCtrl = new AbortController();
+      const abortTimer = setTimeout(() => abortCtrl.abort(), SOS_FETCH_TIMEOUT_MS);
+      let res: Response;
+      try {
+        res = await fetch('/api/emergency/sos', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authHeader ? { Authorization: authHeader } : {}),
+          },
+          body: JSON.stringify(body),
+          signal: abortCtrl.signal,
+        });
+      } finally {
+        clearTimeout(abortTimer);
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       // The server records the SOS even when it reached NO responder (0 push +
       // 0 backup email): then `delivered` is false. Do NOT show the green

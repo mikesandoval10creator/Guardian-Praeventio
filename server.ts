@@ -1,4 +1,11 @@
 import express from "express";
+// express-async-errors monkeypatches Express 4 layer internals so that
+// async route handlers that throw (or reject) automatically forward the
+// error to next(err) → global error handler → clean 500.
+// MUST be imported right after express, before any router is constructed.
+// Without this, Express 4 silently hangs on async rejections (e.g. a
+// Firestore outage inside assertProjectMember on the SOS path).
+import 'express-async-errors';
 import helmet from "helmet";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 // Sprint 39 audit (2026-05-15) — MemoryStore default de express-rate-limit
