@@ -2,7 +2,9 @@
   "iso45001": {
     "aria": "Catálogo ISO 45001",
     "coverage": "cobertura",
-    "openStandard": "Abrir norma"
+    "openStandard": "Ver norma oficial",
+    "detail_aria": "Detalhe do controle ISO 45001",
+    "references": "Referências normativas"
   },
   "fiveS": {
     "aria": "Auditoria 5S",
@@ -515,6 +517,16 @@
     "reconciliation": {
       "running": "Sincronizando…",
       "last": "{{succeeded}}/{{attempted}} sincronizados"
+    },
+    "kpi": {
+      "compliance": "Conformidade",
+      "sourced": "{{n}} de {{m}} fontes",
+      "permits": "Permissões ativas",
+      "permits_sub": "PTs vigentes",
+      "expirations": "Próx. vencimentos",
+      "expirations_sub": "EPI, exames, treinamento",
+      "critical": "Achados críticos",
+      "critical_sub": "abertos"
     }
   },
   "errors": {

@@ -2,7 +2,9 @@
   "iso45001": {
     "aria": "ISO 45001 catalog",
     "coverage": "coverage",
-    "openStandard": "Open standard"
+    "openStandard": "View official standard",
+    "detail_aria": "ISO 45001 control detail",
+    "references": "Normative references"
   },
   "fiveS": {
     "aria": "5S audit",
@@ -515,6 +517,16 @@
     "reconciliation": {
       "running": "Syncing…",
       "last": "{{succeeded}}/{{attempted}} synced"
+    },
+    "kpi": {
+      "compliance": "Compliance",
+      "sourced": "{{n}} of {{m}} sources",
+      "permits": "Active permits",
+      "permits_sub": "active WPs",
+      "expirations": "Next expirations",
+      "expirations_sub": "PPE, exams, training",
+      "critical": "Critical findings",
+      "critical_sub": "open"
     }
   },
   "errors": {

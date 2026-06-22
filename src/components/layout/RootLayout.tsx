@@ -196,7 +196,7 @@ export function RootLayout() {
           <button 
             onClick={() => setIsSidebarOpen(true)}
             aria-label="Abrir Menú"
-            className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group lg:hidden shadow-sm"
+            className="w-10 h-10 border border-default-token bg-elevated rounded-xl flex items-center justify-center text-secondary-token hover:bg-surface hover:text-primary-token transition-all group lg:hidden shadow-sm"
           >
             <Menu className="w-5 h-5 group-hover:scale-110 transition-transform" />
           </button>
@@ -215,11 +215,11 @@ export function RootLayout() {
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => navigate(-1)}
-                className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group shadow-sm"
+                className="w-10 h-10 border border-default-token bg-elevated rounded-xl flex items-center justify-center text-secondary-token hover:bg-surface hover:text-primary-token transition-all group shadow-sm"
               >
                 <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
               </button>
-              <Link to="/" className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group shadow-sm">
+              <Link to="/" className="w-10 h-10 border border-default-token bg-elevated rounded-xl flex items-center justify-center text-secondary-token hover:bg-surface hover:text-primary-token transition-all group shadow-sm">
                 <Home className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </Link>
             </div>
@@ -242,7 +242,7 @@ export function RootLayout() {
             }}
             disabled={!isOnline}
             className={`sm:hidden w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-              !isOnline ? 'bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 text-zinc-700 dark:text-zinc-400 cursor-not-allowed' : 'bg-[#4db6ac]/10 border border-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac]'
+              !isOnline ? 'border border-default-token bg-elevated text-muted-token cursor-not-allowed' : 'bg-[#4db6ac]/10 border border-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac]'
             }`}
             aria-label="Abrir búsqueda"
           >
@@ -274,7 +274,7 @@ export function RootLayout() {
               className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 relative shadow-sm border ${
                 !isOnline
                   ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20'
-                  : 'bg-white/30 dark:bg-zinc-900 border-transparent dark:border-white/5 text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
+                  : 'border-default-token bg-elevated text-secondary-token hover:bg-surface hover:text-primary-token'
               }`}
             >
               {!isOnline ? <WifiOff className="w-5 h-5" /> : <Cloud className="w-5 h-5" />}
@@ -302,7 +302,7 @@ export function RootLayout() {
               type="button"
               onClick={() => setIsCriticalSheetOpen(true)}
               aria-label="Acciones rápidas"
-              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 shadow-sm"
+              className="w-10 h-10 rounded-xl flex items-center justify-center border border-default-token bg-elevated text-secondary-token hover:bg-surface hover:text-primary-token transition-all duration-300 shadow-sm"
             >
               <Sparkles className="w-5 h-5" />
             </button>
@@ -311,7 +311,7 @@ export function RootLayout() {
           <Tooltip content={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
             <button
               onClick={toggleTheme}
-              className="hidden sm:flex w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 relative shadow-sm"
+              className="hidden sm:flex w-10 h-10 border border-default-token bg-elevated rounded-xl items-center justify-center text-secondary-token hover:bg-surface hover:text-primary-token transition-all duration-300 relative shadow-sm"
               aria-label="Toggle Dark Mode"
             >
               {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -320,7 +320,7 @@ export function RootLayout() {
 
           <Link 
             to="/notifications"
-            className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 relative shadow-sm"
+            className="w-10 h-10 border border-default-token bg-elevated rounded-xl flex items-center justify-center text-secondary-token hover:bg-surface hover:text-primary-token transition-all duration-300 relative shadow-sm"
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
@@ -335,7 +335,7 @@ export function RootLayout() {
               type="button"
               onClick={() => navigate('/profile')}
               aria-label="Ir a mi perfil"
-              className="flex items-center gap-2 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-white/50 dark:hover:bg-zinc-800 transition-all duration-300 relative shadow-sm m-0 text-left"
+              className="flex items-center gap-2 border border-default-token bg-elevated px-2 py-1.5 rounded-xl cursor-pointer hover:bg-surface transition-all duration-300 relative shadow-sm m-0 text-left"
             >
               {mfaSetupCompleted === false && (
                 <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-white dark:border-zinc-950 animate-pulse" />

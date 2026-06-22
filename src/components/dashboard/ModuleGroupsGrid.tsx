@@ -64,7 +64,7 @@ export function ModuleGroupsGrid() {
       className="w-full min-w-0 mt-1 sm:mt-4 mb-2 overflow-hidden"
     >
       <div className="flex items-center justify-between mb-1.5 sm:mb-4 px-1">
-        <h2 className="text-xs sm:text-base font-black text-zinc-900 dark:text-white tracking-tight leading-none uppercase">
+        <h2 className="text-sm sm:text-base font-semibold text-primary-token tracking-tight">
           {t('module_groups.heading', 'Módulos')}
         </h2>
       </div>
@@ -88,6 +88,7 @@ export function ModuleGroupsGrid() {
           }`}
         >
           {[...moduleGroups, ...moduleGroups].map((group, i) => {
+            const isClone = i >= moduleGroups.length;
             const isActive = group.id === activeId;
             return (
               <button
@@ -95,9 +96,15 @@ export function ModuleGroupsGrid() {
                 onClick={() =>
                   setActiveId((prev) => (prev === group.id ? null : group.id))
                 }
-                aria-haspopup="menu"
-                aria-expanded={isActive}
-                aria-controls={isActive ? `module-submenu-${group.id}` : undefined}
+                {...(!isClone && {
+                  'aria-haspopup': 'menu' as const,
+                  'aria-expanded': isActive,
+                  'aria-controls': isActive ? `module-submenu-${group.id}` : undefined,
+                })}
+                {...(isClone && {
+                  'aria-hidden': true,
+                  tabIndex: -1,
+                })}
                 className={`${group.color} shrink-0 w-[80px] sm:w-[120px] aspect-square rounded-xl sm:rounded-2xl p-2 sm:p-4 flex flex-col items-center justify-center gap-1 sm:gap-3 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 border ${
                   isActive ? 'border-white/40 ring-2 ring-white/30' : 'border-white/10'
                 } active:scale-95 group relative overflow-hidden`}
@@ -123,12 +130,12 @@ export function ModuleGroupsGrid() {
           id={`module-submenu-${activeGroup.id}`}
           role="region"
           aria-labelledby={`module-submenu-${activeGroup.id}-title`}
-          className="mt-2 px-2 sm:px-3 py-3 sm:py-4 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-zinc-700/60 bg-zinc-50 dark:bg-zinc-900/60 animate-in fade-in slide-in-from-top-2 duration-200"
+          className="mt-2 px-2 sm:px-3 py-3 sm:py-4 rounded-xl sm:rounded-2xl border border-default-token bg-surface animate-in fade-in slide-in-from-top-2 duration-200"
         >
           <div className="flex items-center justify-between mb-2 sm:mb-3 px-1">
             <h3
               id={`module-submenu-${activeGroup.id}-title`}
-              className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300"
+              className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-primary-token"
             >
               {t(`module_groups.group_${activeGroup.id}`, activeGroup.title)}
             </h3>
@@ -136,7 +143,7 @@ export function ModuleGroupsGrid() {
               type="button"
               onClick={close}
               aria-label={t('module_groups.close', 'Cerrar submenú')}
-              className="p-1 rounded-md text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+              className="p-1 rounded-md text-muted-token hover:text-primary-token hover:bg-canvas transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -151,7 +158,7 @@ export function ModuleGroupsGrid() {
                   close();
                 }}
                 role="menuitem"
-                className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:border-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors text-xs font-bold text-zinc-700 dark:text-zinc-200"
+                className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-elevated border border-default-token hover:border-teal-400 hover:bg-canvas transition-colors text-xs font-bold text-primary-token"
               >
                 <item.icon className={`w-3.5 h-3.5 ${item.color}`} />
                 <span>{item.title}</span>

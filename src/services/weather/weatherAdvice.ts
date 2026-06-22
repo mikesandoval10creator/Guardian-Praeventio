@@ -6,7 +6,93 @@
  * UV/sunscreen, plus one motivational/neutral message.
  *
  * Referenced by upgraded WeatherBulletin.
+ *
+ * F2 addition: `weatherAdvice()` (simpler input API, OWM code support).
  */
+
+// ─── F2: Simple advisory API (OWM condition codes, tone-based) ─────────────
+
+export type AdvisoryTone = 'info' | 'warning' | 'hazard';
+
+export interface WeatherAdvisory {
+  id: string;
+  tone: AdvisoryTone;
+  icon: string;
+  message: string;
+}
+
+interface WeatherInput {
+  tempC: number;
+  uv: number;
+  windKmh: number;
+  /** OpenWeatherMap condition code (optional). */
+  code?: number;
+}
+
+/** Snow/ice condition codes (OWM). */
+const SNOW_CODES = new Set([600, 601, 602, 611, 612, 613, 615, 616, 620, 621, 622]);
+const FREEZING_RAIN_CODES = new Set([511]);
+
+/**
+ * Returns ordered list of prevention advisories for the current conditions.
+ * Always includes at least one motivational/safety message.
+ * Copy is es-CL; messages are calm, not panic-inducing.
+ */
+export function weatherAdvice(c: WeatherInput): WeatherAdvisory[] {
+  const advisories: WeatherAdvisory[] = [];
+
+  // High heat
+  if (c.tempC >= 30) {
+    advisories.push({
+      id: 'heat',
+      tone: 'warning',
+      icon: '🌡️',
+      message: 'Temperatura elevada: mantenga hidratación constante y programe pausas activas de al menos 10 min cada hora.',
+    });
+  }
+
+  // Cold / frost / snow
+  if (c.tempC <= 2 || (c.code && (SNOW_CODES.has(c.code) || FREEZING_RAIN_CODES.has(c.code)))) {
+    advisories.push({
+      id: 'cold',
+      tone: 'warning',
+      icon: '🧊',
+      message: 'Temperaturas bajo cero o condiciones de nieve: use abrigo adecuado, evalúe restringir trabajos en altura y preste atención a superficies resbaladizas.',
+    });
+  }
+
+  // High wind
+  if (c.windKmh >= 40) {
+    advisories.push({
+      id: 'wind',
+      tone: 'hazard',
+      icon: '💨',
+      message: 'Vientos fuertes (≥40 km/h): restrinja trabajos en altura. Asegure materiales sueltos y elementos de andamiaje.',
+    });
+  }
+
+  // UV
+  if (c.uv >= 6) {
+    advisories.push({
+      id: 'uv',
+      tone: 'warning',
+      icon: '☀️',
+      message: 'Índice UV alto: aplique bloqueador solar FPS 50+, use cobertura de cabeza y ropa de manga larga.',
+    });
+  }
+
+  // Always: motivational/baseline safety message
+  advisories.push({
+    id: 'baseline',
+    tone: 'info',
+    icon: '🛡️',
+    message: 'Recuerde: la prevención es tarea de todos. Reporte cualquier condición insegura a su supervisor de turno.',
+  });
+
+  return advisories;
+}
+
+// ─── End F2 additions ────────────────────────────────────────────────────────
 
 export type AdviceLevel = 'red' | 'amber' | 'blue';
 

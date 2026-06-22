@@ -1,11 +1,13 @@
 // Praeventio Guard — Wire UI #75: <Iso45001Catalog />
 //
 // Catálogo de 10 controles ISO 45001:2018 baseline con referencia a
-// cláusula y link al estándar oficial.
+// cláusula. Clicking a control opens the Iso45001DetailDrawer (F2 B1).
 
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BookCheck, ExternalLink } from 'lucide-react';
+import { BookCheck } from 'lucide-react';
 import { ISO_45001_CONTROLS } from '../../services/regulatory/iso45001.js';
+import { Iso45001DetailDrawer } from './Iso45001DetailDrawer';
 
 interface Iso45001CatalogProps {
   /** Set de IDs cubiertos por el SGSST de la empresa para marcar checked. */
@@ -18,9 +20,16 @@ export function Iso45001Catalog({
   onControlClick,
 }: Iso45001CatalogProps) {
   const { t } = useTranslation();
+  const [openId, setOpenId] = useState<string | null>(null);
+
   const coverage = coveredControlIds
     ? Math.round((coveredControlIds.size / ISO_45001_CONTROLS.length) * 100)
     : null;
+
+  const handleClick = (id: string) => {
+    setOpenId(id);
+    onControlClick?.(id);
+  };
 
   return (
     <section
@@ -35,7 +44,7 @@ export function Iso45001Catalog({
         </h2>
         {coverage !== null && (
           <span
-            className="ml-auto text-[10px] uppercase font-bold tabular-nums"
+            className="ml-auto text-xs uppercase font-bold tabular-nums"
             data-testid="iso45001-coverage"
           >
             {coverage}% {t('iso45001.coverage', 'cobertura')}
@@ -51,44 +60,34 @@ export function Iso45001Catalog({
               key={c.id}
               data-testid={`iso45001-control-${c.id}`}
               className={`flex items-center gap-2 p-2 rounded ${
-                covered ? 'bg-emerald-500/10' : 'bg-surface-elevated'
+                covered ? 'bg-[color-mix(in_srgb,var(--accent-success)_10%,transparent)]' : 'bg-elevated'
               }`}
             >
               <button
                 type="button"
-                onClick={() => onControlClick?.(c.id)}
+                onClick={() => handleClick(c.id)}
                 className="flex-1 text-left min-w-0"
                 data-testid={`iso45001-btn-${c.id}`}
               >
-                <p className="text-[10px] uppercase text-secondary-token font-bold">
+                <p className="text-xs uppercase text-secondary-token font-bold">
                   §{c.iso45001Clause}
                 </p>
                 <p className="text-xs truncate">{c.title}</p>
               </button>
               {covered && (
                 <span
-                  className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                  className="text-xs font-bold uppercase px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--accent-success)_20%,transparent)] text-[var(--accent-success)]"
                   data-testid={`iso45001-covered-${c.id}`}
                 >
                   ✓
                 </span>
               )}
-              {c.references[0]?.url && (
-                <a
-                  href={c.references[0].url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-secondary-token hover:text-primary-token"
-                  aria-label={t('iso45001.openStandard', 'Abrir estándar') as string}
-                  data-testid={`iso45001-link-${c.id}`}
-                >
-                  <ExternalLink className="w-3 h-3" aria-hidden="true" />
-                </a>
-              )}
             </li>
           );
         })}
       </ul>
+
+      <Iso45001DetailDrawer controlId={openId} onClose={() => setOpenId(null)} />
     </section>
   );
 }

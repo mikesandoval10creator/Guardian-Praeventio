@@ -1,10 +1,10 @@
-// Praeventio Guard — Compliance score card extracted from Dashboard.tsx (A11 R18).
-//
-// Displays a circular progress indicator + status label and opens the
-// ComplianceModal on click. Owns no state; the parent passes data + handler.
+// Praeventio Guard — Compliance score card (F2 redesign).
+// Calm + dense: token-driven, ring progress, all data preserved. Density-aware.
 
-import { Briefcase, Target, TrendingUp } from 'lucide-react';
+import { Briefcase, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { cn } from '../../utils/cn';
+import { useDensityStore } from '../../store/densityStore';
 
 interface ComplianceCardProps {
   percentage: number;
@@ -14,76 +14,62 @@ interface ComplianceCardProps {
 
 export function ComplianceCard({ percentage, label, onClick }: ComplianceCardProps) {
   const { t } = useTranslation();
+  const density = useDensityStore((s) => s.density);
+  const compact = density === 'compact';
+
+  const level =
+    percentage >= 90
+      ? t('compliance_card.level_optimal', 'Nivel Óptimo')
+      : percentage >= 70
+        ? t('compliance_card.level_acceptable', 'Nivel Aceptable')
+        : t('compliance_card.level_needs_attention', 'Requiere Atención');
+
+  const ringSize = compact ? 'w-12 h-12' : 'w-14 h-14';
+
   return (
-    <section
+    <button
+      type="button"
       onClick={onClick}
-      className="rounded-xl sm:rounded-2xl p-1.5 sm:p-4 shadow-mode relative overflow-hidden border border-default-token bg-surface cursor-pointer hover:border-strong-token transition-colors group flex flex-row sm:flex-col items-center sm:items-start justify-between sm:justify-between h-auto sm:h-full"
+      aria-label={`${t('compliance_card.title', 'Cumplimiento')}: ${percentage}% — ${level}`}
+      className={cn(
+        'group relative overflow-hidden rounded-xl sm:rounded-2xl border border-default-token bg-surface shadow-mode',
+        'cursor-pointer text-left transition-colors duration-200 hover:border-strong-token',
+        'flex flex-col justify-between h-full w-full',
+        compact ? 'p-3' : 'p-4',
+      )}
     >
-      <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform hidden sm:block">
-        <Target className="w-24 h-24 text-emerald-500" />
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h2 className="text-sm font-semibold text-primary-token tracking-tight">
+          {t('compliance_card.title', 'Cumplimiento')}
+        </h2>
+        <span className="inline-flex items-center gap-1 text-xs text-secondary-token truncate max-w-[55%]" title={label}>
+          <Briefcase className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {label}
+        </span>
       </div>
 
-      {/* Mobile Layout: Horizontal */}
-      <div className="flex sm:hidden items-center justify-between w-full relative z-10">
-        <div className="flex items-center gap-1.5">
-          <div className="relative flex items-center justify-center w-6 h-6 shrink-0">
-            <svg className="w-full h-full transform -rotate-90 absolute inset-0">
-              <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="2" fill="transparent" className="text-[var(--border-strong)]" />
-              <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="2" fill="transparent" strokeDasharray={100.5} strokeDashoffset={100.5 * (1 - (percentage / 100))} className="text-emerald-500" />
-            </svg>
-            <span className="text-[7px] font-black text-primary-token relative z-10">{percentage}%</span>
-          </div>
-          <div className="flex flex-col">
-            <h2 className="text-[9px] font-black text-primary-token uppercase leading-tight">{t('compliance_card.title', 'Cumplimiento')}</h2>
-            <p className="text-[7px] text-muted-token truncate max-w-[100px]">{label}</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <div className={cn('relative flex items-center justify-center shrink-0', ringSize)}>
+          <svg className="w-full h-full -rotate-90" aria-hidden="true">
+            <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="3" fill="transparent" className="text-[var(--border-strong)]" />
+            <circle
+              cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="3" fill="transparent"
+              strokeDasharray={100.5} strokeDashoffset={100.5 * (1 - percentage / 100)}
+              className="text-[var(--accent-success)] transition-[stroke-dashoffset] duration-500"
+            />
+          </svg>
+          <span className="absolute text-sm font-semibold text-primary-token tabular-nums">{percentage}%</span>
         </div>
-        <div className="flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded text-[7px] font-bold uppercase tracking-widest">
-          {t('compliance_card.optimize', 'Optimizar')}
-        </div>
-      </div>
-
-      {/* Desktop Layout: Vertical */}
-      <div className="hidden sm:flex flex-col justify-between h-full relative z-10 w-full">
-        <div className="flex justify-between items-start mb-2">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-black text-primary-token tracking-tight leading-none uppercase">{t('compliance_card.title', 'Cumplimiento')}</h2>
-            <p className="text-xs text-secondary-token flex items-center gap-1 truncate max-w-[150px]">
-              <Briefcase className="w-3 h-3" /> {label}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="relative flex flex-col items-center justify-center w-14 h-14 shrink-0">
-            <svg className="w-full h-full transform -rotate-90">
-              <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="3" fill="transparent" className="text-[var(--border-strong)]" />
-              <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="3" fill="transparent" strokeDasharray={100.5} strokeDashoffset={100.5 * (1 - (percentage / 100))} className="text-emerald-500" />
-            </svg>
-            <span className="absolute text-xs font-black text-primary-token">
-              {percentage}%
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-primary-token leading-tight truncate">
-              {percentage >= 90
-                ? t('compliance_card.level_optimal', 'Nivel Óptimo')
-                : percentage >= 70
-                  ? t('compliance_card.level_acceptable', 'Nivel Aceptable')
-                  : t('compliance_card.level_needs_attention', 'Requiere Atención')}
-            </p>
-            <div className="flex items-center gap-1 mt-1">
-              <div className="text-[10px] font-medium text-muted-token truncate">
-                {t('compliance_card.remaining', 'Falta {{remaining}}%', { remaining: 100 - percentage })}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-2 flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest shadow-sm w-fit">
-          <TrendingUp className="w-3 h-3" /> {t('compliance_card.optimize', 'Optimizar')}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-primary-token leading-tight">{level}</p>
+          <p className="text-xs text-muted-token mt-0.5">
+            {t('compliance_card.remaining', 'Falta {{remaining}}%', { remaining: 100 - percentage })}
+          </p>
         </div>
       </div>
-    </section>
+
+      <span className="mt-3 inline-flex w-fit items-center gap-1 rounded-md bg-[color-mix(in_srgb,var(--accent-success)_14%,transparent)] px-2 py-1 text-xs font-semibold text-[var(--accent-success)]">
+        <TrendingUp className="w-3.5 h-3.5" aria-hidden="true" /> {t('compliance_card.optimize', 'Optimizar')}
+      </span>
+    </button>
   );
 }
