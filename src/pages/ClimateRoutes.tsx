@@ -15,6 +15,8 @@ import {
 } from '../services/routing/routeClimateAssessment';
 import type { BBox } from '../services/external/eonet/types';
 import { eonetEventLonLat, projectToSchematic } from './climateRouteSchematic';
+import { buildCalmRecommendation } from '../services/external/recommendationBuilder';
+import { CalmRecommendationCard } from '../components/external-events/CalmRecommendationCard';
 
 // Real NASA EONET category → icon. Drives the live hazard markers plotted on
 // the route schematic (replaces the fake fixed pins removed in #939).
@@ -500,6 +502,27 @@ export function ClimateRoutes() {
           </div>
         </Card>
       </div>
+
+      {/* Recomendaciones calmas derivadas de eventos EONET activos.
+          Una tarjeta por evento (máx. 3) — sin mencionar el organismo fuente
+          en el copy principal (directiva 4: fuente externa = dato enriquecedor
+          discreto, no autoridad de emergencia). */}
+      {(assessment?.activeEvents ?? []).length > 0 && (
+        <section aria-label={t('climateRoutes.calmRecs', 'Recomendaciones de condiciones activas')}>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2">
+            {t('climateRoutes.calmRecsTitle', 'Recomendaciones por condición activa')}
+          </h3>
+          <div className="space-y-3">
+            {(assessment?.activeEvents ?? []).slice(0, 3).map((ev) => (
+              <CalmRecommendationCard
+                key={ev.id}
+                recommendation={buildCalmRecommendation(ev)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
