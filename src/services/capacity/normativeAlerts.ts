@@ -112,7 +112,7 @@ export function evaluateNormativeAlerts(
         severity: 'critical',
         message:
           `El proyecto "${project.id}" tiene ${project.workerCount} trabajadores ` +
-          `(≥25). La Ley 16.744 y el DS 54 exigen constituir un Comité ` +
+          `(≥25). La Ley 16.744 y el DS 44/2024 (ex DS 54, derogado 01-02-2025) exigen constituir un Comité ` +
           `Paritario de Higiene y Seguridad por cada faena, sucursal o agencia.`,
       });
     }
@@ -146,7 +146,7 @@ export function evaluateNormativeAlerts(
             message:
               `El proyecto "${project.id}" no registra reuniones de Comité ` +
               `Paritario. Constituye Comité Paritario y agenda primera ` +
-              `reunión (DS 54 art. 16/24, sesión mensual obligatoria).`,
+              `reunión (DS 44/2024 art. 16/24 [ex DS 54, derogado 01-02-2025], sesión mensual obligatoria).`,
           });
         }
         // < 25 workers without CPHS history → no obligation, no alert.
@@ -162,7 +162,7 @@ export function evaluateNormativeAlerts(
             message:
               `El proyecto "${project.id}" tiene ${elapsed} días desde la ` +
               `última sesión del Comité Paritario (cadencia mensual ` +
-              `DS 54 art. 16). Agenda la próxima reunión de inmediato.`,
+              `DS 44/2024 art. 16 [ex DS 54, derogado 01-02-2025]). Agenda la próxima reunión de inmediato.`,
           });
         } else if (elapsed >= CPHS_WARNING_DAYS) {
           alerts.push({
@@ -172,7 +172,7 @@ export function evaluateNormativeAlerts(
             daysUntilDue,
             message:
               `El proyecto "${project.id}" tiene ${elapsed} días desde la ` +
-              `última sesión del Comité Paritario (DS 54 art. 16). ` +
+              `última sesión del Comité Paritario (DS 44/2024 art. 16 [ex DS 54, derogado 01-02-2025]). ` +
               `Próxima sesión vence en ${daysUntilDue} días.`,
           });
         }

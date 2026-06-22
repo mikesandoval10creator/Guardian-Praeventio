@@ -2,6 +2,14 @@
 
 > Inventario de stubs/mocks/NotImplementedError en código productivo. CLAUDE.md regla 13 requiere que cada uno aparezca aquí con owner + sprint target + gate de visibilidad.
 
+## CL/safety_inspection — PDF server-side generator not yet integrated (Sprint 40)
+- **File**: `src/services/compliance/registry.ts` — `clSafetyInspectionAdapter.generate()`
+- **Owner**: Sprint 40 (pdfkit server-side integration)
+- **Sprint target**: Sprint 40 — wire `checklistBuilder.ts` + pdfkit render layer
+- **User-visible?**: NO — HTTP 503 is returned by `complianceEmit.ts` (not fake data). Client renders PDF via `buildImmutablePdf` (jsPDF client-side). CLAUDE.md #13 compliant.
+- **Why stub**: `checklistBuilder.ts` produces a JSON schema (not PDF bytes). Server-side PDF generation from a checklist response requires a pdfkit integration pass that is out of scope for Sprint 38/39.
+- **Removal criteria**: `buildImmutablePdf` server-side variant wired + test covering 200 + PDF bytes response.
+
 > **TRIAGE 2026-06-19** (verificado contra el código, no contra este doc): de las 86 entradas, **~9 accionables**.
 > - **REAL-NEEDED (3, construir):** `src/server/jobs/runB2dMrrSnapshot.ts:15` (cron B2D MRR; backend listo) · `src/hooks/useGeofenceWithEvents.ts` (hook real sin consumer) · Wi-Fi Direct nativo `packages/capacitor-mesh/android/.../MeshPlugin.kt:552` + `ios/.../Plugin.swift:350` (BLE ya real).
 > - **FAIL-SOFT LEGÍTIMO (3, no son deuda):** `vertexTrainer.ts` (descartado por producto) · `cloudErrorReportingAdapter.ts` (Sentry cubre) · `metricsAdapter.ts` (OTel futuro).
