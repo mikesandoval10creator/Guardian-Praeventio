@@ -632,6 +632,83 @@ git commit -m "feat(ui): shared Input primitive (token-driven)"
 
 ---
 
+### Task 8: Hook `useTextFits` (pretext) — mejora anti-corte de labels
+
+**Files:**
+- Create: `src/hooks/useTextFits.ts`
+- Test: `src/hooks/useTextFits.test.ts`
+
+**Interfaces:**
+- Consumes: `measureTextHeight` de `src/utils/textMeasure` (Task 4).
+- Produces: `useTextFits(text: string, font: string, maxWidth: number, lineHeight?: number): { fits: boolean; lineCount: number | null }` — `fits=false` cuando el texto necesitaría >1 línea al ancho dado (la UI puede poner `title`/tooltip o envolver, en vez de cortar en silencio). Sin Canvas (jsdom/SSR) → `fits=true, lineCount=null` (no truncar por falso negativo). Se consume en F1 (nav) y F2 (botones/cards) con el ancho real del contenedor (ResizeObserver).
+
+- [ ] **Step 1: Test (falla)**
+
+```ts
+// @vitest-environment jsdom
+// src/hooks/useTextFits.test.ts
+import { describe, it, expect } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import { useTextFits } from './useTextFits';
+
+describe('useTextFits', () => {
+  it('fallback sin Canvas: asume que cabe (no truncar por falso negativo)', () => {
+    const { result } = renderHook(() => useTextFits('Reportes Confidenciales', '14px Inter', 120));
+    expect(result.current.fits).toBe(true);
+    expect(result.current.lineCount).toBeNull();
+  });
+  it('no lanza con texto vacío o ancho 0', () => {
+    expect(() => renderHook(() => useTextFits('', '14px Inter', 0))).not.toThrow();
+  });
+});
+```
+
+- [ ] **Step 2: Correr y ver fallo**
+
+Run: `npx vitest run src/hooks/useTextFits.test.ts`
+Expected: FAIL — `Cannot find module './useTextFits'`.
+
+- [ ] **Step 3: Implementar el hook**
+
+```ts
+// src/hooks/useTextFits.ts
+import { useMemo } from 'react';
+import { measureTextHeight } from '../utils/textMeasure';
+
+/**
+ * ¿El texto cabe en UNA línea al ancho dado? Usa pretext (sin reflow del DOM).
+ * fits=false → la UI debe poner title/tooltip o envolver, NUNCA cortar en silencio
+ * (directiva: no omitir información). Sin Canvas → fits=true (no truncar por falso negativo).
+ */
+export function useTextFits(
+  text: string,
+  font: string,
+  maxWidth: number,
+  lineHeight = 20,
+): { fits: boolean; lineCount: number | null } {
+  return useMemo(() => {
+    if (!text || maxWidth <= 0) return { fits: true, lineCount: null };
+    const m = measureTextHeight(text, font, maxWidth, lineHeight);
+    if (m === null) return { fits: true, lineCount: null };
+    return { fits: m.lineCount <= 1, lineCount: m.lineCount };
+  }, [text, font, maxWidth, lineHeight]);
+}
+```
+
+- [ ] **Step 4: Correr (verde)**
+
+Run: `npx vitest run src/hooks/useTextFits.test.ts`
+Expected: PASS (2).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/hooks/useTextFits.ts src/hooks/useTextFits.test.ts
+git commit -m "feat(ui): useTextFits hook (pretext) — anti-clip labels, fits-or-tooltip"
+```
+
+---
+
 ## Self-Review
 
 **1. Spec coverage (F0):** tokens 4 modos + Conducción batería (Task 2 ✓) · tipografía calma/utilidad (Task 3 ✓) · pretext wiring (Task 4 ✓) · primitivos shadcn-like Button/Badge/Input + cn (Tasks 1,5,6,7 ✓) · promover Card (re-export cn, Task 1; uso amplio = F2). Select/Tabs NO en F0 (requieren decisión Radix → fase posterior). Migración codemod y aplicar a pantallas = F2/F4, fuera de F0.
