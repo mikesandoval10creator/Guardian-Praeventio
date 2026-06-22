@@ -64,6 +64,23 @@
     0% { transform: translateX(0); }
     100% { transform: translateX(calc(-50% - 4px)); }
   }
+
+  /* SunTracker animations — ported from prototype sun-tracker-animations.css.
+     Classes .sun-element / .moon-element / .twinkle-star reference these from the SVG. */
+  @keyframes twinkle {
+    0%   { opacity: 0.4; transform: scale(1); }
+    100% { opacity: 1;   transform: scale(1.2); }
+  }
+
+  @keyframes sunPulse {
+    0%, 100% { filter: brightness(1) drop-shadow(0 0 4px rgba(245,158,11,0.5)); }
+    50%       { filter: brightness(1.1) drop-shadow(0 0 8px rgba(245,158,11,0.8)); }
+  }
+
+  @keyframes moonGlow {
+    0%, 100% { filter: brightness(1) drop-shadow(0 0 2px rgba(203,213,225,0.3)); }
+    50%       { filter: brightness(1.05) drop-shadow(0 0 4px rgba(203,213,225,0.5)); }
+  }
 }
 
 @layer base {
@@ -316,6 +333,11 @@
   .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background-color: rgba(212, 175, 55, 0.6);
   }
+
+  /* SunTracker animation classes — consumed by src/components/weather/SunTracker.tsx */
+  .sun-element  { animation: sunPulse 3s ease-in-out infinite; }
+  .moon-element { animation: moonGlow 4s ease-in-out infinite; }
+  .twinkle-star { animation: twinkle 2s ease-in-out infinite alternate; }
 }
 
 @layer base {
