@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { cn } from '../../utils/cn';
 
 export { cn } from '../../utils/cn';
 
