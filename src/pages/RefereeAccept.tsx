@@ -115,7 +115,7 @@ export function RefereeAccept() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-canvas flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/30 via-zinc-950 to-blue-950/20 pointer-events-none" />
 
       <motion.div
@@ -123,13 +123,13 @@ export function RefereeAccept() {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         className="relative z-10 w-full max-w-md"
       >
-        <div className="bg-zinc-900 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-          <div className="bg-zinc-800/50 px-8 pt-8 pb-6 text-center border-b border-white/5">
+        <div className="bg-surface border border-default-token rounded-3xl overflow-hidden shadow-2xl">
+          <div className="bg-elevated/50 px-8 pt-8 pb-6 text-center border-b border-default-token">
             <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
               <ShieldCheck className="w-7 h-7 text-emerald-500" />
             </div>
             <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-1">{t('refereeAccept.brand', 'Praeventio Guard')}</p>
-            <h1 className="text-xl font-black text-white uppercase tracking-tight">{t('refereeAccept.title', 'Co-firmar Claim')}</h1>
+            <h1 className="text-xl font-black text-primary-token uppercase tracking-tight">{t('refereeAccept.title', 'Co-firmar Claim')}</h1>
           </div>
 
           <div className="px-8 py-7 space-y-6">
@@ -144,8 +144,8 @@ export function RefereeAccept() {
             {loadError && (
               <div className="flex flex-col items-center gap-3 py-4 text-center">
                 <AlertTriangle className="w-10 h-10 text-rose-500" />
-                <p className="text-sm font-bold text-white">{t('refereeAccept.linkUnavailable', 'Enlace no disponible')}</p>
-                <p className="text-xs text-zinc-400">{loadError}</p>
+                <p className="text-sm font-bold text-primary-token">{t('refereeAccept.linkUnavailable', 'Enlace no disponible')}</p>
+                <p className="text-xs text-muted-token">{loadError}</p>
               </div>
             )}
 
@@ -153,16 +153,16 @@ export function RefereeAccept() {
             {preview && !submitted && (
               <>
                 <div className="space-y-3">
-                  <p className="text-xs text-zinc-400">
-                    Hola <span className="text-white font-bold">{preview.refereeName}</span>.
+                  <p className="text-xs text-muted-token">
+                    Hola <span className="text-primary-token font-bold">{preview.refereeName}</span>.
                     {' '}
-                    <span className="text-white font-bold">{preview.workerName}</span> te nombró referencia
+                    <span className="text-primary-token font-bold">{preview.workerName}</span> te nombró referencia
                     en este claim:
                   </p>
-                  <blockquote className="bg-zinc-800/50 border-l-4 border-emerald-500 rounded-xl p-3 text-sm text-zinc-200 italic">
+                  <blockquote className="bg-elevated/50 border-l-4 border-emerald-500 rounded-xl p-3 text-sm text-secondary-token italic">
                     "{preview.claimText}"
                   </blockquote>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-token">
                     Categoría: {preview.category}
                   </p>
                 </div>
@@ -176,7 +176,7 @@ export function RefereeAccept() {
 
                 {!preview.alreadySigned && preview.status === 'pending_referees' && (
                   <div className="space-y-2">
-                    <p className="text-xs text-zinc-400 text-center">¿Confirmas la veracidad del claim?</p>
+                    <p className="text-xs text-muted-token text-center">¿Confirmas la veracidad del claim?</p>
                     <button
                       onClick={() => submit('webauthn')}
                       disabled={!!submitting || !isSupported}
@@ -188,7 +188,7 @@ export function RefereeAccept() {
                     <button
                       onClick={() => submit('standard')}
                       disabled={!!submitting}
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase tracking-widest text-sm transition-colors disabled:opacity-40"
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-elevated hover:bg-elevated/80 text-primary-token font-black uppercase tracking-widest text-sm transition-colors disabled:opacity-40"
                     >
                       {submitting === 'standard' ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
                       {t('refereeAccept.cosignStandard', 'Co-firmar (estándar)')}
@@ -202,7 +202,7 @@ export function RefereeAccept() {
                       {t('refereeAccept.decline', 'Rechazar')}
                     </button>
                     {!isSupported && (
-                      <p className="text-[10px] text-zinc-500 text-center">
+                      <p className="text-[10px] text-muted-token text-center">
                         La huella no está disponible en este dispositivo. Usa "estándar".
                       </p>
                     )}
@@ -217,7 +217,7 @@ export function RefereeAccept() {
                 )}
 
                 {preview.status !== 'pending_referees' && !preview.alreadySigned && (
-                  <p className="text-xs text-zinc-400 text-center">
+                  <p className="text-xs text-muted-token text-center">
                     Este claim ya está {preview.status === 'verified' ? 'verificado' : preview.status === 'expired' ? 'expirado' : 'rechazado'}.
                   </p>
                 )}
@@ -231,8 +231,8 @@ export function RefereeAccept() {
                 className="flex flex-col items-center gap-3 py-6 text-center"
               >
                 <CheckCircle2 className="w-12 h-12 text-emerald-500" />
-                <p className="text-lg font-black text-white uppercase tracking-tight">{t('refereeAccept.signedTitle', 'Co-firma registrada')}</p>
-                <p className="text-sm text-zinc-400">{t('refereeAccept.signedBody', 'Gracias por respaldar este claim.')}</p>
+                <p className="text-lg font-black text-primary-token uppercase tracking-tight">{t('refereeAccept.signedTitle', 'Co-firma registrada')}</p>
+                <p className="text-sm text-muted-token">{t('refereeAccept.signedBody', 'Gracias por respaldar este claim.')}</p>
               </motion.div>
             )}
             {submitted === 'declined' && (
@@ -242,14 +242,14 @@ export function RefereeAccept() {
                 className="flex flex-col items-center gap-3 py-6 text-center"
               >
                 <X className="w-12 h-12 text-rose-500" />
-                <p className="text-lg font-black text-white uppercase tracking-tight">{t('refereeAccept.declinedTitle', 'Rechazo registrado')}</p>
-                <p className="text-sm text-zinc-400">{t('refereeAccept.declinedBody', 'El trabajador será notificado.')}</p>
+                <p className="text-lg font-black text-primary-token uppercase tracking-tight">{t('refereeAccept.declinedTitle', 'Rechazo registrado')}</p>
+                <p className="text-sm text-muted-token">{t('refereeAccept.declinedBody', 'El trabajador será notificado.')}</p>
               </motion.div>
             )}
           </div>
         </div>
 
-        <p className="text-center text-[10px] text-zinc-600 mt-4 font-bold uppercase tracking-widest">
+        <p className="text-center text-[10px] text-muted-token mt-4 font-bold uppercase tracking-widest">
           © {new Date().getFullYear()} Praeventio Guard
         </p>
       </motion.div>

@@ -554,15 +554,15 @@ export function Telemetry() {
             <Activity className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500" />
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-white leading-tight">{t('telemetry.title', 'Telemetría Ambiental')}</h1>
-            <p className="text-zinc-500 text-[10px] sm:text-sm font-medium mt-1">{t('telemetry.subtitle', 'Monitor Sísmico y Climático en Tiempo Real')}</p>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-primary-token leading-tight">{t('telemetry.title', 'Telemetría Ambiental')}</h1>
+            <p className="text-muted-token text-[10px] sm:text-sm font-medium mt-1">{t('telemetry.subtitle', 'Monitor Sísmico y Climático en Tiempo Real')}</p>
           </div>
         </div>
 
         {selectedProject && (
-          <div className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl self-start md:self-auto">
+          <div className="flex items-center gap-2 bg-surface border border-default-token px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl self-start md:self-auto">
             <MapPin className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-500" />
-            <span className="text-[8px] sm:text-[10px] font-black text-zinc-400 uppercase tracking-widest">{selectedProject.location || 'Ubicación no definida'}</span>
+            <span className="text-[8px] sm:text-[10px] font-black text-muted-token uppercase tracking-widest">{selectedProject.location || 'Ubicación no definida'}</span>
           </div>
         )}
       </div>
@@ -600,59 +600,59 @@ export function Telemetry() {
       </div>
 
       {/* Bucket B.3 — Dike hydrostatic monitor */}
-      <div className="mt-6 bg-zinc-900/60 border border-white/5 rounded-2xl p-5">
+      <div className="mt-6 bg-surface border border-default-token rounded-2xl p-5">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
             <ThermometerSun className="w-4 h-4 text-cyan-400" />
           </div>
           <div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-white">{t('telemetry.damMonitoring', 'Monitoreo de represas hidrostáticas')}</h3>
-            <p className="text-[10px] text-zinc-500">DS 248/2007 — Resolución 1500 SERNAGEOMIN</p>
+            <h3 className="text-sm font-black uppercase tracking-widest text-primary-token">{t('telemetry.damMonitoring', 'Monitoreo de represas hidrostáticas')}</h3>
+            <p className="text-[10px] text-muted-token">DS 248/2007 — Resolución 1500 SERNAGEOMIN</p>
           </div>
         </div>
         <form onSubmit={handleDikeSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Altura del agua (m)</label>
+            <label className="block text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Altura del agua (m)</label>
             <input
               type="number"
               min="0"
               step="any"
               value={dikeHeight}
               onChange={(e) => setDikeHeight(e.target.value ? Number(e.target.value) : '')}
-              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+              className="w-full bg-elevated border border-default-token rounded-lg px-3 py-2 text-sm text-primary-token"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Perímetro (m)</label>
+            <label className="block text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Perímetro (m)</label>
             <input
               type="number"
               min="0"
               step="any"
               value={dikePerimeter}
               onChange={(e) => setDikePerimeter(e.target.value ? Number(e.target.value) : '')}
-              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+              className="w-full bg-elevated border border-default-token rounded-lg px-3 py-2 text-sm text-primary-token"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Profundidad piezómetro (m)</label>
+            <label className="block text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Profundidad piezómetro (m)</label>
             <input
               type="number"
               min="0"
               step="any"
               value={piezoDepth}
               onChange={(e) => setPiezoDepth(e.target.value ? Number(e.target.value) : '')}
-              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+              className="w-full bg-elevated border border-default-token rounded-lg px-3 py-2 text-sm text-primary-token"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Presión medida (kPa)</label>
+            <label className="block text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Presión medida (kPa)</label>
             <input
               type="number"
               min="0"
               step="any"
               value={piezoPressureKpa}
               onChange={(e) => setPiezoPressureKpa(e.target.value ? Number(e.target.value) : '')}
-              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+              className="w-full bg-elevated border border-default-token rounded-lg px-3 py-2 text-sm text-primary-token"
             />
           </div>
           <div className="md:col-span-4">
@@ -664,7 +664,7 @@ export function Telemetry() {
             </button>
           </div>
           {dikeStatus && (
-            <div className="md:col-span-4 p-3 rounded-lg bg-zinc-800/60 border border-white/5 text-xs text-zinc-300">
+            <div className="md:col-span-4 p-3 rounded-lg bg-elevated border border-default-token text-xs text-secondary-token">
               {dikeStatus}
             </div>
           )}
@@ -672,40 +672,40 @@ export function Telemetry() {
       </div>
 
       {/* Sprint 25 Bucket NN — Generación micro-eólica (Betz · IEC 61400-2). */}
-      <div className="mt-6 bg-zinc-900/60 border border-white/5 rounded-2xl p-5">
+      <div className="mt-6 bg-surface border border-default-token rounded-2xl p-5">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 rounded-xl bg-teal-500/10 border border-teal-500/20">
             <Wind className="w-4 h-4 text-teal-400" />
           </div>
           <div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-white">{t('telemetry.microWindGen', 'Generación micro-eólica')}</h3>
-            <p className="text-[10px] text-zinc-500">NCh Elec.4/2003 · IEC 61400-2 · Límite Betz 0.593</p>
+            <h3 className="text-sm font-black uppercase tracking-widest text-primary-token">{t('telemetry.microWindGen', 'Generación micro-eólica')}</h3>
+            <p className="text-[10px] text-muted-token">NCh Elec.4/2003 · IEC 61400-2 · Límite Betz 0.593</p>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Viento promedio (km/h)</label>
+            <label className="block text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Viento promedio (km/h)</label>
             <input type="number" min="0" step="any" value={microWindKmh}
               onChange={(e) => setMicroWindKmh(e.target.value ? Number(e.target.value) : '')}
-              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+              className="w-full bg-elevated border border-default-token rounded-lg px-3 py-2 text-sm text-primary-token" />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Altura turbina (m)</label>
+            <label className="block text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Altura turbina (m)</label>
             <input type="number" min="0" step="any" value={turbineHeightM}
               onChange={(e) => setTurbineHeightM(e.target.value ? Number(e.target.value) : '')}
-              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+              className="w-full bg-elevated border border-default-token rounded-lg px-3 py-2 text-sm text-primary-token" />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Área barrida (m²)</label>
+            <label className="block text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Área barrida (m²)</label>
             <input type="number" min="0" step="any" value={rotorAreaM2}
               onChange={(e) => setRotorAreaM2(e.target.value ? Number(e.target.value) : '')}
-              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+              className="w-full bg-elevated border border-default-token rounded-lg px-3 py-2 text-sm text-primary-token" />
           </div>
           {microWindResult && (
             <div className="rounded-lg px-3 py-2 border bg-teal-500/10 border-teal-500/20">
               <p className="text-[10px] font-bold text-teal-300 uppercase tracking-widest">kWh/día estimado</p>
               <p className="text-lg font-black text-teal-400">{microWindResult.kwhPerDay.toFixed(2)}</p>
-              <p className="text-[10px] text-zinc-400">{(microWindResult.powerW).toFixed(1)} W instantáneos</p>
+              <p className="text-[10px] text-muted-token">{(microWindResult.powerW).toFixed(1)} W instantáneos</p>
             </div>
           )}
         </div>

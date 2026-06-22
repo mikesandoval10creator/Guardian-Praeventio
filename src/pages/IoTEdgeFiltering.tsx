@@ -179,11 +179,11 @@ export function IoTEdgeFiltering() {
       >
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
               <Cpu className="w-8 h-8 text-indigo-500" aria-hidden="true" />
               {t('iotEdge.title', 'IoT Edge Filtering')}
             </h1>
-            <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+            <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
               {t('iotEdge.subtitle', 'MQTT real · WebSocket · Edge filter')}
             </p>
           </div>
@@ -217,14 +217,14 @@ export function IoTEdgeFiltering() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Connection config */}
-          <Card className="p-6 border-white/5 space-y-4 lg:col-span-1">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <Card className="p-6 border-default-token space-y-4 lg:col-span-1">
+            <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
               <Server className="w-5 h-5 text-indigo-500" aria-hidden="true" />
               {t('iotEdge.brokerSection', 'Broker MQTT')}
             </h2>
 
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-muted-token uppercase tracking-wider block mb-1">
                 {t('iotEdge.brokerUrl', 'Broker URL (ws:// o wss://)')}
               </label>
               <input
@@ -233,15 +233,15 @@ export function IoTEdgeFiltering() {
                 onChange={(e) => setBrokerUrl(e.target.value)}
                 disabled={state === 'connected' || state === 'connecting'}
                 data-testid="iot-edge-broker-input"
-                className="w-full px-3 py-2 rounded-md border border-white/10 bg-zinc-900 text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:opacity-50"
+                className="w-full px-3 py-2 rounded-md border border-default-token bg-surface text-primary-token text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:opacity-50"
               />
-              <p className="text-[10px] text-zinc-500 mt-1 italic">
+              <p className="text-[10px] text-muted-token mt-1 italic">
                 {t('iotEdge.brokerHint', 'Default: broker público HiveMQ (sin auth, demo).')}
               </p>
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-muted-token uppercase tracking-wider block mb-1">
                 {t('iotEdge.topic', 'Topic (acepta wildcards + y #)')}
               </label>
               <input
@@ -250,7 +250,7 @@ export function IoTEdgeFiltering() {
                 onChange={(e) => setTopic(e.target.value)}
                 disabled={state === 'connected' || state === 'connecting'}
                 data-testid="iot-edge-topic-input"
-                className="w-full px-3 py-2 rounded-md border border-white/10 bg-zinc-900 text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:opacity-50"
+                className="w-full px-3 py-2 rounded-md border border-default-token bg-surface text-primary-token text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:opacity-50"
               />
             </div>
 
@@ -261,9 +261,9 @@ export function IoTEdgeFiltering() {
                 onChange={(e) => setFilterAnomaliesOnly(e.target.checked)}
                 disabled={state === 'connected' || state === 'connecting'}
                 data-testid="iot-edge-filter-checkbox"
-                className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-indigo-500/40"
+                className="w-4 h-4 rounded border-default-token bg-surface text-indigo-600 focus:ring-indigo-500/40"
               />
-              <span className="text-xs text-zinc-300 flex items-center gap-1">
+              <span className="text-xs text-secondary-token flex items-center gap-1">
                 <Filter className="w-3 h-3" aria-hidden="true" />
                 {t('iotEdge.filterAnomalies', 'Edge filter: solo eventos status ≠ "ok"')}
               </span>
@@ -292,8 +292,8 @@ export function IoTEdgeFiltering() {
           </Card>
 
           {/* Metrics panel */}
-          <Card className="p-6 border-white/5 space-y-4 lg:col-span-1">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <Card className="p-6 border-default-token space-y-4 lg:col-span-1">
+            <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
               <Activity
                 className="w-5 h-5 text-indigo-500"
                 aria-hidden="true"
@@ -323,11 +323,11 @@ export function IoTEdgeFiltering() {
               testId="iot-edge-metric-reconnects"
               label={t('iotEdge.metricReconnects', 'Reconexiones') as string}
               value={metrics?.reconnectCount ?? 0}
-              colorClass={metrics && metrics.reconnectCount > 0 ? 'text-amber-400' : 'text-zinc-400'}
+              colorClass={metrics && metrics.reconnectCount > 0 ? 'text-amber-400' : 'text-muted-token'}
             />
 
-            <div className="pt-2 border-t border-white/5">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+            <div className="pt-2 border-t border-default-token">
+              <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">
                 {t('iotEdge.subscribedTopics', 'Topics suscritos')}
               </p>
               {metrics?.subscribedTopics && metrics.subscribedTopics.length > 0 ? (
@@ -335,14 +335,14 @@ export function IoTEdgeFiltering() {
                   {metrics.subscribedTopics.map((tp) => (
                     <li
                       key={tp}
-                      className="text-[11px] font-mono text-zinc-300 truncate"
+                      className="text-[11px] font-mono text-secondary-token truncate"
                     >
                       {tp}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-xs italic text-zinc-500">
+                <p className="text-xs italic text-muted-token">
                   {t('iotEdge.noTopics', 'Sin topics aún.')}
                 </p>
               )}
@@ -358,14 +358,14 @@ export function IoTEdgeFiltering() {
           </Card>
 
           {/* Publish + Recent events */}
-          <Card className="p-6 border-white/5 space-y-4 lg:col-span-1">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <Card className="p-6 border-default-token space-y-4 lg:col-span-1">
+            <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
               <Send className="w-5 h-5 text-indigo-500" aria-hidden="true" />
               {t('iotEdge.publishSection', 'Publicar (test)')}
             </h2>
 
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-muted-token uppercase tracking-wider block mb-1">
                 Topic
               </label>
               <input
@@ -373,12 +373,12 @@ export function IoTEdgeFiltering() {
                 value={publishTopic}
                 onChange={(e) => setPublishTopic(e.target.value)}
                 data-testid="iot-edge-publish-topic"
-                className="w-full px-3 py-2 rounded-md border border-white/10 bg-zinc-900 text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                className="w-full px-3 py-2 rounded-md border border-default-token bg-surface text-primary-token text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-muted-token uppercase tracking-wider block mb-1">
                 Payload (JSON)
               </label>
               <textarea
@@ -386,7 +386,7 @@ export function IoTEdgeFiltering() {
                 onChange={(e) => setPublishPayload(e.target.value)}
                 data-testid="iot-edge-publish-payload"
                 rows={3}
-                className="w-full px-3 py-2 rounded-md border border-white/10 bg-zinc-900 text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 resize-none"
+                className="w-full px-3 py-2 rounded-md border border-default-token bg-surface text-primary-token text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 resize-none"
               />
             </div>
 
@@ -403,15 +403,15 @@ export function IoTEdgeFiltering() {
         </div>
 
         {/* Recent events feed */}
-        <Card className="p-6 border-white/5 space-y-3">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-3">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <Database className="w-5 h-5 text-indigo-500" aria-hidden="true" />
             {t('iotEdge.recentEvents', 'Eventos recientes')} ({recentEvents.length})
           </h2>
 
           {recentEvents.length === 0 ? (
             <p
-              className="text-xs italic text-zinc-500 text-center py-8"
+              className="text-xs italic text-muted-token text-center py-8"
               data-testid="iot-edge-no-events"
             >
               {state === 'connected'
@@ -430,17 +430,17 @@ export function IoTEdgeFiltering() {
                 <li
                   key={`${evt.receivedAtMs}-${i}`}
                   data-testid={`iot-edge-event-${i}`}
-                  className="p-2.5 rounded-md bg-zinc-900 border border-white/5 text-xs"
+                  className="p-2.5 rounded-md bg-surface border border-default-token text-xs"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <code className="text-indigo-400 font-mono truncate flex-1">
                       {evt.topic}
                     </code>
-                    <span className="text-[10px] text-zinc-500 font-mono ml-2">
+                    <span className="text-[10px] text-muted-token font-mono ml-2">
                       {new Date(evt.receivedAtMs).toLocaleTimeString()}
                     </span>
                   </div>
-                  <pre className="text-zinc-300 font-mono whitespace-pre-wrap break-all text-[11px]">
+                  <pre className="text-secondary-token font-mono whitespace-pre-wrap break-all text-[11px]">
                     {evt.payloadJson
                       ? JSON.stringify(evt.payloadJson, null, 2)
                       : evt.payloadText.slice(0, 200)}
@@ -451,7 +451,7 @@ export function IoTEdgeFiltering() {
           )}
         </Card>
 
-        <p className="text-[10px] text-zinc-500 italic text-center">
+        <p className="text-[10px] text-muted-token italic text-center">
           {t(
             'iotEdge.standardNote',
             'MQTT.js (OSS BSD-2) sobre WebSocket. Compatible con HiveMQ, Mosquitto, AWS IoT Core, Azure IoT Hub, Google Cloud IoT MQTT bridge.',
@@ -471,8 +471,8 @@ interface MetricRowProps {
 
 function MetricRow({ testId, label, value, colorClass }: MetricRowProps) {
   return (
-    <div className="p-3 rounded-xl bg-zinc-900 border border-white/5 flex items-center justify-between">
-      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+    <div className="p-3 rounded-xl bg-surface border border-default-token flex items-center justify-between">
+      <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">
         {label}
       </p>
       <p

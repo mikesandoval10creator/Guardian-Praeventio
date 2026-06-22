@@ -89,10 +89,10 @@ export function PublicNodeView() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-surface flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{t('publicNode.validating', 'Validando Credenciales...')}</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-muted-token">{t('publicNode.validating', 'Validando Credenciales...')}</span>
         </div>
       </div>
     );
@@ -100,13 +100,13 @@ export function PublicNodeView() {
 
   if (error || !node) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6">
+      <div className="min-h-screen bg-surface flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center space-y-6">
           <div className="w-20 h-20 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto">
             <AlertTriangle className="w-10 h-10 text-red-500" />
           </div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-tighter">{t('publicNode.accessDenied', 'Acceso Denegado')}</h1>
-          <p className="text-zinc-500 text-sm leading-relaxed">
+          <h1 className="text-2xl font-black text-primary-token uppercase tracking-tighter">{t('publicNode.accessDenied', 'Acceso Denegado')}</h1>
+          <p className="text-muted-token text-sm leading-relaxed">
             {error || t('publicNode.notAvailable', 'El recurso solicitado no está disponible o ha sido restringido.')}
           </p>
           <Link to="/" className="inline-flex items-center gap-2 text-emerald-500 font-black text-[10px] uppercase tracking-widest hover:text-emerald-400 transition-colors">
@@ -119,16 +119,16 @@ export function PublicNodeView() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-zinc-300 font-sans selection:bg-emerald-500/30">
+    <div className="min-h-screen bg-surface text-secondary-token font-sans selection:bg-emerald-500/30">
       {/* Public Header */}
-      <div className="bg-zinc-900/50 border-b border-white/5 p-6 backdrop-blur-xl sticky top-0 z-50">
+      <div className="bg-elevated border-b border-default-token p-6 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <Shield className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-white uppercase tracking-tighter">{t('publicNode.brand', 'Praeventio Guard')}</h2>
+              <h2 className="text-sm font-black text-primary-token uppercase tracking-tighter">{t('publicNode.brand', 'Praeventio Guard')}</h2>
               <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">{t('publicNode.subtitle', 'Verificación de Nodo')}</p>
             </div>
           </div>
@@ -144,7 +144,7 @@ export function PublicNodeView() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-zinc-900 border border-white/10 rounded-[2rem] sm:rounded-[40px] p-6 sm:p-8 md:p-12 relative overflow-hidden"
+          className="bg-elevated border border-default-token rounded-[2rem] sm:rounded-[40px] p-6 sm:p-8 md:p-12 relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 p-4 sm:p-8 opacity-5">
             {React.createElement(getNodeIcon(node.type), { size: 150, className: "sm:w-[200px] sm:h-[200px]" })}
@@ -157,7 +157,7 @@ export function PublicNodeView() {
                   {React.createElement(getNodeIcon(node.type), { className: 'w-4 h-4' })}
                   <span className="text-[10px] font-black uppercase tracking-widest">{node.type}</span>
                 </div>
-                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-white uppercase tracking-tighter leading-tight">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-primary-token uppercase tracking-tighter leading-tight">
                   {node.title}
                 </h1>
               </div>
@@ -165,31 +165,31 @@ export function PublicNodeView() {
                 <div className="p-3 sm:p-4 bg-white rounded-2xl shadow-xl order-2 md:order-1">
                   <QrCode className="w-10 h-10 sm:w-12 sm:h-12 text-black" />
                 </div>
-                <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest order-1 md:order-2">ID: {node.id.slice(0, 8)}</span>
+                <span className="text-[8px] font-bold text-muted-token uppercase tracking-widest order-1 md:order-2">ID: {node.id.slice(0, 8)}</span>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white/5 border border-white/5 rounded-3xl p-6">
-                <Clock className="w-5 h-5 text-zinc-500 mb-3" />
-                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Última Actualización</p>
-                <p className="text-sm font-bold text-white">{new Date(node.updatedAt).toLocaleDateString('es-CL')}</p>
+              <div className="bg-surface border border-default-token rounded-3xl p-6">
+                <Clock className="w-5 h-5 text-muted-token mb-3" />
+                <p className="text-[8px] font-black text-muted-token uppercase tracking-widest mb-1">Última Actualización</p>
+                <p className="text-sm font-bold text-primary-token">{new Date(node.updatedAt).toLocaleDateString('es-CL')}</p>
               </div>
-              <div className="bg-white/5 border border-white/5 rounded-3xl p-6">
-                <MapPin className="w-5 h-5 text-zinc-500 mb-3" />
-                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Proyecto</p>
-                <p className="text-sm font-bold text-white">{node.projectId || 'Global'}</p>
+              <div className="bg-surface border border-default-token rounded-3xl p-6">
+                <MapPin className="w-5 h-5 text-muted-token mb-3" />
+                <p className="text-[8px] font-black text-muted-token uppercase tracking-widest mb-1">Proyecto</p>
+                <p className="text-sm font-bold text-primary-token">{node.projectId || 'Global'}</p>
               </div>
-              <div className="bg-white/5 border border-white/5 rounded-3xl p-6">
-                <Network className="w-5 h-5 text-zinc-500 mb-3" />
-                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Conexiones</p>
-                <p className="text-sm font-bold text-white">{node.connections.length} Nodos</p>
+              <div className="bg-surface border border-default-token rounded-3xl p-6">
+                <Network className="w-5 h-5 text-muted-token mb-3" />
+                <p className="text-[8px] font-black text-muted-token uppercase tracking-widest mb-1">Conexiones</p>
+                <p className="text-sm font-bold text-primary-token">{node.connections.length} Nodos</p>
               </div>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Descripción Detallada</h3>
-              <p className="text-zinc-400 leading-relaxed text-lg">
+              <h3 className="text-[10px] font-black text-muted-token uppercase tracking-[0.2em]">Descripción Detallada</h3>
+              <p className="text-secondary-token leading-relaxed text-lg">
                 {node.description}
               </p>
             </div>
@@ -197,7 +197,7 @@ export function PublicNodeView() {
             {node.tags.length > 0 && (
               <div className="flex flex-wrap gap-2 pt-4">
                 {node.tags.map(tag => (
-                  <span key={tag} className="px-4 py-1.5 bg-zinc-800 border border-white/5 rounded-xl text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                  <span key={tag} className="px-4 py-1.5 bg-elevated border border-default-token rounded-xl text-[10px] font-bold text-muted-token uppercase tracking-widest">
                     #{tag}
                   </span>
                 ))}
@@ -210,8 +210,8 @@ export function PublicNodeView() {
         {connections.length > 0 && (
           <div className="space-y-6">
             <div className="flex items-center justify-between px-4">
-              <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Nodos Relacionados</h2>
-              <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Certificaciones y Registros</span>
+              <h2 className="text-[10px] font-black text-muted-token uppercase tracking-[0.3em]">Nodos Relacionados</h2>
+              <span className="text-[9px] font-bold text-muted-token uppercase tracking-widest">Certificaciones y Registros</span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -219,18 +219,18 @@ export function PublicNodeView() {
                 <motion.div
                   key={conn.id}
                   whileHover={{ scale: 1.02 }}
-                  className="bg-zinc-900 border border-white/10 rounded-3xl p-6 flex items-center justify-between group cursor-pointer"
+                  className="bg-elevated border border-default-token rounded-3xl p-6 flex items-center justify-between group cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
                     <div className={`p-3 rounded-2xl border ${getNodeBadgeClass(conn.type)}`}>
                       {React.createElement(getNodeIcon(conn.type), { className: 'w-5 h-5' })}
                     </div>
                     <div>
-                      <h4 className="text-sm font-black text-white uppercase tracking-tight">{conn.title}</h4>
-                      <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{conn.type}</p>
+                      <h4 className="text-sm font-black text-primary-token uppercase tracking-tight">{conn.title}</h4>
+                      <p className="text-[9px] font-bold text-muted-token uppercase tracking-widest mt-1">{conn.type}</p>
                     </div>
                   </div>
-                  <ExternalLink className="w-4 h-4 text-zinc-700 group-hover:text-emerald-500 transition-colors" />
+                  <ExternalLink className="w-4 h-4 text-muted-token opacity-50 group-hover:text-emerald-500 group-hover:opacity-100 transition-colors" />
                 </motion.div>
               ))}
             </div>
@@ -239,7 +239,7 @@ export function PublicNodeView() {
 
         {/* Footer Info */}
         <div className="text-center py-12 space-y-4">
-          <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.2em]">
+          <p className="text-[10px] font-bold text-muted-token uppercase tracking-[0.2em]">
             Documento generado por Praeventio Guard AI
           </p>
           <div className="flex justify-center gap-6">

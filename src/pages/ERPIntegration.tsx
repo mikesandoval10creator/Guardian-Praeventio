@@ -88,11 +88,11 @@ export function ERPIntegration() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Server className="w-8 h-8 text-blue-500" />
             {t('erpIntegration.title', 'Integración ERP / RRHH')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('erpIntegration.subtitle', 'API-First: Sincronización con SAP, Buk, Talana')}
           </p>
         </div>
@@ -106,38 +106,38 @@ export function ERPIntegration() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Sync Panel */}
-        <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-6">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <ArrowRightLeft className="w-5 h-5 text-blue-500" />
             {t('erpIntegration.syncSection', 'Sincronización de Datos')}
           </h2>
 
           <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-zinc-900 border border-white/5 flex items-center justify-between">
+            <div className="p-4 rounded-xl bg-surface border border-default-token flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Database className="w-6 h-6 text-blue-500" />
                 <div>
-                  <h3 className="text-sm font-bold text-white">SAP SuccessFactors</h3>
-                  <p className="text-xs text-zinc-400">Estructura Organizacional</p>
+                  <h3 className="text-sm font-bold text-primary-token">SAP SuccessFactors</h3>
+                  <p className="text-xs text-muted-token">Estructura Organizacional</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span className="text-xs text-zinc-500">Conectado</span>
+                <span className="text-xs text-muted-token">Conectado</span>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-zinc-900 border border-white/5 flex items-center justify-between">
+            <div className="p-4 rounded-xl bg-surface border border-default-token flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Database className="w-6 h-6 text-indigo-500" />
                 <div>
-                  <h3 className="text-sm font-bold text-white">Buk / Talana</h3>
-                  <p className="text-xs text-zinc-400">Nómina y Asistencia</p>
+                  <h3 className="text-sm font-bold text-primary-token">Buk / Talana</h3>
+                  <p className="text-xs text-muted-token">Nómina y Asistencia</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span className="text-xs text-zinc-500">Conectado</span>
+                <span className="text-xs text-muted-token">Conectado</span>
               </div>
             </div>
           </div>
@@ -183,31 +183,31 @@ export function ERPIntegration() {
 
           {lastSync && (
             <div className="text-center">
-              <p className="text-xs text-zinc-500">Último intento: {lastSync}</p>
+              <p className="text-xs text-muted-token">Último intento: {lastSync}</p>
             </div>
           )}
         </Card>
 
         {/* API Config Panel */}
-        <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-6">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <Lock className="w-5 h-5 text-blue-500" />
             {t('erpIntegration.apiConfigSection', 'Configuración API REST')}
           </h2>
 
           <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Endpoint Base</p>
-              <div className="flex items-center justify-between bg-black p-2 rounded border border-zinc-800">
+            <div className="p-4 rounded-xl bg-surface border border-default-token">
+              <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-2">Endpoint Base</p>
+              <div className="flex items-center justify-between bg-black p-2 rounded border border-default-token">
                 <code className="text-xs text-blue-400">https://api.praeventio.net/v1</code>
                 <Button variant="secondary" className="px-2 py-1 h-auto text-[10px]">Copiar</Button>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">API Key (Bearer Token)</p>
-              <div className="flex items-center justify-between bg-black p-2 rounded border border-zinc-800">
-                <code className="text-xs text-zinc-500">sk_live_***************************</code>
+            <div className="p-4 rounded-xl bg-surface border border-default-token">
+              <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-2">API Key (Bearer Token)</p>
+              <div className="flex items-center justify-between bg-black p-2 rounded border border-default-token">
+                <code className="text-xs text-muted-token">sk_live_***************************</code>
                 <Button variant="secondary" className="px-2 py-1 h-auto text-[10px]">Rotar Key</Button>
               </div>
             </div>

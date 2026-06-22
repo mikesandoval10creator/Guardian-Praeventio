@@ -103,8 +103,8 @@ export function Glossary() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('glossary.title', 'Glosario Técnico')}</h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">{t('glossary.title', 'Glosario Técnico')}</h1>
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('glossary.subtitle', 'Diccionario Semántico de Prevención de Riesgos')}
           </p>
         </div>
@@ -113,13 +113,13 @@ export function Glossary() {
       {/* Search & Filters */}
       <div className="flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-token" />
           <input
             type="text"
             placeholder={t('glossary.searchPlaceholder', 'Buscar término o definición...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-medium"
+            className="w-full bg-surface border border-default-token rounded-2xl py-4 pl-12 pr-4 text-sm text-primary-token placeholder:text-muted-token focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-medium"
           />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 custom-scrollbar">
@@ -128,7 +128,7 @@ export function Glossary() {
             className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap shrink-0 ${
               selectedCategory === null
                 ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                : 'bg-zinc-900/50 text-zinc-400 hover:text-white hover:bg-zinc-800 border border-white/5'
+                : 'bg-surface text-muted-token hover:text-primary-token hover:bg-elevated border border-default-token'
             }`}
           >
             {t('glossary.filterAll', 'Todos')}
@@ -140,7 +140,7 @@ export function Glossary() {
               className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap shrink-0 ${
                 selectedCategory === category
                   ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                  : 'bg-zinc-900/50 text-zinc-400 hover:text-white hover:bg-zinc-800 border border-white/5'
+                  : 'bg-surface text-muted-token hover:text-primary-token hover:bg-elevated border border-default-token'
               }`}
             >
               {category}
@@ -160,25 +160,25 @@ export function Glossary() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 hover:border-emerald-500/30 transition-all group"
+              className="bg-surface border border-default-token rounded-3xl p-6 hover:border-emerald-500/30 transition-all group"
             >
               <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center text-emerald-500 border border-white/5 shrink-0 group-hover:scale-110 transition-transform">
+                <div className="w-12 h-12 rounded-2xl bg-elevated flex items-center justify-center text-emerald-500 border border-default-token shrink-0 group-hover:scale-110 transition-transform">
                   <BookOpen className="w-6 h-6" />
                 </div>
                 <span className="px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-500 text-[8px] font-black uppercase tracking-widest border border-emerald-500/20">
                   {details.category}
                 </span>
               </div>
-              <h3 className="text-xl font-black text-white uppercase tracking-tight mb-3 group-hover:text-emerald-400 transition-colors">
+              <h3 className="text-xl font-black text-primary-token uppercase tracking-tight mb-3 group-hover:text-emerald-400 transition-colors">
                 {details.term}
               </h3>
-              <p className="text-sm text-zinc-400 leading-relaxed">
+              <p className="text-sm text-muted-token leading-relaxed">
                 {details.definition}
               </p>
               {details.relatedTerms && details.relatedTerms.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-white/5">
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">{t('glossary.relatedTerms', 'Términos Relacionados')}</p>
+                  <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-2">{t('glossary.relatedTerms', 'Términos Relacionados')}</p>
                   <div className="flex flex-wrap gap-2">
                     {details.relatedTerms.map(related => (
                       <span key={related} className="text-xs text-emerald-500/70 font-medium bg-emerald-500/5 px-2 py-1 rounded-md border border-emerald-500/10">
@@ -192,12 +192,12 @@ export function Glossary() {
           ))}
         </div>
       ) : (
-        <div className="bg-zinc-900/50 border border-dashed border-white/10 rounded-3xl p-20 text-center">
-          <div className="w-20 h-20 bg-zinc-800 rounded-3xl flex items-center justify-center mx-auto mb-6">
-            <Book className="w-10 h-10 text-zinc-600" />
+        <div className="bg-surface border border-dashed border-default-token rounded-3xl p-20 text-center">
+          <div className="w-20 h-20 bg-elevated rounded-3xl flex items-center justify-center mx-auto mb-6">
+            <Book className="w-10 h-10 text-muted-token" />
           </div>
-          <h3 className="text-xl font-bold text-white mb-2">{t('glossary.notFound', 'No se encontraron términos')}</h3>
-          <p className="text-zinc-500 max-w-md mx-auto">
+          <h3 className="text-xl font-bold text-primary-token mb-2">{t('glossary.notFound', 'No se encontraron términos')}</h3>
+          <p className="text-muted-token max-w-md mx-auto">
             {t('glossary.notFoundHint', 'Intenta con otra búsqueda o selecciona una categoría diferente.')}
           </p>
         </div>

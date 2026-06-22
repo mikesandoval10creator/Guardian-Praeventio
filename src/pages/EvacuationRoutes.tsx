@@ -161,11 +161,11 @@ export function EvacuationRoutes() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Route className="w-8 h-8 text-emerald-500" />
             {t('evacuationRoutes.title', 'Rutas de Evacuación IA')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('evacuationRoutes.subtitle', 'Algoritmo A* sobre grilla 10×10 (real, determinístico, heurística Manhattan)')}
           </p>
         </div>
@@ -179,11 +179,11 @@ export function EvacuationRoutes() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Map View */}
-        <Card className="p-6 border-white/5 lg:col-span-2 space-y-6">
+        <Card className="p-6 border-default-token lg:col-span-2 space-y-6">
           {isCheckingSeismic ? (
-            <div className="flex items-center justify-center p-4 bg-zinc-900/50 rounded-xl border border-white/5">
+            <div className="flex items-center justify-center p-4 bg-elevated rounded-xl border border-default-token">
               <Loader2 className="w-5 h-5 text-emerald-500 animate-spin mr-3" />
-              <span className="text-sm text-zinc-400">{t('evacuationRoutes.connectingSeismic', 'Conectando con Red Sismológica...')}</span>
+              <span className="text-sm text-secondary-token">{t('evacuationRoutes.connectingSeismic', 'Conectando con Red Sismológica...')}</span>
             </div>
           ) : recentEarthquake ? (
             <motion.div 
@@ -213,7 +213,7 @@ export function EvacuationRoutes() {
                       ? ' Protocolo de evacuación activado automáticamente.' 
                       : ' Mantenerse alerta a instrucciones.'}
                   </p>
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
+                  <p className="text-[10px] text-muted-token uppercase tracking-widest">
                     Fuente: USGS / Simulación CSN
                   </p>
                 </div>
@@ -222,18 +222,18 @@ export function EvacuationRoutes() {
           ) : null}
 
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
               <Map className="w-5 h-5 text-emerald-500" />
               {t('evacuationRoutes.mapTitle', 'Plano de Faena (Grilla Dinámica)')}
             </h2>
-            <div className="flex items-center gap-4 text-xs font-bold text-zinc-400">
-              <span className="flex items-center gap-1"><div className="w-3 h-3 bg-zinc-800 rounded" /> Libre</span>
+            <div className="flex items-center gap-4 text-xs font-bold text-secondary-token">
+              <span className="flex items-center gap-1"><div className="w-3 h-3 bg-elevated rounded" /> Libre</span>
               <span className="flex items-center gap-1"><div className="w-3 h-3 bg-rose-500/50 rounded" /> Obstáculo/Fuego</span>
               <span className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded" /> Ruta</span>
             </div>
           </div>
 
-          <div className="aspect-square w-full max-w-md mx-auto bg-zinc-900 border border-zinc-800 rounded-xl p-4 grid grid-cols-10 grid-rows-10 gap-1">
+          <div className="aspect-square w-full max-w-md mx-auto bg-surface border border-default-token rounded-xl p-4 grid grid-cols-10 grid-rows-10 gap-1">
             {grid.map((row, y) => (
               row.map((cell, x) => {
                 const isPath = path.some(p => p.x === x && p.y === y);
@@ -285,8 +285,8 @@ export function EvacuationRoutes() {
         </Card>
 
         {/* Details Panel */}
-        <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-6">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-emerald-500" />
             {t('evacuationRoutes.evacStatus', 'Estado de Evacuación')}
           </h2>
@@ -303,19 +303,19 @@ export function EvacuationRoutes() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Distancia</p>
-                  <p className="text-2xl font-black text-white">{path.length * 10}m</p>
+                <div className="p-4 rounded-xl bg-surface border border-default-token">
+                  <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Distancia</p>
+                  <p className="text-2xl font-black text-primary-token">{path.length * 10}m</p>
                 </div>
-                <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Tiempo Est.</p>
-                  <p className="text-2xl font-black text-white">{Math.ceil((path.length * 10) / 1.5)}s</p>
+                <div className="p-4 rounded-xl bg-surface border border-default-token">
+                  <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Tiempo Est.</p>
+                  <p className="text-2xl font-black text-primary-token">{Math.ceil((path.length * 10) / 1.5)}s</p>
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Instrucciones</p>
-                <ul className="space-y-2 text-sm text-zinc-300">
+              <div className="p-4 rounded-xl bg-surface border border-default-token">
+                <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-2">Instrucciones</p>
+                <ul className="space-y-2 text-sm text-secondary-token">
                   <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Avanzar al Norte 30m</li>
                   <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Girar al Este 20m</li>
                   <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Continuar al Sur 50m</li>
@@ -328,9 +328,9 @@ export function EvacuationRoutes() {
               </Button>
             </motion.div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-64 text-center border border-dashed border-zinc-800 rounded-xl bg-zinc-900/30">
-              <Info className="w-10 h-10 text-zinc-700 mb-3" />
-              <p className="text-sm text-zinc-500">Presiona "Generar Ruta" para calcular la vía de escape más segura usando IA.</p>
+            <div className="flex flex-col items-center justify-center h-64 text-center border border-dashed border-default-token rounded-xl bg-elevated">
+              <Info className="w-10 h-10 text-muted-token mb-3" />
+              <p className="text-sm text-muted-token">Presiona "Generar Ruta" para calcular la vía de escape más segura usando IA.</p>
             </div>
           )}
         </Card>
