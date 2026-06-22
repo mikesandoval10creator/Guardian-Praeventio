@@ -12,7 +12,8 @@
 //   • Integration: a published O₂ reading becomes a top-level
 //     telemetry_events doc that the confined-space gas gate blocks on.
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
+import type { MqttBridgeHandle } from './mqttTelemetryBridge.js';
 import crypto from 'node:crypto';
 
 const H = vi.hoisted(() => ({
@@ -557,9 +558,28 @@ function makeFakeMqttModule() {
 }
 
 describe('startMqttTelemetryBridge', () => {
+  // Tracks any bridge started in a test so afterEach can stop it and
+  // release the in-memory adapter's EventEmitter listeners. Without this
+  // teardown, tests that call startMqttTelemetryBridge but don't invoke
+  // handle.stop() leave the adapter holding live subscriptions → the
+  // DETECT_HANDLES reporter flags "leaked listener" handles on the worker.
+  let _activeHandle: MqttBridgeHandle | null = null;
+
   beforeEach(() => {
     H.db = createFakeFirestore();
     H.db._seed('tenants/t1/iot_devices/gas-7', { projectId: 'p1', status: 'active' });
+    _activeHandle = null;
+  });
+
+  afterEach(async () => {
+    if (_activeHandle) {
+      try {
+        await _activeHandle.stop();
+      } catch {
+        // ignore stop errors in teardown
+      }
+      _activeHandle = null;
+    }
   });
 
   const db = () => H.db! as unknown as FirebaseFirestore.Firestore;
@@ -595,7 +615,7 @@ describe('startMqttTelemetryBridge', () => {
 
   it('connects to the broker with credentials and subscribes under the prefix', async () => {
     const { client, mqttModule, connectCalls } = makeFakeMqttModule();
-    const handle = await startMqttTelemetryBridge({
+    _activeHandle = await startMqttTelemetryBridge({
       env: {
         MQTT_BROKER_URL: 'mqtts://broker.faena.cl:8883',
         MQTT_USERNAME: 'praeventio',
@@ -605,8 +625,8 @@ describe('startMqttTelemetryBridge', () => {
       db: db(),
       mqttModule,
     });
-    expect(handle).not.toBeNull();
-    expect(handle!.mode).toBe('broker');
+    expect(_activeHandle).not.toBeNull();
+    expect(_activeHandle!.mode).toBe('broker');
     expect(connectCalls).toHaveLength(1);
     expect(connectCalls[0].url).toBe('mqtts://broker.faena.cl:8883');
     expect(connectCalls[0].opts).toMatchObject({
@@ -620,7 +640,7 @@ describe('startMqttTelemetryBridge', () => {
 
   it('a broker message from a registered device lands in telemetry_events; rogue devices do not', async () => {
     const { client, mqttModule } = makeFakeMqttModule();
-    await startMqttTelemetryBridge({
+    _activeHandle = await startMqttTelemetryBridge({
       env: { MQTT_BROKER_URL: 'mqtt://broker:1883' },
       db: db(),
       mqttModule,
@@ -649,18 +669,19 @@ describe('startMqttTelemetryBridge', () => {
 
   it('stop() ends the broker client (graceful SIGTERM path)', async () => {
     const { client, mqttModule } = makeFakeMqttModule();
-    const handle = await startMqttTelemetryBridge({
+    _activeHandle = await startMqttTelemetryBridge({
       env: { MQTT_BROKER_URL: 'mqtt://broker:1883' },
       db: db(),
       mqttModule,
     });
-    await handle!.stop();
+    await _activeHandle!.stop();
+    _activeHandle = null; // already stopped
     expect(client.ended).toBe(true);
   });
 
   it('a poison message (Firestore write failing) does not crash the subscription', async () => {
     const { client, mqttModule } = makeFakeMqttModule();
-    await startMqttTelemetryBridge({
+    _activeHandle = await startMqttTelemetryBridge({
       env: { MQTT_BROKER_URL: 'mqtt://broker:1883' },
       db: db(),
       mqttModule,
@@ -682,13 +703,13 @@ describe('startMqttTelemetryBridge', () => {
   // ── Integration: MQTT reading → telemetry_events → gas gate verdict ──
 
   it('INTEGRATION: a published low-O₂ reading becomes a doc the confined-space gas gate blocks on', async () => {
-    const handle = await startMqttTelemetryBridge({
+    _activeHandle = await startMqttTelemetryBridge({
       env: { IOT_BROKER_ENABLED: '1', IOT_BROKER_ADAPTER: 'memory' },
       db: db(),
     });
-    expect(handle).not.toBeNull();
-    expect(handle!.mode).toBe('memory');
-    const adapter = handle!.adapter as InMemoryAdapter;
+    expect(_activeHandle).not.toBeNull();
+    expect(_activeHandle!.mode).toBe('memory');
+    const adapter = _activeHandle!.adapter as InMemoryAdapter;
 
     await adapter.publish(
       buildTopic('t1', 'p1', 'gas-7', 'telemetry'),
@@ -718,6 +739,7 @@ describe('startMqttTelemetryBridge', () => {
     const verdict = evaluateGasTelemetry(readings, Date.now());
     expect(verdict.blocked).toBe(true);
     expect(verdict.reasons.map((r) => r.code)).toContain('GAS_OXYGEN_LOW');
-    await handle!.stop();
+    await _activeHandle!.stop();
+    _activeHandle = null; // already stopped
   });
 });

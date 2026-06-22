@@ -14,8 +14,8 @@
 // El componente mockea el hook Sprint K y los contexts de proyecto/online
 // para que el test sea hermético — sin Firestore, sin fetch.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
 import { MaturityIndicator } from './MaturityIndicator';
 import type { MaturityIndexResponse } from '../hooks/useMaturityIndex';
 import type {
@@ -67,6 +67,17 @@ beforeEach(() => {
   mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
   mockIsOnline = true;
   mockUseMaturity = { data: null, loading: false, error: null };
+});
+
+// Explicit DOM cleanup + timer/async drain after each test so that no
+// jsdom XMLHttpRequest, pending AbortController, or Timeout handle leaks
+// from one test into the next (or into the DETECT_HANDLES snapshot taken
+// in afterAll). The global setup already wires cleanup() for every jsdom
+// test; this afterEach is belt-and-suspenders for the TCP-handle report
+// that CI flagged on this file (2026-06-22).
+afterEach(() => {
+  cleanup();
+  vi.clearAllTimers();
 });
 
 // ─────────────────────────────────────────────────────────────────────

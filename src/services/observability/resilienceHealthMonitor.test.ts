@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   buildResilienceHealthReport,
   makeDeviceKekChecker,
@@ -69,13 +69,12 @@ describe('buildResilienceHealthReport — basic aggregation', () => {
   });
 
   it('checker que toma demasiado tiempo → timeout', async () => {
+    // Never resolves — buildResilienceHealthReport races it against a
+    // 50ms internal deadline. A bare never-resolving promise has no timer
+    // and won't keep the worker event loop alive after the test; the old
+    // `setTimeout(5000)` leaked a 5s Timeout handle post-assertion.
     const slowChecker: SubsystemChecker = () =>
-      new Promise((res) =>
-        setTimeout(
-          () => res({ id: 'slm', status: 'healthy', detail: 'tarde' }),
-          5000,
-        ),
-      );
+      new Promise((_res) => { /* intentionally never resolves */ });
     const r = await buildResilienceHealthReport(
       { slm: slowChecker },
       { checkerTimeoutMs: 50 },
