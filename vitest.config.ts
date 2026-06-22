@@ -74,6 +74,16 @@ export default defineConfig({
     // imported module keep a worker's event loop alive forever. A bounded
     // teardown lets vitest kill lingering workers instead of waiting.
     teardownTimeout: 10_000,
+    // 2026-06-22 fix/vitest-pool-hang: activate vitest's built-in
+    // AsyncHook-based leak detector. When a test file leaves async resources
+    // alive (TCP sockets, timers, Firestore listeners, MQTT adapters), this
+    // reports the culprit with a stack trace instead of silently hanging for
+    // 14+ minutes until the CI watchdog force-kills the runner.
+    // Individual leakers fixed in the same PR:
+    //   • src/server/routes/healthDeep.test.ts — setTimeout(10_000) slow probe
+    //   • src/services/observability/resilienceHealthMonitor.test.ts — setTimeout(5000)
+    //   • src/server/triggers/mqttTelemetryBridge.test.ts — handle.stop() missing
+    detectAsyncLeaks: true,
     // Coverage instrumentation (Plan v3 Fase 1.0 — 2026-05-29). Provider
     // pinned to the exact vitest version. `all: true` counts source files
     // with NO importing test too, so the denominator is the honest "what
