@@ -117,7 +117,12 @@ describe('exceptions — approvedByUid anti-spoof (V2)', () => {
   // 3. Non-member-deny: outsider cannot create at all.
   it('non-member CANNOT create an exception', async () => {
     const db = requireEnv()
-      .authenticatedContext(NON_MEMBER, verifiedToken('supervisor'))
+      // NON_MEMBER must carry a NON-privileged role: a global 'supervisor'/'admin'
+      // claim satisfies isProjectMember() via the global-role branch (firestore.rules
+      // isProjectMember → isSupervisor||isAdmin), which would make this outsider write
+      // SUCCEED and mask a real cross-project-write property. Peer convention:
+      // projectScopedStores.rules.test.ts uses 'worker' for the same reason.
+      .authenticatedContext(NON_MEMBER, verifiedToken('worker'))
       .firestore();
     await assertFails(
       setDoc(ref(db, 'exceptions', 'ex-3'), {
@@ -230,7 +235,12 @@ describe('shifts — supervisorUid anti-spoof (V2)', () => {
   // 3. Non-member-deny.
   it('non-member CANNOT create a shift', async () => {
     const db = requireEnv()
-      .authenticatedContext(NON_MEMBER, verifiedToken('supervisor'))
+      // NON_MEMBER must carry a NON-privileged role: a global 'supervisor'/'admin'
+      // claim satisfies isProjectMember() via the global-role branch (firestore.rules
+      // isProjectMember → isSupervisor||isAdmin), which would make this outsider write
+      // SUCCEED and mask a real cross-project-write property. Peer convention:
+      // projectScopedStores.rules.test.ts uses 'worker' for the same reason.
+      .authenticatedContext(NON_MEMBER, verifiedToken('worker'))
       .firestore();
     await assertFails(
       setDoc(ref(db, 'shifts', 'sh-3'), {
