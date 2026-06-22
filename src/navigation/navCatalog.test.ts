@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildNavCatalog, type NavBlock } from './navCatalog';
+import { moduleGroups } from '../components/dashboard/moduleGroups';
 
 const tStub: any = (_k: string, fallback?: string): string => fallback ?? _k;
 const FREE = { canUseExecutiveDashboard: false };
@@ -65,6 +66,19 @@ describe('buildNavCatalog — fuente única de 10 bloques', () => {
     for (const p of ['/sif', '/lone-worker', '/stoppages', '/evacuation-dashboard',
                      '/emergency-brigade', '/restricted-zones', '/first-responder-map']) {
       expect(all, `falta la ruta vida-safety ${p}`).toContain(p);
+    }
+  });
+
+  it('carrusel (moduleGroups): cada path del carousel existe en el catálogo', () => {
+    // La fuente única de verdad es el catálogo; el carousel deriva de él.
+    // Este test falla si se agrega un path al carousel sin añadirlo al catálogo.
+    const catalogPaths = new Set(
+      buildNavCatalog(tStub, ORO, true).flatMap((b) => b.items.map((i) => i.path)),
+    );
+    for (const group of moduleGroups) {
+      for (const item of group.items) {
+        expect(catalogPaths, `carousel path '${item.path}' (${group.title}) no está en navCatalog`).toContain(item.path);
+      }
     }
   });
 });
