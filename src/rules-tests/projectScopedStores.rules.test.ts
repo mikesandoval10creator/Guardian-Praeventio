@@ -108,7 +108,10 @@ const OWNER_STORES: OwnerStore[] = [
 ];
 
 // Collections with no confirmed creator-uid field (plain member-gated write).
-const NO_OWNER_STORES = ['exceptions', 'legal_obligations', 'shifts'];
+// NOTE: 'exceptions' (approvedByUid) and 'shifts' (supervisorUid) are excluded —
+// they gained anti-spoof creator-uid requirements in the V2 hardening (2026-06-22)
+// and are tested in dedicated describe blocks below.
+const NO_OWNER_STORES = ['legal_obligations'];
 
 describe('projectScopedStores firestore.rules', () => {
   for (const s of OWNER_STORES) {
@@ -254,6 +257,143 @@ describe('projectScopedStores firestore.rules', () => {
       });
     });
   }
+
+  // exceptions — V2 anti-spoof: approvedByUid must equal request.auth.uid on
+  // create; immutable on update. delete is allowed for admin OR supervisor.
+  describe('exceptions (member-gated, approvedByUid anti-spoof)', () => {
+    it('member can create with their own approvedByUid', async () => {
+      const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+      await assertSucceeds(
+        setDoc(ref(db, 'exceptions', 'ex-s1'), { approvedByUid: MEMBER, status: 'open' }),
+      );
+    });
+    it('non-member cannot create', async () => {
+      const db = requireEnv().authenticatedContext(NON_MEMBER, verifiedToken('worker')).firestore();
+      await assertFails(
+        setDoc(ref(db, 'exceptions', 'ex-s2'), { approvedByUid: NON_MEMBER, status: 'open' }),
+      );
+    });
+    it('member can update keeping approvedByUid unchanged', async () => {
+      await seed('exceptions', 'ex-s3', { approvedByUid: MEMBER, status: 'open' });
+      const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+      await assertSucceeds(
+        setDoc(ref(db, 'exceptions', 'ex-s3'), { approvedByUid: MEMBER, status: 'closed' }),
+      );
+    });
+    it('member cannot spoof approvedByUid on create', async () => {
+      const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+      await assertFails(
+        setDoc(ref(db, 'exceptions', 'ex-s4'), { approvedByUid: OTHER_MEMBER, status: 'open' }),
+      );
+    });
+    it('member cannot change approvedByUid on update (immutable)', async () => {
+      await seed('exceptions', 'ex-s5', { approvedByUid: MEMBER, status: 'open' });
+      const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+      await assertFails(
+        setDoc(ref(db, 'exceptions', 'ex-s5'), { approvedByUid: OTHER_MEMBER, status: 'open' }),
+      );
+    });
+    it('worker CANNOT delete; admin can (delete rule: isAdmin || isSupervisor)', async () => {
+      await seed('exceptions', 'ex-s6', { approvedByUid: MEMBER, status: 'open' });
+      const memberDb = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+      await assertFails(deleteDoc(ref(memberDb, 'exceptions', 'ex-s6')));
+      const adminDb = requireEnv().authenticatedContext(ADMIN, verifiedToken('admin')).firestore();
+      await assertSucceeds(deleteDoc(ref(adminDb, 'exceptions', 'ex-s6')));
+    });
+  });
+
+  // shifts — V2 anti-spoof: supervisorUid must equal request.auth.uid on create;
+  // immutable on update. delete is allowed for admin OR supervisor.
+  describe('shifts (member-gated, supervisorUid anti-spoof)', () => {
+    it('member can create with their own supervisorUid', async () => {
+      const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+      await assertSucceeds(
+        setDoc(ref(db, 'shifts', 'sh-s1'), {
+          supervisorUid: MEMBER,
+          kind: 'morning',
+          startedAt: '2026-06-22T06:00:00Z',
+          logEntries: [],
+          handoverNotes: [],
+        }),
+      );
+    });
+    it('non-member cannot create', async () => {
+      const db = requireEnv().authenticatedContext(NON_MEMBER, verifiedToken('worker')).firestore();
+      await assertFails(
+        setDoc(ref(db, 'shifts', 'sh-s2'), {
+          supervisorUid: NON_MEMBER,
+          kind: 'morning',
+          startedAt: '2026-06-22T06:00:00Z',
+          logEntries: [],
+          handoverNotes: [],
+        }),
+      );
+    });
+    it('member can update keeping supervisorUid unchanged', async () => {
+      await seed('shifts', 'sh-s3', {
+        supervisorUid: MEMBER,
+        kind: 'morning',
+        startedAt: '2026-06-22T06:00:00Z',
+        logEntries: [],
+        handoverNotes: [],
+      });
+      const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+      await assertSucceeds(
+        setDoc(ref(db, 'shifts', 'sh-s3'), {
+          supervisorUid: MEMBER,
+          kind: 'morning',
+          startedAt: '2026-06-22T06:00:00Z',
+          endedAt: '2026-06-22T14:00:00Z',
+          logEntries: [],
+          handoverNotes: [],
+        }),
+      );
+    });
+    it('member cannot spoof supervisorUid on create', async () => {
+      const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+      await assertFails(
+        setDoc(ref(db, 'shifts', 'sh-s4'), {
+          supervisorUid: OTHER_MEMBER,
+          kind: 'morning',
+          startedAt: '2026-06-22T06:00:00Z',
+          logEntries: [],
+          handoverNotes: [],
+        }),
+      );
+    });
+    it('member cannot change supervisorUid on update (immutable)', async () => {
+      await seed('shifts', 'sh-s5', {
+        supervisorUid: MEMBER,
+        kind: 'morning',
+        startedAt: '2026-06-22T06:00:00Z',
+        logEntries: [],
+        handoverNotes: [],
+      });
+      const db = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+      await assertFails(
+        setDoc(ref(db, 'shifts', 'sh-s5'), {
+          supervisorUid: OTHER_MEMBER,
+          kind: 'morning',
+          startedAt: '2026-06-22T06:00:00Z',
+          logEntries: [],
+          handoverNotes: [],
+        }),
+      );
+    });
+    it('worker CANNOT delete; admin can (delete rule: isAdmin || isSupervisor)', async () => {
+      await seed('shifts', 'sh-s6', {
+        supervisorUid: MEMBER,
+        kind: 'morning',
+        startedAt: '2026-06-22T06:00:00Z',
+        logEntries: [],
+        handoverNotes: [],
+      });
+      const memberDb = requireEnv().authenticatedContext(MEMBER, verifiedToken('worker')).firestore();
+      await assertFails(deleteDoc(ref(memberDb, 'shifts', 'sh-s6')));
+      const adminDb = requireEnv().authenticatedContext(ADMIN, verifiedToken('admin')).firestore();
+      await assertSucceeds(deleteDoc(ref(adminDb, 'shifts', 'sh-s6')));
+    });
+  });
 
   // B17 (Fase 5) — lone-worker session integrity. A lone-worker session/event
   // belongs to ONE worker; a different project member must NOT be able to flip
