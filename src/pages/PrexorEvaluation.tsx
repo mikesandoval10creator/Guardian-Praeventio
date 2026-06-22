@@ -98,7 +98,7 @@ export function PrexorEvaluation() {
   if (!selectedProject) {
     return (
       <div className="p-8 max-w-3xl mx-auto" data-testid="prexor-page-empty">
-        <p className="text-zinc-400 text-sm">
+        <p className="text-muted-token text-sm">
           {t('protocols_minsal.select_project', 'Selecciona un proyecto para gestionar el protocolo.')}
         </p>
       </div>
@@ -191,11 +191,11 @@ export function PrexorEvaluation() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6" data-testid="prexor-page">
       <div>
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
           <Ear className="w-8 h-8 text-sky-400" />
           {t('prexor.title', 'PREXOR')}
         </h1>
-        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mt-2">
+        <p className="text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] mt-2">
           {t('prexor.subtitle', 'Protocolo de exposición ocupacional a ruido — D.S. 594 Art. 75')}
         </p>
       </div>
@@ -224,10 +224,10 @@ export function PrexorEvaluation() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Form */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4">
+          <div className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="block">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                <span className="text-xs font-bold text-secondary-token uppercase tracking-widest">
                   {t('protocols_minsal.task_label', 'Puesto de trabajo / tarea evaluada')}
                 </span>
                 <input
@@ -236,11 +236,11 @@ export function PrexorEvaluation() {
                   value={taskName}
                   onChange={(e) => setTaskName(e.target.value)}
                   placeholder={t('protocols_minsal.task_placeholder', 'Ej: Ensacado manual línea 2')}
-                  className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2.5 px-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                  className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2.5 px-3 text-sm text-primary-token placeholder:text-muted-token focus:outline-none focus:ring-2 focus:ring-sky-500/50"
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                <span className="text-xs font-bold text-secondary-token uppercase tracking-widest">
                   {t('protocols_minsal.worker_label', 'Trabajador o GES (opcional)')}
                 </span>
                 <input
@@ -249,12 +249,12 @@ export function PrexorEvaluation() {
                   value={workerId}
                   onChange={(e) => setWorkerId(e.target.value)}
                   placeholder={t('protocols_minsal.worker_placeholder', 'ID del trabajador o grupo de exposición similar')}
-                  className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2.5 px-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                  className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2.5 px-3 text-sm text-primary-token placeholder:text-muted-token focus:outline-none focus:ring-2 focus:ring-sky-500/50"
                 />
               </label>
             </div>
 
-            <h3 className="text-sm font-bold text-white pt-2">
+            <h3 className="text-sm font-bold text-primary-token pt-2">
               {t('prexor.measurements_title', 'Mediciones de la jornada')}
             </h3>
 
@@ -266,7 +266,7 @@ export function PrexorEvaluation() {
                   className="flex flex-col sm:flex-row gap-2 sm:items-end"
                 >
                   <label className="block flex-1">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                    <span className="text-[10px] font-bold text-muted-token uppercase tracking-widest">
                       {t('prexor.duration_hours', 'Duración (horas)')}
                     </span>
                     <input
@@ -277,11 +277,11 @@ export function PrexorEvaluation() {
                       data-testid={`prexor-duration-input-${idx}`}
                       value={row.durationHours}
                       onChange={(e) => updateRow(idx, 'durationHours', e.target.value)}
-                      className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                      className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2 px-3 text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-sky-500/50"
                     />
                   </label>
                   <label className="block flex-1">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                    <span className="text-[10px] font-bold text-muted-token uppercase tracking-widest">
                       {t('prexor.level_dba', 'Nivel de ruido dB(A)')}
                     </span>
                     <input
@@ -292,7 +292,7 @@ export function PrexorEvaluation() {
                       data-testid={`prexor-level-input-${idx}`}
                       value={row.levelDbA}
                       onChange={(e) => updateRow(idx, 'levelDbA', e.target.value)}
-                      className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                      className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2 px-3 text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-sky-500/50"
                     />
                   </label>
                   <button
@@ -301,7 +301,7 @@ export function PrexorEvaluation() {
                     data-testid={`prexor-remove-row-${idx}`}
                     onClick={() => removeRow(idx)}
                     disabled={rows.length === 1}
-                    className="flex items-center justify-center gap-1 text-rose-400 hover:text-rose-300 disabled:opacity-30 border border-white/10 rounded-xl px-3 py-2 text-xs"
+                    className="flex items-center justify-center gap-1 text-rose-400 hover:text-rose-300 disabled:opacity-30 border border-default-token rounded-xl px-3 py-2 text-xs"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -354,8 +354,8 @@ export function PrexorEvaluation() {
 
           {/* Result */}
           {result && (
-            <div data-testid="prexor-result" className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-3">
-              <h3 className="text-sm font-bold text-white">
+            <div data-testid="prexor-result" className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6 space-y-3">
+              <h3 className="text-sm font-bold text-primary-token">
                 {t('protocols_minsal.result_title', 'Resultado')}
               </h3>
               <div className="flex flex-wrap items-center gap-3">
@@ -365,11 +365,11 @@ export function PrexorEvaluation() {
                 >
                   {t(`prexor.risk_${result.riskLevel}`)}
                 </span>
-                <span className="text-xs text-zinc-300">
+                <span className="text-xs text-secondary-token">
                   <span className="font-bold">{t('prexor.dose', 'Dosis diaria')}:</span>{' '}
                   {formatNumber(result.dosePercent)}%
                 </span>
-                <span className="text-xs text-zinc-300">
+                <span className="text-xs text-secondary-token">
                   <span className="font-bold">{t('prexor.laeq', 'LAeq,8h equivalente')}:</span>{' '}
                   {formatNumber(result.leqEq8hDbA)} dB(A)
                 </span>
@@ -388,19 +388,19 @@ export function PrexorEvaluation() {
                   : t('prexor.within_limit', 'Dentro del límite legal D.S. 594')}
               </p>
               <div>
-                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">
+                <p className="text-[10px] font-black text-muted-token uppercase tracking-widest mb-1">
                   {t('protocols_minsal.mandated_action', 'Acción que exige el protocolo')}
                 </p>
                 {/* Engine recommendation is es-CL by design (MINSAL protocol). */}
-                <p className="text-xs text-zinc-300 leading-relaxed">{result.recommendation}</p>
+                <p className="text-xs text-secondary-token leading-relaxed">{result.recommendation}</p>
               </div>
             </div>
           )}
         </div>
 
         {/* History */}
-        <div data-testid="prexor-history" className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+        <div data-testid="prexor-history" className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6">
+          <h3 className="text-sm font-bold text-primary-token mb-4 flex items-center gap-2">
             <History className="w-4 h-4 text-sky-400" />
             {t('protocols_minsal.history_title', 'Historial del proyecto')}
           </h3>
@@ -409,7 +409,7 @@ export function PrexorEvaluation() {
               <Loader2 className="w-5 h-5 text-sky-400 animate-spin" />
             </div>
           ) : history.length === 0 ? (
-            <p data-testid="prexor-history-empty" className="text-xs text-zinc-500">
+            <p data-testid="prexor-history-empty" className="text-xs text-muted-token">
               {t('protocols_minsal.history_empty', 'Aún no hay evaluaciones registradas en este proyecto.')}
             </p>
           ) : (
@@ -420,15 +420,15 @@ export function PrexorEvaluation() {
                   <li
                     key={a.id}
                     data-testid={`prexor-history-item-${a.id}`}
-                    className="border border-white/5 rounded-xl p-3 space-y-1"
+                    className="border border-default-token rounded-xl p-3 space-y-1"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-white line-clamp-1">{a.taskName}</span>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded ${RISK_BADGE[r.riskLevel] ?? 'bg-zinc-700 text-zinc-300'}`}>
+                      <span className="text-xs font-bold text-primary-token line-clamp-1">{a.taskName}</span>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded ${RISK_BADGE[r.riskLevel] ?? 'bg-elevated text-muted-token'}`}>
                         {t(`prexor.risk_${r.riskLevel}`)}
                       </span>
                     </div>
-                    <p className="text-[10px] text-zinc-500">
+                    <p className="text-[10px] text-muted-token">
                       {t('protocols_minsal.history_date', 'Fecha')}: {formatDate(a.computedAt)} ·{' '}
                       {t('prexor.dose', 'Dosis diaria')}: {formatNumber(r.dosePercent)}%
                     </p>

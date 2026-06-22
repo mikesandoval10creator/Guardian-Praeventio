@@ -235,11 +235,11 @@ export function SSOConfig() {
       >
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
               <Key className="w-8 h-8 text-violet-500" aria-hidden="true" />
               {t('ssoConfig.title', 'Single Sign-On (SSO)')}
             </h1>
-            <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+            <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
               {t('ssoConfig.subtitle', 'SAML 2.0 · OIDC · Firebase Auth')}
             </p>
           </div>
@@ -301,8 +301,8 @@ export function SSOConfig() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Providers */}
-          <Card className="p-6 border-white/5 space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <Card className="p-6 border-default-token space-y-4">
+            <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
               <Building
                 className="w-5 h-5 text-violet-500"
                 aria-hidden="true"
@@ -318,7 +318,7 @@ export function SSOConfig() {
                   onClick={() => void handleSignInWithProvider(p)}
                   disabled={signingIn}
                   data-testid={`sso-provider-${p.providerId}`}
-                  className="w-full p-4 rounded-xl border-2 border-zinc-800 bg-zinc-900/50 hover:border-violet-500/40 transition-colors flex items-center justify-between gap-3 text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full p-4 rounded-xl border-2 border-default-token bg-surface hover:border-violet-500/40 transition-colors flex items-center justify-between gap-3 text-left disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div
@@ -331,11 +331,11 @@ export function SSOConfig() {
                       {p.logo}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-white">{p.name}</p>
-                      <p className="text-[11px] text-zinc-500 uppercase tracking-wider">
+                      <p className="text-sm font-bold text-primary-token">{p.name}</p>
+                      <p className="text-[11px] text-muted-token uppercase tracking-wider">
                         {p.kind}
                       </p>
-                      <p className="text-[10px] text-zinc-500 font-mono mt-0.5 truncate">
+                      <p className="text-[10px] text-muted-token font-mono mt-0.5 truncate">
                         {p.providerId}
                       </p>
                     </div>
@@ -365,13 +365,13 @@ export function SSOConfig() {
           </Card>
 
           {/* Configuration metadata (lo que admin necesita poner en Firebase) */}
-          <Card className="p-6 border-white/5 space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <Card className="p-6 border-default-token space-y-4">
+            <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
               <Lock className="w-5 h-5 text-violet-500" aria-hidden="true" />
               {t('ssoConfig.metadataSection', 'Datos para el IdP')}
             </h2>
 
-            <p className="text-xs text-zinc-400 leading-relaxed">
+            <p className="text-xs text-muted-token leading-relaxed">
               {t(
                 'ssoConfig.metadataDesc',
                 'Estos identificadores se registran UNA vez en Firebase Console (Authentication → Sign-in method) y se entregan al admin del IdP corporativo (Azure / Okta / Google Workspace) para configurar la SAML/OIDC application.',
@@ -399,21 +399,21 @@ export function SSOConfig() {
               onCopy={copyToClipboard}
             />
 
-            <div className="pt-2 border-t border-white/5">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
+            <div className="pt-2 border-t border-default-token">
+              <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-2">
                 {t('ssoConfig.attributeMappingTitle', 'Mapeo de atributos requerido')}
               </p>
               <ul className="space-y-1 text-[11px]">
                 <li className="flex justify-between">
-                  <span className="text-zinc-400">email</span>
+                  <span className="text-muted-token">email</span>
                   <code className="text-violet-300 font-mono">NameID (formato email)</code>
                 </li>
                 <li className="flex justify-between">
-                  <span className="text-zinc-400">displayName</span>
+                  <span className="text-muted-token">displayName</span>
                   <code className="text-violet-300 font-mono">name</code>
                 </li>
                 <li className="flex justify-between">
-                  <span className="text-zinc-400">role</span>
+                  <span className="text-muted-token">role</span>
                   <code className="text-violet-300 font-mono">role (custom claim)</code>
                 </li>
               </ul>
@@ -422,12 +422,12 @@ export function SSOConfig() {
         </div>
 
         {/* Email discovery — útil para que un user vea con qué provider DEBE loguearse */}
-        <Card className="p-6 border-white/5 space-y-4">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-4">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <Info className="w-5 h-5 text-violet-500" aria-hidden="true" />
             {t('ssoConfig.discoverySection', 'Descubrir método de login por email')}
           </h2>
-          <p className="text-xs text-zinc-400 leading-relaxed">
+          <p className="text-xs text-muted-token leading-relaxed">
             {t(
               'ssoConfig.discoveryDesc',
               'Si un usuario olvida con qué provider se enroló, ingresa su email aquí. Firebase Auth devuelve los providers asociados a esa cuenta.',
@@ -440,7 +440,7 @@ export function SSOConfig() {
               value={emailToCheck}
               onChange={(e) => setEmailToCheck(e.target.value)}
               data-testid="sso-discovery-input"
-              className="flex-1 px-3 py-2 rounded-md border border-white/10 bg-zinc-900 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+              className="flex-1 px-3 py-2 rounded-md border border-default-token bg-surface text-primary-token text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40"
             />
             <Button
               onClick={() => void handleCheckEmail()}
@@ -455,10 +455,10 @@ export function SSOConfig() {
           {discoveredMethods !== null && (
             <div
               data-testid="sso-discovery-result"
-              className="p-3 rounded-lg bg-zinc-900 border border-white/5"
+              className="p-3 rounded-lg bg-surface border border-default-token"
             >
               {discoveredMethods.length === 0 ? (
-                <p className="text-xs text-zinc-500 italic">
+                <p className="text-xs text-muted-token italic">
                   {t(
                     'ssoConfig.noMethods',
                     'No hay métodos registrados para ese email.',
@@ -484,7 +484,7 @@ export function SSOConfig() {
           )}
         </Card>
 
-        <p className="text-[10px] text-zinc-500 italic text-center">
+        <p className="text-[10px] text-muted-token italic text-center">
           {t(
             'ssoConfig.standardNote',
             'firebase/auth (Google) — SAMLAuthProvider + OAuthProvider productivos. La configuración del IdP (metadata XML SAML, Discovery URL OIDC) se registra UNA vez en Firebase Console por el admin del tenant.',
@@ -503,8 +503,8 @@ interface MetadataRowProps {
 
 function MetadataRow({ label, value, onCopy }: MetadataRowProps) {
   return (
-    <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
-      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+    <div className="p-3 rounded-xl bg-surface border border-default-token">
+      <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">
         {label}
       </p>
       <div className="flex items-center gap-2">
@@ -514,10 +514,10 @@ function MetadataRow({ label, value, onCopy }: MetadataRowProps) {
         <button
           type="button"
           onClick={() => onCopy(value)}
-          className="p-1.5 rounded hover:bg-white/5"
+          className="p-1.5 rounded hover:bg-elevated"
           aria-label="Copiar"
         >
-          <Copy className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+          <Copy className="w-4 h-4 text-muted-token" aria-hidden="true" />
         </button>
       </div>
     </div>

@@ -92,7 +92,7 @@ export function TmertEvaluation() {
   if (!selectedProject) {
     return (
       <div className="p-8 max-w-3xl mx-auto" data-testid="tmert-page-empty">
-        <p className="text-zinc-400 text-sm">
+        <p className="text-muted-token text-sm">
           {t('protocols_minsal.select_project', 'Selecciona un proyecto para gestionar el protocolo.')}
         </p>
       </div>
@@ -156,11 +156,11 @@ export function TmertEvaluation() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6" data-testid="tmert-page">
       <div>
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
           <Hand className="w-8 h-8 text-amber-400" />
           {t('tmert.title', 'TMERT-EESS')}
         </h1>
-        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mt-2">
+        <p className="text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] mt-2">
           {t('tmert.subtitle', 'Norma Técnica MINSAL — Trastornos musculoesqueléticos de extremidad superior')}
         </p>
       </div>
@@ -189,10 +189,10 @@ export function TmertEvaluation() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Form */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4">
+          <div className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="block">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                <span className="text-xs font-bold text-secondary-token uppercase tracking-widest">
                   {t('protocols_minsal.task_label', 'Puesto de trabajo / tarea evaluada')}
                 </span>
                 <input
@@ -201,11 +201,11 @@ export function TmertEvaluation() {
                   value={taskName}
                   onChange={(e) => setTaskName(e.target.value)}
                   placeholder={t('protocols_minsal.task_placeholder', 'Ej: Ensacado manual línea 2')}
-                  className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2.5 px-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2.5 px-3 text-sm text-primary-token placeholder:text-muted-token focus:outline-none focus:ring-2 focus:ring-amber-500/50"
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                <span className="text-xs font-bold text-secondary-token uppercase tracking-widest">
                   {t('protocols_minsal.worker_label', 'Trabajador o GES (opcional)')}
                 </span>
                 <input
@@ -214,12 +214,12 @@ export function TmertEvaluation() {
                   value={workerId}
                   onChange={(e) => setWorkerId(e.target.value)}
                   placeholder={t('protocols_minsal.worker_placeholder', 'ID del trabajador o grupo de exposición similar')}
-                  className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2.5 px-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2.5 px-3 text-sm text-primary-token placeholder:text-muted-token focus:outline-none focus:ring-2 focus:ring-amber-500/50"
                 />
               </label>
             </div>
 
-            <h3 className="text-sm font-bold text-white pt-2">
+            <h3 className="text-sm font-bold text-primary-token pt-2">
               {t('tmert.factors_title', 'Lista de chequeo de factores de riesgo')}
             </h3>
 
@@ -227,7 +227,7 @@ export function TmertEvaluation() {
               <fieldset
                 key={factor}
                 data-testid={`tmert-factor-${factor}`}
-                className="border border-white/10 rounded-xl p-4 space-y-2"
+                className="border border-default-token rounded-xl p-4 space-y-2"
               >
                 <legend className="text-xs font-black text-amber-400 uppercase tracking-widest px-1">
                   {t(`tmert.factor_${factor}`)}
@@ -239,9 +239,9 @@ export function TmertEvaluation() {
                       data-testid={`tmert-cond-${factor}-${cond}`}
                       checked={conditions[factor][cond]}
                       onChange={() => toggle(factor, cond)}
-                      className="mt-0.5 h-4 w-4 rounded border-white/20 bg-zinc-800 accent-amber-500"
+                      className="mt-0.5 h-4 w-4 rounded border-default-token bg-elevated accent-amber-500"
                     />
-                    <span className="text-xs text-zinc-300 leading-relaxed">
+                    <span className="text-xs text-secondary-token leading-relaxed">
                       {t(`tmert.${factor}_${cond.toLowerCase()}`)}
                     </span>
                   </label>
@@ -250,7 +250,7 @@ export function TmertEvaluation() {
             ))}
 
             <label className="block max-w-xs">
-              <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+              <span className="text-xs font-bold text-secondary-token uppercase tracking-widest">
                 {t('tmert.exposure_hours', 'Horas de exposición efectiva por jornada')}
               </span>
               <input
@@ -264,7 +264,7 @@ export function TmertEvaluation() {
                   setResult(null);
                   setExposureHours(Number(e.target.value));
                 }}
-                className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2.5 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2.5 px-3 text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-amber-500/50"
               />
             </label>
 
@@ -303,8 +303,8 @@ export function TmertEvaluation() {
 
           {/* Result */}
           {result && (
-            <div data-testid="tmert-result" className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-3">
-              <h3 className="text-sm font-bold text-white">
+            <div data-testid="tmert-result" className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6 space-y-3">
+              <h3 className="text-sm font-bold text-primary-token">
                 {t('protocols_minsal.result_title', 'Resultado')}
               </h3>
               <span
@@ -313,8 +313,8 @@ export function TmertEvaluation() {
               >
                 {t(`tmert.risk_${result.overallRisk}`)}
               </span>
-              <p className="text-xs text-zinc-400">
-                <span className="font-bold text-zinc-300">
+              <p className="text-xs text-muted-token">
+                <span className="font-bold text-secondary-token">
                   {t('tmert.factors_at_risk', 'Factores en riesgo')}:{' '}
                 </span>
                 {result.factorsAtRisk.length > 0
@@ -322,11 +322,11 @@ export function TmertEvaluation() {
                   : t('tmert.no_factors', 'Sin factores en riesgo')}
               </p>
               <div>
-                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">
+                <p className="text-[10px] font-black text-muted-token uppercase tracking-widest mb-1">
                   {t('protocols_minsal.mandated_action', 'Acción que exige el protocolo')}
                 </p>
                 {/* Engine recommendation is es-CL by design (MINSAL protocol). */}
-                <p className="text-xs text-zinc-300 leading-relaxed">{result.recommendation}</p>
+                <p className="text-xs text-secondary-token leading-relaxed">{result.recommendation}</p>
               </div>
               {result.requiresMedicalEvaluation && (
                 <p
@@ -342,8 +342,8 @@ export function TmertEvaluation() {
         </div>
 
         {/* History */}
-        <div data-testid="tmert-history" className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+        <div data-testid="tmert-history" className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6">
+          <h3 className="text-sm font-bold text-primary-token mb-4 flex items-center gap-2">
             <History className="w-4 h-4 text-amber-400" />
             {t('protocols_minsal.history_title', 'Historial del proyecto')}
           </h3>
@@ -352,7 +352,7 @@ export function TmertEvaluation() {
               <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
             </div>
           ) : history.length === 0 ? (
-            <p data-testid="tmert-history-empty" className="text-xs text-zinc-500">
+            <p data-testid="tmert-history-empty" className="text-xs text-muted-token">
               {t('protocols_minsal.history_empty', 'Aún no hay evaluaciones registradas en este proyecto.')}
             </p>
           ) : (
@@ -363,15 +363,15 @@ export function TmertEvaluation() {
                   <li
                     key={a.id}
                     data-testid={`tmert-history-item-${a.id}`}
-                    className="border border-white/5 rounded-xl p-3 space-y-1"
+                    className="border border-default-token rounded-xl p-3 space-y-1"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-white line-clamp-1">{a.taskName}</span>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded ${RISK_BADGE[r.overallRisk] ?? 'bg-zinc-700 text-zinc-300'}`}>
+                      <span className="text-xs font-bold text-primary-token line-clamp-1">{a.taskName}</span>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded ${RISK_BADGE[r.overallRisk] ?? 'bg-elevated text-muted-token'}`}>
                         {t(`tmert.risk_${r.overallRisk}`)}
                       </span>
                     </div>
-                    <p className="text-[10px] text-zinc-500">
+                    <p className="text-[10px] text-muted-token">
                       {t('protocols_minsal.history_date', 'Fecha')}: {formatDate(a.computedAt)}
                     </p>
                   </li>
