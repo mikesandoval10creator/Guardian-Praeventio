@@ -2,7 +2,7 @@
 // Primary action: shows clause + scope + references. Official link is secondary.
 // No fabricated guidance — only real ComplianceControl fields.
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, BookCheck, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +15,10 @@ interface Iso45001DetailDrawerProps {
 
 export function Iso45001DetailDrawer({ controlId, onClose }: Iso45001DetailDrawerProps) {
   const { t } = useTranslation();
+  // Focus management: save the element that opened the drawer so we can
+  // restore focus when it closes.
+  const returnFocusRef = useRef<Element | null>(null);
+  const asideRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!controlId) return undefined;
@@ -22,6 +26,19 @@ export function Iso45001DetailDrawer({ controlId, onClose }: Iso45001DetailDrawe
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [controlId, onClose]);
+
+  // On open: capture current focus, then move focus into the drawer panel.
+  // On close: restore focus to the element that triggered the open.
+  // TODO: full tab-trap deferred (repo-wide gap, matches Modal.tsx)
+  useEffect(() => {
+    if (controlId) {
+      returnFocusRef.current = document.activeElement;
+      asideRef.current?.focus();
+    } else {
+      (returnFocusRef.current as HTMLElement | null)?.focus();
+      returnFocusRef.current = null;
+    }
+  }, [controlId]);
 
   if (!controlId) return null;
   const control = ISO_45001_BY_ID[controlId];
@@ -39,7 +56,11 @@ export function Iso45001DetailDrawer({ controlId, onClose }: Iso45001DetailDrawe
         onClick={onClose}
         aria-hidden="true"
       />
-      <aside className="relative h-full w-full max-w-md bg-surface border-l border-default-token shadow-mode overflow-y-auto">
+      <aside
+        ref={asideRef}
+        tabIndex={-1}
+        className="relative h-full w-full max-w-md bg-surface border-l border-default-token shadow-mode overflow-y-auto outline-none"
+      >
         <header className="sticky top-0 flex items-center justify-between gap-2 bg-elevated border-b border-default-token px-4 py-3">
           <div className="flex items-center gap-2 min-w-0">
             <BookCheck className="w-4 h-4 text-[var(--accent-info,#38bdf8)] shrink-0" aria-hidden="true" />

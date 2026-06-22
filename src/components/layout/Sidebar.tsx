@@ -238,7 +238,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                                 </span>
 
                                 {item.isBeta && (
-                                  <span className="ml-2 px-1.5 py-0.5 rounded-md bg-elevated text-[8px] font-black tracking-widest text-muted-token uppercase">
+                                  <span className="ml-2 px-1.5 py-0.5 rounded-md bg-elevated text-[10px] font-black tracking-widest text-muted-token uppercase">
                                     Beta
                                   </span>
                                 )}

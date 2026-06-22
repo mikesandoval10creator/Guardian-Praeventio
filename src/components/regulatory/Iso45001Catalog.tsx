@@ -60,7 +60,7 @@ export function Iso45001Catalog({
               key={c.id}
               data-testid={`iso45001-control-${c.id}`}
               className={`flex items-center gap-2 p-2 rounded ${
-                covered ? 'bg-emerald-500/10' : 'bg-surface-elevated'
+                covered ? 'bg-[color-mix(in_srgb,var(--accent-success)_10%,transparent)]' : 'bg-elevated'
               }`}
             >
               <button
@@ -76,7 +76,7 @@ export function Iso45001Catalog({
               </button>
               {covered && (
                 <span
-                  className="text-xs font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                  className="text-xs font-bold uppercase px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--accent-success)_20%,transparent)] text-[var(--accent-success)]"
                   data-testid={`iso45001-covered-${c.id}`}
                 >
                   ✓
