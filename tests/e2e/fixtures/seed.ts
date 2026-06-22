@@ -46,6 +46,22 @@ export interface SeedProjectOptions {
   tenantId?: string;
   /** Optional latitude/longitude to populate `location`. */
   location?: { lat: number; lng: number; altitude?: number };
+  /**
+   * Seed the project with a DECLARED emergency (`isEmergencyActive: true`).
+   * The worker-facing SOSButton (RootLayout, global) renders ONLY when
+   * AppMode === 'emergency'; the `/emergency` page mirrors this flag into
+   * AppMode via `resolveEmergencyModeTransition`. Without it the SOS button
+   * never appears, so the SOS E2E cannot exercise the real long-press path.
+   * Defaults to `false` (the historical seed shape).
+   */
+  emergencyActive?: boolean;
+  /**
+   * Optional `phone` field on the project doc. The SOSButton's zero-reach
+   * fallback (`delivered === false` — the normal case in the E2E harness,
+   * which has no registered FCM devices and no email service) dials
+   * `tel:${project.phone}`. Seed a number to exercise that real fallback.
+   */
+  phone?: string;
 }
 
 export interface SeededProject {
@@ -81,7 +97,8 @@ export async function seedProject(
     members: [supervisorUid],
     location: options.location ?? null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    isEmergencyActive: false,
+    isEmergencyActive: options.emergencyActive ?? false,
+    ...(options.phone !== undefined ? { phone: options.phone } : {}),
   });
 
   const crewRef = projectRef.collection('crews').doc();

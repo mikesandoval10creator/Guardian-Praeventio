@@ -226,7 +226,18 @@
     "incident_flow": "Incident Flow",
     "waste_inventory": "Environmental Waste",
     "safety_metrics": "Safety Metrics (TRIR/LTIFR)",
-    "project_setup": "Configure Industry"
+    "project_setup": "Configure Industry",
+    "block_principal": "Home",
+    "block_operativa": "Operations",
+    "block_riesgos": "Risk Prevention",
+    "block_salud": "Occupational Health",
+    "block_cumplimiento": "Compliance",
+    "block_emergencias": "Emergencies",
+    "block_conocimiento": "Knowledge",
+    "block_ia_coach": "AI & Coach",
+    "block_innovacion": "Innovation",
+    "block_administracion": "Administration",
+    "search_placeholder": "What do you need?"
   },
   "auth": {
     "login": "Sign In",
@@ -1426,6 +1437,16 @@
     "brand": "Praeventio",
     "goggles": "Goggles",
     "boots": "Boots"
+  },
+  "epp_selector": {
+    "section_label": "Smart Personalization PPE",
+    "badge": "Smart Personalization",
+    "title": "Adapt your gear to your profession and environment",
+    "subtitle": "Every decision counts for your safety.",
+    "rubro_label": "Select your industry",
+    "rubro_aria": "Industry or sector",
+    "grid_label": "Protective equipment for {{rubro}}",
+    "norm_note": "Per DS 594 — Regulation on basic sanitary and environmental conditions in the workplace"
   },
   "dashboard_actions": {
     "fast_check": "Fast Check",

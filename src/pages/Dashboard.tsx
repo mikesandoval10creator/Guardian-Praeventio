@@ -58,6 +58,7 @@ import { useComplianceTrafficLight } from '../hooks/useComplianceTrafficLight';
 import { RubroBenchmarksCard } from '../components/dashboard/RubroBenchmarksCard';
 import { DashboardQuickActions } from '../components/dashboard/DashboardQuickActions';
 import { EPPRequiredWidget } from '../components/dashboard/EPPRequiredWidget';
+import { EppSelector } from '../components/epp/EppSelector';
 import { ManDownSupervisorWidget } from '../components/dashboard/ManDownSupervisorWidget';
 import { DashboardHero } from '../components/dashboard/DashboardHero';
 import { AdviceBanner } from '../components/dashboard/AdviceBanner';
@@ -534,6 +535,9 @@ export function Dashboard() {
 
       {/* 5. EPP Widget */}
       <EPPRequiredWidget />
+
+      {/* 5b. Personalización Inteligente — interactive EPP selector by rubro */}
+      <EppSelector />
 
       {/* 6. Modules - Scrollable Grid */}
       <ModuleGroupsGrid />

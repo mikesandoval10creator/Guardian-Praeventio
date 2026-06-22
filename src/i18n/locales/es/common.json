@@ -226,7 +226,18 @@
     "incident_flow": "Flujo de Incidentes",
     "waste_inventory": "Residuos Ambientales",
     "safety_metrics": "Métricas SST (TRIR/LTIFR)",
-    "project_setup": "Configurar Industria"
+    "project_setup": "Configurar Industria",
+    "block_principal": "Principal",
+    "block_operativa": "Gestión Operativa",
+    "block_riesgos": "Prevención y Riesgos",
+    "block_salud": "Salud Ocupacional",
+    "block_cumplimiento": "Cumplimiento",
+    "block_emergencias": "Emergencias",
+    "block_conocimiento": "Conocimiento",
+    "block_ia_coach": "IA y Coach",
+    "block_innovacion": "Innovación",
+    "block_administracion": "Administración",
+    "search_placeholder": "¿Qué necesitas?"
   },
   "auth": {
     "login": "Iniciar Sesión",
@@ -1426,6 +1437,16 @@
     "brand": "Praeventio",
     "goggles": "Lentes",
     "boots": "Zapatos"
+  },
+  "epp_selector": {
+    "section_label": "Personalización Inteligente EPP",
+    "badge": "Personalización Inteligente",
+    "title": "Adapta tu equipo según tu profesión y entorno",
+    "subtitle": "Cada decisión cuenta para tu seguridad.",
+    "rubro_label": "Selecciona tu rubro",
+    "rubro_aria": "Rubro o industria",
+    "grid_label": "Equipos de protección para {{rubro}}",
+    "norm_note": "Según DS 594 — Reglamento sobre condiciones sanitarias y ambientales básicas en los lugares de trabajo"
   },
   "dashboard_actions": {
     "fast_check": "Fast Check",
