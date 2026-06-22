@@ -23,29 +23,31 @@ El requisito de fundador vive en CSS-vars semánticas (`src/index.css`) redefini
 
 Cross-cutting a preservar: `easy-reading`, `high-contrast`, `glove-friendly` (tap 44→56px), `low-connectivity`, focus-visible global. Viven en la misma capa de tokens.
 
-## 3. Sistema de color — paleta por modo
+## 3. Sistema de color — paleta por modo (DECISIÓN 2026-06-22)
 
-Roles semánticos (mismos en los 4 modos; cambiar de modo = cambiar valores, no rediseñar). **Dorado = "requiere atención"** · **coral = alerta real** (nunca decorativo) · **teal = marca**.
+**Light / Dark / Emergencia: MANTENER la paleta existente de `src/index.css`** (ya on-brand: teal + petróleo + oro + rojo) — solo refinar (contraste WCAG, "requiere atención" → dorado). **Conducción: CAMBIA** a oscuro-cálido para **AHORRO DE BATERÍA (OLED apaga píxeles negros)** + glanceable (el actual es blanco → quema batería en turno largo al volante).
 
-| Rol | Light | Dark | Conducción (cálido) | Emergencia |
+Tokens semánticos reales (ya existen en `src/index.css`, bloques `:root`/`.dark`/`.driving`/`.emergency`): `--accent-primary` = marca · `--accent-warning` = atención (dorado/ámbar) · `--accent-hazard` = alerta/crítico · `--accent-success` · `--accent-info`.
+
+| Token | Light (`:root`) | Dark (`.dark`) | **Conducción (`.driving`) — NUEVO** | Emergencia (`.emergency`) |
 |---|---|---|---|---|
-| `bg-canvas` | `#f6f8f8` | `#0e1413` | `#15130d` | `#160a0a` |
-| `bg-surface` | `#ffffff` | `#18211f` | `#201d14` | `#221010` |
-| `bg-elevated` | `#ffffff` | `#1f2a28` | `#2a261a` | `#2c1413` |
-| `text-primary` | `#182826` | `#e9efed` | `#fff7e9` | `#fff3f2` |
-| `text-secondary` | `#5d6e6c` | `#9fb0ad` | `#cabfa1` | `#d9adaa` |
-| `text-muted` | `#8a9a98` | `#6f807d` | `#9a8e6f` | `#b08a87` |
-| `border-default` | `#e3e9e8` | `#28332f` | `#3a3422` | `#3a1c1a` |
-| `accent-brand` (teal) | `#0f8a7e` | `#4db6ac` | `#5fd9c8` | `#57c9bd` |
-| `accent-attention` (dorado) | `#c9962a` | `#e3b341` | `#ffce5a` | `#f3b81f` |
-| `accent-alert` (coral) | `#d24a42` | `#ff6f62` | `#ff6256` | `#ff5a4d` |
-| `accent-success` | `#2f9e7a` | `#54c69f` | `#5fdcb4` | `#57c9bd` |
-| `accent-critical` (rojo) | `#c62828` | `#ef5350` | `#ff5a4d` | `#ef4338` (dominante) |
+| `--bg-canvas` | `#fafafa` ✓ | `#061f2d` ✓ | `#0d0a05` (near-black cálido) | `#000000` ✓ |
+| `--bg-surface` | `#ffffff` ✓ | `#0a2e42` ✓ | `#1a160d` | `#0a0a0a` ✓ |
+| `--bg-elevated` | _(existente)_ ✓ | _(existente)_ ✓ | `#241f12` | _(existente)_ ✓ |
+| `--text-primary` | `#18181b` ✓ | `#ffffff` ✓ | `#fff7e9` | `#ffffff` ✓ |
+| `--text-secondary` | _(existente)_ ✓ | _(existente)_ ✓ | `#cabfa1` | _(existente)_ ✓ |
+| `--accent-primary` (marca) | `#4db6ac` teal ✓ | `#d4af37` oro ✓ | `#5fd9c8` teal glanceable | `#dc2626` SOS ✓ |
+| `--accent-warning` (atención) | `#f59e0b` ✓ | `#f59e0b` ✓ | `#ffce5a` | `#f59e0b` ✓ |
+| `--accent-hazard` (alerta) | `#dc2626` ✓ | `#ef4444` ✓ | `#ff5a4d` | `#ffffff` (inv.) ✓ |
+| `--border-default` | `rgba(24,24,27,.10)` ✓ | `rgba(212,175,55,.30)` ✓ | `rgba(255,247,233,.12)` | `rgba(220,38,38,.50)` ✓ |
+
+`✓` = se mantiene; solo verificar contraste. **Únicamente la columna Conducción cambia de valores.**
 
 Notas:
-- **Conducción** además: escala tipográfica +~30%, barras/indicadores más gruesos, tap targets grandes, mínima distracción.
-- **Emergencia**: el teal se usa como "calma/te están ayudando"; el rojo se reserva para la acción crítica (SOS), no decorativo.
-- Valores = punto de partida; **calibrar contraste WCAG AA** en implementación (especialmente texto sobre acentos). Dejar la perilla de ajuste fino.
+- **Conducción**: base oscura por **batería** (OLED) + escala tipográfica +~30%, indicadores gruesos, tap grande, mínima distracción. Variante día/noche: **ambas oscuras-cálidas** ahora (no blanco).
+- **Emergencia**: negro ya es óptimo de batería; rojo solo para la acción crítica (SOS).
+- "Requiere atención" → siempre `--accent-warning` (dorado/ámbar).
+- Valores nuevos de Conducción = punto de partida; **calibrar contraste WCAG AA** (texto sobre acentos).
 
 ## 4. Tipografía
 
