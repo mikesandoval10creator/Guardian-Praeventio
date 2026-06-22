@@ -74,6 +74,23 @@ export function Iso45001Catalog({
                 </p>
                 <p className="text-xs truncate">{c.title}</p>
               </button>
+              {/* External link to the official ISO standard page — only rendered
+                  when the control has a url in its first reference (all ISO
+                  baseline controls do). The data-testid is used by tests to
+                  assert the canonical ISO URL is correct. */}
+              {c.references[0]?.url && (
+                <a
+                  href={c.references[0].url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`ISO 45001 §${c.iso45001Clause} — fuente oficial`}
+                  className="shrink-0 text-[10px] text-sky-500 underline hover:text-sky-400 leading-none"
+                  data-testid={`iso45001-link-${c.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  ISO
+                </a>
+              )}
               {covered && (
                 <span
                   className="text-xs font-bold uppercase px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--accent-success)_20%,transparent)] text-[var(--accent-success)]"
