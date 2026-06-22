@@ -116,3 +116,15 @@ Construir en `src/components/shared` el set mínimo, todos sobre las CSS-vars de
 - **F5 — Pulido:** densidad compacta, movimiento estandarizado, verificación de contraste WCAG + no-overflow con pretext.
 
 Cada fase: PR propio, review, sin romper lo verde.
+
+## 12. Refinamientos post-mockup (2026-06-22, feedback del fundador)
+
+Tras revisar el mockup del dashboard. Se incorporan a F2 (dashboard/superficies) + responsive:
+
+1. **Boletín climático RICO (no solo métricas):** además de temp/humedad/viento/UV, mostrar **mensajes de prevención según la condición** (calor → hidratarse + pausas activas; frío/nieve → qué hacer / abrigo / superficies resbaladizas; viento fuerte → restringir trabajo en altura; UV alto → bloqueador/cobertura) + un **mensaje motivacional/útil**. Es el `WeatherBulletin` + `AdviceBanner` del prototipo/original. **Prohibido mostrar notas de dev en la UI** (ej. "antes no disponible por CSP" — eso era solo del mockup).
+2. **Carrusel de módulos INTERACTIVO = MANTENER:** movimiento pasivo izq→der (autoplay) — feature de descubribilidad/interactividad. NO reemplazar por grid estático. Solo arreglar el bug de duplicado (B4). Coexiste con el sidebar.
+3. **Sidebar izquierdo = MANTENER:** patrón familiar (retail/e-commerce), primera impresión correcta. Carrusel + sidebar = dos caminos al módulo (sigue reorganizado en 10 bloques colapsables, no la lista de 107).
+4. **Selector de EPP = restaurar** en el dashboard (equipo de protección personal requerido por faena/tarea).
+5. **Mascota Guardián con estados de ánimo = incorporar.** Ya existe (Guardián / ConsciousnessLoader / asistente "El Guardián"); tiene moods. Mostrarla viva en el dashboard reaccionando al estado de faena (tranquilo / atento / alerta). Puede mejorarse manteniendo directrices (ADR 0012 no-diagnóstico, no-pánico); posible escenario/stage para interacción + gamificación.
+6. **Responsive = DOS layouts (requisito):** Web/escritorio → diseño rico (como el mockup). Móvil → **vertical**, apilado y optimizado para celular. Mismo contenido, dos disposiciones; **vertical-first** en móvil; detectar viewport. pretext ayuda a que nada se corte en ninguno de los dos.
+7. **Gamificación:** revisar la deuda técnica de cómo está dispuesta hoy (pudo ser demasiado amplia); simplificar/mejorar aprovechando pretext (medición/layout). Alcance en su propio sub-plan, no bloquea F1/F2.
