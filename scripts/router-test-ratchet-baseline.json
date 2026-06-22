@@ -1,18 +1,15 @@
 {
   "_doc": "Ratchet baseline for scripts/check-router-test-ratchet.cjs. List of Express routers (src/server/routes) with NO real-router supertest (behavior unverified). May only SHRINK: a NEW uncovered router fails the gate (add a *.router.test.ts that imports the real router + uses request()); covering a baselined router and not regenerating also fails. Verified routers = total - uncovered = the measured \"verified working (server)\" inventory.",
   "total_routers": 205,
-  "verified": 195,
-  "uncovered_count": 10,
+  "verified": 198,
+  "uncovered_count": 7,
   "uncovered": [
     "src/server/routes/b2d/index.ts",
     "src/server/routes/expressBundle.ts",
     "src/server/routes/pricingCalculator.ts",
     "src/server/routes/pricingSimulator.ts",
-    "src/server/routes/pymeOnboarding.ts",
     "src/server/routes/pymeWizard.ts",
     "src/server/routes/reputationalAlerts.ts",
-    "src/server/routes/roleViews.ts",
-    "src/server/routes/spacedRepetition.ts",
     "src/server/routes/upsell.ts"
   ]
 }
