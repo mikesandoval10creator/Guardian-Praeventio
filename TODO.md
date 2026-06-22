@@ -12,7 +12,7 @@
 
 **Verificación independiente:** 2026-05-19 — re-ejecutado `npm test` + inspección de `firestore.rules`, `billing.ts`, `mercadoPagoIpn.ts`, `SusesoReports.tsx`, `vertexTrainer.ts`, `MeshPlugin.kt`, workflows `.github/`, y cruce con `AUDIT_TRUTH_MATRIX_2026-05-07.md` + `PRAEVENTIO_HONEST_STATE_2026-05-05.md`. Resultados: §2.11 (394 tests fallidos) **es falso** — vitest reporta `10029 passing / 0 failed / 1 todo intencional / success:true`. §4 (CI rota) **es falso** — los 4 workflows YAML están sanos (mutation.yml reparado Sprint 39 B.1, e2e.yml `continue-on-error:false` Sprint 36). §3 (Codex pendings) **ya mergeados** (commits `6a077212` PR #267, `326c68ce` PR #268, fixes verificados en código). Se descubrieron 7 items abiertos nuevos (Stripe scaffold drift, IAP single SKU, SusesoApiClient en frontend, ZK 3 fuentes, B2D Climate stub, B2D Coach stub, EPP claim Gemini-vision) — listados en §2.12-2.18. Plan de implementación con factibilidad en §12.
 
-**Cobertura E2E real ponderada (recalibrada 2026-05-15):** ~70% (subió de 62% en 2026-05-05 tras Sprints 39-56 + Wave F + Codex sweep). **Meta Day-1 mundial:** 95%+.
+**Cobertura E2E — CORREGIDO 2026-06-22 (verificado vs código, workflow wmr9qi6yb):** el "~70%" histórico era **unit+integración ponderado, NO journeys Playwright** — no confundir. **E2E real (Playwright):** 16 specs; ~3 corren por-PR (landing-smoke/landing/landing-i18n) + ~13 en el lane full-stack (`E2E_FULL_STACK=1`, **real-gating** `continue-on-error:false`); cobertura de journeys críticos por-PR es BAJA (auditoría externa la estimó ~11% páginas / ~0.3% endpoints). SOS e2e **des-fixme'ado** 2026-06-21 (flujo real); quedan 2 en `describe.fixme`: `offline-resilience`, `process-lifecycle`. **Meta Day-1:** journeys vida-safety con e2e activo.
 
 > **⚠ Reconciliación 2026-06-19 — auditoría ola MiMo + 2 auditorías externas (40k LOC).** La
 > cobertura E2E REAL medida por la auditoría externa es **~11% de páginas / ~0.3% de endpoints**
@@ -80,7 +80,7 @@ Cada dominio se mide:
 | **Mobile build pipeline** | 50% | ⬆️ +20pp | Foreground Service C.2 + capacitor-proximity C.3; **falta** keystore prod |
 | **CI/CD** | 75% | ⬇️ -15pp | **3 workflows rotos en main** (ver §4) |
 
-**Promedio ponderado E2E: ~70%** (subió desde 62% el 2026-05-05 tras 56 PRs mergeados + Codex sweep).
+**Promedio ponderado ~70% = unit+integración, NO journeys e2e** (corregido 2026-06-22). El E2E real de journeys Playwright es bajo por-PR (mayoría en el lane full-stack real-gating) — ver la corrección detallada arriba (§"Cobertura E2E — CORREGIDO 2026-06-22").
 
 ---
 
