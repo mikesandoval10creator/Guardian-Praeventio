@@ -884,19 +884,45 @@ service cloud.firestore {
           && incoming().authorUid == existing().authorUid;
         allow delete: if isAdmin() || isSupervisor();
       }
-      // TODO(review dahosandoval@): no creator-uid field confirmed in the schema
-      // for these three — anti-spoof N/A, so create/update is plain member-gated.
-      // Tighten once the owner field (if any) is settled.
+      // V2 (security hardening 2026-06-22): anti-spoof creator-uid guards.
+      //
+      // exceptions — creator field: `approvedByUid`.
+      //   ExceptionRecord.approvedByUid is the UID of the supervisor/admin who
+      //   approved (and in practice created) the exception. The server route
+      //   (src/server/routes/exceptions.ts) overrides it server-side, but the
+      //   Firestore rule is the last line of defence for any direct SDK write.
+      //   Pattern mirrors deas/{deaId} and clinical_alerts/{alertId} (peer
+      //   collections that also gate on createdBy == request.auth.uid).
+      //   On create: approvedByUid MUST equal the caller's uid.
+      //   On update: approvedByUid MUST stay immutable (cannot be reassigned).
       match /exceptions/{exceptionId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().approvedByUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().approvedByUid == existing().approvedByUid;
         allow delete: if isAdmin() || isSupervisor();
       }
+      // legal_obligations — ponytail: legal_obligations has no client-facing
+      // creator field; `lastAcknowledgedByUid` / `lastSnoozedByUid` are
+      // server-stamped by the HTTP route (src/server/routes/legalObligations.ts)
+      // and are NEVER written by the client SDK directly. Anti-spoof N/A for
+      // client writes. The server-side route enforces identity via verifyAuth.
       match /legal_obligations/{obligationId} {
         allow create, update: if isValidId(projectId) && isProjectMember(projectId);
         allow delete: if isAdmin() || isSupervisor();
       }
+      // shifts — creator field: `supervisorUid`.
+      //   ShiftRecord.supervisorUid identifies the supervisor who opened the
+      //   shift. On create: supervisorUid MUST equal the caller's uid (a
+      //   supervisor cannot open a shift attributing it to another person).
+      //   On update: supervisorUid MUST stay immutable (acknowledgedByUid is a
+      //   DIFFERENT field — the incoming supervisor — and is freely mutable).
+      //   Pattern mirrors safety_talks_given / lone_worker_sessions.
       match /shifts/{shiftId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().supervisorUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().supervisorUid == existing().supervisorUid;
         allow delete: if isAdmin() || isSupervisor();
       }
     }
