@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentacion / Documentation
+    url: https://github.com/mikesandoval10creator/praeventio-guard/blob/main/ARCHITECTURE.md
+    about: Revisar la documentacion de arquitectura antes de abrir un issue
