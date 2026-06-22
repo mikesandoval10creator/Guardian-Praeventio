@@ -11,8 +11,9 @@ import {
 } from './eppSelectorData';
 
 describe('EPP_SELECTOR_RUBROS', () => {
-  it('contains all founder-required industries', () => {
+  it('contains all founder-required industries (14 rubros from prototype)', () => {
     const ids = EPP_SELECTOR_RUBROS.map((r) => r.id);
+    // Original 9
     expect(ids).toContain('GP-MIN');
     expect(ids).toContain('GP-CONS');
     expect(ids).toContain('GP-AGR-SIL');
@@ -22,6 +23,24 @@ describe('EPP_SELECTOR_RUBROS', () => {
     expect(ids).toContain('GP-ELEC-EOL');
     expect(ids).toContain('GP-ALOJA-COM');
     expect(ids).toContain('GP-SAL');
+    // New 5 from prototype
+    expect(ids).toContain('GP-ALOJA-TUR');
+    expect(ids).toContain('GP-COM-VENT');
+    expect(ids).toContain('GP-GEO');
+    expect(ids).toContain('GP-MECA-AUTO');
+    expect(ids).toContain('GP-EDU');
+  });
+
+  it('has exactly 14 rubros matching the prototype industry list', () => {
+    expect(EPP_SELECTOR_RUBROS.length).toBe(14);
+  });
+
+  it('Educación rubro includes Vocación item with ❤️ emoji — beloved founder detail', () => {
+    const edu = EPP_SELECTOR_RUBROS.find((r) => r.id === 'GP-EDU');
+    expect(edu, 'GP-EDU rubro must exist').toBeTruthy();
+    const vocacion = edu!.items.find((item) => item.label.includes('Vocación'));
+    expect(vocacion, 'Educación must have a Vocación item').toBeTruthy();
+    expect(vocacion!.emoji).toBe('❤️');
   });
 
   it('every rubro has a label, id, and at least 3 EPP items', () => {

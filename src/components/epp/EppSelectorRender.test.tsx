@@ -28,12 +28,12 @@ describe('EppSelector', () => {
     ).toBeTruthy();
   });
 
-  it('renders the rubro dropdown with all industries', () => {
+  it('renders the rubro dropdown with all 14 industries from prototype', () => {
     render(<EppSelector />);
     const select = screen.getByTestId('epp-rubro-select') as HTMLSelectElement;
     expect(select).toBeTruthy();
-    // Should have 9 options (one per founder rubro)
-    expect(select.options.length).toBe(9);
+    // 14 rubros from the praevium-guard prototype (founder-confirmed list)
+    expect(select.options.length).toBe(14);
   });
 
   it('defaults to Minería and shows casco minero', () => {
@@ -71,5 +71,20 @@ describe('EppSelector', () => {
   it('EPP grid is present in DOM', () => {
     render(<EppSelector />);
     expect(screen.getByTestId('epp-grid')).toBeTruthy();
+  });
+
+  it('switching to Educación shows Vocación with ❤️ — beloved founder detail', () => {
+    render(<EppSelector />);
+    const select = screen.getByTestId('epp-rubro-select') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'GP-EDU' } });
+    expect(screen.getByText('Vocación')).toBeTruthy();
+    expect(screen.getByText('❤️')).toBeTruthy();
+  });
+
+  it('switching to Mecánica Automotriz shows overol and gafas', () => {
+    render(<EppSelector />);
+    const select = screen.getByTestId('epp-rubro-select') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'GP-MECA-AUTO' } });
+    expect(screen.getByText('Overol de trabajo')).toBeTruthy();
   });
 });

@@ -125,6 +125,59 @@ export const EPP_SELECTOR_RUBROS: EppSelectorRubro[] = [
       { emoji: '🧴', label: 'Desinfectante manos' },
     ],
   },
+  {
+    id: 'GP-ALOJA-TUR',
+    label: 'Hotelería y Turismo',
+    items: [
+      { emoji: '👔', label: 'Uniforme adecuado' },
+      { emoji: '👞', label: 'Calzado cómodo' },
+      { emoji: '🧤', label: 'Guantes de protección' },
+      { emoji: '😷', label: 'Mascarilla higiénica' },
+    ],
+  },
+  {
+    id: 'GP-COM-VENT',
+    label: 'Área de Ventas',
+    items: [
+      { emoji: '👞', label: 'Calzado ergonómico' },
+      { emoji: '🎗️', label: 'Faja lumbar' },
+      { emoji: '🏷️', label: 'Identificación visible' },
+      { emoji: '👔', label: 'Uniforme' },
+    ],
+  },
+  {
+    id: 'GP-GEO',
+    label: 'Geología',
+    items: [
+      { emoji: '⛑️', label: 'Casco de seguridad' },
+      { emoji: '🥾', label: 'Botas de trekking' },
+      { emoji: '🧥', label: 'Ropa de abrigo' },
+      { emoji: '📡', label: 'GPS y comunicación' },
+      { emoji: '🥽', label: 'Lentes de seguridad' },
+    ],
+  },
+  {
+    id: 'GP-MECA-AUTO',
+    label: 'Mecánica Automotriz',
+    items: [
+      { emoji: '🥼', label: 'Overol de trabajo' },
+      { emoji: '🥽', label: 'Gafas de seguridad' },
+      { emoji: '🧤', label: 'Guantes mecánicos' },
+      { emoji: '🥾', label: 'Calzado de seguridad' },
+    ],
+  },
+  {
+    id: 'GP-EDU',
+    label: 'Educación',
+    items: [
+      // ❤️ Beloved founder detail: in Education, what you truly need is Vocación.
+      // This is an intentional, heartfelt design choice — do NOT normalize away.
+      { emoji: '❤️', label: 'Vocación' },
+      { emoji: '👞', label: 'Calzado cómodo' },
+      { emoji: '👔', label: 'Ropa adecuada' },
+      { emoji: '🏷️', label: 'Identificación' },
+    ],
+  },
 ];
 
 // Default fallback — shown before any rubro is selected or for unknown ids
