@@ -1,4 +1,4 @@
-// src/components/layout/HeaderModeSwitcher.tsx
+﻿// src/components/layout/HeaderModeSwitcher.tsx
 import { useEffect, useRef, useState } from 'react';
 import { Sun, Moon, Car, AlertOctagon } from 'lucide-react';
 import { useAppMode } from '../../contexts/AppModeContext';
@@ -41,7 +41,7 @@ export function HeaderModeSwitcher() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="true"
+        aria-haspopup="dialog"
         aria-expanded={open}
         aria-label="Cambiar modo de visualización"
         className={cn(

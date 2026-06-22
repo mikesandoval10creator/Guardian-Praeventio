@@ -1,4 +1,4 @@
-// src/navigation/navCatalog.ts
+﻿// src/navigation/navCatalog.ts
 // Praeventio Guard — F1 Navegación (2026-06-22). Fuente ÚNICA de navegación.
 //
 // Consolida los ~107 ítems del sidebar plano "Centro de Mando"
@@ -18,7 +18,7 @@ import {
   Construction, Crosshair, Database, Droplets, Ear, Eye, Factory, FileCheck,
   FileText, Folder, Gamepad2, GitBranch, Grid, Hand, HeartPulse, HelpCircle,
   Home, Inbox as InboxIcon, Key, Layers, LayoutDashboard, LayoutGrid, Lightbulb, ListChecks,
-  Lock, Map, MessageSquare, Moon, Mountain, Network, OctagonAlert, Printer, Radio, Recycle,
+  Lock, Map, MessageSquare, Moon, Mountain, Network, OctagonAlert, Printer, Recycle,
   Scan, ScanLine, Settings as SettingsIcon, Shield, ShieldAlert, ShieldCheck, Siren,
   Stethoscope, Sun, Truck, User, UserCheck, Users, Wind, Wrench, Zap,
 } from 'lucide-react';
@@ -231,11 +231,10 @@ export function buildNavCatalog(
 
   // ── 9. INNOVACIÓN — gemelo digital, AR, mesh ─────────────────────────
   const innovacion: NavItem[] = [
-    { title: t('nav.digital_twin', 'Gemelo Digital 3D'), icon: Layers, path: '/hub/operations/digital-twin', color: 'text-cyan-400' },
+    { title: t('nav.digital_twin', 'Gemelo Digital 3D'), icon: Layers, path: '/digital-twin', color: 'text-cyan-400' },
     { title: t('nav.projects_compare', 'Comparar Proyectos'), icon: BarChart3, path: '/projects-compare', color: 'text-blue-500' },
     { title: t('nav.project_closure', 'Cierre de Proyecto'), icon: Briefcase, path: '/closure', color: 'text-violet-500' },
     { title: t('nav.leadership_decisions', 'Decisiones Supervisión'), icon: User, path: '/leadership-decisions', color: 'text-blue-500' },
-    { title: 'Digital Twin', icon: Box, path: '/digital-twin', color: 'text-fuchsia-500' },
     { title: 'Digital Twin AR', icon: Eye, path: '/digital-twin/ar', color: 'text-fuchsia-500' },
     { title: 'Blueprint Viewer', icon: Layers, path: '/blueprint-viewer', color: 'text-fuchsia-500' },
     { title: 'AutoCAD', icon: Grid, path: '/autocad', color: 'text-fuchsia-500' },
