@@ -226,7 +226,18 @@
     "incident_flow": "Flujo de Incidentes",
     "waste_inventory": "Residuos Ambientales",
     "safety_metrics": "Métricas SST (TRIR/LTIFR)",
-    "project_setup": "Configurar Industria"
+    "project_setup": "Configurar Industria",
+    "block_principal": "Principal",
+    "block_operativa": "Gestión Operativa",
+    "block_riesgos": "Prevención y Riesgos",
+    "block_salud": "Salud Ocupacional",
+    "block_cumplimiento": "Cumplimiento",
+    "block_emergencias": "Emergencias",
+    "block_conocimiento": "Conocimiento",
+    "block_ia_coach": "IA y Coach",
+    "block_innovacion": "Innovación",
+    "block_administracion": "Administración",
+    "search_placeholder": "¿Qué necesitas?"
   },
   "auth": {
     "login": "Iniciar Sesión",
