@@ -151,4 +151,49 @@ describe('verifyAuth — E2E_MODE guard', () => {
       await import('../../server/middleware/verifyAuth.js');
     }).rejects.toThrow(/FATAL.*production.*E2E_MODE/i);
   });
+
+  // V12 — timing-safe E2E secret compare.
+  // The compare `providedSecret !== secret` was replaced by `!safeSecretEqual(...)`.
+  // These tests verify behavioral parity: wrong secret still 401, correct still 200.
+  // The constant-time property cannot be asserted in unit tests (timing is env-dependent)
+  // but the behavioral contract is the observable requirement we pin here.
+  it('V12: accepts the correct secret after wiring safeSecretEqual (constant-time path)', async () => {
+    process.env.E2E_MODE = '1';
+    process.env.NODE_ENV = 'test';
+    process.env.E2E_TEST_SECRET = 'ct-secret-32-chars-padding-here!';
+
+    const { verifyAuth } = await import('../../server/middleware/verifyAuth.js');
+
+    const app = express();
+    app.get('/protected', verifyAuth, (req, res) => {
+      res.json({ uid: req.user!.uid });
+    });
+
+    const res = await request(app)
+      .get('/protected')
+      .set('Authorization', 'E2E ct-secret-32-chars-padding-here!:uid-ct');
+
+    expect(res.status).toBe(200);
+    expect(res.body.uid).toBe('uid-ct');
+  });
+
+  it('V12: rejects a wrong secret with 401 via safeSecretEqual (constant-time path)', async () => {
+    process.env.E2E_MODE = '1';
+    process.env.NODE_ENV = 'test';
+    process.env.E2E_TEST_SECRET = 'ct-secret-32-chars-padding-here!';
+
+    const { verifyAuth } = await import('../../server/middleware/verifyAuth.js');
+
+    const app = express();
+    app.get('/protected', verifyAuth, (_req, res) => {
+      res.json({ ok: true });
+    });
+
+    const res = await request(app)
+      .get('/protected')
+      .set('Authorization', 'E2E wrong-secret:uid-ct');
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/invalid e2e secret/i);
+  });
 });
