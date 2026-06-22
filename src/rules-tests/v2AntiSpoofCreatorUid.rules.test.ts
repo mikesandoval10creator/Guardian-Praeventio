@@ -180,14 +180,16 @@ describe('exceptions — approvedByUid anti-spoof (V2)', () => {
     await assertSucceeds(deleteDoc(ref(adminDb, 'exceptions', 'ex-6')));
   });
 
-  // 7. Delete-deny: plain member cannot delete.
-  it('plain member CANNOT delete an exception', async () => {
+  // 7. Delete-deny: a plain worker (role='worker') cannot delete.
+  //    Delete is restricted to isAdmin() || isSupervisor() per firestore.rules.
+  //    A supervisor CAN delete (correct — tested in test #6 above).
+  it('worker CANNOT delete an exception (only admin/supervisor can)', async () => {
     await seed('exceptions', 'ex-7', {
       approvedByUid: SUPERVISOR,
       status: 'active',
     });
     const memberDb = requireEnv()
-      .authenticatedContext(SUPERVISOR, verifiedToken('supervisor'))
+      .authenticatedContext(SUPERVISOR, verifiedToken('worker'))
       .firestore();
     await assertFails(deleteDoc(ref(memberDb, 'exceptions', 'ex-7')));
   });
@@ -313,11 +315,13 @@ describe('shifts — supervisorUid anti-spoof (V2)', () => {
     await assertSucceeds(deleteDoc(ref(adminDb, 'shifts', 'sh-6')));
   });
 
-  // 7. Delete-deny: plain member cannot delete.
-  it('plain member CANNOT delete a shift', async () => {
+  // 7. Delete-deny: a plain worker (role='worker') cannot delete.
+  //    Delete is restricted to isAdmin() || isSupervisor() per firestore.rules.
+  //    A supervisor CAN delete (correct — tested in test #6 above).
+  it('worker CANNOT delete a shift (only admin/supervisor can)', async () => {
     await seed('shifts', 'sh-7', { supervisorUid: SUPERVISOR, kind: 'morning' });
     const memberDb = requireEnv()
-      .authenticatedContext(SUPERVISOR, verifiedToken('supervisor'))
+      .authenticatedContext(SUPERVISOR, verifiedToken('worker'))
       .firestore();
     await assertFails(deleteDoc(ref(memberDb, 'shifts', 'sh-7')));
   });
@@ -389,11 +393,13 @@ describe('legal_obligations — member-gated (anti-spoof N/A, V2)', () => {
     await assertSucceeds(deleteDoc(ref(adminDb, 'legal_obligations', 'lo-4')));
   });
 
-  // 5. Plain member cannot delete.
-  it('plain member CANNOT delete a legal_obligation', async () => {
+  // 5. Delete-deny: a plain worker (role='worker') cannot delete.
+  //    Delete is restricted to isAdmin() || isSupervisor() per firestore.rules.
+  //    A supervisor CAN delete (correct — tested in test #4 above).
+  it('worker CANNOT delete a legal_obligation (only admin/supervisor can)', async () => {
     await seed('legal_obligations', 'lo-5', { kind: 'audit', projectId: PID });
     const memberDb = requireEnv()
-      .authenticatedContext(SUPERVISOR, verifiedToken('supervisor'))
+      .authenticatedContext(SUPERVISOR, verifiedToken('worker'))
       .firestore();
     await assertFails(deleteDoc(ref(memberDb, 'legal_obligations', 'lo-5')));
   });
