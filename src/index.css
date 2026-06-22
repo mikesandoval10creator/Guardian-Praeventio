@@ -206,6 +206,16 @@
     @apply antialiased;
     background-color: var(--bg-canvas);
     color: var(--text-primary);
+    font-feature-settings: 'cv11', 'ss01';
+    font-variation-settings: 'opsz' 32;
+  }
+
+  /* Eyebrow label: uso OPT-IN para mini-etiquetas. El default deja de ser uppercase. */
+  .label-eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;   /* 12px mínimo legible */
+    font-weight: 600;
   }
 
   /* Global Dark Mode Border Overrides (Gold) */
