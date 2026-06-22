@@ -126,10 +126,10 @@ function SunTrackerInner() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+          <h1 className="text-2xl font-black text-primary uppercase tracking-tighter flex items-center gap-3">
             <Sun className="w-7 h-7 text-yellow-400" /> {t('sunTracker.title', 'Radiación UV')}
           </h1>
-          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">{t('sunTracker.subtitle', 'Ley 20.096 · Ley 16.744')}</p>
+          <p className="text-xs text-muted-token uppercase tracking-widest mt-1">{t('sunTracker.subtitle', 'Ley 20.096 · Ley 16.744')}</p>
         </div>
         <div className={`px-4 py-2 rounded-xl border flex items-center gap-2 font-bold uppercase tracking-widest text-xs ${band.cls}`}>
           <AlertTriangle className="w-4 h-4" /> Riesgo {band.level} · UV {uv}
@@ -138,14 +138,14 @@ function SunTrackerInner() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6 border-white/5 space-y-4">
-          <h2 className="text-sm font-bold text-white uppercase tracking-widest">{t('sunTracker.conditions', 'Condiciones')}</h2>
+          <h2 className="text-sm font-bold text-primary uppercase tracking-widest">{t('sunTracker.conditions', 'Condiciones')}</h2>
 
           <Field label="Latitud" right={
             <button onClick={handleGetLocation} className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
               <MapPin className="w-3 h-3" /> Usar GPS
             </button>}>
             <input type="number" value={latitude} onChange={e => setLatitude(Number(e.target.value))}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm" />
+              className="w-full bg-elevated border border-default-token rounded-lg px-3 py-2 text-primary text-sm" />
           </Field>
 
           <Range label={`Día del año: ${dayOfYear}`} min={1} max={365} value={dayOfYear} onChange={setDayOfYear} accent="emerald" />
@@ -155,10 +155,10 @@ function SunTrackerInner() {
         </Card>
 
         <Card className="p-6 border-white/5 space-y-4">
-          <h2 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
+          <h2 className="text-sm font-bold text-primary uppercase tracking-widest flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-yellow-500" /> {t('sunTracker.epp.required', 'EPP obligatorio')}
           </h2>
-          <ul className="space-y-2 text-sm text-zinc-300">
+          <ul className="space-y-2 text-sm text-secondary">
             <Recommendation active={uv >= 3} color="bg-yellow-500" text="FPS 30+ reaplicado cada 2 hrs." />
             <Recommendation active={uv >= 6} color="bg-orange-500" text="Gorro legionario, lentes UV-A/B, manga larga." />
             <Recommendation active={uv >= 8} color="bg-rose-500" text="Reprogramar tareas pesadas a horarios sombra." />
@@ -191,7 +191,7 @@ function Field({ label, right, children }: { label: string; right?: React.ReactN
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
-        <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest">{label}</label>
+        <label className="block text-xs font-bold text-secondary uppercase tracking-widest">{label}</label>
         {right}
       </div>
       {children}
@@ -204,7 +204,7 @@ function Range({ label, min, max, step, value, onChange, accent }: {
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-zinc-400 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-secondary mb-1">{label}</label>
       <input type="range" min={min} max={max} step={step ?? 1} value={value} onChange={e => onChange(Number(e.target.value))}
         className={`w-full accent-${accent}-500`} />
     </div>

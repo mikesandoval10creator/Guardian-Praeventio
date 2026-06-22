@@ -190,10 +190,10 @@ function PoolGameInner() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+          <h1 className="text-2xl font-black text-primary uppercase tracking-tighter flex items-center gap-3">
             <Route className="w-7 h-7 text-violet-400" /> {t('poolGame.title', 'Drill de Evacuación')}
           </h1>
-          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">{t('poolGame.subtitle', 'DS 594 · NCh 2189')}</p>
+          <p className="text-xs text-muted-token uppercase tracking-widest mt-1">{t('poolGame.subtitle', 'DS 594 · NCh 2189')}</p>
         </div>
         {savedDoc && (
           <div className="px-4 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 font-bold flex items-center gap-2">
@@ -203,7 +203,7 @@ function PoolGameInner() {
       </div>
 
       <Card className="p-6 space-y-4 border-white/5">
-        <p className="text-sm text-zinc-400">
+        <p className="text-sm text-secondary">
           Haz click en el plano para marcar waypoints desde el trabajador <span className="text-emerald-400">●</span>
           {' '}hasta la salida <span className="text-amber-400">○</span>. Evita los obstáculos (gris).
         </p>

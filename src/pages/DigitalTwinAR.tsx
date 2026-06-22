@@ -87,11 +87,11 @@ export function DigitalTwinAR() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             {t('digitalTwinAr.backTwin', 'Volver al Twin 3D')}
           </Button>
-          <h1 className="mt-4 text-3xl md:text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+          <h1 className="mt-4 text-3xl md:text-4xl font-black text-primary uppercase tracking-tighter flex items-center gap-3">
             <Glasses className="w-8 h-8 text-cyan-400" />
             {t('digitalTwinAr.title', 'Modo Realidad Aumentada')}
           </h1>
-          <p className="mt-2 text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">
+          <p className="mt-2 text-[10px] font-bold text-muted-token uppercase tracking-[0.2em]">
             {selectedProject?.name
               ? `${t('digitalTwinAr.project', 'Proyecto')}: ${selectedProject.name}`
               : t('digitalTwinAr.noProject', 'Selecciona un proyecto activo')}
@@ -142,10 +142,10 @@ export function DigitalTwinAR() {
           onClick={() => hasNativeAr && selectedProject && setMode('machinery')}
         >
           <Cpu className="w-10 h-10 text-cyan-400 mb-3" />
-          <h3 className="text-lg font-bold text-white mb-2">
+          <h3 className="text-lg font-bold text-primary mb-2">
             {t('digitalTwinAr.modeMachinery', 'Nodos en Maquinaria')}
           </h3>
-          <p className="text-sm text-zinc-300 mb-4">
+          <p className="text-sm text-secondary mb-4">
             {t(
               'digitalTwinAr.modeMachineryDesc',
               'Ve información de seguridad apuntando la cámara a una máquina del faena. Crea nuevos nodos para que tu equipo vea inspecciones, mantenimientos y alertas activas.',
@@ -172,10 +172,10 @@ export function DigitalTwinAR() {
           onClick={() => hasNativeAr && selectedProject && setMode('warehouse')}
         >
           <Warehouse className="w-10 h-10 text-emerald-400 mb-3" />
-          <h3 className="text-lg font-bold text-white mb-2">
+          <h3 className="text-lg font-bold text-primary mb-2">
             {t('digitalTwinAr.modeWarehouse', 'Planificar Bodega')}
           </h3>
-          <p className="text-sm text-zinc-300 mb-4">
+          <p className="text-sm text-secondary mb-4">
             {t(
               'digitalTwinAr.modeWarehouseDesc',
               'Placea virtualmente extintores, hidrantes, AEDs y 17 tipos de señalética para visualizar el orden antes de instalar. Detecta automáticamente pares demasiado cerca (<1.5m) para evitar interferencias.',
@@ -204,10 +204,10 @@ export function DigitalTwinAR() {
           onClick={() => selectedProject && setMode('poster')}
         >
           <ImageIcon className="w-10 h-10 text-violet-400 mb-3" />
-          <h3 className="text-lg font-bold text-white mb-2">
+          <h3 className="text-lg font-bold text-primary mb-2">
             {t('digitalTwinAr.modePoster', 'Escaneo de Poster')}
           </h3>
-          <p className="text-sm text-zinc-300 mb-4">
+          <p className="text-sm text-secondary mb-4">
             {t(
               'digitalTwinAr.modePosterDesc',
               'Apunta la cámara a un poster de seguridad impreso. MediaPipe detecta la imagen y muestra una animación educativa: cómo usar el arnés, protocolo del extintor, evacuación, etc.',
@@ -232,8 +232,8 @@ export function DigitalTwinAR() {
         </Card>
       </div>
 
-      <Card className="p-4 border-zinc-700/30 bg-zinc-900/20">
-        <p className="text-[10px] text-zinc-500 leading-relaxed">
+      <Card className="p-4 border-default-token bg-surface/20">
+        <p className="text-[10px] text-muted-token leading-relaxed">
           {t(
             'digitalTwinAr.privacyNote',
             'La información de tus máquinas y faena es PRIVADA por proyecto. Solo miembros del proyecto activo pueden ver los nodos AR que se creen aquí (validado a nivel de Firestore rules + tenant claims).',
