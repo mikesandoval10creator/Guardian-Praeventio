@@ -89,8 +89,6 @@ jobs:
             .
           docker push ${{ env.IMAGE }}:${SHA}
           docker push ${{ env.IMAGE }}:latest
-          docker push ${{ env.IMAGE }}:${SHA}
-          docker push ${{ env.IMAGE }}:latest
 
       - name: Deploy to Cloud Run
         id: deploy

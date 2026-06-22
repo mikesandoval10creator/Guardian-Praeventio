@@ -28,6 +28,7 @@ import type { Request, Response, NextFunction } from 'express';
 import admin from 'firebase-admin';
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
+import { safeSecretEqual } from './safeSecretEqual.js';
 
 function sentryCapture(
   err: unknown,
@@ -87,7 +88,7 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
     const sepIdx = token.indexOf(':');
     const providedSecret = sepIdx === -1 ? token : token.slice(0, sepIdx);
     const providedUid = sepIdx === -1 ? '' : token.slice(sepIdx + 1);
-    if (providedSecret !== secret) {
+    if (!safeSecretEqual(providedSecret, secret)) {
       return res.status(401).json({ error: 'Unauthorized: Invalid E2E secret' });
     }
     req.user = {
