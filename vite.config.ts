@@ -356,5 +356,16 @@ export default defineConfig(({mode}) => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
     },
+    // E2E full-stack: `vite preview` (:4173) forwards /api/* to the Express
+    // server (:3000) so browser-origin calls like SOSButton's relative
+    // `fetch('/api/emergency/sos')` reach the real backend. Without this the
+    // request hits the static preview server and 404s.
+    // ponytail: only `preview` needs it — `npm run dev` runs Express+Vite
+    // same-origin on :3000, so /api is already local there.
+    preview: {
+      proxy: {
+        '/api': { target: 'http://localhost:3000', changeOrigin: true },
+      },
+    },
   };
 });

@@ -350,7 +350,33 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      allow read: if isValidId(projectId) && isProjectMember(projectId);
+      // READ is split into `get` (single doc) and `list` (query). The Firestore
+      // rules-aware query engine evaluates `list` against query CONSTRAINTS, not
+      // a concrete document: any get()-based clause (isAdmin/isSupervisor read
+      // users/{uid}) raises "Null value error" during list eval, and
+      // resource.data.get(k,default) defeats the array-contains static match.
+      // The prior single `allow read: isProjectMember()` did a self-referential
+      // get() that the emulator cannot resolve during list at all.
+      //
+      // get: a single project doc is concrete, so the full check is safe and
+      // mirrors the prior isProjectMember() semantics (minus the self-get):
+      // member OR creator OR admin OR supervisor.
+      allow get: if isValidId(projectId) && isEmailVerified() && (
+        request.auth.uid in resource.data.members ||
+        resource.data.get('createdBy', '') == request.auth.uid ||
+        isAdmin() ||
+        isSupervisor()
+      );
+      // list: ONLY constraint-safe checks (no get()). The token-only role check
+      // (resource-independent → evaluated first) lets an admin/gerente run the
+      // unfiltered `query(collection('projects'))` ProjectContext uses for
+      // admins; DIRECT `resource.data.members` lets the engine match the
+      // non-admin `where('members','array-contains',uid)` query. A non-admin can
+      // therefore only list projects they belong to (tenant-scoped, no leak).
+      allow list: if isEmailVerified() && (
+        request.auth.token.role in ['admin', 'gerente'] ||
+        request.auth.uid in resource.data.members
+      );
       allow create: if isEmailVerified() && isValidProject(incoming()) && incoming().createdBy == request.auth.uid;
       allow update: if isEmailVerified() && (isAdmin() || isSupervisor() || existing().createdBy == request.auth.uid) && isValidProject(incoming());
       allow delete: if isEmailVerified() && (isAdmin() || existing().createdBy == request.auth.uid);
