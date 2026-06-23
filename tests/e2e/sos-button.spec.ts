@@ -32,6 +32,18 @@ import { seedProject } from './fixtures/seed';
  * Requires the full stack. Run via `npm run test:e2e:full`.
  */
 test.describe('SOSButton long-press (real flow)', () => {
+  // The SOS payload captures device location (captureGeo →
+  // navigator.geolocation.getCurrentPosition). In headless Chromium with no
+  // granted location, getCurrentPosition stalls (no prompt, the option timeout
+  // is unreliable headless), so the long-press POST never fires inside the
+  // spec's 20s waitForResponse window. Grant a fixed location so geo resolves
+  // immediately and the test exercises the REAL POST path. Scoped to this suite
+  // only — other specs (e.g. RestrictedZones geofence) rely on location denied.
+  test.use({
+    permissions: ['geolocation'],
+    geolocation: { latitude: -33.4489, longitude: -70.6693 }, // Santiago, CL
+  });
+
   test.skip(
     process.env.E2E_FULL_STACK !== '1',
     'Requires full E2E stack (preview + Express + Firestore/Auth emulator). Run `npm run test:e2e:full`.',
