@@ -6,6 +6,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { auth } from '../services/firebase';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
+import { DomainPromptCatalog } from '../components/coach/DomainPromptCatalog';
+import { useSubmit } from '../hooks/useSubmit';
 
 interface Message {
   id: string;
@@ -36,6 +38,7 @@ export function SafetyCoach() {
   const [loading, setLoading] = useState(false);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const { handleSubmit: submitMessage, isSubmitting } = useSubmit(async () => { await sendMessage(); });
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -143,6 +146,9 @@ export function SafetyCoach() {
         )}
       </div>
 
+      {/* Domain prompt catalog */}
+      <DomainPromptCatalog onDomainSelect={(d) => setInput(d)} />
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <AnimatePresence initial={false}>
@@ -217,14 +223,14 @@ export function SafetyCoach() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && void submitMessage()}
             placeholder={t('safetyCoach.input.placeholder', 'Pregunta al coach de seguridad…')}
             disabled={loading}
             className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
           />
           <button
-            onClick={sendMessage}
-            disabled={!input.trim() || loading}
+            onClick={submitMessage}
+            disabled={!input.trim() || loading || isSubmitting}
             className="w-10 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 flex items-center justify-center transition-colors"
           >
             <Send className="w-4 h-4 text-white" />

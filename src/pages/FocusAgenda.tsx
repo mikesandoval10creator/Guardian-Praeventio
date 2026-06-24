@@ -43,6 +43,7 @@ import {
   type FocusBlockKind,
 } from '../services/focusBlocks/focusBlocks';
 import { logger } from '../utils/logger';
+import { AgendaDigestCard } from '../components/agenda/AgendaDigestCard';
 
 // ────────────────────────────────────────────────────────────────────────
 // Kind metadata
@@ -362,6 +363,7 @@ export function FocusAgenda() {
   const week = useMemo(() => weekDates(new Date()), []);
   const weekStartYmd = isoYmd(week[0]);
   const weekEndYmd = isoYmd(week[6]);
+  const today = weekStartYmd;
 
   const reload = useCallback(async () => {
     if (!uid) {
@@ -517,6 +519,13 @@ export function FocusAgenda() {
         </div>
       )}
 
+      {uid && (
+        <AgendaDigestCard
+          workerUid={uid}
+          forDate={today}
+          inputs={{ upcomingItems: [], overdueActions: 0, pendingApprovals: 0, freshIncidents: 0 }}
+        />
+      )}
       <NewBlockModal
         open={modalOpen}
         uid={uid}

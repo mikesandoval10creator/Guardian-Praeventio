@@ -34,12 +34,14 @@ import {
   subscribeControlValidations,
 } from '../services/criticalControls/controlValidationsStore';
 import { logger } from '../utils/logger';
+import { useFailureLibrarySummary } from '../hooks/useControlComparator';
 
 // Plan 2026-05-24 §Fase B.6 batch2 — i18n sweep CriticalControlsView.
 export function CriticalControlsView() {
   const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
+  const failureSummary = useFailureLibrarySummary(selectedProject?.id ?? null);
 
   const RISK_CATEGORIES: Array<{ id: string; label: string }> = [
     { id: 'altura', label: t('critical_controls.risk.altura', 'Trabajo en altura') },

@@ -47,6 +47,9 @@ import {
   type KbSourceType,
 } from '../hooks/useKnowledgeBase';
 import { logger } from '../utils/logger';
+import { KnowledgeBaseSearch } from '../components/knowledgeBase/KnowledgeBaseSearch';
+import type { KnowledgeArticle } from '../services/knowledgeBase/knowledgeBaseService';
+import { SpacedRepetitionReviewQueue } from '../components/spacedRepetition/SpacedRepetitionReviewQueue';
 
 type TLite = (key: string, fallback?: string) => string;
 
@@ -132,6 +135,11 @@ export function KnowledgeBase() {
   const entries: KnowledgeEntry[] = useMemo(
     () => data?.entries ?? [],
     [data?.entries],
+  );
+
+  const articles = useMemo<KnowledgeArticle[]>(
+    () => entries as unknown as KnowledgeArticle[],
+    [entries],
   );
 
   const handleCreate = async (payload: {
@@ -489,6 +497,8 @@ export function KnowledgeBase() {
           t={t as TLite}
         />
       )}
+      <KnowledgeBaseSearch library={articles} />
+      <SpacedRepetitionReviewQueue cards={[]} />
     </div>
   );
 }
