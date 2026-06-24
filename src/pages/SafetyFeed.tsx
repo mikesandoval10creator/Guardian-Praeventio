@@ -172,10 +172,9 @@ export function SafetyFeed() {
       <header className="relative h-[250px] sm:h-[300px] rounded-[2rem] sm:rounded-[40px] overflow-hidden bg-surface border border-default-token group">
         <div className="absolute inset-0 bg-gradient-to-r from-black via-black/50 to-transparent z-10" />
         <img 
-          src="https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&q=80&w=1920" 
+          src="/heroes/hero-construction.svg"
           alt="Safety Community"
           className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:scale-105 transition-transform duration-700"
-          referrerPolicy="no-referrer"
         />
         <div className="relative z-20 h-full p-6 sm:p-12 flex flex-col justify-center max-w-2xl">
           <motion.div
