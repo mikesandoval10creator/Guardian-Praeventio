@@ -68,7 +68,16 @@ test.describe('SOSButton long-press (real flow)', () => {
       const sos = page.getByTestId('sos-button');
       await expect(sos).toBeVisible({ timeout: 15_000 });
 
-      const box = await sos.boundingBox();
+      // The global SOSButton mounts the instant ProjectContext flips AppMode to
+      // 'emergency'; toBeVisible can resolve a tick before layout settles (or
+      // during a transient remount), so boundingBox() may briefly be null. Poll
+      // for a stable box before computing the press coordinates.
+      await sos.scrollIntoViewIfNeeded();
+      let box = await sos.boundingBox();
+      for (let i = 0; i < 20 && !box; i++) {
+        await page.waitForTimeout(100);
+        box = await sos.boundingBox();
+      }
       if (!box) throw new Error('SOS button has no bounding box');
       const cx = box.x + box.width / 2;
       const cy = box.y + box.height / 2;
