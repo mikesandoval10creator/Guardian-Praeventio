@@ -1,5 +1,18 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
-import { get, set } from 'idb-keyval';
+/**
+ * ThemeContext — thin shim over AppModeContext.
+ *
+ * AppModeContext owns the `dark` class on <html> and persists `appearance`
+ * in localStorage. ThemeContext was a separate system (IndexedDB store +
+ * independent DOM writes) that could race with AppModeContext. This shim
+ * removes the conflict by reading from AppModeContext and forwarding writes.
+ *
+ * Migration note: the `theme_preference` IndexedDB key is no longer written
+ * to. Existing stored values are intentionally ignored — the canonical store
+ * is `gp.appmode.v1` (localStorage) managed by AppModeContext.
+ */
+import { useCallback, useEffect, useMemo, useState, createContext, useContext } from 'react';
+import type { ReactNode } from 'react';
+import { useAppMode } from './AppModeContext';
 
 type ThemeMode = 'light' | 'dark' | 'system' | 'auto';
 
@@ -18,101 +31,48 @@ function getIsDayTime(): boolean {
   return hour >= 6 && hour < 20;
 }
 
-function computeIsDark(mode: ThemeMode): boolean {
-  if (mode === 'dark') return true;
-  if (mode === 'light') return false;
-  if (mode === 'auto') {
-    const hour = new Date().getHours();
-    return hour < 6 || hour >= 18;
-  }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+function appearanceToThemeMode(appearance: string): ThemeMode {
+  if (appearance === 'light' || appearance === 'dark') return appearance;
+  return 'auto';
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { appearance, setAppearance } = useAppMode();
   const [isDayTime, setIsDayTime] = useState(getIsDayTime);
 
-  const applyTheme = useCallback((mode: ThemeMode) => {
-    const dark = computeIsDark(mode);
-    setIsDarkMode(dark);
-    setIsDayTime(getIsDayTime());
-    const root = window.document.documentElement;
-    if (dark) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+  // Tick hourly to refresh isDayTime (used by WeatherBulletin, SunTracker).
+  useEffect(() => {
+    const id = setInterval(() => setIsDayTime(getIsDayTime()), 60_000);
+    return () => clearInterval(id);
   }, []);
 
-  // Load preference from IndexedDB on mount
-  useEffect(() => {
-    get('theme_preference').then((pref) => {
-      const mode = (pref as ThemeMode) || 'system';
-      setThemeModeState(mode);
-      applyTheme(mode);
-    });
-  }, [applyTheme]);
+  const isDarkMode =
+    appearance === 'dark' ||
+    (appearance === 'auto' &&
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-  // React to mode changes + system media query + hourly tick
-  useEffect(() => {
-    applyTheme(themeMode);
-
-    const handlePrefChange = async () => {
-      const pref = await get('theme_preference');
-      const mode = (pref as ThemeMode) || 'system';
-      setThemeModeState(mode);
-      applyTheme(mode);
-    };
-    window.addEventListener('theme_preference_changed', handlePrefChange);
-
-    let mediaQuery: MediaQueryList | null = null;
-    let interval: NodeJS.Timeout | null = null;
-
-    if (themeMode === 'system') {
-      mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      mediaQuery.addEventListener('change', () => applyTheme(themeMode));
-    } else if (themeMode === 'auto') {
-      interval = setInterval(() => applyTheme(themeMode), 60_000);
-    } else {
-      // For fixed light/dark, still tick hourly to update isDayTime for cross-inversion
-      interval = setInterval(() => setIsDayTime(getIsDayTime()), 60_000);
-    }
-
-    return () => {
-      window.removeEventListener('theme_preference_changed', handlePrefChange);
-      if (mediaQuery) mediaQuery.removeEventListener('change', () => applyTheme(themeMode));
-      if (interval) clearInterval(interval);
-    };
-  }, [themeMode, applyTheme]);
-
-  const setThemeMode = useCallback(async (mode: ThemeMode) => {
-    setThemeModeState(mode);
-    await set('theme_preference', mode);
-    window.dispatchEvent(new Event('theme_preference_changed'));
-  }, []);
+  const setThemeMode = useCallback(
+    async (mode: ThemeMode) => {
+      // Map ThemeMode → AppAppearance: 'system' and 'auto' both mean 'auto'.
+      const a = mode === 'light' || mode === 'dark' ? mode : 'auto';
+      setAppearance(a);
+    },
+    [setAppearance],
+  );
 
   const toggleTheme = useCallback(async () => {
-    const newMode: ThemeMode = isDarkMode ? 'light' : 'dark';
-    await setThemeMode(newMode);
-  }, [isDarkMode, setThemeMode]);
+    setAppearance(isDarkMode ? 'light' : 'dark');
+  }, [isDarkMode, setAppearance]);
 
-  // Plan 2026-05-23 perf — memoize el value. ToggleTheme y setThemeMode
-  // ya están en useCallback (líneas 89-98) así que sus refs son estables
-  // mientras isDarkMode no cambia → useMemo solo invalida cuando un
-  // campo del value efectivamente muta. Sin esto, todos los useContext
-  // del ThemeContext (sidebar, topbar, varias pages) re-renderizaban
-  // cuando *cualquier ancestor* del Provider re-renderizaba.
+  const themeMode = appearanceToThemeMode(appearance);
+
   const contextValue = useMemo(
     () => ({ isDarkMode, isDayTime, themeMode, toggleTheme, setThemeMode }),
     [isDarkMode, isDayTime, themeMode, toggleTheme, setThemeMode],
   );
 
-  return (
-    <ThemeContext.Provider value={contextValue}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): ThemeContextValue {
