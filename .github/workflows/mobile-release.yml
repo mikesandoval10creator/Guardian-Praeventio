@@ -139,7 +139,7 @@ jobs:
           echo "Running fastlane android $LANE"
           bundle exec fastlane android "$LANE"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: praeventio-aab
           path: android/app/build/outputs/bundle/release/*.aab
@@ -212,7 +212,7 @@ jobs:
           echo "Running fastlane ios $LANE"
           bundle exec fastlane ios "$LANE"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: praeventio-ipa
           path: ios/App/build/*.ipa
