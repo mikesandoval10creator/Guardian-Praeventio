@@ -61,6 +61,17 @@ export default defineConfig({
     ],
     setupFiles: ['./src/test/setup.ts'],
     globals: false,
+    // CI "Tests" gate hang fix (alpha/03-ci-01). The default `forks` pool
+    // crashes workers ("Worker exited unexpectedly") once supertest TCP
+    // handles accumulate — each `request(buildApp())` leaves an `app.listen(0)`
+    // server open. Serialize in a single fork (same stable pattern proven in
+    // vitest.dr.config.ts) so leaked handles can't destabilize sibling workers.
+    // Validated 2026-06-27: 254 files / 5052 tests green, 0 "Worker exited
+    // unexpectedly" in 2 consecutive runs (~75-115s). ponytail: 1-line unblock;
+    // the real fix is closing the sockets per file (afterAll(() =>
+    // server.close())) across the src/__tests__/server files — tracked separately.
+    pool: 'forks',
+    poolOptions: { forks: { singleFork: true } },
     // Align the local default with CI (`test:ci` passes --test-timeout=30000).
     // The 5s default is too tight for the heavy ratchet / module-import smoke
     // tests under full-suite concurrency: a synchronous test that blows the
