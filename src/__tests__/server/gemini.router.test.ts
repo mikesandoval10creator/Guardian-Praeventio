@@ -22,6 +22,9 @@ const H = vi.hoisted(() => ({
   // mock GoogleGenAI instance — swappable for error tests
   genAiGenerateContent: vi.fn(),
   genAiStream: vi.fn(),
+  projectDocs: {} as Record<string, Record<string, unknown>>,
+  projectReads: [] as string[],
+  fetchEnvContext: vi.fn(),
 }));
 
 // ─── geminiBackend ────────────────────────────────────────────────────────────
@@ -106,7 +109,18 @@ vi.mock('@google/genai', () => ({
 // ─── Firestore (used by /ask-guardian env-context lookup) ─────────────────────
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
-    collection: () => ({ doc: () => ({ get: async () => ({ exists: false }) }) }),
+    collection: (name: string) => ({
+      doc: (id: string) => ({
+        get: async () => {
+          H.projectReads.push(`${name}/${id}`);
+          const data = name === 'projects' ? H.projectDocs[id] : undefined;
+          return {
+            exists: data !== undefined,
+            data: () => data,
+          };
+        },
+      }),
+    }),
   }),
 }));
 
@@ -117,7 +131,7 @@ vi.mock('../../services/ragService.js', () => ({
 
 // ─── orchestratorService (ask-guardian env-context) ───────────────────────────
 vi.mock('../../services/orchestratorService.js', () => ({
-  fetchEnvironmentContext: vi.fn(async () => null),
+  fetchEnvironmentContext: (...a: unknown[]) => H.fetchEnvContext(...a),
 }));
 
 import geminiRouter from '../../server/routes/gemini.js';
@@ -147,6 +161,9 @@ beforeEach(() => {
   H.genAiStream.mockReset().mockResolvedValue(
     (async function* () { yield { text: 'chunk1' }; })(),
   );
+  H.projectDocs = {};
+  H.projectReads = [];
+  H.fetchEnvContext.mockReset().mockResolvedValue(null);
   process.env.GEMINI_API_KEY = 'test-key-fake';
   process.env.NODE_ENV = ORIG_NODE_ENV ?? 'test';
   delete process.env.E2E_MODE;
@@ -425,6 +442,26 @@ describe('POST /api/ask-guardian', () => {
     expect(typeof body.response).toBe('string');
     expect(typeof body.contextUsed).toBe('boolean');
     expect(typeof body.envContextUsed).toBe('boolean');
+  });
+
+  it('200 non-stream - skips env context when projectId is not in caller membership', async () => {
+    H.projectDocs['project-b'] = {
+      members: ['other-user'],
+      createdBy: 'other-user',
+      lat: -33.45,
+      lng: -70.66,
+    };
+    H.fetchEnvContext.mockResolvedValue('env context should not be visible');
+
+    const res = await request(buildApp())
+      .post('/api/ask-guardian')
+      .set(uid)
+      .send({ query: '?Riesgo del proyecto?', projectId: 'project-b', stream: false });
+
+    expect(res.status).toBe(200);
+    expect(res.body.envContextUsed).toBe(false);
+    expect(H.fetchEnvContext).not.toHaveBeenCalled();
+    expect(H.projectReads).toEqual(['projects/project-b']);
   });
 
   it('200 non-stream — recordGeminiOutcome called with success', async () => {
