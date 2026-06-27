@@ -29,6 +29,7 @@ import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
+import { sendMulticastChunked } from '../utils/fcmMulticast.js';
 
 const router = Router();
 
@@ -186,6 +187,49 @@ function hashReporterAnon(callerUid: string, tenantId: string): string {
   return createHash('sha256').update(`${tenantId}:${callerUid}`).digest('hex');
 }
 
+/**
+ * Ley Karín 21.643 (decisión fundador F2): notificar al LÍDER DEL PROYECTO que
+ * llegó una denuncia, para que abra el menú Ley Karín sin tener que sondear el
+ * inbox. Best-effort: una falla de push NUNCA debe romper el envío de la
+ * denuncia (la denuncia + audit ya se persistieron).
+ *
+ * El anonimato es requisito DURO: el push va SOLO al líder (`project.createdBy`)
+ * — nunca a la colección `projects/{id}/notifications`, que todo miembro puede
+ * leer — y el payload es deliberadamente SIN identidad (sin uid/hash del
+ * denunciante, sin narrativa). `data.route` hace deep-link al menú de denuncias.
+ */
+async function notifyProjectLeadOfReport(projectId: string, reportId: string): Promise<void> {
+  try {
+    const db = admin.firestore();
+    const projSnap = await db.collection('projects').doc(projectId).get();
+    const leadUid = projSnap.exists
+      ? (projSnap.data() as { createdBy?: unknown } | undefined)?.createdBy
+      : undefined;
+    if (typeof leadUid !== 'string' || leadUid.length === 0) return;
+    const userSnap = await db.collection('users').doc(leadUid).get();
+    const raw = userSnap.exists
+      ? (userSnap.data() as { fcmTokens?: unknown } | undefined)?.fcmTokens
+      : undefined;
+    const tokens = Array.isArray(raw)
+      ? raw.filter((t): t is string => typeof t === 'string' && t.length > 0)
+      : [];
+    if (tokens.length === 0) return;
+    await sendMulticastChunked(admin.messaging(), tokens, {
+      notification: {
+        title: 'Nueva denuncia confidencial',
+        body: 'Se registró una denuncia (Ley Karín 21.643). Ábrela en Reportes Confidenciales.',
+      },
+      data: { type: 'confidential_report', route: '/confidential-reports', reportId },
+    });
+  } catch (err) {
+    logger.warn?.('confidential_reports.notify_lead_failed', {
+      projectId,
+      reportId,
+      err: String(err),
+    });
+  }
+}
+
 // ── Endpoint 1: POST create report ────────────────────────────────────
 
 const createSchema = z.object({
@@ -251,6 +295,9 @@ router.post(
         kind: body.kind,
         severity: body.severity,
       }, { projectId });
+      // F2 Ley Karín: notificar al líder del proyecto (anonimato-seguro,
+      // best-effort — nunca rompe el 201).
+      await notifyProjectLeadOfReport(projectId, id);
       return res.status(201).json({
         ok: true,
         report: payload,
