@@ -593,7 +593,7 @@ function clSafetyInspectionAdapter(): EmissionAdapter {
     type: 'safety_inspection',
     validate: ds67Schema,
     suggestedFormats: ['application/pdf'],
-    legalCitation: 'DS 594/1999 (Condiciones Sanitarias) + DS 44/2024 (ex DS 40/1969) + NCh ISO 45001 §9.1',
+    legalCitation: 'DS 594/1999 (Condiciones Sanitarias) + DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01) + NCh ISO 45001 §9.1',
     async generate(_payload: unknown): Promise<EmissionResult> {
       // 503 gate: the real checklist-PDF builder requires pdfkit on the
       // server which is not yet integrated. Do NOT return passthrough JSON
