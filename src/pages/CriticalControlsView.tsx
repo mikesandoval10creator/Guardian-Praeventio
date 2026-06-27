@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Loader2,
   Filter,
+  Library,
 } from 'lucide-react';
 
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -33,7 +34,43 @@ import {
   saveControlValidation,
   subscribeControlValidations,
 } from '../services/criticalControls/controlValidationsStore';
+import { useFailureLibrarySummary } from '../hooks/useControlComparator';
 import { logger } from '../utils/logger';
+
+// Reference panel for the documented failure-mode library. Renders a real
+// `Record<string, number>` breakdown (engine controlFailureLibrary) as a
+// sorted count list — honest "—" when a breakdown is empty, never fabricated.
+function FailureBreakdown({
+  title,
+  counts,
+}: {
+  title: string;
+  counts: Record<string, number>;
+}) {
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  return (
+    <div className="rounded-lg bg-zinc-50 dark:bg-white/5 p-2">
+      <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">
+        {title}
+      </p>
+      {entries.length === 0 ? (
+        <p className="text-[10px] text-zinc-400">—</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {entries.map(([key, n]) => (
+            <li
+              key={key}
+              className="flex items-center justify-between text-[11px] text-zinc-700 dark:text-zinc-300"
+            >
+              <span className="truncate">{key}</span>
+              <span className="font-mono font-bold ml-2">{n}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 // Plan 2026-05-24 §Fase B.6 batch2 — i18n sweep CriticalControlsView.
 export function CriticalControlsView() {
@@ -61,6 +98,11 @@ export function CriticalControlsView() {
   const [validations, setValidations] = useState<ControlValidation[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingControlId, setSavingControlId] = useState<string | null>(null);
+
+  // Failure-mode library (reference): real summary from the controlFailureLibrary
+  // engine via GET /controls/failures/summary. Surfaces documented failure modes
+  // so supervisors see what can go wrong with controls — honest empty/error states.
+  const failureSummary = useFailureLibrarySummary(selectedProject?.id ?? null);
 
   useEffect(() => {
     const projectId = selectedProject?.id;
@@ -285,6 +327,65 @@ export function CriticalControlsView() {
                   );
                 })}
               </ul>
+            </section>
+
+            {/* Biblioteca de modos de falla — referencia real (engine
+                controlFailureLibrary vía GET /controls/failures/summary). */}
+            <section
+              className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 space-y-3"
+              data-testid="critical-controls.failure-library"
+            >
+              <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                <Library className="w-3.5 h-3.5" />
+                {t('critical_controls.failure_library.heading', 'Biblioteca de modos de falla (referencia)')}
+              </h2>
+              {failureSummary.loading ? (
+                <div
+                  className="flex items-center gap-2 text-xs text-zinc-500"
+                  data-testid="critical-controls.failure-library.loading"
+                >
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  {t('critical_controls.failure_library.loading', 'Cargando biblioteca…')}
+                </div>
+              ) : failureSummary.error ? (
+                <p
+                  className="text-xs text-amber-700 dark:text-amber-300"
+                  role="alert"
+                  data-testid="critical-controls.failure-library.error"
+                >
+                  {t('critical_controls.failure_library.error', 'No se pudo cargar la biblioteca de modos de falla.')}
+                </p>
+              ) : !failureSummary.data || failureSummary.data.summary.totalEntries === 0 ? (
+                <p
+                  className="text-xs text-zinc-500"
+                  data-testid="critical-controls.failure-library.empty"
+                >
+                  {t('critical_controls.failure_library.empty', 'Aún no hay modos de falla documentados.')}
+                </p>
+              ) : (
+                <div className="space-y-3" data-testid="critical-controls.failure-library.content">
+                  <p className="text-xs text-zinc-600 dark:text-zinc-300">
+                    {t('critical_controls.failure_library.total', {
+                      defaultValue: '{{n}} modos de falla documentados',
+                      n: failureSummary.data.summary.totalEntries,
+                    })}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <FailureBreakdown
+                      title={t('critical_controls.failure_library.by_mode', 'Por modo de falla')}
+                      counts={failureSummary.data.summary.byFailureMode}
+                    />
+                    <FailureBreakdown
+                      title={t('critical_controls.failure_library.by_control', 'Por tipo de control')}
+                      counts={failureSummary.data.summary.byControlKind}
+                    />
+                    <FailureBreakdown
+                      title={t('critical_controls.failure_library.by_frequency', 'Por frecuencia')}
+                      counts={failureSummary.data.summary.byFrequencyTier}
+                    />
+                  </div>
+                </div>
+              )}
             </section>
           </>
         )}

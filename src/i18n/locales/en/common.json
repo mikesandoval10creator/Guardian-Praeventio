@@ -3066,6 +3066,16 @@
       "heading": "HCA Catalog — {{category}}",
       "present": "Present",
       "mark": "Mark"
+    },
+    "failure_library": {
+      "heading": "Failure-mode library (reference)",
+      "loading": "Loading library…",
+      "error": "Could not load the failure-mode library.",
+      "empty": "No failure modes documented yet.",
+      "total": "{{n}} documented failure modes",
+      "by_mode": "By failure mode",
+      "by_control": "By control type",
+      "by_frequency": "By frequency"
     }
   },
   "root_cause": {

@@ -2769,6 +2769,16 @@
       "heading": "Catálogo HCA — {{category}}",
       "present": "Presente",
       "mark": "Marcar"
+    },
+    "failure_library": {
+      "heading": "Biblioteca de modos de falha (referência)",
+      "loading": "Carregando biblioteca…",
+      "error": "Não foi possível carregar a biblioteca de modos de falha.",
+      "empty": "Ainda não há modos de falha documentados.",
+      "total": "{{n}} modos de falha documentados",
+      "by_mode": "Por modo de falha",
+      "by_control": "Por tipo de controle",
+      "by_frequency": "Por frequência"
     }
   },
   "root_cause": {
