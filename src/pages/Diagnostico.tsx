@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { ClipboardList, Building2, MapPin, Users, AlertTriangle, Zap, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
@@ -10,6 +10,13 @@ import { analyzeRiskWithAI } from '../services/geminiService';
 import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
 import { z } from 'zod';
 import { logger } from '../utils/logger';
+import { PymeMaturityWizard } from '../components/pymeOnboarding/PymeMaturityWizard';
+import { PymeOnboardingPlanPanel } from '../components/pymeWizard/PymeOnboardingPlanPanel';
+import {
+  buildOnboardingPlan,
+  type PymeOnboardingInput,
+} from '../services/pymeWizard/pymeOnboardingWizard';
+import type { PymeWizardInput } from '../services/pymeOnboarding/pymeWizard';
 
 const diagnosticSchema = z.object({
   industry: z.string().min(2, "La industria es requerida"),
@@ -41,6 +48,33 @@ export function Diagnostico() {
     mainActivities: '',
     knownHazards: ''
   });
+
+  const PYME_INDUSTRIES = ['construction','mining','agriculture','industrial','logistics','services'] as const;
+  type PymeInd = typeof PYME_INDUSTRIES[number];
+  const pymeIndustry: PymeInd = PYME_INDUSTRIES.includes(formData.industry as PymeInd)
+    ? (formData.industry as PymeInd)
+    : 'services';
+  const workerCount = parseInt(formData.workersCount, 10) || 10;
+
+  const pymeWizardInput = useMemo<PymeWizardInput>(() => ({
+    industry: pymeIndustry,
+    workerCount,
+    hasSupervisor: false,
+    hasCphs: false,
+    hasRiohs: false,
+    hasTrainingProgram: false,
+    registersIncidents: false,
+    hasMutualidad: false,
+    usesNormedEpp: false,
+  }), [pymeIndustry, workerCount]);
+
+  const pymeOnboardingInput = useMemo<PymeOnboardingInput>(() => ({
+    industry: pymeIndustry,
+    workerCount,
+    keyRisks: [],
+  }), [pymeIndustry, workerCount]);
+
+  const pymePlan = useMemo(() => buildOnboardingPlan(pymeOnboardingInput), [pymeOnboardingInput]);
 
   const handleFacilityToggle = (facility: string) => {
     setFormData(prev => ({
@@ -362,6 +396,12 @@ export function Diagnostico() {
           </motion.div>
         )}
       </Card>
+      {result && (
+        <>
+          <PymeMaturityWizard input={pymeWizardInput} />
+          <PymeOnboardingPlanPanel plan={pymePlan} />
+        </>
+      )}
     </div>
   );
 }

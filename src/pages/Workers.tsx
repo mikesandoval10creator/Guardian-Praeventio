@@ -42,6 +42,12 @@ import { Database, RefreshCw, FileSignature, Star } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { logger } from '../utils/logger';
 import { EmptyState } from '../components/shared/EmptyState';
+import { OnboardingTrackProgressPanel } from '../components/roleOnboarding/OnboardingTrackProgressPanel';
+import {
+  getTrackForRole,
+  evaluateProgress,
+  type UserOnboardingProgress,
+} from '../services/roleOnboarding/roleOnboardingTracks';
 
 export function Workers() {
   const { t } = useTranslation();
@@ -53,6 +59,14 @@ export function Workers() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [filterRole, setFilterRole] = useState('all');
+  const workerTrack = getTrackForRole('worker');
+  const workerProgress: UserOnboardingProgress = {
+    userUid: selectedWorker?.id ?? '',
+    role: 'worker',
+    completedStepIds: [],
+    startedAt: new Date().toISOString(),
+  };
+  const workerOnboardingStatus = evaluateProgress(workerProgress, workerTrack);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   // Close dropdown when clicking outside
@@ -523,6 +537,13 @@ export function Workers() {
         <UserProfileModal
           worker={selectedWorker}
           onClose={() => setActiveModal(null)}
+        />
+      )}
+      {selectedWorker && (
+        <OnboardingTrackProgressPanel
+          track={workerTrack}
+          progress={workerProgress}
+          status={workerOnboardingStatus}
         />
       )}
       <ConfirmDialog

@@ -44,6 +44,7 @@ import {
   type CulturePulseHistoryPoint,
 } from '../hooks/useCulturePulse';
 import { logger } from '../utils/logger';
+import { CulturePulseDashboard } from '../components/culturePulse/CulturePulseDashboard';
 
 // ─────────────────────────────────────────────────────────────────────
 // Color band — directiva de marca del usuario:
@@ -839,6 +840,8 @@ export function CulturePulse(): ReactElement {
           )}
         </>
       )}
+
+      <CulturePulseDashboard responses={[]} />
 
       {showScheduleModal && projectId && (
         <ScheduleSurveyModal

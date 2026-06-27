@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mountain, Wind, Thermometer, Droplets, AlertTriangle, Loader2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { logger } from '../utils/logger';
-import { apiAuthHeaders } from '../lib/apiAuth';
+import { streamGuardianText, StreamGuardianError } from '../hooks/useStreamedGuardian';
 // Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
 // compliant tooltip on the icon-only "Update with AI" refresh button.
 import { Tooltip } from './shared/Tooltip';
@@ -140,21 +140,7 @@ export function WeatherSafetyRecommendations({ weather, className = '' }: Props)
     setLoading(true);
     try {
       const prompt = `Eres un experto en seguridad laboral chilena (DS 594, Ley 16.744). Genera EXACTAMENTE 3 recomendaciones de seguridad breves (máx 25 palabras cada una) para trabajadores de campo con estas condiciones: Temperatura ${weather.temp ?? '--'}°C, Humedad ${weather.humidity ?? '--'}%, Viento ${weather.windSpeed ?? '--'} km/h, UV ${weather.uvIndex ?? '--'}, Altitud ${altitude}m. Formato: JSON array de strings ["rec1","rec2","rec3"].`;
-      // Codex P2 3308925949 fix: /api/ask-guardian is behind verifyAuth in
-      // production, so the request MUST carry the Bearer (or E2E) header.
-      // apiAuthHeaders() unifies the Firebase Auth + E2E fixture flows that
-      // the rest of the codebase uses (see src/lib/apiAuth.ts, PR #462+).
-      const res = await fetch('/api/ask-guardian', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(await apiAuthHeaders()),
-        },
-        body: JSON.stringify({ query: prompt, stream: false }),
-      });
-      if (!res.ok) throw new Error('API error');
-      const data = await res.json();
-      const text: string = data.response ?? data.answer ?? '';
+      const text = await streamGuardianText({ query: prompt });
       const match = text.match(/\[[\s\S]*?\]/);
       if (match) {
         const parsed = JSON.parse(match[0]) as string[];
@@ -162,7 +148,11 @@ export function WeatherSafetyRecommendations({ weather, className = '' }: Props)
         setLastFetched(new Date());
       }
     } catch (err) {
-      logger.warn('[WeatherSafetyRecs] AI fetch failed, using fallback', { message: (err as Error).message });
+      if (err instanceof StreamGuardianError) {
+        logger.warn('[WeatherSafetyRecs] Guardian stream error', { code: err.code, message: err.message });
+      } else {
+        logger.warn('[WeatherSafetyRecs] AI fetch failed, using fallback', { message: (err as Error).message });
+      }
     } finally {
       setLoading(false);
     }

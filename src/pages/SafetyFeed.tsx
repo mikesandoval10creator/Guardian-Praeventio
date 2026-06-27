@@ -35,6 +35,7 @@ import { SkeletonCard } from '../components/shared/Skeleton';
 import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import { SafetyCapsules } from '../components/safety/SafetyCapsules';
 
 export function SafetyFeed() {
   const { t } = useTranslation();
@@ -646,6 +647,7 @@ export function SafetyFeed() {
           </div>
         )}
       </AnimatePresence>
+      <SafetyCapsules />
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
