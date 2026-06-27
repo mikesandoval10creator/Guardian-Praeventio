@@ -24,7 +24,7 @@ import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
-import { ProjectMembershipError } from '../../services/auth/projectMembership.js';
+import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
 import { isGeminiDegradedError } from '../../services/gemini/degraded.js';
 import { redactPromptForVertex } from '../../services/gemini/pii.js';
 import { baselineEmergencyPlan } from '../../services/gemini/emergency.js';
@@ -402,9 +402,18 @@ router.post('/ask-guardian', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter
     // projectId, geo o el flag ENV_CONTEXT_ENABLED está desactivado.
     let envContext: string | null = null;
     if (isEnvContextEnabled() && typeof projectId === 'string' && projectId.length > 0) {
-      const geo = await lookupProjectGeo(projectId);
-      if (geo) {
-        envContext = await fetchEnvContextWithTimeout(geo);
+      try {
+        await assertProjectMember(req.user!.uid, projectId, getFirestore());
+        const geo = await lookupProjectGeo(projectId);
+        if (geo) {
+          envContext = await fetchEnvContextWithTimeout(geo);
+        }
+      } catch (error) {
+        if (error instanceof ProjectMembershipError || (error as Error)?.name === 'ProjectMembershipError') {
+          logger.warn('ask_guardian_geo_authz_denied', { uid: req.user!.uid, projectId });
+        } else {
+          throw error;
+        }
       }
     }
 
