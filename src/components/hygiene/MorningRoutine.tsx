@@ -80,7 +80,7 @@ const STRETCHES: Stretch[] = [
     title: 'Elongación Cervical',
     description: 'Inclina suavemente la cabeza hacia un lado, llevando la oreja al hombro. Mantén la espalda recta.',
     duration: 15,
-    image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=200&h=200',
+    image: '/heroes/hero-movement.svg',
     targetArea: 'Cuello'
   },
   {
@@ -88,7 +88,7 @@ const STRETCHES: Stretch[] = [
     title: 'Apertura de Pecho',
     description: 'Entrelaza las manos detrás de la espalda y estira los brazos hacia atrás, abriendo el pecho.',
     duration: 20,
-    image: 'https://images.unsplash.com/photo-1510894347713-fc3ad6cb0d4d?auto=format&fit=crop&q=80&w=200&h=200',
+    image: '/heroes/hero-ergonomics.svg',
     targetArea: 'Torso'
   },
   {
@@ -96,7 +96,7 @@ const STRETCHES: Stretch[] = [
     title: 'Estiramiento Lumbar',
     description: 'De pie, inclina el torso hacia adelante suavemente, intentando tocar la punta de los pies.',
     duration: 20,
-    image: 'https://images.unsplash.com/photo-1552196564-977a44c0d3b9?auto=format&fit=crop&q=80&w=200&h=200',
+    image: '/heroes/hero-wellness.svg',
     targetArea: 'Espalda'
   },
   {
@@ -104,7 +104,7 @@ const STRETCHES: Stretch[] = [
     title: 'Activación de Muñecas',
     description: 'Extiende un brazo y con la otra mano tira suavemente de los dedos hacia atrás.',
     duration: 15,
-    image: 'https://images.unsplash.com/photo-1591343395082-e120087004b4?auto=format&fit=crop&q=80&w=200&h=200',
+    image: '/heroes/hero-movement.svg',
     targetArea: 'Brazos'
   }
 ];
