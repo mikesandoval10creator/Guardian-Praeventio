@@ -174,6 +174,30 @@ export async function loginAsTestUser(
  * Lazy import: firebase-admin solo se carga si E2E_FULL_STACK runs (no
  * lo cargamos en smoke tests que solo usan localStorage header).
  */
+/**
+ * Retry an Auth-Emulator call while it is still booting. Playwright's webServer
+ * only waits on the Firestore emulator (:8080); the Auth emulator (:9099) can
+ * accept connections a beat later, so the FIRST spec's token mint may hit
+ * ECONNREFUSED. Retry connection errors (only) until the emulator answers.
+ */
+async function withEmulatorReady<T>(fn: () => Promise<T>): Promise<T> {
+  const deadline = Date.now() + 20_000;
+  for (;;) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = String((err as { message?: string })?.message ?? err);
+      if (
+        Date.now() >= deadline ||
+        !/ECONNREFUSED|ECONNRESET|socket hang up|EAI_AGAIN/i.test(msg)
+      ) {
+        throw err;
+      }
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+}
+
 async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
   // §2.24 fix (2026-05-22, post-CI #461) — dynamic ESM import. Playwright
   // tests corren bajo ESM (`type: module` via tsx loader), entonces
@@ -190,8 +214,50 @@ async function mintCustomTokenViaEmulator(user: TestUser): Promise<string> {
       projectId: process.env.GOOGLE_CLOUD_PROJECT ?? 'demo-test',
     });
   }
+  // Ensure the Auth Emulator user record has emailVerified: true so that
+  // request.auth.token.email_verified is truthy in firestore.rules. The
+  // standard token field is populated by the user ACCOUNT's emailVerified
+  // property — not by an `email_verified` additional claim on the custom
+  // token. ponytail: upsert — update if the record exists, create if not.
+  // Wrapped in withEmulatorReady so a not-yet-ready Auth emulator (ECONNREFUSED
+  // on the first spec) is retried rather than failing the whole sign-in.
+  await withEmulatorReady(async () => {
+    try {
+      await admin.auth().updateUser(user.uid, { emailVerified: true, email: user.email });
+    } catch (err: any) {
+      if (err?.code === 'auth/user-not-found') {
+        await admin.auth().createUser({
+          uid: user.uid,
+          email: user.email,
+          emailVerified: true,
+          displayName: user.displayName,
+        });
+      } else {
+        throw err;
+      }
+    }
+  });
+
+  // Seed the Firestore user doc so FirebaseContext's onAuthStateChanged handler
+  // reads onboarded:true and does NOT redirect to /onboarding (which would
+  // block the spec from reaching its target route).
+  // ponytail: merge so fields from prior seeds are preserved.
+  if (process.env.FIRESTORE_EMULATOR_HOST) {
+    await admin.firestore().collection('users').doc(user.uid).set(
+      {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.roles[0] ?? 'supervisor',
+        industry: 'Minería',
+        onboarded: true,
+        createdAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+  }
+
   return admin.auth().createCustomToken(user.uid, {
-    email_verified: true,
     email: user.email,
     displayName: user.displayName,
     role: user.roles[0] ?? 'supervisor',
