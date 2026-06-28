@@ -13,7 +13,7 @@ import { EPP_SELECTOR_RUBROS, getEppForRubro, type EppSelectorRubro } from './ep
 /** Single EPP card — icon + label badge */
 function EppCard({ emoji, label }: { emoji: string; label: string }) {
   return (
-    <div className="bg-elevated border border-default-token rounded-xl p-2 sm:p-3 flex flex-col items-center gap-1 text-center min-h-[56px] sm:min-h-[68px] justify-center shadow-mode transition-all hover:border-accent-token">
+    <div className="bg-elevated border border-default-token rounded-xl p-2 sm:p-3 flex flex-col items-center gap-1 text-center min-h-[42px] sm:min-h-[52px] justify-center shadow-mode transition-all hover:border-accent-token">
       <span className="text-xl sm:text-2xl leading-none select-none" role="img" aria-label={label}>
         {emoji}
       </span>
@@ -46,11 +46,11 @@ export function EppSelector({ initialRubroId }: { initialRubroId?: string } = {}
 
   return (
     <section
-      className="bg-surface border border-default-token rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-mode w-full"
+      className="bg-surface border border-default-token rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-mode w-full"
       aria-label={t('epp_selector.section_label', 'Personalización Inteligente EPP')}
     >
       {/* Header */}
-      <div className="mb-3 sm:mb-4">
+      <div className="mb-2 sm:mb-2.5">
         <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-muted-token mb-0.5">
           {t('epp_selector.badge', 'Personalización Inteligente')}
         </p>
@@ -63,7 +63,7 @@ export function EppSelector({ initialRubroId }: { initialRubroId?: string } = {}
       </div>
 
       {/* Rubro dropdown */}
-      <div className="mb-3 sm:mb-4">
+      <div className="mb-2 sm:mb-2.5">
         <label
           htmlFor="epp-rubro-select"
           className="text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-muted-token block mb-1"
@@ -103,7 +103,7 @@ export function EppSelector({ initialRubroId }: { initialRubroId?: string } = {}
 
         {/* Guardian mascot — center anchor */}
         <div className="shrink-0 flex flex-col items-center gap-1">
-          <GuardianMascot mood="default" size="lg" />
+          <GuardianMascot mood="default" size="md" />
           <span className="text-[6px] sm:text-[8px] font-black uppercase tracking-widest text-muted-token text-center leading-none">
             {selectedRubro.label}
           </span>
@@ -118,7 +118,7 @@ export function EppSelector({ initialRubroId }: { initialRubroId?: string } = {}
       </div>
 
       {/* Footer note */}
-      <p className="text-[7px] sm:text-[9px] text-muted-token text-center mt-2 sm:mt-3 leading-snug">
+      <p className="text-[7px] sm:text-[9px] text-muted-token text-center mt-1.5 sm:mt-2 leading-snug">
         {t('epp_selector.norm_note', 'Según DS 594 — Reglamento sobre condiciones sanitarias y ambientales básicas en los lugares de trabajo')}
       </p>
     </section>

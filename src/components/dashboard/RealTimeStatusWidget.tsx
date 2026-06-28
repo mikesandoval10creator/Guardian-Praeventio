@@ -91,6 +91,8 @@ export const RealTimeStatusWidget: React.FC = () => {
     );
   }
 
+  // 2026-06-28 (founder): el estado operativo lo muestra FaenaStateBanner (verde).
+  // Acá dejamos SOLO la recomendacion por rubro (sin duplicar 'Faena Normal').
   return (
     <section className="bg-indigo-500/5 border border-indigo-500/20 rounded-xl p-2 sm:p-3 shadow-sm relative overflow-hidden w-full">
       <div className="absolute -right-4 -top-4 opacity-5">
@@ -101,14 +103,6 @@ export const RealTimeStatusWidget: React.FC = () => {
           <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 mb-0.5 sm:mb-1">
-            <span className="bg-indigo-500 text-white text-[7px] sm:text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded">
-              {t('realtime_status.operational_state', 'Estado Operativo')}
-            </span>
-            <span className="text-[7px] sm:text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">
-              {t('realtime_status.normal_operation', 'Faena Normal')}
-            </span>
-          </div>
           <h3 className="text-[9px] sm:text-xs font-black text-primary-token leading-tight mb-0.5 truncate">
             {t('realtime_status.recommendation_label', 'Recomendación')}
           </h3>

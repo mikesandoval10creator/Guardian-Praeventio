@@ -2,6 +2,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { AutoFitText } from '../shared/AutoFitText';
 import type { Density } from '../../store/densityStore';
 
 export type KpiTone = 'brand' | 'attention' | 'alert' | 'success' | 'neutral';
@@ -53,9 +54,11 @@ export function KpiRow({ items, density = 'comfortable' }: KpiRowProps) {
             )}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] sm:text-xs font-medium text-secondary-token truncate" title={k.label}>
-                {k.label}
-              </span>
+              <div className="min-w-0 flex-1">
+                <AutoFitText maxPx={12} minPx={8} weight="500" className="font-medium text-secondary-token" title={k.label}>
+                  {k.label}
+                </AutoFitText>
+              </div>
               {k.icon && <k.icon className={cn('w-4 h-4 shrink-0', TONE_TEXT[tone])} aria-hidden="true" />}
             </div>
             <div className={cn('mt-1 font-semibold tabular-nums', valueSize, TONE_TEXT[tone])}>

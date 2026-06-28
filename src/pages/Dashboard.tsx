@@ -51,7 +51,6 @@ import {
 } from '../components/dashboard/challengeUtils';
 import { WeatherBulletin } from '../components/dashboard/WeatherBulletin';
 import { WeatherSafetyRecommendations } from '../components/WeatherSafetyRecommendations';
-import { SunTrackerContainer } from '../components/SunTrackerContainer';
 import { ComplianceCard } from '../components/dashboard/ComplianceCard';
 import { ComplianceTrafficLight } from '../components/compliance/ComplianceTrafficLight';
 import { useComplianceTrafficLight } from '../hooks/useComplianceTrafficLight';
@@ -73,7 +72,6 @@ import type { RoleCard } from '../hooks/useRoleViews';
 import { RoleViewCards } from '../components/roleViews/RoleViewCards';
 import type { UserRole } from '../services/roleViews/roleViewBuilder';
 import { KpiRow, type KpiItem } from '../components/dashboard/KpiRow';
-import { DensityToggle } from '../components/shared/DensityToggle';
 import { useDensityStore } from '../store/densityStore';
 import { ShieldCheck, FileCheck, Clock3, AlertOctagon } from 'lucide-react';
 
@@ -461,11 +459,6 @@ export function Dashboard() {
       {/* Hero greeting + morning check-in trigger */}
       <DashboardHero onMorningCheckIn={() => setShowMorningCheckIn(true)} />
 
-      {/* Density control */}
-      <div className="flex justify-end">
-        <DensityToggle />
-      </div>
-
       {/* KPI row — real derived metrics */}
       <KpiRow items={kpiItems} density={density} />
 
@@ -557,16 +550,9 @@ export function Dashboard() {
         />
       )}
 
-      {/* Sun/moon ambient tracker — Sprint A PR #516 wire. Visual companion
-          to the weather bulletin showing 24h solar state + lunar phase +
-          solar elevation arc. Codex P2 3309059265 fix: reads
-          `selectedProject.coordinates.lat` (canonical project geo field per
-          types/index.ts:155 + ProjectContext:17 — also consumed by
-          EmergenciaAvanzada and SiteMap). Santiago (-33.4489) is the safe
-          fallback when no project is selected or project lacks coordinates. */}
-      <SunTrackerContainer
-        lat={selectedProject?.coordinates?.lat ?? -33.4489}
-      />
+      {/* Celestial tracker consolidado dentro del Boletín climático
+          (WeatherBulletin → panel derecho). Se eliminó el widget standalone
+          duplicado para no mostrar dos arcos solares en el dashboard. */}
 
       {/* Daily safety tip — industry-aware */}
       <AdviceBanner />
