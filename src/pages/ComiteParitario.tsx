@@ -227,7 +227,7 @@ export function ComiteParitario() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">
             {t('comiteParitario.title', 'Comité Paritario')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
@@ -336,9 +336,9 @@ export function ComiteParitario() {
               </div>
             )}
             {actas?.length === 0 ? (
-              <div className="col-span-full text-center py-12 bg-white dark:bg-zinc-900/30 rounded-[2rem] border border-zinc-200 dark:border-white/10">
+              <div className="col-span-full text-center py-12 bg-elevated rounded-[2rem] border border-zinc-200 dark:border-white/10">
                 <Users className="w-12 h-12 text-zinc-400 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-zinc-900 dark:text-white">No hay actas registradas</h3>
+                <h3 className="text-lg font-bold text-primary-token">No hay actas registradas</h3>
                 <p className="text-sm text-zinc-500 mt-2">Comienza creando la primera acta de constitución o reunión ordinaria.</p>
               </div>
             ) : (
@@ -347,7 +347,7 @@ export function ComiteParitario() {
                   key={acta.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white dark:bg-zinc-900/30 p-6 rounded-[2rem] border border-zinc-200 dark:border-white/10 shadow-xl"
+                  className="bg-elevated p-6 rounded-[2rem] border border-zinc-200 dark:border-white/10 shadow-xl"
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-2 text-emerald-500">
@@ -356,7 +356,7 @@ export function ComiteParitario() {
                         {format(new Date(acta.fecha), "d 'de' MMMM, yyyy", { locale: es })}
                       </span>
                     </div>
-                    <span className="px-3 py-1 bg-zinc-100 dark:bg-white/5 rounded-full text-[10px] font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
+                    <span className="px-3 py-1 bg-zinc-100 dark:bg-white/5 rounded-full text-[10px] font-bold uppercase tracking-wider text-secondary-token">
                       {acta.tipo}
                     </span>
                   </div>
@@ -365,7 +365,7 @@ export function ComiteParitario() {
                       <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Asistentes ({acta.asistentes.length})</p>
                       <div className="flex flex-wrap gap-2">
                         {acta.asistentes.slice(0, 3).map((a, i) => (
-                          <span key={i} className="text-xs text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-white/5 px-2 py-1 rounded-lg">
+                          <span key={i} className="text-xs text-secondary-token bg-zinc-100 dark:bg-white/5 px-2 py-1 rounded-lg">
                             {a}
                           </span>
                         ))}
@@ -378,7 +378,7 @@ export function ComiteParitario() {
                       <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Acuerdos ({acta.acuerdos.length})</p>
                       <div className="space-y-2">
                         {acta.acuerdos.slice(0, 2).map((acuerdo, i) => (
-                          <div key={i} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                          <div key={i} className="flex items-center gap-2 text-xs text-secondary-token">
                             <div className={`w-2 h-2 rounded-full ${
                               acuerdo.estado === 'Completado' ? 'bg-emerald-500' :
                               acuerdo.estado === 'En Progreso' ? 'bg-amber-500' : 'bg-red-500'
@@ -397,21 +397,21 @@ export function ComiteParitario() {
                         placeholder="Descripción del acuerdo"
                         value={acuerdoForm.descripcion}
                         onChange={e => setAcuerdoForm(f => ({ ...f, descripcion: e.target.value }))}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-primary-token placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500"
                       />
                       <input
                         type="text"
                         placeholder="Responsable"
                         value={acuerdoForm.responsable}
                         onChange={e => setAcuerdoForm(f => ({ ...f, responsable: e.target.value }))}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-primary-token placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500"
                       />
                       <input
                         type="date"
                         value={acuerdoForm.fechaPlazo}
                         min={new Date().toISOString().split('T')[0]}
                         onChange={e => setAcuerdoForm(f => ({ ...f, fechaPlazo: e.target.value }))}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-primary-token focus:outline-none focus:border-emerald-500"
                       />
                       <div className="flex gap-2">
                         <button
@@ -423,7 +423,7 @@ export function ComiteParitario() {
                         </button>
                         <button
                           onClick={() => { setAddAcuerdoActaId(null); setAcuerdoForm({ descripcion: '', responsable: '', fechaPlazo: '' }); }}
-                          className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                          className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 text-secondary-token text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                         >
                           Cancelar
                         </button>
@@ -443,7 +443,7 @@ export function ComiteParitario() {
             )}
           </div>
         ) : (
-          <div className="bg-white dark:bg-zinc-900/30 rounded-[2rem] border border-zinc-200 dark:border-white/10 overflow-hidden shadow-xl">
+          <div className="bg-elevated rounded-[2rem] border border-zinc-200 dark:border-white/10 overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -464,14 +464,14 @@ export function ComiteParitario() {
                   ) : (
                     todosLosAcuerdos.map((acuerdo, i) => (
                       <tr key={i} className="border-b border-zinc-100 dark:border-white/5 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors">
-                        <td className="p-4 text-sm font-medium text-zinc-900 dark:text-white">
+                        <td className="p-4 text-sm font-medium text-primary-token">
                           {acuerdo.descripcion}
                         </td>
-                        <td className="p-4 text-sm text-zinc-600 dark:text-zinc-400">
+                        <td className="p-4 text-sm text-secondary-token">
                           {acuerdo.responsable}
                         </td>
                         <td className="p-4">
-                          <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+                          <div className="flex items-center gap-2 text-sm text-secondary-token">
                             <Clock className="w-4 h-4" />
                             {format(new Date(acuerdo.fechaPlazo), "d MMM, yyyy", { locale: es })}
                           </div>
@@ -500,14 +500,14 @@ export function ComiteParitario() {
           </div>
         )}
       {/* Escudo Legal — BCN/SUSESO normative scanner */}
-      <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-6 space-y-4">
+      <div className="bg-elevated border border-zinc-200 dark:border-white/5 rounded-2xl p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-violet-500/10 rounded-xl">
               <ShieldCheck className="w-5 h-5 text-violet-500" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest">Escudo Legal</h3>
+              <h3 className="text-sm font-black text-primary-token uppercase tracking-widest">Escudo Legal</h3>
               <p className="text-[10px] text-zinc-500">Escaneo de impacto normativo con IA</p>
             </div>
           </div>
@@ -535,7 +535,7 @@ export function ComiteParitario() {
                   {legalScanResult.affected ? `Impacto ${legalScanResult.impactLevel}` : 'Sin impacto detectado'}
                 </span>
               </div>
-              <p className="text-sm text-zinc-600 dark:text-zinc-300">{legalScanResult.summary}</p>
+              <p className="text-sm text-secondary-token">{legalScanResult.summary}</p>
               {legalScanResult.affectedModules?.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {legalScanResult.affectedModules.map((m: string) => (
@@ -556,14 +556,14 @@ export function ComiteParitario() {
       </div>
 
       {/* Sugerir Agenda IA */}
-      <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-6 space-y-4">
+      <div className="bg-elevated border border-zinc-200 dark:border-white/5 rounded-2xl p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-emerald-500/10 rounded-xl">
               <ClipboardList className="w-5 h-5 text-emerald-500" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest">Agenda Sugerida</h3>
+              <h3 className="text-sm font-black text-primary-token uppercase tracking-widest">Agenda Sugerida</h3>
               <p className="text-[10px] text-zinc-500">Generada en base a acuerdos pendientes</p>
             </div>
           </div>
@@ -582,7 +582,7 @@ export function ComiteParitario() {
               {(Array.isArray(agendaResult) ? agendaResult : agendaResult.items ?? [agendaResult]).map((item: any, i: number) => (
                 <div key={i} className="flex items-start gap-3 px-3 py-2 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
                   <span className="text-[10px] font-black text-emerald-400 mt-0.5 shrink-0">{i + 1}.</span>
-                  <p className="text-sm text-zinc-700 dark:text-zinc-300">{typeof item === 'string' ? item : item.punto ?? JSON.stringify(item)}</p>
+                  <p className="text-sm text-secondary-token">{typeof item === 'string' ? item : item.punto ?? JSON.stringify(item)}</p>
                 </div>
               ))}
             </motion.div>
@@ -596,13 +596,13 @@ export function ComiteParitario() {
       </div>
 
       {/* Resumir Notas de Reunión */}
-      <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-6 space-y-4">
+      <div className="bg-elevated border border-zinc-200 dark:border-white/5 rounded-2xl p-6 space-y-4">
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2 bg-blue-500/10 rounded-xl">
             <ListChecks className="w-5 h-5 text-blue-500" />
           </div>
           <div>
-            <h3 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest">Resumir Notas</h3>
+            <h3 className="text-sm font-black text-primary-token uppercase tracking-widest">Resumir Notas</h3>
             <p className="text-[10px] text-zinc-500">Extrae acuerdos estructurados de notas en texto libre</p>
           </div>
         </div>
@@ -629,7 +629,7 @@ export function ComiteParitario() {
               {(Array.isArray(summaryResult) ? summaryResult : summaryResult.acuerdos ?? [summaryResult]).map((a: any, i: number) => (
                 <div key={i} className="flex items-start gap-3 px-3 py-2 bg-blue-500/5 border border-blue-500/20 rounded-xl">
                   <CheckCircle className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
-                  <p className="text-sm text-zinc-700 dark:text-zinc-300">{typeof a === 'string' ? a : a.descripcion ?? a.acuerdo ?? JSON.stringify(a)}</p>
+                  <p className="text-sm text-secondary-token">{typeof a === 'string' ? a : a.descripcion ?? a.acuerdo ?? JSON.stringify(a)}</p>
                 </div>
               ))}
             </motion.div>
@@ -653,13 +653,13 @@ export function ComiteParitario() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-zinc-900 rounded-[2rem] p-6 w-full max-w-md shadow-2xl border border-zinc-200 dark:border-white/10 space-y-5"
+              className="bg-surface rounded-[2rem] p-6 w-full max-w-md shadow-2xl border border-zinc-200 dark:border-white/10 space-y-5"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight">Nueva Acta</h2>
-                <button onClick={() => setShowAddActa(false)} className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
-                  <X className="w-5 h-5" />
+                <h2 className="text-lg font-black text-primary-token uppercase tracking-tight">Nueva Acta</h2>
+                <button onClick={() => setShowAddActa(false)} aria-label="Cerrar" className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
+                  <X aria-hidden="true" className="w-5 h-5" />
                 </button>
               </div>
 
@@ -671,7 +671,7 @@ export function ComiteParitario() {
                     value={actaForm.fecha}
                     max={new Date().toISOString().split('T')[0]}
                     onChange={e => setActaForm(f => ({ ...f, fecha: e.target.value }))}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-primary-token focus:outline-none focus:border-emerald-500"
                   />
                 </div>
 
@@ -680,7 +680,7 @@ export function ComiteParitario() {
                   <select
                     value={actaForm.tipo}
                     onChange={e => setActaForm(f => ({ ...f, tipo: e.target.value as 'Ordinaria' | 'Extraordinaria' }))}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-primary-token focus:outline-none focus:border-emerald-500"
                   >
                     <option value="Ordinaria">Ordinaria</option>
                     <option value="Extraordinaria">Extraordinaria</option>
@@ -694,7 +694,7 @@ export function ComiteParitario() {
                     onChange={e => setActaForm(f => ({ ...f, asistentesRaw: e.target.value }))}
                     placeholder={"Juan Pérez — Supervisor\nMaría González — Delegada Trabajadores"}
                     rows={4}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500 resize-none"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-primary-token placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500 resize-none"
                   />
                 </div>
               </div>
@@ -702,7 +702,7 @@ export function ComiteParitario() {
               <div className="flex gap-3 pt-1">
                 <button
                   onClick={() => setShowAddActa(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white text-xs font-black uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-primary-token text-xs font-black uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                 >
                   Cancelar
                 </button>

@@ -314,11 +314,11 @@ export const PricingCalculator: React.FC = () => {
       <header className="space-y-1">
         <div className="flex items-center gap-3">
           <Calculator className="w-7 h-7 text-[#4db6ac]" />
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-black text-primary-token">
             {t('pricingCalc.header.title', 'Calculadora de Precios y ROI')}
           </h1>
         </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-muted-token">
           {t(
             'pricingCalc.header.subtitle',
             'Estima tu plan recomendado, costo mensual, retorno y presupuesto EPP en un solo lugar.',
@@ -329,10 +329,10 @@ export const PricingCalculator: React.FC = () => {
       {/* INPUTS ─────────────────────────────────────────────────────── */}
       <section
         data-testid="pricing-calculator-inputs"
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-5"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-elevated rounded-xl border border-default-token/50 p-5"
       >
         <label className="block">
-          <span className="flex items-center gap-2 text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">
+          <span className="flex items-center gap-2 text-[11px] font-medium text-secondary-token mb-1">
             <Users className="w-3.5 h-3.5" />
             {t('pricingCalc.inputs.workers', 'Trabajadores')}
           </span>
@@ -343,11 +343,11 @@ export const PricingCalculator: React.FC = () => {
             value={workers}
             onChange={(e) => setWorkers(Number(e.target.value) || 0)}
             data-testid="pc-workers"
-            className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-[#4db6ac]"
+            className="w-full bg-elevated border border-default-token rounded-lg px-2 py-1.5 text-sm text-primary-token focus:ring-1 focus:ring-[#4db6ac]"
           />
         </label>
         <label className="block">
-          <span className="flex items-center gap-2 text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">
+          <span className="flex items-center gap-2 text-[11px] font-medium text-secondary-token mb-1">
             <Briefcase className="w-3.5 h-3.5" />
             {t('pricingCalc.inputs.projects', 'Proyectos activos')}
           </span>
@@ -358,11 +358,11 @@ export const PricingCalculator: React.FC = () => {
             value={projects}
             onChange={(e) => setProjects(Number(e.target.value) || 0)}
             data-testid="pc-projects"
-            className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-[#4db6ac]"
+            className="w-full bg-elevated border border-default-token rounded-lg px-2 py-1.5 text-sm text-primary-token focus:ring-1 focus:ring-[#4db6ac]"
           />
         </label>
         <label className="block">
-          <span className="flex items-center gap-2 text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">
+          <span className="flex items-center gap-2 text-[11px] font-medium text-secondary-token mb-1">
             <Building2 className="w-3.5 h-3.5" />
             {t('pricingCalc.inputs.industry', 'Industria')}
           </span>
@@ -370,7 +370,7 @@ export const PricingCalculator: React.FC = () => {
             value={industryPrefix}
             onChange={(e) => setIndustryPrefix(e.target.value)}
             data-testid="pc-industry"
-            className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-900 dark:text-white"
+            className="w-full bg-elevated border border-default-token rounded-lg px-2 py-1.5 text-sm text-primary-token"
           >
             {SUPPORTED_INDUSTRY_OPTIONS.map((opt) => (
               <option key={opt.prefix} value={opt.prefix}>
@@ -380,7 +380,7 @@ export const PricingCalculator: React.FC = () => {
           </select>
         </label>
         <label className="block">
-          <span className="flex items-center gap-2 text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">
+          <span className="flex items-center gap-2 text-[11px] font-medium text-secondary-token mb-1">
             <Sparkles className="w-3.5 h-3.5" />
             {t('pricingCalc.inputs.currentTier', 'Tier actual')}
           </span>
@@ -388,7 +388,7 @@ export const PricingCalculator: React.FC = () => {
             value={currentTier}
             onChange={(e) => setCurrentTier(e.target.value as TierId)}
             data-testid="pc-current-tier"
-            className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-900 dark:text-white"
+            className="w-full bg-elevated border border-default-token rounded-lg px-2 py-1.5 text-sm text-primary-token"
           >
             {TIERS.map((tier) => (
               <option key={tier.id} value={tier.id}>
@@ -404,14 +404,14 @@ export const PricingCalculator: React.FC = () => {
         {/* Recommendation */}
         <div
           data-testid="pricing-calculator-recommendation"
-          className="bg-white dark:bg-slate-900/50 rounded-xl border border-[#4db6ac]/30 p-5 space-y-2"
+          className="bg-elevated rounded-xl border border-[#4db6ac]/30 p-5 space-y-2"
         >
-          <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-primary-token">
             <Sparkles className="w-4 h-4 text-[#4db6ac]" />
             {t('pricingCalc.recommendation.title', 'Plan recomendado')}
           </h2>
           <p className="text-3xl font-black text-[#4db6ac]">{recommendedTier.nombre}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-muted-token">
             {t('pricingCalc.recommendation.coverage', 'Cubre hasta {{w}} trabajadores y {{p}} proyectos.', {
               w: Number.isFinite(recommendedTier.trabajadoresMax)
                 ? recommendedTier.trabajadoresMax
@@ -421,11 +421,11 @@ export const PricingCalculator: React.FC = () => {
                 : '∞',
             })}
           </p>
-          <p className="text-sm text-slate-700 dark:text-slate-200">
+          <p className="text-sm text-secondary-token">
             {t('pricingCalc.recommendation.plan', 'Suscripción')}:{' '}
             <span className="font-mono font-semibold">{recommendedPlan}</span>
           </p>
-          <p className="text-base text-slate-700 dark:text-slate-200">
+          <p className="text-base text-secondary-token">
             {formatCurrency(recommendedTier.clpRegular, 'CLP')} /
             <span className="text-xs text-slate-500"> {t('pricingCalc.recommendation.perMonth', 'mes')}</span>
           </p>
@@ -444,14 +444,14 @@ export const PricingCalculator: React.FC = () => {
         {/* Current cost */}
         <div
           data-testid="pricing-calculator-current-cost"
-          className="bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-5 space-y-2"
+          className="bg-elevated rounded-xl border border-default-token/50 p-5 space-y-2"
         >
-          <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-primary-token">
             <Wallet className="w-4 h-4 text-[#4db6ac]" />
             {t('pricingCalc.current.title', 'Costo mensual estimado (tier actual)')}
           </h2>
           {currentTierCost ? (
-            <p className="text-3xl font-black text-slate-900 dark:text-white">
+            <p className="text-3xl font-black text-primary-token">
               {formatCurrency(currentTierCost.totalClp, 'CLP')}
             </p>
           ) : (
@@ -459,7 +459,7 @@ export const PricingCalculator: React.FC = () => {
               {t('pricingCalc.current.overCapacity', 'Tier actual excede capacidad — upgrade obligatorio.')}
             </p>
           )}
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-muted-token">
             {t('pricingCalc.current.note', 'Incluye overage de trabajadores/proyectos si aplica.')}
           </p>
         </div>
@@ -468,16 +468,16 @@ export const PricingCalculator: React.FC = () => {
       {/* COMPARATIVA TIERS ──────────────────────────────────────────── */}
       <section
         data-testid="pricing-calculator-tier-table"
-        className="bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-5"
+        className="bg-elevated rounded-xl border border-default-token/50 p-5"
       >
-        <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white mb-3">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-primary-token mb-3">
           <Wallet className="w-4 h-4 text-[#4db6ac]" />
           {t('pricingCalc.compare.title', 'Costo mensual por tier')}
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
-            <thead className="text-slate-500 dark:text-slate-400">
-              <tr className="border-b border-slate-200 dark:border-slate-700">
+            <thead className="text-muted-token">
+              <tr className="border-b border-default-token">
                 <th className="text-left py-2 pr-2">{t('pricingCalc.compare.tier', 'Tier')}</th>
                 <th className="text-right py-2 pr-2">{t('pricingCalc.compare.workers', 'Tope trabajadores')}</th>
                 <th className="text-right py-2 pr-2">{t('pricingCalc.compare.projects', 'Tope proyectos')}</th>
@@ -495,14 +495,14 @@ export const PricingCalculator: React.FC = () => {
                       : ''
                   }`}
                 >
-                  <td className="py-1.5 pr-2 text-slate-900 dark:text-white">{tier.nombre}</td>
-                  <td className="py-1.5 pr-2 text-right text-slate-700 dark:text-slate-300">
+                  <td className="py-1.5 pr-2 text-primary-token">{tier.nombre}</td>
+                  <td className="py-1.5 pr-2 text-right text-secondary-token">
                     {Number.isFinite(tier.trabajadoresMax) ? tier.trabajadoresMax : '∞'}
                   </td>
-                  <td className="py-1.5 pr-2 text-right text-slate-700 dark:text-slate-300">
+                  <td className="py-1.5 pr-2 text-right text-secondary-token">
                     {Number.isFinite(tier.proyectosMax) ? tier.proyectosMax : '∞'}
                   </td>
-                  <td className="py-1.5 pr-2 text-right text-slate-900 dark:text-white">
+                  <td className="py-1.5 pr-2 text-right text-primary-token">
                     {cost
                       ? formatCurrency(cost.totalClp, 'CLP')
                       : t('pricingCalc.compare.overCapacity', '— excede')}
@@ -517,16 +517,16 @@ export const PricingCalculator: React.FC = () => {
       {/* ROI ─────────────────────────────────────────────────────────── */}
       <section
         data-testid="pricing-calculator-roi"
-        className="bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-5 space-y-4"
+        className="bg-elevated rounded-xl border border-default-token/50 p-5 space-y-4"
       >
-        <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-primary-token">
           <TrendingUp className="w-4 h-4 text-[#4db6ac]" />
           {t('pricingCalc.roi.title', 'Simulador ROI — Incidentes evitados')}
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <label className="block">
-            <span className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">
+            <span className="block text-[11px] font-medium text-secondary-token mb-1">
               {t('pricingCalc.roi.baseline', 'Incidentes / año (baseline)')}
             </span>
             <input
@@ -536,11 +536,11 @@ export const PricingCalculator: React.FC = () => {
               value={baselineIncidents}
               onChange={(e) => setBaselineIncidents(Number(e.target.value) || 0)}
               data-testid="pc-roi-baseline"
-              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white"
+              className="w-full bg-elevated border border-default-token rounded-lg px-2 py-1.5 text-xs text-primary-token"
             />
           </label>
           <label className="block">
-            <span className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">
+            <span className="block text-[11px] font-medium text-secondary-token mb-1">
               {t('pricingCalc.roi.current', 'Incidentes / año (con programa)')}
             </span>
             <input
@@ -550,11 +550,11 @@ export const PricingCalculator: React.FC = () => {
               value={currentIncidents}
               onChange={(e) => setCurrentIncidents(Number(e.target.value) || 0)}
               data-testid="pc-roi-current"
-              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white"
+              className="w-full bg-elevated border border-default-token rounded-lg px-2 py-1.5 text-xs text-primary-token"
             />
           </label>
           <label className="block">
-            <span className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">
+            <span className="block text-[11px] font-medium text-secondary-token mb-1">
               {t('pricingCalc.roi.avgCost', 'Costo promedio / incidente (CLP)')}
             </span>
             <input
@@ -564,22 +564,22 @@ export const PricingCalculator: React.FC = () => {
               value={avgIncidentCost}
               onChange={(e) => setAvgIncidentCost(Number(e.target.value) || 0)}
               data-testid="pc-roi-cost"
-              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white"
+              className="w-full bg-elevated border border-default-token rounded-lg px-2 py-1.5 text-xs text-primary-token"
             />
           </label>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-muted-token">
               {t('pricingCalc.roi.avoided', 'Incidentes evitados / año')}
             </p>
-            <p data-testid="pc-roi-avoided" className="font-bold text-slate-900 dark:text-white">
+            <p data-testid="pc-roi-avoided" className="font-bold text-primary-token">
               {roi.incidentsAvoidedPerYear}
             </p>
           </div>
           <div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-muted-token">
               {t('pricingCalc.roi.totalSavings', 'Ahorro total / año')}
             </p>
             <p className="font-bold text-emerald-600 dark:text-emerald-400">
@@ -587,16 +587,16 @@ export const PricingCalculator: React.FC = () => {
             </p>
           </div>
           <div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('pricingCalc.roi.roi', 'ROI')}</p>
-            <p data-testid="pc-roi-percent" className="font-bold text-slate-900 dark:text-white">
+            <p className="text-[11px] text-muted-token">{t('pricingCalc.roi.roi', 'ROI')}</p>
+            <p data-testid="pc-roi-percent" className="font-bold text-primary-token">
               {Number.isFinite(roi.roiPercent) ? `${roi.roiPercent}%` : '∞'}
             </p>
           </div>
           <div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-muted-token">
               {t('pricingCalc.roi.payback', 'Payback')}
             </p>
-            <p data-testid="pc-roi-payback" className="font-bold text-slate-900 dark:text-white">
+            <p data-testid="pc-roi-payback" className="font-bold text-primary-token">
               {Number.isFinite(roi.paybackMonths)
                 ? `${roi.paybackMonths} ${t('pricingCalc.roi.months', 'meses')}`
                 : t('pricingCalc.roi.notRecoverable', 'No recuperable')}
@@ -605,7 +605,7 @@ export const PricingCalculator: React.FC = () => {
         </div>
 
         {roi.notes.length > 0 && (
-          <ul className="text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5 list-disc list-inside">
+          <ul className="text-[11px] text-muted-token space-y-0.5 list-disc list-inside">
             {roi.notes.map((n) => (
               <li key={n}>{n}</li>
             ))}
@@ -621,16 +621,16 @@ export const PricingCalculator: React.FC = () => {
           no de datos inventados. Sin proyecto activo → empty-state honesto. */}
       <section
         data-testid="pricing-calculator-scenario"
-        className="bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-5 space-y-4"
+        className="bg-elevated rounded-xl border border-default-token/50 p-5 space-y-4"
       >
-        <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-primary-token">
           <BarChart3 className="w-4 h-4 text-[#4db6ac]" />
           {t('pricingCalc.scenario.title', 'Comparador de escenarios ROI')}
         </h2>
 
         {hasScenarioComparison ? (
           <>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-muted-token">
               {t(
                 'pricingCalc.scenario.subtitle',
                 'Escenario derivado de tus inputs (proyecto activo {{project}}), calculado en el servidor.',
@@ -639,8 +639,8 @@ export const PricingCalculator: React.FC = () => {
             </p>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead className="text-slate-500 dark:text-slate-400">
-                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                <thead className="text-muted-token">
+                  <tr className="border-b border-default-token">
                     <th className="text-left py-2 pr-2">
                       {t('pricingCalc.scenario.colScenario', 'Escenario')}
                     </th>
@@ -672,7 +672,7 @@ export const PricingCalculator: React.FC = () => {
                           isRecommended ? 'bg-[#4db6ac]/5 font-semibold' : ''
                         }
                       >
-                        <td className="py-1.5 pr-2 text-slate-900 dark:text-white">
+                        <td className="py-1.5 pr-2 text-primary-token">
                           {o.scenarioName}
                           {isRecommended && (
                             <span className="ml-1.5 inline-flex items-center rounded-full bg-[#4db6ac]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#4db6ac]">
@@ -680,7 +680,7 @@ export const PricingCalculator: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td className="py-1.5 pr-2 text-right text-slate-700 dark:text-slate-300">
+                        <td className="py-1.5 pr-2 text-right text-secondary-token">
                           {formatCurrency(o.totalInvestmentClp, 'CLP')}
                         </td>
                         <td
@@ -691,11 +691,11 @@ export const PricingCalculator: React.FC = () => {
                         </td>
                         <td
                           data-testid={`pc-scenario-roi-${o.scenarioId}`}
-                          className="py-1.5 pr-2 text-right text-slate-900 dark:text-white"
+                          className="py-1.5 pr-2 text-right text-primary-token"
                         >
                           {formatRoiPercent(o.projectedRoiPercent)}
                         </td>
-                        <td className="py-1.5 pr-2 text-right text-slate-700 dark:text-slate-300">
+                        <td className="py-1.5 pr-2 text-right text-secondary-token">
                           {formatPayback(
                             o.paybackMonths,
                             t('pricingCalc.roi.months', 'meses'),
@@ -704,7 +704,7 @@ export const PricingCalculator: React.FC = () => {
                         </td>
                         <td
                           data-testid={`pc-scenario-score-${o.scenarioId}`}
-                          className="py-1.5 pr-2 text-right font-bold text-slate-900 dark:text-white"
+                          className="py-1.5 pr-2 text-right font-bold text-primary-token"
                         >
                           {o.recommendationScore}/100
                         </td>
@@ -734,12 +734,12 @@ export const PricingCalculator: React.FC = () => {
 
             {scenarioRationale.length > 0 && (
               <div className="space-y-1">
-                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                <p className="text-[11px] font-semibold text-secondary-token">
                   {t('pricingCalc.scenario.rationaleTitle', 'Análisis comparativo')}
                 </p>
                 <ul
                   data-testid="pc-scenario-rationale"
-                  className="text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5 list-disc list-inside"
+                  className="text-[11px] text-muted-token space-y-0.5 list-disc list-inside"
                 >
                   {scenarioRationale.map((r) => (
                     <li key={r}>{r}</li>
@@ -751,7 +751,7 @@ export const PricingCalculator: React.FC = () => {
         ) : (
           <p
             data-testid="pc-scenario-empty"
-            className="text-xs text-slate-500 dark:text-slate-400"
+            className="text-xs text-muted-token"
           >
             {t(
               'pricingCalc.scenario.empty',
@@ -764,39 +764,39 @@ export const PricingCalculator: React.FC = () => {
       {/* EPP BUDGET ──────────────────────────────────────────────────── */}
       <section
         data-testid="pricing-calculator-epp"
-        className="bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-5 space-y-3"
+        className="bg-elevated rounded-xl border border-default-token/50 p-5 space-y-3"
       >
-        <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-primary-token">
           <HardHat className="w-4 h-4 text-[#4db6ac]" />
           {t('pricingCalc.epp.title', 'Presupuesto EPP estimado')}
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
           <div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-muted-token">
               {t('pricingCalc.epp.monthly', 'Mensual ({{n}} trabajadores)', { n: workers })}
             </p>
-            <p data-testid="pc-epp-monthly" className="font-bold text-slate-900 dark:text-white">
+            <p data-testid="pc-epp-monthly" className="font-bold text-primary-token">
               {formatCurrency(eppBudget.totalClp, 'CLP')}
             </p>
           </div>
           <div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-muted-token">
               {t('pricingCalc.epp.annual', 'Anualizado')}
             </p>
-            <p className="font-bold text-slate-900 dark:text-white">
+            <p className="font-bold text-primary-token">
               {formatCurrency(eppBudget.totalClp * 12, 'CLP')}
             </p>
           </div>
           <div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-muted-token">
               {t('pricingCalc.epp.perWorker', 'Por trabajador / mes')}
             </p>
-            <p className="font-bold text-slate-900 dark:text-white">
+            <p className="font-bold text-primary-token">
               {formatCurrency(eppBudget.perWorkerClp, 'CLP')}
             </p>
           </div>
         </div>
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-start gap-1.5">
+        <p className="text-[11px] text-muted-token flex items-start gap-1.5">
           <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
           {t(
             'pricingCalc.epp.disclaimer',
@@ -830,12 +830,12 @@ export const PricingCalculator: React.FC = () => {
           type="button"
           onClick={onDownloadOcJson}
           data-testid="pc-download-oc-json"
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-lg min-h-11 border border-slate-200 dark:border-slate-700"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-secondary-token text-sm font-medium rounded-lg min-h-11 border border-default-token"
         >
           <Download className="w-4 h-4" />
           {t('pricingCalc.actions.downloadJson', 'Descargar JSON (integraciones)')}
         </button>
-        <span className="text-[11px] text-slate-500 dark:text-slate-400 self-center">
+        <span className="text-[11px] text-muted-token self-center">
           {t(
             'pricingCalc.actions.note',
             'El PDF es sugerido — para emisión formal de OC contactar a contacto@praeventio.net.',

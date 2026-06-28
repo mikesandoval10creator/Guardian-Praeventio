@@ -361,11 +361,11 @@ export function Matrix() {
               </div>
             </div>
             
-            <h2 className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-white mb-6 tracking-tight">
+            <h2 className="text-3xl sm:text-4xl font-black text-primary-token mb-6 tracking-tight">
               Matriz IPER Inteligente
             </h2>
             
-            <p className="text-zinc-600 dark:text-zinc-400 text-base sm:text-lg leading-relaxed mb-12 max-w-xl mx-auto">
+            <p className="text-secondary-token text-base sm:text-lg leading-relaxed mb-12 max-w-xl mx-auto">
               Diseñe su Matriz de Identificación de Peligros y Evaluación de Riesgos con precisión quirúrgica. Seleccione un proyecto para cargar los protocolos específicos de su rubro.
             </p>
             
@@ -383,7 +383,7 @@ export function Matrix() {
               
               <Link 
                 to="/projects"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all border border-zinc-200 dark:border-white/10 active:scale-95"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-primary-token px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all border border-zinc-200 dark:border-white/10 active:scale-95"
               >
                 <Briefcase className="w-5 h-5" />
                 Gestión de Proyectos
@@ -394,21 +394,21 @@ export function Matrix() {
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Shield className="w-4 h-4 text-emerald-500/50" />
-                  <p className="text-2xl font-black text-zinc-900 dark:text-white">0</p>
+                  <p className="text-2xl font-black text-primary-token">0</p>
                 </div>
                 <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Peligros ID</p>
               </div>
               <div className="text-center border-x border-zinc-200 dark:border-white/5">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Zap className="w-4 h-4 text-amber-500/50" />
-                  <p className="text-2xl font-black text-zinc-900 dark:text-white">0%</p>
+                  <p className="text-2xl font-black text-primary-token">0%</p>
                 </div>
                 <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Efectividad</p>
               </div>
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <CalendarIcon className="w-4 h-4 text-blue-500/50" />
-                  <p className="text-2xl font-black text-zinc-900 dark:text-white">0</p>
+                  <p className="text-2xl font-black text-primary-token">0</p>
                 </div>
                 <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Controles</p>
               </div>
@@ -428,23 +428,23 @@ export function Matrix() {
             String(node.metadata?.criticidad || '').toLowerCase() === 'media' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' :
             'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
           }`} />
-          <span className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white">{node.title}</span>
+          <span className="text-xs sm:text-sm font-bold text-primary-token">{node.title}</span>
         </div>
       </td>
       <td className="px-4 py-3 sm:py-4 border-y border-zinc-200 dark:border-white/5 group-hover:border-zinc-300 dark:group-hover:border-white/10">
-        <p className="text-[10px] sm:text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2">{node.description}</p>
+        <p className="text-[10px] sm:text-xs text-secondary-token line-clamp-2">{node.description}</p>
       </td>
       <td className="px-4 py-3 sm:py-4 border-y border-zinc-200 dark:border-white/5 group-hover:border-zinc-300 dark:group-hover:border-white/10 text-center">
-        <div className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-xs font-bold text-zinc-900 dark:text-white border border-zinc-300 dark:border-white/5">
+        <div className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-xs font-bold text-primary-token border border-zinc-300 dark:border-white/5">
           {node.metadata?.probabilidad || 3}x{node.metadata?.severidad || 3}
         </div>
       </td>
       <td className="px-4 py-3 sm:py-4 border-y border-zinc-200 dark:border-white/5 group-hover:border-zinc-300 dark:group-hover:border-white/10">
-        <p className="text-[10px] sm:text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2">{node.metadata?.controles || 'Controles estándar'}</p>
+        <p className="text-[10px] sm:text-xs text-secondary-token line-clamp-2">{node.metadata?.controles || 'Controles estándar'}</p>
       </td>
       <td className="px-4 py-3 sm:py-4 border-y border-zinc-200 dark:border-white/5 group-hover:border-zinc-300 dark:group-hover:border-white/10">
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] sm:text-xs font-medium text-zinc-700 dark:text-zinc-300">Supervisor Turno</span>
+          <span className="text-[10px] sm:text-xs font-medium text-secondary-token">Supervisor Turno</span>
           <span className="text-[8px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Permanente</span>
         </div>
       </td>
@@ -478,8 +478,8 @@ export function Matrix() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">{t('matrix.title', 'Matriz IPERC IA')}</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-[10px] sm:text-sm">{t('matrix.subtitle', 'Identificación de Peligros, Evaluación de Riesgos y Medidas de Control')}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary-token tracking-tight leading-tight">{t('matrix.title', 'Matriz IPERC IA')}</h1>
+          <p className="text-muted-token mt-1 text-[10px] sm:text-sm">{t('matrix.subtitle', 'Identificación de Peligros, Evaluación de Riesgos y Medidas de Control')}</p>
           {selectedProject?.industry && (
             <div className="mt-2 inline-flex items-center gap-2 px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20">
               <Shield className="w-3 h-3 text-blue-600 dark:text-blue-400" />
@@ -513,7 +513,7 @@ export function Matrix() {
           </button>
           <button
             onClick={() => setIsPresenting(true)}
-            className="flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white px-4 py-2.5 sm:py-2 rounded-xl font-medium transition-all border border-zinc-200 dark:border-white/10 active:scale-95 text-[10px] sm:text-sm"
+            className="flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-primary-token px-4 py-2.5 sm:py-2 rounded-xl font-medium transition-all border border-zinc-200 dark:border-white/10 active:scale-95 text-[10px] sm:text-sm"
           >
             <MonitorPlay className="w-4 h-4 sm:w-5 sm:h-5" />
             <span className="hidden sm:inline">{t('matrix.action.presentation', 'Modo Presentación')}</span>
@@ -529,8 +529,8 @@ export function Matrix() {
           </div>
           <div>
             <h2 className="text-sm font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-1">{t('matrix.protocols.title', 'Protocolos Dinámicos Activos')}</h2>
-            <p className="text-zinc-700 dark:text-zinc-300 text-sm leading-relaxed">
-              El sistema ha recalibrado automáticamente las exigencias de seguridad y parámetros de estrés para el sector <span className="font-bold text-zinc-900 dark:text-white">{selectedProject.industry || 'General'}</span>. Las matrices de riesgo y normativas aplicables se han ajustado al entorno operativo actual.
+            <p className="text-secondary-token text-sm leading-relaxed">
+              El sistema ha recalibrado automáticamente las exigencias de seguridad y parámetros de estrés para el sector <span className="font-bold text-primary-token">{selectedProject.industry || 'General'}</span>. Las matrices de riesgo y normativas aplicables se han ajustado al entorno operativo actual.
             </p>
           </div>
         </div>
@@ -549,7 +549,7 @@ export function Matrix() {
             </div>
             <div>
               <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">{stat.label}</p>
-              <h3 className="text-3xl font-bold text-zinc-900 dark:text-white leading-none">{stat.value}</h3>
+              <h3 className="text-3xl font-bold text-primary-token leading-none">{stat.value}</h3>
             </div>
           </div>
         ))}
@@ -562,7 +562,7 @@ export function Matrix() {
             <div className="p-2 bg-amber-100 dark:bg-amber-500/10 rounded-lg shrink-0">
               <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 dark:text-amber-500" />
             </div>
-            <h2 className="text-sm sm:text-lg font-bold text-zinc-900 dark:text-white leading-tight">Sugerencias de IA Pendientes</h2>
+            <h2 className="text-sm sm:text-lg font-bold text-primary-token leading-tight">Sugerencias de IA Pendientes</h2>
             <span className="bg-amber-500 text-white dark:text-black text-[8px] sm:text-[10px] font-black px-2 py-0.5 rounded-full ml-1 sm:ml-2 shrink-0">
               {pendingRisks.length}
             </span>
@@ -584,8 +584,8 @@ export function Matrix() {
                       <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-bold text-zinc-900 dark:text-white text-sm sm:text-lg leading-tight truncate">{node.title}</h3>
-                      <p className="text-zinc-600 dark:text-zinc-400 text-[10px] sm:text-sm mt-1 line-clamp-2">{node.description}</p>
+                      <h3 className="font-bold text-primary-token text-sm sm:text-lg leading-tight truncate">{node.title}</h3>
+                      <p className="text-secondary-token text-[10px] sm:text-sm mt-1 line-clamp-2">{node.description}</p>
                       <div className="flex items-center gap-2 sm:gap-3 mt-2 sm:mt-3">
                         <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500">Criticidad:</span>
                         <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest ${getCriticalityTextColor(node.metadata?.criticidad)}`}>
@@ -597,7 +597,7 @@ export function Matrix() {
                   <div className="flex items-center gap-2 sm:w-auto w-full">
                     <button 
                       onClick={() => handleRejectRisk(node.id)}
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-500/20 text-zinc-500 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-500 border border-zinc-200 dark:border-zinc-700 hover:border-rose-200 dark:hover:border-rose-500/30 px-3 py-2.5 sm:py-2 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-500/20 text-muted-token hover:text-rose-600 dark:hover:text-rose-500 border border-default-token hover:border-rose-200 dark:hover:border-rose-500/30 px-3 py-2.5 sm:py-2 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all"
                     >
                       <X className="w-4 h-4" />
                       Descartar
@@ -626,7 +626,7 @@ export function Matrix() {
             placeholder="Buscar en la matriz..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2 sm:py-2.5 pl-9 sm:pl-10 pr-4 text-[10px] sm:text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+            className="w-full bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2 sm:py-2.5 pl-9 sm:pl-10 pr-4 text-[10px] sm:text-sm text-primary-token placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
           />
         </div>
         <button
@@ -634,7 +634,7 @@ export function Matrix() {
           className={`flex items-center justify-center gap-2 border rounded-xl px-4 py-2 sm:py-2.5 transition-all text-[10px] sm:text-sm w-full sm:w-auto ${
             showFilters || criticidadFilter !== 'all'
               ? 'bg-emerald-500 border-emerald-500 text-white'
-              : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 text-muted-token hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800'
           }`}
         >
           <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -652,7 +652,7 @@ export function Matrix() {
                   key={opt.v}
                   onClick={() => setCriticidadFilter(opt.v)}
                   className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
-                    criticidadFilter === opt.v ? 'bg-emerald-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                    criticidadFilter === opt.v ? 'bg-emerald-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-secondary-token hover:bg-zinc-300 dark:hover:bg-zinc-700'
                   }`}
                 >{opt.label}</button>
               ))}
@@ -673,7 +673,7 @@ export function Matrix() {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Briefcase className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Riesgos Específicos del Giro ({selectedProject?.industry})</h3>
+                <h3 className="text-lg font-bold text-primary-token">Riesgos Específicos del Giro ({selectedProject?.industry})</h3>
               </div>
               <div className="overflow-x-auto bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-[2rem] p-4 sm:p-6">
                 <table className="w-full text-left border-separate border-spacing-y-3">
@@ -700,7 +700,7 @@ export function Matrix() {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Grid className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Riesgos Transversales</h3>
+                <h3 className="text-lg font-bold text-primary-token">Riesgos Transversales</h3>
               </div>
               <div className="overflow-x-auto bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-[2rem] p-4 sm:p-6">
                 <table className="w-full text-left border-separate border-spacing-y-3">
@@ -727,7 +727,7 @@ export function Matrix() {
           <div className="w-16 h-16 sm:w-20 sm:h-20 bg-zinc-200 dark:bg-zinc-800 rounded-2xl sm:rounded-3xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
             <Database className="w-8 h-8 sm:w-10 sm:h-10 text-zinc-400 dark:text-zinc-600" />
           </div>
-          <h3 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white mb-2">Matriz IPER no inicializada</h3>
+          <h3 className="text-lg sm:text-xl font-bold text-primary-token mb-2">Matriz IPER no inicializada</h3>
           <p className="text-[10px] sm:text-sm text-zinc-500 max-w-md mx-auto mb-6">
             No se han encontrado riesgos definidos para este proyecto. Puedes sembrar la matriz base o usar la IA para generar riesgos específicos.
           </p>
@@ -766,7 +766,7 @@ export function Matrix() {
               value={manualRisk.title}
               onChange={e => setManualRisk({...manualRisk, title: e.target.value})}
               placeholder="Ej: Caída a distinto nivel"
-              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-primary-token focus:ring-2 focus:ring-emerald-500/50 transition-all"
             />
           </div>
           <div>
@@ -776,7 +776,7 @@ export function Matrix() {
               value={manualRisk.description}
               onChange={e => setManualRisk({...manualRisk, description: e.target.value})}
               placeholder="Describa cómo ocurre el riesgo..."
-              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-zinc-900 dark:text-white h-24 focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-primary-token h-24 focus:ring-2 focus:ring-emerald-500/50 transition-all"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -785,7 +785,7 @@ export function Matrix() {
               <select 
                 value={manualRisk.probabilidad}
                 onChange={e => setManualRisk({...manualRisk, probabilidad: parseInt(e.target.value)})}
-                className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-primary-token focus:ring-2 focus:ring-emerald-500/50 transition-all"
               >
                 {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -795,7 +795,7 @@ export function Matrix() {
               <select 
                 value={manualRisk.severidad}
                 onChange={e => setManualRisk({...manualRisk, severidad: parseInt(e.target.value)})}
-                className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-primary-token focus:ring-2 focus:ring-emerald-500/50 transition-all"
               >
                 {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -808,7 +808,7 @@ export function Matrix() {
           }`}>
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">Riesgo Puro (P x S)</span>
             <div className="flex items-center gap-3">
-              <span className="text-3xl font-black text-zinc-900 dark:text-white">{manualRisk.probabilidad * manualRisk.severidad}</span>
+              <span className="text-3xl font-black text-primary-token">{manualRisk.probabilidad * manualRisk.severidad}</span>
               <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
                 PURE_RISK_BADGE_CLASS[criticidadFromIper(manualRisk.probabilidad, manualRisk.severidad)]
               }`}>
@@ -824,7 +824,7 @@ export function Matrix() {
               value={manualRisk.controles}
               onChange={e => setManualRisk({...manualRisk, controles: e.target.value})}
               placeholder="EPP, procedimientos, barreras físicas..."
-              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-zinc-900 dark:text-white h-24 focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-primary-token h-24 focus:ring-2 focus:ring-emerald-500/50 transition-all"
             />
           </div>
           <button 
