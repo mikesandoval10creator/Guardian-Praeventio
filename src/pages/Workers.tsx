@@ -100,8 +100,8 @@ export function Workers() {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-hidden box-border">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">{t('workers.title')}</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-xs sm:text-sm">
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary-token tracking-tight leading-tight">{t('workers.title')}</h1>
+          <p className="text-muted-token mt-1 text-xs sm:text-sm">
             {selectedProject
               ? t('workers.managing_for', { project: selectedProject.name })
               : t('workers.subtitle_centralized')}
@@ -114,8 +114,8 @@ export function Workers() {
             title={!isOnline ? t('workers.requires_internet') : ''}
             className={`flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 rounded-xl font-medium transition-all active:scale-95 text-xs sm:text-sm ${
               !isOnline
-                ? 'bg-zinc-100 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-500 cursor-not-allowed'
-                : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white'
+                ? 'bg-elevated/50 text-muted-token cursor-not-allowed'
+                : 'bg-elevated hover:bg-zinc-200 dark:hover:bg-zinc-700 text-primary-token'
             }`}
           >
             {!isOnline ? <WifiOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />}
@@ -123,7 +123,7 @@ export function Workers() {
           </button>
           <button 
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center justify-center gap-2 bg-[#4db6ac] hover:bg-[#3a9e95] text-white px-4 py-2.5 sm:py-2 rounded-xl font-medium transition-all active:scale-95 shadow-lg shadow-[#4db6ac]/20 text-xs sm:text-sm"
+            className="flex items-center justify-center gap-2 accent-bg hover:opacity-90 accent-on-primary-text px-4 py-2.5 sm:py-2 rounded-xl font-medium transition-all active:scale-95 shadow-lg shadow-[#4db6ac]/20 text-xs sm:text-sm"
           >
             <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>{t('workers.add_worker')}</span>
@@ -142,14 +142,14 @@ export function Workers() {
             placeholder={t('workers.search_placeholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-9 sm:pl-10 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all shadow-sm"
+            className="w-full bg-surface border border-default-token rounded-xl py-2.5 pl-9 sm:pl-10 pr-4 text-xs sm:text-sm text-primary-token placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all shadow-sm"
           />
         </div>
         <div className="relative">
           <select
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
-            className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 appearance-none transition-all shadow-sm"
+            className="w-full bg-surface border border-default-token rounded-xl py-2.5 pl-4 pr-10 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 appearance-none transition-all shadow-sm"
           >
             <option value="all">{t('workers.all_roles')}</option>
             <option value="Prevencionista">Prevencionista</option>
@@ -182,7 +182,7 @@ export function Workers() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl p-4 sm:p-5 hover:border-[#4db6ac]/30 transition-all group relative shadow-sm"
+              className="bg-surface border border-default-token rounded-2xl p-4 sm:p-5 hover:border-[#4db6ac]/30 transition-all group relative shadow-sm"
             >
               <div className="absolute top-0 right-0 p-3 sm:p-4">
                 <div className="relative dropdown-container">
@@ -191,7 +191,7 @@ export function Workers() {
                       e.stopPropagation();
                       setActiveDropdown(activeDropdown === worker.id ? null : worker.id);
                     }}
-                    className="text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-white/5"
+                    aria-label="Más opciones" className="text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
                     <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
@@ -202,7 +202,7 @@ export function Workers() {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: -10 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute right-0 mt-1 w-32 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl shadow-xl z-20 overflow-hidden"
+                        className="absolute right-0 mt-1 w-32 bg-elevated border border-default-token rounded-xl shadow-xl z-20 overflow-hidden"
                       >
                         <button 
                           onClick={(e) => {
@@ -211,7 +211,7 @@ export function Workers() {
                             setIsEditModalOpen(true);
                             setActiveDropdown(null);
                           }}
-                          className="w-full text-left px-4 py-2.5 text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
+                          className="w-full text-left px-4 py-2.5 text-xs text-secondary-token hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
                         >
                           {t('common.edit')}
                         </button>
@@ -232,14 +232,14 @@ export function Workers() {
               </div>
 
               <div className="flex items-start gap-3 sm:gap-4 mb-3 sm:mb-4">
-                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-xl sm:text-2xl font-bold text-[#4db6ac] dark:text-[#d4af37] border border-zinc-200 dark:border-white/5 shrink-0">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-elevated flex items-center justify-center text-xl sm:text-2xl font-bold accent-text border border-subtle-token shrink-0">
                   {worker.name.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="font-bold text-zinc-900 dark:text-white text-base sm:text-lg leading-tight group-hover:text-[#4db6ac] dark:group-hover:text-[#d4af37] transition-colors pr-6">
+                  <h3 className="font-bold text-primary-token text-base sm:text-lg leading-tight group-hover:text-[#4db6ac] dark:group-hover:text-[#d4af37] transition-colors pr-6">
                     {worker.name}
                   </h3>
-                  <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm font-medium mt-0.5">{worker.role}</p>
+                  <p className="text-muted-token text-xs sm:text-sm font-medium mt-0.5">{worker.role}</p>
                   <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
                     <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${worker.status === 'active' ? 'bg-emerald-500' : 'bg-zinc-500'}`} />
                     <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-400 font-bold">
@@ -256,21 +256,21 @@ export function Workers() {
               </div>
 
               <div className="space-y-2 mb-4 sm:mb-6">
-                <div className="flex items-center gap-2 sm:gap-3 text-zinc-400 dark:text-zinc-500 text-xs sm:text-sm">
+                <div className="flex items-center gap-2 sm:gap-3 text-muted-token text-xs sm:text-sm">
                   <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span className="truncate">{worker.email}</span>
                 </div>
-                <div className="flex items-center gap-2 sm:gap-3 text-zinc-400 dark:text-zinc-500 text-xs sm:text-sm">
+                <div className="flex items-center gap-2 sm:gap-3 text-muted-token text-xs sm:text-sm">
                   <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span>{worker.phone || t('workers.not_registered')}</span>
                 </div>
-                <div className="flex items-center gap-2 sm:gap-3 text-zinc-400 dark:text-zinc-500 text-xs sm:text-sm">
+                <div className="flex items-center gap-2 sm:gap-3 text-muted-token text-xs sm:text-sm">
                   <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span>{t('workers.joined')}: {worker.joinedAt ? new Date(worker.joinedAt).toLocaleDateString() : 'N/A'}</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-2 pt-4 border-t border-zinc-200 dark:border-white/5">
+              <div className="grid grid-cols-4 gap-2 pt-4 border-t border-subtle-token">
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('user-profile'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn col-span-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 mb-2"
@@ -283,63 +283,63 @@ export function Workers() {
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
                   <FileSignature className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 dark:text-amber-400 group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">{t('workers.labor')}</span>
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-muted-token">{t('workers.labor')}</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('epp'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
                   <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500 dark:text-indigo-400 group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">EPP</span>
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-muted-token">EPP</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('docs'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
                   <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 dark:text-amber-400 group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">{t('workers.docs')}</span>
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-muted-token">{t('workers.docs')}</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('safety-plan'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
-                  <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5 text-[#4db6ac] dark:text-[#d4af37] group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">{t('workers.plan')}</span>
+                  <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5 accent-text group-hover/btn:scale-110 transition-transform" />
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-muted-token">{t('workers.plan')}</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('training'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
                   <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500 dark:text-indigo-400 group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">{t('workers.training')}</span>
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-muted-token">{t('workers.training')}</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('traceability'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
-                  <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-[#4db6ac] dark:text-[#d4af37] group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">{t('workers.traceability')}</span>
+                  <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 accent-text group-hover/btn:scale-110 transition-transform" />
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-muted-token">{t('workers.traceability')}</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('qr'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
-                  <QrCode className="w-4 h-4 sm:w-5 sm:h-5 text-[#4db6ac] dark:text-[#d4af37] group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">QR</span>
+                  <QrCode className="w-4 h-4 sm:w-5 sm:h-5 accent-text group-hover/btn:scale-110 transition-transform" />
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-muted-token">QR</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('access'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
                   <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-rose-500 dark:text-rose-400 group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">{t('workers.access')}</span>
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-muted-token">{t('workers.access')}</span>
                 </button>
               </div>
             </motion.div>
           ))}
         </div>
       ) : (
-        <div className="bg-white dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl shadow-sm">
+        <div className="bg-surface border border-dashed border-default-token rounded-2xl sm:rounded-3xl shadow-sm">
           <EmptyState
             mascot
             title={t('workers.empty_title')}
@@ -363,26 +363,26 @@ export function Workers() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+              className="relative bg-surface border border-default-token rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
             >
-              <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-[#4db6ac]/10 dark:bg-gradient-to-r dark:from-[#d4af37]/10 dark:to-transparent shrink-0">
+              <div className="p-6 border-b border-subtle-token flex items-center justify-between bg-[#4db6ac]/10 dark:bg-gradient-to-r dark:from-[#d4af37]/10 dark:to-transparent shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#4db6ac]/20 dark:bg-[#d4af37]/20 rounded-xl flex items-center justify-center text-[#4db6ac] dark:text-[#d4af37] shrink-0">
+                  <div className="w-10 h-10 bg-[#4db6ac]/20 dark:bg-[#d4af37]/20 rounded-xl flex items-center justify-center accent-text shrink-0">
                     <BrainCircuit className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('workers.ai_safety_plan')}</h2>
-                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest truncate">{selectedWorker.name}</p>
+                    <h2 className="text-lg font-black text-primary-token uppercase tracking-tight truncate">{t('workers.ai_safety_plan')}</h2>
+                    <p className="text-[10px] text-muted-token font-bold uppercase tracking-widest truncate">{selectedWorker.name}</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setActiveModal(null)}
-                  className="p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-colors shrink-0"
+                  aria-label="Cerrar" className="p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-colors shrink-0"
                 >
-                  <X className="w-5 h-5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white" />
+                  <X className="w-5 h-5 text-muted-token hover:text-zinc-900 dark:hover:text-white" />
                 </button>
               </div>
-              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-white dark:bg-zinc-900">
+              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-surface">
                 <PersonalizedSafetyPlan worker={{
                   id: selectedWorker.id,
                   title: selectedWorker.name,
@@ -415,26 +415,26 @@ export function Workers() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+              className="relative bg-surface border border-default-token rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
             >
-              <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-indigo-50 dark:bg-gradient-to-r dark:from-indigo-500/10 dark:to-transparent shrink-0">
+              <div className="p-6 border-b border-subtle-token flex items-center justify-between bg-indigo-50 dark:bg-gradient-to-r dark:from-indigo-500/10 dark:to-transparent shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-500 shrink-0">
                     <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('workers.ai_training')}</h2>
-                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest truncate">{selectedWorker.name}</p>
+                    <h2 className="text-lg font-black text-primary-token uppercase tracking-tight truncate">{t('workers.ai_training')}</h2>
+                    <p className="text-[10px] text-muted-token font-bold uppercase tracking-widest truncate">{selectedWorker.name}</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setActiveModal(null)}
-                  className="p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-colors shrink-0"
+                  aria-label="Cerrar" className="p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-colors shrink-0"
                 >
-                  <X className="w-5 h-5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white" />
+                  <X className="w-5 h-5 text-muted-token hover:text-zinc-900 dark:hover:text-white" />
                 </button>
               </div>
-              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-white dark:bg-zinc-900">
+              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-surface">
                 <TrainingRecommendations worker={{
                   id: selectedWorker.id,
                   title: selectedWorker.name,
