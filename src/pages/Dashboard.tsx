@@ -57,8 +57,8 @@ import { ComplianceTrafficLight } from '../components/compliance/ComplianceTraff
 import { useComplianceTrafficLight } from '../hooks/useComplianceTrafficLight';
 import { RubroBenchmarksCard } from '../components/dashboard/RubroBenchmarksCard';
 import { DashboardQuickActions } from '../components/dashboard/DashboardQuickActions';
-import { EPPRequiredWidget } from '../components/dashboard/EPPRequiredWidget';
 import { EppSelector } from '../components/epp/EppSelector';
+import { rubroIdForIndustry } from '../components/epp/eppSelectorData';
 import { ManDownSupervisorWidget } from '../components/dashboard/ManDownSupervisorWidget';
 import { DashboardHero } from '../components/dashboard/DashboardHero';
 import { AdviceBanner } from '../components/dashboard/AdviceBanner';
@@ -597,11 +597,11 @@ export function Dashboard() {
       {/* Man Down supervisor alert — only renders when events exist */}
       <ManDownSupervisorWidget />
 
-      {/* 5. EPP Widget */}
-      <EPPRequiredWidget />
-
-      {/* 5b. Personalización Inteligente — interactive EPP selector by rubro */}
-      <EppSelector />
+      {/* 5. EPP context-aware (2026-06-28): UN solo widget para todos. EppSelector
+          muestra la mascota + el EPP del rubro, auto-detectado del contexto del
+          proyecto (faena demo para invitados; rubro real con sesión). Consolida
+          el duplicado EPPRequiredWidget. */}
+      <EppSelector initialRubroId={rubroIdForIndustry(selectedProject?.industry)} />
 
       {/* 6. Modules - Scrollable Grid */}
       <ModuleGroupsGrid />

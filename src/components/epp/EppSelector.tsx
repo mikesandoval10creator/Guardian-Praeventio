@@ -5,7 +5,7 @@
 //
 // DS 594-compliant EPP sets. No hardcoded colors — tokens only.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { GuardianMascot } from '../shared/GuardianMascot';
 import { EPP_SELECTOR_RUBROS, getEppForRubro, type EppSelectorRubro } from './eppSelectorData';
@@ -24,9 +24,17 @@ function EppCard({ emoji, label }: { emoji: string; label: string }) {
   );
 }
 
-export function EppSelector() {
+export function EppSelector({ initialRubroId }: { initialRubroId?: string } = {}) {
   const { t } = useTranslation();
-  const [selectedRubroId, setSelectedRubroId] = useState<string>(EPP_SELECTOR_RUBROS[0].id);
+  const [selectedRubroId, setSelectedRubroId] = useState<string>(
+    initialRubroId ?? EPP_SELECTOR_RUBROS[0].id,
+  );
+
+  // Auto-contexto: re-sincroniza al rubro del proyecto cuando cambia (login o
+  // cambio de proyecto). El usuario igual puede elegir otro con el dropdown.
+  useEffect(() => {
+    if (initialRubroId) setSelectedRubroId(initialRubroId);
+  }, [initialRubroId]);
 
   const selectedRubro: EppSelectorRubro =
     EPP_SELECTOR_RUBROS.find((r) => r.id === selectedRubroId) ?? EPP_SELECTOR_RUBROS[0];
