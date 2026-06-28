@@ -50,7 +50,6 @@ import {
   type ChallengePeriod,
 } from '../components/dashboard/challengeUtils';
 import { WeatherBulletin } from '../components/dashboard/WeatherBulletin';
-import { WeatherSafetyRecommendations } from '../components/WeatherSafetyRecommendations';
 import { ComplianceCard } from '../components/dashboard/ComplianceCard';
 import { ComplianceTrafficLight } from '../components/compliance/ComplianceTrafficLight';
 import { useComplianceTrafficLight } from '../hooks/useComplianceTrafficLight';
@@ -60,7 +59,7 @@ import { EppSelector } from '../components/epp/EppSelector';
 import { rubroIdForIndustry } from '../components/epp/eppSelectorData';
 import { ManDownSupervisorWidget } from '../components/dashboard/ManDownSupervisorWidget';
 import { DashboardHero } from '../components/dashboard/DashboardHero';
-import { AdviceBanner } from '../components/dashboard/AdviceBanner';
+import { RotatingAdviceBanner } from '../components/dashboard/RotatingAdviceBanner';
 import { ModuleGroupsGrid } from '../components/dashboard/ModuleGroupsGrid';
 import { PlannerModal } from '../components/dashboard/PlannerModal';
 import { ExpirationsListPanel } from '../components/expirations/ExpirationsListPanel';
@@ -537,25 +536,26 @@ export function Dashboard() {
           Maps `weather.uv` → `uvIndex` (component reads uvIndex internally;
           environment.weather exposes it as `uv`). Altitude passed through
           for DS 594 §53 altitude-tier recommendations. */}
-      {weather && !weather.unavailable && (
-        <WeatherSafetyRecommendations
-          weather={{
-            temp: weather.temp,
-            windSpeed: weather.windSpeed,
-            humidity: weather.humidity,
-            uvIndex: weather.uv ?? undefined,
-            altitude: weather.altitude ?? undefined,
-            description: weather.condition,
-          }}
-        />
-      )}
 
       {/* Celestial tracker consolidado dentro del Boletín climático
           (WeatherBulletin → panel derecho). Se eliminó el widget standalone
           duplicado para no mostrar dos arcos solares en el dashboard. */}
 
-      {/* Daily safety tip — industry-aware */}
-      <AdviceBanner />
+      {/* Consejo rotativo — consolida los 3 banners de consejo en uno solo. */}
+      <RotatingAdviceBanner
+        industry={selectedProject?.industry}
+        weather={
+          weather && !weather.unavailable
+            ? {
+                temp: weather.temp,
+                humidity: weather.humidity,
+                windSpeed: weather.windSpeed,
+                uvIndex: weather.uv ?? undefined,
+                altitude: weather.altitude ?? undefined,
+              }
+            : undefined
+        }
+      />
 
 
       {/* 4. Real-Time Status Widget */}
