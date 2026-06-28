@@ -439,3 +439,28 @@ export function isDemoProject(id: string): boolean {
 export function isDemoTenant(tenantId: string | null | undefined): boolean {
   return tenantId === DEMO_PROJECT.tenantId;
 }
+
+
+// ─────────────────────────────────────────────────────────────────────────
+// Embudo PLG (2026-06-28) — proyecto demo en forma `Project` (dashboard).
+// `DEMO_PROJECT` (arriba) tiene forma de Gemelo Digital (geometría); el
+// dashboard + ProjectContext necesitan la forma `Project`. Reusa los datos
+// sintéticos para que el invitado vea una faena VIVA antes de crear cuenta.
+// Read-only: cualquier write abre GuestSaveModal (ProjectContext.createProject).
+// ─────────────────────────────────────────────────────────────────────────
+export const DEMO_DASHBOARD_PROJECT = {
+  id: DEMO_PROJECT_ID,
+  name: 'Faena Demo Praeventio',
+  description: 'Proyecto de demostración con datos de ejemplo. Creá tu cuenta para empezar el tuyo.',
+  location: 'Santiago, Región Metropolitana',
+  coordinates: { lat: -33.45, lng: -70.66 },
+  industry: 'mining',
+  status: 'active' as const,
+  startDate: '2024-03-01',
+  riskLevel: 'Medio' as const,
+  workersCount: DEMO_WORKERS.length,
+  companyName: 'Constructora Demo SpA',
+  mutualidad: 'ACHS' as const,
+  country: 'CL',
+  __demo__: true as const,
+};
