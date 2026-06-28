@@ -34,7 +34,7 @@ test.describe('Maintenance task list endpoint', () => {
   // documented in the compliance/expirations specs. The list render is covered
   // by component tests + the maintenanceScheduler engine tests. Un-fixme once
   // the harness shares one emulator project across processes.
-  test.fixme('returns the real maintenance tasks for a member', async ({ request }) => {
+  test('returns the real maintenance tasks for a member', async ({ request }) => {
     test.skip(process.env.E2E_FULL_STACK !== '1', 'Requires full E2E stack. Run `npm run test:e2e:full`.');
     const seed = await seedProject();
     try {

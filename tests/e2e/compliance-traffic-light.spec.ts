@@ -48,7 +48,7 @@ test.describe('Compliance traffic light endpoint', () => {
   // logic is covered by trafficLightCoverage.test.ts and typecheck). Un-fixme
   // once the harness shares one emulator project across processes. The 403
   // membership-gate test below does NOT depend on that and stays active.
-  test.fixme('returns a real coverage-aware snapshot (legal sourced, rest sin datos)', async ({ request }) => {
+  test('returns a real coverage-aware snapshot (legal sourced, rest sin datos)', async ({ request }) => {
     test.skip(process.env.E2E_FULL_STACK !== '1', 'Requires full E2E stack. Run `npm run test:e2e:full`.');
 
     const seed = await seedProject();

@@ -31,12 +31,17 @@ test.describe('Corrective actions — action balance card', () => {
     }
   });
 
-  // FIXME (harness gap): asserting the balance card with REAL actions needs the
-  // corrective-actions API (Express :3000) to see the project seeded by the
-  // test's admin SDK AND ProjectContext to select it — the same cross-process
-  // Firestore-visibility gap that fixme'd the compliance + SOS specs. The card's
-  // render/balance logic is already covered by ActionBalanceCard.test.tsx.
-  // Un-fixme once the harness shares one emulator project across processes.
+  // FIXME (distinct harness gap — narrowed 2026-06-27): the projectId/namespace
+  // gap is FIXED (server honors GOOGLE_CLOUD_PROJECT under the emulator) and the
+  // browser auth-ready path works under `--mode test` — the sibling specs +
+  // "mounts authenticated" test above now pass green. The REMAINING blocker here
+  // is client-side: ProjectContext must SELECT the seeded project (the seed only
+  // creates the project doc; navigateAuthenticated signs the user in but never
+  // sets an active project), and the card needs seeded corrective_actions to
+  // render. Without a selected project the page mounts in its empty state, so
+  // `action-balance-card` never appears. Card render/balance math is covered by
+  // ActionBalanceCard.test.tsx. Un-fixme once the E2E harness selects a project
+  // client-side (and seeds corrective actions).
   test.fixme('renders the ISO 45001 action-balance card with real actions', async ({ page }) => {
     test.skip(process.env.E2E_FULL_STACK !== '1', 'Requires full E2E stack. Run `npm run test:e2e:full`.');
     const seed = await seedProject();
