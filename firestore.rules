@@ -350,7 +350,18 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      allow read: if isValidId(projectId) && isProjectMember(projectId);
+      // GET (doc unico): chequeo rico con fallback get() (admin via users-doc, supervisor, creador).
+      allow get: if isValidId(projectId) && isProjectMember(projectId);
+      // LIST: el cliente (ProjectContext/SOS) consulta where('members','array-contains',uid).
+      // En contexto list NO se puede usar get() (tira "Null value error" @ projects),
+      // asi que evaluamos SOLO contra el token + resource.data. Tenant-safe: un miembro
+      // solo lista docs donde figura en members[]; admin/supervisor por claim del token;
+      // query sin filtro de un miembro -> denegada (regla false por-doc en los ajenos).
+      allow list: if isEmailVerified() && (
+        request.auth.token.get('role', '') in ['admin', 'gerente', 'supervisor', 'prevencionista', 'director_obra', 'medico_ocupacional'] ||
+        request.auth.uid in resource.data.get('members', []) ||
+        resource.data.get('createdBy', '') == request.auth.uid
+      );
       allow create: if isEmailVerified() && isValidProject(incoming()) && incoming().createdBy == request.auth.uid;
       allow update: if isEmailVerified() && (isAdmin() || isSupervisor() || existing().createdBy == request.auth.uid) && isValidProject(incoming());
       allow delete: if isEmailVerified() && (isAdmin() || existing().createdBy == request.auth.uid);
