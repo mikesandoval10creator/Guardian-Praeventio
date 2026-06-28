@@ -33,12 +33,12 @@ interface KpiRowProps {
 
 export function KpiRow({ items, density = 'comfortable' }: KpiRowProps) {
   if (items.length === 0) return null;
-  const pad = density === 'compact' ? 'p-2.5' : 'p-3 sm:p-4';
-  const valueSize = density === 'compact' ? 'text-xl' : 'text-2xl';
+  const pad = density === 'compact' ? 'p-1.5 sm:p-2.5' : 'p-2 sm:p-4';
+  const valueSize = density === 'compact' ? 'text-sm sm:text-xl' : 'text-base sm:text-2xl';
   return (
     <div
       data-testid="kpi-row"
-      className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3"
+      className="grid grid-cols-4 gap-1.5 sm:gap-3"
     >
       {items.map((k) => {
         const tone = k.tone ?? 'neutral';
@@ -53,7 +53,7 @@ export function KpiRow({ items, density = 'comfortable' }: KpiRowProps) {
             )}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-secondary-token truncate" title={k.label}>
+              <span className="text-[10px] sm:text-xs font-medium text-secondary-token truncate" title={k.label}>
                 {k.label}
               </span>
               {k.icon && <k.icon className={cn('w-4 h-4 shrink-0', TONE_TEXT[tone])} aria-hidden="true" />}
@@ -61,7 +61,7 @@ export function KpiRow({ items, density = 'comfortable' }: KpiRowProps) {
             <div className={cn('mt-1 font-semibold tabular-nums', valueSize, TONE_TEXT[tone])}>
               {k.value}
             </div>
-            <div className="mt-0.5 flex items-center gap-2 min-h-[1rem]">
+            <div className="mt-0.5 hidden sm:flex items-center gap-2 min-h-[1rem]">
               {k.sub && <span className="text-xs text-muted-token truncate" title={k.sub}>{k.sub}</span>}
               {k.trend && TrendIcon && (
                 <span className="inline-flex items-center gap-0.5 text-xs font-medium text-secondary-token">

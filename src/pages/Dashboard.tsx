@@ -75,8 +75,6 @@ import type { UserRole } from '../services/roleViews/roleViewBuilder';
 import { KpiRow, type KpiItem } from '../components/dashboard/KpiRow';
 import { DensityToggle } from '../components/shared/DensityToggle';
 import { useDensityStore } from '../store/densityStore';
-import { GuardianMascot } from '../components/shared/GuardianMascot';
-import { guardianMood } from '../components/guardian/guardianMood';
 import { ShieldCheck, FileCheck, Clock3, AlertOctagon } from 'lucide-react';
 
 export function Dashboard() {
@@ -402,12 +400,6 @@ export function Dashboard() {
     },
   ];
 
-  const mascotMood = guardianMood({
-    emergencyActive: faenaInput.activeEmergencyIncidents > 0,
-    openIncidents: faenaInput.activeEmergencyIncidents,
-    pendingActions: expirables.length,
-  });
-
   // Automated Gamification Logic — auto-complete challenges when matching
   // node types are created today for the active project.
   useEffect(() => {
@@ -468,11 +460,6 @@ export function Dashboard() {
 
       {/* Hero greeting + morning check-in trigger */}
       <DashboardHero onMorningCheckIn={() => setShowMorningCheckIn(true)} />
-
-      {/* Guardian mascot — mood reflects real operational state */}
-      <div className="flex justify-center sm:justify-end">
-        <GuardianMascot mood={mascotMood} size="sm" />
-      </div>
 
       {/* Density control */}
       <div className="flex justify-end">
