@@ -65,7 +65,11 @@ export function KpiRow({ items, density = 'comfortable' }: KpiRowProps) {
               {k.value}
             </div>
             <div className="mt-0.5 hidden sm:flex items-center gap-2 min-h-[1rem]">
-              {k.sub && <span className="text-xs text-muted-token truncate" title={k.sub}>{k.sub}</span>}
+              {k.sub && (
+                <span className="min-w-0 flex-1">
+                  <AutoFitText maxPx={11} minPx={7} weight="400" className="text-muted-token" title={k.sub}>{k.sub}</AutoFitText>
+                </span>
+              )}
               {k.trend && TrendIcon && (
                 <span className="inline-flex items-center gap-0.5 text-xs font-medium text-secondary-token">
                   <TrendIcon className="w-3 h-3" aria-hidden="true" />
