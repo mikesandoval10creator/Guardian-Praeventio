@@ -31,17 +31,19 @@ test.describe('Corrective actions — action balance card', () => {
     }
   });
 
-  // FIXME (distinct harness gap — narrowed 2026-06-27): the projectId/namespace
-  // gap is FIXED (server honors GOOGLE_CLOUD_PROJECT under the emulator) and the
-  // browser auth-ready path works under `--mode test` — the sibling specs +
-  // "mounts authenticated" test above now pass green. The REMAINING blocker here
-  // is client-side: ProjectContext must SELECT the seeded project (the seed only
-  // creates the project doc; navigateAuthenticated signs the user in but never
-  // sets an active project), and the card needs seeded corrective_actions to
-  // render. Without a selected project the page mounts in its empty state, so
-  // `action-balance-card` never appears. Card render/balance math is covered by
-  // ActionBalanceCard.test.tsx. Un-fixme once the E2E harness selects a project
-  // client-side (and seeds corrective actions).
+  // FIXME (precise diagnosis 2026-06-28): auth + projectId are FIXED — with
+  // FIREBASE_AUTH_EMULATOR_HOST the browser signs in and the full app shell
+  // renders (confirmed via the failure a11y snapshot). The remaining blocker is
+  // the CLIENT projects-list query: ProjectContext runs
+  // `where('members','array-contains', uid)` on `projects`, but firestore.rules
+  // `isProjectMember` resolves membership via get() on the listed doc, which
+  // does not validate a LIST query for the emulator-minted user, so the query
+  // returns empty and the page stays in its "Selecciona un proyecto" empty
+  // state — `action-balance-card` only mounts once a project is selected. Card
+  // render/balance math is covered by ActionBalanceCard.test.tsx. Un-fixme once
+  // the harness injects client-side project selection (or the list rule is made
+  // claim-validatable for the test user). Needs browser-console instrumentation
+  // to confirm permission-denied vs custom-claim propagation in the emulator.
   test.fixme('renders the ISO 45001 action-balance card with real actions', async ({ page }) => {
     test.skip(process.env.E2E_FULL_STACK !== '1', 'Requires full E2E stack. Run `npm run test:e2e:full`.');
     const seed = await seedProject();
