@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../utils/logger';
+import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
 import { motion } from 'framer-motion';
 import { 
   Book, 
@@ -220,6 +221,14 @@ export function Normatives() {
             <span>{t('normatives.savedTab', 'Mis Guardados')}</span>
           </button>
         </div>
+      </div>
+
+      {/* ISO 45001:2018 — catálogo de controles baseline. Reubicado del
+          dashboard (2026-06-28): pertenece a la biblioteca de estándares de
+          seguridad, no a la primera pantalla del usuario (no debe expulsar
+          ni saturar la 1ra impresión). */}
+      <div className="mb-8">
+        <Iso45001Catalog />
       </div>
 
       {/* Search & Filters */}
