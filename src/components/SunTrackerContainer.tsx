@@ -86,14 +86,18 @@ function computeSunState(lat: number, lng: number): SunState {
     sunPosition = Math.max(75, Math.min(100, 75 + (elapsed / nightDuration) * 25));
   }
 
-  const toSunrise = sunrise.getTime() - now.getTime();
-  const toSunset = sunset.getTime() - now.getTime();
+  // Proximo evento: amanecer si aun no sale el sol; ocaso si es de dia; y
+  // DESPUES del ocaso, el AMANECER de MANANA (no el ocaso que ya paso).
   let nextEvent: 'sunrise' | 'sunset';
   let nextEventTime: Date;
-  if (toSunrise > 0 && (toSunset < 0 || toSunrise < toSunset)) {
+  if (now < sunrise) {
     nextEvent = 'sunrise'; nextEventTime = sunrise;
-  } else {
+  } else if (now < sunset) {
     nextEvent = 'sunset'; nextEventTime = sunset;
+  } else {
+    const tmr = new Date(now); tmr.setDate(now.getDate() + 1);
+    const { sunrise: tmrSunrise } = getSunTimes(tmr, lat, lng);
+    nextEvent = 'sunrise'; nextEventTime = tmrSunrise;
   }
 
   const currentHour = now.getHours();
@@ -115,7 +119,7 @@ export function SunTrackerContainer({
   useEffect(() => {
     setState(computeSunState(lat, lng));
     // Recompute hourly (astronomy changes slowly; the hourly state chip flips on the hour).
-    const interval = setInterval(() => setState(computeSunState(lat, lng)), 60 * 60 * 1000);
+    const interval = setInterval(() => setState(computeSunState(lat, lng)), 60 * 1000);
     return () => clearInterval(interval);
   }, [lat, lng]);
 
