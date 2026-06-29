@@ -133,8 +133,9 @@ incidentFlow ×3, DrillsCompliancePanel, HeatStressCard, DomainPromptCatalog.
 - `health/OccupationalContextBundleCard` → **HealthVaultViewer** (hook
   `useOccupationalContext` + `summarizeBundle`; OJO ADR-0012: `<MedicalDisclaimer/>`,
   nada de diagnóstico). PENDIENTE verificar.
-- `workPermits/PermitChecklistRenderer` → **WorkPermits.tsx** (la página crea
-  permisos pero no renderiza checklist; construir checklist + `onToggle`). PENDIENTE.
+- ✓ MONTADO `workPermits/PermitChecklistRenderer` → WorkPermits (checklist DS 594
+  por permiso activo; "Emitir" firma con atestación `checkedLabels`; reemplazó el
+  botón "Firmar" pelado — la página fue diseñada para hostearlo).
 - ~~`excelImport/ExcelImportPreview`~~ → RECLASIFICADO a NEEDS-FEATURE: NO existe
   `ImportData.tsx` ni flujo de carga/parseo Excel. Necesita página + upload + parse
   a `ImportRow[]`. (El explorador asumió mal su hogar.)
