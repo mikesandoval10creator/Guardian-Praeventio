@@ -174,10 +174,10 @@ export function SiteBook() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl font-black text-primary-token tracking-tight flex items-center gap-2">
               <Book className="w-6 h-6 text-amber-600" /> {t('site_book.title', 'Bitácora de obra')}
             </h1>
-            <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
+            <p className="text-xs text-muted-token mt-1 max-w-2xl">
               {t(
                 'site_book.subtitle',
                 'Libro de obra digital con folios consecutivos year-based (DS 76). Entradas inmutables tras firma; correcciones requieren nueva entrada con folio propio que referencia la corregida.',
@@ -196,11 +196,11 @@ export function SiteBook() {
         </header>
 
         {!selectedProject ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-muted-token">
             {t('site_book.empty.select_project', 'Seleccioná un proyecto para ver / agregar entradas.')}
           </div>
         ) : loading ? (
-          <div className="flex items-center justify-center py-16 text-zinc-500">
+          <div className="flex items-center justify-center py-16 text-muted-token">
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
         ) : (
@@ -226,25 +226,25 @@ export function SiteBook() {
 
             {/* Resumen lateral + viewer principal */}
             <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
-              <aside className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-3 space-y-3">
-                <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+              <aside className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-3 space-y-3">
+                <h2 className="text-[10px] font-black text-muted-token uppercase tracking-widest">
                   {t('site_book.summary.heading', { defaultValue: 'Resumen ({{count}} entradas)', count: entries.length })}
                 </h2>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-600 dark:text-zinc-400">{t('site_book.summary.pending_signature', 'Pendientes firma')}</span>
-                    <span className="font-mono font-bold text-zinc-900 dark:text-white">
+                    <span className="text-secondary-token">{t('site_book.summary.pending_signature', 'Pendientes firma')}</span>
+                    <span className="font-mono font-bold text-primary-token">
                       {summary.pendingSignatureCount}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-600 dark:text-zinc-400">{t('site_book.summary.signed', 'Firmadas')}</span>
+                    <span className="text-secondary-token">{t('site_book.summary.signed', 'Firmadas')}</span>
                     <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
                       {summary.signedCount}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-600 dark:text-zinc-400">{t('site_book.summary.corrections', 'Correcciones')}</span>
+                    <span className="text-secondary-token">{t('site_book.summary.corrections', 'Correcciones')}</span>
                     <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
                       {summary.correctionsCount}
                     </span>
@@ -252,14 +252,14 @@ export function SiteBook() {
                 </div>
                 {summary.byKind && Object.keys(summary.byKind).length > 0 && (
                   <>
-                    <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-3">
+                    <h3 className="text-[10px] font-black text-muted-token uppercase tracking-widest mt-3">
                       {t('site_book.summary.by_kind', 'Por tipo')}
                     </h3>
                     <ul className="space-y-1 text-[11px]">
                       {Object.entries(summary.byKind)
                         .sort(([, a], [, b]) => b - a)
                         .map(([kind, count]) => (
-                          <li key={kind} className="flex items-center justify-between text-zinc-600 dark:text-zinc-400">
+                          <li key={kind} className="flex items-center justify-between text-secondary-token">
                             <span className="truncate">{kind}</span>
                             <span className="font-mono">{count}</span>
                           </li>
@@ -271,7 +271,7 @@ export function SiteBook() {
 
               <div className="space-y-4">
                 {entries.length === 0 ? (
-                  <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+                  <div className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-muted-token">
                     {t('site_book.empty.no_entries', 'Sin entradas todavía. Crear la primera con "Nueva entrada".')}
                   </div>
                 ) : (
@@ -301,7 +301,7 @@ export function SiteBook() {
                                 <span className="font-mono text-[10px] text-amber-700 dark:text-amber-300">
                                   {e.folio}
                                 </span>
-                                <span className="text-zinc-700 dark:text-zinc-300 flex-1 truncate">
+                                <span className="text-secondary-token flex-1 truncate">
                                   {e.description}
                                 </span>
                                 <button

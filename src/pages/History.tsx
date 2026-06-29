@@ -21,7 +21,7 @@ function ReportRow({ index, style, reports }: { index: number; style: React.CSSP
   const report = reports[index];
   return (
     <div style={style} className="p-2">
-      <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl p-4 flex items-center justify-between h-full hover:border-emerald-500/50 transition-colors">
+      <div className="bg-surface border border-default-token rounded-xl p-4 flex items-center justify-between h-full hover:border-emerald-500/50 transition-colors">
         <div className="flex items-center gap-4">
           <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
             report.type === 'Incidente' ? 'bg-rose-500/10 text-rose-500' :
@@ -31,8 +31,8 @@ function ReportRow({ index, style, reports }: { index: number; style: React.CSSP
             <FileText className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-white">{report.title}</h3>
-            <p className="text-xs text-zinc-500">{new Date(report.date).toLocaleDateString()} • {report.type}</p>
+            <h3 className="text-sm font-bold text-primary-token">{report.title}</h3>
+            <p className="text-xs text-muted-token">{new Date(report.date).toLocaleDateString()} • {report.type}</p>
           </div>
         </div>
         <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest ${
@@ -107,15 +107,15 @@ export function History() {
         <div className="bg-zinc-100 dark:bg-zinc-800/50 p-2.5 rounded-2xl mb-2 border border-white/5 shadow-lg backdrop-blur-sm">
           <HistoryIcon className="w-5 h-5 text-emerald-500" />
         </div>
-        <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tighter leading-tight text-zinc-900 dark:text-white">{t('history.title', 'Historia de la Seguridad')}</h2>
-        <p className="text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400 max-w-md mt-1">
+        <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tighter leading-tight text-primary-token">{t('history.title', 'Historia de la Seguridad')}</h2>
+        <p className="text-[10px] sm:text-xs text-muted-token max-w-md mt-1">
           {t('history.subtitle', 'Evolución de la prevención de riesgos a nivel global y en Chile.')}
         </p>
       </div>
 
       {/* Controls */}
       <div className="flex-none flex justify-center items-center gap-3 mb-4 z-10">
-        <div className="inline-flex items-center p-1 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md rounded-xl border border-zinc-200 dark:border-white/10 shadow-xl overflow-x-auto max-w-full no-scrollbar">
+        <div className="inline-flex items-center p-1 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md rounded-xl border border-default-token shadow-xl overflow-x-auto max-w-full no-scrollbar">
           {(['Todos', 'Global', 'Chile', 'Reportes'] as const).map((tab) => (
             <button
               key={tab}
@@ -157,7 +157,7 @@ export function History() {
 
       {/* Content Area */}
       {activeTab === 'Reportes' ? (
-        <div className="flex-1 w-full max-w-3xl mx-auto bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md rounded-2xl border border-zinc-200 dark:border-white/10 overflow-hidden">
+        <div className="flex-1 w-full max-w-3xl mx-auto bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md rounded-2xl border border-default-token overflow-hidden">
           {reports.length > 0 ? (
             <List<ReportRowProps>
               rowCount={reports.length}
@@ -168,7 +168,7 @@ export function History() {
               className="no-scrollbar"
             />
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-zinc-500 p-8 text-center">
+            <div className="flex flex-col items-center justify-center h-full text-muted-token p-8 text-center">
               <FileText className="w-12 h-12 mb-4 opacity-20" />
               <p className="font-bold">{t('history.noReports', 'No hay reportes disponibles')}</p>
               <p className="text-xs">{t('history.syncHint', 'Sincroniza con el servidor para obtener los últimos registros.')}</p>
@@ -211,7 +211,7 @@ export function History() {
                     isGlobal ? 'border-t-blue-500 border-zinc-200 dark:border-white/5' : 'border-t-red-500 border-zinc-200 dark:border-white/5'
                   }`}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-lg font-black text-zinc-900 dark:text-white tracking-tighter">{milestone.year}</span>
+                      <span className="text-lg font-black text-primary-token tracking-tighter">{milestone.year}</span>
                       <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 ${
                         isGlobal ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'
                       }`}>
@@ -222,7 +222,7 @@ export function History() {
                     <h3 className="text-xs font-bold text-zinc-800 dark:text-zinc-100 uppercase tracking-tight mb-1.5 leading-snug line-clamp-2" title={milestone.title}>
                       {milestone.title}
                     </h3>
-                    <p className="text-[10px] text-zinc-600 dark:text-zinc-400 leading-relaxed line-clamp-3" title={milestone.description}>
+                    <p className="text-[10px] text-secondary-token leading-relaxed line-clamp-3" title={milestone.description}>
                       {milestone.description}
                     </p>
                   </Card>
