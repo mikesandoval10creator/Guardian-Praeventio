@@ -20,6 +20,7 @@ import { apiAuthHeader } from '../lib/apiAuth';
 import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
 import { DriverScoringTabs } from '../components/drivingSafety/DriverScoringTabs';
+import { VehicleDocsTab } from '../components/drivingSafety/VehicleDocsTab';
 
 const containerStyle = {
   width: '100%',
@@ -37,7 +38,7 @@ const defaultCenter = {
 
 export function SafeDriving() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'route' | 'rutasCriticas' | 'conductores' | 'ranking' | 'report'>('route');
+  const [activeTab, setActiveTab] = useState<'route' | 'rutasCriticas' | 'conductores' | 'ranking' | 'vehiculos' | 'report'>('route');
   const [description, setDescription] = useState('');
   const [incidentType, setIncidentType] = useState<'Accidente' | 'Falla Mecánica' | null>(null);
   const [loading, setLoading] = useState(false);
@@ -189,6 +190,14 @@ export function SafeDriving() {
             }`}
           >
             {'Ranking'}
+          </button>
+          <button
+            onClick={() => setActiveTab('vehiculos')}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'vehiculos' ? 'bg-surface text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            {'Vehículos'}
           </button>
           <button
             onClick={() => setActiveTab('report')}
@@ -453,6 +462,8 @@ export function SafeDriving() {
             </div>
           </div>
         </motion.div>
+      ) : activeTab === 'vehiculos' ? (
+        <VehicleDocsTab projectId={selectedProject?.id ?? null} />
       ) : (
         <DriverScoringTabs
           projectId={selectedProject?.id ?? null}

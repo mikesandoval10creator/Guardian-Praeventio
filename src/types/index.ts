@@ -242,4 +242,10 @@ export interface Asset {
   createdAt: string;
   coordinates?: { lat: number; lng: number }; // Added for SiteMap
   isPendingSync?: boolean;
+  // Vehicle compliance documents (only meaningful when type === 'Vehículo').
+  // The document belongs to the VEHICLE, not the driver — a vehicle is shared
+  // by many drivers. Driver license expiry lives per-driver in driving_drivers.
+  plate?: string; // Patente (Chile), e.g. AB-CD-12
+  revisionTecnicaExpiresAt?: string; // ISO-8601 date, revision tecnica expiry
+  permisoCirculacionExpiresAt?: string; // ISO-8601 date, permiso de circulacion expiry
 }
