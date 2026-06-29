@@ -57,7 +57,7 @@ export function BlueprintViewer() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Controls Sidebar */}
-        <Card className="p-6 border-white/5 space-y-6 lg:col-span-1">
+        <Card className="p-6 border-default-token space-y-6 lg:col-span-1">
           <div>
             <h3 className="text-sm font-bold text-primary mb-4 uppercase tracking-wider">
               {t('blueprintViewer.layers.title', 'Capas del Plano')}
@@ -126,7 +126,7 @@ export function BlueprintViewer() {
         </Card>
 
         {/* Blueprint Area */}
-        <Card className="border-white/5 lg:col-span-3 overflow-hidden relative bg-canvas min-h-[600px] flex items-center justify-center">
+        <Card className="border-default-token lg:col-span-3 overflow-hidden relative bg-canvas min-h-[600px] flex items-center justify-center">
           {/* Grid Background */}
           <div
             className="absolute inset-0"

@@ -121,7 +121,7 @@ export function CealSmCampaigns() {
   if (!selectedProject) {
     return (
       <div className="p-8 max-w-3xl mx-auto" data-testid="ceal-page-empty">
-        <p className="text-zinc-400 text-sm">
+        <p className="text-muted-token text-sm">
           {t('protocols_minsal.select_project', 'Selecciona un proyecto para gestionar el protocolo.')}
         </p>
       </div>
@@ -302,7 +302,7 @@ export function CealSmCampaigns() {
               <Loader2 className="w-5 h-5 text-violet-400 animate-spin" />
             </div>
           ) : campaigns.length === 0 ? (
-            <p data-testid="ceal-campaigns-empty" className="text-xs text-zinc-500">
+            <p data-testid="ceal-campaigns-empty" className="text-xs text-muted-token">
               {t('ceal_sm.campaigns_empty', 'Aún no hay campañas CEAL-SM en este proyecto.')}
             </p>
           ) : (
@@ -371,7 +371,7 @@ export function CealSmCampaigns() {
             {t('ceal_sm.results_title', 'Resultados del centro de trabajo')}
           </h3>
           {!selectedId ? (
-            <p data-testid="ceal-results-none" className="text-xs text-zinc-500">
+            <p data-testid="ceal-results-none" className="text-xs text-muted-token">
               {t('ceal_sm.results_select', 'Selecciona una campaña para ver sus resultados agregados.')}
             </p>
           ) : resultsLoading ? (
