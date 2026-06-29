@@ -246,7 +246,7 @@ export function StoppageMonitor() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
+            <h1 className="text-2xl font-black text-primary-token tracking-tight">
               {t('stoppages.title', 'Paralizaciones (stop-work)')}
             </h1>
             <p className="text-xs text-zinc-500 mt-1 max-w-xl">
@@ -268,7 +268,7 @@ export function StoppageMonitor() {
         </header>
 
         {!selectedProject ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-elevated p-6 text-center text-sm text-zinc-500">
             {t('stoppages.empty.select_project', 'Seleccioná un proyecto para ver paralizaciones.')}
           </div>
         ) : loading ? (
@@ -304,14 +304,14 @@ export function StoppageMonitor() {
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                    <span className="font-bold text-secondary-token">
                       {t('stoppages.form.field_category', 'Categoría')}
                     </span>
                     <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value as StoppageCategory)}
                       data-testid="stoppages.form.category"
-                      className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                      className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                     >
                       {/* Non-approvers may only declare voluntary stop-work (their
                           own authority). Other categories require an approver role
@@ -324,7 +324,7 @@ export function StoppageMonitor() {
                         ))}
                     </select>
                     {!canApproveResume && (
-                      <span className="block text-[10px] text-zinc-500 dark:text-zinc-400">
+                      <span className="block text-[10px] text-muted-token">
                         {t(
                           'stoppages.form.voluntary_only',
                           'Como trabajador podés declarar una detención voluntaria (stop-work). Las demás categorías las declara un supervisor, prevencionista o gerente.',
@@ -333,13 +333,13 @@ export function StoppageMonitor() {
                     )}
                   </label>
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                    <span className="font-bold text-secondary-token">
                       {t('stoppages.form.field_scope', 'Alcance')}
                     </span>
                     <select
                       value={scope}
                       onChange={(e) => setScope(e.target.value as StoppageScope)}
-                      className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                      className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                     >
                       {Object.entries(SCOPE_LABELS).map(([k, v]) => (
                         <option key={k} value={k}>{v}</option>
@@ -348,7 +348,7 @@ export function StoppageMonitor() {
                   </label>
                 </div>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t(
                       'stoppages.form.field_scope_target',
                       'Identificador del alcance (zona/tarea/equipo) — vacío = proyecto entero',
@@ -362,11 +362,11 @@ export function StoppageMonitor() {
                       'stoppages.form.scope_target_placeholder',
                       '(opcional) ej: zona-norte-2, task-12345',
                     )}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('stoppages.form.field_reason', 'Motivo (mín 15 caracteres)')}
                   </span>
                   <textarea
@@ -377,7 +377,7 @@ export function StoppageMonitor() {
                       'stoppages.form.reason_placeholder',
                       'Describí el riesgo identificado, condiciones observadas, normativa aplicable…',
                     )}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <div className="text-[10px] text-zinc-500">
@@ -390,7 +390,7 @@ export function StoppageMonitor() {
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-secondary-token hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
                     {t('common.cancel', 'Cancelar')}
                   </button>
@@ -429,14 +429,14 @@ export function StoppageMonitor() {
                   {activeStoppages.map((s) => (
                     <li
                       key={s.id}
-                      className="rounded-2xl border border-rose-200 dark:border-rose-800 bg-white dark:bg-zinc-900/60 p-4 space-y-2"
+                      className="rounded-2xl border border-rose-200 dark:border-rose-800 bg-elevated p-4 space-y-2"
                     >
                       <header className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-bold text-rose-700 dark:text-rose-300">
                             {CATEGORY_LABELS[s.category]} · {SCOPE_LABELS[s.scope]}
                           </p>
-                          <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">{s.reason}</p>
+                          <p className="text-xs text-secondary-token mt-1">{s.reason}</p>
                           <p className="text-[10px] text-zinc-500 mt-1">
                             {t('stoppages.list.declared_by', {
                               defaultValue: 'Declarada por {{uid}} · {{date}}',
@@ -464,7 +464,7 @@ export function StoppageMonitor() {
                         <ul className="space-y-1">
                           {s.resumptionPreconditions.map((p) => (
                             <li key={p.id} className="flex items-center justify-between gap-2 text-xs">
-                              <span className={p.fulfilled ? 'text-emerald-700 dark:text-emerald-300 line-through' : 'text-zinc-700 dark:text-zinc-300'}>
+                              <span className={p.fulfilled ? 'text-emerald-700 dark:text-emerald-300 line-through' : 'text-secondary-token'}>
                                 {p.fulfilled ? '✓' : '○'} {p.label}
                               </span>
                               {!p.fulfilled && (
@@ -493,7 +493,7 @@ export function StoppageMonitor() {
                             {t('stoppages.resume.cta', 'Firmar reanudación')}
                           </button>
                         ) : (
-                          <p className="text-[10px] italic text-zinc-500 dark:text-zinc-400">
+                          <p className="text-[10px] italic text-muted-token">
                             {t(
                               'stoppages.resume.approver_only',
                               'La reanudación debe firmarla un supervisor, prevencionista o gerente.',
@@ -535,7 +535,7 @@ export function StoppageMonitor() {
                 con su propia paginación + filtros — más honesto que mostrar
                 un slice arbitrario de 5 items. Strings i18n vía t() (Fase B.6).
             */}
-            <section className="space-y-2 text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+            <section className="space-y-2 text-xs text-muted-token flex items-center gap-2">
               <PauseCircle className="w-3.5 h-3.5" aria-hidden="true" />
               <span>
                 {t(
