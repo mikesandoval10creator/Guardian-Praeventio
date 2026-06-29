@@ -62,7 +62,7 @@ function emptyContractor(): Ds76Input {
 }
 
 const inputClass =
-  'px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40 w-full';
+  'px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-default-token text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40 w-full';
 
 const ALL_PROCEDURES: Ds76CriticalProcedure[] = [
   'trabajo_altura',
@@ -127,10 +127,10 @@ export function MiningContractors() {
           <Mountain className="w-6 h-6 text-amber-500" />
         </div>
         <div>
-          <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">
+          <h1 className="text-2xl font-black uppercase tracking-tighter text-primary-token">
             {t('mining.title', 'Contratistas Mineros')}
           </h1>
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+          <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">
             {t('mining.subtitle', 'DS 76/2007 · Ley 16.744 art. 66 bis · SERNAGEOMIN')}
           </p>
         </div>
@@ -139,9 +139,9 @@ export function MiningContractors() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Sidebar list */}
         <div className="lg:col-span-1 space-y-3">
-          <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-4 shadow-sm">
+          <div className="bg-white dark:bg-zinc-900/50 border border-default-token rounded-3xl p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-secondary-token">
                 {t('mining.contractorsHeading', 'Contratistas')}
               </h3>
               <button
@@ -164,7 +164,7 @@ export function MiningContractors() {
                   onClick={() => setActiveIdx(i)}
                 >
                   <Building2 className="w-4 h-4 text-zinc-400 shrink-0" />
-                  <span className="flex-1 text-xs font-bold text-zinc-900 dark:text-white truncate">
+                  <span className="flex-1 text-xs font-bold text-primary-token truncate">
                     {c.contractorCompanyName.trim() || `Contratista #${i + 1}`}
                   </span>
                   {contractors.length > 1 && (
@@ -190,70 +190,70 @@ export function MiningContractors() {
           transition={{ duration: 0.2 }}
           className="lg:col-span-3 space-y-4"
         >
-          <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm space-y-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300">
+          <div className="bg-white dark:bg-zinc-900/50 border border-default-token rounded-3xl p-6 shadow-sm space-y-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-secondary-token">
               {t('mining.worksite', 'Faena minera')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('mining.worksiteName', 'Nombre faena')}</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">{t('mining.worksiteName', 'Nombre faena')}</span>
                 <input className={inputClass} value={active.worksiteName} onChange={e => updateActive('worksiteName', e.target.value)} />
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('mining.sernageominCode', 'Código SERNAGEOMIN')}</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">{t('mining.sernageominCode', 'Código SERNAGEOMIN')}</span>
                 <input className={inputClass} value={active.sernageominCode} onChange={e => updateActive('sernageominCode', e.target.value)} />
               </label>
               <label className="sm:col-span-2 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('mining.location', 'Ubicación')}</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">{t('mining.location', 'Ubicación')}</span>
                 <input className={inputClass} value={active.worksiteLocation} onChange={e => updateActive('worksiteLocation', e.target.value)} />
               </label>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm space-y-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300">
+          <div className="bg-white dark:bg-zinc-900/50 border border-default-token rounded-3xl p-6 shadow-sm space-y-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-secondary-token">
               {t('mining.companies', 'Empresas')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Mandante</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">Mandante</span>
                 <input className={inputClass} value={active.principalCompanyName} onChange={e => updateActive('principalCompanyName', e.target.value)} />
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">RUT mandante</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">RUT mandante</span>
                 <input className={inputClass} value={active.principalCompanyRut} onChange={e => updateActive('principalCompanyRut', e.target.value)} />
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Contratista</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">Contratista</span>
                 <input className={inputClass} value={active.contractorCompanyName} onChange={e => updateActive('contractorCompanyName', e.target.value)} />
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">RUT contratista</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">RUT contratista</span>
                 <input className={inputClass} value={active.contractorCompanyRut} onChange={e => updateActive('contractorCompanyRut', e.target.value)} />
               </label>
               <label className="sm:col-span-2 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Contrato (nombre + N°)</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">Contrato (nombre + N°)</span>
                 <input className={inputClass} value={active.contractName} onChange={e => updateActive('contractName', e.target.value)} />
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Inicio</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">Inicio</span>
                 <input type="date" className={inputClass} value={active.contractStartDate} onChange={e => updateActive('contractStartDate', e.target.value)} />
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Término</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">Término</span>
                 <input type="date" className={inputClass} value={active.contractEndDate} onChange={e => updateActive('contractEndDate', e.target.value)} />
               </label>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm space-y-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
+          <div className="bg-white dark:bg-zinc-900/50 border border-default-token rounded-3xl p-6 shadow-sm space-y-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-secondary-token flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-teal-500" />
               SGSST acreditado
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Estándar</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">Estándar</span>
                 <select className={inputClass} value={active.sgsstStandard} onChange={e => updateActive('sgsstStandard', e.target.value as Ds76SgsstStandard)}>
                   {ALL_STANDARDS.map(s => (
                     <option key={s} value={s}>{DS76_STANDARD_LABELS[s]}</option>
@@ -261,17 +261,17 @@ export function MiningContractors() {
                 </select>
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">N° Certificado</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">N° Certificado</span>
                 <input className={inputClass} value={active.sgsstCertificateNumber || ''} onChange={e => updateActive('sgsstCertificateNumber', e.target.value)} />
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Vencimiento</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">Vencimiento</span>
                 <input type="date" className={inputClass} value={active.sgsstCertificateExpiry || ''} onChange={e => updateActive('sgsstCertificateExpiry', e.target.value)} />
               </label>
             </div>
 
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Procedimientos críticos</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">Procedimientos críticos</span>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
                 {ALL_PROCEDURES.map(p => {
                   const on = active.criticalProcedures.includes(p);
@@ -294,26 +294,26 @@ export function MiningContractors() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm space-y-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
+          <div className="bg-white dark:bg-zinc-900/50 border border-default-token rounded-3xl p-6 shadow-sm space-y-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-secondary-token flex items-center gap-2">
               <Users className="w-4 h-4 text-blue-500" />
               Firmas
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Representante contratista</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">Representante contratista</span>
                 <input className={inputClass} value={active.contractorRepresentativeName} onChange={e => updateActive('contractorRepresentativeName', e.target.value)} />
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">RUT representante</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">RUT representante</span>
                 <input className={inputClass} value={active.contractorRepresentativeRut} onChange={e => updateActive('contractorRepresentativeRut', e.target.value)} />
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Auditor mutualidad</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">Auditor mutualidad</span>
                 <input className={inputClass} value={active.mutualAuditorName} onChange={e => updateActive('mutualAuditorName', e.target.value)} />
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">RUT auditor</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-token">RUT auditor</span>
                 <input className={inputClass} value={active.mutualAuditorRut} onChange={e => updateActive('mutualAuditorRut', e.target.value)} />
               </label>
             </div>

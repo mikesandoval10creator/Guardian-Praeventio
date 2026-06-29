@@ -217,11 +217,11 @@ export function AutoCADViewer() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Box className="w-8 h-8 text-[#4db6ac] dark:text-[#d4af37]" />
             {t('autocad.title', 'Visor de Planos CAD')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('autocad.subtitle', 'Integración de Planos Estructurales · Parser DXF · MIT-only stack')}
           </p>
         </div>
@@ -248,7 +248,7 @@ export function AutoCADViewer() {
             <div className="flex flex-col items-center justify-center text-center p-8">
               <FileCode2 className="w-16 h-16 text-zinc-300 dark:text-zinc-700 mb-4" />
               <h3 className="text-lg font-bold text-zinc-700 dark:text-white mb-2">{t('autocad.uploadPrompt', 'Sube un archivo .DXF')}</h3>
-              <p className="text-sm text-zinc-500 max-w-md">
+              <p className="text-sm text-muted-token max-w-md">
                 Parser real client-side: las entidades CAD (LINE, POLYLINE, CIRCLE, ARC, TEXT) se renderizan vectorialmente. Sin uploads al servidor.
               </p>
             </div>
@@ -260,7 +260,7 @@ export function AutoCADViewer() {
                 <Layers className="w-16 h-16 text-[#4db6ac] mb-4" />
               </motion.div>
               <p className="text-sm font-bold text-[#4db6ac] dark:text-[#d4af37] animate-pulse">{t('autocad.parsing', 'Parseando vectores DXF...')}</p>
-              <p className="text-xs text-zinc-500 mt-2">{fileName}</p>
+              <p className="text-xs text-muted-token mt-2">{fileName}</p>
             </div>
           )}
 
@@ -268,7 +268,7 @@ export function AutoCADViewer() {
             <div className="flex flex-col items-center justify-center text-center p-8">
               <AlertTriangle className="w-16 h-16 text-rose-500 mb-4" />
               <h3 className="text-lg font-bold text-rose-500 mb-2">{t('autocad.errorTitle', 'Error al procesar')}</h3>
-              <p className="text-sm text-zinc-500 max-w-md">{parseError}</p>
+              <p className="text-sm text-muted-token max-w-md">{parseError}</p>
               <button onClick={reset} className="mt-4 px-4 py-2 rounded-xl bg-zinc-800 text-white text-xs font-bold uppercase tracking-widest hover:bg-zinc-700">
                 {t('autocad.retry', 'Reintentar')}
               </button>
@@ -305,7 +305,7 @@ export function AutoCADViewer() {
 
         {/* Controls Panel */}
         <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <Upload className="w-5 h-5 text-[#4db6ac] dark:text-[#d4af37]" />
             {t('autocad.loadPlan', 'Cargar Plano')}
           </h2>
@@ -318,22 +318,22 @@ export function AutoCADViewer() {
             className="w-full border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-[#4db6ac] dark:hover:border-[#d4af37] bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl p-8 text-center transition-colors cursor-pointer disabled:opacity-50"
           >
             <Upload className="w-10 h-10 text-zinc-400 dark:text-zinc-600 mx-auto mb-3" />
-            <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">{t('autocad.clickToUpload', 'Haz clic para subir archivo')}</p>
-            <p className="text-xs text-zinc-500 mt-1">{t('autocad.dxfOnly', 'Solo .DXF (Max 50MB)')}</p>
+            <p className="text-sm font-bold text-secondary-token">{t('autocad.clickToUpload', 'Haz clic para subir archivo')}</p>
+            <p className="text-xs text-muted-token mt-1">{t('autocad.dxfOnly', 'Solo .DXF (Max 50MB)')}</p>
           </button>
 
           {fileName && (
             <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#4db6ac]/5 dark:bg-[#d4af37]/5 border border-[#4db6ac]/20 dark:border-[#d4af37]/20">
-              <span className="text-xs font-bold truncate text-zinc-700 dark:text-zinc-300">{fileName}</span>
+              <span className="text-xs font-bold truncate text-secondary-token">{fileName}</span>
               <button onClick={reset} aria-label="Quitar archivo" className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800">
-                <X className="w-3.5 h-3.5 text-zinc-500" />
+                <X className="w-3.5 h-3.5 text-muted-token" />
               </button>
             </div>
           )}
 
           {parsed && parsed.layers.length > 0 && (
-            <div className="space-y-3 pt-4 border-t border-zinc-200 dark:border-white/5">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-white">Capas Detectadas ({parsed.layers.length})</h3>
+            <div className="space-y-3 pt-4 border-t border-default-token">
+              <h3 className="text-sm font-bold text-primary-token">Capas Detectadas ({parsed.layers.length})</h3>
               <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar pr-1">
                 {parsed.layers.map((layer) => {
                   const visible = !hiddenLayers.has(layer.name);
@@ -347,7 +347,7 @@ export function AutoCADViewer() {
                         className="rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#4db6ac] focus:ring-[#4db6ac]"
                       />
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
-                      <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate flex-1">{layer.name}</span>
+                      <span className="text-xs text-secondary-token truncate flex-1">{layer.name}</span>
                     </label>
                   );
                 })}

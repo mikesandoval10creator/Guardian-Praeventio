@@ -50,17 +50,17 @@ function FailureBreakdown({
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   return (
     <div className="rounded-lg bg-zinc-50 dark:bg-white/5 p-2">
-      <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">
+      <p className="text-[10px] font-black text-muted-token uppercase tracking-widest mb-1">
         {title}
       </p>
       {entries.length === 0 ? (
-        <p className="text-[10px] text-zinc-400">—</p>
+        <p className="text-[10px] text-muted-token">—</p>
       ) : (
         <ul className="space-y-0.5">
           {entries.map(([key, n]) => (
             <li
               key={key}
-              className="flex items-center justify-between text-[11px] text-zinc-700 dark:text-zinc-300"
+              className="flex items-center justify-between text-[11px] text-secondary-token"
             >
               <span className="truncate">{key}</span>
               <span className="font-mono font-bold ml-2">{n}</span>
@@ -173,10 +173,10 @@ export function CriticalControlsView() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header>
-          <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-black text-primary-token tracking-tight flex items-center gap-2">
             <Shield className="w-6 h-6 text-emerald-500" /> {t('critical_controls.title', 'Controles críticos por riesgo')}
           </h1>
-          <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
+          <p className="text-xs text-muted-token mt-1 max-w-2xl">
             {t(
               'critical_controls.subtitle',
               'Catálogo HCA (Hierarchy of Controls) ISO 45001 § 8.1.2. Marca los controles presentes en terreno; el sistema valida cobertura + balance jerárquico antes de autorizar inicio de tarea.',
@@ -185,8 +185,8 @@ export function CriticalControlsView() {
         </header>
 
         {/* Selector de categoría de riesgo. */}
-        <section className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4">
-          <div className="flex items-center gap-2 mb-3 text-xs font-black text-zinc-500 uppercase tracking-widest">
+        <section className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-4">
+          <div className="flex items-center gap-2 mb-3 text-xs font-black text-muted-token uppercase tracking-widest">
             <Filter className="w-3.5 h-3.5" />
             {t('critical_controls.filter_label', 'Tipo de riesgo')}
           </div>
@@ -209,11 +209,11 @@ export function CriticalControlsView() {
         </section>
 
         {!selectedProject ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-muted-token">
             {t('critical_controls.empty.select_project', 'Seleccioná un proyecto para registrar validaciones.')}
           </div>
         ) : loading ? (
-          <div className="flex items-center justify-center py-16 text-zinc-500">
+          <div className="flex items-center justify-center py-16 text-muted-token">
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
         ) : (
@@ -265,12 +265,12 @@ export function CriticalControlsView() {
                   </p>
                 )}
                 {preTaskResult.missing.length > 0 && (
-                  <div className="text-xs text-zinc-700 dark:text-zinc-300">
+                  <div className="text-xs text-secondary-token">
                     <strong>{t('critical_controls.result.missing_label', 'Faltantes:')}</strong>
                     <ul className="mt-1 space-y-0.5 ml-4 list-disc">
                       {preTaskResult.missing.map((m) => (
                         <li key={m.id}>
-                          {m.label} <span className="text-zinc-500">({LEVEL_LABELS[m.level] ?? m.level})</span>
+                          {m.label} <span className="text-muted-token">({LEVEL_LABELS[m.level] ?? m.level})</span>
                         </li>
                       ))}
                     </ul>
@@ -280,8 +280,8 @@ export function CriticalControlsView() {
             )}
 
             {/* Tabla de controles del catálogo con toggle de presencia. */}
-            <section className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 space-y-2">
-              <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">
+            <section className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-4 space-y-2">
+              <h2 className="text-xs font-black text-muted-token uppercase tracking-widest mb-2">
                 {t('critical_controls.catalog.heading', {
                   defaultValue: 'Catálogo HCA — {{category}}',
                   category: RISK_CATEGORIES.find((c) => c.id === riskCategory)?.label ?? '',
@@ -300,7 +300,7 @@ export function CriticalControlsView() {
                         <p className={`text-xs font-bold ${isPresent ? 'text-emerald-700 dark:text-emerald-300' : 'text-zinc-700 dark:text-zinc-300'}`}>
                           {isPresent ? '✓ ' : '○ '}{control.label}
                         </p>
-                        <p className="text-[10px] text-zinc-500 mt-0.5">
+                        <p className="text-[10px] text-muted-token mt-0.5">
                           {LEVEL_LABELS[control.level] ?? control.level} · {control.verificationMethod}
                           {control.normReference ? ` · ${control.normReference}` : ''}
                         </p>
@@ -332,16 +332,16 @@ export function CriticalControlsView() {
             {/* Biblioteca de modos de falla — referencia real (engine
                 controlFailureLibrary vía GET /controls/failures/summary). */}
             <section
-              className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 space-y-3"
+              className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-4 space-y-3"
               data-testid="critical-controls.failure-library"
             >
-              <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+              <h2 className="text-xs font-black text-muted-token uppercase tracking-widest flex items-center gap-2">
                 <Library className="w-3.5 h-3.5" />
                 {t('critical_controls.failure_library.heading', 'Biblioteca de modos de falla (referencia)')}
               </h2>
               {failureSummary.loading ? (
                 <div
-                  className="flex items-center gap-2 text-xs text-zinc-500"
+                  className="flex items-center gap-2 text-xs text-muted-token"
                   data-testid="critical-controls.failure-library.loading"
                 >
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -357,14 +357,14 @@ export function CriticalControlsView() {
                 </p>
               ) : !failureSummary.data || failureSummary.data.summary.totalEntries === 0 ? (
                 <p
-                  className="text-xs text-zinc-500"
+                  className="text-xs text-muted-token"
                   data-testid="critical-controls.failure-library.empty"
                 >
                   {t('critical_controls.failure_library.empty', 'Aún no hay modos de falla documentados.')}
                 </p>
               ) : (
                 <div className="space-y-3" data-testid="critical-controls.failure-library.content">
-                  <p className="text-xs text-zinc-600 dark:text-zinc-300">
+                  <p className="text-xs text-secondary-token">
                     {t('critical_controls.failure_library.total', {
                       defaultValue: '{{n}} modos de falla documentados',
                       n: failureSummary.data.summary.totalEntries,
