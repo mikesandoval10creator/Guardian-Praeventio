@@ -13,7 +13,7 @@
 // equipos, incidentes, score global).
 
 import type { ReactNode } from 'react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Sun,
@@ -30,6 +30,9 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { usePreShiftRisk } from '../hooks/usePreShiftRisk';
 import type { ShiftRiskReport } from '../services/shiftRiskPanel/preShiftRiskComposer';
 import { PreShiftRiskCard } from '../components/shiftRiskPanel/PreShiftRiskCard';
+import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
+import { HeatStressCard } from '../components/exposure/HeatStressCard';
+import type { WorkIntensity } from '../services/exposure/thermalStressCalculator';
 
 /**
  * Map composer level to Tailwind palette tokens. Green/amber/red are the
@@ -92,6 +95,13 @@ export function PreShiftRisk() {
 
   const { data, loading, error } = usePreShiftRisk(projectId);
   const panel = data?.panel ?? null;
+
+  // Clima crudo del proyecto (mismo origen que el Dashboard) para el protocolo
+  // de estrés térmico WBGT. El composer abstrae el calor a un factor; aquí
+  // damos el protocolo trabajo/descanso/hidratación concreto (NIOSH/ACGIH).
+  const { environment } = useUniversalKnowledge();
+  const weather = environment?.weather ?? null;
+  const [intensity, setIntensity] = useState<WorkIntensity>('moderate');
 
   // Group factors by id-prefix so the page can render dedicated
   // sections (clima / personal / tareas / equipos / incidentes /
@@ -299,6 +309,51 @@ export function PreShiftRisk() {
             )}
             factors={groups.weather}
           />
+
+          {/* Protocolo de estrés térmico WBGT (NIOSH/ACGIH) — monta el huérfano
+              HeatStressCard sobre el clima real del proyecto. Aditivo al factor
+              'heat' del composer: entrega el protocolo trabajo/descanso/
+              hidratación concreto + selector de intensidad de la tarea. */}
+          {weather && (
+            <section
+              className="rounded-2xl border border-default-token bg-surface p-4 space-y-3"
+              data-testid="pre-shift-risk-heat-stress"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-secondary-token">
+                  Protocolo de estrés térmico
+                </h2>
+                <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-secondary-token">
+                  Intensidad
+                  <select
+                    value={intensity}
+                    onChange={(e) => setIntensity(e.target.value as WorkIntensity)}
+                    data-testid="pre-shift-risk-heat-intensity"
+                    className="rounded-lg border border-default-token bg-surface px-2 py-1 text-xs text-primary-token"
+                  >
+                    <option value="light">Liviana</option>
+                    <option value="moderate">Moderada</option>
+                    <option value="heavy">Pesada</option>
+                    <option value="very_heavy">Muy pesada</option>
+                  </select>
+                </label>
+              </div>
+              <HeatStressCard
+                tempC={weather.temp}
+                humidityPercent={weather.humidity}
+                solarLoad={
+                  weather.uv == null
+                    ? 'medium'
+                    : weather.uv >= 8
+                      ? 'high'
+                      : weather.uv >= 5
+                        ? 'medium'
+                        : 'low'
+                }
+                intensity={intensity}
+              />
+            </section>
+          )}
 
           {/* Fatigue + new workers section */}
           <Section
