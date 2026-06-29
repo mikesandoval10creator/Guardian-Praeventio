@@ -130,9 +130,24 @@ incidentFlow ×3, DrillsCompliancePanel, HeatStressCard, DomainPromptCatalog.
 - ✓ MONTADO `leadership/LeadershipTrailCard` → LeadershipDecisions (resumen
   agregado top-5 impacto sobre las `decisions` filtradas; la página fue diseñada
   para hostearlo y nunca lo renderizó).
-- `health/OccupationalContextBundleCard` → **HealthVaultViewer** (hook
-  `useOccupationalContext` + `summarizeBundle`; OJO ADR-0012: `<MedicalDisclaimer/>`,
-  nada de diagnóstico). PENDIENTE verificar.
+- ~~`health/OccupationalContextBundleCard`~~ → RECLASIFICADO a NEEDS-FEATURE:
+  `useOccupationalContext` NO existe (grep: solo el servicio + test referencian
+  `occupationalContext`); HealthVaultViewer recibe `records[]`, no un
+  `OccupationalContextBundle`. Falta endpoint/hook que arme el bundle (historia
+  laboral + síntomas + REBA). El componente SÍ es ADR-0012-compliant (renderiza
+  `<MedicalDisclaimer/>`, organiza sin diagnosticar) — listo para cuando exista la data.
+
+### FIN DE LA FASE "CABLEAR" (Ola 1 cerrada 2026-06-29)
+Total montadas en todo el barrido: **9** (incidentFlow ×3, DrillsCompliancePanel,
+HeatStressCard, DomainPromptCatalog, ConflictResolutionDrawer, LeadershipTrailCard,
+PermitChecklistRenderer). connectivity 37→35 · render 56→47.
+De los "5 montables" del reconocimiento, 3 se montaron y 2 cayeron a NEEDS-FEATURE
+al verificarlos al filo del montaje (ExcelImportPreview: no existe página
+ImportData; OccupationalContextBundleCard: no hay productor del bundle).
+**Los montajes limpios están agotados.** Lo que resta son ~20 NEEDS-FEATURE
+(cada uno = endpoint/página/pipeline + mount) priorizados por valor:
+vida/cumplimiento primero (spaced-rep cards endpoint, SUSESO deadlines,
+measurement quality, deviation radar, continuity SPOF), negocio/escala después.
 - ✓ MONTADO `workPermits/PermitChecklistRenderer` → WorkPermits (checklist DS 594
   por permiso activo; "Emitir" firma con atestación `checkedLabels`; reemplazó el
   botón "Firmar" pelado — la página fue diseñada para hostearlo).
