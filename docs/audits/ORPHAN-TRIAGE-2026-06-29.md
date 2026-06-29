@@ -69,13 +69,14 @@ falsos violaría "no fabricar datos"):
   ocupacionales) → NINGUNA página/hook produce `ChainValidationResult[]`. El
   servicio `measurementChain` existe pero nunca se conectó a ingesta real.
   Construir el flujo ingesta→validación primero (feature, no cableado).
-- `spacedRepetition/SpacedRepetitionReviewQueue` (cola de repaso SM-2) → genuino,
-  CIERRA un loop abierto (Training crea tarjetas vía `createLearningCard` L253
-  pero NO hay superficie de repaso). Bloqueo: `useSpacedRepetition` expone
-  create/review/select-due/retention — todos toman `cards[]` como INPUT, NO hay
-  endpoint para LISTAR las tarjetas del trabajador. Requiere construir
-  `GET /api/sprint-k/:projectId/spaced-repetition/cards` (+ reglas + hook) y luego
-  montar la cola en Training. Backend feature.
+- ✓✓ CONSTRUIDO (feature end-to-end) `spacedRepetition/SpacedRepetitionReviewQueue`:
+  el route era compute-puro SIN persistencia y Training descartaba la tarjeta
+  (`.catch(()=>{})`) → loop abierto real. Se construyó la persistencia de cero:
+  colección `learning_cards` (firestore.rules owner-scoped + 11 rules-tests +
+  Dirty Dozen #142-145), Training persiste la tarjeta al completar capacitación
+  (`createInitialCard`+`setDoc`), lectura por `useFirestoreCollection` constrained
+  por workerUid, y la cola montada en Training con `onUpdateCard`→`updateDoc`
+  (cada repaso reprograma el intervalo SM-2). Loop cerrado.
 
 SUPERSEDED confirmados (verificación inline, 2da tanda):
 - `safety/SafetyCapsules` → Training ya genera cápsulas IA inline

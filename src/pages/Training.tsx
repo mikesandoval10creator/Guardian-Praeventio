@@ -23,7 +23,7 @@ import {
   Download,
   FileSpreadsheet
 } from 'lucide-react';
-import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, setDoc, where } from 'firebase/firestore';
 import { generateTrainingCertificate } from '../utils/trainingCertificate';
 import { awardPoints } from '../services/gamificationService';
 import { db } from '../services/firebase';
@@ -32,7 +32,10 @@ import { useProject } from '../contexts/ProjectContext';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
-import { createLearningCard } from '../hooks/useSpacedRepetition';
+import {
+  createInitialCard,
+  type LearningCard,
+} from '../services/spacedRepetition/spacedRepetitionScheduler';
 import { generateSafetyCapsule, generateTrainingQuiz } from '../services/geminiService';
 import { TrainingSession } from '../types';
 import { FindTheGuardian } from '../components/gamification/FindTheGuardian';
@@ -52,6 +55,7 @@ import {
   submitMicrotrainingSession,
 } from '../hooks/useMicrotraining';
 import type { RiskCategory } from '../services/microtraining/lightningTrainingService';
+import { SpacedRepetitionReviewQueue } from '../components/spacedRepetition/SpacedRepetitionReviewQueue';
 
 interface QuizQuestion {
   question: string;
@@ -250,12 +254,27 @@ export function Training() {
         completedAt: new Date().toISOString()
       });
 
-      createLearningCard(selectedProject.id, {
-        cardId: session.id,
-        workerUid: user.uid,
-        topic: session.title,
-        initiallyLearnedAt: new Date().toISOString(),
-      }).catch(() => {});
+      // Persistir una tarjeta de repetición espaciada (SM-2) para que el
+      // trabajador realmente repase este tema después. Antes esto era
+      // fire-and-forget sobre un endpoint de compute puro y la tarjeta se
+      // descartaba: el loop quedaba abierto (se creaba, nadie repasaba). Ahora
+      // se guarda en `learning_cards` (reglas owner-scoped) y la cola de repaso
+      // de esta misma página la levanta. Id por trabajador+sesión.
+      try {
+        const cardId = `${session.id}__${user.uid}`;
+        const card = createInitialCard(
+          cardId,
+          user.uid,
+          session.title,
+          new Date().toISOString(),
+        );
+        await setDoc(doc(db, 'learning_cards', cardId), {
+          ...card,
+          projectId: selectedProject.id,
+        });
+      } catch (err) {
+        logger.warn('learningCard.persist.failed', { err: String(err) });
+      }
 
       setActiveVideoSession(null);
       setIsQuizActive(false);
@@ -409,6 +428,17 @@ export function Training() {
     (m) => m.id === activeMicroModule,
   );
 
+  // Tarjetas de repaso espaciado del trabajador en este proyecto. La query SIEMPRE
+  // restringe por workerUid (== uid) para que las reglas owner-scoped la aprueben
+  // sin get() — un sentinela '__none__' devuelve vacío hasta que hay user/proyecto.
+  const { data: learningCards } = useFirestoreCollection<LearningCard>(
+    'learning_cards',
+    [
+      where('workerUid', '==', user?.uid ?? '__none__'),
+      where('projectId', '==', selectedProject?.id ?? '__none__'),
+    ],
+  );
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <AnimatePresence>
@@ -461,6 +491,33 @@ export function Training() {
           </button>
         </div>
       </div>
+
+      {/* Repaso programado (SM-2) — monta el huérfano SpacedRepetitionReviewQueue.
+          Cierra el loop: las tarjetas que esta página crea al completar una
+          capacitación se repasan aquí; cada calificación reprograma el intervalo
+          y persiste en `learning_cards`. */}
+      {selectedProject && learningCards.length > 0 && (
+        <section className="space-y-3" data-testid="training-spaced-repetition">
+          <h2 className="text-sm font-black text-white uppercase tracking-tight flex items-center gap-2">
+            <Brain className="w-4 h-4 text-emerald-400" />
+            Repaso programado
+          </h2>
+          <SpacedRepetitionReviewQueue
+            cards={learningCards}
+            onUpdateCard={(updated) => {
+              void updateDoc(doc(db, 'learning_cards', updated.id), {
+                reviewCount: updated.reviewCount,
+                easeFactor: updated.easeFactor,
+                intervalDays: updated.intervalDays,
+                nextReviewAt: updated.nextReviewAt,
+                ...(updated.lastQuality !== undefined
+                  ? { lastQuality: updated.lastQuality }
+                  : {}),
+              });
+            }}
+          />
+        </section>
+      )}
 
       <CsvImportExportModal
         isOpen={isCsvModalOpen}
