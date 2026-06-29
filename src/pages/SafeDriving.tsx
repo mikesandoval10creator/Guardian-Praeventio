@@ -37,7 +37,7 @@ const defaultCenter = {
 
 export function SafeDriving() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'route' | 'conductores' | 'ranking' | 'report'>('route');
+  const [activeTab, setActiveTab] = useState<'route' | 'rutasCriticas' | 'conductores' | 'ranking' | 'report'>('route');
   const [description, setDescription] = useState('');
   const [incidentType, setIncidentType] = useState<'Accidente' | 'Falla Mecánica' | null>(null);
   const [loading, setLoading] = useState(false);
@@ -165,6 +165,14 @@ export function SafeDriving() {
             }`}
           >
             {t('safeDriving.tabs.route', 'Ruta Activa')}
+          </button>
+          <button
+            onClick={() => setActiveTab('rutasCriticas')}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'rutasCriticas' ? 'bg-surface text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            {'Rutas Críticas'}
           </button>
           <button
             onClick={() => setActiveTab('conductores')}
@@ -448,7 +456,7 @@ export function SafeDriving() {
       ) : (
         <DriverScoringTabs
           projectId={selectedProject?.id ?? null}
-          tab={activeTab}
+          tab={activeTab === 'rutasCriticas' ? 'rutas' : activeTab}
         />
       )}
     </div>
