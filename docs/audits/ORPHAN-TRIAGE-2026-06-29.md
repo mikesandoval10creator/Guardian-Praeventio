@@ -116,6 +116,69 @@ spacedRepetition/SpacedRepetitionReviewQueue, suseso/SusesoDeadlineBadge,
 sync/ConflictResolutionDrawer, twinScene/TwinIntegrationPanel,
 workPermits/PermitChecklistRenderer.
 
+## MAPA COMPLETO DEL CAMPO (reconocimiento 2 exploradores, 2026-06-29)
+
+Clasificación rigurosa (inline-check + fuente-de-datos verificada) de TODAS las
+restantes. "Hacerse invencible primero": no montar duplicados ni sin datos.
+
+### YA MONTADAS (6) — ver arriba
+incidentFlow ×3, DrillsCompliancePanel, HeatStressCard, DomainPromptCatalog.
+
+### MOUNTABLE ahora — sin backend nuevo (próxima ola, ~5)
+- `sync/ConflictResolutionDrawer` → **RootLayout** (se auto-cablea: escucha
+  `window 'sync-critical-conflict'` + `useFirebase().userRole`; overlay global).
+  El más limpio. Cierra valor: resolver conflictos de sync offline.
+- `excelImport/ExcelImportPreview` → **ImportData.tsx** (componente controlado;
+  `processImport(schema, rows)` puro + `onCommit`; filas parseadas upstream). Verificar ImportData.
+- `health/OccupationalContextBundleCard` → **HealthVaultViewer** (hook
+  `useOccupationalContext` + `summarizeBundle`; OJO ADR-0012: renderizar
+  `<MedicalDisclaimer/>`, nada de diagnóstico).
+- `workPermits/PermitChecklistRenderer` → **WorkPermits.tsx** (la página crea
+  permisos pero no renderiza checklist; construir checklist + `onToggle`).
+- `leadership/LeadershipTrailCard` → **LeadershipDecisions.tsx** CONSOLIDAR
+  (la página renderiza las decisiones inline a mano L400-450; fusionar al componente).
+
+### SUPERSEDED — documentar, NO montar (duplicados de inline más rico)
+- `shiftHandover/ShiftHandoverPanel` + `ShiftHandoverHistoryList` → ShiftHandover.tsx (flujo 3-modos + historial inline).
+- `culturePulse/CulturePulseDashboard` → CulturePulse.tsx (gauge+trend inline, más rico).
+- `explainability/ExplainedRecommendationCard` → solo test + ruta server /explainability.
+- `pricingCalculator/{ROICalculatorWidget,TierComparatorWidget}` → PricingCalculator inline.
+- `safety/SafetyCapsules` → Training inline (cápsulas IA + persistencia + puntos).
+- `dashboard/{QuickActions,AdviceBanner}` → DashboardQuickActions / RotatingAdviceBanner.
+
+### NEEDS-FEATURE — genuinos pero SIN productor de datos (construir backend/página primero)
+Cada uno es una feature, no un cableado. Por valor de seguridad/negocio:
+- `spacedRepetition/SpacedRepetitionReviewQueue` — falta `GET .../spaced-repetition/cards` (loop abierto: Training crea, nadie repasa).
+- `suseso/SusesoDeadlineBadge` — faltan filas DIAT/DIEP con deadline+status en SusesoReports.
+- `measurements/MeasurementQualityCard` — falta pipeline ingesta→validación (`ChainValidationResult[]`).
+- `governance/DeviationRadarPanel` — falta exponer stream de excepciones (`ExceptionRecord[]`).
+- `continuity/SpofPanel` — falta adapter org→SPOF (`ContinuityInput`).
+- `costCalculator/PreventionROIWidget` — falta agregación incidentes/compliance.
+- `climateAware/ClimatePlanAdjustment` — falta weather API + agenda de tareas.
+- `adoption/ChurnRiskPanel` — falta pipeline `TenantUsageSnapshot[]` (admin/CRM).
+- `cargo/CargoCogPanel` — falta adapter de estiba + AR.
+- `hvac/AirQualityPanel` — falta telemetría CO2/térmica + página HVAC.
+- `identity/TaxIdInput` — falta página identidad/onboarding + contexto país.
+- `microtraining/LightningTrainingPlayer` — falta página curso + catálogo de módulos.
+- `monthlyClientReport/MonthlyClientReportCard` + `clientReporting/MonthlyClientReportPanel` — falta página client-reporting + agregación KPIs/SLA.
+- `pymeOnboarding/PymeMaturityWizard` + `pymeWizard/PymeOnboardingPlanPanel` — falta página onboarding PYME + persistencia de progreso.
+- `reportsAutomation/ReportTemplatePreview` — falta página reports-automation + fuentes template/data.
+- `roleOnboarding/OnboardingTrackProgressPanel` — falta página role-onboarding + cálculo de progreso.
+- `agenda/AgendaDigestCard` — falta productor de `DigestInputs`.
+- `twinScene/TwinIntegrationPanel` — falta página 3D + fuentes workers/equipment/thermal.
+- `horometro/MaintenanceCompleteForm` — falta flujo de mantención que lo invoque.
+
+### FALSE-POSITIVE / YA-CABLEADO / DEFER
+- Ya cableado: `slm/SlmAcquisitionPromptHost` (AppProviders L129, lazy).
+- Primitivas/helpers: `medical/MedicalIconAttribution`, `shared/{Badge,Input,ProjectScopedPage,AsesorChatRouter,ResilientAsesorLauncher}`, hooks `useStreamedGuardian`/`useSubmit`, `hygiene/FloraFaunaCatalog`, `twinScene/TwinSceneInstancedLazy`, `dashboard/RoleAwareDashboard`.
+- DEFER (3D/XR): `digital-twin/{GaussianSplatViewer,RePositionConfirmDialog}`, `twinPhysics/TwinPhysicsScene`.
+
+### Conteo del campo
+~6 montadas · ~5 montables-ahora · ~9 superados · ~20 needs-feature · ~14 fp/defer.
+La fase "cablear" termina con las 5 montables. Después: features deliberadas
+(backend) priorizadas por valor — vida/cumplimiento primero (spaced-rep, suseso,
+measurement, deviation), negocio/escala después.
+
 ## Procedimiento por huérfana (antes de montar)
 1. ¿Existe página de su dominio? Si no → montar = crear página (scope mayor).
 2. Si existe → ¿implementa la función inline? Si sí → SUPERSEDED (no montar).
