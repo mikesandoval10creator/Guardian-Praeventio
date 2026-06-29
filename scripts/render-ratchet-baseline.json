@@ -1,6 +1,6 @@
 {
   "_doc": "Ratchet baseline for scripts/check-render-ratchet.cjs (CLAUDE.md #23). List of component/page files whose exported PascalCase symbols are never rendered as a JSX <Tag in any other non-test src/ file — i.e. imported (satisfying the connectivity ratchet) but not actually rendered (phantom mount). The list may only SHRINK: a NEW phantom component fails the gate. When you add the <Tag render site, regenerate with `node scripts/check-render-ratchet.cjs --write` so the debt can never be re-grown silently.",
-  "count": 50,
+  "count": 49,
   "phantoms": [
     "src/components/WeatherSafetyRecommendations.tsx",
     "src/components/adoption/ChurnRiskPanel.tsx",
@@ -47,7 +47,6 @@
     "src/components/slm/SlmAcquisitionPromptHost.tsx",
     "src/components/spacedRepetition/SpacedRepetitionReviewQueue.tsx",
     "src/components/suseso/SusesoDeadlineBadge.tsx",
-    "src/components/sync/ConflictResolutionDrawer.tsx",
     "src/components/twinPhysics/TwinPhysicsScene.tsx",
     "src/components/twinScene/TwinIntegrationPanel.tsx",
     "src/components/twinScene/TwinSceneInstancedLazy.tsx",

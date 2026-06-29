@@ -12,6 +12,7 @@ import { NormativeProvider } from "../contexts/NormativeContext";
 import { SLMProvider } from "../components/slm/SLMProvider";
 import { MeshProvider } from "./MeshProvider";
 import { SystemEngineProvider } from "../contexts/SystemEngineProvider";
+import { ConflictResolutionDrawer } from "../components/sync/ConflictResolutionDrawer";
 
 // Sprint 54 perf — `<SLMShellOverlay>` only renders content when the
 // device is offline (the banner). Eager-importing it pulled framer-motion
@@ -135,6 +136,14 @@ export function AppProviders({ children }: AppProvidersProps) {
                         <Suspense fallback={null}>
                           <SlmDownloadFloatingBannerLazy />
                         </Suspense>
+                        {/* Overlay global de resolución de conflictos de sync
+                            offline: escucha `sync-critical-conflict`
+                            (OfflineSyncManager), encola y deja que un superior
+                            (admin/gerente) decida qué versión queda. Devuelve
+                            null hasta que hay conflicto en cola. Montaje directo
+                            (no lazy) para que el listener esté activo desde el
+                            arranque y no se pierda ningún evento. */}
+                        <ConflictResolutionDrawer />
                         {/* Sprint 35 — closes ADR-0013 last-mile (Sprint 33 D3).
                             Mounted inside ProjectProvider + FirebaseProvider so
                             useFirebase() + useProject() resolve. Early-returns
