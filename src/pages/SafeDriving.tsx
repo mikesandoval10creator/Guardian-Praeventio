@@ -19,6 +19,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { apiAuthHeader } from '../lib/apiAuth';
 import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
+import { DriverScoringTabs } from '../components/drivingSafety/DriverScoringTabs';
 
 const containerStyle = {
   width: '100%',
@@ -36,7 +37,7 @@ const defaultCenter = {
 
 export function SafeDriving() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'route' | 'report'>('route');
+  const [activeTab, setActiveTab] = useState<'route' | 'conductores' | 'ranking' | 'report'>('route');
   const [description, setDescription] = useState('');
   const [incidentType, setIncidentType] = useState<'Accidente' | 'Falla Mecánica' | null>(null);
   const [loading, setLoading] = useState(false);
@@ -164,6 +165,22 @@ export function SafeDriving() {
             }`}
           >
             {t('safeDriving.tabs.route', 'Ruta Activa')}
+          </button>
+          <button
+            onClick={() => setActiveTab('conductores')}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'conductores' ? 'bg-surface text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            {'Conductores'}
+          </button>
+          <button
+            onClick={() => setActiveTab('ranking')}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'ranking' ? 'bg-surface text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            {'Ranking'}
           </button>
           <button
             onClick={() => setActiveTab('report')}
@@ -347,7 +364,7 @@ export function SafeDriving() {
             </div>
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'report' ? (
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -428,6 +445,11 @@ export function SafeDriving() {
             </div>
           </div>
         </motion.div>
+      ) : (
+        <DriverScoringTabs
+          projectId={selectedProject?.id ?? null}
+          tab={activeTab}
+        />
       )}
     </div>
   );
