@@ -5039,6 +5039,10 @@
     "pdcaClosure": "Training closure: {{done}}/{{assigned}} workers ({{pct}}%).",
     "myTrainings": "Your derived microtraining",
     "lessonFallback": "Incident lesson",
+    "manage": {
+      "show": "PDCA management (supervisor)",
+      "hide": "Hide PDCA management"
+    },
     "empty": "No incidents recorded on this project.",
     "emptyHint": "Good news. You'll see the annual view here once there is data, or report a near-miss to strengthen the prevention culture.",
     "annualView": "Annual view (12 months)",

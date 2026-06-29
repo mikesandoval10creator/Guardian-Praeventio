@@ -5039,6 +5039,10 @@
     "pdcaClosure": "Fechamento de treinamento: {{done}}/{{assigned}} trabalhadores ({{pct}}%).",
     "myTrainings": "Seu microtreinamento derivado",
     "lessonFallback": "Lição do incidente",
+    "manage": {
+      "show": "Gestão PDCA (supervisor)",
+      "hide": "Ocultar gestão PDCA"
+    },
     "empty": "Nenhum incidente registrado neste projeto.",
     "emptyHint": "Boa notícia. Você verá a visão anual aqui quando houver dados, ou reporte um quase-acidente para fortalecer a cultura preventiva.",
     "annualView": "Visão anual (12 meses)",
