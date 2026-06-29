@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Brain, Zap, Shield, Database, Network, Cpu, TrendingUp, Loader2, Share2, WifiOff } from 'lucide-react';
+import { Brain, Zap, Shield, Database, Network, Cpu, TrendingUp, Loader2, Share2, WifiOff, Bot } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { VisionAnalyzer } from '../components/ai/VisionAnalyzer';
 import { PredictiveAnalysis } from '../components/ai/PredictiveAnalysis';
@@ -22,6 +22,7 @@ import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { BlueprintViewer } from '../components/blueprints/BlueprintViewer';
 import { StructuralCalculator } from '../components/engineering/StructuralCalculator';
 import { HazmatStorageDesigner } from '../components/engineering/HazmatStorageDesigner';
+import { DomainPromptCatalog } from '../components/coach/DomainPromptCatalog';
 
 export function AIHub() {
   const { t } = useTranslation();
@@ -225,6 +226,22 @@ export function AIHub() {
             </div>
           </PremiumFeatureGuard>
         </div>
+      </section>
+
+      {/* Transparencia del Coach IA — monta el huérfano DomainPromptCatalog:
+          los 5 system prompts reales de dominio + ejemplos few-shot + normativas
+          citadas. Auditoría/transparencia IA; catálogo estático, sin datos. */}
+      <section className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-fuchsia-500/10 flex items-center justify-center text-fuchsia-500 border border-fuchsia-500/20">
+            <Bot className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black text-primary-token uppercase tracking-tight">Transparencia del Coach IA</h2>
+            <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">Prompts de dominio, ejemplos y normativas citadas</p>
+          </div>
+        </div>
+        <DomainPromptCatalog />
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

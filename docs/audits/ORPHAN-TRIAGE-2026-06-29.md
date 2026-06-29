@@ -56,6 +56,19 @@ MONTADAS (commits):
   expone la conclusión → encadena la lección). render-ratchet 56→53.
 - `drillsManager/DrillsCompliancePanel` → DrillsManager (cumplimiento DS 132 por
   tipo; "Agendar" preselecciona el tipo). render-ratchet 53→52.
+- `exposure/HeatStressCard` → PreShiftRisk (protocolo WBGT trabajo/descanso sobre
+  clima real de UniversalKnowledgeContext + selector de intensidad).
+  connectivity 37→36, render 52→51.
+- `coach/DomainPromptCatalog` → AIHub (sección "Transparencia del Coach IA":
+  5 system prompts + ejemplos + normativas; catálogo estático).
+  connectivity 36→35, render 51→50.
+
+REQUIERE PIPELINE de datos antes de montar (no hay fuente — montar con datos
+falsos violaría "no fabricar datos"):
+- `measurements/MeasurementQualityCard` (score de calidad de mediciones
+  ocupacionales) → NINGUNA página/hook produce `ChainValidationResult[]`. El
+  servicio `measurementChain` existe pero nunca se conectó a ingesta real.
+  Construir el flujo ingesta→validación primero (feature, no cableado).
 
 SUPERSEDED confirmados (verificación inline, NO montar):
 - `pricingCalculator/{ROICalculatorWidget,TierComparatorWidget}` → PricingCalculator
