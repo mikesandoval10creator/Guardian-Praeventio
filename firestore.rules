@@ -1432,6 +1432,43 @@ service cloud.firestore {
       allow delete: if isEmailVerified() && (isAdmin() || isSupervisor());
     }
 
+    // Spaced-repetition learning cards (SM-2). A worker's OWN study cards for a
+    // project: created when a training session completes (Training.tsx) and
+    // updated as the worker reviews them (SpacedRepetitionReviewQueue). Personal
+    // formative data — NOT a legal record. Owner-scoped:
+    //   - read: the OWNER (workerUid == uid) — uses no get() so the worker's
+    //     review-queue LIST query stays fail-safe — plus admin/supervisor.
+    //   - create: a project member may seed ONLY their own card
+    //     (workerUid == uid → no spoofing someone else's study record).
+    //   - update: only the owner, and projectId/workerUid are immutable
+    //     (review can change the SM-2 schedule, never the ownership).
+    //   - delete: admin/supervisor only (the worker can't erase their trail).
+    match /learning_cards/{cardId} {
+      allow read: if isValidId(cardId) && isEmailVerified() && (
+        resource.data.workerUid == request.auth.uid ||
+        isAdmin() || isSupervisor()
+      );
+      allow create: if isValidId(cardId) && isEmailVerified() &&
+        incoming().workerUid == request.auth.uid &&
+        isProjectMember(incoming().projectId) &&
+        incoming().projectId is string &&
+        incoming().workerUid is string &&
+        incoming().topic is string &&
+        incoming().reviewCount is number &&
+        incoming().easeFactor is number &&
+        incoming().intervalDays is number &&
+        incoming().nextReviewAt is string;
+      allow update: if isValidId(cardId) && isEmailVerified() &&
+        resource.data.workerUid == request.auth.uid &&
+        incoming().workerUid == resource.data.workerUid &&
+        incoming().projectId == resource.data.projectId &&
+        incoming().reviewCount is number &&
+        incoming().easeFactor is number &&
+        incoming().intervalDays is number &&
+        incoming().nextReviewAt is string;
+      allow delete: if isEmailVerified() && (isAdmin() || isSupervisor());
+    }
+
     // AI feedback — users can submit vote on their own session; admins can read all
     match /ai_feedback/{feedbackId} {
       allow read: if isAdmin();
