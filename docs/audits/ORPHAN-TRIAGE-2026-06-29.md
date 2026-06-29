@@ -69,6 +69,18 @@ falsos violaría "no fabricar datos"):
   ocupacionales) → NINGUNA página/hook produce `ChainValidationResult[]`. El
   servicio `measurementChain` existe pero nunca se conectó a ingesta real.
   Construir el flujo ingesta→validación primero (feature, no cableado).
+- `spacedRepetition/SpacedRepetitionReviewQueue` (cola de repaso SM-2) → genuino,
+  CIERRA un loop abierto (Training crea tarjetas vía `createLearningCard` L253
+  pero NO hay superficie de repaso). Bloqueo: `useSpacedRepetition` expone
+  create/review/select-due/retention — todos toman `cards[]` como INPUT, NO hay
+  endpoint para LISTAR las tarjetas del trabajador. Requiere construir
+  `GET /api/sprint-k/:projectId/spaced-repetition/cards` (+ reglas + hook) y luego
+  montar la cola en Training. Backend feature.
+
+SUPERSEDED confirmados (verificación inline, 2da tanda):
+- `safety/SafetyCapsules` → Training ya genera cápsulas IA inline
+  (`handleGenerateCapsule`, persiste a `training_capsules`, otorga puntos, modal).
+  El componente es una versión más simple → superado.
 
 SUPERSEDED confirmados (verificación inline, NO montar):
 - `pricingCalculator/{ROICalculatorWidget,TierComparatorWidget}` → PricingCalculator
