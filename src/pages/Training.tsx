@@ -431,7 +431,7 @@ export function Training() {
             <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-[#4db6ac] dark:text-[#d4af37]" />
             {t('training.title', 'Capacitaciones & Formación')}
           </h1>
-          <p className="text-zinc-400 mt-1 font-medium italic text-xs sm:text-base">{t('training.tagline', '"El conocimiento es la primera línea de defensa"')}</p>
+          <p className="text-muted-token mt-1 font-medium italic text-xs sm:text-base">{t('training.tagline', '"El conocimiento es la primera línea de defensa"')}</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <button 
@@ -1152,7 +1152,7 @@ export function Training() {
                 </div>
               </div>
 
-              <p className="text-zinc-400 text-xs sm:text-sm mb-4 sm:mb-8 line-clamp-2 font-medium leading-relaxed flex-1">
+              <p className="text-secondary-token text-xs sm:text-sm mb-4 sm:mb-8 line-clamp-2 font-medium leading-relaxed flex-1">
                 {session.description || 'Sin descripción detallada para esta sesión de capacitación.'}
               </p>
 
