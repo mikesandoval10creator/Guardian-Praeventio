@@ -124,19 +124,20 @@ restantes. "Hacerse invencible primero": no montar duplicados ni sin datos.
 ### YA MONTADAS (6) — ver arriba
 incidentFlow ×3, DrillsCompliancePanel, HeatStressCard, DomainPromptCatalog.
 
-### MOUNTABLE ahora — sin backend nuevo (próxima ola, ~5)
-- `sync/ConflictResolutionDrawer` → **RootLayout** (se auto-cablea: escucha
-  `window 'sync-critical-conflict'` + `useFirebase().userRole`; overlay global).
-  El más limpio. Cierra valor: resolver conflictos de sync offline.
-- `excelImport/ExcelImportPreview` → **ImportData.tsx** (componente controlado;
-  `processImport(schema, rows)` puro + `onCommit`; filas parseadas upstream). Verificar ImportData.
+### MOUNTABLE ahora — sin backend nuevo (Ola 1)
+- ✓ MONTADO `sync/ConflictResolutionDrawer` → AppProviders (overlay global eager,
+  escucha `sync-critical-conflict`). render 50→49.
+- ✓ MONTADO `leadership/LeadershipTrailCard` → LeadershipDecisions (resumen
+  agregado top-5 impacto sobre las `decisions` filtradas; la página fue diseñada
+  para hostearlo y nunca lo renderizó).
 - `health/OccupationalContextBundleCard` → **HealthVaultViewer** (hook
-  `useOccupationalContext` + `summarizeBundle`; OJO ADR-0012: renderizar
-  `<MedicalDisclaimer/>`, nada de diagnóstico).
+  `useOccupationalContext` + `summarizeBundle`; OJO ADR-0012: `<MedicalDisclaimer/>`,
+  nada de diagnóstico). PENDIENTE verificar.
 - `workPermits/PermitChecklistRenderer` → **WorkPermits.tsx** (la página crea
-  permisos pero no renderiza checklist; construir checklist + `onToggle`).
-- `leadership/LeadershipTrailCard` → **LeadershipDecisions.tsx** CONSOLIDAR
-  (la página renderiza las decisiones inline a mano L400-450; fusionar al componente).
+  permisos pero no renderiza checklist; construir checklist + `onToggle`). PENDIENTE.
+- ~~`excelImport/ExcelImportPreview`~~ → RECLASIFICADO a NEEDS-FEATURE: NO existe
+  `ImportData.tsx` ni flujo de carga/parseo Excel. Necesita página + upload + parse
+  a `ImportRow[]`. (El explorador asumió mal su hogar.)
 
 ### SUPERSEDED — documentar, NO montar (duplicados de inline más rico)
 - `shiftHandover/ShiftHandoverPanel` + `ShiftHandoverHistoryList` → ShiftHandover.tsx (flujo 3-modos + historial inline).
