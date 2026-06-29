@@ -49,6 +49,27 @@ Primitivas / wrappers / ya usados que el heurístico mal-marca:
 ### DIFERIR — 3D pesado / experimental (2)
 `digital-twin/GaussianSplatViewer`, `twinPhysics/TwinPhysicsScene`.
 
+### Verificado 2026-06-29 (progreso del barrido)
+MONTADAS (commits):
+- `incidentFlow/{InvestigationPanel,LessonPublishForm,PDCAClosePanel}` → IncidentFlowHub
+  (sección "Gestión PDCA" colapsable; InvestigationPanel mejorado: `onConcluded`
+  expone la conclusión → encadena la lección). render-ratchet 56→53.
+- `drillsManager/DrillsCompliancePanel` → DrillsManager (cumplimiento DS 132 por
+  tipo; "Agendar" preselecciona el tipo). render-ratchet 53→52.
+
+SUPERSEDED confirmados (verificación inline, NO montar):
+- `pricingCalculator/{ROICalculatorWidget,TierComparatorWidget}` → PricingCalculator
+  ya implementa ROI + comparación de tiers + comparador de escenarios (server) + EPP
+  + OC PDF inline, con `services/pricing/*` + `services/financialAnalytics/roiCalculator`.
+  Los widgets usan el servicio paralelo más simple `services/pricingCalculator/*` →
+  superados. (Servicio paralelo candidato a consolidación futura.)
+
+REQUIERE PLOMERÍA antes de montar (genuinos, pero su página no tiene los datos):
+- `exposure/HeatStressCard` (WBGT trabajo/descanso) → necesita clima crudo
+  (tempC/humidity) + selector de intensidad. PreShiftRisk solo tiene factores
+  abstractos; el clima crudo vive en el hook de clima del Dashboard. Montar con
+  fuente de clima + intensity.
+
 ### MONTAR (candidato — REQUIERE verificación inline-vs-componente individual)
 adoption/ChurnRiskPanel, agenda/AgendaDigestCard, cargo/CargoCogPanel,
 clientReporting/MonthlyClientReportPanel, climateAware/ClimatePlanAdjustment,
