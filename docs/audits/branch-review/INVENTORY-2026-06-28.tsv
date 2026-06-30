@@ -1,0 +1,629 @@
+2026-06-28	feat/wire-failure-library-panel	feat(dashboard): carrusel visible (shrink-0) + nav a /hub + KPIs en banda fina + mascota unica
+2026-06-27	fix/ci-vitest-pool-singlefork	fix(compliance): annotate DS 40/1969 as derogated in registry.ts DS 67 citation
+2026-06-27	fix/authz-cross-tenant	fix(authz): close 3 cross-tenant IDOR leaks in authz-sensitive routes
+2026-06-24	feat/orphan-wiring-wave1-2026-06-24	feat(b3): wire 12 orphaned components — connectivity ratchet 37→25
+2026-06-24	fix/b7-theme-shim-2026-06-24	fix(theme): make ThemeContext a thin shim over AppModeContext
+2026-06-24	fix/b6-local-heroes-2026-06-24	chore(ratchet): sync render-ratchet baseline (Badge/Input orphaned, CalmRec/Lessons now rendered)
+2026-06-24	dependabot/npm_and_yarn/simplewebauthn/server-13.3.1	chore(deps): bump @simplewebauthn/server from 11.0.0 to 13.3.2
+2026-06-24	dependabot/github_actions/actions/setup-java-5	chore(ci): bump actions/setup-java from 4 to 5
+2026-06-24	dependabot/npm_and_yarn/types/node-26.0.0	chore(deps): bump @types/node from 22.19.15 to 26.0.0
+2026-06-24	dependabot/npm_and_yarn/huggingface/transformers-4.2.0	chore(deps): bump @huggingface/transformers from 3.8.1 to 4.2.0
+2026-06-24	fix/e2e-vida-safety-2026-06-23	fix(legal): annotate DS 40 derogation in clSafetyInspectionAdapter citation
+2026-06-22	fix/regen-api-index-2026-06-22	fix(docs): regenerate API-INDEX.md — fresh route catalog (unblocks CI Tests gate → deploy)
+2026-06-22	feat/f4-tokenize-batch2-2026-06-22	feat(f4): tokenize remaining broken-in-3-modes pages (batch 2)
+2026-06-22	fix/ci-tests-unblock-deploy-2026-06-22	fix(ci): shard Tests job 4-way to unblock deploy gate (>14 min slow run)
+2026-06-22	feat/f4-tokenize-broken-pages-2026-06-22	feat(f4): tokenize 9 more pages — IoT, wearables, ERP, immutable render, CQRS, Google Drive, light pollution, volcanic map, mountain refuges
+2026-06-22	fix/vitest-pool-hang-2026-06-22	fix(config): enable vitest detectAsyncLeaks to surface pool-hang culprits
+2026-06-22	feat/backend-pipelines-2026-06-22	feat(pipelines): SLO error-budget refresh job + maintenance route wiring (Dimension D #3)
+2026-06-22	feat/mount-vida-legal-orphans-2026-06-22	fix(i18n): declare climateRoutes.calmRecs + calmRecsTitle in all 3 locales
+2026-06-22	dependabot/npm_and_yarn/minor-and-patch-ee8c404809	chore(deps): bump the minor-and-patch group across 1 directory with 59 updates
+2026-06-22	feat/wire-compliance-emit-2026-06-22	test(compliance-emit): add real-router per-adapter tests + register safety_inspection stub
+2026-06-22	fix/stability-blockers-2026-06-22	fix(test): pin TZ to America/Santiago in ephemeris.test.ts
+2026-06-22	feat/landing-firebase-lazy	perf(landing): lazy-load Firebase SDK off the anonymous landing critical path
+2026-06-22	test/router-coverage-wave2-2026-06-22	chore(ratchet): update router-test baseline — 7 → 1 uncovered (204 verified)
+2026-06-22	feat/frontend-redesign-f2	fix(frontend-f2): address adversarial review findings (C1/I1-I4/M1/M2/I3)
+2026-06-22	docs/reflect-merged-wave-2026-06-22	docs: reflect merged hardening + DX + frontend wave (#1111-#1114)
+2026-06-22	feat/wire-backend-orphans-2026-06-22	test(server): add real-router tests for roleViews routes
+2026-06-22	feat/frontend-redesign-f0-f1	chore(perf): raise Main entry size budget 500→532 KB for F1 nav redesign
+2026-06-22	dependabot/npm_and_yarn/mercadopago-3.1.0	chore(deps): bump mercadopago from 2.13.0 to 3.1.0
+2026-06-22	dependabot/github_actions/google-github-actions/setup-gcloud-3	chore(ci): bump google-github-actions/setup-gcloud from 2 to 3
+2026-06-22	dependabot/github_actions/github/codeql-action-4	chore(ci): bump github/codeql-action from 3 to 4
+2026-06-22	dependabot/github_actions/actions/setup-node-6	chore(ci): bump actions/setup-node from 4 to 6
+2026-06-22	dependabot/github_actions/actions/upload-artifact-7	chore(ci): bump actions/upload-artifact from 4 to 7
+2026-06-22	security/firestore-storage-rules-2026-06-22	test(rules): fix 7 failing rules tests for V2 anti-spoof hardening
+2026-06-22	chore/dx-ci-config-2026-06-22	ci(lint-infra): step-level continue-on-error so advisory linters report green
+2026-06-22	chore/wire-missing-guards-2026-06-22	chore(ci): wire render-ratchet (#23) into pre-commit + add advisory pr-scope-check (#24)
+2026-06-22	security/audit-hardening-2026-06-22	feat(security): V11 PII redaction on /ask-guardian + V12 timing-safe E2E secret + B24 docker dedup
+2026-06-22	feat/frontend-redesign	docs(design): F1/F2/F3 plans + spec §12 founder refinements
+2026-06-21	docs/frontend-redesign-spec	docs(design): spec de rediseño de frontend (Apple/Xiaomi + pretext + nav 9 bloques)
+2026-06-21	feat/ley-karin-notify-lead	feat(ley-karin): notificar al lider del proyecto al recibir denuncia (F2, anonimato-seguro)
+2026-06-21	docs/reconcile-pendiente-2026-06-21	docs(PENDIENTE): D4 ContractorPerformance feed marcado CONSTRUIDO (stale doc-drift)
+2026-06-21	fix/guard-hang-global-async-errors	fix(reliability): forward async rejections so membership reads can't hang the request
+2026-06-21	fix/guard-pinsign	fix(pinSign): move project-membership guard inside try (Express 4 async-reject hang)
+2026-06-21	fix/guard-aiguardrails	@ fix(aiGuardrails): move membership guard inside try/catch to prevent request hang
+2026-06-21	fix/guard-infra-error-5xx	fix(privacyShield): guard() dentro del try → infra-error de membership mapea a 5xx limpio, no cuelga (Express 4 async reject)
+2026-06-21	feat/e2e-fixture-sos	fix(e2e): SOS button no renderizaba — reload tras sign-in (app montaba sin auth → ProjectContext/Emergency no activaban modo emergencia)
+2026-06-21	chore/wire-orphans-real-2b	fix(test): alinear bbs.router.test al contrato stateful — seed tenantId + record-observation 201 (era 404/200, regresión del wiring bbs-profile)
+2026-06-21	fix/cloudrun-boot-memory	fix(deploy): Cloud Run boot OOM — 512Mi→2Gi + cpu-boost (tsx runtime transpila todo el backend en cold start)
+2026-06-21	chore/legal-blindaje-bundle	fix(i18n): declarar privacy.lastUpdated/providerData + common.allRightsReserved (es/en/pt-BR)
+2026-06-20	chore/wire-orphans-real-1	chore: regen tras bundle wire-orphans-1
+2026-06-20	fix/typecheck-router-tests	fix(tests): typecheck verde — H.db non-null en aggregateTelemetry + pdfParser res:any en reports
+2026-06-20	chore/router-tests-wave8f	fix(meetingPack): server-stamp supervisorUid/projectId tras spread (anti-spoof CLAUDE.md #3) + test
+2026-06-20	chore/router-tests-wave8e	chore: regen router-test baseline tras bundle ola 5
+2026-06-20	chore/router-tests-wave8d	chore: regen router-test baseline tras bundle ola 4 (8 tests)
+2026-06-20	chore/router-tests-wave8c	chore: regen router-test baseline tras bundle ola 3 (8 tests)
+2026-06-20	chore/router-tests-wave8b	chore: regen router-test baseline tras bundle ola 2 (8 tests)
+2026-06-20	chore/capture-spi	Merge remote-tracking branch 'origin/main' into chore/capture-spi
+2026-06-20	chore/router-tests-wave8	chore: regen router-test baseline tras bundle de 8 tests
+2026-06-20	chore/capture-oppressure-contractor	chore: regen baselines+api-index tras bundle oppressure+contractor
+2026-06-20	feat/capture-planned-spi	feat(spi): capture planned-vs-executed counts + wire SpiDashboard real
+2026-06-20	chore/writeforms-bundle	chore: regen baseline+api-index tras reconciliar writeforms con keystone
+2026-06-20	feat/keystone-manhours-pr	merge main into keystone + regen baseline/api-index (reconcilia #1089)
+2026-06-20	chore/bucketd-derivable-bundle	chore: regen baseline+api-index tras bundle bucketd-derivable (organic/epp/industry)
+2026-06-20	chore/cost-ds67-bundle	chore: regen baseline+api-index tras bundle cost+ds67
+2026-06-20	chore/wave-realread3-bundle	chore: regen baseline+api-index + roadmap doc tras bundle realread-3 (5 mounts)
+2026-06-20	chore/wave-realread2-bundle	Merge remote-tracking branch 'origin/feat/mount-waste' into chore/wave-realread2-bundle
+2026-06-20	fix/deflake-offline-crypto	test(offlineCrypto): de-flake leak-check — marcador PII largo evita coincidencia azarosa en base64 (no .toContain('Ana'))
+2026-06-20	chore/wave-realread-bundle	fix(dataQuality): tipar safeRead documents (Record&{id}) — resuelve 20 TS2339; regen baseline+api-index
+2026-06-20	chore/wave-f-bundle	docs(pendiente): ContractorPerformance feed = Bucket D (no montar honest-empty)
+2026-06-20	feat/mount-epp-inspection	feat(epp): mount EppInspectionForm on EPP page with real catalog
+2026-06-20	feat/incidentflow-hub	feat(incidentFlow): Hub de Flujo de Incidentes (F3) — lista real + monta huérfanos
+2026-06-20	feat/change-management-moc	feat(changeMgmt): mount MOC trio in ChangeManagement page (F5)
+2026-06-20	feat/mount-lone-worker-admin	feat(loneWorker): mount LoneWorkerAdminPanel on supervisor monitor page
+2026-06-20	chore/drain-vidalegal-bundle	chore: regen baseline + api-index tras bundle 3 mounts vida/legal
+2026-06-20	feat/mount-legal-obligations	feat(legal-calendar): mount useLegalObligations on LegalCalendar page
+2026-06-20	feat/mount-custody-chain-card	feat(evidenceChain): mount CustodyChainTimelineCard on incident investigation with real chain data
+2026-06-20	chore/drain-features-bundle	chore: regen baseline + api-index tras bundle de 6 features rescatadas
+2026-06-20	feat/mount-project-closure-card	feat(projectClosure): mount ProjectClosureCard with real closure data
+2026-06-20	fix/red-main-tests-bundle	Merge remote-tracking branch 'origin/fix/test-confidential-reports' into fix/red-main-tests-bundle
+2026-06-20	fix/test-residual-risk	fix(residual-risk): consolidate duplicate residual-risk card (de-dup #1079 mount)
+2026-06-20	fix/test-mountain-refuges	fix(mountain-refuges): restore offline client catalog as primary refuge source
+2026-06-20	fix/test-confidential-reports	fix(confidential-reports): de-dupe report data-testid between inbox views
+2026-06-20	fix/test-pre-shift-risk	fix(pre-shift): stop PreShiftRiskCard mount duplicating the inline panel
+2026-06-20	fix/test-maturity-indicator	@ fix(maturity): de-duplicate maturity-gauge testid in MaturityIndexCard
+2026-06-20	feat/mount-use-roi-scenario	feat(pricing): render server-computed ROI scenario comparison
+2026-06-20	feat/mount-use-project-comparator	feat: wire ProjectsCompare to real per-project snapshots (READ pipeline P1)
+2026-06-20	feat/mount-requirement-gate-panel	fix(soft-blocks): honest empty-state when active-blocks feed is not wired
+2026-06-20	feat/mount-use-reconciliation-status	fix: remove explicit ns from reconciliation t() call
+2026-06-20	feat/mount-use-research-mode	fix(i18n): declare research_summary keys in es, en, pt-BR
+2026-06-20	feat/mount-use-multi-role-summary	feat: wire useMultiRoleSummary hook into AnnualReview page
+2026-06-20	chore/drain-wave-3	i18n: declarar 8 claves maintenance.page.* + nav.maintenance_preventive (es/en/pt-BR) que usaba #1001
+2026-06-20	docs/phantom-mounts-reclassify	docs(pendiente): CphsModule cascarón YA resuelto (pasa roster real, no [])
+2026-06-20	docs/b-dimension-clean	docs(pendiente): B limpio — WisdomCapsule era falso positivo (real /today ya cableado en MorningRoutine)
+2026-06-20	chore/consolidate-rules	docs+governance: merge #1070 (CLAUDE rules #23/#24 + audits/INDEX) preservando conteos re-verificados; corregir nota stale #1051
+2026-06-20	chore/drain-wave-2	Merge remote-tracking branch 'origin/docs/read-pipeline-specs-2026-06-19' into chore/drain-wave-2
+2026-06-20	chore/drain-mount-wave-bundle	chore: regen connectivity baseline (89->81) + api-index after bundling 9 mounts
+2026-06-20	feat/mount-confidential-report-inbox	feat: mount ConfidentialReportInbox in ConfidentialReports page
+2026-06-20	chore/phase0-reverify-api-index	chore(audit): re-verify pending ledger + auto-generated route index
+2026-06-19	docs/read-pipeline-specs-2026-06-19	docs(pipelines): executable read-pipeline spec queue (the real "make real" work)
+2026-06-19	feat/cphs-roster-read-pipeline	feat(cphs): real worker-roster read pipeline — un-cascarón the committee form
+2026-06-19	feat/mount-use-adoption	fix(analytics): de-fabricate adoption snapshot — real plan + project count
+2026-06-19	feat/mount-use-microtraining	Merge branch 'main' into feat/mount-use-microtraining
+2026-06-19	feat/mount-use-document-versioning	Merge branch 'main' into feat/mount-use-document-versioning
+2026-06-19	feat/mount-engineering-inventory-card	Merge branch 'main' into feat/mount-engineering-inventory-card
+2026-06-19	feat/mount-driver-score-card	Merge branch 'main' into feat/mount-driver-score-card
+2026-06-19	docs/consolidate-knowledge-2026-06-19	docs(consolidate): single source of truth + governance rules from MiMo-wave audit
+2026-06-19	fix/restore-assetlinks-and-lint-ignore	fix(ci): restore Android assetlinks fingerprint + untrack swept-in agent skills
+2026-06-19	feat/mount-portable-history-preview	feat: mount PortableHistoryPreview in WorkerPortableHistory page
+2026-06-19	feat/mount-emergency-brigade-panel	feat: mount EmergencyBrigadePanel in EmergencyBrigade page
+2026-06-19	feat/mount-worker-readiness-card	feat: mount WorkerReadinessCard in WorkerReadiness page
+2026-06-19	feat/mount-operational-pressure-gauge	Merge branch 'main' into feat/mount-operational-pressure-gauge
+2026-06-19	feat/mount-use-upsell	Merge branch 'main' into feat/mount-use-upsell
+2026-06-19	feat/mount-use-role-views	Merge branch 'main' into feat/mount-use-role-views
+2026-06-19	feat/mount-use-admin-burden	Merge branch 'main' into feat/mount-use-admin-burden
+2026-06-19	feat/mount-spi-dashboard	Merge branch 'main' into feat/mount-spi-dashboard
+2026-06-19	feat/mount-preventive-objectives-panel	Merge branch 'main' into feat/mount-preventive-objectives-panel
+2026-06-19	feat/mount-external-audit-portal-card	Merge branch 'main' into feat/mount-external-audit-portal-card
+2026-06-19	feat/mount-non-conformity-list-panel	Merge branch 'main' into feat/mount-non-conformity-list-panel
+2026-06-19	feat/mount-predictive-alerts-list	Merge branch 'main' into feat/mount-predictive-alerts-list
+2026-06-19	feat/mount-glossary-search-panel	Merge branch 'main' into feat/mount-glossary-search-panel
+2026-06-19	feat/mount-doc-confidence-card	Merge branch 'main' into feat/mount-doc-confidence-card
+2026-06-19	feat/mount-equipment-status-card	Merge branch 'main' into feat/mount-equipment-status-card
+2026-06-19	feat/mount-use-non-conformity	feat: wire useNonConformity hook into CorrectiveActions page
+2026-06-19	feat/mount-use-vendor-onboarding	i18n: add vendorStage key to es, en, pt-BR locales
+2026-06-19	feat/mount-use-reputational-alerts	feat: mount useReputationalAlerts hook in PredictiveGuard page
+2026-06-19	feat/mount-use-refuges	feat: wire useRefuges hook into MountainRefuges page
+2026-06-19	feat/mount-use-signaletics	feat: mount useSignaletics hook in Evacuation page (#1038)
+2026-06-19	feat/mount-use-spaced-repetition	feat: wire useSpacedRepetition hook into Training page
+2026-06-19	feat/mount-use-skill-gap	feat: wire useSkillGap hook into Training page
+2026-06-19	feat/delete-orphan-hooks	chore: delete 22 orphan hooks with zero production importers
+2026-06-19	feat/mount-drill-result-review-card	feat: mount DrillResultReviewCard in DrillsManager page
+2026-06-19	feat/mount-hazmat-compatibility-panel	feat: mount HazmatCompatibilityPanel in HazmatInventoryPage
+2026-06-19	feat/mount-maintenance-tasklist	Merge branch 'main' into feat/mount-maintenance-tasklist
+2026-06-19	feat/mount-safety-metrics-dashboard	feat: mount SafetyMetricsDashboard
+2026-06-19	feat/mount-root-cause-tree-summary	feat(root-cause): mount RootCauseTreeSummary in RootCauseInvestigation page
+2026-06-19	feat/mount-supervisor-briefing-card	feat: mount SupervisorBriefingCard in ShiftHandover page
+2026-06-19	feat/mount-raci-health-card	feat: mount RaciHealthCard in Projects page overview tab
+2026-06-19	feat/mount-residual-risk-card	feat: mount ResidualRiskCard in ResidualRisk page
+2026-06-19	feat/mount-maturity-index-card	feat: mount MaturityIndexCard in MaturityIndicator page
+2026-06-19	feat/mount-pre-shift-risk-card	feat: mount PreShiftRiskCard in PreShiftRisk page
+2026-06-19	feat/mount-faena-state-banner	feat: mount FaenaStateBanner in Dashboard page
+2026-06-19	feat/mount-document-hygiene-panel	feat: mount DocumentHygienePanel in Documents page
+2026-06-19	feat/mount-legal-obligation-card	feat: mount LegalObligationCard in LegalCalendar page
+2026-06-19	feat/mount-annual-review-summary	feat: mount AnnualReviewSummary in AnnualReview page
+2026-06-19	feat/mount-audit-express-button	feat(audits): mount AuditExpressButton in Audits page (A2)
+2026-06-18	fix/notification-context-duplicate-listener	fix(e2e): skip login heading test in E2E mode (user already authenticated)
+2026-06-18	feat/mount-five-s-audit	merge: reconcile feat/mount-five-s-audit with main
+2026-06-18	feat/mount-expirations-panel	Merge remote-tracking branch 'origin/main' into feat/mount-expirations-panel
+2026-06-18	feat/mount-action-balance-card	Merge remote-tracking branch 'origin/main' into feat/mount-action-balance-card
+2026-06-18	test/e2e-anti-flaky	test(e2e): anti-flaky pass — remove the last fixed sleep (SOS long-press)
+2026-06-18	feat/mount-iper-matrix	feat(protocols): mount IperMatrixCard as IPER 5x5 tool (A2)
+2026-06-18	feat/mount-compliance-traffic-light	test(e2e): fixme snapshot assertion (harness Firestore-visibility gap); keep 403 gate
+2026-06-18	chore/onboarding-i18n	Merge remote-tracking branch 'origin/main' into chore/onboarding-i18n
+2026-06-18	chore/tech-debt-logger-i18n	Merge remote-tracking branch 'origin/main' into chore/tech-debt-logger-i18n
+2026-06-18	feat/e2e-coverage-99-percent	test(e2e): estabilizar full-stack — re-fixme 3 specs feature-level + smoke robusto
+2026-06-18	feat/carga-mental	Merge remote-tracking branch 'origin/main' into feat/carga-mental
+2026-06-18	fix/router-test-ratchet-relative-imports	fix(router-test-ratchet): resolve co-located relative imports (honest inventory)
+2026-06-17	feat/checklist-vehiculo	feat(checklist-vehiculo): mount vehicle pre-op checklist (connect-real #3)
+2026-06-17	fix/climateroutes-real-eonet-pins	fix(climate-routes): clear stale assessment+bbox in Directions catch (P1 review)
+2026-06-17	fix/dynamic-evac-map-test-firebase-provider	fix(test): mock FirebaseContext+useWorkerPings in DynamicEvacuationMap suite (main CI red)
+2026-06-17	feat/calculadora-pandeo	feat(calculadora-pandeo): mount Euler buckling calculator (connect-real #2)
+2026-06-17	feat/linea-de-fuego-tool	feat(linea-de-fuego): mount struck-by/caught-between self-assessment tool
+2026-06-17	chore/router-test-ratchet-gate	chore(governance): router behavioral-coverage ratchet — closes dimension E + "verified working" inventory
+2026-06-17	docs/pendiente-registro	docs(pendiente): single source of truth for "real + connected" debt
+2026-06-17	chore/connectivity-ratchet-gate	chore(governance): connectivity ratchet — orphan UI features may only shrink
+2026-06-17	fix/execdash-real-incident-trend	fix(exec-dashboard): real period-over-period incident trend; drop misleading compliance arrow
+2026-06-17	fix/analytics-remove-fake-trends	fix(analytics): remove fabricated KPI trend badges (+2% / -15% / +5%)
+2026-06-17	fix/audit-failure-capture-clausmd14	test(loneWorker): clear audit + captureRouteError mocks in beforeEach (review LOW)
+2026-06-17	fix/telemetry-real-gas-hud	fix(telemetry): harden o2Reading fallback to o2Low ?? o2High (review P2)
+2026-06-17	perf/jspdf-dynamic-import-batch2	perf(pdf): dynamic-import jsPDF + html2canvas in 3 more PDF pages (N16 slice 2)
+2026-06-17	fix/telemetry-sim-event-fields	fix(telemetry): simulated IoT card reads the REAL Gemini schema fields
+2026-06-17	fix/settings-prefs-persist	fix(settings): persist email/session/AI prefs to users.appPreferences (N18 part-2)
+2026-06-17	fix/telemetry-simulated-iot-honest	fix(telemetry): demo "Simular IoT" no longer injects into the real safety pipeline
+2026-06-17	perf/zk-orphan-n1-batch	perf(zk): batch orphan-notif writes, kill N+1 getDocs per orphan
+2026-06-17	perf/jspdf-dynamic-import	perf(pdf): dynamic-import jsPDF + html2canvas in AfichesSeguridad + Analytics
+2026-06-17	fix/settings-2fa-real-mfa	fix(settings): replace the fake 2FA toggle with a CTA into the real MFA hub
+2026-06-17	feat/mural-real-comments	feat(mural): make the dead comment panel real + wire kebab delete + fix swallowed like error
+2026-06-17	feat/real-worker-pings-evacuation-map	fix(evacuation): address review — real member source, role-gate, clear stale on error
+2026-06-17	fix/epp-detector-confidence-honesty	fix(epp-vision): present color-based EPP as a tentative visual estimate, not verified detection (FASE 0)
+2026-06-17	feat/curriculum-real-training-list	fix(curriculum): drop unnecessary 'as any' on Date (timestamp is string|number)
+2026-06-17	fix/twin-fabricated-workers-evacuation	fix(twin/evac): address adversarial review — fall detection, schematic-GPS lie, stale route, key mismatch
+2026-06-17	feat/ley-karin-sla-badge	feat(ley-karin): surface SLA deadline badge + urgency sort in confidential-reports inbox
+2026-06-17	fix/emergency-contacts-modal-a11y	fix(emergency): a11y dialog semantics + Esc on the emergency-contacts modal
+2026-06-17	fix/emergency-overlay-a11y-triage	fix(emergency): a11y alertdialog + focus + triage severity label on EmergencyOverlay
+2026-06-17	perf/sos-parallel-token-reads	perf(sos): parallelize per-supervisor token reads in the emergency fan-out
+2026-06-17	fix/dte-audit-await	fix(dte): await the 3 audit writes before responding (CLAUDE.md #14)
+2026-06-17	fix/survival-ping-offline-breadcrumb	test(survival): fix spy param typing (rest args) for typecheck
+2026-06-17	feat/dte-retry-enqueue	fix(billing): address DTE retry review — queue not-configured, single timestamp
+2026-06-17	feat/zone-entry-worker-surface	fix(zones): address adversarial review — honest audit record, no silent permit pass, truthful offline copy
+2026-06-17	docs/todo-reconcile-resolved	docs(todo): reconcile 5 verified-resolved items against current code
+2026-06-17	feat/circadian-alertness-mount	feat(circadian): mount the orphan AlertnessGuard in FatigueMonitor (was dead UI)
+2026-06-17	fix/weekly-digest-dead-paths	chore(ratchet): lock in as-any improvement from the digest repoint (2→1)
+2026-06-17	fix/culture-pulse-transaction	fix(culture-pulse): wrap respond check-then-act in runTransaction (#19)
+2026-06-17	fix/equipment-qr-preuse-mount	feat(equipment): mount the worker QR pre-use inspection flow (was orphaned)
+2026-06-16	fix/sos-zero-reach-honest	fix(emergency): harden SOS zero-reach per adversarial review (no dup alert docs)
+2026-06-16	fix/days-milestone-real-credit	fix(gamification): credit days-without-incident milestones to real members + wire cron
+2026-06-16	fix/skilltree-real-stats	fix(emergency): feed SkillTree real crew stats so medallas can unlock
+2026-06-16	fix/evacuation-plan-real-save	fix(evacuation): persist the emergency plan for real (was silently lost)
+2026-06-16	fix/community-glossary-privacy	fix(rag): harden community-cache privacy per adversarial review
+2026-06-16	fix/assets-firestore-rule	fix(rules): add top-level `assets` rule so Maquinaria persists (was default-denied)
+2026-06-16	fix/vitality-monitor-real	fix(hygiene): real physical-load index in VitalityMonitor (was a demo timer)
+2026-06-16	fix/executive-dashboard-real-esg	fix(executive): compute ESG/ISO scorecards from real data (was fabricated)
+2026-06-16	fix/incident-search-tenant-scope	fix(zettelkasten): scope NL incident search by real tenantId (was always empty)
+2026-06-16	fix/weekly-digest-real-days	chore(ratchet): lock in the as-any improvement from the digest fix (3→2)
+2026-06-16	feat/real-weather-openmeteo	feat(weather): real UV + keyless real weather via Open-Meteo (make it real)
+2026-06-16	fix/sitebook-sign-idor	fix(security): harden SiteBook IDOR fix per adversarial review
+2026-06-16	docs/tracker-session-2026-06-16-merges	docs(tracker): record session 2026-06-16 merges #934-#939
+2026-06-16	fix/honest-data-no-invented-telemetry	fix(ui): address adversarial review — 3 surviving fabrications (WB-1/WB-2/SLO-1)
+2026-06-16	fix/payments-failclosed-hardening	fix(billing): fail-closed hardening — Khipu webhook + MP env + Webpay return (pre-key audit)
+2026-06-16	feat/f4-aptitude-webauthn-verify	fix(medical): F4 review — server-stamp signedAt, fail-loud origin, log role-resolve outage
+2026-06-16	docs/adr-0024-retention-no-delete	docs(adr): ADR 0024 — retención por defecto, sin borrado discrecional de prevención
+2026-06-16	feat/cphs-actas-server	fix(cphs): address adversarial-review findings (audit-visibility, txn, validation, client errors)
+2026-06-16	feat/billing-cycle-observability	fix(billing): address adversarial-review observability gaps (non-blocking)
+2026-06-16	docs/tracker-ola2-2026-06-16	docs(tracker): mark OLA 2 session 2026-06-16 progress (#929/#930/#931/#932)
+2026-06-16	fix/tier-gating-report-only	fix(billing): keyword-based ADR-0021 invariant + document deploy-time flag
+2026-06-16	fix/rag-cross-tenant-scope	test(rag): update searchRelevantContext mock for object-form findNearest + over-fetch
+2026-06-16	fix/portable-history-cross-tenant	fix(portable-history): gate users-fallback to owner self-read + dedup incidents
+2026-06-16	fix/iap-planid-from-sku	fix(billing): resolve IAP plan from the SKU (was mis-granting 'comite' to everyone)
+2026-06-16	docs/branch-cleanup-map	docs(audit): preserve the 2026-06-16 branch/worktree cleanup map
+2026-06-16	feat/uf-diamante-pricing	fix(pricing): observability + defense-in-depth on UF Diamante pricing (review)
+2026-06-16	fix/photo-evidence-supervisor-read	fix(rules): tighten photo_evidence read to supervisor-tier (PII)
+2026-06-15	feat/uf-rate-pipeline	fix(pricing): apply adversarial-review hardening to the UF rate pipeline
+2026-06-15	feat/billing-cycle-rails	feat(billing): persist billing cycle on the subscription doc across all rails
+2026-06-15	feat/billing-cycle-foundation	feat(billing): foundation to persist billing cycle on the subscription doc
+2026-06-15	test/health-vault-behavioral	test(server): behavioral coverage for healthVault router
+2026-06-15	feat/predictive-alert-acks-rule	fix(rules): close default-deny gap on predictive_alert_acks (server-only)
+2026-06-15	feat/legal-status-alert	feat(legal): sidebar advisory when dotación crosses CPHS/DPRP thresholds
+2026-06-15	test/conflict-queue-behavioral	test(server): behavioral coverage for conflictQueue router
+2026-06-15	feat/legal-reconcile-cron	fix(legal): apply adversarial-review hardening to the reconcile cron
+2026-06-15	feat/legal-unlock-by-headcount	fix(legal): apply adversarial-review hardening to reconcile endpoint
+2026-06-15	feat/cascaron-delete-ui	feat(privacy): cascaron 3b — wire the real anonymize flow in Settings (UI)
+2026-06-15	feat/cascaron-anonymize-endpoint	fix(privacy): harden WebAuthn origin binding on the anonymize gate (review #914)
+2026-06-15	feat/cascaron-safety-posts-scrub	feat(privacy): cascaron 2b — scrub authored community posts (cross-project)
+2026-06-15	feat/metals-7-tier-collapse	test(pricing): fix 13 runtime assertions missed by typecheck (7-collapse)
+2026-06-15	refactor/dedupe-plan-rank	refactor(systemEngine): dedupe PLAN_RANK — use canonical planRank() (OLA 2 debt)
+2026-06-15	feat/cascaron-anonymize-service	test(privacy): fix CI typecheck TS2352 in anonymizeUser.test (drop mock.calls cast)
+2026-06-15	feat/cascaron-anonymization-rules	feat(privacy): anonymization_events collection rules + tests (cascaron, OLA 2)
+2026-06-15	feat/scale-gate-report-only	fix(billing): harden scale-cap core per adversarial review (OLA 2)
+2026-06-14	docs/business-model-v2-roadmap	docs(plan): incorporate business-model v2 roadmap as Phase-5 technical debt
+2026-06-14	claude/ola2-server-write-tenant-rules	feat(rules): explicit server-only rules for 3 latent tenant stores (OLA 2 blindaje)
+2026-06-14	claude/ola1-evac-cross-device-resume	fix(evacuation): harden 409 handling per adversarial review (body double-read + null-id + robust detect)
+2026-06-14	claude/ci-bundle-size-hf429	ci(perf): fix Bundle-size flake — skip SLM prepackage in size-limit-action build
+2026-06-14	claude/ola1-stopwork-declare-hardening	fix(stoppage): translate precondition-failure feedback (adversarial review LOW)
+2026-06-14	claude/ola1-loneworker-start-audit	fix(lone-worker): audit the SECOND start path (LoneWorkerMonitor) — adversarial review
+2026-06-14	claude/ola1-stopwork-resume	fix(stoppage): harden resume per adversarial review (409 not-pending, fail-loud feed, honest schema)
+2026-06-14	claude/ola1-evac-consolidate	fix(evacuation): unreadable-attendance ≠ no-attendance + tenant-read retry (review round 5)
+2026-06-14	claude/ola1-sif-page	feat(sif): dedicated SIF precursors page — mount orphaned SIFAlert (block #1)
+2026-06-14	claude/ola1-zone-editor	feat(zones): map-draw restricted-zone editor — completes the geofence→SOS chain (OLA 1)
+2026-06-14	claude/ola1-loneworker-failloud	fix(lone-worker): fail loud on failed help/check-in persist + distinct read-error state (review follow-up to #895)
+2026-06-14	claude/ola1-mandown-cron	harden(man-down): audit_logs on escalation + surface cron soft-errors + guard the no-delivery throws (review fixes)
+2026-06-14	claude/ola1-geofence-real-zones	harden(geofence): fail-loud on fetch failure + live active-window + degenerate-ring guard (review fixes)
+2026-06-14	claude/ola1-loneworker-page	fix(lone-worker): un-shadow worker check-in page + replace fabricated mock with real session (OLA 1)
+2026-06-14	claude/ola1-dea-join	refactor(lone-worker): extract nearestDeaForProject helper (fix convention guard + add test)
+2026-06-13	claude/ola1-sos-deadletter	feat(sos): surface undelivered SOS dead-letters ("tu alerta no salió") (OLA 1)
+2026-06-13	claude/ola1-tracker	docs(ola1): track OLA-1 VIDA blocks + scoping corrections (file:line)
+2026-06-13	claude/ola1-loneworker-location	feat(lone-worker): carry the worker's location into the escalation (C5, OLA 1)
+2026-06-13	claude/ola1-sos-offline	feat(sos): queue an offline SOS for retried delivery instead of losing it (OLA 1)
+2026-06-13	claude/ola1-geofence-escalation	fix(geofence): wire dormant geofence→SOS escalation + DEV-gate the fabricated demo zone (OLA 1)
+2026-06-13	claude/ola1-emergency-mode	fix(emergency): surface the SOS button during a declared emergency (OLA 1)
+2026-06-13	claude/ola1-commute-button	feat(driving): commute (trayecto) start/stop in driver mode — Ley 16.744 art.5 (OLA 1)
+2026-06-13	claude/ola1-evac-twin-rules	fix(rules): revive evacuation headcount + digital-twin A* — project-scoped life-safety rules (OLA 1)
+2026-06-13	claude/br12-deps-security	test(firestore): use a valid PKCS#8 dummy key in the emulator setup (B-R12)
+2026-06-13	claude/ola0-deploy-infra	ci(deploy): serialize Cloud Run deploys + tag Sentry release with commit (B-R14)
+2026-06-13	claude/ola0-copy-ds54	fix(copy): DS 54 → DS 44/2024 in user-facing compliance claims (B-R13)
+2026-06-13	claude/ola0-tracker-close	docs(ola0): close OLA-0 tracker — 15 fixes verified real-wired + reconcile drift
+2026-06-13	claude/ola0-driver-dictation	fix(driving): stop aliasing `this` in the SpeechRecognition test mock (#878 ESLint)
+2026-06-13	claude/ola0-climate-route-btn	test(climate): de-flake ClimateRoutes clicks — wait for idle button (#872 CI)
+2026-06-13	claude/ola0-rules-trio	fix(rules): split nodes read into get/list — anon GET-by-id, no enumeration (#876)
+2026-06-13	claude/ola0-csv-crews-fix	fix(organic): audit crew/process creation + guard 5xx bodies
+2026-06-13	claude/ola0-ia-limiters-store	docs(env): document PRAEVENTIO_FORCE_IA_FS_STORE + have store implement Store
+2026-06-13	claude/ola0-ai-metering	refactor(ai): drop unused AI_MODEL_FAST import (review #871)
+2026-06-13	claude/ola0-vigilancia-real	Merge branch 'main' into claude/ola0-vigilancia-real
+2026-06-13	claude/ola0-pulse-audit-hash	Merge branch 'main' into claude/ola0-pulse-audit-hash
+2026-06-13	claude/ola0-ergo-legal-trigger	Merge branch 'main' into claude/ola0-ergo-legal-trigger
+2026-06-13	fix/findings-heatmap-test-clock	test(findings): anchor heatmap fixture to real clock so it never ages out of window
+2026-06-13	claude/ola0-mandown-schema	test(emergency): give updateDoc mock a variadic signature so calls[0][1] typechecks
+2026-06-13	claude/ola0-vault-bearer-clean	fix(health-vault): send Bearer-prefixed Authorization in share QR flow
+2026-06-13	claude/ola0-sii-noop-guard	fix(sii): fail-closed when no real PSE is configured in production
+2026-06-13	claude/ola0-tier-fallback	fix(billing): add global-titanio to checkout tier fallback
+2026-06-13	claude/ola0-webauthn-rpid	fix(webauthn): resolve RP ID via fail-loud helper, set it in deploy
+2026-06-07	ci/deploy-trim-secrets	ci(deploy): mount only provisioned secrets so the service can go live (Cloud Run)
+2026-06-03	claude/technical-debt-review-e2e-87kVX	Merge branch 'main' into claude/technical-debt-review-e2e-87kVX
+2026-06-02	docs/sync-foundation-landed	docs(TODO): sync foundation-landed state (#650/#651/#652/#653 merged)
+2026-06-02	test/e2e-fixme-precise-diagnoses	test(e2e): replace vague fixme notes with code-grounded diagnoses (ran locally w/ Java21 emulator)
+2026-06-02	fix/prevention-cost-role-gate	fix(preventionCost): role-gate save-scenario (audit-on-mount P3 #650)
+2026-06-01	fix/2.31-open-handle-leak	fix(test): plug open-handle leak that caused the §2.31 CI hang
+2026-05-31	fix/triage-exempt-falsepositives	fix(incidentFlow): use tenantId in writeAudit doc (fixes TS6133, un-breaks main typecheck)
+2026-05-31	fix/ola4-audit	Merge remote-tracking branch 'origin/main' into fix/ola4-audit
+2026-05-31	fix/rule19-borderline	fix(knowledgeBase,apprenticeship): wrap the last read-modify-writes in runTransaction (#19)
+2026-05-31	fix/ola3-audit	fix(legalObligations,operationalChange,drivingSafety): audit state changes (#3)
+2026-05-31	fix/ola2b-confidential-evac-loneworker	fix(confidentialReports,evacuationHeadcount,loneWorker): audit state changes (#3)
+2026-05-31	fix/ola2-workpermits-confidential-audit	fix(workPermits): audit the 3 permit-lifecycle writes (#3)
+2026-05-30	test/server-routes-coverage-batch9	test+fix(server): cover adminBurden + fix its z.unknown() 400-validation bug
+2026-05-30	test/server-routes-coverage-batch8	test+fix(server): cover 6 routes + fix the z.unknown() 400-validation bug in all 6
+2026-05-30	test/server-routes-coverage-batch7	test+fix(server): cover 6 routes + fix the z.unknown() 400-validation bug in 4
+2026-05-30	feat/wire-industryrules-router	fix(server): wire the industryRules router (client was getting 404s)
+2026-05-30	test/server-routes-coverage-batch4	test(server): real-router coverage for 6 more untested routes (253 tests)
+2026-05-30	feat/wire-moc-shifthandover-routers	feat(server): wire the MOC + shift-handover routers (built + tested, never mounted)
+2026-05-30	test/server-routes-coverage-batch2	test(server): real-router coverage for 6 more untested routes (221 tests)
+2026-05-30	fix/e2e-project-context-resubscribe	fix(e2e): keep the 3 full-stack specs fixme'd at the feature layer + fix SOS locator
+2026-05-30	test/speed-trigger-coverage	test(driving): cover the Safe Driving pure helpers in speedTrigger (18 tests)
+2026-05-30	test/equipment-qr-coverage	test(equipment-qr): cover the pre-use inspection route (14 tests, was untested)
+2026-05-30	security/culture-pulse-pepper	security(culture-pulse): pepper the responder hash vs insider de-anonymization
+2026-05-30	feat/i18n-landing-body	feat(i18n): fully translate the LandingPage body (es/en/pt-BR)
+2026-05-30	fix/e2e-landing-hero-cta-copy	fix(e2e): bypass Settings biometric gate in E2E + fixme project-scoped specs
+2026-05-30	refactor/remove-discarded-pinecone	refactor(rag): remove discarded Pinecone backend — in-memory RAG is the single path
+2026-05-30	fix/oauth-test-agent-handle-leak	fix(test): kill the flaky CI Tests hang — oauthGoogle used request.agent (leaked handle)
+2026-05-30	docs/todo-verified-section16-2026-05-30	docs(TODO): verify §16 point-by-point (largely stale) + discard Pinecone/COLMAP-cloud
+2026-05-30	feat/coach-ia-por-dominio	refactor(ai): professionalize El Guardian's system prompt (B2B tone)
+2026-05-30	docs/todo-verified-2026-05-30	docs(TODO): verify "pending products" point-by-point — ~90% already built
+2026-05-30	fix/eradicate-coming-soon-placeholders	fix(ui): eradicate "Próximamente" placeholders — honest OSS-only CAD copy + maturity empty-state
+2026-05-30	test/audit-router-coverage	test(audit): real-router coverage of the compliance audit-trail endpoints (10 tests)
+2026-05-30	test/incidents-router-coverage	test(incidents): real-router coverage of the incident-report endpoint (6 tests)
+2026-05-30	test/knowledge-base-coverage	test(knowledgeBase): real-router coverage for all 4 untested endpoints (11 tests)
+2026-05-30	test/subscription-router-coverage	test(subscription): real-router coverage of the upgrade privilege-escalation gate (8 tests)
+2026-05-29	test/culture-pulse-coverage	test(culturePulse): real-router coverage for the untested survey endpoints (13 tests)
+2026-05-29	feat/zk-6-centrality-metrics-2026-05-29	feat(zk-6): graph centrality metrics + archive candidacy (builds on ZK-1 backlinks)
+2026-05-29	test/coverage-server-batch-4	test(server): real-router coverage for invitation accept flow (10 tests)
+2026-05-29	feat/wire-zk1-backlinks-endpoint	feat(zettelkasten): wire orphan ZK-1 backlinks as advisory endpoint + share EdgeStore adapter
+2026-05-29	fix/ci-job-timeouts	fix(ci): add 30-min timeout-minutes cap to every CI job
+2026-05-29	feat/wire-risk-orchestrator-advisory	feat(zettelkasten): wire orphan riskOrchestrator as advisory endpoint
+2026-05-29	fix/system-engine-active-emergency-bug	fix(system-engine): wire hasActiveEmergency to real state + document mount blocker
+2026-05-29	feat/wire-critical-permit-validators	feat(workPermits): wire critical permit validators (DS 132) + advisory endpoint
+2026-05-29	test/coverage-server-batch-6	test(server): projectClosure lifecycle + safety gate (11 tests) + fakeFirestore .count()
+2026-05-29	test/coverage-and-cowork-batch-5	test(server): real-router coverage for portable worker history (Ley 19.628, 11 tests)
+2026-05-29	test/coverage-server-batch-7	fix(test): eliminate chronic CI flake in monthlyReport determinism test
+2026-05-29	test/coverage-server-batch-3	test(server): real-router coverage for incidentFlow PDCA surface (5 tests)
+2026-05-29	test/coverage-server-batch-2	test(server): real-router coverage for suppliers quality + ranking (7 tests)
+2026-05-29	fix/mandown-alert-escalation-coverage-baseline	fix(test): typecheck errors in fakeFirestore + useRiskEngine test
+2026-05-29	feat/12.5.1-extract-gemini-governance	refactor(§12.5.1): extract gemini governance helpers — split step 1
+2026-05-29	feat/12.5.1-extract-gemini-operations	refactor(§12.5.1): extract gemini operations bundle — split step 12
+2026-05-29	feat/12.5.1-extract-gemini-person-plans	refactor(§12.5.1): extract gemini person-centric plans — split step 11
+2026-05-29	feat/12.5.1-extract-gemini-chat	refactor(§12.5.1): extract gemini chat + advice — split step 10
+2026-05-29	feat/12.5.1-extract-gemini-safety-docs	refactor(§12.5.1): extract gemini safety docs (PTS + report) — split step 9
+2026-05-29	feat/12.5.1-extract-gemini-emergency	refactor(§12.5.1): extract gemini emergency planning — split step 8
+2026-05-29	feat/12.5.1-extract-gemini-suggestions	refactor(§12.5.1): extract gemini proactive suggestions — split step 7
+2026-05-29	feat/12.5.1-extract-gemini-risk	refactor(§12.5.1): extract gemini risk analysis bundle — split step 6
+2026-05-29	feat/12.5.1-extract-gemini-vision	refactor(§12.5.1): extract gemini vision/multimodal — split step 5
+2026-05-28	feat/12.5.1-extract-gemini-pii	refactor(§12.5.1): extract gemini PII redaction — split step 2
+2026-05-28	fix/555-rebase-pii-onto-main	refactor(§12.5.1): extract gemini PII redaction — split step 2
+2026-05-28	chore/normalize-emergency-overlay-crlf	chore(crlf): normalize EmergencyOverlay.tsx line endings (CRLF→LF)
+2026-05-28	feat/12.5.1-extract-gemini-parsing	refactor(§12.5.1): extract gemini parsing + retry — split step 3
+2026-05-28	feat/12.7.6-suseso-monthly-report	feat(§12.7.6): SUSESO monthly report builder
+2026-05-28	chore/gitattributes-crlf-normalization	chore: add .gitattributes for CRLF normalization cross-platform
+2026-05-28	rescue/450-final-geofence-plan-suseso	feat: rescue #450 11/N — Geofence polygon + PLAN_MAESTRO 192 nodos + cumplimientoSUSESO
+2026-05-28	fix/a11y-errorboundary-landmark-rescue-2026-05-28	fix(a11y): ErrorBoundary + ErrorFallback expose <main> landmark + h1
+2026-05-28	fix/c11-type-sweep-consolidated-rescue-2026-05-28	fix(types): C11 sweep Firestore adapters (workPermits + exceptions)
+2026-05-28	feat/social-recognition-muro-rescue-2026-05-28	feat(social): §12.7.3 Reconocimiento social Muro Dinámico
+2026-05-28	feat/contextual-actions-humanbody-rescue-2026-05-28	feat: §12.7.2 contextual actions + §12.6.5 HumanBodyViewer rutinas auto-gen
+2026-05-28	feat/coach-persona-selector-rescue-2026-05-28	feat(coach): §12.6.1 persona selector GeminiChat — 5 personas + DS 44 awareness
+2026-05-28	feat/bloque-7-multijurisdiccion-skeletons-rescue-2026-05-28	feat(compliance): Bloque 7 frontend — esqueletos 6 países multi-jurisdicción
+2026-05-28	feat/iot-failure-scoring-rescue-2026-05-28	feat: §12.7.4 IoT failure scoring + §12.4.3 audit log normativa
+2026-05-28	audit/webauthn-credentialid-base64url-rescue-2026-05-28	audit(webauthn): H25b.1 — pin base64url credentialId contract (Bloque 1.5)
+2026-05-28	feat/fcm-sw-config-buildtime-rescue-2026-05-28	fix(security): FCM SW config injected at build time (Bloque 1.8)
+2026-05-27	feat/zk-smart-actions-proto-1-rescue-2026-05-27	feat: §12.1.6 5 smart actions Zettelkasten proto-1
+2026-05-27	feat/distributed-lock-c14-rescue-2026-05-27	feat(sync): distributedLock helper Firestore-backed per-tenant × per-resource (Bloque 5.4 / C14)
+2026-05-27	fix/landing-mascot-crash-followup-520	fix(landing): Codex P1 — use raw <img> for mascot to avoid useAppMode crash
+2026-05-27	feat/guardian-mascot-landing-page	fix(landing): Codex P1 — use raw <img> for mascot to avoid useAppMode crash
+2026-05-27	feat/module-groups-10-bucket-taxonomy	feat(dashboard): 10-bucket module taxonomy — Sprint B 3/4
+2026-05-27	feat/guardian-mascot-with-moods	feat(dashboard): wire Guardián mascot to DashboardHero — Sprint B 2/4
+2026-05-27	feat/wire-suntracker-dashboard-and-correct-f2-audit	feat(dashboard): wire SunTrackerContainer + corregir F2 orphan audit (v2 + Codex P2)
+2026-05-27	fix/p0-security-bundle-codex-followup-518	fix(security): address Codex 6 findings — real SQLite encryption + correct audit contract + safe RP_ID fallback
+2026-05-27	feat/module-carousel-inline-submenu	feat(dashboard): module carousel with inline submenu drawer — Sprint B
+2026-05-27	feat/wire-weather-safety-recommendations-dashboard	fix(dashboard): address Codex P2 — unavailable gate + uv field + auth header
+2026-05-27	fix/typecheck-unblock-rescue-450-stubs	fix(typecheck): unblock CI — stub hooks + RiskNodeType extension for rescue-450 orphans
+2026-05-27	fix/p0-security-bundle	fix(security): address Codex 6 findings — real SQLite encryption + correct audit contract + safe RP_ID fallback
+2026-05-27	fix/p0-crypto-ids-math-random-removal	fix(security): address Codex P1+P2 + CodeQL — use crypto.randomUUID() directly, full UUID
+2026-05-27	docs/reconciliation-and-rules-13-20	docs(reconciliation): rules 13-20 + stub inventory + doc sync (CLAUDE/ARCHITECTURE/TODO)
+2026-05-26	fix/f8-csp-nonce-regex-robustness	Merge branch 'main' into fix/f8-csp-nonce-regex-robustness
+2026-05-26	feat/rescue-450-ops-dashboards	Merge branch 'main' into feat/rescue-450-ops-dashboards
+2026-05-26	feat/rescue-450-compliance-suite	Merge branch 'main' into feat/rescue-450-compliance-suite
+2026-05-26	feat/rescue-450-field-ops-safety	Merge branch 'main' into feat/rescue-450-field-ops-safety
+2026-05-26	feat/rescue-450-epp-flow	Merge branch 'main' into feat/rescue-450-epp-flow
+2026-05-26	feat/rescue-450-horometro	Merge branch 'main' into feat/rescue-450-horometro
+2026-05-26	feat/rescue-450-incident-flow	Merge branch 'main' into feat/rescue-450-incident-flow
+2026-05-26	feat/rescue-450-lone-worker	Merge branch 'main' into feat/rescue-450-lone-worker
+2026-05-26	feat/rescue-450-change-mgmt	Merge branch 'main' into feat/rescue-450-change-mgmt
+2026-05-26	feat/rescue-451-sprint-k-12-engines	Merge branch 'main' into feat/rescue-451-sprint-k-12-engines
+2026-05-26	feat/rescue-451-pin-sign	feat(fase-4G+contracts): F.25 PIN Sign + 5 tests de contrato anti-drift
+2026-05-26	feat/b3-complete-bearer-migration	feat(auth): finish B3 — apiAuthHeader migration for WebAuthn register flow
+2026-05-26	feat/b2-webauthn-compliance-signing	fix(security): replace 3 WebAuthn STUBs in compliance builders (plan v2 B2)
+2026-05-26	fix/server-mount-order	fix(server): SPA catch-all shadowed /api/billing, /api/subscription, /api/dte, /api/curriculum, /api/auth, /api/sitebook + several /api/sprint-k mounts
+2026-05-26	feat/rescue-450-server-tests	test(server): add import + onboarding contract tests [rescue #450 10/N]
+2026-05-26	feat/rescue-450-audit-portal	feat(audit-portal): externalAuditPortal HTTP surface + Portal UI (recovery #450 1/N)
+2026-05-26	feat/rescue-451-todo-and-archive	docs(todo): §16 carry-over 50 propuestas archive + archive README (recovery #451)
+2026-05-26	feat/rescue-451-fase3b-cleanup	chore(audit-cross-check): cleanup stale TODO Sprint 10+ in addNode wires (Fase 3.B)
+2026-05-26	feat/rescue-451-sse-medical-split	feat(streaming+split): SSE Gemini client + medicalAnalysis split
+2026-05-26	feat/rescue-451-coach-ia-domains	feat(fase-3): wire jurisdicciones + Coach IA 5 dominios + medical catalogs
+2026-05-26	feat/rescue-451-openapi-spec	docs(api): OpenAPI v1 spec + contract test + PGP procedure + TODO cleanup
+2026-05-26	feat/rescue-451-arch-bridges	feat(critical): implementar 3 puentes arquitectónicos críticos §12.2
+2026-05-26	feat/rescue-451-session-8h	fix(auth): session expiration 8h + fix flaky webauthn test + reactivar landing E2E
+2026-05-26	feat/rescue-451-battery-advisor	feat(perf+auth): batteryAdvisor + assignedSiteIds custom claim fast-path
+2026-05-26	claude/codex-r5-kek-tenantid	fix(security): codex round-5 — KEK lock entropy + tenantId blank guard
+2026-05-26	claude/ci-unblock-b3-b4-flaky	fix(ci): unblock Firestore stores flaky + B3 apiAuthHeader migration (3 services)
+2026-05-26	claude/firestore-indices-audit	chore(firestore): add 16 missing composite indexes (plan v2 B13 audit)
+2026-05-26	claude/maintenance-codex-r4-followup	fix(maintenance): codex round-4 — kek lock guard + all-failed FCM + tenant-scoped work_permits
+2026-05-26	claude/claude-md-docs-lzrMT	docs(billing): update stripe-tombstone note (plan A22)
+2026-05-24	feature/moc-iso45001-approval-workflow-2026-05-24	feat(moc): ISO 45001 §8.1.3 approval workflow + modal UX
+2026-05-24	feature/sitebook-webauthn-signing-2026-05-24	feat(sitebook): WebAuthn ECDSA-P256 firma electrónica avanzada (DS 76)
+2026-05-24	fix/test-suite-stability-2026-05-24	test(suite): unblock 5 pre-existing test failures (meshFallback + EPP detector)
+2026-05-24	feature/fase-b6-i18n-batch4-2026-05-24	feat(i18n): batch4 final — LegalCalendar + SafetyTalks + AuditPortals + DocumentReadConfirm
+2026-05-24	feature/fase-b6-i18n-batch3-2026-05-24	feat(i18n): OperationalChanges sweep (Fase B.6 batch3 4/4)
+2026-05-24	feature/fase-b6-i18n-batch2-2026-05-24	feat(i18n): CriticalControls + RootCause sweep ES/EN/PT-BR (Fase B.6 batch2 2-3/3)
+2026-05-24	feature/fase-d2-usdz-visual-improvements-2026-05-23	feat(digital-twin): USDZ gamma correction + unlit material (Fase D.2)
+2026-05-24	feature/fase-b5-adopt-active-filters-2026-05-23	perf: adopt subscribeActive* server-side filters in 3 vidas-criticas pages (Fase B.5)
+2026-05-23	feature/fase-b6-i18n-vidas-criticas-2026-05-23	feat(i18n): LoneWorkerMonitor full sweep ES/EN/PT-BR (Fase B.6 cont.)
+2026-05-23	feature/fase-d1-midas-infra-2026-05-23	feat(digital-twin): MiDaS depth ML on-device infra (Fase D.1)
+2026-05-23	feature/fase-c3-emulator-tests-2026-05-23	test(emulator): Fase C.3 — activeFilter + rootCause + controlValidations + siteBook counter
+2026-05-23	feature/fase-b4-migrate-stores-2026-05-23	refactor: migrate 10 stores to createProjectScopedStore factory
+2026-05-23	integration/sprint-k-batch2-2026-05-23	fix Card.tsx gsap matchMedia ContextFunc typecheck
+2026-05-23	integration/sprint-k-fase-abcd-2026-05-23	merge into integration branch: 2.18 EPP detector real ColorBasedEppDetector + ZK auto
+2026-05-23	feature/createProjectScopedStore-helper-2026-05-23	perf(contexts): useMemo en 3 providers restantes (wave 8/8 completo)
+2026-05-23	fix/sprint-k-talks-audit-portal-2026-05-23	feat(sprint-k): wire UI SafetyTalks + AuditPortals — últimos 2 servicios orphan
+2026-05-23	fix/sprint-k-talks-changes-custody-2026-05-23	feat(sprint-k): wire UI OperationalChanges (MOC) + LegalCalendar (DS 76)
+2026-05-23	fix/sprint-k-equipment-shift-sitebook-2026-05-23	feat(sprint-k): wire UI SiteBook (DS 76) + ShiftHandover
+2026-05-23	fix/sprint-k-consistency-audit-2026-05-23	feat(sprint-k): wire UI ConsistencyAudit — 12 reglas auditor entre módulos
+2026-05-23	fix/2.20-residuals-and-sprint-k-2026-05-23	feat: §2.20 residuals + Sprint K DocumentReadConfirm wire UI
+2026-05-23	fix/2.20-bearer-migration-batch-2026-05-23	refactor(2.20): batch migrate 73 callers Bearer→apiAuthHeader
+2026-05-23	fix/sprint-k-exceptions-page-2026-05-23	feat(sprint-k): wire UI ExceptionsAudit — excepciones documentadas
+2026-05-23	fix/sprint-k-lone-worker-page-2026-05-23	feat(sprint-k): wire UI LoneWorkerMonitor — trabajo solitario + escalamiento
+2026-05-23	fix/2.28-digital-twin-ui-honesty-2026-05-22	feat(2.28): USDZ export para iOS AR Quick Look — cierra el path iOS
+2026-05-22	fix/typecheck-residual-2026-05-22	feat(sprint-k): wire UI CriticalControls + RootCause + fix Card typecheck
+2026-05-22	fix/sprint-k-vidas-criticas-pages-2026-05-22	feat(sprint-k): wire UI StoppageMonitor — paralizaciones vidas críticas
+2026-05-22	fix/2.18-vision-on-device-wire-2026-05-22	feat(2.18): VisionAnalyzer wire al EPP detector ON-DEVICE real
+2026-05-22	fix/2.9-outbox-conflict-resolution-2026-05-22	fix(2.9): CodeQL HIGH alert — regex injection en compute-slm-sha256.mjs
+2026-05-22	fix/2.24-auth-emulator-2026-05-21	fix(2.24): signInBrowserViaCustomToken via window flag (no browser dynamic import)
+2026-05-22	fix/2.18-epp-tflite-zk-node-2026-05-22	feat(2.18): EPP detection ON-DEVICE + ZK node generator (Opción B)
+2026-05-21	fix/2.13-iap-per-tier-sku-2026-05-22	feat(2.13): IAP SKU per tier (no single global praeventio_premium_monthly)
+2026-05-21	fix/2.20-migrations-bulk-2026-05-21	refactor(2.20): bulk migrate 81 hooks Bearer→apiAuthHeaders()
+2026-05-21	feat/sidebar-vidas-criticas-2026-05-21	feat(sidebar): add /fatigue + /evacuation-dashboard entries (discoverability)
+2026-05-21	fix/fatigue-evacuation-wire-2026-05-21	feat(evacuation): Sprint K wire — /evacuation-dashboard live drill UI
+2026-05-21	fix/2.28-remove-server-photogrammetry-2026-05-21	chore(gitignore): exclude Claude local state + superpowers drafts
+2026-05-21	fix/2.27-audit-tier1-2026-05-21	docs(directive): §2.28 — digital twin / maqueta 3D ON-DEVICE only
+2026-05-21	fix/anonymous-browsing-ux-2026-05-21	test(contracts): §2.26 — publicReadRules previene regresión banking-grade
+2026-05-21	fix/2.20-api-auth-helper-2026-05-21	fix(firebase-emulator): §2.25 — override firestoreDatabaseId a default en MODE=test
+2026-05-21	fix/2.19-e2e-firebase-shim-2026-05-21	feat(routing): UX — /pricing /help /privacy /terms saltan Landing
+2026-05-21	fix/fase-c-b2d-wires-rebased-2026-05-21	docs(todo): §2.19 — root cause + fix plan E2E full-stack (debug sistemático)
+2026-05-21	fix/fase-c-b2d-wires-2026-05-21	docs(todo): §2.19 — root cause + fix plan E2E full-stack (debug sistemático)
+2026-05-21	fix/fase-a-cierre-residual-2026-05-21	fix(pricing-oc): typecheck — usar o.prefix (no o.value) en IndustryOption lookup
+2026-05-21	claude/review-pending-tasks-aUDD2	feat: §12.1.6 5 smart actions Zettelkasten proto-1
+2026-05-17	dev/agent-ts-noimplicitany-rest	chore(types): noImplicitAny fixes en pages/components/server/__tests__
+2026-05-17	dev/agent-infra-cleanup-tail	chore(infra): cleanup long-tail — APP_BASE_URL fix + workflows pin Node 20 + .env.example + i18n sweep
+2026-05-17	dev/agent-pricing-calculator	feat(pricing): §171-179 Pricing Calculator + ROI + OC sugerida EPP
+2026-05-17	dev/agent-accessibility-modes	feat(accessibility): §139-145 modos accesibles (lectura facil + alto contraste + guantes + baja conectividad)
+2026-05-17	dev/agent-data-confidence	feat(data-confidence): §104 Panel Confianza Datos — endpoint + hook + page wired
+2026-05-17	dev/agent-portable-history	feat(portable-history): F.18 Historial Profesional Portátil — endpoint + hook + page wired
+2026-05-17	dev/agent-apprenticeship	feat(apprentices): §244-250 Aprendices + Mentoría + Autorización Progresiva — endpoint + hook + page wired
+2026-05-17	dev/agent-incident-trends	feat(trends): F.29 Indicadores Tendencia Incidentes — endpoint + hook + page wired
+2026-05-17	dev/agent-f-features-ui	feat(ui): F.14 + F.17 + F.24 + F.27 Wire UI pages
+2026-05-17	dev/agent-excel-importer	feat(import): §106-108 Importador Excel + Validador + Deduplicador
+2026-05-17	dev/agent-visitor-control	feat(visitors): §23-24 Control de Visitas + Inducción Express QR
+2026-05-17	dev/agent-event-bus-core	feat(eventBus+focusBlocks): C.4 event bus global + §201-210 agenda foco core
+2026-05-17	dev/agent-ai-guardrails	feat(ai-guardrails): versionedPrompts + citationValidator + hallucinationGuard + wrapper
+2026-05-17	dev/agent-occupational-bundle-real	feat(health): exportOccupationalBundle() wired al vault real
+2026-05-17	dev/agent-hazmat-volcanic-wind-real	feat(hazmat/volcanic): wire viento real via environmentBackend
+2026-05-17	dev/agent-webxr-rename	feat(webxr): rebrand 'Capacitación AR' → 'Capacitación Interactiva'
+2026-05-17	dev/agent-attendance-demo-cleanup	chore(attendance): gate demo-block logic by VITE_DEMO_MODE
+2026-05-17	dev/agent-analytics-radar-real	feat(analytics): radar Safety Dimensions derivado real de projectNodes
+2026-05-17	dev/agent-mobile-fgs	feat(mobile): Android Foreground Service nativo para Lone Worker check-in
+2026-05-17	dev/agent-incident-rag-report	feat(incidents): wire reportIncident() + POST /api/incidents/report + UI
+2026-05-17	dev/agent-ts-noimplicitany-services	chore(types): enable noImplicitAny + fix src/services/** errors (wave 3)
+2026-05-17	dev/agent-backend-debt-final	fix(backend-debt): idempotency on /api/billing/verify + susesoVerifyLimiter test coverage
+2026-05-17	dev/agent-confidential-reports	feat(confidential-reports): §211-213 Reportes Confidenciales + Canal Denuncias + Detector Represalias — endpoint + hook + page wired
+2026-05-17	dev/agent-install-blocked-deps	feat(deps): install 5 authorized blocked deps + activate Tremor charts + MCP stdio + Foreground Service plugin
+2026-05-17	dev/agent-driving-safety	feat(driving): §69-71 Conducción Segura + Rutas Críticas + Alertas — endpoint + hook + page wired
+2026-05-17	dev/agent-mountain-refuges-real	fix(mountain-refuges): real CONAF/CAU coordinates + Haversine sorting (audit 2026-05-15)
+2026-05-17	dev/agent-project-closure	feat(closure): §131-138 Cierre Proyecto + Lecciones Transferibles + Decisiones Críticas — endpoint + hook + page wired
+2026-05-17	dev/agent-leadership-decisions	feat(leadership): §276-277 Bitácora decisiones supervisión + ranking impacto — endpoint + hook + page wired
+2026-05-17	dev/agent-residual-risk	feat(residual-risk): §296-301 Riesgo Residual + Aceptación Formal + Criticidad Sospechosa — endpoint + hook + page wired
+2026-05-17	dev/agent-annual-review	feat(annual-review): §291-295 Revisión Anual SGI + Objetivos + Evidencias — endpoint + hook + page wired
+2026-05-17	dev/agent-supplier-quality	feat(suppliers): §90-91 Calidad Proveedores + Ranking Riesgo — endpoint + hook + page wired
+2026-05-17	dev/agent-pdca-module	feat(pdca): §195-200 Ciclo PDCA + No Conformidades — endpoint + hook + page wired
+2026-05-17	dev/agent-knowledge-base	feat(knowledge-base): §185-190 Base de Conocimiento + Curador + Obsolescencia — endpoint + hook + page wired
+2026-05-17	dev/agent-culture-pulse	fix(pr-323): Codex P1 x3 + P2 x2 round 2 — openAt time-window check (P2 truly new)
+2026-05-17	dev/agent-engineering-controls	fix(pr-319): Codex P1 x2 + P2 x5 round 2 — general-risk visible server-side + UI captures observation/fail+evidence (P1s and 3/5 P2s already addressed in round-1 ca2d45f)
+2026-05-17	dev/agent-f6-offline-inspections	fix(pr-322): Codex P1 x3 + P2 x4 round 2 — multi-user outbox isolation + module-level flush lock + parent-pending sequencing
+2026-05-17	dev/agent-positive-observations	fix(pr-320): Codex P2 x6 round 2 — symmetric corrective window + period chip wiring + Load More cursor + worker UID picker
+2026-05-17	dev/agent-emergency-brigade	fix(pr-321): Codex P2 x10 round 2 — supervisor role + subcollection member check + duplicate guard + uncoveredRoles chip + inspect UI
+2026-05-17	dev/agent-f16-worker-readiness	fix(pr-315): Codex P1 x2 + P2 x5 round 2 — EPP item names + completed-training gating + experience derivation
+2026-05-17	dev/agent-f7-cphs-minute	fix(pr-317): Codex P2 x7 round 2 — read canonical writers + filter to draft period
+2026-05-17	dev/agent-f20-drills-manager	fix(pr-316): Codex R2 P1 + P2 x2 — drills firestore indexes + error banners visible
+2026-05-17	dev/agent-f13-repeating-risks	fix(pr-312): Codex P1 + P2 round 2 — Firestore index + occurredAt fallback + filter undefined kinds/zones + extended sample facets
+2026-05-17	dev/agent-f21-pre-shift-risk	fix(pr-311): Codex P2 round 2 — 4 more (incidents/tasks/equipment/visibility)
+2026-05-17	dev/agent-f12-lessons-learned	fix(pr-310): Codex P2 round 2 — 3 more (tenant-scope leak + truncated-default copy + unsafe source link)
+2026-05-17	dev/agent-f15-work-permits	fix(pr-318): Codex P1 x2 + P2 x6 — no auto-attest + server-trusted issuer + status-filtered list + dedupe + cancel outcome + derived expiry
+2026-05-17	dev/agent-f26-maturity-indicator	fix(pr-314): Codex P2 x3 — canonical cphs path + count active feeds + worker voice signals
+2026-05-17	dev/agent-f5-qr-signature	fix(pr-313): Codex P1 + P2 x4 — challenge HMAC verify + role gate + biometric honesty + item details persistence + atomic ack
+2026-05-16	dev/sprint-f-nasa-codex-fixes	fix(climate): 3 hallazgos Codex post-#279 mergeado
+2026-05-16	dev/sprint-f-cleanups	fix(twin): drop closure stale — usar setState updater para idx
+2026-05-16	dev/sprint-f-ar-real-vision	fix(ar+emergency): atender 6 hallazgos Codex P1 críticos
+2026-05-16	dev/sprint-e-nasa-power-climate-v2	feat(climate): NASA POWER + EONET wire real a ClimateRoutes
+2026-05-16	dev/sprint-e-nasa-power-climate	feat(climate): NASA POWER + EONET wire real a ClimateRoutes
+2026-05-16	dev/sprint-d-arbitrary-data-fakes	fix(b2d): B2dAdminPanel MRR — fin del ramp lineal sintético
+2026-05-16	dev/sprint-c-life-critical-fakes	feat(refuges): MountainRefuges con catálogo CONAF real + Haversine
+2026-05-15	dev/resilience-dashboard-e2e-wire	feat(observability): cablear ResilienceHealthDashboard end-to-end (5 tests)
+2026-05-15	dev/codex-fixes-plus-fakes	fix(audit): producir lo pendiente — DIAT WebAuthn + MP HMAC manifest + DTE wire MP IPN
+2026-05-15	dev/security-audit-fixes	test(regulatory): privacyRegimeRegistry — esperar 11 regímenes (no 8)
+2026-05-15	dev/stabilize-ci-workflows	fix(rules): isSupervisorOfTenant ya no exige rol global supervisor cuando hay claim por-tenant
+2026-05-15	dev/test-stabilization-2026-05-15	fix(tests): declarar requiredIf en el cast local de REQUIRED_PROD
+2026-05-15	dev/consolidated-todo-2026-05-15	docs(todo): consolidar TODO.md como fuente ÚNICA de verdad — audit profundo 2026-05-15
+2026-05-15	dev/codex-fixes-pr250	fix(audit): atender 3 hallazgos Codex P2 del PR #250 (AI streaming wire)
+2026-05-15	dev/codex-fixes-audit-pendings	fix(audit): atender 7 hallazgos Codex de los PRs #263/#264/#266 + TS fix #248
+2026-05-15	dev/audit-pendings-real	fix(erp): reemplazar setTimeout+success simulado con adapter HONESTO multi-modo
+2026-05-15	dev/wire-ui-lote-final	feat(wire-ui): 5 componentes para servicios sin UI — leadership/CPHS/engineeringControls/clientReporting/privacy
+2026-05-15	dev/site-book-crdt	feat(siteBook): adapter Firestore integra CRDT drafts (6 tests nuevos) (#256)
+2026-05-15	dev/ai-response-card-streaming	feat(ai): wire streaming tokens del SLM al <ResilientAiAssistantPanel /> (#255)
+2026-05-15	dev/kek-rotation-panel-ui	feat(settings): mount <KekRotationPanel /> en Security tab (#254)
+2026-05-15	dev/report-quick-wins	feat(infra): audit quick wins — lint real + Firestore session store + Firestore rate limit store
+2026-05-15	dev/fix-main-typecheck-47-errors	fix(types): elimina los 47 errores TS pre-existentes que rompían CI
+2026-05-15	dev/make-fake-premium-pages-real	fix(typecheck): alinear WearablesIntegration + SecurityShield al shape REAL del adapter
+2026-05-14	dev/cqrs-real-implementation	feat(cqrs): CQRS real productivo — Event Store + Incident aggregate + read model (51 tests)
+2026-05-14	dev/jsa-engine	feat(jsa): Job Safety Analysis (AST) engine + ISO 45001 hierarchy (23 tests)
+2026-05-14	dev/critical-work-permits	feat(workPermits): validadores profundos izaje/excavación/LOTO (36 tests)
+2026-05-14	dev/webxr-ar-foundation	feat(ar): WebXR foundation — capabilities + hit-test stability + Quick Look (45 tests)
+2026-05-14	dev/site-book-crdt-adapter	feat(siteBook): adapter Firestore integra CRDT drafts (6 tests nuevos)
+2026-05-14	dev/panel-streaming-wire	feat(ai): wire streaming tokens del SLM al <ResilientAiAssistantPanel />
+2026-05-14	dev/settings-kek-mount	feat(settings): mount <KekRotationPanel /> en Security tab
+2026-05-14	dev/maintenance-health-mount	feat(maintenance): mount resilience health alert cron en /api/maintenance
+2026-05-14	dev/sw-models-cache-e2e	test(e2e): Service Worker /models/* runtime cache (3 specs × 2 projects)
+2026-05-14	dev/resilience-health-alert-cron	feat(observability): resilience health alert cron + FCM (11 tests)
+2026-05-14	feat/parallel-stream-encrypted-queue	feat(slm): encrypted offline queue migration
+2026-05-14	feat/parallel-stream-slm-shell	feat(slm): in-app downloader UX completo
+2026-05-14	feat/parallel-stream-signing	feat(mobile): scripts + runbook + CI check para signing assetlinks/AASA
+2026-05-14	feat/parallel-stream-reconciliation-fcm	feat(slm): auto-trigger reconciliation on online/FCM + status toast
+2026-05-13	dev/sprint-53-s53-form-adv	feat(formBuilderAdvanced): §263-268 motor avanzado de form fields (Sprint 53)
+2026-05-13	dev/sprint-53-s53-route	feat(routeScoring): §70-73 critical route scoring + driver-route matcher (Sprint 53)
+2026-05-13	dev/sprint-53-s53-replay	feat(eventReplay): §147-152 event replay sourcing audit tool (Sprint 53)
+2026-05-13	dev/sprint-53-s53-roi-sim	feat(roiScenario): §175 extendido — ROI scenario simulator multi-escenario (Sprint 53)
+2026-05-13	dev/sprint-53-s53-portfolio	feat(portfolioLessons): §120-132 transfer engine cross-portfolio (Sprint 53)
+2026-05-13	dev/sprint-53-s53-raci	feat(raciMatrix): §50-58 RACI matrix engine — validación + detección overload (Sprint 53)
+2026-05-13	dev/sprint-52-s52-contingency	feat(contingencySimulation): §241-242 scenario builder + tabletop engine (Sprint 52)
+2026-05-13	dev/sprint-52-s52-control-compare	feat(controlComparator): §193 A/B comparator + §306 failure library enhanced (Sprint 52)
+2026-05-13	dev/sprint-52-s52-vendor	feat(vendorOnboarding): §35-48 vendor portal — company-level flow + accreditation observations (Sprint 52)
+2026-05-13	dev/sprint-52-s52-role-onb	feat(roleOnboarding): §164-170 onboarding por rol con tracks dirigidos (Sprint 52)
+2026-05-13	dev/sprint-51-s51-i18n	feat(i18n): batch 8 — 12 pages (D.13.c)
+2026-05-13	dev/sprint-51-s51-cost-roi	feat(financialAnalytics): §175-179 ROI + EPP budget + PO suggester (Sprint 51)
+2026-05-13	dev/sprint-51-s51-monthly-report	feat(reporting): §117-118 monthly client report builder + reputational alert engine (Sprint 51)
+2026-05-13	dev/sprint-51-s51-admin-burden	feat(adminBurden): Sprint 51 §259-260 tracker carga administrativa + auto-admin
+2026-05-13	dev/sprint-51-s51-ai-off	feat(ai-toggle): §161-163 AI-off mode + drift detector (Sprint 51)
+2026-05-13	dev/sprint-50-s50-h3-stripe	feat(billing): E.5 P2 H3 Stripe pre-flight checks (Sprint 50)
+2026-05-13	dev/sprint-50-s50-h1-dwg	feat(cad): E.5 P2 H1 — DWG document validator pre-upload (Sprint 50)
+2026-05-13	dev/sprint-50-s50-h27-geofence	feat(geofence): E.5 P2 H27 permission UX decision engine (Sprint 50)
+2026-05-13	dev/sprint-50-s50-h5-sii	feat(sii): E.5 P2 H5 SII pre-flight checks (Sprint 50)
+2026-05-13	dev/sprint-48-s48-e2-r3f	feat(testing): E.2 @react-three/test-renderer migracion (Sprint 48)
+2026-05-13	dev/sprint-49-s49-h19-any	fix(types): E.5 P2 H19 cleanup — reduce \`as any\` casts (Sprint 49)
+2026-05-13	dev/sprint-49-s49-d8a-suseso	test(suseso): add 15 route tests for D.8.a admin-gated endpoints
+2026-05-13	dev/sprint-49-s49-d8b-dte	feat(dte): D.8.b DTE auto-issue + queue + billing wire (Sprint 49)
+2026-05-13	dev/sprint-49-s49-pdca-karin	feat(sprint-k): §195-213 — PDCA + NC + Ley Karin + Retaliation (Sprint 49)
+2026-05-13	dev/sprint-48-s48-i18n	feat(i18n): batch 7 — NormativeDetail completion (D.13.c)
+2026-05-13	dev/sprint-48-s48-e4-jur	feat(regulatory): E.4 — 6 jurisdicciones nuevas + 8 privacy regimes (Sprint 48)
+2026-05-13	dev/sprint-47-s47-c9-slm	feat(slm): C.9 ONNX runtime + WebGPU + SHA256 integrity guard (Sprint 47)
+2026-05-13	dev/sprint-47-s47-c5-sos	feat(emergency): C.5 SOS orchestrator + GPS breadcrumb tracker (Sprint 47)
+2026-05-13	dev/sprint-47-s47-c10-rag	feat(ai-rag): C.10 Contextual RAG sobre Zettelkasten + citation policy (Sprint 47)
+2026-05-13	dev/sprint-46-s46-ble-android	feat(mesh): D.12 BLE GATT Android real implementation (Sprint 46)
+2026-05-13	dev/sprint-46-s46-ble-ios	feat(mesh): D.12 BLE CoreBluetooth iOS real implementation (Sprint 46)
+2026-05-12	dev/sprint-45-s45-sprintk	feat(sprint-k): §191 investigation mode + bowtie analysis + BBS observations
+2026-05-12	dev/sprint-45-s45-wireui	feat(ui): wire 5 servicios batch S45 — riskRadar, softBlocking, syncStatus, workerHistory, incidentTrends
+2026-05-12	dev/sprint-45-s45-i18n	feat(i18n): batch 5 — 10 pages (D.13.c)
+2026-05-12	dev/sprint-44-s44-sprintk	fix(sprint-k): 4 P2 Codex fixes — PYME quick path + supplier finite + Pro upsell + risks dedupe (PR #129)
+2026-05-12	dev/sprint-44-s44-i18n	feat(i18n): batch 4 — 10 pages (D.13.c)
+2026-05-12	dev/sprint-44-s44-wireui	feat(ui): wire 5 servicios sin componente (Wire UI batch S44)
+2026-05-12	dev/sprint-44-s44-p2-h11	fix(geofence): H11 hash de geometría usa coordinates real (E.5 P2)
+2026-05-12	dev/sprint-43-p2-backlog	fix(triggers): re-check status DENTRO del mutex + idempotency marker (Codex P2 PR #120)
+2026-05-12	dev/sprint-43-i18n-batch3	feat(i18n): batch 3 — 10 pages wired with useTranslation + fallback (D.13.c)
+2026-05-12	dev/sprint-43-wireui	feat(ui): wire 5 servicios sin componente (Wire UI batch S43)
+2026-05-12	dev/sprint-42-f18-worker-portable-history	feat(worker-history): F.18 Historial Profesional Portátil — export subgrafo + consent + Ley 19.628
+2026-05-12	dev/sprint-42-f15-permits-module	feat(work-permits): F.15 permit lifecycle advisor + checklist UI
+2026-05-12	dev/sprint-42-f14-heatmap-findings	feat(heatmap): F.14 Mapa Calor Hallazgos — agregaciones geo simples sin Maps API
+2026-05-12	dev/sprint-41-f6-offline-inspection	feat(inspections): F.6 Modo Sin Señal — offline-first pure engine + UI
+2026-05-12	dev/sprint-42-f6-offline-inspection	feat(inspections): F.6 Modo Sin Señal para Inspecciones
+2026-05-12	dev/sprint-42-f19-photo-evidence	feat(photo-evidence): F.19 Photo evidence engine (validation + content-addressed + linkages + storage path)
+2026-05-12	dev/sprint-42-f20-drills-ui	feat(drills): F.20 DrillResultReviewCard (post-drill review with gaps + recommendations)
+2026-05-12	dev/sprint-41-f16-worker-readiness	feat(worker-readiness): F.16 Readiness Score (assist, no block) — directiva 2 usuario
+2026-05-12	dev/sprint-41-f30-telemetry-aggregate	feat(telemetry): F.30 Telemetría agregada (rollups + velocities + privacy guard)
+2026-05-12	dev/sprint-41-f28-recommendation-explainability	fix(explainability): apply 3 Codex P2 PR #107 (weighted llmShare + exact threshold + expired filter)
+2026-05-12	dev/sprint-41-f22-microtraining	feat(microtraining): F.22 Modo Capacitación Relámpago — micro-trainings 3-5min activados por contexto
+2026-05-12	dev/sprint-41-f17-soft-block	feat(soft-blocking): F.17 Requirement gate + auditable override (no hard block, política directiva 2)
+2026-05-12	dev/sprint-41-f26-maturity-index	feat(maturity): F.26 Indicador Madurez Preventiva 1-5 (Bradley Curve)
+2026-05-12	dev/sprint-41-f23-document-versioning	fix(documents): apply Codex P2 PR #104 (multiset-aware diff handles duplicate lines)
+2026-05-12	dev/sprint-41-f27-multi-project-comparator	fix(multi-project): apply 4 Codex P2 PR #103 (null closure, leave-one-out TRIR, SIF flag, closure vs avg)
+2026-05-12	dev/sprint-41-i18n-sweep-batch2	feat(i18n): sweep batch 2 — add useTranslation + t() to 10 high-traffic pages
+2026-05-12	dev/sprint-41-f29-incident-trends	fix(incident-trends): apply Codex P2 PR #102 (gap-fill empty buckets + leave-one-out outlier baseline)
+2026-05-12	dev/sprint-41-f21-shift-risk-panel	feat(shift-risk): F.21 UI - PreShiftRiskCard (score gauge + factors detail + delay banner)
+2026-05-12	dev/sprint-40-fixB-photogrammetry-codex	fix(photogrammetry): apply Codex P1+3×P2 (gradlew chmod+x, Firestore index, Unicode object names, video frame cap 500)
+2026-05-12	dev/sprint-40-f9-data-incompleteness	fix(data-quality): apply Codex P1+5×P2 — accept real field aliases (name/role/assignedAt/attendees/coordinates) + reject negative workersCount
+2026-05-12	dev/sprint-40-f13-repeating-risk-radar	fix(risk-radar): apply 5 Codex P2 (cluster expand, multi-cluster, tz-compare, future-filter, stable-id)
+2026-05-12	dev/sprint-40-f8-inbox-prevencionista	fix(inbox): apply 3 Codex P2 (daysOverdue derive + quickActions clone + dismissals persistence)
+2026-05-12	dev/sprint-40-f5-qr-signature	fix(qr-signature): apply 3 Codex P2 (UTF-8 decode + nonce consumption + ack match)
+2026-05-12	dev/sprint-40-f7-cphs-minute-autogen	fix(cphs): accept 'verified' status alongside 'verified_effective' (Codex P2 PR #95)
+2026-05-12	dev/sprint-40-fixA-sentry-context-wrap	fix(observability): centralize captureRouteError + fix Sentry tag mapping
+2026-05-12	dev/sprint-40-stream2-i18n-sweep-batch1-v2	feat(i18n): add useTranslation + t() to 9 high-traffic pages (batch 1)
+2026-05-12	dev/sprint-40-stream5-sentry-coverage-batch2	feat(observability): extend Sentry coverage to 11 server routes (Fase D.13.a batch 2)
+2026-05-12	dev/sprint-40-post-pr87-ux-observ	feat(ux,observ,photogrammetry): post-PR #87 refinements + android scaffold
+2026-05-07	claude/technical-debt-documentation-pd2gN	feat(todo): añadir 22 ítems de auditoría técnica faltantes al manifiesto
+2026-05-06	dev/sprint-39-eonet-usgs-recomendacion-tranquila-2026-05-06	ci: real change retrigger CI #77
+2026-05-05	dev/sprint-35-aptitude-mesh-i18n-cron-idempotency-2026-05-06	fix(perf): bump main entry size-limit 340->420KB (Sprint 35 net-new code)
+2026-05-05	claude/code-audit-planning-Ihe1q	docs(audit): comprehensive 2026-05-05 audit with non-obvious findings
+2026-05-04	dev/sprint-21-debt-cleanup-2026-05-04	feat(mobile): Universal Links iOS + App Links Android — deep linking config-only
+2026-05-04	dev/sprint-20-euler-wave-2-2026-05-04	docs(billing): TRANSBANK_RUNBOOK + .env.example WEBPAY_* vars
+2026-05-04	dev/sprint-20-euler-wave-1-2026-05-04	docs(master-plan): Euler-1 ola registrada — Fases 1, 3, 6, 10 + spec doc
+2026-05-04	dev/sprint-20-nineteenth-wave-multi-agent-2026-05-04	docs(master-plan): 19va ola — Stryker 14/14 baseline COMPLETE
+2026-05-04	dev/sprint-20-eighteenth-wave-multi-agent-2026-05-04	docs(master-plan): 18va ola registrada — deuda técnica accionable mayormente cerrada
+2026-05-04	dev/sprint-20-seventeenth-wave-multi-agent-2026-05-04	chore(perf): raise main entry size limit 300 → 310 KB (gzipped)
+2026-05-04	dev/sprint-20-sixteenth-wave-multi-agent-2026-05-04	docs(master-plan): 16va ola registrada (Stryker uplift confirmed + analytics 46/46 typed + i18n + WCAG 0/1/19)
+2026-05-04	dev/sprint-20-fifteenth-wave-multi-agent-2026-05-04	docs(master-plan): 15va ola registrada (Stryker test gaps + analytics 35/45 + i18n + server adapter)
+2026-05-04	dev/sprint-20-fourteenth-wave-multi-agent-2026-05-04	docs(master-plan): 14va ola registrada (a11y final 0/2/18 + analytics 30/45 + i18n x7 + Stryker baseline)
+2026-05-04	dev/sprint-20-thirteenth-wave-multi-agent-2026-05-04	docs(master-plan): 13va ola registrada (a11y closure + i18n locales + CSP nonce + analytics x5)
+2026-05-04	dev/sprint-20-twelfth-wave-multi-agent-2026-05-04	fix(test): hmac mutation test uses middle char (not last)
+2026-05-04	dev/sprint-20-eleventh-wave-multi-agent-2026-05-04	docs(master-plan): undécima ola registrada (a11y fixes + analytics x4 + i18n x6 + CSP middleware)
+2026-05-04	dev/sprint-20-tenth-wave-multi-agent-2026-05-04	docs(master-plan): décima ola registrada (analytics x6 + Sentry alerts + perf -16.4% + WCAG audit)
+2026-05-04	dev/sprint-20-ninth-wave-multi-agent-2026-05-04	docs(master-plan): novena ola registrada (TM-I03 + TM-T03 cerrados, stryker unificado, analytics live)
+2026-05-04	dev/sprint-20-eighth-wave-multi-agent-2026-05-04	fix(ci): use 'cap doctor' for Capacitor config sanity step
+2026-05-04	dev/sprint-20-seventh-wave-multi-agent-2026-05-04	docs(master-plan): reflect Sprint 20 seventh wave (Mobile-prep+Tracking+Runbooks+i18n-shell)
+2026-05-04	dev/sprint-20-sixth-wave-multi-agent-2026-05-04	docs(master-plan): reflect Sprint 20 sixth wave (Psi+Omega+A-prime+B-prime)
+2026-05-04	dev/sprint-20-images-generation-one-by-one-2026-05-04	docs(medical): rewrite with 50 standalone prompts (33 medical + 17 informational)
+2026-05-04	dev/sprint-20-fifth-wave-multi-agent-2026-05-04	docs(master-plan): reflect Sprint 20 fifth wave (Rho+Sigma+Tau+Phi)
+2026-05-04	dev/sprint-20-fourth-wave-multi-agent-2026-05-04	docs(master-plan): reflect Sprint 20 fourth wave (Nu+Xi+Omicron+Pi)
+2026-05-04	dev/sprint-20-third-wave-multi-agent-2026-05-04	docs(master-plan): reflect Sprint 20 third wave (4 buckets: Iota+Kappa+Lambda+Mu)
+2026-05-04	dev/sprint-20-second-wave-multi-agent-2026-05-04	docs(master-plan): reflect Sprint 20 second wave (Delta + Epsilon + Eta)
+2026-05-04	dev/sprint-20-multi-agent-execution-2026-05-04	docs(master-plan): reflect Sprint 20 multi-agent progress (3 buckets done)
+2026-05-04	dev/sprint-20-icons-bundled-offline-2026-05-04	docs: ADR-0004 medical icons bundled for offline + master plan Fase 1b update
+2026-05-04	dev/sprint-20-execution-medical-icons-hosted-2026-05-04	docs: ADR-0004 medical icons hosted + master plan SLM bundle relax
+2026-05-04	dev/sprint-20-master-plan-end-to-end-2026-05-04	chore(gitignore): playwright-report + test-results (local artifacts) + dedupe .claude
+2026-05-04	dev/sprint-19-orchestrator-debt-cleanup-2026-05-04	docs(audit): pending-after-sprint-19 — verified-in-place + deferred to Sprint 20+
+2026-05-03	dev/sprint-17c-bioicons-medical-2026-05-04	fix(e2e): skip landing tests pending Firebase env mocking in CI (Sprint 19)
+2026-05-03	dev/sprint-16-gemini-first-ui-2026-05-04	feat(safety): FallDetectionMonitor opt-in toggle (battery preservation for non-altura roles)
+2026-05-03	dev/sprint-15-organic-structure-2026-05-04	chore(deps): sync package-lock.json after @testing-library/dom devDep addition
+2026-05-03	dev/sprint-11-12-13-14-multi-2026-05-03	test(driving): commute lifecycle + endpoint coverage
+2026-05-03	dev/sprint10-pricing-zettelkasten-2026-05-03	test(zettelkasten): registries integrity — count, uniqueness, kebab-case, source citations
+2026-05-02	claude/setup-github-access-9rYY6	chore: ignore .claude/ worktrees directory

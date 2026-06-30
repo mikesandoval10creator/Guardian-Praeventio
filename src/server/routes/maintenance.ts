@@ -97,6 +97,16 @@ import {
   LONE_WORKER_ROLE_BUCKETS,
 } from '../services/projectTokens.js';
 import { sendMulticastChunked } from '../utils/fcmMulticast.js';
+// Dimension D pipelines (2026-06-22):
+//   1. Contractor ranking snapshot — daily aggregation of per-contractor
+//      TRIR/LTIFR from real incidents + captured exposure hours.
+//   2. Compliance snapshot — daily snapshot of traffic-light state per project
+//      so the executive dashboard can show a compliance trend.
+//   3. SLO metrics refresh — pulls Sentry events-stats into `slo_metrics`.
+//      Gate: returns immediately when SENTRY_SLO_ENABLED != 'true'.
+import { runContractorRankingSnapshot } from '../jobs/runContractorRankingSnapshot.js';
+import { runComplianceSnapshot } from '../jobs/runComplianceSnapshot.js';
+import { runSloMetricsRefresh } from '../jobs/runSloMetricsRefresh.js';
 
 // PR #482 codex P1 (round 2) — page size for project enumeration. 500 is
 // a safe per-call Firestore limit; deployments with more than 500 projects
@@ -1019,8 +1029,8 @@ router.post(
               legalReminders.notifications.chunkErrors += dispatched.errorCount;
               // PR #482 codex P1 (round 2): chunk-level errors deben abortar
               // el marker idempotente para que el próximo run reintente.
-              // Plazos regulatorios (DS 54, Ley 16.744) no toleran "marked
-              // sent" sin entrega.
+              // Plazos regulatorios (DS 44/2024, ex DS 54 derogado 01-02-2025;
+              // Ley 16.744) no toleran "marked sent" sin entrega.
               //
               // PR #482 codex P1 (round 4): además, all-failed multicast
               // (successCount=0 + failureCount>0) también es no-delivery.
@@ -1107,6 +1117,138 @@ router.post(
         ok: false,
         error: 'internal_error',
         message: 'daily-housekeeping failed',
+      });
+    }
+  },
+);
+
+// ── Dimension D pipeline: Contractor ranking snapshot ─────────────────────
+//
+//   POST /api/maintenance/run-contractor-ranking-snapshot
+//
+// Daily aggregation of per-contractor TRIR/LTIFR from real incidents and
+// captured exposure hours. Cloud Scheduler: daily at 06:00 UTC.
+//
+// Reads:  `contractor_exposure_hours` (man-hours per contractor per period)
+//         `incidents` + `tenants/{tid}/projects/{pid}/incidents`
+// Writes: `contractor_ranking_snapshots/{projectId}_{YYYY-MM}`
+//
+// Auth: verifySchedulerToken (Cloud Scheduler shared secret / OIDC).
+router.post(
+  '/run-contractor-ranking-snapshot',
+  verifySchedulerToken,
+  async (_req, res) => {
+    const start = Date.now();
+    try {
+      const db = admin.firestore();
+      const result = await runContractorRankingSnapshot({ db });
+      logger.info('[maintenance] contractor-ranking-snapshot done', {
+        ...result,
+        tookMs: Date.now() - start,
+      });
+      return res.status(200).json({
+        ok: true,
+        ...result,
+        tookMs: Date.now() - start,
+      });
+    } catch (err) {
+      logger.error('[maintenance] contractor-ranking-snapshot failed', err);
+      captureRouteError(err, 'maintenance.contractor-ranking-snapshot');
+      return res.status(500).json({
+        ok: false,
+        error: 'internal_error',
+        message: 'contractor-ranking-snapshot failed',
+      });
+    }
+  },
+);
+
+// ── Dimension D pipeline: Daily compliance snapshot ────────────────────────
+//
+//   POST /api/maintenance/run-compliance-snapshot
+//
+// Daily snapshot of the traffic-light compliance state for every project.
+// Feeds the executive dashboard compliance-trend chart. Cloud Scheduler:
+// daily at 07:00 UTC.
+//
+// Reads:  `projects/{projectId}` (profile: workersCount, industry, hazmat…)
+//         + trafficLightEngine (pure, deterministic)
+// Writes: `compliance_snapshots/{projectId}_{YYYY-MM-DD}`
+//
+// Auth: verifySchedulerToken.
+router.post(
+  '/run-compliance-snapshot',
+  verifySchedulerToken,
+  async (_req, res) => {
+    const start = Date.now();
+    try {
+      const db = admin.firestore();
+      const result = await runComplianceSnapshot({ db });
+      logger.info('[maintenance] compliance-snapshot done', {
+        ...result,
+        tookMs: Date.now() - start,
+      });
+      return res.status(200).json({
+        ok: true,
+        ...result,
+        tookMs: Date.now() - start,
+      });
+    } catch (err) {
+      logger.error('[maintenance] compliance-snapshot failed', err);
+      captureRouteError(err, 'maintenance.compliance-snapshot');
+      return res.status(500).json({
+        ok: false,
+        error: 'internal_error',
+        message: 'compliance-snapshot failed',
+      });
+    }
+  },
+);
+
+// ── Dimension D pipeline: SLO metrics refresh ─────────────────────────────
+//
+//   POST /api/maintenance/run-slo-metrics-refresh
+//
+// Pulls Sentry events-stats into `slo_metrics/{sloId}/daily` so the
+// SloErrorBudget dashboard can render real burn-rate sparklines. Cloud
+// Scheduler: daily at 08:00 UTC.
+//
+// COWORK-GATED: requires SENTRY_API_TOKEN + SENTRY_ORG + SENTRY_PROJECT_ID
+// in the environment AND SENTRY_SLO_ENABLED=true. Until provisioned, returns
+// { ok: true, gateClosed: true } (honest-empty state) — the dashboard already
+// renders "Sin métricas" when the collection is empty.
+//
+// TODO(sprint): provision SENTRY_API_TOKEN in Secret Manager and set
+//   SENTRY_SLO_ENABLED=true in the Cloud Run environment to activate.
+//   See .env.example L581-585 for the required variables.
+//
+// Auth: verifySchedulerToken.
+router.post(
+  '/run-slo-metrics-refresh',
+  verifySchedulerToken,
+  async (_req, res) => {
+    const start = Date.now();
+    try {
+      const db = admin.firestore();
+      const result = await runSloMetricsRefresh({ db });
+      logger.info('[maintenance] slo-metrics-refresh done', {
+        gateClosed: result.gateClosed,
+        refreshed: result.refreshed,
+        failed: result.failed,
+        tookMs: Date.now() - start,
+      });
+      return res.status(200).json({
+        ok: true,
+        ...result,
+        tookMs: Date.now() - start,
+      });
+    } catch (err) {
+      logger.error('[maintenance] slo-metrics-refresh failed', err);
+      captureRouteError(err, 'maintenance.slo-metrics-refresh');
+      return res.status(500).json({
+        ok: false,
+        error: 'internal_error',
+        message: 'slo-metrics-refresh failed',
       });
     }
   },

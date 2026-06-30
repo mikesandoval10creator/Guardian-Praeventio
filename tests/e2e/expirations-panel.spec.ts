@@ -35,7 +35,7 @@ test.describe('Expirations list endpoint', () => {
   // documented in the compliance + SOS specs. The endpoint assembly + the panel
   // render are covered by expirationScanner tests + typecheck. Un-fixme once the
   // harness shares one emulator project across processes.
-  test.fixme('returns real ExpirableItem[] for a member', async ({ request }) => {
+  test('returns real ExpirableItem[] for a member', async ({ request }) => {
     test.skip(process.env.E2E_FULL_STACK !== '1', 'Requires full E2E stack. Run `npm run test:e2e:full`.');
     const seed = await seedProject();
     try {

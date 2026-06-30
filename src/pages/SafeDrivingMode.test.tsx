@@ -79,7 +79,9 @@ beforeEach(() => {
 // real saveReport().
 async function dictateAndEnd(transcript = 'Neumático delantero perdiendo presión en km 30') {
   render(<SafeDrivingMode />);
-  fireEvent.click(screen.getByText('Dictar Reporte'));
+  // El control de voz es un botón flotante icon-only — su nombre accesible es el
+  // aria-label, no texto visible (refactor del antiguo botón w-32 con label).
+  fireEvent.click(screen.getByRole('button', { name: 'Dictar reporte por voz' }));
   expect(lastRecognition).not.toBeNull();
   act(() => {
     lastRecognition!.onresult?.({ results: [[{ transcript }]] });

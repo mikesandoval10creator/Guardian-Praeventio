@@ -3,17 +3,17 @@
  *
  * Two families of rules are evaluated:
  *
- *   1. Project-size rules (Ley 16.744 art. 66 and DS 54): triggered purely
+ *   1. Project-size rules (Ley 16.744 art. 66 and DS 44/2024, ex DS 54 derogado 01-02-2025): triggered purely
  *      by `workerCount` per project. These do not require a `context`.
  *
- *   2. Time-based rules (DS 54 art. 16/24, Ley 16.744 art. 21 / DS 44/2024,
+ *   2. Time-based rules (DS 44/2024 art. 16/24 [ex DS 54, derogado 01-02-2025], Ley 16.744 art. 21 / DS 44/2024,
  *      NT MINSAL PREXOR): triggered by elapsed days since the last
  *      occurrence of the obligation. The caller passes per-project /
  *      per-worker last-event timestamps via `NormativeContext`.
  *
  * IMPORTANT semantic: per-project, NOT aggregate. Three projects of 10
  * workers each does NOT trigger Comité Paritario, because the law applies
- * "por cada faena, sucursal o agencia" (Ley 16.744 art. 66 / DS 54 art. 1).
+ * "por cada faena, sucursal o agencia" (Ley 16.744 art. 66 / DS 44/2024, ex DS 54 art. 1 derogado 01-02-2025).
  *
  * Pure: no IO, no implicit Date.now(). Pass `context.now` for deterministic
  * tests. When omitted, `new Date()` is used (production callers).
@@ -70,7 +70,7 @@ const DEPARTAMENTO_PREVENCION_MIN_WORKERS = 100;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** DS 54 art. 16 — sesión mensual del Comité Paritario. */
+/** DS 44/2024 art. 16 (ex DS 54, derogado 01-02-2025) — sesión mensual del Comité Paritario. */
 const CPHS_CADENCE_DAYS = 30;
 const CPHS_WARNING_DAYS = 25;
 
@@ -104,7 +104,7 @@ export function evaluateNormativeAlerts(
   const now = context?.now ?? new Date();
 
   for (const project of perProjectWorkers) {
-    /* -------- Project-size rules (Ley 16.744 art. 66 / DS 54) ----------- */
+    /* -------- Project-size rules (Ley 16.744 art. 66 / DS 44/2024, ex DS 54 derogado) ----------- */
     if (project.workerCount >= COMITE_PARITARIO_MIN_WORKERS) {
       alerts.push({
         rule: 'comite-paritario-required',
@@ -112,7 +112,7 @@ export function evaluateNormativeAlerts(
         severity: 'critical',
         message:
           `El proyecto "${project.id}" tiene ${project.workerCount} trabajadores ` +
-          `(≥25). La Ley 16.744 y el DS 54 exigen constituir un Comité ` +
+          `(≥25). La Ley 16.744 y el DS 44/2024 (ex DS 54, derogado 01-02-2025) exigen constituir un Comité ` +
           `Paritario de Higiene y Seguridad por cada faena, sucursal o agencia.`,
       });
     }
@@ -132,7 +132,7 @@ export function evaluateNormativeAlerts(
     /* -------- Time-based rules (only when context provided) ------------- */
     if (!context) continue;
 
-    /* CPHS — DS 54 art. 16/24 — sesión mensual */
+    /* CPHS — DS 44/2024 art. 16/24 (ex DS 54, derogado 01-02-2025) — sesión mensual */
     if (context.lastCphsMeetingByProject !== undefined) {
       const last = context.lastCphsMeetingByProject[project.id];
       if (last === undefined) {
@@ -146,7 +146,7 @@ export function evaluateNormativeAlerts(
             message:
               `El proyecto "${project.id}" no registra reuniones de Comité ` +
               `Paritario. Constituye Comité Paritario y agenda primera ` +
-              `reunión (DS 54 art. 16/24, sesión mensual obligatoria).`,
+              `reunión (DS 44/2024 art. 16/24 [ex DS 54, derogado 01-02-2025], sesión mensual obligatoria).`,
           });
         }
         // < 25 workers without CPHS history → no obligation, no alert.
@@ -162,7 +162,7 @@ export function evaluateNormativeAlerts(
             message:
               `El proyecto "${project.id}" tiene ${elapsed} días desde la ` +
               `última sesión del Comité Paritario (cadencia mensual ` +
-              `DS 54 art. 16). Agenda la próxima reunión de inmediato.`,
+              `DS 44/2024 art. 16 [ex DS 54, derogado 01-02-2025]). Agenda la próxima reunión de inmediato.`,
           });
         } else if (elapsed >= CPHS_WARNING_DAYS) {
           alerts.push({
@@ -172,7 +172,7 @@ export function evaluateNormativeAlerts(
             daysUntilDue,
             message:
               `El proyecto "${project.id}" tiene ${elapsed} días desde la ` +
-              `última sesión del Comité Paritario (DS 54 art. 16). ` +
+              `última sesión del Comité Paritario (DS 44/2024 art. 16 [ex DS 54, derogado 01-02-2025]). ` +
               `Próxima sesión vence en ${daysUntilDue} días.`,
           });
         }

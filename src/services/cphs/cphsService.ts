@@ -1,7 +1,7 @@
 // Praeventio Guard — Sprint 28 Bucket B5: CPHS service.
 //
 // Cierra audit hallazgo H29 P1. Persistencia formal de comités paritarios
-// con quórum DS 54 + actas firmadas WebAuthn (ISO 27001 §A.9.4.3 +
+// con quórum DS 44/2024 (ex DS 54, derogado 01-02-2025) + actas firmadas WebAuthn (ISO 27001 §A.9.4.3 +
 // ISO 45001 §5.4).
 //
 // DESIGN
@@ -113,7 +113,7 @@ function validatePeriod(period: CphsPeriod): void {
 function assertQuorum(members: CphsMember[]): void {
   if (!isValidQuorum(members)) {
     throw new CphsQuorumError(
-      'Quórum DS 54 art. 66 no se cumple: requiere ≥3 representantes empleador y ≥3 trabajadores, además de chair y secretary.',
+      'Quórum DS 44/2024 (ex DS 54, derogado 01-02-2025) no se cumple: requiere ≥3 representantes empleador y ≥3 trabajadores, además de chair y secretary.',
     );
   }
 }
@@ -143,7 +143,7 @@ export async function createCommittee(
   assertQuorum(input.members);
 
   const createdAt = new Date().toISOString();
-  // ISO 45001 §5.4 = quórum DS 54 + representantes-trabajadores elegidos.
+  // ISO 45001 §5.4 = quórum DS 44/2024 (ex DS 54, derogado 01-02-2025) + representantes-trabajadores elegidos.
   const iso45001Compliance =
     isValidQuorum(input.members) && workersAreElected(input.members);
 
@@ -271,7 +271,7 @@ export async function recordMinutes(
   await docRef.update(patch);
 
   // Sprint 32 wire W4 — gamificación POSITIVA: cada asistente firma su
-  // presencia y recibe XP por participar en la sesión CPHS (DS 54).
+  // presencia y recibe XP por participar en la sesión CPHS (DS 44/2024, ex DS 54 derogado 01-02-2025).
   // Fire-and-forget; un fallo en awardXp NUNCA debe romper el record-
   // minutes (que tiene valor legal ISO 45001 §5.4).
   for (const attendeeUid of input.attendees) {

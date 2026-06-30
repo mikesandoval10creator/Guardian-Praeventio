@@ -1311,5 +1311,31 @@ existing().projectId; create/update/delete: if false`. Exercised by
      `safety_plan_periods/{otherProject_period}` to harvest another project's
      planning targets — denied (read requires membership of the doc's `projectId`).
 
+### learning_cards — worker's own SM-2 study cards (spaced repetition, added 2026-06-29)
+
+`learning_cards/{cardId}` holds a worker's OWN spaced-repetition study cards for a
+project: created CLIENT-side when a training session completes (Training.tsx
+`addDoc`) and updated as the worker grades each review (SpacedRepetitionReviewQueue
+→ `updateDoc`). Personal formative data, not a legal record. Owner-scoped: read is
+the OWNER only (`resource.data.workerUid == request.auth.uid`, no `get()` so the
+review-queue LIST query stays fail-safe) plus admin/supervisor; create requires
+`incoming().workerUid == request.auth.uid` AND project membership; update is
+owner-only with `projectId`/`workerUid` frozen; delete is admin/supervisor only.
+Exercised by `src/rules-tests/learningCards.rules.test.ts`.
+
+142. **Peer Study-Record Snoop**: a project member reading a CO-WORKER's
+     `learning_cards/{id}` to profile which topics a peer keeps failing (privacy +
+     performance-profiling vector) — denied (read requires `resource.data.workerUid
+     == request.auth.uid`; project membership alone is not enough).
+143. **Ownership Forge on Create**: a worker `setDoc`-ing a card with
+     `workerUid: <someone-else>` to plant or pollute a peer's review schedule —
+     denied (`incoming().workerUid == request.auth.uid`).
+144. **Card Project/Owner Move**: a worker `updateDoc`-ing a card's
+     `projectId`/`workerUid` to migrate their study trail into another
+     project/identity — denied (both frozen against `resource.data`).
+145. **Trail Erasure**: a worker `deleteDoc`-ing their own cards to wipe evidence of
+     repeated failed reviews on a critical topic before an audit — denied (delete is
+     admin/supervisor only).
+
 ## Test Runner (firestore.rules.test.ts)
 *Note: This is a placeholder for the logic that would be tested.*

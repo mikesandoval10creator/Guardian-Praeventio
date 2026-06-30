@@ -510,7 +510,7 @@ const PROFILE_CL: JurisdictionProfile = {
   primaryRegulator: 'SUSESO + Dirección del Trabajo + MINSAL',
   regulations: [
     { id: 'Ley-16.744', title: 'Ley 16.744 — Accidentes y enfermedades profesionales', category: 'statute', reference: 'https://www.bcn.cl/leychile/navegar?idNorma=28650' },
-    { id: 'DS-54', title: 'DS 54 — Comité Paritario de Higiene y Seguridad', category: 'regulation', mandatoryAtCount: 25, reference: 'https://www.bcn.cl/leychile/navegar?idNorma=10626' },
+    { id: 'DS-44', title: 'DS 44/2024 (ex DS 54, derogado 01-02-2025) — Comité Paritario de Higiene y Seguridad', category: 'regulation', mandatoryAtCount: 25, reference: 'https://www.bcn.cl/leychile/navegar?idNorma=1217760' },
     { id: 'DS-594', title: 'DS 594 — Condiciones sanitarias y ambientales', category: 'regulation', reference: 'https://www.bcn.cl/leychile/navegar?idNorma=167766' },
   ],
   incidentReporting: { authority: 'SUSESO + Mutualidad', deadlineDays: 1, fatalityImmediate: true, formName: 'DIAT/DIEP', electronicSubmission: true },
@@ -520,7 +520,7 @@ const PROFILE_CL: JurisdictionProfile = {
   // procesando bajo "régimen brasileño" era riesgo regulatorio real.
   privacyRegime: 'LEY-21719-CL',
   mandatoryCommittees: [
-    { name: 'Comité Paritario de Higiene y Seguridad (CPHS)', minEmployees: 25, scope: 'DS 54 art.21 — paritario, ≥25 trabajadores' },
+    { name: 'Comité Paritario de Higiene y Seguridad (CPHS)', minEmployees: 25, scope: 'DS 44/2024 (ex DS 54, derogado 01-02-2025) — paritario, ≥25 trabajadores' },
     { name: 'Departamento de Prevención de Riesgos', minEmployees: 100, scope: 'Ley 16.744 art.66 — obligatorio ≥100 trabajadores' },
   ],
   localizedNumbers: { medical: '131', fire: '132', police: '133' },

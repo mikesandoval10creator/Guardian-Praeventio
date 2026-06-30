@@ -6,7 +6,8 @@
  *  - DS 44/2024 — Reglamento sobre Prevención de Riesgos Profesionales (vigente
  *      desde 2025-02-01, reemplaza al DS 40/1969 derogado).
  *      Art. 8: Departamento de Prevención obligatorio si > 100 trabajadores.
- *  - DS 54 (1969) — Reglamento sobre Comités Paritarios de Higiene y Seguridad.
+ *  - DS 54 (1969) — Reglamento sobre Comités Paritarios de Higiene y Seguridad
+ *      (derogado 01-02-2025; reemplazado por el DS 44/2024).
  *      Art. 1: Comité Paritario obligatorio en faenas con > 25 trabajadores.
  *  - DS 594 (1999) — Condiciones Sanitarias y Ambientales Básicas en lugares de trabajo.
  *  - Ley 20.123 (2007) — Subcontratación; SGSST cuando ≥ 50 trabajadores en faena conjunta.

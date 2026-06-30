@@ -1,4 +1,11 @@
 import express from "express";
+// express-async-errors monkeypatches Express 4 layer internals so that
+// async route handlers that throw (or reject) automatically forward the
+// error to next(err) → global error handler → clean 500.
+// MUST be imported right after express, before any router is constructed.
+// Without this, Express 4 silently hangs on async rejections (e.g. a
+// Firestore outage inside assertProjectMember on the SOS path).
+import 'express-async-errors';
 import helmet from "helmet";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 // Sprint 39 audit (2026-05-15) — MemoryStore default de express-rate-limit
@@ -530,18 +537,51 @@ try {
 
 // Initialize Firebase Admin
 try {
+  // E2E/emulator detection. The Firestore emulator namespaces data by projectId
+  // and only serves the DEFAULT database. The test seed (tests/e2e/fixtures/
+  // seed.ts) writes under GOOGLE_CLOUD_PROJECT (= demo-test) on the default DB.
+  // To let Express read what the seed wrote, honor that projectId and skip the
+  // named-database override whenever FIRESTORE_EMULATOR_HOST is set. This is
+  // NEVER true in production (the env var is only set by the E2E harness), so
+  // the prod path below is unchanged.
+  const usingFirestoreEmulator = !!process.env.FIRESTORE_EMULATOR_HOST;
+
   if (!admin.apps.length) {
-    const initConfig: any = {
-      credential: admin.credential.applicationDefault(),
-    };
-    if (firebaseConfig?.projectId) {
-      initConfig.projectId = firebaseConfig.projectId;
+    const initConfig: any = {};
+    // Under the Firestore emulator, skip applicationDefault(): with no ADC it
+    // probes the GCE metadata server on the first Firestore op and blocks ~6s
+    // (the metadata timeout) before falling back — enough to push a life-safety
+    // SOS write past the client's 7s fail-fast (and time out the E2E). The
+    // emulator needs no real credential; firebase-admin uses its emulator stub.
+    if (!usingFirestoreEmulator) {
+      initConfig.credential = admin.credential.applicationDefault();
+    }
+    // Under the Firestore emulator, initialize admin with GOOGLE_CLOUD_PROJECT —
+    // the project the E2E seed (firebase-admin) and the browser client both
+    // target — so all three share ONE emulator namespace. Using the
+    // applet-config projectId here points the server at a different (empty)
+    // emulator project, so every membership/Firestore read fails (403). In
+    // production (no emulator) the applet-config projectId stays authoritative.
+    const adminProjectId = usingFirestoreEmulator
+      ? process.env.GOOGLE_CLOUD_PROJECT || firebaseConfig?.projectId
+      : firebaseConfig?.projectId;
+    if (adminProjectId) {
+      initConfig.projectId = adminProjectId;
     }
     admin.initializeApp(initConfig);
   }
 
-  // Override admin.firestore() to always return the correct database instance
-  if (firebaseConfig?.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)') {
+  // Override admin.firestore() to always return the correct database instance.
+  // Skipped under the Firestore emulator: the emulator and the E2E seed/client
+  // all use the default database, so applying the named-DB override would point
+  // the server at a different (empty) DB than where the data lives, hanging
+  // every Firestore op. In production FIRESTORE_EMULATOR_HOST is never set, so
+  // the named DB is selected exactly as before.
+  if (
+    !usingFirestoreEmulator &&
+    firebaseConfig?.firestoreDatabaseId &&
+    firebaseConfig.firestoreDatabaseId !== '(default)'
+  ) {
     const originalFirestore = admin.firestore;
     const { getFirestore } = await import('firebase-admin/firestore');
 

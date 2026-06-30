@@ -263,7 +263,7 @@ export function resolveControl(
 export interface CiteOptions {
   jurisdictions: JurisdictionCode[];
   /** Cuando true, devuelve sólo strings ya formateados:
-   *  "DS 54 art.21 (Chile) · ISO 45001 §5.4". */
+   *  "DS-44 (ex DS 54, derogado 01-02-2025) (Chile) · ISO 45001 §5.4". */
   format?: 'short' | 'long';
 }
 
@@ -290,7 +290,7 @@ function formatRef(ref: RegulationRef, format: 'short' | 'long'): string {
   if (format === 'long') {
     return `${ref.code} — ${ref.title} (${label})`;
   }
-  // short: "DS-54 (Chile)" / "ISO-45001:5.4"
+  // short: "DS-44 (Chile)" (ex DS 54, derogado) / "ISO-45001:5.4"
   if (ref.jurisdiction === 'ISO-45001') return ref.code;
   return `${ref.code} (${label})`;
 }
@@ -299,7 +299,7 @@ function formatRef(ref: RegulationRef, format: 'short' | 'long'): string {
  * Snippets de cita para mostrar en UI. Cada string lista una norma.
  * Ejemplo:
  *   cite('WORKER_PARTICIPATION', { jurisdictions: ['ISO-45001', 'CL'] })
- *   → ['ISO-45001:5.4', 'DS-54 (Chile)']
+ *   → ['ISO-45001:5.4', 'DS-44 (Chile)']  // DS-44 reemplaza al ex DS 54, derogado 01-02-2025
  */
 export function cite(controlId: string, opts: CiteOptions): string[] {
   const format = opts.format ?? 'short';

@@ -85,7 +85,16 @@ export default defineConfig({
             // hay build de servidor todavía — Fase 5.3 del plan). En CI la
             // boot real es 60-90s. Subir timeout a 150_000 da headroom sin
             // ocultar regresiones genuinas.
-            command: 'npx cross-env NODE_ENV=test E2E_MODE=1 E2E_TEST_SECRET=e2e-test-secret-do-not-use-in-prod PORT=3000 npx tsx server.ts',
+            //
+            // 2026-06-23: the emulator env (FIRESTORE/AUTH host + project) is set
+            // EXPLICITLY here, not inherited from the playwright process. Playwright
+            // does not reliably forward the parent env to webServer children on all
+            // platforms (Windows): without these, firebase-admin in server.ts talks
+            // to REAL Firestore and every /api endpoint that reads/writes Firestore
+            // HANGS (no creds/network) → the SOS POST aborts at its 7s client
+            // timeout. Hardcoded to the firebase.json emulator ports; idempotent
+            // with the values CI already exports.
+            command: 'npx cross-env NODE_ENV=test E2E_MODE=1 E2E_TEST_SECRET=e2e-test-secret-do-not-use-in-prod PORT=3000 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GOOGLE_CLOUD_PROJECT=demo-test npx tsx server.ts',
             url: 'http://localhost:3000/api/health',
             reuseExistingServer: !process.env.CI,
             timeout: 150_000,

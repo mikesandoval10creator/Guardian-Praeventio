@@ -164,20 +164,20 @@ export function EPP() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('epp.title')}</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">{t('epp.title')}</h1>
           <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('epp.subtitle')}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
-          <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto shadow-sm">
+          <div className="bg-elevated border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto shadow-sm">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center border border-emerald-100 dark:border-emerald-500/20 shrink-0">
                 <Package className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-500" />
               </div>
               <div>
                 <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest leading-tight">{t('epp.total_items')}</p>
-                <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white mt-0.5">{eppItems?.length || 0}</p>
+                <p className="text-xs sm:text-sm font-bold text-primary-token mt-0.5">{eppItems?.length || 0}</p>
               </div>
             </div>
           </div>
@@ -201,7 +201,7 @@ export function EPP() {
           <div className="flex gap-2 w-full sm:w-auto">
             <button 
               onClick={() => setIsAssigning(true)}
-              className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white px-4 py-3 sm:py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm flex items-center justify-center gap-2 border border-zinc-200 dark:border-white/10 flex-1 sm:flex-none"
+              className="bg-zinc-100 dark:bg-zinc-800 text-primary-token px-4 py-3 sm:py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm flex items-center justify-center gap-2 border border-zinc-200 dark:border-white/10 flex-1 sm:flex-none"
             >
               <UserPlus className="w-4 h-4" />
               <span>{t('epp.assign_epp')}</span>
@@ -231,14 +231,14 @@ export function EPP() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-center gap-3 sm:gap-4 group hover:border-zinc-300 dark:hover:border-white/10 transition-all shadow-sm"
+            className="bg-elevated border border-zinc-200 dark:border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-center gap-3 sm:gap-4 group hover:border-zinc-300 dark:hover:border-white/10 transition-all shadow-sm"
           >
             <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl ${stat.bg} flex items-center justify-center border border-white/5 shrink-0`}>
               <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
             </div>
             <div>
               <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest leading-tight">{stat.label}</p>
-              <p className="text-lg sm:text-xl font-black text-zinc-900 dark:text-white tracking-tight mt-0.5">{stat.value}</p>
+              <p className="text-lg sm:text-xl font-black text-primary-token tracking-tight mt-0.5">{stat.value}</p>
             </div>
           </motion.div>
         ))}
@@ -311,7 +311,7 @@ export function EPP() {
             placeholder={t('epp.search_placeholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
+            className="w-full bg-elevated border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
           />
         </div>
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 md:pb-0">
@@ -322,7 +322,7 @@ export function EPP() {
               className={`px-4 sm:px-6 py-3 sm:py-4 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
                 activeCategory === cat 
                   ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/20' 
-                  : 'bg-white dark:bg-zinc-900/50 text-zinc-500 border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10 hover:text-zinc-900 dark:hover:text-white shadow-sm'
+                  : 'bg-elevated text-zinc-500 border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10 hover:text-zinc-900 dark:hover:text-white shadow-sm'
               }`}
             >
               {cat === '__all__' ? t('epp.all') : cat}
@@ -339,7 +339,7 @@ export function EPP() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.05 }}
-            className="bg-white dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 group hover:border-emerald-500/30 transition-all relative overflow-hidden flex flex-col shadow-sm"
+            className="bg-elevated border border-zinc-200 dark:border-white/5 rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 group hover:border-emerald-500/30 transition-all relative overflow-hidden flex flex-col shadow-sm"
           >
             <div className="absolute top-0 right-0 p-4 sm:p-6">
               <div className={`w-2 h-2 rounded-full ${item.required ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-zinc-300 dark:bg-zinc-700'}`} />
@@ -360,7 +360,7 @@ export function EPP() {
                   {item.category}
                 </span>
               </div>
-              <h3 className="text-base sm:text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-tight">
+              <h3 className="text-base sm:text-lg font-black text-primary-token uppercase tracking-tight leading-tight">
                 {item.name}
               </h3>
               <p className="text-xs sm:text-sm text-zinc-500 line-clamp-2 leading-relaxed">
@@ -371,7 +371,7 @@ export function EPP() {
             <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-zinc-200 dark:border-white/5 flex items-center justify-between">
               <div className="flex flex-col">
                 <span className="text-[9px] sm:text-[10px] font-black text-zinc-500 dark:text-zinc-600 uppercase tracking-widest">{t('epp.stock_available')}</span>
-                <span className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white mt-0.5">{item.stock || 0} {t('epp.units_short')}</span>
+                <span className="text-xs sm:text-sm font-bold text-primary-token mt-0.5">{item.stock || 0} {t('epp.units_short')}</span>
               </div>
               <button className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-emerald-500 transition-all group/btn">
                 <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 group-hover/btn:translate-x-1 transition-transform" />
@@ -384,7 +384,7 @@ export function EPP() {
       {filteredEPP.length === 0 && !loading && (
         <div className="text-center py-12 sm:py-20 bg-zinc-50 dark:bg-zinc-900/20 rounded-3xl sm:rounded-[3rem] border border-dashed border-zinc-200 dark:border-white/5 px-4">
           <Shield className="w-12 h-12 sm:w-16 sm:h-16 text-zinc-300 dark:text-zinc-800 mx-auto mb-4 sm:mb-6" />
-          <h3 className="text-lg sm:text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t('epp.empty_title')}</h3>
+          <h3 className="text-lg sm:text-xl font-black text-primary-token uppercase tracking-tight">{t('epp.empty_title')}</h3>
           <p className="text-zinc-500 text-xs sm:text-sm mt-2 uppercase tracking-widest font-bold">{t('epp.empty_subtitle')}</p>
         </div>
       )}
@@ -402,72 +402,72 @@ export function EPP() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 w-full max-w-md relative max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl"
+              className="bg-surface border border-zinc-200 dark:border-white/10 rounded-3xl p-6 w-full max-w-md relative max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl"
             >
               <button
                 onClick={() => setIsAdding(false)}
-                className="absolute top-4 right-4 text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                className="absolute top-4 right-4 text-muted-token hover:text-zinc-900 dark:hover:text-white transition-colors"
               >
                 <X className="w-6 h-6" />
               </button>
 
-              <h2 className="text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tight mb-6">{t('epp.add_modal_title')}</h2>
+              <h2 className="text-2xl font-black text-primary-token uppercase tracking-tight mb-6">{t('epp.add_modal_title')}</h2>
 
               <form onSubmit={handleAddItem} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">{t('epp.field_name')}</label>
+                  <label className="block text-xs font-bold text-muted-token uppercase tracking-widest mb-2">{t('epp.field_name')}</label>
                   <input
                     type="text"
                     required
                     value={newItem.name}
                     onChange={e => setNewItem({ ...newItem, name: e.target.value })}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-sm"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl px-4 py-3 text-primary-token focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-sm"
                     placeholder={t('epp.placeholder_name')}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">{t('epp.field_category')}</label>
+                  <label className="block text-xs font-bold text-muted-token uppercase tracking-widest mb-2">{t('epp.field_category')}</label>
                   <input
                     type="text"
                     required
                     value={newItem.category}
                     onChange={e => setNewItem({ ...newItem, category: e.target.value })}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-sm"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl px-4 py-3 text-primary-token focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-sm"
                     placeholder={t('epp.placeholder_category')}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">{t('epp.field_description')}</label>
+                  <label className="block text-xs font-bold text-muted-token uppercase tracking-widest mb-2">{t('epp.field_description')}</label>
                   <textarea
                     required
                     value={newItem.description}
                     onChange={e => setNewItem({ ...newItem, description: e.target.value })}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none h-24 shadow-sm"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl px-4 py-3 text-primary-token focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none h-24 shadow-sm"
                     placeholder={t('epp.placeholder_description')}
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">{t('epp.field_initial_stock')}</label>
+                    <label className="block text-xs font-bold text-muted-token uppercase tracking-widest mb-2">{t('epp.field_initial_stock')}</label>
                     <input
                       type="number"
                       required
                       min="0"
                       value={newItem.stock}
                       onChange={e => setNewItem({ ...newItem, stock: parseInt(e.target.value) || 0 })}
-                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-sm"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl px-4 py-3 text-primary-token focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">{t('epp.field_image_url')}</label>
+                    <label className="block text-xs font-bold text-muted-token uppercase tracking-widest mb-2">{t('epp.field_image_url')}</label>
                     <input
                       type="url"
                       value={newItem.imageUrl}
                       onChange={e => setNewItem({ ...newItem, imageUrl: e.target.value })}
-                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-sm"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl px-4 py-3 text-primary-token focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-sm"
                       placeholder="https://..."
                     />
                   </div>
@@ -481,7 +481,7 @@ export function EPP() {
                     onChange={e => setNewItem({ ...newItem, required: e.target.checked })}
                     className="w-5 h-5 rounded border-zinc-300 dark:border-white/10 bg-zinc-50 dark:bg-zinc-800 text-emerald-500 focus:ring-emerald-500/50 focus:ring-offset-white dark:focus:ring-offset-zinc-900"
                   />
-                  <label htmlFor="required" className="text-sm font-bold text-zinc-900 dark:text-white">
+                  <label htmlFor="required" className="text-sm font-bold text-primary-token">
                     {t('epp.required')}
                   </label>
                 </div>

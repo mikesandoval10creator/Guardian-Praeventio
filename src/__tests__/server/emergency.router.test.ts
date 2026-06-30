@@ -14,6 +14,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
+// express-async-errors must be imported in the test process too — the real
+// router is mounted on a local express() app, and the monkey-patch is per
+// process, not per server.ts. This mirrors exactly what server.ts does so
+// the guard-hang regression tests exercise the real fix path.
+import 'express-async-errors';
 
 // ── hoisted holder ───────────────────────────────────────────────────────────
 // All variables referenced inside vi.mock() factories MUST be hoisted.
@@ -557,6 +562,43 @@ describe('POST /api/emergency/sos', () => {
 
     expect(res.status).toBe(200);
   });
+
+  // ── Guard-hang regression (express-async-errors) ──────────────────────────
+  //
+  // When Firestore is down, assertProjectMember inside the async handler throws
+  // a non-ProjectMembershipError. Prior to express-async-errors being wired in
+  // server.ts, Express 4 would HANG (the request never resolved) because async
+  // route rejections were not forwarded to next(err). These tests assert that
+  // the route returns 500 within the request — NOT a hang — even under outage.
+  //
+  // The app must have a terminal error handler so the error doesn't escape to
+  // supertest as an unhandled promise rejection. We add a minimal one here.
+
+  it('GUARD-HANG: Firestore outage on SOS path returns 500 (not hang)', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/emergency', emergencyRouter);
+    // Minimal error handler — mirrors what server.ts global handler does.
+    // express-async-errors forwards async rejections to this handler → 500.
+    app.use((_err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      res.status(500).json({ error: 'internal_server_error' });
+    });
+
+    // Seed project so validation passes, but force ALL Firestore reads to
+    // reject — simulating a Firestore outage. assertProjectMember will throw a
+    // generic Error (not ProjectMembershipError), which the route re-throws.
+    // express-async-errors must forward this to next(err) → our error handler.
+    H.db!._seed('projects/p-hang', { tenantId: 'tH', createdBy: 'u1', members: ['u1'] });
+    H.db!._failReads(); // all subsequent reads reject with Error('Firestore unavailable')
+
+    const res = await request(app)
+      .post(SOS)
+      .set('x-test-uid', 'u1')
+      .send({ type: 'sos', projectId: 'p-hang' });
+
+    // Must NOT hang — must return 500
+    expect(res.status).toBe(500);
+  });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -729,5 +771,25 @@ describe('POST /api/emergency/notify-brigada', () => {
     const fcmCall = H.fcmSendEach.mock.calls[0][0] as Record<string, unknown>;
     const sentTokens = (fcmCall.tokens as string[]).sort();
     expect(sentTokens).toEqual(['canonical-tok-1', 'canonical-tok-2']);
+  });
+
+  // ── Guard-hang regression (express-async-errors) ──────────────────────────
+  it('GUARD-HANG: Firestore outage on notify-brigada path returns 500 (not hang)', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/emergency', emergencyRouter);
+    app.use((_err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      res.status(500).json({ error: 'internal_server_error' });
+    });
+
+    H.db!._seed('projects/p-nb-hang', { tenantId: 'tH', createdBy: 'u1', members: ['u1'] });
+    H.db!._failReads();
+
+    const res = await request(app)
+      .post(NB)
+      .set('x-test-uid', 'u1')
+      .send({ projectId: 'p-nb-hang', emergencyType: 'fire' });
+
+    expect(res.status).toBe(500);
   });
 });

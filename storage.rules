@@ -127,23 +127,52 @@ service firebase.storage {
 
     // On-device photogrammetry digital-twin models (onDeviceAdapter GLB/USDZ).
     // Large binary blobs (model/* or octet-stream); <=200 MB.
+    //
+    // V4 hardening (2026-06-22): `isAllowedUpload()` is now required on create
+    // and update. The original comment ("skipping isAllowedUpload — GLB/USDZ
+    // often arrive as application/octet-stream") is no longer a blocker because
+    // isAllowedUpload() ALREADY covers both `model/.*` (gltf-binary,
+    // vnd.usdz+zip) and `application/octet-stream`. The omission was therefore
+    // safe in practice but left the door open for arbitrary content types (e.g.
+    // application/x-msdownload). Adding the check tightens the create rule
+    // without blocking any legitimate 3D asset upload.
     match /reconstructions/{projectId}/{allPaths=**} {
       allow read: if memberOfSite(projectId);
-      allow create, update: if memberOfSite(projectId) && isUnder(200 * 1024 * 1024);
+      allow create, update: if memberOfSite(projectId) && isAllowedUpload() && isUnder(200 * 1024 * 1024);
       allow delete: if memberOfSite(projectId);
+    }
+
+    // Whether the caller's token carries an admin/supervisor-tier role claim.
+    // Storage rules cannot read Firestore, so this is the only role signal
+    // available here. Mirrors the Firestore `hasSupervisorTierRole()` helper
+    // (roles from src/types/roles.ts via firestore.rules).
+    function isAdminOrSupervisorTier() {
+      return isSignedIn() && request.auth.token.email_verified == true &&
+        request.auth.token.role in [
+          'admin', 'gerente',
+          'supervisor', 'prevencionista', 'director_obra', 'medico_ocupacional'
+        ];
     }
 
     // Worker documents attached by a supervisor (DocsModal ->
     // documents/{workerId}/...). `workerId` is a worker-doc id, NOT a site id
-    // nor a caller uid, so this path cannot be assignedSiteIds- or owner-gated.
-    // Access control for these docs lives in Firestore (the
-    // projects/{pid}/workers/{wid}/documents metadata). Rules enforce only
-    // authentication + content + size; the unguessable path + signed
-    // downloadURL bound exposure.
+    // nor a caller uid, so this path cannot be assignedSiteIds- or owner-gated
+    // for read — the Firestore metadata doc at
+    // projects/{pid}/workers/{wid}/documents/{did} is the authoritative ACL,
+    // and the signed downloadURL (short-lived, scoped to this exact path) keeps
+    // unauthenticated access closed.
+    //
+    // V3 hardening (2026-06-22): delete is now restricted to admin/supervisor
+    // tier (parity with Firestore rule `allow delete: if isAdmin() ||
+    // isSupervisor()`). Read stays at `isSignedIn()` because `workerId` is
+    // not a uid or project id — we cannot gate per-owner without Firestore
+    // access; the unguessable path + signed URL remain the boundary for reads.
+    // Full owner-gated parity for reads requires a signed-URL approach or a
+    // server-side proxy rather than a Storage rule change.
     match /documents/{workerId}/{allPaths=**} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isAllowedUpload() && isUnder(50 * 1024 * 1024);
-      allow delete: if isSignedIn();
+      allow delete: if isAdminOrSupervisorTier();
     }
 
     // Worker personal vault — strictly per-uid private (self-service uploads).

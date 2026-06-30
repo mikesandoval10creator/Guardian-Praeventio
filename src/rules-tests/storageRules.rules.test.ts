@@ -131,15 +131,62 @@ describe('reconstructions/{pid}/** — binary 3D models', () => {
   it('an outsider cannot upload a model', async () => {
     await assertFails(uploadBytes(r(outsider(), `reconstructions/${PID}/scan.glb`), BYTES, { contentType: 'application/octet-stream' }));
   });
+  // V4 hardening (2026-06-22): isAllowedUpload() is now required.
+  // Verify the 3D content-types that triggered the original skip comment
+  // continue to work (isAllowedUpload covers model/* and octet-stream).
+  it('V4: member can upload a model/gltf-binary (GLB explicit MIME)', async () => {
+    await assertSucceeds(uploadBytes(r(member(), `reconstructions/${PID}/scene.glb`), BYTES, { contentType: 'model/gltf-binary' }));
+  });
+  it('V4: member can upload a model/vnd.usdz+zip (USDZ explicit MIME)', async () => {
+    await assertSucceeds(uploadBytes(r(member(), `reconstructions/${PID}/scene.usdz`), BYTES, { contentType: 'model/vnd.usdz+zip' }));
+  });
+  it('V4: arbitrary disallowed content-type is now REJECTED (application/x-msdownload)', async () => {
+    // Before V4 this would have SUCCEEDED (no isAllowedUpload check). After V4 it must FAIL.
+    await assertFails(uploadBytes(r(member(), `reconstructions/${PID}/exploit.exe`), BYTES, { contentType: 'application/x-msdownload' }));
+  });
+  it('V4: unauthenticated upload is denied', async () => {
+    await assertFails(uploadBytes(r(unauth(), `reconstructions/${PID}/scan.glb`), BYTES, { contentType: 'application/octet-stream' }));
+  });
 });
 
-describe('documents/{workerId}/** — authenticated (Firestore-metadata gated)', () => {
+describe('documents/{workerId}/** — V3 hardening (delete requires admin/supervisor tier)', () => {
   const PATH = 'documents/worker-7/contract.pdf';
-  it('any signed-in user can upload a worker document', async () => {
+
+  // Upload / read behavior unchanged.
+  it('any signed-in user can upload a worker document (unchanged)', async () => {
     await assertSucceeds(uploadBytes(r(member(), PATH), BYTES, { contentType: 'application/pdf' }));
   });
-  it('an unauthenticated request cannot upload', async () => {
+  it('an unauthenticated request cannot upload (unchanged)', async () => {
     await assertFails(uploadBytes(r(unauth(), PATH), BYTES, { contentType: 'application/pdf' }));
+  });
+  it('a signed-in user can read a worker document (unchanged)', async () => {
+    await seed(PATH, 'application/pdf');
+    await assertSucceeds(getBytes(r(member(), PATH)));
+  });
+
+  // V3: delete is now gated on admin/supervisor tier role claim.
+  it('V3: admin-tier user can delete a worker document', async () => {
+    await seed(PATH, 'application/pdf');
+    // admin role in token claim — matches isAdminOrSupervisorTier()
+    await assertSucceeds(deleteObject(r(storageOf(MEMBER, { email_verified: true, role: 'admin' }), PATH)));
+  });
+  it('V3: supervisor-tier user can delete a worker document', async () => {
+    await seed(PATH, 'application/pdf');
+    await assertSucceeds(deleteObject(r(storageOf(MEMBER, { email_verified: true, role: 'supervisor' }), PATH)));
+  });
+  it('V3: worker-role user CANNOT delete a worker document', async () => {
+    await seed(PATH, 'application/pdf');
+    // worker role — below supervisor tier, denied by isAdminOrSupervisorTier()
+    await assertFails(deleteObject(r(storageOf(MEMBER, { email_verified: true, role: 'worker' }), PATH)));
+  });
+  it('V3: unauthenticated user CANNOT delete a worker document', async () => {
+    await seed(PATH, 'application/pdf');
+    await assertFails(deleteObject(r(unauth(), PATH)));
+  });
+  it('V3: user with no role claim CANNOT delete a worker document', async () => {
+    await seed(PATH, 'application/pdf');
+    // email_verified but no role claim — isAdminOrSupervisorTier() requires role in list
+    await assertFails(deleteObject(r(storageOf(MEMBER, { email_verified: true }), PATH)));
   });
 });
 

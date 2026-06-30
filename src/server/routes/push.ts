@@ -4,7 +4,8 @@
 // Capacitor push plugin acquires a device token at runtime, then calls
 // this endpoint so the server can `arrayUnion` it onto `users/{uid}` for
 // targeted notifications (Modo Crisis, alertas de seguridad, recordatorios
-// de cumplimiento DS 54/40).
+// de cumplimiento; el DS 44/2024 reemplaza a los ex DS 54 y ex DS 40,
+// derogados 01-02-2025).
 //
 // Mounted at `/api/push` in server.ts. Final paths preserved verbatim:
 //   • POST /api/push/register-token

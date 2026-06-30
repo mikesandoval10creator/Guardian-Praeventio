@@ -50,28 +50,29 @@ import {
   type ChallengePeriod,
 } from '../components/dashboard/challengeUtils';
 import { WeatherBulletin } from '../components/dashboard/WeatherBulletin';
-import { WeatherSafetyRecommendations } from '../components/WeatherSafetyRecommendations';
-import { SunTrackerContainer } from '../components/SunTrackerContainer';
 import { ComplianceCard } from '../components/dashboard/ComplianceCard';
 import { ComplianceTrafficLight } from '../components/compliance/ComplianceTrafficLight';
 import { useComplianceTrafficLight } from '../hooks/useComplianceTrafficLight';
 import { RubroBenchmarksCard } from '../components/dashboard/RubroBenchmarksCard';
 import { DashboardQuickActions } from '../components/dashboard/DashboardQuickActions';
-import { EPPRequiredWidget } from '../components/dashboard/EPPRequiredWidget';
+import { EppSelector } from '../components/epp/EppSelector';
+import { rubroIdForIndustry } from '../components/epp/eppSelectorData';
 import { ManDownSupervisorWidget } from '../components/dashboard/ManDownSupervisorWidget';
 import { DashboardHero } from '../components/dashboard/DashboardHero';
-import { AdviceBanner } from '../components/dashboard/AdviceBanner';
+import { RotatingAdviceBanner } from '../components/dashboard/RotatingAdviceBanner';
 import { ModuleGroupsGrid } from '../components/dashboard/ModuleGroupsGrid';
 import { PlannerModal } from '../components/dashboard/PlannerModal';
 import { ExpirationsListPanel } from '../components/expirations/ExpirationsListPanel';
 import { useExpirableItems } from '../hooks/useExpirableItems';
 import { SlaWatchPanel } from '../components/escalation/SlaWatchPanel';
 import { useSlaWatchItems } from '../hooks/useSlaWatchItems';
-import { Iso45001Catalog } from '../components/regulatory/Iso45001Catalog';
 import { buildRoleViewRemote } from '../hooks/useRoleViews';
 import type { RoleCard } from '../hooks/useRoleViews';
 import { RoleViewCards } from '../components/roleViews/RoleViewCards';
 import type { UserRole } from '../services/roleViews/roleViewBuilder';
+import { KpiRow, type KpiItem } from '../components/dashboard/KpiRow';
+import { useDensityStore } from '../store/densityStore';
+import { ShieldCheck, FileCheck, Clock3, AlertOctagon } from 'lucide-react';
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -85,6 +86,7 @@ export function Dashboard() {
   const { result: complianceLight } = useComplianceTrafficLight(
     selectedProject?.id ?? null,
   );
+  const density = useDensityStore((s) => s.density);
   const { stats, completeChallenge } = useGamification();
   const { environment } = useUniversalKnowledge();
   const weather = environment?.weather;
@@ -357,6 +359,44 @@ export function Dashboard() {
 
   const complianceData = getComplianceData();
 
+  const kpiItems: KpiItem[] = [
+    {
+      id: 'compliance',
+      label: t('dashboard.kpi.compliance', 'Cumplimiento'),
+      value: `${complianceData.percentage}%`,
+      sub: complianceLight
+        ? t('dashboard.kpi.sourced', '{{n}} de {{m}} fuentes', {
+            n: complianceLight.sourcedCount, m: complianceLight.totalCount,
+          })
+        : complianceData.label,
+      tone: complianceData.percentage >= 90 ? 'success' : complianceData.percentage >= 70 ? 'brand' : 'attention',
+      icon: ShieldCheck,
+    },
+    {
+      id: 'permits',
+      label: t('dashboard.kpi.permits', 'Permisos activos'),
+      value: workPermitsData?.permits?.length ?? 0,
+      sub: t('dashboard.kpi.permits_sub', 'PT vigentes'),
+      icon: FileCheck,
+    },
+    {
+      id: 'expirations',
+      label: t('dashboard.kpi.expirations', 'Próx. vencimientos'),
+      value: expirables.length,
+      sub: t('dashboard.kpi.expirations_sub', 'EPP, exámenes, capacit.'),
+      tone: expirables.length > 0 ? 'attention' : 'neutral',
+      icon: Clock3,
+    },
+    {
+      id: 'critical',
+      label: t('dashboard.kpi.critical', 'Hallazgos críticos'),
+      value: faenaInput.openCriticalFindings,
+      sub: t('dashboard.kpi.critical_sub', 'abiertos'),
+      tone: faenaInput.openCriticalFindings > 0 ? 'alert' : 'success',
+      icon: AlertOctagon,
+    },
+  ];
+
   // Automated Gamification Logic — auto-complete challenges when matching
   // node types are created today for the active project.
   useEffect(() => {
@@ -413,10 +453,13 @@ export function Dashboard() {
   };
 
   return (
-    <div data-testid="dashboard-page" className="flex-1 flex flex-col justify-start gap-1 sm:gap-4 pb-20 sm:pb-4 pt-1 sm:pt-4 px-2 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full min-h-[calc(100vh-4rem)]">
+    <div data-testid="dashboard-page" data-density={density} className="flex-1 flex flex-col [&>*]:shrink-0 justify-start gap-1 sm:gap-4 pb-20 sm:pb-4 pt-1 sm:pt-4 px-2 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full min-h-[calc(100vh-4rem)]">
 
       {/* Hero greeting + morning check-in trigger */}
       <DashboardHero onMorningCheckIn={() => setShowMorningCheckIn(true)} />
+
+      {/* KPI row — real derived metrics */}
+      <KpiRow items={kpiItems} density={density} />
 
       {/* F.2 compliance traffic light (compact). Real legal engine; renders
           only once the snapshot is computed — never a fabricated placeholder. */}
@@ -493,35 +536,27 @@ export function Dashboard() {
           Maps `weather.uv` → `uvIndex` (component reads uvIndex internally;
           environment.weather exposes it as `uv`). Altitude passed through
           for DS 594 §53 altitude-tier recommendations. */}
-      {weather && !weather.unavailable && (
-        <WeatherSafetyRecommendations
-          weather={{
-            temp: weather.temp,
-            windSpeed: weather.windSpeed,
-            humidity: weather.humidity,
-            uvIndex: weather.uv ?? undefined,
-            altitude: weather.altitude ?? undefined,
-            description: weather.condition,
-          }}
-        />
-      )}
 
-      {/* Sun/moon ambient tracker — Sprint A PR #516 wire. Visual companion
-          to the weather bulletin showing 24h solar state + lunar phase +
-          solar elevation arc. Codex P2 3309059265 fix: reads
-          `selectedProject.coordinates.lat` (canonical project geo field per
-          types/index.ts:155 + ProjectContext:17 — also consumed by
-          EmergenciaAvanzada and SiteMap). Santiago (-33.4489) is the safe
-          fallback when no project is selected or project lacks coordinates. */}
-      <SunTrackerContainer
-        lat={selectedProject?.coordinates?.lat ?? -33.4489}
+      {/* Celestial tracker consolidado dentro del Boletín climático
+          (WeatherBulletin → panel derecho). Se eliminó el widget standalone
+          duplicado para no mostrar dos arcos solares en el dashboard. */}
+
+      {/* Consejo rotativo — consolida los 3 banners de consejo en uno solo. */}
+      <RotatingAdviceBanner
+        industry={selectedProject?.industry}
+        weather={
+          weather && !weather.unavailable
+            ? {
+                temp: weather.temp,
+                humidity: weather.humidity,
+                windSpeed: weather.windSpeed,
+                uvIndex: weather.uv ?? undefined,
+                altitude: weather.altitude ?? undefined,
+              }
+            : undefined
+        }
       />
 
-      {/* Daily safety tip — industry-aware */}
-      <AdviceBanner />
-
-      {/* ISO 45001:2018 baseline controls catalog */}
-      <Iso45001Catalog />
 
       {/* 4. Real-Time Status Widget */}
       <RealTimeStatusWidget />
@@ -532,8 +567,11 @@ export function Dashboard() {
       {/* Man Down supervisor alert — only renders when events exist */}
       <ManDownSupervisorWidget />
 
-      {/* 5. EPP Widget */}
-      <EPPRequiredWidget />
+      {/* 5. EPP context-aware (2026-06-28): UN solo widget para todos. EppSelector
+          muestra la mascota + el EPP del rubro, auto-detectado del contexto del
+          proyecto (faena demo para invitados; rubro real con sesión). Consolida
+          el duplicado EPPRequiredWidget. */}
+      <EppSelector initialRubroId={rubroIdForIndustry(selectedProject?.industry)} />
 
       {/* 6. Modules - Scrollable Grid */}
       <ModuleGroupsGrid />

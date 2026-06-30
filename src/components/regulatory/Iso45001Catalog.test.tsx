@@ -34,4 +34,11 @@ describe('<Iso45001Catalog />', () => {
     fireEvent.click(screen.getByTestId('iso45001-btn-LEADERSHIP_COMMITMENT'));
     expect(onClick).toHaveBeenCalledWith('LEADERSHIP_COMMITMENT');
   });
+
+  it('al clickear un control abre el drawer de detalle (no navega a iso.org)', () => {
+    render(<Iso45001Catalog />);
+    const firstBtn = screen.getByTestId('iso45001-btn-LEADERSHIP_COMMITMENT');
+    fireEvent.click(firstBtn);
+    expect(screen.getByRole('dialog', { name: /Detalle de control ISO 45001/i })).toBeInTheDocument();
+  });
 });

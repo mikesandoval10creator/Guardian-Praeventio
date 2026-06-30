@@ -209,12 +209,17 @@ const ds67Schema = z.object({
   body: z.record(z.string(), z.unknown()),
 });
 
-const ds76Schema = z.object({
+// _ds76Schema was previously used by clSafetyInspectionAdapter (Sprint 38 passthrough).
+// Kept for reference; may be used when a DS-76 specific adapter ships (Sprint 40).
+const _ds76Schema = z.object({
   tenantId: z.string().min(1),
   body: z.record(z.string(), z.unknown()),
 });
 
-const susesoSchema = z.object({
+// _susesoSchema (opaque body) was the previous Sprint 38 stub for occupational_injury.
+// Replaced by susesoFullSchema below which validates the complete SUSESO form.
+// Kept for reference; remove when Sprint 40 confirms no callers remain.
+const _susesoSchema = z.object({
   tenantId: z.string().min(1),
   formType: z.enum(['DIAT', 'DIEP']),
   body: z.record(z.string(), z.unknown()),
@@ -246,27 +251,168 @@ const aptitudeCertSchema = z.object({
 
 // ─── CL adapter factory ─────────────────────────────────────────────────────
 //
-// Each CL adapter wraps the existing service with a thin facade. The
-// underlying service is NOT modified (regla del usuario: cero refactor
-// que rompa Sprint 28-35). Generators here return only the payload-shape
-// portion that the new registry contract expects; persistence (Firestore
-// folio counters, signature attach) sigue siendo responsabilidad del
-// caller, que puede ser el route legacy o el nuevo /emit endpoint.
+// Each CL adapter wraps an existing service. The underlying services are
+// NOT modified (regla del usuario: cero refactor que rompa Sprint 28-35).
+// All adapters follow CLAUDE.md directives:
+//   • NO push to SUSESO/MUTUAL/SII — adapters return documents locally.
+//   • NO bloquear maquinaria — adapters only emit documents.
+//   • Anti-stub (rule 13): adapters that lack a real server-side generator
+//     are gated behind HTTP 503 by the route (NOT by returning fake data).
+//
+// Wiring map (this sprint):
+//   occupational_injury → createSusesoForm (suseso/susesoService.ts) — real folio + PDF + hash
+//   aptitude_cert       → generateAptitudeCertificateBytes (utils/aptitudeCertificate.ts) — real PDF bytes
+//   tax_invoice         → generateDte (sii/dteGenerator.ts) — already wired (unchanged)
+//   committee_minutes   → renderLegalDoc CPHS_ACTA (documents/legalDocTemplates.ts) — real markdown doc
+//   training_record     → renderLegalDoc ODI (documents/legalDocTemplates.ts) — real markdown doc
+//   safety_inspection   → 503-gated: no server-side checklist-PDF generator yet
+//                         (checklistBuilder.ts produces JSON schema; server-side PDF
+//                          render requires pdfkit integration, Sprint 40+).
+//                         Registered in docs/stubs-inventory.md per CLAUDE.md #13.
+
+// ─── Zod schema for occupational_injury (real SUSESO shape) ─────────────────
+//
+// The susesoSchema above is opaque (body: Record<string, unknown>). For the
+// real generator we need the full SUSESO form fields. This schema validates
+// the wider shape before delegating to createSusesoForm.
+const susesoFullSchema = z.object({
+  tenantId: z.string().min(1),
+  formType: z.enum(['DIAT', 'DIEP']),
+  workerRut: z.string().min(1),
+  workerFullName: z.string().min(1),
+  companyRut: z.string().min(1),
+  companyName: z.string().min(1),
+  mutualidad: z.enum(['achs', 'mutual_seguridad', 'ist', 'isl']),
+  incidentDate: z.string().min(1),
+  incidentDescription: z.string().min(1),
+  incidentLocation: z.string().min(1),
+  bodyPartsAffected: z.array(z.string()).default([]),
+  incidentClassification: z.enum([
+    'accidente_trabajo',
+    'enfermedad_profesional',
+    'accidente_trayecto',
+  ]),
+  ds101Causal: z.string().optional(),
+  ds110Causal: z.string().optional(),
+  witnesses: z.array(z.object({ fullName: z.string(), rut: z.string() })).default([]),
+  reportedBy: z.object({
+    uid: z.string().min(1),
+    rut: z.string().min(1),
+    fullName: z.string().min(1),
+  }),
+  publicBaseUrl: z.string().optional(),
+});
 
 function clOccupationalInjuryAdapter(): EmissionAdapter {
   return {
     country: 'CL',
     type: 'occupational_injury',
-    validate: susesoSchema,
+    validate: susesoFullSchema,
     suggestedFormats: ['application/json', 'application/pdf'],
-    legalCitation: 'Ley 16.744 + DS 67/1999 + DIAT/DIEP SUSESO',
+    legalCitation: 'Ley 16.744 art. 76 + DS 101/1968 (DIAT) + DS 110/1968 (DIEP) + SUSESO DIAT/DIEP',
     async generate(payload: unknown): Promise<EmissionResult> {
-      // Lazy import to avoid pulling firebase-admin into this module
-      // at import time (registry must remain unit-testable without
-      // GOOGLE_APPLICATION_CREDENTIALS).
-      const parsed = susesoSchema.parse(payload);
+      // Lazy imports: firebase-admin must NOT be imported at module load time
+      // (registry must remain unit-testable without GOOGLE_APPLICATION_CREDENTIALS).
+      const parsed = susesoFullSchema.parse(payload);
+      const { createSusesoForm, folioToDocId } = await import('../suseso/susesoService.js');
+      // folioGenerator is imported transitively by susesoService — imported
+      // here only to keep the dependency explicit (linter: no-unused-vars).
+      await import('../suseso/folioGenerator.js');
+
+      // Build the minimal Firestore adapters. In unit tests these deps
+      // are provided by the test via payload injection or the route mocks
+      // firebase-admin before calling this module.
+      const adminModule = await import('firebase-admin');
+      const adminFirestore = adminModule.default.firestore();
+
+      // MinimalFolioStore adapter wrapping admin.firestore()
+      const folioStore: import('./../../services/suseso/folioGenerator.js').MinimalFolioStore = {
+        async runTransaction(fn) {
+          return adminFirestore.runTransaction(async (tx) => {
+            return fn({
+              async get(path: string) {
+                const ref = adminFirestore.doc(path);
+                const snap = await tx.get(ref);
+                return snap.exists
+                  ? { exists: true as const, data: snap.data() as { lastSeq?: number } }
+                  : { exists: false as const };
+              },
+              set(path: string, value: { lastSeq: number }) {
+                tx.set(adminFirestore.doc(path), value);
+              },
+            });
+          }) as ReturnType<typeof fn>;
+        },
+      };
+
+      // MinimalFormStore adapter
+      const formsPath = (tid: string) =>
+        adminFirestore.collection('tenants').doc(tid).collection('suseso_forms');
+      const formStore = {
+        async saveForm(tenantId: string, formId: string, form: unknown) {
+          await formsPath(tenantId).doc(formId).set(form as object);
+        },
+        async loadForm(tenantId: string, formId: string) {
+          const snap = await formsPath(tenantId).doc(formId).get();
+          return snap.exists ? snap.data() : null;
+        },
+        async findFormByFolio(folio: string) {
+          const snap = await adminFirestore
+            .collectionGroup('suseso_forms')
+            .where('folio', '==', folio)
+            .limit(1)
+            .get();
+          if (snap.empty) return null;
+          const doc = snap.docs[0];
+          const tenantId = doc.ref.parent.parent?.id ?? '';
+          return { tenantId, form: doc.data() };
+        },
+        async attachSignature(tenantId: string, formId: string, signature: unknown) {
+          const ref = formsPath(tenantId).doc(formId);
+          await ref.update({ signature });
+          const snap = await ref.get();
+          return snap.data();
+        },
+      };
+
+      const result = await createSusesoForm(
+        {
+          tenantId: parsed.tenantId,
+          kind: parsed.formType,
+          workerRut: parsed.workerRut,
+          workerFullName: parsed.workerFullName,
+          companyRut: parsed.companyRut,
+          companyName: parsed.companyName,
+          mutualidad: parsed.mutualidad,
+          incidentDate: parsed.incidentDate,
+          incidentDescription: parsed.incidentDescription,
+          incidentLocation: parsed.incidentLocation,
+          bodyPartsAffected: parsed.bodyPartsAffected,
+          incidentClassification: parsed.incidentClassification,
+          ds101Causal: parsed.ds101Causal,
+          ds110Causal: parsed.ds110Causal,
+          witnesses: parsed.witnesses,
+          reportedBy: parsed.reportedBy,
+        },
+        {
+          folioStore: folioStore as Parameters<typeof createSusesoForm>[1]['folioStore'],
+          formStore: formStore as Parameters<typeof createSusesoForm>[1]['formStore'],
+          publicBaseUrl: parsed.publicBaseUrl,
+        },
+      );
+
+      // Convert Uint8Array → base64 for JSON transport.
+      const pdfBase64 = Buffer.from(result.pdfBytes).toString('base64');
+
       return {
-        json: { adapter: 'CL/occupational_injury', formType: parsed.formType, ...parsed.body },
+        json: {
+          form: result.form,
+          payloadHashHex: result.payloadHashHex,
+          qrCodeUrl: result.qrCodeUrl,
+          formId: folioToDocId(result.form.folio),
+        },
+        pdfBase64,
+        folio: result.form.folio,
       };
     },
   };
@@ -277,17 +423,33 @@ function clAptitudeCertAdapter(): EmissionAdapter {
     country: 'CL',
     type: 'aptitude_cert',
     validate: aptitudeCertSchema,
-    suggestedFormats: ['application/pdf'],
+    suggestedFormats: ['application/pdf', 'application/json'],
     legalCitation: 'DS 109 / NCh ISO 45001 + Examen Ocupacional MINSAL',
     async generate(payload: unknown): Promise<EmissionResult> {
       const parsed = aptitudeCertSchema.parse(payload);
-      // generateAptitudeCertificate writes a PDF via jsPDF in browser
-      // path; here we return the parsed JSON payload. PDF rendering
-      // happens in the route layer or frontend. Sprint 39+ this can
-      // be lifted into the adapter if a server-side jsPDF render is
-      // wired (no crypto-significant change required).
+      // generateAptitudeCertificateBytes produces real PDF bytes via jsPDF
+      // (server-safe: uses output('arraybuffer'), does NOT call doc.save()).
+      const { generateAptitudeCertificateBytes } = await import('../../utils/aptitudeCertificate.js');
+      const { bytes } = generateAptitudeCertificateBytes({
+        workerName: parsed.workerName,
+        workerRut: parsed.workerRut,
+        workerAge: parsed.workerAge,
+        workerOccupation: parsed.workerOccupation,
+        projectName: parsed.projectName,
+        examType: parsed.examType,
+        examDate: parsed.examDate,
+        result: parsed.result,
+        restrictions: parsed.restrictions,
+        validUntil: parsed.validUntil,
+        doctorName: parsed.doctorName,
+        doctorRut: parsed.doctorRut,
+        doctorRegistry: parsed.doctorRegistry,
+        observations: parsed.observations,
+      });
+      const pdfBase64 = Buffer.from(bytes).toString('base64');
       return {
-        json: { adapter: 'CL/aptitude_cert', ...parsed },
+        json: parsed,
+        pdfBase64,
       };
     },
   };
@@ -311,56 +473,137 @@ function clTaxInvoiceAdapter(): EmissionAdapter {
   };
 }
 
+const committeeMinutesSchema = z.object({
+  tenantId: z.string().min(1),
+  meetingDate: z.string().min(1),
+  companyName: z.string().min(1),
+  projectName: z.string().min(1),
+  attendees: z.array(z.string()).min(1),
+  agenda: z.array(z.string()).min(1),
+  agreements: z.string().min(1),
+  nextMeetingDate: z.string().optional(),
+});
+
 function clCommitteeMinutesAdapter(): EmissionAdapter {
-  // Sprint 28 delivered CPHS minutes in a separate utility chain.
-  // Sprint 38 marks the shape; the concrete generator is wired in
-  // Sprint 39 once counsel local re-validates the CPHS template.
   return {
     country: 'CL',
     type: 'committee_minutes',
-    validate: z.object({
-      tenantId: z.string().min(1),
-      meetingDate: z.string(),
-      attendees: z.array(z.record(z.string(), z.unknown())),
-      agenda: z.array(z.string()).min(1),
-    }),
-    suggestedFormats: ['application/pdf'],
-    legalCitation: 'Ley 16.744 art. 66 + DS 54/1969 (CPHS)',
+    validate: committeeMinutesSchema,
+    suggestedFormats: ['application/json'],
+    legalCitation: 'Ley 16.744 art. 66 + DS 44/2024 (ex DS 54, derogado 01-02-2025) — CPHS',
     async generate(payload: unknown): Promise<EmissionResult> {
-      return { json: { adapter: 'CL/committee_minutes', ...(payload as object) } };
+      const parsed = committeeMinutesSchema.parse(payload);
+      const { renderLegalDoc } = await import('../documents/legalDocTemplates.js');
+      const rendered = renderLegalDoc({
+        kind: 'CPHS_ACTA',
+        data: {
+          meetingDate: parsed.meetingDate,
+          companyName: parsed.companyName,
+          projectName: parsed.projectName,
+          attendees: parsed.attendees.join('\n'),
+          agenda: parsed.agenda.map((item, i) => `${i + 1}. ${item}`).join('\n'),
+          agreements: parsed.agreements,
+          nextMeetingDate: parsed.nextMeetingDate ?? '—',
+        },
+      });
+      if (!rendered.ok) {
+        throw new Error(
+          `CPHS_ACTA template failed — missing tokens: ${rendered.missingTokens?.join(', ')}`,
+        );
+      }
+      return {
+        json: {
+          tenantId: parsed.tenantId,
+          meetingDate: parsed.meetingDate,
+          markdown: rendered.markdown,
+          legalReferences: rendered.references,
+          generatedAt: new Date().toISOString(),
+        },
+      };
     },
   };
 }
+
+const trainingRecordSchema = z.object({
+  tenantId: z.string().min(1),
+  workerName: z.string().min(1),
+  workerRut: z.string().min(1),
+  courseTitle: z.string().min(1),
+  hours: z.number().positive(),
+  completedAt: z.string().min(1),
+  companyName: z.string().min(1),
+  supervisorName: z.string().optional(),
+});
 
 function clTrainingRecordAdapter(): EmissionAdapter {
   return {
     country: 'CL',
     type: 'training_record',
-    validate: z.object({
-      tenantId: z.string().min(1),
-      workerRut: z.string().min(1),
-      courseTitle: z.string().min(1),
-      hours: z.number().positive(),
-      completedAt: z.string(),
-    }),
-    suggestedFormats: ['application/pdf'],
-    legalCitation: 'Ley 16.744 + DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01) + ODI (Obligación de Informar)',
+    validate: trainingRecordSchema,
+    suggestedFormats: ['application/json'],
+    legalCitation: 'Ley 16.744 art. 21 + DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01) + ODI (Obligación de Informar)',
     async generate(payload: unknown): Promise<EmissionResult> {
-      return { json: { adapter: 'CL/training_record', ...(payload as object) } };
+      const parsed = trainingRecordSchema.parse(payload);
+      const { renderLegalDoc } = await import('../documents/legalDocTemplates.js');
+      const rendered = renderLegalDoc({
+        kind: 'ODI',
+        data: {
+          workerName: parsed.workerName,
+          workerRut: parsed.workerRut,
+          position: parsed.courseTitle,
+          companyName: parsed.companyName,
+          date: parsed.completedAt,
+          specificRisks: `Capacitación completada: ${parsed.courseTitle} (${parsed.hours} horas). Registro generado conforme DS 44/2024 art. 19.`,
+          supervisor: parsed.supervisorName ?? '',
+        },
+      });
+      if (!rendered.ok) {
+        throw new Error(
+          `ODI template failed — missing tokens: ${rendered.missingTokens?.join(', ')}`,
+        );
+      }
+      return {
+        json: {
+          tenantId: parsed.tenantId,
+          workerRut: parsed.workerRut,
+          workerName: parsed.workerName,
+          courseTitle: parsed.courseTitle,
+          hours: parsed.hours,
+          completedAt: parsed.completedAt,
+          markdown: rendered.markdown,
+          legalReferences: rendered.references,
+          generatedAt: new Date().toISOString(),
+        },
+      };
     },
   };
 }
 
 function clSafetyInspectionAdapter(): EmissionAdapter {
+  // TODO(sprint-40): wire to server-side checklist-PDF generator once
+  // checklistBuilder.ts + pdfkit integration is complete. The
+  // checklistBuilder produces JSON schemas (not PDF bytes); a pdfkit
+  // render layer is needed server-side.
+  // Registered in docs/stubs-inventory.md per CLAUDE.md #13.
+  //
+  // This adapter is 503-gated at the route layer — it deliberately does
+  // NOT return fake/passthrough data (CLAUDE.md #13 anti-stub rule).
   return {
     country: 'CL',
     type: 'safety_inspection',
     validate: ds67Schema,
     suggestedFormats: ['application/pdf'],
-    legalCitation: 'DS 67/1999 (Reglamento Interno) + DS 594/1999 (Condiciones Sanitarias)',
-    async generate(payload: unknown): Promise<EmissionResult> {
-      const parsed = ds67Schema.parse(payload);
-      return { json: { adapter: 'CL/safety_inspection', tenantId: parsed.tenantId, ...parsed.body } };
+    legalCitation: 'DS 594/1999 (Condiciones Sanitarias) + DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01) + NCh ISO 45001 §9.1',
+    async generate(_payload: unknown): Promise<EmissionResult> {
+      // 503 gate: the real checklist-PDF builder requires pdfkit on the
+      // server which is not yet integrated. Do NOT return passthrough JSON
+      // (anti-stub per CLAUDE.md #13). The route maps this error to 503.
+      const err = new Error(
+        'safety_inspection PDF generator not yet available server-side (Sprint 40). ' +
+        'Use the mobile checklist builder UI which renders the PDF client-side.',
+      );
+      (err as Error & { code: string }).code = 'not_implemented_503';
+      throw err;
     },
   };
 }

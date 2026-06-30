@@ -241,8 +241,8 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
     SpiDashboard #1039, OperationalPressureGauge #1034 — all 3 merged as
     "mount" but absent from `Dashboard.tsx` in main). Enforced by
     `scripts/check-render-ratchet.cjs` (baseline
-    `scripts/render-ratchet-baseline.json`; wired into `.husky/pre-commit` + CI
-    — **in flight, plan 2026-06-19**). Connecting a baselined orphan means it
+    `scripts/render-ratchet-baseline.json`; wired into `.husky/pre-commit` as
+    of 2026-06-22). Connecting a baselined orphan means it
     RENDERS; regenerate with `--write`.
 24. **PR scope gate (anti-#1039).** A PR must not touch security/config files
     outside the scope of its title. A `feat: mount X` / `feat: wire Y` PR may
@@ -254,7 +254,9 @@ validate-env, rules-tests, mobile-signing, lint, e2e, perf, codeql, ossar.
     into git via an indiscriminate `git add` — a security regression unrelated
     to its title that turned main red. Enforced by
     `scripts/validate-pr-scope.cjs` + `.github/workflows/pr-scope-check.yml`
-    (**in flight, plan 2026-06-19**). Applies to AI-agent PRs (MiMo) too — see
+    (added 2026-06-22; advisory / non-blocking in CI until in-flight
+    baseline-touching PRs clear — see workflow for flip-to-required TODO).
+    Applies to AI-agent PRs (MiMo) too — see
     the MiMo workflow note below.
 
 ## Testing notes specific to this repo

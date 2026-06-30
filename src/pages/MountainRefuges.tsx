@@ -136,11 +136,11 @@ export function MountainRefuges() {
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Mountain className="w-8 h-8 text-blue-500" />
             {t('mountainRefuges.title', 'Refugios de Montaña')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t(
               'mountainRefuges.subtitle',
               'Catálogo CONAF + Clubes Andinos — coordenadas verificadas',
@@ -148,7 +148,7 @@ export function MountainRefuges() {
           </p>
         </div>
         <div
-          className={`px-4 py-2 rounded-xl border flex items-center gap-2 ${weatherCondition === 'blizzard' ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' : 'text-zinc-400 bg-zinc-800 border-white/10'}`}
+          className={`px-4 py-2 rounded-xl border flex items-center gap-2 ${weatherCondition === 'blizzard' ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' : 'text-muted-token bg-elevated border-default-token'}`}
         >
           <ThermometerSnowflake className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">
@@ -174,27 +174,27 @@ export function MountainRefuges() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Controls Panel */}
-        <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-6">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <Navigation className="w-5 h-5 text-blue-500" />
             {t('mountainRefuges.routeConditions', 'Condiciones de Ruta')}
           </h2>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">
+              <label className="block text-sm font-medium text-muted-token mb-2">
                 {t('mountainRefuges.currentWeather', 'Clima Actual')}
               </label>
               <div className="flex gap-2">
                 <button
                   onClick={() => setWeatherCondition('clear')}
-                  className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${weatherCondition === 'clear' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${weatherCondition === 'clear' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-surface border-default-token text-muted-token'}`}
                 >
                   {t('mountainRefuges.weather.clear', 'Despejado')}
                 </button>
                 <button
                   onClick={() => setWeatherCondition('blizzard')}
-                  className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${weatherCondition === 'blizzard' ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${weatherCondition === 'blizzard' ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-surface border-default-token text-muted-token'}`}
                 >
                   {t('mountainRefuges.weather.blizzard', 'Tormenta')}
                 </button>
@@ -202,7 +202,7 @@ export function MountainRefuges() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">
+              <label className="block text-sm font-medium text-muted-token mb-2">
                 {t('mountainRefuges.temperature', 'Temperatura (°C)')}
               </label>
               <input
@@ -213,7 +213,7 @@ export function MountainRefuges() {
                 onChange={(e) => setTemperature(Number(e.target.value))}
                 className="w-full accent-blue-500"
               />
-              <div className="flex justify-between text-xs text-zinc-500 mt-1">
+              <div className="flex justify-between text-xs text-muted-token mt-1">
                 <span>-40°C</span>
                 <span className="font-bold text-blue-400">{temperature}°C</span>
                 <span>10°C</span>
@@ -221,12 +221,12 @@ export function MountainRefuges() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-white/5">
-            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+          <div className="pt-4 border-t border-default-token">
+            <h3 className="text-sm font-bold text-primary-token mb-3 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-blue-500" />
               {t('mountainRefuges.protocol', 'Protocolo Activo')}
             </h3>
-            <ul className="space-y-2 text-sm text-zinc-400">
+            <ul className="space-y-2 text-sm text-muted-token">
               {weatherCondition === 'blizzard' ? (
                 <>
                   <li className="flex items-start gap-2">
@@ -287,15 +287,15 @@ export function MountainRefuges() {
         <div className="lg:col-span-2 space-y-6">
           {/* Header del listado */}
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
               <MapPin className="w-5 h-5 text-emerald-500" />
               {t('mountainRefuges.nearestTitle', 'Refugios más cercanos')}
-              <span className="text-xs font-mono text-zinc-500">
+              <span className="text-xs font-mono text-muted-token">
                 {userLocation.lat.toFixed(3)}, {userLocation.lng.toFixed(3)}
               </span>
             </h2>
             {geoStatus === 'requesting' && (
-              <span className="text-xs text-zinc-500 animate-pulse">
+              <span className="text-xs text-muted-token animate-pulse">
                 {t('mountainRefuges.locating', 'Geolocalizando...')}
               </span>
             )}
@@ -318,10 +318,10 @@ export function MountainRefuges() {
                   <Card
                     key={refuge.id}
                     data-testid={`mountain-refuge-card-${refuge.id}`}
-                    className={`p-4 border-white/5 ${availability === 'closed' ? 'opacity-60' : ''}`}
+                    className={`p-4 border-default-token ${availability === 'closed' ? 'opacity-60' : ''}`}
                   >
                     <div className="flex justify-between items-start mb-3">
-                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-primary-token flex items-center gap-2">
                         <Mountain
                           className={`w-4 h-4 ${availability === 'closed' ? 'text-rose-500' : availability === 'check' ? 'text-amber-500' : 'text-blue-500'}`}
                         />
@@ -329,28 +329,28 @@ export function MountainRefuges() {
                       </h3>
                       <span
                         data-testid={`mountain-refuge-distance-${refuge.id}`}
-                        className="text-xs font-bold text-zinc-400"
+                        className="text-xs font-bold text-muted-token"
                       >
                         {refuge.distanceKm.toFixed(1)} km
                       </span>
                     </div>
 
                     <div className="space-y-2 text-xs">
-                      <div className="flex justify-between text-zinc-400">
+                      <div className="flex justify-between text-muted-token">
                         <span>{t('mountainRefuges.operator', 'Operador:')}</span>
-                        <span className="text-zinc-300 text-right">{refuge.operator}</span>
+                        <span className="text-secondary-token text-right">{refuge.operator}</span>
                       </div>
-                      <div className="flex justify-between text-zinc-400">
+                      <div className="flex justify-between text-muted-token">
                         <span>{t('mountainRefuges.elevation', 'Altitud:')}</span>
-                        <span className="text-zinc-300">{refuge.elevationM} m</span>
+                        <span className="text-secondary-token">{refuge.elevationM} m</span>
                       </div>
-                      <div className="flex justify-between text-zinc-400">
+                      <div className="flex justify-between text-muted-token">
                         <span>{t('mountainRefuges.capacityLabel', 'Capacidad:')}</span>
                         <span className="text-emerald-400 font-bold">
                           {refuge.capacity} personas
                         </span>
                       </div>
-                      <div className="flex justify-between text-zinc-400">
+                      <div className="flex justify-between text-muted-token">
                         <span>{t('mountainRefuges.season', 'Temporada:')}</span>
                         <span
                           className={
@@ -369,21 +369,21 @@ export function MountainRefuges() {
                         </span>
                       </div>
                       {refuge.lastInspectedAt && (
-                        <div className="flex justify-between text-zinc-400">
+                        <div className="flex justify-between text-muted-token">
                           <span className="flex items-center gap-1">
                             <ClipboardCheck className="w-3 h-3" />
                             {t('mountainRefuges.lastInspected', 'Última inspección:')}
                           </span>
                           <span
                             data-testid={`mountain-refuge-inspected-${refuge.id}`}
-                            className="text-zinc-300"
+                            className="text-secondary-token"
                           >
                             {refuge.lastInspectedAt}
                           </span>
                         </div>
                       )}
                       {refuge.contactPhone && (
-                        <div className="flex justify-between text-zinc-400 items-center">
+                        <div className="flex justify-between text-muted-token items-center">
                           <span className="flex items-center gap-1">
                             <Phone className="w-3 h-3" />
                             {t('mountainRefuges.contact', 'Contacto:')}
@@ -400,7 +400,7 @@ export function MountainRefuges() {
                     </div>
 
                     {refuge.notes && (
-                      <p className="mt-3 text-[10px] text-zinc-500 leading-relaxed">
+                      <p className="mt-3 text-[10px] text-muted-token leading-relaxed">
                         {refuge.notes}
                       </p>
                     )}
@@ -448,8 +448,8 @@ export function MountainRefuges() {
             </div>
           )}
 
-          <Card className="p-3 border-zinc-700/30 bg-zinc-900/20">
-            <p className="text-[10px] text-zinc-500 leading-relaxed flex items-start gap-2">
+          <Card className="p-3 border-default-token bg-surface/20">
+            <p className="text-[10px] text-muted-token leading-relaxed flex items-start gap-2">
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               {t(
                 'mountainRefuges.dataDisclaimer',

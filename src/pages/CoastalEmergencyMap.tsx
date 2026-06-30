@@ -194,11 +194,11 @@ export function CoastalEmergencyMap() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Waves className="w-8 h-8 text-blue-500" />
             {t('coastalEmergency.title', 'Emergencia Costera y Tsunami')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('coastalEmergency.subtitle', 'Cálculo de Cotas de Inundación y Evacuación Vertical')}
           </p>
         </div>
@@ -287,49 +287,49 @@ export function CoastalEmergencyMap() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Info & Status */}
         <div className="space-y-6">
-          <Card className="p-6 border-white/5 space-y-6">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <Map className="w-4 h-4 text-zinc-400" />
+          <Card className="p-6 border-default-token space-y-6">
+            <h3 className="text-sm font-bold text-primary-token uppercase tracking-wider flex items-center gap-2">
+              <Map className="w-4 h-4 text-muted-token" />
               Datos de la Instalación
             </h3>
 
             <div className="space-y-4">
-              <div className="p-3 rounded-lg bg-zinc-900 border border-white/5">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+              <div className="p-3 rounded-lg bg-surface border border-default-token">
+                <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">
                   Cota Actual (Nivel del Mar)
                 </p>
-                <p className="text-2xl font-black text-white">12 m.s.n.m.</p>
+                <p className="text-2xl font-black text-primary-token">12 m.s.n.m.</p>
                 <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" /> Zona de Riesgo de
                   Inundación
                 </p>
               </div>
 
-              <div className="p-3 rounded-lg bg-zinc-900 border border-white/5">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+              <div className="p-3 rounded-lg bg-surface border border-default-token">
+                <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">
                   Distancia a Zona Segura (Cota 30)
                 </p>
                 <p className="text-2xl font-black text-blue-400">850 m</p>
-                <p className="text-xs text-zinc-400 mt-1">
+                <p className="text-xs text-muted-token mt-1">
                   Tiempo est. a pie: 12 min
                 </p>
               </div>
 
-              <div className="p-3 rounded-lg bg-zinc-900 border border-white/5">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+              <div className="p-3 rounded-lg bg-surface border border-default-token">
+                <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">
                   Personal en Zona de Riesgo
                 </p>
                 <div className="flex items-center justify-between">
-                  <p className="text-2xl font-black text-white">42</p>
-                  <Users className="w-5 h-5 text-zinc-500" />
+                  <p className="text-2xl font-black text-primary-token">42</p>
+                  <Users className="w-5 h-5 text-muted-token" />
                 </div>
               </div>
             </div>
           </Card>
 
-          <Card className="p-6 border-white/5 space-y-4">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-zinc-400" />
+          <Card className="p-6 border-default-token space-y-4">
+            <h3 className="text-sm font-bold text-primary-token uppercase tracking-wider flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-muted-token" />
               Puntos de Encuentro (PEE)
             </h3>
             <div className="space-y-3">
@@ -344,25 +344,25 @@ export function CoastalEmergencyMap() {
                 </div>
                 <ArrowUpRight className="w-5 h-5 text-blue-500" />
               </div>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900 border border-white/5">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-surface border border-default-token">
                 <div>
-                  <span className="text-sm font-bold text-zinc-300 block">
+                  <span className="text-sm font-bold text-secondary-token block">
                     PEE-02 (Estadio Municipal)
                   </span>
-                  <span className="text-xs text-zinc-500">
+                  <span className="text-xs text-muted-token">
                     Cota 35 - Capacidad: 500 pers.
                   </span>
                 </div>
-                <ArrowUpRight className="w-5 h-5 text-zinc-600" />
+                <ArrowUpRight className="w-5 h-5 text-muted-token" />
               </div>
             </div>
           </Card>
         </div>
 
         {/* Right Column: Map */}
-        <Card className="p-6 border-white/5 lg:col-span-2 min-h-[500px] flex flex-col">
+        <Card className="p-6 border-default-token lg:col-span-2 min-h-[500px] flex flex-col">
           <div className="flex items-center justify-between mb-4 gap-3">
-            <h3 className="text-lg font-bold text-white">
+            <h3 className="text-lg font-bold text-primary-token">
               Mapa de Evacuación y Cotas
             </h3>
             <button
@@ -372,7 +372,7 @@ export function CoastalEmergencyMap() {
               className={`min-h-[44px] px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border transition-colors ${
                 externalLayerOn
                   ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
-                  : 'bg-zinc-900 border-white/5 text-zinc-400'
+                  : 'bg-surface border-default-token text-muted-token'
               }`}
             >
               <Layers className="w-4 h-4" aria-hidden="true" />
@@ -380,19 +380,19 @@ export function CoastalEmergencyMap() {
             </button>
           </div>
           {hoveredEvent && (
-            <div className="mb-3 p-3 rounded-xl bg-zinc-900 border border-white/5 text-xs text-zinc-300">
+            <div className="mb-3 p-3 rounded-xl bg-surface border border-default-token text-xs text-secondary-token">
               <span className="mr-2" aria-hidden="true">
                 {eonetCategoryGlyph(hoveredEvent.categories[0]?.id ?? 'manmade')}
               </span>
               <span className="font-bold">{hoveredEvent.title}</span>
-              <p className="mt-1 text-[11px] text-zinc-400">
+              <p className="mt-1 text-[11px] text-muted-token">
                 {buildCalmRecommendation(hoveredEvent).body}
               </p>
             </div>
           )}
-          <div className="flex-1 bg-zinc-900 rounded-xl border border-white/5 relative overflow-hidden flex items-center justify-center">
+          <div className="flex-1 bg-surface rounded-xl border border-default-token relative overflow-hidden flex items-center justify-center">
             {!isLoaded ? (
-              <div className="flex flex-col items-center justify-center text-zinc-500">
+              <div className="flex flex-col items-center justify-center text-muted-token">
                 <Loader2 className="w-8 h-8 animate-spin mb-2" />
                 <p className="text-sm font-bold uppercase tracking-widest">Cargando Mapa...</p>
               </div>

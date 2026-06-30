@@ -255,7 +255,12 @@ describe('<WorkPermits /> page wrapper (Fase F.15)', () => {
       refetch: vi.fn(),
     };
     render(<WorkPermits />);
-    const btn = screen.getByTestId(`work-permits-sign.${permit.id}`);
+    // The sign/issue affordance lives in <PermitChecklistRenderer/> ("Emitir
+    // permiso"), which the page mounts under each active permit and wires to
+    // handleSign. Its button testid is the static `permit-checklist-issue` (the
+    // renderer takes no permit id). makePermit() ships the canonical altura
+    // checklist fully checked, so isChecklistReady() → the button is enabled.
+    const btn = screen.getByTestId('permit-checklist-issue');
     fireEvent.click(btn);
     // Wait a microtask for the awaited mock to resolve.
     await Promise.resolve();

@@ -105,6 +105,16 @@ const CONNECT_SRC_ORIGINS = [
   // (the unit tests mock `fetch`, so they never caught it). Sibling of the NASA
   // entries above; same rationale.
   'https://earthquake.usgs.gov',
+  // 2026-06-22 — Open-Meteo APIs (clima + calidad de aire). Bug B5: the
+  // upgraded WeatherBulletin's ephemeris panel and weather data fetch both
+  // use Open-Meteo endpoints; without these entries the CSP connect-src
+  // silently blocked every request in production, causing the weather card
+  // to display "Datos meteorológicos no disponibles" despite the API keys
+  // being configured (same class of silent failure as the USGS entry above).
+  //   - api.open-meteo.com               weather forecast (temperature, UV, wind, humidity)
+  //   - air-quality-api.open-meteo.com   AQI / PM2.5 / PM10 / US AQI data
+  'https://api.open-meteo.com',
+  'https://air-quality-api.open-meteo.com',
 ] as const;
 
 /*

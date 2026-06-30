@@ -146,17 +146,17 @@ export function FirstResponderMap() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
           <HeartPulse className="w-8 h-8 text-rose-500" />
           {t('firstResponder.pageTitle', 'Mapa de Primer Respondedor')}
         </h1>
-        <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+        <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
           {t('firstResponder.pageSubtitle', 'Cobertura en vivo y despacho del respondedor más apto')}
         </p>
       </div>
 
       {!projectId ? (
-        <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-white/10 p-12 text-center text-zinc-500">
+        <div className="rounded-2xl border border-dashed border-default-token p-12 text-center text-muted-token">
           <Radio className="w-10 h-10 mx-auto mb-4 opacity-40" />
           <p className="text-sm font-bold uppercase tracking-widest">
             {t('firstResponder.noProject', 'Selecciona un proyecto para ver la cobertura de respondedores.')}
@@ -165,13 +165,13 @@ export function FirstResponderMap() {
       ) : (
         <>
           {/* Incident dispatch controls */}
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900 p-4 flex flex-col sm:flex-row sm:items-end gap-3">
-            <label className="flex-1 text-xs font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
+          <div className="rounded-2xl border border-default-token bg-surface p-4 flex flex-col sm:flex-row sm:items-end gap-3">
+            <label className="flex-1 text-xs font-bold text-secondary-token uppercase tracking-wider">
               {t('firstResponder.incidentKind', 'Tipo de incidente')}
               <select
                 value={incidentKind}
                 onChange={(e) => setIncidentKind(e.target.value as IncidentKind)}
-                className="mt-1.5 w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white focus:outline-none focus:border-rose-500/50"
+                className="mt-1.5 w-full px-3 py-2 text-sm rounded-xl border border-default-token bg-surface text-primary-token focus:outline-none focus:border-rose-500/50"
               >
                 {INCIDENT_KINDS.map((k) => (
                   <option key={k.value} value={k.value}>
@@ -195,7 +195,7 @@ export function FirstResponderMap() {
               onClick={() => void loadFeed()}
               disabled={loadingFeed}
               aria-label={t('firstResponder.refresh', 'Refrescar cobertura') as string}
-              className="p-2 rounded-xl border border-zinc-200 dark:border-white/10 text-zinc-500 hover:text-zinc-900 dark:hover:text-white disabled:opacity-40 transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
+              className="p-2 rounded-xl border border-default-token text-muted-token hover:text-zinc-900 dark:hover:text-white disabled:opacity-40 transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
             >
               <RefreshCw className={`w-4 h-4 ${loadingFeed ? 'animate-spin' : ''}`} />
             </button>

@@ -35,6 +35,7 @@ import {
   AptitudeCertSignError,
 } from '../../services/medical/aptitudeCertSigner.js';
 import { getWebauthnRpId, getWebauthnExpectedOrigin } from '../auth/rpId.js';
+import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
 
 export const medicalAptitudeRouter = Router();
 
@@ -70,6 +71,46 @@ function isAllowedSignerRole(role: string | undefined): boolean {
   return isAdminRole(role) || isDoctorRole(role);
 }
 
+async function assertWorkerInProjectRoster(
+  workerUid: string,
+  projectId: string,
+  db: ReturnType<typeof admin.firestore>,
+): Promise<void> {
+  const projectRef = db.collection('projects').doc(projectId);
+  const projectSnap = await projectRef.get();
+  if (!projectSnap.exists) {
+    throw new ProjectMembershipError(`Project ${projectId} not found or worker is not in roster`);
+  }
+
+  const projectData = projectSnap.data() ?? {};
+  const members = projectData.members;
+  if (Array.isArray(members) && members.includes(workerUid)) {
+    return;
+  }
+
+  const projectWorkerSnap = await projectRef.collection('workers').doc(workerUid).get();
+  if (projectWorkerSnap.exists) {
+    return;
+  }
+
+  const tenantId = typeof projectData.tenantId === 'string' ? projectData.tenantId : undefined;
+  if (tenantId) {
+    const tenantWorkerSnap = await db
+      .collection('tenants')
+      .doc(tenantId)
+      .collection('projects')
+      .doc(projectId)
+      .collection('workers')
+      .doc(workerUid)
+      .get();
+    if (tenantWorkerSnap.exists) {
+      return;
+    }
+  }
+
+  throw new ProjectMembershipError(`Worker ${workerUid} is not in project ${projectId} roster`);
+}
+
 // â”€â”€â”€ POST /aptitude-cert/generate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 medicalAptitudeRouter.post(
@@ -93,6 +134,10 @@ medicalAptitudeRouter.post(
     }
 
     try {
+      const db = admin.firestore();
+      await assertProjectMember(callerUid, parsed.data.projectId, db);
+      await assertWorkerInProjectRoster(parsed.data.workerUid, parsed.data.projectId, db);
+
       const result = await generateAptitudeCert(parsed.data);
       // P0 fix: audit emit is now awaited + Sentry-captured on failure.
       // Previously a Firestore outage would silently drop the row and the
@@ -124,6 +169,13 @@ medicalAptitudeRouter.post(
         pdfBase64: result.pdf.toString('base64'),
       });
     } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        await auditServerEvent(req, 'medical.aptitude_cert.idor_blocked', 'medical', {
+          projectId: parsed.data.projectId,
+          workerUid: parsed.data.workerUid,
+        });
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
       logger.error('aptitude_cert_generate_failed', { err: String(err) });
       captureStage(err, 'generate', req);
       return res.status(500).json({ error: 'aptitude_cert_generate_failed' });
@@ -183,6 +235,7 @@ const signRequestSchema = z.object({
     .object({
       certId: z.string(),
       doctor: z.object({ uid: z.string() }).passthrough(),
+      employer: z.object({ projectId: z.string().min(1) }).passthrough(),
     })
     .passthrough(),
   certHash: z.string().regex(/^[0-9a-f]{64}$/),
@@ -213,6 +266,8 @@ medicalAptitudeRouter.post(
     const signedAt = new Date().toISOString();
 
     try {
+      await assertProjectMember(callerUid, cert.employer.projectId, admin.firestore());
+
       const signed = await verifyAndSignCert(
         cert as unknown as AptitudeCertJson,
         { certHash, challengeId: asrt.challengeId, signerRut, signedAt, signatureB64: asrt.signature },
@@ -269,6 +324,13 @@ medicalAptitudeRouter.post(
         signedAt: signed.json.signature.signedAt,
       });
     } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        await auditServerEvent(req, 'medical.aptitude_cert.sign_idor_blocked', 'medical', {
+          certId: cert.certId,
+          projectId: cert.employer.projectId,
+        });
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
       if (err instanceof AptitudeCertSignError) {
         logger.warn('aptitude_cert_sign_rejected', { code: err.code });
         const status =

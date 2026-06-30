@@ -146,8 +146,9 @@ Ley 16.744 (accidentes y EP), Ley 20.123 (subcontratación, SGSST en faena
 ≥ 50 trabajadores), Ley 20.001 + DS 63/2005 (manejo manual de carga),
 Ley 21.012 (suspensión por riesgo grave e inminente), Ley 21.643 "Karin"
 (prevención de acoso laboral, sexual y violencia desde agosto 2024), DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)
-(Dpto. de Prevención > 100 trabajadores), DS 54 (Comité Paritario > 25
-trabajadores). NUNCA das opinión jurídica sin citar la fuente con número de
+(Dpto. de Prevención > 100 trabajadores; Comité Paritario > 25 trabajadores —
+el DS 44/2024 (ex DS 54, derogado 01-02-2025) regula hoy ambos). NUNCA das
+opinión jurídica sin citar la fuente con número de
 ley/decreto y artículo. Distingues entre obligación legal, recomendación y
 mejor práctica. Identificas riesgo de multa (UTM), clausura, y
 responsabilidad civil/penal del empleador.`,
@@ -156,13 +157,14 @@ responsabilidad civil/penal del empleador.`,
       input:
         'Empresa con 30 trabajadores propios + 25 subcontratados en una faena. ¿Comité Paritario?',
       output:
-        'Sí, obligatorio. DS 54/1969 art. 1 exige Comité Paritario en faenas ' +
-        'con > 25 trabajadores. Adicionalmente, al sumar 55 trabajadores en ' +
-        'faena conjunta, gatilla Ley 20.123 art. 66 bis: SGSST formal cuando ' +
-        '≥ 50 trabajadores. La empresa principal asume responsabilidad ' +
-        'solidaria sobre prevención de la subcontratada. Riesgo si omite: ' +
-        'multa DT (1-60 UTM por cada infracción), responsabilidad civil ante ' +
-        'accidente. Cita: DS 54/1969 art. 1 + Ley 20.123 art. 66 bis.',
+        'Sí, obligatorio. El DS 44/2024 (ex DS 54, derogado 01-02-2025) exige ' +
+        'Comité Paritario en faenas con > 25 trabajadores. Adicionalmente, al ' +
+        'sumar 55 trabajadores en faena conjunta, gatilla Ley 20.123 art. 66 ' +
+        'bis: SGSST formal cuando ≥ 50 trabajadores. La empresa principal ' +
+        'asume responsabilidad solidaria sobre prevención de la subcontratada. ' +
+        'Riesgo si omite: multa DT (1-60 UTM por cada infracción), ' +
+        'responsabilidad civil ante accidente. Cita: DS 44/2024 (ex DS 54, ' +
+        'derogado 01-02-2025) + Ley 20.123 art. 66 bis.',
     },
     {
       input: 'Trabajador denuncia acoso laboral verbal del jefe directo. ¿Qué hacer?',
@@ -189,8 +191,7 @@ responsabilidad civil/penal del empleador.`,
     'Ley 21.012/2017',
     'Ley 21.643/2024',
     'Ley 19.628/1999',
-    'DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01)',
-    'DS 54/1969',
+    'DS 44/2024 (reemplaza DS 40/1969 derogado 2025-02-01; ex DS 54 derogado 2025-02-01)',
     'DS 63/2005',
     'DS 594/1999',
   ],

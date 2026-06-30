@@ -31,12 +31,19 @@ test.describe('Corrective actions — action balance card', () => {
     }
   });
 
-  // FIXME (harness gap): asserting the balance card with REAL actions needs the
-  // corrective-actions API (Express :3000) to see the project seeded by the
-  // test's admin SDK AND ProjectContext to select it — the same cross-process
-  // Firestore-visibility gap that fixme'd the compliance + SOS specs. The card's
-  // render/balance logic is already covered by ActionBalanceCard.test.tsx.
-  // Un-fixme once the harness shares one emulator project across processes.
+  // FIXME (precise diagnosis 2026-06-28): auth + projectId are FIXED — with
+  // FIREBASE_AUTH_EMULATOR_HOST the browser signs in and the full app shell
+  // renders (confirmed via the failure a11y snapshot). The remaining blocker is
+  // the CLIENT projects-list query: ProjectContext runs
+  // `where('members','array-contains', uid)` on `projects`, but firestore.rules
+  // `isProjectMember` resolves membership via get() on the listed doc, which
+  // does not validate a LIST query for the emulator-minted user, so the query
+  // returns empty and the page stays in its "Selecciona un proyecto" empty
+  // state — `action-balance-card` only mounts once a project is selected. Card
+  // render/balance math is covered by ActionBalanceCard.test.tsx. Un-fixme once
+  // the harness injects client-side project selection (or the list rule is made
+  // claim-validatable for the test user). Needs browser-console instrumentation
+  // to confirm permission-denied vs custom-claim propagation in the emulator.
   test.fixme('renders the ISO 45001 action-balance card with real actions', async ({ page }) => {
     test.skip(process.env.E2E_FULL_STACK !== '1', 'Requires full E2E stack. Run `npm run test:e2e:full`.');
     const seed = await seedProject();

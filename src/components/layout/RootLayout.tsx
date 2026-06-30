@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFirebase } from '../../contexts/FirebaseContext';
-import { Home, Menu, ArrowLeft, User as UserIcon, Bell, Sun, Moon, Map, WifiOff, Search, Sparkles, Cloud } from 'lucide-react';
+import { Home, Menu, ArrowLeft, User as UserIcon, Bell, Map, WifiOff, Search, Sparkles, Cloud } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 // Sprint 20 tenth wave (Bucket Perf C — Fase 5): the chat widget is
 // loaded lazily so `react-markdown` + the SLM/Gemini orchestrator graph
@@ -46,7 +46,9 @@ import { getPendingActions } from '../../utils/pwa-offline';
 import { get, set } from 'idb-keyval';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CookieConsent } from '../legal/CookieConsent';
-import { ModeSwitcher } from '../shared/ModeSwitcher';
+import { HeaderModeSwitcher } from './HeaderModeSwitcher';
+import { NavSearch } from './NavSearch';
+import { CriticalActionsSheet } from './CriticalActionsSheet';
 // Sprint 20 sixteenth-wave (Bucket D — A11Y-015): WCAG-compliant
 // tooltip primitive replaces the native `title=` attribute on the 3
 // header icon controls (Sync, Theme, Safe-driving). Native `title`
@@ -75,13 +77,14 @@ export function RootLayout() {
   const isHome = location.pathname === '/';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [searchQuery, setSearchQuery] = useState('');
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isMfaSetupOpen, setIsMfaSetupOpen] = useState(false);
   const [isMfaForced, setIsMfaForced] = useState(false);
   const [mfaSuccessCallback, setMfaSuccessCallback] = useState<(() => void) | null>(null);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [mfaSetupCompleted, setMfaSetupCompleted] = useState<boolean>(false);
+  // F1 Nav: critical actions sheet (Emergencia / Fast Check) — no route change.
+  const [isCriticalSheetOpen, setIsCriticalSheetOpen] = useState(false);
 
   useEffect(() => {
     const loadMfaStatus = async () => {
@@ -193,7 +196,7 @@ export function RootLayout() {
           <button 
             onClick={() => setIsSidebarOpen(true)}
             aria-label="Abrir Menú"
-            className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group lg:hidden shadow-sm"
+            className="w-10 h-10 border border-default-token bg-elevated rounded-xl flex items-center justify-center text-secondary-token hover:bg-surface hover:text-primary-token transition-all group lg:hidden shadow-sm"
           >
             <Menu className="w-5 h-5 group-hover:scale-110 transition-transform" />
           </button>
@@ -212,63 +215,38 @@ export function RootLayout() {
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => navigate(-1)}
-                className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group shadow-sm"
+                className="w-10 h-10 border border-default-token bg-elevated rounded-xl flex items-center justify-center text-secondary-token hover:bg-surface hover:text-primary-token transition-all group shadow-sm"
               >
                 <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
               </button>
-              <Link to="/" className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group shadow-sm">
+              <Link to="/" className="w-10 h-10 border border-default-token bg-elevated rounded-xl flex items-center justify-center text-secondary-token hover:bg-surface hover:text-primary-token transition-all group shadow-sm">
                 <Home className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </Link>
             </div>
           )}
         </div>
         
-        {/* Middle: Global Search & AI Help */}
+        {/* Middle: Module Jump Search (F1) + AI chat on sparkle click */}
         <div className="flex flex-1 max-w-xl mx-4 relative justify-end sm:justify-center">
-          <div className="relative w-full max-w-[300px] sm:max-w-full flex items-center group hidden sm:flex">
-            <Search className="absolute left-4 w-4 h-4 text-zinc-700 dark:text-zinc-500 group-focus-within:text-[#4db6ac] transition-colors" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && searchQuery.trim()) {
-                  window.dispatchEvent(new CustomEvent('open-ai-chat', { detail: { query: searchQuery } }));
-                  setSearchQuery('');
-                }
-              }}
-              placeholder="Buscar o preguntar a la IA..."
-              aria-label="Buscar o preguntar a la IA"
-              className="w-full bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-2xl py-2.5 pl-11 pr-12 text-sm focus:ring-2 focus:ring-[#4db6ac]/50 text-zinc-900 dark:text-white transition-all placeholder:text-zinc-700 dark:placeholder:text-zinc-500 shadow-inner"
-            />
-            <button 
-              onClick={() => {
-                if (!isOnline) return;
-                window.dispatchEvent(new CustomEvent('open-ai-chat', { detail: { query: searchQuery } }));
-                setSearchQuery('');
-              }}
-              disabled={!isOnline}
-              className={`absolute right-2 p-1.5 rounded-xl transition-all duration-300 ${
-                !isOnline ? 'bg-white/40 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-400 cursor-not-allowed' : 'bg-[#4db6ac]/10 hover:bg-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac] hover:scale-105'
-              }`}
-              title={!isOnline ? 'Requiere conexión a internet' : 'Preguntar a Gemini AI'}
-            >
-              <Sparkles className="w-4 h-4" />
-            </button>
+          {/* Desktop: NavSearch replaces the old AI-only search box. The AI chat
+              is still accessible via the Sparkle button on the right cluster. */}
+          <div className="hidden sm:block w-full max-w-[300px] sm:max-w-full">
+            <NavSearch />
           </div>
-          
-          {/* Mobile Search Button (Opens Chat) */}
-          <button 
+
+          {/* Mobile: opens NavSearch not the AI chat (less accidental AI usage) */}
+          <button
             onClick={() => {
               if (!isOnline) return;
               window.dispatchEvent(new CustomEvent('open-ai-chat', { detail: { query: '' } }));
             }}
             disabled={!isOnline}
             className={`sm:hidden w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-              !isOnline ? 'bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 text-zinc-700 dark:text-zinc-400 cursor-not-allowed' : 'bg-[#4db6ac]/10 border border-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac]'
+              !isOnline ? 'border border-default-token bg-elevated text-muted-token cursor-not-allowed' : 'bg-[#4db6ac]/10 border border-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac]'
             }`}
+            aria-label="Abrir búsqueda"
           >
-            <Sparkles className="w-5 h-5" />
+            <Search className="w-5 h-5" />
           </button>
         </div>
 
@@ -296,7 +274,7 @@ export function RootLayout() {
               className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 relative shadow-sm border ${
                 !isOnline
                   ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20'
-                  : 'bg-white/30 dark:bg-zinc-900 border-transparent dark:border-white/5 text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
+                  : 'border-default-token bg-elevated text-secondary-token hover:bg-surface hover:text-primary-token'
               }`}
             >
               {!isOnline ? <WifiOff className="w-5 h-5" /> : <Cloud className="w-5 h-5" />}
@@ -315,19 +293,29 @@ export function RootLayout() {
             </div>
           )}
 
-          <Tooltip content={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
+          {/* F1 Nav: 4-mode switcher in header (was floating bottom-right) */}
+          <HeaderModeSwitcher />
+
+          {/* F1 Nav: critical actions trigger (Emergencia / Fast Check) */}
+          <Tooltip content="Acciones rápidas">
             <button
-              onClick={toggleTheme}
-              className="hidden sm:flex w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 relative shadow-sm"
-              aria-label="Toggle Dark Mode"
+              type="button"
+              onClick={() => setIsCriticalSheetOpen(true)}
+              aria-label="Acciones rápidas"
+              className="w-10 h-10 rounded-xl flex items-center justify-center border border-default-token bg-elevated text-secondary-token hover:bg-surface hover:text-primary-token transition-all duration-300 shadow-sm"
             >
-              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              <Sparkles className="w-5 h-5" />
             </button>
           </Tooltip>
 
-          <Link 
+          {/* Dedup 2026-06: el toggle claro/oscuro suelto se eliminó —
+              HeaderModeSwitcher (arriba) ya cubre claro/oscuro + conducción +
+              emergencia. Un solo control de tema evita la confusión de dos
+              botones que hacían lo mismo. */}
+
+          <Link
             to="/notifications"
-            className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 relative shadow-sm"
+            className="w-10 h-10 border border-default-token bg-elevated rounded-xl flex items-center justify-center text-secondary-token hover:bg-surface hover:text-primary-token transition-all duration-300 relative shadow-sm"
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
@@ -342,7 +330,7 @@ export function RootLayout() {
               type="button"
               onClick={() => navigate('/profile')}
               aria-label="Ir a mi perfil"
-              className="flex items-center gap-2 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-white/50 dark:hover:bg-zinc-800 transition-all duration-300 relative shadow-sm m-0 text-left"
+              className="flex items-center gap-2 border border-default-token bg-elevated px-2 py-1.5 rounded-xl cursor-pointer hover:bg-surface transition-all duration-300 relative shadow-sm m-0 text-left"
             >
               {mfaSetupCompleted === false && (
                 <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-white dark:border-zinc-950 animate-pulse" />
@@ -424,10 +412,12 @@ export function RootLayout() {
         <SmartConnectionsPanel />
       </Suspense>
 
-      {/* 4-mode UX dock — floating, post-login only (RootLayout never renders on landing). */}
-      <div className="fixed bottom-4 right-4 z-50 pointer-events-auto">
-        <ModeSwitcher />
-      </div>
+      {/* F1 Nav: critical actions sheet (Emergencia / Fast Check) — no route change.
+          Replaces the old floating 4-mode dock (moved to HeaderModeSwitcher). */}
+      <CriticalActionsSheet
+        isOpen={isCriticalSheetOpen}
+        onClose={() => setIsCriticalSheetOpen(false)}
+      />
 
       {/* Sprint 14 — emergency bridge subscribes weather/company/motion to autoTrigger;
           SOSButton renders only in emergency mode. */}

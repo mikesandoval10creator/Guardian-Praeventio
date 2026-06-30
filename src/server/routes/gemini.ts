@@ -24,8 +24,9 @@ import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
-import { ProjectMembershipError } from '../../services/auth/projectMembership.js';
+import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
 import { isGeminiDegradedError } from '../../services/gemini/degraded.js';
+import { redactPromptForVertex } from '../../services/gemini/pii.js';
 import { baselineEmergencyPlan } from '../../services/gemini/emergency.js';
 import {
   hasServerSlmFallback,
@@ -401,9 +402,18 @@ router.post('/ask-guardian', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter
     // projectId, geo o el flag ENV_CONTEXT_ENABLED está desactivado.
     let envContext: string | null = null;
     if (isEnvContextEnabled() && typeof projectId === 'string' && projectId.length > 0) {
-      const geo = await lookupProjectGeo(projectId);
-      if (geo) {
-        envContext = await fetchEnvContextWithTimeout(geo);
+      try {
+        await assertProjectMember(req.user!.uid, projectId, getFirestore());
+        const geo = await lookupProjectGeo(projectId);
+        if (geo) {
+          envContext = await fetchEnvContextWithTimeout(geo);
+        }
+      } catch (error) {
+        if (error instanceof ProjectMembershipError || (error as Error)?.name === 'ProjectMembershipError') {
+          logger.warn('ask_guardian_geo_authz_denied', { uid: req.user!.uid, projectId });
+        } else {
+          throw error;
+        }
       }
     }
 
@@ -415,6 +425,11 @@ router.post('/ask-guardian', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter
     const envBlock = envContext
       ? `\n      [CONTEXTO AMBIENTAL TIEMPO REAL]\n      ${envContext}\n`
       : '';
+    // V11 hardening: redact PII (RUT/email/phone) from the user query before it
+    // reaches Gemini. The RAG search above keeps the raw query (internal Firestore
+    // vector search, never leaves our infra); only the model prompt is redacted.
+    const safeQuery =
+      typeof query === 'string' ? redactPromptForVertex(query, 'ask-guardian') : query;
     const prompt = `
       Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard.
       Tu propósito es proteger la vida humana, analizar normativas (leyes chilenas como DS 594, Ley 16.744) y gestionar riesgos.
@@ -427,7 +442,7 @@ ${envBlock}
       ${context}
 
       [PREGUNTA DEL USUARIO]
-      ${query}
+      ${safeQuery}
     `;
 
     if (stream) {

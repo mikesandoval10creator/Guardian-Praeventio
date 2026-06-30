@@ -32,11 +32,13 @@ import {
   closeWorkPermit,
 } from '../hooks/useWorkPermits';
 import { WorkPermitCard } from '../components/workPermits/WorkPermitCard';
+import { PermitChecklistRenderer } from '../components/workPermits/PermitChecklistRenderer';
 import {
   deriveStatus,
   type WorkPermit,
   type WorkPermitKind,
   type WorkPermitStatus,
+  type WorkPermitChecklist,
 } from '../services/workPermits/workPermitEngine';
 import { logger } from '../utils/logger';
 
@@ -72,6 +74,9 @@ export function WorkPermits() {
   const [formZone, setFormZone] = useState('');
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // Borrador local del checklist por permiso activo: el supervisor marca los
+  // ítems antes de firmar. La atestación (labels marcados) se envía en el sign.
+  const [draftChecklists, setDraftChecklists] = useState<Record<string, WorkPermitChecklist>>({});
 
   const resp = useWorkPermits(projectId, {
     status: statusFilter as WorkPermitStatus,
@@ -144,9 +149,14 @@ export function WorkPermits() {
 
   const handleSign = async (permit: WorkPermit) => {
     if (!projectId) return;
+    // Atestación al firmar: los labels marcados en el checklist canónico del
+    // permiso (DS 594). El server estampa la identidad del aprobador desde el
+    // token; aquí solo enviamos qué ítems atestó el supervisor.
+    const checklist = draftChecklists[permit.id] ?? permit.preconditions.checklist;
+    const checkedLabels = checklist.items.filter((i) => i.checked).map((i) => i.label);
     try {
-      await signWorkPermit(projectId, permit.id);
-      logger.info('workPermits.signed', { id: permit.id });
+      await signWorkPermit(projectId, permit.id, { checkedLabels });
+      logger.info('workPermits.signed', { id: permit.id, checked: checkedLabels.length });
       resp.refetch?.();
     } catch (err) {
       logger.error('workPermits.sign.failed', err);
@@ -446,15 +456,29 @@ export function WorkPermits() {
                   onCancel={status === 'active' ? handleCancel : undefined}
                 />
                 {status === 'active' && (
-                  <div className="mt-2 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => void handleSign(permit)}
-                      className="rounded bg-teal-500/15 px-3 py-1 text-[11px] font-bold uppercase text-teal-700 hover:bg-teal-500/25 dark:text-teal-300"
-                      data-testid={`work-permits-sign.${permit.id}`}
-                    >
-                      {t('permits.sign', 'Firmar / re-validar')}
-                    </button>
+                  <div className="mt-2">
+                    {/* Checklist canónico DS 594 del permiso — monta el huérfano
+                        PermitChecklistRenderer (la página fue diseñada para
+                        hostearlo, ver cabecera). El supervisor marca los ítems y
+                        "Emitir" firma con la atestación de labels marcados. */}
+                    <PermitChecklistRenderer
+                      kind={permit.kind}
+                      checklist={draftChecklists[permit.id] ?? permit.preconditions.checklist}
+                      onToggle={(itemId, next) =>
+                        setDraftChecklists((prev) => {
+                          const base = prev[permit.id] ?? permit.preconditions.checklist;
+                          return {
+                            ...prev,
+                            [permit.id]: {
+                              items: base.items.map((it) =>
+                                it.id === itemId ? { ...it, checked: next } : it,
+                              ),
+                            },
+                          };
+                        })
+                      }
+                      onIssue={() => void handleSign(permit)}
+                    />
                   </div>
                 )}
               </div>

@@ -61,6 +61,17 @@ export default defineConfig({
     ],
     setupFiles: ['./src/test/setup.ts'],
     globals: false,
+    // CI "Tests" gate hang fix (alpha/03-ci-01). The default `forks` pool
+    // crashes workers ("Worker exited unexpectedly") once supertest TCP
+    // handles accumulate — each `request(buildApp())` leaves an `app.listen(0)`
+    // server open. Serialize in a single fork (same stable pattern proven in
+    // vitest.dr.config.ts) so leaked handles can't destabilize sibling workers.
+    // Validated 2026-06-27: 254 files / 5052 tests green, 0 "Worker exited
+    // unexpectedly" in 2 consecutive runs (~75-115s). ponytail: 1-line unblock;
+    // the real fix is closing the sockets per file (afterAll(() =>
+    // server.close())) across the src/__tests__/server files — tracked separately.
+    pool: 'forks',
+    poolOptions: { forks: { singleFork: true } },
     // Align the local default with CI (`test:ci` passes --test-timeout=30000).
     // The 5s default is too tight for the heavy ratchet / module-import smoke
     // tests under full-suite concurrency: a synchronous test that blows the
@@ -74,6 +85,16 @@ export default defineConfig({
     // imported module keep a worker's event loop alive forever. A bounded
     // teardown lets vitest kill lingering workers instead of waiting.
     teardownTimeout: 10_000,
+    // 2026-06-22 fix/vitest-pool-hang: activate vitest's built-in
+    // AsyncHook-based leak detector. When a test file leaves async resources
+    // alive (TCP sockets, timers, Firestore listeners, MQTT adapters), this
+    // reports the culprit with a stack trace instead of silently hanging for
+    // 14+ minutes until the CI watchdog force-kills the runner.
+    // Individual leakers fixed in the same PR:
+    //   • src/server/routes/healthDeep.test.ts — setTimeout(10_000) slow probe
+    //   • src/services/observability/resilienceHealthMonitor.test.ts — setTimeout(5000)
+    //   • src/server/triggers/mqttTelemetryBridge.test.ts — handle.stop() missing
+    detectAsyncLeaks: true,
     // Coverage instrumentation (Plan v3 Fase 1.0 — 2026-05-29). Provider
     // pinned to the exact vitest version. `all: true` counts source files
     // with NO importing test too, so the denominator is the honest "what

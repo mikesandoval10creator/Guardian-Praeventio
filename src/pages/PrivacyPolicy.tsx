@@ -30,13 +30,13 @@ export function PrivacyPolicy() {
   });
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white font-sans">
+    <div className="min-h-screen bg-surface text-primary-token font-sans">
       <div className="max-w-3xl mx-auto px-5 sm:px-8 py-12">
 
         {/* Back */}
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-zinc-400 hover:text-white text-sm font-bold mb-8 transition-colors"
+          className="flex items-center gap-2 text-muted-token hover:text-primary-token text-sm font-bold mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           {t('common.back', 'Volver')}
@@ -49,18 +49,18 @@ export function PrivacyPolicy() {
           </div>
           <div>
             <h1 className="text-2xl font-black tracking-tight">{content.title}</h1>
-            <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">{content.subtitle}</p>
+            <p className="text-xs text-muted-token font-bold uppercase tracking-widest">{content.subtitle}</p>
           </div>
         </div>
 
-        <p className="text-zinc-400 text-sm mb-8">
+        <p className="text-muted-token text-sm mb-8">
           {t('privacy.lastUpdated', 'Última actualización')}: {lastUpdatedFormatted}
         </p>
 
-        <div className="space-y-8 text-zinc-300 text-sm leading-relaxed">
+        <div className="space-y-8 text-secondary-token text-sm leading-relaxed">
           {content.sections.map((section, idx) => (
             <section key={section.heading}>
-              <h2 className="text-white font-black text-lg mb-3">
+              <h2 className="text-primary-token font-black text-lg mb-3">
                 {idx + 1}. {section.heading}
               </h2>
 
@@ -76,7 +76,7 @@ export function PrivacyPolicy() {
                 <ul className="space-y-2 list-disc list-inside">
                   {section.bullets.map((bullet, bIdx) => (
                     <li key={bIdx}>
-                      {bullet.term && <strong className="text-white">{bullet.term}:</strong>}{' '}
+                      {bullet.term && <strong className="text-primary-token">{bullet.term}:</strong>}{' '}
                       {bullet.text}
                     </li>
                   ))}
@@ -88,18 +88,18 @@ export function PrivacyPolicy() {
           ))}
 
           <section>
-            <h2 className="text-white font-black text-lg mb-3">
+            <h2 className="text-primary-token font-black text-lg mb-3">
               {content.sections.length + 1}. {t('privacy.providerData', 'Datos del proveedor')}
             </h2>
             <p>
               {content.legalEntity} · {content.domain} ·
               Contacto: <strong className="text-emerald-400">{content.contactEmail}</strong> ·
-              Privacidad (asunto): <strong className="text-white">{content.privacyChannelSubject}</strong>
+              Privacidad (asunto): <strong className="text-primary-token">{content.privacyChannelSubject}</strong>
             </p>
           </section>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-white/5 text-center text-xs text-zinc-600 font-bold uppercase tracking-widest">
+        <div className="mt-12 pt-8 border-t border-default-token text-center text-xs text-muted-token font-bold uppercase tracking-widest">
           © {new Date().getFullYear()} Guardian Praeventio · Chile · {t('common.allRightsReserved', 'Todos los derechos reservados')}
         </div>
 

@@ -288,11 +288,11 @@ export function DEAZones() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <HeartPulse className="w-8 h-8 text-rose-500" />
             {t('deaZones.title', 'Zonas DEA')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t(
               'deaZones.subtitle',
               'Ley 21.156 - Desfibriladores Externos Automáticos',
@@ -317,7 +317,7 @@ export function DEAZones() {
               <CheckCircle2 className="w-6 h-6 text-emerald-500" />
             </div>
             <div>
-              <p className="text-2xl font-black text-white">{operationalCount}</p>
+              <p className="text-2xl font-black text-primary-token">{operationalCount}</p>
               <p className="text-xs font-bold text-emerald-500 uppercase tracking-wider">
                 {t('deaZones.statsOperational', 'Operativos')}
               </p>
@@ -330,7 +330,7 @@ export function DEAZones() {
               <AlertTriangle className="w-6 h-6 text-amber-500" />
             </div>
             <div>
-              <p className="text-2xl font-black text-white">{warningCount}</p>
+              <p className="text-2xl font-black text-primary-token">{warningCount}</p>
               <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">
                 {t('deaZones.statsWarning', 'Por Vencer')}
               </p>
@@ -343,7 +343,7 @@ export function DEAZones() {
               <ShieldAlert className="w-6 h-6 text-rose-500" />
             </div>
             <div>
-              <p className="text-2xl font-black text-white">{criticalCount}</p>
+              <p className="text-2xl font-black text-primary-token">{criticalCount}</p>
               <p className="text-xs font-bold text-rose-500 uppercase tracking-wider">
                 {t('deaZones.statsCritical', 'Críticos')}
               </p>
@@ -355,17 +355,17 @@ export function DEAZones() {
       {/* Empty state vs grid */}
       {loading ? (
         <Card className="p-8 text-center">
-          <p className="text-zinc-400 text-sm">
+          <p className="text-muted-token text-sm">
             {t('deaZones.loading', 'Cargando DEAs...')}
           </p>
         </Card>
       ) : enrichedDeas.length === 0 ? (
-        <Card className="p-12 text-center border-zinc-700/50 bg-zinc-900/30">
-          <HeartPulse className="w-16 h-16 mx-auto text-zinc-600 mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">
+        <Card className="p-12 text-center border-default-token bg-surface">
+          <HeartPulse className="w-16 h-16 mx-auto text-muted-token mb-4" />
+          <h3 className="text-xl font-bold text-primary-token mb-2">
             {t('deaZones.emptyTitle', 'Sin DEAs registrados')}
           </h3>
-          <p className="text-sm text-zinc-400 mb-6 max-w-md mx-auto">
+          <p className="text-sm text-muted-token mb-6 max-w-md mx-auto">
             {t(
               'deaZones.emptyBody',
               'Empieza el registro de los desfibriladores instalados en este proyecto. Ley 21.156 requiere inventario documentado y mantenimiento mensual.',
@@ -391,36 +391,36 @@ export function DEAZones() {
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
                     <div
-                      className={`p-2 rounded-lg bg-zinc-900/50 border ${getStatusColor(dea.status)}`}
+                      className={`p-2 rounded-lg bg-surface border ${getStatusColor(dea.status)}`}
                     >
                       {getStatusIcon(dea.status)}
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-white">{dea.location}</h3>
-                      <p className="text-xs text-zinc-400">{dea.description}</p>
+                      <h3 className="text-lg font-bold text-primary-token">{dea.location}</h3>
+                      <p className="text-xs text-muted-token">{dea.description}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-3 mb-6">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-zinc-500 flex items-center gap-2">
+                    <span className="text-muted-token flex items-center gap-2">
                       <Battery className="w-4 h-4" /> {t('deaZones.battery', 'Batería')}
                     </span>
-                    <span className="text-white font-medium">{dea.batteryExpiry}</span>
+                    <span className="text-primary-token font-medium">{dea.batteryExpiry}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-zinc-500 flex items-center gap-2">
+                    <span className="text-muted-token flex items-center gap-2">
                       <Activity className="w-4 h-4" /> {t('deaZones.pads', 'Parches')}
                     </span>
-                    <span className="text-white font-medium">{dea.padsExpiry}</span>
+                    <span className="text-primary-token font-medium">{dea.padsExpiry}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-zinc-500 flex items-center gap-2">
+                    <span className="text-muted-token flex items-center gap-2">
                       <Calendar className="w-4 h-4" />{' '}
                       {t('deaZones.lastCheck', 'Última Rev.')}
                     </span>
-                    <span className="text-white font-medium">{dea.lastCheck}</span>
+                    <span className="text-primary-token font-medium">{dea.lastCheck}</span>
                   </div>
                 </div>
 
@@ -444,12 +444,12 @@ export function DEAZones() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto"
+            className="bg-surface border border-default-token rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto"
           >
-            <h2 className="text-xl font-bold text-white mb-2">
+            <h2 className="text-xl font-bold text-primary-token mb-2">
               {t('deaZones.inspectModal', 'Inspección Mensual DEA')}
             </h2>
-            <p className="text-sm text-zinc-400 mb-6 flex items-center gap-2">
+            <p className="text-sm text-muted-token mb-6 flex items-center gap-2">
               <MapPin className="w-4 h-4" /> {selectedDEA.location}
             </p>
 
@@ -493,7 +493,7 @@ export function DEAZones() {
               ].map((item) => (
                 <label
                   key={item.key}
-                  className="flex items-start gap-3 p-3 rounded-xl bg-zinc-800/50 border border-white/5 cursor-pointer hover:bg-zinc-800 transition-colors"
+                  className="flex items-start gap-3 p-3 rounded-xl bg-elevated border border-default-token cursor-pointer hover:bg-elevated/80 transition-colors"
                 >
                   <input
                     type="checkbox"
@@ -501,9 +501,9 @@ export function DEAZones() {
                     onChange={(e) =>
                       setChecklist((prev) => ({ ...prev, [item.key]: e.target.checked }))
                     }
-                    className="mt-1 w-4 h-4 rounded border-zinc-600 text-emerald-500 focus:ring-emerald-500/50 bg-zinc-900"
+                    className="mt-1 w-4 h-4 rounded border-zinc-600 text-emerald-500 focus:ring-emerald-500/50 bg-surface"
                   />
-                  <span className="text-sm text-zinc-300">{String(item.label)}</span>
+                  <span className="text-sm text-secondary-token">{String(item.label)}</span>
                 </label>
               ))}
 
@@ -548,15 +548,15 @@ export function DEAZones() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto"
+            className="bg-surface border border-default-token rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto"
           >
-            <h2 className="text-xl font-bold text-white mb-6">
+            <h2 className="text-xl font-bold text-primary-token mb-6">
               {t('deaZones.registerModal', 'Registrar Nuevo DEA')}
             </h2>
 
             <form onSubmit={submitRegister} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5">
+                <label className="block text-xs font-bold text-muted-token uppercase tracking-wide mb-1.5">
                   {t('deaZones.fieldLocation', 'Ubicación')}
                 </label>
                 <input
@@ -567,13 +567,13 @@ export function DEAZones() {
                   }
                   placeholder="Recepción Principal"
                   required
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2 rounded-xl bg-surface border border-default-token text-primary-token focus:outline-none focus:border-emerald-500"
                 />
               </div>
               {/* #4 — capture the DEA's geographic position so it shows up in the
                   "nearest DEA to me" finder. Optional; can be set later. */}
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5">
+                <label className="block text-xs font-bold text-muted-token uppercase tracking-wide mb-1.5">
                   {t('deaZones.fieldCoordinates', 'Ubicación geográfica (para el buscador)')}
                 </label>
                 <button
@@ -592,7 +592,7 @@ export function DEAZones() {
                       { enableHighAccuracy: true, timeout: 10_000 },
                     );
                   }}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 py-2 text-sm font-bold text-emerald-400 hover:border-emerald-500"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-default-token bg-surface py-2 text-sm font-bold text-emerald-400 hover:border-emerald-500"
                 >
                   <MapPin className="h-4 w-4" />
                   {registerForm.coordinates
@@ -601,7 +601,7 @@ export function DEAZones() {
                 </button>
               </div>
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5">
+                <label className="block text-xs font-bold text-muted-token uppercase tracking-wide mb-1.5">
                   {t('deaZones.fieldDescription', 'Detalle de Posición')}
                 </label>
                 <input
@@ -611,11 +611,11 @@ export function DEAZones() {
                     setRegisterForm((prev) => ({ ...prev, description: e.target.value }))
                   }
                   placeholder="Muro este, junto a extintor"
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2 rounded-xl bg-surface border border-default-token text-primary-token focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5">
+                <label className="block text-xs font-bold text-muted-token uppercase tracking-wide mb-1.5">
                   {t('deaZones.fieldBattery', 'Vencimiento Batería')}
                 </label>
                 <input
@@ -625,11 +625,11 @@ export function DEAZones() {
                     setRegisterForm((prev) => ({ ...prev, batteryExpiry: e.target.value }))
                   }
                   required
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2 rounded-xl bg-surface border border-default-token text-primary-token focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5">
+                <label className="block text-xs font-bold text-muted-token uppercase tracking-wide mb-1.5">
                   {t('deaZones.fieldPads', 'Vencimiento Parches')}
                 </label>
                 <input
@@ -639,11 +639,11 @@ export function DEAZones() {
                     setRegisterForm((prev) => ({ ...prev, padsExpiry: e.target.value }))
                   }
                   required
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2 rounded-xl bg-surface border border-default-token text-primary-token focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5">
+                <label className="block text-xs font-bold text-muted-token uppercase tracking-wide mb-1.5">
                   {t('deaZones.fieldAssignee', 'Responsable de Mantenimiento')}
                 </label>
                 <input
@@ -654,7 +654,7 @@ export function DEAZones() {
                   }
                   placeholder="Nombre del responsable"
                   required
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2 rounded-xl bg-surface border border-default-token text-primary-token focus:outline-none focus:border-emerald-500"
                 />
               </div>
 

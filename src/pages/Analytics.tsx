@@ -376,7 +376,7 @@ export function Analytics() {
           </div>
           <div>
             <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-950 dark:text-white">{t('analytics.title', 'Reportabilidad Gerencial')}</h1>
-            <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">{t('analytics.tagline', 'Analytics & Insights Ejecutivos')}</p>
+            <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">{t('analytics.tagline', 'Analytics & Insights Ejecutivos')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -411,7 +411,7 @@ export function Analytics() {
       <ProjectHealthCheck />
 
       {projectNodes.length === 0 ? (
-        <div className="bg-white dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl shadow-sm">
+        <div className="bg-white dark:bg-zinc-900/50 border border-dashed border-default-token rounded-2xl sm:rounded-3xl shadow-sm">
           <EmptyState
             mascot
             title="Aún no hay datos para analizar"
@@ -608,8 +608,8 @@ export function Analytics() {
           </div>
 
           {/* Safety Dimensions (New) */}
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-white/5 shadow-sm lg:col-span-2">
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-6" id="safety-radar-title">{t('analytics.chart.safety_radar', 'Radar de Dimensiones de Seguridad')}</h3>
+          <div className="bg-surface rounded-2xl p-6 border border-default-token shadow-sm lg:col-span-2">
+            <h3 className="text-sm font-bold text-primary-token uppercase tracking-widest mb-6" id="safety-radar-title">{t('analytics.chart.safety_radar', 'Radar de Dimensiones de Seguridad')}</h3>
             <div
               className="h-80"
               role="img"
@@ -640,7 +640,7 @@ export function Analytics() {
             </div>
             {dimensionsWithInsufficientData.length > 0 && (
               <p
-                className="mt-3 text-[11px] font-medium text-zinc-500 dark:text-zinc-400"
+                className="mt-3 text-[11px] font-medium text-muted-token"
                 role="note"
               >
                 <span className="font-bold text-amber-600 dark:text-amber-400">⚠ Datos insuficientes:</span>{' '}
@@ -652,17 +652,17 @@ export function Analytics() {
         </div>
 
         {adoptionReport && (
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-white/5 shadow-sm">
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-6">
+          <div className="bg-surface rounded-2xl p-6 border border-default-token shadow-sm">
+            <h3 className="text-sm font-bold text-primary-token uppercase tracking-widest mb-6">
               {t('analytics.chart.module_adoption', 'Adopción de Módulos')}
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
               {(Object.entries(adoptionReport.report.byModule) as [ModuleUsageKind, { adopters: number; adoptionPercent: number }][]).map(
                 ([module, data]) => (
-                  <div key={module} className="rounded-xl p-3 border border-zinc-100 dark:border-white/5 bg-zinc-50 dark:bg-zinc-800/50">
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest truncate">{module.replace(/_/g, ' ')}</p>
-                    <p className="text-2xl font-black text-zinc-900 dark:text-white mt-1">{data.adoptionPercent}%</p>
-                    <p className="text-[10px] text-zinc-400">{data.adopters} adopters</p>
+                  <div key={module} className="rounded-xl p-3 border border-default-token bg-zinc-50 dark:bg-zinc-800/50">
+                    <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest truncate">{module.replace(/_/g, ' ')}</p>
+                    <p className="text-2xl font-black text-primary-token mt-1">{data.adoptionPercent}%</p>
+                    <p className="text-[10px] text-muted-token">{data.adopters} adopters</p>
                   </div>
                 ),
               )}

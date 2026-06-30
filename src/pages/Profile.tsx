@@ -83,8 +83,8 @@ export function Profile() {
       {/* Header Section - Duolingo Style */}
       <div className="flex items-start justify-between px-4">
         <div className="space-y-2">
-          <h1 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">{user?.displayName || t('profile.user_fallback', 'Usuario')}</h1>
-          <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest">{t('profile.joined_on', 'Se unió en Marzo 2024')}</p>
+          <h1 className="text-3xl font-black text-primary-token tracking-tight">{user?.displayName || t('profile.user_fallback', 'Usuario')}</h1>
+          <p className="text-sm font-bold text-muted-token uppercase tracking-widest">{t('profile.joined_on', 'Se unió en Marzo 2024')}</p>
           <div className="flex items-center gap-4 pt-2">
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
@@ -97,7 +97,7 @@ export function Profile() {
           </div>
         </div>
         <div className="relative">
-          <div className="w-24 h-24 rounded-3xl bg-zinc-100 dark:bg-zinc-800 border-4 border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-2xl rotate-3">
+          <div className="w-24 h-24 rounded-3xl bg-elevated border-4 border-default-token overflow-hidden shadow-2xl rotate-3">
             {user?.photoURL ? (
               <img src={user.photoURL} alt={user.displayName || ''} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
@@ -106,7 +106,7 @@ export function Profile() {
               </div>
             )}
           </div>
-          <div className="absolute -bottom-2 -right-2 bg-white dark:bg-zinc-900 p-1.5 rounded-xl shadow-lg border border-zinc-100 dark:border-zinc-800">
+          <div className="absolute -bottom-2 -right-2 bg-surface p-1.5 rounded-xl shadow-lg border border-default-token">
             <div className="w-6 h-6 bg-[#4db6ac] rounded-lg flex items-center justify-center">
               <Shield className="w-3.5 h-3.5 text-white" />
             </div>
@@ -116,10 +116,10 @@ export function Profile() {
 
       {/* 3D Medal Showcase */}
       <div className="px-2">
-        <Card className="p-4 border-2 border-zinc-200 dark:border-zinc-800 rounded-[32px] overflow-hidden bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-900 dark:to-black">
+        <Card className="p-4 border-2 border-default-token rounded-[32px] overflow-hidden bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-900 dark:to-black">
           <div className="text-center mb-2">
-            <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tighter">{t('profile.current_medal', 'Medalla Actual')}</h2>
-            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{t('profile.spin_to_interact', 'Gira para interactuar')}</p>
+            <h2 className="text-sm font-black text-primary-token uppercase tracking-tighter">{t('profile.current_medal', 'Medalla Actual')}</h2>
+            <p className="text-[10px] text-muted-token font-bold uppercase tracking-widest">{t('profile.spin_to_interact', 'Gira para interactuar')}</p>
           </div>
           <Medal3DViewer title={t('profile.medal_unbeaten_week', 'SEMANA INVICTA')} color="#fbbf24" />
         </Card>
@@ -147,7 +147,7 @@ export function Profile() {
       {/* Achievements Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-4">
-          <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tighter">{t('profile.achievements_title', 'Logros')}</h2>
+          <h2 className="text-lg font-black text-primary-token uppercase tracking-tighter">{t('profile.achievements_title', 'Logros')}</h2>
           <button onClick={() => navigate('/gamification')} className="text-[10px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest hover:underline">{t('profile.view_all', 'Ver todos')}</button>
         </div>
         <div className="grid grid-cols-1 gap-3 px-2">
@@ -157,10 +157,10 @@ export function Profile() {
                 <achievement.icon className={`w-7 h-7 ${achievement.color}`} />
               </div>
               <div className="flex-1">
-                <h3 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight">{achievement.title}</h3>
-                <p className="text-xs text-zinc-500 font-medium">{achievement.description}</p>
+                <h3 className="text-sm font-black text-primary-token uppercase tracking-tight">{achievement.title}</h3>
+                <p className="text-xs text-muted-token font-medium">{achievement.description}</p>
                 {achievement.completed && (
-                  <div className="mt-2 h-1.5 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="mt-2 h-1.5 w-full bg-elevated rounded-full overflow-hidden">
                     <div className="h-full bg-[#4db6ac] w-full" />
                   </div>
                 )}
@@ -168,7 +168,7 @@ export function Profile() {
               {achievement.completed ? (
                 <CheckCircle2 className="w-6 h-6 text-[#4db6ac] dark:text-[#d4af37]" />
               ) : (
-                <div className="w-6 h-6 rounded-full border-2 border-zinc-200 dark:border-zinc-800" />
+                <div className="w-6 h-6 rounded-full border-2 border-default-token" />
               )}
             </Card>
           ))}
@@ -177,7 +177,7 @@ export function Profile() {
 
       {/* Friends Activity */}
       <div className="space-y-4">
-        <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tighter px-4">{t('profile.friends', 'Amigos')}</h2>
+        <h2 className="text-lg font-black text-primary-token uppercase tracking-tighter px-4">{t('profile.friends', 'Amigos')}</h2>
         <Card className="mx-2 p-6 rounded-[32px] bg-zinc-900 border-none relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10">
             <Users className="w-24 h-24 text-white" />
@@ -197,7 +197,7 @@ export function Profile() {
           <Button 
             variant="secondary" 
             onClick={() => setIsMfaSetupOpen(true)}
-            className="flex items-center justify-center gap-2 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 border-zinc-200 dark:border-zinc-800"
+            className="flex items-center justify-center gap-2 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 border-default-token"
           >
             <Shield className="w-4 h-4" />
             MFA
@@ -205,7 +205,7 @@ export function Profile() {
           <Button 
             variant="secondary" 
             onClick={() => navigate('/settings')}
-            className="flex items-center justify-center gap-2 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 border-zinc-200 dark:border-zinc-800"
+            className="flex items-center justify-center gap-2 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 border-default-token"
           >
             <Settings className="w-4 h-4" />
             {t('profile.settings', 'Ajustes')}

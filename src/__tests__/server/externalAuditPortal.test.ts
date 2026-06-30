@@ -238,6 +238,10 @@ function seedUserTenant(uid: string, tenantId: string) {
   H.db!._seed(`users/${uid}`, { tenantId });
 }
 
+function seedProject(projectId = PROJECT_A, members = ['admin1'], tenantId = TENANT_ID) {
+  H.db!._seed(`projects/${projectId}`, { members, createdBy: 'project-owner', tenantId });
+}
+
 /** Produce a stable 64-char hex token string for tests. */
 function makeToken(seed: string): string {
   // Use a deterministic hex string — 64 chars like a real sha256 output.
@@ -309,8 +313,25 @@ describe('POST /api/audit-portal/create', () => {
     expect(res.body.error).toBe('tenant_not_found');
   });
 
+  it('403 when scopeProjectIds contains a project outside caller membership', async () => {
+    seedUserTenant('admin1', TENANT_ID);
+    seedProject(PROJECT_A, ['admin1']);
+    seedProject(PROJECT_B, ['other-admin'], OTHER_TENANT);
+
+    const res = await request(buildApp())
+      .post(URL)
+      .set('x-test-uid', 'admin1')
+      .send({ ...validBody, scopeProjectIds: [PROJECT_B] });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden_project_scope');
+    expect(res.body.projectId).toBe(PROJECT_B);
+    expect(H.db!._dump()[`tenants/${TENANT_ID}/audit_portals/${PORTAL_ID}`]).toBeUndefined();
+  });
+
   it('201 happy path — returns portal + oneTimeAccessToken, persists hash', async () => {
     seedUserTenant('admin1', TENANT_ID);
+    seedProject(PROJECT_A, ['admin1']);
     const res = await request(buildApp())
       .post(URL)
       .set('x-test-uid', 'admin1')
@@ -336,6 +357,7 @@ describe('POST /api/audit-portal/create', () => {
 
   it('201 — createdByUid is server-stamped from token, not body', async () => {
     seedUserTenant('admin1', TENANT_ID);
+    seedProject(PROJECT_A, ['admin1']);
     // Attempt to spoof createdByUid via body field — route ignores it.
     const res = await request(buildApp())
       .post(URL)
@@ -348,6 +370,7 @@ describe('POST /api/audit-portal/create', () => {
   it('201 — tenantId claim takes precedence over users doc', async () => {
     // Seed a users doc with a DIFFERENT tenantId — claim should win.
     seedUserTenant('admin2', OTHER_TENANT);
+    seedProject(PROJECT_A, ['admin2']);
     const res = await request(buildApp())
       .post(URL)
       .set('x-test-uid', 'admin2')

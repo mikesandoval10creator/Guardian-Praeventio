@@ -105,7 +105,7 @@ export function PlanesiEvaluation() {
   if (!selectedProject) {
     return (
       <div className="p-8 max-w-3xl mx-auto" data-testid="planesi-page-empty">
-        <p className="text-zinc-400 text-sm">
+        <p className="text-muted-token text-sm">
           {t('protocols_minsal.select_project', 'Selecciona un proyecto para gestionar el protocolo.')}
         </p>
       </div>
@@ -192,11 +192,11 @@ export function PlanesiEvaluation() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6" data-testid="planesi-page">
       <div>
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
           <Wind className="w-8 h-8 text-orange-400" />
           {t('planesi.title', 'PLANESI')}
         </h1>
-        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mt-2">
+        <p className="text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] mt-2">
           {t('planesi.subtitle', 'Sílice cristalina respirable — D.S. 594 Art. 66 + protocolo MINSAL')}
         </p>
       </div>
@@ -225,10 +225,10 @@ export function PlanesiEvaluation() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Form */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4">
+          <div className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="block">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                <span className="text-xs font-bold text-secondary-token uppercase tracking-widest">
                   {t('protocols_minsal.task_label', 'Puesto de trabajo / tarea evaluada')}
                 </span>
                 <input
@@ -237,11 +237,11 @@ export function PlanesiEvaluation() {
                   value={taskName}
                   onChange={(e) => setTaskName(e.target.value)}
                   placeholder={t('planesi.task_placeholder', 'Ej: Perforación frente 3')}
-                  className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2.5 px-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                  className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2.5 px-3 text-sm text-primary-token placeholder:text-muted-token focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                <span className="text-xs font-bold text-secondary-token uppercase tracking-widest">
                   {t('protocols_minsal.worker_label', 'Trabajador o GES (opcional)')}
                 </span>
                 <input
@@ -250,18 +250,18 @@ export function PlanesiEvaluation() {
                   value={workerId}
                   onChange={(e) => setWorkerId(e.target.value)}
                   placeholder={t('protocols_minsal.worker_placeholder', 'ID del trabajador o grupo de exposición similar')}
-                  className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2.5 px-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                  className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2.5 px-3 text-sm text-primary-token placeholder:text-muted-token focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                 />
               </label>
             </div>
 
-            <h3 className="text-sm font-bold text-white pt-2">
+            <h3 className="text-sm font-bold text-primary-token pt-2">
               {t('planesi.measurement_title', 'Medición ambiental (muestreo personal)')}
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="block">
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                <span className="text-[10px] font-bold text-muted-token uppercase tracking-widest">
                   {t('planesi.concentration', 'Concentración medida (mg/m³)')}
                 </span>
                 <input
@@ -270,18 +270,18 @@ export function PlanesiEvaluation() {
                   data-testid="planesi-concentration-input"
                   value={concentration}
                   onChange={(e) => onFieldChange(setConcentration)(e.target.value)}
-                  className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                  className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2 px-3 text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                 />
               </label>
               <label className="block">
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                <span className="text-[10px] font-bold text-muted-token uppercase tracking-widest">
                   {t('planesi.silica_type', 'Tipo de sílice cristalizada')}
                 </span>
                 <select
                   data-testid="planesi-silica-type-select"
                   value={silicaType}
                   onChange={(e) => onFieldChange(setSilicaType)(e.target.value as SilicaType)}
-                  className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                  className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2 px-3 text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                 >
                   {SILICA_TYPES.map((s) => (
                     <option key={s} value={s}>
@@ -291,7 +291,7 @@ export function PlanesiEvaluation() {
                 </select>
               </label>
               <label className="block">
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                <span className="text-[10px] font-bold text-muted-token uppercase tracking-widest">
                   {t('planesi.hours_per_day', 'Horas de exposición por día')}
                 </span>
                 <input
@@ -302,11 +302,11 @@ export function PlanesiEvaluation() {
                   data-testid="planesi-hours-input"
                   value={hoursPerDay}
                   onChange={(e) => onFieldChange(setHoursPerDay)(e.target.value)}
-                  className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                  className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2 px-3 text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                 />
               </label>
               <label className="block">
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                <span className="text-[10px] font-bold text-muted-token uppercase tracking-widest">
                   {t('planesi.weekly_hours', 'Jornada semanal en horas (opcional)')}
                 </span>
                 <input
@@ -318,7 +318,7 @@ export function PlanesiEvaluation() {
                   value={weeklyHours}
                   onChange={(e) => onFieldChange(setWeeklyHours)(e.target.value)}
                   placeholder={t('planesi.weekly_placeholder', 'Ej: 48 — aplica Fj = 0,90')}
-                  className="mt-1 w-full bg-zinc-800/70 border border-white/10 rounded-xl py-2 px-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                  className="mt-1 w-full bg-surface border border-default-token rounded-xl py-2 px-3 text-sm text-primary-token placeholder:text-muted-token focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                 />
               </label>
             </div>
@@ -331,7 +331,7 @@ export function PlanesiEvaluation() {
                 onChange={(e) => onFieldChange(setCriticalTask)(e.target.checked)}
                 className="mt-0.5 accent-orange-500"
               />
-              <span className="text-xs text-zinc-300 leading-relaxed">
+              <span className="text-xs text-secondary-token leading-relaxed">
                 {t('planesi.critical_task', 'Tarea de exposición aguda: limpieza abrasiva con chorro de arena u operación de chancador de cuarzo (control anual, Tabla 7-1 nota 1)')}
               </span>
             </label>
@@ -371,8 +371,8 @@ export function PlanesiEvaluation() {
 
           {/* Result */}
           {result && (
-            <div data-testid="planesi-result" className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-3">
-              <h3 className="text-sm font-bold text-white">
+            <div data-testid="planesi-result" className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6 space-y-3">
+              <h3 className="text-sm font-bold text-primary-token">
                 {t('protocols_minsal.result_title', 'Resultado')}
               </h3>
               <div className="flex flex-wrap items-center gap-3">
@@ -382,16 +382,16 @@ export function PlanesiEvaluation() {
                 >
                   {t(`planesi.grade_${result.exposureGrade}`)}
                 </span>
-                <span className="text-xs text-zinc-300">
+                <span className="text-xs text-secondary-token">
                   <span className="font-bold">{t('planesi.percent_lpp', '% del LPP corregido')}:</span>{' '}
                   {formatNumber(result.percentOfLpp)}%
                 </span>
-                <span className="text-xs text-zinc-300">
+                <span className="text-xs text-secondary-token">
                   <span className="font-bold">{t('planesi.corrected_lpp', 'LPP corregido')}:</span>{' '}
                   {formatNumber(result.correctedLppMgM3, 4)} mg/m³
                 </span>
                 {result.jornadaFactor !== 1 && (
-                  <span className="text-xs text-zinc-400">
+                  <span className="text-xs text-muted-token">
                     Fj = {formatNumber(result.jornadaFactor, 2)}
                   </span>
                 )}
@@ -421,28 +421,28 @@ export function PlanesiEvaluation() {
                 </p>
               )}
 
-              <div data-testid="planesi-surveillance" className="flex items-start gap-2 text-xs text-zinc-300 rounded-lg p-3 border border-white/10 bg-white/5">
+              <div data-testid="planesi-surveillance" className="flex items-start gap-2 text-xs text-secondary-token rounded-lg p-3 border border-default-token bg-elevated">
                 <CalendarClock className="w-4 h-4 shrink-0 text-orange-400" aria-hidden="true" />
                 <span>
                   {/* Engine strings are es-CL by design (MINSAL protocol). */}
                   <span className="block">{result.surveillancePeriodicity}</span>
-                  <span className="block mt-1 text-zinc-400">{result.ambientReevaluation}</span>
+                  <span className="block mt-1 text-muted-token">{result.ambientReevaluation}</span>
                 </span>
               </div>
 
               <div>
-                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">
+                <p className="text-[10px] font-black text-muted-token uppercase tracking-widest mb-1">
                   {t('protocols_minsal.mandated_action', 'Acción que exige el protocolo')}
                 </p>
-                <p className="text-xs text-zinc-300 leading-relaxed">{result.recommendation}</p>
+                <p className="text-xs text-secondary-token leading-relaxed">{result.recommendation}</p>
               </div>
             </div>
           )}
         </div>
 
         {/* History */}
-        <div data-testid="planesi-history" className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+        <div data-testid="planesi-history" className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6">
+          <h3 className="text-sm font-bold text-primary-token mb-4 flex items-center gap-2">
             <History className="w-4 h-4 text-orange-400" />
             {t('protocols_minsal.history_title', 'Historial del proyecto')}
           </h3>
@@ -451,7 +451,7 @@ export function PlanesiEvaluation() {
               <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />
             </div>
           ) : history.length === 0 ? (
-            <p data-testid="planesi-history-empty" className="text-xs text-zinc-500">
+            <p data-testid="planesi-history-empty" className="text-xs text-muted-token">
               {t('protocols_minsal.history_empty', 'Aún no hay evaluaciones registradas en este proyecto.')}
             </p>
           ) : (
@@ -462,15 +462,15 @@ export function PlanesiEvaluation() {
                   <li
                     key={a.id}
                     data-testid={`planesi-history-item-${a.id}`}
-                    className="border border-white/5 rounded-xl p-3 space-y-1"
+                    className="border border-default-token rounded-xl p-3 space-y-1"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-white line-clamp-1">{a.taskName}</span>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded ${GRADE_BADGE[r.exposureGrade] ?? 'bg-zinc-700 text-zinc-300'}`}>
+                      <span className="text-xs font-bold text-primary-token line-clamp-1">{a.taskName}</span>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded ${GRADE_BADGE[r.exposureGrade] ?? 'bg-elevated text-muted-token'}`}>
                         {t(`planesi.grade_${r.exposureGrade}`)}
                       </span>
                     </div>
-                    <p className="text-[10px] text-zinc-500">
+                    <p className="text-[10px] text-muted-token">
                       {t('protocols_minsal.history_date', 'Fecha')}: {formatDate(a.computedAt)} ·{' '}
                       {t('planesi.percent_lpp', '% del LPP corregido')}: {formatNumber(r.percentOfLpp)}%
                     </p>

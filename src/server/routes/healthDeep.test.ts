@@ -59,12 +59,12 @@ describe('GET /api/health/deep', () => {
   });
 
   it('returns 503 + status: degraded when one probe times out (2s cap)', async () => {
-    // Hangs forever — must be cut by withTimeout at 2000ms.
-    const slow = () =>
-      new Promise<void>((resolve) => {
-        // Long enough that the test would time out if withTimeout failed.
-        setTimeout(resolve, 10_000);
-      });
+    // Never resolves — withTimeout at 2000ms will cut it before this
+    // timer fires. Using a never-resolving promise instead of a long
+    // setTimeout avoids leaking a 10s Timeout handle after the assertion
+    // finishes (the old `setTimeout(10_000)` kept the worker event loop
+    // alive for up to 10 seconds post-test).
+    const slow = () => new Promise<void>(() => { /* intentionally never resolves */ });
     const app = buildAppWithProbes({
       firestore: okProbe,
       kms: okProbe,
@@ -84,8 +84,8 @@ describe('GET /api/health/deep', () => {
     // per-dependency, not all-or-nothing.
     expect(res.body.checks.firestore.ok).toBe(true);
     expect(res.body.checks.openMeteo.ok).toBe(true);
-    // Wall time must be bounded by the per-probe timeout, NOT by the
-    // hung probe's 10s sleep. Allow generous slack for CI noise.
+    // Wall time is bounded by the per-probe timeout (2000ms). Allow
+    // generous slack for CI noise.
     expect(elapsed).toBeLessThan(4000);
   }, 8000);
 

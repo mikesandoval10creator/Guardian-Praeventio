@@ -199,7 +199,7 @@ export function SusesoReports() {
             <FileText className="w-6 h-6 text-blue-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">{t('suseso.title', 'Reportes SUSESO')}</h1>
+            <h1 className="text-2xl font-black uppercase tracking-tighter text-primary-token">{t('suseso.title', 'Reportes SUSESO')}</h1>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('suseso.subtitle', 'Generación de DIAT y DIEP')}</p>
           </div>
         </div>
@@ -218,7 +218,7 @@ export function SusesoReports() {
       <SusesoBuilderSection />
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl w-full overflow-x-auto custom-scrollbar shadow-sm">
+      <div className="flex items-center gap-2 p-1.5 bg-elevated border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl w-full overflow-x-auto custom-scrollbar shadow-sm">
         {[
           { id: 'DIAT', label: 'DIAT (Accidentes)', icon: AlertTriangle },
           { id: 'DIEP', label: 'DIEP (Enfermedades)', icon: Activity },
@@ -242,8 +242,8 @@ export function SusesoReports() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {activeTab === 'ROI' ? (
           <div className="lg:col-span-3 space-y-6">
-            <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
-              <h3 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-4">{t('suseso.roi.title', 'Cálculo Financiero del Ahorro por Siniestralidad')}</h3>
+            <div className="bg-elevated border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
+              <h3 className="text-lg font-black text-primary-token uppercase tracking-widest mb-4">{t('suseso.roi.title', 'Cálculo Financiero del Ahorro por Siniestralidad')}</h3>
               <p className="text-sm text-zinc-500 mb-6">Estimación del Retorno de Inversión (ROI) basado en la prevención de incidentes y reducción de la tasa de siniestralidad.</p>
               
               {(() => {
@@ -255,17 +255,17 @@ export function SusesoReports() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-2xl p-4">
                       <h4 className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Costo Promedio por Incidente</h4>
-                      <p className="text-2xl font-black text-zinc-900 dark:text-white">$2.500.000 <span className="text-xs font-medium text-zinc-500">CLP</span></p>
+                      <p className="text-2xl font-black text-primary-token">$2.500.000 <span className="text-xs font-medium text-zinc-500">CLP</span></p>
                       <p className="text-[10px] text-zinc-500 mt-2">Basado en datos históricos de la industria (días perdidos, multas, reemplazos).</p>
                     </div>
                     <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-4">
                       <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Incidentes Registrados (Proyecto)</h4>
-                      <p className="text-2xl font-black text-zinc-900 dark:text-white">{incidents.length} <span className="text-xs font-medium text-zinc-500">totales</span></p>
+                      <p className="text-2xl font-black text-primary-token">{incidents.length} <span className="text-xs font-medium text-zinc-500">totales</span></p>
                       <p className="text-[10px] text-zinc-500 mt-2">{resolvedIncidents} resueltos · {incidents.length - resolvedIncidents} activos</p>
                     </div>
                     <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-4">
                       <h4 className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1">Ahorro Estimado (30% prevención)</h4>
-                      <p className="text-2xl font-black text-zinc-900 dark:text-white">${totalSavings.toLocaleString('es-CL')} <span className="text-xs font-medium text-zinc-500">CLP</span></p>
+                      <p className="text-2xl font-black text-primary-token">${totalSavings.toLocaleString('es-CL')} <span className="text-xs font-medium text-zinc-500">CLP</span></p>
                       <p className="text-[10px] text-zinc-500 mt-2">Basado en {estimatedPrevented} incidentes prevenidos estimados.</p>
                     </div>
                   </div>
@@ -273,14 +273,14 @@ export function SusesoReports() {
               })()}
 
               <div className="mt-8 p-6 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-white/5">
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-4">Impacto en Cotización Adicional (SUSESO)</h4>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+                <h4 className="text-sm font-bold text-primary-token mb-4">Impacto en Cotización Adicional (SUSESO)</h4>
+                <p className="text-sm text-secondary-token mb-4">
                   Al mantener una tasa de siniestralidad baja, la empresa puede acceder a rebajas en la cotización adicional diferenciada.
                 </p>
-                <div className="flex items-center justify-between p-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-white/10">
+                <div className="flex items-center justify-between p-4 bg-surface rounded-xl border border-zinc-200 dark:border-white/10">
                   <div>
                     <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Tasa Actual</p>
-                    <p className="text-lg font-black text-zinc-900 dark:text-white">1.7%</p>
+                    <p className="text-lg font-black text-primary-token">1.7%</p>
                   </div>
                   <ArrowRight className="w-5 h-5 text-zinc-400" />
                   <div className="text-right">
@@ -295,8 +295,8 @@ export function SusesoReports() {
           <>
             {/* Selector Column */}
             <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
-            <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-4">{t('suseso.select.incident', 'Seleccionar Incidente')}</h3>
+          <div className="bg-elevated border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
+            <h3 className="text-xs font-black text-primary-token uppercase tracking-widest mb-4">{t('suseso.select.incident', 'Seleccionar Incidente')}</h3>
             
             <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
               {incidents.length === 0 ? (
@@ -315,7 +315,7 @@ export function SusesoReports() {
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <h4 className="text-sm font-bold text-zinc-900 dark:text-white truncate">{incident.title}</h4>
+                      <h4 className="text-sm font-bold text-primary-token truncate">{incident.title}</h4>
                       <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest shrink-0">
                         {new Date(incident.createdAt).toLocaleDateString('es-CL')}
                       </span>
@@ -331,14 +331,14 @@ export function SusesoReports() {
         {/* Preview Column */}
         <div className="lg:col-span-2 space-y-4">
           {selectedIncident ? (
-            <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm flex flex-col h-full">
+            <div className="bg-elevated border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm flex flex-col h-full">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-widest">Vista Previa del Documento</h3>
+                <h3 className="text-xs font-black text-primary-token uppercase tracking-widest">Vista Previa del Documento</h3>
                 <div className="flex gap-2">
                   <button
                     onClick={handleExportPDF}
                     disabled={isGenerating}
-                    className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 text-primary-token rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
                   >
                     <Download className="w-4 h-4" />
                     {isGenerating ? 'Generando...' : 'PDF'}
@@ -512,11 +512,11 @@ export function SusesoReports() {
               </div>
             </div>
           ) : (
-            <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm h-full flex flex-col items-center justify-center text-center">
+            <div className="bg-elevated border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm h-full flex flex-col items-center justify-center text-center">
               <div className="w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-4">
                 <FileText className="w-8 h-8 text-zinc-400" />
               </div>
-              <h3 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-2">Sin Selección</h3>
+              <h3 className="text-sm font-black text-primary-token uppercase tracking-widest mb-2">Sin Selección</h3>
               <p className="text-xs text-zinc-500 max-w-sm">Selecciona un incidente de la lista para generar la vista previa del formulario SUSESO correspondiente.</p>
             </div>
           )}
@@ -558,12 +558,12 @@ function SusesoBuilderSection() {
   if (!user) return null;
 
   return (
-    <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-4 sm:p-6 shadow-sm">
+    <div className="bg-elevated border border-zinc-200 dark:border-white/10 rounded-3xl p-4 sm:p-6 shadow-sm">
       <button
         onClick={() => setCollapsed((c) => !c)}
         className="w-full flex items-center justify-between"
       >
-        <span className="text-sm font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-200">
+        <span className="text-sm font-bold uppercase tracking-widest text-secondary-token">
           Generar declaración con folio + firma electrónica
         </span>
         <span className="text-xs text-zinc-500">{collapsed ? 'â–¾' : 'â–´'}</span>

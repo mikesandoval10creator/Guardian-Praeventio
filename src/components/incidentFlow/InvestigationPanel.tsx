@@ -31,7 +31,15 @@ interface InvestigationPanelProps {
   /** The current investigator uid (typically `auth.currentUser.uid` of admin). */
   investigatorUid: string;
   onOpened?: () => void;
-  onConcluded?: () => void;
+  /** Fired after a successful conclusion. Surfaces the conclusion payload so a
+   *  parent can feed it straight into <LessonPublishForm> (PDCA Check step). */
+  onConcluded?: (conclusion: {
+    concludedAtIso: string;
+    rootCauseSummary: string;
+    contributingFactor?: string;
+    preventiveActions: string[];
+    closedByUid: string;
+  }) => void;
 }
 
 export function InvestigationPanel({
@@ -105,7 +113,13 @@ export function InvestigationPanel({
         },
       };
       await concludeInvestigation(projectId, incidentId, payload);
-      onConcluded?.();
+      onConcluded?.({
+        concludedAtIso: payload.concludedAtIso,
+        rootCauseSummary: payload.rootCauseSummary,
+        contributingFactor: payload.contributingFactor,
+        preventiveActions: payload.preventiveActions,
+        closedByUid: investigatorUid,
+      });
     } catch (err) {
       setErrorMsg((err as Error).message);
     } finally {

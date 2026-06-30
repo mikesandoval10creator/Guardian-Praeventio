@@ -149,11 +149,11 @@ export function DocumentOCRManager() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Scan className="w-8 h-8 text-emerald-500" />
             {t('ocr.title', 'Escáner OCR Local')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('ocr.subtitle', 'Digitalización de Permisos y Tarjetas de Seguridad (Offline)')}
           </p>
         </div>
@@ -168,13 +168,13 @@ export function DocumentOCRManager() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Upload Panel */}
         <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <h2 className="text-lg font-bold text-primary flex items-center gap-2">
             <Upload className="w-5 h-5 text-emerald-500" />
             {t('ocr.uploadHeading', 'Cargar Documento Físico')}
           </h2>
 
           <div 
-            className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors cursor-pointer ${file ? 'border-emerald-500 bg-emerald-500/5' : 'border-zinc-700 hover:border-zinc-500 bg-zinc-900/50'}`}
+            className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors cursor-pointer ${file ? 'border-emerald-500 bg-emerald-500/5' : 'border-default-token hover:border-zinc-500 bg-surface/50'}`}
             onClick={() => fileInputRef.current?.click()}
           >
             <input 
@@ -189,16 +189,16 @@ export function DocumentOCRManager() {
               <div className="flex flex-col items-center gap-4">
                 <img src={previewUrl} alt="Preview" className="max-h-48 rounded-lg object-contain" />
                 <div>
-                  <p className="text-sm font-bold text-white">{file?.name}</p>
-                  <p className="text-xs text-zinc-500">{((file?.size || 0) / 1024 / 1024).toFixed(2)} MB</p>
+                  <p className="text-sm font-bold text-primary">{file?.name}</p>
+                  <p className="text-xs text-muted-token">{((file?.size || 0) / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3">
                 <Scan className="w-12 h-12 text-zinc-600" />
                 <div>
-                  <p className="text-sm font-bold text-zinc-300">{t('ocr.takePhoto', 'Toma una foto o sube una imagen')}</p>
-                  <p className="text-xs text-zinc-500">{t('ocr.acceptedDocs', 'Permisos de Trabajo, Tarjetas de Observación, ODI')}</p>
+                  <p className="text-sm font-bold text-secondary">{t('ocr.takePhoto', 'Toma una foto o sube una imagen')}</p>
+                  <p className="text-xs text-muted-token">{t('ocr.acceptedDocs', 'Permisos de Trabajo, Tarjetas de Observación, ODI')}</p>
                 </div>
               </div>
             )}
@@ -215,7 +215,7 @@ export function DocumentOCRManager() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span>{t('ocr.processing', 'Procesando OCR...')}</span>
                 </div>
-                <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2">
+                <div className="w-full bg-elevated rounded-full h-1.5 mt-2">
                   <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${ocrProgress}%` }}></div>
                 </div>
               </div>
@@ -233,15 +233,15 @@ export function DocumentOCRManager() {
           {/* Background effect */}
           <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <h2 className="text-lg font-bold text-primary flex items-center gap-2">
             <FileSearch className="w-5 h-5 text-emerald-500" />
             {t('ocr.resultsHeading', 'Resultados de Extracción')}
           </h2>
 
           {!scanResult && !isScanning && (
-            <div className="flex flex-col items-center justify-center h-64 text-center border border-dashed border-zinc-800 rounded-xl bg-zinc-900/30">
-              <FileSearch className="w-10 h-10 text-zinc-700 mb-3" />
-              <p className="text-sm text-zinc-500">{t('ocr.emptyHint', 'Sube una imagen para extraer el texto mediante IA local.')}</p>
+            <div className="flex flex-col items-center justify-center h-64 text-center border border-dashed border-default-token rounded-xl bg-surface/30">
+              <FileSearch className="w-10 h-10 text-muted-token mb-3" />
+              <p className="text-sm text-muted-token">{t('ocr.emptyHint', 'Sube una imagen para extraer el texto mediante IA local.')}</p>
             </div>
           )}
 
@@ -257,7 +257,7 @@ export function DocumentOCRManager() {
                 <Scan className="w-16 h-16 text-emerald-500 mb-4" />
               </motion.div>
               <p className="text-sm font-bold text-emerald-400 animate-pulse">Reconociendo caracteres (Tesseract.js)...</p>
-              <p className="text-xs text-zinc-500 mt-2">{ocrProgress}% completado</p>
+              <p className="text-xs text-muted-token mt-2">{ocrProgress}% completado</p>
             </div>
           )}
 
@@ -276,23 +276,23 @@ export function DocumentOCRManager() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Tipo de Documento</p>
-                  <p className="text-sm font-bold text-white">{scanResult.type}</p>
+                <div className="p-4 rounded-xl bg-surface border border-default-token">
+                  <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Tipo de Documento</p>
+                  <p className="text-sm font-bold text-primary">{scanResult.type}</p>
                 </div>
-                <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Fecha Detectada</p>
+                <div className="p-4 rounded-xl bg-surface border border-default-token">
+                  <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Fecha Detectada</p>
                   <p className="text-sm font-bold text-emerald-400 truncate">{scanResult.date}</p>
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Trabajador / Solicitante</p>
-                <p className="text-lg font-bold text-white">{scanResult.workerName}</p>
+              <div className="p-4 rounded-xl bg-surface border border-default-token">
+                <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-1">Trabajador / Solicitante</p>
+                <p className="text-lg font-bold text-primary">{scanResult.workerName}</p>
               </div>
 
-              <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Riesgos Identificados</p>
+              <div className="p-4 rounded-xl bg-surface border border-default-token">
+                <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-2">Riesgos Identificados</p>
                 <div className="flex flex-wrap gap-2">
                   {scanResult.risks?.map((risk, idx) => (
                     <span key={idx} className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/30 flex items-center gap-1">
@@ -303,9 +303,9 @@ export function DocumentOCRManager() {
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-zinc-950 border border-white/5 max-h-32 overflow-y-auto custom-scrollbar">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Texto Crudo Extraído</p>
-                <p className="text-xs text-zinc-400 whitespace-pre-wrap">{scanResult.rawText}</p>
+              <div className="p-4 rounded-xl bg-canvas border border-default-token max-h-32 overflow-y-auto custom-scrollbar">
+                <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest mb-2">Texto Crudo Extraído</p>
+                <p className="text-xs text-secondary whitespace-pre-wrap">{scanResult.rawText}</p>
               </div>
 
               <Button 

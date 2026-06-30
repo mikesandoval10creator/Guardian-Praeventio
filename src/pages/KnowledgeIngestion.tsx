@@ -90,24 +90,24 @@ export function KnowledgeIngestion() {
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20 shrink-0">
               <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('knowledgeIngestion.title', 'Entrenamiento IA')}</h1>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">{t('knowledgeIngestion.title', 'Entrenamiento IA')}</h1>
           </div>
-          <p className="text-zinc-500 font-medium text-[10px] sm:text-sm md:text-base">{t('knowledgeIngestion.subtitle', 'Ingesta de Conocimiento y Creación de Nodos Maestros')}</p>
+          <p className="text-muted-token font-medium text-[10px] sm:text-sm md:text-base">{t('knowledgeIngestion.subtitle', 'Ingesta de Conocimiento y Creación de Nodos Maestros')}</p>
         </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl p-6 shadow-xl">
+          <div className="bg-surface border border-default-token rounded-2xl p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+              <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
                 <FileText className="w-5 h-5 text-emerald-500" />
                 {t('knowledgeIngestion.manualSection', 'Manual de Prevención / Normativa')}
               </h2>
               <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded">RAG System</span>
             </div>
             
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
+            <p className="text-sm text-secondary-token mb-6">
               Pega aquí el texto de tu manual, protocolo o normativa. El Guardián analizará el contenido, extraerá los conceptos clave y los convertirá en <strong>Nodos Maestros</strong> dentro de la Red Neuronal para usarlos en futuras predicciones y respuestas.
             </p>
 
@@ -115,15 +115,15 @@ export function KnowledgeIngestion() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="Ej: PROCEDIMIENTO DE TRABAJO SEGURO EN ALTURA. 1. Objetivo: Establecer las normas... 2. Alcance... 3. Responsabilidades..."
-              className="w-full h-64 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-xl p-4 text-sm text-zinc-900 dark:text-zinc-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none mb-4"
+              className="w-full h-64 bg-elevated border border-default-token rounded-xl p-4 text-sm text-primary-token placeholder:text-zinc-400 dark:placeholder:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none mb-4"
             />
 
             <div className="flex items-center justify-between">
-              <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+              <div className="text-[10px] font-bold text-muted-token uppercase tracking-widest">
                 {text.length} caracteres
               </div>
               <div className="flex items-center gap-3">
-                <label className="cursor-pointer flex items-center gap-2 px-3 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                <label className="cursor-pointer flex items-center gap-2 px-3 py-2 bg-elevated hover:bg-zinc-200 dark:hover:bg-zinc-700 text-secondary-token rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
                   {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
                   {isUploading ? t('knowledgeIngestion.uploading', 'Cargando...') : t('knowledgeIngestion.uploadFile', 'Cargar Archivo (TXT)')}
                   <input 
@@ -184,22 +184,22 @@ export function KnowledgeIngestion() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl p-6 shadow-xl">
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+          <div className="bg-surface border border-default-token rounded-2xl p-6 shadow-xl">
+            <h3 className="text-sm font-bold text-primary-token mb-4 flex items-center gap-2">
               <Database className="w-4 h-4 text-blue-500" />
               ¿Cómo funciona?
             </h3>
-            <ul className="space-y-4 text-xs text-zinc-600 dark:text-zinc-400">
+            <ul className="space-y-4 text-xs text-secondary-token">
               <li className="flex gap-3">
-                <div className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 text-zinc-900 dark:text-white font-bold">1</div>
+                <div className="w-6 h-6 rounded-full bg-elevated flex items-center justify-center shrink-0 text-primary-token font-bold">1</div>
                 <p><strong>Ingesta:</strong> La IA lee tu documento y comprende el contexto general y las reglas específicas.</p>
               </li>
               <li className="flex gap-3">
-                <div className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 text-zinc-900 dark:text-white font-bold">2</div>
+                <div className="w-6 h-6 rounded-full bg-elevated flex items-center justify-center shrink-0 text-primary-token font-bold">2</div>
                 <p><strong>Fragmentación:</strong> Divide el texto en "Nodos Maestros" (ej. Protocolo de Viento, Uso de Arnés).</p>
               </li>
               <li className="flex gap-3">
-                <div className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 text-zinc-900 dark:text-white font-bold">3</div>
+                <div className="w-6 h-6 rounded-full bg-elevated flex items-center justify-center shrink-0 text-primary-token font-bold">3</div>
                 <p><strong>Asimilación:</strong> Los nodos se guardan en la Red Neuronal Global, disponibles para todos los proyectos.</p>
               </li>
               <li className="flex gap-3">

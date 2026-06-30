@@ -161,7 +161,7 @@ export function Findings() {
             <AlertTriangle className="w-6 h-6 text-amber-500" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white leading-tight">{t('findings.title')}</h1>
+            <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tighter text-primary-token leading-tight">{t('findings.title')}</h1>
             <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">{t('findings.subtitle')}</p>
           </div>
         </div>
@@ -201,13 +201,13 @@ export function Findings() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl p-4 border border-zinc-200 dark:border-white/10 shadow-sm"
+            className="bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl p-4 border border-default-token shadow-sm"
           >
             <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl ${stat.bg} flex items-center justify-center mb-3`}>
               <stat.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.color}`} />
             </div>
             <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">{stat.label}</p>
-            <p className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white tracking-tighter leading-none">{stat.value}</p>
+            <p className="text-xl sm:text-2xl font-black text-primary-token tracking-tighter leading-none">{stat.value}</p>
           </motion.div>
         ))}
       </div>
@@ -221,7 +221,7 @@ export function Findings() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder={t('findings.search_placeholder')}
-            className="w-full bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all placeholder:text-zinc-500"
+            className="w-full bg-zinc-50 dark:bg-zinc-900/50 border border-default-token rounded-xl pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 text-xs sm:text-sm text-primary-token focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all placeholder:text-zinc-500"
           />
         </div>
         <button
@@ -229,7 +229,7 @@ export function Findings() {
           className={`flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 border rounded-xl transition-colors w-full sm:w-auto text-xs sm:text-sm font-medium ${
             showFilters || severityFilter !== 'all' || statusFilter !== 'all'
               ? 'bg-amber-500 border-amber-500 text-white'
-              : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              : 'bg-zinc-50 dark:bg-zinc-900/50 border-default-token text-muted-token hover:text-zinc-900 dark:hover:text-white'
           }`}
         >
           <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -238,7 +238,7 @@ export function Findings() {
       </div>
 
       {showFilters && (
-        <div className="flex flex-wrap gap-4 p-4 bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/10 rounded-2xl">
+        <div className="flex flex-wrap gap-4 p-4 bg-zinc-50 dark:bg-zinc-900/30 border border-default-token rounded-2xl">
           <div className="flex flex-col gap-1.5">
             <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('findings.severity')}</span>
             <div className="flex gap-2 flex-wrap">
@@ -247,7 +247,7 @@ export function Findings() {
                   key={opt.v}
                   onClick={() => setSeverityFilter(opt.v)}
                   className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
-                    severityFilter === opt.v ? 'bg-amber-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                    severityFilter === opt.v ? 'bg-amber-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-secondary-token hover:bg-zinc-300 dark:hover:bg-zinc-700'
                   }`}
                 >{opt.label}</button>
               ))}
@@ -261,7 +261,7 @@ export function Findings() {
                   key={opt.v}
                   onClick={() => setStatusFilter(opt.v)}
                   className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
-                    statusFilter === opt.v ? 'bg-amber-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                    statusFilter === opt.v ? 'bg-amber-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-secondary-token hover:bg-zinc-300 dark:hover:bg-zinc-700'
                   }`}
                 >{opt.label}</button>
               ))}
@@ -284,7 +284,7 @@ export function Findings() {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl p-4 sm:p-5 border border-zinc-200 dark:border-white/10 shadow-sm group hover:border-amber-500/30 transition-all cursor-pointer"
+              className="bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl p-4 sm:p-5 border border-default-token shadow-sm group hover:border-amber-500/30 transition-all cursor-pointer"
             >
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex-1 space-y-2 w-full min-w-0">
@@ -292,28 +292,28 @@ export function Findings() {
                     <span className={`px-2 py-0.5 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${
                       finding.metadata.severity === 'Crítica' ? 'bg-rose-500 text-white' :
                       finding.metadata.severity === 'Alta' ? 'bg-amber-500 text-white' :
-                      'bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
+                      'bg-zinc-200 dark:bg-zinc-800 text-secondary-token'
                     }`}>
                       {finding.metadata.severity}
                     </span>
-                    <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 truncate">
+                    <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-token truncate">
                       {finding.metadata.category}
                     </span>
                   </div>
-                  <h3 className="text-sm sm:text-base font-black text-zinc-900 dark:text-white uppercase tracking-tight group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors truncate">
+                  <h3 className="text-sm sm:text-base font-black text-primary-token uppercase tracking-tight group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors truncate">
                     {finding.title}
                   </h3>
-                  <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2 leading-relaxed">
+                  <p className="text-xs sm:text-sm text-secondary-token line-clamp-2 leading-relaxed">
                     {finding.description}
                   </p>
                   <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-2">
                     <div className="flex items-center gap-1.5">
                       <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-400" />
-                      <span className="text-[9px] sm:text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase truncate max-w-[120px] sm:max-w-[200px]">{finding.metadata.location}</span>
+                      <span className="text-[9px] sm:text-[10px] font-bold text-secondary-token uppercase truncate max-w-[120px] sm:max-w-[200px]">{finding.metadata.location}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-400" />
-                      <span className="text-[9px] sm:text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase">
+                      <span className="text-[9px] sm:text-[10px] font-bold text-secondary-token uppercase">
                         {new Date(finding.createdAt).toLocaleDateString('es-CL')}
                       </span>
                     </div>
@@ -325,7 +325,7 @@ export function Findings() {
                     )}
                   </div>
                 </div>
-                <div className="flex sm:flex-col items-center sm:items-end gap-3 w-full sm:w-auto justify-between sm:justify-start mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-zinc-200 dark:border-zinc-800 shrink-0">
+                <div className="flex sm:flex-col items-center sm:items-end gap-3 w-full sm:w-auto justify-between sm:justify-start mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-default-token shrink-0">
                   <div className={`px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-widest border ${
                     finding.metadata.status === 'Abierto' ? 'border-amber-500/20 text-amber-600 dark:text-amber-400 bg-amber-500/10' : 'border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
                   }`}>
@@ -350,9 +350,9 @@ export function Findings() {
             </motion.div>
           ))
         ) : (
-          <div className="text-center py-12 sm:py-20 bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border border-dashed border-zinc-200 dark:border-white/10">
+          <div className="text-center py-12 sm:py-20 bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border border-dashed border-default-token">
             <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 text-zinc-300 dark:text-zinc-700 mx-auto mb-4" />
-            <p className="text-sm sm:text-base font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">{t('findings.empty_title')}</p>
+            <p className="text-sm sm:text-base font-bold text-muted-token uppercase tracking-widest">{t('findings.empty_title')}</p>
             <p className="text-[10px] sm:text-xs text-zinc-400 dark:text-zinc-500 mt-1">{t('findings.empty_subtitle')}</p>
           </div>
         )}

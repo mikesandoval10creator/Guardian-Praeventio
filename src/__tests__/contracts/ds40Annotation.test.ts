@@ -11,8 +11,8 @@
 // Este test es estático y se corre en CI antes del deploy.
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync as fsReaddir, statSync as fsStat } from 'node:fs';
+import { resolve, join as pathJoin, sep as pathSep } from 'node:path';
 
 // Archivos críticos donde "DS 40" sólo puede aparecer con anotación.
 // Excluye docs/archive/ (histórico, OK), tests (puede mockear) y código
@@ -112,5 +112,80 @@ describe('DS 40 derogado — H26 (LeyChile + directiva 2026-05-17)', () => {
     );
     // El detector menciona explícitamente DS 40 en su docstring/regex.
     expect(g).toMatch(/DS 40/);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Extensión 2026-06-30: del allowlist (~15 archivos, sólo DS 40) al barrido
+// COMPLETO de src/**, cubriendo además DS 54 (también derogado por DS 44/2024
+// el 01-02-2025). El allowlist de arriba se conserva (assertions vigentes);
+// este barrido es el verdadero gate anti-regresión: falla si CUALQUIER cita de
+// un decreto derogado (DS 40 ó DS 54) aparece como vigente, sin un marcador de
+// derogación en la misma línea o adyacente.
+//
+// Exclusiones (idénticas a ds44Migration.test.ts): los 2 archivos de contrato,
+// los archivos de test (fixtures siembran 'DS 54'/'DS 40' a propósito), docs/
+// (fuera de src), y los códigos enum estables 'DS-40'/'DS-54' (join-keys, no
+// citas legales — su supersesión se documenta en cada registry).
+// ───────────────────────────────────────────────────────────────────────────
+
+const SRC_ROOT_FULL = resolve(__dirname, '..', '..');
+
+// Sólo la forma EN PROSA ("DS 40"/"DS 54" con espacio, "decreto/Decreto
+// Supremo 40/54"). Las formas con guion (DS-40/DS-54/cl-ds-54/norma-DS-40/
+// source:'DS-54') son identificadores/enum estables en este repo, no citas
+// legales — su supersesión se documenta en el encabezado de cada registry.
+const PROSE_CITATION = /\bDS\s(?:40|54)\b|\bdecreto\s+(?:supremo\s+)?(?:40|54)\b/i;
+const DEROGATION_MARKER = /(?:\bex\s|derogad|reemplaza|DS\s*44)/i;
+
+function walkSrc(dir: string, acc: string[] = []): string[] {
+  for (const entry of fsReaddir(dir)) {
+    const full = pathJoin(dir, entry);
+    if (fsStat(full).isDirectory()) {
+      if (entry === 'node_modules' || entry === 'dist') continue;
+      walkSrc(full, acc);
+    } else if (/\.(ts|tsx)$/.test(entry)) {
+      acc.push(full);
+    }
+  }
+  return acc;
+}
+
+function excludedFromSweep(absPath: string): boolean {
+  const p = absPath.split(pathSep).join('/');
+  if (/\.(test|spec)\.(ts|tsx)$/.test(p)) return true;
+  if (p.includes('/__tests__/contracts/ds40Annotation')) return true;
+  if (p.includes('/__tests__/contracts/ds44Migration')) return true;
+  return false;
+}
+
+describe('DS 40 / DS 54 derogados — barrido exhaustivo (H26 extendido)', () => {
+  it('ningún decreto derogado se cita como vigente sin marcador adyacente', () => {
+    const offenders: string[] = [];
+    for (const file of walkSrc(SRC_ROOT_FULL)) {
+      if (excludedFromSweep(file)) continue;
+      const lines = readFileSync(file, 'utf8').split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!PROSE_CITATION.test(line)) continue;
+        const prev = lines[i - 1] ?? '';
+        const next = lines[i + 1] ?? '';
+        if (
+          !DEROGATION_MARKER.test(line) &&
+          !DEROGATION_MARKER.test(prev) &&
+          !DEROGATION_MARKER.test(next)
+        ) {
+          offenders.push(
+            `  ${file.split(pathSep).join('/').replace(/.*\/src\//, 'src/')}:${i + 1}  ${line.trim().slice(0, 120)}`,
+          );
+        }
+      }
+    }
+    expect(
+      offenders.length,
+      offenders.length === 0
+        ? ''
+        : `Decreto derogado citado como vigente (sin ex/derogado/reemplaza/DS 44 cerca):\n${offenders.join('\n')}`,
+    ).toBe(0);
   });
 });

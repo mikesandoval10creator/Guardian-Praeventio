@@ -150,7 +150,7 @@ const LeadershipDecisions = lazy(() => import('./pages/LeadershipDecisions').the
 // Service `drivingSafety/drivingSafetyService` (score conductor + score
 // ruta + matching) ya existía; este lazy cierra el wire end-to-end con
 // endpoint + hook + page navegable.
-const DrivingSafety = lazy(() => import('./pages/DrivingSafety').then(module => ({ default: module.DrivingSafety })));
+const SafeDriving = lazy(() => import('./pages/SafeDriving').then(module => ({ default: module.SafeDriving })));
 // Sprint K §211-213 — Reportes Confidenciales (Ley Karin 21.643) +
 // Canal de Denuncias + Detector de Represalias. Privacy-by-design:
 // anónimo por defecto, hash one-way del reporter para retaliation
@@ -314,7 +314,7 @@ function AppRoutes() {
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
               <Route path="worker-readiness" element={<WorkerReadiness />} />
               <Route path="leadership-decisions" element={<LeadershipDecisions />} />
-              <Route path="driving-safety" element={<DrivingSafety />} />
+              <Route path="driving-safety" element={<SafeDriving />} />
               <Route path="confidential-reports" element={<ConfidentialReports />} />
               <Route path="incident-trends" element={<IncidentTrends />} />
               <Route path="apprenticeship" element={<Apprenticeship />} />
@@ -502,7 +502,7 @@ function AppRoutes() {
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
                     <Route path="worker-readiness" element={<WorkerReadiness />} />
                     <Route path="leadership-decisions" element={<LeadershipDecisions />} />
-                    <Route path="driving-safety" element={<DrivingSafety />} />
+                    <Route path="driving-safety" element={<SafeDriving />} />
                     <Route path="confidential-reports" element={<ConfidentialReports />} />
                     <Route path="incident-trends" element={<IncidentTrends />} />
                     <Route path="apprenticeship" element={<Apprenticeship />} />

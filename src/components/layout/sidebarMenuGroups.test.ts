@@ -25,18 +25,44 @@ const ORO_FEATURES: SubscriptionFeatureGates = {
 
 describe('buildSidebarMenuGroups — Plan §P2', () => {
   describe('estructura básica', () => {
-    it('retorna 5 grupos para user no-admin sin features', () => {
+    it('retorna 10 bloques para user no-admin sin features', () => {
       const groups = buildSidebarMenuGroups(tStub, FREE_FEATURES, false);
-      expect(groups).toHaveLength(5);
-      // Orden estable, no random shuffle
-      expect(groups[0].title).toBe('Centro de Mando');
-      expect(groups[1].title).toBe('Inteligencia Artificial');
-      expect(groups[2].title).toBe('Módulos Operativos');
-      expect(groups[3].title).toBe('Salud Ocupacional');
-      expect(groups[4].title).toBe('Configuración');
+      expect(groups.map((g) => g.title)).toEqual([
+        'Principal', 'Gestión Operativa', 'Prevención y Riesgos', 'Salud Ocupacional',
+        'Cumplimiento', 'Emergencias', 'Conocimiento', 'IA y Coach', 'Innovación', 'Administración',
+      ]);
+    });
+
+    it('admin no agrega un bloque nuevo — extiende Administración', () => {
+      const groups = buildSidebarMenuGroups(tStub, FREE_FEATURES, true);
+      expect(groups).toHaveLength(10);
+      const admin = groups.find((g) => g.title === 'Administración')!;
+      expect(admin.items.some((i) => i.path === '/admin/b2d')).toBe(true);
     });
 
     it('cada grupo tiene title + icon + items[] no-vacío', () => {
+      const groups = buildSidebarMenuGroups(tStub, FREE_FEATURES, false);
+      for (const g of groups) {
+        expect(g.title.length).toBeGreaterThan(0);
+        expect(g.icon).toBeDefined();
+        expect(g.items.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('cada item tiene title + icon + path + color', () => {
+      const groups = buildSidebarMenuGroups(tStub, FREE_FEATURES, false);
+      for (const g of groups) {
+        for (const it of g.items) {
+          expect(it.title.length).toBeGreaterThan(0);
+          expect(it.icon).toBeDefined();
+          expect(it.path.startsWith('/')).toBe(true);
+          expect(typeof it.color).toBe('string');
+        }
+      }
+    });
+
+    // Legacy test preserved for TS type shape only.
+    it('cada grupo tiene title + icon + items[] no-vacío (legado)', () => {
       const groups = buildSidebarMenuGroups(tStub, FREE_FEATURES, false);
       for (const g of groups) {
         expect(typeof g.title).toBe('string');
@@ -75,28 +101,26 @@ describe('buildSidebarMenuGroups — Plan §P2', () => {
       expect(allPaths).toContain('/executive-dashboard');
     });
 
-    it('el item executive_dashboard vive en el primer grupo (Centro de Mando)', () => {
+    it('el item executive_dashboard vive en el bloque IA y Coach (índice 7)', () => {
       const groups = buildSidebarMenuGroups(tStub, ORO_FEATURES, false);
-      const commandCenter = groups[0];
-      const paths = commandCenter.items.map((i) => i.path);
+      const iaCoach = groups.find((g) => g.title === 'IA y Coach')!;
+      const paths = iaCoach.items.map((i) => i.path);
       expect(paths).toContain('/executive-dashboard');
     });
   });
 
   describe('admin gate', () => {
-    it('NO agrega grupo Admin para non-admin', () => {
+    it('NO incluye /admin/b2d para non-admin', () => {
       const groups = buildSidebarMenuGroups(tStub, FREE_FEATURES, false);
-      const titles = groups.map((g) => g.title);
-      expect(titles).not.toContain('Admin');
+      const allPaths = groups.flatMap((g) => g.items.map((i) => i.path));
+      expect(allPaths).not.toContain('/admin/b2d');
     });
 
-    it('agrega grupo Admin como ÚLTIMO grupo cuando isAdmin=true', () => {
+    it('admin agrega /admin/b2d en Administración (siempre 10 bloques)', () => {
       const groups = buildSidebarMenuGroups(tStub, FREE_FEATURES, true);
-      expect(groups).toHaveLength(6);
-      const last = groups[groups.length - 1];
-      expect(last.title).toBe('Admin');
-      expect(last.items).toHaveLength(1);
-      expect(last.items[0].path).toBe('/admin/b2d');
+      expect(groups).toHaveLength(10);
+      const admin = groups.find((g) => g.title === 'Administración')!;
+      expect(admin.items.some((i) => i.path === '/admin/b2d')).toBe(true);
     });
   });
 

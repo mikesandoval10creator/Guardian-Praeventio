@@ -327,7 +327,7 @@ export function Emergency() {
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('emergency_page.title')}</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight">{t('emergency_page.title')}</h1>
           <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">
             {selectedProject 
               ? t('emergency_page.subtitle_with_project', { name: selectedProject.name })
@@ -357,7 +357,7 @@ export function Emergency() {
             ) : (
               <button
                 disabled
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700/50 text-zinc-400 dark:text-zinc-500 px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] cursor-not-allowed shadow-sm"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-elevated/50 border border-zinc-200 dark:border-zinc-700/50 text-muted-token px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] cursor-not-allowed shadow-sm"
                 title={t('emergency_page.requires_internet')}
               >
                 <WifiOff className="w-4 h-4" />
@@ -370,10 +370,10 @@ export function Emergency() {
               title={!isOnline ? t('emergency_page.requires_internet') : ""}
               className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm ${
                 !isOnline
-                  ? 'bg-zinc-100 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700/50 cursor-not-allowed'
+                  ? 'bg-elevated/50 text-muted-token border border-zinc-200 dark:border-zinc-700/50 cursor-not-allowed'
                   : isCrisisMode 
                     ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' 
-                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-200 dark:border-transparent'
+                    : 'bg-elevated text-muted-token hover:text-zinc-900 dark:hover:text-white border border-zinc-200 dark:border-transparent'
               }`}
             >
               {!isOnline ? (
@@ -387,14 +387,14 @@ export function Emergency() {
           <button
             onClick={handleDownloadPlan}
             disabled={isDownloadingPlan || protocols.length === 0}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-surface border border-default-token text-secondary-token hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm"
           >
             {isDownloadingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             <span>{isDownloadingPlan ? t('emergency_page.btn.generating') : t('emergency_page.btn.download_plan')}</span>
           </button>
           <button
             onClick={() => setIsContactsOpen(true)}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#4db6ac] hover:bg-[#3a9e95] text-white px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-[#4db6ac]/20 active:scale-95"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 accent-bg hover:opacity-90 accent-on-primary-text px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-[#4db6ac]/20 active:scale-95"
           >
             <Phone className="w-4 h-4" />
             <span>{t('emergency_page.btn.emergency_contacts')}</span>
@@ -409,7 +409,7 @@ export function Emergency() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="emergency-contacts-title"
-            className="bg-white dark:bg-zinc-900 rounded-2xl max-w-md w-full p-6 shadow-2xl"
+            className="bg-surface rounded-2xl max-w-md w-full p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 id="emergency-contacts-title" className="text-lg font-black uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -425,7 +425,7 @@ export function Emergency() {
               <li className="flex justify-between items-center"><span>ACHS</span><a href="tel:6006002247" className="font-mono font-black text-emerald-500">600 600 2247</a></li>
               <li className="flex justify-between items-center"><span>Información Toxicológica (CITUC)</span><a href="tel:226353800" className="font-mono font-black text-emerald-500">22 635 3800</a></li>
             </ul>
-            <button onClick={() => setIsContactsOpen(false)} className="mt-6 w-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white px-4 py-2 rounded-xl font-bold text-sm">
+            <button onClick={() => setIsContactsOpen(false)} className="mt-6 w-full bg-elevated hover:bg-zinc-200 dark:hover:bg-zinc-700 text-primary-token px-4 py-2 rounded-xl font-bold text-sm">
               {t('common.close')}
             </button>
           </div>
@@ -461,17 +461,17 @@ export function Emergency() {
               
               {/* Man Down Control Panel */}
               <div className={`p-4 sm:p-6 rounded-2xl sm:rounded-3xl border transition-all shadow-sm ${
-                isActive ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30' : 'bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10'
+                isActive ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30' : 'bg-surface border-default-token'
               }`}>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6">
                   <div className="flex items-center gap-3 sm:gap-4">
                     <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all shrink-0 ${
-                      isActive ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500'
+                      isActive ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-elevated text-muted-token'
                     }`}>
                       <Activity className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div>
-                      <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white leading-tight">{t('emergency_page.man_down.panel_title')}</h3>
+                      <h3 className="text-base sm:text-lg font-bold text-primary-token leading-tight">{t('emergency_page.man_down.panel_title')}</h3>
                       <p className="text-[10px] sm:text-xs text-zinc-500 font-medium uppercase tracking-widest mt-0.5">
                         {isActive ? t('emergency_page.man_down.monitoring_active') : t('emergency_page.man_down.system_off')}
                       </p>
@@ -490,31 +490,31 @@ export function Emergency() {
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-black/20 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-white/5">
+                  <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-black/20 rounded-xl sm:rounded-2xl border border-subtle-token">
                     <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('emergency_page.man_down.sensors_status')}</p>
                     <div className="flex items-center gap-2">
                       <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`} />
-                      <span className="text-[10px] sm:text-xs font-bold text-zinc-900 dark:text-white uppercase">{isActive ? t('emergency_page.man_down.connected') : t('emergency_page.man_down.inactive')}</span>
+                      <span className="text-[10px] sm:text-xs font-bold text-primary-token uppercase">{isActive ? t('emergency_page.man_down.connected') : t('emergency_page.man_down.inactive')}</span>
                     </div>
                   </div>
-                  <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-black/20 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-white/5">
+                  <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-black/20 rounded-xl sm:rounded-2xl border border-subtle-token">
                     <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('emergency_page.man_down.last_motion')}</p>
                     <div className="flex items-center gap-2">
-                      <Clock className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
-                      <span className="text-[10px] sm:text-xs font-bold text-zinc-900 dark:text-white uppercase">{isActive ? t('emergency_page.man_down.one_sec_ago') : '--:--'}</span>
+                      <Clock className="w-3 h-3 text-muted-token" />
+                      <span className="text-[10px] sm:text-xs font-bold text-primary-token uppercase">{isActive ? t('emergency_page.man_down.one_sec_ago') : '--:--'}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="relative">
-                <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-zinc-400 dark:text-zinc-500" />
+                <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-token" />
                 <input
                   type="text"
                   placeholder={t('emergency_page.search_placeholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
+                  className="w-full bg-surface border border-default-token rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-sm text-primary-token placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
                 />
               </div>
 
@@ -525,10 +525,10 @@ export function Emergency() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-emerald-500/30 dark:hover:border-emerald-500/30 transition-all group cursor-pointer flex flex-col shadow-sm"
+                    className="bg-surface border border-default-token rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-emerald-500/30 dark:hover:border-emerald-500/30 transition-all group cursor-pointer flex flex-col shadow-sm"
                   >
                     <div className="flex items-start justify-between mb-3 sm:mb-4">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-emerald-600 dark:text-emerald-500 border border-zinc-200 dark:border-white/5 shrink-0">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-elevated flex items-center justify-center text-emerald-600 dark:text-emerald-500 border border-subtle-token shrink-0">
                         <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
                       </div>
                       <span className={`px-2 py-0.5 rounded text-[7px] sm:text-[8px] font-black uppercase tracking-widest ${
@@ -537,9 +537,9 @@ export function Emergency() {
                         {protocol.status === 'active' ? t('emergency_page.protocol.active') : t('emergency_page.protocol.review')}
                       </span>
                     </div>
-                    <h3 className="font-bold text-zinc-900 dark:text-white text-base sm:text-lg group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-tight flex-1">{protocol.title}</h3>
+                    <h3 className="font-bold text-primary-token text-base sm:text-lg group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-tight flex-1">{protocol.title}</h3>
                     <p className="text-zinc-500 text-[10px] sm:text-xs font-medium mt-1 uppercase tracking-wider">{protocol.category}</p>
-                    <div className="flex items-center justify-between mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-zinc-200 dark:border-white/5">
+                    <div className="flex items-center justify-between mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-subtle-token">
                       <div className="flex items-center gap-1.5 text-zinc-500 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">
                         <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                         <span>{t('emergency_page.protocol.review_label', { date: protocol.lastReview })}</span>
@@ -553,8 +553,8 @@ export function Emergency() {
 
             {/* Sidebar Info */}
             <div className="space-y-4 sm:space-y-6">
-              <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm">
-                <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
+              <div className="bg-surface border border-default-token rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm">
+                <h3 className="text-base sm:text-lg font-bold text-primary-token mb-3 sm:mb-4 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
                   {t('emergency_page.recent_alerts')}
                 </h3>
@@ -563,10 +563,10 @@ export function Emergency() {
                     { title: t('emergency_page.alerts.drill_title'), date: t('emergency_page.alerts.drill_date'), type: 'info' },
                     { title: t('emergency_page.alerts.extinguisher_title'), date: t('emergency_page.alerts.extinguisher_date'), type: 'warning' },
                   ].map((alert, i) => (
-                    <div key={i} className="flex gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5">
+                    <div key={i} className="flex gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-elevated/50 border border-subtle-token">
                       <div className={`w-1 sm:w-1.5 rounded-full shrink-0 ${alert.type === 'info' ? 'bg-blue-500' : 'bg-amber-500'}`} />
                       <div>
-                        <h4 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white">{alert.title}</h4>
+                        <h4 className="text-xs sm:text-sm font-bold text-primary-token">{alert.title}</h4>
                         <p className="text-[9px] sm:text-[10px] text-zinc-500 font-medium uppercase tracking-wider mt-0.5">{alert.date}</p>
                       </div>
                     </div>
@@ -574,22 +574,22 @@ export function Emergency() {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm">
-                <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
+              <div className="bg-surface border border-default-token rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm">
+                <h3 className="text-base sm:text-lg font-bold text-primary-token mb-3 sm:mb-4 flex items-center gap-2">
                   <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
                   {t('emergency_page.compliance_status')}
                 </h3>
                 <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">{t('emergency_page.compliance.plan')}</span>
+                    <span className="text-xs sm:text-sm text-secondary-token">{t('emergency_page.compliance.plan')}</span>
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">{t('emergency_page.compliance.brigade')}</span>
+                    <span className="text-xs sm:text-sm text-secondary-token">{t('emergency_page.compliance.brigade')}</span>
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">{t('emergency_page.compliance.signage')}</span>
+                    <span className="text-xs sm:text-sm text-secondary-token">{t('emergency_page.compliance.signage')}</span>
                     <div className="w-4 h-4 rounded-full border-2 border-zinc-300 dark:border-zinc-700" />
                   </div>
                 </div>
@@ -616,7 +616,7 @@ export function Emergency() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-zinc-900 rounded-[2rem] p-6 w-full max-w-md shadow-2xl border border-zinc-200 dark:border-white/10 max-h-[80vh] flex flex-col"
+              className="bg-surface rounded-[2rem] p-6 w-full max-w-md shadow-2xl border border-default-token max-h-[80vh] flex flex-col"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-5">
@@ -624,9 +624,9 @@ export function Emergency() {
                   <div className="p-2 bg-emerald-500/10 rounded-xl">
                     <Phone className="w-5 h-5 text-emerald-500" />
                   </div>
-                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t('emergency_page.btn.emergency_contacts')}</h2>
+                  <h2 className="text-lg font-black text-primary-token uppercase tracking-tight">{t('emergency_page.btn.emergency_contacts')}</h2>
                 </div>
-                <button onClick={() => setShowContactsModal(false)} className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
+                <button onClick={() => setShowContactsModal(false)} aria-label="Cerrar" className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -636,7 +636,7 @@ export function Emergency() {
                   <p className="text-sm text-zinc-500 text-center py-8">{t('emergency_page.no_workers')}</p>
                 )}
                 {workers?.filter(w => w.status === 'active').map(worker => (
-                  <div key={worker.id} className="flex items-center gap-4 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-2xl">
+                  <div key={worker.id} className="flex items-center gap-4 p-4 bg-elevated rounded-2xl">
                     <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0 overflow-hidden">
                       {worker.photoUrl
                         ? <img src={worker.photoUrl} alt={worker.name} className="w-full h-full object-cover" />
@@ -644,13 +644,13 @@ export function Emergency() {
                       }
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-zinc-900 dark:text-white truncate">{worker.name}</p>
+                      <p className="text-sm font-bold text-primary-token truncate">{worker.name}</p>
                       <p className="text-[10px] text-zinc-500 uppercase tracking-wider">{worker.role}</p>
                     </div>
                     {worker.phone ? (
                       <a
                         href={`tel:${worker.phone}`}
-                        className="flex items-center gap-2 px-3 py-2 bg-[#4db6ac] hover:bg-[#3a9e95] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors shrink-0"
+                        className="flex items-center gap-2 px-3 py-2 accent-bg hover:opacity-90 accent-on-primary-text rounded-xl text-xs font-black uppercase tracking-wider transition-colors shrink-0"
                       >
                         <Phone className="w-3 h-3" />
                         {worker.phone}

@@ -284,10 +284,10 @@ export function PortableCurriculum() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header Profile */}
-      <div className="flex flex-col md:flex-row items-center md:items-start gap-6 bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-white/10 shadow-xl">
+      <div className="flex flex-col md:flex-row items-center md:items-start gap-6 bg-surface p-6 rounded-3xl border border-default-token shadow-xl">
         <div className="relative">
           <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-emerald-400 to-blue-500 p-1">
-            <div className="w-full h-full rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
+            <div className="w-full h-full rounded-full bg-surface flex items-center justify-center overflow-hidden">
               {user?.photoURL ? (
                 <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
               ) : (
@@ -301,7 +301,7 @@ export function PortableCurriculum() {
         </div>
 
         <div className="flex-1 text-center md:text-left space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-primary-token uppercase tracking-tight">
             {user?.displayName || t('curriculum.defaultUser', 'Usuario Guardián')}
           </h1>
           <p className="text-sm font-medium text-zinc-500 uppercase tracking-widest flex items-center justify-center md:justify-start gap-2">
@@ -323,11 +323,11 @@ export function PortableCurriculum() {
         </div>
 
         <div className="flex flex-row md:flex-col gap-4">
-          <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-white/5">
+          <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-default-token">
             <p className="text-2xl font-black text-emerald-500">{stats.safeHours}</p>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{t('curriculum.safeHours', 'Horas Seguras')}</p>
           </div>
-          <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-white/5">
+          <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-default-token">
             <p className="text-2xl font-black text-blue-500">{stats.perfectChecks}</p>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Fast Checks</p>
           </div>
@@ -338,7 +338,7 @@ export function PortableCurriculum() {
         {/* Left Column: Badges & Courses */}
         <div className="space-y-6">
           <Card className="p-6 space-y-4">
-            <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+            <h2 className="text-sm font-black text-primary-token uppercase tracking-widest flex items-center gap-2">
               <Target className="w-5 h-5 text-indigo-500" />
               {t('curriculum.skillTree', 'Árbol de Habilidades')}
             </h2>
@@ -355,7 +355,7 @@ export function PortableCurriculum() {
                         <skill.icon className={`w-3.5 h-3.5 ${skill.color}`} />
                         <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{skill.name}</span>
                       </div>
-                      <span className="text-[10px] font-black text-zinc-900 dark:text-white">Lvl {skill.level}</span>
+                      <span className="text-[10px] font-black text-primary-token">Lvl {skill.level}</span>
                     </div>
                     <div className="flex gap-1">
                       {Array.from({ length: skill.max }).map((_, i) => (
@@ -374,7 +374,7 @@ export function PortableCurriculum() {
           </Card>
 
           <Card className="p-6 space-y-4">
-            <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+            <h2 className="text-sm font-black text-primary-token uppercase tracking-widest flex items-center gap-2">
               <Award className="w-5 h-5 text-amber-500" />
               {t('curriculum.badges', 'Medallas Obtenidas')}
             </h2>
@@ -385,12 +385,12 @@ export function PortableCurriculum() {
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {badges.map(badge => (
-                  <div key={badge.id} className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 text-center group hover:border-amber-500/50 transition-colors cursor-default">
+                  <div key={badge.id} className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-default-token text-center group hover:border-amber-500/50 transition-colors cursor-default">
                     <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center text-xl mb-2 ${badge.color}`}>
                       {badge.icon}
                     </div>
-                    <p className="text-xs font-bold text-zinc-900 dark:text-white mb-1">{badge.name}</p>
-                    <p className="text-[9px] text-zinc-500 leading-tight opacity-0 group-hover:opacity-100 transition-opacity absolute bg-white dark:bg-zinc-900 p-2 rounded shadow-xl z-10 w-40 -ml-10">
+                    <p className="text-xs font-bold text-primary-token mb-1">{badge.name}</p>
+                    <p className="text-[9px] text-zinc-500 leading-tight opacity-0 group-hover:opacity-100 transition-opacity absolute bg-surface p-2 rounded shadow-xl z-10 w-40 -ml-10">
                       {badge.description}
                     </p>
                   </div>
@@ -400,7 +400,7 @@ export function PortableCurriculum() {
           </Card>
 
           <Card className="p-6 space-y-4">
-            <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+            <h2 className="text-sm font-black text-primary-token uppercase tracking-widest flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-500" />
               Capacitaciones ({stats.coursesCompleted})
             </h2>
@@ -421,7 +421,7 @@ export function PortableCurriculum() {
                   {completed.map((row) => (
                     <li
                       key={row.key}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 px-3 py-2"
+                      className="flex items-center justify-between gap-2 rounded-lg border border-default-token px-3 py-2"
                       data-testid="curriculum-completed-training-row"
                     >
                       <span className="flex items-center gap-2 text-[12px] text-zinc-800 dark:text-zinc-200 min-w-0">
@@ -448,7 +448,7 @@ export function PortableCurriculum() {
         <div className="lg:col-span-2">
           <Card className="p-6 h-full space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+              <h2 className="text-sm font-black text-primary-token uppercase tracking-widest flex items-center gap-2">
                 <FolderOpen className="w-5 h-5 text-emerald-500" />
                 Dossier de Proyectos (CV)
               </h2>
@@ -478,7 +478,7 @@ export function PortableCurriculum() {
                       <div className="w-1/3 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-t-lg ml-3 transition-colors group-hover:bg-emerald-500/20" />
 
                       {/* Folder Body */}
-                      <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl rounded-tl-none p-5 shadow-sm hover:shadow-md transition-all group-hover:border-emerald-500/30 min-h-[160px] flex flex-col justify-between">
+                      <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-default-token rounded-2xl rounded-tl-none p-5 shadow-sm hover:shadow-md transition-all group-hover:border-emerald-500/30 min-h-[160px] flex flex-col justify-between">
                         <div>
                           <div className="flex justify-between items-start mb-3">
                             <div className="flex items-center gap-3">
@@ -486,14 +486,14 @@ export function PortableCurriculum() {
                                 <FolderOpen className="w-6 h-6" />
                               </div>
                               <div>
-                                <h3 className="font-black text-zinc-900 dark:text-white text-sm leading-tight">{item.project}</h3>
+                                <h3 className="font-black text-primary-token text-sm leading-tight">{item.project}</h3>
                                 <p className="text-xs text-zinc-500 font-medium mt-0.5">{item.role}</p>
                               </div>
                             </div>
                           </div>
                         </div>
 
-                        <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 flex flex-col gap-2">
+                        <div className="mt-4 pt-4 border-t border-default-token flex flex-col gap-2">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
                               <Clock className="w-3.5 h-3.5" /> {item.date || 'Sin fecha'}
@@ -521,7 +521,7 @@ export function PortableCurriculum() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <BadgeCheck className="w-5 h-5 text-emerald-500" />
-            <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest">
+            <h2 className="text-sm font-black text-primary-token uppercase tracking-widest">
               Mis claims verificados
             </h2>
           </div>

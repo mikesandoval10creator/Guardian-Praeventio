@@ -242,10 +242,10 @@ export function B2dAdminPanel() {
       <div className="p-4 lg:p-8 space-y-8 max-w-7xl mx-auto">
         <header className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
+            <h1 className="text-2xl font-bold text-primary-token">
               {t('b2dAdmin.header.title', 'Panel B2D Admin')}
             </h1>
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-muted-token">
               {t('b2dAdmin.header.subtitle', 'Gestión de API keys, ingresos y eventos del producto B2D.')}
             </p>
           </div>
@@ -259,14 +259,14 @@ export function B2dAdminPanel() {
         </header>
 
         {loading && (
-          <div className="flex items-center gap-2 text-zinc-500">
+          <div className="flex items-center gap-2 text-muted-token">
             <Loader2 className="w-4 h-4 animate-spin" /> {t('b2dAdmin.common.loading', 'Cargando…')}
           </div>
         )}
 
         {/* Section 2 — Métricas (rendered above keys for at-a-glance view). */}
         <section aria-labelledby="b2d-metrics-heading" className="space-y-4">
-          <h2 id="b2d-metrics-heading" className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+          <h2 id="b2d-metrics-heading" className="text-lg font-bold text-primary-token flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-[#4db6ac]" /> {t('b2dAdmin.metrics.title', 'Métricas')}
           </h2>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -283,13 +283,13 @@ export function B2dAdminPanel() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4"
+            className="bg-surface border border-default-token rounded-2xl p-4"
           >
-            <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-token mb-2">
               {t('b2dAdmin.metrics.mrrChart', 'MRR — mes actual')}
             </h3>
             <MrrChart data={mrrSeries} />
-            <p className="mt-2 text-[10px] text-zinc-500 leading-relaxed">
+            <p className="mt-2 text-[10px] text-muted-token leading-relaxed">
               {t(
                 'b2dAdmin.metrics.mrrChartNote',
                 'Solo se muestra el valor actual. El histórico mensual se llenará automáticamente cuando el cron `runB2dMrrSnapshot` empiece a poblar la colección b2d_mrr_snapshots.',
@@ -297,15 +297,15 @@ export function B2dAdminPanel() {
             </p>
           </motion.div>
 
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4">
+          <div className="bg-surface border border-default-token rounded-2xl p-4">
             <RevenueByTierChart
               revenueByTier={metrics?.revenueByTier ?? ({} as Record<B2dTier, number>)}
               customersByTier={customersByTier}
             />
           </div>
 
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2">
+          <div className="bg-surface border border-default-token rounded-2xl p-4">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-token mb-2">
               {t('b2dAdmin.cohorts.title', 'Cohortes de retención')}
             </h3>
             {/* Placeholder: real cohort matrix needs a monthly snapshot job. */}
@@ -315,13 +315,13 @@ export function B2dAdminPanel() {
 
         {/* Section 1 — API Keys table. */}
         <section aria-labelledby="b2d-keys-heading" className="space-y-3">
-          <h2 id="b2d-keys-heading" className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+          <h2 id="b2d-keys-heading" className="text-lg font-bold text-primary-token flex items-center gap-2">
             <Key className="w-5 h-5 text-[#4db6ac]" /> API Keys ({keys.length})
           </h2>
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-x-auto">
+          <div className="bg-surface border border-default-token rounded-2xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 dark:bg-zinc-800/50">
-                <tr className="text-left text-xs uppercase tracking-widest text-zinc-500">
+                <tr className="text-left text-xs uppercase tracking-widest text-muted-token">
                   <th className="px-4 py-2">{t('b2dAdmin.table.customer', 'Customer')}</th>
                   <th className="px-4 py-2">{t('b2dAdmin.table.tier', 'Tier')}</th>
                   <th className="px-4 py-2">{t('b2dAdmin.table.scopes', 'Scopes')}</th>
@@ -334,13 +334,13 @@ export function B2dAdminPanel() {
               <tbody>
                 {keys.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
+                    <td colSpan={7} className="px-4 py-6 text-center text-muted-token">
                       {t('b2dAdmin.table.emptyKeys', 'Sin API keys todavía.')}
                     </td>
                   </tr>
                 )}
                 {keys.map((k) => (
-                  <tr key={k.id} className="border-t border-zinc-200 dark:border-zinc-800">
+                  <tr key={k.id} className="border-t border-default-token">
                     <td className="px-4 py-2 font-mono text-xs">{k.customerId}</td>
                     <td className="px-4 py-2">{k.tier}</td>
                     <td className="px-4 py-2 text-xs">{k.scopes.join(', ')}</td>
@@ -352,8 +352,8 @@ export function B2dAdminPanel() {
                         {k.status}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-xs text-zinc-500">{formatDate(k.lastUsedAt)}</td>
-                    <td className="px-4 py-2 text-xs text-zinc-500">{formatDate(k.createdAt)}</td>
+                    <td className="px-4 py-2 text-xs text-muted-token">{formatDate(k.lastUsedAt)}</td>
+                    <td className="px-4 py-2 text-xs text-muted-token">{formatDate(k.createdAt)}</td>
                     <td className="px-4 py-2">
                       {k.status === 'active' && (
                         <button
@@ -374,13 +374,13 @@ export function B2dAdminPanel() {
 
         {/* Section 3 — Top customers. */}
         <section aria-labelledby="b2d-top-heading" className="space-y-3">
-          <h2 id="b2d-top-heading" className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+          <h2 id="b2d-top-heading" className="text-lg font-bold text-primary-token flex items-center gap-2">
             <Users className="w-5 h-5 text-[#4db6ac]" /> {t('b2dAdmin.topCustomers.title', 'Top 10 customers')}
           </h2>
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-x-auto">
+          <div className="bg-surface border border-default-token rounded-2xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 dark:bg-zinc-800/50">
-                <tr className="text-left text-xs uppercase tracking-widest text-zinc-500">
+                <tr className="text-left text-xs uppercase tracking-widest text-muted-token">
                   <th className="px-4 py-2">#</th>
                   <th className="px-4 py-2">{t('b2dAdmin.table.customer', 'Customer')}</th>
                   <th className="px-4 py-2">{t('b2dAdmin.topCustomers.mainTier', 'Tier principal')}</th>
@@ -389,8 +389,8 @@ export function B2dAdminPanel() {
               </thead>
               <tbody>
                 {(metrics?.topCustomers ?? []).slice(0, 10).map((row, i) => (
-                  <tr key={row.customerId} className="border-t border-zinc-200 dark:border-zinc-800">
-                    <td className="px-4 py-2 text-zinc-500">{i + 1}</td>
+                  <tr key={row.customerId} className="border-t border-default-token">
+                    <td className="px-4 py-2 text-muted-token">{i + 1}</td>
                     <td className="px-4 py-2 font-mono text-xs">{row.customerId}</td>
                     <td className="px-4 py-2">{row.tier}</td>
                     <td className="px-4 py-2 text-right font-bold">{formatCurrency(row.revenueMonthly)}</td>
@@ -398,7 +398,7 @@ export function B2dAdminPanel() {
                 ))}
                 {(!metrics || metrics.topCustomers.length === 0) && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
+                    <td colSpan={4} className="px-4 py-6 text-center text-muted-token">
                       {t('b2dAdmin.topCustomers.empty', 'Sin clientes B2D activos todavía.')}
                     </td>
                   </tr>
@@ -410,13 +410,13 @@ export function B2dAdminPanel() {
 
         {/* Section 4 — Eventos. */}
         <section aria-labelledby="b2d-events-heading" className="space-y-3">
-          <h2 id="b2d-events-heading" className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+          <h2 id="b2d-events-heading" className="text-lg font-bold text-primary-token flex items-center gap-2">
             <AlertOctagon className="w-5 h-5 text-amber-500" /> {t('b2dAdmin.events.title', 'Eventos')}
           </h2>
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-x-auto">
+          <div className="bg-surface border border-default-token rounded-2xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 dark:bg-zinc-800/50">
-                <tr className="text-left text-xs uppercase tracking-widest text-zinc-500">
+                <tr className="text-left text-xs uppercase tracking-widest text-muted-token">
                   <th className="px-4 py-2">{t('b2dAdmin.events.when', 'Cuándo')}</th>
                   <th className="px-4 py-2">{t('b2dAdmin.events.type', 'Tipo')}</th>
                   <th className="px-4 py-2">{t('b2dAdmin.table.customer', 'Customer')}</th>
@@ -427,8 +427,8 @@ export function B2dAdminPanel() {
               </thead>
               <tbody>
                 {events.map((ev) => (
-                  <tr key={ev.id} className="border-t border-zinc-200 dark:border-zinc-800">
-                    <td className="px-4 py-2 text-xs text-zinc-500">{formatDate(ev.ts)}</td>
+                  <tr key={ev.id} className="border-t border-default-token">
+                    <td className="px-4 py-2 text-xs text-muted-token">{formatDate(ev.ts)}</td>
                     <td className="px-4 py-2 text-xs">{ev.kind}</td>
                     <td className="px-4 py-2 text-xs font-mono">{ev.customerId ?? '—'}</td>
                     <td className="px-4 py-2 text-xs">{ev.tier ?? '—'}</td>
@@ -438,7 +438,7 @@ export function B2dAdminPanel() {
                 ))}
                 {events.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">
+                    <td colSpan={6} className="px-4 py-6 text-center text-muted-token">
                       {t('b2dAdmin.events.empty', 'Sin eventos en los últimos 30 días.')}
                     </td>
                   </tr>
@@ -465,9 +465,9 @@ interface MetricCardProps {
 
 function MetricCard({ label, value }: MetricCardProps) {
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
-      <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{label}</p>
-      <p className="text-xl font-bold text-zinc-900 dark:text-white mt-1">{value}</p>
+    <div className="bg-surface border border-default-token rounded-xl p-4">
+      <p className="text-[10px] uppercase tracking-widest text-muted-token font-bold">{label}</p>
+      <p className="text-xl font-bold text-primary-token mt-1">{value}</p>
     </div>
   );
 }

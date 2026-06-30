@@ -1,12 +1,9 @@
 import React, { useRef } from 'react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { cn } from '../../utils/cn';
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+export { cn } from '../../utils/cn';
 
 export interface CardProps extends React.ComponentPropsWithoutRef<'div'> {
   /** Disable the GSAP hover micro-interaction (defaults to enabled). */

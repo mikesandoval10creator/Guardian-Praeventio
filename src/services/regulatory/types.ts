@@ -26,7 +26,7 @@ export type JurisdictionCode =
  * jurisdicción (ej. PPE en Chile cita DS 594 y NCh 1331).
  */
 export interface RegulationRef {
-  /** Código corto y estable: 'DS-54', 'OSHA-1910.132', '89/391/EEC',
+  /** Código corto y estable: 'DS-44', 'OSHA-1910.132', '89/391/EEC',
    *  'ISO-45001:6.1.2', 'NOM-019-STPS'. */
   code: string;
   /** Título corto humano-legible. */

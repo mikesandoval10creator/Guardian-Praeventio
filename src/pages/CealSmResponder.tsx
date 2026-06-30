@@ -95,11 +95,11 @@ export function CealSmResponder() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6" data-testid="ceal-responder-page">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+        <h1 className="text-2xl sm:text-3xl font-black text-primary uppercase tracking-tighter leading-tight flex items-center gap-3">
           <Brain className="w-8 h-8 text-violet-400" />
           {t('ceal_sm.responder_title', 'Cuestionario CEAL-SM / SUSESO')}
         </h1>
-        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mt-2">
+        <p className="text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] mt-2">
           {t('ceal_sm.responder_subtitle', 'Evaluación del ambiente laboral — Salud mental')}
         </p>
       </div>
@@ -140,8 +140,8 @@ export function CealSmResponder() {
       ) : (
         <>
           {/* Campaign picker */}
-          <div data-testid="ceal-open-campaigns" className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-3">
-            <h3 className="text-sm font-bold text-white">
+          <div data-testid="ceal-open-campaigns" className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6 space-y-3">
+            <h3 className="text-sm font-bold text-primary">
               {t('ceal_sm.open_campaigns', 'Campañas abiertas')}
             </h3>
             {loading ? (
@@ -161,7 +161,7 @@ export function CealSmResponder() {
                         data-testid={`ceal-responded-${c.id}`}
                         className="w-full border border-white/5 rounded-xl p-3 flex items-center justify-between gap-2 opacity-70"
                       >
-                        <span className="text-xs text-zinc-400 line-clamp-1">{c.title}</span>
+                        <span className="text-xs text-secondary line-clamp-1">{c.title}</span>
                         <span className="text-[10px] font-black text-emerald-400 shrink-0">
                           {t('ceal_sm.responded_badge', 'YA RESPONDIDA')}
                         </span>
@@ -181,8 +181,8 @@ export function CealSmResponder() {
                             : 'border-white/5 hover:border-white/15'
                         }`}
                       >
-                        <span className="text-xs font-bold text-white line-clamp-1">{c.title}</span>
-                        <span className="text-[10px] text-zinc-500 shrink-0">
+                        <span className="text-xs font-bold text-primary line-clamp-1">{c.title}</span>
+                        <span className="text-[10px] text-muted-token shrink-0">
                           {t('ceal_sm.respond_cta', 'Responder')} →
                         </span>
                       </button>
@@ -196,8 +196,8 @@ export function CealSmResponder() {
           {/* Questionnaire — official Sección II, verbatim legal text. */}
           {selected && (
             <div data-testid="ceal-questionnaire" className="space-y-4">
-              <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4">
-                <p className="text-xs text-zinc-300 leading-relaxed">
+              <div className="bg-surface border border-default-token rounded-2xl p-4">
+                <p className="text-xs text-secondary leading-relaxed">
                   {/* Official instruction, Anexo Nº 1 Sección II (es-CL legal text). */}
                   A continuación, encontrará una serie de preguntas sobre los
                   contenidos y exigencias de su trabajo. Por favor, responda a
@@ -217,7 +217,7 @@ export function CealSmResponder() {
                 <fieldset
                   key={dim.id}
                   data-testid={`ceal-dimension-${dim.id}`}
-                  className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4"
+                  className="bg-surface border border-default-token rounded-2xl p-4 sm:p-6 space-y-4"
                 >
                   <legend className="sr-only">{dim.name}</legend>
                   <h3 className="text-xs font-black text-violet-400 uppercase tracking-widest">
@@ -225,7 +225,7 @@ export function CealSmResponder() {
                   </h3>
                   {dim.items.map((item) => (
                     <div key={item.code} data-testid={`ceal-item-${item.code}`} className="space-y-2">
-                      <p className="text-xs text-zinc-200 leading-relaxed">{item.text}</p>
+                      <p className="text-xs text-secondary leading-relaxed">{item.text}</p>
                       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={item.code}>
                         {CEAL_SCALE_OPTIONS[item.scale].map((opt) => {
                           const active = answers[item.code] === opt.points;
@@ -242,7 +242,7 @@ export function CealSmResponder() {
                               className={`text-[11px] px-3 py-1.5 rounded-lg border transition-colors ${
                                 active
                                   ? 'border-violet-500 bg-violet-500/20 text-violet-200 font-bold'
-                                  : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:border-white/25'
+                                  : 'border-default-token bg-elevated text-secondary hover:border-white/25'
                               }`}
                             >
                               {opt.label}
@@ -255,8 +255,8 @@ export function CealSmResponder() {
                 </fieldset>
               ))}
 
-              <div className="sticky bottom-4 bg-zinc-950/90 backdrop-blur border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-3">
-                <p className="text-xs text-zinc-400 flex-1">
+              <div className="sticky bottom-4 bg-canvas/90 backdrop-blur border border-default-token rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-3">
+                <p className="text-xs text-secondary flex-1">
                   {complete
                     ? t('ceal_sm.ready_to_send', 'Cuestionario completo. Puedes enviar tu respuesta anónima.')
                     : t('ceal_sm.answer_all', {

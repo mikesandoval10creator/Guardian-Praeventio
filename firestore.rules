@@ -350,7 +350,33 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      allow read: if isValidId(projectId) && isProjectMember(projectId);
+      // READ is split into `get` (single doc) and `list` (query). The Firestore
+      // rules-aware query engine evaluates `list` against query CONSTRAINTS, not
+      // a concrete document: any get()-based clause (isAdmin/isSupervisor read
+      // users/{uid}) raises "Null value error" during list eval, and
+      // resource.data.get(k,default) defeats the array-contains static match.
+      // The prior single `allow read: isProjectMember()` did a self-referential
+      // get() that the emulator cannot resolve during list at all.
+      //
+      // get: a single project doc is concrete, so the full check is safe and
+      // mirrors the prior isProjectMember() semantics (minus the self-get):
+      // member OR creator OR admin OR supervisor.
+      allow get: if isValidId(projectId) && isEmailVerified() && (
+        request.auth.uid in resource.data.members ||
+        resource.data.get('createdBy', '') == request.auth.uid ||
+        isAdmin() ||
+        isSupervisor()
+      );
+      // list: ONLY constraint-safe checks (no get()). The token-only role check
+      // (resource-independent → evaluated first) lets an admin/gerente run the
+      // unfiltered `query(collection('projects'))` ProjectContext uses for
+      // admins; DIRECT `resource.data.members` lets the engine match the
+      // non-admin `where('members','array-contains',uid)` query. A non-admin can
+      // therefore only list projects they belong to (tenant-scoped, no leak).
+      allow list: if isEmailVerified() && (
+        request.auth.token.role in ['admin', 'gerente'] ||
+        request.auth.uid in resource.data.members
+      );
       allow create: if isEmailVerified() && isValidProject(incoming()) && incoming().createdBy == request.auth.uid;
       allow update: if isEmailVerified() && (isAdmin() || isSupervisor() || existing().createdBy == request.auth.uid) && isValidProject(incoming());
       allow delete: if isEmailVerified() && (isAdmin() || existing().createdBy == request.auth.uid);
@@ -884,19 +910,45 @@ service cloud.firestore {
           && incoming().authorUid == existing().authorUid;
         allow delete: if isAdmin() || isSupervisor();
       }
-      // TODO(review dahosandoval@): no creator-uid field confirmed in the schema
-      // for these three — anti-spoof N/A, so create/update is plain member-gated.
-      // Tighten once the owner field (if any) is settled.
+      // V2 (security hardening 2026-06-22): anti-spoof creator-uid guards.
+      //
+      // exceptions — creator field: `approvedByUid`.
+      //   ExceptionRecord.approvedByUid is the UID of the supervisor/admin who
+      //   approved (and in practice created) the exception. The server route
+      //   (src/server/routes/exceptions.ts) overrides it server-side, but the
+      //   Firestore rule is the last line of defence for any direct SDK write.
+      //   Pattern mirrors deas/{deaId} and clinical_alerts/{alertId} (peer
+      //   collections that also gate on createdBy == request.auth.uid).
+      //   On create: approvedByUid MUST equal the caller's uid.
+      //   On update: approvedByUid MUST stay immutable (cannot be reassigned).
       match /exceptions/{exceptionId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().approvedByUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().approvedByUid == existing().approvedByUid;
         allow delete: if isAdmin() || isSupervisor();
       }
+      // legal_obligations — ponytail: legal_obligations has no client-facing
+      // creator field; `lastAcknowledgedByUid` / `lastSnoozedByUid` are
+      // server-stamped by the HTTP route (src/server/routes/legalObligations.ts)
+      // and are NEVER written by the client SDK directly. Anti-spoof N/A for
+      // client writes. The server-side route enforces identity via verifyAuth.
       match /legal_obligations/{obligationId} {
         allow create, update: if isValidId(projectId) && isProjectMember(projectId);
         allow delete: if isAdmin() || isSupervisor();
       }
+      // shifts — creator field: `supervisorUid`.
+      //   ShiftRecord.supervisorUid identifies the supervisor who opened the
+      //   shift. On create: supervisorUid MUST equal the caller's uid (a
+      //   supervisor cannot open a shift attributing it to another person).
+      //   On update: supervisorUid MUST stay immutable (acknowledgedByUid is a
+      //   DIFFERENT field — the incoming supervisor — and is freely mutable).
+      //   Pattern mirrors safety_talks_given / lone_worker_sessions.
       match /shifts/{shiftId} {
-        allow create, update: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().supervisorUid == request.auth.uid;
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().supervisorUid == existing().supervisorUid;
         allow delete: if isAdmin() || isSupervisor();
       }
     }
@@ -1392,6 +1444,43 @@ service cloud.firestore {
         isProjectMember(resource.data.projectId) &&
         incoming().projectId == resource.data.projectId &&
         incoming().status in ['Operativo', 'En Mantenimiento', 'Fuera de Servicio'];
+      allow delete: if isEmailVerified() && (isAdmin() || isSupervisor());
+    }
+
+    // Spaced-repetition learning cards (SM-2). A worker's OWN study cards for a
+    // project: created when a training session completes (Training.tsx) and
+    // updated as the worker reviews them (SpacedRepetitionReviewQueue). Personal
+    // formative data — NOT a legal record. Owner-scoped:
+    //   - read: the OWNER (workerUid == uid) — uses no get() so the worker's
+    //     review-queue LIST query stays fail-safe — plus admin/supervisor.
+    //   - create: a project member may seed ONLY their own card
+    //     (workerUid == uid → no spoofing someone else's study record).
+    //   - update: only the owner, and projectId/workerUid are immutable
+    //     (review can change the SM-2 schedule, never the ownership).
+    //   - delete: admin/supervisor only (the worker can't erase their trail).
+    match /learning_cards/{cardId} {
+      allow read: if isValidId(cardId) && isEmailVerified() && (
+        resource.data.workerUid == request.auth.uid ||
+        isAdmin() || isSupervisor()
+      );
+      allow create: if isValidId(cardId) && isEmailVerified() &&
+        incoming().workerUid == request.auth.uid &&
+        isProjectMember(incoming().projectId) &&
+        incoming().projectId is string &&
+        incoming().workerUid is string &&
+        incoming().topic is string &&
+        incoming().reviewCount is number &&
+        incoming().easeFactor is number &&
+        incoming().intervalDays is number &&
+        incoming().nextReviewAt is string;
+      allow update: if isValidId(cardId) && isEmailVerified() &&
+        resource.data.workerUid == request.auth.uid &&
+        incoming().workerUid == resource.data.workerUid &&
+        incoming().projectId == resource.data.projectId &&
+        incoming().reviewCount is number &&
+        incoming().easeFactor is number &&
+        incoming().intervalDays is number &&
+        incoming().nextReviewAt is string;
       allow delete: if isEmailVerified() && (isAdmin() || isSupervisor());
     }
 

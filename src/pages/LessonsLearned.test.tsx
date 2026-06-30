@@ -289,4 +289,45 @@ describe('<LessonsLearned /> page wrapper (Fase F.12)', () => {
     expect(screen.getByTestId('lessons-error')).toBeInTheDocument();
     expect(screen.getByText(/Network down/i)).toBeInTheDocument();
   });
+
+  // Mount regression: <LessonSuggestionsCard /> must render inside
+  // <LessonsLearned /> when a risk-category filter is active and the
+  // library has at least one matching lesson. Verifies the component
+  // is truly rendered (not just imported / phantom-mounted per CLAUDE.md #23).
+  it('renderiza LessonSuggestionsCard cuando hay filtro activo y lecciones cargadas', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    const alturaLesson: Lesson = {
+      ...sampleLesson,
+      id: 'lesson_altura_1',
+      riskCategories: ['altura'],
+      scope: 'global',
+    };
+    mockLessonsState = {
+      data: { lessons: [alturaLesson] },
+      loading: false,
+      error: null,
+      refetch: refetchSpy,
+    };
+    render(<LessonsLearned />);
+    // Apply the "altura" risk-category filter first.
+    fireEvent.click(screen.getByTestId('lessons-filter-altura'));
+    // <LessonSuggestionsCard /> renders with data-testid="lesson-suggestions-card"
+    // (or "lesson-suggestions-empty" if no match — either proves it rendered).
+    const card = screen.queryByTestId('lesson-suggestions-card') ?? screen.queryByTestId('lesson-suggestions-empty');
+    expect(card).toBeInTheDocument();
+  });
+
+  it('NO renderiza LessonSuggestionsCard cuando no hay filtro activo (modo top-adoptadas)', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockLessonsState = {
+      data: { lessons: [sampleLesson] },
+      loading: false,
+      error: null,
+      refetch: refetchSpy,
+    };
+    render(<LessonsLearned />);
+    // Without a filter (default top-adoptadas mode) the suggestions card must NOT appear.
+    expect(screen.queryByTestId('lesson-suggestions-card')).toBeNull();
+    expect(screen.queryByTestId('lesson-suggestions-empty')).toBeNull();
+  });
 });

@@ -91,7 +91,7 @@ export function InviteAccept() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-canvas flex items-center justify-center p-4">
       {/* Background glow */}
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/30 via-zinc-950 to-blue-950/20 pointer-events-none" />
 
@@ -101,14 +101,14 @@ export function InviteAccept() {
         className="relative z-10 w-full max-w-md"
       >
         {/* Card */}
-        <div className="bg-zinc-900 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+        <div className="bg-surface border border-default-token rounded-3xl overflow-hidden shadow-2xl">
           {/* Header */}
-          <div className="bg-zinc-800/50 px-8 pt-8 pb-6 text-center border-b border-white/5">
+          <div className="bg-elevated/50 px-8 pt-8 pb-6 text-center border-b border-default-token">
             <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
               <ShieldCheck className="w-7 h-7 text-emerald-500" />
             </div>
             <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-1">Praeventio Guard</p>
-            <h1 className="text-xl font-black text-white uppercase tracking-tight">{t('inviteAccept.title', 'Invitación de Equipo')}</h1>
+            <h1 className="text-xl font-black text-primary-token uppercase tracking-tight">{t('inviteAccept.title', 'Invitación de Equipo')}</h1>
           </div>
 
           <div className="px-8 py-7 space-y-6">
@@ -123,8 +123,8 @@ export function InviteAccept() {
             {infoError && (
               <div className="flex flex-col items-center gap-3 py-4 text-center">
                 <AlertTriangle className="w-10 h-10 text-rose-500" />
-                <p className="text-sm font-bold text-white">{t('inviteAccept.unavailable', 'Invitación no disponible')}</p>
-                <p className="text-xs text-zinc-400">{infoError}</p>
+                <p className="text-sm font-bold text-primary-token">{t('inviteAccept.unavailable', 'Invitación no disponible')}</p>
+                <p className="text-xs text-muted-token">{infoError}</p>
                 <button onClick={() => navigate('/')} className="mt-2 text-xs font-black uppercase tracking-widest text-emerald-500 hover:text-emerald-400 transition-colors">
                   Ir al Inicio
                 </button>
@@ -135,18 +135,18 @@ export function InviteAccept() {
             {info && !accepted && (
               <>
                 <div className="space-y-3">
-                  <div className="bg-zinc-800/50 rounded-2xl p-4 text-center">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-1">Proyecto</p>
-                    <p className="text-lg font-black text-white">{info.projectName}</p>
+                  <div className="bg-elevated/50 rounded-2xl p-4 text-center">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-token mb-1">Proyecto</p>
+                    <p className="text-lg font-black text-primary-token">{info.projectName}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-zinc-800/50 rounded-2xl p-4 text-center">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-1">Tu rol</p>
+                    <div className="bg-elevated/50 rounded-2xl p-4 text-center">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-muted-token mb-1">Tu rol</p>
                       <p className="text-sm font-black text-emerald-400">{ROLE_LABELS[info.invitedRole] || info.invitedRole}</p>
                     </div>
-                    <div className="bg-zinc-800/50 rounded-2xl p-4 text-center">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-1">Expira</p>
-                      <p className="text-sm font-black text-zinc-300">{new Date(info.expiresAt).toLocaleDateString('es-CL')}</p>
+                    <div className="bg-elevated/50 rounded-2xl p-4 text-center">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-muted-token mb-1">Expira</p>
+                      <p className="text-sm font-black text-secondary-token">{new Date(info.expiresAt).toLocaleDateString('es-CL')}</p>
                     </div>
                   </div>
                 </div>
@@ -155,7 +155,7 @@ export function InviteAccept() {
                 {accepting && (
                   <div className="flex flex-col items-center gap-2 py-2">
                     <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
-                    <p className="text-xs text-zinc-400 uppercase tracking-widest font-bold">Aceptando invitación...</p>
+                    <p className="text-xs text-muted-token uppercase tracking-widest font-bold">Aceptando invitación...</p>
                   </div>
                 )}
 
@@ -170,8 +170,8 @@ export function InviteAccept() {
                 {/* Action: user not logged in */}
                 {!user && !accepting && (
                   <div className="space-y-3">
-                    <p className="text-xs text-zinc-400 text-center">
-                      Inicia sesión con la cuenta <span className="text-white font-bold">{info.invitedEmail}</span> para aceptar.
+                    <p className="text-xs text-muted-token text-center">
+                      Inicia sesión con la cuenta <span className="text-primary-token font-bold">{info.invitedEmail}</span> para aceptar.
                     </p>
                     <button
                       onClick={handleSignIn}
@@ -186,9 +186,9 @@ export function InviteAccept() {
 
                 {/* Action: user logged in, waiting for auto-accept */}
                 {user && !accepting && !acceptError && (
-                  <div className="flex items-center gap-2 text-xs text-zinc-400 justify-center">
+                  <div className="flex items-center gap-2 text-xs text-muted-token justify-center">
                     <UserCheck className="w-4 h-4 text-emerald-500" />
-                    Sesión activa como <span className="text-white font-bold ml-1">{user.email}</span>
+                    Sesión activa como <span className="text-primary-token font-bold ml-1">{user.email}</span>
                   </div>
                 )}
 
@@ -208,15 +208,15 @@ export function InviteAccept() {
             {accepted && (
               <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center gap-3 py-6 text-center">
                 <CheckCircle2 className="w-12 h-12 text-emerald-500" />
-                <p className="text-lg font-black text-white uppercase tracking-tight">¡Bienvenido al equipo!</p>
-                <p className="text-sm text-zinc-400">Redirigiendo a Proyectos...</p>
+                <p className="text-lg font-black text-primary-token uppercase tracking-tight">¡Bienvenido al equipo!</p>
+                <p className="text-sm text-muted-token">Redirigiendo a Proyectos...</p>
                 <Loader2 className="w-4 h-4 text-emerald-500 animate-spin mt-1" />
               </motion.div>
             )}
           </div>
         </div>
 
-        <p className="text-center text-[10px] text-zinc-600 mt-4 font-bold uppercase tracking-widest">
+        <p className="text-center text-[10px] text-muted-token mt-4 font-bold uppercase tracking-widest">
           © {new Date().getFullYear()} Praeventio Guard
         </p>
       </motion.div>

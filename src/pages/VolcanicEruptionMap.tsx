@@ -85,7 +85,7 @@ export function VolcanicEruptionMap() {
       case 'yellow': return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
       case 'orange': return 'text-orange-500 bg-orange-500/10 border-orange-500/20';
       case 'red': return 'text-rose-500 bg-rose-500/10 border-rose-500/20';
-      default: return 'text-zinc-400 bg-zinc-800 border-white/10';
+      default: return 'text-muted-token bg-elevated border-default-token';
     }
   };
 
@@ -150,11 +150,11 @@ export function VolcanicEruptionMap() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Mountain className="w-8 h-8 text-orange-500" />
             {t('volcanicEruptionMap.title', 'Protocolo Volcánico')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('volcanicEruptionMap.subtitle', 'Mapeo de Dispersión de Cenizas y Evacuación')}
           </p>
         </div>
@@ -168,8 +168,8 @@ export function VolcanicEruptionMap() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Controls Panel */}
-        <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="p-6 border-default-token space-y-6">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
             <Navigation className="w-5 h-5 text-blue-500" />
             Parámetros de Simulación
           </h2>
@@ -177,7 +177,7 @@ export function VolcanicEruptionMap() {
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-zinc-400">Modo Viento</label>
+                <label className="text-sm font-medium text-muted-token">Modo Viento</label>
                 <button
                   type="button"
                   onClick={() => setUseRealWind((v) => !v)}
@@ -185,7 +185,7 @@ export function VolcanicEruptionMap() {
                   className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-colors ${
                     useRealWind
                       ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
-                      : 'bg-zinc-900 text-zinc-400 border-white/10'
+                      : 'bg-surface text-muted-token border-default-token'
                   }`}
                   data-testid="volcanic-wind-mode-toggle"
                 >
@@ -198,14 +198,14 @@ export function VolcanicEruptionMap() {
                 </p>
               )}
               {useRealWind && loadingWind && (
-                <p className="text-[10px] text-zinc-500 mb-2" role="status">
+                <p className="text-[10px] text-muted-token mb-2" role="status">
                   Consultando viento real…
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Dirección del Viento (Grados)</label>
+              <label className="block text-sm font-medium text-muted-token mb-2">Dirección del Viento (Grados)</label>
               <input
                 type="range"
                 min="0"
@@ -214,7 +214,7 @@ export function VolcanicEruptionMap() {
                 onChange={(e) => setWindDirection(Number(e.target.value))}
                 className="w-full accent-blue-500"
               />
-              <div className="flex justify-between text-xs text-zinc-500 mt-1">
+              <div className="flex justify-between text-xs text-muted-token mt-1">
                 <span>N (0°)</span>
                 <span className="font-bold text-blue-400">{windDirection}°</span>
                 <span>N (360°)</span>
@@ -222,7 +222,7 @@ export function VolcanicEruptionMap() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Velocidad del Viento (km/h)</label>
+              <label className="block text-sm font-medium text-muted-token mb-2">Velocidad del Viento (km/h)</label>
               <input
                 type="range"
                 min="0"
@@ -231,7 +231,7 @@ export function VolcanicEruptionMap() {
                 onChange={(e) => setWindSpeed(Number(e.target.value))}
                 className="w-full accent-blue-500"
               />
-              <div className="flex justify-between text-xs text-zinc-500 mt-1">
+              <div className="flex justify-between text-xs text-muted-token mt-1">
                 <span>0 km/h</span>
                 <span className="font-bold text-blue-400">{windSpeed} km/h</span>
                 <span>100 km/h</span>
@@ -239,21 +239,21 @@ export function VolcanicEruptionMap() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Nivel de Alerta SERNAGEOMIN</label>
+              <label className="block text-sm font-medium text-muted-token mb-2">Nivel de Alerta SERNAGEOMIN</label>
               <div className="flex gap-2">
-                <button onClick={() => setAlertLevel('yellow')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${alertLevel === 'yellow' ? 'bg-amber-400/20 text-amber-400 border-amber-400/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>Amarilla</button>
-                <button onClick={() => setAlertLevel('orange')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${alertLevel === 'orange' ? 'bg-orange-500/20 text-orange-500 border-orange-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>Naranja</button>
-                <button onClick={() => setAlertLevel('red')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${alertLevel === 'red' ? 'bg-rose-500/20 text-rose-500 border-rose-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>Roja</button>
+                <button onClick={() => setAlertLevel('yellow')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${alertLevel === 'yellow' ? 'bg-amber-400/20 text-amber-400 border-amber-400/50' : 'bg-surface border-default-token text-muted-token'}`}>Amarilla</button>
+                <button onClick={() => setAlertLevel('orange')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${alertLevel === 'orange' ? 'bg-orange-500/20 text-orange-500 border-orange-500/50' : 'bg-surface border-default-token text-muted-token'}`}>Naranja</button>
+                <button onClick={() => setAlertLevel('red')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${alertLevel === 'red' ? 'bg-rose-500/20 text-rose-500 border-rose-500/50' : 'bg-surface border-default-token text-muted-token'}`}>Roja</button>
               </div>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-white/5">
-            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+          <div className="pt-4 border-t border-default-token">
+            <h3 className="text-sm font-bold text-primary-token mb-3 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-orange-500" />
               Acciones Requeridas
             </h3>
-            <ul className="space-y-2 text-sm text-zinc-400">
+            <ul className="space-y-2 text-sm text-muted-token">
               <li className="flex items-start gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 shrink-0" />
                 <span>Uso obligatorio de mascarilla N95/FFP2 o superior.</span>
@@ -271,9 +271,9 @@ export function VolcanicEruptionMap() {
         </Card>
 
         {/* Map Visualization */}
-        <Card className="p-0 border-white/5 lg:col-span-2 overflow-hidden relative min-h-[500px] bg-zinc-900 flex items-center justify-center">
+        <Card className="p-0 border-default-token lg:col-span-2 overflow-hidden relative min-h-[500px] bg-elevated flex items-center justify-center">
           {!isLoaded ? (
-            <div className="flex flex-col items-center justify-center text-zinc-500">
+            <div className="flex flex-col items-center justify-center text-muted-token">
               <Loader2 className="w-8 h-8 animate-spin mb-2" />
               <p className="text-sm font-bold uppercase tracking-widest">Cargando Mapa...</p>
             </div>
@@ -421,23 +421,23 @@ export function VolcanicEruptionMap() {
           )}
 
           {/* Wind Indicator Overlay */}
-          <div className="absolute bottom-6 left-6 bg-black/70 backdrop-blur-md border border-white/10 p-3 rounded-xl flex items-center gap-3 z-10">
-            <div 
+          <div className="absolute bottom-6 left-6 bg-black/70 backdrop-blur-md border border-default-token p-3 rounded-xl flex items-center gap-3 z-10">
+            <div
               className="w-8 h-8 rounded-full border border-blue-500/30 flex items-center justify-center transition-transform duration-500"
               style={{ transform: `rotate(${windDirection}deg)` }}
             >
               <Wind className="w-4 h-4 text-blue-400" />
             </div>
             <div>
-              <p className="text-xs font-bold text-white">Viento</p>
+              <p className="text-xs font-bold text-primary-token">Viento</p>
               <p className="text-[10px] text-blue-400">{windSpeed} km/h a {windDirection}°</p>
             </div>
           </div>
 
-          <div className="absolute top-6 right-6 bg-black/70 backdrop-blur-md border border-white/10 p-3 rounded-xl max-w-xs z-10">
+          <div className="absolute top-6 right-6 bg-black/70 backdrop-blur-md border border-default-token p-3 rounded-xl max-w-xs z-10">
             <div className="flex items-start gap-2">
-              <Info className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
-              <p className="text-xs text-zinc-300">
+              <Info className="w-4 h-4 text-muted-token shrink-0 mt-0.5" />
+              <p className="text-xs text-secondary-token">
                 El cono de dispersión de cenizas se calcula en tiempo real basándose en la dirección y velocidad del viento. Las zonas bajo la pluma deben suspender operaciones a la intemperie.
               </p>
             </div>

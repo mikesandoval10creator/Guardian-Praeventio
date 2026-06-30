@@ -2,7 +2,9 @@
   "iso45001": {
     "aria": "ISO 45001 catalog",
     "coverage": "coverage",
-    "openStandard": "Open standard"
+    "openStandard": "View official standard",
+    "detail_aria": "ISO 45001 control detail",
+    "references": "Normative references"
   },
   "fiveS": {
     "aria": "5S audit",
@@ -102,7 +104,9 @@
     "schematicBadge": "Active EONET events at real positions · illustrative route line",
     "eonetActive": "EONET · active",
     "calculating": "Assessing route…",
-    "assessmentUnavailable": "We couldn't complete the route's climate assessment. Drive with caution and retry when you have a better connection."
+    "assessmentUnavailable": "We couldn't complete the route's climate assessment. Drive with caution and retry when you have a better connection.",
+    "calmRecs": "Active conditions recommendations",
+    "calmRecsTitle": "Recommendations for active condition"
   },
   "app": {
     "name": "Praeventio Guard",
@@ -226,7 +230,18 @@
     "incident_flow": "Incident Flow",
     "waste_inventory": "Environmental Waste",
     "safety_metrics": "Safety Metrics (TRIR/LTIFR)",
-    "project_setup": "Configure Industry"
+    "project_setup": "Configure Industry",
+    "block_principal": "Home",
+    "block_operativa": "Operations",
+    "block_riesgos": "Risk Prevention",
+    "block_salud": "Occupational Health",
+    "block_cumplimiento": "Compliance",
+    "block_emergencias": "Emergencies",
+    "block_conocimiento": "Knowledge",
+    "block_ia_coach": "AI & Coach",
+    "block_innovacion": "Innovation",
+    "block_administracion": "Administration",
+    "search_placeholder": "What do you need?"
   },
   "auth": {
     "login": "Sign In",
@@ -504,6 +519,16 @@
     "reconciliation": {
       "running": "Syncing…",
       "last": "{{succeeded}}/{{attempted}} synced"
+    },
+    "kpi": {
+      "compliance": "Compliance",
+      "sourced": "{{n}} of {{m}} sources",
+      "permits": "Active permits",
+      "permits_sub": "active WPs",
+      "expirations": "Next expirations",
+      "expirations_sub": "PPE, exams, training",
+      "critical": "Critical findings",
+      "critical_sub": "open"
     }
   },
   "errors": {
@@ -1426,6 +1451,16 @@
     "brand": "Praeventio",
     "goggles": "Goggles",
     "boots": "Boots"
+  },
+  "epp_selector": {
+    "section_label": "Smart Personalization PPE",
+    "badge": "Smart Personalization",
+    "title": "Adapt your gear to your profession and environment",
+    "subtitle": "Every decision counts for your safety.",
+    "rubro_label": "Select your industry",
+    "rubro_aria": "Industry or sector",
+    "grid_label": "Protective equipment for {{rubro}}",
+    "norm_note": "Per DS 594 — Regulation on basic sanitary and environmental conditions in the workplace"
   },
   "dashboard_actions": {
     "fast_check": "Fast Check",
@@ -3031,6 +3066,16 @@
       "heading": "HCA Catalog — {{category}}",
       "present": "Present",
       "mark": "Mark"
+    },
+    "failure_library": {
+      "heading": "Failure-mode library (reference)",
+      "loading": "Loading library…",
+      "error": "Could not load the failure-mode library.",
+      "empty": "No failure modes documented yet.",
+      "total": "{{n}} documented failure modes",
+      "by_mode": "By failure mode",
+      "by_control": "By control type",
+      "by_frequency": "By frequency"
     }
   },
   "root_cause": {
@@ -4994,6 +5039,10 @@
     "pdcaClosure": "Training closure: {{done}}/{{assigned}} workers ({{pct}}%).",
     "myTrainings": "Your derived microtraining",
     "lessonFallback": "Incident lesson",
+    "manage": {
+      "show": "PDCA management (supervisor)",
+      "hide": "Hide PDCA management"
+    },
     "empty": "No incidents recorded on this project.",
     "emptyHint": "Good news. You'll see the annual view here once there is data, or report a near-miss to strengthen the prevention culture.",
     "annualView": "Annual view (12 months)",

@@ -2,7 +2,9 @@
   "iso45001": {
     "aria": "Catálogo ISO 45001",
     "coverage": "cobertura",
-    "openStandard": "Abrir estándar"
+    "openStandard": "Ver estándar oficial",
+    "detail_aria": "Detalle de control ISO 45001",
+    "references": "Referencias normativas"
   },
   "fiveS": {
     "aria": "Auditoría 5S",
@@ -102,7 +104,9 @@
     "schematicBadge": "Eventos EONET activos en posición real · trazado ilustrativo",
     "eonetActive": "EONET · activo",
     "calculating": "Evaluando ruta…",
-    "assessmentUnavailable": "No pudimos completar la evaluación climática de la ruta. Conduce con precaución y reintenta cuando tengas mejor conexión."
+    "assessmentUnavailable": "No pudimos completar la evaluación climática de la ruta. Conduce con precaución y reintenta cuando tengas mejor conexión.",
+    "calmRecs": "Recomendaciones de condiciones activas",
+    "calmRecsTitle": "Recomendaciones por condición activa"
   },
   "app": {
     "name": "Praeventio Guard",
@@ -226,7 +230,18 @@
     "incident_flow": "Flujo de Incidentes",
     "waste_inventory": "Residuos Ambientales",
     "safety_metrics": "Métricas SST (TRIR/LTIFR)",
-    "project_setup": "Configurar Industria"
+    "project_setup": "Configurar Industria",
+    "block_principal": "Principal",
+    "block_operativa": "Gestión Operativa",
+    "block_riesgos": "Prevención y Riesgos",
+    "block_salud": "Salud Ocupacional",
+    "block_cumplimiento": "Cumplimiento",
+    "block_emergencias": "Emergencias",
+    "block_conocimiento": "Conocimiento",
+    "block_ia_coach": "IA y Coach",
+    "block_innovacion": "Innovación",
+    "block_administracion": "Administración",
+    "search_placeholder": "¿Qué necesitas?"
   },
   "auth": {
     "login": "Iniciar Sesión",
@@ -504,6 +519,16 @@
     "reconciliation": {
       "running": "Sincronizando…",
       "last": "{{succeeded}}/{{attempted}} sincronizados"
+    },
+    "kpi": {
+      "compliance": "Cumplimiento",
+      "sourced": "{{n}} de {{m}} fuentes",
+      "permits": "Permisos activos",
+      "permits_sub": "PT vigentes",
+      "expirations": "Próx. vencimientos",
+      "expirations_sub": "EPP, exámenes, capacit.",
+      "critical": "Hallazgos críticos",
+      "critical_sub": "abiertos"
     }
   },
   "errors": {
@@ -1426,6 +1451,16 @@
     "brand": "Praeventio",
     "goggles": "Lentes",
     "boots": "Zapatos"
+  },
+  "epp_selector": {
+    "section_label": "Personalización Inteligente EPP",
+    "badge": "Personalización Inteligente",
+    "title": "Adapta tu equipo según tu profesión y entorno",
+    "subtitle": "Cada decisión cuenta para tu seguridad.",
+    "rubro_label": "Selecciona tu rubro",
+    "rubro_aria": "Rubro o industria",
+    "grid_label": "Equipos de protección para {{rubro}}",
+    "norm_note": "Según DS 594 — Reglamento sobre condiciones sanitarias y ambientales básicas en los lugares de trabajo"
   },
   "dashboard_actions": {
     "fast_check": "Fast Check",
@@ -3031,6 +3066,16 @@
       "heading": "Catálogo HCA — {{category}}",
       "present": "Presente",
       "mark": "Marcar"
+    },
+    "failure_library": {
+      "heading": "Biblioteca de modos de falla (referencia)",
+      "loading": "Cargando biblioteca…",
+      "error": "No se pudo cargar la biblioteca de modos de falla.",
+      "empty": "Aún no hay modos de falla documentados.",
+      "total": "{{n}} modos de falla documentados",
+      "by_mode": "Por modo de falla",
+      "by_control": "Por tipo de control",
+      "by_frequency": "Por frecuencia"
     }
   },
   "root_cause": {
@@ -4994,6 +5039,10 @@
     "pdcaClosure": "Cierre de capacitación: {{done}}/{{assigned}} trabajadores ({{pct}}%).",
     "myTrainings": "Tu microcapacitación derivada",
     "lessonFallback": "Lección del incidente",
+    "manage": {
+      "show": "Gestión PDCA (supervisor)",
+      "hide": "Ocultar gestión PDCA"
+    },
     "empty": "Sin incidentes registrados en este proyecto.",
     "emptyHint": "Buena noticia. Aquí verás la vista anual cuando haya datos, o reporta un casi-accidente para fortalecer la cultura preventiva.",
     "annualView": "Vista anual (12 meses)",

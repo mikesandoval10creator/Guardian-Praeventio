@@ -5,8 +5,8 @@
 // incidentes, acciones correctivas, capacitaciones, inspecciones y
 // score semáforo del último mes calendario. El prevencionista revisa,
 // edita en el componente CPHS principal y luego firma — F.7 cierra la
-// "obligación mensual del comité paritario" (DS 54 art. 24 / Ley
-// 16.744 art. 66).
+// "obligación mensual del comité paritario" (DS 44/2024 art. 24 [ex DS 54,
+// derogado 01-02-2025] / Ley 16.744 art. 66).
 //
 // Esta página:
 //   1. Llama `useCphsDraftMinute(projectId)` (Sprint K hook).
