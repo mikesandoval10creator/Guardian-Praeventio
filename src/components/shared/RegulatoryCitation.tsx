@@ -30,7 +30,7 @@ export interface RegulatoryCitationProps {
   label?: string;
   /** Cuando true, oculta el icono (uso compacto inline). */
   hideIcon?: boolean;
-  /** Formato: 'short' = 'DS-54 (Chile)', 'long' = 'DS-54 — DS 54 art... (Chile)'. */
+  /** Formato: 'short' = 'DS-44 (Chile)', 'long' = 'DS-44 — DS 44/2024 (ex DS 54, derogado 01-02-2025) (Chile)'. */
   format?: 'short' | 'long';
   className?: string;
 }

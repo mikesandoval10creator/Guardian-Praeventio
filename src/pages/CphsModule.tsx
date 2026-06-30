@@ -1,14 +1,14 @@
 // Praeventio Guard — Sprint 28 Bucket B5: CPHS module page (/cphs).
 //
 // Cierra audit hallazgo H29 P1. UI sobre `services/cphs/cphsService.ts`.
-// Cita normativa visible: ISO 45001 §5.4 + DS 54 art. 66 (Chile).
+// Cita normativa visible: ISO 45001 §5.4 + DS 44/2024 art. 66 (ex DS 54, derogado 01-02-2025) (Chile).
 //
 // Para otras jurisdicciones (México NOM-019-STPS, Brasil NR-5 CIPA,
 // Perú Ley 29783 CSST, etc.), el header expone un placeholder enlazado
 // al registro regulatorio del Sprint 28 B1 (TODO inline). El validador
 // de quórum vive en `services/cphs/types.ts::isValidQuorum` y está
-// pinneado a Chile DS 54 hasta que B1 entregue
-// `getCphsRequirements(jurisdiction)`.
+// pinneado a Chile DS 44/2024 (ex DS 54, derogado 01-02-2025) hasta que B1
+// entregue `getCphsRequirements(jurisdiction)`.
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -66,10 +66,11 @@ export interface CphsRegulatoryHeaderProps {
 }
 
 /**
- * Sprint 29 EE — header reemplazado: las citas DS 54 + ISO 45001 §5.4
- * eran hardcoded. Ahora se resuelven en runtime contra el registry
- * regulatorio (Sprint 28 B1 + Sprint 29 EE: UK/CA/AU). El validador de
- * quórum sigue pinneado a Chile DS 54 hasta que se publique
+ * Sprint 29 EE — header reemplazado: las citas DS 44/2024 (ex DS 54,
+ * derogado 01-02-2025) + ISO 45001 §5.4 eran hardcoded. Ahora se resuelven
+ * en runtime contra el registry regulatorio (Sprint 28 B1 + Sprint 29 EE:
+ * UK/CA/AU). El validador de quórum sigue pinneado a Chile DS 44/2024 (ex
+ * DS 54, derogado 01-02-2025) hasta que se publique
  * `getCphsRequirements(jurisdiction)`.
  */
 export function CphsRegulatoryHeader({ tenantCountry = 'CL' }: CphsRegulatoryHeaderProps = {}) {
@@ -97,8 +98,9 @@ export function CphsRegulatoryHeader({ tenantCountry = 'CL' }: CphsRegulatoryHea
       />
       <p className="text-[10px] text-zinc-500 italic">
         Citas resueltas en runtime contra el registro regulatorio. El
-        validador de quórum sigue pinneado a Chile DS 54 hasta que se
-        publique `getCphsRequirements(jurisdiction)`.
+        validador de quórum sigue pinneado a Chile DS 44/2024 (ex DS 54,
+        derogado 01-02-2025) hasta que se publique
+        `getCphsRequirements(jurisdiction)`.
       </p>
     </div>
   );

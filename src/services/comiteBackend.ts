@@ -14,7 +14,7 @@ export const suggestMeetingAgenda = async (projectRisks: any[], pendingAgreement
     Riesgos Críticos Recientes: ${JSON.stringify(projectRisks)}
     Acuerdos Pendientes: ${JSON.stringify(pendingAgreements)}
     
-    Asegúrate de incluir los puntos obligatorios por el DS 54 de Chile.
+    Asegúrate de incluir los puntos obligatorios por el DS 44/2024 de Chile (ex DS 54, derogado 01-02-2025), que regula hoy los Comités Paritarios.
   `;
 
   const response = await ai.models.generateContent({

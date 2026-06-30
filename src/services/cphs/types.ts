@@ -4,9 +4,12 @@
 // ───────────────────────────────────────────────────────────────────────
 // REGULATORY ANCHORS
 // ───────────────────────────────────────────────────────────────────────
-//   • DS 54 (Chile, MINSEGPRES, 1969) art. 66 — exige libro de actas
-//     formal, votación documentada, y representación paritaria
-//     (3 representantes empleador + 3 trabajadores como mínimo).
+//   • DS 44/2024 (ex DS 54, Chile, MINSEGPRES, 1969, derogado 01-02-2025)
+//     art. 66 — exige libro de actas formal, votación documentada, y
+//     representación paritaria (3 representantes empleador + 3 trabajadores
+//     como mínimo). El DS 54/1969 fue derogado por el DS 44/2024; las
+//     constantes DS54_* abajo conservan el nombre legacy pero la norma
+//     vigente es el DS 44/2024.
 //   • ISO 45001:2018 §5.4 — "Consulta y participación de los trabajadores":
 //     requiere registros formales que evidencien la participación efectiva.
 //
@@ -19,7 +22,7 @@
 // NOM-019-STPS, Brasil NR-5 CIPA, Perú Ley 29783 CSST). Cada una tiene
 // su propio quórum / periodicidad / nombre; el shape `CphsCommittee` ya
 // admite cualquier período pero el validador `isValidQuorum` está pinneado
-// a Chile DS 54 hasta que el registro regulatorio del Sprint 28 B1
+// a Chile DS 44/2024 (ex DS 54, derogado 01-02-2025) hasta que el registro regulatorio del Sprint 28 B1
 // exponga `getCphsRequirements(jurisdiction)`.
 
 /** Estado de vida del comité. */
@@ -52,8 +55,9 @@ export interface CphsMember {
   /**
    * `true` si el miembro fue elegido (típicamente trabajadores via
    * votación), `false` si fue designado (típicamente empleadores).
-   * DS 54 art. 66 exige que los representantes de los trabajadores sean
-   * elegidos por sufragio, mientras que los del empleador son designados.
+   * DS 44/2024 art. 66 (ex DS 54, derogado 01-02-2025) exige que los
+   * representantes de los trabajadores sean elegidos por sufragio, mientras
+   * que los del empleador son designados.
    */
   elected: boolean;
 }
@@ -62,9 +66,9 @@ export interface CphsMember {
 export interface CphsCommittee {
   id: string;
   projectId: string;
-  /** Período de mandato (típicamente 24 meses por DS 54). */
+  /** Período de mandato (típicamente 24 meses por DS 44/2024, ex DS 54 derogado 01-02-2025). */
   period: CphsPeriod;
-  /** Mínimo 3 empresa + 3 trabajadores por DS 54 art. 66. */
+  /** Mínimo 3 empresa + 3 trabajadores por DS 44/2024 art. 66 (ex DS 54, derogado 01-02-2025). */
   members: CphsMember[];
   status: CphsCommitteeStatus;
   /**
@@ -123,20 +127,20 @@ export interface CphsMeeting {
 }
 
 // ───────────────────────────────────────────────────────────────────────
-// Validación de quórum DS 54 art. 66
+// Validación de quórum DS 44/2024 art. 66 (ex DS 54, derogado 01-02-2025)
 // ───────────────────────────────────────────────────────────────────────
 
-/** Miembros mínimos por lado según DS 54 art. 66. */
+/** Miembros mínimos por lado según DS 44/2024 art. 66 (ex DS 54, derogado 01-02-2025). */
 export const DS54_MIN_PER_SIDE = 3;
 
 /**
- * Devuelve `true` si la composición de miembros cumple con DS 54 art. 66:
- * al menos 3 representantes empleador + 3 representantes trabajadores,
- * y al menos un chair y un secretary.
+ * Devuelve `true` si la composición de miembros cumple con DS 44/2024 art. 66
+ * (ex DS 54, derogado 01-02-2025): al menos 3 representantes empleador + 3
+ * representantes trabajadores, y al menos un chair y un secretary.
  *
  * NOTA: ISO 45001 §5.4 NO exige una composición numérica específica,
- * sólo "consulta efectiva". DS 54 es la norma más estricta entre las
- * dos, así que cumplir DS 54 implica cumplir ISO 45001 (en Chile).
+ * sólo "consulta efectiva". El DS 44/2024 (ex DS 54) es la norma más estricta
+ * entre las dos, así que cumplir DS 44/2024 implica cumplir ISO 45001 (en Chile).
  */
 export function isValidQuorum(members: readonly CphsMember[]): boolean {
   if (!Array.isArray(members) || members.length < DS54_MIN_PER_SIDE * 2) {
@@ -152,8 +156,9 @@ export function isValidQuorum(members: readonly CphsMember[]): boolean {
 
 /**
  * Devuelve `true` si todos los representantes de los trabajadores fueron
- * elegidos (`elected === true`). DS 54 art. 66 exige que los del lado
- * trabajador sean por sufragio; los del empleador son designados (no
+ * elegidos (`elected === true`). DS 44/2024 art. 66 (ex DS 54, derogado
+ * 01-02-2025) exige que los del lado trabajador sean por sufragio; los del
+ * empleador son designados (no
  * importa el flag `elected` para ese lado).
  */
 export function workersAreElected(members: readonly CphsMember[]): boolean {

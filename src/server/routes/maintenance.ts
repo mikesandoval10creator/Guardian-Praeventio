@@ -1029,8 +1029,8 @@ router.post(
               legalReminders.notifications.chunkErrors += dispatched.errorCount;
               // PR #482 codex P1 (round 2): chunk-level errors deben abortar
               // el marker idempotente para que el próximo run reintente.
-              // Plazos regulatorios (DS 54, Ley 16.744) no toleran "marked
-              // sent" sin entrega.
+              // Plazos regulatorios (DS 44/2024, ex DS 54 derogado 01-02-2025;
+              // Ley 16.744) no toleran "marked sent" sin entrega.
               //
               // PR #482 codex P1 (round 4): además, all-failed multicast
               // (successCount=0 + failureCount>0) también es no-delivery.
