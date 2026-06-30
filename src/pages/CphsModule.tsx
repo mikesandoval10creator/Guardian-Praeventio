@@ -75,13 +75,13 @@ export interface CphsRegulatoryHeaderProps {
 export function CphsRegulatoryHeader({ tenantCountry = 'CL' }: CphsRegulatoryHeaderProps = {}) {
   const { t } = useTranslation();
   return (
-    <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl p-6 space-y-3">
+    <div className="bg-elevated border border-default-token rounded-2xl p-6 space-y-3">
       <div className="flex items-center gap-3">
         <div className="p-2 bg-[#4db6ac]/10 rounded-xl">
           <ShieldCheck className="w-5 h-5 text-[#4db6ac]" />
         </div>
         <div>
-          <h1 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
+          <h1 className="text-xl font-black text-primary-token uppercase tracking-tight">
             {t('cphsModule.title', 'Comité Paritario de Higiene y Seguridad')}
           </h1>
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">
@@ -160,9 +160,9 @@ export function CommitteeDraftForm({ onSubmit, candidateMembers, busy }: Committ
       role="form"
       aria-label={t('cphsModule.constituteAria', 'Constituir nuevo comité paritario')}
       onSubmit={(e) => { e.preventDefault(); void submit(); }}
-      className="space-y-4 bg-white dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/10 rounded-2xl p-6"
+      className="space-y-4 bg-elevated border border-default-token rounded-2xl p-6"
     >
-      <h2 className="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white">
+      <h2 className="text-sm font-black uppercase tracking-widest text-primary-token">
         {t('cphsModule.constituteNew', 'Constituir Nuevo Comité')}
       </h2>
       <div className="grid grid-cols-2 gap-3">
@@ -173,7 +173,7 @@ export function CommitteeDraftForm({ onSubmit, candidateMembers, busy }: Committ
             aria-label="Inicio del mandato"
             value={periodStart}
             onChange={(e) => setPeriodStart(e.target.value)}
-            className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-3 py-2 text-sm"
+            className="w-full bg-zinc-50 dark:bg-zinc-800 border border-default-token rounded-xl px-3 py-2 text-sm"
           />
         </label>
         <label className="text-xs">
@@ -183,7 +183,7 @@ export function CommitteeDraftForm({ onSubmit, candidateMembers, busy }: Committ
             aria-label="Fin del mandato"
             value={periodEnd}
             onChange={(e) => setPeriodEnd(e.target.value)}
-            className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-3 py-2 text-sm"
+            className="w-full bg-zinc-50 dark:bg-zinc-800 border border-default-token rounded-xl px-3 py-2 text-sm"
           />
         </label>
       </div>
@@ -199,7 +199,7 @@ export function CommitteeDraftForm({ onSubmit, candidateMembers, busy }: Committ
               className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
                 members.some((m) => m.uid === c.uid && m.side === 'employer')
                   ? 'bg-[#4db6ac] text-white border-[#4db6ac]'
-                  : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300'
+                  : 'bg-zinc-50 dark:bg-zinc-800 border-default-token text-secondary-token'
               }`}
             >
               {c.fullName}
@@ -219,7 +219,7 @@ export function CommitteeDraftForm({ onSubmit, candidateMembers, busy }: Committ
               className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
                 members.some((m) => m.uid === c.uid && m.side === 'worker')
                   ? 'bg-violet-600 text-white border-violet-600'
-                  : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300'
+                  : 'bg-zinc-50 dark:bg-zinc-800 border-default-token text-secondary-token'
               }`}
             >
               {c.fullName}
@@ -377,7 +377,7 @@ export function CphsModule({
       )}
 
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight">
+        <h2 className="text-lg font-black text-primary-token uppercase tracking-tight">
           Comités del Proyecto ({committees.length})
         </h2>
         <button
@@ -407,7 +407,7 @@ export function CphsModule({
       )}
 
       {committees.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-zinc-900/30 rounded-2xl border border-zinc-200 dark:border-white/10">
+        <div className="text-center py-12 bg-elevated rounded-2xl border border-default-token">
           <Users className="w-12 h-12 text-zinc-400 mx-auto mb-4" />
           <p className="text-sm text-zinc-500">Aún no hay comités constituidos en este proyecto.</p>
         </div>
@@ -453,13 +453,13 @@ function CommitteeCard({
   const [scheduling, setScheduling] = useState(false);
 
   return (
-    <article className="bg-white dark:bg-zinc-900/30 rounded-2xl border border-zinc-200 dark:border-white/10 p-6 space-y-4">
+    <article className="bg-elevated rounded-2xl border border-default-token p-6 space-y-4">
       <header className="flex items-start justify-between">
         <div>
           <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
             Período {committee.period.start} → {committee.period.end}
           </p>
-          <p className="text-sm font-bold text-zinc-900 dark:text-white mt-1">
+          <p className="text-sm font-bold text-primary-token mt-1">
             {committee.members.length} miembros · status: {committee.status}
           </p>
         </div>
@@ -482,7 +482,7 @@ function CommitteeCard({
             aria-label="Fecha y hora de la reunión"
             value={scheduledAt}
             onChange={(e) => setScheduledAt(e.target.value)}
-            className="bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs"
+            className="bg-zinc-50 dark:bg-zinc-800 border border-default-token rounded-lg px-3 py-2 text-xs"
           />
           <input
             type="text"
@@ -490,7 +490,7 @@ function CommitteeCard({
             placeholder="Item de agenda"
             value={agendaItem}
             onChange={(e) => setAgendaItem(e.target.value)}
-            className="flex-1 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs"
+            className="flex-1 bg-zinc-50 dark:bg-zinc-800 border border-default-token rounded-lg px-3 py-2 text-xs"
           />
           <button
             type="button"
@@ -523,10 +523,10 @@ function CommitteeCard({
             {meetings.map((m) => (
               <li
                 key={m.id}
-                className="border border-zinc-200 dark:border-white/10 rounded-xl p-3 flex items-center justify-between gap-3"
+                className="border border-default-token rounded-xl p-3 flex items-center justify-between gap-3"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-zinc-900 dark:text-white">
+                  <p className="text-xs font-bold text-primary-token">
                     {new Date(m.scheduledAt).toLocaleString('es-CL')}
                   </p>
                   <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
@@ -544,7 +544,7 @@ function CommitteeCard({
                     type="button"
                     onClick={() => onExportPdf(m)}
                     aria-label="Exportar acta a PDF"
-                    className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                    className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-secondary-token hover:bg-zinc-200 dark:hover:bg-zinc-700"
                   >
                     <FileText className="w-4 h-4" />
                   </button>

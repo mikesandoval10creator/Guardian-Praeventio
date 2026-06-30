@@ -572,7 +572,7 @@ export function EmergencyGenerator() {
               >
                 <div>
                   <h3 className="text-sm font-black text-white uppercase tracking-tight">{role.name}</h3>
-                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{role.description}</p>
+                  <p className="text-xs text-secondary-token mt-1 leading-relaxed">{role.description}</p>
                 </div>
                 {brigadaAssignments[role.key] && (
                   <p className="text-xs text-[#4db6ac] font-semibold">
@@ -640,7 +640,7 @@ export function EmergencyGenerator() {
                 </span>
                 <div>
                   <h3 className="text-sm font-black text-white uppercase tracking-tight mb-1">{item.title}</h3>
-                  <p className="text-sm text-zinc-400 leading-relaxed">{item.body}</p>
+                  <p className="text-sm text-secondary-token leading-relaxed">{item.body}</p>
                 </div>
               </li>
             ))}
@@ -693,7 +693,7 @@ export function EmergencyGenerator() {
                 </span>
                 <h3 className="text-sm font-bold text-white">{norm.title}</h3>
               </div>
-              <p className="text-xs text-zinc-400 leading-relaxed pl-0">{norm.desc}</p>
+              <p className="text-xs text-secondary-token leading-relaxed pl-0">{norm.desc}</p>
             </div>
           ))}
         </div>

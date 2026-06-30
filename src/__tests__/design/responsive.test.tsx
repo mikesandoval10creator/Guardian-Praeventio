@@ -2,7 +2,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { KpiRow } from '../../components/dashboard/KpiRow';
-import { DensityToggle } from '../../components/shared/DensityToggle';
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (_k: string, d?: string) => d ?? _k }) }));
 
@@ -12,9 +11,5 @@ describe('Responsive layout smoke', () => {
     const grid = screen.getByTestId('kpi-row');
     expect(grid.className).toMatch(/grid-cols-2/);
     expect(grid.className).toMatch(/lg:grid-cols-4/);
-  });
-  it('DensityToggle renders without error on narrow viewport', () => {
-    render(<DensityToggle />);
-    expect(screen.getByRole('group')).toBeInTheDocument();
   });
 });

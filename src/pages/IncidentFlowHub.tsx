@@ -36,6 +36,7 @@ import {
   PlusCircle,
   ShieldCheck,
   WifiOff,
+  Wrench,
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -46,9 +47,12 @@ import {
   type IncidentListItem,
   type IncidentTrendDirection,
 } from '../hooks/useIncidentTrends';
-import { useIncidentFlowStatus } from '../hooks/useIncidentFlow';
+import { useIncidentFlowStatus, type IncidentReportPayload } from '../hooks/useIncidentFlow';
 import { IncidentReportForm } from '../components/incidentFlow/IncidentReportForm';
 import { AssignedMicrotrainingCard } from '../components/incidentFlow/AssignedMicrotrainingCard';
+import { InvestigationPanel } from '../components/incidentFlow/InvestigationPanel';
+import { LessonPublishForm } from '../components/incidentFlow/LessonPublishForm';
+import { PDCAClosePanel } from '../components/incidentFlow/PDCAClosePanel';
 
 // ────────────────────────────────────────────────────────────────────────
 // Visual helpers (puros)
@@ -96,6 +100,25 @@ const TREND_TONE: Record<IncidentTrendDirection, string> = {
   worsening: 'text-rose-600 dark:text-rose-400',
 };
 
+/** Normaliza la severidad libre del listado al union del payload de reporte. */
+function normalizeSeverity(sev: string | null): IncidentReportPayload['severity'] {
+  const s = (sev ?? '').trim().toLowerCase();
+  if (s === 'info') return 'info';
+  if (s === 'low' || s === 'baja') return 'low';
+  if (s === 'high' || s === 'alta') return 'high';
+  if (s === 'critical' || s === 'critica' || s === 'crítica') return 'critical';
+  return 'medium';
+}
+
+/** Conclusión de la investigación — alimenta <LessonPublishForm>. */
+type LessonConclusion = {
+  concludedAtIso: string;
+  rootCauseSummary: string;
+  contributingFactor?: string;
+  preventiveActions: string[];
+  closedByUid: string;
+};
+
 // ────────────────────────────────────────────────────────────────────────
 // Page
 // ────────────────────────────────────────────────────────────────────────
@@ -110,6 +133,12 @@ export function IncidentFlowHub() {
   const listResp = useIncidentList(projectId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
+  // PDCA management surfaces (investigación / lección / cierre) — colapsadas por
+  // defecto para no recargar la vista del trabajador; el supervisor las abre.
+  const [showManage, setShowManage] = useState(false);
+  // Conclusión capturada por incidente al concluir la investigación; habilita
+  // la publicación de la lección (paso Check del PDCA) con datos reales.
+  const [conclusionByIncident, setConclusionByIncident] = useState<Record<string, LessonConclusion>>({});
 
   const incidents = useMemo<IncidentListItem[]>(
     () => listResp.data?.incidents ?? [],
@@ -350,6 +379,56 @@ export function IncidentFlowHub() {
                           </p>
                         </div>
                       )}
+
+                      {/* Gestión PDCA (supervisor): investigación → conclusión →
+                          publicar lección → cierre. Monta los 3 paneles antes
+                          huérfanos (InvestigationPanel / LessonPublishForm /
+                          PDCAClosePanel). Colapsado por defecto. */}
+                      <div className="pt-1" data-testid="incident-flow-hub-manage">
+                        <button
+                          type="button"
+                          onClick={() => setShowManage((v) => !v)}
+                          aria-expanded={showManage}
+                          data-testid="incident-flow-hub-manage-toggle"
+                          className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-secondary-token hover:text-primary-token"
+                        >
+                          <Wrench className="w-3.5 h-3.5" aria-hidden="true" />
+                          {showManage
+                            ? t('incidentFlowHub.manage.hide', 'Ocultar gestión PDCA')
+                            : t('incidentFlowHub.manage.show', 'Gestión PDCA (supervisor)')}
+                        </button>
+                        {showManage && (
+                          <div className="mt-2 space-y-3" data-testid="incident-flow-hub-manage-panels">
+                            <PDCAClosePanel projectId={selectedProject.id} incidentId={inc.id} />
+                            {workerUid && (
+                              <InvestigationPanel
+                                projectId={selectedProject.id}
+                                incidentId={inc.id}
+                                investigatorUid={workerUid}
+                                report={{
+                                  incidentId: inc.id,
+                                  occurredAtIso: inc.occurredAt ?? new Date().toISOString(),
+                                  description: inc.summary ?? '',
+                                  severity: normalizeSeverity(inc.severity),
+                                  location: inc.location ?? undefined,
+                                }}
+                                onConcluded={(c) =>
+                                  setConclusionByIncident((prev) => ({ ...prev, [inc.id]: c }))
+                                }
+                              />
+                            )}
+                            {conclusionByIncident[inc.id] && (
+                              <LessonPublishForm
+                                projectId={selectedProject.id}
+                                incidentId={inc.id}
+                                defaultLessonId={`lesson-${inc.id}`}
+                                conclusion={conclusionByIncident[inc.id]}
+                                defaultAudienceUids={[]}
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
 
                       {/* Microcapacitaciones asignadas — monta el huérfano
                           AssignedMicrotrainingCard sobre datos reales. */}

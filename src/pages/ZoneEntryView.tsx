@@ -189,10 +189,10 @@ export function ZoneEntryView() {
   if (!projectId) {
     return (
       <div className="p-4 max-w-3xl mx-auto">
-        <h1 className="text-lg font-black text-zinc-900 dark:text-zinc-100 mb-2">
+        <h1 className="text-lg font-black text-primary-token mb-2">
           {t('zoneEntry.title', 'Ingreso a Zonas Restringidas')}
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-muted-token">
           {t('zoneEntry.noProject', 'Selecciona un proyecto para ver sus zonas.')}
         </p>
       </div>
@@ -202,11 +202,11 @@ export function ZoneEntryView() {
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-4" data-testid="zone-entry-view">
       <header className="space-y-1">
-        <h1 className="flex items-center gap-2 text-lg font-black text-zinc-900 dark:text-zinc-100">
+        <h1 className="flex items-center gap-2 text-lg font-black text-primary-token">
           <ShieldAlert className="w-5 h-5 text-rose-500" aria-hidden="true" />
           {t('zoneEntry.title', 'Ingreso a Zonas Restringidas')}
         </h1>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-snug">
+        <p className="text-xs text-muted-token leading-snug">
           {t(
             'zoneEntry.intro',
             'Consulta las zonas restringidas de tu faena y registra tu ingreso informado. Esta vista nunca bloquea tu acceso: te informa y deja constancia para que tu supervisor te acompañe.',
@@ -221,7 +221,7 @@ export function ZoneEntryView() {
       </header>
 
       {/* Spatial view (orphan overlay, now mounted). */}
-      <div className="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 h-[360px]">
+      <div className="rounded-2xl overflow-hidden border border-default-token h-[360px]">
         <RestrictedZonesMapOverlay
           projectId={projectId}
           onZoneClick={openPrepare}
@@ -253,11 +253,11 @@ export function ZoneEntryView() {
 
       {/* Zone list. */}
       <section>
-        <h2 className="text-[11px] uppercase font-bold tracking-widest text-zinc-500 dark:text-zinc-400 mb-2">
+        <h2 className="text-[11px] uppercase font-bold tracking-widest text-muted-token mb-2">
           {t('zoneEntry.listTitle', 'Zonas de la faena')}
         </h2>
         {loading && (
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-muted-token">
             {t('zoneEntry.loading', 'Cargando zonas…')}
           </p>
         )}
@@ -267,7 +267,7 @@ export function ZoneEntryView() {
           </p>
         )}
         {!loading && !loadError && zones.length === 0 && (
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-muted-token">
             {t('zoneEntry.empty', 'Aún no hay zonas restringidas definidas para este sitio.')}
           </p>
         )}
@@ -275,15 +275,15 @@ export function ZoneEntryView() {
           {zones.map((zone) => (
             <li
               key={zone.id}
-              className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3"
+              className="rounded-xl border border-default-token p-3"
               data-testid={`zone-row-${zone.id}`}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                  <p className="text-sm font-bold text-primary-token truncate">
                     {zone.name}
                   </p>
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-500">
+                  <p className="text-[10px] uppercase tracking-widest text-muted-token">
                     {zone.kind}
                   </p>
                 </div>
@@ -308,21 +308,21 @@ export function ZoneEntryView() {
           className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3"
           data-testid="zone-prepare-panel"
         >
-          <h2 className="flex items-center gap-2 text-sm font-black text-zinc-900 dark:text-zinc-100">
+          <h2 className="flex items-center gap-2 text-sm font-black text-primary-token">
             <ClipboardCheck className="w-4 h-4 text-amber-500" aria-hidden="true" />
             {t('zoneEntry.confirmTitle', 'Confirma tu preparación')}: {selectedZone.name}
           </h2>
 
           {selectedZone.rules.requiredEpp.length > 0 && (
             <fieldset>
-              <legend className="text-[10px] uppercase font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+              <legend className="text-[10px] uppercase font-bold text-secondary-token mb-1">
                 {t('zoneEntry.confirmEpp', 'Marca el EPP que portas ahora')}
               </legend>
               <div className="space-y-1">
                 {selectedZone.rules.requiredEpp.map((epp) => (
                   <label
                     key={epp}
-                    className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300"
+                    className="flex items-center gap-2 text-xs text-secondary-token"
                   >
                     <input
                       type="checkbox"
@@ -339,14 +339,14 @@ export function ZoneEntryView() {
 
           {selectedZone.rules.requiredTrainings.length > 0 && (
             <fieldset>
-              <legend className="text-[10px] uppercase font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+              <legend className="text-[10px] uppercase font-bold text-secondary-token mb-1">
                 {t('zoneEntry.confirmTrainings', 'Marca las capacitaciones que tienes')}
               </legend>
               <div className="space-y-1">
                 {selectedZone.rules.requiredTrainings.map((tr) => (
                   <label
                     key={tr}
-                    className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300"
+                    className="flex items-center gap-2 text-xs text-secondary-token"
                   >
                     <input
                       type="checkbox"
@@ -383,7 +383,7 @@ export function ZoneEntryView() {
           {/* Permit fetch state — a worker must not be judged on stale/empty
               permits. Surface loading/error and block continue until resolved. */}
           {permitsResp.loading && (
-            <p className="text-xs text-zinc-400" data-testid="zone-permits-loading">
+            <p className="text-xs text-muted-token" data-testid="zone-permits-loading">
               {t('zoneEntry.permitsLoading', 'Verificando tus permisos activos…')}
             </p>
           )}

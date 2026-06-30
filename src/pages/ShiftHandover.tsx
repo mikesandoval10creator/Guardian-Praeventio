@@ -245,7 +245,7 @@ export function ShiftHandover() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header>
-          <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-black text-primary-token tracking-tight flex items-center gap-2">
             <Clock className="w-6 h-6 text-indigo-500" /> {t('shift_handover.title', 'Cambio de turno')}
           </h1>
           <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
@@ -257,7 +257,7 @@ export function ShiftHandover() {
         </header>
 
         {!selectedProject ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-elevated p-6 text-center text-sm text-zinc-500">
             {t('shift_handover.empty.select_project', 'Seleccioná un proyecto para iniciar turnos.')}
           </div>
         ) : loading ? (
@@ -296,7 +296,7 @@ export function ShiftHandover() {
                   onChange={(e) => setAckNotes(e.target.value)}
                   rows={2}
                   placeholder={t('shift_handover.pending_ack.notes_placeholder', 'Notas opcionales del supervisor entrante (qué priorizás del handover)…')}
-                  className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
+                  className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-xs text-primary-token"
                 />
                 <button
                   type="button"
@@ -323,7 +323,7 @@ export function ShiftHandover() {
 
                 {/* Log entry form. */}
                 <div className="space-y-2">
-                  <h3 className="text-xs font-black text-zinc-700 dark:text-zinc-300">
+                  <h3 className="text-xs font-black text-secondary-token">
                     {t('shift_handover.log.heading', {
                       defaultValue: 'Agregar entrada al log ({{count}} entradas)',
                       count: myActiveShift.logEntries.length,
@@ -334,9 +334,9 @@ export function ShiftHandover() {
                     value={logText}
                     onChange={(e) => setLogText(e.target.value)}
                     placeholder={t('shift_handover.log.placeholder', 'Descripción de lo que pasó (min 5 chars)…')}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-xs text-primary-token"
                   />
-                  <label className="flex items-center gap-2 text-[10px] text-zinc-600 dark:text-zinc-400">
+                  <label className="flex items-center gap-2 text-[10px] text-secondary-token">
                     <input
                       type="checkbox"
                       checked={logRequiresFollowUp}
@@ -356,7 +356,7 @@ export function ShiftHandover() {
 
                 {/* Handover note form. */}
                 <div className="space-y-2 pt-3 border-t border-indigo-200 dark:border-indigo-800">
-                  <h3 className="text-xs font-black text-zinc-700 dark:text-zinc-300">
+                  <h3 className="text-xs font-black text-secondary-token">
                     {t('shift_handover.note.heading', {
                       defaultValue: 'Nota para handover ({{count}} notas)',
                       count: myActiveShift.handoverNotes.length,
@@ -366,7 +366,7 @@ export function ShiftHandover() {
                     <select
                       value={noteCategory}
                       onChange={(e) => setNoteCategory(e.target.value as HandoverCategory)}
-                      className="rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
+                      className="rounded-lg border border-default-token bg-surface px-2 py-1.5 text-xs text-primary-token"
                     >
                       {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
                         <option key={k} value={k}>{v}</option>
@@ -375,7 +375,7 @@ export function ShiftHandover() {
                     <select
                       value={noteSeverity}
                       onChange={(e) => setNoteSeverity(e.target.value as 'info' | 'attention' | 'urgent')}
-                      className="rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
+                      className="rounded-lg border border-default-token bg-surface px-2 py-1.5 text-xs text-primary-token"
                     >
                       <option value="info">{t('shift_handover.severity.info', 'Info')}</option>
                       <option value="attention">{t('shift_handover.severity.attention', 'Atención')}</option>
@@ -387,7 +387,7 @@ export function ShiftHandover() {
                     value={noteText}
                     onChange={(e) => setNoteText(e.target.value)}
                     placeholder={t('shift_handover.note.placeholder', 'Nota para el supervisor entrante (min 5 chars)…')}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-xs text-primary-token"
                   />
                   <button
                     type="button"
@@ -410,8 +410,8 @@ export function ShiftHandover() {
                 </div>
               </section>
             ) : (
-              <section className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 space-y-3">
-                <h2 className="text-sm font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-widest">
+              <section className="rounded-2xl border border-default-token bg-elevated p-4 space-y-3">
+                <h2 className="text-sm font-black text-secondary-token uppercase tracking-widest">
                   {t('shift_handover.start.heading', 'Iniciar turno')}
                 </h2>
                 <div className="flex flex-wrap gap-2">
@@ -423,7 +423,7 @@ export function ShiftHandover() {
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
                         shiftKind === k
                           ? 'bg-indigo-600 text-white'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-secondary-token hover:bg-zinc-200 dark:hover:bg-zinc-700'
                       }`}
                     >
                       {v}
@@ -454,7 +454,7 @@ export function ShiftHandover() {
                     .map((s) => (
                       <li
                         key={s.id}
-                        className="rounded-lg border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/40 p-2 text-xs flex items-center gap-2"
+                        className="rounded-lg border border-default-token bg-elevated p-2 text-xs flex items-center gap-2"
                       >
                         <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${
                           s.acknowledgedAt
@@ -465,7 +465,7 @@ export function ShiftHandover() {
                             ? t('shift_handover.history.received', 'Recibido')
                             : t('shift_handover.history.not_received', 'Sin recibir')}
                         </span>
-                        <span className="text-zinc-700 dark:text-zinc-300 flex-1 truncate">
+                        <span className="text-secondary-token flex-1 truncate">
                           {t('shift_handover.history.row_summary', {
                             defaultValue: '{{kind}} · {{entries}} entradas · {{notes}} notas',
                             kind: SHIFT_KIND_LABELS[s.kind],

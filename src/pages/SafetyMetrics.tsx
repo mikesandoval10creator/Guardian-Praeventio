@@ -198,7 +198,7 @@ export function SafetyMetrics() {
 
   if (!selectedProject) {
     return (
-      <div data-testid="safety-metrics-page-empty" className="p-6 text-center text-zinc-500">
+      <div data-testid="safety-metrics-page-empty" className="p-6 text-center text-muted-token">
         <Activity className="mx-auto mb-3 h-10 w-10 opacity-40" />
         <p>Selecciona un proyecto para ver las métricas SST (TRIR/LTIFR).</p>
       </div>
@@ -212,7 +212,7 @@ export function SafetyMetrics() {
           <Activity className="h-6 w-6 text-teal-500" />
           Métricas SST — TRIR / LTIFR
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-muted-token">
           Tasas estándar internacional (OSHA / ICMM) calculadas desde los incidentes
           registrados de {selectedProject.name} y las horas-hombre trabajadas del período.
         </p>
@@ -221,7 +221,7 @@ export function SafetyMetrics() {
       {/* ── Period selector ──────────────────────────────────────────── */}
       <section className="flex flex-wrap items-end gap-3">
         <label className="block text-sm">
-          <span className="text-zinc-600 dark:text-zinc-400">Período (mes)</span>
+          <span className="text-secondary-token">Período (mes)</span>
           <input
             data-testid="safety-metrics-period-input"
             type="month"
@@ -250,7 +250,7 @@ export function SafetyMetrics() {
           </p>
         )}
         {hasExposure && (
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 text-sm text-muted-token">
             Horas registradas:{' '}
             <span className="font-semibold tabular-nums">
               {(data?.exposure.totalHoursWorked ?? 0).toLocaleString('es-CL')}
@@ -260,7 +260,7 @@ export function SafetyMetrics() {
         )}
         <div className="mt-3 flex flex-wrap items-end gap-3">
           <label className="block text-sm">
-            <span className="text-zinc-600 dark:text-zinc-400">
+            <span className="text-secondary-token">
               Total horas trabajadas (suma de todos los trabajadores)
             </span>
             <input
@@ -296,7 +296,7 @@ export function SafetyMetrics() {
 
       {/* ── Report / dashboard ───────────────────────────────────────── */}
       {loading && (
-        <div data-testid="safety-metrics-loading" className="p-6 text-center text-zinc-500">
+        <div data-testid="safety-metrics-loading" className="p-6 text-center text-muted-token">
           Cargando métricas del período…
         </div>
       )}
@@ -321,7 +321,7 @@ export function SafetyMetrics() {
       {data && !loading && !hasExposure && (
         <div
           data-testid="safety-metrics-no-exposure"
-          className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-600"
+          className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-muted-token dark:border-zinc-600"
         >
           Sin horas-hombre capturadas para {period}: TRIR/LTIFR no se pueden calcular todavía.
           Registramos {data.counts.totalRecordable} incidente(s) recordable(s) en el período.
@@ -338,7 +338,7 @@ export function SafetyMetrics() {
             <TrendingDown className="h-5 w-5 text-teal-500" />
             Tendencia de los últimos 12 meses
           </h2>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 text-sm text-muted-token">
             Evolución de TRIR / LTIFR construida desde los incidentes registrados y las
             horas-hombre capturadas de cada mes. Solo se grafican los meses con horas-hombre
             capturadas (un mes sin captura no es una tasa cero, es ausencia de dato).
@@ -346,7 +346,7 @@ export function SafetyMetrics() {
         </header>
 
         {trendLoading && (
-          <div data-testid="safety-trend-loading" className="p-4 text-center text-sm text-zinc-500">
+          <div data-testid="safety-trend-loading" className="p-4 text-center text-sm text-muted-token">
             Cargando tendencia del período…
           </div>
         )}
@@ -374,7 +374,7 @@ export function SafetyMetrics() {
         {!trendLoading && !trendError && trendPoints.length < 2 && (
           <div
             data-testid="safety-trend-empty"
-            className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-600"
+            className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-muted-token dark:border-zinc-600"
           >
             Aún no hay suficientes meses con horas-hombre capturadas para dibujar una tendencia.
             Captura las horas-hombre de al menos dos meses para ver la evolución de TRIR/LTIFR.
@@ -392,7 +392,7 @@ export function SafetyMetrics() {
             <Users className="h-5 w-5 text-teal-500" />
             Presión operacional del período
           </h2>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 text-sm text-muted-token">
             Índice de presión sobre la dotación (ausentismo + horas extra) calculado
             desde los datos capturados del período. No reemplaza la decisión humana:
             es una señal de gestión para anticipar fatiga y sobrecarga.
@@ -413,7 +413,7 @@ export function SafetyMetrics() {
             </p>
           )}
           {hasWorkforce && pressureData?.workforce && (
-            <p className="mb-2 text-sm text-zinc-500">
+            <p className="mb-2 text-sm text-muted-token">
               Registrado: {pressureData.workforce.absenteeismDays} día(s) de ausencia,{' '}
               {pressureData.workforce.overtimeHours.toLocaleString('es-CL')} h extra,{' '}
               {pressureData.workforce.headcount} trabajador(es) — puedes actualizarlos.
@@ -421,7 +421,7 @@ export function SafetyMetrics() {
           )}
           <div className="flex flex-wrap items-end gap-3">
             <label className="block text-sm">
-              <span className="text-zinc-600 dark:text-zinc-400">Días de ausencia (período)</span>
+              <span className="text-secondary-token">Días de ausencia (período)</span>
               <input
                 data-testid="workforce-absenteeism-input"
                 type="number"
@@ -434,7 +434,7 @@ export function SafetyMetrics() {
               />
             </label>
             <label className="block text-sm">
-              <span className="text-zinc-600 dark:text-zinc-400">Horas extra (período)</span>
+              <span className="text-secondary-token">Horas extra (período)</span>
               <input
                 data-testid="workforce-overtime-input"
                 type="number"
@@ -447,7 +447,7 @@ export function SafetyMetrics() {
               />
             </label>
             <label className="block text-sm">
-              <span className="text-zinc-600 dark:text-zinc-400">Dotación (trabajadores)</span>
+              <span className="text-secondary-token">Dotación (trabajadores)</span>
               <input
                 data-testid="workforce-headcount-input"
                 type="number"
@@ -480,7 +480,7 @@ export function SafetyMetrics() {
         </div>
 
         {pressureLoading && (
-          <div data-testid="operational-pressure-loading" className="p-4 text-center text-sm text-zinc-500">
+          <div data-testid="operational-pressure-loading" className="p-4 text-center text-sm text-muted-token">
             Cargando presión operacional…
           </div>
         )}
@@ -501,7 +501,7 @@ export function SafetyMetrics() {
         {!hasWorkforce && !pressureLoading && !pressureError && (
           <div
             data-testid="operational-pressure-empty"
-            className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-600"
+            className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-muted-token dark:border-zinc-600"
           >
             Sin datos de dotación capturados para {period}: la presión operacional no se
             puede calcular todavía.
@@ -516,7 +516,7 @@ export function SafetyMetrics() {
             <Target className="h-5 w-5 text-teal-500" />
             Índice de Desempeño en Seguridad (SPI)
           </h2>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 text-sm text-muted-token">
             Combina indicadores leading (planificado vs. ejecutado, real) y lagging
             (TRIR/LTIFR) en un solo score de gerencia para {period}.
           </p>
@@ -534,7 +534,7 @@ export function SafetyMetrics() {
           </p>
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <label className="block text-sm">
-              <span className="text-zinc-600 dark:text-zinc-400">Inspecciones planificadas</span>
+              <span className="text-secondary-token">Inspecciones planificadas</span>
               <input
                 data-testid="spi-plan-inspections"
                 type="number"
@@ -547,7 +547,7 @@ export function SafetyMetrics() {
               />
             </label>
             <label className="block text-sm">
-              <span className="text-zinc-600 dark:text-zinc-400">Charlas diarias planificadas</span>
+              <span className="text-secondary-token">Charlas diarias planificadas</span>
               <input
                 data-testid="spi-plan-talks"
                 type="number"
@@ -560,7 +560,7 @@ export function SafetyMetrics() {
               />
             </label>
             <label className="block text-sm">
-              <span className="text-zinc-600 dark:text-zinc-400">Capacitaciones planificadas</span>
+              <span className="text-secondary-token">Capacitaciones planificadas</span>
               <input
                 data-testid="spi-plan-trainings"
                 type="number"
@@ -593,7 +593,7 @@ export function SafetyMetrics() {
         </div>
 
         {spiLoading && (
-          <div data-testid="spi-loading" className="p-4 text-center text-sm text-zinc-500">
+          <div data-testid="spi-loading" className="p-4 text-center text-sm text-muted-token">
             Cargando SPI del período…
           </div>
         )}

@@ -22,7 +22,7 @@ const hubsData: Record<string, any> = {
     icon: Home,
     color: 'from-[#4db6ac] to-[#2a8a81]',
     bgColor: 'bg-[#4db6ac]',
-    textColor: 'text-[#4db6ac] dark:text-[#d4af37]',
+    textColor: 'accent-text',
     description: 'Centro de mando principal. Visión global de condiciones subestándar y estado de la operación.',
     keywords: ['general', 'sistema', 'gestión', 'proyecto', 'ia'],
     getIndustryContext: (industry: string) => `En el rubro de ${industry || 'operaciones generales'}, la visión global permite anticipar fallas sistémicas en los procesos antes de que se conviertan en incidentes.`,
@@ -35,10 +35,10 @@ const hubsData: Record<string, any> = {
       { task: 'Revisión de Matriz Global', responsible: 'Admin. de Contrato', deadline: 'Fin de mes' }
     ],
     items: [
-      { title: 'Red Neuronal', icon: Network, path: '/risk-network', color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10' },
+      { title: 'Red Neuronal', icon: Network, path: '/risk-network', color: 'accent-text', bg: 'bg-[#4db6ac]/10' },
       { title: 'Proyectos', icon: Briefcase, path: '/projects', color: 'text-blue-500', bg: 'bg-blue-500/10' },
       { title: 'AI Hub', icon: Zap, path: '/ai-hub', color: 'text-violet-500', bg: 'bg-violet-500/10' },
-      { title: 'Muro Social', icon: Users, path: '/safety-feed', color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10' },
+      { title: 'Muro Social', icon: Users, path: '/safety-feed', color: 'accent-text', bg: 'bg-[#4db6ac]/10' },
       { title: 'Workspace Sync', icon: Folder, path: '/google-drive', color: 'text-blue-500', bg: 'bg-blue-500/10' },
       { title: 'Arquitectura CQRS', icon: Activity, path: '/cqrs-architecture', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Render Inmutable', icon: Activity, path: '/immutable-render', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
@@ -174,7 +174,7 @@ const hubsData: Record<string, any> = {
     items: [
       { title: 'Normativas', icon: Book, path: '/normatives', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Protocolos MINSAL', icon: ShieldCheck, path: '/minsal-protocols', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
-      { title: 'Comité Paritario', icon: Users, path: '/comite-paritario', color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10' },
+      { title: 'Comité Paritario', icon: Users, path: '/comite-paritario', color: 'accent-text', bg: 'bg-[#4db6ac]/10' },
       { title: 'Auditorías', icon: ClipboardList, path: '/audits', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Reportes SUSESO', icon: FileText, path: '/suseso', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Glosario', icon: BookOpen, path: '/glossary', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
@@ -208,13 +208,13 @@ const hubsData: Record<string, any> = {
     items: [
       { title: 'Emergencia', icon: AlertTriangle, path: '/emergency', color: 'text-rose-500', bg: 'bg-rose-500/10' },
       { title: 'Evacuación', icon: Map, path: '/evacuation', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
-      { title: 'Rutas Evacuación', icon: Map, path: '/evacuation-routes', color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10' },
+      { title: 'Rutas Evacuación', icon: Map, path: '/evacuation-routes', color: 'accent-text', bg: 'bg-[#4db6ac]/10' },
       { title: 'Simulador', icon: Zap, path: '/emergency-generator', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Erupción Volcánica', icon: AlertTriangle, path: '/volcanic-eruption', color: 'text-orange-500', bg: 'bg-orange-500/10' },
       { title: 'Mapeo Hazmat', icon: AlertTriangle, path: '/hazmat-map', color: 'text-violet-500', bg: 'bg-violet-500/10' },
-      { title: 'Acopio Hazmat', icon: AlertTriangle, path: '/hazmat-storage', color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10' },
+      { title: 'Acopio Hazmat', icon: AlertTriangle, path: '/hazmat-storage', color: 'accent-text', bg: 'bg-[#4db6ac]/10' },
       { title: 'Refugios Montaña', icon: Map, path: '/mountain-refuges', color: 'text-blue-500', bg: 'bg-blue-500/10' },
-      { title: 'Parques Nacionales', icon: Map, path: '/national-parks', color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10' },
+      { title: 'Parques Nacionales', icon: Map, path: '/national-parks', color: 'accent-text', bg: 'bg-[#4db6ac]/10' },
       { title: 'Rutas Climáticas', icon: Map, path: '/climate-routes', color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
       { title: 'Guía Inhóspita', icon: Map, path: '/inhospitable-guide', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Emergencia Avanzada', icon: AlertTriangle, path: '/emergencia-avanzada', color: 'text-rose-500', bg: 'bg-rose-500/10' },
@@ -245,7 +245,7 @@ const hubsData: Record<string, any> = {
     ],
     items: [
       { title: 'Capacitaciones', icon: BookOpen, path: '/training', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
-      { title: 'Currículum Preventivo', icon: BookOpen, path: '/curriculum', color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10' },
+      { title: 'Currículum Preventivo', icon: BookOpen, path: '/curriculum', color: 'accent-text', bg: 'bg-[#4db6ac]/10' },
       { title: 'Gamificación', icon: Award, path: '/gamification', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Arcade Seguridad', icon: Award, path: '/arcade-games', color: 'text-fuchsia-500', bg: 'bg-fuchsia-500/10' },
       { title: 'Entrenamiento IA', icon: Zap, path: '/knowledge-ingestion', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
@@ -260,7 +260,7 @@ const hubsData: Record<string, any> = {
     icon: BarChart3,
     color: 'from-[#4db6ac] to-[#2a8a81]',
     bgColor: 'bg-[#4db6ac]',
-    textColor: 'text-[#4db6ac] dark:text-[#d4af37]',
+    textColor: 'accent-text',
     description: 'Análisis de accidentabilidad, seguimiento de cierres de hallazgos y métricas de gestión.',
     keywords: ['reporte', 'estadística', 'indicador', 'kpi', 'frecuencia', 'gravedad', 'cierre'],
     getIndustryContext: (industry: string) => `El análisis de datos permite a la gerencia de ${industry || 'su empresa'} enfocar los recursos en las áreas con mayor concentración de condiciones subestándar.`,
@@ -349,6 +349,7 @@ export function ModuleHub() {
           <div className="flex items-start gap-5">
             <button 
               onClick={() => navigate('/')}
+              aria-label="Volver al inicio"
               className="mt-1 min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl bg-canvas hover:bg-surface border border-default-token flex items-center justify-center text-secondary-token hover:text-primary-token transition-colors shrink-0"
             >
               <ArrowLeft className="w-5 h-5" />

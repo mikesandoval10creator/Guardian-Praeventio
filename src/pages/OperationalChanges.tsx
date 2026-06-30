@@ -273,7 +273,7 @@ export function OperationalChanges() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl font-black text-primary-token tracking-tight flex items-center gap-2">
               <GitCompare className="w-6 h-6 text-violet-500" /> {t('operational_changes.title', 'Gestión de cambios (MOC)')}
             </h1>
             <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
@@ -295,7 +295,7 @@ export function OperationalChanges() {
         </header>
 
         {!selectedProject ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-elevated p-6 text-center text-sm text-zinc-500">
             {t('operational_changes.empty.select_project', 'Seleccioná un proyecto.')}
           </div>
         ) : loading ? (
@@ -318,11 +318,11 @@ export function OperationalChanges() {
                 </h2>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('operational_changes.form.field_kind', 'Tipo')}</span>
+                    <span className="font-bold text-secondary-token">{t('operational_changes.form.field_kind', 'Tipo')}</span>
                     <select
                       value={kind}
                       onChange={(e) => setKind(e.target.value as ChangeKind)}
-                      className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                      className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                     >
                       {Object.entries(KIND_LABELS).map(([k, v]) => (
                         <option key={k} value={k}>{v}</option>
@@ -330,11 +330,11 @@ export function OperationalChanges() {
                     </select>
                   </label>
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('operational_changes.form.field_impact', 'Impacto')}</span>
+                    <span className="font-bold text-secondary-token">{t('operational_changes.form.field_impact', 'Impacto')}</span>
                     <select
                       value={impact}
                       onChange={(e) => setImpact(e.target.value as ChangeImpact)}
-                      className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                      className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                     >
                       <option value="low">{t('operational_changes.impact.low', 'Bajo')}</option>
                       <option value="medium">{t('operational_changes.impact.medium', 'Medio')}</option>
@@ -343,39 +343,39 @@ export function OperationalChanges() {
                   </label>
                 </div>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('operational_changes.form.field_what_changed', 'Qué cambió')}</span>
+                  <span className="font-bold text-secondary-token">{t('operational_changes.form.field_what_changed', 'Qué cambió')}</span>
                   <input
                     type="text"
                     value={whatChanged}
                     onChange={(e) => setWhatChanged(e.target.value)}
                     placeholder={t('operational_changes.form.what_changed_placeholder', 'Ej: Procedimiento de izaje en zona norte')}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('operational_changes.form.field_before', 'Antes')}</span>
+                    <span className="font-bold text-secondary-token">{t('operational_changes.form.field_before', 'Antes')}</span>
                     <input
                       type="text"
                       value={previousValue}
                       onChange={(e) => setPreviousValue(e.target.value)}
                       placeholder={t('operational_changes.form.before_placeholder', 'Valor previo')}
-                      className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                      className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                     />
                   </label>
                   <label className="space-y-1 text-xs">
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{t('operational_changes.form.field_after', 'Después')}</span>
+                    <span className="font-bold text-secondary-token">{t('operational_changes.form.field_after', 'Después')}</span>
                     <input
                       type="text"
                       value={newValue}
                       onChange={(e) => setNewValue(e.target.value)}
                       placeholder={t('operational_changes.form.after_placeholder', 'Valor nuevo')}
-                      className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                      className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                     />
                   </label>
                 </div>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('operational_changes.form.field_rationale', 'Justificación (mín 20 chars)')}
                   </span>
                   <textarea
@@ -383,11 +383,11 @@ export function OperationalChanges() {
                     onChange={(e) => setRationale(e.target.value)}
                     rows={2}
                     placeholder={t('operational_changes.form.rationale_placeholder', 'Por qué fue necesario el cambio')}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <label className="block space-y-1 text-xs">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                  <span className="font-bold text-secondary-token">
                     {t('operational_changes.form.field_affected_uids', 'UIDs de trabajadores afectados (separados por coma o salto de línea)')}
                   </span>
                   <textarea
@@ -395,14 +395,14 @@ export function OperationalChanges() {
                     onChange={(e) => setAffectedUidsRaw(e.target.value)}
                     rows={2}
                     placeholder={t('operational_changes.form.affected_uids_placeholder', 'worker-001, worker-002, worker-003')}
-                    className="w-full rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-zinc-900 dark:text-white"
+                    className="w-full rounded-lg border border-default-token bg-surface px-2 py-1.5 text-primary-token"
                   />
                 </label>
                 <div className="flex items-center justify-end gap-2">
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-secondary-token hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
                     {t('common.cancel', 'Cancelar')}
                   </button>
@@ -420,7 +420,7 @@ export function OperationalChanges() {
             )}
 
             {changes.length === 0 ? (
-              <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+              <div className="rounded-2xl border border-default-token bg-elevated p-6 text-center text-sm text-zinc-500">
                 {t('operational_changes.empty.no_changes', 'Sin cambios registrados.')}
               </div>
             ) : (

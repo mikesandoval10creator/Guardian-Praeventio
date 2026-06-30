@@ -158,8 +158,12 @@ describe('GET /:projectId/leadership/decisions', () => {
       decidedAt: '2026-05-15T08:00:00.000Z',
       kind: 'reject_unsafe',
     });
+    // Opt out of the rolling 90-day default window: this test verifies SORT
+    // order, not the period filter (which has its own period=7d/30d/all tests).
+    // The bare default made ld-001 (2026-04-01) straddle the exact 90-day cutoff
+    // on 2026-06-30, dropping it under UTC runners — a tz/clock time-bomb fixture.
     const res = await request(buildApp())
-      .get(url)
+      .get(`${url}?period=all`)
       .set('x-test-uid', CALLER_UID);
     expect(res.status).toBe(200);
     const { decisions } = res.body as { decisions: Record<string, unknown>[] };

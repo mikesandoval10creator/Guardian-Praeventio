@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFirebase } from '../../contexts/FirebaseContext';
-import { Home, Menu, ArrowLeft, User as UserIcon, Bell, Sun, Moon, Map, WifiOff, Search, Sparkles, Cloud } from 'lucide-react';
+import { Home, Menu, ArrowLeft, User as UserIcon, Bell, Map, WifiOff, Search, Sparkles, Cloud } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 // Sprint 20 tenth wave (Bucket Perf C — Fase 5): the chat widget is
 // loaded lazily so `react-markdown` + the SLM/Gemini orchestrator graph
@@ -308,17 +308,12 @@ export function RootLayout() {
             </button>
           </Tooltip>
 
-          <Tooltip content={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
-            <button
-              onClick={toggleTheme}
-              className="hidden sm:flex w-10 h-10 border border-default-token bg-elevated rounded-xl items-center justify-center text-secondary-token hover:bg-surface hover:text-primary-token transition-all duration-300 relative shadow-sm"
-              aria-label="Toggle Dark Mode"
-            >
-              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
-          </Tooltip>
+          {/* Dedup 2026-06: el toggle claro/oscuro suelto se eliminó —
+              HeaderModeSwitcher (arriba) ya cubre claro/oscuro + conducción +
+              emergencia. Un solo control de tema evita la confusión de dos
+              botones que hacían lo mismo. */}
 
-          <Link 
+          <Link
             to="/notifications"
             className="w-10 h-10 border border-default-token bg-elevated rounded-xl flex items-center justify-center text-secondary-token hover:bg-surface hover:text-primary-token transition-all duration-300 relative shadow-sm"
           >

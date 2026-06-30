@@ -3066,6 +3066,16 @@
       "heading": "Catálogo HCA — {{category}}",
       "present": "Presente",
       "mark": "Marcar"
+    },
+    "failure_library": {
+      "heading": "Biblioteca de modos de falla (referencia)",
+      "loading": "Cargando biblioteca…",
+      "error": "No se pudo cargar la biblioteca de modos de falla.",
+      "empty": "Aún no hay modos de falla documentados.",
+      "total": "{{n}} modos de falla documentados",
+      "by_mode": "Por modo de falla",
+      "by_control": "Por tipo de control",
+      "by_frequency": "Por frecuencia"
     }
   },
   "root_cause": {
@@ -5029,6 +5039,10 @@
     "pdcaClosure": "Cierre de capacitación: {{done}}/{{assigned}} trabajadores ({{pct}}%).",
     "myTrainings": "Tu microcapacitación derivada",
     "lessonFallback": "Lección del incidente",
+    "manage": {
+      "show": "Gestión PDCA (supervisor)",
+      "hide": "Ocultar gestión PDCA"
+    },
     "empty": "Sin incidentes registrados en este proyecto.",
     "emptyHint": "Buena noticia. Aquí verás la vista anual cuando haya datos, o reporta un casi-accidente para fortalecer la cultura preventiva.",
     "annualView": "Vista anual (12 meses)",

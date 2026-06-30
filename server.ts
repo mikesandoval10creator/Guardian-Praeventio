@@ -537,18 +537,32 @@ try {
 
 // Initialize Firebase Admin
 try {
+  // E2E/emulator detection. The Firestore emulator namespaces data by projectId
+  // and only serves the DEFAULT database. The test seed (tests/e2e/fixtures/
+  // seed.ts) writes under GOOGLE_CLOUD_PROJECT (= demo-test) on the default DB.
+  // To let Express read what the seed wrote, honor that projectId and skip the
+  // named-database override whenever FIRESTORE_EMULATOR_HOST is set. This is
+  // NEVER true in production (the env var is only set by the E2E harness), so
+  // the prod path below is unchanged.
+  const usingFirestoreEmulator = !!process.env.FIRESTORE_EMULATOR_HOST;
+
   if (!admin.apps.length) {
     const initConfig: any = {
       credential: admin.credential.applicationDefault(),
     };
-    if (firebaseConfig?.projectId) {
+    if (usingFirestoreEmulator && process.env.GOOGLE_CLOUD_PROJECT) {
+      // Match the emulator + seed project so reads/writes share one namespace.
+      initConfig.projectId = process.env.GOOGLE_CLOUD_PROJECT;
+    } else if (firebaseConfig?.projectId) {
       initConfig.projectId = firebaseConfig.projectId;
     }
     admin.initializeApp(initConfig);
   }
 
-  // Override admin.firestore() to always return the correct database instance
-  if (firebaseConfig?.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)') {
+  // Override admin.firestore() to always return the correct database instance.
+  // Skipped under the emulator: it only serves the default database, which is
+  // where the E2E seed writes.
+  if (!usingFirestoreEmulator && firebaseConfig?.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)') {
     const originalFirestore = admin.firestore;
     const { getFirestore } = await import('firebase-admin/firestore');
 

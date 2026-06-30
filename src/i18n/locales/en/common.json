@@ -3066,6 +3066,16 @@
       "heading": "HCA Catalog — {{category}}",
       "present": "Present",
       "mark": "Mark"
+    },
+    "failure_library": {
+      "heading": "Failure-mode library (reference)",
+      "loading": "Loading library…",
+      "error": "Could not load the failure-mode library.",
+      "empty": "No failure modes documented yet.",
+      "total": "{{n}} documented failure modes",
+      "by_mode": "By failure mode",
+      "by_control": "By control type",
+      "by_frequency": "By frequency"
     }
   },
   "root_cause": {
@@ -5029,6 +5039,10 @@
     "pdcaClosure": "Training closure: {{done}}/{{assigned}} workers ({{pct}}%).",
     "myTrainings": "Your derived microtraining",
     "lessonFallback": "Incident lesson",
+    "manage": {
+      "show": "PDCA management (supervisor)",
+      "hide": "Hide PDCA management"
+    },
     "empty": "No incidents recorded on this project.",
     "emptyHint": "Good news. You'll see the annual view here once there is data, or report a near-miss to strengthen the prevention culture.",
     "annualView": "Annual view (12 months)",

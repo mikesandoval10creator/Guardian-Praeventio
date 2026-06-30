@@ -8,6 +8,7 @@ import { GuestSaveModal } from '../components/shared/GuestSaveModal';
 import { analytics } from '../services/analytics';
 import type { IndustryCode, ProjectTier } from '../services/analytics';
 import { logger } from '../utils/logger';
+import { DEMO_DASHBOARD_PROJECT } from '../data/demoProject';
 
 interface Project {
   id: string;
@@ -254,9 +255,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    if (!isAuthReady || !user) {
-      setFetchedProjects([]);
-      setSelectedProject(null);
+    if (!isAuthReady) {
+      // Auth aún resolviendo — mantener loading; no parpadear demo ni vacío.
+      setLoading(true);
+      return undefined;
+    }
+    if (!user) {
+      // Modo invitado (embudo PLG): mostrar la faena demo para que el
+      // dashboard se vea VIVO antes de que el visitante cree cuenta. El
+      // proyecto demo es read-only; cualquier write abre GuestSaveModal.
+      setFetchedProjects([DEMO_DASHBOARD_PROJECT as unknown as Project]);
+      setSelectedProject((prev) => prev ?? (DEMO_DASHBOARD_PROJECT as unknown as Project));
       setError(null);
       setLoading(false);
       return undefined;

@@ -85,7 +85,14 @@ export default defineConfig({
             // hay build de servidor todavía — Fase 5.3 del plan). En CI la
             // boot real es 60-90s. Subir timeout a 150_000 da headroom sin
             // ocultar regresiones genuinas.
-            command: 'npx cross-env NODE_ENV=test E2E_MODE=1 E2E_TEST_SECRET=e2e-test-secret-do-not-use-in-prod PORT=3000 npx tsx server.ts',
+            // §E2E-harness fix (2026-06-27): pin FIRESTORE_EMULATOR_HOST +
+            // GOOGLE_CLOUD_PROJECT=demo-test so the Express Firestore client
+            // targets the SAME emulator project/namespace the seed writes to
+            // (tests/e2e/fixtures/seed.ts). Without these, server.ts inited
+            // admin with firebase-applet-config.json's projectId + named DB,
+            // a different namespace -> assertProjectMember 403 -> the 4 fixme'd
+            // specs. FIREBASE_AUTH_EMULATOR_HOST mirrors the auth fixture.
+            command: 'npx cross-env NODE_ENV=test E2E_MODE=1 E2E_TEST_SECRET=e2e-test-secret-do-not-use-in-prod PORT=3000 GOOGLE_CLOUD_PROJECT=demo-test FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 npx tsx server.ts',
             url: 'http://localhost:3000/api/health',
             reuseExistingServer: !process.env.CI,
             timeout: 150_000,

@@ -136,10 +136,10 @@ export function CuadrillasDashboard() {
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Users className="w-6 h-6 text-[var(--accent-primary,#4db6ac)]" />
-          <h1 className="text-xl lg:text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
+          <h1 className="text-xl lg:text-2xl font-black text-primary-token tracking-tight">
             {t('cuadrillas.title', 'Cuadrillas')}
           </h1>
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+          <span className="text-xs text-muted-token">
             · {selectedProject?.name}
           </span>
         </div>
@@ -175,12 +175,12 @@ export function CuadrillasDashboard() {
       {/* 3-pane grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left — crews list */}
-        <aside className="lg:col-span-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 max-h-[70vh] overflow-y-auto">
-          <h3 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">
+        <aside className="lg:col-span-3 rounded-2xl border border-default-token bg-surface p-3 max-h-[70vh] overflow-y-auto">
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-token mb-2">
             {t('cuadrillas.crewList', 'Lista de cuadrillas')} ({crews.length})
           </h3>
           {crews.length === 0 ? (
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 px-2 py-4">
+            <p className="text-xs text-muted-token px-2 py-4">
               {t('cuadrillas.noCrews', 'No hay cuadrillas. Crea la primera con el botón superior.')}
             </p>
           ) : (
@@ -198,10 +198,10 @@ export function CuadrillasDashboard() {
                           : 'hover:bg-zinc-50 dark:hover:bg-zinc-800'
                       }`}
                     >
-                      <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                      <p className="text-sm font-semibold text-primary-token">
                         {c.name}
                       </p>
-                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                      <p className="text-[11px] text-muted-token mt-0.5">
                         {t('cuadrillas.membersCount', '{{count}} miembros', { count: c.memberUids.length })} · {c.xp} XP
                       </p>
                     </button>
@@ -213,9 +213,9 @@ export function CuadrillasDashboard() {
         </aside>
 
         {/* Center — crew detail */}
-        <section className="lg:col-span-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 max-h-[70vh] overflow-y-auto">
+        <section className="lg:col-span-5 rounded-2xl border border-default-token bg-surface p-4 max-h-[70vh] overflow-y-auto">
           {!selectedCrew ? (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 py-8 text-center">
+            <p className="text-sm text-muted-token py-8 text-center">
               {t('cuadrillas.selectCrew', 'Selecciona una cuadrilla para ver el detalle.')}
             </p>
           ) : (
@@ -227,10 +227,10 @@ export function CuadrillasDashboard() {
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-zinc-900 dark:text-white">
+                  <h2 className="text-lg font-bold text-primary-token">
                     {selectedCrew.name}
                   </h2>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  <p className="text-xs text-muted-token mt-0.5">
                     {t('cuadrillas.membersCount', '{{count}} miembros', { count: selectedCrew.memberUids.length })} · {t('cuadrillas.processesCompleted', '{{count}} procesos completados', { count: selectedCrew.totalProcessesCompleted })}
                   </p>
                 </div>
@@ -264,12 +264,12 @@ export function CuadrillasDashboard() {
                     {selectedCrew.daysWithoutIncident}d
                   </p>
                 </div>
-                <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-700 p-3">
-                  <div className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
+                <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-default-token p-3">
+                  <div className="flex items-center gap-1.5 text-secondary-token">
                     <ListChecks className="w-3.5 h-3.5" />
                     <span className="text-[10px] uppercase tracking-wider font-bold">{t('cuadrillas.processes', 'Procesos')}</span>
                   </div>
-                  <p className="mt-1 text-xl font-black text-zinc-700 dark:text-zinc-300">
+                  <p className="mt-1 text-xl font-black text-secondary-token">
                     {crewProcesses.length}
                   </p>
                 </div>
@@ -277,11 +277,11 @@ export function CuadrillasDashboard() {
 
               {/* Members */}
               <section>
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-token mb-2">
                   {t('cuadrillas.members', 'Miembros')} ({selectedCrew.memberUids.length})
                 </h4>
                 {selectedCrew.memberUids.length === 0 ? (
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <p className="text-xs text-muted-token">
                     {t('cuadrillas.noMembers', 'Sin miembros aún. Asigna trabajadores desde el panel del proyecto.')}
                   </p>
                 ) : (
@@ -289,7 +289,7 @@ export function CuadrillasDashboard() {
                     {selectedCrew.memberUids.map((uid) => (
                       <li
                         key={uid}
-                        className="text-[11px] font-mono px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                        className="text-[11px] font-mono px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 text-secondary-token"
                       >
                         {uid}
                       </li>
@@ -300,11 +300,11 @@ export function CuadrillasDashboard() {
 
               {/* Active processes */}
               <section>
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-token mb-2">
                   {t('cuadrillas.activeProcesses', 'Procesos activos')} ({activeCrewProcesses.length})
                 </h4>
                 {activeCrewProcesses.length === 0 ? (
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <p className="text-xs text-muted-token">
                     {t('cuadrillas.noActiveProcesses', 'Sin procesos abiertos. Inicia uno con el botón superior.')}
                   </p>
                 ) : (
@@ -313,21 +313,21 @@ export function CuadrillasDashboard() {
                       <li
                         key={p.id}
                         data-testid={`process-row-${p.id}`}
-                        className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 bg-white dark:bg-zinc-950"
+                        className="rounded-lg border border-default-token p-3 bg-white dark:bg-zinc-950"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-zinc-900 dark:text-white truncate">
+                            <p className="text-sm font-semibold text-primary-token truncate">
                               {p.name}
                             </p>
-                            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                            <p className="text-[11px] text-muted-token mt-0.5">
                               {p.type} · {p.status} · {p.complianceScore}/100 · alertas atendidas: {p.alertsResponded}
                             </p>
                           </div>
                           <div className="flex flex-shrink-0 gap-1.5">
                             <button
                               onClick={() => setDetailProcess(p)}
-                              className="inline-flex items-center gap-1 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                              className="inline-flex items-center gap-1 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-1 text-[11px] font-semibold text-secondary-token hover:bg-zinc-200 dark:hover:bg-zinc-700"
                             >
                               <Eye className="w-3 h-3" />
                               {t('cuadrillas.viewDetail', 'Ver detalle')}
@@ -350,12 +350,12 @@ export function CuadrillasDashboard() {
               {/* Close-XP preview — server-backed (GET /api/processes). Shows the
                   XP the crew earns when each open process is closed. */}
               <section data-testid="process-close-preview-panel">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-token mb-2">
                   {t('cuadrillas.closePreview', 'XP al cerrar')} ({closablePreviewProcesses.length})
                 </h4>
                 {closablePreviewProcesses.length === 0 ? (
                   <p
-                    className="text-xs text-zinc-500 dark:text-zinc-400"
+                    className="text-xs text-muted-token"
                     data-testid="process-close-preview-empty"
                   >
                     {t('cuadrillas.noClosablePreview', 'Sin procesos por cerrar. Inicia uno para ver el XP estimado.')}
@@ -377,8 +377,8 @@ export function CuadrillasDashboard() {
         </section>
 
         {/* Right — Gantt timeline */}
-        <section className="lg:col-span-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 max-h-[70vh] overflow-hidden">
-          <h3 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2 px-1">
+        <section className="lg:col-span-4 rounded-2xl border border-default-token bg-surface p-3 max-h-[70vh] overflow-hidden">
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-token mb-2 px-1">
             {t('cuadrillas.timeline', 'Timeline · cuadrillas')}
           </h3>
           {selectedProject ? (

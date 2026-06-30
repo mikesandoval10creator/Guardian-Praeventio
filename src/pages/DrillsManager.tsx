@@ -44,6 +44,7 @@ import {
   type DrillLevelAPI,
 } from '../hooks/useDrillsManager';
 import { DrillResultReviewCard } from '../components/drillsManager/DrillResultReviewCard';
+import { DrillsCompliancePanel } from '../components/drillsManager/DrillsCompliancePanel';
 import type { DrillResult, DrillReadinessReport } from '../services/drillsManager/drillsManager';
 import { logger } from '../utils/logger';
 
@@ -218,6 +219,8 @@ export function DrillsManager() {
   const [kindFilter, setKindFilter] = useState<DrillKindAPI | null>(null);
   const [selectedDrillId, setSelectedDrillId] = useState<string | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
+  // Tipo preseleccionado al agendar desde el panel de cumplimiento.
+  const [newDrillKind, setNewDrillKind] = useState<DrillKindAPI | null>(null);
   // Codex PR #316 P2 (line 330): banner page-level para fallos de
   // ejecución. Antes el catch solo logueaba y el modal se cerraba,
   // descartando lo que el usuario había escrito. Ahora `handleExecute`
@@ -282,6 +285,30 @@ export function DrillsManager() {
     completedResp.data,
     cancelledResp.data,
   ]);
+
+  // Historial de simulacros EJECUTADOS (independiente del filtro activo) para
+  // el panel de cumplimiento DS 132 — qué tipo está atrasado / próximo. Mismo
+  // mapeo DrillRecord→DrillResult que ya usa DrillResultReviewCard abajo.
+  const complianceHistory: DrillResult[] = useMemo(() => {
+    return (completedResp.data?.drills ?? [])
+      .filter(
+        (d) =>
+          d.executedAt != null &&
+          d.participantCount != null &&
+          d.responseTimeSeconds != null,
+      )
+      .map((d) => ({
+        id: d.id,
+        drillKind: d.kind,
+        executedAt: d.executedAt as string,
+        participantCount: d.participantCount as number,
+        expectedCount: d.expectedCount,
+        responseTimeSeconds: d.responseTimeSeconds as number,
+        benchmarkSeconds: d.benchmarkSeconds,
+        observedGaps: d.observedGaps ?? [],
+        requiredExternal: d.requiredExternal ?? false,
+      }));
+  }, [completedResp.data]);
 
   // Stable "now" for countdowns within one render pass. Updates every
   // 60s so a long-lived view doesn't keep showing stale "Mañana"
@@ -503,6 +530,17 @@ export function DrillsManager() {
         </div>
       </section>
 
+      {/* Cumplimiento DS 132 por tipo (atrasados / próximos) — monta el
+          huérfano DrillsCompliancePanel sobre el historial real de simulacros
+          ejecutados. "Agendar" preselecciona el tipo en el modal de planificar. */}
+      <DrillsCompliancePanel
+        history={complianceHistory}
+        onScheduleClick={(kind) => {
+          setNewDrillKind(kind as DrillKindAPI);
+          setShowNewModal(true);
+        }}
+      />
+
       {loading && (
         <div
           className="rounded-2xl border border-default-token bg-surface p-6 text-center text-sm text-secondary-token"
@@ -658,7 +696,11 @@ export function DrillsManager() {
 
       {showNewModal && (
         <NewDrillModal
-          onClose={() => setShowNewModal(false)}
+          initialKind={newDrillKind ?? undefined}
+          onClose={() => {
+            setShowNewModal(false);
+            setNewDrillKind(null);
+          }}
           onPlan={handlePlan}
         />
       )}
@@ -1007,6 +1049,7 @@ function DrillDetailModal(props: {
 // ────────────────────────────────────────────────────────────────────────
 
 function NewDrillModal(props: {
+  initialKind?: DrillKindAPI;
   onClose: () => void;
   onPlan: (payload: {
     kind: DrillKindAPI;
@@ -1018,9 +1061,9 @@ function NewDrillModal(props: {
     benchmarkSeconds?: number;
   }) => Promise<void>;
 }) {
-  const { onClose, onPlan } = props;
+  const { initialKind, onClose, onPlan } = props;
   const { t } = useTranslation();
-  const [kind, setKind] = useState<DrillKindAPI>('evacuation');
+  const [kind, setKind] = useState<DrillKindAPI>(initialKind ?? 'evacuation');
   const [scheduledAt, setScheduledAt] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);

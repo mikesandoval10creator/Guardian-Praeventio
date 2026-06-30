@@ -377,10 +377,10 @@ export function AfichesSeguridad() {
             <Printer className="w-6 h-6 text-blue-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">
+            <h1 className="text-2xl font-black uppercase tracking-tighter text-primary-token">
               {t('afiches.header.title', 'Afiches de Seguridad')}
             </h1>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+            <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">
               {t('afiches.header.subtitle', 'Generador PDF con código QR — Impresión en faena')}
             </p>
           </div>
@@ -416,7 +416,7 @@ export function AfichesSeguridad() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Template selector */}
         <div className="space-y-2">
-          <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">
+          <p className="text-[10px] font-black text-muted-token uppercase tracking-widest mb-3">
             {t('afiches.templates.label', 'Plantillas')} ({TEMPLATES.length})
           </p>
           {TEMPLATES.map(tpl => (
@@ -432,8 +432,8 @@ export function AfichesSeguridad() {
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: tpl.color }} />
                 <div className="min-w-0">
-                  <p className="text-xs font-black text-zinc-900 dark:text-white truncate">{tpl.title}</p>
-                  <p className="text-[9px] text-zinc-500 truncate">{tpl.industry}</p>
+                  <p className="text-xs font-black text-primary-token truncate">{tpl.title}</p>
+                  <p className="text-[9px] text-muted-token truncate">{tpl.industry}</p>
                 </div>
               </div>
             </button>
@@ -442,7 +442,7 @@ export function AfichesSeguridad() {
 
         {/* Live preview + hidden PDF target */}
         <div className="lg:col-span-2">
-          <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">
+          <p className="text-[10px] font-black text-muted-token uppercase tracking-widest mb-3">
             {t('afiches.preview.label', 'Vista Previa')} — <span className="text-blue-500">{format}</span>
           </p>
           <motion.div
@@ -458,8 +458,8 @@ export function AfichesSeguridad() {
           </motion.div>
 
           <div className="flex items-center gap-2 mt-3">
-            <QrCode className="w-4 h-4 text-zinc-400" />
-            <p className="text-[10px] text-zinc-400">
+            <QrCode className="w-4 h-4 text-muted-token" />
+            <p className="text-[10px] text-muted-token">
               {t('afiches.preview.qrHint', 'El QR lleva a la red de conocimiento del proyecto')}: <span className="font-mono">{qrUrl.slice(0, 50)}…</span>
             </p>
           </div>

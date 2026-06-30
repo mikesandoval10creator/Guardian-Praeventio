@@ -83,7 +83,7 @@ export function SifPrecursors() {
         <Skull className="w-5 h-5 text-rose-600" aria-hidden="true" />
         <h1 className="text-lg font-bold">{t('sif_page.title', 'Precursores SIF')}</h1>
       </header>
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+      <p className="text-xs text-muted-token">
         {t(
           'sif_page.subtitle',
           'Cuasi-accidentes con potencial de lesión grave o fatal (SIF). Requieren revisión ejecutiva y, si corresponde, notificación al mandante.',
@@ -105,11 +105,11 @@ export function SifPrecursors() {
       )}
 
       {!projectId ? (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-500 dark:border-white/10 dark:bg-zinc-900/60" data-testid="sifPage.noProject">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-muted-token dark:border-white/10 dark:bg-zinc-900/60" data-testid="sifPage.noProject">
           {t('sif_page.no_project', 'Seleccioná un proyecto para ver sus precursores SIF.')}
         </div>
       ) : loading ? (
-        <div className="flex items-center justify-center py-12 text-zinc-500" data-testid="sifPage.loading">
+        <div className="flex items-center justify-center py-12 text-muted-token" data-testid="sifPage.loading">
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
       ) : error ? (

@@ -70,7 +70,7 @@ const KIND_META: Record<
   admin: {
     icon: FileText,
     bgClass: 'bg-zinc-500/15 border-zinc-500/40',
-    textClass: 'text-zinc-700 dark:text-zinc-300',
+    textClass: 'text-secondary-token',
   },
 };
 
@@ -220,7 +220,7 @@ function NewBlockModal({ open, uid, onClose, onCreated }: NewBlockModalProps) {
         <div className="mb-4 flex items-center justify-between">
           <h2
             id="focus-agenda-new-block-title"
-            className="text-lg font-semibold text-zinc-900 dark:text-zinc-100"
+            className="text-lg font-semibold text-primary-token"
           >
             {t('focusAgenda.newBlock.title', 'Nuevo bloque de foco')}
           </h2>
@@ -238,7 +238,7 @@ function NewBlockModal({ open, uid, onClose, onCreated }: NewBlockModalProps) {
           <div>
             <label
               htmlFor="focus-agenda-kind"
-              className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              className="mb-1 block text-sm font-medium text-secondary-token"
             >
               {t('focusAgenda.newBlock.kind', 'Tipo de bloque')}
             </label>
@@ -261,7 +261,7 @@ function NewBlockModal({ open, uid, onClose, onCreated }: NewBlockModalProps) {
             <div>
               <label
                 htmlFor="focus-agenda-starts"
-                className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                className="mb-1 block text-sm font-medium text-secondary-token"
               >
                 {t('focusAgenda.newBlock.startsAt', 'Inicio (UTC)')}
               </label>
@@ -276,7 +276,7 @@ function NewBlockModal({ open, uid, onClose, onCreated }: NewBlockModalProps) {
             <div>
               <label
                 htmlFor="focus-agenda-ends"
-                className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                className="mb-1 block text-sm font-medium text-secondary-token"
               >
                 {t('focusAgenda.newBlock.endsAt', 'Fin (UTC)')}
               </label>
@@ -293,7 +293,7 @@ function NewBlockModal({ open, uid, onClose, onCreated }: NewBlockModalProps) {
           <div>
             <label
               htmlFor="focus-agenda-note"
-              className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              className="mb-1 block text-sm font-medium text-secondary-token"
             >
               {t('focusAgenda.newBlock.note', 'Nota (opcional)')}
             </label>
@@ -410,11 +410,11 @@ export function FocusAgenda() {
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-primary-token">
             <CalendarIcon className="h-6 w-6 text-teal-600" aria-hidden="true" />
             {t('focusAgenda.title', 'Agenda de bloques de foco')}
           </h1>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-1 text-sm text-secondary-token">
             {t(
               'focusAgenda.subtitle',
               'Tiempo protegido para inspección, capacitación, auditoría o tareas críticas.',
@@ -447,7 +447,7 @@ export function FocusAgenda() {
       )}
 
       {loading && (
-        <p className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="flex items-center gap-2 text-sm text-secondary-token">
           <Loader2 className="h-4 w-4 animate-spin" />
           {t('focusAgenda.loading', 'Cargando agenda…')}
         </p>
@@ -470,7 +470,7 @@ export function FocusAgenda() {
                   : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'
               }`}
             >
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-token">
                 {formatDayHeader(day, t)}
               </div>
               {list.length === 0 ? (
@@ -508,7 +508,7 @@ export function FocusAgenda() {
       {totalThisWeek === 0 && !loading && uid && (
         <div className="rounded-lg border border-dashed border-zinc-300 p-8 text-center dark:border-zinc-700">
           <Wrench className="mx-auto mb-3 h-8 w-8 text-zinc-400" aria-hidden="true" />
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-secondary-token">
             {t(
               'focusAgenda.emptyWeek',
               'No tienes bloques de foco esta semana. Crea uno con el botón "Nuevo bloque".',

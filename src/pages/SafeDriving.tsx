@@ -19,6 +19,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { apiAuthHeader } from '../lib/apiAuth';
 import { randomId } from '../utils/randomId';
 import { logger } from '../utils/logger';
+import { DriverScoringTabs } from '../components/drivingSafety/DriverScoringTabs';
+import { VehicleDocsTab } from '../components/drivingSafety/VehicleDocsTab';
 
 const containerStyle = {
   width: '100%',
@@ -36,7 +38,7 @@ const defaultCenter = {
 
 export function SafeDriving() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'route' | 'report'>('route');
+  const [activeTab, setActiveTab] = useState<'route' | 'rutasCriticas' | 'conductores' | 'ranking' | 'vehiculos' | 'report'>('route');
   const [description, setDescription] = useState('');
   const [incidentType, setIncidentType] = useState<'Accidente' | 'Falla Mecánica' | null>(null);
   const [loading, setLoading] = useState(false);
@@ -152,7 +154,7 @@ export function SafeDriving() {
             <Truck className="w-8 h-8 text-blue-500" />
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">{t('safeDriving.title', 'Conducción Segura')}</h1>
+            <h1 className="text-2xl sm:text-3xl font-black text-primary-token uppercase tracking-tighter">{t('safeDriving.title', 'Conducción Segura')}</h1>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('safeDriving.subtitle', 'Gestión de Rutas y Logística')}</p>
           </div>
         </div>
@@ -160,10 +162,42 @@ export function SafeDriving() {
           <button
             onClick={() => setActiveTab('route')}
             className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-              activeTab === 'route' ? 'bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+              activeTab === 'route' ? 'bg-surface text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
             {t('safeDriving.tabs.route', 'Ruta Activa')}
+          </button>
+          <button
+            onClick={() => setActiveTab('rutasCriticas')}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'rutasCriticas' ? 'bg-surface text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            {'Rutas Críticas'}
+          </button>
+          <button
+            onClick={() => setActiveTab('conductores')}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'conductores' ? 'bg-surface text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            {'Conductores'}
+          </button>
+          <button
+            onClick={() => setActiveTab('ranking')}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'ranking' ? 'bg-surface text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            {'Ranking'}
+          </button>
+          <button
+            onClick={() => setActiveTab('vehiculos')}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'vehiculos' ? 'bg-surface text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            {'Vehículos'}
           </button>
           <button
             onClick={() => setActiveTab('report')}
@@ -179,15 +213,15 @@ export function SafeDriving() {
       {activeTab === 'route' ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full min-w-0">
           {/* Map Area */}
-          <div className="lg:col-span-2 bg-zinc-100 dark:bg-zinc-900 rounded-[2rem] border border-zinc-200 dark:border-zinc-800 overflow-hidden relative min-h-[400px] flex flex-col w-full max-w-full min-w-0">
-            <div className="absolute top-4 left-4 z-10 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800">
+          <div className="lg:col-span-2 bg-zinc-100 dark:bg-zinc-900 rounded-[2rem] border border-default-token overflow-hidden relative min-h-[400px] flex flex-col w-full max-w-full min-w-0">
+            <div className="absolute top-4 left-4 z-10 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-default-token">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
                   <Navigation className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{t('safeDriving.destination.label', 'Destino Actual')}</p>
-                  <p className="text-sm font-bold text-zinc-900 dark:text-white">{t('safeDriving.destination.value', 'Planta Industrial Norte')}</p>
+                  <p className="text-sm font-bold text-primary-token">{t('safeDriving.destination.value', 'Planta Industrial Norte')}</p>
                 </div>
               </div>
             </div>
@@ -289,7 +323,7 @@ export function SafeDriving() {
 
           {/* Logistics Panel */}
           <div className="space-y-4">
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2rem] p-6 shadow-sm">
+            <div className="bg-surface border border-default-token rounded-[2rem] p-6 shadow-sm">
               <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-4">{t('safeDriving.trip.status', 'Estado del Viaje')}</h3>
               
               <div className="space-y-4">
@@ -298,7 +332,7 @@ export function SafeDriving() {
                     <Clock className="w-5 h-5 text-blue-500" />
                     <div>
                       <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">Tiempo Estimado</p>
-                      <p className="text-sm font-black text-zinc-900 dark:text-white">1h 45m</p>
+                      <p className="text-sm font-black text-primary-token">1h 45m</p>
                     </div>
                   </div>
                   <span className="text-xs font-bold text-emerald-500">A tiempo</span>
@@ -309,7 +343,7 @@ export function SafeDriving() {
                     <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                     <div>
                       <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">Checklist Vehículo</p>
-                      <p className="text-sm font-black text-zinc-900 dark:text-white">Completado</p>
+                      <p className="text-sm font-black text-primary-token">Completado</p>
                     </div>
                   </div>
                   <button
@@ -320,7 +354,7 @@ export function SafeDriving() {
                 {showChecklistDetail && (
                   <div className="mt-3 space-y-1.5 pl-2 border-l-2 border-emerald-500/30">
                     {preDriverChecklist.map((item, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+                      <div key={i} className="flex items-center gap-2 text-xs text-secondary-token">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                         <span>{item}</span>
                       </div>
@@ -347,18 +381,18 @@ export function SafeDriving() {
             </div>
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'report' ? (
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-2xl mx-auto bg-white dark:bg-zinc-900 border border-red-100 dark:border-red-900/30 rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-red-500/5"
+          className="max-w-2xl mx-auto bg-surface border border-red-100 dark:border-red-900/30 rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-red-500/5"
         >
           <div className="flex items-center gap-4 mb-8 pb-6 border-b border-zinc-100 dark:border-zinc-800">
             <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500">
               <ShieldAlert className="w-8 h-8" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t('safeDriving.incident.title', 'Reporte de Incidente en Ruta')}</h2>
+              <h2 className="text-xl font-black text-primary-token uppercase tracking-tight">{t('safeDriving.incident.title', 'Reporte de Incidente en Ruta')}</h2>
               <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{t('safeDriving.incident.subtitle', 'Protocolo de Emergencia Inmediato')}</p>
             </div>
           </div>
@@ -377,20 +411,20 @@ export function SafeDriving() {
               <button
                 onClick={() => setIncidentType('Accidente')}
                 className={`flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${
-                  incidentType === 'Accidente' ? 'border-red-500 bg-red-50 dark:bg-red-500/10' : 'border-zinc-200 dark:border-zinc-800 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-500/10'
+                  incidentType === 'Accidente' ? 'border-red-500 bg-red-50 dark:bg-red-500/10' : 'border-default-token hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-500/10'
                 }`}
               >
                 <AlertTriangle className={`w-8 h-8 ${incidentType === 'Accidente' ? 'text-red-500' : 'text-zinc-400 group-hover:text-red-500'}`} />
-                <span className={`text-[10px] font-black uppercase tracking-widest ${incidentType === 'Accidente' ? 'text-red-600 dark:text-red-400' : 'text-zinc-600 dark:text-zinc-400 group-hover:text-red-600 dark:group-hover:text-red-400'}`}>Accidente</span>
+                <span className={`text-[10px] font-black uppercase tracking-widest ${incidentType === 'Accidente' ? 'text-red-600 dark:text-red-400' : 'text-secondary-token group-hover:text-red-600 dark:group-hover:text-red-400'}`}>Accidente</span>
               </button>
               <button 
                 onClick={() => setIncidentType('Falla Mecánica')}
                 className={`flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${
-                  incidentType === 'Falla Mecánica' ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/10' : 'border-zinc-200 dark:border-zinc-800 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10'
+                  incidentType === 'Falla Mecánica' ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/10' : 'border-default-token hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10'
                 }`}
               >
                 <Truck className={`w-8 h-8 ${incidentType === 'Falla Mecánica' ? 'text-amber-500' : 'text-zinc-400 group-hover:text-amber-500'}`} />
-                <span className={`text-[10px] font-black uppercase tracking-widest ${incidentType === 'Falla Mecánica' ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-600 dark:text-zinc-400 group-hover:text-amber-600 dark:group-hover:text-amber-400'}`}>Falla Mecánica</span>
+                <span className={`text-[10px] font-black uppercase tracking-widest ${incidentType === 'Falla Mecánica' ? 'text-amber-600 dark:text-amber-400' : 'text-secondary-token group-hover:text-amber-600 dark:group-hover:text-amber-400'}`}>Falla Mecánica</span>
               </button>
             </div>
 
@@ -400,13 +434,13 @@ export function SafeDriving() {
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 text-sm text-zinc-900 dark:text-white focus:ring-2 focus:ring-red-500/50 outline-none resize-none"
+                className="w-full bg-zinc-50 dark:bg-zinc-950 border border-default-token rounded-xl p-4 text-sm text-primary-token focus:ring-2 focus:ring-red-500/50 outline-none resize-none"
                 placeholder="Describa brevemente la situación..."
               />
             </div>
 
             <div className="flex gap-4">
-              <button className="flex-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex items-center justify-center gap-2">
+              <button className="flex-1 bg-zinc-100 dark:bg-zinc-800 text-secondary-token py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex items-center justify-center gap-2">
                 <Camera className="w-4 h-4" />
                 Adjuntar Foto
               </button>
@@ -428,6 +462,13 @@ export function SafeDriving() {
             </div>
           </div>
         </motion.div>
+      ) : activeTab === 'vehiculos' ? (
+        <VehicleDocsTab projectId={selectedProject?.id ?? null} />
+      ) : (
+        <DriverScoringTabs
+          projectId={selectedProject?.id ?? null}
+          tab={activeTab === 'rutasCriticas' ? 'rutas' : activeTab}
+        />
       )}
     </div>
   );
