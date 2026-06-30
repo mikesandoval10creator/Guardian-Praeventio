@@ -96,6 +96,14 @@ export function AutoFitText({
     };
 
     void fit();
+    // Degradación segura: ResizeObserver no existe en SSR, navegadores muy
+    // antiguos, ni en el entorno de tests (jsdom). El ajuste inicial ya corrió
+    // arriba; sin observer simplemente no re-ajustamos en resize.
+    if (typeof ResizeObserver === 'undefined') {
+      return () => {
+        cancelled = true;
+      };
+    }
     const ro = new ResizeObserver(() => void fit());
     ro.observe(el);
     return () => {

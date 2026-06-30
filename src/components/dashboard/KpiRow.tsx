@@ -39,7 +39,7 @@ export function KpiRow({ items, density = 'comfortable' }: KpiRowProps) {
   return (
     <div
       data-testid="kpi-row"
-      className="grid grid-cols-4 gap-1.5 sm:gap-3"
+      className="grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-4"
     >
       {items.map((k) => {
         const tone = k.tone ?? 'neutral';
