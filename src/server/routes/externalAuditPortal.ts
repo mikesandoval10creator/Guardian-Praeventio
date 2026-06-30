@@ -56,6 +56,7 @@ import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { isAdminRole } from '../../types/roles.js';
+import { assertProjectMember, ProjectMembershipError } from '../../services/auth/projectMembership.js';
 import {
   createPortal,
   derivePortalStatus,
@@ -277,6 +278,19 @@ router.post(
       if (!tenantId) {
         return res.status(404).json({ error: 'tenant_not_found' });
       }
+
+      for (const pid of body.scopeProjectIds) {
+        try {
+          await assertProjectMember(callerUid, pid, admin.firestore());
+        } catch (err) {
+          if (err instanceof ProjectMembershipError) {
+            await auditServerEvent(req, 'externalAuditPortal.scope_denied', 'externalAuditPortal', { projectId: pid });
+            return res.status(err.httpStatus).json({ error: 'forbidden_project_scope', projectId: pid });
+          }
+          throw err;
+        }
+      }
+
       const portal = createPortal({
         id: body.id,
         createdByUid: callerUid,

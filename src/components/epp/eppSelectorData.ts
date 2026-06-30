@@ -193,3 +193,32 @@ export function getEppForRubro(rubroId: string): EppCardItem[] {
   const found = EPP_SELECTOR_RUBROS.find((r) => r.id === rubroId);
   return found ? found.items : EPP_SELECTOR_DEFAULT;
 }
+
+
+// ─────────────────────────────────────────────────────────────────────────
+// Embudo/UX (2026-06-28) — auto-contexto: dado el `industry` del proyecto
+// (demo o real), devuelve el id de rubro que el EppSelector debe mostrar por
+// defecto. El usuario igual puede cambiarlo con el dropdown. Cierra la idea
+// del fundador: "con login, mostrar el EPP que se necesita por contexto".
+// ─────────────────────────────────────────────────────────────────────────
+const INDUSTRY_TO_RUBRO: Record<string, string> = {
+  mineria: 'GP-MIN', mining: 'GP-MIN', minera: 'GP-MIN', minero: 'GP-MIN',
+  construccion: 'GP-CONS', construction: 'GP-CONS', constructora: 'GP-CONS',
+  forestal: 'GP-AGR-SIL', forestry: 'GP-AGR-SIL',
+  salmonicultura: 'GP-AGR-PES', acuicultura: 'GP-AGR-PES', aquaculture: 'GP-AGR-PES',
+  agricultura: 'GP-AGR', agriculture: 'GP-AGR', agro: 'GP-AGR',
+};
+
+export function rubroIdForIndustry(industry?: string | null): string {
+  const fallback = EPP_SELECTOR_RUBROS[0].id;
+  if (!industry) return fallback;
+  const low = industry.toLowerCase().trim();
+  const byId = EPP_SELECTOR_RUBROS.find((r) => r.id.toLowerCase() === low);
+  if (byId) return byId.id;
+  if (INDUSTRY_TO_RUBRO[low]) return INDUSTRY_TO_RUBRO[low];
+  for (const [k, v] of Object.entries(INDUSTRY_TO_RUBRO)) {
+    if (k.length >= 4 && low.includes(k)) return v;
+  }
+  const byLabel = EPP_SELECTOR_RUBROS.find((r) => r.label.toLowerCase() === low);
+  return byLabel ? byLabel.id : fallback;
+}

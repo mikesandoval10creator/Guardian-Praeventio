@@ -610,7 +610,7 @@ export function BioAnalysis() {
               <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 p-6 text-center">
                 <AlertTriangle className="w-16 h-16 mb-4 text-amber-500 opacity-80" />
                 <p className="text-sm font-bold uppercase tracking-widest text-white mb-2">Acceso a Cámara Denegado</p>
-                <p className="text-xs text-zinc-400 max-w-md">
+                <p className="text-xs text-muted-token max-w-md">
                   El sistema no puede acceder a la cámara. Para utilizar el Bio-Análisis, por favor permite el acceso a la cámara en la configuración de tu navegador y recarga la página.
                 </p>
               </div>
@@ -937,7 +937,7 @@ export function BioAnalysis() {
               <RefreshCw className="w-4 h-4" />
               Sincronización Neuronal
             </h3>
-            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+            <p className="text-xs text-muted-token leading-relaxed mb-4">
               Los datos biométricos y de EPP se analizan 100% en tu dispositivo (MediaPipe Vision + detector EPP on-device): la imagen de la cámara nunca sale del equipo. Si se detectan anomalías críticas, puedes guardarlas como un nodo de "Hallazgo" en la Red Neuronal para análisis predictivo y auditoría.
             </p>
             <div className="flex items-center gap-2 text-[10px] font-black text-blue-400 uppercase tracking-widest">

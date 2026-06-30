@@ -110,7 +110,7 @@ export async function runLegalCalendarReminders(
       // PR #482 codex P1 (round 2): si notify falla, NO persistir el marker
       // idempotente — de lo contrario el día se considera "ya recordado" y
       // el próximo run no reintenta. Para FCM transient outages la pérdida
-      // de un recordatorio legal es regulatorio (DS 54, Ley 16.744 plazos).
+      // de un recordatorio legal es regulatorio (DS 44/2024, ex DS 54 derogado 01-02-2025; Ley 16.744 plazos).
       if (deps.notifyResponsible) {
         try {
           await deps.notifyResponsible(doc.id, obligation, daysUntil);

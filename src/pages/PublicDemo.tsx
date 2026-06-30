@@ -94,7 +94,7 @@ function CountrySelector({
           aria-label={t('public_demo.select_country_aria')}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full bg-white dark:bg-slate-900 border border-zinc-300 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-zinc-900 dark:text-white focus:ring-2 focus:ring-[#4db6ac] outline-none"
+          className="w-full bg-surface border border-default-token rounded-xl pl-9 pr-3 py-2.5 text-sm text-primary-token focus:ring-2 focus:ring-[#4db6ac] outline-none"
         >
           {DEMO_COUNTRIES.map((c) => (
             <option key={c.code} value={c.code}>
@@ -118,10 +118,10 @@ function FrameworkBadge({ country }: { country: string }) {
       <p className="text-[10px] uppercase tracking-widest text-[#4db6ac] font-black">
         {t('public_demo.regulatory_framework')}
       </p>
-      <p className="text-sm font-bold text-zinc-900 dark:text-white mt-0.5">
+      <p className="text-sm font-bold text-primary-token mt-0.5">
         {meta.label} · {meta.jurisdiction}
       </p>
-      <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
+      <p className="text-xs text-secondary-token mt-0.5">
         {meta.framework}
       </p>
     </div>
@@ -178,12 +178,12 @@ function GasDispersionCalcDemo() {
   return (
     <div
       data-testid="demo-calc-gas"
-      className="bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-4 space-y-3"
+      className="bg-elevated rounded-xl border border-default-token p-4 space-y-3"
     >
       <div className="flex items-center gap-3">
         <Wind className="w-5 h-5 text-[#4db6ac]" />
         <div>
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+          <h4 className="text-sm font-bold text-primary-token">
             {t('public_demo.gas.title')}
           </h4>
           <p className="text-[10px] text-slate-500">{t('public_demo.gas.subtitle')}</p>
@@ -191,7 +191,7 @@ function GasDispersionCalcDemo() {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="block text-[11px] text-slate-600 dark:text-slate-300 mb-1">
+          <span className="block text-[11px] text-secondary-token mb-1">
             {t('public_demo.gas.release_rate')}
           </span>
           <input
@@ -200,11 +200,11 @@ function GasDispersionCalcDemo() {
             step={0.01}
             value={releaseRate}
             onChange={(e) => setReleaseRate(Number(e.target.value) || 0)}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white"
+            className="w-full bg-surface border border-default-token rounded-lg px-2 py-1.5 text-xs text-primary-token"
           />
         </label>
         <label className="block">
-          <span className="block text-[11px] text-slate-600 dark:text-slate-300 mb-1">
+          <span className="block text-[11px] text-secondary-token mb-1">
             {t('public_demo.wind_kmh')}
           </span>
           <input
@@ -213,7 +213,7 @@ function GasDispersionCalcDemo() {
             step={1}
             value={windKmh}
             onChange={(e) => setWindKmh(Number(e.target.value) || 0)}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white"
+            className="w-full bg-surface border border-default-token rounded-lg px-2 py-1.5 text-xs text-primary-token"
           />
         </label>
       </div>
@@ -243,12 +243,12 @@ function DikeCalcDemo() {
   return (
     <div
       data-testid="demo-calc-dike"
-      className="bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-4 space-y-3"
+      className="bg-elevated rounded-xl border border-default-token p-4 space-y-3"
     >
       <div className="flex items-center gap-3">
         <Droplets className="w-5 h-5 text-[#4db6ac]" />
         <div>
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+          <h4 className="text-sm font-bold text-primary-token">
             {t('public_demo.dike.title')}
           </h4>
           <p className="text-[10px] text-slate-500">DS 594 Art. 41</p>
@@ -256,7 +256,7 @@ function DikeCalcDemo() {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="block text-[11px] text-slate-600 dark:text-slate-300 mb-1">
+          <span className="block text-[11px] text-secondary-token mb-1">
             {t('public_demo.dike.height')}
           </span>
           <input
@@ -265,11 +265,11 @@ function DikeCalcDemo() {
             step={0.1}
             value={heightM}
             onChange={(e) => setHeightM(Number(e.target.value) || 0)}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white"
+            className="w-full bg-surface border border-default-token rounded-lg px-2 py-1.5 text-xs text-primary-token"
           />
         </label>
         <label className="block">
-          <span className="block text-[11px] text-slate-600 dark:text-slate-300 mb-1">
+          <span className="block text-[11px] text-secondary-token mb-1">
             {t('public_demo.dike.piezometer_kpa')}
           </span>
           <input
@@ -277,7 +277,7 @@ function DikeCalcDemo() {
             step={10}
             value={pressureKpa}
             onChange={(e) => setPressureKpa(Number(e.target.value) || 0)}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white"
+            className="w-full bg-surface border border-default-token rounded-lg px-2 py-1.5 text-xs text-primary-token"
           />
         </label>
       </div>
@@ -305,12 +305,12 @@ function ScaffoldCalcDemo() {
   return (
     <div
       data-testid="demo-calc-scaffold"
-      className="bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-4 space-y-3"
+      className="bg-elevated rounded-xl border border-default-token p-4 space-y-3"
     >
       <div className="flex items-center gap-3">
         <Building2 className="w-5 h-5 text-[#4db6ac]" />
         <div>
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+          <h4 className="text-sm font-bold text-primary-token">
             {t('public_demo.scaffold.title')}
           </h4>
           <p className="text-[10px] text-slate-500">DS 594 Art. 53 / OSHA 1926.451</p>
@@ -318,7 +318,7 @@ function ScaffoldCalcDemo() {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="block text-[11px] text-slate-600 dark:text-slate-300 mb-1">
+          <span className="block text-[11px] text-secondary-token mb-1">
             {t('public_demo.scaffold.area_m2')}
           </span>
           <input
@@ -327,11 +327,11 @@ function ScaffoldCalcDemo() {
             step={1}
             value={areaM2}
             onChange={(e) => setAreaM2(Number(e.target.value) || 0)}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white"
+            className="w-full bg-surface border border-default-token rounded-lg px-2 py-1.5 text-xs text-primary-token"
           />
         </label>
         <label className="block">
-          <span className="block text-[11px] text-slate-600 dark:text-slate-300 mb-1">
+          <span className="block text-[11px] text-secondary-token mb-1">
             {t('public_demo.wind_kmh')}
           </span>
           <input
@@ -339,7 +339,7 @@ function ScaffoldCalcDemo() {
             step={1}
             value={windKmh}
             onChange={(e) => setWindKmh(Number(e.target.value) || 0)}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white"
+            className="w-full bg-surface border border-default-token rounded-lg px-2 py-1.5 text-xs text-primary-token"
           />
         </label>
       </div>
@@ -354,7 +354,7 @@ function DigitalTwinPreview() {
   return (
     <div
       data-testid="demo-twin-preview"
-      className="rounded-xl border border-zinc-200 dark:border-slate-700 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800 aspect-video relative overflow-hidden"
+      className="rounded-xl border border-default-token bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800 aspect-video relative overflow-hidden"
     >
       <svg viewBox="0 0 400 225" className="w-full h-full" aria-label={t('public_demo.twin.aria')}>
         <rect x="20" y="160" width="360" height="50" fill="#94a3b8" opacity="0.4" />
@@ -392,10 +392,10 @@ export function PublicDemo() {
             <ShieldCheck className="w-3 h-3" />
             {t('public_demo.hero.eyebrow')}
           </div>
-          <h1 className="text-3xl sm:text-5xl font-black text-zinc-900 dark:text-white tracking-tight">
+          <h1 className="text-3xl sm:text-5xl font-black text-primary-token tracking-tight">
             {t('public_demo.hero.title')}
           </h1>
-          <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto">
+          <p className="text-sm sm:text-base text-secondary-token max-w-2xl mx-auto">
             {t('public_demo.hero.subtitle')}
           </p>
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-center pt-2">
@@ -409,7 +409,7 @@ export function PublicDemo() {
             </button>
             <a
               href="/privacidad"
-              className="px-5 py-3 rounded-xl border border-zinc-300 dark:border-slate-700 text-zinc-700 dark:text-zinc-300 font-bold text-sm hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors text-center"
+              className="px-5 py-3 rounded-xl border border-default-token text-secondary-token font-bold text-sm hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors text-center"
             >
               {t('public_demo.hero.privacy_link')}
             </a>
@@ -424,7 +424,7 @@ export function PublicDemo() {
 
         {/* Calculadoras */}
         <section className="space-y-4">
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-white">
+          <h2 className="text-lg font-bold text-primary-token">
             {t('public_demo.calculators_heading')}
           </h2>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -436,7 +436,7 @@ export function PublicDemo() {
 
         {/* Digital Twin preview */}
         <section className="space-y-3">
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-white">
+          <h2 className="text-lg font-bold text-primary-token">
             {t('public_demo.twin.heading')}
           </h2>
           <DigitalTwinPreview />

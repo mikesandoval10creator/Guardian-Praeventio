@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Static catalog for the WORKFLOW & COMPLIANCE family (80 nodes).
+//
+// NOTA REGULATORIA: los códigos de `source` 'DS-54' y 'DS-40' son claves
+// taxonómicas estables (legacy). La materia que regulaban — Comités
+// Paritarios (ex DS 54) y Prevención de Riesgos / ODI (ex DS 40) — está hoy
+// regida por el DS 44/2024, que derogó ambos decretos el 01-02-2025. Los
+// códigos se conservan como join-keys; toda cita visible al usuario debe
+// referir al DS 44/2024.
 
 import type { FamilyNodeSpec } from './climateNodeRegistry';
 

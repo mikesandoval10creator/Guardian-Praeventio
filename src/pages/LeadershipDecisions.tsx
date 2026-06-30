@@ -52,6 +52,7 @@ import type {
   SupervisionDecisionKind,
 } from '../services/leadership/supervisionDecisionTrail';
 import { scoreDecisionImpact } from '../services/leadership/supervisionDecisionTrail';
+import { LeadershipTrailCard } from '../components/leadership/LeadershipTrailCard';
 import { logger } from '../utils/logger';
 
 // ────────────────────────────────────────────────────────────────────────
@@ -347,6 +348,16 @@ export function LeadershipDecisions() {
           aria-label="Bitácora"
           data-testid="leadership-decisions-bitacora-section"
         >
+          {/* Resumen agregado de la bitácora (total, % positivo, top-5
+              impacto) — monta el huérfano LeadershipTrailCard, que la página
+              fue diseñada para hostear (ver cabecera) pero nunca renderizó.
+              Datos reales: las mismas `decisions` filtradas por período. */}
+          {!decisionsResp.loading && !decisionsResp.error && decisions.length > 0 && (
+            <div className="mb-3">
+              <LeadershipTrailCard decisions={decisions} />
+            </div>
+          )}
+
           {decisionsResp.loading && (
             <div
               className="rounded-2xl border border-default-token bg-surface p-6 text-center text-sm text-secondary-token"

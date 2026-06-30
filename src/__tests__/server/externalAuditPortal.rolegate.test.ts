@@ -77,6 +77,7 @@ beforeEach(() => {
   // tenantId resolution falls back to users/{uid}.tenantId.
   H.db._seed(`users/${ADMIN}`, { tenantId: TENANT });
   H.db._seed(`users/${WORKER}`, { tenantId: TENANT });
+  H.db._seed('projects/p1', { members: [ADMIN], createdBy: 'owner', tenantId: TENANT });
 });
 
 describe('externalAuditPortal — admin role gate (B17)', () => {

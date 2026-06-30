@@ -11,8 +11,9 @@
 //   - El sistema NO bloquea: solo SUGIERE. La decisión final es de la
 //     empresa y su prevencionista (regla de producto "no bloquear
 //     maquinaria, solo recomendar científicamente").
-//   - Las citas normativas son chilenas (Ley 16.744 + DS 54/76/78/109/
-//     132/594). Roadmap Fase E.4 añade jurisdicciones UK/CA/AU/JP/KR/
+//   - Las citas normativas son chilenas (Ley 16.744 + DS 44/2024 [ex DS 54,
+//     derogado 01-02-2025] /76/78/109/132/594). Roadmap Fase E.4 añade
+//     jurisdicciones UK/CA/AU/JP/KR/
 //     IN con su propio engine paralelo.
 
 // ────────────────────────────────────────────────────────────────────────
@@ -84,7 +85,7 @@ const RULES: Rule[] = [
       recommendation:
         'Constituir Comité Paritario de Higiene y Seguridad (CPHS) con 3 representantes ' +
         'del empleador + 3 de los trabajadores. Acta firmada + Ministerio del Trabajo.',
-      legalCitation: 'DS 54 / Ley 16.744 art. 66',
+      legalCitation: 'DS 44/2024 (ex DS 54, derogado 01-02-2025) / Ley 16.744 art. 66',
       urgency: 'critical',
       suggestedDeadline: '30 días desde superar los 25 trabajadores',
     }),

@@ -185,10 +185,10 @@ export function IncidentReport() {
           <ShieldAlert className="w-3.5 h-3.5" />
           {t('incident_report.badge')}
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">
+        <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-primary-token">
           {t('incident_report.title')}
         </h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2 leading-relaxed">
+        <p className="text-sm text-secondary-token mt-2 leading-relaxed">
           {t('incident_report.subtitle')}
         </p>
       </header>
@@ -226,7 +226,7 @@ export function IncidentReport() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label className="block text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300 mb-2">
+          <label className="block text-xs font-bold uppercase tracking-widest text-secondary-token mb-2">
             {t('incident_report.label_type')}
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -239,7 +239,7 @@ export function IncidentReport() {
                 className={`min-h-[64px] text-left px-4 py-3 rounded-2xl border transition-all ${
                   incidentType === opt.value
                     ? 'bg-teal-500/10 border-teal-500/50 text-teal-900 dark:text-teal-100'
-                    : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-400 dark:hover:border-zinc-600'
+                    : 'bg-surface border-default-token text-secondary-token hover:border-zinc-400 dark:hover:border-zinc-600'
                 }`}
               >
                 <div className="font-bold uppercase tracking-widest text-xs">
@@ -254,7 +254,7 @@ export function IncidentReport() {
         </div>
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300 mb-2">
+          <label className="block text-xs font-bold uppercase tracking-widest text-secondary-token mb-2">
             {t('incident_report.label_severity')}
           </label>
           <div className="flex flex-wrap gap-2">
@@ -267,7 +267,7 @@ export function IncidentReport() {
                 className={`px-4 py-3 rounded-full text-xs font-bold uppercase tracking-widest min-h-[44px] ${
                   severity === opt.value
                     ? `${opt.badge} ring-2 ring-offset-2 ring-current`
-                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                    : 'bg-elevated text-secondary-token'
                 }`}
               >
                 {t(opt.labelKey)}
@@ -279,7 +279,7 @@ export function IncidentReport() {
         <div>
           <label
             htmlFor="incident-description"
-            className="block text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300 mb-2"
+            className="block text-xs font-bold uppercase tracking-widest text-secondary-token mb-2"
           >
             {t('incident_report.label_what_happened')}
           </label>
@@ -290,7 +290,7 @@ export function IncidentReport() {
             rows={4}
             maxLength={4000}
             placeholder={t('incident_report.what_placeholder')}
-            className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-teal-500"
+            className="w-full px-4 py-3 rounded-2xl bg-surface border border-default-token text-sm text-primary-token placeholder-zinc-400 focus:outline-none focus:border-teal-500"
             required
           />
           <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-1">
@@ -301,7 +301,7 @@ export function IncidentReport() {
         <div>
           <label
             htmlFor="incident-location"
-            className="block text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300 mb-2"
+            className="block text-xs font-bold uppercase tracking-widest text-secondary-token mb-2"
           >
             {t('incident_report.label_location')}
           </label>
@@ -312,14 +312,14 @@ export function IncidentReport() {
             onChange={(e) => setLocation(e.target.value)}
             maxLength={256}
             placeholder={t('incident_report.location_placeholder')}
-            className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-teal-500"
+            className="w-full px-4 py-3 rounded-2xl bg-surface border border-default-token text-sm text-primary-token placeholder-zinc-400 focus:outline-none focus:border-teal-500"
           />
         </div>
 
         <div>
           <label
             htmlFor="incident-witnesses"
-            className="block text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300 mb-2"
+            className="block text-xs font-bold uppercase tracking-widest text-secondary-token mb-2"
           >
             {t('incident_report.label_witnesses')}
           </label>
@@ -329,7 +329,7 @@ export function IncidentReport() {
             value={witnessesText}
             onChange={(e) => setWitnessesText(e.target.value)}
             placeholder={t('incident_report.witnesses_placeholder')}
-            className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-teal-500"
+            className="w-full px-4 py-3 rounded-2xl bg-surface border border-default-token text-sm text-primary-token placeholder-zinc-400 focus:outline-none focus:border-teal-500"
           />
         </div>
 

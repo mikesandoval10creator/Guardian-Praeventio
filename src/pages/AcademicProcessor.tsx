@@ -34,20 +34,20 @@ export function AcademicProcessor() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <BookOpen className="w-8 h-8 text-violet-500" />
             {t('academic.header.title', 'Procesador Académico')}
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+          <p className="text-[9px] sm:text-[10px] font-bold text-muted-token uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {t('academic.header.subtitle', 'Extracción de Conocimiento Científico')}
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-6 border-zinc-200 dark:border-white/5 flex flex-col h-full bg-white dark:bg-zinc-900/50">
+        <Card className="p-6 border-default-token flex flex-col h-full bg-white dark:bg-zinc-900/50">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+            <h2 className="text-lg font-bold text-primary-token flex items-center gap-2">
               <FileText className="w-5 h-5 text-violet-500" />
               {t('academic.source.title', 'Texto Fuente (Paper / Artículo)')}
             </h2>
@@ -56,7 +56,7 @@ export function AcademicProcessor() {
             </Button>
           </div>
 
-          <p className="text-xs text-zinc-600 dark:text-zinc-400 mb-4">
+          <p className="text-xs text-secondary-token mb-4">
             {t('academic.source.description', 'Pega el abstract o las conclusiones de un paper científico sobre seguridad, ergonomía o salud ocupacional. La IA extraerá los puntos clave y los vinculará a la matriz de riesgos.')}
           </p>
 
@@ -64,7 +64,7 @@ export function AcademicProcessor() {
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
             placeholder={t('academic.source.placeholder', "Ej: 'El estudio demuestra que la fatiga cognitiva en operadores de maquinaria pesada aumenta un 40% después de 6 horas de turno continuo en altitud superior a 3000 msnm...'")}
-            className="flex-1 w-full min-h-[300px] bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl p-4 text-sm text-zinc-900 dark:text-zinc-300 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
+            className="flex-1 w-full min-h-[300px] bg-zinc-50 dark:bg-zinc-900/50 border border-default-token rounded-xl p-4 text-sm text-primary-token placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
           />
 
           <Button
@@ -80,8 +80,8 @@ export function AcademicProcessor() {
           </Button>
         </Card>
 
-        <Card className="p-6 border-zinc-200 dark:border-white/5 flex flex-col h-full bg-zinc-50 dark:bg-zinc-900/30">
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2 mb-6">
+        <Card className="p-6 border-default-token flex flex-col h-full bg-zinc-50 dark:bg-zinc-900/30">
+          <h2 className="text-lg font-bold text-primary-token flex items-center gap-2 mb-6">
             <Brain className="w-5 h-5 text-emerald-500" />
             {t('academic.output.title', 'Conocimiento Extraído')}
           </h2>
@@ -94,9 +94,9 @@ export function AcademicProcessor() {
           )}
 
           {!result && !error && !isProcessing && (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-zinc-200 dark:border-white/5 rounded-xl">
-              <BookOpen className="w-12 h-12 text-zinc-400 dark:text-zinc-700 mb-4" />
-              <p className="text-zinc-500 text-sm">
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-default-token rounded-xl">
+              <BookOpen className="w-12 h-12 text-muted-token mb-4" />
+              <p className="text-muted-token text-sm">
                 {t('academic.output.empty', 'El resumen estructurado, las lecciones aprendidas y las sugerencias de controles aparecerán aquí.')}
               </p>
             </div>
@@ -119,7 +119,7 @@ export function AcademicProcessor() {
                 <ReactMarkdown>{result}</ReactMarkdown>
               </div>
 
-              <div className="pt-6 border-t border-zinc-200 dark:border-white/10 flex justify-end">
+              <div className="pt-6 border-t border-default-token flex justify-end">
                 <Button className="bg-[#4db6ac] hover:bg-[#3a9e95] text-white">
                   <CheckCircle2 className="w-4 h-4 mr-2" /> {t('academic.actions.saveZettel', 'Guardar en Zettelkasten')}
                 </Button>

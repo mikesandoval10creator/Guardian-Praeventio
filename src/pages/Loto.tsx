@@ -172,10 +172,10 @@ export function Loto() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <header>
-          <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-black text-primary-token tracking-tight flex items-center gap-2">
             <Lock className="w-6 h-6 text-rose-500" /> {t('loto.title', 'LOTO Digital')}
           </h1>
-          <p className="text-xs text-zinc-500 mt-1 max-w-2xl">
+          <p className="text-xs text-muted-token mt-1 max-w-2xl">
             {t(
               'loto.subtitle',
               'Registro digital del bloqueo y etiquetado (Lock-Out / Tag-Out): energías aisladas, candados aplicados, verificación de cero energía y liberación. Complementa el procedimiento físico con trazabilidad legal — no sustituye al candado real.',
@@ -184,7 +184,7 @@ export function Loto() {
         </header>
 
         {!projectId ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-muted-token">
             {t('loto.empty.select_project', 'Selecciona un proyecto para gestionar LOTO.')}
           </div>
         ) : (
@@ -200,8 +200,8 @@ export function Loto() {
             )}
 
             {/* Create form. */}
-            <section className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-4 space-y-3">
-              <h2 className="text-sm font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-widest">
+            <section className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-4 space-y-3">
+              <h2 className="text-sm font-black text-secondary-token uppercase tracking-widest">
                 {t('loto.create.heading', 'Nueva aplicación LOTO')}
               </h2>
               <div className="grid sm:grid-cols-2 gap-2">
@@ -211,7 +211,7 @@ export function Loto() {
                   onChange={(e) => setEquipmentId(e.target.value)}
                   placeholder={t('loto.create.equipment', 'ID del equipo (ej. CAEX-08)')}
                   data-testid="loto-create-equipment"
-                  className="rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
+                  className="rounded-lg border border-zinc-300 dark:border-white/10 bg-surface px-2 py-1.5 text-xs text-primary-token"
                 />
                 <input
                   type="text"
@@ -219,7 +219,7 @@ export function Loto() {
                   onChange={(e) => setWorkDescription(e.target.value)}
                   placeholder={t('loto.create.work', 'Descripción del trabajo')}
                   data-testid="loto-create-work"
-                  className="rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
+                  className="rounded-lg border border-zinc-300 dark:border-white/10 bg-surface px-2 py-1.5 text-xs text-primary-token"
                 />
               </div>
               <div>
@@ -255,11 +255,11 @@ export function Loto() {
 
             {/* Active applications. */}
             {loading ? (
-              <div className="flex items-center justify-center py-16 text-zinc-500">
+              <div className="flex items-center justify-center py-16 text-muted-token">
                 <Loader2 className="w-6 h-6 animate-spin" />
               </div>
             ) : applications.length === 0 ? (
-              <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-zinc-500 flex flex-col items-center gap-2">
+              <div className="rounded-2xl border border-default-token bg-white dark:bg-zinc-900/60 p-6 text-center text-sm text-muted-token flex flex-col items-center gap-2">
                 <ShieldCheck className="w-6 h-6 text-emerald-500" />
                 {t('loto.empty.none_active', 'No hay aplicaciones LOTO activas.')}
               </div>
@@ -289,7 +289,7 @@ export function Loto() {
                             onChange={(e) => setLockPointId(e.target.value)}
                             placeholder={t('loto.lock.point', 'ID punto (ej. seccionador-A)')}
                             data-testid="loto-lock-point"
-                            className="rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
+                            className="rounded-lg border border-zinc-300 dark:border-white/10 bg-surface px-2 py-1.5 text-xs text-primary-token"
                           />
                           <input
                             type="text"
@@ -297,7 +297,7 @@ export function Loto() {
                             onChange={(e) => setLockTagId(e.target.value)}
                             placeholder={t('loto.lock.tag', 'Tag del candado (ej. ROJO-12)')}
                             data-testid="loto-lock-tag"
-                            className="rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
+                            className="rounded-lg border border-zinc-300 dark:border-white/10 bg-surface px-2 py-1.5 text-xs text-primary-token"
                           />
                           <input
                             type="text"
@@ -305,13 +305,13 @@ export function Loto() {
                             onChange={(e) => setLockDescription(e.target.value)}
                             placeholder={t('loto.lock.desc', 'Descripción del punto')}
                             data-testid="loto-lock-desc"
-                            className="rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
+                            className="rounded-lg border border-zinc-300 dark:border-white/10 bg-surface px-2 py-1.5 text-xs text-primary-token"
                           />
                           <select
                             value={lockEnergy}
                             onChange={(e) => setLockEnergy(e.target.value as EnergyType)}
                             data-testid="loto-lock-energy"
-                            className="rounded-lg border border-zinc-300 dark:border-white/10 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-white"
+                            className="rounded-lg border border-zinc-300 dark:border-white/10 bg-surface px-2 py-1.5 text-xs text-primary-token"
                           >
                             {ENERGY_TYPES.map((en) => (
                               <option key={en} value={en}>{ENERGY_LABELS[en]}</option>

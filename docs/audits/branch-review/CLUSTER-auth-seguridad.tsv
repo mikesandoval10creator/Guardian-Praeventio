@@ -1,0 +1,64 @@
+2026-06-27	fix/authz-cross-tenant	fix(authz): close 3 cross-tenant IDOR leaks in authz-sensitive routes
+2026-06-24	dependabot/npm_and_yarn/simplewebauthn/server-13.3.1	chore(deps): bump @simplewebauthn/server from 11.0.0 to 13.3.2
+2026-06-22	fix/vitest-pool-hang-2026-06-22	fix(config): enable vitest detectAsyncLeaks to surface pool-hang culprits
+2026-06-22	security/firestore-storage-rules-2026-06-22	test(rules): fix 7 failing rules tests for V2 anti-spoof hardening
+2026-06-22	security/audit-hardening-2026-06-22	feat(security): V11 PII redaction on /ask-guardian + V12 timing-safe E2E secret + B24 docker dedup
+2026-06-21	feat/e2e-fixture-sos	fix(e2e): SOS button no renderizaba — reload tras sign-in (app montaba sin auth → ProjectContext/Emergency no activaban modo emergencia)
+2026-06-21	chore/wire-orphans-real-2b	fix(test): alinear bbs.router.test al contrato stateful — seed tenantId + record-observation 201 (era 404/200, regresión del wiring bbs-profile)
+2026-06-20	fix/deflake-offline-crypto	test(offlineCrypto): de-flake leak-check — marcador PII largo evita coincidencia azarosa en base64 (no .toContain('Ana'))
+2026-06-20	chore/consolidate-rules	docs+governance: merge #1070 (CLAUDE rules #23/#24 + audits/INDEX) preservando conteos re-verificados; corregir nota stale #1051
+2026-06-19	docs/consolidate-knowledge-2026-06-19	docs(consolidate): single source of truth + governance rules from MiMo-wave audit
+2026-06-18	fix/notification-context-duplicate-listener	fix(e2e): skip login heading test in E2E mode (user already authenticated)
+2026-06-16	fix/assets-firestore-rule	fix(rules): add top-level `assets` rule so Maquinaria persists (was default-denied)
+2026-06-16	fix/incident-search-tenant-scope	fix(zettelkasten): scope NL incident search by real tenantId (was always empty)
+2026-06-16	fix/sitebook-sign-idor	fix(security): harden SiteBook IDOR fix per adversarial review
+2026-06-16	feat/f4-aptitude-webauthn-verify	fix(medical): F4 review — server-stamp signedAt, fail-loud origin, log role-resolve outage
+2026-06-16	fix/rag-cross-tenant-scope	test(rag): update searchRelevantContext mock for object-form findNearest + over-fetch
+2026-06-16	fix/portable-history-cross-tenant	fix(portable-history): gate users-fallback to owner self-read + dedup incidents
+2026-06-16	fix/photo-evidence-supervisor-read	fix(rules): tighten photo_evidence read to supervisor-tier (PII)
+2026-06-15	feat/predictive-alert-acks-rule	fix(rules): close default-deny gap on predictive_alert_acks (server-only)
+2026-06-15	feat/cascaron-anonymize-endpoint	fix(privacy): harden WebAuthn origin binding on the anonymize gate (review #914)
+2026-06-15	feat/cascaron-safety-posts-scrub	feat(privacy): cascaron 2b — scrub authored community posts (cross-project)
+2026-06-15	feat/cascaron-anonymization-rules	feat(privacy): anonymization_events collection rules + tests (cascaron, OLA 2)
+2026-06-14	claude/ola2-server-write-tenant-rules	feat(rules): explicit server-only rules for 3 latent tenant stores (OLA 2 blindaje)
+2026-06-14	claude/ola1-evac-consolidate	fix(evacuation): unreadable-attendance ≠ no-attendance + tenant-read retry (review round 5)
+2026-06-13	claude/ola1-evac-twin-rules	fix(rules): revive evacuation headcount + digital-twin A* — project-scoped life-safety rules (OLA 1)
+2026-06-13	claude/br12-deps-security	test(firestore): use a valid PKCS#8 dummy key in the emulator setup (B-R12)
+2026-06-13	claude/ola0-rules-trio	fix(rules): split nodes read into get/list — anon GET-by-id, no enumeration (#876)
+2026-06-13	claude/ola0-vault-bearer-clean	fix(health-vault): send Bearer-prefixed Authorization in share QR flow
+2026-06-13	claude/ola0-webauthn-rpid	fix(webauthn): resolve RP ID via fail-loud helper, set it in deploy
+2026-06-07	ci/deploy-trim-secrets	ci(deploy): mount only provisioned secrets so the service can go live (Cloud Run)
+2026-06-01	fix/2.31-open-handle-leak	fix(test): plug open-handle leak that caused the §2.31 CI hang
+2026-05-31	fix/triage-exempt-falsepositives	fix(incidentFlow): use tenantId in writeAudit doc (fixes TS6133, un-breaks main typecheck)
+2026-05-30	security/culture-pulse-pepper	security(culture-pulse): pepper the responder hash vs insider de-anonymization
+2026-05-30	fix/oauth-test-agent-handle-leak	fix(test): kill the flaky CI Tests hang — oauthGoogle used request.agent (leaked handle)
+2026-05-28	audit/webauthn-credentialid-base64url-rescue-2026-05-28	audit(webauthn): H25b.1 — pin base64url credentialId contract (Bloque 1.5)
+2026-05-28	feat/fcm-sw-config-buildtime-rescue-2026-05-28	fix(security): FCM SW config injected at build time (Bloque 1.8)
+2026-05-27	feat/distributed-lock-c14-rescue-2026-05-27	feat(sync): distributedLock helper Firestore-backed per-tenant × per-resource (Bloque 5.4 / C14)
+2026-05-27	fix/p0-security-bundle-codex-followup-518	fix(security): address Codex 6 findings — real SQLite encryption + correct audit contract + safe RP_ID fallback
+2026-05-27	feat/wire-weather-safety-recommendations-dashboard	fix(dashboard): address Codex P2 — unavailable gate + uv field + auth header
+2026-05-27	fix/p0-security-bundle	fix(security): address Codex 6 findings — real SQLite encryption + correct audit contract + safe RP_ID fallback
+2026-05-27	fix/p0-crypto-ids-math-random-removal	fix(security): address Codex P1+P2 + CodeQL — use crypto.randomUUID() directly, full UUID
+2026-05-27	docs/reconciliation-and-rules-13-20	docs(reconciliation): rules 13-20 + stub inventory + doc sync (CLAUDE/ARCHITECTURE/TODO)
+2026-05-26	feat/b3-complete-bearer-migration	feat(auth): finish B3 — apiAuthHeader migration for WebAuthn register flow
+2026-05-26	feat/b2-webauthn-compliance-signing	fix(security): replace 3 WebAuthn STUBs in compliance builders (plan v2 B2)
+2026-05-26	fix/server-mount-order	fix(server): SPA catch-all shadowed /api/billing, /api/subscription, /api/dte, /api/curriculum, /api/auth, /api/sitebook + several /api/sprint-k mounts
+2026-05-26	feat/rescue-451-session-8h	fix(auth): session expiration 8h + fix flaky webauthn test + reactivar landing E2E
+2026-05-26	feat/rescue-451-battery-advisor	feat(perf+auth): batteryAdvisor + assignedSiteIds custom claim fast-path
+2026-05-26	claude/codex-r5-kek-tenantid	fix(security): codex round-5 — KEK lock entropy + tenantId blank guard
+2026-05-26	claude/ci-unblock-b3-b4-flaky	fix(ci): unblock Firestore stores flaky + B3 apiAuthHeader migration (3 services)
+2026-05-26	claude/maintenance-codex-r4-followup	fix(maintenance): codex round-4 — kek lock guard + all-failed FCM + tenant-scoped work_permits
+2026-05-24	feature/sitebook-webauthn-signing-2026-05-24	feat(sitebook): WebAuthn ECDSA-P256 firma electrónica avanzada (DS 76)
+2026-05-23	fix/2.20-bearer-migration-batch-2026-05-23	refactor(2.20): batch migrate 73 callers Bearer→apiAuthHeader
+2026-05-22	fix/2.24-auth-emulator-2026-05-21	fix(2.24): signInBrowserViaCustomToken via window flag (no browser dynamic import)
+2026-05-21	fix/2.20-migrations-bulk-2026-05-21	refactor(2.20): bulk migrate 81 hooks Bearer→apiAuthHeaders()
+2026-05-21	fix/2.20-api-auth-helper-2026-05-21	fix(firebase-emulator): §2.25 — override firestoreDatabaseId a default en MODE=test
+2026-05-17	dev/agent-install-blocked-deps	feat(deps): install 5 authorized blocked deps + activate Tremor charts + MCP stdio + Foreground Service plugin
+2026-05-17	dev/agent-f12-lessons-learned	fix(pr-310): Codex P2 round 2 — 3 more (tenant-scope leak + truncated-default copy + unsafe source link)
+2026-05-15	dev/codex-fixes-plus-fakes	fix(audit): producir lo pendiente — DIAT WebAuthn + MP HMAC manifest + DTE wire MP IPN
+2026-05-15	dev/security-audit-fixes	test(regulatory): privacyRegimeRegistry — esperar 11 regímenes (no 8)
+2026-05-15	dev/stabilize-ci-workflows	fix(rules): isSupervisorOfTenant ya no exige rol global supervisor cuando hay claim por-tenant
+2026-05-15	dev/kek-rotation-panel-ui	feat(settings): mount <KekRotationPanel /> en Security tab (#254)
+2026-05-15	dev/make-fake-premium-pages-real	fix(typecheck): alinear WearablesIntegration + SecurityShield al shape REAL del adapter
+2026-05-14	dev/settings-kek-mount	feat(settings): mount <KekRotationPanel /> en Security tab
+2026-05-14	feat/parallel-stream-encrypted-queue	feat(slm): encrypted offline queue migration

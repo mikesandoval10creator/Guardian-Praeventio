@@ -208,7 +208,7 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
 
   const cardBorder = isPremium
     ? 'border-2 border-transparent bg-gradient-to-br from-amber-50 via-white to-zinc-100 dark:from-zinc-800 dark:via-zinc-900 dark:to-zinc-950 shadow-2xl ring-1 ring-amber-300/40'
-    : 'border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900';
+    : 'border border-zinc-200 dark:border-white/10 bg-surface';
 
   const ringClass = isCurrent ? 'ring-4 ring-emerald-500 ring-offset-2 dark:ring-offset-zinc-900' : '';
 
@@ -236,10 +236,10 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
       )}
 
       <div className="mb-6">
-        <h3 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+        <h3 className="text-2xl font-black uppercase tracking-tight text-primary-token">
           {tier.nombre}
         </h3>
-        <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mt-1">
+        <p className="text-sm font-medium text-muted-token mt-1">
           {tier.id === 'gratis'
             ? t('pricing.tier_subtitles.free')
             : isPremium
@@ -248,14 +248,14 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
         </p>
 
         <div className="mt-5 flex items-baseline gap-2">
-          <span className="text-3xl sm:text-4xl font-black tracking-tighter text-zinc-900 dark:text-white">
+          <span className="text-3xl sm:text-4xl font-black tracking-tighter text-primary-token">
             {monthlyDisplay}
           </span>
-          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('pricing.units.per_month_short')}</span>
+          <span className="text-xs font-medium text-muted-token">{t('pricing.units.per_month_short')}</span>
         </div>
 
         {ivaBreakdown && (
-          <div className="group relative inline-flex items-center gap-1 mt-2 text-[11px] text-zinc-500 dark:text-zinc-400 cursor-help">
+          <div className="group relative inline-flex items-center gap-1 mt-2 text-[11px] text-muted-token cursor-help">
             <Info className="w-3 h-3" />
             <span>{t('pricing.iva.included')}</span>
             <div className="invisible group-hover:visible group-focus-within:visible absolute left-0 top-full mt-1 z-10 w-60 bg-zinc-900 text-white text-xs p-3 rounded-lg shadow-lg">
@@ -280,18 +280,18 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
 
       <div className="grid grid-cols-2 gap-2 mb-6">
         <div className="bg-zinc-50 dark:bg-black/30 rounded-xl p-3">
-          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-token">
             <Users className="w-3 h-3" /> {t('pricing.units.workers')}
           </div>
-          <p className="font-black text-zinc-900 dark:text-white">
+          <p className="font-black text-primary-token">
             {tier.trabajadoresMax === Infinity ? t('pricing.units.unlimited') : tier.trabajadoresMax.toLocaleString('es-CL')}
           </p>
         </div>
         <div className="bg-zinc-50 dark:bg-black/30 rounded-xl p-3">
-          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-token">
             <Briefcase className="w-3 h-3" /> {t('pricing.units.projects')}
           </div>
-          <p className="font-black text-zinc-900 dark:text-white">
+          <p className="font-black text-primary-token">
             {tier.proyectosMax === Infinity ? t('pricing.units.unlimited') : tier.proyectosMax}
           </p>
         </div>
@@ -301,7 +301,7 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
         {featuresArray.map((feature, i) => (
           <li key={i} className="flex items-start gap-2.5 text-sm">
             <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
-            <span className="text-zinc-700 dark:text-zinc-300">{feature}</span>
+            <span className="text-secondary-token">{feature}</span>
           </li>
         ))}
       </ul>
@@ -1209,10 +1209,10 @@ function PricingInner() {
       )}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="text-center sm:text-left max-w-3xl">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight mb-3">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-primary-token uppercase tracking-tighter leading-tight mb-3">
             {t('pricing.hero.title')}
           </h1>
-          <p className="text-zinc-600 dark:text-zinc-400 text-base sm:text-lg">
+          <p className="text-secondary-token text-base sm:text-lg">
             {t('pricing.hero.subtitle')}
           </p>
         </div>
@@ -1307,14 +1307,14 @@ function PricingInner() {
         ))}
       </div>
 
-      <div className="mt-12 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
+      <div className="mt-12 bg-elevated border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
         <div className="flex items-start gap-4">
           <ShieldCheck className="w-6 h-6 text-emerald-500 shrink-0 mt-1" />
           <div>
-            <h3 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+            <h3 className="text-xl font-black uppercase tracking-tight text-primary-token">
               {t('pricing.transparency_block.title')}
             </h3>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
+            <p className="text-sm text-secondary-token mt-2">
               {t('pricing.transparency_block.body')}
             </p>
             <Link
@@ -1340,13 +1340,13 @@ function PricingInner() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8"
+            className="w-full max-w-md bg-surface border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+            <h3 className="text-xl font-black uppercase tracking-tight text-primary-token">
               {t('pricing.checkout.method_title')}
             </h3>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+            <p className="text-sm text-secondary-token mt-1">
               {t('pricing.checkout.method_subtitle', { tier: methodChooser.tier.nombre })}
             </p>
             <div className="mt-6 space-y-3">
@@ -1376,7 +1376,7 @@ function PricingInner() {
               </button>
               <button
                 onClick={() => setMethodChooser(null)}
-                className="w-full text-center text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 hover:underline pt-1"
+                className="w-full text-center text-xs font-bold uppercase tracking-wider text-muted-token hover:underline pt-1"
               >
                 {t('pricing.cta.close')}
               </button>

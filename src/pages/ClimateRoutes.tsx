@@ -244,7 +244,7 @@ export function ClimateRoutes() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Controls Panel */}
-        <Card className="p-6 border-white/5 space-y-6">
+        <Card className="p-6 border-default-token space-y-6">
           <h2 className="text-lg font-bold text-primary flex items-center gap-2">
             <Navigation className="w-5 h-5 text-cyan-500" />
             {t('climateRoutes.planning', 'Planificación de Ruta')}
@@ -300,7 +300,7 @@ export function ClimateRoutes() {
               <AlertTriangle className="w-4 h-4 text-cyan-500" />
               {t('climateRoutes.assessment', 'Evaluación Climática de Ruta')}
               {isAssessing && (
-                <Loader2 className="w-3 h-3 animate-spin text-zinc-500" />
+                <Loader2 className="w-3 h-3 animate-spin text-muted-token" />
               )}
             </h3>
 
@@ -330,8 +330,8 @@ export function ClimateRoutes() {
                   </div>
                 )}
                 {assessment.metrics.frostHourCount > 0 && (
-                  <div className="p-2 rounded-lg bg-zinc-900 border border-white/5 col-span-2">
-                    <div className="text-[9px] text-zinc-500 uppercase">
+                  <div className="p-2 rounded-lg bg-surface border border-default-token col-span-2">
+                    <div className="text-[9px] text-muted-token uppercase">
                       {t('climateRoutes.frostHours', 'Horas bajo 0°C en 7d')}
                     </div>
                     <div className="text-sm font-bold text-primary flex items-center gap-1">
@@ -417,7 +417,7 @@ export function ClimateRoutes() {
             assessment (NASA POWER + EONET) is the left panel; this is an
             origin→destination schematic whose line color reflects the REAL
             routeStatus. No fabricated hazard pins (removed 2026-06-16). */}
-        <Card className="p-0 border-white/5 lg:col-span-2 overflow-hidden relative min-h-[500px] bg-surface flex items-center justify-center">
+        <Card className="p-0 border-default-token lg:col-span-2 overflow-hidden relative min-h-[500px] bg-surface flex items-center justify-center">
           <div className="absolute top-3 left-3 z-20 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 bg-black/50 border border-white/10 px-2 py-1 rounded-md backdrop-blur-sm">
             {t('climateRoutes.schematicBadge', 'Eventos EONET activos en posición real · trazado ilustrativo')}
           </div>

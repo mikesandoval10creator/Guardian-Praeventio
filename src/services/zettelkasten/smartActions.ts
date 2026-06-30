@@ -13,7 +13,7 @@
 //   4. suggest-epp-for-worker — Worker con riesgo pero EPP genérico,
 //      sugiere EPP especializado según industry+rol
 //   5. auto-link-training-to-worker — Worker recién contratado sin
-//      capacitación obligatoria DS 54
+//      capacitación obligatoria DS 44/2024 (ex DS 54, derogado 01-02-2025)
 //
 // Determinístico — sin LLM. Output es lista de acciones sugeridas
 // que el supervisor APRUEBA o DESCARTA (regla: nunca auto-aplicar).
@@ -71,7 +71,7 @@ const EPP_BY_CARGO: Record<string, string[]> = {
   default: ['helmet', 'boots', 'vest'],
 };
 
-// Capacitaciones obligatorias DS 54 art. 21 (derecho a saber).
+// Capacitaciones obligatorias DS 44/2024 art. 21 (ex DS 54, derogado 01-02-2025) (derecho a saber).
 const MANDATORY_TRAINING = [
   'induccion_general_riesgos',
   'uso_correcto_epp',
@@ -252,7 +252,7 @@ export function detectWorkersWithoutMandatoryTraining(
         priority: 'high',
         message: `${w.name} (contratado reciente) sin capacitación obligatoria: ${missing.join(', ')}`,
         rationale:
-          'DS 54 art. 21 "Derecho a saber": capacitación obligatoria sobre riesgos del puesto antes de iniciar funciones.',
+          'DS 44/2024 art. 21 (ex DS 54, derogado 01-02-2025) "Derecho a saber": capacitación obligatoria sobre riesgos del puesto antes de iniciar funciones.',
         affectedNodes: [{ nodeId: w.id, kind: 'worker' }],
         proposedMutations: missing.map((t) => ({
           operation: 'create_edge' as const,

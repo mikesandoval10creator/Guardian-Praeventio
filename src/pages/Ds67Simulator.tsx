@@ -166,7 +166,7 @@ export function Ds67Simulator() {
 
   if (!selectedProject) {
     return (
-      <div data-testid="ds67-sim-empty" className="p-6 text-center text-zinc-500">
+      <div data-testid="ds67-sim-empty" className="p-6 text-center text-muted-token">
         <Scale className="mx-auto mb-3 h-10 w-10 opacity-40" />
         <p>Selecciona un proyecto para simular la cotización adicional DS 67.</p>
       </div>
@@ -175,7 +175,7 @@ export function Ds67Simulator() {
 
   if (prefill.loading) {
     return (
-      <div data-testid="ds67-sim-loading" className="p-6 text-center text-zinc-500">
+      <div data-testid="ds67-sim-loading" className="p-6 text-center text-muted-token">
         <p>Cargando siniestralidad registrada del proyecto…</p>
       </div>
     );
@@ -191,7 +191,7 @@ export function Ds67Simulator() {
           <Calculator className="h-6 w-6 text-teal-500" />
           Simulador de cotización adicional — DS 67
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-muted-token">
           Proyecta la cotización adicional diferenciada (Ley 16.744, arts. 15 y 16) a partir
           de la siniestralidad real de {selectedProject.name}: días perdidos por período
           anual (1 de julio al 30 de junio), invalideces y muertes.
@@ -252,7 +252,7 @@ export function Ds67Simulator() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-sm">
-                <span className="text-zinc-600 dark:text-zinc-400">
+                <span className="text-secondary-token">
                   Dotación promedio (trabajadores)
                 </span>
                 <input
@@ -267,7 +267,7 @@ export function Ds67Simulator() {
                 />
               </label>
               <label className="block text-sm">
-                <span className="text-zinc-600 dark:text-zinc-400">
+                <span className="text-secondary-token">
                   Días perdidos (subsidio por AT/EP)
                 </span>
                 <input
@@ -284,14 +284,14 @@ export function Ds67Simulator() {
               </label>
             </div>
             <details className="mt-3 text-sm">
-              <summary className="cursor-pointer text-zinc-600 dark:text-zinc-400">
+              <summary className="cursor-pointer text-secondary-token">
                 Invalideces y muertes del período (según resolución del organismo
                 administrador — ingreso manual)
               </summary>
               <div className="mt-2 grid gap-2 sm:grid-cols-3">
                 {INVALIDITY_BAND_LABELS.map(({ band, label }) => (
                   <label key={band} className="block">
-                    <span className="text-xs text-zinc-500">{label}</span>
+                    <span className="text-xs text-muted-token">{label}</span>
                     <input
                       data-testid={`ds67-sim-inv-${i}-${band}`}
                       type="number"
@@ -317,7 +317,7 @@ export function Ds67Simulator() {
       {/* ── Parámetros económicos ────────────────────────────────────── */}
       <section className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="text-zinc-600 dark:text-zinc-400">
+          <span className="text-secondary-token">
             Planilla anual imponible (CLP)
           </span>
           <input
@@ -332,7 +332,7 @@ export function Ds67Simulator() {
           />
         </label>
         <label className="block text-sm">
-          <span className="text-zinc-600 dark:text-zinc-400">
+          <span className="text-secondary-token">
             Cotización adicional actual (%)
           </span>
           <input
@@ -376,19 +376,19 @@ export function Ds67Simulator() {
         >
           <div className="grid gap-3 text-sm sm:grid-cols-3">
             <div>
-              <p className="text-zinc-500">Tasa promedio incapacidades temporales</p>
+              <p className="text-muted-token">Tasa promedio incapacidades temporales</p>
               <p data-testid="ds67-sim-result-tit" className="text-lg font-semibold">
                 {result.averageTemporaryRate}
               </p>
             </div>
             <div>
-              <p className="text-zinc-500">Tasa invalideces y muertes</p>
+              <p className="text-muted-token">Tasa invalideces y muertes</p>
               <p data-testid="ds67-sim-result-tim" className="text-lg font-semibold">
                 {result.invalidityDeathRate}
               </p>
             </div>
             <div>
-              <p className="text-zinc-500">Tasa de siniestralidad total</p>
+              <p className="text-muted-token">Tasa de siniestralidad total</p>
               <p data-testid="ds67-sim-result-total" className="text-lg font-semibold">
                 {result.totalRate}
               </p>
@@ -397,7 +397,7 @@ export function Ds67Simulator() {
 
           <div className="flex flex-wrap items-center gap-4">
             <div>
-              <p className="text-sm text-zinc-500">Cotización adicional resultante</p>
+              <p className="text-sm text-muted-token">Cotización adicional resultante</p>
               <p data-testid="ds67-sim-result-pct" className="text-3xl font-bold">
                 {fmtPct(result.additionalCotizacionPct)}
               </p>
@@ -427,14 +427,14 @@ export function Ds67Simulator() {
           {result.annualCostClp !== null ? (
             <div className="grid gap-3 text-sm sm:grid-cols-3">
               <div>
-                <p className="text-zinc-500">Costo anual proyectado</p>
+                <p className="text-muted-token">Costo anual proyectado</p>
                 <p data-testid="ds67-sim-result-cost" className="text-lg font-semibold">
                   {formatClp(result.annualCostClp)}
                 </p>
               </div>
               {result.currentAnnualCostClp !== null ? (
                 <div>
-                  <p className="text-zinc-500">Costo anual actual</p>
+                  <p className="text-muted-token">Costo anual actual</p>
                   <p className="text-lg font-semibold">
                     {formatClp(result.currentAnnualCostClp)}
                   </p>
@@ -442,7 +442,7 @@ export function Ds67Simulator() {
               ) : null}
               {result.annualCostDeltaClp !== null ? (
                 <div>
-                  <p className="text-zinc-500">Diferencia por año</p>
+                  <p className="text-muted-token">Diferencia por año</p>
                   <p
                     data-testid="ds67-sim-result-delta-cost"
                     className={`text-lg font-semibold ${
@@ -460,7 +460,7 @@ export function Ds67Simulator() {
             </div>
           ) : null}
 
-          <div className="space-y-1 border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-zinc-700">
+          <div className="space-y-1 border-t border-zinc-200 pt-3 text-xs text-muted-token dark:border-zinc-700">
             <p data-testid="ds67-sim-citation">
               Base legal: tabla del artículo 5° —{' '}
               <a

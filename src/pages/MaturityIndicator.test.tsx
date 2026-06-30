@@ -240,9 +240,9 @@ describe('<MaturityIndicator /> page wrapper (Fase F.26)', () => {
     expect(
       screen.getByTestId('iso45001-control-EMERGENCY_PREPAREDNESS'),
     ).toHaveTextContent('8.2');
-    // Link al estándar oficial ISO (dato real, no fabricado).
-    const link = screen.getByTestId('iso45001-link-LEADERSHIP_COMMITMENT');
-    expect(link).toHaveAttribute('href', 'https://www.iso.org/standard/63787.html');
+    // El link al estándar oficial se movió al drawer de detalle (cambio de embudo
+    // 2026-06-28: no expulsar al usuario a iso.org desde la lista). Su cobertura
+    // corresponde ahora al test de Iso45001DetailDrawer, no a este.
     // Sin coveredControlIds → sin chip de cobertura fabricado.
     expect(screen.queryByTestId('iso45001-coverage')).not.toBeInTheDocument();
   });

@@ -39,7 +39,7 @@ export const suggestRisksWithAI = async (
     contents: `Basado en el rubro "${industry}" y el contexto del proyecto "${context}", sugiere 5 riesgos críticos que deberían estar en la matriz IPERC.
     Para cada riesgo, asigna un valor de Probabilidad (1-5) y Severidad (1-5) según la metodología de evaluación de riesgos.
 
-    IMPORTANTE: NO devuelvas criticidad — la clasificación legal viene de IPER P×S deterministic en \`calculateIper()\`. Tu rol se limita a estimar P y S como inputs numéricos, junto con recomendaciones, controles (Jerarquía: eliminación → sustitución → ingeniería → administrativo → EPP) y normativa aplicable (DS 594, DS 44/2024, DS 54, Ley 16.744, NCh ISO 45001).`,
+    IMPORTANTE: NO devuelvas criticidad — la clasificación legal viene de IPER P×S deterministic en \`calculateIper()\`. Tu rol se limita a estimar P y S como inputs numéricos, junto con recomendaciones, controles (Jerarquía: eliminación → sustitución → ingeniería → administrativo → EPP) y normativa aplicable (DS 594, DS 44/2024 [ex DS 54 y ex DS 40, derogados 01-02-2025], Ley 16.744, NCh ISO 45001).`,
     config: {
       responseMimeType: 'application/json',
       responseSchema: {

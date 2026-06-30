@@ -182,7 +182,7 @@ function buildObligationSeeds(input: ProjectSeedsInput): ObligationSeed[] {
         `Constituir Comité Paritario de Higiene y Seguridad (CPHS) — dotación de ` +
         `${comiteRequiredAtWorkers} o más personas trabajadoras (renovación cada 2 años; ` +
         'control anual de vigencia).',
-      legalCitation: 'Ley 16.744 art. 66 + DS 54',
+      legalCitation: 'Ley 16.744 art. 66 + DS 44/2024 (ex DS 54, derogado 01-02-2025)',
       recurrence: 'annual',
       alertLeadDays: 14,
       nextDueAt: setupDue,
@@ -192,7 +192,7 @@ function buildObligationSeeds(input: ProjectSeedsInput): ObligationSeed[] {
         id: `${idPrefix}-cphs-sesion-mensual`,
         kind: 'cphs_meeting',
         label: 'Reunión mensual del CPHS con acta de cada sesión.',
-        legalCitation: 'DS 54 art. 16 (sesión mensual del Comité Paritario)',
+        legalCitation: 'DS 44/2024 art. 16 (ex DS 54, derogado 01-02-2025) — sesión mensual del Comité Paritario',
         recurrence: 'monthly',
         alertLeadDays: 7,
         nextDueAt: setupDue,

@@ -164,7 +164,7 @@ function WebXRInner() {
         <div className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
           <div className="h-full bg-emerald-500 transition-all" style={{ width: `${(verified.size / HEIGHT_WORK_CHECKLIST.length) * 100}%` }} />
         </div>
-        <span className="font-bold text-zinc-600 dark:text-zinc-300">
+        <span className="font-bold text-secondary-token">
           {verified.size}/{HEIGHT_WORK_CHECKLIST.length} {t('webxr.verified', 'verificados')}
         </span>
       </div>

@@ -252,7 +252,7 @@ export function EmergenciaAvanzada() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-token uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Activity className="w-8 h-8 text-red-500" />
             {t('emergenciaAvanzada.title', 'Emergencia Avanzada')}
           </h1>
@@ -380,7 +380,7 @@ export function EmergenciaAvanzada() {
 
           {/* Zone status */}
           <Card className="p-4 border-white/5 space-y-3">
-            <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+            <h3 className="text-xs font-bold text-muted-token uppercase tracking-widest flex items-center gap-2">
               <ShieldAlert className="w-4 h-4" />
               Estado de Zonas
             </h3>
@@ -389,8 +389,8 @@ export function EmergenciaAvanzada() {
               { name: 'Planta / Faena', status: activeEmergency ? 'EVACUANDO' : 'OPERATIVO', color: activeEmergency ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400 bg-emerald-500/10' },
               { name: 'Zona de Seguridad', status: 'ACTIVA', color: 'text-emerald-400 bg-emerald-500/10' },
             ].map(z => (
-              <div key={z.name} className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
-                <span className="text-xs text-zinc-700 dark:text-zinc-300">{z.name}</span>
+              <div key={z.name} className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-subtle-token">
+                <span className="text-xs text-secondary-token">{z.name}</span>
                 <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${z.color}`}>{z.status}</span>
               </div>
             ))}
@@ -423,7 +423,7 @@ export function EmergenciaAvanzada() {
           {activeTab === "map" && (
             <div className="flex-1 flex flex-col gap-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider">
+                <h3 className="text-sm font-bold text-primary-token uppercase tracking-wider">
                   Actividad Sísmica — USGS (últimas 24h)
                 </h3>
                 <span className="text-[10px] text-zinc-400 flex items-center gap-1">
@@ -438,13 +438,13 @@ export function EmergenciaAvanzada() {
               ) : (
                 <div className="space-y-2 overflow-y-auto flex-1">
                   {recentQuakes.map(q => (
-                    <div key={q.id} className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 flex items-center justify-between gap-3">
+                    <div key={q.id} className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-subtle-token flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black text-sm ${q.magnitude >= 5 ? 'bg-red-500/20 text-red-400' : q.magnitude >= 4 ? 'bg-amber-500/20 text-amber-400' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400'}`}>
                           {q.magnitude.toFixed(1)}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">{q.place}</p>
+                          <p className="text-xs font-bold text-primary-token truncate">{q.place}</p>
                           <p className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5">
                             <Clock className="w-3 h-3" />
                             {new Date(q.time).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
@@ -468,11 +468,11 @@ export function EmergenciaAvanzada() {
 
           {activeTab === "comms" && (
             <div className="flex-1 flex flex-col gap-3 min-h-0">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider shrink-0">
+              <h3 className="text-sm font-bold text-primary-token uppercase tracking-wider shrink-0">
                 Canal de Emergencia
                 {activeEmergency && <span className="ml-2 text-[10px] text-red-400 animate-pulse">â— EN VIVO</span>}
               </h3>
-              <div className="flex-1 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-white/5 p-3 flex flex-col gap-2 overflow-y-auto min-h-0">
+              <div className="flex-1 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-subtle-token p-3 flex flex-col gap-2 overflow-y-auto min-h-0">
                 {messages.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 my-auto">
                     <Radio className="w-10 h-10 mb-3 opacity-40" />
@@ -489,7 +489,7 @@ export function EmergenciaAvanzada() {
                       ) : (
                         <div className={`max-w-[80%] px-3 py-2 rounded-xl ${msg.sender === (user?.displayName ?? user?.email) ? 'bg-blue-600/20 border border-blue-500/30 rounded-tr-none' : 'bg-zinc-200 dark:bg-zinc-800 rounded-tl-none'}`}>
                           <p className="text-[10px] text-zinc-500 mb-1">{msg.sender} · {msg.senderRole}</p>
-                          <p className="text-xs text-zinc-900 dark:text-white">{msg.text}</p>
+                          <p className="text-xs text-primary-token">{msg.text}</p>
                         </div>
                       )}
                     </div>
@@ -504,10 +504,11 @@ export function EmergenciaAvanzada() {
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                   placeholder={activeEmergency ? 'Mensaje de emergencia...' : 'Activa una emergencia para habilitar el canal'}
                   disabled={!activeEmergency}
-                  className="flex-1 px-3 py-2 text-xs rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white placeholder-zinc-400 disabled:opacity-40 focus:outline-none focus:border-red-500/50"
+                  className="flex-1 px-3 py-2 text-xs rounded-xl border border-default-token bg-surface text-primary-token placeholder-zinc-400 disabled:opacity-40 focus:outline-none focus:border-red-500/50"
                 />
                 <button
                   onClick={sendMessage}
+                  aria-label="Enviar mensaje"
                   disabled={!chatInput.trim() || !activeEmergency || sendingMsg}
                   className="p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl disabled:opacity-40 transition-colors"
                 >
@@ -519,7 +520,7 @@ export function EmergenciaAvanzada() {
 
           {activeTab === "resources" && (
             <div className="flex-1 flex flex-col gap-4 min-h-0">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider shrink-0">
+              <h3 className="text-sm font-bold text-primary-token uppercase tracking-wider shrink-0">
                 Estado de Personal
               </h3>
               {!workers || workers.length === 0 ? (
@@ -532,13 +533,13 @@ export function EmergenciaAvanzada() {
                   {workers.map(w => {
                     const status = safetyStatuses[w.id] ?? 'unknown';
                     return (
-                      <div key={w.id} className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 flex items-center justify-between gap-3">
+                      <div key={w.id} className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-subtle-token flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-black ${status === 'safe' ? 'bg-emerald-500/20 text-emerald-400' : status === 'danger' ? 'bg-red-500/20 text-red-400' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400'}`}>
                             {w.name.charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">{w.name}</p>
+                            <p className="text-xs font-bold text-primary-token truncate">{w.name}</p>
                             <p className="text-[10px] text-zinc-500">{w.role}</p>
                           </div>
                         </div>

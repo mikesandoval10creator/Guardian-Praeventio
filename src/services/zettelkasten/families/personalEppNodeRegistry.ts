@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Static catalog for the PERSONAL & EPP family (50 nodes).
+//
+// NOTA REGULATORIA: el código de `source` 'DS-40' es una clave taxonómica
+// estable (legacy). La materia que regulaba (Prevención de Riesgos / ODI,
+// ex DS 40) está hoy regida por el DS 44/2024, que derogó el DS 40 el
+// 01-02-2025. El código se conserva como join-key; toda cita visible al
+// usuario debe referir al DS 44/2024.
 
 import type { FamilyNodeSpec } from './climateNodeRegistry';
 

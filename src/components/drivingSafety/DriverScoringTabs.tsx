@@ -1,52 +1,37 @@
-// Praeventio Guard — Sprint K §69-71 page wrapper.
+// Praeventio Guard — Incremento 2a: tabs Conductores + Ranking unificados.
 //
-// Conducción Segura + Rutas Críticas + Alertas Ruta. Cierra la pieza UI
-// del flujo §69-71 que ya tenía servicio determinístico
-// (`drivingSafety/drivingSafetyService.ts` — score conductor + score
-// ruta + matching conductor-ruta) pero no estaba accesible desde la
-// navegación: el dominio de conducción comercial / minera quedaba sin
-// trazabilidad estructurada aunque el motor de scoring estuviera listo.
+// Extraído de `src/pages/DrivingSafety.tsx` para que la página canónica
+// `SafeDriving.tsx` (que ya tiene mapa + rutas + reporte de incidente)
+// incorpore la gestión de conductores y el ranking de seguridad SIN
+// duplicar ~300 LOC de JSX inline. Toda la lógica original se preserva:
+//   - tab 'conductores' = lista + cards de scoring (DriverScoreCard) +
+//     CTA "Registrar viaje" (JourneyModal start/end).
+//   - tab 'ranking' = conductores ordenados desc por safetyScore con
+//     bandas de color, nivel y blockers visibles.
 //
-// Esta página:
-//   1. Tab "Rutas" — `useDrivingRoutes(projectId)` con filtro de status
-//      (active = alerta abierta, critical = high|extreme, all = todas).
-//      Cada ruta es una card con badge de criticidad, hazards visibles
-//      y banner rojo cuando `activeAlert` está abierto. CTAs: "Nueva
-//      ruta" + "Reportar alerta" + "Resolver alerta".
-//   2. Tab "Conductores" — `useDrivingDrivers(projectId)`. Cards con
-//      nivel de fatiga, countdown a vencimiento de licencia (verde/
-//      ámbar/rojo) y horas-de-conducción de esta semana. CTA:
-//      "Registrar viaje" (start/end journey).
-//   3. Tab "Ranking" — `useDrivingRanking(projectId)`. Conductores
-//      ordenados desc por safetyScore. Score color-coded por banda
-//      (excellent/good/fair/poor/critical) + blockers visibles.
+// Copy es-CL en strings planos (no nuevos t() keys) para no tocar el gate
+// de paridad i18n — mismo criterio que KpiRow / RotatingAdviceBanner.
 //
-// NO push a SUSESO/MINSAL/autoridades externas (directiva §3). NUNCA
-// bloquea operación: muestra el score y los blockers; el supervisor
-// decide con criterio. Directiva §2 — no-bloquear.
+// NUNCA bloquea operación: muestra score y blockers; el supervisor decide.
 
 import { useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import {
   Car,
-  WifiOff,
-  Plus,
   X,
+  Plus,
+  Route,
+  ShieldAlert,
   AlertTriangle,
   AlertCircle,
   Trophy,
-  Route,
   Gauge,
   Users,
-  ShieldAlert,
   Activity,
   CheckCircle2,
   Wind,
   Snowflake,
   Cloud,
 } from 'lucide-react';
-import { useProject } from '../contexts/ProjectContext';
-import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
   useDrivingRoutes,
   useDrivingDrivers,
@@ -61,12 +46,14 @@ import {
   type DrivingRoutesStatus,
   type DrivingDriver,
   type DrivingRankingEntry,
-} from '../hooks/useDrivingSafety';
-import { DriverScoreCard } from '../components/drivingSafety/DriverScoreCard';
-import { logger } from '../utils/logger';
+} from '../../hooks/useDrivingSafety';
+import { DriverScoreCard } from './DriverScoreCard';
+import { logger } from '../../utils/logger';
+
+export type DriverScoringTab = 'conductores' | 'ranking' | 'rutas';
 
 // ────────────────────────────────────────────────────────────────────────
-// Static visual helpers
+// Static visual helpers (copiados 1:1 de DrivingSafety.tsx)
 // ────────────────────────────────────────────────────────────────────────
 
 const CRITICALITY_META: Record<
@@ -153,9 +140,7 @@ const STATUS_OPTIONS: { value: DrivingRoutesStatus; label: string }[] = [
   { value: 'critical', label: 'Críticas' },
 ];
 
-/**
- * Days until ISO-8601 expiry vs `now`. Negative = already expired.
- */
+/** Days until ISO-8601 expiry vs `now`. Negative = already expired. */
 function daysUntil(iso: string, now: number = Date.now()): number {
   const ts = Date.parse(iso);
   if (!Number.isFinite(ts)) return 0;
@@ -198,26 +183,22 @@ function levelLabel(level: DrivingRankingEntry['level']): string {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Main page component
+// Componente principal: tabs Conductores + Ranking
 // ────────────────────────────────────────────────────────────────────────
 
-export function DrivingSafety() {
-  const { t } = useTranslation();
-  const { selectedProject } = useProject();
-  const isOnline = useOnlineStatus();
-  const projectId = selectedProject?.id ?? null;
+interface DriverScoringTabsProps {
+  projectId: string | null;
+  tab: DriverScoringTab;
+}
 
-  const [activeTab, setActiveTab] = useState<'rutas' | 'conductores' | 'ranking'>(
-    'rutas',
-  );
+export function DriverScoringTabs({ projectId, tab }: DriverScoringTabsProps) {
   const [status, setStatus] = useState<DrivingRoutesStatus>('all');
-  const [showCreateRoute, setShowCreateRoute] = useState(false);
-  const [alertRouteId, setAlertRouteId] = useState<string | null>(null);
-  const [journeyDriverUid, setJourneyDriverUid] = useState<string | null>(null);
-
   const routesResp = useDrivingRoutes(projectId, { status });
   const driversResp = useDrivingDrivers(projectId);
   const rankingResp = useDrivingRanking(projectId);
+  const [journeyDriverUid, setJourneyDriverUid] = useState<string | null>(null);
+  const [showCreateRoute, setShowCreateRoute] = useState(false);
+  const [alertRouteId, setAlertRouteId] = useState<string | null>(null);
 
   const routes: DrivingRoute[] = useMemo(
     () => routesResp.data?.routes ?? [],
@@ -232,125 +213,18 @@ export function DrivingSafety() {
     [rankingResp.data],
   );
 
-  if (!selectedProject) {
-    return (
-      <div
-        className="flex-1 w-full p-4 sm:p-6 max-w-5xl mx-auto"
-        data-testid="driving-safety-page-empty"
-      >
-        <div className="rounded-2xl border border-default-token bg-surface p-8 text-center">
-          <Car
-            className="w-12 h-12 mx-auto mb-4 text-secondary-token"
-            aria-hidden="true"
-          />
-          <h1 className="text-lg font-black text-primary-token uppercase tracking-tight">
-            {t('drivingSafety.page.title', 'Conducción Segura')}
-          </h1>
-          <p className="mt-2 text-sm text-secondary-token">
-            {t(
-              'drivingSafety.page.selectProject',
-              'Selecciona un proyecto para ver rutas críticas, conductores y ranking de seguridad.',
-            )}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div
-      className="flex-1 w-full p-4 sm:p-6 max-w-5xl mx-auto space-y-4"
-      data-testid="driving-safety-page"
-    >
-      <header className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center border border-blue-500/20">
-          <Car className="w-5 h-5" aria-hidden="true" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-black text-primary-token uppercase tracking-tight">
-            {t('drivingSafety.page.title', 'Conducción Segura')}
-          </h1>
-          <p className="text-xs text-secondary-token">
-            {t(
-              'drivingSafety.page.subtitle',
-              '§69-71 — rutas críticas, conductores y alertas en tiempo real (asistido, no bloquea).',
-            )}
-          </p>
-        </div>
-        {!isOnline && (
-          <span
-            className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400"
-            data-testid="driving-safety-offline-chip"
-          >
-            <WifiOff className="w-3 h-3" aria-hidden="true" />
-            {t('common.offline', 'Sin conexión')}
-          </span>
-        )}
-      </header>
-
-      {/* Tabs */}
-      <div
-        role="tablist"
-        className="flex gap-1 border-b border-default-token"
-        data-testid="driving-safety-tabs"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'rutas'}
-          onClick={() => setActiveTab('rutas')}
-          className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-bold transition-colors ${
-            activeTab === 'rutas'
-              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-secondary-token hover:text-primary-token'
-          }`}
-          data-testid="driving-safety-tab-rutas"
-        >
-          <Route className="w-4 h-4" aria-hidden="true" />
-          {t('drivingSafety.tab.rutas', 'Rutas')}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'conductores'}
-          onClick={() => setActiveTab('conductores')}
-          className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-bold transition-colors ${
-            activeTab === 'conductores'
-              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-secondary-token hover:text-primary-token'
-          }`}
-          data-testid="driving-safety-tab-conductores"
-        >
-          <Users className="w-4 h-4" aria-hidden="true" />
-          {t('drivingSafety.tab.conductores', 'Conductores')}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'ranking'}
-          onClick={() => setActiveTab('ranking')}
-          className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-bold transition-colors ${
-            activeTab === 'ranking'
-              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-secondary-token hover:text-primary-token'
-          }`}
-          data-testid="driving-safety-tab-ranking"
-        >
-          <Trophy className="w-4 h-4" aria-hidden="true" />
-          {t('drivingSafety.tab.ranking', 'Ranking')}
-        </button>
-      </div>
-
-      {/* Rutas tab */}
-      {activeTab === 'rutas' && (
+    <>
+      {/* Rutas Críticas tab */}
+      {tab === 'rutas' && (
         <section
-          aria-label="Rutas"
+          aria-label="Rutas Críticas"
           className="space-y-3"
           data-testid="driving-safety-rutas-section"
         >
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] uppercase font-bold text-secondary-token">
-              {t('drivingSafety.filter.status', 'Estado:')}
+              Estado:
             </span>
             {STATUS_OPTIONS.map((opt) => (
               <button
@@ -374,7 +248,7 @@ export function DrivingSafety() {
               data-testid="driving-safety-new-route-button"
             >
               <Plus className="w-4 h-4" aria-hidden="true" />
-              {t('drivingSafety.action.newRoute', 'Nueva ruta')}
+              Nueva ruta
             </button>
           </div>
 
@@ -383,7 +257,7 @@ export function DrivingSafety() {
               className="rounded-2xl border border-default-token bg-surface p-6 text-center text-sm text-secondary-token"
               data-testid="driving-safety-routes-loading"
             >
-              {t('common.loading', 'Cargando…')}
+              Cargando…
             </div>
           )}
 
@@ -393,11 +267,7 @@ export function DrivingSafety() {
               data-testid="driving-safety-routes-error"
               role="alert"
             >
-              {t(
-                'drivingSafety.routes.error',
-                'No se pudieron cargar las rutas: {{msg}}',
-                { msg: routesResp.error.message },
-              )}
+              No se pudieron cargar las rutas: {routesResp.error.message}
             </div>
           )}
 
@@ -411,19 +281,13 @@ export function DrivingSafety() {
                 aria-hidden="true"
               />
               <p className="text-sm text-secondary-token italic">
-                {t(
-                  'drivingSafety.routes.empty',
-                  'No hay rutas registradas para este filtro.',
-                )}
+                No hay rutas registradas para este filtro.
               </p>
             </div>
           )}
 
           {!routesResp.loading && !routesResp.error && routes.length > 0 && (
-            <ul
-              className="space-y-2"
-              data-testid="driving-safety-routes-list"
-            >
+            <ul className="space-y-2" data-testid="driving-safety-routes-list">
               {routes.map((r) => {
                 const meta = CRITICALITY_META[r.criticality];
                 const alertIcon = r.activeAlert
@@ -454,7 +318,7 @@ export function DrivingSafety() {
                         {r.weatherSensitive && (
                           <span className="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-600 dark:text-amber-400">
                             <Cloud className="w-3 h-3" aria-hidden="true" />
-                            {t('drivingSafety.route.weatherSensitive', 'Clima sensible')}
+                            Clima sensible
                           </span>
                         )}
                         {r.hazards.length > 0 && (
@@ -499,9 +363,7 @@ export function DrivingSafety() {
                         data-testid={`driving-safety-route-flag-${r.id}`}
                       >
                         <ShieldAlert className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" />
-                        {r.activeAlert
-                          ? t('drivingSafety.action.resolveAlert', 'Gestionar')
-                          : t('drivingSafety.action.flagAlert', 'Reportar')}
+                        {r.activeAlert ? 'Gestionar' : 'Reportar'}
                       </button>
                     </div>
                   </li>
@@ -513,7 +375,7 @@ export function DrivingSafety() {
       )}
 
       {/* Conductores tab */}
-      {activeTab === 'conductores' && (
+      {tab === 'conductores' && (
         <section
           aria-label="Conductores"
           className="space-y-3"
@@ -524,7 +386,7 @@ export function DrivingSafety() {
               className="rounded-2xl border border-default-token bg-surface p-6 text-center text-sm text-secondary-token"
               data-testid="driving-safety-drivers-loading"
             >
-              {t('common.loading', 'Cargando…')}
+              Cargando…
             </div>
           )}
 
@@ -534,11 +396,7 @@ export function DrivingSafety() {
               data-testid="driving-safety-drivers-error"
               role="alert"
             >
-              {t(
-                'drivingSafety.drivers.error',
-                'No se pudieron cargar los conductores: {{msg}}',
-                { msg: driversResp.error.message },
-              )}
+              No se pudieron cargar los conductores: {driversResp.error.message}
             </div>
           )}
 
@@ -552,19 +410,13 @@ export function DrivingSafety() {
                 aria-hidden="true"
               />
               <p className="text-sm text-secondary-token italic">
-                {t(
-                  'drivingSafety.drivers.empty',
-                  'No hay conductores registrados en este proyecto.',
-                )}
+                No hay conductores registrados en este proyecto.
               </p>
             </div>
           )}
 
           {!driversResp.loading && !driversResp.error && drivers.length > 0 && (
-            <ul
-              className="space-y-2"
-              data-testid="driving-safety-drivers-list"
-            >
+            <ul className="space-y-2" data-testid="driving-safety-drivers-list">
               {drivers.map((d) => {
                 const daysToExpiry = daysUntil(d.licenseExpiresAt);
                 return (
@@ -582,24 +434,22 @@ export function DrivingSafety() {
                           {d.workerUid}
                         </p>
                         <p className="text-[11px] text-secondary-token">
-                          {t('drivingSafety.driver.license', 'Licencia')}:{' '}
+                          Licencia:{' '}
                           {d.licenseClass} ·{' '}
                           <span
                             className={`font-bold ${licenseBandClass(daysToExpiry)}`}
                             data-testid={`driving-safety-driver-license-${d.workerUid}`}
                           >
                             {daysToExpiry < 0
-                              ? t('drivingSafety.driver.licenseExpired', 'vencida')
-                              : t('drivingSafety.driver.licenseDays', 'vence en {{n}}d', {
-                                  n: daysToExpiry,
-                                })}
+                              ? 'vencida'
+                              : `vence en ${daysToExpiry}d`}
                           </span>
                         </p>
                         <div className="mt-1.5 flex flex-wrap gap-3 text-[11px]">
                           <span className="flex items-center gap-1 text-secondary-token">
                             <Gauge className="w-3 h-3" aria-hidden="true" />
                             <span>
-                              {t('drivingSafety.driver.fatigue', 'Fatiga')}:{' '}
+                              Fatiga:{' '}
                               <span
                                 className={`font-bold ${fatigueBandClass(d.fatigueScore)}`}
                                 data-testid={`driving-safety-driver-fatigue-${d.workerUid}`}
@@ -611,14 +461,14 @@ export function DrivingSafety() {
                           <span className="flex items-center gap-1 text-secondary-token">
                             <Activity className="w-3 h-3" aria-hidden="true" />
                             <span>
-                              {t('drivingSafety.driver.hoursWeek', 'Horas/sem')}:{' '}
+                              Horas/sem:{' '}
                               <span className="font-bold text-primary-token">
                                 {d.hoursThisWeek.toFixed(1)}
                               </span>
                             </span>
                           </span>
                           <span className="text-secondary-token">
-                            {t('drivingSafety.driver.incidents', 'Incidentes 12m')}:{' '}
+                            Incidentes 12m:{' '}
                             <span className="font-bold text-primary-token">
                               {d.incidents12m}
                             </span>
@@ -631,7 +481,7 @@ export function DrivingSafety() {
                         className="shrink-0 rounded-lg border border-default-token bg-surface px-2 py-1 text-xs font-bold text-secondary-token transition-colors hover:text-blue-600"
                         data-testid={`driving-safety-driver-journey-${d.workerUid}`}
                       >
-                        {t('drivingSafety.action.recordJourney', 'Registrar viaje')}
+                        Registrar viaje
                       </button>
                     </div>
                   </li>
@@ -654,7 +504,7 @@ export function DrivingSafety() {
       )}
 
       {/* Ranking tab */}
-      {activeTab === 'ranking' && (
+      {tab === 'ranking' && (
         <section
           aria-label="Ranking"
           className="space-y-3"
@@ -665,7 +515,7 @@ export function DrivingSafety() {
               className="rounded-2xl border border-default-token bg-surface p-6 text-center text-sm text-secondary-token"
               data-testid="driving-safety-ranking-loading"
             >
-              {t('common.loading', 'Cargando…')}
+              Cargando…
             </div>
           )}
 
@@ -675,11 +525,7 @@ export function DrivingSafety() {
               data-testid="driving-safety-ranking-error"
               role="alert"
             >
-              {t(
-                'drivingSafety.ranking.error',
-                'No se pudo cargar el ranking: {{msg}}',
-                { msg: rankingResp.error.message },
-              )}
+              No se pudo cargar el ranking: {rankingResp.error.message}
             </div>
           )}
 
@@ -693,19 +539,13 @@ export function DrivingSafety() {
                 aria-hidden="true"
               />
               <p className="text-sm text-secondary-token italic">
-                {t(
-                  'drivingSafety.ranking.empty',
-                  'No hay conductores registrados para ranquear.',
-                )}
+                No hay conductores registrados para ranquear.
               </p>
             </div>
           )}
 
           {!rankingResp.loading && !rankingResp.error && ranking.length > 0 && (
-            <ol
-              className="space-y-2"
-              data-testid="driving-safety-ranking-list"
-            >
+            <ol className="space-y-2" data-testid="driving-safety-ranking-list">
               {ranking.map((r, idx) => (
                 <li
                   key={r.workerUid}
@@ -723,12 +563,12 @@ export function DrivingSafety() {
                       {r.workerUid}
                     </p>
                     <p className="text-[11px] text-secondary-token">
-                      {levelLabel(r.level)} · {t('drivingSafety.ranking.hours', 'horas sem')}: {r.hoursThisWeek.toFixed(1)}
+                      {levelLabel(r.level)} · horas sem: {r.hoursThisWeek.toFixed(1)}
                     </p>
                     {r.canOperate ? (
                       <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600">
                         <CheckCircle2 className="w-3 h-3" aria-hidden="true" />
-                        {t('drivingSafety.ranking.canOperate', 'Puede operar')}
+                        Puede operar
                       </p>
                     ) : (
                       r.blockers.length > 0 && (
@@ -750,7 +590,7 @@ export function DrivingSafety() {
                       {r.safetyScore}
                     </p>
                     <p className="text-[9px] uppercase text-secondary-token">
-                      {t('drivingSafety.ranking.score', 'Score')}
+                      Score
                     </p>
                   </div>
                 </li>
@@ -799,12 +639,12 @@ export function DrivingSafety() {
           }}
         />
       )}
-    </div>
+    </>
   );
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Inline modal: nueva ruta
+// Inline modal: nueva ruta crítica — copiado de DrivingSafety.tsx (copy es-CL plano)
 // ────────────────────────────────────────────────────────────────────────
 
 interface NewRouteModalProps {
@@ -814,7 +654,6 @@ interface NewRouteModalProps {
 }
 
 function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
-  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -836,30 +675,19 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
     const distance = Number(distanceKm);
     const speed = Number(maxSpeed);
     if (name.trim().length < 2) {
-      setError(
-        t('drivingSafety.modal.errorName', 'El nombre debe tener al menos 2 caracteres.') as string,
-      );
+      setError('El nombre debe tener al menos 2 caracteres.');
       return;
     }
     if (origin.trim().length < 2 || destination.trim().length < 2) {
-      setError(
-        t(
-          'drivingSafety.modal.errorPlaces',
-          'Origen y destino son obligatorios.',
-        ) as string,
-      );
+      setError('Origen y destino son obligatorios.');
       return;
     }
     if (!Number.isFinite(distance) || distance < 0) {
-      setError(
-        t('drivingSafety.modal.errorDistance', 'Distancia inválida.') as string,
-      );
+      setError('Distancia inválida.');
       return;
     }
     if (!Number.isFinite(speed) || speed < 5 || speed > 200) {
-      setError(
-        t('drivingSafety.modal.errorSpeed', 'Velocidad fuera de rango (5-200).') as string,
-      );
+      setError('Velocidad fuera de rango (5-200).');
       return;
     }
     setSubmitting(true);
@@ -879,13 +707,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
       onSuccess();
     } catch (err) {
       logger.error('drivingSafety.route.register.failed', err);
-      setError(
-        (err as Error).message ||
-          (t(
-            'drivingSafety.modal.errorSubmit',
-            'No se pudo registrar la ruta.',
-          ) as string),
-      );
+      setError((err as Error).message || 'No se pudo registrar la ruta.');
     } finally {
       setSubmitting(false);
     }
@@ -902,13 +724,13 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
         <header className="flex items-center gap-2">
           <Route className="w-5 h-5 text-blue-500" aria-hidden="true" />
           <h2 className="flex-1 text-base font-black text-primary-token">
-            {t('drivingSafety.modal.newRouteTitle', 'Nueva ruta crítica')}
+            Nueva ruta crítica
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="rounded-md p-1 text-secondary-token hover:text-primary-token"
-            aria-label={t('common.close', 'Cerrar') as string}
+            aria-label="Cerrar"
             data-testid="driving-safety-new-route-modal-close"
           >
             <X className="w-4 h-4" aria-hidden="true" />
@@ -918,7 +740,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
         <div className="space-y-3">
           <label className="block">
             <span className="block text-xs font-bold uppercase text-secondary-token mb-1">
-              {t('drivingSafety.modal.name', 'Nombre')}
+              Nombre
             </span>
             <input
               type="text"
@@ -931,7 +753,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
               <span className="block text-xs font-bold uppercase text-secondary-token mb-1">
-                {t('drivingSafety.modal.origin', 'Origen')}
+                Origen
               </span>
               <input
                 type="text"
@@ -943,7 +765,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
             </label>
             <label className="block">
               <span className="block text-xs font-bold uppercase text-secondary-token mb-1">
-                {t('drivingSafety.modal.destination', 'Destino')}
+                Destino
               </span>
               <input
                 type="text"
@@ -957,7 +779,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
               <span className="block text-xs font-bold uppercase text-secondary-token mb-1">
-                {t('drivingSafety.modal.distance', 'Distancia (km)')}
+                Distancia (km)
               </span>
               <input
                 type="number"
@@ -970,7 +792,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
             </label>
             <label className="block">
               <span className="block text-xs font-bold uppercase text-secondary-token mb-1">
-                {t('drivingSafety.modal.maxSpeed', 'Vel. máx (km/h)')}
+                Vel. máx (km/h)
               </span>
               <input
                 type="number"
@@ -985,7 +807,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
           </div>
           <label className="block">
             <span className="block text-xs font-bold uppercase text-secondary-token mb-1">
-              {t('drivingSafety.modal.criticality', 'Criticidad')}
+              Criticidad
             </span>
             <select
               value={criticality}
@@ -1004,7 +826,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
           </label>
           <fieldset className="block">
             <legend className="block text-xs font-bold uppercase text-secondary-token mb-1">
-              {t('drivingSafety.modal.hazards', 'Hazards (selección múltiple)')}
+              Hazards (selección múltiple)
             </legend>
             <div className="flex flex-wrap gap-1">
               {HAZARD_OPTIONS.map((h) => {
@@ -1035,10 +857,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
               data-testid="driving-safety-new-route-modal-weather"
             />
             <span>
-              {t(
-                'drivingSafety.modal.weatherSensitive',
-                'Sensible al clima (notificar al cambio de condiciones)',
-              )}
+              Sensible al clima (notificar al cambio de condiciones)
             </span>
           </label>
         </div>
@@ -1061,7 +880,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
             className="rounded-lg px-3 py-1.5 text-sm font-bold text-secondary-token hover:text-primary-token"
             data-testid="driving-safety-new-route-modal-cancel"
           >
-            {t('common.cancel', 'Cancelar')}
+            Cancelar
           </button>
           <button
             type="button"
@@ -1070,9 +889,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
             className="rounded-lg bg-blue-500 px-3 py-1.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
             data-testid="driving-safety-new-route-modal-submit"
           >
-            {submitting
-              ? t('common.submitting', 'Guardando…')
-              : t('drivingSafety.modal.submit', 'Registrar')}
+            {submitting ? 'Guardando…' : 'Registrar'}
           </button>
         </div>
       </div>
@@ -1081,7 +898,7 @@ function NewRouteModal({ projectId, onClose, onSuccess }: NewRouteModalProps) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Inline modal: reportar / resolver alerta de ruta
+// Inline modal: reportar / resolver alerta de ruta — copiado de DrivingSafety.tsx
 // ────────────────────────────────────────────────────────────────────────
 
 interface FlagAlertModalProps {
@@ -1099,7 +916,6 @@ function FlagAlertModal({
   onClose,
   onSuccess,
 }: FlagAlertModalProps) {
-  const { t } = useTranslation();
   const [kind, setKind] = useState<DrivingRouteAlertKind>('icy');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -1118,13 +934,7 @@ function FlagAlertModal({
       onSuccess();
     } catch (err) {
       logger.error('drivingSafety.route.alert.failed', err);
-      setError(
-        (err as Error).message ||
-          (t(
-            'drivingSafety.modal.errorAlert',
-            'No se pudo registrar la alerta.',
-          ) as string),
-      );
+      setError((err as Error).message || 'No se pudo registrar la alerta.');
     } finally {
       setSubmitting(false);
     }
@@ -1141,15 +951,13 @@ function FlagAlertModal({
         <header className="flex items-center gap-2">
           <ShieldAlert className="w-5 h-5 text-rose-500" aria-hidden="true" />
           <h2 className="flex-1 text-base font-black text-primary-token">
-            {hasOpenAlert
-              ? t('drivingSafety.modal.alertManage', 'Gestionar alerta')
-              : t('drivingSafety.modal.alertFlag', 'Reportar alerta de ruta')}
+            {hasOpenAlert ? 'Gestionar alerta' : 'Reportar alerta de ruta'}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="rounded-md p-1 text-secondary-token hover:text-primary-token"
-            aria-label={t('common.close', 'Cerrar') as string}
+            aria-label="Cerrar"
             data-testid="driving-safety-alert-modal-close"
           >
             <X className="w-4 h-4" aria-hidden="true" />
@@ -1158,7 +966,7 @@ function FlagAlertModal({
 
         <label className="block">
           <span className="block text-xs font-bold uppercase text-secondary-token mb-1">
-            {t('drivingSafety.modal.alertKind', 'Tipo de alerta')}
+            Tipo de alerta
           </span>
           <select
             value={kind}
@@ -1176,18 +984,13 @@ function FlagAlertModal({
 
         <label className="block">
           <span className="block text-xs font-bold uppercase text-secondary-token mb-1">
-            {t('drivingSafety.modal.alertNote', 'Nota (opcional)')}
+            Nota (opcional)
           </span>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={3}
-            placeholder={
-              t(
-                'drivingSafety.modal.alertNotePlaceholder',
-                'Ej: Helada km 45-50, visibilidad reducida.',
-              ) as string
-            }
+            placeholder="Ej: Helada km 45-50, visibilidad reducida."
             className="w-full rounded-md border border-default-token bg-surface px-2 py-1.5 text-sm"
             data-testid="driving-safety-alert-modal-note"
           />
@@ -1211,7 +1014,7 @@ function FlagAlertModal({
             className="rounded-lg px-3 py-1.5 text-sm font-bold text-secondary-token hover:text-primary-token"
             data-testid="driving-safety-alert-modal-cancel"
           >
-            {t('common.cancel', 'Cancelar')}
+            Cancelar
           </button>
           {hasOpenAlert && (
             <button
@@ -1221,7 +1024,7 @@ function FlagAlertModal({
               className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-bold text-emerald-600 transition-colors hover:bg-emerald-500/20 disabled:opacity-60"
               data-testid="driving-safety-alert-modal-resolve"
             >
-              {t('drivingSafety.modal.alertResolve', 'Resolver actual')}
+              Resolver actual
             </button>
           )}
           <button
@@ -1231,9 +1034,7 @@ function FlagAlertModal({
             className="rounded-lg bg-rose-500 px-3 py-1.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-rose-600 disabled:opacity-60 disabled:cursor-not-allowed"
             data-testid="driving-safety-alert-modal-submit"
           >
-            {submitting
-              ? t('common.submitting', 'Guardando…')
-              : t('drivingSafety.modal.alertSubmit', 'Reportar')}
+            {submitting ? 'Guardando…' : 'Reportar'}
           </button>
         </div>
       </div>
@@ -1242,7 +1043,7 @@ function FlagAlertModal({
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Inline modal: registrar viaje (start / end)
+// Inline modal: registrar viaje (start / end) — copiado 1:1 de DrivingSafety.tsx
 // ────────────────────────────────────────────────────────────────────────
 
 interface JourneyModalProps {
@@ -1258,7 +1059,6 @@ function JourneyModal({
   onClose,
   onSuccess,
 }: JourneyModalProps) {
-  const { t } = useTranslation();
   const [action, setAction] = useState<'start' | 'end'>('start');
   const [journeyId, setJourneyId] = useState('');
   const [hours, setHours] = useState<string>('');
@@ -1268,12 +1068,7 @@ function JourneyModal({
 
   const handleSubmit = async () => {
     if (action === 'end' && journeyId.trim().length < 1) {
-      setError(
-        t(
-          'drivingSafety.modal.errorJourneyId',
-          'Para cerrar un viaje necesitas el ID.',
-        ) as string,
-      );
+      setError('Para cerrar un viaje necesitas el ID.');
       return;
     }
     setSubmitting(true);
@@ -1291,11 +1086,7 @@ function JourneyModal({
     } catch (err) {
       logger.error('drivingSafety.journey.failed', err);
       setError(
-        (err as Error).message ||
-          (t(
-            'drivingSafety.modal.errorJourney',
-            'No se pudo registrar el viaje.',
-          ) as string),
+        (err as Error).message || 'No se pudo registrar el viaje.',
       );
     } finally {
       setSubmitting(false);
@@ -1313,13 +1104,13 @@ function JourneyModal({
         <header className="flex items-center gap-2">
           <Car className="w-5 h-5 text-blue-500" aria-hidden="true" />
           <h2 className="flex-1 text-base font-black text-primary-token">
-            {t('drivingSafety.modal.journeyTitle', 'Registrar viaje')}
+            Registrar viaje
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="rounded-md p-1 text-secondary-token hover:text-primary-token"
-            aria-label={t('common.close', 'Cerrar') as string}
+            aria-label="Cerrar"
             data-testid="driving-safety-journey-modal-close"
           >
             <X className="w-4 h-4" aria-hidden="true" />
@@ -1328,7 +1119,7 @@ function JourneyModal({
 
         <label className="block">
           <span className="block text-xs font-bold uppercase text-secondary-token mb-1">
-            {t('drivingSafety.modal.journeyAction', 'Acción')}
+            Acción
           </span>
           <select
             value={action}
@@ -1336,12 +1127,8 @@ function JourneyModal({
             className="w-full rounded-md border border-default-token bg-surface px-2 py-1.5 text-sm"
             data-testid="driving-safety-journey-modal-action"
           >
-            <option value="start">
-              {t('drivingSafety.modal.journeyStart', 'Iniciar viaje')}
-            </option>
-            <option value="end">
-              {t('drivingSafety.modal.journeyEnd', 'Cerrar viaje')}
-            </option>
+            <option value="start">Iniciar viaje</option>
+            <option value="end">Cerrar viaje</option>
           </select>
         </label>
 
@@ -1349,7 +1136,7 @@ function JourneyModal({
           <>
             <label className="block">
               <span className="block text-xs font-bold uppercase text-secondary-token mb-1">
-                {t('drivingSafety.modal.journeyId', 'ID del viaje')}
+                ID del viaje
               </span>
               <input
                 type="text"
@@ -1362,7 +1149,7 @@ function JourneyModal({
             </label>
             <label className="block">
               <span className="block text-xs font-bold uppercase text-secondary-token mb-1">
-                {t('drivingSafety.modal.journeyHours', 'Horas (opcional, autocalcula si está vacío)')}
+                Horas (opcional, autocalcula si está vacío)
               </span>
               <input
                 type="number"
@@ -1379,7 +1166,7 @@ function JourneyModal({
 
         <label className="block">
           <span className="block text-xs font-bold uppercase text-secondary-token mb-1">
-            {t('drivingSafety.modal.journeyNote', 'Nota (opcional)')}
+            Nota (opcional)
           </span>
           <textarea
             value={note}
@@ -1408,7 +1195,7 @@ function JourneyModal({
             className="rounded-lg px-3 py-1.5 text-sm font-bold text-secondary-token hover:text-primary-token"
             data-testid="driving-safety-journey-modal-cancel"
           >
-            {t('common.cancel', 'Cancelar')}
+            Cancelar
           </button>
           <button
             type="button"
@@ -1417,9 +1204,7 @@ function JourneyModal({
             className="rounded-lg bg-blue-500 px-3 py-1.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
             data-testid="driving-safety-journey-modal-submit"
           >
-            {submitting
-              ? t('common.submitting', 'Guardando…')
-              : t('drivingSafety.modal.journeySubmit', 'Confirmar')}
+            {submitting ? 'Guardando…' : 'Confirmar'}
           </button>
         </div>
       </div>
@@ -1427,4 +1212,4 @@ function JourneyModal({
   );
 }
 
-export default DrivingSafety;
+export default DriverScoringTabs;

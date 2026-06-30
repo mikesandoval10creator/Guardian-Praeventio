@@ -92,8 +92,8 @@ function UpgradeBlock() {
       <div className="w-20 h-20 rounded-3xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mb-6">
         <Lock className="w-10 h-10 text-violet-500" />
       </div>
-      <h2 className="text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter mb-2">Dashboard Ejecutivo</h2>
-      <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-sm mb-6">
+      <h2 className="text-2xl font-black text-primary-token uppercase tracking-tighter mb-2">Dashboard Ejecutivo</h2>
+      <p className="text-sm text-muted-token max-w-sm mb-6">
         Disponible para planes <strong className="text-violet-500">Empresa</strong> y <strong className="text-violet-500">Corporativo</strong>.
         KPIs multi-proyecto, tendencias, exportación PDF y resúmenes IA para gerencia.
       </p>
@@ -257,8 +257,8 @@ export function ExecutiveDashboard() {
             <BarChart3 className="w-6 h-6 text-violet-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">{t('executive.title', 'Dashboard Ejecutivo')}</h1>
-            <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">{t('executive.subtitle', 'KPIs Cross-Proyecto')} · {t('executive.plan', 'Plan')} {plan.charAt(0).toUpperCase() + plan.slice(1)}</p>
+            <h1 className="text-2xl font-black uppercase tracking-tighter text-primary-token">{t('executive.title', 'Dashboard Ejecutivo')}</h1>
+            <p className="text-[10px] font-bold text-muted-token uppercase tracking-widest">{t('executive.subtitle', 'KPIs Cross-Proyecto')} · {t('executive.plan', 'Plan')} {plan.charAt(0).toUpperCase() + plan.slice(1)}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -290,7 +290,7 @@ export function ExecutiveDashboard() {
             <h3 className="text-[10px] font-black uppercase tracking-widest text-violet-500 mb-3 flex items-center gap-2">
               <BrainCircuit className="w-3 h-3" /> {t('executive.aiExecSummary', 'Resumen Ejecutivo IA')}
             </h3>
-            <div className="text-sm text-zinc-700 dark:text-zinc-300 space-y-2">
+            <div className="text-sm text-secondary-token space-y-2">
               {typeof executiveSummary === 'string'
                 ? executiveSummary.split('\n').filter(Boolean).map((line, i) => <p key={i}>{line}</p>)
                 : <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(executiveSummary, null, 2)}</pre>}
@@ -308,7 +308,7 @@ export function ExecutiveDashboard() {
             { label: 'Cumplimiento Prom.', value: `${avgCompliance}%`, icon: ShieldCheck, color: 'text-violet-500', bg: 'bg-violet-500/10 border-violet-500/20', trend: null },
           ].map((kpi, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5"
+              className="bg-elevated border border-default-token rounded-2xl p-5"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className={`w-9 h-9 rounded-xl ${kpi.bg} flex items-center justify-center border`}>
@@ -329,7 +329,7 @@ export function ExecutiveDashboard() {
         {/* Charts row 1 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Incident trend */}
-          <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5">
+          <div className="bg-elevated border border-default-token rounded-2xl p-5">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2">
               <Activity className="w-3 h-3" /> {t('executive.incidentTrend', 'Tendencia de Incidentes (6 meses)')}
             </p>
@@ -345,7 +345,7 @@ export function ExecutiveDashboard() {
           </div>
 
           {/* Risks by project */}
-          <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5">
+          <div className="bg-elevated border border-default-token rounded-2xl p-5">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2">
               <AlertTriangle className="w-3 h-3" /> Riesgos por Proyecto (Top 5)
             </p>
@@ -368,7 +368,7 @@ export function ExecutiveDashboard() {
         {/* Charts row 2 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Risk level pie */}
-          <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5">
+          <div className="bg-elevated border border-default-token rounded-2xl p-5">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">Distribución de Riesgos por Nivel</p>
             {riskLevelData.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
@@ -386,7 +386,7 @@ export function ExecutiveDashboard() {
           </div>
 
           {/* ISO 45001 radar */}
-          <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5">
+          <div className="bg-elevated border border-default-token rounded-2xl p-5">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">Índice ISO 45001</p>
             <ResponsiveContainer width="100%" height={200}>
               <RadarChart data={isoData}>
@@ -405,8 +405,8 @@ export function ExecutiveDashboard() {
         </div>
 
         {/* Project table */}
-        <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-zinc-200 dark:border-white/5">
+        <div className="bg-elevated border border-default-token rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-default-token">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Estado por Proyecto</p>
           </div>
           <div className="overflow-x-auto">
@@ -424,9 +424,9 @@ export function ExecutiveDashboard() {
                   <tr><td colSpan={4} className="text-center py-8 text-xs text-zinc-500">Sin proyectos</td></tr>
                 ) : (
                   projectRows.map((row, i) => (
-                    <tr key={row.id} className={`border-t border-zinc-100 dark:border-white/5 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors ${i % 2 === 0 ? '' : 'bg-zinc-50/50 dark:bg-white/[0.02]'}`}>
+                    <tr key={row.id} className={`border-t border-default-token hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors ${i % 2 === 0 ? '' : 'bg-zinc-50/50 dark:bg-white/[0.02]'}`}>
                       <td className="px-6 py-4">
-                        <p className="text-sm font-bold text-zinc-900 dark:text-white truncate max-w-[200px]">{row.name}</p>
+                        <p className="text-sm font-bold text-primary-token truncate max-w-[200px]">{row.name}</p>
                       </td>
                       <td className="px-4 py-4 text-center">
                         <div className="flex items-center justify-center gap-2">
@@ -451,7 +451,7 @@ export function ExecutiveDashboard() {
         </div>
 
         {/* ESG Score Panel */}
-        <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-6">
+        <div className="bg-elevated border border-default-token rounded-2xl p-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-500/10 rounded-xl">
@@ -474,7 +474,7 @@ export function ExecutiveDashboard() {
               { label: 'S — Social',    value: esgSocial,        insufficient: esgFlags['Social'],   color: 'text-sky-500' },
               { label: 'G — Gobierno',  value: esgGovernance,    insufficient: esgFlags['Gobierno'], color: 'text-violet-500' },
             ].map(({ label, value, insufficient, color }) => (
-              <div key={label} className="bg-zinc-50 dark:bg-black/30 rounded-xl p-3 text-center border border-zinc-100 dark:border-white/5">
+              <div key={label} className="bg-zinc-50 dark:bg-black/30 rounded-xl p-3 text-center border border-default-token">
                 <p className={`text-2xl font-black ${insufficient ? 'text-zinc-400' : color}`}>{insufficient ? '—' : value}</p>
                 <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{label}</p>
               </div>
