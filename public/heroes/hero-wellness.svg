@@ -1,0 +1,15 @@
+<svg viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a4a3a"/>
+      <stop offset="100%" stop-color="#0d3326"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="400" fill="url(#g)"/>
+  <!-- heart cross -->
+  <g transform="translate(300,200)" fill="none" stroke="#4db6ac" stroke-width="3" opacity="0.35">
+    <path d="M0,60 C-60,20 -90,-20 -60,-50 C-30,-80 0,-50 0,-30 C0,-50 30,-80 60,-50 C90,-20 60,20 0,60Z"/>
+    <line x1="0" y1="-90" x2="0" y2="90"/>
+    <line x1="-50" y1="0" x2="50" y2="0"/>
+  </g>
+</svg>

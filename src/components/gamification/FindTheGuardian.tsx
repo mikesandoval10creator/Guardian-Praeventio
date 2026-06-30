@@ -77,8 +77,7 @@ export function FindTheGuardian() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // Placeholder image for the industrial scene
-  const imageUrl = "https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=2070&auto=format&fit=crop";
+  const imageUrl = "/heroes/hero-construction.svg";
 
   useEffect(() => {
     const allFound = items.every(item => item.found);
