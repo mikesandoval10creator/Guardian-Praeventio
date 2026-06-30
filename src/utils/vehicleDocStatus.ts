@@ -32,10 +32,15 @@ export function vehicleDocStatus(
   const expiry = new Date(expiresAt);
   if (Number.isNaN(expiry.getTime())) return { state: 'sin_dato', daysLeft: null };
 
-  // Compare at day granularity so "expires today" is not prematurely "vencido".
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfExpiry = new Date(expiry.getFullYear(), expiry.getMonth(), expiry.getDate());
-  const daysLeft = Math.round((startOfExpiry.getTime() - startOfToday.getTime()) / MS_PER_DAY);
+  // Compare at day granularity in UTC so date-only ISO inputs (parsed as UTC
+  // midnight) align with `now` regardless of the runtime's local timezone.
+  // Mixing local-tz getters with UTC-parsed dates produced an off-by-one in any
+  // UTC-negative zone — including Chile (America/Santiago) — so a document
+  // expiring "today" wrongly read as vencido. "Expires today" must stay
+  // por_vencer (daysLeft 0), never prematurely vencido.
+  const startOfToday = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const startOfExpiry = Date.UTC(expiry.getUTCFullYear(), expiry.getUTCMonth(), expiry.getUTCDate());
+  const daysLeft = Math.round((startOfExpiry - startOfToday) / MS_PER_DAY);
 
   if (daysLeft < 0) return { state: 'vencido', daysLeft };
   if (daysLeft <= warnWithinDays) return { state: 'por_vencer', daysLeft };
