@@ -186,8 +186,18 @@ function twoOpt(
   const N = sequence.length;
   if (N < 4) return sequence; // 2-opt needs ≥4 nodes
   const route = sequence.slice();
+  // Convergence guard: a correct 2-opt local search converges within a bounded
+  // number of full passes. Require a strict improvement margin (EPS) so
+  // floating-point cost ties cannot trigger an oscillating zero-gain swap that
+  // keeps `improved` true forever, and cap total passes at N² (far above the
+  // O(N) expected) as a hard backstop against NaN/Infinity-tainted costs.
+  // Without this the loop could spin indefinitely (it hung the test suite).
+  const EPS = 1e-9;
+  const maxPasses = N * N;
+  let passes = 0;
   let improved = true;
-  while (improved) {
+  while (improved && passes < maxPasses) {
+    passes++;
     improved = false;
     for (let i = 1; i < N - 2; i++) {
       for (let k = i + 1; k < N - 1; k++) {
@@ -199,7 +209,7 @@ function twoOpt(
         const d = route[k + 1];
         const oldCost = edgeCost(a, b, weights) + edgeCost(c, d, weights);
         const newCost = edgeCost(a, c, weights) + edgeCost(b, d, weights);
-        if (newCost < oldCost) {
+        if (newCost < oldCost - EPS) {
           // Reverse i..k in place.
           const reversed = route.slice(i, k + 1).reverse();
           route.splice(i, k - i + 1, ...reversed);
