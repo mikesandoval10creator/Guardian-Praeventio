@@ -113,7 +113,7 @@
     "@react-three/rapier": "^2.2.0",
     "@sentry/node": "^10.59.0",
     "@sentry/react": "^10.59.0",
-    "@simplewebauthn/server": "^11.0.0",
+    "@simplewebauthn/server": "^13.3.2",
     "@tailwindcss/vite": "^4.3.1",
     "@tremor/react": "^3.18.7",
     "@turf/boolean-point-in-polygon": "^7.3.5",
