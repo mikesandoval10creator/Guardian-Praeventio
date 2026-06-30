@@ -27,7 +27,7 @@ describe('<RegulatoryCitation />', () => {
     );
     const text = container.textContent ?? '';
     expect(text).toContain('ISO-45001:5.4');
-    expect(text).toContain('DS-54');
+    expect(text).toContain('DS-44');
     expect(text).toContain('Chile');
   });
 

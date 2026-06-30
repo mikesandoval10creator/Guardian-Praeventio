@@ -201,7 +201,7 @@ async function analyzeRiskWithAIImpl(
     1. Lista de recomendaciones inmediatas.
     2. Lista de controles a implementar siguiendo la Jerarquía de Controles
        (eliminación → sustitución → ingeniería → administrativo → EPP).
-    3. Normativa aplicable (ej. DS 594, DS 44/2024, DS 54, Ley 16.744, NCh ISO 45001).`;
+    3. Normativa aplicable (ej. DS 594, DS 44/2024 [ex DS 54 y ex DS 40, derogados 01-02-2025], Ley 16.744, NCh ISO 45001).`;
 
   const safePrompt = redactPromptForVertex(prompt, 'analyzeRiskWithAI');
 

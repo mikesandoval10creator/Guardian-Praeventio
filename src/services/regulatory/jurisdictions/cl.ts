@@ -15,10 +15,10 @@ const BCN = 'https://www.bcn.cl';
 export const CL_REFERENCES: Record<string, RegulationRef[]> = {
   WORKER_PARTICIPATION: [
     {
-      code: 'DS-54',
-      title: 'DS 54 art. 21 — Comité Paritario de Higiene y Seguridad',
+      code: 'DS-44',
+      title: 'DS 44/2024 (ex DS 54, derogado 01-02-2025) — Comité Paritario de Higiene y Seguridad',
       jurisdiction: 'CL',
-      url: `${BCN}/leychile/navegar?idNorma=10626`,
+      url: `${BCN}/leychile/navegar?idNorma=1217760`,
       scope: 'CPHS obligatorio en faenas con 25+ trabajadores; participación bipartita',
     },
   ],

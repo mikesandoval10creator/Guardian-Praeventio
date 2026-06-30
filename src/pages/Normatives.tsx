@@ -118,18 +118,18 @@ export function Normatives() {
           lastReview: new Date().toISOString()
         },
         {
-          title: 'Decreto Supremo 40: Reglamento sobre Prevención de Riesgos Profesionales',
+          title: 'Decreto Supremo 44/2024: Reglamento sobre Prevención de Riesgos Profesionales (reemplaza al DS 40/1969, derogado 01-02-2025)',
           code: 'DS 44/2024',
           category: 'Prevención',
-          description: 'Establece normas sobre la organización y funcionamiento de los Departamentos de Prevención de Riesgos.',
+          description: 'Establece normas sobre la organización y funcionamiento de los Departamentos de Prevención de Riesgos. Reemplaza al DS 40/1969 (derogado).',
           status: 'active',
           lastReview: new Date().toISOString()
         },
         {
-          title: 'Decreto Supremo 54: Reglamento para la Constitución y Funcionamiento de los Comités Paritarios de Higiene y Seguridad',
-          code: 'DS 54',
+          title: 'Decreto Supremo 44/2024: Constitución y Funcionamiento de los Comités Paritarios de Higiene y Seguridad (ex DS 54/1969, derogado 01-02-2025)',
+          code: 'DS 44/2024',
           category: 'Comités Paritarios',
-          description: 'Regula la formación y funciones de los Comités Paritarios en empresas con más de 25 trabajadores.',
+          description: 'Regula la formación y funciones de los Comités Paritarios en empresas con más de 25 trabajadores. Materia antes regida por el DS 54/1969, derogado por el DS 44/2024.',
           status: 'active',
           lastReview: new Date().toISOString()
         },
